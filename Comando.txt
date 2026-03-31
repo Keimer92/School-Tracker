@@ -1,0 +1,14 @@
+.\dev.bat
+
+npm run tauri android dev
+
+npm run tauri android build
+
+
+
+Ctrl Alt N
+
+
+aicommit2 --all
+API Groq
+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

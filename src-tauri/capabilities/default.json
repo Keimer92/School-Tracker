@@ -1,0 +1,44 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window",
+  "windows": [
+    "main",
+    "google-login"
+  ],
+  "permissions": [
+    "core:default",
+    "opener:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "file://*" }, { "url": "https://*" }]
+    },
+    "deep-link:default",
+    "deep-link:allow-register",
+    "deep-link:allow-get-current",
+    "deep-link:allow-is-registered",
+    "dialog:default",
+    "fs:default",
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [{ "path": "$TEMP/**" }]
+    },
+    "fs:allow-exists",
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [{ "path": "$TEMP/**" }]
+    },
+    "fs:allow-desktop-write-recursive",
+    "fs:allow-download-write-recursive",
+    "fs:allow-document-write-recursive",
+    "allow-local-commands",
+    "core:window:allow-create",
+    "core:window:allow-close",
+    "core:window:default",
+    "core:event:allow-emit",
+    "core:event:allow-listen",
+    "core:webview:allow-create-webview-window",
+    "core:webview:allow-create-webview",
+    "core:webview:default"
+  ]
+}
