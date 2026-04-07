@@ -3,7 +3,7 @@ mod db;
 use db::*;
 use rusqlite::Connection;
 use std::sync::{Arc, Mutex};
-use tauri::{Emitter, Manager};
+use tauri::{Emitter, Listener, Manager};
 
 #[tauri::command]
 fn set_orientation(_app_handle: tauri::AppHandle, _orientation: String) -> Result<(), String> {
@@ -98,21 +98,6 @@ fn save_file_android(_app_handle: tauri::AppHandle, _path: String, _mime: String
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-            // Cuando el OS intenta abrir una segunda instancia con el deep-link,
-            // single-instance lo intercepta y pasa los args aquí.
-            // Buscamos el argumento que contenga alguno de nuestros esquemas.
-            let deep_link_url = args.iter().find(|a| {
-                a.contains("com.keimer.senkuapp://") || a.contains("appwrite-callback-69bcc5c3000d4847de99://")
-            });
-            if let Some(url) = deep_link_url {
-                let _ = app.emit("deep-link-received", url.clone());
-            }
-            // Traer la ventana principal al frente
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_focus();
-            }
-        }))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
@@ -126,16 +111,26 @@ pub fn run() {
             db::run_migrations(&conn).expect("Failed to run migrations");
             app_handle.manage(DbState { conn: Arc::new(Mutex::new(conn)) });
 
+            // Manejar deep links en mobile
+            #[cfg(mobile)]
+            {
+                let app_handle = app.handle().clone();
+                app.listen("deep-link-received", move |event: tauri::Event| {
+                    println!("Deep-link recibido: {:?}", event.payload());
+                    let _ = app_handle.emit("deep-link-received", event.payload().to_string());
+                });
+            }
+
             #[cfg(desktop)]
             {
                 use tauri_plugin_deep_link::DeepLinkExt;
-                
+
                 // Registrar el esquema en el sistema operativo (necesario en dev mode en Windows/Linux)
                 // Esto le dice al OS que "com.keimer.senkuapp://" debe abrir esta app
                 if let Err(e) = app.deep_link().register_all() {
                     eprintln!("Warning: No se pudo registrar deep-link scheme: {}", e);
                 }
-                
+
                 let handle = app.handle().clone();
                 app.handle().deep_link().on_open_url(move |event| {
                     for url in event.urls() {

@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 // @ts-expect-error process is a nodejs global
-const host = process.env.TAURI_DEV_HOST;
+const host = process.env.TAURI_DEV_HOST || "localhost";
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
@@ -16,10 +16,10 @@ export default defineConfig(async () => ({
   server: {
     port: 1420,
     strictPort: true,
-    host: 'localhost',
+    host: host,
     hmr: {
       protocol: 'ws',
-      host: 'localhost',
+      host: host,
     },
     watch: {
       // 3. tell vite to ignore watching `src-tauri`
