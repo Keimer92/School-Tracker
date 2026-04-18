@@ -176,7 +176,12 @@ pub fn run() {
             reset_local_database, get_grados_by_colegio, get_secciones_by_grado_colegio,
             upsert_pull_data, get_colegio_dias_asistencia_all,
             get_pending_deletions, remove_pending_deletion,
-            remove_pending_deletion_by_record, get_recommended_colegio
+            remove_pending_deletion_by_record, get_recommended_colegio,
+            // Nuevas funciones para tablas con claves compuestas
+            get_pending_deletions_asistencia, remove_pending_deletion_asistencia,
+            get_pending_deletions_nota, remove_pending_deletion_nota,
+            get_pending_deletions_grado_asignatura, remove_pending_deletion_grado_asignatura,
+            get_pending_deletions_colegio_asignatura, remove_pending_deletion_colegio_asignatura
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
