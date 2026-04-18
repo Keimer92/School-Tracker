@@ -4,6 +4,32 @@
 [Console]::InputEncoding = [System.Text.Encoding]::UTF8
 $ErrorActionPreference = "Continue"
 
+# Buscar npm.exe y agregar su directorio al PATH
+$npmPaths = @(
+    "C:\Program Files\nodejs\npm.cmd",
+    "${env:ProgramFiles}\nodejs\npm.cmd",
+    "$env:AppData\npm\npm.cmd",
+    "$env:LOCALAPPDATA\Programs\nodejs\npm.cmd"
+)
+
+$nodeFound = $false
+foreach ($npmPath in $npmPaths) {
+    if (Test-Path $npmPath) {
+        $npmDir = Split-Path $npmPath -Parent
+        if ($env:Path -notlike "*$npmDir*") {
+            $env:Path = "$npmDir;$env:Path"
+        }
+        $nodeFound = $true
+        break
+    }
+}
+
+if (-not $nodeFound) {
+    Write-Host "[ERROR] No se encontró npm. Instala Node.js desde https://nodejs.org" -ForegroundColor Red
+    Start-Sleep -Seconds 3
+    exit 1
+}
+
 # Función para cargar el entorno de Visual Studio (cl.exe)
 function Import-VSVars {
     if (Get-Command "cl.exe" -ErrorAction SilentlyContinue) { return }
@@ -33,6 +59,26 @@ Import-VSVars
 $env:CC = "cl.exe"
 $env:CXX = "cl.exe"
 
+# Verificar e inicializar proyecto Android si no existe
+$androidProjectPath = "$PSScriptRoot\src-tauri\gen\android"
+    if (-not (Test-Path $androidProjectPath)) {
+        Write-Host "`n[INFO] Proyecto Android no encontrado. Inicializando..." -ForegroundColor Yellow
+        Write-Host "============================================================" -ForegroundColor Cyan
+        
+        npm run tauri android init
+        
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "`n[ERROR] Falló la inicialización del proyecto Android." -ForegroundColor Red
+            Write-Host "[INFO] Verifica que Android SDK y NDK estén instalados correctamente." -ForegroundColor Gray
+            Write-Host "[INFO] Puedes intentar ejecutar manualmente: npm run tauri android init" -ForegroundColor Gray
+            Write-Host "`nPresione cualquier tecla para continuar..."
+            $null = [Console]::ReadKey($true)
+        } else {
+            Write-Host "`n[OK] Proyecto Android inicializado correctamente!" -ForegroundColor Green
+        }
+        Write-Host "============================================================`n" -ForegroundColor Cyan
+    }
+
 function Show-Menu {
     Clear-Host
     Write-Host "`n==============================================" -ForegroundColor Cyan
@@ -48,11 +94,20 @@ function Show-Menu {
 
 # Bucle infinito para que el script NUNCA se cierre solo
 while ($true) {
+    # Manejador de interrupciones (Ctrl+C) y errores fatales
+    trap {
+        Write-Host "`n`n[SISTEMA] Proceso interrumpido o error detectado." -ForegroundColor Yellow
+        Write-Host "Regresando al menú principal..." -ForegroundColor Yellow
+        Start-Sleep -Seconds 2
+        Clear-Host
+        continue
+    }
+
     try {
         Show-Menu
-        Write-Host "Seleccione una opci$([char]0x00F3)n: " -NoNewline
+        Write-Host "Seleccione una opción: " -NoNewline
         $modo = Read-Host
-        
+
         if ($modo -eq "5") {
             Write-Host "`nSaliendo..." -ForegroundColor Cyan
             break
@@ -62,7 +117,13 @@ while ($true) {
             "1" {
                 $env:TAURI_DEV_HOST = "0.0.0.0"
                 Write-Host "`n[INFO] Iniciando desarrollo en Windows..." -ForegroundColor Yellow
+                Write-Host "[INFO] Presiona Ctrl+C para detener el proceso y volver al menú." -ForegroundColor DarkGray
+
+                # Ejecutar npm run tauri dev (más directo que npx tauri)
                 npm run tauri dev
+
+                Write-Host "`n[OK] Proceso de desarrollo finalizado." -ForegroundColor Green
+                Start-Sleep -Seconds 1
             }
             "2" {
                 # Para el emulador, usar localhost (10.0.2.2 es como el emulador ve localhost)
@@ -218,25 +279,9 @@ while ($true) {
                 Write-Host "============================================================" -ForegroundColor Cyan
                 Write-Host "Tiempo estimado: 5-15 minutos (primera vez)" -ForegroundColor Gray
                 Write-Host "============================================================`n" -ForegroundColor Cyan
-                
-                # Verificar si el proyecto Android está inicializado
-                $androidProjectPath = "$PSScriptRoot\src-tauri\gen\android"
-                if (-not (Test-Path $androidProjectPath)) {
-                    Write-Host "[INFO] Proyecto Android no inicializado. Ejecutando 'tauri android init'..." -ForegroundColor Yellow
-                    & npm run tauri android init
-                    
-                    if ($LASTEXITCODE -ne 0) {
-                        Write-Host "`n[ERROR] Falló la inicialización del proyecto Android." -ForegroundColor Red
-                        Start-Sleep -Seconds 2
-                        continue
-                    }
-                    
-                    Write-Host "[OK] Proyecto Android inicializado correctamente." -ForegroundColor Green
-                    Write-Host "`n[INFO] Ahora compilando la app..." -ForegroundColor Yellow
-                }
-                
+
                 # Ejecutar npm con output en tiempo real
-                & npm run tauri android dev
+                npm run tauri android dev
                 
                 Write-Host "`n[OK] Proceso completado!" -ForegroundColor Green
             }
@@ -259,14 +304,10 @@ while ($true) {
         Write-Host "`nPresione cualquier tecla para volver al men$([char]0x00FA)..."
         $null = [Console]::ReadKey($true)
 
-    } catch [System.Management.Automation.PipelineStoppedException] {
-        # Este bloque captura específicamente el Ctrl + C
-        Write-Host "`n`n[SISTEMA] Interrupci$([char]0x00F3)n detectada. Regresando al men$([char]0x00FA)..." -ForegroundColor Yellow
-        Start-Sleep -Seconds 1
     } catch {
-        # Captura cualquier otro error inesperado
-        Write-Host "`n`n[ERROR] Ocurri$([char]0x00F3) un error inesperado: $_" -ForegroundColor Red
-        Write-Host "Regresando al men$([char]0x00FA)..."
+        # Captura cualquier error inesperado dentro del try
+        Write-Host "`n`n[ERROR] Ocurrió un error: $_" -ForegroundColor Red
+        Write-Host "Regresando al menú..."
         Start-Sleep -Seconds 2
     }
 }
