@@ -115,7 +115,7 @@ while ($true) {
 
         switch ($modo) {
             "1" {
-                $env:TAURI_DEV_HOST = "0.0.0.0"
+                $env:TAURI_DEV_HOST = "localhost"
                 Write-Host "`n[INFO] Iniciando desarrollo en Windows..." -ForegroundColor Yellow
                 Write-Host "[INFO] Presiona Ctrl+C para detener el proceso y volver al menú." -ForegroundColor DarkGray
 

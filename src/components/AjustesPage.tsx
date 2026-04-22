@@ -8,8 +8,6 @@ import * as XLSX from "xlsx";
 import { Auth } from "./Auth";
 import { supabase } from "../lib/supabase";
 import { syncService, syncManager, SyncStatus } from "../lib/syncService";
-import { checkAppwriteInitialized } from "../lib/cloud/initAppwrite";
-import { getSelectedProvider } from "../lib/cloud/config";
 import "../App.css";
 
 interface CategoryItem {
@@ -59,14 +57,6 @@ export function AjustesPage() {
     message: null as string | null,
   });
   
-  // Appwrite initialization state
-  const [appwriteInitialized, setAppwriteInitialized] = useState<{
-    initialized: boolean;
-    collections: string[];
-    missing: string[];
-  } | null>(null);
-  const [checkingAppwrite, setCheckingAppwrite] = useState(false);
-
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetConfig, setResetConfig] = useState<{
     title: string;
@@ -352,47 +342,6 @@ export function AjustesPage() {
       }
     } catch (error) {
       console.error("Error al seleccionar carpeta:", error);
-    }
-  };
-
-  const checkAppwriteStatus = async () => {
-    setCheckingAppwrite(true);
-    try {
-      const provider = getSelectedProvider();
-      if (provider !== 'appwrite') {
-        await emit("show-toast", {
-          message: "⚠️ Selecciona Appwrite como proveedor primero",
-          type: "warning",
-        });
-        setCheckingAppwrite(false);
-        return;
-      }
-
-      const status = await checkAppwriteInitialized(
-        'https://tor.cloud.appwrite.io/v1',
-        '69bcc5c3000d4847de99'
-      );
-      setAppwriteInitialized(status);
-      
-      if (status.initialized) {
-        await emit("show-toast", {
-          message: `✅ Appwrite listo: ${status.collections.length} colecciones encontradas`,
-          type: "success",
-        });
-      } else {
-        await emit("show-toast", {
-          message: `⚠️ Faltan ${status.missing.length} colecciones`,
-          type: "warning",
-        });
-      }
-    } catch (error: any) {
-      console.error("Error verificando Appwrite:", error);
-      await emit("show-toast", {
-        message: "❌ Error: " + error.message,
-        type: "error",
-      });
-    } finally {
-      setCheckingAppwrite(false);
     }
   };
 
@@ -1373,291 +1322,183 @@ export function AjustesPage() {
             </div>
             <div style={{ padding: "1rem" }}>
               <Auth />
-              {isSynced && (
-                <>
-                  {/* Appwrite Status Section */}
-                  <div
-                    style={{
-                      marginTop: "1rem",
-                      padding: "1rem",
-                      background: "rgba(240, 46, 101, 0.05)",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(240, 46, 101, 0.2)",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "0.75rem",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
-                    >
-                      <span style={{ color: "#f02e65", fontSize: "0.9rem", fontWeight: "600" }}>
-                        🟣 Estado de Appwrite
-                      </span>
-                      <button
-                        onClick={checkAppwriteStatus}
-                        disabled={checkingAppwrite}
-                        style={{
-                          padding: "0.4rem 0.8rem",
-                          background: checkingAppwrite ? "rgba(240, 46, 101, 0.2)" : "rgba(240, 46, 101, 0.1)",
-                          border: "1px solid rgba(240, 46, 101, 0.3)",
-                          borderRadius: "6px",
-                          color: "#f02e65",
-                          fontSize: "0.8rem",
-                          cursor: checkingAppwrite ? "not-allowed" : "pointer",
-                          transition: "all 0.2s",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "6px",
-                        }}
-                      >
-                        {checkingAppwrite ? (
-                          <>
-                            <div
-                              style={{
-                                width: "10px",
-                                height: "10px",
-                                border: "2px solid rgba(240, 46, 101, 0.3)",
-                                borderTop: "2px solid #f02e65",
-                                borderRadius: "50%",
-                                animation: "spin 1s linear infinite",
-                              }}
-                            ></div>
-                            Verificando...
-                          </>
-                        ) : (
-                          <>🔍 Verificar Colecciones</>
-                        )}
-                      </button>
-                    </div>
-                    
-                    {appwriteInitialized && (
-                      <div
-                        style={{
-                          fontSize: "0.8rem",
-                          color: appwriteInitialized.initialized ? "#4ade80" : "#fbbf24",
-                          background: appwriteInitialized.initialized
-                            ? "rgba(74, 222, 128, 0.1)"
-                            : "rgba(251, 191, 36, 0.1)",
-                          padding: "8px 12px",
-                          borderRadius: "6px",
-                          border: `1px solid ${appwriteInitialized.initialized ? "rgba(74, 222, 128, 0.3)" : "rgba(251, 191, 36, 0.3)"}`,
-                        }}
-                      >
-                        {appwriteInitialized.initialized ? (
-                          <div>
-                            ✅ <strong>Appwrite listo para sincronizar</strong>
-                            <br />
-                            {appwriteInitialized.collections.length} colecciones encontradas
-                          </div>
-                        ) : (
-                          <div>
-                            ⚠️ <strong>Faltan colecciones por crear</strong>
-                            <br />
-                            {appwriteInitialized.collections.length} encontradas | {appwriteInitialized.missing.length} faltantes
-                            <details style={{ marginTop: "8px", cursor: "pointer" }}>
-                              <summary style={{ color: "#f02e65", marginTop: "4px" }}>
-                                Ver colecciones faltantes ({appwriteInitialized.missing.length})
-                              </summary>
-                              <ul style={{ 
-                                margin: "8px 0 0 0", 
-                                paddingLeft: "20px",
-                                color: "#94a3b8",
-                                fontSize: "0.75rem",
-                              }}>
-                                {appwriteInitialized.missing.map(c => (
-                                  <li key={c}>{c}</li>
-                                ))}
-                              </ul>
-                            </details>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    
-                    <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
-                      ℹ️ Appwrite es tu proveedor actual. Asegúrate de haber creado las colecciones en la consola.
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      marginTop: "1rem",
-                      padding: "1rem",
-                      background: "rgba(255,255,255,0.03)",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "0.5rem",
-                    }}
-                  >
+              
+              <div
+                style={{
+                  marginTop: "1rem",
+                  padding: "1rem",
+                  background: "rgba(255,255,255,0.03)",
+                  borderRadius: "8px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.5rem",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <span style={{ color: "#94a3b8", fontSize: "0.9rem" }}>
+                    Estado del servicio:
+                  </span>
                   <div
                     style={{
                       display: "flex",
-                      justifyContent: "space-between",
                       alignItems: "center",
-                    }}
-                  >
-                    <span style={{ color: "#94a3b8", fontSize: "0.9rem" }}>
-                      Estado del servicio:
-                    </span>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: "0.85rem",
-                          fontWeight: "bold",
-                          color:
-                            syncStatus.status === "syncing"
-                              ? "#60a5fa"
-                              : syncStatus.status === "success"
-                                ? "#4ade80"
-                                : syncStatus.status === "error"
-                                  ? "#f87171"
-                                  : "#94a3b8",
-                        }}
-                      >
-                        {syncStatus.status === "syncing"
-                          ? "🔄 Sincronizando..."
-                          : syncStatus.status === "success"
-                            ? "✅ Sincronizado"
-                            : syncStatus.status === "error"
-                              ? "❌ Error"
-                              : "💤 En espera"}
-                      </span>
-                      {syncStatus.status === "syncing" && (
-                        <div
-                          className="sync-spinner"
-                          style={{
-                            width: "12px",
-                            height: "12px",
-                            border: "2px solid rgba(255,255,255,0.1)",
-                            borderTop: "2px solid #60a5fa",
-                            borderRadius: "50%",
-                            animation: "spin 1s linear infinite",
-                          }}
-                        ></div>
-                      )}
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
                       gap: "8px",
-                      marginTop: "0.5rem",
                     }}
                   >
-                    <button
-                      onClick={() => syncService.syncAll()}
-                      disabled={syncStatus.status === "syncing"}
+                    <span
                       style={{
-                        padding: "0.6rem",
-                        background: "rgba(96, 165, 250, 0.1)",
-                        border: "1px solid rgba(96, 165, 250, 0.2)",
-                        borderRadius: "6px",
-                        color: "#60a5fa",
                         fontSize: "0.85rem",
-                        cursor: "pointer",
-                        transition: "all 0.2s",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "8px",
-                      }}
-                    >
-                      Subir Todo a la Nube 📤
-                    </button>
-                    <button
-                      onClick={() => syncService.pullAll()}
-                      disabled={syncStatus.status === "syncing"}
-                      style={{
-                        padding: "0.6rem",
-                        background: "rgba(16, 185, 129, 0.1)",
-                        border: "1px solid rgba(16, 185, 129, 0.2)",
-                        borderRadius: "6px",
-                        color: "#10b981",
-                        fontSize: "0.85rem",
-                        cursor: "pointer",
-                        transition: "all 0.2s",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: "8px",
-                      }}
-                    >
-                      Descargar Todo de la Nube 📥
-                    </button>
-                  </div>
-                  {syncStatus.message && (
-                    <div
-                      style={{
-                        fontSize: "0.8rem",
+                        fontWeight: "bold",
                         color:
-                          syncStatus.status === "error" ? "#f87171" : "#60a5fa",
-                        background: "rgba(0,0,0,0.2)",
-                        padding: "4px 8px",
-                        borderRadius: "4px",
-                        marginTop: "4px",
+                          syncStatus.status === "syncing"
+                            ? "#60a5fa"
+                            : syncStatus.status === "success"
+                              ? "#4ade80"
+                              : syncStatus.status === "error"
+                                ? "#f87171"
+                                : "#94a3b8",
                       }}
                     >
-                      {syncStatus.message}
-                    </div>
-                  )}
+                      {syncStatus.status === "syncing"
+                        ? "🔄 Sincronizando..."
+                        : syncStatus.status === "success"
+                          ? "✅ Sincronizado"
+                          : syncStatus.status === "error"
+                            ? "❌ Error"
+                            : "💤 En espera"}
+                    </span>
+                    {syncStatus.status === "syncing" && (
+                      <div
+                        className="sync-spinner"
+                        style={{
+                          width: "12px",
+                          height: "12px",
+                          border: "2px solid rgba(255,255,255,0.1)",
+                          borderTop: "2px solid #60a5fa",
+                          borderRadius: "50%",
+                          animation: "spin 1s linear infinite",
+                        }}
+                      ></div>
+                    )}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "8px",
+                    marginTop: "0.5rem",
+                  }}
+                >
+                  <button
+                    onClick={() => syncService.syncAll()}
+                    disabled={syncStatus.status === "syncing"}
+                    style={{
+                      padding: "0.6rem",
+                      background: "rgba(96, 165, 250, 0.1)",
+                      border: "1px solid rgba(96, 165, 250, 0.2)",
+                      borderRadius: "6px",
+                      color: "#60a5fa",
+                      fontSize: "0.85rem",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    Subir Todo 📤
+                  </button>
+                  <button
+                    onClick={() => syncService.pullAll()}
+                    disabled={syncStatus.status === "syncing"}
+                    style={{
+                      padding: "0.6rem",
+                      background: "rgba(16, 185, 129, 0.1)",
+                      border: "1px solid rgba(16, 185, 129, 0.2)",
+                      borderRadius: "6px",
+                      color: "#10b981",
+                      fontSize: "0.85rem",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    Descargar Todo 📥
+                  </button>
+                </div>
+
+                {syncStatus.message && (
                   <div
                     style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
+                      fontSize: "0.8rem",
+                      color:
+                        syncStatus.status === "error" ? "#f87171" : "#60a5fa",
+                      background: "rgba(0,0,0,0.2)",
+                      padding: "4px 8px",
+                      borderRadius: "4px",
                       marginTop: "4px",
                     }}
                   >
-                    <span style={{ color: "#64748b", fontSize: "0.75rem" }}>
-                      Última vez:
+                    {syncStatus.message}
+                  </div>
+                )}
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginTop: "4px",
+                  }}
+                >
+                  <span style={{ color: "#64748b", fontSize: "0.75rem" }}>
+                    Última vez:
+                  </span>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "flex-end",
+                    }}
+                  >
+                    <span style={{ color: "#94a3b8", fontSize: "0.75rem" }}>
+                      {syncStatus.lastSync
+                        ? new Date(syncStatus.lastSync).toLocaleString()
+                        : "Nunca"}
                     </span>
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "flex-end",
-                      }}
-                    >
-                      <span style={{ color: "#94a3b8", fontSize: "0.75rem" }}>
-                        {syncStatus.lastSync
-                          ? new Date(syncStatus.lastSync).toLocaleString()
-                          : "Nunca"}
+                    {syncStatus.lastSyncDetails && (
+                      <span
+                        style={{
+                          color: "#60a5fa",
+                          fontSize: "0.7rem",
+                          fontStyle: "italic",
+                          marginTop: "2px",
+                          maxWidth: "200px",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {syncStatus.lastSyncDetails}
                       </span>
-                      {syncStatus.lastSyncDetails && (
-                        <span
-                          style={{
-                            color: "#60a5fa",
-                            fontSize: "0.7rem",
-                            fontStyle: "italic",
-                            marginTop: "2px",
-                            maxWidth: "200px",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {syncStatus.lastSyncDetails}
-                        </span>
-                      )}
-                    </div>
+                    )}
                   </div>
                 </div>
-                </>
-              )}
+              </div>
+
               <div
                 style={{
                   marginTop: "1.5rem",

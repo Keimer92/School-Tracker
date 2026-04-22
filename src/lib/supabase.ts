@@ -1,17 +1,27 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('Supabase URL or Anon Key missing in environment variables');
+if (!supabaseUrl || !supabaseAnonKey || supabaseAnonKey === 'TU_ANON_KEY_AQUI') {
+  console.error('CRÍTICO: Falta la configuración de Supabase en el archivo .env');
 }
 
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
-  auth: {
-    flowType: 'pkce',
-    detectSessionInUrl: false, // Desactivamos esto porque lo manejamos nosotros manualmente
-    persistSession: true,
-    autoRefreshToken: true
+// Singleton para evitar múltiples instancias
+let instance: SupabaseClient | null = null;
+
+export const getSupabase = () => {
+  if (!instance) {
+    instance = createClient(supabaseUrl || '', supabaseAnonKey || '', {
+      auth: {
+        flowType: 'implicit', // Cambiamos a implicit para evitar errores de "invalid flow state"
+        detectSessionInUrl: true,
+        persistSession: true,
+        autoRefreshToken: true
+      }
+    });
   }
-});
+  return instance;
+};
+
+export const supabase = getSupabase();

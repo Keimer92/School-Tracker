@@ -22,7 +22,7 @@ export class SupabaseBackend implements CloudProvider {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: 'com.keimer.senkuapp://supabase',
+        redirectTo: 'com.keimer.schooltrackerpro://supabase',
         skipBrowserRedirect: true
       }
     });

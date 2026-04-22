@@ -1,13 +1,11 @@
 import { supabase } from './supabase';
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
-import { cloud } from './cloud/CloudBridge';
-import { getSelectedProvider } from './cloud/config';
 
 /**
- * Servicio de sincronización híbrida (Local <-> Supabase/Appwrite)
+ * Servicio de sincronización (Local <-> Supabase)
  * Estrategia: "Local-First". Los cambios se hacen en SQLite primero
- * y luego se intentan replicar en la nube seleccionada (Supabase o Appwrite).
+ * y luego se intentan replicar en la nube (Supabase).
  */
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'success';
@@ -1111,7 +1109,7 @@ export const syncService = {
   /**
    * Sincronización Descendente (Nube -> Local)
    * Útil tras iniciar sesión para recuperar datos previos.
-   * Usa el proveedor seleccionado (Supabase o Appwrite)
+   * Usa Supabase como proveedor.
    */
   pullAll: async () => {
     return syncManager.wrapSync((async () => {
@@ -1121,43 +1119,36 @@ export const syncService = {
       // 0. Procesar eliminaciones pendientes antes de descargar datos
       await syncService.syncPendingDeletions();
 
-      // 1. Obtener el proveedor seleccionado
-      const selectedProvider = getSelectedProvider();
-      console.log(`[Sync] Usando proveedor: ${selectedProvider.toUpperCase()}`);
+      console.log(`[Sync] Iniciando descarga de datos desde Supabase...`);
 
       let pullData: any;
 
-      if (selectedProvider === 'appwrite') {
-        // Usar Appwrite provider
-        const provider = cloud.getProvider();
-        pullData = await provider.pullAll();
-      } else {
-        // Usar Supabase (implementación original)
-        const tables = [
-          'ano_lectivo', 'corte_evaluativo', 'colegio', 'asignatura', 'grado', 'seccion',
-          'estudiante', 'indicador', 'criterio', 'nota', 'asistencia',
-          'configuracion_calificacion', 'grado_asignatura', 'colegio_asignatura', 'colegio_dias_asistencia'
-        ];
+      // Usar Supabase
+      const tables = [
+        'ano_lectivo', 'corte_evaluativo', 'colegio', 'asignatura', 'grado', 'seccion',
+        'estudiante', 'indicador', 'criterio', 'nota', 'asistencia',
+        'configuracion_calificacion', 'grado_asignatura', 'colegio_asignatura', 'colegio_dias_asistencia'
+      ];
 
-        const results = await Promise.all(
-          tables.map(table => supabase.from(table).select('*').eq('user_id', userId))
-        );
+      const results = await Promise.all(
+        tables.map(table => supabase.from(table).select('*').eq('user_id', userId))
+      );
 
-        // Verificar errores en cada consulta
-        const errors = results.filter(r => r.error).map(r => r.error);
-        if (errors.length > 0) {
-          const errorDetails = errors.map(e => e?.message).join(', ');
-          throw new Error(`Error descargando datos: ${errorDetails}`);
-        }
+      // Verificar errores en cada consulta
+      const errors = results.filter(r => r.error).map(r => r.error);
+      if (errors.length > 0) {
+        const errorDetails = errors.map(e => e?.message).join(', ');
+        throw new Error(`Error descargando datos: ${errorDetails}`);
+      }
 
-        const [
-          anos, cortes, colegios, asignaturas, grados, secciones,
-          estudiantes, indicadores, criterios, notas, asistencia,
-          gradeConfigs, gradoAsignatura, colegioAsignatura, colegioDiasAsistencia
-        ] = results.map(r => r.data);
+      const [
+        anos, cortes, colegios, asignaturas, grados, secciones,
+        estudiantes, indicadores, criterios, notas, asistencia,
+        gradeConfigs, gradoAsignatura, colegioAsignatura, colegioDiasAsistencia
+      ] = results.map(r => r.data);
 
-        // 2. Mapear datos al formato esperado por Rust (camelCase y tipos correctos)
-        pullData = {
+      // 2. Mapear datos al formato esperado por Rust
+      pullData = {
           anos: (anos || []).map(a => ({ id: a.id, nombre: a.nombre, activo: a.activo, cualitativo: a.cualitativo })),
           cortes: (cortes || []).map(c => ({ id: c.id, nombre: c.nombre, activo: c.activo, cualitativo: c.cualitativo })),
           colegios: (colegios || []).map(c => ({ id: c.id, nombre: c.nombre, activo: c.activo, cualitativo: c.cualitativo })),
@@ -1225,11 +1216,10 @@ export const syncService = {
             domingo: cda.domingo
           }))
         };
-      }
 
       // 3. Enviar a Rust para upsert masivo en SQLite
       await invoke('upsert_pull_data', { data: pullData });
-
+      return pullData;
     })(), 'datos desde la nube');
   },
 

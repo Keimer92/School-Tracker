@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    senku_app_lib::run()
+    school_tracker_pro_lib::run()
 }

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Senku App",
+  "productName": "School Tracker Pro",
   "version": "0.1.0",
-  "identifier": "com.keimer.senkuapp",
+  "identifier": "com.keimer.schooltrackerpro",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Senku App",
+        "title": "School Tracker Pro",
         "width": 800,
         "height": 600
       }
@@ -26,11 +26,7 @@
       "schemes": [
         {
           "host": "supabase",
-          "scheme": "com.keimer.senkuapp"
-        },
-        {
-          "host": "callback",
-          "scheme": "appwrite-callback-69bcc5c3000d4847de99"
+          "scheme": "com.keimer.schooltrackerpro"
         }
       ]
     }

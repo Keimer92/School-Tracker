@@ -126,7 +126,7 @@ pub fn run() {
                 use tauri_plugin_deep_link::DeepLinkExt;
 
                 // Registrar el esquema en el sistema operativo (necesario en dev mode en Windows/Linux)
-                // Esto le dice al OS que "com.keimer.senkuapp://" debe abrir esta app
+                // Esto le dice al OS que "com.keimer.schooltrackerpro://" debe abrir esta app
                 if let Err(e) = app.deep_link().register_all() {
                     eprintln!("Warning: No se pudo registrar deep-link scheme: {}", e);
                 }
