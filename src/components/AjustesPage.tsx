@@ -9,7 +9,6 @@ import { Auth } from "./Auth";
 import { supabase } from "../lib/supabase";
 import { syncService, syncManager, SyncStatus } from "../lib/syncService";
 import { cloud } from "../lib/cloud/CloudBridge";
-import { emit } from "@tauri-apps/api/event";
 import "../App.css";
 
 interface CategoryItem {
@@ -331,6 +330,14 @@ export function AjustesPage() {
       },
     });
     setShowResetConfirm(true);
+  };
+
+  const showUserId = async () => {
+    const userId = await syncService.getUserId();
+    emit("show-toast", {
+      message: `User ID actual: ${userId || 'No conectado'}`,
+      type: "info"
+    });
   };
 
   const handleSelectFolder = async () => {
@@ -1466,6 +1473,23 @@ export function AjustesPage() {
                         {syncStatus.message}
                       </div>
                     )}
+
+                    <div style={{ marginTop: "15px", textAlign: "center" }}>
+                      <button
+                        onClick={() => showUserId()}
+                        style={{
+                          padding: "8px 16px",
+                          background: "rgba(139, 92, 246, 0.1)",
+                          border: "1px solid rgba(139, 92, 246, 0.2)",
+                          borderRadius: "6px",
+                          color: "#a78bfa",
+                          fontSize: "0.8rem",
+                          cursor: "pointer",
+                        }}
+                      >
+                        🔍 Mostrar User ID
+                      </button>
+                    </div>
 
                     <div
                       style={{
