@@ -98,7 +98,9 @@ export function Auth() {
         }
         setMode('login');
       } else if (mode === 'recovery') {
-        const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail);
+        const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+          redirectTo: 'https://tu-usuario.github.io/school-tracker-password-reset/'
+        });
         if (error) throw error;
         emit("show-toast", { message: 'Enlace enviado', type: 'success' });
         setMode('login');

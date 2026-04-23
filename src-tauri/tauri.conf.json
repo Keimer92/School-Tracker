@@ -9,6 +9,15 @@
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
+  "plugins": {
+    "deep-link": {
+      "schemes": [
+        {
+          "scheme": "school-tracker-pro"
+        }
+      ]
+    }
+  },
   "app": {
     "windows": [
       {
