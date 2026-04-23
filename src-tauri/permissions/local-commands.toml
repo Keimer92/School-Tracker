@@ -78,5 +78,6 @@ commands.allow = [
     "get_pending_deletions",
     "remove_pending_deletion",
     "remove_pending_deletion_by_record",
-    "get_recommended_colegio"
+    "get_recommended_colegio",
+    "sync_push_all_to_cloud"
 ]

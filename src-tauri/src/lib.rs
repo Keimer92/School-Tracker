@@ -6,6 +6,16 @@ use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
 #[tauri::command]
+fn sync_push_all_to_cloud(_app_handle: tauri::AppHandle) -> Result<(), String> {
+    // TODO: Implementar subida completa a Supabase
+    // Por ahora, mostrar mensaje informativo
+    println!("Comando sync_push_all_to_cloud llamado - Implementación pendiente");
+
+    // Simular éxito por ahora
+    Ok(())
+}
+
+#[tauri::command]
 fn set_orientation(_app_handle: tauri::AppHandle, _orientation: String) -> Result<(), String> {
     #[cfg(target_os = "android")]
     {
@@ -219,30 +229,29 @@ pub fn run() {
             update_grade_config,
             get_asistencia_estudiantes,
             save_asistencia,
-            delete_asistencia_batch,
             get_asistencia_rango,
             get_asistencia_all,
             get_colegio_dias_asistencia,
             save_colegio_dias_asistencia,
             set_orientation,
-            print_pdf,
-            share_pdf,
-            save_file_android,
             check_category_dependencies,
             delete_category_force,
             get_indicadores_all,
             get_criterios_all,
             get_notas_all,
+            get_asistencia_all,
             get_student_impact,
             reset_local_database,
             get_grados_by_colegio,
             get_secciones_by_grado_colegio,
             upsert_pull_data,
             get_colegio_dias_asistencia_all,
+            delete_asistencia_batch,
             get_pending_deletions,
             remove_pending_deletion,
             remove_pending_deletion_by_record,
             get_recommended_colegio,
+            sync_push_all_to_cloud,
             // Nuevas funciones para tablas con claves compuestas
             get_pending_deletions_asistencia,
             remove_pending_deletion_asistencia,

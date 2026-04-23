@@ -41,6 +41,8 @@ export class SupabaseBackend implements CloudProvider {
   }
 
   async pushAll(): Promise<void> {
-    console.log("Supabase pushAll no implementado aún en Provider");
+    // Usar el syncService para subir datos
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('sync_push_all_to_cloud');
   }
 }

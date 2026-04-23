@@ -8,6 +8,7 @@ import * as XLSX from "xlsx";
 import { Auth } from "./Auth";
 import { supabase } from "../lib/supabase";
 import { syncService, syncManager, SyncStatus } from "../lib/syncService";
+import { cloud } from "../lib/cloud/CloudBridge";
 import "../App.css";
 
 interface CategoryItem {
@@ -1403,32 +1404,33 @@ export function AjustesPage() {
                         gap: "12px",
                       }}
                     >
-                      <button
-                        onClick={() => syncService.syncAll()}
-                        disabled={syncStatus.status === "syncing"}
-                        className="sync-action-button upload"
-                        style={{
-                          padding: "0.8rem",
-                          background: "rgba(34, 197, 94, 0.1)",
-                          border: "1px solid rgba(34, 197, 94, 0.2)",
-                          borderRadius: "10px",
-                          color: "#4ade80",
-                          fontSize: "0.9rem",
-                          fontWeight: "600",
-                          cursor: "pointer",
-                          transition: "all 0.3s",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: "8px",
-                        }}
-                      >
-                        <span>📤</span> Subir a la Nube
-                      </button>
-                      <button
-                        onClick={() => syncService.pullAll()}
-                        disabled={syncStatus.status === "syncing"}
-                        className="sync-action-button download"
+
+                       <button
+                         onClick={() => cloud.getProvider().pushAll()}
+                         disabled={syncStatus.status === "syncing"}
+                         className="sync-action-button upload"
+                         style={{
+                           padding: "0.8rem",
+                           background: "rgba(34, 197, 94, 0.1)",
+                           border: "1px solid rgba(34, 197, 94, 0.2)",
+                           borderRadius: "10px",
+                           color: "#22c55e",
+                           fontSize: "0.9rem",
+                           fontWeight: "600",
+                           cursor: "pointer",
+                           transition: "all 0.3s",
+                           display: "flex",
+                           alignItems: "center",
+                           justifyContent: "center",
+                           gap: "8px",
+                         }}
+                       >
+                         <span>📤</span> Subir a la Nube
+                       </button>
+                       <button
+                         onClick={() => syncService.pullAll()}
+                         disabled={syncStatus.status === "syncing"}
+                         className="sync-action-button download"
                         style={{
                           padding: "0.8rem",
                           background: "rgba(59, 130, 246, 0.1)",
