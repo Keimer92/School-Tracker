@@ -158,46 +158,6 @@ pub fn run() {
                 conn: Arc::new(Mutex::new(conn)),
             });
 
-            // Manejar deep links en mobile
-            #[cfg(mobile)]
-            {
-                let app_handle = app.handle().clone();
-                app.listen("deep-link-received", move |event: tauri::Event| {
-                    println!("Deep-link recibido: {:?}", event.payload());
-                    let _ = app_handle.emit("deep-link-received", event.payload().to_string());
-                });
-            }
-
-            #[cfg(desktop)]
-            {
-                use tauri_plugin_deep_link::DeepLinkExt;
-
-                // Registrar el esquema en el sistema operativo (necesario en dev mode en Windows/Linux)
-                // Esto le dice al OS que "com.keimer.schooltrackerpro://" debe abrir esta app
-                if let Err(e) = app.deep_link().register_all() {
-                    eprintln!("Warning: No se pudo registrar deep-link scheme: {}", e);
-                }
-
-                let handle = app.handle().clone();
-                app.handle().deep_link().on_open_url(move |event| {
-                    for url in event.urls() {
-                        let url_str = url.to_string();
-                        println!("Deep-link recibido via on_open_url: {}", url_str);
-                        let _ = handle.emit("deep-link-received", url_str.clone());
-                    }
-                });
-
-                // Verificar si la app fue abierta con un deep-link como argumento inicial
-                // (Esto puede pasar si la app no estaba corriendo y el OS la inició con el URL)
-                if let Ok(Some(urls)) = app.deep_link().get_current() {
-                    for url in urls {
-                        let url_str = url.to_string();
-                        println!("Deep-link inicial: {}", url_str);
-                        let _ = app.handle().emit("deep-link-received", url_str);
-                    }
-                }
-            }
-
             #[cfg(desktop)]
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.maximize();
