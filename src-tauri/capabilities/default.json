@@ -27,6 +27,7 @@
     "fs:allow-download-write-recursive",
     "fs:allow-document-write-recursive",
     "allow-local-commands",
+    "core:webview:allow-create-webview",
     "core:window:allow-create",
     "core:window:allow-close",
     "core:window:default",

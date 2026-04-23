@@ -98,12 +98,16 @@ export function Auth() {
         }
         setMode('login');
       } else if (mode === 'recovery') {
-        const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
-          redirectTo: 'https://tu-usuario.github.io/school-tracker-password-reset/'
-        });
-        if (error) throw error;
-        emit("show-toast", { message: 'Enlace enviado', type: 'success' });
-        setMode('login');
+        const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail);
+
+        if (error) {
+          console.error('Error enviando email de recuperación:', error);
+          emit("show-toast", { message: `Error: ${error.message}`, type: 'error' });
+        } else {
+          emit("show-toast", { message: 'Se ha enviado un enlace de recuperación a tu correo. Revisa tu bandeja de entrada y spam.', type: 'success' });
+        }
+
+
       }
     } catch (error: any) {
       emit("show-toast", { message: error.message, type: 'error' });

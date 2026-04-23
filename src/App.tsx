@@ -16,7 +16,6 @@ type AppMode = "selection" | "notas" | "asistencia";
 type Tab = "notas" | "reportes" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "informe";
 
 function App() {
-  console.log("Componente App montándose...");
   
   const [appMode, setAppMode] = useState<AppMode>(() => {
     const saved = localStorage.getItem('app-mode');
