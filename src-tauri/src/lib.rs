@@ -3,7 +3,7 @@ mod db;
 use db::*;
 use rusqlite::Connection;
 use std::sync::{Arc, Mutex};
-use tauri::{Emitter, Manager};
+use tauri::Manager;
 
 #[tauri::command]
 fn set_orientation(_app_handle: tauri::AppHandle, _orientation: String) -> Result<(), String> {
@@ -161,27 +161,6 @@ pub fn run() {
             #[cfg(desktop)]
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.maximize();
-            }
-            // Manejar deep links para cambio de contraseña
-            #[cfg(desktop)]
-            {
-                use tauri_plugin_deep_link::DeepLinkExt;
-
-                let handle = app.handle().clone();
-                let handle_clone = handle.clone();
-                handle_clone.deep_link().on_open_url(move |event| {
-                    for url in event.urls() {
-                        let url_str = url.to_string();
-                        println!("Deep-link recibido: {}", url_str);
-                        // Mostrar mensaje de éxito si viene de cambio de contraseña
-                        if url_str.contains("school-tracker-pro://") {
-                            let _ = handle.emit("show-toast", serde_json::json!({
-                                "message": "¡Contraseña cambiada exitosamente! Ahora puedes iniciar sesión.",
-                                "type": "success"
-                            }));
-                        }
-                    }
-                });
             }
 
             Ok(())
