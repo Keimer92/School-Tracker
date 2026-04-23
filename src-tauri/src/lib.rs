@@ -3,7 +3,7 @@ mod db;
 use db::*;
 use rusqlite::Connection;
 use std::sync::{Arc, Mutex};
-use tauri::{Emitter, Listener, Manager};
+use tauri::{Emitter, Manager};
 
 #[tauri::command]
 fn set_orientation(_app_handle: tauri::AppHandle, _orientation: String) -> Result<(), String> {
@@ -167,13 +167,9 @@ pub fn run() {
             {
                 use tauri_plugin_deep_link::DeepLinkExt;
 
-                // Registrar el esquema en el sistema operativo
-                if let Err(e) = app.deep_link().register_all() {
-                    eprintln!("Warning: No se pudo registrar deep-link scheme: {}", e);
-                }
-
                 let handle = app.handle().clone();
-                app.handle().deep_link().on_open_url(move |event| {
+                let handle_clone = handle.clone();
+                handle_clone.deep_link().on_open_url(move |event| {
                     for url in event.urls() {
                         let url_str = url.to_string();
                         println!("Deep-link recibido: {}", url_str);
@@ -186,20 +182,6 @@ pub fn run() {
                         }
                     }
                 });
-
-                // Verificar si la app fue abierta con un deep-link inicial
-                if let Ok(Some(urls)) = app.deep_link().get_current() {
-                    for url in urls {
-                        let url_str = url.to_string();
-                        println!("Deep-link inicial: {}", url_str);
-                        if url_str.contains("school-tracker-pro://") {
-                            let _ = app.handle().emit("show-toast", serde_json::json!({
-                                "message": "¡Contraseña cambiada exitosamente! Ahora puedes iniciar sesión.",
-                                "type": "success"
-                            }));
-                        }
-                    }
-                }
             }
 
             Ok(())
