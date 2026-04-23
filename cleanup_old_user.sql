@@ -29,16 +29,16 @@ UNION ALL
 SELECT 'colegio_dias_asistencia', COUNT(*) FROM colegio_dias_asistencia WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
 
 -- Si hay datos, ejecuta esto para eliminarlos:
--- DELETE FROM ano_lectivo WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
--- DELETE FROM corte_evaluativo WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
--- DELETE FROM colegio WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
--- DELETE FROM asignatura WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
--- DELETE FROM grado WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
--- DELETE FROM seccion WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
--- DELETE FROM estudiante WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
--- DELETE FROM indicador WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
--- DELETE FROM criterio WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
--- DELETE FROM nota WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
--- DELETE FROM asistencia WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
--- DELETE FROM configuracion_calificacion WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
--- DELETE FROM colegio_dias_asistencia WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
+DELETE FROM ano_lectivo WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
+DELETE FROM corte_evaluativo WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
+DELETE FROM colegio WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
+DELETE FROM asignatura WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
+DELETE FROM grado WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
+DELETE FROM seccion WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
+DELETE FROM estudiante WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
+DELETE FROM indicador WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
+DELETE FROM criterio WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
+DELETE FROM nota WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
+DELETE FROM asistencia WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
+DELETE FROM configuracion_calificacion WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
+DELETE FROM colegio_dias_asistencia WHERE user_id = '49988fb4-6ac6-4b59-8f9f-529e47b843ad';
