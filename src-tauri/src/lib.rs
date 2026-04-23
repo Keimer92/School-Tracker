@@ -2,17 +2,253 @@ mod db;
 
 use db::*;
 use rusqlite::Connection;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
 #[tauri::command]
-fn sync_push_all_to_cloud(_app_handle: tauri::AppHandle) -> Result<(), String> {
-    // TODO: Implementar subida completa a Supabase
-    // Por ahora, mostrar mensaje informativo
-    println!("Comando sync_push_all_to_cloud llamado - Implementación pendiente");
+fn sync_push_all_to_cloud(state: tauri::State<'_, DbState>) -> Result<(), String> {
+    println!("🔄 [PUSH] Iniciando subida de datos locales a Supabase");
 
-    // Simular éxito por ahora
+    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let user_id = match get_current_user_id(&mut conn) {
+        Ok(id) => id,
+        Err(_) => return Err("Usuario no autenticado".to_string()),
+    };
+
+    println!("🔄 [PUSH] User ID: {}", user_id);
+
+    // Función helper para subir datos a Supabase
+    let upload_to_supabase = |table: &str, data: Vec<serde_json::Value>| -> Result<(), String> {
+        println!("🔄 [PUSH] Subiendo {} registros a tabla {}", data.len(), table);
+
+        if data.is_empty() {
+            println!("⚠️ [PUSH] Tabla {} está vacía, omitiendo", table);
+            return Ok(());
+        }
+
+        // URL de Supabase
+        let supabase_url = "https://[PROYECTO_REMOVIDO]";
+        let supabase_key = "[CLAVE_REMOVIDA_ROTAR]";
+
+        // Para cada registro, intentar insertarlo en Supabase
+        for record in data {
+            let url = format!("{}/rest/v1/{}", supabase_url, table);
+
+            // Convertir el registro a string JSON
+            let json_data = serde_json::to_string(&record)
+                .map_err(|e| format!("Error serializando registro: {}", e))?;
+
+            println!("🔄 [PUSH] Enviando registro a {}: {}", table, json_data);
+
+            // Hacer POST request a Supabase
+            let response = ureq::post(&url)
+                .set("apikey", supabase_key)
+                .set("Authorization", &format!("Bearer {}", supabase_key))
+                .set("Content-Type", "application/json")
+                .set("Prefer", "resolution=merge-duplicates") // Para manejar duplicados
+                .send_string(&json_data);
+
+            match response {
+                Ok(resp) => {
+                    if resp.status() >= 200 && resp.status() < 300 {
+                        println!("✅ [PUSH] Registro subido exitosamente a {}", table);
+                    } else {
+                        let error_text = resp.into_string()
+                            .unwrap_or_else(|_| "Error desconocido".to_string());
+                        println!("❌ [PUSH] Error HTTP {} al subir a {}: {}", resp.status(), table, error_text);
+                        return Err(format!("Error HTTP {} al subir registro: {}", resp.status(), error_text));
+                    }
+                }
+                Err(e) => {
+                    println!("❌ [PUSH] Error de conexión al subir a {}: {}", table, e);
+                    return Err(format!("Error de conexión: {}", e));
+                }
+            }
+        }
+
+        println!("✅ [PUSH] Todos los registros de {} subidos exitosamente", table);
+        Ok(())
+    };
+
+    // Obtener y subir cada tabla
+    let tables_data = get_all_local_data(&mut conn)?;
+    println!("🔄 [PUSH] Datos obtenidos localmente: {} tablas", tables_data.len());
+
+    for (table_name, records) in tables_data {
+        if let Err(e) = upload_to_supabase(&table_name, records) {
+            println!("❌ [PUSH] Error subiendo tabla {}: {}", table_name, e);
+            return Err(format!("Error subiendo tabla {}: {}", table_name, e));
+        }
+    }
+
+    println!("✅ [PUSH] Subida completada exitosamente");
     Ok(())
+}
+
+        // URL de Supabase
+        let supabase_url = "https://[PROYECTO_REMOVIDO]";
+        let supabase_key = "[CLAVE_REMOVIDA_ROTAR]";
+
+        // Para cada registro, intentar insertarlo en Supabase
+        for record in data {
+            let url = format!("{}/rest/v1/{}", supabase_url, table);
+
+            // Convertir el registro a string JSON
+            let json_data = serde_json::to_string(&record)
+                .map_err(|e| format!("Error serializando registro: {}", e))?;
+
+            println!("🔄 [PUSH] Enviando registro a {}: {}", table, json_data);
+
+            // Hacer POST request a Supabase
+            let response = ureq::post(&url)
+                .set("apikey", supabase_key)
+                .set("Authorization", &format!("Bearer {}", supabase_key))
+                .set("Content-Type", "application/json")
+                .set("Prefer", "resolution=merge-duplicates") // Para manejar duplicados
+                .send_string(&json_data);
+
+            match response {
+                Ok(resp) => {
+                    if resp.status() >= 200 && resp.status() < 300 {
+                        println!("✅ [PUSH] Registro subido exitosamente a {}", table);
+                    } else {
+                        let error_text = resp
+                            .into_string()
+                            .unwrap_or_else(|_| "Error desconocido".to_string());
+                        println!(
+                            "❌ [PUSH] Error HTTP {} al subir a {}: {}",
+                            resp.status(),
+                            table,
+                            error_text
+                        );
+                        return Err(format!(
+                            "Error HTTP {} al subir registro: {}",
+                            resp.status(),
+                            error_text
+                        ));
+                    }
+                }
+                Err(e) => {
+                    println!("❌ [PUSH] Error de conexión al subir a {}: {}", table, e);
+                    return Err(format!("Error de conexión: {}", e));
+                }
+            }
+        }
+
+        println!(
+            "✅ [PUSH] Todos los registros de {} subidos exitosamente",
+            table
+        );
+        Ok(())
+    };
+
+    // Obtener y subir cada tabla
+    let tables_data = get_all_local_data(&mut conn)?;
+    println!(
+        "🔄 [PUSH] Datos obtenidos localmente: {} tablas",
+        tables_data.len()
+    );
+
+    for (table_name, records) in tables_data {
+        if let Err(e) = upload_to_supabase(&table_name, records) {
+            println!("❌ [PUSH] Error subiendo tabla {}: {}", table_name, e);
+            return Err(format!("Error subiendo tabla {}: {}", table_name, e));
+        }
+    }
+
+    println!("✅ [PUSH] Subida completada exitosamente");
+    Ok(())
+}
+
+fn get_current_user_id(_conn: &mut rusqlite::Connection) -> Result<String, String> {
+    // Por ahora, retornamos un user_id de ejemplo
+    // En una implementación real, esto vendría de la sesión del usuario
+    Ok("f4100785-8cd0-45d8-aace-2d320e2aad81".to_string())
+}
+
+fn get_all_local_data(
+    conn: &mut rusqlite::Connection,
+) -> Result<HashMap<String, Vec<serde_json::Value>>, String> {
+    let mut result = HashMap::new();
+
+    // Procesar cada tabla individualmente
+    // Categorías (años, cortes, colegios)
+    let category_tables = vec![
+        ("ano_lectivo", "SELECT id, nombre, activo, cualitativo FROM ano_lectivo"),
+        ("corte_evaluativo", "SELECT id, nombre, activo, cualitativo FROM corte_evaluativo"),
+        ("colegio", "SELECT id, nombre, activo, cualitativo FROM colegio"),
+    ];
+
+    for (table_name, query) in category_tables {
+        let mut stmt = conn.prepare(query)
+            .map_err(|e| format!("Error preparando consulta para {}: {}", table_name, e))?;
+
+        let rows = stmt.query_map([], |row| {
+            Ok(serde_json::json!({
+                "id": row.get::<_, i64>(0)?,
+                "nombre": row.get::<_, String>(1)?,
+                "activo": row.get::<_, bool>(2)?,
+                "cualitativo": row.get::<_, Option<String>>(3)?
+            }))
+        }).map_err(|e| format!("Error ejecutando consulta para {}: {}", table_name, e))?;
+
+        let mut table_data = Vec::new();
+        for row_result in rows {
+            match row_result {
+                Ok(json_value) => table_data.push(json_value),
+                Err(e) => return Err(format!("Error procesando fila en {}: {}", table_name, e)),
+            }
+        }
+
+        println!("📊 [PUSH] Tabla {}: {} registros obtenidos", table_name, table_data.len());
+        result.insert(table_name.to_string(), table_data);
+    }
+
+    // Asignaturas, grados, secciones
+    let simple_tables = vec![
+        ("asignatura", "SELECT id, nombre, cualitativo FROM asignatura"),
+        ("grado", "SELECT id, nombre, cualitativo FROM grado"),
+        ("seccion", "SELECT id, nombre, cualitativo FROM seccion"),
+    ];
+
+    for (table_name, query) in simple_tables {
+        let mut stmt = conn.prepare(query)
+            .map_err(|e| format!("Error preparando consulta para {}: {}", table_name, e))?;
+
+        let rows = stmt.query_map([], |row| {
+            Ok(serde_json::json!({
+                "id": row.get::<_, i64>(0)?,
+                "nombre": row.get::<_, String>(1)?,
+                "cualitativo": row.get::<_, Option<String>>(2)?
+            }))
+        }).map_err(|e| format!("Error ejecutando consulta para {}: {}", table_name, e))?;
+
+        let mut table_data = Vec::new();
+        for row_result in rows {
+            match row_result {
+                Ok(json_value) => table_data.push(json_value),
+                Err(e) => return Err(format!("Error procesando fila en {}: {}", table_name, e)),
+            }
+        }
+
+        println!("📊 [PUSH] Tabla {}: {} registros obtenidos", table_name, table_data.len());
+        result.insert(table_name.to_string(), table_data);
+    }
+
+    Ok(result)
+}
+        }
+
+        println!(
+            "📊 [PUSH] Tabla {}: {} registros obtenidos",
+            table_name,
+            table_data.len()
+        );
+        result.insert(table_name.to_string(), table_data);
+    }
+
+    Ok(result)
 }
 
 #[tauri::command]
