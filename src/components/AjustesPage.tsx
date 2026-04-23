@@ -1593,19 +1593,21 @@ export function AjustesPage() {
                     <h4 style={{ margin: "0 0 0.8rem 0", fontSize: "0.9rem", color: "#f8fafc", display: "flex", alignItems: "center", gap: "8px" }}>
                       <span>ℹ️</span> Sistema de Sincronización Supabase
                     </h4>
-                    <ul style={{ 
-                      margin: 0, 
-                      paddingLeft: "1.2rem", 
-                      fontSize: "0.85rem", 
+                    <ul style={{
+                      margin: 0,
+                      paddingLeft: "1.2rem",
+                      fontSize: "0.85rem",
                       color: "#94a3b8",
                       display: "flex",
                       flexDirection: "column",
                       gap: "6px"
                     }}>
                       <li><strong>Local-First:</strong> Tus datos siempre están seguros en tu PC (SQLite).</li>
-                      <li><strong>Automático:</strong> Cada cambio que haces se intenta subir al instante.</li>
-                      <li><strong>Seguro:</strong> Solo tú tienes acceso a tus datos mediante tu cuenta de Google.</li>
-                      <li><strong>Híbrido:</strong> Puedes trabajar sin internet y sincronizar cuando recuperes la conexión.</li>
+                      <li><strong>Sincronización Manual:</strong> Usa "Subir a la Nube" y "Descargar de Nube" para sincronizar.</li>
+                      <li><strong>Seguro:</strong> Solo tú tienes acceso mediante tu cuenta de email y contraseña.</li>
+                      <li><strong>Híbrido:</strong> Puedes trabajar sin internet y sincronizar cuando tengas conexión.</li>
+                      <li><strong>User ID único:</strong> Cada cuenta tiene su propio espacio de datos identificado por UUID.</li>
+                      <li><strong>Recuperación de contraseña:</strong> Sistema seguro con verificación por email.</li>
                     </ul>
                   </div>
                 </div>
