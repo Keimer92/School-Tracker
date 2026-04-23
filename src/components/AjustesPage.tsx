@@ -9,6 +9,7 @@ import { Auth } from "./Auth";
 import { supabase } from "../lib/supabase";
 import { syncService, syncManager, SyncStatus } from "../lib/syncService";
 import { cloud } from "../lib/cloud/CloudBridge";
+import { emit } from "@tauri-apps/api/event";
 import "../App.css";
 
 interface CategoryItem {

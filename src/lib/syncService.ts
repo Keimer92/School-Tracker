@@ -1112,14 +1112,17 @@ export const syncService = {
    * Usa Supabase como proveedor.
    */
   pullAll: async () => {
+    console.log(`[Sync] pullAll llamado desde frontend`);
     return syncManager.wrapSync((async () => {
+      console.log(`[Sync] Iniciando wrapSync`);
       const userId = await syncService.getUserId();
+      console.log(`[Sync] User ID obtenido:`, userId);
       if (!userId) throw new Error("Debes estar conectado para descargar datos");
 
       // 0. Procesar eliminaciones pendientes antes de descargar datos
       await syncService.syncPendingDeletions();
 
-      console.log(`[Sync] Iniciando descarga de datos desde Supabase...`);
+      console.log(`[Sync] Iniciando descarga de datos desde Supabase para user: ${userId}`);
 
       let pullData: any;
 
@@ -1130,14 +1133,20 @@ export const syncService = {
         'configuracion_calificacion', 'grado_asignatura', 'colegio_asignatura', 'colegio_dias_asistencia'
       ];
 
+      console.log(`[Sync] Consultando tablas con user_id: ${userId}`);
+
       const results = await Promise.all(
-        tables.map(table => supabase.from(table).select('*').eq('user_id', userId))
+        tables.map(table => {
+          console.log(`[Sync] Consultando ${table}...`);
+          return supabase.from(table).select('*').eq('user_id', userId);
+        })
       );
 
       // Verificar errores en cada consulta
       const errors = results.filter(r => r.error).map(r => r.error);
       if (errors.length > 0) {
         const errorDetails = errors.map(e => e?.message).join(', ');
+        console.error('[Sync] Errores en consultas:', errors);
         throw new Error(`Error descargando datos: ${errorDetails}`);
       }
 
@@ -1146,6 +1155,24 @@ export const syncService = {
         estudiantes, indicadores, criterios, notas, asistencia,
         gradeConfigs, gradoAsignatura, colegioAsignatura, colegioDiasAsistencia
       ] = results.map(r => r.data);
+
+      console.log('[Sync] Datos obtenidos de Supabase:', {
+        anos: anos?.length || 0,
+        cortes: cortes?.length || 0,
+        colegios: colegios?.length || 0,
+        asignaturas: asignaturas?.length || 0,
+        grados: grados?.length || 0,
+        secciones: secciones?.length || 0,
+        estudiantes: estudiantes?.length || 0,
+        indicadores: indicadores?.length || 0,
+        criterios: criterios?.length || 0,
+        notas: notas?.length || 0,
+        asistencia: asistencia?.length || 0,
+        gradeConfigs: gradeConfigs?.length || 0,
+        gradoAsignatura: gradoAsignatura?.length || 0,
+        colegioAsignatura: colegioAsignatura?.length || 0,
+        colegioDiasAsistencia: colegioDiasAsistencia?.length || 0
+      });
 
       // 2. Mapear datos al formato esperado por Rust
       pullData = {
@@ -1218,7 +1245,9 @@ export const syncService = {
         };
 
       // 3. Enviar a Rust para upsert masivo en SQLite
+      console.log(`[Sync] Enviando datos a upsert_pull_data...`);
       await invoke('upsert_pull_data', { data: pullData });
+      console.log(`[Sync] upsert_pull_data completado`);
       return pullData;
     })(), 'datos desde la nube');
   },

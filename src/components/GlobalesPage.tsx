@@ -193,6 +193,16 @@ function CategoryTabContent({
 
   useEffect(() => {
     fetchItems();
+
+    // Escuchar cambios en asignaturas desde la nube
+    const unlistenSubjects = listen("subjects-updated", async () => {
+      console.log("GlobalesPage: Evento 'subjects-updated' recibido, refrescando datos...");
+      await fetchItems();
+    });
+
+    return () => {
+      unlistenSubjects.then(u => u());
+    };
   }, []);
 
   const openPrompt = (

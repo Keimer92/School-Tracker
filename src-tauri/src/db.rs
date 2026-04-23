@@ -2593,6 +2593,19 @@ pub struct PullData {
 
 #[tauri::command]
 pub fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) -> Result<(), String> {
+    println!("🔄 [DB] upsert_pull_data llamado con datos:");
+    println!("   - años: {}", data.anos.len());
+    println!("   - cortes: {}", data.cortes.len());
+    println!("   - colegios: {}", data.colegios.len());
+    println!("   - asignaturas: {}", data.asignaturas.len());
+    println!("   - grados: {}", data.grados.len());
+    println!("   - secciones: {}", data.secciones.len());
+    println!("   - estudiantes: {}", data.estudiantes.len());
+    println!("   - indicadores: {}", data.indicadores.len());
+    println!("   - criterios: {}", data.criterios.len());
+    println!("   - notas: {}", data.notas.len());
+    println!("   - asistencia: {}", data.asistencia.len());
+
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
@@ -2953,6 +2966,7 @@ pub fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) -> Res
     }
 
     tx.commit().map_err(|e| e.to_string())?;
+    println!("✅ [DB] upsert_pull_data completado exitosamente");
     Ok(())
 }
 
