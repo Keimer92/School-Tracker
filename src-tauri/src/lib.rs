@@ -6,6 +6,59 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
+fn upload_to_supabase(table: &str, data: Vec<serde_json::Value>) -> Result<(), String> {
+    println!("🔄 [PUSH] Subiendo {} registros a tabla {}", data.len(), table);
+
+    if data.is_empty() {
+        println!("⚠️ [PUSH] Tabla {} está vacía, omitiendo", table);
+        return Ok(());
+    }
+
+    // URL de Supabase
+    let supabase_url = "https://[PROYECTO_REMOVIDO]";
+    let supabase_key = "[CLAVE_REMOVIDA_ROTAR]";
+
+    // Para cada registro, intentar insertarlo en Supabase
+    for record in data {
+        let url = format!("{}/rest/v1/{}", supabase_url, table);
+
+        // Convertir el registro a string JSON
+        let json_data = serde_json::to_string(&record)
+            .map_err(|e| format!("Error serializando registro: {}", e))?;
+
+        println!("🔄 [PUSH] Enviando registro a {}: {}", table, json_data);
+
+        // Hacer POST request a Supabase
+        let response = ureq::post(&url)
+            .set("apikey", supabase_key)
+            .set("Authorization", &format!("Bearer {}", supabase_key))
+            .set("Content-Type", "application/json")
+            .set("Prefer", "resolution=merge-duplicates")
+            .send_string(&json_data);
+
+        match response {
+            Ok(resp) => {
+                if resp.status() >= 200 && resp.status() < 300 {
+                    println!("✅ [PUSH] Registro subido exitosamente a {}", table);
+                } else {
+                    let error_text = resp
+                        .into_string()
+                        .unwrap_or_else(|_| "Error desconocido".to_string());
+                    println!("❌ [PUSH] Error HTTP {} al subir a {}: {}", resp.status(), table, error_text);
+                    return Err(format!("Error HTTP {} al subir registro: {}", resp.status(), error_text));
+                }
+            }
+            Err(e) => {
+                println!("❌ [PUSH] Error de conexión al subir a {}: {}", table, e);
+                return Err(format!("Error de conexión: {}", e));
+            }
+        }
+    }
+
+    println!("✅ [PUSH] Todos los registros de {} subidos exitosamente", table);
+    Ok(())
+}
+
 #[tauri::command]
 fn sync_push_all_to_cloud(state: tauri::State<'_, DbState>) -> Result<(), String> {
     println!("🔄 [PUSH] Iniciando subida de datos locales a Supabase");
@@ -18,14 +71,20 @@ fn sync_push_all_to_cloud(state: tauri::State<'_, DbState>) -> Result<(), String
 
     println!("🔄 [PUSH] User ID: {}", user_id);
 
-    // Función helper para subir datos a Supabase
-    let upload_to_supabase = |table: &str, data: Vec<serde_json::Value>| -> Result<(), String> {
-        println!("🔄 [PUSH] Subiendo {} registros a tabla {}", data.len(), table);
+    // Obtener y subir cada tabla
+    let tables_data = get_all_local_data(&mut conn)?;
+    println!("🔄 [PUSH] Datos obtenidos localmente: {} tablas", tables_data.len());
 
-        if data.is_empty() {
-            println!("⚠️ [PUSH] Tabla {} está vacía, omitiendo", table);
-            return Ok(());
+    for (table_name, records) in tables_data {
+        if let Err(e) = upload_to_supabase(&table_name, records) {
+            println!("❌ [PUSH] Error subiendo tabla {}: {}", table_name, e);
+            return Err(format!("Error subiendo tabla {}: {}", table_name, e));
         }
+    }
+
+    println!("✅ [PUSH] Subida completada exitosamente");
+    Ok(())
+}
 
         // URL de Supabase
         let supabase_url = "https://[PROYECTO_REMOVIDO]";
@@ -116,17 +175,8 @@ fn sync_push_all_to_cloud(state: tauri::State<'_, DbState>) -> Result<(), String
                         let error_text = resp
                             .into_string()
                             .unwrap_or_else(|_| "Error desconocido".to_string());
-                        println!(
-                            "❌ [PUSH] Error HTTP {} al subir a {}: {}",
-                            resp.status(),
-                            table,
-                            error_text
-                        );
-                        return Err(format!(
-                            "Error HTTP {} al subir registro: {}",
-                            resp.status(),
-                            error_text
-                        ));
+                        println!("❌ [PUSH] Error HTTP {} al subir a {}: {}", resp.status(), table, error_text);
+                        return Err(format!("Error HTTP {} al subir registro: {}", resp.status(), error_text));
                     }
                 }
                 Err(e) => {
@@ -136,19 +186,13 @@ fn sync_push_all_to_cloud(state: tauri::State<'_, DbState>) -> Result<(), String
             }
         }
 
-        println!(
-            "✅ [PUSH] Todos los registros de {} subidos exitosamente",
-            table
-        );
+        println!("✅ [PUSH] Todos los registros de {} subidos exitosamente", table);
         Ok(())
     };
 
     // Obtener y subir cada tabla
     let tables_data = get_all_local_data(&mut conn)?;
-    println!(
-        "🔄 [PUSH] Datos obtenidos localmente: {} tablas",
-        tables_data.len()
-    );
+    println!("🔄 [PUSH] Datos obtenidos localmente: {} tablas", tables_data.len());
 
     for (table_name, records) in tables_data {
         if let Err(e) = upload_to_supabase(&table_name, records) {
