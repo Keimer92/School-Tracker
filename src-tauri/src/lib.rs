@@ -3,7 +3,7 @@ mod db;
 use db::*;
 use rusqlite::Connection;
 use std::sync::{Arc, Mutex};
-use tauri::{Emitter, Listener, Manager};
+use tauri::Manager;
 
 #[tauri::command]
 fn set_orientation(_app_handle: tauri::AppHandle, _orientation: String) -> Result<(), String> {

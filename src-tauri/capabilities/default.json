@@ -3,8 +3,7 @@
   "identifier": "default",
   "description": "Capability for the main window",
   "windows": [
-    "main",
-    "google-login"
+    "main"
   ],
   "permissions": [
     "core:default",
@@ -13,10 +12,6 @@
       "identifier": "opener:allow-open-url",
       "allow": [{ "url": "file://*" }, { "url": "https://*" }]
     },
-    "deep-link:default",
-    "deep-link:allow-register",
-    "deep-link:allow-get-current",
-    "deep-link:allow-is-registered",
     "dialog:default",
     "fs:default",
     {
