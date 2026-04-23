@@ -1,6 +1,5 @@
 import { supabase } from '../supabase';
 import { CloudProvider, CloudUser } from './CloudProvider';
-import { openUrl } from '@tauri-apps/plugin-opener';
 
 export class SupabaseBackend implements CloudProvider {
   name: 'supabase' = 'supabase';
@@ -18,17 +17,7 @@ export class SupabaseBackend implements CloudProvider {
     return () => subscription.unsubscribe();
   }
 
-  async signInWithGoogle(): Promise<void> {
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: 'com.keimer.schooltrackerpro://supabase',
-        skipBrowserRedirect: true
-      }
-    });
-    if (error) throw error;
-    if (data?.url) await openUrl(data.url);
-  }
+
 
   async signOut(): Promise<void> {
     await supabase.auth.signOut();

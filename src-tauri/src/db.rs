@@ -139,18 +139,22 @@ pub fn get_student_impact(
     student_id: i64,
 ) -> Result<StudentImpact, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    
-    let total_notas: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM nota WHERE estudiante_id = ?",
-        [student_id],
-        |row| row.get(0),
-    ).map_err(|e| e.to_string())?;
 
-    let total_asistencias: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM asistencia WHERE estudiante_id = ?",
-        [student_id],
-        |row| row.get(0),
-    ).map_err(|e| e.to_string())?;
+    let total_notas: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM nota WHERE estudiante_id = ?",
+            [student_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    let total_asistencias: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM asistencia WHERE estudiante_id = ?",
+            [student_id],
+            |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
 
     Ok(StudentImpact {
         total_notas,
@@ -161,7 +165,7 @@ pub fn get_student_impact(
 #[tauri::command]
 pub fn reset_local_database(state: tauri::State<'_, DbState>) -> Result<(), String> {
     let conn_guard = state.conn.lock().map_err(|e| e.to_string())?;
-    
+
     // Lista de tablas a vaciar en orden para respetar llaves foráneas
     let tables = [
         "asistencia",
@@ -178,16 +182,18 @@ pub fn reset_local_database(state: tauri::State<'_, DbState>) -> Result<(), Stri
         "colegio",
         "corte_evaluativo",
         "ano_lectivo",
-        "configuracion_calificacion"
+        "configuracion_calificacion",
     ];
 
     // Desactivar temporalmente las llaves foráneas para un borrado limpio
-    conn_guard.execute("PRAGMA foreign_keys = OFF", []).map_err(|e| e.to_string())?;
+    conn_guard
+        .execute("PRAGMA foreign_keys = OFF", [])
+        .map_err(|e| e.to_string())?;
 
     for table in tables.iter() {
         // Borrar tabla (si existe) para un reset completo
         match conn_guard.execute(&format!("DROP TABLE IF EXISTS {}", table), []) {
-            Ok(_) => {},
+            Ok(_) => {}
             Err(e) => {
                 let err_msg = e.to_string();
                 let _ = conn_guard.execute("PRAGMA foreign_keys = ON", []);
@@ -197,10 +203,12 @@ pub fn reset_local_database(state: tauri::State<'_, DbState>) -> Result<(), Stri
     }
 
     // Limpieza adicional: Si existía el colegio con el typo, borrarlo explícitamente por si acaso
-    // (Útil para limpiar bases de datos existentes sin reset completo de tablas si se desea, 
+    // (Útil para limpiar bases de datos existentes sin reset completo de tablas si se desea,
     // pero aquí estamos dentro del reset así que las tablas ya están vacías).
-    
-    conn_guard.execute("PRAGMA foreign_keys = ON", []).map_err(|e| e.to_string())?;
+
+    conn_guard
+        .execute("PRAGMA foreign_keys = ON", [])
+        .map_err(|e| e.to_string())?;
 
     // Después de limpiar, volvemos a ejecutar las migraciones para asegurar
     // que los datos iniciales (semillas) se vuelvan a crear inmediatamente
@@ -216,7 +224,10 @@ macro_rules! create_crud_commands {
         pub fn $get_all(state: tauri::State<'_, DbState>) -> Result<Vec<CategoryItem>, String> {
             let conn = state.conn.lock().map_err(|e| e.to_string())?;
             let mut stmt = conn
-                .prepare(concat!("SELECT id, nombre, cualitativo FROM ", stringify!($table)))
+                .prepare(concat!(
+                    "SELECT id, nombre, cualitativo FROM ",
+                    stringify!($table)
+                ))
                 .map_err(|e| e.to_string())?;
 
             let items = stmt
@@ -239,7 +250,11 @@ macro_rules! create_crud_commands {
         pub fn $add(state: tauri::State<'_, DbState>, nombre: String) -> Result<i64, String> {
             let conn = state.conn.lock().map_err(|e| e.to_string())?;
             conn.execute(
-                concat!("INSERT INTO ", stringify!($table), " (nombre, cualitativo) VALUES (?, 0)"),
+                concat!(
+                    "INSERT INTO ",
+                    stringify!($table),
+                    " (nombre, cualitativo) VALUES (?, 0)"
+                ),
                 [&nombre],
             )
             .map_err(|e| e.to_string())?;
@@ -275,12 +290,14 @@ macro_rules! create_crud_commands {
             tx.execute(
                 concat!("DELETE FROM ", stringify!($table), " WHERE id = ?"),
                 [id],
-            ).map_err(|e| e.to_string())?;
+            )
+            .map_err(|e| e.to_string())?;
 
             tx.execute(
                 "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)",
                 rusqlite::params![stringify!($table), id],
-            ).map_err(|e| e.to_string())?;
+            )
+            .map_err(|e| e.to_string())?;
 
             tx.commit().map_err(|e| e.to_string())?;
             Ok(())
@@ -362,12 +379,14 @@ macro_rules! create_crud_commands_active {
             tx.execute(
                 concat!("DELETE FROM ", stringify!($table), " WHERE id = ?"),
                 [id],
-            ).map_err(|e| e.to_string())?;
+            )
+            .map_err(|e| e.to_string())?;
 
             tx.execute(
                 "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)",
                 rusqlite::params![stringify!($table), id],
-            ).map_err(|e| e.to_string())?;
+            )
+            .map_err(|e| e.to_string())?;
 
             tx.commit().map_err(|e| e.to_string())?;
             Ok(())
@@ -421,7 +440,7 @@ pub fn check_category_dependencies(
     id: i64,
 ) -> Result<DeleteCheckResponse, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    
+
     let mut response = DeleteCheckResponse {
         has_students: false,
         has_grades: false,
@@ -434,33 +453,83 @@ pub fn check_category_dependencies(
 
     match table.as_str() {
         "ano_lectivo" => {
-            response.student_count = conn.query_row("SELECT COUNT(*) FROM estudiante WHERE ano_lectivo_id = ?", [id], |row| row.get(0)).unwrap_or(0);
+            response.student_count = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM estudiante WHERE ano_lectivo_id = ?",
+                    [id],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
             response.attendance_count = conn.query_row("SELECT COUNT(*) FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE ano_lectivo_id = ?)", [id], |row| row.get(0)).unwrap_or(0);
             response.note_count = conn.query_row("SELECT COUNT(*) FROM nota WHERE estudiante_id IN (SELECT id FROM estudiante WHERE ano_lectivo_id = ?)", [id], |row| row.get(0)).unwrap_or(0);
-        },
+        }
         "corte_evaluativo" => {
-            response.note_count = conn.query_row("SELECT COUNT(*) FROM nota WHERE corte_evaluativo_id = ?", [id], |row| row.get(0)).unwrap_or(0);
-        },
+            response.note_count = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM nota WHERE corte_evaluativo_id = ?",
+                    [id],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+        }
         "colegio" => {
-            response.student_count = conn.query_row("SELECT COUNT(*) FROM estudiante WHERE colegio_id = ?", [id], |row| row.get(0)).unwrap_or(0);
+            response.student_count = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM estudiante WHERE colegio_id = ?",
+                    [id],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
             response.attendance_count = conn.query_row("SELECT COUNT(*) FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE colegio_id = ?)", [id], |row| row.get(0)).unwrap_or(0);
             response.note_count = conn.query_row("SELECT COUNT(*) FROM nota WHERE estudiante_id IN (SELECT id FROM estudiante WHERE colegio_id = ?)", [id], |row| row.get(0)).unwrap_or(0);
-        },
+        }
         "asignatura" => {
-            response.note_count = conn.query_row("SELECT COUNT(*) FROM nota WHERE asignatura_id = ?", [id], |row| row.get(0)).unwrap_or(0);
-            response.has_grades = conn.query_row("SELECT COUNT(*) FROM grado_asignatura WHERE asignatura_id = ?", [id], |row| row.get::<_, i64>(0)).unwrap_or(0) > 0;
-        },
+            response.note_count = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM nota WHERE asignatura_id = ?",
+                    [id],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+            response.has_grades = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM grado_asignatura WHERE asignatura_id = ?",
+                    [id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap_or(0)
+                > 0;
+        }
         "grado" => {
-            response.student_count = conn.query_row("SELECT COUNT(*) FROM estudiante WHERE grado_id = ?", [id], |row| row.get(0)).unwrap_or(0);
+            response.student_count = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM estudiante WHERE grado_id = ?",
+                    [id],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
             response.attendance_count = conn.query_row("SELECT COUNT(*) FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE grado_id = ?)", [id], |row| row.get(0)).unwrap_or(0);
             response.note_count = conn.query_row("SELECT COUNT(*) FROM nota WHERE estudiante_id IN (SELECT id FROM estudiante WHERE grado_id = ?)", [id], |row| row.get(0)).unwrap_or(0);
-            response.has_grades = conn.query_row("SELECT COUNT(*) FROM grado_asignatura WHERE grado_id = ?", [id], |row| row.get::<_, i64>(0)).unwrap_or(0) > 0;
-        },
+            response.has_grades = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM grado_asignatura WHERE grado_id = ?",
+                    [id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap_or(0)
+                > 0;
+        }
         "seccion" => {
-            response.student_count = conn.query_row("SELECT COUNT(*) FROM estudiante WHERE seccion_id = ?", [id], |row| row.get(0)).unwrap_or(0);
+            response.student_count = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM estudiante WHERE seccion_id = ?",
+                    [id],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
             response.attendance_count = conn.query_row("SELECT COUNT(*) FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE seccion_id = ?)", [id], |row| row.get(0)).unwrap_or(0);
             response.note_count = conn.query_row("SELECT COUNT(*) FROM nota WHERE estudiante_id IN (SELECT id FROM estudiante WHERE seccion_id = ?)", [id], |row| row.get(0)).unwrap_or(0);
-        },
+        }
         _ => return Err("Tabla no reconocida".to_string()),
     }
 
@@ -486,9 +555,13 @@ pub fn delete_category_force(
             let mut stmt = tx.prepare(
                 "SELECT estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id FROM nota WHERE estudiante_id IN (SELECT id FROM estudiante WHERE ano_lectivo_id = ?)"
             ).map_err(|e| e.to_string())?;
-            let notas: Vec<(i64, i64, i64, i64)> = stmt.query_map([id], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-            }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+            let notas: Vec<(i64, i64, i64, i64)> = stmt
+                .query_map([id], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+                })
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
             drop(stmt);
             for (est_id, crit_id, corte_id, asig_id) in notas {
                 tx.execute(
@@ -502,9 +575,11 @@ pub fn delete_category_force(
             let mut stmt = tx.prepare(
                 "SELECT estudiante_id, fecha FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE ano_lectivo_id = ?)"
             ).map_err(|e| e.to_string())?;
-            let asistencias: Vec<(i64, String)> = stmt.query_map([id], |row| {
-                Ok((row.get(0)?, row.get(1)?))
-            }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+            let asistencias: Vec<(i64, String)> = stmt
+                .query_map([id], |row| Ok((row.get(0)?, row.get(1)?)))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
             drop(stmt);
             for (est_id, fecha) in asistencias {
                 tx.execute(
@@ -515,25 +590,37 @@ pub fn delete_category_force(
             tx.execute("DELETE FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE ano_lectivo_id = ?)", [id]).map_err(|e| e.to_string())?;
 
             // Registrar eliminaciones de estudiantes
-            let mut stmt = tx.prepare("SELECT id FROM estudiante WHERE ano_lectivo_id = ?").map_err(|e| e.to_string())?;
-            let estudiantes: Vec<i64> = stmt.query_map([id], |row| row.get(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+            let mut stmt = tx
+                .prepare("SELECT id FROM estudiante WHERE ano_lectivo_id = ?")
+                .map_err(|e| e.to_string())?;
+            let estudiantes: Vec<i64> = stmt
+                .query_map([id], |row| row.get(0))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
             drop(stmt);
             for est_id in estudiantes {
                 tx.execute(
                     "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)",
                     rusqlite::params!["estudiante", est_id],
-                ).map_err(|e| e.to_string())?;
+                )
+                .map_err(|e| e.to_string())?;
             }
-            tx.execute("DELETE FROM estudiante WHERE ano_lectivo_id = ?", [id]).map_err(|e| e.to_string())?;
-        },
+            tx.execute("DELETE FROM estudiante WHERE ano_lectivo_id = ?", [id])
+                .map_err(|e| e.to_string())?;
+        }
         "corte_evaluativo" => {
             // Registrar eliminaciones de notas
             let mut stmt = tx.prepare(
                 "SELECT estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id FROM nota WHERE corte_evaluativo_id = ?"
             ).map_err(|e| e.to_string())?;
-            let notas: Vec<(i64, i64, i64, i64)> = stmt.query_map([id], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-            }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+            let notas: Vec<(i64, i64, i64, i64)> = stmt
+                .query_map([id], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+                })
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
             drop(stmt);
             for (est_id, crit_id, corte_id, asig_id) in notas {
                 tx.execute(
@@ -541,28 +628,41 @@ pub fn delete_category_force(
                     rusqlite::params![est_id, crit_id, corte_id, asig_id],
                 ).map_err(|e| e.to_string())?;
             }
-            tx.execute("DELETE FROM nota WHERE corte_evaluativo_id = ?", [id]).map_err(|e| e.to_string())?;
-            
+            tx.execute("DELETE FROM nota WHERE corte_evaluativo_id = ?", [id])
+                .map_err(|e| e.to_string())?;
+
             // Registrar indicadores
-            let mut stmt = tx.prepare("SELECT id FROM indicador WHERE corte_evaluativo_id = ?").map_err(|e| e.to_string())?;
-            let indicadores: Vec<i64> = stmt.query_map([id], |row| row.get(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+            let mut stmt = tx
+                .prepare("SELECT id FROM indicador WHERE corte_evaluativo_id = ?")
+                .map_err(|e| e.to_string())?;
+            let indicadores: Vec<i64> = stmt
+                .query_map([id], |row| row.get(0))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
             drop(stmt);
             for ind_id in indicadores {
                 tx.execute(
                     "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)",
                     rusqlite::params!["indicador", ind_id],
-                ).map_err(|e| e.to_string())?;
+                )
+                .map_err(|e| e.to_string())?;
             }
-            tx.execute("DELETE FROM indicador WHERE corte_evaluativo_id = ?", [id]).map_err(|e| e.to_string())?;
-        },
+            tx.execute("DELETE FROM indicador WHERE corte_evaluativo_id = ?", [id])
+                .map_err(|e| e.to_string())?;
+        }
         "colegio" => {
             // Registrar notas en cascada
             let mut stmt = tx.prepare(
                 "SELECT estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id FROM nota WHERE estudiante_id IN (SELECT id FROM estudiante WHERE colegio_id = ?)"
             ).map_err(|e| e.to_string())?;
-            let notas: Vec<(i64, i64, i64, i64)> = stmt.query_map([id], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-            }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+            let notas: Vec<(i64, i64, i64, i64)> = stmt
+                .query_map([id], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+                })
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
             drop(stmt);
             for (est_id, crit_id, corte_id, asig_id) in notas {
                 tx.execute(
@@ -576,9 +676,11 @@ pub fn delete_category_force(
             let mut stmt = tx.prepare(
                 "SELECT estudiante_id, fecha FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE colegio_id = ?)"
             ).map_err(|e| e.to_string())?;
-            let asistencias: Vec<(i64, String)> = stmt.query_map([id], |row| {
-                Ok((row.get(0)?, row.get(1)?))
-            }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+            let asistencias: Vec<(i64, String)> = stmt
+                .query_map([id], |row| Ok((row.get(0)?, row.get(1)?)))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
             drop(stmt);
             for (est_id, fecha) in asistencias {
                 tx.execute(
@@ -589,27 +691,46 @@ pub fn delete_category_force(
             tx.execute("DELETE FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE colegio_id = ?)", [id]).map_err(|e| e.to_string())?;
 
             // Registrar estudiantes
-            let mut stmt = tx.prepare("SELECT id FROM estudiante WHERE colegio_id = ?").map_err(|e| e.to_string())?;
-            let estudiantes: Vec<i64> = stmt.query_map([id], |row| row.get(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+            let mut stmt = tx
+                .prepare("SELECT id FROM estudiante WHERE colegio_id = ?")
+                .map_err(|e| e.to_string())?;
+            let estudiantes: Vec<i64> = stmt
+                .query_map([id], |row| row.get(0))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
             drop(stmt);
             for est_id in estudiantes {
                 tx.execute(
                     "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)",
                     rusqlite::params!["estudiante", est_id],
-                ).map_err(|e| e.to_string())?;
+                )
+                .map_err(|e| e.to_string())?;
             }
-            tx.execute("DELETE FROM estudiante WHERE colegio_id = ?", [id]).map_err(|e| e.to_string())?;
+            tx.execute("DELETE FROM estudiante WHERE colegio_id = ?", [id])
+                .map_err(|e| e.to_string())?;
 
             // Registrar colegio_dias_asistencia
             tx.execute(
                 "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)",
                 rusqlite::params!["colegio_dias_asistencia", id],
-            ).map_err(|e| e.to_string())?;
-            tx.execute("DELETE FROM colegio_dias_asistencia WHERE colegio_id = ?", [id]).map_err(|e| e.to_string())?;
+            )
+            .map_err(|e| e.to_string())?;
+            tx.execute(
+                "DELETE FROM colegio_dias_asistencia WHERE colegio_id = ?",
+                [id],
+            )
+            .map_err(|e| e.to_string())?;
 
             // Registrar colegio_asignatura
-            let mut stmt = tx.prepare("SELECT asignatura_id FROM colegio_asignatura WHERE colegio_id = ?").map_err(|e| e.to_string())?;
-            let asignaturas: Vec<i64> = stmt.query_map([id], |row| row.get(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+            let mut stmt = tx
+                .prepare("SELECT asignatura_id FROM colegio_asignatura WHERE colegio_id = ?")
+                .map_err(|e| e.to_string())?;
+            let asignaturas: Vec<i64> = stmt
+                .query_map([id], |row| row.get(0))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
             drop(stmt);
             for asig_id in asignaturas {
                 tx.execute(
@@ -617,16 +738,21 @@ pub fn delete_category_force(
                     rusqlite::params![id, asig_id],
                 ).map_err(|e| e.to_string())?;
             }
-            tx.execute("DELETE FROM colegio_asignatura WHERE colegio_id = ?", [id]).map_err(|e| e.to_string())?;
-        },
+            tx.execute("DELETE FROM colegio_asignatura WHERE colegio_id = ?", [id])
+                .map_err(|e| e.to_string())?;
+        }
         "asignatura" => {
             // Registrar notas
             let mut stmt = tx.prepare(
                 "SELECT estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id FROM nota WHERE asignatura_id = ?"
             ).map_err(|e| e.to_string())?;
-            let notas: Vec<(i64, i64, i64, i64)> = stmt.query_map([id], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-            }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+            let notas: Vec<(i64, i64, i64, i64)> = stmt
+                .query_map([id], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+                })
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
             drop(stmt);
             for (est_id, crit_id, corte_id, asig_id) in notas {
                 tx.execute(
@@ -634,23 +760,38 @@ pub fn delete_category_force(
                     rusqlite::params![est_id, crit_id, corte_id, asig_id],
                 ).map_err(|e| e.to_string())?;
             }
-            tx.execute("DELETE FROM nota WHERE asignatura_id = ?", [id]).map_err(|e| e.to_string())?;
+            tx.execute("DELETE FROM nota WHERE asignatura_id = ?", [id])
+                .map_err(|e| e.to_string())?;
 
             // Registrar indicadores
-            let mut stmt = tx.prepare("SELECT id FROM indicador WHERE asignatura_id = ?").map_err(|e| e.to_string())?;
-            let indicadores: Vec<i64> = stmt.query_map([id], |row| row.get(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+            let mut stmt = tx
+                .prepare("SELECT id FROM indicador WHERE asignatura_id = ?")
+                .map_err(|e| e.to_string())?;
+            let indicadores: Vec<i64> = stmt
+                .query_map([id], |row| row.get(0))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
             drop(stmt);
             for ind_id in indicadores {
                 tx.execute(
                     "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)",
                     rusqlite::params!["indicador", ind_id],
-                ).map_err(|e| e.to_string())?;
+                )
+                .map_err(|e| e.to_string())?;
             }
-            tx.execute("DELETE FROM indicador WHERE asignatura_id = ?", [id]).map_err(|e| e.to_string())?;
+            tx.execute("DELETE FROM indicador WHERE asignatura_id = ?", [id])
+                .map_err(|e| e.to_string())?;
 
             // Registrar grado_asignatura
-            let mut stmt = tx.prepare("SELECT grado_id FROM grado_asignatura WHERE asignatura_id = ?").map_err(|e| e.to_string())?;
-            let grados: Vec<i64> = stmt.query_map([id], |row| row.get(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+            let mut stmt = tx
+                .prepare("SELECT grado_id FROM grado_asignatura WHERE asignatura_id = ?")
+                .map_err(|e| e.to_string())?;
+            let grados: Vec<i64> = stmt
+                .query_map([id], |row| row.get(0))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
             drop(stmt);
             for grado_id in grados {
                 tx.execute(
@@ -658,11 +799,18 @@ pub fn delete_category_force(
                     rusqlite::params![grado_id, id],
                 ).map_err(|e| e.to_string())?;
             }
-            tx.execute("DELETE FROM grado_asignatura WHERE asignatura_id = ?", [id]).map_err(|e| e.to_string())?;
+            tx.execute("DELETE FROM grado_asignatura WHERE asignatura_id = ?", [id])
+                .map_err(|e| e.to_string())?;
 
             // Registrar colegio_asignatura
-            let mut stmt = tx.prepare("SELECT colegio_id FROM colegio_asignatura WHERE asignatura_id = ?").map_err(|e| e.to_string())?;
-            let colegios: Vec<i64> = stmt.query_map([id], |row| row.get(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+            let mut stmt = tx
+                .prepare("SELECT colegio_id FROM colegio_asignatura WHERE asignatura_id = ?")
+                .map_err(|e| e.to_string())?;
+            let colegios: Vec<i64> = stmt
+                .query_map([id], |row| row.get(0))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
             drop(stmt);
             for colegio_id in colegios {
                 tx.execute(
@@ -670,16 +818,24 @@ pub fn delete_category_force(
                     rusqlite::params![colegio_id, id],
                 ).map_err(|e| e.to_string())?;
             }
-            tx.execute("DELETE FROM colegio_asignatura WHERE asignatura_id = ?", [id]).map_err(|e| e.to_string())?;
-        },
+            tx.execute(
+                "DELETE FROM colegio_asignatura WHERE asignatura_id = ?",
+                [id],
+            )
+            .map_err(|e| e.to_string())?;
+        }
         "grado" => {
             // Registrar notas en cascada
             let mut stmt = tx.prepare(
                 "SELECT estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id FROM nota WHERE estudiante_id IN (SELECT id FROM estudiante WHERE grado_id = ?)"
             ).map_err(|e| e.to_string())?;
-            let notas: Vec<(i64, i64, i64, i64)> = stmt.query_map([id], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-            }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+            let notas: Vec<(i64, i64, i64, i64)> = stmt
+                .query_map([id], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+                })
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
             drop(stmt);
             for (est_id, crit_id, corte_id, asig_id) in notas {
                 tx.execute(
@@ -693,9 +849,11 @@ pub fn delete_category_force(
             let mut stmt = tx.prepare(
                 "SELECT estudiante_id, fecha FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE grado_id = ?)"
             ).map_err(|e| e.to_string())?;
-            let asistencias: Vec<(i64, String)> = stmt.query_map([id], |row| {
-                Ok((row.get(0)?, row.get(1)?))
-            }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+            let asistencias: Vec<(i64, String)> = stmt
+                .query_map([id], |row| Ok((row.get(0)?, row.get(1)?)))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
             drop(stmt);
             for (est_id, fecha) in asistencias {
                 tx.execute(
@@ -706,32 +864,54 @@ pub fn delete_category_force(
             tx.execute("DELETE FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE grado_id = ?)", [id]).map_err(|e| e.to_string())?;
 
             // Registrar estudiantes
-            let mut stmt = tx.prepare("SELECT id FROM estudiante WHERE grado_id = ?").map_err(|e| e.to_string())?;
-            let estudiantes: Vec<i64> = stmt.query_map([id], |row| row.get(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+            let mut stmt = tx
+                .prepare("SELECT id FROM estudiante WHERE grado_id = ?")
+                .map_err(|e| e.to_string())?;
+            let estudiantes: Vec<i64> = stmt
+                .query_map([id], |row| row.get(0))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
             drop(stmt);
             for est_id in estudiantes {
                 tx.execute(
                     "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)",
                     rusqlite::params!["estudiante", est_id],
-                ).map_err(|e| e.to_string())?;
+                )
+                .map_err(|e| e.to_string())?;
             }
-            tx.execute("DELETE FROM estudiante WHERE grado_id = ?", [id]).map_err(|e| e.to_string())?;
+            tx.execute("DELETE FROM estudiante WHERE grado_id = ?", [id])
+                .map_err(|e| e.to_string())?;
 
             // Registrar indicadores
-            let mut stmt = tx.prepare("SELECT id FROM indicador WHERE grado_id = ?").map_err(|e| e.to_string())?;
-            let indicadores: Vec<i64> = stmt.query_map([id], |row| row.get(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+            let mut stmt = tx
+                .prepare("SELECT id FROM indicador WHERE grado_id = ?")
+                .map_err(|e| e.to_string())?;
+            let indicadores: Vec<i64> = stmt
+                .query_map([id], |row| row.get(0))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
             drop(stmt);
             for ind_id in indicadores {
                 tx.execute(
                     "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)",
                     rusqlite::params!["indicador", ind_id],
-                ).map_err(|e| e.to_string())?;
+                )
+                .map_err(|e| e.to_string())?;
             }
-            tx.execute("DELETE FROM indicador WHERE grado_id = ?", [id]).map_err(|e| e.to_string())?;
+            tx.execute("DELETE FROM indicador WHERE grado_id = ?", [id])
+                .map_err(|e| e.to_string())?;
 
             // Registrar grado_asignatura
-            let mut stmt = tx.prepare("SELECT asignatura_id FROM grado_asignatura WHERE grado_id = ?").map_err(|e| e.to_string())?;
-            let asignaturas: Vec<i64> = stmt.query_map([id], |row| row.get(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+            let mut stmt = tx
+                .prepare("SELECT asignatura_id FROM grado_asignatura WHERE grado_id = ?")
+                .map_err(|e| e.to_string())?;
+            let asignaturas: Vec<i64> = stmt
+                .query_map([id], |row| row.get(0))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
             drop(stmt);
             for asig_id in asignaturas {
                 tx.execute(
@@ -739,16 +919,21 @@ pub fn delete_category_force(
                     rusqlite::params![id, asig_id],
                 ).map_err(|e| e.to_string())?;
             }
-            tx.execute("DELETE FROM grado_asignatura WHERE grado_id = ?", [id]).map_err(|e| e.to_string())?;
-        },
+            tx.execute("DELETE FROM grado_asignatura WHERE grado_id = ?", [id])
+                .map_err(|e| e.to_string())?;
+        }
         "seccion" => {
             // Registrar notas en cascada
             let mut stmt = tx.prepare(
                 "SELECT estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id FROM nota WHERE estudiante_id IN (SELECT id FROM estudiante WHERE seccion_id = ?)"
             ).map_err(|e| e.to_string())?;
-            let notas: Vec<(i64, i64, i64, i64)> = stmt.query_map([id], |row| {
-                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
-            }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+            let notas: Vec<(i64, i64, i64, i64)> = stmt
+                .query_map([id], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+                })
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
             drop(stmt);
             for (est_id, crit_id, corte_id, asig_id) in notas {
                 tx.execute(
@@ -762,9 +947,11 @@ pub fn delete_category_force(
             let mut stmt = tx.prepare(
                 "SELECT estudiante_id, fecha FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE seccion_id = ?)"
             ).map_err(|e| e.to_string())?;
-            let asistencias: Vec<(i64, String)> = stmt.query_map([id], |row| {
-                Ok((row.get(0)?, row.get(1)?))
-            }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+            let asistencias: Vec<(i64, String)> = stmt
+                .query_map([id], |row| Ok((row.get(0)?, row.get(1)?)))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
             drop(stmt);
             for (est_id, fecha) in asistencias {
                 tx.execute(
@@ -775,17 +962,25 @@ pub fn delete_category_force(
             tx.execute("DELETE FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE seccion_id = ?)", [id]).map_err(|e| e.to_string())?;
 
             // Registrar estudiantes
-            let mut stmt = tx.prepare("SELECT id FROM estudiante WHERE seccion_id = ?").map_err(|e| e.to_string())?;
-            let estudiantes: Vec<i64> = stmt.query_map([id], |row| row.get(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+            let mut stmt = tx
+                .prepare("SELECT id FROM estudiante WHERE seccion_id = ?")
+                .map_err(|e| e.to_string())?;
+            let estudiantes: Vec<i64> = stmt
+                .query_map([id], |row| row.get(0))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
             drop(stmt);
             for est_id in estudiantes {
                 tx.execute(
                     "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)",
                     rusqlite::params!["estudiante", est_id],
-                ).map_err(|e| e.to_string())?;
+                )
+                .map_err(|e| e.to_string())?;
             }
-            tx.execute("DELETE FROM estudiante WHERE seccion_id = ?", [id]).map_err(|e| e.to_string())?;
-        },
+            tx.execute("DELETE FROM estudiante WHERE seccion_id = ?", [id])
+                .map_err(|e| e.to_string())?;
+        }
         _ => return Err("Tabla no reconocida".to_string()),
     }
 
@@ -793,9 +988,11 @@ pub fn delete_category_force(
     tx.execute(
         "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)",
         rusqlite::params![&table, id],
-    ).map_err(|e| e.to_string())?;
-    tx.execute(&format!("DELETE FROM {} WHERE id = ?", table), [id]).map_err(|e| e.to_string())?;
-    
+    )
+    .map_err(|e| e.to_string())?;
+    tx.execute(&format!("DELETE FROM {} WHERE id = ?", table), [id])
+        .map_err(|e| e.to_string())?;
+
     tx.commit().map_err(|e| e.to_string())?;
     Ok(())
 }
@@ -954,7 +1151,7 @@ pub fn get_recommended_colegio(state: tauri::State<'_, DbState>) -> Result<i64, 
     use chrono::{Datelike, Local};
     let now = Local::now();
     let weekday = now.weekday();
-    
+
     // Mapear el día de la semana a la columna de la base de datos
     let column = match weekday {
         chrono::Weekday::Mon => "lunes",
@@ -967,18 +1164,19 @@ pub fn get_recommended_colegio(state: tauri::State<'_, DbState>) -> Result<i64, 
     };
 
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    
+
     // Buscar colegios habilitados para hoy, ordenados alfabéticamente
-    let mut stmt = conn.prepare(&format!(
-        "SELECT c.id FROM colegio c 
+    let mut stmt = conn
+        .prepare(&format!(
+            "SELECT c.id FROM colegio c 
          INNER JOIN colegio_dias_asistencia cda ON c.id = cda.colegio_id 
          WHERE cda.{} = 1 
          ORDER BY c.nombre ASC LIMIT 1",
-        column
-    )).map_err(|e| e.to_string())?;
+            column
+        ))
+        .map_err(|e| e.to_string())?;
 
-    let colegio_id = stmt.query_row([], |row| row.get::<_, i64>(0))
-        .unwrap_or(0);
+    let colegio_id = stmt.query_row([], |row| row.get::<_, i64>(0)).unwrap_or(0);
 
     Ok(colegio_id)
 }
@@ -992,7 +1190,9 @@ pub struct PendingDeletion {
 }
 
 #[tauri::command]
-pub fn get_pending_deletions(state: tauri::State<'_, DbState>) -> Result<Vec<PendingDeletion>, String> {
+pub fn get_pending_deletions(
+    state: tauri::State<'_, DbState>,
+) -> Result<Vec<PendingDeletion>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare("SELECT id, tabla, registro_id FROM sync_pending_deletions")
@@ -1022,11 +1222,18 @@ pub fn remove_pending_deletion(state: tauri::State<'_, DbState>, id: i64) -> Res
 }
 
 #[tauri::command]
-pub fn remove_pending_deletion_by_record(state: tauri::State<'_, DbState>, tabla: String, id: i64) -> Result<(), String> {
+pub fn remove_pending_deletion_by_record(
+    state: tauri::State<'_, DbState>,
+    tabla: String,
+    id: i64,
+) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM sync_pending_deletions WHERE tabla = ? AND registro_id = ?", rusqlite::params![tabla, id])
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    conn.execute(
+        "DELETE FROM sync_pending_deletions WHERE tabla = ? AND registro_id = ?",
+        rusqlite::params![tabla, id],
+    )
+    .map(|_| ())
+    .map_err(|e| e.to_string())
 }
 
 // ============================================================================
@@ -1034,7 +1241,9 @@ pub fn remove_pending_deletion_by_record(state: tauri::State<'_, DbState>, tabla
 // ============================================================================
 
 #[tauri::command]
-pub fn get_pending_deletions_asistencia(state: tauri::State<'_, DbState>) -> Result<Vec<PendingDeletionAsistencia>, String> {
+pub fn get_pending_deletions_asistencia(
+    state: tauri::State<'_, DbState>,
+) -> Result<Vec<PendingDeletionAsistencia>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare("SELECT id, estudiante_id, fecha FROM sync_pending_deletions_asistencia")
@@ -1056,15 +1265,23 @@ pub fn get_pending_deletions_asistencia(state: tauri::State<'_, DbState>) -> Res
 }
 
 #[tauri::command]
-pub fn remove_pending_deletion_asistencia(state: tauri::State<'_, DbState>, id: i64) -> Result<(), String> {
+pub fn remove_pending_deletion_asistencia(
+    state: tauri::State<'_, DbState>,
+    id: i64,
+) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM sync_pending_deletions_asistencia WHERE id = ?", [id])
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    conn.execute(
+        "DELETE FROM sync_pending_deletions_asistencia WHERE id = ?",
+        [id],
+    )
+    .map(|_| ())
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn get_pending_deletions_nota(state: tauri::State<'_, DbState>) -> Result<Vec<PendingDeletionNota>, String> {
+pub fn get_pending_deletions_nota(
+    state: tauri::State<'_, DbState>,
+) -> Result<Vec<PendingDeletionNota>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare("SELECT id, estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id FROM sync_pending_deletions_nota")
@@ -1088,7 +1305,10 @@ pub fn get_pending_deletions_nota(state: tauri::State<'_, DbState>) -> Result<Ve
 }
 
 #[tauri::command]
-pub fn remove_pending_deletion_nota(state: tauri::State<'_, DbState>, id: i64) -> Result<(), String> {
+pub fn remove_pending_deletion_nota(
+    state: tauri::State<'_, DbState>,
+    id: i64,
+) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute("DELETE FROM sync_pending_deletions_nota WHERE id = ?", [id])
         .map(|_| ())
@@ -1096,7 +1316,9 @@ pub fn remove_pending_deletion_nota(state: tauri::State<'_, DbState>, id: i64) -
 }
 
 #[tauri::command]
-pub fn get_pending_deletions_grado_asignatura(state: tauri::State<'_, DbState>) -> Result<Vec<PendingDeletionGradoAsignatura>, String> {
+pub fn get_pending_deletions_grado_asignatura(
+    state: tauri::State<'_, DbState>,
+) -> Result<Vec<PendingDeletionGradoAsignatura>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare("SELECT id, grado_id, asignatura_id FROM sync_pending_deletions_grado_asignatura")
@@ -1118,18 +1340,28 @@ pub fn get_pending_deletions_grado_asignatura(state: tauri::State<'_, DbState>) 
 }
 
 #[tauri::command]
-pub fn remove_pending_deletion_grado_asignatura(state: tauri::State<'_, DbState>, id: i64) -> Result<(), String> {
+pub fn remove_pending_deletion_grado_asignatura(
+    state: tauri::State<'_, DbState>,
+    id: i64,
+) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM sync_pending_deletions_grado_asignatura WHERE id = ?", [id])
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    conn.execute(
+        "DELETE FROM sync_pending_deletions_grado_asignatura WHERE id = ?",
+        [id],
+    )
+    .map(|_| ())
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn get_pending_deletions_colegio_asignatura(state: tauri::State<'_, DbState>) -> Result<Vec<PendingDeletionColegioAsignatura>, String> {
+pub fn get_pending_deletions_colegio_asignatura(
+    state: tauri::State<'_, DbState>,
+) -> Result<Vec<PendingDeletionColegioAsignatura>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
-        .prepare("SELECT id, colegio_id, asignatura_id FROM sync_pending_deletions_colegio_asignatura")
+        .prepare(
+            "SELECT id, colegio_id, asignatura_id FROM sync_pending_deletions_colegio_asignatura",
+        )
         .map_err(|e| e.to_string())?;
 
     let items = stmt
@@ -1148,11 +1380,17 @@ pub fn get_pending_deletions_colegio_asignatura(state: tauri::State<'_, DbState>
 }
 
 #[tauri::command]
-pub fn remove_pending_deletion_colegio_asignatura(state: tauri::State<'_, DbState>, id: i64) -> Result<(), String> {
+pub fn remove_pending_deletion_colegio_asignatura(
+    state: tauri::State<'_, DbState>,
+    id: i64,
+) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    conn.execute("DELETE FROM sync_pending_deletions_colegio_asignatura WHERE id = ?", [id])
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    conn.execute(
+        "DELETE FROM sync_pending_deletions_colegio_asignatura WHERE id = ?",
+        [id],
+    )
+    .map(|_| ())
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1232,7 +1470,7 @@ pub fn unassign_subject_from_grade(
     asignaturaId: i64,
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    
+
     // Solo registrar si la relación existe
     let exists: bool = conn.query_row(
         "SELECT EXISTS(SELECT 1 FROM grado_asignatura WHERE grado_id = ? AND asignatura_id = ?)",
@@ -1251,7 +1489,8 @@ pub fn unassign_subject_from_grade(
         conn.execute(
             "DELETE FROM grado_asignatura WHERE grado_id = ? AND asignatura_id = ?",
             [gradoId, asignaturaId],
-        ).map_err(|e| e.to_string())?;
+        )
+        .map_err(|e| e.to_string())?;
     }
 
     Ok(())
@@ -1280,12 +1519,9 @@ pub fn unassign_all_subjects_from_grade(
     gradoId: i64,
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    conn.execute(
-        "DELETE FROM grado_asignatura WHERE grado_id = ?",
-        [gradoId],
-    )
-    .map(|_| ())
-    .map_err(|e| e.to_string())
+    conn.execute("DELETE FROM grado_asignatura WHERE grado_id = ?", [gradoId])
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1344,7 +1580,7 @@ pub fn unassign_subject_from_colegio(
     asignaturaId: i64,
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    
+
     // Solo registrar si la relación existe
     let exists: bool = conn.query_row(
         "SELECT EXISTS(SELECT 1 FROM colegio_asignatura WHERE colegio_id = ? AND asignatura_id = ?)",
@@ -1363,7 +1599,8 @@ pub fn unassign_subject_from_colegio(
         conn.execute(
             "DELETE FROM colegio_asignatura WHERE colegio_id = ? AND asignatura_id = ?",
             [colegioId, asignaturaId],
-        ).map_err(|e| e.to_string())?;
+        )
+        .map_err(|e| e.to_string())?;
     }
 
     Ok(())
@@ -1422,7 +1659,9 @@ create_crud_commands_active!(
 pub fn get_colegios(state: tauri::State<'_, DbState>) -> Result<Vec<CategoryItem>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
-        .prepare("SELECT id, nombre, activo, cualitativo FROM colegio ORDER BY orden ASC, nombre ASC")
+        .prepare(
+            "SELECT id, nombre, activo, cualitativo FROM colegio ORDER BY orden ASC, nombre ASC",
+        )
         .map_err(|e| e.to_string())?;
 
     let items = stmt
@@ -1444,13 +1683,13 @@ pub fn get_colegios(state: tauri::State<'_, DbState>) -> Result<Vec<CategoryItem
 #[tauri::command]
 pub fn add_colegio(state: tauri::State<'_, DbState>, nombre: String) -> Result<i64, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    
+
     // Get max order
-    let max_order: i64 = conn.query_row(
-        "SELECT COALESCE(MAX(orden), 0) FROM colegio",
-        [],
-        |row| row.get(0),
-    ).unwrap_or(0);
+    let max_order: i64 = conn
+        .query_row("SELECT COALESCE(MAX(orden), 0) FROM colegio", [], |row| {
+            row.get(0)
+        })
+        .unwrap_or(0);
 
     conn.execute(
         "INSERT INTO colegio (nombre, activo, cualitativo, orden) VALUES (?, 0, 0, ?)",
@@ -1480,12 +1719,9 @@ pub fn update_colegio(
 #[tauri::command]
 pub fn delete_colegio(state: tauri::State<'_, DbState>, id: i64) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    conn.execute(
-        "DELETE FROM colegio WHERE id = ?",
-        [id],
-    )
-    .map(|_| ())
-    .map_err(|e| e.to_string())
+    conn.execute("DELETE FROM colegio WHERE id = ?", [id])
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1494,18 +1730,12 @@ pub fn set_active_colegio(state: tauri::State<'_, DbState>, id: i64) -> Result<(
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
     // Deactivate all
-    tx.execute(
-        "UPDATE colegio SET activo = 0",
-        [],
-    )
-    .map_err(|e| e.to_string())?;
+    tx.execute("UPDATE colegio SET activo = 0", [])
+        .map_err(|e| e.to_string())?;
 
     // Activate selected
-    tx.execute(
-        "UPDATE colegio SET activo = 1 WHERE id = ?",
-        [id],
-    )
-    .map_err(|e| e.to_string())?;
+    tx.execute("UPDATE colegio SET activo = 1 WHERE id = ?", [id])
+        .map_err(|e| e.to_string())?;
 
     tx.commit().map_err(|e| e.to_string())?;
     Ok(())
@@ -1930,7 +2160,7 @@ pub struct AsistenciaReporteItem {
     pub id: i64,
     pub nombre: String,
     pub sexo: String,
-    pub fechas: Vec<String>, // "YYYY-MM-DD:ESTADO"
+    pub fechas: Vec<String>,        // "YYYY-MM-DD:ESTADO"
     pub observaciones: Vec<String>, // "YYYY-MM-DD:OBSERVACION"
 }
 
@@ -2093,30 +2323,59 @@ pub fn get_asistencia_rango(
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
 
     // 1. Obtener todos los estudiantes filtrados
-    let mut stmt_est = conn.prepare(
-        "SELECT id, nombre, sexo FROM estudiante 
+    let mut stmt_est = conn
+        .prepare(
+            "SELECT id, nombre, sexo FROM estudiante 
          WHERE ano_lectivo_id = ? AND colegio_id = ? AND grado_id = ? AND seccion_id = ? 
-         ORDER BY nombre"
-    ).map_err(|e| e.to_string())?;
+         ORDER BY nombre",
+        )
+        .map_err(|e| e.to_string())?;
 
-    let estudiantes = stmt_est.query_map([anoLectivoId, colegioId, gradoId, seccionId], |row| {
-        Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
-    }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+    let estudiantes = stmt_est
+        .query_map([anoLectivoId, colegioId, gradoId, seccionId], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
 
     // 2. Obtener toda la asistencia en el rango para esos filtros
-    let mut stmt_asist = conn.prepare(
-        "SELECT a.estudiante_id, a.fecha, a.estado, COALESCE(a.observacion, '') 
+    let mut stmt_asist = conn
+        .prepare(
+            "SELECT a.estudiante_id, a.fecha, a.estado, COALESCE(a.observacion, '') 
          FROM asistencia a
          INNER JOIN estudiante e ON a.estudiante_id = e.id
          WHERE a.fecha >= ? AND a.fecha <= ? 
-         AND e.ano_lectivo_id = ? AND e.colegio_id = ? AND e.grado_id = ? AND e.seccion_id = ?"
-    ).map_err(|e| e.to_string())?;
+         AND e.ano_lectivo_id = ? AND e.colegio_id = ? AND e.grado_id = ? AND e.seccion_id = ?",
+        )
+        .map_err(|e| e.to_string())?;
 
-    let asistencias = stmt_asist.query_map(rusqlite::params![
-        fechaInicio, fechaFin, anoLectivoId, colegioId, gradoId, seccionId
-    ], |row| {
-        Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, String>(3)?))
-    }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+    let asistencias = stmt_asist
+        .query_map(
+            rusqlite::params![
+                fechaInicio,
+                fechaFin,
+                anoLectivoId,
+                colegioId,
+                gradoId,
+                seccionId
+            ],
+            |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            },
+        )
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
 
     // 3. Agrupar
     let mut result = Vec::new();
@@ -2131,7 +2390,13 @@ pub fn get_asistencia_rango(
                 }
             }
         }
-        result.push(AsistenciaReporteItem { id, nombre, sexo, fechas, observaciones });
+        result.push(AsistenciaReporteItem {
+            id,
+            nombre,
+            sexo,
+            fechas,
+            observaciones,
+        });
     }
 
     Ok(result)
@@ -2177,11 +2442,13 @@ pub fn delete_asistencia_batch(
 
     for id in estudiante_ids {
         // Verificar si existe el registro antes de eliminarlo
-        let exists: bool = tx.query_row(
-            "SELECT EXISTS(SELECT 1 FROM asistencia WHERE estudiante_id = ? AND fecha = ?)",
-            rusqlite::params![id, &fecha],
-            |row| row.get(0),
-        ).unwrap_or(false);
+        let exists: bool = tx
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM asistencia WHERE estudiante_id = ? AND fecha = ?)",
+                rusqlite::params![id, &fecha],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
 
         if exists {
             // Registrar la eliminación pendiente ANTES de eliminar
@@ -2194,7 +2461,8 @@ pub fn delete_asistencia_batch(
             tx.execute(
                 "DELETE FROM asistencia WHERE estudiante_id = ? AND fecha = ?",
                 rusqlite::params![id, &fecha],
-            ).map_err(|e| e.to_string())?;
+            )
+            .map_err(|e| e.to_string())?;
         }
     }
 
@@ -2278,7 +2546,9 @@ pub fn get_notas_all(state: tauri::State<'_, DbState>) -> Result<Vec<NotaRespons
 }
 
 #[tauri::command]
-pub fn get_asistencia_all(state: tauri::State<'_, DbState>) -> Result<Vec<AsistenciaRecord>, String> {
+pub fn get_asistencia_all(
+    state: tauri::State<'_, DbState>,
+) -> Result<Vec<AsistenciaRecord>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare("SELECT id, estudiante_id, fecha, estado, observacion FROM asistencia")
@@ -2322,26 +2592,39 @@ pub struct PullData {
 }
 
 #[tauri::command]
-pub fn upsert_pull_data(
-    state: tauri::State<'_, DbState>,
-    data: PullData,
-) -> Result<(), String> {
+pub fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) -> Result<(), String> {
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
     // Función auxiliar para insertar items de categorías
-    let upsert_category = |tx: &rusqlite::Transaction, table: &str, items: &[CategoryItem]| -> Result<(), String> {
-        for item in items {
-            tx.execute(
-                &format!("INSERT OR REPLACE INTO {} (id, nombre, cualitativo) VALUES (?, ?, ?)", table),
-                rusqlite::params![item.id, item.nombre, if item.cualitativo.unwrap_or(false) { 1 } else { 0 }],
-            ).map_err(|e| e.to_string())?;
-        }
-        Ok(())
-    };
+    let upsert_category =
+        |tx: &rusqlite::Transaction, table: &str, items: &[CategoryItem]| -> Result<(), String> {
+            for item in items {
+                tx.execute(
+                    &format!(
+                        "INSERT OR REPLACE INTO {} (id, nombre, cualitativo) VALUES (?, ?, ?)",
+                        table
+                    ),
+                    rusqlite::params![
+                        item.id,
+                        item.nombre,
+                        if item.cualitativo.unwrap_or(false) {
+                            1
+                        } else {
+                            0
+                        }
+                    ],
+                )
+                .map_err(|e| e.to_string())?;
+            }
+            Ok(())
+        };
 
     // Función auxiliar para categorías con 'activo'
-    let upsert_category_active = |tx: &rusqlite::Transaction, table: &str, items: &[CategoryItem]| -> Result<(), String> {
+    let upsert_category_active = |tx: &rusqlite::Transaction,
+                                  table: &str,
+                                  items: &[CategoryItem]|
+     -> Result<(), String> {
         for item in items {
             tx.execute(
                 &format!("INSERT OR REPLACE INTO {} (id, nombre, activo, cualitativo) VALUES (?, ?, ?, ?)", table),
@@ -2418,14 +2701,16 @@ pub fn upsert_pull_data(
         tx.execute(
             "INSERT OR IGNORE INTO grado_asignatura (grado_id, asignatura_id) VALUES (?, ?)",
             rusqlite::params![grado_id, asignatura_id],
-        ).map_err(|e| e.to_string())?;
+        )
+        .map_err(|e| e.to_string())?;
     }
 
     for (colegio_id, asignatura_id) in &data.colegio_asignatura {
         tx.execute(
             "INSERT OR IGNORE INTO colegio_asignatura (colegio_id, asignatura_id) VALUES (?, ?)",
             rusqlite::params![colegio_id, asignatura_id],
-        ).map_err(|e| e.to_string())?;
+        )
+        .map_err(|e| e.to_string())?;
     }
 
     for cda in &data.colegio_dias_asistencia {
@@ -2439,8 +2724,15 @@ pub fn upsert_pull_data(
     // 1. Primero, eliminar registros locales que están marcados como pendientes de borrado
     //    (evita que reaparezcan tras un pullAll si aún no se sincronizó su borrado)
     let pending_tables = [
-        "estudiante", "colegio", "grado", "seccion", "asignatura", 
-        "ano_lectivo", "corte_evaluativo", "indicador", "criterio"
+        "estudiante",
+        "colegio",
+        "grado",
+        "seccion",
+        "asignatura",
+        "ano_lectivo",
+        "corte_evaluativo",
+        "indicador",
+        "criterio",
     ];
 
     for table in &pending_tables {
@@ -2452,28 +2744,40 @@ pub fn upsert_pull_data(
 
     // 2. Eliminar registros locales que NO existen en la nube pero tampoco están en pending_deletions
     //    (significa que fueron eliminados en otro dispositivo)
-    
+
     // Recopilar IDs recibidos de la nube
-    let cloud_ano_ids: std::collections::HashSet<i64> = data.anos.iter().filter_map(|a| a.id).collect();
-    let cloud_corte_ids: std::collections::HashSet<i64> = data.cortes.iter().filter_map(|c| c.id).collect();
-    let cloud_colegio_ids: std::collections::HashSet<i64> = data.colegios.iter().filter_map(|c| c.id).collect();
-    let cloud_asignatura_ids: std::collections::HashSet<i64> = data.asignaturas.iter().filter_map(|a| a.id).collect();
-    let cloud_grado_ids: std::collections::HashSet<i64> = data.grados.iter().filter_map(|g| g.id).collect();
-    let cloud_seccion_ids: std::collections::HashSet<i64> = data.secciones.iter().filter_map(|s| s.id).collect();
-    let cloud_estudiante_ids: std::collections::HashSet<i64> = data.estudiantes.iter().filter_map(|e| e.id).collect();
-    let cloud_indicador_ids: std::collections::HashSet<i64> = data.indicadores.iter().filter_map(|i| i.id).collect();
-    let cloud_criterio_ids: std::collections::HashSet<i64> = data.criterios.iter().filter_map(|c| c.id).collect();
+    let cloud_ano_ids: std::collections::HashSet<i64> =
+        data.anos.iter().filter_map(|a| a.id).collect();
+    let cloud_corte_ids: std::collections::HashSet<i64> =
+        data.cortes.iter().filter_map(|c| c.id).collect();
+    let cloud_colegio_ids: std::collections::HashSet<i64> =
+        data.colegios.iter().filter_map(|c| c.id).collect();
+    let cloud_asignatura_ids: std::collections::HashSet<i64> =
+        data.asignaturas.iter().filter_map(|a| a.id).collect();
+    let cloud_grado_ids: std::collections::HashSet<i64> =
+        data.grados.iter().filter_map(|g| g.id).collect();
+    let cloud_seccion_ids: std::collections::HashSet<i64> =
+        data.secciones.iter().filter_map(|s| s.id).collect();
+    let cloud_estudiante_ids: std::collections::HashSet<i64> =
+        data.estudiantes.iter().filter_map(|e| e.id).collect();
+    let cloud_indicador_ids: std::collections::HashSet<i64> =
+        data.indicadores.iter().filter_map(|i| i.id).collect();
+    let cloud_criterio_ids: std::collections::HashSet<i64> =
+        data.criterios.iter().filter_map(|c| c.id).collect();
 
     // Función auxiliar para eliminar registros que no existen en la nube
-    let delete_not_in_cloud = |tx: &rusqlite::Transaction, table: &str, cloud_ids: &std::collections::HashSet<i64>| -> Result<(), rusqlite::Error> {
+    let delete_not_in_cloud = |tx: &rusqlite::Transaction,
+                               table: &str,
+                               cloud_ids: &std::collections::HashSet<i64>|
+     -> Result<(), rusqlite::Error> {
         if cloud_ids.is_empty() {
             // Si no hay datos en la nube, no eliminamos nada localmente (excepto pending_deletions)
             return Ok(());
         }
-        
+
         // Crear placeholders para los IDs de la nube (?1, ?2, ?3...)
         let placeholders = cloud_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-        
+
         // Eliminar registros que:
         // 1. NO están en la lista de IDs de la nube
         // 2. NO están en sync_pending_deletions (evita borrar los que el usuario local eliminó y aún no sincronizó)
@@ -2481,10 +2785,13 @@ pub fn upsert_pull_data(
             "DELETE FROM {} WHERE id NOT IN ({}) AND id NOT IN (SELECT registro_id FROM sync_pending_deletions WHERE tabla = ?)",
             table, placeholders
         );
-        
-        let mut params: Vec<&dyn rusqlite::ToSql> = cloud_ids.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
+
+        let mut params: Vec<&dyn rusqlite::ToSql> = cloud_ids
+            .iter()
+            .map(|id| id as &dyn rusqlite::ToSql)
+            .collect();
         params.push(&table);
-        
+
         tx.execute(&sql, rusqlite::params_from_iter(params))?;
         Ok(())
     };
@@ -2540,8 +2847,9 @@ pub fn upsert_pull_data(
             "CREATE TEMP TABLE IF NOT EXISTS temp_cloud_asistencia (estudiante_id INTEGER, fecha TEXT)",
             [],
         ).map_err(|e| e.to_string())?;
-        
-        let mut stmt = tx.prepare("INSERT INTO temp_cloud_asistencia (estudiante_id, fecha) VALUES (?, ?)")
+
+        let mut stmt = tx
+            .prepare("INSERT INTO temp_cloud_asistencia (estudiante_id, fecha) VALUES (?, ?)")
             .map_err(|e| e.to_string())?;
         for a in &data.asistencia {
             stmt.execute(rusqlite::params![a.estudiante_id, &a.fecha])
@@ -2556,7 +2864,8 @@ pub fn upsert_pull_data(
             [],
         ).map_err(|e| e.to_string())?;
 
-        tx.execute("DROP TABLE temp_cloud_asistencia", []).map_err(|e| e.to_string())?;
+        tx.execute("DROP TABLE temp_cloud_asistencia", [])
+            .map_err(|e| e.to_string())?;
     }
 
     // 6. Eliminar notas locales que no existen en la nube
@@ -2565,12 +2874,17 @@ pub fn upsert_pull_data(
             "CREATE TEMP TABLE IF NOT EXISTS temp_cloud_nota (estudiante_id INTEGER, criterio_id INTEGER, corte_evaluativo_id INTEGER, asignatura_id INTEGER)",
             [],
         ).map_err(|e| e.to_string())?;
-        
+
         let mut stmt = tx.prepare("INSERT INTO temp_cloud_nota (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id) VALUES (?, ?, ?, ?)")
             .map_err(|e| e.to_string())?;
         for n in &data.notas {
-            stmt.execute(rusqlite::params![n.estudiante_id, n.criterio_id, n.corte_evaluativo_id, n.asignatura_id])
-                .map_err(|e| e.to_string())?;
+            stmt.execute(rusqlite::params![
+                n.estudiante_id,
+                n.criterio_id,
+                n.corte_evaluativo_id,
+                n.asignatura_id
+            ])
+            .map_err(|e| e.to_string())?;
         }
         drop(stmt);
 
@@ -2580,7 +2894,8 @@ pub fn upsert_pull_data(
             [],
         ).map_err(|e| e.to_string())?;
 
-        tx.execute("DROP TABLE temp_cloud_nota", []).map_err(|e| e.to_string())?;
+        tx.execute("DROP TABLE temp_cloud_nota", [])
+            .map_err(|e| e.to_string())?;
     }
 
     // 7. Eliminar grado_asignatura locales que no existen en la nube
@@ -2589,8 +2904,9 @@ pub fn upsert_pull_data(
             "CREATE TEMP TABLE IF NOT EXISTS temp_cloud_grado_asig (grado_id INTEGER, asignatura_id INTEGER)",
             [],
         ).map_err(|e| e.to_string())?;
-        
-        let mut stmt = tx.prepare("INSERT INTO temp_cloud_grado_asig (grado_id, asignatura_id) VALUES (?, ?)")
+
+        let mut stmt = tx
+            .prepare("INSERT INTO temp_cloud_grado_asig (grado_id, asignatura_id) VALUES (?, ?)")
             .map_err(|e| e.to_string())?;
         for (grado_id, asig_id) in &data.grado_asignatura {
             stmt.execute(rusqlite::params![grado_id, asig_id])
@@ -2604,7 +2920,8 @@ pub fn upsert_pull_data(
             [],
         ).map_err(|e| e.to_string())?;
 
-        tx.execute("DROP TABLE temp_cloud_grado_asig", []).map_err(|e| e.to_string())?;
+        tx.execute("DROP TABLE temp_cloud_grado_asig", [])
+            .map_err(|e| e.to_string())?;
     }
 
     // 8. Eliminar colegio_asignatura locales que no existen en la nube
@@ -2613,8 +2930,11 @@ pub fn upsert_pull_data(
             "CREATE TEMP TABLE IF NOT EXISTS temp_cloud_colegio_asig (colegio_id INTEGER, asignatura_id INTEGER)",
             [],
         ).map_err(|e| e.to_string())?;
-        
-        let mut stmt = tx.prepare("INSERT INTO temp_cloud_colegio_asig (colegio_id, asignatura_id) VALUES (?, ?)")
+
+        let mut stmt = tx
+            .prepare(
+                "INSERT INTO temp_cloud_colegio_asig (colegio_id, asignatura_id) VALUES (?, ?)",
+            )
             .map_err(|e| e.to_string())?;
         for (colegio_id, asig_id) in &data.colegio_asignatura {
             stmt.execute(rusqlite::params![colegio_id, asig_id])
@@ -2628,7 +2948,8 @@ pub fn upsert_pull_data(
             [],
         ).map_err(|e| e.to_string())?;
 
-        tx.execute("DROP TABLE temp_cloud_colegio_asig", []).map_err(|e| e.to_string())?;
+        tx.execute("DROP TABLE temp_cloud_colegio_asig", [])
+            .map_err(|e| e.to_string())?;
     }
 
     tx.commit().map_err(|e| e.to_string())?;
@@ -2636,7 +2957,9 @@ pub fn upsert_pull_data(
 }
 
 #[tauri::command]
-pub fn get_colegio_dias_asistencia_all(state: tauri::State<'_, DbState>) -> Result<Vec<ColegioDiasAsistencia>, String> {
+pub fn get_colegio_dias_asistencia_all(
+    state: tauri::State<'_, DbState>,
+) -> Result<Vec<ColegioDiasAsistencia>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare("SELECT colegio_id, lunes, martes, miercoles, jueves, viernes, sabado, domingo FROM colegio_dias_asistencia")
