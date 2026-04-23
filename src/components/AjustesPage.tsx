@@ -41,6 +41,8 @@ export function AjustesPage() {
   const [orientation, setOrientation] = useState<string>(() => {
     return localStorage.getItem("app-orientation") || "any";
   });
+  const [currentUserId, setCurrentUserId] = useState<string>("");
+  const [showUserIdBox, setShowUserIdBox] = useState<boolean>(false);
 
   // Catalogs for export
   const [anos, setAnos] = useState<CategoryItem[]>([]);
@@ -334,10 +336,18 @@ export function AjustesPage() {
 
   const showUserId = async () => {
     const userId = await syncService.getUserId();
-    emit("show-toast", {
-      message: `User ID actual: ${userId || 'No conectado'}`,
-      type: "info"
-    });
+    setCurrentUserId(userId || 'No conectado');
+    setShowUserIdBox(true);
+  };
+
+  const copyUserId = async () => {
+    if (currentUserId && currentUserId !== 'No conectado') {
+      await navigator.clipboard.writeText(currentUserId);
+      emit("show-toast", {
+        message: "User ID copiado al portapapeles",
+        type: "success"
+      });
+    }
   };
 
   const handleSelectFolder = async () => {
@@ -1476,7 +1486,7 @@ export function AjustesPage() {
 
                     <div style={{ marginTop: "15px", textAlign: "center" }}>
                       <button
-                        onClick={() => showUserId()}
+                        onClick={() => showUserIdBox ? setShowUserIdBox(false) : showUserId()}
                         style={{
                           padding: "8px 16px",
                           background: "rgba(139, 92, 246, 0.1)",
@@ -1487,8 +1497,51 @@ export function AjustesPage() {
                           cursor: "pointer",
                         }}
                       >
-                        🔍 Mostrar User ID
+                        🔍 {showUserIdBox ? 'Ocultar' : 'Mostrar'} User ID
                       </button>
+
+                      {showUserIdBox && (
+                        <div style={{
+                          marginTop: "10px",
+                          display: "flex",
+                          gap: "8px",
+                          alignItems: "center",
+                          justifyContent: "center"
+                        }}>
+                          <input
+                            type="text"
+                            value={currentUserId}
+                            readOnly
+                            style={{
+                              padding: "6px 12px",
+                              border: "1px solid rgba(139, 92, 246, 0.3)",
+                              borderRadius: "4px",
+                              background: "rgba(139, 92, 246, 0.05)",
+                              color: "#a78bfa",
+                              fontSize: "0.75rem",
+                              fontFamily: "monospace",
+                              width: "300px",
+                              textAlign: "center"
+                            }}
+                          />
+                          <button
+                            onClick={copyUserId}
+                            disabled={currentUserId === 'No conectado'}
+                            style={{
+                              padding: "6px 12px",
+                              background: "rgba(34, 197, 94, 0.1)",
+                              border: "1px solid rgba(34, 197, 94, 0.2)",
+                              borderRadius: "4px",
+                              color: "#22c55e",
+                              fontSize: "0.75rem",
+                              cursor: currentUserId === 'No conectado' ? 'not-allowed' : 'pointer',
+                              opacity: currentUserId === 'No conectado' ? 0.5 : 1
+                            }}
+                          >
+                            📋 Copiar
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     <div
