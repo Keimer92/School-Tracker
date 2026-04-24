@@ -56,71 +56,380 @@ pub struct DbState {
     pub conn: Arc<Mutex<Connection>>,
 }
 
-pub fn run_migrations(conn: &Connection) -> Result<(), String> {
-    let migrations = [
-        include_str!("../migrations/20240131000000_init.sql"),
-        include_str!("../migrations/20240131000001_add_active_column.sql"),
-        include_str!("../migrations/20240131000002_create_evaluations.sql"),
-        include_str!("../migrations/20240201000001_add_contact_info.sql"),
-        include_str!("../migrations/20240201000002_add_grade_colors.sql"),
-        include_str!("../migrations/20240201000003_add_qualitative_to_grades.sql"),
-        include_str!("../migrations/20240201000004_set_default_qualitative_grades.sql"),
-        include_str!("../migrations/20240201000005_add_thresholds_to_grades.sql"),
-        include_str!("../migrations/20240201000006_set_default_thresholds.sql"),
-        include_str!("../migrations/20240203000000_create_attendance.sql"),
-        include_str!("../migrations/20240203000001_add_colegio_attendance_days.sql"),
-        include_str!("../migrations/20240205000000_update_default_subjects.sql"),
-        include_str!("../migrations/20240207000000_add_ela_malpaisillo.sql"),
-        include_str!("../migrations/20240220000000_add_colegio_order.sql"),
-        include_str!("../migrations/20240221000000_add_colegio_subjects.sql"),
-        include_str!("../migrations/20240326000000_add_sync_pending_deletions.sql"),
-        include_str!("../migrations/20260326000000_add_student_foto.sql"),
-        include_str!("../migrations/20240417000000_extend_sync_pending_deletions.sql"),
-        include_str!("../migrations/20260423000000_fix_estudiante_table.sql"),
-    ];
+/// Inicializa la base de datos creando todas las tablas necesarias.
+/// Esta función es idempotente: usa CREATE TABLE IF NOT EXISTS.
+pub fn init_database(conn: &Connection) -> Result<(), String> {
+    println!("🔄 [DB] Inicializando base de datos...");
+    
+    // Tablas de categorías
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS ano_lectivo (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL UNIQUE,
+            activo INTEGER DEFAULT 0,
+            cualitativo INTEGER DEFAULT 0
+        );
 
-    for migration in migrations.iter() {
-        let _migration_name = migration.lines().next().unwrap_or("unknown");
-        println!("🔄 [MIGRATION] Ejecutando migración...");
+        CREATE TABLE IF NOT EXISTS corte_evaluativo (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL UNIQUE,
+            activo INTEGER DEFAULT 0,
+            cualitativo INTEGER DEFAULT 0
+        );
 
-        // Split the migration into individual statements
-        let statements: Vec<&str> = migration
-            .split(';')
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .collect();
+        CREATE TABLE IF NOT EXISTS colegio (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL UNIQUE,
+            activo INTEGER DEFAULT 0,
+            cualitativo INTEGER DEFAULT 0,
+            orden INTEGER DEFAULT 0
+        );
 
-        let mut migration_success = true;
-        for statement in statements {
-            if statement.is_empty() || statement.starts_with("--") {
-                continue;
-            }
-            match conn.execute_batch(statement) {
-                Ok(_) => {}
-                Err(e) => {
-                    let error_msg = e.to_string();
-                    // Ignore "duplicate column name" errors as migrations should be idempotent
-                    if error_msg.contains("duplicate column name") {
-                        println!("⚠️ [MIGRATION] Ignorando columna duplicada: {}", error_msg);
-                    } else {
-                        println!(
-                            "⚠️ [MIGRATION] Error en declaración: {} - {}",
-                            statement, error_msg
-                        );
-                        migration_success = false;
-                    }
-                }
-            }
-        }
+        CREATE TABLE IF NOT EXISTS asignatura (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL UNIQUE,
+            cualitativo INTEGER DEFAULT 0
+        );
 
-        if migration_success {
-            println!("✅ [MIGRATION] Migración ejecutada exitosamente");
-        } else {
-            println!("⚠️ [MIGRATION] Migración completada con errores");
-        }
+        CREATE TABLE IF NOT EXISTS grado (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL UNIQUE,
+            cualitativo INTEGER DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS seccion (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL UNIQUE,
+            cualitativo INTEGER DEFAULT 0
+        );
+        "#,
+    )
+    .map_err(|e| format!("Error creando tablas de categorías: {}", e))?;
+
+    // Tabla de estudiantes (estructura unificada)
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS estudiante (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            codigo TEXT NOT NULL UNIQUE,
+            sexo TEXT CHECK(sexo IN ('M', 'F')) NOT NULL,
+            ano_lectivo_id INTEGER NOT NULL,
+            grado_id INTEGER NOT NULL,
+            seccion_id INTEGER NOT NULL,
+            colegio_id INTEGER NOT NULL,
+            telefono TEXT,
+            direccion TEXT,
+            email TEXT,
+            foto TEXT,
+            FOREIGN KEY(ano_lectivo_id) REFERENCES ano_lectivo(id),
+            FOREIGN KEY(grado_id) REFERENCES grado(id),
+            FOREIGN KEY(seccion_id) REFERENCES seccion(id),
+            FOREIGN KEY(colegio_id) REFERENCES colegio(id)
+        );
+        "#,
+    )
+    .map_err(|e| format!("Error creando tabla estudiante: {}", e))?;
+
+    // Tablas de relaciones muchos a muchos
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS grado_asignatura (
+            grado_id INTEGER NOT NULL,
+            asignatura_id INTEGER NOT NULL,
+            PRIMARY KEY (grado_id, asignatura_id),
+            FOREIGN KEY(grado_id) REFERENCES grado(id) ON DELETE CASCADE,
+            FOREIGN KEY(asignatura_id) REFERENCES asignatura(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS colegio_asignatura (
+            colegio_id INTEGER NOT NULL,
+            asignatura_id INTEGER NOT NULL,
+            PRIMARY KEY (colegio_id, asignatura_id),
+            FOREIGN KEY(colegio_id) REFERENCES colegio(id) ON DELETE CASCADE,
+            FOREIGN KEY(asignatura_id) REFERENCES asignatura(id) ON DELETE CASCADE
+        );
+        "#,
+    )
+    .map_err(|e| format!("Error creando tablas de relaciones: {}", e))?;
+
+    // Tablas de evaluaciones
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS indicador (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            grado_id INTEGER NOT NULL,
+            asignatura_id INTEGER NOT NULL,
+            corte_evaluativo_id INTEGER NOT NULL,
+            orden INTEGER NOT NULL,
+            descripcion TEXT DEFAULT '',
+            activo INTEGER DEFAULT 1,
+            FOREIGN KEY(grado_id) REFERENCES grado(id),
+            FOREIGN KEY(asignatura_id) REFERENCES asignatura(id),
+            FOREIGN KEY(corte_evaluativo_id) REFERENCES corte_evaluativo(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS criterio (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            indicador_id INTEGER NOT NULL,
+            orden INTEGER NOT NULL,
+            descripcion TEXT DEFAULT '',
+            puntaje_maximo INTEGER NOT NULL,
+            FOREIGN KEY(indicador_id) REFERENCES indicador(id) ON DELETE CASCADE
+        );
+        "#,
+    )
+    .map_err(|e| format!("Error creando tablas de evaluaciones: {}", e))?;
+
+    // Tablas de asistencia
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS asistencia (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            estudiante_id INTEGER NOT NULL,
+            fecha TEXT NOT NULL,
+            estado TEXT CHECK(estado IN ('P', 'A', 'J')) NOT NULL,
+            observacion TEXT,
+            UNIQUE(estudiante_id, fecha),
+            FOREIGN KEY(estudiante_id) REFERENCES estudiante(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS colegio_dias_asistencia (
+            colegio_id INTEGER PRIMARY KEY,
+            lunes INTEGER DEFAULT 1,
+            martes INTEGER DEFAULT 1,
+            miercoles INTEGER DEFAULT 1,
+            jueves INTEGER DEFAULT 1,
+            viernes INTEGER DEFAULT 1,
+            sabado INTEGER DEFAULT 1,
+            domingo INTEGER DEFAULT 1,
+            FOREIGN KEY(colegio_id) REFERENCES colegio(id) ON DELETE CASCADE
+        );
+        "#,
+    )
+    .map_err(|e| format!("Error creando tablas de asistencia: {}", e))?;
+
+    // Tabla de notas
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS nota (
+            estudiante_id INTEGER NOT NULL,
+            criterio_id INTEGER NOT NULL,
+            valor REAL NOT NULL,
+            corte_evaluativo_id INTEGER NOT NULL,
+            asignatura_id INTEGER NOT NULL,
+            PRIMARY KEY (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id),
+            FOREIGN KEY(estudiante_id) REFERENCES estudiante(id) ON DELETE CASCADE,
+            FOREIGN KEY(criterio_id) REFERENCES criterio(id) ON DELETE CASCADE,
+            FOREIGN KEY(corte_evaluativo_id) REFERENCES corte_evaluativo(id),
+            FOREIGN KEY(asignatura_id) REFERENCES asignatura(id)
+        );
+        "#,
+    )
+    .map_err(|e| format!("Error creando tabla nota: {}", e))?;
+
+    // Tabla de configuración de calificaciones
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS configuracion_calificacion (
+            id TEXT PRIMARY KEY,
+            color TEXT NOT NULL,
+            minimo INTEGER NOT NULL
+        );
+        "#,
+    )
+    .map_err(|e| format!("Error creando tabla configuracion_calificacion: {}", e))?;
+
+    // Tablas de sincronización
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS sync_pending_deletions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tabla TEXT NOT NULL,
+            registro_id INTEGER NOT NULL,
+            fecha_intento TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS sync_pending_deletions_asistencia (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            estudiante_id INTEGER NOT NULL,
+            fecha TEXT NOT NULL,
+            fecha_intento TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS sync_pending_deletions_nota (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            estudiante_id INTEGER NOT NULL,
+            criterio_id INTEGER NOT NULL,
+            corte_evaluativo_id INTEGER NOT NULL,
+            asignatura_id INTEGER NOT NULL,
+            fecha_intento TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS sync_pending_deletions_grado_asignatura (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            grado_id INTEGER NOT NULL,
+            asignatura_id INTEGER NOT NULL,
+            fecha_intento TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS sync_pending_deletions_colegio_asignatura (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            colegio_id INTEGER NOT NULL,
+            asignatura_id INTEGER NOT NULL,
+            fecha_intento TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        "#,
+    )
+    .map_err(|e| format!("Error creando tablas de sincronización: {}", e))?;
+
+    // Poblar datos iniciales si están vacíos
+    seed_default_data(conn)?;
+
+    println!("✅ [DB] Base de datos inicializada correctamente");
+    Ok(())
+}
+
+/// Inserta datos iniciales si las tablas están vacías
+fn seed_default_data(conn: &Connection) -> Result<(), String> {
+    // Verificar si ya hay datos
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM ano_lectivo", [], |row| row.get(0))
+        .unwrap_or(0);
+
+    if count > 0 {
+        println!("📊 [DB] Datos iniciales ya existen, omitiendo sembrado");
+        return Ok(());
     }
 
+    println!("🌱 [DB] Sembrando datos iniciales...");
+
+    // Años lectivos
+    conn.execute(
+        "INSERT INTO ano_lectivo (nombre) VALUES ('2026')",
+        [],
+    ).ok();
+    conn.execute(
+        "INSERT INTO ano_lectivo (nombre) VALUES ('2027')",
+        [],
+    ).ok();
+    conn.execute(
+        "INSERT INTO ano_lectivo (nombre) VALUES ('2028')",
+        [],
+    ).ok();
+
+    // Cortes evaluativos
+    conn.execute(
+        "INSERT INTO corte_evaluativo (nombre) VALUES ('1er corte evaluativo')",
+        [],
+    ).ok();
+    conn.execute(
+        "INSERT INTO corte_evaluativo (nombre) VALUES ('2do corte evaluativo')",
+        [],
+    ).ok();
+    conn.execute(
+        "INSERT INTO corte_evaluativo (nombre) VALUES ('3er corte evaluativo')",
+        [],
+    ).ok();
+    conn.execute(
+        "INSERT INTO corte_evaluativo (nombre) VALUES ('4to corte evaluativo')",
+        [],
+    ).ok();
+
+    // Colegios
+    conn.execute(
+        "INSERT INTO colegio (nombre, orden) VALUES ('ELA Malpaisillo', 1)",
+        [],
+    ).ok();
+    conn.execute(
+        "INSERT INTO colegio (nombre, orden) VALUES ('Candelario Sotelo', 2)",
+        [],
+    ).ok();
+    conn.execute(
+        "INSERT INTO colegio (nombre, orden) VALUES ('Manuel Ignacio Pereira Quintana', 3)",
+        [],
+    ).ok();
+
+    // Asignaturas
+    let asignaturas = vec![
+        ("Ingles", 0),
+        ("Matematicas", 0),
+        ("Fisica", 0),
+        ("Biologia", 0),
+        ("Ciencias Naturales", 0),
+        ("Ciencias Sociales", 0),
+        ("TAC", 1),
+        ("AEP", 1),
+        ("Convivencia & Civismo", 1),
+        ("Creciendo en Valores", 1),
+        ("Derecho & Dignidad de la Mujer", 1),
+        ("Educación Física", 1),
+    ];
+
+    for (nombre, cualitativo) in asignaturas {
+        conn.execute(
+            "INSERT INTO asignatura (nombre, cualitativo) VALUES (?, ?)",
+            rusqlite::params![nombre, cualitativo],
+        ).ok();
+    }
+
+    // Grados
+    let grados = vec![
+        "1er grado", "2do grado", "3er grado", "4to grado", "5to grado",
+        "6to grado", "7mo grado", "8vo grado", "9no grado", "10mo grado", "11mo grado",
+    ];
+
+    for nombre in grados {
+        conn.execute("INSERT INTO grado (nombre) VALUES (?)", [nombre])
+            .ok();
+    }
+
+    // Secciones
+    for nombre in ["A", "B", "C", "D"] {
+        conn.execute("INSERT INTO seccion (nombre) VALUES (?)", [nombre])
+            .ok();
+    }
+
+    // Asignar todas las asignaturas a todos los grados
+    conn.execute(
+        "INSERT OR IGNORE INTO grado_asignatura (grado_id, asignatura_id)
+         SELECT g.id, a.id FROM grado g CROSS JOIN asignatura a",
+        [],
+    )
+    .ok();
+
+    // Asignar todas las asignaturas a todos los colegios
+    conn.execute(
+        "INSERT OR IGNORE INTO colegio_asignatura (colegio_id, asignatura_id)
+         SELECT c.id, a.id FROM colegio c CROSS JOIN asignatura a",
+        [],
+    )
+    .ok();
+
+    // Configuración de calificaciones por defecto
+    let configs = vec![
+        ("destacado", "#10b981", 90),
+        ("satisfactorio", "#3b82f6", 80),
+        ("basico", "#f59e0b", 60),
+        ("insuficiente", "#ef4444", 0),
+    ];
+
+    for (id, color, minimo) in configs {
+        conn.execute(
+            "INSERT OR IGNORE INTO configuracion_calificacion (id, color, minimo) VALUES (?, ?, ?)",
+            rusqlite::params![id, color, minimo],
+        )
+        .ok();
+    }
+
+    println!("✅ [DB] Datos iniciales sembrados correctamente");
     Ok(())
+}
+
+/// Alias para compatibilidad hacia atrás
+pub fn run_migrations(conn: &Connection) -> Result<(), String> {
+    init_database(conn)
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

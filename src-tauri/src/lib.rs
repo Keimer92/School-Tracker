@@ -1,5 +1,7 @@
 mod db;
 
+mod db;
+
 use db::*;
 use rusqlite::Connection;
 use std::collections::HashMap;
@@ -381,7 +383,7 @@ pub fn run() {
             }
             let db_path = app_dir.join("school.db");
             let conn = Connection::open(db_path).expect("Failed to open database");
-            db::run_migrations(&conn).expect("Failed to run migrations");
+            db::init_database(&conn).expect("Failed to initialize database");
             app_handle.manage(DbState {
                 conn: Arc::new(Mutex::new(conn)),
             });
