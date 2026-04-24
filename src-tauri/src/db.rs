@@ -76,6 +76,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), String> {
         include_str!("../migrations/20240326000000_add_sync_pending_deletions.sql"),
         include_str!("../migrations/20260326000000_add_student_foto.sql"),
         include_str!("../migrations/20240417000000_extend_sync_pending_deletions.sql"),
+        include_str!("../migrations/20260423000000_fix_estudiante_table.sql"),
     ];
 
     for migration in migrations.iter() {
