@@ -1,6 +1,9 @@
 -- Corrección: Asegurar que estudiante tenga la estructura correcta para sincronización
 -- Este script limpia cualquier residuo dejado por migraciones anteriores
 
+-- Desactivar foreign keys para poder modificar la estructura de las tablas
+PRAGMA foreign_keys = OFF;
+
 -- 1. Eliminar tabla estudiante_new si existe (residuo de migraciones fallidas)
 DROP TABLE IF EXISTS estudiante_new;
 
@@ -60,3 +63,6 @@ DROP TABLE estudiante;
 
 -- Renombrar la tabla temporal al nombre original
 ALTER TABLE estudiante_tmp RENAME TO estudiante;
+
+-- Reactivar foreign keys
+PRAGMA foreign_keys = ON;
