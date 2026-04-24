@@ -1045,13 +1045,13 @@ pub fn get_grados_by_colegio(
             "SELECT DISTINCT g.id, g.nombre, g.cualitativo
              FROM grado g
              INNER JOIN estudiante e ON g.id = e.grado_id
-             WHERE e.colegio_id = ? AND e.ano_lectivo_id = ?
+             WHERE e.colegio_id = ?
              ORDER BY g.nombre",
         )
         .map_err(|e| e.to_string())?;
 
     let items = stmt
-        .query_map([colegioId, anoLectivoId], |row| {
+        .query_map([colegioId], |row| {
             Ok(CategoryItem {
                 id: Some(row.get(0)?),
                 nombre: row.get(1)?,
@@ -2354,14 +2354,14 @@ pub fn get_asistencia_rango(
     // 1. Obtener todos los estudiantes filtrados
     let mut stmt_est = conn
         .prepare(
-            "SELECT id, nombre, sexo FROM estudiante 
-         WHERE ano_lectivo_id = ? AND colegio_id = ? AND grado_id = ? AND seccion_id = ? 
+            "SELECT id, nombre, sexo FROM estudiante
+         WHERE grado_id = ? AND seccion_id = ?
          ORDER BY nombre",
         )
         .map_err(|e| e.to_string())?;
 
     let estudiantes = stmt_est
-        .query_map([anoLectivoId, colegioId, gradoId, seccionId], |row| {
+        .query_map([gradoId, seccionId], |row| {
             Ok((
                 row.get::<_, i64>(0)?,
                 row.get::<_, String>(1)?,
