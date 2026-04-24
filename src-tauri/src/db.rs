@@ -1575,12 +1575,12 @@ pub fn get_subjects_by_colegio(
         .map_err(|e| e.to_string())?;
 
     let items = stmt
-        .query_map([colegioId], |row| {
+        .query_map([], |row| {
             Ok(CategoryItem {
                 id: Some(row.get(0)?),
                 nombre: row.get(1)?,
                 activo: None,
-                cualitativo: Some(row.get::<_, i64>(2)? == 1),
+                cualitativo: Some(row.get(2)?),
             })
         })
         .map_err(|e| e.to_string())?
