@@ -240,8 +240,8 @@ export function AjustesPage() {
         return;
       }
       const destination = await save({
-        filters: [{ name: "SQLite Database", extensions: ["sqlite"] }],
-        defaultPath: "backup_notas.sqlite",
+        filters: [{ name: "Database File", extensions: ["db"] }],
+        defaultPath: "backup_notas.db",
       });
       if (destination) {
         await copyFile(dbFile, destination);
@@ -262,7 +262,7 @@ export function AjustesPage() {
   const handleImportDB = async () => {
     try {
       const source = await open({
-        filters: [{ name: "SQLite Database", extensions: ["sqlite"] }],
+        filters: [{ name: "Database File", extensions: ["db"] }],
         multiple: false,
       });
       if (source && typeof source === "string") {
