@@ -575,13 +575,13 @@ pub fn delete_category_force(
             let mut stmt = tx.prepare(
                 "SELECT estudiante_id, fecha FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE ano_lectivo_id = ?)"
             ).map_err(|e| e.to_string())?;
-            let asistencias: Vec<(i64, String)> = stmt
+            let asignaciones: Vec<(i64, String)> = stmt
                 .query_map([id], |row| Ok((row.get(0)?, row.get(1)?)))
                 .map_err(|e| e.to_string())?
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|e| e.to_string())?;
             drop(stmt);
-            for (est_id, fecha) in asistencias {
+            for (est_id, fecha) in asignaciones {
                 tx.execute(
                     "INSERT INTO sync_pending_deletions_asistencia (estudiante_id, fecha) VALUES (?, ?)",
                     rusqlite::params![est_id, fecha],
@@ -672,17 +672,17 @@ pub fn delete_category_force(
             }
             tx.execute("DELETE FROM nota WHERE estudiante_id IN (SELECT id FROM estudiante WHERE colegio_id = ?)", [id]).map_err(|e| e.to_string())?;
 
-            // Registrar asistencias en cascada
+            // Registrar asignaciones en cascada
             let mut stmt = tx.prepare(
                 "SELECT estudiante_id, fecha FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE colegio_id = ?)"
             ).map_err(|e| e.to_string())?;
-            let asistencias: Vec<(i64, String)> = stmt
+            let asignaciones: Vec<(i64, String)> = stmt
                 .query_map([id], |row| Ok((row.get(0)?, row.get(1)?)))
                 .map_err(|e| e.to_string())?
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|e| e.to_string())?;
             drop(stmt);
-            for (est_id, fecha) in asistencias {
+            for (est_id, fecha) in asignaciones {
                 tx.execute(
                     "INSERT INTO sync_pending_deletions_asistencia (estudiante_id, fecha) VALUES (?, ?)",
                     rusqlite::params![est_id, fecha],
@@ -845,17 +845,17 @@ pub fn delete_category_force(
             }
             tx.execute("DELETE FROM nota WHERE estudiante_id IN (SELECT id FROM estudiante WHERE grado_id = ?)", [id]).map_err(|e| e.to_string())?;
 
-            // Registrar asistencias en cascada
+            // Registrar asignaciones en cascada
             let mut stmt = tx.prepare(
                 "SELECT estudiante_id, fecha FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE grado_id = ?)"
             ).map_err(|e| e.to_string())?;
-            let asistencias: Vec<(i64, String)> = stmt
+            let asignaciones: Vec<(i64, String)> = stmt
                 .query_map([id], |row| Ok((row.get(0)?, row.get(1)?)))
                 .map_err(|e| e.to_string())?
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|e| e.to_string())?;
             drop(stmt);
-            for (est_id, fecha) in asistencias {
+            for (est_id, fecha) in asignaciones {
                 tx.execute(
                     "INSERT INTO sync_pending_deletions_asistencia (estudiante_id, fecha) VALUES (?, ?)",
                     rusqlite::params![est_id, fecha],
@@ -943,17 +943,17 @@ pub fn delete_category_force(
             }
             tx.execute("DELETE FROM nota WHERE estudiante_id IN (SELECT id FROM estudiante WHERE seccion_id = ?)", [id]).map_err(|e| e.to_string())?;
 
-            // Registrar asistencias en cascada
+            // Registrar asignaciones en cascada
             let mut stmt = tx.prepare(
                 "SELECT estudiante_id, fecha FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE seccion_id = ?)"
             ).map_err(|e| e.to_string())?;
-            let asistencias: Vec<(i64, String)> = stmt
+            let asignaciones: Vec<(i64, String)> = stmt
                 .query_map([id], |row| Ok((row.get(0)?, row.get(1)?)))
                 .map_err(|e| e.to_string())?
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|e| e.to_string())?;
             drop(stmt);
-            for (est_id, fecha) in asistencias {
+            for (est_id, fecha) in asignaciones {
                 tx.execute(
                     "INSERT INTO sync_pending_deletions_asistencia (estudiante_id, fecha) VALUES (?, ?)",
                     rusqlite::params![est_id, fecha],
@@ -2354,7 +2354,7 @@ pub fn get_asistencia_rango(
         )
         .map_err(|e| e.to_string())?;
 
-    let asistencias = stmt_asist
+    let asignaciones = stmt_asist
         .query_map(
             rusqlite::params![
                 fechaInicio,
@@ -2382,7 +2382,7 @@ pub fn get_asistencia_rango(
     for (id, nombre, sexo) in estudiantes {
         let mut fechas = Vec::new();
         let mut observaciones = Vec::new();
-        for (asist_est_id, fecha, estado, obs) in &asistencias {
+        for (asist_est_id, fecha, estado, obs) in &asignaciones {
             if *asist_est_id == id {
                 fechas.push(format!("{}:{}", fecha, estado));
                 if !obs.is_empty() {
@@ -2661,8 +2661,8 @@ pub fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) -> Res
 
     for e in &data.estudiantes {
         tx.execute(
-            "INSERT OR REPLACE INTO estudiante (id, nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, colegio_id, telefono, direccion, email) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            rusqlite::params![e.id, e.nombre, e.codigo, e.sexo, e.ano_lectivo_id, e.grado_id, e.seccion_id, e.colegio_id, e.telefono, e.direccion, e.email],
+            "INSERT OR REPLACE INTO estudiante (id, nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, colegio_id, telefono, direccion, email, foto) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            rusqlite::params![e.id, e.nombre, e.codigo, e.sexo, e.ano_lectivo_id, e.grado_id, e.seccion_id, e.colegio_id, e.telefono, e.direccion, e.email, e.foto],
         ).map_err(|e| e.to_string())?;
     }
 
