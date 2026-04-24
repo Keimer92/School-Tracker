@@ -331,7 +331,7 @@ export function EstudiantesPage() {
         }
       }
 
-      if (excelData.length === 0) {
+      if (hojaDataMap.size === 0) {
         throw new Error("No se encontraron datos en ninguna de las hojas del archivo");
       }
 
