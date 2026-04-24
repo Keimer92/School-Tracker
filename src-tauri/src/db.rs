@@ -80,9 +80,19 @@ pub fn run_migrations(conn: &Connection) -> Result<(), String> {
     ];
 
     for migration in migrations.iter() {
-        // Usamos execute_batch para ejecutar múltiples sentencias SQL
-        // Ignoramos errores individuales si la migración ya se aplicó
-        let _ = conn.execute_batch(migration);
+        let migration_name = migration.lines().next().unwrap_or("unknown");
+        println!("🔄 [MIGRATION] Ejecutando migración...");
+        
+        // Ejecutar la migración y capturar cualquier error
+        match conn.execute_batch(migration) {
+            Ok(_) => {
+                println!("✅ [MIGRATION] Migración ejecutada exitosamente");
+            }
+            Err(e) => {
+                println!("⚠️ [MIGRATION] Error en migración: {}", e);
+                // Continuar con las otras migraciones
+            }
+        }
     }
 
     Ok(())
