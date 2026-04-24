@@ -10,11 +10,11 @@ DROP TABLE IF EXISTS estudiante_tmp;
 
 -- 2. Primero, verificar la estructura actual de la tabla estudiante
 -- Agregar columnas faltantes (si no existen) - esto no falla si ya existen
-ALTER TABLE estudiante ADD COLUMN telefono TEXT;
-ALTER TABLE estudiante ADD COLUMN direccion TEXT;
-ALTER TABLE estudiante ADD COLUMN email TEXT;
-ALTER TABLE estudiante ADD COLUMN foto TEXT;
-ALTER TABLE estudiante ADD COLUMN nombre TEXT;
+ALTER TABLE estudiante ADD COLUMN IF NOT EXISTS telefono TEXT;
+ALTER TABLE estudiante ADD COLUMN IF NOT EXISTS direccion TEXT;
+ALTER TABLE estudiante ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE estudiante ADD COLUMN IF NOT EXISTS foto TEXT;
+ALTER TABLE estudiante ADD COLUMN IF NOT EXISTS nombre TEXT;
 
 -- 3. Verificar si existe la columna 'nombres' (esquema antiguo)
 -- Si existe, necesitamos migrar los datos de nombres+apellidos a nombre

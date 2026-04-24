@@ -1,10 +1,10 @@
 -- Extender sync_pending_deletions para manejar claves compuestas
 -- Agregar campos adicionales para IDs compuestos y tipo de operación
 
-ALTER TABLE sync_pending_deletions ADD COLUMN registro_id_2 INTEGER;
-ALTER TABLE sync_pending_deletions ADD COLUMN registro_id_3 INTEGER;
-ALTER TABLE sync_pending_deletions ADD COLUMN registro_id_4 INTEGER;
-ALTER TABLE sync_pending_deletions ADD COLUMN tipo_operacion TEXT DEFAULT 'DELETE';
+ALTER TABLE sync_pending_deletions ADD COLUMN IF NOT EXISTS registro_id_2 INTEGER;
+ALTER TABLE sync_pending_deletions ADD COLUMN IF NOT EXISTS registro_id_3 INTEGER;
+ALTER TABLE sync_pending_deletions ADD COLUMN IF NOT EXISTS registro_id_4 INTEGER;
+ALTER TABLE sync_pending_deletions ADD COLUMN IF NOT EXISTS tipo_operacion TEXT DEFAULT 'DELETE';
 
 -- Tabla para registrar eliminaciones de asistencia (clave compuesta: estudiante_id + fecha)
 CREATE TABLE IF NOT EXISTS sync_pending_deletions_asistencia (
