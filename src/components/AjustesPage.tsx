@@ -4,7 +4,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { copyFile, writeFile, BaseDirectory } from "@tauri-apps/plugin-fs";
-import { restart } from "@tauri-apps/plugin-process";
 import * as XLSX from "xlsx";
 import { Auth } from "./Auth";
 import { supabase } from "../lib/supabase";
@@ -270,11 +269,10 @@ export function AjustesPage() {
         const dbFile = await invoke<string>("get_db_path");
         await copyFile(source, dbFile);
         await emit("show-toast", {
-          message: "✅ Base de datos importada exitosamente. Reiniciando aplicación...",
+          message:
+            "✅ Base de datos importada exitosamente. Por favor, reinicie la aplicación para ver los cambios.",
           type: "success",
         });
-        // Restart the app to reload the database
-        setTimeout(() => restart(), 1000);
       }
     } catch (error) {
       console.error("Error al importar:", error);
