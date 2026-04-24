@@ -373,7 +373,7 @@ pub fn run() {
             if !app_dir.exists() {
                 std::fs::create_dir_all(&app_dir).expect("Failed to create app data dir");
             }
-            let db_path = app_dir.join("database.sqlite");
+            let db_path = app_dir.join("school.db");
             let conn = Connection::open(db_path).expect("Failed to open database");
             db::run_migrations(&conn).expect("Failed to run migrations");
             app_handle.manage(DbState {
