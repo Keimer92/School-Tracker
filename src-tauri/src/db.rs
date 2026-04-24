@@ -2297,19 +2297,14 @@ pub fn get_asistencia_estudiantes(
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
 
     let mut query = String::from(
-        "SELECT e.id, e.nombre, e.codigo, e.sexo, a.estado, a.observacion 
-         FROM estudiante e 
-         LEFT JOIN asistencia a ON e.id = a.estudiante_id AND a.fecha = ? 
-         WHERE e.ano_lectivo_id = ? AND e.colegio_id = ? AND e.grado_id = ? AND e.seccion_id = ?",
+        "SELECT e.id, e.nombre, e.codigo, e.sexo, a.estado, a.observacion
+         FROM estudiante e
+         LEFT JOIN asistencia a ON e.id = a.estudiante_id AND a.fecha = ?
+         WHERE e.grado_id = ? AND e.seccion_id = ?",
     );
 
-    let mut params: Vec<Box<dyn rusqlite::ToSql>> = vec![
-        Box::new(fecha),
-        Box::new(anoLectivoId),
-        Box::new(colegioId),
-        Box::new(gradoId),
-        Box::new(seccionId),
-    ];
+    let mut params: Vec<Box<dyn rusqlite::ToSql>> =
+        vec![Box::new(fecha), Box::new(gradoId), Box::new(seccionId)];
 
     if let Some(s) = sexo {
         if !s.is_empty() {
