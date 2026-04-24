@@ -252,6 +252,8 @@ export function EstudiantesPage() {
       const activeColegioId = activeColegio?.id ?? 0;
 
       // Set filters to active year/school by default (or 0 if none active)
+      // IMPORTANTE: Si preserveFilters es true, usamos los filtros actuales del estado
+      // que pueden haber sido actualizados por setFilters antes de llamar a fetchData
       const currentFilters = preserveFilters
         ? filters
         : {
@@ -447,6 +449,8 @@ export function EstudiantesPage() {
           const studentId = await invoke<number>("add_student", { student: newStudent });
           const studentWithId = { ...newStudent, id: studentId };
           currentStudentsList.push(studentWithId);
+          // IMPORTANTE: Agregar también al estado local para que se muestre inmediatamente
+          setStudents(prev => [...prev, studentWithId]);
           newlyImportedStudents.push(studentWithId);
           importedCount++;
 
@@ -479,12 +483,14 @@ export function EstudiantesPage() {
 
       // Actualizar filtros para mostrar los estudiantes importados (o los que ya existían)
       if (importedCount > 0 || skippedCount > 0) {
+        // Primero actualizamos los filtros
         setFilters(lastImportedFilter);
         // Forzar actualización de catálogos y estudiantes con los nuevos filtros
         await emit("student-updated", { timestamp: Date.now() });
         await emit("catalog-updated");
         // Pequeño delay para asegurar que los estados se actualicen
         setTimeout(async () => {
+          // Usar los filtros actualizados al cargar datos
           await fetchData(true);
         }, 100);
       } else {
@@ -512,7 +518,7 @@ export function EstudiantesPage() {
     fetchData();
   }, []);
 
-  // Filter Logic
+  // Filter Logic - también se ejecuta cuando los filtros cambian para actualizar la vista
   useEffect(() => {
     let result = students;
     // Solo filtrar si el filtro es mayor a 0 (0 = todos)
