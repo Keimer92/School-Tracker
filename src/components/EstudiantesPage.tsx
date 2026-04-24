@@ -477,19 +477,26 @@ export function EstudiantesPage() {
         }
       }
 
+      // Actualizar filtros para mostrar los estudiantes importados (o los que ya existían)
+      if (importedCount > 0 || skippedCount > 0) {
+        setFilters(lastImportedFilter);
+        // Forzar actualización de catálogos y estudiantes con los nuevos filtros
+        await emit("student-updated", { timestamp: Date.now() });
+        await emit("catalog-updated");
+        // Pequeño delay para asegurar que los estados se actualicen
+        setTimeout(async () => {
+          await fetchData(true);
+        }, 100);
+      } else {
+        await emit("student-updated", { timestamp: Date.now() });
+        await emit("catalog-updated");
+        await fetchData(true);
+      }
+
       await emit("show-toast", { 
         message: `✅ Importación Finalizada\nÉxito: ${importedCount} | Omitidos: ${skippedCount} | Errores: ${errors}`, 
         type: 'success' 
       });
-      
-      // Actualizar filtros para mostrar los estudiantes importados (o los que ya existían)
-      if (importedCount > 0 || skippedCount > 0) {
-        setFilters(lastImportedFilter);
-      }
-
-      await emit("student-updated", { timestamp: Date.now() });
-      await emit("catalog-updated");
-      await fetchData(true); // Preserve filters set above
     } catch (err) {
       console.error("Error crítico en importación:", err);
       await emit("show-toast", { 
