@@ -1,7 +1,5 @@
 mod db;
 
-mod db;
-
 use db::*;
 use rusqlite::Connection;
 use std::collections::HashMap;
