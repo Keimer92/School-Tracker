@@ -4,11 +4,22 @@
 -- 1. Eliminar tabla estudiante_new si existe (residuo de migraciones fallidas)
 DROP TABLE IF EXISTS estudiante_new;
 
--- 2. Verificar y fusionar nombres+apellidos en nombre (esquema antiguo → nuevo)
--- Si las columnas 'nombres' y 'apellidos' existen pero 'nombre' no, fusionarlas
-PRAGMA table_info(estudiante);
+-- 2. Verificar si estudiante tiene columnas 'nombres' y 'apellidos' (esquema antiguo)
+-- y si NO tiene la columna 'nombre' (esquema nuevo)
+-- Si es así, necesitamos migrar los datos
+
+-- Primero, agregar columnas faltantes si no existen
+ALTER TABLE estudiante ADD COLUMN telefono TEXT;
+ALTER TABLE estudiante ADD COLUMN direccion TEXT;
+ALTER TABLE estudiante ADD COLUMN email TEXT;
+ALTER TABLE estudiante ADD COLUMN foto TEXT;
+
+-- Verificar si existe la columna 'nombres' (esquema antiguo)
+SELECT name FROM sqlite_master WHERE type='table' AND name='estudiante' AND sql LIKE '%nombres%';
+
+-- Si existe 'nombres' y NO existe 'nombre', migrar
 -- Crear tabla temporal con el esquema correcto
-CREATE TABLE IF NOT EXISTS estudiante_new_schema (
+CREATE TABLE IF NOT EXISTS estudiante_tmp (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre TEXT NOT NULL,
     codigo TEXT NOT NULL UNIQUE,
@@ -27,23 +38,25 @@ CREATE TABLE IF NOT EXISTS estudiante_new_schema (
     FOREIGN KEY(colegio_id) REFERENCES colegio(id)
 );
 
--- Verificar si estudiante tiene la columna 'nombres' (esquema antiguo)
-SELECT name FROM sqlite_master WHERE type='table' AND name='estudiante' AND sql LIKE '%nombres%';
+-- Copiar datos de la tabla original, fusionando nombres y apellidos en nombre
+INSERT INTO estudiante_tmp (id, nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, colegio_id, telefono, direccion, email, foto)
+SELECT 
+    id, 
+    TRIM(nombres || ' ' || apellidos) as nombre, 
+    codigo, 
+    sexo, 
+    ano_lectivo_id, 
+    grado_id, 
+    seccion_id, 
+    colegio_id,
+    telefono,
+    direccion,
+    email,
+    foto
+FROM estudiante;
 
--- Si existe estudiante_new, renombrarla y copiar datos
--- Si no, verificar si hay columnas separadas y migrar
+-- Eliminar la tabla original
+DROP TABLE estudiante;
 
--- En cualquier caso, asegurar que tenemos las columnas necesarias
--- Agregar columnas faltantes si no existen (para bases de datos antiguas)
-ALTER TABLE estudiante ADD COLUMN telefono TEXT;
-ALTER TABLE estudiante ADD COLUMN direccion TEXT;
-ALTER TABLE estudiante ADD COLUMN email TEXT;
-ALTER TABLE estudiante ADD COLUMN foto TEXT;
-ALTER TABLE estudiante ADD COLUMN nombre TEXT;
-
--- Si 'nombre' está vacía pero 'nombres' existe, fusionar
-UPDATE estudiante SET nombre = nombre WHERE nombre IS NOT NULL AND nombre != '';
-UPDATE estudiante SET nombre = nombres || ' ' || apellidos WHERE (nombre IS NULL OR nombre = '') AND nombres IS NOT NULL;
-
--- Limpiar tabla temporal
-DROP TABLE IF EXISTS estudiante_new_schema;
+-- Renombrar la tabla temporal al nombre original
+ALTER TABLE estudiante_tmp RENAME TO estudiante;
