@@ -86,10 +86,7 @@ export function ReporteAsistenciaPage() {
       setAnos(anosData);
       setColegios(colegiosData);
       
-      if (anosData.length > 0) {
-        const activo = anosData.find(a => a.activo);
-        setSelectedAno(activo ? activo.id : anosData[0].id);
-      }
+      // No longer setting selectedAno
       
       // Lógica de recomendación diaria para asistencia
       if (recommendedColegioId && recommendedColegioId > 0) {
@@ -104,19 +101,18 @@ export function ReporteAsistenciaPage() {
     }
   };
 
-  // Cargar grados cuando cambie el colegio o el año
+  // Cargar grados cuando cambie el colegio
   useEffect(() => {
-    if (selectedColegio && selectedAno) {
+    if (selectedColegio) {
       fetchGrados();
     }
-  }, [selectedColegio, selectedAno]);
+  }, [selectedColegio]);
 
   const fetchGrados = async () => {
     try {
-      if (!selectedColegio || !selectedAno) return;
+      if (!selectedColegio) return;
       const gradosData = await invoke<CategoryItem[]>("get_grados_by_colegio", {
-        colegioId: Number(selectedColegio),
-        anoLectivoId: Number(selectedAno)
+        colegioId: Number(selectedColegio)
       });
       setGrados(gradosData);
       if (gradosData.length > 0) {
@@ -130,20 +126,19 @@ export function ReporteAsistenciaPage() {
     }
   };
 
-  // Cargar secciones cuando cambie el grado o el colegio o el año
+  // Cargar secciones cuando cambie el grado o el colegio
   useEffect(() => {
-    if (selectedGrado && selectedColegio && selectedAno) {
+    if (selectedGrado && selectedColegio) {
       fetchSecciones();
     }
-  }, [selectedGrado, selectedColegio, selectedAno]);
+  }, [selectedGrado, selectedColegio]);
 
   const fetchSecciones = async () => {
     try {
-      if (!selectedGrado || !selectedColegio || !selectedAno) return;
+      if (!selectedGrado || !selectedColegio) return;
       const data: CategoryItem[] = await invoke("get_secciones_by_grado_colegio", {
         gradoId: Number(selectedGrado),
-        colegioId: Number(selectedColegio),
-        anoLectivoId: Number(selectedAno)
+        colegioId: Number(selectedColegio)
       });
       setSecciones(data);
       if (data.length > 0) {
@@ -163,8 +158,6 @@ export function ReporteAsistenciaPage() {
       const data = await invoke<AsistenciaReporteItem[]>("get_asistencia_rango", {
         fechaInicio,
         fechaFin,
-        anoLectivoId: selectedAno,
-        colegioId: selectedColegio,
         gradoId: selectedGrado,
         seccionId: selectedSeccion,
       });
@@ -208,7 +201,7 @@ export function ReporteAsistenciaPage() {
     if (selectedAno && selectedColegio && selectedGrado && selectedSeccion && fechaInicio && fechaFin) {
       fetchReporte();
     }
-  }, [selectedAno, selectedColegio, selectedGrado, selectedSeccion, fechaInicio, fechaFin, fetchReporte]);
+  }, [selectedColegio, selectedGrado, selectedSeccion, fechaInicio, fechaFin, fetchReporte]);
 
   // Obtener lista de fechas únicas en el rango
   const getFechasUnicas = () => {
@@ -402,16 +395,7 @@ export function ReporteAsistenciaPage() {
               </>
             )}
 
-            <div className="input-container-small">
-              <label>Año Lectivo:</label>
-              <select 
-                className="filter-select"
-                value={selectedAno} 
-                onChange={(e) => setSelectedAno(Number(e.target.value))}
-              >
-                {anos.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
-              </select>
-            </div>
+
             <div className="input-container-small">
               <label>Colegio:</label>
               <select 

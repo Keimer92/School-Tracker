@@ -1037,7 +1037,7 @@ pub fn delete_category_force(
 pub fn get_grados_by_colegio(
     state: tauri::State<'_, DbState>,
     colegioId: i64,
-    anoLectivoId: i64,
+    _anoLectivoId: i64,
 ) -> Result<Vec<CategoryItem>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
@@ -1563,7 +1563,7 @@ pub fn unassign_all_subjects_from_grade(
 #[allow(non_snake_case)]
 pub fn get_subjects_by_colegio(
     state: tauri::State<'_, DbState>,
-    colegioId: i64,
+    _colegioId: i64,
 ) -> Result<Vec<CategoryItem>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
@@ -2288,8 +2288,8 @@ pub fn get_db_path(app_handle: tauri::AppHandle) -> Result<String, String> {
 pub fn get_asistencia_estudiantes(
     state: tauri::State<'_, DbState>,
     fecha: String,
-    anoLectivoId: i64,
-    colegioId: i64,
+    _anoLectivoId: i64,
+    _colegioId: i64,
     gradoId: i64,
     seccionId: i64,
     sexo: Option<String>,
@@ -2344,8 +2344,8 @@ pub fn get_asistencia_rango(
     state: tauri::State<'_, DbState>,
     fechaInicio: String,
     fechaFin: String,
-    anoLectivoId: i64,
-    colegioId: i64,
+    _anoLectivoId: i64,
+    _colegioId: i64,
     gradoId: i64,
     seccionId: i64,
 ) -> Result<Vec<AsistenciaReporteItem>, String> {
@@ -2375,24 +2375,17 @@ pub fn get_asistencia_rango(
     // 2. Obtener toda la asistencia en el rango para esos filtros
     let mut stmt_asist = conn
         .prepare(
-            "SELECT a.estudiante_id, a.fecha, a.estado, COALESCE(a.observacion, '') 
+            "SELECT a.estudiante_id, a.fecha, a.estado, COALESCE(a.observacion, '')
          FROM asistencia a
          INNER JOIN estudiante e ON a.estudiante_id = e.id
-         WHERE a.fecha >= ? AND a.fecha <= ? 
-         AND e.ano_lectivo_id = ? AND e.colegio_id = ? AND e.grado_id = ? AND e.seccion_id = ?",
+         WHERE a.fecha >= ? AND a.fecha <= ?
+         AND e.grado_id = ? AND e.seccion_id = ?",
         )
         .map_err(|e| e.to_string())?;
 
     let asignaciones = stmt_asist
         .query_map(
-            rusqlite::params![
-                fechaInicio,
-                fechaFin,
-                anoLectivoId,
-                colegioId,
-                gradoId,
-                seccionId
-            ],
+            rusqlite::params![fechaInicio, fechaFin, gradoId, seccionId],
             |row| {
                 Ok((
                     row.get::<_, i64>(0)?,
