@@ -2575,7 +2575,7 @@ export function AjustesPage() {
                   paddingTop: "1rem",
                 }}
               >
-                Desarrollado con ❤️ por Keimer
+                Desarrollado con ❤️ por Keimer - v1.2.0
               </div>
             </div>
           </div>
