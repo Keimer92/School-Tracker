@@ -287,7 +287,49 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
     // Poblar datos iniciales si están vacíos
     seed_default_data(conn)?;
 
+    // Migraciones para bases de datos existentes (agregar columnas faltantes)
+    migrate_add_columns(conn)?;
+
     println!("✅ [DB] Base de datos inicializada correctamente");
+    Ok(())
+}
+
+/// Agrega columnas faltantes a tablas existentes (para migraciones de bases de datos antiguas)
+fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
+    // Agregar columna 'minimo' a configuracion_calificacion si no existe
+    let has_minimo: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('configuracion_calificacion') WHERE name = 'minimo'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(0) > 0;
+
+    if !has_minimo {
+        conn.execute(
+            "ALTER TABLE configuracion_calificacion ADD COLUMN minimo INTEGER DEFAULT 0",
+            [],
+        )
+        .map_err(|e| format!("Error agregando columna minimo: {}", e))?;
+    }
+
+    // Agregar columna 'activo' a colegio si no existe
+    let has_activo_colegio: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('colegio') WHERE name = 'activo'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(0) > 0;
+
+    if !has_activo_colegio {
+        conn.execute(
+            "ALTER TABLE colegio ADD COLUMN activo INTEGER DEFAULT 0",
+            [],
+        )
+        .map_err(|e| format!("Error agregando columna activo a colegio: {}", e))?;
+    }
+
     Ok(())
 }
 
