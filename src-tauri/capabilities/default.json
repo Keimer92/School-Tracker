@@ -15,17 +15,23 @@
     "dialog:default",
     "fs:default",
     {
+      "identifier": "fs:allow-copy-file",
+      "allow": [{ "path": "$APPDATA/**" }, { "path": "$DOWNLOAD/**" }, { "path": "$DOCUMENT/**" }, { "path": "$HOME/**" }]
+    },
+    {
       "identifier": "fs:allow-read-file",
-      "allow": [{ "path": "$TEMP/**" }]
+      "allow": [{ "path": "$APPDATA/**" }, { "path": "$DOWNLOAD/**" }, { "path": "$DOCUMENT/**" }, { "path": "$HOME/**" }, { "path": "$TEMP/**" }]
     },
     "fs:allow-exists",
     {
       "identifier": "fs:allow-write-file",
-      "allow": [{ "path": "$TEMP/**" }]
+      "allow": [{ "path": "$APPDATA/**" }, { "path": "$DOWNLOAD/**" }, { "path": "$DOCUMENT/**" }, { "path": "$HOME/**" }, { "path": "$TEMP/**" }]
     },
     "fs:allow-desktop-write-recursive",
     "fs:allow-download-write-recursive",
     "fs:allow-document-write-recursive",
+    "fs:allow-appdata-write-recursive",
+    "fs:allow-appdata-read-recursive",
     "allow-local-commands",
     "core:webview:allow-create-webview",
     "core:window:allow-create",
