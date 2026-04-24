@@ -12,3 +12,15 @@ ALTER TABLE estudiante ADD COLUMN nombre TEXT;
 UPDATE estudiante SET nombre = TRIM(COALESCE(nombres, '') || ' ' || COALESCE(apellidos, ''))
 WHERE (nombre IS NULL OR nombre = '' OR nombre = 'null')
 AND (nombres IS NOT NULL OR apellidos IS NOT NULL);
+
+-- Poblar relaciones colegio_asignatura para bases de datos importadas
+INSERT OR IGNORE INTO colegio_asignatura (colegio_id, asignatura_id)
+SELECT c.id, a.id
+FROM colegio c
+CROSS JOIN asignatura a;
+
+-- Poblar relaciones grado_asignatura para bases de datos importadas
+INSERT OR IGNORE INTO grado_asignatura (grado_id, asignatura_id)
+SELECT g.id, a.id
+FROM grado g
+CROSS JOIN asignatura a;

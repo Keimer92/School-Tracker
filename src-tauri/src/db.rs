@@ -1568,10 +1568,9 @@ pub fn get_subjects_by_colegio(
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare(
-            "SELECT a.id, a.nombre, a.cualitativo 
-             FROM asignatura a
-             INNER JOIN colegio_asignatura ca ON a.id = ca.asignatura_id
-             WHERE ca.colegio_id = ?",
+            "SELECT a.id, a.nombre, a.cualitativo
+              FROM asignatura a
+              ORDER BY a.nombre",
         )
         .map_err(|e| e.to_string())?;
 
