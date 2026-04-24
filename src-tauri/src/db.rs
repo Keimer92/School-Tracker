@@ -80,18 +80,43 @@ pub fn run_migrations(conn: &Connection) -> Result<(), String> {
     ];
 
     for migration in migrations.iter() {
-        let migration_name = migration.lines().next().unwrap_or("unknown");
+        let _migration_name = migration.lines().next().unwrap_or("unknown");
         println!("🔄 [MIGRATION] Ejecutando migración...");
-        
-        // Ejecutar la migración y capturar cualquier error
-        match conn.execute_batch(migration) {
-            Ok(_) => {
-                println!("✅ [MIGRATION] Migración ejecutada exitosamente");
+
+        // Split the migration into individual statements
+        let statements: Vec<&str> = migration
+            .split(';')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        let mut migration_success = true;
+        for statement in statements {
+            if statement.is_empty() || statement.starts_with("--") {
+                continue;
             }
-            Err(e) => {
-                println!("⚠️ [MIGRATION] Error en migración: {}", e);
-                // Continuar con las otras migraciones
+            match conn.execute_batch(statement) {
+                Ok(_) => {}
+                Err(e) => {
+                    let error_msg = e.to_string();
+                    // Ignore "duplicate column name" errors as migrations should be idempotent
+                    if error_msg.contains("duplicate column name") {
+                        println!("⚠️ [MIGRATION] Ignorando columna duplicada: {}", error_msg);
+                    } else {
+                        println!(
+                            "⚠️ [MIGRATION] Error en declaración: {} - {}",
+                            statement, error_msg
+                        );
+                        migration_success = false;
+                    }
+                }
             }
+        }
+
+        if migration_success {
+            println!("✅ [MIGRATION] Migración ejecutada exitosamente");
+        } else {
+            println!("⚠️ [MIGRATION] Migración completada con errores");
         }
     }
 
@@ -2864,7 +2889,7 @@ pub fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) -> Res
     // SINCRONIZACIÓN BIDIRECCIONAL - No eliminar registros locales durante pullAll()
     // Para evitar perder datos de bases de datos antiguas importadas
     // ============================================================================
-    
+
     // NOTA: Durante pullAll(), solo sincronizamos los datos de la nube hacia local,
     // pero NO eliminamos registros locales que no existan en la nube.
     // Esto permite restaurar bases de datos antiguas sin perder datos.

@@ -69,3 +69,4 @@ obj/
 *.apk
 *.aab
 *.ipa
+.aider*
