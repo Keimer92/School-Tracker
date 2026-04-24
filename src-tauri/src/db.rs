@@ -2849,120 +2849,17 @@ pub fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) -> Res
     );
 
     // ============================================================================
-    // SINCRONIZACIÓN BIDIRECCIONAL - Eliminar registros que no existen en la nube
     // ============================================================================
-
-    // 5. Eliminar asistencia local que no existe en la nube
-    // Crear tabla temporal con los datos recibidos de la nube
-    if !data.asistencia.is_empty() {
-        tx.execute(
-            "CREATE TEMP TABLE IF NOT EXISTS temp_cloud_asistencia (estudiante_id INTEGER, fecha TEXT)",
-            [],
-        ).map_err(|e| e.to_string())?;
-
-        let mut stmt = tx
-            .prepare("INSERT INTO temp_cloud_asistencia (estudiante_id, fecha) VALUES (?, ?)")
-            .map_err(|e| e.to_string())?;
-        for a in &data.asistencia {
-            stmt.execute(rusqlite::params![a.estudiante_id, &a.fecha])
-                .map_err(|e| e.to_string())?;
-        }
-        drop(stmt);
-
-        // Eliminar registros locales que no existen en la nube y no están en pending
-        tx.execute(
-            "DELETE FROM asistencia WHERE (estudiante_id, fecha) NOT IN (SELECT estudiante_id, fecha FROM temp_cloud_asistencia) 
-             AND (estudiante_id, fecha) NOT IN (SELECT estudiante_id, fecha FROM sync_pending_deletions_asistencia)",
-            [],
-        ).map_err(|e| e.to_string())?;
-
-        tx.execute("DROP TABLE temp_cloud_asistencia", [])
-            .map_err(|e| e.to_string())?;
-    }
-
-    // 6. Eliminar notas locales que no existen en la nube
-    if !data.notas.is_empty() {
-        tx.execute(
-            "CREATE TEMP TABLE IF NOT EXISTS temp_cloud_nota (estudiante_id INTEGER, criterio_id INTEGER, corte_evaluativo_id INTEGER, asignatura_id INTEGER)",
-            [],
-        ).map_err(|e| e.to_string())?;
-
-        let mut stmt = tx.prepare("INSERT INTO temp_cloud_nota (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id) VALUES (?, ?, ?, ?)")
-            .map_err(|e| e.to_string())?;
-        for n in &data.notas {
-            stmt.execute(rusqlite::params![
-                n.estudiante_id,
-                n.criterio_id,
-                n.corte_evaluativo_id,
-                n.asignatura_id
-            ])
-            .map_err(|e| e.to_string())?;
-        }
-        drop(stmt);
-
-        tx.execute(
-            "DELETE FROM nota WHERE (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id) NOT IN (SELECT estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id FROM temp_cloud_nota)
-             AND (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id) NOT IN (SELECT estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id FROM sync_pending_deletions_nota)",
-            [],
-        ).map_err(|e| e.to_string())?;
-
-        tx.execute("DROP TABLE temp_cloud_nota", [])
-            .map_err(|e| e.to_string())?;
-    }
-
-    // 7. Eliminar grado_asignatura locales que no existen en la nube
-    if !data.grado_asignatura.is_empty() {
-        tx.execute(
-            "CREATE TEMP TABLE IF NOT EXISTS temp_cloud_grado_asig (grado_id INTEGER, asignatura_id INTEGER)",
-            [],
-        ).map_err(|e| e.to_string())?;
-
-        let mut stmt = tx
-            .prepare("INSERT INTO temp_cloud_grado_asig (grado_id, asignatura_id) VALUES (?, ?)")
-            .map_err(|e| e.to_string())?;
-        for (grado_id, asig_id) in &data.grado_asignatura {
-            stmt.execute(rusqlite::params![grado_id, asig_id])
-                .map_err(|e| e.to_string())?;
-        }
-        drop(stmt);
-
-        tx.execute(
-            "DELETE FROM grado_asignatura WHERE (grado_id, asignatura_id) NOT IN (SELECT grado_id, asignatura_id FROM temp_cloud_grado_asig)
-             AND (grado_id, asignatura_id) NOT IN (SELECT grado_id, asignatura_id FROM sync_pending_deletions_grado_asignatura)",
-            [],
-        ).map_err(|e| e.to_string())?;
-
-        tx.execute("DROP TABLE temp_cloud_grado_asig", [])
-            .map_err(|e| e.to_string())?;
-    }
-
-    // 8. Eliminar colegio_asignatura locales que no existen en la nube
-    if !data.colegio_asignatura.is_empty() {
-        tx.execute(
-            "CREATE TEMP TABLE IF NOT EXISTS temp_cloud_colegio_asig (colegio_id INTEGER, asignatura_id INTEGER)",
-            [],
-        ).map_err(|e| e.to_string())?;
-
-        let mut stmt = tx
-            .prepare(
-                "INSERT INTO temp_cloud_colegio_asig (colegio_id, asignatura_id) VALUES (?, ?)",
-            )
-            .map_err(|e| e.to_string())?;
-        for (colegio_id, asig_id) in &data.colegio_asignatura {
-            stmt.execute(rusqlite::params![colegio_id, asig_id])
-                .map_err(|e| e.to_string())?;
-        }
-        drop(stmt);
-
-        tx.execute(
-            "DELETE FROM colegio_asignatura WHERE (colegio_id, asignatura_id) NOT IN (SELECT colegio_id, asignatura_id FROM temp_cloud_colegio_asig)
-             AND (colegio_id, asignatura_id) NOT IN (SELECT colegio_id, asignatura_id FROM sync_pending_deletions_colegio_asignatura)",
-            [],
-        ).map_err(|e| e.to_string())?;
-
-        tx.execute("DROP TABLE temp_cloud_colegio_asig", [])
-            .map_err(|e| e.to_string())?;
-    }
+    // SINCRONIZACIÓN BIDIRECCIONAL - No eliminar registros locales durante pullAll()
+    // Para evitar perder datos de bases de datos antiguas importadas
+    // ============================================================================
+    
+    // NOTA: Durante pullAll(), solo sincronizamos los datos de la nube hacia local,
+    // pero NO eliminamos registros locales que no existan en la nube.
+    // Esto permite restaurar bases de datos antiguas sin perder datos.
+    //
+    // Si necesitas eliminar registros locales que no están en la nube,
+    // usa la opción "Limpiar Nube" en Ajustes > Debugging > Reiniciar DB Local
 
     tx.commit().map_err(|e| e.to_string())?;
     println!("✅ [DB] upsert_pull_data completado exitosamente");
