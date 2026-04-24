@@ -2280,7 +2280,7 @@ pub fn get_db_path(app_handle: tauri::AppHandle) -> Result<String, String> {
         .path()
         .app_data_dir()
         .map_err(|e: tauri::Error| e.to_string())?;
-    let db_path = app_dir.join("database.sqlite");
+    let db_path = app_dir.join("school.db");
     Ok(db_path.to_string_lossy().to_string())
 }
 
