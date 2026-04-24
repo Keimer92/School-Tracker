@@ -319,15 +319,17 @@ export function EstudiantesPage() {
       const wb = XLSX.read(fileContent, { type: 'array' });
       let excelData: any[] = [];
       
-      // Procesar todas las hojas del libro
-      wb.SheetNames.forEach(sheetName => {
+      // Procesar cada hoja por separado para preservar el nombre de la hoja como colegio
+      const hojaDataMap: Map<string, any[]> = new Map();
+      
+      for (const sheetName of wb.SheetNames) {
         const ws = wb.Sheets[sheetName];
         const sheetData = XLSX.utils.sheet_to_json(ws);
         if (Array.isArray(sheetData) && sheetData.length > 0) {
           console.log(`Cargando ${sheetData.length} filas de la hoja: ${sheetName}`);
-          excelData = [...excelData, ...sheetData];
+          hojaDataMap.set(sheetName, sheetData);
         }
-      });
+      }
 
       if (excelData.length === 0) {
         throw new Error("No se encontraron datos en ninguna de las hojas del archivo");
@@ -368,23 +370,28 @@ export function EstudiantesPage() {
         return await findOrCreateItem(String(val), items, addCmd, refreshFn, type);
       };
 
-      console.log(`Iniciando importación de ${excelData.length} filas desde ${selected}`);
+      // Procesar cada hoja por separado
+      let rowIndex = 0;
+      for (const [sheetName, sheetData] of hojaDataMap) {
+        console.log(`Procesando hoja: ${sheetName} con ${sheetData.length} filas`);
+        
+        for (let i = 0; i < sheetData.length; i++) {
+          const row = sheetData[i];
+          rowIndex++;
+          try {
+            const nombre = row.Nombre || row.Estudiante || row.nombre || row.estudiante || row["Nombre Completo"] || row["NOMBRE"] || row["Estudiantes"];
+            if (!nombre) {
+              console.warn(`Fila ${rowIndex} saltada: nombre vacío`, row);
+              skippedCount++;
+              continue;
+            }
 
-      for (let i = 0; i < excelData.length; i++) {
-        const row = excelData[i];
-        try {
-          const nombre = row.Nombre || row.Estudiante || row.nombre || row.estudiante || row["Nombre Completo"] || row["NOMBRE"] || row["Estudiantes"];
-          if (!nombre) {
-            console.warn(`Fila ${i + 1} saltada: nombre vacío`, row);
-            skippedCount++;
-            continue;
-          }
-
-          // Normalización agresiva de datos de la fila
-          const rawAno = row["Año Lectivo"] || row.Año || row.Ano || row.Periodo || row.ano || row.año || row["AÑO LECTIVO"] || row["AÑO"];
-          const rawColegio = row.Colegio || row.Escuela || row.Centro || row.colegio || row["COLEGIO"] || row["CENTRO"] || row["ESCUELA"];
-          const rawGrado = row.Grado || row.Nivel || row.grado || row["GRADO"] || row["NIVEL"];
-          const rawSeccion = row.Seccion || row.Grupo || row.Aula || row.seccion || row["SECCION"] || row["GRUPO"] || row["AULA"];
+            // Normalización agresiva de datos de la fila
+            const rawAno = row["Año Lectivo"] || row.Año || row.Ano || row.Periodo || row.ano || row.año || row["AÑO LECTIVO"] || row["AÑO"];
+            // Usar el nombre de la hoja como colegio por defecto si no hay columna de colegio
+            const rawColegio = row.Colegio || row.Escuela || row.Centro || row.colegio || row["COLEGIO"] || row["CENTRO"] || row["ESCUELA"] || sheetName;
+            const rawGrado = row.Grado || row.Nivel || row.grado || row["GRADO"] || row["NIVEL"];
+            const rawSeccion = row.Seccion || row.Grupo || row.Aula || row.seccion || row["SECCION"] || row["GRUPO"] || row["AULA"];
 
           const anoId = await resolveId(rawAno, currentAnos, "add_ano", refreshAnos, 'ano', filters.anoLectivoId);
           const colegioId = await resolveId(rawColegio, currentColegios, "add_colegio", refreshColegios, 'colegio', filters.colegioId);
@@ -468,9 +475,10 @@ export function EstudiantesPage() {
             gradoId: Number(gradoId),
             seccionId: Number(seccionId)
           };
-        } catch (err) {
-          console.error(`Error al procesar fila ${i + 1}:`, row, err);
-          errors++;
+          } catch (err) {
+            console.error(`Error al procesar fila ${rowIndex}:`, row, err);
+            errors++;
+          }
         }
       }
 
