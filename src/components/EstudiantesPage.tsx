@@ -389,7 +389,13 @@ export function EstudiantesPage() {
           const anoId = await resolveId(rawAno, currentAnos, "add_ano", refreshAnos, 'ano', filters.anoLectivoId);
           const colegioId = await resolveId(rawColegio, currentColegios, "add_colegio", refreshColegios, 'colegio', filters.colegioId);
           const gradoId = await resolveId(rawGrado, currentGrados, "add_grado", refreshGrados, 'grado', filters.gradoId);
-          const seccionId = await resolveId(rawSeccion, currentSecciones, "add_seccion", refreshSecciones, 'seccion', filters.seccionId);
+          
+          // Para la sección, si no se puede resolver, intentamos crear una por defecto
+          let seccionId = await resolveId(rawSeccion, currentSecciones, "add_seccion", refreshSecciones, 'seccion', 0);
+          if (!seccionId || seccionId === 0) {
+            // Si sigue siendo 0, crear una sección "Unica" por defecto
+            seccionId = await findOrCreateItem("Unica", currentSecciones, "add_seccion", refreshSecciones, 'seccion');
+          }
 
           if (!anoId || !colegioId || !gradoId || !seccionId) {
              console.warn(`Fila ${i + 1} (${nombre}) saltada por falta de datos esenciales (ID 0 detectado).`, {
