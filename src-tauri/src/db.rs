@@ -61,7 +61,6 @@ pub fn run_migrations(conn: &Connection) -> Result<(), String> {
         include_str!("../migrations/20240131000000_init.sql"),
         include_str!("../migrations/20240131000001_add_active_column.sql"),
         include_str!("../migrations/20240131000002_create_evaluations.sql"),
-        include_str!("../migrations/20240201000000_merge_student_names.sql"),
         include_str!("../migrations/20240201000001_add_contact_info.sql"),
         include_str!("../migrations/20240201000002_add_grade_colors.sql"),
         include_str!("../migrations/20240201000003_add_qualitative_to_grades.sql"),
