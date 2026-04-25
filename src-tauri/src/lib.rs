@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
-fn upload_to_supabase(table: &str, data: Vec<serde_json::Value>) -> Result<(), String> {
+fn upload_to_supabase(table: &str, data: Vec<serde_json::Value>, user_id: &str) -> Result<(), String> {
     println!(
         "🔄 [PUSH] Subiendo {} registros a tabla {}",
         data.len(),
@@ -22,6 +22,15 @@ fn upload_to_supabase(table: &str, data: Vec<serde_json::Value>) -> Result<(), S
     let supabase_url = "https://[PROYECTO_REMOVIDO]";
     let supabase_key = "[CLAVE_REMOVIDA_ROTAR]";
 
+    // Primero, eliminar registros existentes de este usuario en la tabla
+    let delete_url = format!("{}/rest/v1/{}?user_id=eq.{}", supabase_url, table, user_id);
+    let delete_response = ureq::delete(&delete_url)
+        .set("apikey", supabase_key)
+        .set("Authorization", &format!("Bearer {}", supabase_key))
+        .send();
+        
+    println!("🔄 [PUSH] Limpiando registros existentes en {}", table);
+    
     // Para cada registro, intentar insertarlo en Supabase
     for record in data {
         let url = format!("{}/rest/v1/{}", supabase_url, table);
@@ -32,13 +41,12 @@ fn upload_to_supabase(table: &str, data: Vec<serde_json::Value>) -> Result<(), S
 
         println!("🔄 [PUSH] Enviando registro a {}: {}", table, json_data);
 
-        // Hacer POST request a Supabase con upsert (insertar o actualizar si existe)
+        // Hacer POST request a Supabase - simple insert después de limpar
         let response = ureq::post(&url)
             .set("apikey", supabase_key)
             .set("Authorization", &format!("Bearer {}", supabase_key))
             .set("Content-Type", "application/json")
-            .set("Prefer", "resolution=merge-duplicates")
-            .set("Prefer", "return=minimal") // No devolver datos en respuesta
+            .set("Prefer", "return=minimal")
             .send_string(&json_data);
 
         match response {
@@ -47,9 +55,7 @@ fn upload_to_supabase(table: &str, data: Vec<serde_json::Value>) -> Result<(), S
                 if status >= 200 && status < 300 {
                     println!("✅ [PUSH] Registro subido exitosamente a {}", table);
                 } else {
-                    let error_text = resp
-                        .into_string()
-                        .unwrap_or_else(|_| "Error desconocido".to_string());
+                    let error_text = resp.into_string().unwrap_or_else(|_| "Error desconocido".to_string());
                     println!(
                         "❌ [PUSH] Error HTTP {} al subir a {}: {}",
                         status, table, error_text
@@ -61,8 +67,9 @@ fn upload_to_supabase(table: &str, data: Vec<serde_json::Value>) -> Result<(), S
                 }
             }
             Err(e) => {
-                println!("❌ [PUSH] Error de conexión al subir a {}: {}", table, e);
-                return Err(format!("Error de conexión: {}", e));
+                let error_text = format!("{:?}", e);
+                println!("❌ [PUSH] Error de conexión al subir a {}: {}", table, error_text);
+                return Err(format!("Error de conexión: {}", error_text));
             }
         }
     }
@@ -70,7 +77,7 @@ fn upload_to_supabase(table: &str, data: Vec<serde_json::Value>) -> Result<(), S
     println!(
         "✅ [PUSH] Todos los registros de {} subidos exitosamente",
         table
-    );
+);
     Ok(())
 }
 
@@ -114,7 +121,7 @@ fn sync_push_all_to_cloud(state: tauri::State<'_, DbState>, user_id: String) -> 
             table_name
         );
 
-        if let Err(e) = upload_to_supabase(&table_name, records_with_user_id) {
+        if let Err(e) = upload_to_supabase(&table_name, records_with_user_id, &user_id) {
             println!("❌ [PUSH] Error subiendo tabla {}: {}", table_name, e);
             return Err(format!("Error subiendo tabla {}: {}", table_name, e));
         }
