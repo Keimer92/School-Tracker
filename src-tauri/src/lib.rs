@@ -35,8 +35,26 @@ fn upload_to_supabase(table: &str, data: Vec<serde_json::Value>, user_id: &str) 
     for record in data {
         let url = format!("{}/rest/v1/{}", supabase_url, table);
 
+        // Convertir booleanos a enteros para PostgreSQL
+        let mut record_fixed = serde_json::Map::new();
+        if let serde_json::Value::Object(obj) = record {
+            for (key, value) in obj {
+                let new_value = match value {
+                    serde_json::Value::Bool(ref b) => {
+                        if *b {
+                            serde_json::Value::Number(serde_json::Number::from(1))
+                        } else {
+                            serde_json::Value::Number(serde_json::Number::from(0))
+                        }
+                    },
+                    _ => value.clone(),
+                };
+                record_fixed.insert(key.clone(), new_value);
+            }
+        }
+        
         // Convertir el registro a string JSON
-        let json_data = serde_json::to_string(&record)
+        let json_data = serde_json::to_string(&record_fixed)
             .map_err(|e| format!("Error serializando registro: {}", e))?;
 
         println!("🔄 [PUSH] Enviando registro a {}: {}", table, json_data);
@@ -67,7 +85,7 @@ fn upload_to_supabase(table: &str, data: Vec<serde_json::Value>, user_id: &str) 
                 }
             }
             Err(e) => {
-                let error_text = format!("{:?}", e);
+                let error_text = format!("Error: {:?}", e);
                 println!("❌ [PUSH] Error de conexión al subir a {}: {}", table, error_text);
                 return Err(format!("Error de conexión: {}", error_text));
             }
