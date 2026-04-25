@@ -1,6 +1,0 @@
-CREATE TABLE IF NOT EXISTS sync_pending_deletions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    tabla TEXT NOT NULL,
-    registro_id INTEGER NOT NULL,
-    fecha_intento TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);

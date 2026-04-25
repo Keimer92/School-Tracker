@@ -397,10 +397,14 @@ export function EstudiantesPage() {
           const colegioId = await resolveId(rawColegio, currentColegios, "add_colegio", refreshColegios, 'colegio', filters.colegioId);
           const gradoId = await resolveId(rawGrado, currentGrados, "add_grado", refreshGrados, 'grado', filters.gradoId);
           
-          // Para la sección, si no se puede resolver, intentamos crear una por defecto
-          let seccionId = await resolveId(rawSeccion, currentSecciones, "add_seccion", refreshSecciones, 'seccion', 0);
+          // Para la sección, intentar resolver con el valor del Excel
+          // Si rawSeccion tiene valor, usarlo; si no, crear "Unica"
+          let seccionId = 0;
+          if (rawSeccion && String(rawSeccion).trim()) {
+            seccionId = await resolveId(rawSeccion, currentSecciones, "add_seccion", refreshSecciones, 'seccion', 0);
+          }
+          // Si sigue siendo 0 o no hay valor en Excel, crear "Unica" por defecto
           if (!seccionId || seccionId === 0) {
-            // Si sigue siendo 0, crear una sección "Unica" por defecto
             seccionId = await findOrCreateItem("Unica", currentSecciones, "add_seccion", refreshSecciones, 'seccion');
           }
 
