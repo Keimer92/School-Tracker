@@ -32,13 +32,23 @@ fn upload_to_supabase(table: &str, data: Vec<serde_json::Value>, user_id: &str) 
     println!("🔄 [PUSH] Limpiando registros existentes en {}", table);
     
     // Para cada registro, intentar insertarlo en Supabase
-    for record in data {
+for record in data {
         let url = format!("{}/rest/v1/{}", supabase_url, table);
 
-        // Convertir booleanos a enteros para PostgreSQL
-        let mut record_fixed = serde_json::Map::new();
+        // Columnas que existen en cada tabla de Supabase
+        let columns_to_exclude = match table {
+            "colegio" | "asignatura" | "grado" | "seccion" => vec!["activo"],
+            _ => vec![],
+        };
+        
+        // Filtrar columnas que no existen en la tabla y convertir booleanos
+        let mut record_filtered = serde_json::Map::new();
         if let serde_json::Value::Object(obj) = record {
             for (key, value) in obj {
+                if columns_to_exclude.contains(&key.as_str()) {
+                    continue;
+                }
+                // Convertir boolean a numero
                 let new_value = match value {
                     serde_json::Value::Bool(ref b) => {
                         if *b {
@@ -49,12 +59,12 @@ fn upload_to_supabase(table: &str, data: Vec<serde_json::Value>, user_id: &str) 
                     },
                     _ => value.clone(),
                 };
-                record_fixed.insert(key.clone(), new_value);
+                record_filtered.insert(key.clone(), new_value);
             }
         }
         
         // Convertir el registro a string JSON
-        let json_data = serde_json::to_string(&record_fixed)
+        let json_data = serde_json::to_string(&record_filtered)
             .map_err(|e| format!("Error serializando registro: {}", e))?;
 
         println!("🔄 [PUSH] Enviando registro a {}: {}", table, json_data);
@@ -78,6 +88,15 @@ fn upload_to_supabase(table: &str, data: Vec<serde_json::Value>, user_id: &str) 
                         "❌ [PUSH] Error HTTP {} al subir a {}: {}",
                         status, table, error_text
                     );
+                    // Intentar parsear el error JSON
+                    if let Ok(err_json) = serde_json::from_str::<serde_json::Value>(&error_text) {
+                        if let Some(msg) = err_json.get("message") {
+                            println!("❌ [PUSH] Mensaje de error: {}", msg);
+                        }
+                        if let Some(details) = err_json.get("details") {
+                            println!("❌ [PUSH] Detalles: {}", details);
+                        }
+                    }
                     return Err(format!(
                         "Error HTTP {} al subir registro: {}",
                         status, error_text
@@ -243,6 +262,43 @@ fn get_all_local_data(
         );
         result.insert(table_name.to_string(), table_data);
     }
+
+    // Estudiantes
+    let mut stmt = conn
+        .prepare("SELECT id, nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, coalesce(colegio_id, 0), telefono, direccion, email FROM estudiante")
+        .map_err(|e| format!("Error preparando consulta para estudiante: {}", e))?;
+
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(serde_json::json!({
+                "id": row.get::<_, i64>(0)?,
+                "nombre": row.get::<_, String>(1)?,
+                "codigo": row.get::<_, String>(2)?,
+                "sexo": row.get::<_, String>(3)?,
+                "ano_lectivo_id": row.get::<_, i64>(4)?,
+                "grado_id": row.get::<_, i64>(5)?,
+                "seccion_id": row.get::<_, i64>(6)?,
+                "colegio_id": row.get::<_, i64>(7)?,
+                "telefono": row.get::<_, String>(8)?,
+                "direccion": row.get::<_, String>(9)?,
+                "email": row.get::<_, String>(10)?
+            }))
+        })
+        .map_err(|e| format!("Error ejecutando consulta para estudiante: {}", e))?;
+
+    let mut table_data = Vec::new();
+    for row_result in rows {
+        match row_result {
+            Ok(json_value) => table_data.push(json_value),
+            Err(e) => return Err(format!("Error procesando fila en estudiante: {}", e)),
+        }
+    }
+
+    println!(
+        "📊 [PUSH] Tabla estudiante: {} registros obtenidos",
+        table_data.len()
+    );
+    result.insert("estudiante".to_string(), table_data);
 
     Ok(result)
 }
