@@ -24,10 +24,10 @@ fn upload_to_supabase(table: &str, data: Vec<serde_json::Value>, user_id: &str) 
 
     // Primero, eliminar registros existentes de este usuario en la tabla
     let delete_url = format!("{}/rest/v1/{}?user_id=eq.{}", supabase_url, table, user_id);
-    let delete_response = ureq::delete(&delete_url)
+    let _delete_response = ureq::delete(&delete_url)
         .set("apikey", supabase_key)
         .set("Authorization", &format!("Bearer {}", supabase_key))
-        .send();
+        .send_bytes(&[]);
         
     println!("🔄 [PUSH] Limpiando registros existentes en {}", table);
     
@@ -74,10 +74,10 @@ fn upload_to_supabase(table: &str, data: Vec<serde_json::Value>, user_id: &str) 
         }
     }
 
-    println!(
+println!(
         "✅ [PUSH] Todos los registros de {} subidos exitosamente",
         table
-);
+    );
     Ok(())
 }
 
