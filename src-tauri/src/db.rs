@@ -446,6 +446,19 @@ fn seed_default_data(conn: &Connection) -> Result<(), String> {
     )
     .ok();
 
+    // Marcar como cualitativas las asignaturas asignadas a 1er y 2do grado
+    conn.execute(
+        "UPDATE asignatura SET cualitativo = 1
+         WHERE id IN (
+             SELECT a.id FROM asignatura a
+             INNER JOIN grado_asignatura ga ON a.id = ga.asignatura_id
+             INNER JOIN grado g ON ga.grado_id = g.id
+             WHERE g.nombre IN ('1er grado', '2do grado')
+         )",
+        [],
+    )
+    .ok();
+
     // Asignar todas las asignaturas a todos los colegios
     conn.execute(
         "INSERT OR IGNORE INTO colegio_asignatura (colegio_id, asignatura_id)
@@ -2296,7 +2309,34 @@ pub fn get_evaluation_config(
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
 
-        ind.criterios = criterios;
+        // Si no hay criterios, crearlos por defecto
+        if criterios.is_empty() {
+            let scores = [7, 7, 6];
+            for (j, score) in scores.iter().enumerate() {
+                conn.execute(
+                    "INSERT INTO criterio (indicador_id, orden, descripcion, puntaje_maximo) VALUES (?, ?, ?, ?)",
+                    rusqlite::params![ind.id, (j + 1) as i64, "", score],
+                )
+                .map_err(|e| e.to_string())?;
+            }
+            // Recargar criterios
+            let criterios_recargados = c_stmt
+                .query_map([ind.id], |row| {
+                    Ok(Criterio {
+                        id: Some(row.get(0)?),
+                        indicador_id: ind.id,
+                        orden: row.get(1)?,
+                        descripcion: row.get(2)?,
+                        puntaje_maximo: row.get(3)?,
+                    })
+                })
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
+            ind.criterios = criterios_recargados;
+        } else {
+            ind.criterios = criterios;
+        }
     }
 
     Ok(result)

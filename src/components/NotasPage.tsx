@@ -1263,9 +1263,9 @@ export function NotasPage() {
 
       {/* Tabla de Notas */}
       {!loading && estudiantes.length > 0 && (
-        <div className="category-card" style={{ 
-          width: '100%', 
-          maxWidth: '100%', 
+        <div className="category-card" style={{
+          width: '100%',
+          maxWidth: '100%',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
