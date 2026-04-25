@@ -623,7 +623,7 @@ export function AjustesPage() {
     { id: "configuracion", label: "General", icon: "⚙️" },
     { id: "apariencia", label: "Diseño", icon: "🎨" },
     { id: "calificaciones", label: "Notas", icon: "⭐" },
-    { id: "sync", label: "Nube", icon: "☁️" },
+    { id: "sync", label: "Nube", icon: "supabase" },
     { id: "almacenamiento", label: "Almacén", icon: "📦" },
     { id: "debugging", label: "Debug", icon: "🐛" },
     { id: "acercaDe", label: "Info", icon: "📖" },
@@ -746,7 +746,15 @@ export function AjustesPage() {
               className={`ajustes-tab ${activeTab === tab.id ? "active" : ""}`}
               onClick={() => setActiveTab(tab.id)}
             >
-              <span style={{ fontSize: "1.1rem" }}>{tab.icon}</span>
+              {tab.icon === "supabase" ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+                  <path d="M15.58 2.748a.605.605 0 0 1 .587.503l.288 1.74a.605.605 0 0 1-.563.699L3.427 8.148a.605.605 0 0 1-.587-.503l-.288-1.74a.605.605 0 0 1 .563-.699l11.466-1.458z" fill="#3ECF8E"/>
+                  <path d="M2.43 9.19a1.72 1.72 0 0 1 1.67 1.43l.288 1.74a1.72 1.72 0 0 1-1.67 1.983L1 14.194a1.72 1.72 0 0 1-1.67-1.43l-.288-1.74a1.72 1.72 0 0 1 1.67-1.983L2.43 9.19z" fill="#249363"/>
+                  <path d="M13.924 12.087l4.362 4.362a1.72 1.72 0 0 1-1.214 2.93l-.456.058-5.413-.688a1.72 1.72 0 0 1-1.553-1.98l.288-1.74a1.72 1.72 0 0 1 1.67-1.428l1.458.185-.182-.293a.605.605 0 0 1 .563-.698l.11-.014-.182-.293z" fill="#3ECF8E"/>
+                </svg>
+              ) : (
+                <span style={{ fontSize: "1.1rem" }}>{tab.icon}</span>
+              )}
               <span className="tab-label">{tab.label}</span>
               {tab.id === "sync" && isSynced && (
                 <span className="sync-dot-mini"></span>
@@ -1337,11 +1345,28 @@ export function AjustesPage() {
         {activeTab === "sync" && (
           <div className="category-card">
             <div className="category-header">
-              <h3>☁️ Sincronización en la Nube</h3>
+              <h3>
+                <span style={{ 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  gap: '12px',
+                  background: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(255,255,255,0.08)'
+                }}>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M15.58 2.748a.605.605 0 0 1 .587.503l.288 1.74a.605.605 0 0 1-.563.699L3.427 8.148a.605.605 0 0 1-.587-.503l-.288-1.74a.605.605 0 0 1 .563-.699l11.466-1.458z" fill="#3ECF8E"/>
+                    <path d="M2.43 9.19a1.72 1.72 0 0 1 1.67 1.43l.288 1.74a1.72 1.72 0 0 1-1.67 1.983L1 14.194a1.72 1.72 0 0 1-1.67-1.43l-.288-1.74a1.72 1.72 0 0 1 1.67-1.983L2.43 9.19z" fill="#249363"/>
+                    <path d="M13.924 12.087l4.362 4.362a1.72 1.72 0 0 1-1.214 2.93l-.456.058-5.413-.688a1.72 1.72 0 0 1-1.553-1.98l.288-1.74a1.72 1.72 0 0 1 1.67-1.428l1.458.185-.182-.293a.605.605 0 0 1 .563-.698l.11-.014-.182-.293z" fill="#3ECF8E"/>
+                  </svg>
+                  Sincronización en la Nube
+                </span>
+              </h3>
             </div>
             <div style={{ padding: "1.5rem" }}>
               <Auth />
-              
+
               {isSynced && (
                 <div
                   style={{
@@ -1351,9 +1376,9 @@ export function AjustesPage() {
                 >
                   <div
                     style={{
-                      background: "rgba(34, 197, 94, 0.05)",
-                      borderRadius: "12px",
-                      border: "1px solid rgba(34, 197, 94, 0.2)",
+                      background: "linear-gradient(135deg, rgba(34, 197, 94, 0.08) 0%, rgba(34, 197, 94, 0.02) 100%)",
+                      borderRadius: "16px",
+                      border: "1px solid rgba(34, 197, 94, 0.15)",
                       padding: "1.5rem",
                       display: "flex",
                       flexDirection: "column",
@@ -1365,31 +1390,41 @@ export function AjustesPage() {
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
+                        flexWrap: "wrap",
+                        gap: "1rem",
                       }}
                     >
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <div style={{ 
-                          width: "10px", 
-                          height: "10px", 
-                          borderRadius: "50%", 
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <div style={{
+                          width: "12px",
+                          height: "12px",
+                          borderRadius: "50%",
                           background: syncStatus.status === "syncing" ? "#60a5fa" : "#22c55e",
-                          boxShadow: syncStatus.status === "syncing" ? "0 0 8px #60a5fa" : "0 0 8px #22c55e"
+                          boxShadow: syncStatus.status === "syncing" ? "0 0 12px #60a5fa" : "0 0 12px #22c55e",
+                          animation: syncStatus.status === "syncing" ? "pulse 1.5s infinite" : "none"
                         }}></div>
                         <span style={{ color: "#f8fafc", fontWeight: "600", fontSize: "1rem" }}>
                           Estado de Supabase
                         </span>
                       </div>
-                      
+
                       <div
                         style={{
                           display: "flex",
                           alignItems: "center",
                           gap: "8px",
-                          background: "rgba(0,0,0,0.2)",
-                          padding: "4px 12px",
+                          background: "rgba(0,0,0,0.3)",
+                          padding: "6px 14px",
                           borderRadius: "20px",
+                          border: "1px solid rgba(255,255,255,0.1)",
                         }}
                       >
+                        <div style={{
+                          width: "8px",
+                          height: "8px",
+                          borderRadius: "50%",
+                          background: syncStatus.status === "syncing" ? "#60a5fa" : syncStatus.status === "success" ? "#4ade80" : syncStatus.status === "error" ? "#f87171" : "#94a3b8"
+                        }}></div>
                         <span
                           style={{
                             fontSize: "0.8rem",
@@ -1407,9 +1442,9 @@ export function AjustesPage() {
                           {syncStatus.status === "syncing"
                             ? "Sincronizando..."
                             : syncStatus.status === "success"
-                              ? "Conectado y Listo"
+                              ? "Conectado"
                               : syncStatus.status === "error"
-                                ? "Error de Conexión"
+                                ? "Error"
                                 : "En espera"}
                         </span>
                       </div>

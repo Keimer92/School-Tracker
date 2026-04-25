@@ -1,5 +1,6 @@
 import { supabase } from '../supabase';
 import { CloudProvider, CloudUser } from './CloudProvider';
+import { syncService } from '../syncService';
 
 export class SupabaseBackend implements CloudProvider {
   name: 'supabase' = 'supabase';
@@ -41,8 +42,10 @@ export class SupabaseBackend implements CloudProvider {
   }
 
   async pushAll(): Promise<void> {
-    // Usar el syncService para subir datos
+    const userId = await syncService.getUserId();
+    if (!userId) throw new Error("Usuario no autenticado");
+
     const { invoke } = await import('@tauri-apps/api/core');
-    await invoke('sync_push_all_to_cloud');
+    await invoke('sync_push_all_to_cloud', { userId });
   }
 }

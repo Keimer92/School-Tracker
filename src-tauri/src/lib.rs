@@ -75,14 +75,14 @@ fn upload_to_supabase(table: &str, data: Vec<serde_json::Value>) -> Result<(), S
 }
 
 #[tauri::command]
-fn sync_push_all_to_cloud(state: tauri::State<'_, DbState>) -> Result<(), String> {
+fn sync_push_all_to_cloud(state: tauri::State<'_, DbState>, user_id: String) -> Result<(), String> {
     println!("🔄 [PUSH] Iniciando subida de datos locales a Supabase");
 
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
-    let user_id = match get_current_user_id(&mut conn) {
-        Ok(id) => id,
-        Err(_) => return Err("Usuario no autenticado".to_string()),
-    };
+
+    if user_id.is_empty() {
+        return Err("Usuario no autenticado".to_string());
+    }
 
     println!("🔄 [PUSH] User ID: {}", user_id);
 
@@ -123,11 +123,6 @@ fn sync_push_all_to_cloud(state: tauri::State<'_, DbState>) -> Result<(), String
     println!("✅ [PUSH] Subida completada exitosamente");
     Ok(())
 }
-fn get_current_user_id(_conn: &mut rusqlite::Connection) -> Result<String, String> {
-    // Por ahora, retornamos un user_id de ejemplo
-    // En una implementación real, esto vendría de la sesión del usuario
-    Ok("f4100785-8cd0-45d8-aace-2d320e2aad81".to_string())
-}
 
 fn get_all_local_data(
     conn: &mut rusqlite::Connection,
@@ -161,8 +156,8 @@ fn get_all_local_data(
                 Ok(serde_json::json!({
                     "id": row.get::<_, i64>(0)?,
                     "nombre": row.get::<_, String>(1)?,
-                    "activo": row.get::<_, bool>(2)?,
-                    "cualitativo": row.get::<_, Option<String>>(3)?
+                    "activo": row.get::<_, i64>(2)? != 0,
+                    "cualitativo": row.get::<_, i64>(3)? != 0
                 }))
             })
             .map_err(|e| format!("Error ejecutando consulta para {}: {}", table_name, e))?;
@@ -203,7 +198,7 @@ fn get_all_local_data(
                 Ok(serde_json::json!({
                     "id": row.get::<_, i64>(0)?,
                     "nombre": row.get::<_, String>(1)?,
-                    "cualitativo": row.get::<_, Option<String>>(2)?
+                    "cualitativo": row.get::<_, i64>(2)? != 0
                 }))
             })
             .map_err(|e| format!("Error ejecutando consulta para {}: {}", table_name, e))?;
