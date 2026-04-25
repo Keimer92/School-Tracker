@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
-fn upload_to_supabase(table: &str, data: Vec<serde_json::Value>, user_id: &str) -> Result<(), String> {
+fn upload_to_supabase(table: &str, data: Vec<serde_json::Value>, _user_id: &str) -> Result<(), String> {
     println!(
         "🔄 [PUSH] Subiendo {} registros a tabla {}",
         data.len(),
@@ -145,37 +145,48 @@ fn sync_push_all_to_cloud(state: tauri::State<'_, DbState>, user_id: String) -> 
         tables_data.len()
     );
 
-    for (table_name, records) in tables_data {
-        // Tablas que tienen user_id en Supabase (grado y seccion NO lo tienen)
-    let tables_with_user_id = vec![
-        "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", 
-        "estudiante", "asistencia", "nota", "indicador", "criterio"
+    // Orden de tablas según dependencias (primero las que no dependen de otras)
+    let table_order = vec![
+        "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
+        "indicador", "criterio",
+        "estudiante", "asistencia", "nota"
     ];
-    
-    // Si la tabla no tiene user_id en Supabase, no agregar ese campo
-    let should_add_user_id = tables_with_user_id.contains(&table_name.as_str());
-    
-    if !should_add_user_id {
-        println!("⚠️ [PUSH] Tabla {} no usa user_id, omitiendo", table_name);
-    }
 
-    // Agregar user_id solo si la tabla lo soporta
-    let records_with_user_id: Vec<serde_json::Value> = records
-        .into_iter()
-        .map(|mut record| {
-            if should_add_user_id {
-                if let serde_json::Value::Object(ref mut obj) = record {
-                    obj.insert(
-                        "user_id".to_string(),
-                        serde_json::Value::String(user_id.clone()),
-                    );
+    for table_name in table_order {
+        // Buscar los datos de esta tabla en el HashMap
+        let records = match tables_data.get(table_name) {
+            Some(r) => r.clone(),
+            None => continue, // Tabla no existe o está vacía
+        };
+
+        // Tablas que tienen user_id en Supabase (grado y seccion NO lo tienen)
+        let tables_with_user_id = vec![
+            "ano_lectivo", "corte_evaluativo", "colegio", "asignatura",
+            "estudiante", "asistencia", "nota", "indicador", "criterio"
+        ];
+
+        let should_add_user_id = tables_with_user_id.contains(&table_name);
+
+        if !should_add_user_id {
+            println!("⚠️ [PUSH] Tabla {} no usa user_id, omitiendo", table_name);
+        }
+
+        let records_with_user_id: Vec<serde_json::Value> = records
+            .into_iter()
+            .map(|mut record| {
+                if should_add_user_id {
+                    if let serde_json::Value::Object(ref mut obj) = record {
+                        obj.insert(
+                            "user_id".to_string(),
+                            serde_json::Value::String(user_id.clone()),
+                        );
+                    }
                 }
-            }
-            record
-        })
-        .collect();
+                record
+            })
+            .collect();
 
-    println!(
+        println!(
             "🔄 [PUSH] Subiendo {} registros con user_id para tabla {}",
             records_with_user_id.len(),
             table_name
