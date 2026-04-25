@@ -22,24 +22,30 @@ fn upload_to_supabase(table: &str, data: Vec<serde_json::Value>, user_id: &str) 
     let supabase_url = "https://[PROYECTO_REMOVIDO]";
     let supabase_key = "[CLAVE_REMOVIDA_ROTAR]";
 
-    // Primero, eliminar registros existentes de este usuario en la tabla
-    let delete_url = format!("{}/rest/v1/{}?user_id=eq.{}", supabase_url, table, user_id);
+    // Tablas que tienen user_id en Supabase
+    let tables_with_user_id = vec!["ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "estudiante", "asistencia", "nota", "indicador", "criterio"];
+    let has_user_id = tables_with_user_id.contains(&table);
+
+    // Delete TODOS los registros primero (sin filtro) para evitar conflictos
+    let delete_url = format!("{}/rest/v1/{}?user_id=eq.*", supabase_url, table);
     let _delete_response = ureq::delete(&delete_url)
         .set("apikey", supabase_key)
         .set("Authorization", &format!("Bearer {}", supabase_key))
         .send_bytes(&[]);
         
-    println!("🔄 [PUSH] Limpiando registros existentes en {}", table);
+    println!("🔄 [PUSH] Limpiando todos los registros en {}", table);
     
     // Para cada registro, intentar insertarlo en Supabase
 for record in data {
         let url = format!("{}/rest/v1/{}", supabase_url, table);
 
-        // Columnas que existen en cada tabla de Supabase
+        // Columnas que existen en cada tabla de Supabase (excluir las que no existen)
         let columns_to_exclude = match table {
-            "colegio" | "asignatura" | "grado" | "seccion" => vec!["activo"],
+            "colegio" | "asignatura" | "grado" | "seccion" | "estudiante" | "asistencia" | "nota" | "criterio" | "indicador" => vec!["activo"],
             _ => vec![],
         };
+        
+        let exclude_user_id = !has_user_id;
         
         // Filtrar columnas que no existen en la tabla y convertir booleanos
         let mut record_filtered = serde_json::Map::new();
@@ -48,7 +54,11 @@ for record in data {
                 if columns_to_exclude.contains(&key.as_str()) {
                     continue;
                 }
-                // Convertir boolean a numero
+                if exclude_user_id && key == "user_id" {
+                    continue;
+                }
+                // Convertir boolean a numero para PostgreSQL
+                // Convertir strings vacíos a valor por defecto
                 let new_value = match value {
                     serde_json::Value::Bool(ref b) => {
                         if *b {
@@ -57,6 +67,10 @@ for record in data {
                             serde_json::Value::Number(serde_json::Number::from(0))
                         }
                     },
+                    serde_json::Value::String(ref s) if s.is_empty() => {
+                        serde_json::Value::String("Sin descripción".to_string())
+                    },
+                    // user_id ya es String, déjalo como está
                     _ => value.clone(),
                 };
                 record_filtered.insert(key.clone(), new_value);
@@ -138,21 +152,36 @@ fn sync_push_all_to_cloud(state: tauri::State<'_, DbState>, user_id: String) -> 
     );
 
     for (table_name, records) in tables_data {
-        // Agregar user_id a cada registro antes de subir
-        let records_with_user_id: Vec<serde_json::Value> = records
-            .into_iter()
-            .map(|mut record| {
+        // Tablas que tienen user_id en Supabase (grado y seccion NO lo tienen)
+    let tables_with_user_id = vec![
+        "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", 
+        "estudiante", "asistencia", "nota", "indicador", "criterio"
+    ];
+    
+    // Si la tabla no tiene user_id en Supabase, no agregar ese campo
+    let should_add_user_id = tables_with_user_id.contains(&table_name.as_str());
+    
+    if !should_add_user_id {
+        println!("⚠️ [PUSH] Tabla {} no usa user_id, omitiendo", table_name);
+    }
+
+    // Agregar user_id solo si la tabla lo soporta
+    let records_with_user_id: Vec<serde_json::Value> = records
+        .into_iter()
+        .map(|mut record| {
+            if should_add_user_id {
                 if let serde_json::Value::Object(ref mut obj) = record {
                     obj.insert(
                         "user_id".to_string(),
                         serde_json::Value::String(user_id.clone()),
                     );
                 }
-                record
-            })
-            .collect();
+            }
+            record
+        })
+        .collect();
 
-        println!(
+    println!(
             "🔄 [PUSH] Subiendo {} registros con user_id para tabla {}",
             records_with_user_id.len(),
             table_name
@@ -299,6 +328,119 @@ fn get_all_local_data(
         table_data.len()
     );
     result.insert("estudiante".to_string(), table_data);
+
+    // Asistencia
+    let mut stmt_asist = conn
+        .prepare("SELECT estudiante_id, fecha, estado, observacion FROM asistencia")
+        .map_err(|e| format!("Error preparando consulta para asistencia: {}", e))?;
+
+    let rows_asist = stmt_asist
+        .query_map([], |row| {
+            Ok(serde_json::json!({
+                "estudiante_id": row.get::<_, i64>(0)?,
+                "fecha": row.get::<_, String>(1)?,
+                "estado": row.get::<_, String>(2)?,
+                "observacion": row.get::<_, String>(3)?
+            }))
+        })
+        .map_err(|e| format!("Error ejecutando consulta para asistencia: {}", e))?;
+
+    let mut table_asistencia = Vec::new();
+    for row_result in rows_asist {
+        match row_result {
+            Ok(json_value) => table_asistencia.push(json_value),
+            Err(e) => return Err(format!("Error procesando fila en asistencia: {}", e)),
+        }
+    }
+
+    println!("📊 [PUSH] Tabla asistencia: {} registros obtenidos", table_asistencia.len());
+    result.insert("asistencia".to_string(), table_asistencia);
+
+    // Notas
+    let mut stmt_notas = conn
+        .prepare("SELECT estudiante_id, criterio_id, valor, corte_evaluativo_id, asignatura_id FROM nota")
+        .map_err(|e| format!("Error preparando consulta para nota: {}", e))?;
+
+    let rows_notas = stmt_notas
+        .query_map([], |row| {
+            Ok(serde_json::json!({
+                "estudiante_id": row.get::<_, i64>(0)?,
+                "criterio_id": row.get::<_, i64>(1)?,
+                "valor": row.get::<_, f64>(2)?,
+                "corte_evaluativo_id": row.get::<_, i64>(3)?,
+                "asignatura_id": row.get::<_, i64>(4)?
+            }))
+        })
+        .map_err(|e| format!("Error ejecutando consulta para nota: {}", e))?;
+
+    let mut table_notas = Vec::new();
+    for row_result in rows_notas {
+        match row_result {
+            Ok(json_value) => table_notas.push(json_value),
+            Err(e) => return Err(format!("Error procesando fila en nota: {}", e)),
+        }
+    }
+
+    println!("📊 [PUSH] Tabla nota: {} registros obtenidos", table_notas.len());
+    result.insert("nota".to_string(), table_notas);
+
+    // Indicadores
+    let mut stmt_ind = conn
+        .prepare("SELECT id, grado_id, asignatura_id, coalesce(corte_evaluativo_id, 0), orden, descripcion, activo FROM indicador")
+        .map_err(|e| format!("Error preparando consulta para indicador: {}", e))?;
+
+    let rows_ind = stmt_ind
+        .query_map([], |row| {
+            Ok(serde_json::json!({
+                "id": row.get::<_, i64>(0)?,
+                "grado_id": row.get::<_, i64>(1)?,
+                "asignatura_id": row.get::<_, i64>(2)?,
+                "corte_evaluativo_id": row.get::<_, i64>(3)?,
+                "orden": row.get::<_, i64>(4)?,
+                "descripcion": row.get::<_, String>(5)?,
+                "activo": row.get::<_, i64>(6)? != 0
+            }))
+        })
+        .map_err(|e| format!("Error ejecutando consulta para indicador: {}", e))?;
+
+    let mut table_indicador = Vec::new();
+    for row_result in rows_ind {
+        match row_result {
+            Ok(json_value) => table_indicador.push(json_value),
+            Err(e) => return Err(format!("Error procesando fila en indicador: {}", e)),
+        }
+    }
+
+    println!("📊 [PUSH] Tabla indicador: {} registros obtenidos", table_indicador.len());
+    result.insert("indicador".to_string(), table_indicador);
+
+    // Criterios
+    let mut stmt_crit = conn
+        .prepare("SELECT id, indicador_id, orden, descripcion, puntaje_maximo FROM criterio")
+        .map_err(|e| format!("Error preparando consulta para criterio: {}", e))?;
+
+    let rows_crit = stmt_crit
+        .query_map([], |row| {
+            Ok(serde_json::json!({
+                "id": row.get::<_, i64>(0)?,
+                "indicador_id": row.get::<_, i64>(1)?,
+                "orden": row.get::<_, i64>(2)?,
+                "descripcion": row.get::<_, String>(3)?,
+                "puntaje_maximo": row.get::<_, f64>(4)?
+            }))
+        })
+        .map_err(|e| format!("Error ejecutando consulta para criterio: {}", e))?;
+
+    let mut table_criterio = Vec::new();
+    for row_result in rows_crit {
+        match row_result {
+            Ok(json_value) => table_criterio.push(json_value),
+            Err(e) => return Err(format!("Error procesando fila en criterio: {}", e)),
+        }
+    }
+
+    println!("📊 [PUSH] Tabla criterio: {} registros obtenidos", table_criterio.len());
+    result.insert("criterio".to_string(), table_criterio);
 
     Ok(result)
 }

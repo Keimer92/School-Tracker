@@ -53,12 +53,19 @@ export function AjustesPage() {
   const [isExportingByYear, setIsExportingByYear] = useState(false);
 
   const [isSynced, setIsSynced] = useState(false);
-  const [syncStatus, setSyncStatus] = useState({
-    status: "idle" as SyncStatus,
-    lastSync: null as string | null,
-    lastSyncDetails: null as string | null,
-    message: null as string | null,
+  const [syncStatus, setSyncStatus] = useState<{
+    status: SyncStatus;
+    lastSync: string | null;
+    lastSyncDetails: string | null;
+    message: string | null;
+  }>({
+    status: "idle",
+    lastSync: null,
+    lastSyncDetails: null,
+    message: null,
   });
+  const [syncLogs, setSyncLogs] = useState<string[]>([]);
+  const [showSyncLogs, setShowSyncLogs] = useState(false);
   
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetConfig, setResetConfig] = useState<{
@@ -72,6 +79,14 @@ export function AjustesPage() {
   useEffect(() => {
     const unsubscribe = syncManager.subscribe((state) => {
       setSyncStatus(state);
+      const timestamp = new Date().toLocaleTimeString();
+      if (state.status === "syncing") {
+        setSyncLogs(prev => [...prev, `[${timestamp}] 🔄 ${state.message || 'Sincronizando...'}`]);
+      } else if (state.status === "success") {
+        setSyncLogs(prev => [...prev, `[${timestamp}] ✅ ${state.message || 'Completado'}`]);
+      } else if (state.status === "error") {
+        setSyncLogs(prev => [...prev, `[${timestamp}] ❌ ${state.message || 'Error en sincronización'}`]);
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -733,6 +748,9 @@ export function AjustesPage() {
             right: 6px;
             width: 8px !important;
             height: 8px !important;
+          }
+          @keyframes spin {
+            to { transform: rotate(360deg); }
           }
         }
       `}</style>
@@ -1399,9 +1417,9 @@ export function AjustesPage() {
                           width: "12px",
                           height: "12px",
                           borderRadius: "50%",
-                          background: syncStatus.status === "syncing" ? "#60a5fa" : "#22c55e",
-                          boxShadow: syncStatus.status === "syncing" ? "0 0 12px #60a5fa" : "0 0 12px #22c55e",
-                          animation: syncStatus.status === "syncing" ? "pulse 1.5s infinite" : "none"
+                          background: (syncStatus.status as string) === "syncing" ? "#60a5fa" : "#22c55e",
+                          boxShadow: (syncStatus.status as string) === "syncing" ? "0 0 12px #60a5fa" : "0 0 12px #22c55e",
+                          animation: (syncStatus.status as string) === "syncing" ? "pulse 1.5s infinite" : "none"
                         }}></div>
                         <span style={{ color: "#f8fafc", fontWeight: "600", fontSize: "1rem" }}>
                           Estado de Supabase
@@ -1419,18 +1437,29 @@ export function AjustesPage() {
                           border: "1px solid rgba(255,255,255,0.1)",
                         }}
                       >
-                        <div style={{
-                          width: "8px",
-                          height: "8px",
-                          borderRadius: "50%",
-                          background: syncStatus.status === "syncing" ? "#60a5fa" : syncStatus.status === "success" ? "#4ade80" : syncStatus.status === "error" ? "#f87171" : "#94a3b8"
-                        }}></div>
+                        {(syncStatus.status as string) === "syncing" ? (
+                          <div style={{
+                            width: "16px",
+                            height: "16px",
+                            border: "2px solid #60a5fa",
+                            borderTopColor: "transparent",
+                            borderRadius: "50%",
+                            animation: "spin 1s linear infinite"
+                          }}></div>
+                        ) : (
+                          <div style={{
+                            width: "8px",
+                            height: "8px",
+                            borderRadius: "50%",
+                            background: (syncStatus.status as string) === "syncing" ? "#60a5fa" : syncStatus.status === "success" ? "#4ade80" : syncStatus.status === "error" ? "#f87171" : "#94a3b8"
+                          }}></div>
+                        )}
                         <span
                           style={{
                             fontSize: "0.8rem",
                             fontWeight: "bold",
                             color:
-                              syncStatus.status === "syncing"
+                              (syncStatus.status as string) === "syncing"
                                 ? "#60a5fa"
                                 : syncStatus.status === "success"
                                   ? "#4ade80"
@@ -1439,7 +1468,7 @@ export function AjustesPage() {
                                     : "#94a3b8",
                           }}
                         >
-                          {syncStatus.status === "syncing"
+                          {(syncStatus.status as string) === "syncing"
                             ? "Sincronizando..."
                             : syncStatus.status === "success"
                               ? "Conectado"
@@ -1460,7 +1489,7 @@ export function AjustesPage() {
 
                        <button
                          onClick={() => cloud.getProvider().pushAll()}
-                         disabled={syncStatus.status === "syncing"}
+                         disabled={(syncStatus.status as string) === "syncing"}
                          className="sync-action-button upload"
                          style={{
                            padding: "0.8rem",
@@ -1482,7 +1511,7 @@ export function AjustesPage() {
                        </button>
                        <button
                          onClick={() => syncService.pullAll()}
-                         disabled={syncStatus.status === "syncing"}
+                         disabled={(syncStatus.status as string) === "syncing"}
                          className="sync-action-button download"
                         style={{
                           padding: "0.8rem",
@@ -1505,17 +1534,101 @@ export function AjustesPage() {
                     </div>
 
                     {syncStatus.message && (
-                      <div
+<div
+                      style={{
+                        fontSize: "0.85rem",
+                        color: syncStatus.status === "error" ? "#fca5a5" : "#93c5fd",
+                        background: "rgba(0,0,0,0.25)",
+                        padding: "10px 15px",
+                        borderRadius: "8px",
+                        borderLeft: `4px solid ${syncStatus.status === "error" ? "#ef4444" : "#3b82f6"}`,
+                        maxHeight: syncStatus.status === "error" ? "150px" : "auto",
+                        overflowY: "auto",
+                      }}
+                    >
+                      {(syncStatus.status as string) === "syncing" && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                        <div style={{
+                          width: "14px",
+                          height: "14px",
+                          border: "2px solid #60a5fa",
+                          borderTopColor: "transparent",
+                          borderRadius: "50%",
+                          animation: "spin 1s linear infinite"
+                        }}></div>
+                        <span>Sincronizando datos...</span>
+                      </div>
+                      )}
+                      {syncStatus.message}
+                      {syncStatus.status === "error" && (
+<div style={{ marginTop: "8px", fontSize: "0.75rem", color: "#f87171", borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: "8px" }}>
+                        ⚠️ Verifica tu conexión a internet y las credenciales de Supabase
+                      </div>
+                      )}
+                    </div>
+                    )}
+
+                    {/* Botón para ver logs de sincronización */}
+                    <div style={{ marginTop: "12px", display: "flex", gap: "8px", alignItems: "center" }}>
+                      <button
+                        onClick={() => setShowSyncLogs(!showSyncLogs)}
                         style={{
-                          fontSize: "0.85rem",
-                          color: syncStatus.status === "error" ? "#fca5a5" : "#93c5fd",
-                          background: "rgba(0,0,0,0.25)",
-                          padding: "10px 15px",
-                          borderRadius: "8px",
-                          borderLeft: `4px solid ${syncStatus.status === "error" ? "#ef4444" : "#3b82f6"}`,
+                          padding: "6px 12px",
+                          background: "rgba(100,100,100,0.2)",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          borderRadius: "6px",
+                          color: "#94a3b8",
+                          fontSize: "0.8rem",
+                          cursor: "pointer",
                         }}
                       >
-                        {syncStatus.message}
+                        📋 {showSyncLogs ? "Ocultar" : "Ver"} Logs de Sync
+                      </button>
+                      {syncLogs.length > 0 && (
+                        <button
+                          onClick={() => setSyncLogs([])}
+                          style={{
+                            padding: "6px 12px",
+                            background: "rgba(239,68,68,0.1)",
+                            border: "1px solid rgba(239,68,68,0.2)",
+                            borderRadius: "6px",
+                            color: "#ef4444",
+                            fontSize: "0.75rem",
+                            cursor: "pointer",
+                          }}
+                        >
+                          🗑️ Limpiar
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Panel de logs */}
+                    {showSyncLogs && syncLogs.length > 0 && (
+                      <div
+                        style={{
+                          marginTop: "10px",
+                          background: "rgba(0,0,0,0.4)",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          borderRadius: "8px",
+                          padding: "10px",
+                          maxHeight: "200px",
+                          overflowY: "auto",
+                          fontSize: "0.75rem",
+                          fontFamily: "monospace",
+                        }}
+                      >
+                        {syncLogs.map((log, index) => (
+                          <div
+                            key={index}
+                            style={{
+                              padding: "4px 0",
+                              borderBottom: index < syncLogs.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none",
+                              color: log.includes("❌") ? "#fca5a5" : log.includes("✅") ? "#86efac" : log.includes("🔄") ? "#93c5fd" : "#94a3b8",
+                            }}
+                          >
+                            {log}
+                          </div>
+                        ))}
                       </div>
                     )}
 

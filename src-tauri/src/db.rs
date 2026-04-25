@@ -1807,17 +1807,19 @@ pub fn get_subjects_by_grade(
     gradoId: i64,
 ) -> Result<Vec<CategoryItem>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    
+    // Usar LEFT JOIN para obtener todas las asignaturas, incluso si no hay relación en grado_asignatura
     let mut stmt = conn
         .prepare(
             "SELECT a.id, a.nombre, a.cualitativo 
              FROM asignatura a
-             INNER JOIN grado_asignatura ga ON a.id = ga.asignatura_id
-             WHERE ga.grado_id = ?",
+             LEFT JOIN grado_asignatura ga ON a.id = ga.asignatura_id AND ga.grado_id = ?
+             WHERE ga.grado_id = ? OR ga.grado_id IS NULL",
         )
         .map_err(|e| e.to_string())?;
 
     let items = stmt
-        .query_map([gradoId], |row| {
+        .query_map([gradoId, gradoId], |row| {
             Ok(CategoryItem {
                 id: Some(row.get(0)?),
                 nombre: row.get(1)?,
@@ -1828,6 +1830,28 @@ pub fn get_subjects_by_grade(
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
+
+    // Si no hay resultados con LEFT JOIN, devolver todas las asignaturas
+    if items.is_empty() {
+        let mut stmt_all = conn
+            .prepare("SELECT id, nombre, cualitativo FROM asignatura")
+            .map_err(|e| e.to_string())?;
+            
+        let all_items = stmt_all
+            .query_map([], |row| {
+                Ok(CategoryItem {
+                    id: Some(row.get(0)?),
+                    nombre: row.get(1)?,
+                    activo: None,
+                    cualitativo: Some(row.get::<_, i64>(2)? == 1),
+                })
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+            
+        return Ok(all_items);
+    }
 
     Ok(items)
 }
