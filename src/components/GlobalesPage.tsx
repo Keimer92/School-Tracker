@@ -407,6 +407,17 @@ function CategoryTabContent({
         cualitativo: !item.cualitativo,
       });
       fetchItems();
+      // Sincronizar con Supabase
+      try {
+        await syncService.syncGlobal(config.table, {
+          id: item.id,
+          nombre: item.nombre,
+          cualitativo: !item.cualitativo,
+        }, false);
+      } catch (e) {
+        console.error("Error sync cualitativo:", e);
+      }
+      await emit("catalog-updated");
       await emit("show-toast", {
         message: "✅ Tipo de evaluación actualizado",
         type: "success",

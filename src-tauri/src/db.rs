@@ -416,15 +416,20 @@ fn seed_default_data(conn: &Connection) -> Result<(), String> {
         ).ok();
     }
 
-    // Grados
-    let grados = vec![
+    // Grados - 1er y 2do grado son cualitativos por defecto
+    let grados_cualitativos = vec!["1er grado", "2do grado"];
+    let grados_default = vec![
         "1er grado", "2do grado", "3er grado", "4to grado", "5to grado",
         "6to grado", "7mo grado", "8vo grado", "9no grado", "10mo grado", "11mo grado",
     ];
 
-    for nombre in grados {
-        conn.execute("INSERT INTO grado (nombre) VALUES (?)", [nombre])
-            .ok();
+    for nombre in grados_default {
+        let cualitativo = if grados_cualitativos.contains(&nombre) { 1 } else { 0 };
+        conn.execute(
+            "INSERT INTO grado (nombre, cualitativo) VALUES (?, ?)",
+            rusqlite::params![nombre, cualitativo],
+        )
+        .ok();
     }
 
     // Secciones

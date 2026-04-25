@@ -1505,14 +1505,14 @@ export function NotasPage() {
                                       else inputsRef.current.delete(inputKey);
                                     }}
                                     style={{
-                                      width: '32px',
+                                      width: isQualitative ? '48px' : '32px',
                                       padding: '0.15rem',
-                                      fontSize: '0.75rem',
+                                      fontSize: isQualitative ? '0.85rem' : '0.75rem',
                                       textAlign: 'center',
-                                      background: 'rgba(255,255,255,0.03)',
-                                      border: `1px solid ${currentQualitativeValue ? getGradeColor(currentQualitativeValue, crit.puntajeMaximo) : 'rgba(255,255,255,0.1)'}`,
-                                      borderRadius: '3px',
-                                      color: currentQualitativeValue ? getGradeColor(currentQualitativeValue, crit.puntajeMaximo) : 'white',
+                                      background: isQualitative ? 'rgba(139, 92, 246, 0.1)' : 'rgba(255,255,255,0.03)',
+                                      border: `2px solid ${currentQualitativeValue ? getGradeColor(currentQualitativeValue, crit.puntajeMaximo) : (isQualitative ? 'rgba(139, 92, 246, 0.4)' : 'rgba(255,255,255,0.1)')}`,
+                                      borderRadius: '4px',
+                                      color: currentQualitativeValue ? getGradeColor(currentQualitativeValue, crit.puntajeMaximo) : (isQualitative ? '#a78bfa' : 'white'),
                                       textTransform: 'uppercase',
                                       fontWeight: currentQualitativeValue ? 'bold' : 'normal',
                                       outline: 'none'
