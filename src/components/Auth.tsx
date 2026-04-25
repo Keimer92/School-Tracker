@@ -131,7 +131,7 @@ export function Auth() {
       <div className="auth-connected-card">
         <div style={{ fontSize: '2.5rem' }}>✅</div>
         <div style={{ textAlign: 'center' }}>
-          <h3 style={{ margin: '0 0 0.25rem 0', color: '#f8fafc' }}>Conectado a la Nube</h3>
+          <h3 style={{ margin: '0 0 0.25rem 0', color: '#f8fafc' }}>Conectado a Sync</h3>
           <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.85rem' }}>{user.email}</p>
         </div>
         <button onClick={handleSignOut} className="auth-signout-button">Cerrar Sesión</button>

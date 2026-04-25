@@ -326,9 +326,9 @@ export function AjustesPage() {
 
   const handleResetRemoteDB = () => {
     setResetConfig({
-      title: "🚨 Limpiar Datos en la Nube",
+      title: "🚨 Limpiar Datos en Sync",
       message:
-        "¡ATENCIÓN! ¿Estás SEGURO de que quieres limpiar la NUBE (Supabase)?\n\nSe borrarán PERMANENTEMENTE todos tus datos sincronizados en el servidor.\nTus datos locales no se verán afectados, pero la nube quedará vacía.",
+        "¡ATENCIÓN! ¿Estás SEGURO de que quieres limpiar los datos sincronizados?\n\nSe borrarán PERMANENTEMENTE todos tus datos en el servidor.\nTus datos locales no se verán afectados.",
       isDanger: true,
       onConfirm: async () => {
         try {
@@ -638,7 +638,7 @@ export function AjustesPage() {
     { id: "configuracion", label: "General", icon: "⚙️" },
     { id: "apariencia", label: "Diseño", icon: "🎨" },
     { id: "calificaciones", label: "Notas", icon: "⭐" },
-    { id: "sync", label: "Nube", icon: "supabase" },
+    { id: "sync", label: "Sync", icon: "supabase" },
     { id: "almacenamiento", label: "Almacén", icon: "📦" },
     { id: "debugging", label: "Debug", icon: "🐛" },
     { id: "acercaDe", label: "Info", icon: "📖" },
@@ -765,10 +765,14 @@ export function AjustesPage() {
               onClick={() => setActiveTab(tab.id)}
             >
               {tab.icon === "supabase" ? (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
-                  <path d="M15.58 2.748a.605.605 0 0 1 .587.503l.288 1.74a.605.605 0 0 1-.563.699L3.427 8.148a.605.605 0 0 1-.587-.503l-.288-1.74a.605.605 0 0 1 .563-.699l11.466-1.458z" fill="#3ECF8E"/>
-                  <path d="M2.43 9.19a1.72 1.72 0 0 1 1.67 1.43l.288 1.74a1.72 1.72 0 0 1-1.67 1.983L1 14.194a1.72 1.72 0 0 1-1.67-1.43l-.288-1.74a1.72 1.72 0 0 1 1.67-1.983L2.43 9.19z" fill="#249363"/>
-                  <path d="M13.924 12.087l4.362 4.362a1.72 1.72 0 0 1-1.214 2.93l-.456.058-5.413-.688a1.72 1.72 0 0 1-1.553-1.98l.288-1.74a1.72 1.72 0 0 1 1.67-1.428l1.458.185-.182-.293a.605.605 0 0 1 .563-.698l.11-.014-.182-.293z" fill="#3ECF8E"/>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+                  <path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z" stroke="url(#cloudGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <defs>
+                    <linearGradient id="cloudGrad" x1="6" y1="8" x2="19" y2="18" gradientUnits="userSpaceOnUse">
+                      <stop stopColor="#60A5FA"/>
+                      <stop offset="1" stopColor="#A78BFA"/>
+                    </linearGradient>
+                  </defs>
                 </svg>
               ) : (
                 <span style={{ fontSize: "1.1rem" }}>{tab.icon}</span>
@@ -1374,9 +1378,13 @@ export function AjustesPage() {
                   border: '1px solid rgba(255,255,255,0.08)'
                 }}>
                   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M15.58 2.748a.605.605 0 0 1 .587.503l.288 1.74a.605.605 0 0 1-.563.699L3.427 8.148a.605.605 0 0 1-.587-.503l-.288-1.74a.605.605 0 0 1 .563-.699l11.466-1.458z" fill="#3ECF8E"/>
-                    <path d="M2.43 9.19a1.72 1.72 0 0 1 1.67 1.43l.288 1.74a1.72 1.72 0 0 1-1.67 1.983L1 14.194a1.72 1.72 0 0 1-1.67-1.43l-.288-1.74a1.72 1.72 0 0 1 1.67-1.983L2.43 9.19z" fill="#249363"/>
-                    <path d="M13.924 12.087l4.362 4.362a1.72 1.72 0 0 1-1.214 2.93l-.456.058-5.413-.688a1.72 1.72 0 0 1-1.553-1.98l.288-1.74a1.72 1.72 0 0 1 1.67-1.428l1.458.185-.182-.293a.605.605 0 0 1 .563-.698l.11-.014-.182-.293z" fill="#3ECF8E"/>
+                    <path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z" stroke="url(#cloudGrad2)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <defs>
+                      <linearGradient id="cloudGrad2" x1="6" y1="8" x2="19" y2="18" gradientUnits="userSpaceOnUse">
+                        <stop stopColor="#60A5FA"/>
+                        <stop offset="1" stopColor="#A78BFA"/>
+                      </linearGradient>
+                    </defs>
                   </svg>
                   Sincronización en la Nube
                 </span>
@@ -2425,7 +2433,10 @@ export function AjustesPage() {
                       fontWeight: "600",
                     }}
                   >
-                    ☁️ Limpiar Nube
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ marginRight: '6px', verticalAlign: 'middle' }}>
+                      <path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z" stroke="#f87171" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    Limpiar Nube
                   </button>
                 </div>
               </div>
