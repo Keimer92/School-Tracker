@@ -26,16 +26,10 @@ fn upload_to_supabase(table: &str, data: Vec<serde_json::Value>, user_id: &str) 
     let tables_with_user_id = vec!["ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "estudiante", "asistencia", "nota", "indicador", "criterio"];
     let has_user_id = tables_with_user_id.contains(&table);
 
-    // Delete TODOS los registros primero (sin filtro) para evitar conflictos
-    let delete_url = format!("{}/rest/v1/{}?user_id=eq.*", supabase_url, table);
-    let _delete_response = ureq::delete(&delete_url)
-        .set("apikey", supabase_key)
-        .set("Authorization", &format!("Bearer {}", supabase_key))
-        .send_bytes(&[]);
-        
-    println!("🔄 [PUSH] Limpiando todos los registros en {}", table);
+    // Ahora usamos UPSERT con resolution=merge-duplicates, no hay necesidad de delete previo
+    println!("🔄 [PUSH] Subiendo {} registros a {}", data.len(), table);
     
-    // Para cada registro, intentar insertarlo en Supabase
+    // Para cada registro, intentar upsert en Supabase
 for record in data {
         let url = format!("{}/rest/v1/{}", supabase_url, table);
 
@@ -83,12 +77,12 @@ for record in data {
 
         println!("🔄 [PUSH] Enviando registro a {}: {}", table, json_data);
 
-        // Hacer POST request a Supabase - simple insert después de limpar
+        // Hacer POST request a Supabase - usar upsert con resolution=merge-duplicates
         let response = ureq::post(&url)
             .set("apikey", supabase_key)
             .set("Authorization", &format!("Bearer {}", supabase_key))
             .set("Content-Type", "application/json")
-            .set("Prefer", "return=minimal")
+            .set("Prefer", "return=minimal,resolution=merge-duplicates")
             .send_string(&json_data);
 
         match response {
