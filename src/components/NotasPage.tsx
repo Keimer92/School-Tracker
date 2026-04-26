@@ -86,7 +86,7 @@ export function NotasPage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Refs para filtros (para usar en listeners globales sin problemas de stale closure)
+// Refs para filtros (para usar en listeners globales sin problemas de stale closure)
   const filtersRef = useRef({
     ano: selectedAno,
     corte: selectedCorte,
@@ -95,11 +95,11 @@ export function NotasPage() {
     grado: selectedGrado,
     seccion: selectedSeccion,
     sexo: selectedSexo
+
   });
 
-  // Ref para notas cualitativas (para acceder sin dependencias)
-  const notasCualitativasRef = useRef(notasCualitativas);
-  notasCualitativasRef.current = notasCualitativas;
+// Ref para notas cualitativas sin re-render durante escritura
+  const notasCualitativasRef = useRef<Map<string, string>>(new Map());
 
   // Actualizar refs cuando cambian los filtros
   useEffect(() => {
@@ -634,9 +634,6 @@ export function NotasPage() {
 
   // Manejo de notas cualitativas
   const handleNotaChange = React.useCallback((estudianteId: number, criterioId: number, value: string) => {
-    const startTime = performance.now();
-    console.log('[handleNotaChange] Inicio:', value);
-    
     // Normalizar el valor a mayúsculas
     const normalizedValue = value.toUpperCase();
     
@@ -647,27 +644,12 @@ export function NotasPage() {
     
     // Generar la clave única para la nota
     const key = `${estudianteId}-${criterioId}`;
-    console.log('[handleNotaChange] Actualizando estado notasCualitativas...');
-    
-    // Actualizar el estado de notas cualitativas (siempre actualizamos para que el usuario vea lo que escribe)
-    setNotasCualitativas(prev => {
-      const newMap = new Map(prev);
-      if (normalizedValue === '') {
-        newMap.delete(key);
-      } else {
-        newMap.set(key, normalizedValue);
-      }
-      return newMap;
-    });
-    console.log('[handleNotaChange] Estado notasCualitativas actualizado');
     
     // Buscar el criterio correspondiente
     const criterio = indicadores
       .flatMap(ind => ind.criterios)
-      .find(c => c.id === criterioId);
-     
-    console.log('[handleNotaChange] Fin. Tiempo:', performance.now() - startTime, 'ms');
-    
+.find(c => c.id === criterioId);
+       
     if (!criterio) return;
     
     // Calcular el valor numérico solo si es una nota final válida
@@ -828,7 +810,7 @@ export function NotasPage() {
       const currentCriterio = allCriterios[criterioIndex];
       if (currentCriterio) {
         const key = `${estudianteId}-${currentCriterio.id}`;
-        const currentVal = (notasCualitativas.get(key) || '').toUpperCase();
+        const currentVal = (notasCualitativasRef.current.get(key) || '').toUpperCase();
         
         // SOLO sobreescribimos si la nota actual ya está completa (2 letras)
         // o si es una nota válida de 1 letra (si las hubiera en el futuro).
@@ -1489,23 +1471,35 @@ export function NotasPage() {
                               const criterioIndex = allCriterios.findIndex(c => c.id === crit.id);
                               const inputKey = `row-${est.estudianteId}-col-${criterioIndex}`;
                               const key = `${est.estudianteId}-${crit.id}`;
-                              const currentQualitativeValue = notasCualitativas.get(key) || '';
+                              const currentQualitativeValue = notasCualitativasRef.current.get(key) || '';
                               
                               return (
                                 <td key={`${est.estudianteId}-${crit.id}`} style={{ padding: '0.15rem', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                   <input
                                     type="text"
-                                    value={currentQualitativeValue}
-                                    onChange={(e) => handleNotaChange(est.estudianteId, crit.id, e.target.value)}
+                                    defaultValue={currentQualitativeValue}
+                                    onChange={(e) => {
+                                      const val = e.target.value.toUpperCase().slice(0, 2);
+                                      notasCualitativasRef.current.set(key, val);
+                                      e.target.value = val;
+                                    }}
                                     onKeyDown={(e) => handleKeyDown(e, est.estudianteId, criterioIndex)}
                                     onFocus={(e) => {
                                       handleInputFocus();
                                       setEditingStudentId(est.estudianteId);
-                                      // Seleccionar todo el texto al ganar el foco para facilitar sobreescritura
                                       e.target.select();
                                     }}
                                     onBlur={(e) => {
-                                      handleInputBlur(est.estudianteId, crit.id, e.target.value);
+                                      const val = e.target.value.toUpperCase();
+                                      notasCualitativasRef.current.set(key, val);
+                                      if (val) {
+                                        setNotasCualitativas(prev => {
+                                          const newMap = new Map(prev);
+                                          newMap.set(key, val);
+                                          return newMap;
+                                        });
+                                      }
+                                      handleInputBlur(est.estudianteId, crit.id, val);
                                       setEditingStudentId(null);
                                     }}
                                     ref={(el) => {
@@ -1547,7 +1541,7 @@ export function NotasPage() {
                                 
                                 const gradeConfig = getGradeFromScore(totalEscalado);
                                 const qualitativeGrade = isQualitative 
-                                  ? calcularNotaCualitativaFinal(ind.criterios.map(c => notasCualitativas.get(`${est.estudianteId}-${c.id}`) || ''))
+                                  ? calcularNotaCualitativaFinal(ind.criterios.map(c => notasCualitativasRef.current.get(`${est.estudianteId}-${c.id}`) || ''))
                                   : (gradeConfig?.id || 'AI');
                                 
                                 const displayColor = ind.activo 
@@ -1589,7 +1583,7 @@ export function NotasPage() {
                           const gradeConfig = getGradeFromScore(totalEscaladoFinal);
                           const qualitativeFinal = isQualitative 
                             ? calcularNotaCualitativaFinal(indicadores.filter(i => i.activo).map(i => {
-                                return calcularNotaCualitativaFinal(i.criterios.map(c => notasCualitativas.get(`${est.estudianteId}-${c.id}`) || ''));
+                                return calcularNotaCualitativaFinal(i.criterios.map(c => notasCualitativasRef.current.get(`${est.estudianteId}-${c.id}`) || ''));
                               }))
                             : (gradeConfig?.id || 'AI');
                           const displayColor = qualitativeFinal ? getGradeColor(qualitativeFinal) : '#94a3b8';
