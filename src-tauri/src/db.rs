@@ -467,20 +467,58 @@ fn seed_default_data(conn: &Connection) -> Result<(), String> {
     )
     .ok();
 
-    // Configuración de calificaciones por defecto
-    let configs = vec![
-        ("destacado", "#10b981", 90),
-        ("satisfactorio", "#3b82f6", 80),
-        ("basico", "#f59e0b", 60),
-        ("insuficiente", "#ef4444", 0),
-    ];
+    // Migrar IDs de calificaciones si existen los viejos
+    let needs_migration: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM configuracion_calificacion WHERE id = 'destacado'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(0) > 0;
 
-    for (id, color, minimo) in configs {
+    if needs_migration {
         conn.execute(
-            "INSERT OR IGNORE INTO configuracion_calificacion (id, color, minimo) VALUES (?, ?, ?)",
-            rusqlite::params![id, color, minimo],
+            "UPDATE configuracion_calificacion SET id = 'AA' WHERE id = 'destacado'",
+            [],
         )
         .ok();
+        conn.execute(
+            "UPDATE configuracion_calificacion SET id = 'AS' WHERE id = 'satisfactorio'",
+            [],
+        )
+        .ok();
+        conn.execute(
+            "UPDATE configuracion_calificacion SET id = 'AF' WHERE id = 'basico'",
+            [],
+        )
+        .ok();
+        println!("✅ [DB] Migración de calificaciones completada");
+    } else {
+        // Si no hay registros, insertar los nuevos
+        let is_empty: bool = conn
+            .query_row(
+                "SELECT COUNT(*) FROM configuracion_calificacion",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap_or(0) == 0;
+
+        if is_empty {
+            let configs = vec![
+                ("AA", "#22c55e", 90),
+                ("AS", "#3b82f6", 70),
+                ("AF", "#eab308", 50),
+                ("AI", "#ef4444", 0),
+            ];
+            for (id, color, minimo) in configs {
+                conn.execute(
+                    "INSERT OR IGNORE INTO configuracion_calificacion (id, color, minimo) VALUES (?, ?, ?)",
+                    rusqlite::params![id, color, minimo],
+                )
+                .ok();
+            }
+            println!("✅ [DB] Datos iniciales de calificaciones sembrados");
+        }
     }
 
     println!("✅ [DB] Datos iniciales sembrados correctamente");

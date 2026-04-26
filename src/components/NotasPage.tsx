@@ -157,12 +157,23 @@ export function NotasPage() {
   // Cargar configuraciones de calificación
   const fetchGradeConfigs = async () => {
     try {
+      console.log("[fetchGradeConfigs] Iniciando carga...");
       const configs = await invoke<{ id: string, color: string, minimo: number }[]>("get_grade_configs");
+      console.log("[fetchGradeConfigs] configs desde BD:", configs);
       setGradeConfigs(configs);
+      console.log("[fetchGradeConfigs] gradeConfigs seteado:", configs.length > 0 ? configs : "VACÍO");
+      // Forzar re-render para actualizar colores
+      setRefreshTrigger(prev => prev + 1);
     } catch (error) {
-      console.error("Error fetching grade configs:", error);
+      console.error("[fetchGradeConfigs] Error:", error);
     }
   };
+
+  // Forzar recarga de configs al montar el componente
+  useEffect(() => {
+    console.log("[useEffect] Mount, chiamando fetchGradeConfigs");
+    fetchGradeConfigs();
+  }, []);
 
   // Listeners para eventos globales
   useEffect(() => {
@@ -173,7 +184,7 @@ export function NotasPage() {
 
     const setupListeners = async () => {
       unlistenGradeConfigs = await listen("grade-configs-updated", () => {
-        console.log("Configuraciones de calificación actualizadas");
+        console.log("Configuraciones de calificación actualizadas - recargando...");
         fetchGradeConfigs();
       });
 
@@ -191,7 +202,6 @@ export function NotasPage() {
     };
 
     setupListeners();
-    fetchGradeConfigs();
 
     return () => {
       if (unlistenGradeConfigs) unlistenGradeConfigs();
@@ -207,34 +217,51 @@ export function NotasPage() {
     fetchCatalogs();
   }, []);
 
+  // Cargar configuraciones de calificación al montar
+  useEffect(() => {
+    console.log("Loading grade configs on mount...");
+    fetchGradeConfigs();
+  }, []);
+
   const getGradeConfig = (gradeValue: string) => {
     const trimmedValue = gradeValue.trim().toUpperCase();
-    return gradeConfigs.find(gc => gc.id === trimmedValue);
+    const config = gradeConfigs.find(gc => gc.id === trimmedValue);
+    return config || null;
   };
 
   const getGradeColor = (value: string, maxScore?: number) => {
-    // Si es una etiqueta cualitativa (AA, AS, etc.)
-    if (['AA', 'AS', 'AF', 'AI'].includes(value)) {
-      const config = getGradeConfig(value);
-      return config ? config.color : 'white';
+    if (!value) return '#94a3b8';
+    const upperValue = value.trim().toUpperCase();
+    if (['AA', 'AS', 'AF', 'AI'].includes(upperValue)) {
+      const config = getGradeConfig(upperValue);
+      if (config) return config.color;
+      // Fallback si gradeConfigs está vacío
+      if (upperValue === 'AA') return '#22c55e';
+      if (upperValue === 'AS') return '#3b82f6';
+      if (upperValue === 'AF') return '#eab308';
+      if (upperValue === 'AI') return '#ef4444';
+      return '#94a3b8';
     }
-    
-    // Si es un número y tenemos el puntaje máximo, podemos calcular el color
     if (maxScore !== undefined && !isNaN(parseFloat(value))) {
       const score = parseFloat(value);
       const normalizedScore = (score / maxScore) * 100;
       const config = getGradeFromScore(normalizedScore);
-      return config ? config.color : 'white';
+      return config ? config.color : '#94a3b8';
     }
-
-    return 'white';
+    return '#94a3b8';
   };
 
   const getGradeFromScore = (score: number) => {
-    // Ordenar configuraciones por puntaje mínimo descendente
-    const sortedConfigs = [...gradeConfigs].sort((a, b) => b.minimo - a.minimo);
+    const defaultConfigs = [
+      { id: 'AA', color: '#22c55e', minimo: 90 },
+      { id: 'AS', color: '#3b82f6', minimo: 70 },
+      { id: 'AF', color: '#eab308', minimo: 50 },
+      { id: 'AI', color: '#ef4444', minimo: 0 },
+    ];
+    const configs = gradeConfigs.length > 0 ? gradeConfigs : defaultConfigs;
+    const sortedConfigs = [...configs].sort((a, b) => b.minimo - a.minimo);
     const config = sortedConfigs.find(c => score >= c.minimo);
-    return config || gradeConfigs.find(c => c.id === 'AI');
+    return config || { id: 'AI', color: '#ef4444', minimo: 0 };
   };
 
   // Cargar estudiantes cuando cambien los filtros
@@ -1538,13 +1565,12 @@ export function NotasPage() {
                                 const totalEscalado = maximoIndicador > 0 ? (totalIndicador / maximoIndicador) * 100 : 0;
                                 
                                 const gradeConfig = getGradeFromScore(totalEscalado);
-                                
                                 const qualitativeGrade = isQualitative 
                                   ? calcularNotaCualitativaFinal(ind.criterios.map(c => notasCualitativas.get(`${est.estudianteId}-${c.id}`) || ''))
-                                  : gradeConfig?.id || '';
+                                  : (gradeConfig?.id || 'AI');
                                 
                                 const displayColor = ind.activo 
-                                  ? (isQualitative ? getGradeColor(qualitativeGrade) : (gradeConfig?.color || '#4ade80'))
+                                  ? (qualitativeGrade ? getGradeColor(qualitativeGrade) : '#94a3b8')
                                   : '#64748b';
 
                                 return (
@@ -1584,8 +1610,8 @@ export function NotasPage() {
                             ? calcularNotaCualitativaFinal(indicadores.filter(i => i.activo).map(i => {
                                 return calcularNotaCualitativaFinal(i.criterios.map(c => notasCualitativas.get(`${est.estudianteId}-${c.id}`) || ''));
                               }))
-                            : gradeConfig?.id || '';
-                          const displayColor = isQualitative ? getGradeColor(qualitativeFinal) : (gradeConfig?.color || '#4ade80');
+                            : (gradeConfig?.id || 'AI');
+                          const displayColor = qualitativeFinal ? getGradeColor(qualitativeFinal) : '#94a3b8';
 
                           return (
                             <div style={{ 

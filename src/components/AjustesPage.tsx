@@ -105,6 +105,24 @@ export function AjustesPage() {
     return () => subscription.unsubscribe();
   }, []);
 
+  const getGradeLabel = (id: string) => {
+    const labels: Record<string, string> = {
+      // Nuevos IDs estándar
+      'AA': 'Aprendizaje Avanzado',
+      'AS': 'Aprendizaje Satisfactorio',
+      'AF': 'Aprendizaje Fundamental',
+      'AI': 'Aprendizaje Inicial',
+    };
+    return labels[id] || id;
+  };
+
+  // Mostrar both código y nombre
+  const getGradeDisplayName = (id: string) => {
+    const label = getGradeLabel(id);
+    // Si el label es diferente del ID (ya tenemos el mapeo), mostrar solo el nombre
+    return label !== id ? label : id;
+  };
+
   const PRESET_COLORS = [
     "#000000",
     "#7f7f7f",
@@ -1220,7 +1238,7 @@ export function AjustesPage() {
                             minWidth: "40px",
                           }}
                         >
-                          {grade.id}
+                          {getGradeLabel(grade.id)}
                         </span>
                         <div
                           style={{
