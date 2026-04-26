@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, Fragment } from "react";
+import React, { useState, useEffect, useRef, Fragment, memo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
 import { syncService } from "../lib/syncService";
@@ -633,7 +633,7 @@ export function NotasPage() {
   };
 
   // Manejo de notas cualitativas
-  const handleNotaChange = (estudianteId: number, criterioId: number, value: string) => {
+  const handleNotaChange = React.useCallback((estudianteId: number, criterioId: number, value: string) => {
     const startTime = performance.now();
     console.log('[handleNotaChange] Inicio:', value);
     
@@ -686,7 +686,7 @@ export function NotasPage() {
     
     // Solo actualizar estado notas si es necesario para guardar (no en cada keystroke)
     // Esto es opcional - el ref mantiene los valores para cálculos
-  };
+  }, [indicadores]);
 
   // Manejar enfoque y desenfoque para historial por celda
   const handleInputFocus = () => {
@@ -1432,21 +1432,17 @@ export function NotasPage() {
                 </tr>
               </thead>
               <tbody>
-                {console.log('[Render] tbody renderizado') || filteredNotas.map((est, index) => {
+                {filteredNotas.map((est, index) => {
                   const estudianteNotas = notas.find(n => n.estudianteId === est.estudianteId) || { notas: {} };
                   const isEven = index % 2 === 0;
                   const isEditing = editingStudentId === est.estudianteId;
                   
-                  // Calculamos colores SÓLIDOS (sin transparencias)
-                  // Si estamos editando, usamos un tono derivado del color de resaltado del usuario
                   const rowBg = isEditing 
-                    ? `${highlightColor}33` // Sigue siendo un poco transparente para la fila general...
+                    ? `${highlightColor}33`
                     : (isEven ? '#0f172a' : '#161e2f');
                   
-                  // Pero para las columnas STICKY, forzamos un color TOTALMENTE SÓLIDO mezclado
-                  // Esto evita que se vea lo de abajo pero mantiene la estética del usuario
                   const stickyBg = isEditing
-                    ? '#1e293b' // Un tono azulado sólido para edición que combina con el resaltado
+                    ? '#1e293b'
                     : (isEven ? '#0f172a' : '#161e2f');
 
                   const nameColor = isEditing ? highlightColor : '#e2e8f0';
@@ -1459,7 +1455,7 @@ export function NotasPage() {
                         color: isEditing ? highlightColor : '#94a3b8',
                         position: 'sticky',
                         left: 0,
-                        background: stickyBg, // Fondo sólido para bloquear transparencia
+                        background: stickyBg,
                         zIndex: 5,
                         borderBottom: '1px solid rgba(255,255,255,0.05)',
                         fontSize: '0.65rem',
