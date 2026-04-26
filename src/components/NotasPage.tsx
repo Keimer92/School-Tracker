@@ -130,6 +130,7 @@ export function NotasPage() {
   }, []);
 
   const filteredNotas = React.useMemo(() => {
+    console.log('[useMemo] filteredNotas recalculado');
     if (!searchTerm) return notas;
     return notas.filter(n => n.estudianteNombre.toLowerCase().includes(searchTerm.toLowerCase()));
   }, [notas, searchTerm]);
@@ -141,6 +142,9 @@ export function NotasPage() {
   const redoStackRef = useRef<Map<string, string>[]>([]);
   const isUndoRedoAction = useRef(false);
   const cellSnapshot = useRef<Map<string, string> | null>(null);
+
+  // Ref para notas cuantitativas (sin re-render)
+  const notasCuantitativasRef = useRef<Map<string, number>>(new Map());
 
   // Sincronizar refs con el estado para que el UI sepa cuándo habilitar botones
   useEffect(() => {
@@ -223,13 +227,26 @@ export function NotasPage() {
     fetchGradeConfigs();
   }, []);
 
-  const getGradeConfig = (gradeValue: string) => {
+  const getGradeFromScore = React.useCallback((score: number) => {
+    const defaultConfigs = [
+      { id: 'AA', color: '#22c55e', minimo: 90 },
+      { id: 'AS', color: '#3b82f6', minimo: 70 },
+      { id: 'AF', color: '#eab308', minimo: 50 },
+      { id: 'AI', color: '#ef4444', minimo: 0 },
+    ];
+    const configs = gradeConfigs.length > 0 ? gradeConfigs : defaultConfigs;
+    const sortedConfigs = [...configs].sort((a, b) => b.minimo - a.minimo);
+    const config = sortedConfigs.find(c => score >= c.minimo);
+    return config || { id: 'AI', color: '#ef4444', minimo: 0 };
+  }, [gradeConfigs]);
+
+  const getGradeConfig = React.useCallback((gradeValue: string) => {
     const trimmedValue = gradeValue.trim().toUpperCase();
     const config = gradeConfigs.find(gc => gc.id === trimmedValue);
     return config || null;
-  };
+  }, [gradeConfigs]);
 
-  const getGradeColor = (value: string, maxScore?: number) => {
+  const getGradeColor = React.useCallback((value: string, maxScore?: number) => {
     if (!value) return '#94a3b8';
     const upperValue = value.trim().toUpperCase();
     if (['AA', 'AS', 'AF', 'AI'].includes(upperValue)) {
@@ -249,20 +266,7 @@ export function NotasPage() {
       return config ? config.color : '#94a3b8';
     }
     return '#94a3b8';
-  };
-
-  const getGradeFromScore = (score: number) => {
-    const defaultConfigs = [
-      { id: 'AA', color: '#22c55e', minimo: 90 },
-      { id: 'AS', color: '#3b82f6', minimo: 70 },
-      { id: 'AF', color: '#eab308', minimo: 50 },
-      { id: 'AI', color: '#ef4444', minimo: 0 },
-    ];
-    const configs = gradeConfigs.length > 0 ? gradeConfigs : defaultConfigs;
-    const sortedConfigs = [...configs].sort((a, b) => b.minimo - a.minimo);
-    const config = sortedConfigs.find(c => score >= c.minimo);
-    return config || { id: 'AI', color: '#ef4444', minimo: 0 };
-  };
+  }, [getGradeConfig, getGradeFromScore]);
 
   // Cargar estudiantes cuando cambien los filtros
   useEffect(() => {
@@ -286,37 +290,6 @@ export function NotasPage() {
     
     loadData();
   }, [selectedAno, selectedCorte, selectedColegio, selectedAsignatura, selectedGrado, selectedSeccion, selectedSexo]);
-
-  // Sincronizar notas cuantitativas cuando cambian las cualitativas (para deshacer/rehacer)
-  useEffect(() => {
-    if (!isUndoRedoAction.current) return;
-    
-    // Recalcular todas las notas cuantitativas basadas en las cualitativas actuales
-    const newNotas = estudiantes.map(est => {
-      const studentNotas: Record<number, number> = {};
-      indicadores.forEach(ind => {
-        ind.criterios.forEach(crit => {
-          const key = `${est.id}-${crit.id}`;
-          const qualValue = notasCualitativas.get(key) || '';
-          
-          let numValue = 0;
-          if (['AA', 'AS', 'AF', 'AI'].includes(qualValue)) {
-            const percentage = notaMapping[qualValue as keyof typeof notaMapping];
-            numValue = crit.puntajeMaximo * percentage;
-          }
-          studentNotas[crit.id] = numValue;
-        });
-      });
-      return {
-        estudianteId: est.id,
-        estudianteNombre: est.nombre,
-        notas: studentNotas
-      };
-    });
-    
-    setNotas(newNotas);
-    isUndoRedoAction.current = false;
-  }, [notasCualitativas]);
 
   // Atajos de teclado para deshacer/rehacer y guardar
   useEffect(() => {
@@ -658,6 +631,9 @@ export function NotasPage() {
 
   // Manejo de notas cualitativas
   const handleNotaChange = (estudianteId: number, criterioId: number, value: string) => {
+    const startTime = performance.now();
+    console.log('[handleNotaChange] Inicio:', value);
+    
     // Normalizar el valor a mayúsculas
     const normalizedValue = value.toUpperCase();
     
@@ -668,6 +644,7 @@ export function NotasPage() {
     
     // Generar la clave única para la nota
     const key = `${estudianteId}-${criterioId}`;
+    console.log('[handleNotaChange] Actualizando estado notasCualitativas...');
     
     // Actualizar el estado de notas cualitativas (siempre actualizamos para que el usuario vea lo que escribe)
     setNotasCualitativas(prev => {
@@ -679,11 +656,14 @@ export function NotasPage() {
       }
       return newMap;
     });
+    console.log('[handleNotaChange] Estado notasCualitativas actualizado');
     
     // Buscar el criterio correspondiente
     const criterio = indicadores
       .flatMap(ind => ind.criterios)
       .find(c => c.id === criterioId);
+     
+    console.log('[handleNotaChange] Fin. Tiempo:', performance.now() - startTime, 'ms');
     
     if (!criterio) return;
     
@@ -698,25 +678,11 @@ export function NotasPage() {
       numValue = 0;
     }
     
-    // Actualizar el estado de notas cuantitativas para mantener los totales actualizados
-    setNotas(prevNotas => {
-      const newNotas = [...prevNotas];
-      const studentIndex = newNotas.findIndex(n => n.estudianteId === estudianteId);
-      
-      if (studentIndex !== -1) {
-        const student = { ...newNotas[studentIndex] };
-        const updatedNotas = { ...student.notas };
-        
-        // Eliminado: La lógica que borraba otros criterios en modo cualitativo
-        // permitiendo ahora guardar múltiples criterios por indicador sin que se borren entre sí.
-
-        updatedNotas[criterioId] = Math.round(numValue);
-        student.notas = updatedNotas;
-        newNotas[studentIndex] = student;
-      }
-      
-      return newNotas;
-    });
+    // Actualizar notas cuantitativas en ref (sin re-render)
+    notasCuantitativasRef.current.set(key, Math.round(numValue));
+    
+    // Solo actualizar estado notas si es necesario para guardar (no en cada keystroke)
+    // Esto es opcional - el ref mantiene los valores para cálculos
   };
 
   // Manejar enfoque y desenfoque para historial por celda
@@ -962,6 +928,22 @@ export function NotasPage() {
       return;
     }
 
+    // Mezclar notas cuantitativas del ref con el estado notas
+    const notasActualizadas = notas.map(notaEst => {
+      const updatedNotas: Record<number, number> = { ...notaEst.notas };
+      // Sobrescribir con valores del ref
+      indicadores.forEach(ind => {
+        ind.criterios.forEach(crit => {
+          const key = `${notaEst.estudianteId}-${crit.id}`;
+          const refValue = notasCuantitativasRef.current.get(key);
+          if (refValue !== undefined) {
+            updatedNotas[crit.id] = refValue;
+          }
+        });
+      });
+      return { ...notaEst, notas: updatedNotas };
+    });
+
     // Validar si hay notas incompletas (solo 'A')
     const hasIncomplete = Array.from(notasCualitativas.values()).some(v => v === 'A');
     if (hasIncomplete) {
@@ -973,7 +955,7 @@ export function NotasPage() {
     }
 
     // Validar que todas las notas estén dentro de los rangos permitidos
-    for (const notaEst of notas) {
+    for (const notaEst of notasActualizadas) {
       for (const indicador of indicadores) {
         if (!indicador.activo) continue;
         
@@ -994,7 +976,7 @@ export function NotasPage() {
     setSaving(true);
     try {
       // Preparar datos para guardar
-      const notasParaGuardar = notas.map(notaEst => ({
+      const notasParaGuardar = notasActualizadas.map(notaEst => ({
         estudianteId: notaEst.estudianteId,
         notas: Object.entries(notaEst.notas).map(([criterioId, valor]) => ({
           criterioId: parseInt(criterioId),
