@@ -336,7 +336,7 @@ fn get_all_local_data(
 
     // Asistencia
     let mut stmt_asist = conn
-        .prepare("SELECT estudiante_id, fecha, estado, observacion FROM asistencia")
+        .prepare("SELECT estudiante_id, fecha, estado, COALESCE(observacion, '') FROM asistencia")
         .map_err(|e| format!("Error preparando consulta para asistencia: {}", e))?;
 
     let rows_asist = stmt_asist

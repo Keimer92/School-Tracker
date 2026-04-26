@@ -36,14 +36,22 @@ export function Auth() {
 
     cloud.getProvider().getUser().then(u => {
       setUser(u);
+      // Marcar que ya se verificó el estado inicial
+      currentUserIdRef.current = u?.id || null;
     });
 
     const unsubscribe = cloud.getProvider().onAuthStateChange((u) => {
+      // Solo mostrar toast si el usuario cambió de desconectado a conectado
+      // (no en el primer load inicial)
+      const wasConnected = currentUserIdRef.current !== null && currentUserIdRef.current !== undefined;
+      const isNowConnected = u !== null && u !== undefined;
+      
+      if (u && !wasConnected && isNowConnected) {
+        emit("show-toast", { message: '¡Sesión activa!', type: 'success' });
+      }
+      
       if (u) {
-        if (u.id !== currentUserIdRef.current) {
-          currentUserIdRef.current = u.id;
-          emit("show-toast", { message: '¡Sesión activa!', type: 'success' });
-        }
+        currentUserIdRef.current = u.id;
         setUser(u);
       } else {
         setUser(null);

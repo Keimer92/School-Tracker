@@ -2787,11 +2787,11 @@ pub fn get_asistencia_estudiantes(
 ) -> Result<Vec<AsistenciaEstudiante>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
 
-    let mut query = String::from(
-        "SELECT e.id, e.nombre, e.codigo, e.sexo, a.estado, a.observacion
+let mut query = String::from(
+        "SELECT e.id, e.nombre, e.codigo, e.sexo, a.estado, COALESCE(a.observacion, '') as observacion
          FROM estudiante e
          LEFT JOIN asistencia a ON e.id = a.estudiante_id AND a.fecha = ?
-         WHERE e.grado_id = ? AND e.seccion_id = ?",
+         WHERE e.grado_id = ? AND e.seccion_id = ?"
     );
 
     let mut params: Vec<Box<dyn rusqlite::ToSql>> =
@@ -3064,7 +3064,7 @@ pub fn get_asistencia_all(
 ) -> Result<Vec<AsistenciaRecord>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
-        .prepare("SELECT id, estudiante_id, fecha, estado, observacion FROM asistencia")
+        .prepare("SELECT id, estudiante_id, fecha, estado, COALESCE(observacion, '') FROM asistencia")
         .map_err(|e| e.to_string())?;
 
     let registros = stmt
