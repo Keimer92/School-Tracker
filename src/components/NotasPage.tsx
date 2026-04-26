@@ -67,7 +67,7 @@ export function NotasPage() {
   const [notas, setNotas] = useState<NotaEstudiante[]>([]);
   // Estado para almacenar notas cualitativas directamente
   const [notasCualitativas, setNotasCualitativas] = useState<Map<string, string>>(new Map());
-  const [gradeConfigs, setGradeConfigs] = useState<{ id: string, color: string, minimo: number }[]>([]);
+  const [gradeConfigs, setGradeConfigs] = useState<{ id: string, nombre: string, color: string, minimo: number }[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -158,7 +158,7 @@ export function NotasPage() {
   const fetchGradeConfigs = async () => {
     try {
       console.log("[fetchGradeConfigs] Iniciando carga...");
-      const configs = await invoke<{ id: string, color: string, minimo: number }[]>("get_grade_configs");
+      const configs = await invoke<{ id: string, nombre: string, color: string, minimo: number }[]>("get_grade_configs");
       console.log("[fetchGradeConfigs] configs desde BD:", configs);
       setGradeConfigs(configs);
       console.log("[fetchGradeConfigs] gradeConfigs seteado:", configs.length > 0 ? configs : "VACÍO");

@@ -33,7 +33,7 @@ export function AjustesPage() {
   });
   const [dbPath, setDbPath] = useState<string>("");
   const [gradeConfigs, setGradeConfigs] = useState<
-    { id: string; color: string; minimo: number }[]
+    { id: string; nombre: string; color: string; minimo: number }[]
   >([]);
   const [highlightColor, setHighlightColor] = useState<string>(() => {
     return localStorage.getItem("student-highlight-color") || "#4ade80";
@@ -116,11 +116,12 @@ export function AjustesPage() {
     return labels[id] || id;
   };
 
-  // Mostrar both código y nombre
+  // Mostrar código y nombre juntos
   const getGradeDisplayName = (id: string) => {
     const label = getGradeLabel(id);
-    // Si el label es diferente del ID (ya tenemos el mapeo), mostrar solo el nombre
-    return label !== id ? label : id;
+    // Si tenemos el mapeo, mostrar "AA: Aprendizaje Avanzado"
+    // Si no, mostrar solo el ID
+    return label !== id ? `${id}: ${label}` : id;
   };
 
   const PRESET_COLORS = [
@@ -164,10 +165,12 @@ export function AjustesPage() {
   useEffect(() => {
     const fetchGradeConfigs = async () => {
       try {
+        console.log("Fetching grade configs...");
         const configs =
-          await invoke<{ id: string; color: string; minimo: number }[]>(
+          await invoke<{ id: string; nombre: string; color: string; minimo: number }[]>(
             "get_grade_configs",
           );
+        console.log("Grade configs fetched:", configs);
         setGradeConfigs(configs);
       } catch (error) {
         console.error("Error fetching grade configs:", error);
@@ -190,6 +193,7 @@ export function AjustesPage() {
 
   const handleUpdateGradeConfig = async (
     id: string,
+    nombre: string,
     color: string,
     minimo: number,
   ) => {
@@ -204,12 +208,13 @@ export function AjustesPage() {
     try {
       await invoke("update_grade_config", {
         id,
+        nombre,
         color,
         minimo: validatedMinimo,
       });
       setGradeConfigs((prev) =>
         prev.map((c) =>
-          c.id === id ? { ...c, color, minimo: validatedMinimo } : c,
+          c.id === id ? { ...c, nombre, color, minimo: validatedMinimo } : c,
         ),
       );
       syncService.syncGradeConfig({ id, color, minimo: validatedMinimo });
@@ -1238,7 +1243,7 @@ export function AjustesPage() {
                             minWidth: "40px",
                           }}
                         >
-                          {getGradeLabel(grade.id)}
+                          {grade.id}: {grade.nombre}
                         </span>
                         <div
                           style={{
@@ -1270,6 +1275,7 @@ export function AjustesPage() {
                                 onChange={(e) =>
                                   handleUpdateGradeConfig(
                                     grade.id,
+                                    grade.nombre,
                                     grade.color,
                                     parseInt(e.target.value) || 0,
                                   )
@@ -1324,6 +1330,7 @@ export function AjustesPage() {
                                 onChange={(e) =>
                                   handleUpdateGradeConfig(
                                     grade.id,
+                                    grade.nombre,
                                     e.target.value,
                                     grade.minimo,
                                   )
@@ -1357,6 +1364,7 @@ export function AjustesPage() {
                             onClick={() =>
                               handleUpdateGradeConfig(
                                 grade.id,
+                                grade.nombre,
                                 preset,
                                 grade.minimo,
                               )

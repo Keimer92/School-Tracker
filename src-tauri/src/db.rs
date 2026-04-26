@@ -234,6 +234,7 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
         r#"
         CREATE TABLE IF NOT EXISTS configuracion_calificacion (
             id TEXT PRIMARY KEY,
+            nombre TEXT NOT NULL,
             color TEXT NOT NULL,
             minimo INTEGER NOT NULL
         );
@@ -311,6 +312,35 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
             [],
         )
         .map_err(|e| format!("Error agregando columna minimo: {}", e))?;
+    }
+
+    // Agregar columna 'nombre' a configuracion_calificacion si no existe
+    let has_nombre: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('configuracion_calificacion') WHERE name = 'nombre'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(0) > 0;
+
+    if !has_nombre {
+        conn.execute(
+            "ALTER TABLE configuracion_calificacion ADD COLUMN nombre TEXT DEFAULT ''",
+            [],
+        )
+        .map_err(|e| format!("Error agregando columna nombre: {}", e))?;
+        
+        // Actualizar nombres para registros existentes
+        conn.execute("UPDATE configuracion_calificacion SET nombre = 'Aprendizaje Avanzado' WHERE id = 'AA'", []).ok();
+        conn.execute("UPDATE configuracion_calificacion SET nombre = 'Aprendizaje Satisfactorio' WHERE id = 'AS'", []).ok();
+        conn.execute("UPDATE configuracion_calificacion SET nombre = 'Aprendizaje Fundamental' WHERE id = 'AF'", []).ok();
+        conn.execute("UPDATE configuracion_calificacion SET nombre = 'Aprendizaje Inicial' WHERE id = 'AI'", []).ok();
+        
+        // Para registros old
+        conn.execute("UPDATE configuracion_calificacion SET nombre = 'Aprendizaje Avanzado' WHERE id = 'destacado'", []).ok();
+        conn.execute("UPDATE configuracion_calificacion SET nombre = 'Aprendizaje Satisfactorio' WHERE id = 'satisfactorio'", []).ok();
+        conn.execute("UPDATE configuracion_calificacion SET nombre = 'Aprendizaje Fundamental' WHERE id = 'basico'", []).ok();
+        conn.execute("UPDATE configuracion_calificacion SET nombre = 'Aprendizaje Inicial' WHERE id = 'insuficiente'", []).ok();
     }
 
     // Agregar columna 'activo' a colegio si no existe
@@ -505,15 +535,15 @@ fn seed_default_data(conn: &Connection) -> Result<(), String> {
 
         if is_empty {
             let configs = vec![
-                ("AA", "#22c55e", 90),
-                ("AS", "#3b82f6", 70),
-                ("AF", "#eab308", 50),
-                ("AI", "#ef4444", 0),
+                ("AA", "Aprendizaje Avanzado", "#22c55e", 90),
+                ("AS", "Aprendizaje Satisfactorio", "#3b82f6", 70),
+                ("AF", "Aprendizaje Fundamental", "#eab308", 50),
+                ("AI", "Aprendizaje Inicial", "#ef4444", 0),
             ];
-            for (id, color, minimo) in configs {
+            for (id, nombre, color, minimo) in configs {
                 conn.execute(
-                    "INSERT OR IGNORE INTO configuracion_calificacion (id, color, minimo) VALUES (?, ?, ?)",
-                    rusqlite::params![id, color, minimo],
+                    "INSERT OR IGNORE INTO configuracion_calificacion (id, nombre, color, minimo) VALUES (?, ?, ?, ?)",
+                    rusqlite::params![id, nombre, color, minimo],
                 )
                 .ok();
             }
@@ -2621,6 +2651,7 @@ pub struct NotaResponse {
 #[serde(rename_all = "camelCase")]
 pub struct GradeConfig {
     pub id: String,
+    pub nombre: String,
     pub color: String,
     pub minimo: i32,
 }
@@ -2660,15 +2691,16 @@ pub struct AsistenciaReporteItem {
 pub fn get_grade_configs(state: tauri::State<'_, DbState>) -> Result<Vec<GradeConfig>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
-        .prepare("SELECT id, color, minimo FROM configuracion_calificacion")
+        .prepare("SELECT id, nombre, color, minimo FROM configuracion_calificacion")
         .map_err(|e| e.to_string())?;
 
     let configs = stmt
         .query_map([], |row| {
             Ok(GradeConfig {
                 id: row.get(0)?,
-                color: row.get(1)?,
-                minimo: row.get(2)?,
+                nombre: row.get(1)?,
+                color: row.get(2)?,
+                minimo: row.get(3)?,
             })
         })
         .map_err(|e| e.to_string())?
@@ -2682,13 +2714,14 @@ pub fn get_grade_configs(state: tauri::State<'_, DbState>) -> Result<Vec<GradeCo
 pub fn update_grade_config(
     state: tauri::State<'_, DbState>,
     id: String,
+    nombre: String,
     color: String,
     minimo: i32,
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
-        "UPDATE configuracion_calificacion SET color = ?, minimo = ? WHERE id = ?",
-        rusqlite::params![color, minimo, id],
+        "UPDATE configuracion_calificacion SET nombre = ?, color = ?, minimo = ? WHERE id = ?",
+        rusqlite::params![nombre, color, minimo, id],
     )
     .map(|_| ())
     .map_err(|e| e.to_string())
