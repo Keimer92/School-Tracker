@@ -97,6 +97,10 @@ export function NotasPage() {
     sexo: selectedSexo
   });
 
+  // Ref para notas cualitativas (para acceder sin dependencias)
+  const notasCualitativasRef = useRef(notasCualitativas);
+  notasCualitativasRef.current = notasCualitativas;
+
   // Actualizar refs cuando cambian los filtros
   useEffect(() => {
     filtersRef.current = {
@@ -130,7 +134,6 @@ export function NotasPage() {
   }, []);
 
   const filteredNotas = React.useMemo(() => {
-    console.log('[useMemo] filteredNotas recalculado');
     if (!searchTerm) return notas;
     return notas.filter(n => n.estudianteNombre.toLowerCase().includes(searchTerm.toLowerCase()));
   }, [notas, searchTerm]);
@@ -308,7 +311,7 @@ export function NotasPage() {
 
     window.addEventListener('keydown', handleKeyDownGlobal);
     return () => window.removeEventListener('keydown', handleKeyDownGlobal);
-  }, [history, redoStack, notasCualitativas, notas, selectedCorte, selectedAsignatura]);
+  }, []);
 
   const fetchCatalogs = async () => {
     try {
@@ -1429,7 +1432,7 @@ export function NotasPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredNotas.map((est, index) => {
+                {console.log('[Render] tbody renderizado') || filteredNotas.map((est, index) => {
                   const estudianteNotas = notas.find(n => n.estudianteId === est.estudianteId) || { notas: {} };
                   const isEven = index % 2 === 0;
                   const isEditing = editingStudentId === est.estudianteId;
