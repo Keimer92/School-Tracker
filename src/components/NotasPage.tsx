@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, Fragment, memo } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo, Fragment, memo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
 import { syncService } from "../lib/syncService";
@@ -73,7 +73,7 @@ export function NotasPage() {
   const [saving, setSaving] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isQualitative, setIsQualitative] = useState(false);
-  const [editingStudentId, setEditingStudentId] = useState<number | null>(null);
+  // editingStudentId eliminado — ahora se usa CSS :focus-within
   const [highlightColor, setHighlightColor] = useState<string>(() => {
     return localStorage.getItem('student-highlight-color') || '#4ade80';
   });
@@ -148,6 +148,12 @@ export function NotasPage() {
 
   // Ref para notas cuantitativas (sin re-render)
   const notasCuantitativasRef = useRef<Map<string, number>>(new Map());
+
+  // ===== Fase 3: Pre-computar lookups para evitar flatMap/findIndex repetidos =====
+  const allCriterios = useMemo(() => indicadores.flatMap(ind => ind.criterios), [indicadores]);
+  const criterioIndexMap = useMemo(() => new Map(allCriterios.map((c, i) => [c.id, i])), [allCriterios]);
+  const totalColumns = useMemo(() => allCriterios.length, [allCriterios]);
+  const studentIndexMap = useMemo(() => new Map(estudiantes.map((e, i) => [e.id, i])), [estudiantes]);
 
   // Sincronizar refs con el estado para que el UI sepa cuándo habilitar botones
   useEffect(() => {
@@ -230,7 +236,8 @@ export function NotasPage() {
     fetchGradeConfigs();
   }, []);
 
-  const getGradeFromScore = React.useCallback((score: number) => {
+  // Pre-sortear gradeConfigs una sola vez (Fase 3)
+  const sortedGradeConfigs = useMemo(() => {
     const defaultConfigs = [
       { id: 'AA', color: '#22c55e', minimo: 90 },
       { id: 'AS', color: '#3b82f6', minimo: 70 },
@@ -238,18 +245,21 @@ export function NotasPage() {
       { id: 'AI', color: '#ef4444', minimo: 0 },
     ];
     const configs = gradeConfigs.length > 0 ? gradeConfigs : defaultConfigs;
-    const sortedConfigs = [...configs].sort((a, b) => b.minimo - a.minimo);
-    const config = sortedConfigs.find(c => score >= c.minimo);
-    return config || { id: 'AI', color: '#ef4444', minimo: 0 };
+    return [...configs].sort((a, b) => b.minimo - a.minimo);
   }, [gradeConfigs]);
 
-  const getGradeConfig = React.useCallback((gradeValue: string) => {
+  const getGradeFromScore = useCallback((score: number) => {
+    const config = sortedGradeConfigs.find(c => score >= c.minimo);
+    return config || { id: 'AI', color: '#ef4444', minimo: 0 };
+  }, [sortedGradeConfigs]);
+
+  const getGradeConfig = useCallback((gradeValue: string) => {
     const trimmedValue = gradeValue.trim().toUpperCase();
     const config = gradeConfigs.find(gc => gc.id === trimmedValue);
     return config || null;
   }, [gradeConfigs]);
 
-  const getGradeColor = React.useCallback((value: string, maxScore?: number) => {
+  const getGradeColor = useCallback((value: string, maxScore?: number) => {
     if (!value) return '#94a3b8';
     const upperValue = value.trim().toUpperCase();
     if (['AA', 'AS', 'AF', 'AI'].includes(upperValue)) {
@@ -633,7 +643,7 @@ export function NotasPage() {
   };
 
   // Manejo de notas cualitativas
-  const handleNotaChange = React.useCallback((estudianteId: number, criterioId: number, value: string) => {
+  const handleNotaChange = useCallback((estudianteId: number, criterioId: number, value: string) => {
     // Normalizar el valor a mayúsculas
     const normalizedValue = value.toUpperCase();
     
@@ -645,10 +655,9 @@ export function NotasPage() {
     // Generar la clave única para la nota
     const key = `${estudianteId}-${criterioId}`;
     
-    // Buscar el criterio correspondiente
-    const criterio = indicadores
-      .flatMap(ind => ind.criterios)
-.find(c => c.id === criterioId);
+    // Buscar el criterio usando el mapa pre-computado (O(1) en vez de flatMap+find)
+    const idx = criterioIndexMap.get(criterioId);
+    const criterio = idx !== undefined ? allCriterios[idx] : undefined;
        
     if (!criterio) return;
     
@@ -666,14 +675,15 @@ export function NotasPage() {
     // Actualizar notas cuantitativas en ref (sin re-render)
     notasCuantitativasRef.current.set(key, Math.round(numValue));
     
-    // Solo actualizar estado notas si es necesario para guardar (no en cada keystroke)
-    // Esto es opcional - el ref mantiene los valores para cálculos
-  }, [indicadores]);
+  }, [allCriterios, criterioIndexMap]);
 
   // Manejar enfoque y desenfoque para historial por celda
-  const handleInputFocus = () => {
-    cellSnapshot.current = new Map(notasCualitativas);
-  };
+  // Fase 1.2: Lazy snapshot — solo crea snapshot si no existe uno activo
+  const handleInputFocus = useCallback(() => {
+    if (!cellSnapshot.current) {
+      cellSnapshot.current = new Map(notasCualitativasRef.current);
+    }
+  }, []);
 
   const handleInputBlur = (estudianteId: number, criterioId: number, value: string) => {
     if (!cellSnapshot.current) return;
@@ -792,102 +802,64 @@ export function NotasPage() {
     setNotas(newNotas);
   };
 
-  // Manejo de navegación con teclas direccionales
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, estudianteId: number, criterioIndex: number) => {
-    // Calcular total de columnas (inputs por fila)
-    const totalColumns = indicadores.reduce((sum, ind) => sum + ind.criterios.length, 0);
-    
-    // Obtener índice de fila (estudiante)
-    const rowIndex = estudiantes.findIndex(est => est.id === estudianteId);
+  // Manejo de navegación con teclas direccionales (Optimizado O(1) con pre-computados)
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>, estudianteId: number, criterioIndex: number) => {
+    const rowIndex = studentIndexMap.get(estudianteId);
+    if (rowIndex === undefined) return;
     
     let nextRow = rowIndex;
     let nextCol = criterioIndex;
     
     // Sobreescritura inteligente: si se presiona una letra que inicia una nota válida
     if (isQualitative && /^[aAsSfFiI]$/.test(e.key)) {
-      // Obtener todos los criterios en un array plano
-      const allCriterios = indicadores.flatMap(ind => ind.criterios);
       const currentCriterio = allCriterios[criterioIndex];
       if (currentCriterio) {
         const key = `${estudianteId}-${currentCriterio.id}`;
         const currentVal = (notasCualitativasRef.current.get(key) || '').toUpperCase();
         
-        // SOLO sobreescribimos si la nota actual ya está completa (2 letras)
-        // o si es una nota válida de 1 letra (si las hubiera en el futuro).
-        // Si hay una sola letra, permitimos que la segunda se concatene.
         if (currentVal.length >= 2) {
           handleNotaChange(estudianteId, currentCriterio.id, '');
         }
       }
-      return; // Dejar que el evento continúe hacia onChange para concatenar o insertar
+      return;
     }
 
     switch (e.key) {
       case 'Delete':
       case 'Backspace':
-        // Limpiar la celda actual
         e.preventDefault();
-        // Obtener todos los criterios en un array plano
-        const allCriterios = indicadores.flatMap(ind => ind.criterios);
         const currentCriterio = allCriterios[criterioIndex];
         if (currentCriterio) {
           handleNotaChange(estudianteId, currentCriterio.id, '');
         }
         return;
       case 'ArrowRight':
-        if (criterioIndex < totalColumns - 1) {
-          nextCol++;
-        }
+        if (criterioIndex < totalColumns - 1) nextCol++;
         break;
       case 'ArrowLeft':
-        if (criterioIndex > 0) {
-          nextCol--;
-        }
+        if (criterioIndex > 0) nextCol--;
         break;
       case 'ArrowDown':
-        if (rowIndex < estudiantes.length - 1) {
-          nextRow++;
-        }
+        if (rowIndex < estudiantes.length - 1) nextRow++;
         break;
       case 'ArrowUp':
-        if (rowIndex > 0) {
-          nextRow--;
-        }
+        if (rowIndex > 0) nextRow--;
         break;
       default:
-        return; // No manejar otras teclas
+        return;
     }
     
-    // Prevenir comportamiento predeterminado
     e.preventDefault();
     
-    // Obtener el siguiente estudiante y criterio index
     const nextEstudiante = estudiantes[nextRow];
     if (!nextEstudiante) return;
     
-    // Calcular el criterio real basado en el índice de columna
-    let currentCol = 0;
-    let nextCriterio = null;
-    
-    for (const ind of indicadores) {
-      for (const crit of ind.criterios) {
-        if (currentCol === nextCol) {
-          nextCriterio = crit;
-          break;
-        }
-        currentCol++;
-      }
-      if (nextCriterio) break;
-    }
-    
+    const nextCriterio = allCriterios[nextCol];
     if (nextCriterio) {
       const key = `row-${nextEstudiante.id}-col-${nextCol}`;
-      const nextInput = inputsRef.current.get(key);
-      if (nextInput) {
-        nextInput.focus();
-      }
+      inputsRef.current.get(key)?.focus();
     }
-  };
+  }, [allCriterios, totalColumns, estudiantes, studentIndexMap, isQualitative, handleNotaChange]);
 
   // Calcular total por indicador
   const calcularTotalIndicador = (estudianteNotas: Record<number, number>, indicador: Indicador): number => {
@@ -1416,42 +1388,24 @@ export function NotasPage() {
               <tbody>
                 {filteredNotas.map((est, index) => {
                   const estudianteNotas = notas.find(n => n.estudianteId === est.estudianteId) || { notas: {} };
-                  const isEven = index % 2 === 0;
-                  const isEditing = editingStudentId === est.estudianteId;
-                  
-                  const rowBg = isEditing 
-                    ? `${highlightColor}33`
-                    : (isEven ? '#0f172a' : '#161e2f');
-                  
-                  const stickyBg = isEditing
-                    ? '#1e293b'
-                    : (isEven ? '#0f172a' : '#161e2f');
-
-                  const nameColor = isEditing ? highlightColor : '#e2e8f0';
                   
                   return (
-                    <tr key={est.estudianteId} style={{ background: rowBg, transition: 'background 0.2s ease' }}>
-                      <td style={{ 
+                    <tr key={est.estudianteId} className="notas-row">
+                      <td className="sticky-cell student-number" style={{ 
                         padding: '0.2rem', 
                         textAlign: 'center', 
-                        color: isEditing ? highlightColor : '#94a3b8',
                         position: 'sticky',
                         left: 0,
-                        background: stickyBg,
                         zIndex: 5,
                         borderBottom: '1px solid rgba(255,255,255,0.05)',
-                        fontSize: '0.65rem',
-                        transition: 'all 0.2s ease'
+                        fontSize: '0.65rem'
                       }}>{index + 1}</td>
-                      <td style={{ 
+                      <td className="sticky-cell student-name" style={{ 
                         padding: '0.3rem', 
-                        color: nameColor,
                         position: 'sticky',
                         left: '35px',
-                        background: stickyBg, // Fondo sólido para bloquear transparencia
                         zIndex: 5,
-                        borderBottom: '1px solid rgba(255,255,255,0.05)',
-                        transition: 'all 0.2s ease'
+                        borderBottom: '1px solid rgba(255,255,255,0.05)'
                       }}>
                         <div style={{ 
                           fontWeight: 'bold', 
@@ -1459,16 +1413,14 @@ export function NotasPage() {
                           whiteSpace: 'nowrap', 
                           overflow: 'hidden', 
                           textOverflow: 'ellipsis', 
-                          maxWidth: '120px',
-                          color: nameColor
+                          maxWidth: '120px'
                         }}>{est.estudianteNombre}</div>
                       </td>
                       {(() => {
-                        const allCriterios = indicadores.flatMap(ind => ind.criterios);
                         return indicadores.map(ind => (
                           <Fragment key={`row-${est.estudianteId}-ind-${ind.id}`}>
                             {ind.criterios.map(crit => {
-                              const criterioIndex = allCriterios.findIndex(c => c.id === crit.id);
+                              const criterioIndex = criterioIndexMap.get(crit.id) ?? 0;
                               const inputKey = `row-${est.estudianteId}-col-${criterioIndex}`;
                               const key = `${est.estudianteId}-${crit.id}`;
                               const currentQualitativeValue = notasCualitativasRef.current.get(key) || '';
@@ -1486,14 +1438,12 @@ export function NotasPage() {
                                     onKeyDown={(e) => handleKeyDown(e, est.estudianteId, criterioIndex)}
                                     onFocus={(e) => {
                                       handleInputFocus();
-                                      setEditingStudentId(est.estudianteId);
                                       e.target.select();
                                     }}
                                     onBlur={(e) => {
                                       const val = e.target.value.toUpperCase();
                                       notasCualitativasRef.current.set(key, val);
                                       handleInputBlur(est.estudianteId, crit.id, val);
-                                      setEditingStudentId(null);
                                     }}
                                     ref={(el) => {
                                       if (el) inputsRef.current.set(inputKey, el);

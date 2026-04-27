@@ -2528,3 +2528,51 @@ input:checked + .slider:before {
     box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.05);
   }
 }
+
+/* ============================================================
+   Notas Table — Row Highlight via CSS :focus-within
+   Eliminates React re-renders on focus/blur transitions.
+   ============================================================ */
+
+.notas-row {
+  transition: background 0.15s ease;
+}
+
+.notas-row:nth-child(even) {
+  --row-bg: #0f172a;
+}
+
+.notas-row:nth-child(odd) {
+  --row-bg: #161e2f;
+}
+
+.notas-row .sticky-cell {
+  background: var(--row-bg);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.notas-row .student-name {
+  color: #e2e8f0;
+  transition: color 0.15s ease;
+}
+
+.notas-row .student-number {
+  color: #94a3b8;
+  transition: color 0.15s ease;
+}
+
+.notas-row:focus-within {
+  background: var(--highlight-bg, rgba(74, 222, 128, 0.2)) !important;
+}
+
+.notas-row:focus-within .sticky-cell {
+  background: #1e293b !important;
+}
+
+.notas-row:focus-within .student-name {
+  color: var(--highlight-color, #4ade80) !important;
+}
+
+.notas-row:focus-within .student-number {
+  color: var(--highlight-color, #4ade80) !important;
+}
