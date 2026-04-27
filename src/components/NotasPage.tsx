@@ -41,6 +41,10 @@ interface NotaEstudiante {
   notas: Record<number, number>;
 }
 
+const MemoRow = memo(({ est, index, rowVersion, renderRow }: { est: NotaEstudiante, index: number, rowVersion: number, renderRow: (est: NotaEstudiante, index: number) => React.ReactNode }) => {
+  return <>{renderRow(est, index)}</>;
+});
+
 export function NotasPage() {
   // @ts-ignore
   const unlistenNotas = null;
@@ -72,6 +76,7 @@ export function NotasPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [rowVersions, setRowVersions] = useState<Map<number, number>>(new Map());
   const [isQualitative, setIsQualitative] = useState(false);
   // editingStudentId eliminado — ahora se usa CSS :focus-within
   const [highlightColor, setHighlightColor] = useState<string>(() => {
@@ -610,7 +615,7 @@ export function NotasPage() {
     1: 'AI'
   };
 
-  const calcularNotaCualitativaFinal = (notasQual: string[]): string => {
+  const calcularNotaCualitativaFinal = useCallback((notasQual: string[]): string => {
     if (notasQual.length === 0) return '';
     
     // Filtrar notas vacías o incompletas
@@ -640,7 +645,7 @@ export function NotasPage() {
     const average = Math.round(sum / weights.length);
     
     return reverseQualitativeWeights[average as keyof typeof reverseQualitativeWeights] || 'AI';
-  };
+  }, []);
 
   // Manejo de notas cualitativas
   const handleNotaChange = useCallback((estudianteId: number, criterioId: number, value: string) => {
@@ -707,6 +712,12 @@ export function NotasPage() {
       // Limpiar redoStack
       redoStackRef.current = [];
       setRedoStack([]);
+      
+      setRowVersions(prev => {
+        const next = new Map(prev);
+        next.set(estudianteId, (next.get(estudianteId) || 0) + 1);
+        return next;
+      });
     }
     cellSnapshot.current = null;
   };
@@ -862,21 +873,21 @@ export function NotasPage() {
   }, [allCriterios, totalColumns, estudiantes, studentIndexMap, isQualitative, handleNotaChange]);
 
   // Calcular total por indicador
-  const calcularTotalIndicador = (estudianteNotas: Record<number, number>, indicador: Indicador): number => {
+  const calcularTotalIndicador = useCallback((estudianteNotas: Record<number, number>, indicador: Indicador): number => {
     return indicador.criterios.reduce((sum, criterio) => {
       const nota = estudianteNotas[criterio.id] || 0;
       return sum + nota;
     }, 0);
-  };
+  }, []);
 
   // Calcular total final (solo indicadores activos)
-  const calcularTotalFinal = (estudianteNotas: Record<number, number>): number => {
+  const calcularTotalFinal = useCallback((estudianteNotas: Record<number, number>): number => {
     if (isQualitative) return 0; // No usar totales numéricos en modo cualitativo
     const indicadoresActivos = indicadores.filter(i => i.activo);
     return indicadoresActivos.reduce((sum, indicador) => {
       return sum + calcularTotalIndicador(estudianteNotas, indicador);
     }, 0);
-  };
+  }, [isQualitative, indicadores, calcularTotalIndicador]);
 
   // Guardar notas
   const handleGuardarNotas = async () => {
@@ -1006,6 +1017,173 @@ export function NotasPage() {
       setSaving(false);
     }
   };
+
+
+  const renderRow = useCallback((est: NotaEstudiante, index: number) => {
+﻿                  const estudianteNotas = notas.find(n => n.estudianteId === est.estudianteId) || { notas: {} };
+                  
+                  return (
+                    <tr key={est.estudianteId} className="notas-row">
+                      <td className="sticky-cell student-number" style={{ 
+                        padding: '0.2rem', 
+                        textAlign: 'center', 
+                        position: 'sticky',
+                        left: 0,
+                        zIndex: 5,
+                        borderBottom: '1px solid rgba(255,255,255,0.05)',
+                        fontSize: '0.65rem'
+                      }}>{index + 1}</td>
+                      <td className="sticky-cell student-name" style={{ 
+                        padding: '0.3rem', 
+                        position: 'sticky',
+                        left: '35px',
+                        zIndex: 5,
+                        borderBottom: '1px solid rgba(255,255,255,0.05)'
+                      }}>
+                        <div style={{ 
+                          fontWeight: 'bold', 
+                          fontSize: '0.75rem', 
+                          whiteSpace: 'nowrap', 
+                          overflow: 'hidden', 
+                          textOverflow: 'ellipsis', 
+                          maxWidth: '120px'
+                        }}>{est.estudianteNombre}</div>
+                      </td>
+                      {(() => {
+                        return indicadores.map(ind => (
+                          <Fragment key={`row-${est.estudianteId}-ind-${ind.id}`}>
+                            {ind.criterios.map(crit => {
+                              const criterioIndex = criterioIndexMap.get(crit.id) ?? 0;
+                              const inputKey = `row-${est.estudianteId}-col-${criterioIndex}`;
+                              const key = `${est.estudianteId}-${crit.id}`;
+                              const currentQualitativeValue = notasCualitativasRef.current.get(key) || '';
+                              
+                              return (
+                                <td key={`${est.estudianteId}-${crit.id}`} style={{ padding: '0.15rem', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                  <input
+                                    type="text"
+                                    defaultValue={currentQualitativeValue}
+                                    onChange={(e) => {
+                                      const val = e.target.value.toUpperCase().slice(0, 2);
+                                      notasCualitativasRef.current.set(key, val);
+                                      e.target.value = val;
+                                    }}
+                                    onKeyDown={(e) => handleKeyDown(e, est.estudianteId, criterioIndex)}
+                                    onFocus={(e) => {
+                                      handleInputFocus();
+                                      e.target.select();
+                                    }}
+                                    onBlur={(e) => {
+                                      const val = e.target.value.toUpperCase();
+                                      notasCualitativasRef.current.set(key, val);
+                                      handleInputBlur(est.estudianteId, crit.id, val);
+                                    }}
+                                    ref={(el) => {
+                                      if (el) inputsRef.current.set(inputKey, el);
+                                      else inputsRef.current.delete(inputKey);
+                                    }}
+                                    style={{
+                                      width: isQualitative ? '48px' : '32px',
+                                      padding: '0.15rem',
+                                      fontSize: isQualitative ? '0.85rem' : '0.75rem',
+                                      textAlign: 'center',
+                                      background: isQualitative ? 'rgba(139, 92, 246, 0.1)' : 'rgba(255,255,255,0.03)',
+                                      border: `2px solid ${currentQualitativeValue ? getGradeColor(currentQualitativeValue, crit.puntajeMaximo) : (isQualitative ? 'rgba(139, 92, 246, 0.4)' : 'rgba(255,255,255,0.1)')}`,
+                                      borderRadius: '4px',
+                                      color: currentQualitativeValue ? getGradeColor(currentQualitativeValue, crit.puntajeMaximo) : (isQualitative ? '#a78bfa' : 'white'),
+                                      textTransform: 'uppercase',
+                                      fontWeight: currentQualitativeValue ? 'bold' : 'normal',
+                                      outline: 'none'
+                                    }}
+                                    maxLength={2}
+                                  />
+                                </td>
+                              );
+                            })}
+                            <td style={{ 
+                              padding: '0.2rem', 
+                              textAlign: 'center', 
+                              fontWeight: 'bold', 
+                              background: ind.activo ? 'rgba(100, 108, 255, 0.05)' : 'rgba(100, 116, 139, 0.08)',
+                              borderBottom: '1px solid rgba(255,255,255,0.05)'
+                            }}>
+                              {(() => {
+                                const totalIndicador = calcularTotalIndicador(estudianteNotas.notas, ind);
+                                const totalIndicadorRedondeado = Math.round(totalIndicador);
+                                
+                                // Calcular el puntaje mÃ¡ximo real de este indicador
+                                const maximoIndicador = ind.criterios.reduce((sum, c) => sum + (c.puntajeMaximo || 0), 0);
+                                const totalEscalado = maximoIndicador > 0 ? (totalIndicador / maximoIndicador) * 100 : 0;
+                                
+                                const gradeConfig = getGradeFromScore(totalEscalado);
+                                const qualitativeGrade = isQualitative 
+                                  ? calcularNotaCualitativaFinal(ind.criterios.map(c => notasCualitativasRef.current.get(`${est.estudianteId}-${c.id}`) || ''))
+                                  : (gradeConfig?.id || 'AI');
+                                
+                                const displayColor = ind.activo 
+                                  ? (qualitativeGrade ? getGradeColor(qualitativeGrade) : '#94a3b8')
+                                  : '#64748b';
+
+                                return (
+                                  <div style={{ color: displayColor, fontSize: '0.75rem', fontWeight: 'bold' }}>
+                                    {isQualitative 
+                                      ? qualitativeGrade 
+                                      : `${totalIndicadorRedondeado}${qualitativeGrade ? ` (${qualitativeGrade})` : ''}`}
+                                  </div>
+                                );
+                              })()}
+                            </td>
+                          </Fragment>
+                        ));
+                      })()}
+                      <td style={{ 
+                        padding: '0.2rem', 
+                        textAlign: 'center', 
+                        fontWeight: 'bold', 
+                        background: '#1e293b', // Forzamos fondo sÃ³lido para evitar transparencia
+                        position: 'sticky',
+                        right: 0,
+                        zIndex: 5,
+                        borderBottom: '1px solid rgba(34, 197, 94, 0.2)'
+                      }}>
+                        {(() => {
+                          const rawTotalFinal = calcularTotalFinal(estudianteNotas.notas);
+                          const totalFinal = Math.round(rawTotalFinal);
+                          
+                          // Calcular el puntaje mÃ¡ximo total de indicadores activos
+                          const maximoTotal = indicadores
+                            .filter(i => i.activo)
+                            .reduce((sum, i) => sum + i.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0), 0);
+                          
+                          const totalEscaladoFinal = maximoTotal > 0 ? (rawTotalFinal / maximoTotal) * 100 : 0;
+                          const gradeConfig = getGradeFromScore(totalEscaladoFinal);
+                          const qualitativeFinal = isQualitative 
+                            ? calcularNotaCualitativaFinal(indicadores.filter(i => i.activo).map(i => {
+                                return calcularNotaCualitativaFinal(i.criterios.map(c => notasCualitativasRef.current.get(`${est.estudianteId}-${c.id}`) || ''));
+                              }))
+                            : (gradeConfig?.id || 'AI');
+                          const displayColor = qualitativeFinal ? getGradeColor(qualitativeFinal) : '#94a3b8';
+
+                          return (
+                            <div style={{ 
+                              color: displayColor, 
+                              fontSize: '0.8rem', 
+                              fontWeight: 'bold',
+                              background: '#1e293b', // Fondo sÃ³lido tambiÃ©n aquÃ­
+                              padding: '0.2rem',
+                              borderRadius: '4px'
+                            }}>
+                              {isQualitative 
+                                ? qualitativeFinal 
+                                : `${totalFinal}${qualitativeFinal ? ` (${qualitativeFinal})` : ''}`}
+                            </div>
+                          );
+                        })()}
+                      </td>
+                    </tr>
+                  );
+
+  }, [notas, indicadores, criterioIndexMap, isQualitative, getGradeColor, getGradeFromScore, calcularTotalIndicador, calcularNotaCualitativaFinal, calcularTotalFinal, handleKeyDown, handleInputFocus, handleInputBlur]);
 
   return (
     <div className="page-container">
@@ -1386,170 +1564,9 @@ export function NotasPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredNotas.map((est, index) => {
-                  const estudianteNotas = notas.find(n => n.estudianteId === est.estudianteId) || { notas: {} };
-                  
-                  return (
-                    <tr key={est.estudianteId} className="notas-row">
-                      <td className="sticky-cell student-number" style={{ 
-                        padding: '0.2rem', 
-                        textAlign: 'center', 
-                        position: 'sticky',
-                        left: 0,
-                        zIndex: 5,
-                        borderBottom: '1px solid rgba(255,255,255,0.05)',
-                        fontSize: '0.65rem'
-                      }}>{index + 1}</td>
-                      <td className="sticky-cell student-name" style={{ 
-                        padding: '0.3rem', 
-                        position: 'sticky',
-                        left: '35px',
-                        zIndex: 5,
-                        borderBottom: '1px solid rgba(255,255,255,0.05)'
-                      }}>
-                        <div style={{ 
-                          fontWeight: 'bold', 
-                          fontSize: '0.75rem', 
-                          whiteSpace: 'nowrap', 
-                          overflow: 'hidden', 
-                          textOverflow: 'ellipsis', 
-                          maxWidth: '120px'
-                        }}>{est.estudianteNombre}</div>
-                      </td>
-                      {(() => {
-                        return indicadores.map(ind => (
-                          <Fragment key={`row-${est.estudianteId}-ind-${ind.id}`}>
-                            {ind.criterios.map(crit => {
-                              const criterioIndex = criterioIndexMap.get(crit.id) ?? 0;
-                              const inputKey = `row-${est.estudianteId}-col-${criterioIndex}`;
-                              const key = `${est.estudianteId}-${crit.id}`;
-                              const currentQualitativeValue = notasCualitativasRef.current.get(key) || '';
-                              
-                              return (
-                                <td key={`${est.estudianteId}-${crit.id}`} style={{ padding: '0.15rem', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                  <input
-                                    type="text"
-                                    defaultValue={currentQualitativeValue}
-                                    onChange={(e) => {
-                                      const val = e.target.value.toUpperCase().slice(0, 2);
-                                      notasCualitativasRef.current.set(key, val);
-                                      e.target.value = val;
-                                    }}
-                                    onKeyDown={(e) => handleKeyDown(e, est.estudianteId, criterioIndex)}
-                                    onFocus={(e) => {
-                                      handleInputFocus();
-                                      e.target.select();
-                                    }}
-                                    onBlur={(e) => {
-                                      const val = e.target.value.toUpperCase();
-                                      notasCualitativasRef.current.set(key, val);
-                                      handleInputBlur(est.estudianteId, crit.id, val);
-                                    }}
-                                    ref={(el) => {
-                                      if (el) inputsRef.current.set(inputKey, el);
-                                      else inputsRef.current.delete(inputKey);
-                                    }}
-                                    style={{
-                                      width: isQualitative ? '48px' : '32px',
-                                      padding: '0.15rem',
-                                      fontSize: isQualitative ? '0.85rem' : '0.75rem',
-                                      textAlign: 'center',
-                                      background: isQualitative ? 'rgba(139, 92, 246, 0.1)' : 'rgba(255,255,255,0.03)',
-                                      border: `2px solid ${currentQualitativeValue ? getGradeColor(currentQualitativeValue, crit.puntajeMaximo) : (isQualitative ? 'rgba(139, 92, 246, 0.4)' : 'rgba(255,255,255,0.1)')}`,
-                                      borderRadius: '4px',
-                                      color: currentQualitativeValue ? getGradeColor(currentQualitativeValue, crit.puntajeMaximo) : (isQualitative ? '#a78bfa' : 'white'),
-                                      textTransform: 'uppercase',
-                                      fontWeight: currentQualitativeValue ? 'bold' : 'normal',
-                                      outline: 'none'
-                                    }}
-                                    maxLength={2}
-                                  />
-                                </td>
-                              );
-                            })}
-                            <td style={{ 
-                              padding: '0.2rem', 
-                              textAlign: 'center', 
-                              fontWeight: 'bold', 
-                              background: ind.activo ? 'rgba(100, 108, 255, 0.05)' : 'rgba(100, 116, 139, 0.08)',
-                              borderBottom: '1px solid rgba(255,255,255,0.05)'
-                            }}>
-                              {(() => {
-                                const totalIndicador = calcularTotalIndicador(estudianteNotas.notas, ind);
-                                const totalIndicadorRedondeado = Math.round(totalIndicador);
-                                
-                                // Calcular el puntaje máximo real de este indicador
-                                const maximoIndicador = ind.criterios.reduce((sum, c) => sum + (c.puntajeMaximo || 0), 0);
-                                const totalEscalado = maximoIndicador > 0 ? (totalIndicador / maximoIndicador) * 100 : 0;
-                                
-                                const gradeConfig = getGradeFromScore(totalEscalado);
-                                const qualitativeGrade = isQualitative 
-                                  ? calcularNotaCualitativaFinal(ind.criterios.map(c => notasCualitativasRef.current.get(`${est.estudianteId}-${c.id}`) || ''))
-                                  : (gradeConfig?.id || 'AI');
-                                
-                                const displayColor = ind.activo 
-                                  ? (qualitativeGrade ? getGradeColor(qualitativeGrade) : '#94a3b8')
-                                  : '#64748b';
-
-                                return (
-                                  <div style={{ color: displayColor, fontSize: '0.75rem', fontWeight: 'bold' }}>
-                                    {isQualitative 
-                                      ? qualitativeGrade 
-                                      : `${totalIndicadorRedondeado}${qualitativeGrade ? ` (${qualitativeGrade})` : ''}`}
-                                  </div>
-                                );
-                              })()}
-                            </td>
-                          </Fragment>
-                        ));
-                      })()}
-                      <td style={{ 
-                        padding: '0.2rem', 
-                        textAlign: 'center', 
-                        fontWeight: 'bold', 
-                        background: stickyBg, // Forzamos fondo sólido para evitar transparencia
-                        position: 'sticky',
-                        right: 0,
-                        zIndex: 5,
-                        borderBottom: '1px solid rgba(34, 197, 94, 0.2)'
-                      }}>
-                        {(() => {
-                          const rawTotalFinal = calcularTotalFinal(estudianteNotas.notas);
-                          const totalFinal = Math.round(rawTotalFinal);
-                          
-                          // Calcular el puntaje máximo total de indicadores activos
-                          const maximoTotal = indicadores
-                            .filter(i => i.activo)
-                            .reduce((sum, i) => sum + i.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0), 0);
-                          
-                          const totalEscaladoFinal = maximoTotal > 0 ? (rawTotalFinal / maximoTotal) * 100 : 0;
-                          const gradeConfig = getGradeFromScore(totalEscaladoFinal);
-                          const qualitativeFinal = isQualitative 
-                            ? calcularNotaCualitativaFinal(indicadores.filter(i => i.activo).map(i => {
-                                return calcularNotaCualitativaFinal(i.criterios.map(c => notasCualitativasRef.current.get(`${est.estudianteId}-${c.id}`) || ''));
-                              }))
-                            : (gradeConfig?.id || 'AI');
-                          const displayColor = qualitativeFinal ? getGradeColor(qualitativeFinal) : '#94a3b8';
-
-                          return (
-                            <div style={{ 
-                              color: displayColor, 
-                              fontSize: '0.8rem', 
-                              fontWeight: 'bold',
-                              background: stickyBg, // Fondo sólido también aquí
-                              padding: '0.2rem',
-                              borderRadius: '4px'
-                            }}>
-                              {isQualitative 
-                                ? qualitativeFinal 
-                                : `${totalFinal}${qualitativeFinal ? ` (${qualitativeFinal})` : ''}`}
-                            </div>
-                          );
-                        })()}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {filteredNotas.map((est, index) => (
+  <MemoRow key={est.estudianteId} est={est} index={index} rowVersion={rowVersions.get(est.estudianteId) || 0} renderRow={renderRow} />
+))}
               </tbody>
             </table>
           </div>
