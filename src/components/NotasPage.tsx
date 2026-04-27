@@ -1492,13 +1492,6 @@ export function NotasPage() {
                                     onBlur={(e) => {
                                       const val = e.target.value.toUpperCase();
                                       notasCualitativasRef.current.set(key, val);
-                                      if (val) {
-                                        setNotasCualitativas(prev => {
-                                          const newMap = new Map(prev);
-                                          newMap.set(key, val);
-                                          return newMap;
-                                        });
-                                      }
                                       handleInputBlur(est.estudianteId, crit.id, val);
                                       setEditingStudentId(null);
                                     }}
