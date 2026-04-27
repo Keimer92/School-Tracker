@@ -723,6 +723,37 @@ export function NotasPage() {
   };
 
   // Funciones Deshacer/Rehacer
+  const updateInputsUI = (targetState: Map<string, string>) => {
+    notasCualitativasRef.current = new Map(targetState);
+    
+    // Update all inputs visually without re-rendering everything
+    inputsRef.current.forEach((inputEl, inputKey) => {
+      const parts = inputKey.split('-');
+      if (parts.length === 4) {
+        const estId = parseInt(parts[1]);
+        const critIdx = parseInt(parts[3]);
+        const criterio = allCriterios[critIdx];
+        if (criterio) {
+          const key = `${estId}-${criterio.id}`;
+          const val = targetState.get(key) || '';
+          if (inputEl.value !== val) {
+            inputEl.value = val;
+          }
+        }
+      }
+    });
+
+    // Update row versions to recalculate totals
+    setRowVersions(prev => {
+      const next = new Map(prev);
+      targetState.forEach((val, key) => {
+        const estId = parseInt(key.split('-')[0]);
+        next.set(estId, (next.get(estId) || 0) + 1);
+      });
+      return next;
+    });
+  };
+
   const undo = () => {
     const currentHistory = historyRef.current;
     if (currentHistory.length === 0) return;
@@ -731,7 +762,7 @@ export function NotasPage() {
     const newHistory = currentHistory.slice(0, -1);
     
     // Guardar estado actual en redoStack
-    const currentRedoStack = [new Map(notasCualitativas), ...redoStackRef.current];
+    const currentRedoStack = [new Map(notasCualitativasRef.current), ...redoStackRef.current];
     redoStackRef.current = currentRedoStack;
     setRedoStack(currentRedoStack);
     
@@ -739,9 +770,9 @@ export function NotasPage() {
     historyRef.current = newHistory;
     setHistory(newHistory);
     
-    // Actualizar estados de notas
+    // Actualizar estados
     isUndoRedoAction.current = true;
-    setNotasCualitativas(previousState);
+    updateInputsUI(previousState);
     
     // Sincronizar notas cuantitativas inmediatamente para asegurar actualización de UI
     const newNotas = estudiantes.map(est => {
@@ -776,7 +807,7 @@ export function NotasPage() {
     const newRedoStack = currentRedoStack.slice(1);
     
     // Guardar estado actual en history
-    const currentHistory = [...historyRef.current, new Map(notasCualitativas)];
+    const currentHistory = [...historyRef.current, new Map(notasCualitativasRef.current)];
     historyRef.current = currentHistory;
     setHistory(currentHistory);
     
@@ -784,9 +815,9 @@ export function NotasPage() {
     redoStackRef.current = newRedoStack;
     setRedoStack(newRedoStack);
     
-    // Actualizar estados de notas
+    // Actualizar estados
     isUndoRedoAction.current = true;
-    setNotasCualitativas(nextState);
+    updateInputsUI(nextState);
 
     // Sincronizar notas cuantitativas inmediatamente para asegurar actualización de UI
     const newNotas = estudiantes.map(est => {
