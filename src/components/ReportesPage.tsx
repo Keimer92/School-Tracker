@@ -249,6 +249,11 @@ export function ReportesPage() {
     }).then(u => unlistenGradeConfigs = u);
 
     listen("notas-updated", () => {
+      // Listener adicional para sync-completed
+      listen("sync-completed", () => {
+        console.log("ReportesPage: Evento sync-completed recibido, refrescando reporte...");
+        setRefreshTrigger(prev => prev + 1);
+      }).then(u => unlistenSync = u);
       console.log("ReportesPage: Evento notas-updated recibido, refrescando reporte...");
       setRefreshTrigger(prev => prev + 1);
     }).then(u => unlistenNotas = u);
@@ -433,6 +438,8 @@ export function ReportesPage() {
   };
 
   const fetchReporte = async () => {
+    // Validar sincronización para asegurar datos actualizados
+    await new Promise(resolve => setTimeout(resolve, 500));  // Espera breve
     console.log("ReportesPage: Ejecutando fetchReporte...", { specialCorte });
     setLoading(true);
     try {

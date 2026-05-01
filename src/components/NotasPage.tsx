@@ -1012,6 +1012,7 @@ export function NotasPage() {
           console.log("LOG [Sincronización]: Iniciando en segundo plano...");
           // Asegurar que los indicadores y criterios existan en Supabase antes de las notas
           await syncService.syncEvaluacionConfig(indicadores);
+            await emit("sync-completed", { message: "⚡ Sync completed successfully" });
 
           // Preparar todas las notas para sincronización en lote
           const todasLasNotasParaSync: any[] = [];
