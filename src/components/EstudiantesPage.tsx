@@ -112,6 +112,7 @@ export function EstudiantesPage() {
     _type: 'grado' | 'seccion' | 'colegio' | 'ano'
   ): Promise<number> => {
     const normalizedInput = normalizeString(name);
+    console.log(`[findOrCreateItem] Looking for ${_type} with name: "${name}" (normalized: "${normalizedInput}")`);
     
     // Alias mapping
     const aliases: Record<string, string[]> = {
@@ -142,24 +143,34 @@ export function EstudiantesPage() {
       return false;
     });
 
-    if (found) return Number(found.id);
+    if (found) {
+      console.log(`[findOrCreateItem] Found existing ${_type}: "${found.nombre}" with ID: ${found.id}`);
+      return Number(found.id);
+    }
 
     // If not found, check if input is an alias of something we have
     for (const [canonical, variations] of Object.entries(aliases)) {
       if (variations.includes(normalizedInput)) {
         const canonicalFound = items.find(item => normalizeString(item.nombre) === normalizeString(canonical));
-        if (canonicalFound) return Number(canonicalFound.id);
+        if (canonicalFound) {
+          console.log(`[findOrCreateItem] Found existing canonical ${_type}: "${canonicalFound.nombre}" via alias, ID: ${canonicalFound.id}`);
+          return Number(canonicalFound.id);
+        }
         
         // If canonical doesn't exist yet, create it instead of the variation
+        console.log(`[findOrCreateItem] Creating new canonical ${_type}: "${canonical}" via alias.`);
         const newId = await invoke<number>(addCommand, { nombre: canonical });
         await fetchItems();
+        console.log(`[findOrCreateItem] Created new canonical ${_type} "${canonical}" with ID: ${newId}`);
         return newId;
       }
     }
 
     // Truly new item
+    console.log(`[findOrCreateItem] Creating truly new ${_type}: "${name}".`);
     const newId = await invoke<number>(addCommand, { nombre: name });
     await fetchItems();
+    console.log(`[findOrCreateItem] Created new ${_type} "${name}" with ID: ${newId}`);
     return newId;
   };
 
@@ -393,19 +404,32 @@ export function EstudiantesPage() {
             const rawGrado = row.Grado || row.Nivel || row.grado || row["GRADO"] || row["NIVEL"];
             const rawSeccion = row.Seccion || row.Grupo || row.Aula || row.seccion || row["SECCION"] || row["GRUPO"] || row["AULA"];
 
+            console.log(`[Import] Processing row ${rowIndex} - Nombre: ${nombre}, RawSeccion: "${rawSeccion}"`);
+
           const anoId = await resolveId(rawAno, currentAnos, "add_ano", refreshAnos, 'ano', filters.anoLectivoId);
           const colegioId = await resolveId(rawColegio, currentColegios, "add_colegio", refreshColegios, 'colegio', filters.colegioId);
           const gradoId = await resolveId(rawGrado, currentGrados, "add_grado", refreshGrados, 'grado', filters.gradoId);
           
-          // Para la sección, intentar resolver con el valor del Excel
-          // Si rawSeccion tiene valor, usarlo; si no, crear "Unica"
+          // Process section: prioritize resolving rawSeccion if it exists and is not empty.
           let seccionId = 0;
-          if (rawSeccion && String(rawSeccion).trim()) {
-            seccionId = await resolveId(rawSeccion, currentSecciones, "add_seccion", refreshSecciones, 'seccion', 0);
+          const trimmedRawSeccion = String(rawSeccion || "").trim();
+
+          if (trimmedRawSeccion) {
+            console.log(`[Import:Seccion] Attempting to resolve trimmedRawSeccion: "${trimmedRawSeccion}"`);
+            // Attempt to resolve the section by its name from the Excel row.
+            seccionId = await resolveId(trimmedRawSeccion, currentSecciones, "add_seccion", refreshSecciones, 'seccion', 0);
+            console.log(`[Import:Seccion] resolveId returned seccionId: ${seccionId} for "${trimmedRawSeccion}"`);
+            if (seccionId === 0) {
+              console.warn(`[Import:Seccion] resolveId returned 0 for rawSeccion: "${trimmedRawSeccion}". Falling back to 'Unica'.`, { row });
+            }
           }
-          // Si sigue siendo 0 o no hay valor en Excel, crear "Unica" por defecto
+
+          // Fallback: If no section was resolved (either rawSeccion was empty/missing, or resolveId returned 0),
+          // then create/use the default "Unica" section.
           if (!seccionId || seccionId === 0) {
+            console.log(`[Import:Seccion] Fallback to 'Unica' section.`);
             seccionId = await findOrCreateItem("Unica", currentSecciones, "add_seccion", refreshSecciones, 'seccion');
+            console.log(`[Import:Seccion] 'Unica' sectionId: ${seccionId}`);
           }
 
           if (!anoId || !colegioId || !gradoId || !seccionId) {
@@ -996,7 +1020,7 @@ export function EstudiantesPage() {
               className="filter-select"
               style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
             >
-              <option value={0}>Todos los años</option>
+              
               {anos.map(a => (
                 <option key={a.id} value={a.id}>
                   {a.nombre} {a.activo && "✓ (Activo)"}
@@ -1015,7 +1039,7 @@ export function EstudiantesPage() {
               className="filter-select"
               style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
             >
-              <option value={0}>Todos los colegios</option>
+              
               {colegios.map(c => (
                 <option key={c.id} value={c.id}>
                   {c.nombre} {c.activo && "✓ (Activo)"}
@@ -1034,7 +1058,7 @@ export function EstudiantesPage() {
               className="filter-select"
               style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
             >
-              <option value={0}>Todos los grados</option>
+              
               {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
             </select>
           </div>
@@ -1049,7 +1073,7 @@ export function EstudiantesPage() {
               className="filter-select"
               style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
             >
-              <option value={0}>Todas las secciones</option>
+              
               {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
             </select>
           </div>
