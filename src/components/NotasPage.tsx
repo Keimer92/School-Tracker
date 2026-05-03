@@ -1215,14 +1215,15 @@ export function NotasPage() {
                         padding: '0.2rem', 
                         textAlign: 'center', 
                         fontWeight: 'bold', 
-                        background: '#1e293b', // Forzamos fondo sÃ³lido para evitar transparencia
+                        background: '#1e293b',
                         position: 'sticky',
                         right: 0,
                         zIndex: 5,
-                        borderBottom: '1px solid rgba(34, 197, 94, 0.2)'
+                        borderBottom: '1px solid rgba(34, 197, 94, 0.2)',
+                        whiteSpace: 'nowrap',
+                        minWidth: '50px'
                       }}>
                         {(() => {
-                          // Calcular desde cualitativas (más actualizado durante edición)
                           const rawTotalFinal = indicadores.filter(i => i.activo).reduce((sum, ind) => {
                             return sum + ind.criterios.reduce((s, c) => {
                               const qualValue = notasCualitativasRef.current.get(`${est.estudianteId}-${c.id}`);
@@ -1235,7 +1236,6 @@ export function NotasPage() {
                           }, 0);
                           const totalFinal = Math.round(rawTotalFinal);
                           
-                          // Calcular el puntaje mÃ¡ximo total de indicadores activos
                           const maximoTotal = indicadores
                             .filter(i => i.activo)
                             .reduce((sum, i) => sum + i.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0), 0);
@@ -1254,9 +1254,9 @@ export function NotasPage() {
                               color: displayColor, 
                               fontSize: '0.8rem', 
                               fontWeight: 'bold',
-                              background: '#1e293b', // Fondo sÃ³lido tambiÃ©n aquÃ­
-                              padding: '0.2rem',
-                              borderRadius: '4px'
+                              padding: '0.15rem 0.3rem',
+                              borderRadius: '4px',
+                              display: 'inline-block'
                             }}>
                               {isQualitative 
                                 ? qualitativeFinal 
