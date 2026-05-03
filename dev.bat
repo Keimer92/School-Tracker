@@ -88,7 +88,17 @@ goto menu
 :windows_dev
 echo.
 echo [INFO] Iniciando desarrollo en Windows...
-npm run tauri dev
+echo.
+set "win_script=%TEMP%\run_windows_%RANDOM%.bat"
+echo @echo off > "%win_script%"
+echo chcp 65001 >nul >> "%win_script%"
+echo call npm run tauri dev >> "%win_script%"
+echo pause >> "%win_script%"
+start "Tauri Windows Dev" "%win_script%"
+echo [INFO] Servidor de desarrollo iniciado en ventana separada.
+echo [INFO] Revisa la ventana "Tauri Windows Dev" para ver el progreso.
+echo.
+pause
 cls
 goto menu
 
@@ -185,18 +195,38 @@ cls
 goto menu
 
 :windows_build
-echo [INFO] Compilando Windows...
-npm run tauri build
+echo.
+echo [INFO] Compilando Windows (Release)...
+set "wb_script=%TEMP%\run_winbuild_%RANDOM%.bat"
+echo @echo off > "%wb_script%"
+echo chcp 65001 >nul >> "%wb_script%"
+echo call npm run tauri build >> "%wb_script%"
+echo echo. >> "%wb_script%"
+echo if %%ERRORLEVEL%%==0 ( echo [OK] Compilacion exitosa! ) else ( echo [ERROR] Fallo la compilacion. ) >> "%wb_script%"
+echo pause >> "%wb_script%"
+start "Windows Build" "%wb_script%"
+echo [INFO] Compilacion en ventana separada.
 pause
 cls
 goto menu
 
 :android_build
-echo [INFO] Compilando Android...
-npm run tauri android build
+echo.
+echo [INFO] Compilando Android (Release)...
+set "ab_script=%TEMP%\run_andbuild_%RANDOM%.bat"
+echo @echo off > "%ab_script%"
+echo chcp 65001 >nul >> "%ab_script%"
+echo call npm run tauri android build >> "%ab_script%"
+echo echo. >> "%ab_script%"
+echo if %%ERRORLEVEL%%==0 ( echo [OK] Compilacion exitosa! ) else ( echo [ERROR] Fallo la compilacion. ) >> "%ab_script%"
+echo pause >> "%ab_script%"
+start "Android Build" "%ab_script%"
+echo [INFO] Compilacion en ventana separada.
 pause
 cls
 goto menu
 
 :exit_script
+echo.
+echo Saliendo...
 exit /b 0
