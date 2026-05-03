@@ -29,7 +29,7 @@ echo 7. Eliminar emulador
 echo 8. Iniciar emulador (sin app)
 echo.
 echo === MANTENIMIENTO ===
-echo 9. Limpiar cach? y dependencias
+echo 9. Limpiar cache y dependencias
 echo 10. Salir
 echo ==============================================
 echo.
