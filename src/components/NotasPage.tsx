@@ -1125,15 +1125,48 @@ export function NotasPage() {
                               const key = `${est.estudianteId}-${crit.id}`;
                               const currentQualitativeValue = notasCualitativasRef.current.get(key) || '';
                               
-                              return (
+return (
                                 <td key={`${est.estudianteId}-${crit.id}`} style={{ padding: '0.15rem', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                   <input
                                     type="text"
                                     defaultValue={currentQualitativeValue}
                                     onChange={(e) => {
-                                      const val = e.target.value.toUpperCase().slice(0, 2);
-                                      notasCualitativasRef.current.set(key, val);
-                                      e.target.value = val;
+                                      const rawVal = e.target.value.toUpperCase();
+                                      const val = rawVal.slice(0, 2);
+                                      
+                                      // Validar primer carácter: solo puede ser A
+                                      const firstChar = val.charAt(0);
+                                      const isValidFirstChar = firstChar === '' || firstChar === 'A';
+                                      
+                                      if (!isValidFirstChar) {
+                                        e.target.value = '';
+                                        notasCualitativasRef.current.set(key, '');
+                                        e.target.style.borderColor = '#ef4444';
+                                        e.target.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+                                        setTimeout(() => {
+                                          e.target.style.borderColor = '';
+                                          e.target.style.backgroundColor = '';
+                                        }, 1000);
+                                        return;
+                                      }
+                                      
+                                      // Validar segundo carácter: puede ser A, S, F, I
+                                      const secondChar = val.charAt(1);
+                                      const isValidSecondChar = secondChar === '' || ['A', 'S', 'F', 'I'].includes(secondChar);
+                                      
+                                      if (!isValidSecondChar) {
+                                        e.target.value = val.charAt(0);
+                                        notasCualitativasRef.current.set(key, val.charAt(0));
+                                        e.target.style.borderColor = '#ef4444';
+                                        e.target.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+                                        setTimeout(() => {
+                                          e.target.style.borderColor = '';
+                                          e.target.style.backgroundColor = '';
+                                        }, 1000);
+                                      } else {
+                                        notasCualitativasRef.current.set(key, val);
+                                        e.target.value = val;
+                                      }
                                     }}
                                     onKeyDown={(e) => handleKeyDown(e, est.estudianteId, criterioIndex)}
                                     onFocus={(e) => {
@@ -1142,8 +1175,16 @@ export function NotasPage() {
                                     }}
                                     onBlur={(e) => {
                                       const val = e.target.value.toUpperCase();
-                                      notasCualitativasRef.current.set(key, val);
-                                      handleInputBlur(est.estudianteId, crit.id, val);
+                                      const isValid = val === '' || ['AA', 'AS', 'AF', 'AI'].includes(val);
+                                      
+                                      if (!isValid) {
+                                        e.target.value = '';
+                                        notasCualitativasRef.current.set(key, '');
+                                        handleInputBlur(est.estudianteId, crit.id, '');
+                                      } else {
+                                        notasCualitativasRef.current.set(key, val);
+                                        handleInputBlur(est.estudianteId, crit.id, val);
+                                      }
                                     }}
                                     ref={(el) => {
                                       if (el) inputsRef.current.set(inputKey, el);
@@ -1155,7 +1196,7 @@ export function NotasPage() {
                                       fontSize: isQualitative ? '0.85rem' : '0.75rem',
                                       textAlign: 'center',
                                       background: isQualitative ? 'rgba(139, 92, 246, 0.1)' : 'rgba(255,255,255,0.03)',
-                                      border: `2px solid ${currentQualitativeValue ? getGradeColor(currentQualitativeValue, crit.puntajeMaximo) : (isQualitative ? 'rgba(139, 92, 246, 0.4)' : 'rgba(255,255,255,0.1)')}`,
+                                      border: `2px solid ${currentQualitativeValue ? getGradeColor(currentQualitativeValue, crit.puntajeMaximo) : (isQualitative ? 'rgba(139, 92, 256, 0.4)' : 'rgba(255,255,255,0.1)')}`,
                                       borderRadius: '4px',
                                       color: currentQualitativeValue ? getGradeColor(currentQualitativeValue, crit.puntajeMaximo) : (isQualitative ? '#a78bfa' : 'white'),
                                       textTransform: 'uppercase',
