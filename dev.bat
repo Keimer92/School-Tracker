@@ -71,17 +71,67 @@ echo 1. Windows (Desarrollo)
 echo 2. Android (Desarrollo)
 echo 3. Windows Build (Release)
 echo 4. Android Build (Release)
-echo 5. Salir
+echo 5. Limpiar cach? y dependencias
+echo 6. Salir
 echo ==============================================
 echo.
 
 set /p modo="Seleccione una opcion: "
-if "%modo%"=="5" goto exit_script
+if "%modo%"=="6" goto exit_script
 if "%modo%"=="1" goto windows_dev
 if "%modo%"=="2" goto android_dev
 if "%modo%"=="3" goto windows_build
 if "%modo%"=="4" goto android_build
+if "%modo%"=="5" goto clean_cache
 echo [ERROR] Opcion invalida.
+cls
+goto menu
+
+:clean_cache
+echo.
+echo ==============================================
+echo LIMPIEZA DE CACHE Y DEPENDENCIAS
+echo ==============================================
+echo.
+echo [INFO] Eliminando carpetas...
+echo.
+
+if exist "%SCRIPT_DIR%node_modules\.vite" (
+    echo [OK] Eliminando cache de Vite...
+    rmdir /s /q "%SCRIPT_DIR%node_modules\.vite"
+)
+
+if exist "%SCRIPT_DIR%src-tauri\target" (
+    echo [OK] Eliminando target de Rust...
+    rmdir /s /q "%SCRIPT_DIR%src-tauri\target"
+)
+
+if exist "%SCRIPT_DIR%src-tauri\gen\android\app\build" (
+    echo [OK] Eliminando build de Android...
+    rmdir /s /q "%SCRIPT_DIR%src-tauri\gen\android\app\build"
+)
+
+if exist "%SCRIPT_DIR%dist" (
+    echo [OK] Eliminando dist...
+    rmdir /s /q "%SCRIPT_DIR%dist"
+)
+
+echo.
+echo [INFO] Ejecutando npm cache clean...
+call npm cache clean
+
+echo.
+echo [INFO] Ejecutando cargo clean...
+cd "%SCRIPT_DIR%src-tauri"
+call cargo clean
+cd "%SCRIPT_DIR%"
+
+echo.
+echo ==============================================
+echo [OK] Limpieza completada!
+echo ==============================================
+echo.
+pause
 cls
 goto menu
 
