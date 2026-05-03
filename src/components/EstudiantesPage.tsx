@@ -1251,7 +1251,7 @@ export function EstudiantesPage() {
             
             <h2 style={{ marginBottom: '1.5rem', color: '#3b82f6' }}>Guía de Importación Excel</h2>
             <p style={{ marginBottom: '1rem', color: '#cbd5e1' }}>
-              El sistema es inteligente y detectará automáticamente las columnas. Aquí tienes un ejemplo de cómo organizar tu archivo:
+              El sistema es inteligente y detectará automáticamente las columnas. Cada hoja del Excel se procesará como un colegio separado (el nombre de la hoja será el nombre del colegio por defecto).
             </p>
 
             <div style={{ overflowX: 'auto', marginBottom: '1.5rem' }}>
@@ -1264,31 +1264,31 @@ export function EstudiantesPage() {
               }}>
                 <thead>
                   <tr style={{ backgroundColor: 'rgba(59, 130, 246, 0.2)' }}>
-                    <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Estudiante</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Año Lectivo</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Nombre</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Año</th>
                     <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Colegio</th>
                     <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Grado</th>
                     <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Sección</th>
                     <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Sexo</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Codigo</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Teléfono</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
                     <td style={{ padding: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>Juan Pérez</td>
-                    <td style={{ padding: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>2024</td>
+                    <td style={{ padding: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>2026</td>
                     <td style={{ padding: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>San José</td>
                     <td style={{ padding: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>1ro</td>
                     <td style={{ padding: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>A</td>
                     <td style={{ padding: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>M</td>
-                    <td style={{ padding: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>1025</td>
+                    <td style={{ padding: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)', color: '#64748b', fontStyle: 'italic' }}>Opcional</td>
                   </tr>
                   <tr>
                     <td style={{ padding: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>María Sosa</td>
-                    <td style={{ padding: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>2024</td>
+                    <td style={{ padding: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>2026</td>
                     <td style={{ padding: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>San José</td>
                     <td style={{ padding: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>1ro</td>
-                    <td style={{ padding: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>A</td>
+                    <td style={{ padding: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>(vacío)</td>
                     <td style={{ padding: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>F</td>
                     <td style={{ padding: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)', color: '#64748b', fontStyle: 'italic' }}>Opcional</td>
                   </tr>
@@ -1298,17 +1298,23 @@ export function EstudiantesPage() {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', fontSize: '0.9rem' }}>
               <ul style={{ color: '#94a3b8', paddingLeft: '1.2rem' }}>
-                <li style={{ marginBottom: '0.5rem' }}><strong>Estudiante:</strong> Nombre completo del alumno.</li>
-                <li style={{ marginBottom: '0.5rem' }}><strong>Año Lectivo:</strong> Periodo escolar (ej: 2024, 2025).</li>
-                <li style={{ marginBottom: '0.5rem' }}><strong>Colegio:</strong> Nombre del centro educativo.</li>
-                <li style={{ marginBottom: '0.5rem' }}><strong>Grado:</strong> Soporta variaciones como "1ro", "1er grado", "Primero".</li>
+                <li style={{ marginBottom: '0.5rem' }}><strong>Nombre:</strong> Nombre completo del alumno. Obligatorio.</li>
+                <li style={{ marginBottom: '0.5rem' }}><strong>Año:</strong> Período escolar (2024, 2025, 2026...). Se usa el filtro actual si está vacío.</li>
+                <li style={{ marginBottom: '0.5rem' }}><strong>Colegio:</strong> Nombre del centro. Si está vacío, usa el nombre de la hoja como colegio.</li>
+                <li style={{ marginBottom: '0.5rem' }}><strong>Grado:</strong> Acepta "1", "1ro", "1er", "Primero", "1 grado", etc.</li>
               </ul>
               <ul style={{ color: '#94a3b8', paddingLeft: '1.2rem' }}>
-                <li style={{ marginBottom: '0.5rem' }}><strong>Sección:</strong> Grupo o aula (ej: A, B, Unica).</li>
+                <li style={{ marginBottom: '0.5rem' }}><strong>Sección:</strong> Grupo (A, B, Unica). Si está vacío, usa "Unica".</li>
                 <li style={{ marginBottom: '0.5rem' }}><strong>Sexo:</strong> M (Masculino) o F (Femenino).</li>
-                <li style={{ marginBottom: '0.5rem' }}><strong>Codigo:</strong> Identificador único (si está vacío, se genera uno).</li>
-                <li style={{ marginBottom: '0.5rem' }}><strong>Duplicados:</strong> El sistema ignora filas de estudiantes que ya existan.</li>
+                <li style={{ marginBottom: '0.5rem' }}><strong>Teléfono, Dirección, Email:</strong> Opcionales.</li>
+                <li style={{ marginBottom: '0.5rem' }}><strong>Duplicados:</strong> Se ignoran estudiantes que ya existan.</li>
               </ul>
+            </div>
+            
+            <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+              <p style={{ color: '#93c5fd', fontSize: '0.85rem', margin: 0 }}>
+                <strong>💡 Consejo:</strong> Si tienes un Excel con estudiantes de diferentes colegios, organízalos en hojas separadas. Cada hoja se importará como un colegio distinto.
+              </p>
             </div>
             
             <div style={{ marginTop: '2rem', textAlign: 'center' }}>
