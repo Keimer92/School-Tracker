@@ -78,11 +78,22 @@ for record in data {
         println!("🔄 [PUSH] Enviando registro a {}: {}", table, json_data);
 
         // Hacer POST request a Supabase - usar upsert con resolution=merge-duplicates
+        // Especificar el header de conflicto basado en la tabla
+        let on_conflict = match table {
+            "nota" => "estudiante_id,criterio_id,corte_evaluativo_id,asignatura_id,user_id",
+            "estudiante" => "id,user_id",
+            "indicador" => "id,user_id",
+            "criterio" => "id,user_id",
+            "asistencia" => "estudiante_id,fecha,user_id",
+            _ => "id"
+        };
+        
         let response = ureq::post(&url)
             .set("apikey", supabase_key)
             .set("Authorization", &format!("Bearer {}", supabase_key))
             .set("Content-Type", "application/json")
             .set("Prefer", "return=minimal,resolution=merge-duplicates")
+            .set("On-Conflict", on_conflict)
             .send_string(&json_data);
 
         match response {
