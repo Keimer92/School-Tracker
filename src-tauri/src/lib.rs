@@ -92,7 +92,7 @@ for record in data {
             .set("apikey", supabase_key)
             .set("Authorization", &format!("Bearer {}", supabase_key))
             .set("Content-Type", "application/json")
-            .set("Prefer", "return=minimal,resolution=merge-duplicates")
+            .set("Prefer", "return=minimal,resolution=ignore-duplicates")
             .set("On-Conflict", on_conflict)
             .send_string(&json_data);
 
@@ -101,6 +101,9 @@ for record in data {
                 let status = resp.status();
                 if status >= 200 && status < 300 {
                     println!("✅ [PUSH] Registro subido exitosamente a {}", table);
+                } else if status == 409 {
+                    let error_text = resp.into_string().unwrap_or_else(|_| "Conflicto".to_string());
+                    println!("⚠️ [PUSH] Conflicto 409 en {} (probablemente ya existe), ignorando...", table);
                 } else {
                     let error_text = resp.into_string().unwrap_or_else(|_| "Error desconocido".to_string());
                     println!(
