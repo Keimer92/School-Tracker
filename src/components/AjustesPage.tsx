@@ -1553,7 +1553,13 @@ export function AjustesPage() {
                             <span style={{ color: "#64748b" }}>Última sync</span>
                             <span style={{ color: "#94a3b8" }}>
                               {syncStatus.lastSync
-                                ? new Date(syncStatus.lastSync).toLocaleDateString()
+                                ? new Date(syncStatus.lastSync).toLocaleString('es-ES', {
+                                    day: '2-digit',
+                                    month: '2-digit',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })
                                 : "Nunca"}
                             </span>
                           </div>

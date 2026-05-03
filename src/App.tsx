@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { listen, emit } from "@tauri-apps/api/event";
 import "./App.css";
 import { GlobalesPage } from "./components/GlobalesPage";
@@ -43,6 +43,30 @@ function App() {
     return saved ? parseInt(saved) : 260;
   });
 
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const drawerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (drawerRef.current && !drawerRef.current.contains(e.target as Node)) {
+        setDrawerOpen(false);
+      }
+    };
+    if (drawerOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [drawerOpen]);
+
   const [isResizing, setIsResizing] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info'; isOpen: boolean }>({
     message: '',
@@ -70,6 +94,9 @@ function App() {
   const handleTabChange = (tab: Tab) => {
     setActiveTab(tab);
     setVisitedTabs(prev => new Set(prev).add(tab));
+    if (isMobile) {
+      setDrawerOpen(false);
+    }
   };
 
   // Sincronización automática: descarga datos de la nube al iniciar sesión o al arrancar con sesión activa
@@ -228,9 +255,18 @@ function App() {
   };
 
   return (
-    <div className="app-layout" style={{ gridTemplateColumns: `${sidebarWidth}px 4px 1fr` }}>
-      <nav className="sidebar">
-<div className="sidebar-header-integrated">
+    <div className="app-layout" style={{ gridTemplateColumns: isMobile ? '0px 0px 1fr' : `${sidebarWidth}px 4px 1fr` }}>
+      {isMobile && (
+        <div className="mobile-header">
+          <button className="mobile-menu-btn" onClick={() => setDrawerOpen(true)}>
+            <span>☰</span>
+          </button>
+          <span className="mobile-title">School Tracker</span>
+        </div>
+      )}
+      {isMobile && drawerOpen && <div className="drawer-backdrop" onClick={() => setDrawerOpen(false)} />}
+      <nav className={`sidebar ${isMobile ? 'drawer' : ''} ${drawerOpen ? 'open' : ''}`} ref={drawerRef}>
+        <div className="sidebar-header-integrated">
           <div className="mode-badge">
             <span className="glow-icon-notas">📚</span>
             <div className="mode-info">
@@ -238,6 +274,9 @@ function App() {
               <span className="mode-name">TRACKER</span>
             </div>
           </div>
+          {isMobile && (
+            <button className="drawer-close-btn" onClick={() => setDrawerOpen(false)}>✕</button>
+          )}
         </div>
         <div className="sidebar-nav">
           <div className="sidebar-section-header">ASISTENCIA</div>
