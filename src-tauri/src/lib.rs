@@ -678,6 +678,7 @@ pub fn run() {
             assign_all_subjects_to_grade,
             unassign_all_subjects_from_grade,
             get_subjects_by_colegio,
+            get_all_subjects,
             assign_subject_to_colegio,
             unassign_subject_from_colegio,
             assign_all_subjects_to_colegio,

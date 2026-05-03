@@ -304,18 +304,18 @@ function App() {
             <span>Notas</span>
           </button>
           <button 
-            className={`sidebar-button ${activeTab === "evaluaciones" ? "active" : ""}`} 
-            onClick={() => handleTabChange("evaluaciones")}
-          >
-            <span>📝</span>
-            <span>Evaluaciones</span>
-          </button>
-          <button 
             className={`sidebar-button ${activeTab === "reportes" ? "active" : ""}`} 
             onClick={() => handleTabChange("reportes")}
           >
             <span>📋</span>
             <span>Reportes</span>
+          </button>
+          <button 
+            className={`sidebar-button ${activeTab === "evaluaciones" ? "active" : ""}`} 
+            onClick={() => handleTabChange("evaluaciones")}
+          >
+            <span>📝</span>
+            <span>Evaluaciones</span>
           </button>
           <button 
             className={`sidebar-button ${activeTab === "estudiantes" ? "active" : ""}`} 
@@ -352,8 +352,8 @@ function App() {
         {renderTab("asistencia", <AsistenciaPage />)}
         {renderTab("informe", <InformePage />)}
         {renderTab("notas", <NotasPage />)}
-        {renderTab("evaluaciones", <EvaluacionesPage />)}
         {renderTab("reportes", <ReportesPage />)}
+        {renderTab("evaluaciones", <EvaluacionesPage />)}
         {renderTab("estudiantes", <EstudiantesPage />)}
         {renderTab("globales", <GlobalesPage />)}
         {renderTab("ajustes", <AjustesPage />)}

@@ -372,10 +372,27 @@ export function ReportesPage() {
 
   const fetchGradosYAsignaturas = async () => {
     try {
+      console.log("ReportesPage: fetchGradosYAsignaturas called", { selectedColegio, selectedAno });
       const [gradosData, asignaturasData] = await Promise.all([
         invoke<CategoryItem[]>("get_grados_by_colegio", { colegioId: selectedColegio, anoLectivoId: selectedAno }),
         invoke<CategoryItem[]>("get_subjects_by_colegio", { colegioId: selectedColegio }),
       ]);
+      console.log("ReportesPage: gradosData:", gradosData);
+      console.log("ReportesPage: asignaturasData:", asignaturasData);
+
+      // Fallback: si no hay asignaturas por colegio, obtener todas las asignaturas
+      let finalAsignaturas = asignaturasData;
+      if (asignaturasData.length === 0) {
+        console.log("ReportesPage: No hay asignaturas por colegio, obteniendo todas...");
+        try {
+          const allSubjects = await invoke<CategoryItem[]>("get_all_subjects");
+          console.log("ReportesPage: allSubjects:", allSubjects);
+          finalAsignaturas = allSubjects;
+        } catch (e) {
+          console.log("Comando get_all_subjects no disponible");
+        }
+      }
+
       setGrados(gradosData);
       
       if (gradosData.length > 0) {
@@ -386,13 +403,13 @@ export function ReportesPage() {
       }
 
       // Si el backend tuviera get_subjects_by_grade, lo ideal sería cargarlas cuando cambie el grado
-      let filteredAsignaturas = asignaturasData;
+      let filteredAsignaturas = finalAsignaturas;
       if (selectedGrado > 0) {
         try {
           const subjectsByGrade = await invoke<CategoryItem[]>("get_subjects_by_grade", { gradoId: selectedGrado });
           if (subjectsByGrade.length > 0) {
              // Filtrar las asignaturas del grado para asegurar que pertenezcan al colegio seleccionado
-             filteredAsignaturas = subjectsByGrade.filter(sg => asignaturasData.some(ca => ca.id === sg.id));
+             filteredAsignaturas = subjectsByGrade.filter(sg => finalAsignaturas.some(ca => ca.id === sg.id));
           }
         } catch (e) {
           console.log("Comando get_subjects_by_grade no disponible, usando globales");
@@ -469,6 +486,32 @@ export function ReportesPage() {
         asignaturaId: selectedAsignatura,
         corteEvaluativoId: cortesIds[0]
       });
+console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({ 
+        id: i.id, 
+        orden: i.orden, 
+        activo: i.activo, 
+        criterios: i.criterios.map(c => c.id)
+      })));
+      
+      // Si no hay indicadores activos, usar los que existan (incluso inactivos) para mostrar datos
+      const indicadoresActivos = indicadores.filter(ind => ind.activo);
+      if (indicadoresActivos.length === 0 && indicadores.length > 0) {
+        console.warn("ReportesPage: No hay indicadores activos, usando todos los indicadores");
+        await emit("show-toast", { 
+          message: "ℹ️ Mostrando todos los indicadores (algunos pueden estar inactivos). Puede activarlos en Evaluaciones.", 
+          type: "info" 
+        });
+      } else if (indicadores.length === 0) {
+        setConfigIndicadores([]);
+        setEstudiantes([]);
+        setLoading(false);
+        await emit("show-toast", { 
+          message: "⚠️ No hay indicadores configurados para esta asignatura en este grado. Configure los indicadores en la página Evaluaciones.", 
+          type: "warning" 
+        });
+        return;
+      }
+      
       setConfigIndicadores(indicadores);
 
       // 3. Obtener estudiantes
@@ -486,6 +529,7 @@ export function ReportesPage() {
           asignaturaId: selectedAsignatura
         })
       ));
+      console.log("ReportesPage: notas obtenidas:", todasLasNotas);
 
       // 5. Mapear todas las notas en un objeto global para acceso rápido: [corteId][estudianteId][criterioId] = valor
       const notasGlobales: Record<number, Record<number, Record<number, number>>> = {};
@@ -599,7 +643,7 @@ export function ReportesPage() {
           const notasCriterios = notasGlobales[cId]?.[est.id] || {};
           
           indicadores.forEach(ind => {
-            if (!ind.activo) return;
+            // Procesar todos los indicadores, pero marcar los inactivos
             let totalIndicador = 0;
             let totalMaximoPosible = 0;
             let countCriteriosConNota = 0;
@@ -663,6 +707,7 @@ export function ReportesPage() {
         ? reporte.filter(est => est.sexo === selectedSexo)
         : reporte;
 
+      console.log("ReportesPage: reporte generado:", reporteFiltrado);
       setEstudiantes(reporteFiltrado);
     } catch (error) {
       console.error("Error fetching reporte:", error);

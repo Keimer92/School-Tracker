@@ -2055,6 +2055,32 @@ pub fn get_subjects_by_colegio(
 
 #[tauri::command]
 #[allow(non_snake_case)]
+pub fn get_all_subjects(
+    state: tauri::State<'_, DbState>,
+) -> Result<Vec<CategoryItem>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare("SELECT id, nombre, cualitativo FROM asignatura ORDER BY nombre")
+        .map_err(|e| e.to_string())?;
+
+    let items = stmt
+        .query_map([], |row| {
+            Ok(CategoryItem {
+                id: Some(row.get(0)?),
+                nombre: row.get(1)?,
+                activo: None,
+                cualitativo: Some(row.get(2)?),
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(items)
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
 pub fn assign_subject_to_colegio(
     state: tauri::State<'_, DbState>,
     colegioId: i64,
@@ -2319,6 +2345,24 @@ pub fn get_evaluation_config(
                     )
                     .map_err(|e| e.to_string())?;
                 }
+            }
+        } else {
+            // Check if there are any active indicators, if not, activate the first 5
+            let active_count: i64 = tx
+                .query_row(
+                    "SELECT COUNT(*) FROM indicador WHERE grado_id = ? AND asignatura_id = ? AND corte_evaluativo_id = ? AND activo = 1",
+                    [gradoId, asignaturaId, corteEvaluativoId],
+                    |row| row.get(0),
+                )
+                .map_err(|e| e.to_string())?;
+
+            if active_count == 0 {
+                // Activate first 5 indicators by default
+                tx.execute(
+                    "UPDATE indicador SET activo = 1 WHERE grado_id = ? AND asignatura_id = ? AND corte_evaluativo_id = ? AND orden <= 5",
+                    [gradoId, asignaturaId, corteEvaluativoId],
+                )
+                .map_err(|e| e.to_string())?;
             }
         }
     }
