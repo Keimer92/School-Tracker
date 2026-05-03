@@ -23,10 +23,14 @@ export default defineConfig(async () => ({
   esbuild: {
     target: "es2015",
     legalComments: "none",
+    loader: "tsx",
   },
   optimizeDeps: {
     esbuildOptions: {
       target: "es2015",
+      define: {
+        global: "globalThis",
+      },
     },
   },
   server: {
