@@ -625,7 +625,12 @@ export function EstudiantesPage() {
   // Efectos para carga en cascada de catálogos en filtros
   useEffect(() => {
     if (filters.colegioId && filters.anoLectivoId) {
-      fetchGrados(filters.colegioId, filters.anoLectivoId);
+      fetchGrados(filters.colegioId, filters.anoLectivoId).then((loadedGrados) => {
+        // Si no hay grado seleccionado y hay grados disponibles, seleccionar el primero
+        if (filters.gradoId === 0 && loadedGrados.length > 0) {
+          setFilters(prev => ({ ...prev, gradoId: loadedGrados[0].id }));
+        }
+      });
     }
   }, [filters.colegioId, filters.anoLectivoId]);
 
