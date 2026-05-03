@@ -1126,6 +1126,7 @@ export function GlobalesPage() {
         message: "✅ Configuración guardada",
         type: "success",
       });
+      await emit("catalog-updated");
     } catch (error) {
       await emit("show-toast", {
         message: "❌ Error guardando configuración: " + error,
@@ -1162,6 +1163,7 @@ export function GlobalesPage() {
         message: `✅ Todos los días ${checked ? "marcados" : "desmarcados"}`,
         type: "success",
       });
+      await emit("catalog-updated");
     } catch (error) {
       await emit("show-toast", {
         message: "❌ Error en actualización masiva: " + error,

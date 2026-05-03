@@ -245,14 +245,21 @@ export function AsistenciaPage() {
     const unlistenCatalog = listen("catalog-updated", () => {
       console.log("Evento catalog-updated recibido en AsistenciaPage, refrescando catálogos...");
       fetchCatalogs();
+      fetchColegioConfig();
       setRefreshTrigger(prev => prev + 1);
+    });
+
+    const unlistenSubjects = listen("subjects-updated", () => {
+      console.log("Evento subjects-updated recibido en AsistenciaPage, refrescando...");
+      fetchColegioConfig();
     });
 
     return () => {
       unlistenStudent.then(f => f());
       unlistenCatalog.then(f => f());
+      unlistenSubjects.then(f => f());
     };
-  }, []);
+  }, [fetchColegioConfig]);
 
   // Cargar estudiantes cuando cambien los filtros o la fecha
   useEffect(() => {
