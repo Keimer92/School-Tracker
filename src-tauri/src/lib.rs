@@ -159,9 +159,10 @@ fn sync_push_all_to_cloud(state: tauri::State<'_, DbState>, user_id: String) -> 
             None => continue, // Tabla no existe o está vacía
         };
 
-        // Tablas que tienen user_id en Supabase (grado y seccion NO lo tienen)
+        // Tablas que tienen user_id en Supabase
         let tables_with_user_id = vec![
             "ano_lectivo", "corte_evaluativo", "colegio", "asignatura",
+            "grado", "seccion",
             "estudiante", "asistencia", "nota", "indicador", "criterio"
         ];
 
@@ -426,12 +427,13 @@ fn get_all_local_data(
 
     let rows_crit = stmt_crit
         .query_map([], |row| {
+            let puntaje_raw: f64 = row.get(4)?;
             Ok(serde_json::json!({
                 "id": row.get::<_, i64>(0)?,
                 "indicador_id": row.get::<_, i64>(1)?,
                 "orden": row.get::<_, i64>(2)?,
                 "descripcion": row.get::<_, String>(3)?,
-                "puntaje_maximo": row.get::<_, f64>(4)?
+                "puntaje_maximo": puntaje_raw.round() as i64
             }))
         })
         .map_err(|e| format!("Error ejecutando consulta para criterio: {}", e))?;
