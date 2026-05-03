@@ -41,7 +41,7 @@ interface NotaEstudiante {
   notas: Record<number, number>;
 }
 
-const MemoRow = memo(({ est, index, rowVersion, renderRow }: { est: NotaEstudiante, index: number, rowVersion: number, renderRow: (est: NotaEstudiante, index: number) => React.ReactNode }) => {
+const MemoRow = memo(({ est, index, renderRow }: { est: NotaEstudiante, index: number, renderRow: (est: NotaEstudiante, index: number) => React.ReactNode }) => {
   return <>{renderRow(est, index)}</>;
 });
 
@@ -1658,7 +1658,7 @@ value={selectedAsignatura}
               </thead>
               <tbody>
                 {filteredNotas.map((est, index) => (
-  <MemoRow key={est.estudianteId} est={est} index={index} rowVersion={rowVersions.get(est.estudianteId) || 0} renderRow={renderRow} />
+  <MemoRow key={est.estudianteId} est={est} index={index} renderRow={renderRow} />
 ))}
               </tbody>
             </table>
