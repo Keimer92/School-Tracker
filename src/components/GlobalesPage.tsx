@@ -125,6 +125,7 @@ function CategoryTabContent({
   } | null>(null);
   const [promptValue, setPromptValue] = useState("");
   const [draggedItem, setDraggedItem] = useState<CategoryItem | null>(null);
+  const [globalCualitativo, setGlobalCualitativo] = useState<boolean | null>(null);
 
   const fetchItems = async () => {
     try {
@@ -430,6 +431,42 @@ function CategoryTabContent({
     }
   };
 
+  const handleGlobalCualitativo = async (enabled: boolean) => {
+    try {
+      setGlobalCualitativo(enabled);
+      for (const item of items) {
+        if (item.cualitativo !== enabled) {
+          await invoke(config.endpoints.update, {
+            id: item.id,
+            nombre: item.nombre,
+            cualitativo: enabled,
+          });
+          try {
+            await syncService.syncGlobal(config.table, {
+              id: item.id,
+              nombre: item.nombre,
+              cualitativo: enabled,
+            }, false);
+          } catch (e) {
+            console.error("Error sync cualitativo:", e);
+          }
+        }
+      }
+      fetchItems();
+      await emit("catalog-updated");
+      await emit("show-toast", {
+        message: enabled ? "✅ Todas las asignaturas ahora son cualitativas" : "✅ Todas las asignaturas ahora son cuantitativas",
+        type: "success",
+      });
+    } catch (error) {
+      setGlobalCualitativo(null);
+      await emit("show-toast", {
+        message: "❌ Error al cambiar tipo masivo: " + error,
+        type: "error",
+      });
+    }
+  };
+
   return (
     <div className="category-card" style={{
       background: 'rgba(30, 41, 59, 0.5)',
@@ -464,6 +501,28 @@ function CategoryTabContent({
           }}>
             {config.title}
           </h2>
+          {config.title === "Asignatura" && items.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '1rem', padding: '0.4rem 0.75rem', background: 'rgba(139, 92, 246, 0.15)', borderRadius: '8px', border: '1px solid rgba(139, 92, 246, 0.3)' }}>
+              <span style={{ fontSize: '0.75rem', color: '#a78bfa', fontWeight: '600' }}>Todo Cualitativo</span>
+              <label className="switch" title={globalCualitativo ? "Desactivar todo" : "Activar todo"}>
+                <input
+                  type="checkbox"
+                  checked={globalCualitativo === true}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setGlobalCualitativo(checked ? true : false);
+                    handleGlobalCualitativo(checked);
+                  }}
+                />
+                <span
+                  className="slider round"
+                  style={{
+                    backgroundColor: globalCualitativo ? '#8b5cf6' : undefined,
+                  }}
+                ></span>
+              </label>
+            </div>
+          )}
         </div>
         <button
           className="primary"
