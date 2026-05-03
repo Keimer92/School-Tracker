@@ -1744,8 +1744,17 @@ export function AjustesPage() {
                       gap: "1rem"
                     }}>
                       <button
-                        onClick={() => cloud.getProvider().pushAll()}
+                        onClick={async () => {
+                          const btn = document.getElementById('sync-push-btn');
+                          if (btn) btn.style.opacity = '0.5';
+                          try {
+                            await cloud.getProvider().pushAll();
+                          } finally {
+                            if (btn) btn.style.opacity = '1';
+                          }
+                        }}
                         disabled={(syncStatus.status as string) === "syncing"}
+                        id="sync-push-btn"
                         style={{
                           padding: "1rem",
                           background: "linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.05) 100%)",

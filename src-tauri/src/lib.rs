@@ -128,78 +128,81 @@ println!(
 
 #[tauri::command]
 fn sync_push_all_to_cloud(state: tauri::State<'_, DbState>, user_id: String) -> Result<(), String> {
-    println!("🔄 [PUSH] Iniciando subida de datos locales a Supabase");
-
-    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
-
+    println!("🔄 [PUSH] Iniciando sincronización en background (async)...");
+    
     if user_id.is_empty() {
         return Err("Usuario no autenticado".to_string());
     }
 
-    println!("🔄 [PUSH] User ID: {}", user_id);
+    // Obtener la conexión y datos antes de iniciar el thread
+    let tables_data = {
+        let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+        get_all_local_data(&mut conn)?
+    };
 
-    // Obtener y subir cada tabla
-    let tables_data = get_all_local_data(&mut conn)?;
-    println!(
-        "🔄 [PUSH] Datos obtenidos localmente: {} tablas",
-        tables_data.len()
-    );
+    println!("🔄 [PUSH] Datos obtenidos localmente: {} tablas", tables_data.len());
 
-    // Orden de tablas según dependencias (primero las que no dependen de otras)
-    let table_order = vec![
-        "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
-        "indicador", "criterio",
-        "estudiante", "asistencia", "nota"
-    ];
+    // Clonar los datos necesarios para el thread
+    let user_id_clone = user_id.clone();
+    let tables_clone = tables_data.clone();
 
-    for table_name in table_order {
-        // Buscar los datos de esta tabla en el HashMap
-        let records = match tables_data.get(table_name) {
-            Some(r) => r.clone(),
-            None => continue, // Tabla no existe o está vacía
-        };
-
-        // Tablas que tienen user_id en Supabase
-        let tables_with_user_id = vec![
-            "ano_lectivo", "corte_evaluativo", "colegio", "asignatura",
-            "grado", "seccion",
-            "estudiante", "asistencia", "nota", "indicador", "criterio"
+    // Ejecutar la sincronización en un hilo separado sin bloquear la UI
+    std::thread::spawn(move || {
+        // No podemos usar 'state' aquí porque es de otro thread
+        // Necesitamos crear una nueva conexión para este hilo
+        // Pero por ahora, simplemente ejecutamos la lógica de upload
+        
+        let table_order = vec![
+            "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
+            "indicador", "criterio",
+            "estudiante", "asistencia", "nota"
         ];
 
-        let should_add_user_id = tables_with_user_id.contains(&table_name);
+        for table_name in table_order {
+            let records = match tables_clone.get(table_name) {
+                Some(r) => r.clone(),
+                None => continue,
+            };
 
-        if !should_add_user_id {
-            println!("⚠️ [PUSH] Tabla {} no usa user_id, omitiendo", table_name);
-        }
+            let tables_with_user_id = vec![
+                "ano_lectivo", "corte_evaluativo", "colegio", "asignatura",
+                "grado", "seccion",
+                "estudiante", "asistencia", "nota", "indicador", "criterio"
+            ];
 
-        let records_with_user_id: Vec<serde_json::Value> = records
-            .into_iter()
-            .map(|mut record| {
-                if should_add_user_id {
-                    if let serde_json::Value::Object(ref mut obj) = record {
-                        obj.insert(
-                            "user_id".to_string(),
-                            serde_json::Value::String(user_id.clone()),
-                        );
+            let should_add_user_id = tables_with_user_id.contains(&table_name);
+
+            let records_with_user_id: Vec<serde_json::Value> = records
+                .into_iter()
+                .map(|mut record| {
+                    if should_add_user_id {
+                        if let serde_json::Value::Object(ref mut obj) = record {
+                            obj.insert(
+                                "user_id".to_string(),
+                                serde_json::Value::String(user_id_clone.clone()),
+                            );
+                        }
                     }
-                }
-                record
-            })
-            .collect();
+                    record
+                })
+                .collect();
 
-        println!(
-            "🔄 [PUSH] Subiendo {} registros con user_id para tabla {}",
-            records_with_user_id.len(),
-            table_name
-        );
+            println!(
+                "🔄 [PUSH] Subiendo {} registros a {}",
+                records_with_user_id.len(),
+                table_name
+            );
 
-        if let Err(e) = upload_to_supabase(&table_name, records_with_user_id, &user_id) {
-            println!("❌ [PUSH] Error subiendo tabla {}: {}", table_name, e);
-            return Err(format!("Error subiendo tabla {}: {}", table_name, e));
+            if let Err(e) = upload_to_supabase(&table_name, records_with_user_id, &user_id_clone) {
+                println!("❌ [PUSH] Error en {}: {}", table_name, e);
+            }
         }
-    }
 
-    println!("✅ [PUSH] Subida completada exitosamente");
+        println!("✅ [PUSH] Sincronización en background completada");
+    });
+
+    // Devolver inmediatamente al frontend
+    println!("🔄 [PUSH] Sincronización iniciada en background, UI libre");
     Ok(())
 }
 
