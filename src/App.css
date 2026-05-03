@@ -684,20 +684,7 @@ label,
     display: none;
   }
 }
-    border-radius: 50%;
-    width: 48px;
-    height: 48px;
-    margin: 0 auto 0.5rem auto;
-  }
-  .sidebar {
-    padding: 1rem 0.5rem;
-    align-items: center;
-  }
-  .main-content {
-    padding: 0.75rem;
-  }
-}
-
+ 
 /* Estilos para Asistencia en Móvil (Android) */
 .asistencia-options-mobile {
   display: flex;
