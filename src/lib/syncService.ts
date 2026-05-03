@@ -483,7 +483,7 @@ export const syncService = {
           indicador_id: criterio.indicadorId,
           orden: criterio.orden,
           descripcion: criterio.descripcion,
-          puntaje_maximo: criterio.puntajeMaximo,
+          puntaje_maximo: Math.round(criterio.puntajeMaximo),
           user_id: userId
         }, { onConflict: 'id' });
 
@@ -589,7 +589,7 @@ export const syncService = {
             indicador_id: crit.indicadorId,
             orden: crit.orden,
             descripcion: crit.descripcion,
-            puntaje_maximo: crit.puntajeMaximo,
+            puntaje_maximo: Math.round(crit.puntajeMaximo),
             user_id: userId
           }));
 
@@ -1067,7 +1067,7 @@ export const syncService = {
           indicador_id: c.indicadorId,
           orden: c.orden,
           descripcion: c.descripcion,
-          puntaje_maximo: c.puntajeMaximo,
+          puntaje_maximo: Math.round(c.puntajeMaximo),
           user_id: userId
         }));
 
