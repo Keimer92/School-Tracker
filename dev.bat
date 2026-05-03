@@ -148,7 +148,6 @@ start "Tauri Windows Dev" "%win_script%"
 echo [INFO] Servidor de desarrollo iniciado en ventana separada.
 echo [INFO] Revisa la ventana "Tauri Windows Dev" para ver el progreso.
 echo.
-pause
 cls
 goto menu
 
@@ -159,6 +158,7 @@ echo.
 if "%ANDROID_HOME%"=="" (
     echo [ERROR] ANDROID_HOME no esta configurada.
     pause
+    cls
     goto menu
 )
 set "ANDROID_SDK=%ANDROID_HOME%"
@@ -197,6 +197,7 @@ for /f "delims=" %%a in ('"%EMULATOR_PATH%" -list-avds 2^nul') do (
 if %emu_count%==0 (
     echo [ERROR] No hay emuladores.
     pause
+    cls
     goto menu
 )
 echo.
@@ -239,8 +240,8 @@ echo chcp 65001 >nul >> "%ts%"
 echo call npm run tauri android dev >> "%ts%"
 echo pause >> "%ts%"
 start "Tauri Android" "%ts%"
-echo [INFO] App en ejecucion. Revisa la ventana.
-pause
+echo [INFO] App en ejecucion. Revisa la ventana "Tauri Android".
+echo.
 cls
 goto menu
 
