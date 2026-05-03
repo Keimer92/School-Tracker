@@ -6,7 +6,7 @@ set "SCRIPT_DIR=%~dp0"
 
 echo.
 echo ==============================================
-echo    GESTOR DE DESARROLLO - TAURI/RUST
+echo GESTOR DE DESARROLLO - TAURI/RUST
 echo ==============================================
 echo.
 
@@ -64,7 +64,6 @@ if not exist "%SCRIPT_DIR%node_modules" (
 )
 
 
-
 echo.
 echo [OK] Todas las dependencias verificadas.
 echo ==============================================
@@ -75,7 +74,7 @@ goto menu
 :menu
 cls
 echo ==============================================
-echo    GESTOR DE DESARROLLO - TAURI/RUST
+echo GESTOR DE DESARROLLO - TAURI/RUST
 echo ==============================================
 echo.
 echo 1. Windows (Desarrollo)
@@ -117,26 +116,42 @@ echo.
 echo [INFO] Iniciando desarrollo en Android...
 echo.
 
-REM Buscar Android SDK en PATH
-where adb >nul 2>nul
-if %ERRORLEVEL%==0 (
-    for /f "delims=" %%i in ('where adb') do set "ADB_PATH=%%i"
-    for %%i in ("%ADB_PATH%") do set "ANDROID_SDK=%%~dpi\..\.."
-    echo [OK] ANDROID_HOME: !ANDROID_SDK!
-) else (
-    echo [ERROR] No se encontro adb.exe en el PATH.
-    echo Instala Android SDK y agregalo al PATH.
+REM Usar variables de entorno ANDROID_HOME y ANDROID_SDK_ROOT
+if "%ANDROID_HOME%"=="" (
+    echo [ERROR] ANDROID_HOME no esta configurada.
+    echo Configura: setx ANDROID_HOME "C:\Users\Admin\Android"
     echo.
     pause
     cls
     goto menu
 )
 
-set "EMULATOR_PATH=%ANDROID_SDK%\emulator\emulator.exe"
-set "ADB_PATH=%ANDROID_SDK%\platform-tools\adb.exe"
+set "ANDROID_SDK=%ANDROID_HOME%"
+set "ADB_PATH=%ANDROID_HOME%\platform-tools\adb.exe"
+set "EMULATOR_PATH=%ANDROID_HOME%\emulator\emulator.exe"
+set "ANDROID_NDK_HOME=%ANDROID_HOME%\ndk\27.0.12077973"
+
+REM Configurar variables para Tauri/Android
+setx ANDROID_NDK_HOME "%ANDROID_NDK_HOME%" >nul 2>&1
+
+echo [OK] ANDROID_HOME: %ANDROID_SDK%
+
+REM Verificar si NDK esta completamente instalada
+set "NDK_VALID=0"
+if exist "%ANDROID_NDK_HOME%\source.properties" set "NDK_VALID=1"
+if exist "%ANDROID_NDK_HOME%\toolchains\llvm\prebuilt\windows-x86_64\bin\clang.exe" set "NDK_VALID=1"
+
+if "%NDK_VALID%"=="0" (
+    echo [INFO] NDK no encontrada o incompleta. Instalando...
+    echo [INFO] Esto puede tomar varios minutos...
+    echo y | call "%ANDROID_HOME%\cmdline-tools\latest\bin\sdkmanager.bat" "ndk;27.0.12077973"
+    echo [OK] NDK instalada
+) else (
+    echo [OK] NDK verificada: %ANDROID_NDK_HOME%
+)
 
 if not exist "%EMULATOR_PATH%" (
-    echo [ERROR] No se encontro el emulador: %EMULATOR_PATH%
+    echo [ERROR] El archivo del emulador no existe: %EMULATOR_PATH%
     echo.
     pause
     cls
@@ -144,9 +159,15 @@ if not exist "%EMULATOR_PATH%" (
 )
 
 echo.
-echo [INFO] Buscando emuladores...
-"%EMULATOR_PATH%" -list-avds 2>nul
-if %ERRORLEVEL% neq 0 (
+echo [INFO] Emuladores disponibles:
+echo ==============================================
+set "emu_count=0"
+for /f "delims=" %%a in ('"%EMULATOR_PATH%" -list-avds 2^nul') do (
+    set /a emu_count+=1
+    echo    !emu_count!. %%a
+)
+echo ==============================================
+if %emu_count%==0 (
     echo [ERROR] No hay emuladores. Crea uno en Android Studio.
     echo.
     pause
@@ -155,18 +176,54 @@ if %ERRORLEVEL% neq 0 (
 )
 
 echo.
-set /p avd_name="Ingresa el nombre del emulador: "
+set /p avd_select="Selecciona el numero del emulador (1-%emu_count%): "
+
+if "%avd_select%"=="" (
+    echo [ERROR] Debes ingresar un numero.
+    echo.
+    pause
+    cls
+    goto menu
+)
+
+if %avd_select% GTR %emu_count% (
+    echo [ERROR] Numero invalido.
+    echo.
+    pause
+    cls
+    goto menu
+)
+
+set "avd_name="
+set "current=0"
+for /f "delims=" %%a in ('"%EMULATOR_PATH%" -list-avds 2^nul') do (
+    set /a current+=1
+    if !current! EQU %avd_select% set "avd_name=%%a"
+)
 
 if "%avd_name%"=="" (
-    echo [ERROR] Debes ingresar un nombre.
+    echo [ERROR] No se pudo obtener el nombre del emulador.
     echo.
+    pause
     cls
     goto menu
 )
 
 echo.
 echo [INFO] Iniciando emulador '%avd_name%'...
-start "" "%EMULATOR_PATH%" -avd "%avd_name%" -no-audio -no-snapshot-load
+
+REM Crear script temporal para ejecutar el emulador
+set "temp_script=%TEMP%\run_emulator_%RANDOM%.bat"
+echo @echo off > "%temp_script%"
+echo "%EMULATOR_PATH%" -avd "%avd_name%" -no-audio -no-snapshot-load >> "%temp_script%"
+echo pause >> "%temp_script%"
+
+REM Iniciar emulador en ventana separada
+start "Emulador Android" "%temp_script%"
+
+echo [INFO] Ventana del emulador abierta. Revisa si hay errores alli.
+echo [INFO] Esperando 10 segundos para verificar si inicia...
+timeout /t 10 /nobreak >nul
 
 echo [INFO] Esperando emulador...
 set "timeout_count=0"
@@ -187,15 +244,26 @@ goto menu
 echo [OK] Emulador listo!
 echo.
 echo [INFO] Compilando e instalando en Android...
-npm run tauri android dev
+echo [INFO] Ejecutando npm run tauri android dev...
+echo.
+echo [INFO] IMPORTANTE: Si se abre una ventana pidiendo instalar NDK, presiona 'n' y Enter
+echo.
 
-if %ERRORLEVEL%==0 (
-    echo.
-    echo [OK] Proceso completado!
-) else (
-    echo.
-    echo [ERROR] Fallo la compilacion.
-)
+REM Crear script temporal para ejecutar Tauri
+set "tauri_script=%TEMP%\run_tauri_%RANDOM%.bat"
+echo @echo off > "%tauri_script%"
+echo chcp 65001 >nul >> "%tauri_script%"
+echo call npm run tauri android dev >> "%tauri_script%"
+echo echo %%ERRORLEVEL%% > "%TEMP%\tauri_result.txt" >> "%tauri_script%"
+echo pause >> "%tauri_script%"
+
+REM Ejecutar Tauri en ventana separada para ver errores
+start "Tauri Android Dev" "%tauri_script%"
+
+echo [INFO] Proceso de Tauri iniciado en ventana separada.
+echo [INFO] Revisa la ventana "Tauri Android Dev" para ver el progreso.
+echo.
+pause
 cls
 goto menu
 
