@@ -17,6 +17,7 @@
     "@tauri-apps/plugin-fs": "^2.4.5",
     "@tauri-apps/plugin-opener": "^2",
     "appwrite": "^23.0.0",
+    "core-js": "^3.49.0",
     "jspdf": "^4.1.0",
     "jspdf-autotable": "^5.0.7",
     "react": "^19.1.0",
@@ -24,12 +25,16 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@babel/core": "^7.29.0",
+    "@babel/preset-env": "^7.29.3",
+    "@rollup/plugin-babel": "^7.0.0",
     "@tauri-apps/cli": "^2",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
     "@vitejs/plugin-react-swc": "^4.3.0",
     "typescript": "~5.8.3",
-    "vite": "^7.0.4"
+    "vite": "^7.0.4",
+    "vite-plugin-top-level-await": "^1.6.0"
   }
 }
