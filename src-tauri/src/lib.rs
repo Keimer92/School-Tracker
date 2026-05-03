@@ -127,8 +127,12 @@ for record in data {
             }
             Err(e) => {
                 let error_text = format!("Error: {:?}", e);
-                println!("❌ [PUSH] Error de conexión al subir a {}: {}", table, error_text);
-                return Err(format!("Error de conexión: {}", error_text));
+                if error_text.contains("409") {
+                    println!("⚠️ [PUSH] Conflicto 409 en {} (ya existe), ignorando...", table);
+                } else {
+                    println!("❌ [PUSH] Error de conexión al subir a {}: {}", table, error_text);
+                    return Err(format!("Error de conexión: {}", error_text));
+                }
             }
         }
     }
