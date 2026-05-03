@@ -59,8 +59,14 @@ export function NotasPage() {
   const [selectedAno, setSelectedAno] = useState<number>(0);
   const [selectedCorte, setSelectedCorte] = useState<number>(0);
   const [selectedColegio, setSelectedColegio] = useState<number>(0);
-  const [selectedAsignatura, setSelectedAsignatura] = useState<number>(0);
-  const [selectedGrado, setSelectedGrado] = useState<number>(0);
+  const [selectedAsignatura, setSelectedAsignatura] = useState<number>(() => {
+    const saved = localStorage.getItem('notas-last-asignatura');
+    return saved ? parseInt(saved) : 0;
+  });
+  const [selectedGrado, setSelectedGrado] = useState<number>(() => {
+    const saved = localStorage.getItem('notas-last-grado');
+    return saved ? parseInt(saved) : 0;
+  });
   const [selectedSeccion, setSelectedSeccion] = useState<number>(0);
   const [selectedSexo, setSelectedSexo] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
@@ -286,9 +292,17 @@ export function NotasPage() {
     return '#94a3b8';
   }, [getGradeConfig, getGradeFromScore]);
 
+  // Flag para evitar múltiples cargas rápidas
+  const isLoadingRef = useRef(false);
+
   // Cargar estudiantes cuando cambien los filtros
   useEffect(() => {
+    // Si ya está cargando o los filtros no están completos, salir
+    if (isLoadingRef.current) return;
+    
     const loadData = async () => {
+      isLoadingRef.current = true;
+      
       if (selectedAno > 0 && selectedCorte > 0 && selectedColegio > 0 && selectedAsignatura > 0 && selectedGrado > 0 && selectedSeccion > 0) {
         // Primero cargar la configuración de evaluación para tener los indicadores
         const currentIndicadores = await fetchConfiguracionEvaluacion();
@@ -304,6 +318,8 @@ export function NotasPage() {
         setEstudiantes([]);
         setNotas([]);
       }
+      
+      isLoadingRef.current = false;
     };
     
     loadData();
@@ -402,9 +418,14 @@ export function NotasPage() {
       
       setAsignaturas(filteredAsignaturas);
       
+      // Solo cambiar la asignatura si es 0 (nunca se ha seleccionado) O si la actual no existe en la lista nueva
       if (filteredAsignaturas.length > 0) {
         const stillExists = filteredAsignaturas.some(a => a.id === selectedAsignatura);
-        if (!stillExists) setSelectedAsignatura(filteredAsignaturas[0].id);
+        // Solo seleccionar automáticamente si es la primera vez (selectedAsignatura === 0)
+        // O si la seleccionada actualmente no existe en la lista
+        if (selectedAsignatura === 0 || !stillExists) {
+          setSelectedAsignatura(filteredAsignaturas[0].id);
+        }
       } else {
         setSelectedAsignatura(0);
       }
@@ -463,6 +484,8 @@ export function NotasPage() {
     if (!silent) setLoading(true);
     const indToUse = currentIndicadores || indicadores;
     const { corte, asignatura, grado, seccion, sexo } = filtersRef.current;
+    
+    console.log("[DEBUG] fetchEstudiantes - filtros:", { grado, seccion, corte, asignatura });
     
     try {
       const [dataRaw, notasGuardadas] = await Promise.all([
@@ -524,6 +547,9 @@ export function NotasPage() {
         }
       });
 
+      console.log("[DEBUG] Notas cualitativas mapeadas:", notasMap.size);
+      console.log("[DEBUG] Notas cuantitativas mapeadas:", Object.keys(cuantitativasMap).length);
+      
       setNotas(prevNotas => {
         const notasIniciales = data.map(est => ({
           estudianteId: est.id,
@@ -546,6 +572,9 @@ export function NotasPage() {
         }
         return notasIniciales;
       });
+
+      // Actualizar el ref de cualitativas para que los inputs muestren los valores cargados
+      notasCualitativasRef.current = new Map(notasMap);
 
       setNotasCualitativas(prevQual => {
         // Si hay historial de cambios, mezclamos las cualitativas
@@ -993,8 +1022,7 @@ export function NotasPage() {
       console.log("LOG [Guardar]: Iniciando guardado de notas en SQLite", {
         totalEstudiantes: notasParaGuardar.length,
         corteId: selectedCorte,
-        asignaturaId: selectedAsignatura,
-        primerosDatos: notasParaGuardar.slice(0, 2)
+        asignaturaId: selectedAsignatura
       });
 
       await invoke("save_notas_estudiantes", {
@@ -1044,11 +1072,11 @@ export function NotasPage() {
         }
       })();
 
-      // Recargar datos localmente y notificar a otros componentes
-      fetchEstudiantes(undefined, true);
-      setTimeout(async () => {
-        await emit("notas-updated", { timestamp: Date.now() });
-      }, 100);
+      // Recargar datos localmente y notificar a otros componentes (sin参数 para mantener filtros actuales)
+      // Solo recargar una vez, no emitiremos eventos que puedan causar recargas adicionales
+      setTimeout(() => {
+        fetchEstudiantes(undefined, true);
+      }, 200);
 
     } catch (error) {
       console.error("Error saving notes:", error);
@@ -1106,18 +1134,6 @@ export function NotasPage() {
                                       const val = e.target.value.toUpperCase().slice(0, 2);
                                       notasCualitativasRef.current.set(key, val);
                                       e.target.value = val;
-                                      // Actualizar estado notas para reflejar el cambio numérico inmediatamente
-                                      const cualitativa = ['AA', 'AS', 'AF', 'AI'].includes(val);
-                                      let numValue = 0;
-                                      if (cualitativa) {
-                                        const percentage = notaMapping[val as keyof typeof notaMapping];
-                                        numValue = Math.round(crit.puntajeMaximo * percentage);
-                                      }
-                                      setNotas(prevNotas => prevNotas.map(n => 
-                                        n.estudianteId === est.estudianteId 
-                                          ? { ...n, notas: { ...n.notas, [crit.id]: numValue } }
-                                          : n
-                                      ));
                                     }}
                                     onKeyDown={(e) => handleKeyDown(e, est.estudianteId, criterioIndex)}
                                     onFocus={(e) => {
@@ -1127,18 +1143,6 @@ export function NotasPage() {
                                     onBlur={(e) => {
                                       const val = e.target.value.toUpperCase();
                                       notasCualitativasRef.current.set(key, val);
-                                      // Actualizar estado notas con valor numérico equivalente
-                                      const cualitativa = ['AA', 'AS', 'AF', 'AI'].includes(val);
-                                      let numValue = 0;
-                                      if (cualitativa) {
-                                        const percentage = notaMapping[val as keyof typeof notaMapping];
-                                        numValue = Math.round(crit.puntajeMaximo * percentage);
-                                      }
-                                      setNotas(prevNotas => prevNotas.map(n => 
-                                        n.estudianteId === est.estudianteId 
-                                          ? { ...n, notas: { ...n.notas, [crit.id]: numValue } }
-                                          : n
-                                      ));
                                       handleInputBlur(est.estudianteId, crit.id, val);
                                     }}
                                     ref={(el) => {
@@ -1171,7 +1175,15 @@ export function NotasPage() {
                               borderBottom: '1px solid rgba(255,255,255,0.05)'
                             }}>
                               {(() => {
-                                const totalIndicador = calcularTotalIndicador(estudianteNotas.notas, ind);
+                                // Calcular desde cualitativas (más actualizado durante edición)
+                                const totalIndicador = ind.criterios.reduce((sum, c) => {
+                                  const qualValue = notasCualitativasRef.current.get(`${est.estudianteId}-${c.id}`);
+                                  if (qualValue && ['AA', 'AS', 'AF', 'AI'].includes(qualValue)) {
+                                    const percentage = notaMapping[qualValue as keyof typeof notaMapping];
+                                    return sum + Math.round(c.puntajeMaximo * percentage);
+                                  }
+                                  return sum;
+                                }, 0);
                                 const totalIndicadorRedondeado = Math.round(totalIndicador);
                                 
                                 // Calcular el puntaje mÃ¡ximo real de este indicador
@@ -1210,7 +1222,17 @@ export function NotasPage() {
                         borderBottom: '1px solid rgba(34, 197, 94, 0.2)'
                       }}>
                         {(() => {
-                          const rawTotalFinal = calcularTotalFinal(estudianteNotas.notas);
+                          // Calcular desde cualitativas (más actualizado durante edición)
+                          const rawTotalFinal = indicadores.filter(i => i.activo).reduce((sum, ind) => {
+                            return sum + ind.criterios.reduce((s, c) => {
+                              const qualValue = notasCualitativasRef.current.get(`${est.estudianteId}-${c.id}`);
+                              if (qualValue && ['AA', 'AS', 'AF', 'AI'].includes(qualValue)) {
+                                const percentage = notaMapping[qualValue as keyof typeof notaMapping];
+                                return s + Math.round(c.puntajeMaximo * percentage);
+                              }
+                              return s;
+                            }, 0);
+                          }, 0);
                           const totalFinal = Math.round(rawTotalFinal);
                           
                           // Calcular el puntaje mÃ¡ximo total de indicadores activos
@@ -1321,8 +1343,12 @@ export function NotasPage() {
              <select 
                className="filter-select"
                style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
-               value={selectedGrado}
-               onChange={(e) => setSelectedGrado(Number(e.target.value))}
+value={selectedGrado}
+                onChange={(e) => {
+                  const newVal = Number(e.target.value);
+                  setSelectedGrado(newVal);
+                  localStorage.setItem('notas-last-grado', String(newVal));
+                }}
              >
                 {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
              </select>
@@ -1362,8 +1388,12 @@ export function NotasPage() {
              <select 
                className="filter-select"
                style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
-               value={selectedAsignatura}
-               onChange={(e) => setSelectedAsignatura(Number(e.target.value))}
+value={selectedAsignatura}
+                onChange={(e) => {
+                  const newVal = Number(e.target.value);
+                  setSelectedAsignatura(newVal);
+                  localStorage.setItem('notas-last-asignatura', String(newVal));
+                }}
              >
                 {asignaturas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
              </select>

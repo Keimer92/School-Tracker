@@ -2505,11 +2505,17 @@ pub fn save_notas_estudiantes(
     corteId: i64,
     asignaturaId: i64,
 ) -> Result<(), String> {
+    println!("[DEBUG RUST] save_notas_estudiantes llamado - corteId: {}, asignaturaId: {}", corteId, asignaturaId);
+    println!("[DEBUG RUST] Total estudiantes a guardar: {}", notas.len());
+    
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
+    let mut total_notas_guardadas = 0;
     for nota_est in notas {
-        for nota in nota_est.notas {
+        println!("[DEBUG RUST] Estudiante ID: {}, notas: {}", nota_est.estudianteId, nota_est.notas.len());
+        for nota in &nota_est.notas {
+            println!("[DEBUG RUST]   Guardando - criterioId: {}, valor: {}", nota.criterioId, nota.valor);
             tx.execute(
                 "INSERT OR REPLACE INTO nota (estudiante_id, criterio_id, valor, corte_evaluativo_id, asignatura_id) 
                  VALUES (?, ?, ?, ?, ?)",
@@ -2522,10 +2528,12 @@ pub fn save_notas_estudiantes(
                 ],
             )
             .map_err(|e| e.to_string())?;
+            total_notas_guardadas += 1;
         }
     }
 
     tx.commit().map_err(|e| e.to_string())?;
+    println!("[DEBUG RUST] Notas guardadas exitosamente: {} total", total_notas_guardadas);
     Ok(())
 }
 
@@ -2736,6 +2744,8 @@ pub fn get_notas_by_filters(
     corteId: i64,
     asignaturaId: i64,
 ) -> Result<Vec<NotaResponse>, String> {
+    println!("[DEBUG RUST] get_notas_by_filters - gradoId: {}, seccionId: {}, corteId: {}, asignaturaId: {}", gradoId, seccionId, corteId, asignaturaId);
+    
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare(
@@ -2761,6 +2771,11 @@ pub fn get_notas_by_filters(
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
 
+    println!("[DEBUG RUST] get_notas_by_filters - encontradas {} notas", notas.len());
+    if !notas.is_empty() {
+        println!("[DEBUG RUST] Primeras notas: {:?}", &notas[..notas.len().min(3)]);
+    }
+    
     Ok(notas)
 }
 
