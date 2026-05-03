@@ -249,11 +249,6 @@ export function ReportesPage() {
     }).then(u => unlistenGradeConfigs = u);
 
     listen("notas-updated", () => {
-      // Listener adicional para sync-completed
-      listen("sync-completed", () => {
-        console.log("ReportesPage: Evento sync-completed recibido, refrescando reporte...");
-        setRefreshTrigger(prev => prev + 1);
-      }).then(u => unlistenSync = u);
       console.log("ReportesPage: Evento notas-updated recibido, refrescando reporte...");
       setRefreshTrigger(prev => prev + 1);
     }).then(u => unlistenNotas = u);

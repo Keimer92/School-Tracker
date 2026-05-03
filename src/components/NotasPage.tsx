@@ -927,16 +927,23 @@ export function NotasPage() {
       return;
     }
 
-    // Mezclar notas cuantitativas del ref con el estado notas
+    // Mezclar notas cualitativas y cuantitativas del ref con el estado notas
     const notasActualizadas = notas.map(notaEst => {
       const updatedNotas: Record<number, number> = { ...notaEst.notas };
-      // Sobrescribir con valores del ref
+      // Sobrescribir con valores cualitativos convertidos a numéricos
       indicadores.forEach(ind => {
         ind.criterios.forEach(crit => {
           const key = `${notaEst.estudianteId}-${crit.id}`;
+          // Primero intentar del ref cuantitativo
           const refValue = notasCuantitativasRef.current.get(key);
           if (refValue !== undefined) {
             updatedNotas[crit.id] = refValue;
+          }
+          // También verificar notas cualitativas y convertir
+          const qualValue = notasCualitativasRef.current.get(key);
+          if (qualValue && ['AA', 'AS', 'AF', 'AI'].includes(qualValue)) {
+            const percentage = notaMapping[qualValue as keyof typeof notaMapping];
+            updatedNotas[crit.id] = Math.round(crit.puntajeMaximo * percentage);
           }
         });
       });
@@ -1099,6 +1106,18 @@ export function NotasPage() {
                                       const val = e.target.value.toUpperCase().slice(0, 2);
                                       notasCualitativasRef.current.set(key, val);
                                       e.target.value = val;
+                                      // Actualizar estado notas para reflejar el cambio numérico inmediatamente
+                                      const cualitativa = ['AA', 'AS', 'AF', 'AI'].includes(val);
+                                      let numValue = 0;
+                                      if (cualitativa) {
+                                        const percentage = notaMapping[val as keyof typeof notaMapping];
+                                        numValue = Math.round(crit.puntajeMaximo * percentage);
+                                      }
+                                      setNotas(prevNotas => prevNotas.map(n => 
+                                        n.estudianteId === est.estudianteId 
+                                          ? { ...n, notas: { ...n.notas, [crit.id]: numValue } }
+                                          : n
+                                      ));
                                     }}
                                     onKeyDown={(e) => handleKeyDown(e, est.estudianteId, criterioIndex)}
                                     onFocus={(e) => {
@@ -1108,6 +1127,18 @@ export function NotasPage() {
                                     onBlur={(e) => {
                                       const val = e.target.value.toUpperCase();
                                       notasCualitativasRef.current.set(key, val);
+                                      // Actualizar estado notas con valor numérico equivalente
+                                      const cualitativa = ['AA', 'AS', 'AF', 'AI'].includes(val);
+                                      let numValue = 0;
+                                      if (cualitativa) {
+                                        const percentage = notaMapping[val as keyof typeof notaMapping];
+                                        numValue = Math.round(crit.puntajeMaximo * percentage);
+                                      }
+                                      setNotas(prevNotas => prevNotas.map(n => 
+                                        n.estudianteId === est.estudianteId 
+                                          ? { ...n, notas: { ...n.notas, [crit.id]: numValue } }
+                                          : n
+                                      ));
                                       handleInputBlur(est.estudianteId, crit.id, val);
                                     }}
                                     ref={(el) => {

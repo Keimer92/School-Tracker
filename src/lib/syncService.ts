@@ -499,6 +499,72 @@ export const syncService = {
       const userId = await syncService.getUserId();
       if (!userId) return;
 
+      // Recopilar todas las dependencias únicas necesarias
+      const gradoIds = [...new Set(indicadores.map(i => i.gradoId).filter(Boolean))];
+      const asignaturaIds = [...new Set(indicadores.map(i => i.asignaturaId).filter(Boolean))];
+      const corteIds = [...new Set(indicadores.map(i => i.corteEvaluativoId).filter(Boolean))];
+
+      // 0. Asegurar que los grados, asignaturas y cortes existan en Supabase
+      for (const gradoId of gradoIds) {
+        const { data: exists } = await supabase.from('grado').select('id').eq('id', gradoId).eq('user_id', userId).maybeSingle();
+        if (!exists) {
+          try {
+            const grados = await invoke<any[]>("get_grados");
+            const grado = grados.find(g => Number(g.id) === Number(gradoId));
+            if (grado) {
+              await supabase.from('grado').upsert({
+                id: grado.id,
+                nombre: grado.nombre,
+                user_id: userId,
+                ...(grado.cualitativo !== undefined ? { cualitativo: grado.cualitativo } : {})
+              }, { onConflict: 'id' });
+            }
+          } catch (e) {
+            console.warn(`No se pudo sincronizar el grado ${gradoId}:`, e);
+          }
+        }
+      }
+
+      for (const asignaturaId of asignaturaIds) {
+        const { data: exists } = await supabase.from('asignatura').select('id').eq('id', asignaturaId).eq('user_id', userId).maybeSingle();
+        if (!exists) {
+          try {
+            const asignaturas = await invoke<any[]>("get_asignaturas");
+            const asignatura = asignaturas.find(a => Number(a.id) === Number(asignaturaId));
+            if (asignatura) {
+              await supabase.from('asignatura').upsert({
+                id: asignatura.id,
+                nombre: asignatura.nombre,
+                user_id: userId,
+                ...(asignatura.cualitativo !== undefined ? { cualitativo: asignatura.cualitativo } : {})
+              }, { onConflict: 'id' });
+            }
+          } catch (e) {
+            console.warn(`No se pudo sincronizar la asignatura ${asignaturaId}:`, e);
+          }
+        }
+      }
+
+      for (const corteId of corteIds) {
+        const { data: exists } = await supabase.from('corte_evaluativo').select('id').eq('id', corteId).eq('user_id', userId).maybeSingle();
+        if (!exists) {
+          try {
+            const cortes = await invoke<any[]>("get_cortes");
+            const corte = cortes.find(c => Number(c.id) === Number(corteId));
+            if (corte) {
+              await supabase.from('corte_evaluativo').upsert({
+                id: corte.id,
+                nombre: corte.nombre,
+                activo: corte.activo,
+                user_id: userId
+              }, { onConflict: 'id' });
+            }
+          } catch (e) {
+            console.warn(`No se pudo sincronizar el corte ${corteId}:`, e);
+          }
+        }
+      }
+
       for (const ind of indicadores) {
         // 1. Sincronizar Indicador
         const { error: indError } = await supabase
