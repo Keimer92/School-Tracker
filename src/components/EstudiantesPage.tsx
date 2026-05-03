@@ -1194,15 +1194,19 @@ export function EstudiantesPage() {
         {/* Resumen de estadísticas (Sticky) */}
         {filteredStudents.length > 0 && (
           <div className="student-summary-row">
-            <div className="summary-mini-card card-total">
+            <div className="summary-mini-card" style={{ borderLeft: '3px solid #a855f7' }} title="Total de estudiantes en todos los colegios">
+              <span className="summary-mini-label">General</span>
+              <span className="summary-mini-value" style={{ color: '#a855f7' }}>{students.length}</span>
+            </div>
+            <div className="summary-mini-card card-total" title="Total de estudiantes con los filtros actuales">
               <span className="summary-mini-label">Total</span>
               <span className="summary-mini-value" style={{ color: '#06b6d4' }}>{stats.total}</span>
             </div>
-            <div className="summary-mini-card card-fem">
+            <div className="summary-mini-card card-fem" title="Cantidad de estudiantes femenino con los filtros actuales">
               <span className="summary-mini-label">Femenino</span>
               <span className="summary-mini-value" style={{ color: '#f472b6' }}>{stats.f}</span>
             </div>
-            <div className="summary-mini-card card-masc">
+            <div className="summary-mini-card card-masc" title="Cantidad de estudiantes masculino con los filtros actuales">
               <span className="summary-mini-label">Masculino</span>
               <span className="summary-mini-value" style={{ color: '#60a5fa' }}>{stats.m}</span>
             </div>

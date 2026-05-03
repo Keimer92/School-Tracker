@@ -2024,19 +2024,21 @@ pub fn unassign_all_subjects_from_grade(
 #[allow(non_snake_case)]
 pub fn get_subjects_by_colegio(
     state: tauri::State<'_, DbState>,
-    _colegioId: i64,
+    colegioId: i64,
 ) -> Result<Vec<CategoryItem>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare(
             "SELECT a.id, a.nombre, a.cualitativo
               FROM asignatura a
+              INNER JOIN colegio_asignatura ca ON a.id = ca.asignatura_id
+              WHERE ca.colegio_id = ?
               ORDER BY a.nombre",
         )
         .map_err(|e| e.to_string())?;
 
     let items = stmt
-        .query_map([], |row| {
+        .query_map([colegioId], |row| {
             Ok(CategoryItem {
                 id: Some(row.get(0)?),
                 nombre: row.get(1)?,
