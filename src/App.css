@@ -497,6 +497,20 @@ button.primary:hover {
   background: var(--primary-light);
 }
 
+.sidebar-section-header {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.35);
+  padding: 16px 12px 8px 12px;
+  margin-top: 8px;
+}
+
+.sidebar-section-header:first-of-type {
+  margin-top: 0;
+}
+
 .main-content {
   flex: 1;
   overflow-y: auto;

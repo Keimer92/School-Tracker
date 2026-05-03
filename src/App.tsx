@@ -12,18 +12,10 @@ import { InformePage } from "./components/InformePage";
 import { supabase } from "./lib/supabase";
 import { syncService } from "./lib/syncService";
 
-type AppMode = "selection" | "notas" | "asistencia";
 type Tab = "notas" | "reportes" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "informe";
 
 function App() {
-  
-  const [appMode, setAppMode] = useState<AppMode>(() => {
-    const saved = localStorage.getItem('app-mode');
-    console.log("Cargando appMode de localStorage:", saved);
-    // Configuración modificada para entrar directamente a asistencia
-    // Si estaba en notas, se mantiene. Si no, o si estaba en selection, va a asistencia.
-    return saved === "notas" ? "notas" : "asistencia";
-  });
+  const [appMode] = useState<string>("unified");
 
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const savedTab = localStorage.getItem('active-tab') as Tab;
@@ -221,40 +213,6 @@ function App() {
     localStorage.setItem('visited-tabs', JSON.stringify(Array.from(visitedTabs)));
   }, [visitedTabs]);
 
-  useEffect(() => {
-    localStorage.setItem('app-mode', appMode);
-    if (appMode === "asistencia") {
-      setActiveTab("asistencia");
-    } else if (appMode === "notas" && activeTab === "asistencia") {
-      setActiveTab("notas");
-    }
-  }, [appMode]);
-
-  const handleModeSelection = (mode: AppMode) => {
-    setAppMode(mode);
-    if (mode === "asistencia") {
-      setActiveTab("asistencia");
-      setVisitedTabs(prev => new Set(prev).add("asistencia"));
-    } else if (mode === "notas") {
-      setActiveTab("notas");
-      setVisitedTabs(prev => new Set(prev).add("notas"));
-    }
-  };
-
-  const toggleAppMode = () => {
-    const newMode = appMode === "notas" ? "asistencia" : "notas";
-    setAppMode(newMode);
-    
-    // Al cambiar de modo, también cambiamos la pestaña activa correspondiente
-    if (newMode === "asistencia") {
-      setActiveTab("asistencia");
-      setVisitedTabs(prev => new Set(prev).add("asistencia"));
-    } else {
-      setActiveTab("notas");
-      setVisitedTabs(prev => new Set(prev).add("notas"));
-    }
-  };
-
   const renderTab = (tab: Tab, component: React.ReactNode) => {
     if (!visitedTabs.has(tab)) return null;
     return (
@@ -269,111 +227,66 @@ function App() {
     );
   };
 
-  if (appMode === "selection") {
-    return (
-      <div className="mode-selection-container">
-        <div className="mode-selection-card">
-          <h1>Bienvenido</h1>
-          <p>Seleccione el sistema que desea utilizar:</p>
-          <div className="mode-options">
-            <button 
-              className={`mode-button notas ${(appMode as string) === 'notas' ? 'active-glow' : ''}`}
-              onClick={() => handleModeSelection("notas")}
-            >
-              <span className="mode-icon glow-icon-notas">📝</span>
-              <span className="mode-text">Gestión de Notas Escolares</span>
-            </button>
-            <button 
-              className={`mode-button asistencia ${(appMode as string) === 'asistencia' ? 'active-glow' : ''}`}
-              onClick={() => handleModeSelection("asistencia")}
-            >
-              <span className="mode-icon glow-icon-asistencia">✅</span>
-              <span className="mode-text">Asistencia Escolar</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className={`app-layout mode-${appMode}`} style={{ gridTemplateColumns: `${sidebarWidth}px 4px 1fr` }}>
+    <div className="app-layout" style={{ gridTemplateColumns: `${sidebarWidth}px 4px 1fr` }}>
       <nav className="sidebar">
-        <div className="sidebar-header-integrated" onClick={toggleAppMode} title={appMode === "notas" ? "Cambiar a Asistencia" : "Cambiar a Notas"}>
+<div className="sidebar-header-integrated">
           <div className="mode-badge">
-            {appMode === "notas" ? (
-              <>
-                <span className="glow-icon-notas">📝</span>
-                <div className="mode-info">
-                  <span className="mode-label">MODO</span>
-                  <span className="mode-name">NOTAS</span>
-                </div>
-              </>
-            ) : (
-              <>
-                <span className="glow-icon-asistencia">✅</span>
-                <div className="mode-info">
-                  <span className="mode-label">MODO</span>
-                  <span className="mode-name">ASISTENCIA</span>
-                </div>
-            </>
-            )}
-          </div>
-          <div className="mode-switch-indicator">
-            <span>🔄</span>
+            <span className="glow-icon-notas">📚</span>
+            <div className="mode-info">
+              <span className="mode-label">SCHOOL</span>
+              <span className="mode-name">TRACKER</span>
+            </div>
           </div>
         </div>
         <div className="sidebar-nav">
-          {appMode === "notas" ? (
-            <>
-              <button 
-                className={`sidebar-button ${activeTab === "notas" ? "active" : ""}`} 
-                onClick={() => handleTabChange("notas")}
-              >
-                <span>📊</span>
-                <span>Notas</span>
-              </button>
-              <button 
-                className={`sidebar-button ${activeTab === "reportes" ? "active" : ""}`} 
-                onClick={() => handleTabChange("reportes")}
-              >
-                <span>📋</span>
-                <span>Reportes</span>
-              </button>
-              <button 
-                className={`sidebar-button ${activeTab === "estudiantes" ? "active" : ""}`} 
-                onClick={() => handleTabChange("estudiantes")}
-              >
-                <span>👨‍🎓</span>
-                <span>Estudiantes</span>
-              </button>
-              <button 
-                className={`sidebar-button ${activeTab === "evaluaciones" ? "active" : ""}`} 
-                onClick={() => handleTabChange("evaluaciones")}
-              >
-                <span>📝</span>
-                <span>Evaluaciones</span>
-              </button>
-            </>
-          ) : (
-            <>
-              <button 
-                className={`sidebar-button ${activeTab === "asistencia" ? "active" : ""}`} 
-                onClick={() => handleTabChange("asistencia")}
-              >
-                <span>📅</span>
-                <span>Asistencia</span>
-              </button>
-              <button 
-                className={`sidebar-button ${activeTab === "informe" ? "active" : ""}`} 
-                onClick={() => handleTabChange("informe")}
-              >
-                <span>📊</span>
-                <span>Informe</span>
-              </button>
-            </>
-          )}
-          
+          <div className="sidebar-section-header">ASISTENCIA</div>
+          <button 
+            className={`sidebar-button ${activeTab === "asistencia" ? "active" : ""}`} 
+            onClick={() => handleTabChange("asistencia")}
+          >
+            <span>📅</span>
+            <span>Asistencia</span>
+          </button>
+          <button 
+            className={`sidebar-button ${activeTab === "informe" ? "active" : ""}`} 
+            onClick={() => handleTabChange("informe")}
+          >
+            <span>📊</span>
+            <span>Informe</span>
+          </button>
+
+          <div className="sidebar-section-header">NOTAS</div>
+          <button 
+            className={`sidebar-button ${activeTab === "notas" ? "active" : ""}`} 
+            onClick={() => handleTabChange("notas")}
+          >
+            <span>📊</span>
+            <span>Notas</span>
+          </button>
+          <button 
+            className={`sidebar-button ${activeTab === "evaluaciones" ? "active" : ""}`} 
+            onClick={() => handleTabChange("evaluaciones")}
+          >
+            <span>📝</span>
+            <span>Evaluaciones</span>
+          </button>
+          <button 
+            className={`sidebar-button ${activeTab === "reportes" ? "active" : ""}`} 
+            onClick={() => handleTabChange("reportes")}
+          >
+            <span>📋</span>
+            <span>Reportes</span>
+          </button>
+          <button 
+            className={`sidebar-button ${activeTab === "estudiantes" ? "active" : ""}`} 
+            onClick={() => handleTabChange("estudiantes")}
+          >
+            <span>👨‍🎓</span>
+            <span>Estudiantes</span>
+          </button>
+
+          <div className="sidebar-section-header">GENERALES</div>
           <button 
             className={`sidebar-button ${activeTab === "globales" ? "active" : ""}`} 
             onClick={() => handleTabChange("globales")}
@@ -381,17 +294,6 @@ function App() {
             <span>🌐</span>
             <span>Globales</span>
           </button>
-          
-          {appMode === "asistencia" && (
-            <button 
-              className={`sidebar-button ${activeTab === "estudiantes" ? "active" : ""}`} 
-              onClick={() => handleTabChange("estudiantes")}
-            >
-              <span>👨‍🎓</span>
-              <span>Estudiantes</span>
-            </button>
-          )}
-
           <button 
             className={`sidebar-button ${activeTab === "ajustes" ? "active" : ""}`} 
             onClick={() => handleTabChange("ajustes")}
@@ -408,21 +310,13 @@ function App() {
       />
 
       <main className="main-content">
-        {appMode === "notas" ? (
-          <>
-            {renderTab("notas", <NotasPage />)}
-            {renderTab("reportes", <ReportesPage />)}
-            {renderTab("estudiantes", <EstudiantesPage />)}
-            {renderTab("evaluaciones", <EvaluacionesPage />)}
-          </>
-        ) : (
-          <>
-            {renderTab("asistencia", <AsistenciaPage />)}
-            {renderTab("informe", <InformePage />)}
-          </>
-        )}
+        {renderTab("asistencia", <AsistenciaPage />)}
+        {renderTab("informe", <InformePage />)}
+        {renderTab("notas", <NotasPage />)}
+        {renderTab("evaluaciones", <EvaluacionesPage />)}
+        {renderTab("reportes", <ReportesPage />)}
+        {renderTab("estudiantes", <EstudiantesPage />)}
         {renderTab("globales", <GlobalesPage />)}
-        {appMode === "asistencia" && renderTab("estudiantes", <EstudiantesPage />)}
         {renderTab("ajustes", <AjustesPage />)}
       </main>
 
