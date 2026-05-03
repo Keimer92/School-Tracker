@@ -51,10 +51,11 @@ export function EvaluacionesPage() {
       if (selectedGrado) {
         try {
           const asignaturasData = await invoke<CategoryItem[]>("get_subjects_by_grade", { gradoId: selectedGrado });
-          setAsignaturas(asignaturasData);
+          const sortedAsignaturas = asignaturasData.sort((a, b) => a.nombre.localeCompare(b.nombre));
+          setAsignaturas(sortedAsignaturas);
           // Keep current selection if still valid, otherwise reset
-          if (asignaturasData.length > 0 && !asignaturasData.some(a => a.id === selectedAsignatura)) {
-            setSelectedAsignatura(asignaturasData[0].id);
+          if (sortedAsignaturas.length > 0 && !sortedAsignaturas.some(a => a.id === selectedAsignatura)) {
+            setSelectedAsignatura(sortedAsignaturas[0].id);
           }
         } catch (error) {
           console.error("Error refreshing subjects:", error);
@@ -101,9 +102,10 @@ export function EvaluacionesPage() {
 
       invoke<CategoryItem[]>("get_subjects_by_grade", { gradoId: selectedGrado })
         .then(data => {
-          setAsignaturas(data);
-          if (data.length > 0) {
-            setSelectedAsignatura(data[0].id);
+          const sortedData = data.sort((a, b) => a.nombre.localeCompare(b.nombre));
+          setAsignaturas(sortedData);
+          if (sortedData.length > 0) {
+            setSelectedAsignatura(sortedData[0].id);
           } else {
             setSelectedAsignatura(0);
           }

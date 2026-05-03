@@ -517,7 +517,7 @@ export const syncService = {
                 nombre: grado.nombre,
                 user_id: userId,
                 ...(grado.cualitativo !== undefined ? { cualitativo: grado.cualitativo } : {})
-              }, { onConflict: 'id' });
+              }, { onConflict: 'nombre,user_id' });
             }
           } catch (e) {
             console.warn(`No se pudo sincronizar el grado ${gradoId}:`, e);

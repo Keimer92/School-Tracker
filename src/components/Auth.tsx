@@ -15,7 +15,7 @@ export function Auth() {
   
   const [serverStatus, setServerStatus] = useState<'checking' | 'online' | 'offline' | 'restoring'>('checking');
   
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => localStorage.getItem('last-sync-email') || '');
   const [password, setPassword] = useState('');
 
 
@@ -167,7 +167,7 @@ export function Auth() {
       
       <form onSubmit={handleEmailAuth} className="auth-form">
         {mode !== 'update-password' && (
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Correo electrónico" className="auth-input" required />
+          <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); localStorage.setItem('last-sync-email', e.target.value); }} placeholder="Correo electrónico" className="auth-input" required />
         )}
         {mode !== 'recovery' && (
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={mode === 'update-password' ? "Nueva clave" : "Contraseña"} className="auth-input" required />
