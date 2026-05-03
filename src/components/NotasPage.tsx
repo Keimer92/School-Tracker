@@ -416,15 +416,17 @@ export function NotasPage() {
         }
       }
       
-      setAsignaturas(filteredAsignaturas);
+      const sortedAsignaturas = [...filteredAsignaturas].sort((a, b) => a.nombre.localeCompare(b.nombre));
+      
+      setAsignaturas(sortedAsignaturas);
       
       // Solo cambiar la asignatura si es 0 (nunca se ha seleccionado) O si la actual no existe en la lista nueva
-      if (filteredAsignaturas.length > 0) {
-        const stillExists = filteredAsignaturas.some(a => a.id === selectedAsignatura);
+      if (sortedAsignaturas.length > 0) {
+        const stillExists = sortedAsignaturas.some(a => a.id === selectedAsignatura);
         // Solo seleccionar automáticamente si es la primera vez (selectedAsignatura === 0)
         // O si la seleccionada actualmente no existe en la lista
         if (selectedAsignatura === 0 || !stillExists) {
-          setSelectedAsignatura(filteredAsignaturas[0].id);
+          setSelectedAsignatura(sortedAsignaturas[0].id);
         }
       } else {
         setSelectedAsignatura(0);
