@@ -19,7 +19,7 @@ echo ==============================================
 echo.
 echo === DESARROLLO ===
 echo 1. Windows (Desarrollo)
-echo 2. Android (Desarrollo)
+echo 2. Android (Desarrollo - USB/Wifi)
 echo 3. Windows Build (Release)
 echo 4. Android Build (Release)
 echo.
@@ -28,15 +28,16 @@ echo 5. Ver emuladores/dispositivos
 echo 6. Crear nuevo emulador
 echo 7. Eliminar emulador
 echo 8. Iniciar emulador (sin app)
+echo 9. Conectar ADB por WiFi
 echo.
 echo === MANTENIMIENTO ===
-echo 9. Limpiar cach? y dependencias
-echo 10. Salir
+echo 10. Limpiar cach? y dependencias
+echo 11. Salir
 echo ==============================================
 echo.
 
 set /p modo="Seleccione una opcion: "
-if "%modo%"=="10" goto exit_script
+if "%modo%"=="11" goto exit_script
 if "%modo%"=="1" goto windows_dev
 if "%modo%"=="2" goto android_dev
 if "%modo%"=="3" goto windows_build
@@ -45,7 +46,8 @@ if "%modo%"=="5" goto view_emulators
 if "%modo%"=="6" goto create_emulator
 if "%modo%"=="7" goto delete_emulator
 if "%modo%"=="8" goto start_emulator
-if "%modo%"=="9" goto clean_cache
+if "%modo%"=="9" goto adb_wifi
+if "%modo%"=="10" goto clean_cache
 cls
 goto menu
 
@@ -133,7 +135,32 @@ pause
 cls
 goto menu
 
+:adb_wifi
+cls
+echo ==============================================
+echo CONECTAR ADB POR WIFI
+echo ==============================================
+echo.
+echo [INFO] Conectando dispositivo por USB primero...
+echo [INFO] Ejecuta: adb tcpip 5555
+echo.
+"%ADB_PATH%" tcpip 5555
+echo.
+set /p ip="Ingresa IP del dispositivo (ej: 192.168.1.X): "
+if not "%ip%"=="" (
+    echo [INFO] Conectando a %ip%:5555...
+    "%ADB_PATH%" connect %ip%:5555
+)
+echo.
+pause
+cls
+goto menu
+
 :windows_dev
+echo.
+echo [INFO] Iniciando desarrollo en Windows...
+echo [INFO] Servidor: http://localhost:1420
+echo.
 set "f=%TEMP%\tw_%RANDOM%.bat"
 echo @echo off^&^&chcp 65001^&^&call npm run tauri dev^&^&pause>"%f%"
 start "Tauri Windows" "%f%"
@@ -142,7 +169,8 @@ goto menu
 
 :android_dev
 echo.
-echo [INFO] Iniciando Android...
+echo [INFO] Iniciando desarrollo en Android...
+echo.
 if "%ANDROID_HOME%"=="" (echo [ERROR] ANDROID_HOME no configurada.&pause&cls&goto menu)
 setx ANDROID_NDK_HOME "%ANDROID_HOME%\ndk\27.0.12077973" >nul 2>&1
 
@@ -163,24 +191,19 @@ rustup target list --installed | findstr "android" >nul 2>nul
 if %ERRORLEVEL% neq 0 rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
 
 REM ==============================================
-REM DETECTAR DISPOSITIVOS - VERSION SIMPLIFICADA
+REM DETECTAR DISPOSITIVOS
 REM ==============================================
 echo.
 echo [INFO] Buscando dispositivos...
-
-REM Crear archivo temporal con lista de dispositivos
 "%ADB_PATH%" devices -l 2>nul > "%TEMP%\dev_list.txt"
 
-REM Mostrar dispositivos
 echo.
 echo ==============================================
 echo DISPOSITIVOS DISPONIBLES:
 echo ==============================================
 type "%TEMP%\dev_list.txt"
 echo ==============================================
-echo.
 
-REM Contar l?neas (descontando header)
 set "cnt=0"
 for /f "skip=1 delims=" %%a in ('type "%TEMP%\dev_list.txt"') do (
     set /a cnt+=1
@@ -189,9 +212,12 @@ for /f "skip=1 delims=" %%a in ('type "%TEMP%\dev_list.txt"') do (
 )
 
 if %cnt%==0 (
+    echo.
     echo [ERROR] No hay dispositivos.
-    echo   - Conecta USB con depuracion
-    echo   - O usa opcion 8 para emulador
+    echo   - Conecta USB con depuracion activada
+    echo   - O usa opcion 9 para conectar por WiFi
+    echo   - O usa opcion 8 para iniciar emulador
+    echo.
     pause
     cls
     goto menu
@@ -206,17 +232,40 @@ if "%selected%"=="" goto android_dev
 
 echo [OK] Seleccionado: %selected%
 echo.
-echo [INFO] Ejecutando app...
 
-REM Ejecutar en ventana separada
+REM Obtener IP de la PC
+for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /C:"IPv4"') do (
+    set "pc_ip=%%a"
+    set "pc_ip=!pc_ip: =!"
+)
+
+echo ==============================================
+echo [INFO] IMPORTANTE PARA DISPOSITIVO FISICO:
+echo ==============================================
+echo 1. Asegurate que el firewall permita el puerto 1420
+echo 2. La PC y el dispositivo deben estar en la misma red
+echo 3. IP de tu PC: %pc_ip%
+echo 4. Si falla, ejecuta en PowerShell:
+echo    New-NetFirewallRule -DisplayName "Vite Dev" -Direction Inbound -LocalPort 1420 -Protocol TCP -Action Allow
+echo ==============================================
+echo.
+
+echo [INFO] Ejecutando app...
 set "f=%TEMP%\ta_%RANDOM%.bat"
-echo @echo off^&^&chcp 65001^&^&call npm run tauri android dev^&^&pause>"%f%"
+(
+echo @echo off
+echo chcp 65001 ^>nul
+echo call npm run tauri android dev
+echo pause
+) > "%f%"
 start "Tauri Android" "%f%"
 
 cls
 goto menu
 
 :windows_build
+echo.
+echo [INFO] Compilando Windows (Release)...
 set "f=%TEMP%\wb_%RANDOM%.bat"
 echo @echo off^&^&chcp 65001^&^&call npm run tauri build^&^&pause>"%f%"
 start "Windows Build" "%f%"
@@ -225,6 +274,8 @@ cls
 goto menu
 
 :android_build
+echo.
+echo [INFO] Compilando Android (Release)...
 set "f=%TEMP%\ab_%RANDOM%.bat"
 echo @echo off^&^&chcp 65001^&^&call npm run tauri android build^&^&pause>"%f%"
 start "Android Build" "%f%"
