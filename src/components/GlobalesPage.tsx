@@ -991,13 +991,14 @@ export function GlobalesPage() {
   const [selectedTab, setSelectedTab] = useState<string>(CATEGORIES[0].title);
   
   // Mobile view state
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [isMobile, setIsMobile] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<CategoryConfig | null>(null);
 
-  // Detect screen size
+  // Detect screen size and Android
   useEffect(() => {
-    const handleResize = () => {
-      const mobile = window.innerWidth <= 768;
+    const checkMobile = () => {
+      const isAndroidDevice = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+      const mobile = window.innerWidth <= 768 || isAndroidDevice;
       setIsMobile(mobile);
       // Reset to first category when switching to mobile view
       if (mobile && !selectedCategory) {
@@ -1005,8 +1006,9 @@ export function GlobalesPage() {
       }
     };
     
-    window.addEventListener('resize', handleResize);
-    handleResize(); // Check initial size
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
     
     return () => window.removeEventListener('resize', handleResize);
   }, [selectedCategory]);
