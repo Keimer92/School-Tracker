@@ -51,6 +51,10 @@ const [isMobile, setIsMobile] = useState(() => {
 const [drawerOpen, setDrawerOpen] = useState(false);
 const drawerRef = useRef<HTMLDivElement>(null);
 
+useEffect(() => {
+  console.log('Drawer state:', drawerOpen);
+}, [drawerOpen]);
+
 // Aplicar safe areas en dispositivos móviles
 useEffect(() => {
   if (!isMobile) return;
@@ -317,7 +321,7 @@ useEffect(() => {
     >
       {isMobile && (
         <div className="mobile-header">
-          <button className="mobile-menu-btn" onClick={() => setDrawerOpen(prev => !prev)}>
+          <button className="mobile-menu-btn" onClick={() => { setDrawerOpen(prev => !prev); console.log('Menu clicked, drawer:', !drawerOpen); }} onTouchStart={() => { setDrawerOpen(prev => !prev); }}>
             <span>☰</span>
           </button>
           <span className="mobile-title">School Tracker</span>
