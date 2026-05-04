@@ -9,14 +9,6 @@ set "ADB_PATH=%ANDROID_HOME%\platform-tools\adb.exe"
 set "AVDMANAGER=%ANDROID_HOME%\cmdline-tools\latest\bin\avdmanager.bat"
 set "SDKMANAGER=%ANDROID_HOME%\cmdline-tools\latest\bin\sdkmanager.bat"
 
-REM Detectar si Windows Terminal esta instalado
-where wt >nul 2>&1
-if %ERRORLEVEL% equ 0 (
-    set "TERM=wt"
-) else (
-    set "TERM=cmd"
-)
-
 goto menu
 
 :menu
@@ -171,11 +163,7 @@ echo.
 echo [INFO] Iniciando desarrollo en Windows...
 echo [INFO] Servidor: http://localhost:1420
 echo.
-if "%TERM%"=="wt" (
-    wt new-tab --title "Tauri Windows" -- "%~dp0\cmd.bat" /c "cd /d %SCRIPT_DIR% && npm run tauri dev"
-) else (
-    start "Tauri Windows" cmd /k "cd /d %SCRIPT_DIR% && npm run tauri dev"
-)
+start "Tauri Windows" cmd /k "cd /d %SCRIPT_DIR% && npm run tauri dev"
 cls
 goto menu
 
@@ -268,20 +256,10 @@ echo    New-NetFirewallRule -DisplayName "Vite Dev" -Direction Inbound -LocalPor
 echo ==============================================
 echo.
 
-echo [INFO] Iniciando servidor Vite en background...
+echo [INFO] Iniciando servidor Vite e Android...
 start "Vite Dev Server" cmd /k "cd /d %SCRIPT_DIR% && npm run dev"
-
 timeout /t 5 /nobreak >nul
-
-echo [INFO] Ejecutando app Tauri Android...
-set "f=%TEMP%\ta_%RANDOM%.bat"
-(
-echo @echo off
-echo chcp 65001 ^>nul
-echo call npx tauri android dev
-echo pause
-) > "%f%"
-start "Tauri Android" "%f%"
+start "Tauri Android" cmd /k "cd /d %SCRIPT_DIR% && npx tauri android dev"
 
 cls
 goto menu
@@ -289,9 +267,7 @@ goto menu
 :windows_build
 echo.
 echo [INFO] Compilando Windows (Release)...
-set "f=%TEMP%\wb_%RANDOM%.bat"
-echo @echo off^&^&chcp 65001^&^&call npm run tauri build^&^&pause>"%f%"
-start "Windows Build" "%f%"
+start "Windows Build" cmd /k "cd /d %SCRIPT_DIR% && npm run tauri build"
 pause
 cls
 goto menu
@@ -299,9 +275,7 @@ goto menu
 :android_build
 echo.
 echo [INFO] Compilando Android (Release)...
-set "f=%TEMP%\ab_%RANDOM%.bat"
-echo @echo off^&^&chcp 65001^&^&call npm run tauri android build^&^&pause>"%f%"
-start "Android Build" "%f%"
+start "Android Build" cmd /k "cd /d %SCRIPT_DIR% && npm run tauri android build"
 pause
 cls
 goto menu
