@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, TouchEvent } from "react";
+import { useState, useEffect, useRef } from "react";
 import { listen, emit } from "@tauri-apps/api/event";
 import "./App.css";
 import { GlobalesPage } from "./components/GlobalesPage";
@@ -94,7 +94,7 @@ useEffect(() => {
 
 useEffect(() => {
   const handleResize = () => {
-    setIsMobile(window.innerWidth < 1024 || isAndroid);
+    setIsMobile(window.innerWidth < 1024 || isAndroidDevice);
   };
   window.addEventListener('resize', handleResize);
   return () => window.removeEventListener('resize', handleResize);
