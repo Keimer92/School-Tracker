@@ -51,6 +51,7 @@ export function InformePage() {
 
   // Mobile Logic
   const [isMobile, setIsMobile] = useState(false);
+  const isAndroid = /Android/i.test(navigator.userAgent);
   const filtersRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -497,10 +498,9 @@ export function InformePage() {
         }
       });
 
-      const fileName = `Asistencia_${gradoNombre}_${seccionNombre}_${fechaInicio}.pdf`;
-      const isAndroid = /Android/i.test(navigator.userAgent);
+const fileName = `Asistencia_${gradoNombre}_${seccionNombre}_${fechaInicio}.pdf`;
 
-      if (isAndroid) {
+if (isAndroid) {
         // Lógica para Android: Guardar en temporal y compartir
         const pdfArrayBuffer = doc.output('arraybuffer');
         const dir = await tempDir();
@@ -562,10 +562,9 @@ export function InformePage() {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Asistencia");
       
-      const fileName = `Asistencia_${gradoNombre}_${seccionNombre}_${fechaInicio}.xlsx`;
-      const isAndroid = /Android/i.test(navigator.userAgent);
+const fileName = `Asistencia_${gradoNombre}_${seccionNombre}_${fechaInicio}.xlsx`;
 
-      if (isAndroid) {
+if (isAndroid) {
         // Lógica para Android: Guardar y compartir
         const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
         const dir = await tempDir();
@@ -678,11 +677,9 @@ export function InformePage() {
       
       // Formatear path para openUrl si falla
       const formattedPath = filePath.replace(/\\/g, '/');
-      const fileUrl = formattedPath.startsWith('/') ? `file://${formattedPath}` : `file:///${formattedPath}`;
-      
-      const isAndroid = /Android/i.test(navigator.userAgent);
+const fileUrl = formattedPath.startsWith('/') ? `file://${formattedPath}` : `file:///${formattedPath}`;
 
-      try {
+try {
         if (isAndroid || isMobile) {
             // Intentar compartir en Android (o móvil)
             try {
@@ -1180,210 +1177,15 @@ export function InformePage() {
                       <span style={{ color: '#f59e0b', fontWeight: 'bold', fontSize: '0.8rem' }}>J:</span>
                       <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '0.9rem' }}>{statsJ.total}</span>
                     </div>
-                </div>
-              </div>
-            )}
-          </div>
+</div>
         </div>
-
-        {/* Modal de Configuración de Impresión */}
-        {showPrintOptions && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 99999,
-            backdropFilter: 'blur(8px)',
-            padding: '20px',
-            overflowY: 'auto'
-          }}
-          onClick={() => setShowPrintOptions(false)}
-          >
-            <div style={{
-              backgroundColor: '#1e293b',
-              padding: '2rem',
-              borderRadius: '20px',
-              width: '100%',
-              maxWidth: '360px',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
-              position: 'relative'
-            }}
-            onClick={(e) => e.stopPropagation()}
-            >
-              <h3 style={{ 
-                color: 'white', 
-                marginBottom: '1.5rem', 
-                marginTop: 0, 
-                fontSize: '1.25rem',
-                fontWeight: '600',
-                textAlign: 'center',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                paddingBottom: '1rem'
-              }}>
-                Configuración de Página
-              </h3>
-              
-              <div style={{ marginBottom: '1.2rem' }}>
-                <label style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Tamaño de Página</label>
-                <select 
-                  value={printConfig.pageSize}
-                  onChange={(e) => setPrintConfig({...printConfig, pageSize: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '0.7rem', 
-                    borderRadius: '10px', 
-                    backgroundColor: '#0f172a', 
-                    color: 'white', 
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    fontSize: '0.9rem',
-                    outline: 'none'
-                  }}
-                >
-                  <option value="a4">A4 (Estándar)</option>
-                  <option value="letter">Carta (Letter)</option>
-                  <option value="legal">Oficio (Legal)</option>
-                </select>
-              </div>
-
-              <div style={{ marginBottom: '1.2rem' }}>
-                <label style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Orientación</label>
-                <select 
-                  value={printConfig.orientation}
-                  onChange={(e) => setPrintConfig({...printConfig, orientation: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '0.7rem', 
-                    borderRadius: '10px', 
-                    backgroundColor: '#0f172a', 
-                    color: 'white', 
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    fontSize: '0.9rem',
-                    outline: 'none'
-                  }}
-                >
-                  <option value="portrait">Vertical (Retrato)</option>
-                  <option value="landscape">Horizontal (Paisaje)</option>
-                </select>
-              </div>
-
-              <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '1rem' }}>
-                <label style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'block', marginBottom: '0.8rem', fontWeight: '600' }}>Márgenes (mm)</label>
-                
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                      <label style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Arriba</label>
-                      <span style={{ color: '#6366f1', fontSize: '0.75rem' }}>{printConfig.margins.top}</span>
-                    </div>
-                    <input 
-                      type="range" min="0" max="50" step="1"
-                      value={printConfig.margins.top}
-                      onChange={(e) => setPrintConfig({...printConfig, margins: {...printConfig.margins, top: Number(e.target.value)}})}
-                      style={{ width: '100%', accentColor: '#6366f1' }}
-                    />
-                  </div>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                      <label style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Abajo</label>
-                      <span style={{ color: '#6366f1', fontSize: '0.75rem' }}>{printConfig.margins.bottom}</span>
-                    </div>
-                    <input 
-                      type="range" min="0" max="50" step="1"
-                      value={printConfig.margins.bottom}
-                      onChange={(e) => setPrintConfig({...printConfig, margins: {...printConfig.margins, bottom: Number(e.target.value)}})}
-                      style={{ width: '100%', accentColor: '#6366f1' }}
-                    />
-                  </div>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                      <label style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Izquierda</label>
-                      <span style={{ color: '#6366f1', fontSize: '0.75rem' }}>{printConfig.margins.left}</span>
-                    </div>
-                    <input 
-                      type="range" min="0" max="50" step="1"
-                      value={printConfig.margins.left}
-                      onChange={(e) => setPrintConfig({...printConfig, margins: {...printConfig.margins, left: Number(e.target.value)}})}
-                      style={{ width: '100%', accentColor: '#6366f1' }}
-                    />
-                  </div>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                      <label style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Derecha</label>
-                      <span style={{ color: '#6366f1', fontSize: '0.75rem' }}>{printConfig.margins.right}</span>
-                    </div>
-                    <input 
-                      type="range" min="0" max="50" step="1"
-                      value={printConfig.margins.right}
-                      onChange={(e) => setPrintConfig({...printConfig, margins: {...printConfig.margins, right: Number(e.target.value)}})}
-                      style={{ width: '100%', accentColor: '#6366f1' }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <button 
-                onClick={() => setShowPrintOptions(false)}
-                className="secondary"
-                style={{ 
-                  width: '100%', 
-                  padding: '0.8rem', 
-                  borderRadius: '12px',
-                  backgroundColor: '#6366f1',
-                  color: 'white',
-                  fontWeight: '600',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'background-color 0.2s'
-                }}
-              >
-                Listo
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Información del Reporte (Visible en impresión) */}
-        <div className="report-header-info">
-          <div className="report-title-section">
-            <h2>Reporte</h2>
-            <div className="report-date-badge">
-              {periodo === 'diario' ? `Fecha: ${fechaInicio.split('-').reverse().join('/')}` : 
-               periodo === 'semanal' ? `Semana: ${fechaInicio.split('-').reverse().join('/')} al ${fechaFin.split('-').reverse().join('/')}` : 
-               `Mes: ${mesSeleccionado}/${anoSeleccionado}`}
-            </div>
-          </div>
-          
-          <div className="report-details-grid">
-            <div className="detail-item">
-              <span className="detail-label">Colegio:</span>
-              <span className="detail-value">{colegioNombre}</span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">Grado y Sección:</span>
-              <span className="detail-value">{gradoNombre} - {seccionNombre}</span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">Filtro Sexo:</span>
-              <span className="detail-value">{selectedSexo === 'M' ? 'Masculino' : selectedSexo === 'F' ? 'Femenino' : 'Todos'}</span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">Año Lectivo:</span>
-              <span className="detail-value">{anos.find(a => a.id === selectedAno)?.nombre || ""}</span>
-            </div>
-          </div>
-        </div>
+      </div>
+      )}
 
 
 
-        {/* Tabla de Resultados o Estado Vacío */}
-        <div className="table-container" style={{ 
+      {/* Tabla de Resultados o Estado Vacío */}
+      <div className="table-container" style={{
           width: '100%',
           padding: '0', 
           overflowX: 'hidden', 

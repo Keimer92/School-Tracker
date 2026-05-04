@@ -312,9 +312,11 @@ useEffect(() => {
     >
       {isMobile && (
         <div className="mobile-header">
-          <button className="mobile-menu-btn" onClick={toggleDrawer}>
-            <span>☰</span>
-          </button>
+          {!drawerOpen && (
+            <button className="mobile-menu-btn" onClick={toggleDrawer}>
+              <span>☰</span>
+            </button>
+          )}
           <span className="mobile-title">School Tracker</span>
         </div>
       )}
