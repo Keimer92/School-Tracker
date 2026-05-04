@@ -308,6 +308,7 @@ if %ERRORLEVEL% neq 0 (
 
 echo [INFO] Iniciando Tauri Android...
 set "f=%TEMP%\ahr_%RANDOM%.bat"
+(
 echo @echo off
 echo chcp 65001 ^>nul
 echo call npx tauri android dev
