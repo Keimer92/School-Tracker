@@ -766,7 +766,7 @@ export function AsistenciaPage() {
               </select>
             </div>
 
-<div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', width: '100%' }}>
+<div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'nowrap', alignItems: 'center', justifyContent: 'flex-end', width: '100%' }}>
 
               <button 
                 type="button"
@@ -826,7 +826,7 @@ export function AsistenciaPage() {
                 🧹
               </button>
               
-              <div className="search-container" style={{ flex: '1 1 100px', minWidth: '80px', maxWidth: '200px' }}>
+              <div className="search-container" style={{ flex: '2 2 120px', minWidth: '100px' }}>
                 <span className="search-icon-left">🔍</span>
                 <input 
                   type="text" 

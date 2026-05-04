@@ -175,9 +175,10 @@ echo [INFO] Iniciando desarrollo en Android...
 echo.
 if "%ANDROID_HOME%"=="" (echo [ERROR] ANDROID_HOME no configurada.&pause&cls&goto menu)
 
-echo [INFO] Limpiando locks de compilación anterior...
+echo [INFO] Limpiando locks de compilación...
 if exist "%SCRIPT_DIR%src-tauri\target\.cargo-lock" del /q "%SCRIPT_DIR%src-tauri\target\.cargo-lock" 2>nul
 if exist "%SCRIPT_DIR%src-tauri\gen\android\app\build\.gradle" rmdir /s /q "%SCRIPT_DIR%src-tauri\gen\android\app\build\.gradle" 2>nul
+taskkill /F /IM java.exe /T 2>nul
 
 setx ANDROID_NDK_HOME "%ANDROID_HOME%\ndk\27.0.12077973" >nul 2>&1
 
@@ -301,9 +302,12 @@ echo [INFO] Android Hot Reload (Rapido)
 echo.
 if "%ANDROID_HOME%"=="" (echo [ERROR] ANDROID_HOME no configurada.&pause&cls&goto menu)
 
-echo [INFO] Limpiando locks de compilación anterior...
+echo [INFO] Limpiando locks de compilación...
 if exist "%SCRIPT_DIR%src-tauri\target\.cargo-lock" del /q "%SCRIPT_DIR%src-tauri\target\.cargo-lock" 2>nul
 if exist "%SCRIPT_DIR%src-tauri\gen\android\app\build\.gradle" rmdir /s /q "%SCRIPT_DIR%src-tauri\gen\android\app\build\.gradle" 2>nul
+
+REM Limpiar lock de Gradle Daemon
+taskkill /F /IM java.exe /T 2>nul
 
 echo [INFO] Verificando servidor en puerto 1420...
 netstat -ano | findstr ":1420" | findstr "LISTENING" >nul
@@ -316,12 +320,13 @@ if %ERRORLEVEL% neq 0 (
     echo [OK] Servidor ya estaba corriendo!
 )
 
-echo [INFO] Iniciando Tauri Android...
+echo [INFO] Iniciando Tauri Android (limpieza de lock)...
 set "f=%TEMP%\ahr_%RANDOM%.bat"
 (
 echo @echo off
-echo chcp 65001 ^>nul
 echo cd /d "%SCRIPT_DIR%"
+echo REM Forzar limpieza de cargo lock
+echo if exist src-tauri\target\.cargo-lock del /q src-tauri\target\.cargo-lock
 echo call npx tauri android dev
 echo pause
 ) > "%f%"
