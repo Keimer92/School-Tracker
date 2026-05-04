@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, TouchEvent } from "react";
 import { listen, emit } from "@tauri-apps/api/event";
 import "./App.css";
 import { GlobalesPage } from "./components/GlobalesPage";
@@ -23,37 +23,40 @@ function App() {
     return savedTab || "notas";
   });
   
-  const [visitedTabs, setVisitedTabs] = useState<Set<Tab>>(() => {
-    const saved = localStorage.getItem('visited-tabs');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // Asegurarnos de que el activeTab esté siempre en visitedTabs
-        const active = (localStorage.getItem('active-tab') as Tab) || "notas";
-        return new Set([...parsed, active]);
-      } catch (e) {
-        return new Set([activeTab]);
-      }
+const [visitedTabs, setVisitedTabs] = useState<Set<Tab>>(() => {
+  const saved = localStorage.getItem('visited-tabs');
+  // Siempre incluir todas las tabs por defecto para que se muestren en Android
+  const defaultTabs: Tab[] = ["notas", "reportes", "estudiantes", "evaluaciones", "globales", "ajustes", "asistencia", "informe"];
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      const active = (localStorage.getItem('active-tab') as Tab) || "notas";
+      return new Set([...parsed, active]);
+    } catch (e) {
+      return new Set(defaultTabs);
     }
-    return new Set([activeTab]);
-  });
+  }
+  return new Set(defaultTabs);
+});
 
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem('sidebar-width');
     return saved ? parseInt(saved) : 260;
   });
 
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const drawerRef = useRef<HTMLDivElement>(null);
+// Detectar si es dispositivo Android
+const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+const [isMobile, setIsMobile] = useState(window.innerWidth < 1024 || isAndroid);
+const [drawerOpen, setDrawerOpen] = useState(false);
+const drawerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 1024);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+useEffect(() => {
+  const handleResize = () => {
+    setIsMobile(window.innerWidth < 1024 || isAndroid);
+  };
+  window.addEventListener('resize', handleResize);
+  return () => window.removeEventListener('resize', handleResize);
+}, []);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -92,11 +95,16 @@ function App() {
   }, []);
 
   const handleTabChange = (tab: Tab) => {
+    console.log('Tab change:', tab, 'isMobile:', isMobile);
     setActiveTab(tab);
     setVisitedTabs(prev => new Set(prev).add(tab));
     if (isMobile) {
       setDrawerOpen(false);
     }
+  };
+
+  const handleButtonClick = (tab: Tab) => {
+    handleTabChange(tab);
   };
 
   // Sincronización automática: descarga datos de la nube al iniciar sesión o al arrancar con sesión activa
@@ -258,14 +266,19 @@ function App() {
     <div className="app-layout" style={{ gridTemplateColumns: isMobile ? '0px 0px 1fr' : `${sidebarWidth}px 4px 1fr` }}>
       {isMobile && (
         <div className="mobile-header">
-          <button className="mobile-menu-btn" onClick={() => setDrawerOpen(true)}>
+          <button className="mobile-menu-btn" onClick={() => { console.log('Opening drawer'); setDrawerOpen(true); }}>
             <span>☰</span>
           </button>
           <span className="mobile-title">School Tracker</span>
         </div>
       )}
       {isMobile && drawerOpen && <div className="drawer-backdrop" onClick={() => setDrawerOpen(false)} />}
-      <nav className={`sidebar ${isMobile ? 'drawer' : ''} ${drawerOpen ? 'open' : ''}`} ref={drawerRef}>
+      <nav 
+        className={`sidebar ${isMobile ? 'drawer' : ''} ${drawerOpen ? 'open' : ''}`} 
+        ref={drawerRef}
+        onClick={(e) => e.stopPropagation()}
+        style={{ pointerEvents: 'auto' }}
+      >
         <div className="sidebar-header-integrated">
           <div className="mode-badge">
             <span className="glow-icon-notas">📚</span>
@@ -282,14 +295,16 @@ function App() {
           <div className="sidebar-section-header">ASISTENCIA</div>
           <button 
             className={`sidebar-button ${activeTab === "asistencia" ? "active" : ""}`} 
-            onClick={() => handleTabChange("asistencia")}
+            onClick={() => handleButtonClick("asistencia")}
+            type="button"
           >
             <span>📅</span>
             <span>Asistencia</span>
           </button>
           <button 
             className={`sidebar-button ${activeTab === "informe" ? "active" : ""}`} 
-            onClick={() => handleTabChange("informe")}
+            onClick={() => handleButtonClick("informe")}
+            type="button"
           >
             <span>📊</span>
             <span>Informe</span>
@@ -298,28 +313,32 @@ function App() {
           <div className="sidebar-section-header">NOTAS</div>
           <button 
             className={`sidebar-button ${activeTab === "notas" ? "active" : ""}`} 
-            onClick={() => handleTabChange("notas")}
+            onClick={() => handleButtonClick("notas")}
+            type="button"
           >
             <span>📊</span>
             <span>Notas</span>
           </button>
           <button 
             className={`sidebar-button ${activeTab === "reportes" ? "active" : ""}`} 
-            onClick={() => handleTabChange("reportes")}
+            onClick={() => handleButtonClick("reportes")}
+            type="button"
           >
             <span>📋</span>
             <span>Reportes</span>
           </button>
           <button 
             className={`sidebar-button ${activeTab === "evaluaciones" ? "active" : ""}`} 
-            onClick={() => handleTabChange("evaluaciones")}
+            onClick={() => handleButtonClick("evaluaciones")}
+            type="button"
           >
             <span>📝</span>
             <span>Evaluaciones</span>
           </button>
           <button 
             className={`sidebar-button ${activeTab === "estudiantes" ? "active" : ""}`} 
-            onClick={() => handleTabChange("estudiantes")}
+            onClick={() => handleButtonClick("estudiantes")}
+            type="button"
           >
             <span>👨‍🎓</span>
             <span>Estudiantes</span>
@@ -328,14 +347,16 @@ function App() {
           <div className="sidebar-section-header">GENERALES</div>
           <button 
             className={`sidebar-button ${activeTab === "globales" ? "active" : ""}`} 
-            onClick={() => handleTabChange("globales")}
+            onClick={() => handleButtonClick("globales")}
+            type="button"
           >
             <span>🌐</span>
             <span>Globales</span>
           </button>
           <button 
             className={`sidebar-button ${activeTab === "ajustes" ? "active" : ""}`} 
-            onClick={() => handleTabChange("ajustes")}
+            onClick={() => handleButtonClick("ajustes")}
+            type="button"
           >
             <span>⚙️</span>
             <span>Ajustes</span>
