@@ -1083,7 +1083,19 @@ export function InformePage() {
               )}
             </div>
 
-            {isMobile && reporteFiltrado.length > 0 && (
+            {/* Encabezado de impresión - Oculto en UI normal */}
+<div style={{ display: 'none' }} className="print-header">
+  <div className="print-title">Reporte de Asistencia</div>
+  <div className="print-grid">
+    <div><strong>Colegio:</strong> {colegioNombre}</div>
+    <div><strong>Grado:</strong> {gradoNombre}</div>
+    <div><strong>Sección:</strong> {seccionNombre}</div>
+    <div><strong>Período:</strong> {periodo}</div>
+    <div><strong>Fecha:</strong> {fechaInicio} al {fechaFin}</div>
+  </div>
+</div>
+
+{isMobile && reporteFiltrado.length > 0 && (
               <div className="asistencia-summary-mobile" style={{ 
                 marginTop: '0',
                 marginLeft: '-0.4rem',

@@ -673,6 +673,12 @@ body {
   padding: 8px;
 }
 
+.sidebar.drawer.open ~ .mobile-header .mobile-menu-btn,
+.sidebar.drawer.open + .mobile-header .mobile-menu-btn,
+.drawer-open .mobile-menu-btn {
+  display: none !important;
+}
+
 .mobile-title {
   color: white;
   font-weight: 600;
