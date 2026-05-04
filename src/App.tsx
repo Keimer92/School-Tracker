@@ -147,6 +147,9 @@ useEffect(() => {
 
   const handleButtonClick = (tab: Tab) => {
     handleTabChange(tab);
+    if (isMobile) {
+      setDrawerOpen(false);
+    }
   };
 
   // Sincronización automática: descarga datos de la nube al iniciar sesión o al arrancar con sesión activa
@@ -314,7 +317,7 @@ useEffect(() => {
     >
       {isMobile && (
         <div className="mobile-header">
-          <button className="mobile-menu-btn" onClick={() => { console.log('Opening drawer'); setDrawerOpen(true); }}>
+          <button className="mobile-menu-btn" onClick={() => setDrawerOpen(prev => !prev)}>
             <span>☰</span>
           </button>
           <span className="mobile-title">School Tracker</span>
