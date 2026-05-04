@@ -476,19 +476,6 @@ fn seed_default_data(conn: &Connection) -> Result<(), String> {
     )
     .ok();
 
-    // Marcar como cualitativas las asignaturas asignadas a 1er y 2do grado
-    conn.execute(
-        "UPDATE asignatura SET cualitativo = 1
-         WHERE id IN (
-             SELECT a.id FROM asignatura a
-             INNER JOIN grado_asignatura ga ON a.id = ga.asignatura_id
-             INNER JOIN grado g ON ga.grado_id = g.id
-             WHERE g.nombre IN ('1er grado', '2do grado')
-         )",
-        [],
-    )
-    .ok();
-
     // Asignar todas las asignaturas a todos los colegios
     conn.execute(
         "INSERT OR IGNORE INTO colegio_asignatura (colegio_id, asignatura_id)
