@@ -306,21 +306,29 @@ echo [INFO] Limpiando locks de compilación...
 if exist "%SCRIPT_DIR%src-tauri\target\.cargo-lock" del /q "%SCRIPT_DIR%src-tauri\target\.cargo-lock" 2>nul
 if exist "%SCRIPT_DIR%src-tauri\gen\android\app\build\.gradle" rmdir /s /q "%SCRIPT_DIR%src-tauri\gen\android\app\build\.gradle" 2>nul
 
-REM Limpiar lock de Gradle Daemon
 taskkill /F /IM java.exe /T 2>nul
 
 echo [INFO] Verificando servidor en puerto 1420...
-netstat -ano | findstr ":1420" | findstr "LISTENING" >nul
+netstat -ano | findstr ":1420 " | findstr "LISTENING" >nul
 if %ERRORLEVEL% neq 0 (
     echo [INFO] Servidor no detectado, iniciando Vite...
     start "Vite Dev Server" cmd /k "cd /d %SCRIPT_DIR% && npm run dev"
-    timeout /t 8 /nobreak >nul
-    echo [OK] Servidor iniciado
+    echo [INFO] Esperando que el servidor inicie...
+    for /L %%i in (1,1,20) do (
+        timeout /t 1 /nobreak >nul
+        netstat -ano | findstr ":1420 " | findstr "LISTENING" >nul
+        if !ERRORLEVEL! equ 0 (
+            echo [OK] Servidor iniciado!
+            goto server_ready
+        )
+    )
+    echo [WARN] Servidor no respondio, intentando de todos modos...
+    :server_ready
 ) else (
     echo [OK] Servidor ya estaba corriendo!
 )
 
-echo [INFO] Iniciando Tauri Android (limpieza de lock)...
+echo.
 set "f=%TEMP%\ahr_%RANDOM%.bat"
 (
 echo @echo off
