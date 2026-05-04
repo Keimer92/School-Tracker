@@ -44,96 +44,53 @@ const [visitedTabs, setVisitedTabs] = useState<Set<Tab>>(() => {
     return saved ? parseInt(saved) : 260;
   });
 
-// Detectar si es dispositivo Android
-const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
-
-// Estado para las inserciones de área segura del sistema
-const [safeAreaInsets, setSafeAreaInsets] = useState({ top: 0, bottom: 0, left: 0, right: 0 });
-
-useEffect(() => {
-  // Función para obtener las inserciones de área segura
-  const updateSafeArea = () => {
-    if (isAndroid) {
-      // Intentar obtener las inserciones del viewport
-      const computedStyle = window.getComputedStyle(document.documentElement);
-      const top = parseInt(computedStyle.getPropertyValue('--sat')) || 0;
-      const bottom = parseInt(computedStyle.getPropertyValue('--sab')) || 0;
-      setSafeAreaInsets({ top, bottom, left: 0, right: 0 });
-    }
-  };
-
-  // Función para detectar inserciones del sistema usando windowInsets
-  const detectSystemInsets = () => {
-    if (window.visualViewport) {
-      const viewport = window.visualViewport;
-      
-      // Usar requestAnimationFrame para obtener valores precisos
-      const update = () => {
-        if (isAndroid) {
-          // Calcular la diferencia entre la altura del window y la del viewport
-          const windowHeight = window.innerHeight;
-          const viewportHeight = viewport.height;
-          
-          // La barra inferior es la diferencia
-          const bottomInset = Math.max(0, windowHeight - viewportHeight - (viewport.offsetTop || 0));
-          
-          // Para la barra superior, usamos la diferencia con la altura del documento
-          const docEl = document.documentElement;
-          const topInset = Math.max(0, viewport.offsetTop);
-          
-          setSafeAreaInsets({
-            top: topInset,
-            bottom: bottomInset,
-            left: 0,
-            right: 0
-          });
-          
-          // Aplicar al CSS
-          document.documentElement.style.setProperty('--sat', `${topInset}px`);
-          document.documentElement.style.setProperty('--sab', `${bottomInset}px`);
-        }
-      };
-      
-      viewport.addEventListener('resize', update);
-      viewport.addEventListener('scroll', update);
-      update();
-      
-      return () => {
-        viewport.removeEventListener('resize', update);
-        viewport.removeEventListener('scroll', update);
-      };
-    }
-    return () => {};
-  };
-
-  // Observar cambios en la API de inserciones
-  if ('visualViewport' in window) {
-    const viewport = window.visualViewport;
-    if (viewport) {
-      viewport.addEventListener('resize', updateSafeArea);
-    }
-  }
-
-  // Intentar usar la API de env de CSS
-  updateSafeArea();
-  
-  // También detectar inserciones del sistema
-  const cleanup = detectSystemInsets();
-
-  return () => {
-    if ('visualViewport' in window) {
-      const viewport = window.visualViewport;
-      if (viewport) {
-        viewport.removeEventListener('resize', updateSafeArea);
-      }
-    }
-    cleanup();
-  };
-}, [isAndroid]);
-
-const [isMobile, setIsMobile] = useState(window.innerWidth < 1024 || isAndroid);
+const [isMobile, setIsMobile] = useState(() => {
+  const isAndroidDevice = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+  return window.innerWidth < 1024 || isAndroidDevice;
+});
 const [drawerOpen, setDrawerOpen] = useState(false);
 const drawerRef = useRef<HTMLDivElement>(null);
+
+// Aplicar safe areas en dispositivos móviles
+useEffect(() => {
+  if (!isMobile) return;
+
+  // Función para aplicar los inset de manera forzada
+  const applySafeAreas = () => {
+    // Calcular el espacio usado por la barra de estado y navegación
+    const windowHeight = window.innerHeight;
+    const visualHeight = window.visualViewport?.height || windowHeight;
+    const offsetTop = window.visualViewport?.offsetTop || 0;
+    
+    // La barra de abajo es la diferencia
+    const bottomInset = Math.max(0, windowHeight - visualHeight - offsetTop);
+    // La barra de arriba
+    const topInset = Math.max(0, offsetTop);
+    
+    // Aplicar directamente al body
+    document.body.style.setProperty('--system-bottom', `${bottomInset}px`);
+    document.body.style.setProperty('--system-top', `${topInset}px`);
+    
+    console.log('Safe areas - Top:', topInset, 'Bottom:', bottomInset);
+  };
+
+  // Aplicar inmediatamente
+  applySafeAreas();
+
+  // Aplicar cuando cambie el viewport visual
+  if (window.visualViewport) {
+    const handleResize = () => requestAnimationFrame(applySafeAreas);
+    window.visualViewport.addEventListener('resize', handleResize);
+    
+    // También cuando cambie el window
+    window.addEventListener('resize', handleResize);
+    
+    return () => {
+      window.visualViewport?.removeEventListener('resize', handleResize);
+      window.removeEventListener('resize', handleResize);
+    };
+  }
+}, [isMobile]);
 
 useEffect(() => {
   const handleResize = () => {
