@@ -766,7 +766,7 @@ export function AsistenciaPage() {
               </select>
             </div>
 
-<div style={{ display: 'flex', gap: isAndroid ? '0.3rem' : '0.4rem', flexWrap: isAndroid ? 'wrap' : 'nowrap', alignItems: 'center', justifyContent: 'flex-end', width: '100%' }}>
+<div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'nowrap', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
 
               <button 
                 type="button"
@@ -774,10 +774,10 @@ export function AsistenciaPage() {
                 onClick={handleManualSave}
                 disabled={!hasUnsavedChanges || saving}
                 style={{ 
-                  padding: isAndroid ? '0.3rem 0.5rem' : '0.4rem 0.8rem',
+                  padding: '0.3rem 0.5rem',
                   borderRadius: '6px',
-                  fontSize: isAndroid ? '0.75rem' : '0.85rem',
-                  height: isAndroid ? '28px' : '32px',
+                  fontSize: '0.7rem',
+                  height: '26px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -796,7 +796,7 @@ export function AsistenciaPage() {
                      <span className="saving-dot"></span> Guardando...
                    </>
                 ) : (
-                  isAndroid ? <>💾</> : <>💾 Guardar</>
+                  <>💾</>
                 )}
               </button>
 
@@ -811,10 +811,11 @@ export function AsistenciaPage() {
                 disabled={estudiantes.length === 0}
                 style={{ 
                   background: 'rgba(255,255,255,0.05)', 
-                  padding: isAndroid ? '0.3rem 0.5rem' : '0.4rem 0.6rem',
+                  padding: '0.3rem 0.4rem',
                   borderRadius: '6px',
-                  fontSize: isAndroid ? '0.75rem' : '0.85rem',
-                  height: isAndroid ? '28px' : '32px',
+                  fontSize: '0.7rem',
+                  height: '26px',
+                  width: '26px',
                   opacity: estudiantes.length === 0 ? 0.5 : 1,
                   cursor: estudiantes.length === 0 ? 'not-allowed' : 'pointer',
                   display: 'flex',
@@ -826,7 +827,7 @@ export function AsistenciaPage() {
                 🧹
               </button>
               
-              <div className="search-container" style={{ flex: isAndroid ? '1 1 100%' : '2 2 120px', minWidth: isAndroid ? '100%' : '100px', width: isAndroid ? '100%' : 'auto' }}>
+              <div className="search-container" style={{ flex: '1 1 auto', minWidth: '60px', maxWidth: '150px' }}>
                 <span className="search-icon-left">🔍</span>
                 <input 
                   type="text" 
@@ -836,9 +837,9 @@ export function AsistenciaPage() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                   style={{ 
                     width: '100%', 
-                    padding: isAndroid ? '0.3rem 0.4rem 0.3rem 1.5rem' : '0.4rem 0.5rem 0.4rem 1.8rem', 
-                    fontSize: isAndroid ? '0.75rem' : '0.85rem', 
-                    height: isAndroid ? '28px' : '32px',
+                    padding: '0.3rem 0.4rem 0.3rem 1.3rem', 
+                    fontSize: '0.7rem', 
+                    height: '26px',
                     background: 'rgba(255,255,255,0.05)',
                     border: '1px solid rgba(255,255,255,0.1)',
                     borderRadius: '6px',
