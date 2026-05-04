@@ -827,8 +827,8 @@ export function AsistenciaPage() {
                 🧹
               </button>
               
-              <div className="search-container" style={{ flex: '1 1 auto', minWidth: '60px', maxWidth: '150px' }}>
-                <span className="search-icon-left">🔍</span>
+              <div className="search-container" style={{ flex: '1 1 auto', minWidth: '80px', position: 'relative' }}>
+                <span className="search-icon-left" style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.7rem', pointerEvents: 'none' }}>🔍</span>
                 <input 
                   type="text" 
                   className="search-input search-input-with-icon" 
@@ -837,13 +837,14 @@ export function AsistenciaPage() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                   style={{ 
                     width: '100%', 
-                    padding: '0.3rem 0.4rem 0.3rem 1.3rem', 
+                    padding: '0.3rem 0.4rem 0.3rem 1.5rem', 
                     fontSize: '0.7rem', 
                     height: '26px',
                     background: 'rgba(255,255,255,0.05)',
                     border: '1px solid rgba(255,255,255,0.1)',
                     borderRadius: '6px',
-                    color: 'white'
+                    color: 'white',
+                    boxSizing: 'border-box'
                   }}
                 />
                 {searchTerm && (
