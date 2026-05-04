@@ -54,6 +54,7 @@ export function AsistenciaPage() {
   });
 
   const [isMobile, setIsMobile] = useState(false);
+  const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -679,27 +680,28 @@ export function AsistenciaPage() {
         borderRadius: '0 0 12px 12px',
         border: '1px solid rgba(255,255,255,0.05)',
         borderTop: 'none',
-        padding: '0.4rem'
+        padding: isAndroid ? '0.5rem' : '0.4rem'
       }}>
         <div className="filters-row" style={{ 
-          display: 'flex', 
-          flexWrap: 'wrap', 
-          gap: '0.4rem',
+          display: 'grid',
+          gridTemplateColumns: isAndroid ? 'repeat(auto-fit, minmax(120px, 1fr))' : 'auto',
+          gap: isAndroid ? '0.5rem' : '0.4rem',
           justifyContent: 'flex-start',
           alignItems: 'flex-end',
-          marginBottom: '0.5rem'
+          marginBottom: isAndroid ? '0.75rem' : '0.5rem'
         }}>
             <div className="input-container-small">
-              {!isMobile && <label>Fecha:</label>}
+              {(!isMobile || isAndroid) && <label style={isAndroid ? {fontSize: '0.8rem', marginBottom: '2px'} : {}}>Fecha:</label>}
               <input 
                 type="date" 
                 className={`filter-select ${!isFechaHabilitada ? 'invalid-date' : ''}`}
                 style={{ 
-                  padding: '0.3rem 0.4rem', 
-                  fontSize: '0.75rem', 
-                  height: '28px',
+                  padding: isAndroid ? '0.5rem' : '0.3rem 0.4rem', 
+                  fontSize: isAndroid ? '0.9rem' : '0.75rem', 
+                  height: isAndroid ? '36px' : '28px',
                   border: !isFechaHabilitada ? '1px solid #ef4444' : undefined,
-                  color: !isFechaHabilitada ? '#ef4444' : 'inherit'
+                  color: !isFechaHabilitada ? '#ef4444' : 'inherit',
+                  width: '100%'
                 }}
                 value={selectedFecha} 
                 onChange={(e) => handleFilterChange(setSelectedFecha, e.target.value)} 
@@ -707,10 +709,10 @@ export function AsistenciaPage() {
               />
             </div>
             <div className="input-container-small">
-              {!isMobile && <label>Año Lectivo:</label>}
+              {(!isMobile || isAndroid) && <label style={isAndroid ? {fontSize: '0.8rem', marginBottom: '2px'} : {}}>Año:</label>}
               <select 
                 className="filter-select"
-                style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
+                style={{ padding: isAndroid ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroid ? '0.9rem' : '0.75rem', height: isAndroid ? '36px' : '28px', width: '100%' }}
                 value={selectedAno} 
                 onChange={(e) => handleFilterChange(setSelectedAno, Number(e.target.value))}
               >
@@ -718,10 +720,10 @@ export function AsistenciaPage() {
               </select>
             </div>
             <div className="input-container-small">
-              {!isMobile && <label>Colegio:</label>}
+              {(!isMobile || isAndroid) && <label style={isAndroid ? {fontSize: '0.8rem', marginBottom: '2px'} : {}}>Colegio:</label>}
               <select 
                 className="filter-select"
-                style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
+                style={{ padding: isAndroid ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroid ? '0.9rem' : '0.75rem', height: isAndroid ? '36px' : '28px', width: '100%' }}
                 value={selectedColegio} 
                 onChange={(e) => handleFilterChange(setSelectedColegio, Number(e.target.value))}
               >
@@ -729,10 +731,10 @@ export function AsistenciaPage() {
               </select>
             </div>
             <div className="input-container-small">
-              {!isMobile && <label>Grado:</label>}
+              {(!isMobile || isAndroid) && <label style={isAndroid ? {fontSize: '0.8rem', marginBottom: '2px'} : {}}>Grado:</label>}
               <select 
                 className="filter-select"
-                style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
+                style={{ padding: isAndroid ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroid ? '0.9rem' : '0.75rem', height: isAndroid ? '36px' : '28px', width: '100%' }}
                 value={selectedGrado} 
                 onChange={(e) => handleFilterChange(setSelectedGrado, Number(e.target.value))}
               >
@@ -740,10 +742,10 @@ export function AsistenciaPage() {
               </select>
             </div>
             <div className="input-container-small">
-              {!isMobile && <label>Sección:</label>}
+              {(!isMobile || isAndroid) && <label style={isAndroid ? {fontSize: '0.8rem', marginBottom: '2px'} : {}}>Sección:</label>}
               <select 
                 className="filter-select"
-                style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
+                style={{ padding: isAndroid ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroid ? '0.9rem' : '0.75rem', height: isAndroid ? '36px' : '28px', width: '100%' }}
                 value={selectedSeccion} 
                 onChange={(e) => handleFilterChange(setSelectedSeccion, Number(e.target.value))}
               >
@@ -751,10 +753,10 @@ export function AsistenciaPage() {
               </select>
             </div>
             <div className="input-container-small">
-              {!isMobile && <label>Sexo:</label>}
+              {(!isMobile || isAndroid) && <label style={isAndroid ? {fontSize: '0.8rem', marginBottom: '2px'} : {}}>Sexo:</label>}
               <select 
                 className="filter-select"
-                style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
+                style={{ padding: isAndroid ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroid ? '0.9rem' : '0.75rem', height: isAndroid ? '36px' : '28px', width: '100%' }}
                 value={selectedSexo} 
                 onChange={(e) => handleFilterChange(setSelectedSexo, e.target.value)}
               >
@@ -764,7 +766,7 @@ export function AsistenciaPage() {
               </select>
             </div>
 
-            <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center', flex: 1 }}>
+<div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', width: '100%' }}>
 
               <button 
                 type="button"
@@ -772,11 +774,10 @@ export function AsistenciaPage() {
                 onClick={handleManualSave}
                 disabled={!hasUnsavedChanges || saving}
                 style={{ 
-                  padding: '0.3rem 0.8rem',
+                  padding: '0.4rem 0.8rem',
                   borderRadius: '6px',
-                  width: 'auto',
-                  fontSize: '0.75rem',
-                  height: '28px',
+                  fontSize: '0.85rem',
+                  height: '32px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -785,13 +786,15 @@ export function AsistenciaPage() {
                   cursor: hasUnsavedChanges ? 'pointer' : 'default',
                   fontWeight: 'bold',
                   boxShadow: hasUnsavedChanges ? '0 0 10px rgba(59, 130, 246, 0.5)' : 'none',
-                  transition: 'all 0.3s ease'
+                  transition: 'all 0.3s ease',
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap'
                 }}
               >
                 {saving ? (
-                  <>
+                   <>
                      <span className="saving-dot"></span> Guardando...
-                  </>
+                   </>
                 ) : (
                   <>💾 Guardar</>
                 )}
@@ -808,22 +811,22 @@ export function AsistenciaPage() {
                 disabled={estudiantes.length === 0}
                 style={{ 
                   background: 'rgba(255,255,255,0.05)', 
-                  padding: '0.3rem 0.5rem',
+                  padding: '0.4rem 0.6rem',
                   borderRadius: '6px',
-                  width: 'auto',
-                  fontSize: '0.7rem',
-                  height: '28px',
+                  fontSize: '0.85rem',
+                  height: '32px',
                   opacity: estudiantes.length === 0 ? 0.5 : 1,
                   cursor: estudiantes.length === 0 ? 'not-allowed' : 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  flexShrink: 0
                 }}
               >
-                🧹 Limpiar
+                🧹
               </button>
               
-              <div className="search-container" style={{ flex: 1, minWidth: '150px' }}>
+              <div className="search-container" style={{ flex: '1 1 100px', minWidth: '80px', maxWidth: '200px' }}>
                 <span className="search-icon-left">🔍</span>
                 <input 
                   type="text" 
@@ -833,9 +836,9 @@ export function AsistenciaPage() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                   style={{ 
                     width: '100%', 
-                    padding: '0.3rem 0.5rem 0.3rem 1.8rem', 
-                    fontSize: '0.75rem', 
-                    height: '28px',
+                    padding: '0.4rem 0.5rem 0.4rem 1.8rem', 
+                    fontSize: '0.85rem', 
+                    height: '32px',
                     background: 'rgba(255,255,255,0.05)',
                     border: '1px solid rgba(255,255,255,0.1)',
                     borderRadius: '6px',
@@ -969,7 +972,8 @@ export function AsistenciaPage() {
         )}
       </div>
 
-      {/* Información del Reporte (Visible en impresión) */}
+      {/* Información del Reporte (Visible en impresión) - Ocultar en Android */}
+      {!isAndroid && (
       <div className="report-header-info">
           <div className="report-title-section">
             <h2>Control de Asistencia</h2>
@@ -997,6 +1001,7 @@ export function AsistenciaPage() {
             </div>
           </div>
         </div>
+      )}
 
 
 
