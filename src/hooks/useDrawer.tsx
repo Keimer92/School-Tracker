@@ -1,5 +1,4 @@
-import { useState, useCallback } from 'react';
-import { useIsMobile } from './useAndroid';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 interface UseDrawerReturn {
   isOpen: boolean;
@@ -10,11 +9,27 @@ interface UseDrawerReturn {
 }
 
 export function useDrawer(): UseDrawerReturn {
-  const isMobile = useIsMobile();
+  const [isMobile, setIsMobile] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const isToggling = useRef(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      const android = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+      setIsMobile(window.innerWidth <= 768 || android);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const toggle = useCallback(() => {
-    setIsOpen(prev => !prev);
+    if (isToggling.current) return;
+    isToggling.current = true;
+    setIsOpen(prev => {
+      setTimeout(() => { isToggling.current = false; }, 100);
+      return !prev;
+    });
   }, []);
 
   const open = useCallback(() => {
