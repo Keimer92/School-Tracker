@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import { syncService } from "../lib/syncService";
+import { useIsMobile } from "../hooks/useAndroid";
 
 interface CategoryItem {
   id: number;
@@ -990,25 +991,9 @@ export function GlobalesPage() {
   // Tab state for desktop version
   const [selectedTab, setSelectedTab] = useState<string>(CATEGORIES[0].title);
   
-  // Mobile view state
-  const [isMobile, setIsMobile] = useState(false);
+  // Mobile view state - usando hook reutilizable
+  const isMobile = useIsMobile();
   const [selectedCategory, setSelectedCategory] = useState<CategoryConfig | null>(null);
-
-  // Detect screen size and Android
-  useEffect(() => {
-    const checkMobile = () => {
-      const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
-      const mobile = window.innerWidth <= 768 || isAndroid;
-      setIsMobile(mobile);
-      if (!mobile) {
-        setSelectedCategory(null);
-      }
-    };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
 
   // Fetch all subjects when modal opens
   useEffect(() => {

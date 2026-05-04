@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { listen, emit } from "@tauri-apps/api/event";
+import { useIsMobile } from "./hooks/useAndroid";
+import { useDrawer } from "./hooks/useDrawer";
 import "./App.css";
 import { GlobalesPage } from "./components/GlobalesPage";
 import { EstudiantesPage } from "./components/EstudiantesPage";
@@ -44,16 +46,9 @@ const [visitedTabs, setVisitedTabs] = useState<Set<Tab>>(() => {
     return saved ? parseInt(saved) : 260;
   });
 
-const [isMobile, setIsMobile] = useState(() => {
-  const isAndroidDevice = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
-  return window.innerWidth < 1024 || isAndroidDevice;
-});
-const [drawerOpen, setDrawerOpen] = useState(false);
+const isMobile = useIsMobile();
+const { isOpen: drawerOpen, toggle: toggleDrawer, close: closeDrawer } = useDrawer();
 const drawerRef = useRef<HTMLDivElement>(null);
-
-useEffect(() => {
-  console.log('Drawer state:', drawerOpen);
-}, [drawerOpen]);
 
 // Aplicar safe areas en dispositivos móviles
 useEffect(() => {
@@ -96,18 +91,12 @@ useEffect(() => {
   }
 }, [isMobile]);
 
-useEffect(() => {
-  const handleResize = () => {
-    setIsMobile(window.innerWidth < 1024 || isAndroidDevice);
-  };
-  window.addEventListener('resize', handleResize);
-  return () => window.removeEventListener('resize', handleResize);
-}, []);
+
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (drawerRef.current && !drawerRef.current.contains(e.target as Node)) {
-        setDrawerOpen(false);
+        closeDrawer();
       }
     };
     if (drawerOpen) {
@@ -145,14 +134,14 @@ useEffect(() => {
     setActiveTab(tab);
     setVisitedTabs(prev => new Set(prev).add(tab));
     if (isMobile) {
-      setDrawerOpen(false);
+      closeDrawer();
     }
   };
 
   const handleButtonClick = (tab: Tab) => {
     handleTabChange(tab);
     if (isMobile) {
-      setDrawerOpen(false);
+      closeDrawer();
     }
   };
 
@@ -321,13 +310,13 @@ useEffect(() => {
     >
       {isMobile && (
         <div className="mobile-header">
-          <button className="mobile-menu-btn" onClick={() => { setDrawerOpen(prev => !prev); console.log('Menu clicked, drawer:', !drawerOpen); }} onTouchStart={() => { setDrawerOpen(prev => !prev); }}>
+          <button className="mobile-menu-btn" onClick={toggleDrawer}>
             <span>☰</span>
           </button>
           <span className="mobile-title">School Tracker</span>
         </div>
       )}
-      {isMobile && drawerOpen && <div className="drawer-backdrop" onClick={() => setDrawerOpen(false)} />}
+      {isMobile && drawerOpen && <div className="drawer-backdrop" onClick={closeDrawer} />}
       <nav 
         className={`sidebar ${isMobile ? 'drawer' : ''} ${drawerOpen ? 'open' : ''}`} 
         ref={drawerRef}
@@ -343,7 +332,7 @@ useEffect(() => {
             </div>
           </div>
           {isMobile && (
-            <button className="drawer-close-btn" onClick={() => setDrawerOpen(false)}>✕</button>
+            <button className="drawer-close-btn" onClick={closeDrawer}>✕</button>
           )}
         </div>
         <div className="sidebar-nav">
