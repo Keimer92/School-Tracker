@@ -660,31 +660,35 @@ body {
 
 @media (max-width: 1024px) {
   html, body, #root {
-    height: 100% !important;
+    height: 100svh !important;
     height: 100dvh !important;
-    height: -webkit-fill-available !important;
-    height: fill-available !important;
     overflow: hidden !important;
     margin: 0 !important;
     padding: 0 !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
   }
 
   .app-layout {
-    height: 100% !important;
+    height: 100svh !important;
     height: 100dvh !important;
-    height: -webkit-fill-available !important;
     display: flex !important;
     flex-direction: column !important;
     padding-top: 56px !important;
-    padding-bottom: 0 !important;
     margin: 0 !important;
     box-sizing: border-box !important;
+    position: relative !important;
     overflow: hidden !important;
+    inset: 0 !important;
   }
 
   .mobile-header {
     display: flex !important;
     flex-shrink: 0 !important;
+    position: relative !important;
   }
 
   .main-content {
@@ -692,11 +696,13 @@ body {
     overflow-y: auto !important;
     overflow-x: hidden !important;
     padding: 16px !important;
-    padding-bottom: calc(var(--system-bottom, 80px) + 20px) !important;
-    padding-top: calc(var(--system-top, 0px) + 16px) !important;
+    padding-bottom: 100px !important;
     box-sizing: border-box !important;
     min-height: 0 !important;
-    margin-top: 0 !important;
+    margin: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    position: relative !important;
   }
 
   .sidebar.drawer {
@@ -995,29 +1001,32 @@ label,
 /* Optimización específica para móviles (Android/iOS) - DRAWER LATERAL */
 @media (max-width: 640px) {
   html, body, #root {
-    height: 100% !important;
+    height: 100svh !important;
     height: 100dvh !important;
-    height: -webkit-fill-available !important;
-    height: fill-available !important;
     overflow: hidden !important;
     margin: 0 !important;
     padding: 0 !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
   }
 
   .app-layout {
-    height: 100% !important;
+    height: 100svh !important;
     height: 100dvh !important;
-    height: -webkit-fill-available !important;
     display: flex !important;
     flex-direction: column !important;
     padding-top: 56px !important;
-    padding-bottom: 0 !important;
     margin: 0 !important;
     box-sizing: border-box !important;
+    position: relative !important;
     overflow: hidden !important;
+    inset: 0 !important;
   }
 
-.mobile-header {
+  .mobile-header {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
@@ -1025,6 +1034,7 @@ label,
     height: 56px !important;
     z-index: 10000 !important;
     flex-shrink: 0 !important;
+    box-sizing: border-box !important;
   }
 
   .main-content {
@@ -1032,11 +1042,13 @@ label,
     overflow-y: auto !important;
     overflow-x: hidden !important;
     padding: 16px !important;
-    padding-bottom: calc(var(--system-bottom, 80px) + 20px) !important;
-    padding-top: calc(var(--system-top, 0px) + 16px) !important;
+    padding-bottom: 100px !important;
     box-sizing: border-box !important;
     min-height: 0 !important;
-    margin-top: 0 !important;
+    margin: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    position: relative !important;
   }
 
   .sidebar-button {
