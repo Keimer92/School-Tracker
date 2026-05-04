@@ -1138,6 +1138,25 @@ label,
   }
 }
 
+@media (max-width: 1024px) and (orientation: landscape) {
+  .sticky-filters {
+    position: relative !important;
+    top: auto !important;
+    max-height: 35vh !important;
+    overflow-y: auto !important;
+  }
+
+  .filters-row {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+  }
+
+  .main-content {
+    height: calc(100vh - 56px - 35vh) !important;
+    overflow-y: auto !important;
+  }
+}
+
 input[type="color"] {
   -webkit-appearance: none;
   border: none;
