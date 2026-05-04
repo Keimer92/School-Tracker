@@ -997,21 +997,18 @@ export function GlobalesPage() {
   // Detect screen size and Android
   useEffect(() => {
     const checkMobile = () => {
-      const isAndroidDevice = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
-      const mobile = window.innerWidth <= 768 || isAndroidDevice;
+      const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+      const mobile = window.innerWidth <= 768 || isAndroid;
       setIsMobile(mobile);
-      // Reset to first category when switching to mobile view
-      if (mobile && !selectedCategory) {
-        setSelectedCategory(CATEGORIES[0]);
+      if (!mobile) {
+        setSelectedCategory(null);
       }
     };
     
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
-    
-    return () => window.removeEventListener('resize', handleResize);
-  }, [selectedCategory]);
+  }, []);
 
   // Fetch all subjects when modal opens
   useEffect(() => {
