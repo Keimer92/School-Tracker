@@ -305,40 +305,10 @@ if "%ANDROID_HOME%"=="" (echo [ERROR] ANDROID_HOME no configurada.&pause&cls&got
 echo [INFO] Limpiando locks de compilación...
 if exist "%SCRIPT_DIR%src-tauri\target\.cargo-lock" del /q "%SCRIPT_DIR%src-tauri\target\.cargo-lock" 2>nul
 if exist "%SCRIPT_DIR%src-tauri\gen\android\app\build\.gradle" rmdir /s /q "%SCRIPT_DIR%src-tauri\gen\android\app\build\.gradle" 2>nul
-
 taskkill /F /IM java.exe /T 2>nul
 
-echo [INFO] Verificando servidor en puerto 1420...
-netstat -ano | findstr ":1420 " | findstr "LISTENING" >nul
-if %ERRORLEVEL% neq 0 (
-    echo [INFO] Servidor no detectado, iniciando Vite...
-    start "Vite Dev Server" cmd /k "cd /d %SCRIPT_DIR% && npm run dev"
-    echo [INFO] Esperando que el servidor inicie...
-    for /L %%i in (1,1,20) do (
-        timeout /t 1 /nobreak >nul
-        netstat -ano | findstr ":1420 " | findstr "LISTENING" >nul
-        if !ERRORLEVEL! equ 0 (
-            echo [OK] Servidor iniciado!
-            goto server_ready
-        )
-    )
-    echo [WARN] Servidor no respondio, intentando de todos modos...
-    :server_ready
-) else (
-    echo [OK] Servidor ya estaba corriendo!
-)
-
-echo.
-set "f=%TEMP%\ahr_%RANDOM%.bat"
-(
-echo @echo off
-echo cd /d "%SCRIPT_DIR%"
-echo REM Forzar limpieza de cargo lock
-echo if exist src-tauri\target\.cargo-lock del /q src-tauri\target\.cargo-lock
-echo call npx tauri android dev
-echo pause
-) > "%f%"
-start "Tauri Android" "%f%"
+echo [INFO] Iniciando Tauri Android (servidor se iniciara automaticamente)...
+start "Tauri Android" cmd /k "cd /d %SCRIPT_DIR% && npx tauri android dev"
 
 cls
 goto menu
