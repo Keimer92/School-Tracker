@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { listen, emit } from "@tauri-apps/api/event";
+import { useState, useEffect, useRef } from "react";
+import { listen, emit } from "@tauri-apps/api/event";
 import { useIsMobile } from "./hooks/useAndroid";
-import { useDrawer } from "./hooks/useDrawer";
 import "./App.css";
 import { GlobalesPage } from "./components/GlobalesPage";
 import { EstudiantesPage } from "./components/EstudiantesPage";
@@ -47,8 +48,11 @@ const [visitedTabs, setVisitedTabs] = useState<Set<Tab>>(() => {
   });
 
 const isMobile = useIsMobile();
-const { isOpen: drawerOpen, toggle: toggleDrawer, close: closeDrawer } = useDrawer();
+const [drawerOpen, setDrawerOpen] = useState(false);
 const drawerRef = useRef<HTMLDivElement>(null);
+
+const toggleDrawer = () => setDrawerOpen(prev => !prev);
+const closeDrawer = () => setDrawerOpen(false);
 
 // Aplicar safe areas en dispositivos móviles
 useEffect(() => {
