@@ -483,6 +483,26 @@ body {
   .mode-badge {
     gap: 0;
   }
+
+  .sidebar.drawer .sidebar-button {
+    padding: 1rem 1.25rem;
+    font-size: 1.1rem;
+    min-height: 52px;
+  }
+
+  .sidebar.drawer .sidebar-button span:first-child {
+    font-size: 1.6rem;
+  }
+
+  .sidebar.drawer .sidebar-title {
+    font-size: 1.5rem;
+    padding: 1rem;
+  }
+
+  .sidebar.drawer .sidebar-section-header {
+    font-size: 0.95rem;
+    padding: 0.75rem 1rem;
+  }
 }
 
 .back-to-mode-selection {
@@ -1079,25 +1099,42 @@ label,
   }
 
   .filter-select {
-    padding: 0.2rem 0.4rem !important;
-    font-size: 0.75rem !important;
+    padding: 0.4rem 0.6rem !important;
+    font-size: 0.9rem !important;
   }
 
   .sidebar-button span:last-child {
-    font-size: 0.5rem;
+    font-size: 0.85rem;
   }
 
   .sidebar-button span:first-child,
   .back-to-mode-selection span {
-    font-size: 1.4rem !important;
+    font-size: 1.6rem !important;
   }
 
   h1 {
-    font-size: 1.5rem !important;
+    font-size: 1.75rem !important;
+  }
+
+  h2 {
+    font-size: 1.4rem !important;
   }
 
   h3 {
-    font-size: 1rem !important;
+    font-size: 1.15rem !important;
+  }
+
+  p, span, div, label, td, th {
+    font-size: 0.95rem !important;
+  }
+
+  .page-content {
+    font-size: 0.95rem !important;
+  }
+
+  .data-table td, .data-table th {
+    font-size: 0.9rem !important;
+    padding: 0.6rem 0.4rem !important;
   }
 }
 

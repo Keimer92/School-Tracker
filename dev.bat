@@ -19,35 +19,37 @@ echo ==============================================
 echo.
 echo === DESARROLLO ===
 echo 1. Windows (Desarrollo)
-echo 2. Android (Desarrollo - USB/Wifi)
-echo 3. Windows Build (Release)
-echo 4. Android Build (Release)
+echo 2. Android (Desarrollo - Compila todo)
+echo 3. Android (Hot Reload - rapido, requiere servidor)
+echo 4. Windows Build (Release)
+echo 5. Android Build (Release)
 echo.
 echo === GESTOR DE EMULADORES ===
-echo 5. Ver emuladores/dispositivos
-echo 6. Crear nuevo emulador
-echo 7. Eliminar emulador
-echo 8. Iniciar emulador (sin app)
-echo 9. Conectar ADB por WiFi
+echo 6. Ver emuladores/dispositivos
+echo 7. Crear nuevo emulador
+echo 8. Eliminar emulador
+echo 9. Iniciar emulador (sin app)
+echo 10. Conectar ADB por WiFi
 echo.
 echo === MANTENIMIENTO ===
-echo 10. Limpiar cach? y dependencias
-echo 11. Salir
+echo 11. Limpiar cache y dependencias
+echo 12. Salir
 echo ==============================================
 echo.
 
 set /p modo="Seleccione una opcion: "
-if "%modo%"=="11" goto exit_script
+if "%modo%"=="12" goto exit_script
 if "%modo%"=="1" goto windows_dev
 if "%modo%"=="2" goto android_dev
-if "%modo%"=="3" goto windows_build
-if "%modo%"=="4" goto android_build
-if "%modo%"=="5" goto view_emulators
-if "%modo%"=="6" goto create_emulator
-if "%modo%"=="7" goto delete_emulator
-if "%modo%"=="8" goto start_emulator
-if "%modo%"=="9" goto adb_wifi
-if "%modo%"=="10" goto clean_cache
+if "%modo%"=="3" goto android_hot_reload
+if "%modo%"=="4" goto windows_build
+if "%modo%"=="5" goto android_build
+if "%modo%"=="6" goto view_emulators
+if "%modo%"=="7" goto create_emulator
+if "%modo%"=="8" goto delete_emulator
+if "%modo%"=="9" goto start_emulator
+if "%modo%"=="10" goto adb_wifi
+if "%modo%"=="11" goto clean_cache
 cls
 goto menu
 
@@ -250,12 +252,17 @@ echo    New-NetFirewallRule -DisplayName "Vite Dev" -Direction Inbound -LocalPor
 echo ==============================================
 echo.
 
-echo [INFO] Ejecutando app...
+echo [INFO] Iniciando servidor Vite en background...
+start "Vite Dev Server" cmd /k "cd /d %SCRIPT_DIR% && npm run dev"
+
+timeout /t 5 /nobreak >nul
+
+echo [INFO] Ejecutando app Tauri Android...
 set "f=%TEMP%\ta_%RANDOM%.bat"
 (
 echo @echo off
 echo chcp 65001 ^>nul
-echo call npm run tauri android dev
+echo call npx tauri android dev
 echo pause
 ) > "%f%"
 start "Tauri Android" "%f%"
@@ -280,6 +287,34 @@ set "f=%TEMP%\ab_%RANDOM%.bat"
 echo @echo off^&^&chcp 65001^&^&call npm run tauri android build^&^&pause>"%f%"
 start "Android Build" "%f%"
 pause
+cls
+goto menu
+
+:android_hot_reload
+echo.
+echo [INFO] Android Hot Reload (Rapido)
+echo.
+if "%ANDROID_HOME%"=="" (echo [ERROR] ANDROID_HOME no configurada.&pause&cls&goto menu)
+
+echo [INFO] Verificando servidor en puerto 1420...
+powershell -Command "try { Invoke-WebRequest -Uri 'http://localhost:1420' -UseBasicParsing -TimeoutSec 2 | Out-Null; exit 0 } catch { exit 1 }"
+if %ERRORLEVEL% neq 0 (
+    echo [INFO] Servidor no detectado, iniciando Vite...
+    start "Vite Dev Server" cmd /k "cd /d %SCRIPT_DIR% && npm run dev"
+    timeout /t 5 /nobreak >nul
+) else (
+    echo [OK] Servidor Vite detectado!
+)
+
+echo [INFO] Iniciando Tauri Android...
+set "f=%TEMP%\ahr_%RANDOM%.bat"
+echo @echo off
+echo chcp 65001 ^>nul
+echo call npx tauri android dev
+echo pause
+) > "%f%"
+start "Tauri Android Hot" "%f%"
+
 cls
 goto menu
 

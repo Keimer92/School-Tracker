@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:android": "npm run dev & npx tauri android dev",
+    "dev:android:hot": "npx tauri android dev",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri"
