@@ -1403,20 +1403,20 @@ console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({
         `}
       </style>
 
-      {/* Encabezado para Impresión */}
-      <div className="print-header">
-        <div className="print-title">Reporte de Calificaciones</div>
-        <div className="print-grid">
-          <div><strong>Colegio:</strong> {selectedNames.colegio}</div>
-          <div><strong>Año Lectivo:</strong> {selectedNames.ano}</div>
-          <div><strong>Grado:</strong> {selectedNames.grado}</div>
-          <div><strong>Sección:</strong> {selectedNames.seccion}</div>
-          <div><strong>Asignatura:</strong> {selectedNames.asignatura}</div>
-          <div><strong>Corte:</strong> {selectedNames.corte}</div>
-          <div><strong>Fecha:</strong> {new Date().toLocaleDateString()}</div>
-          <div><strong>Sexo:</strong> {selectedSexo === "M" ? "Masculino" : selectedSexo === "F" ? "Femenino" : "Todos"}</div>
-        </div>
-      </div>
+{/* Encabezado para Impresión - Oculto en UI normal */}
+<div className="print-header" style={{ display: 'none' }}>
+  <div className="print-title">Reporte de Calificaciones</div>
+  <div className="print-grid">
+    <div><strong>Colegio:</strong> {selectedNames.colegio}</div>
+    <div><strong>Año Lectivo:</strong> {selectedNames.ano}</div>
+    <div><strong>Grado:</strong> {selectedNames.grado}</div>
+    <div><strong>Sección:</strong> {selectedNames.seccion}</div>
+    <div><strong>Asignatura:</strong> {selectedNames.asignatura}</div>
+    <div><strong>Corte:</strong> {selectedNames.corte}</div>
+    <div><strong>Fecha:</strong> {new Date().toLocaleDateString()}</div>
+    <div><strong>Sexo:</strong> {selectedSexo === "M" ? "Masculino" : selectedSexo === "F" ? "Femenino" : "Todos"}</div>
+  </div>
+</div>
 
       {/* Contenedor de Filtros - Siempre Visible */}
       <div className="category-card sticky-filters" style={{ 

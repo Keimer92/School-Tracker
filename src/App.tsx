@@ -1,7 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { listen, emit } from "@tauri-apps/api/event";
-import { useState, useEffect, useRef } from "react";
-import { listen, emit } from "@tauri-apps/api/event";
 import { useIsMobile } from "./hooks/useAndroid";
 import "./App.css";
 import { GlobalesPage } from "./components/GlobalesPage";
