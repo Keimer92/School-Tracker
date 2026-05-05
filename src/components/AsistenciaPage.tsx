@@ -976,36 +976,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
         )}
       </div>
 
-      {/* Información del Reporte (Visible en impresión) - Ocultar en Android */}
-      {!isAndroidMobile && (
-      <div className="report-header-info">
-          <div className="report-title-section">
-            <h2>Control de Asistencia</h2>
-            <div className="report-date-badge">
-              Fecha: {selectedFecha.split('-').reverse().join('/')}
-            </div>
-          </div>
-          
-          <div className="report-details-grid">
-            <div className="detail-item">
-              <span className="detail-label">Colegio:</span>
-              <span className="detail-value">{colegioNombre}</span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">Grado y Sección:</span>
-              <span className="detail-value">{gradoNombre} - {seccionNombre}</span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">Filtro Sexo:</span>
-              <span className="detail-value">{selectedSexo === 'M' ? 'Masculino' : selectedSexo === 'F' ? 'Femenino' : 'Todos'}</span>
-            </div>
-            <div className="detail-item">
-              <span className="detail-label">Año Lectivo:</span>
-              <span className="detail-value">{anos.find(a => a.id === selectedAno)?.nombre || ""}</span>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Información del Reporte ocultada por solicitud del usuario */}
 
 
 
