@@ -687,14 +687,13 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
         padding: isAndroidMobile ? '0.5rem' : '0.4rem'
       }}>
         <div className="filters-row" style={{ 
-          display: 'grid',
-gridTemplateColumns: isAndroidMobile ? 'repeat(auto-fit, minmax(120px, 1fr))' : 'auto',
-gap: isAndroidMobile ? '0.5rem' : '0.4rem',
-justifyContent: 'flex-start',
-alignItems: 'flex-end',
-marginBottom: isAndroidMobile ? '0.75rem' : '0.5rem'
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: isAndroidMobile ? '0.5rem' : '0.4rem',
+          justifyContent: 'flex-start',
+          alignItems: 'flex-end'
         }}>
-            <div className="input-container-small">
+            <div className="input-container-small" style={!isAndroidMobile ? {minWidth: '140px', flex: '0 0 auto'} : {}}>
               {!isAndroidMobile && <label style={{fontSize: '0.8rem', marginBottom: '2px'}}>Fecha:</label>}
               <input 
                 type="date" 
@@ -710,9 +709,9 @@ height: isAndroidMobile ? '36px' : '28px',
                 value={selectedFecha} 
                 onChange={(e) => handleFilterChange(setSelectedFecha, e.target.value)} 
                 title={!isFechaHabilitada ? "Este colegio no tiene habilitada la asistencia para este día" : ""}
-              />
+/>
             </div>
-            <div className="input-container-small">
+            <div className="input-container-small" style={!isAndroidMobile ? {minWidth: '100px', flex: '0 0 auto'} : {}}>
               {!isAndroidMobile && <label style={{fontSize: '0.8rem', marginBottom: '2px'}}>Año:</label>}
               <select 
                 className="filter-select"
@@ -723,7 +722,7 @@ height: isAndroidMobile ? '36px' : '28px',
                 {anos.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
               </select>
             </div>
-            <div className="input-container-small">
+            <div className="input-container-small" style={!isAndroidMobile ? {minWidth: '150px', flex: '0 0 auto'} : {}}>
               {!isAndroidMobile && <label style={{fontSize: '0.8rem', marginBottom: '2px'}}>Colegio:</label>}
               <select 
                 className="filter-select"
@@ -734,7 +733,7 @@ height: isAndroidMobile ? '36px' : '28px',
                 {colegios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>
             </div>
-            <div className="input-container-small">
+            <div className="input-container-small" style={!isAndroidMobile ? {minWidth: '100px', flex: '0 0 auto'} : {}}>
               {!isAndroidMobile && <label style={{fontSize: '0.8rem', marginBottom: '2px'}}>Grado:</label>}
               <select 
                 className="filter-select"
@@ -745,18 +744,18 @@ height: isAndroidMobile ? '36px' : '28px',
                 {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
               </select>
             </div>
-            <div className="input-container-small">
+            <div className="input-container-small" style={!isAndroidMobile ? {minWidth: '100px', flex: '0 0 auto'} : {}}>
               {!isAndroidMobile && <label style={{fontSize: '0.8rem', marginBottom: '2px'}}>Sección:</label>}
               <select 
                 className="filter-select"
                 style={{ padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroidMobile ? '0.9rem' : '0.75rem', height: isAndroidMobile ? '36px' : '28px', width: '100%' }}
                 value={selectedSeccion} 
-                onChange={(e) => handleFilterChange(setSelectedSeccion, Number(e.target.value))}
+                onChange={(e) => handleFilterChange(setSelectedSeccion, e.target.value)}
               >
                 {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
               </select>
             </div>
-            <div className="input-container-small">
+            <div className="input-container-small" style={!isAndroidMobile ? {minWidth: '80px', flex: '0 0 auto'} : {}}>
               {!isAndroidMobile && <label style={{fontSize: '0.8rem', marginBottom: '2px'}}>Sexo:</label>}
               <select 
                 className="filter-select"
