@@ -53,17 +53,21 @@ export function AsistenciaPage() {
     stats: null
   });
 
-  const [isMobile, setIsMobile] = useState(false);
-  const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+const [isMobile, setIsMobile] = useState(false);
+const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+const isWindows = typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent);
 
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
+useEffect(() => {
+const checkMobile = () => {
+setIsMobile(window.innerWidth <= 768);
+};
+checkMobile();
+window.addEventListener('resize', checkMobile);
+return () => window.removeEventListener('resize', checkMobile);
+}, []);
+
+// Determinar si estamos en modo móvil Android (para UI táctil)
+const isAndroidMobile = isAndroid || (isMobile && !isWindows);
 
   // Ref para rastrear los cambios locales (borrador) independientemente del estado de estudiantes
   // Esto permite que el estado sobreviva a refrescos automáticos provocados por eventos globales
@@ -680,25 +684,25 @@ export function AsistenciaPage() {
         borderRadius: '0 0 12px 12px',
         border: '1px solid rgba(255,255,255,0.05)',
         borderTop: 'none',
-        padding: isAndroid ? '0.5rem' : '0.4rem'
+        padding: isAndroidMobile ? '0.5rem' : '0.4rem'
       }}>
         <div className="filters-row" style={{ 
           display: 'grid',
-          gridTemplateColumns: isAndroid ? 'repeat(auto-fit, minmax(120px, 1fr))' : 'auto',
-          gap: isAndroid ? '0.5rem' : '0.4rem',
-          justifyContent: 'flex-start',
-          alignItems: 'flex-end',
-          marginBottom: isAndroid ? '0.75rem' : '0.5rem'
+gridTemplateColumns: isAndroidMobile ? 'repeat(auto-fit, minmax(120px, 1fr))' : 'auto',
+gap: isAndroidMobile ? '0.5rem' : '0.4rem',
+justifyContent: 'flex-start',
+alignItems: 'flex-end',
+marginBottom: isAndroidMobile ? '0.75rem' : '0.5rem'
         }}>
             <div className="input-container-small">
-              {(!isMobile || isAndroid) && <label style={isAndroid ? {fontSize: '0.8rem', marginBottom: '2px'} : {}}>Fecha:</label>}
+              {!isAndroidMobile && <label style={{fontSize: '0.8rem', marginBottom: '2px'}}>Fecha:</label>}
               <input 
                 type="date" 
                 className={`filter-select ${!isFechaHabilitada ? 'invalid-date' : ''}`}
                 style={{ 
-                  padding: isAndroid ? '0.5rem' : '0.3rem 0.4rem', 
-                  fontSize: isAndroid ? '0.9rem' : '0.75rem', 
-                  height: isAndroid ? '36px' : '28px',
+padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem',
+fontSize: isAndroidMobile ? '0.9rem' : '0.75rem',
+height: isAndroidMobile ? '36px' : '28px',
                   border: !isFechaHabilitada ? '1px solid #ef4444' : undefined,
                   color: !isFechaHabilitada ? '#ef4444' : 'inherit',
                   width: '100%'
@@ -709,10 +713,10 @@ export function AsistenciaPage() {
               />
             </div>
             <div className="input-container-small">
-              {(!isMobile || isAndroid) && <label style={isAndroid ? {fontSize: '0.8rem', marginBottom: '2px'} : {}}>Año:</label>}
+              {!isAndroidMobile && <label style={{fontSize: '0.8rem', marginBottom: '2px'}}>Año:</label>}
               <select 
                 className="filter-select"
-                style={{ padding: isAndroid ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroid ? '0.9rem' : '0.75rem', height: isAndroid ? '36px' : '28px', width: '100%' }}
+                style={{ padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroidMobile ? '0.9rem' : '0.75rem', height: isAndroidMobile ? '36px' : '28px', width: '100%' }}
                 value={selectedAno} 
                 onChange={(e) => handleFilterChange(setSelectedAno, Number(e.target.value))}
               >
@@ -720,10 +724,10 @@ export function AsistenciaPage() {
               </select>
             </div>
             <div className="input-container-small">
-              {(!isMobile || isAndroid) && <label style={isAndroid ? {fontSize: '0.8rem', marginBottom: '2px'} : {}}>Colegio:</label>}
+              {!isAndroidMobile && <label style={{fontSize: '0.8rem', marginBottom: '2px'}}>Colegio:</label>}
               <select 
                 className="filter-select"
-                style={{ padding: isAndroid ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroid ? '0.9rem' : '0.75rem', height: isAndroid ? '36px' : '28px', width: '100%' }}
+                style={{ padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroidMobile ? '0.9rem' : '0.75rem', height: isAndroidMobile ? '36px' : '28px', width: '100%' }}
                 value={selectedColegio} 
                 onChange={(e) => handleFilterChange(setSelectedColegio, Number(e.target.value))}
               >
@@ -731,10 +735,10 @@ export function AsistenciaPage() {
               </select>
             </div>
             <div className="input-container-small">
-              {(!isMobile || isAndroid) && <label style={isAndroid ? {fontSize: '0.8rem', marginBottom: '2px'} : {}}>Grado:</label>}
+              {!isAndroidMobile && <label style={{fontSize: '0.8rem', marginBottom: '2px'}}>Grado:</label>}
               <select 
                 className="filter-select"
-                style={{ padding: isAndroid ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroid ? '0.9rem' : '0.75rem', height: isAndroid ? '36px' : '28px', width: '100%' }}
+                style={{ padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroidMobile ? '0.9rem' : '0.75rem', height: isAndroidMobile ? '36px' : '28px', width: '100%' }}
                 value={selectedGrado} 
                 onChange={(e) => handleFilterChange(setSelectedGrado, Number(e.target.value))}
               >
@@ -742,10 +746,10 @@ export function AsistenciaPage() {
               </select>
             </div>
             <div className="input-container-small">
-              {(!isMobile || isAndroid) && <label style={isAndroid ? {fontSize: '0.8rem', marginBottom: '2px'} : {}}>Sección:</label>}
+              {!isAndroidMobile && <label style={{fontSize: '0.8rem', marginBottom: '2px'}}>Sección:</label>}
               <select 
                 className="filter-select"
-                style={{ padding: isAndroid ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroid ? '0.9rem' : '0.75rem', height: isAndroid ? '36px' : '28px', width: '100%' }}
+                style={{ padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroidMobile ? '0.9rem' : '0.75rem', height: isAndroidMobile ? '36px' : '28px', width: '100%' }}
                 value={selectedSeccion} 
                 onChange={(e) => handleFilterChange(setSelectedSeccion, Number(e.target.value))}
               >
@@ -753,10 +757,10 @@ export function AsistenciaPage() {
               </select>
             </div>
             <div className="input-container-small">
-              {(!isMobile || isAndroid) && <label style={isAndroid ? {fontSize: '0.8rem', marginBottom: '2px'} : {}}>Sexo:</label>}
+              {!isAndroidMobile && <label style={{fontSize: '0.8rem', marginBottom: '2px'}}>Sexo:</label>}
               <select 
                 className="filter-select"
-                style={{ padding: isAndroid ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroid ? '0.9rem' : '0.75rem', height: isAndroid ? '36px' : '28px', width: '100%' }}
+                style={{ padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroidMobile ? '0.9rem' : '0.75rem', height: isAndroidMobile ? '36px' : '28px', width: '100%' }}
                 value={selectedSexo} 
                 onChange={(e) => handleFilterChange(setSelectedSexo, e.target.value)}
               >
@@ -860,7 +864,7 @@ export function AsistenciaPage() {
             </div>
           </div>
 
-        {isMobile && (
+        {isAndroidMobile && (
           <div className="asistencia-summary-mobile" style={{ 
             marginTop: '0',
             marginLeft: '-0.4rem',
@@ -975,7 +979,7 @@ export function AsistenciaPage() {
       </div>
 
       {/* Información del Reporte (Visible en impresión) - Ocultar en Android */}
-      {!isAndroid && (
+      {!isAndroidMobile && (
       <div className="report-header-info">
           <div className="report-title-section">
             <h2>Control de Asistencia</h2>
@@ -1016,7 +1020,7 @@ export function AsistenciaPage() {
           alignItems: 'center' 
         }}>
         {/* Resumen de Asistencia */}
-        {!isMobile && (
+        {!isAndroidMobile && (
           <div className="asistencia-summary" style={{ margin: '0.5rem 0', padding: '0 0.4rem', width: '100%', maxWidth: '100%' }}>
           <div className="summary-card students" onClick={() => handleCardClick('Total', { total: totalEstudiantes, m: totalM, f: totalF })}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 'bold', fontSize: '0.95rem' }}>
