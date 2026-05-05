@@ -685,23 +685,24 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
         border: '1px solid rgba(255,255,255,0.05)',
         borderTop: 'none',
         padding: isAndroidMobile ? '0.5rem' : '0.4rem'
-      }}>
-        <div className="filters-row" style={{ 
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: isAndroidMobile ? '0.5rem' : '0.4rem',
-          justifyContent: 'flex-start',
-          alignItems: 'flex-end'
-        }}>
-            <div className="input-container-small" style={!isAndroidMobile ? {minWidth: '140px', flex: '0 0 auto'} : {}}>
+}}>
+          <div className="filters-row" style={{ 
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: isAndroidMobile ? '0.5rem' : '0.4rem',
+            justifyContent: 'flex-start',
+            alignItems: 'flex-end',
+            width: '100%'
+          }}>
+            <div className="input-container-small" style={!isAndroidMobile ? {minWidth: '150px', flex: '1 1 auto'} : {}}>
               {!isAndroidMobile && <label style={{fontSize: '0.8rem', marginBottom: '2px'}}>Fecha:</label>}
               <input 
                 type="date" 
                 className={`filter-select ${!isFechaHabilitada ? 'invalid-date' : ''}`}
                 style={{ 
-padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem',
-fontSize: isAndroidMobile ? '0.9rem' : '0.75rem',
-height: isAndroidMobile ? '36px' : '28px',
+                  padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem',
+                  fontSize: isAndroidMobile ? '0.9rem' : '0.75rem',
+                  height: isAndroidMobile ? '36px' : '28px',
                   border: !isFechaHabilitada ? '1px solid #ef4444' : undefined,
                   color: !isFechaHabilitada ? '#ef4444' : 'inherit',
                   width: '100%'
@@ -709,11 +710,11 @@ height: isAndroidMobile ? '36px' : '28px',
                 value={selectedFecha} 
                 onChange={(e) => handleFilterChange(setSelectedFecha, e.target.value)} 
                 title={!isFechaHabilitada ? "Este colegio no tiene habilitada la asistencia para este día" : ""}
-/>
+            />
             </div>
-            <div className="input-container-small" style={!isAndroidMobile ? {minWidth: '100px', flex: '0 0 auto'} : {}}>
+            <div className="input-container-small" style={!isAndroidMobile ? {minWidth: '100px', flex: '1 1 auto'} : {}}>
               {!isAndroidMobile && <label style={{fontSize: '0.8rem', marginBottom: '2px'}}>Año:</label>}
-              <select 
+              <select
                 className="filter-select"
                 style={{ padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroidMobile ? '0.9rem' : '0.75rem', height: isAndroidMobile ? '36px' : '28px', width: '100%' }}
                 value={selectedAno} 
@@ -733,7 +734,7 @@ height: isAndroidMobile ? '36px' : '28px',
                 {colegios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>
             </div>
-            <div className="input-container-small" style={!isAndroidMobile ? {minWidth: '100px', flex: '0 0 auto'} : {}}>
+            <div className="input-container-small" style={!isAndroidMobile ? {minWidth: '120px', flex: '1 1 auto'} : {}}>
               {!isAndroidMobile && <label style={{fontSize: '0.8rem', marginBottom: '2px'}}>Grado:</label>}
               <select 
                 className="filter-select"
@@ -744,7 +745,7 @@ height: isAndroidMobile ? '36px' : '28px',
                 {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
               </select>
             </div>
-            <div className="input-container-small" style={!isAndroidMobile ? {minWidth: '100px', flex: '0 0 auto'} : {}}>
+            <div className="input-container-small" style={!isAndroidMobile ? {minWidth: '120px', flex: '1 1 auto'} : {}}>
               {!isAndroidMobile && <label style={{fontSize: '0.8rem', marginBottom: '2px'}}>Sección:</label>}
               <select 
                 className="filter-select"
@@ -766,101 +767,99 @@ height: isAndroidMobile ? '36px' : '28px',
                 <option value="">Todos</option>
                 <option value="M">Masculino</option>
                 <option value="F">Femenino</option>
-              </select>
+</select>
             </div>
 
-<div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'nowrap', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-
-              <button 
-                type="button"
-                className="primary"
-                onClick={handleManualSave}
-                disabled={!hasUnsavedChanges || saving}
-                style={{ 
-                  padding: '0.3rem 0.5rem',
-                  borderRadius: '6px',
-                  fontSize: '0.7rem',
-                  height: '26px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: hasUnsavedChanges ? '#3b82f6' : 'rgba(255,255,255,0.1)',
-                  color: hasUnsavedChanges ? 'white' : '#94a3b8',
-                  cursor: hasUnsavedChanges ? 'pointer' : 'default',
-                  fontWeight: 'bold',
-                  boxShadow: hasUnsavedChanges ? '0 0 10px rgba(59, 130, 246, 0.5)' : 'none',
-                  transition: 'all 0.3s ease',
-                  flexShrink: 0,
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                {saving ? (
-                   <>
-                     <span className="saving-dot"></span> Guardando...
-                   </>
-                ) : (
-                  <>💾</>
-                )}
-              </button>
-
-              <button 
-                type="button"
-                className="icon-button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  limpiarAsistencia();
-                }}
-                disabled={estudiantes.length === 0}
-                style={{ 
-                  background: 'rgba(255,255,255,0.05)', 
-                  padding: '0.3rem 0.4rem',
-                  borderRadius: '6px',
-                  fontSize: '0.7rem',
-                  height: '26px',
-                  width: '26px',
-                  opacity: estudiantes.length === 0 ? 0.5 : 1,
-                  cursor: estudiantes.length === 0 ? 'not-allowed' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
-                }}
-              >
-                🧹
-              </button>
-              
-              <div className="search-container" style={{ flex: '1 1 auto', minWidth: '80px', position: 'relative' }}>
-                <span className="search-icon-left" style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.7rem', pointerEvents: 'none' }}>🔍</span>
-                <input 
-                  type="text" 
-                  className="search-input search-input-with-icon" 
-                  placeholder="Buscar..." 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+            {/* Botones a la derecha para Windows */}
+            {!isAndroidMobile && (
+              <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', marginLeft: 'auto', minWidth: '350px' }}>
+                <button 
+                  type="button"
+                  className="primary"
+                  onClick={handleManualSave}
+                  disabled={!hasUnsavedChanges || saving}
                   style={{ 
-                    width: '100%', 
-                    padding: '0.3rem 0.4rem 0.3rem 1.5rem', 
-                    fontSize: '0.7rem', 
-                    height: '26px',
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.1)',
+                    padding: '0.3rem 0.5rem',
                     borderRadius: '6px',
-                    color: 'white',
-                    boxSizing: 'border-box'
+                    fontSize: '0.7rem',
+                    height: '28px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: hasUnsavedChanges ? '#3b82f6' : 'rgba(255,255,255,0.1)',
+                    color: hasUnsavedChanges ? 'white' : '#94a3b8',
+                    cursor: hasUnsavedChanges ? 'pointer' : 'default',
+                    fontWeight: 'bold',
+                    boxShadow: hasUnsavedChanges ? '0 0 10px rgba(59, 130, 246, 0.5)' : 'none',
+                    transition: 'all 0.3s ease',
+                    flexShrink: 0,
+                    whiteSpace: 'nowrap'
                   }}
-                />
-                {searchTerm && (
-                  <span 
-                    className="search-clear-icon" 
-                    onClick={() => setSearchTerm("")}
-                    style={{ top: '50%', transform: 'translateY(-50%)', right: '8px', fontSize: '0.7rem' }}
-                  >
-                    ✕
-                  </span>
-                )}
+                >
+                  {saving ? (
+                      <><span className="saving-dot"></span> Guardando...</>
+                  ) : (
+                    <>💾</>
+                  )}
+                </button>
+
+                <button 
+                  type="button"
+                  className="icon-button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    limpiarAsistencia();
+                  }}
+                  disabled={estudiantes.length === 0}
+                  style={{ 
+                    background: 'rgba(255,255,255,0.05)', 
+                    padding: '0.3rem 0.4rem',
+                    borderRadius: '6px',
+                    fontSize: '0.7rem',
+                    height: '28px',
+                    width: '28px',
+                    opacity: estudiantes.length === 0 ? 0.5 : 1,
+                    cursor: estudiantes.length === 0 ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}
+                >
+                  🧹
+                </button>
+                
+                <div className="search-container" style={{ flex: '1 1 auto', minWidth: '120px', position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.7rem', pointerEvents: 'none' }}>🔍</span>
+                  <input 
+                    type="text" 
+                    placeholder="Buscar..." 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    style={{ 
+                      width: '100%', 
+                      padding: '0.3rem 0.4rem 0.3rem 1.5rem', 
+                      fontSize: '0.7rem', 
+                      height: '28px',
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: '6px',
+                      color: 'white',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                  {searchTerm && (
+                    <span 
+                      onClick={() => setSearchTerm("")}
+                      style={{ top: '50%', transform: 'translateY(-50%)', right: '8px', fontSize: '0.7rem', cursor: 'pointer' }}
+                    >
+                      ✕
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
         {isAndroidMobile && (
