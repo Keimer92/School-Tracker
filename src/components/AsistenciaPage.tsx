@@ -772,7 +772,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
 
             {/* Botones a la derecha para Windows */}
             {!isAndroidMobile && (
-              <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', marginLeft: 'auto', minWidth: '350px' }}>
+              <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', marginLeft: 'auto', minWidth: '400px', flex: '1' }}>
                 <button 
                   type="button"
                   className="primary"
@@ -830,7 +830,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
                   🧹
                 </button>
                 
-                <div className="search-container" style={{ flex: '1 1 auto', minWidth: '120px', position: 'relative' }}>
+                <div className="search-container" style={{ flex: '1 1 250px', minWidth: '180px', position: 'relative' }}>
                   <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.7rem', pointerEvents: 'none' }}>🔍</span>
                   <input 
                     type="text" 

@@ -51,7 +51,9 @@ export function InformePage() {
 
   // Mobile Logic
   const [isMobile, setIsMobile] = useState(false);
-  const isAndroid = /Android/i.test(navigator.userAgent);
+  const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+  const isWindows = typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent);
+  const isAndroidMobile = isAndroid || (isMobile && !isWindows);
   const filtersRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
