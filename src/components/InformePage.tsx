@@ -758,8 +758,7 @@ try {
 
   return (
     <div className="page-container">
-      <style>
-        {`
+      <style>{`
           .asistencia-summary {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -830,7 +829,7 @@ try {
       </style>
       <div className="category-grid" style={{ display: 'block' }}>
         {/* Filtros */}
-      <div className="category-card sticky-filters" ref={filtersRef}
+        <div className="category-card sticky-filters" ref={filtersRef}
           style={{ 
           position: 'sticky', 
           top: 0, 
@@ -1178,9 +1177,8 @@ try {
                       <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '0.9rem' }}>{statsJ.total}</span>
                     </div>
 </div>
-        </div>
-      </div>
-      )}
+</div>
+)}
 
 
 
@@ -1394,12 +1392,14 @@ try {
                   );
                 })}
               </tbody>
-            </table>
-          )}
-        </div>
-      </div>
+</table>
+      )}
     </div>
-      {/* Modal de Detalles de Resumen */}
+    </div>
+    </div>
+    </div>
+    </div>
+    {/* Modal de Detalles de Resumen */}
       {showSummaryModal.show && createPortal(
         <div className="modal-overlay" onClick={() => setShowSummaryModal({ ...showSummaryModal, show: false })}>
           <div 
@@ -1524,11 +1524,11 @@ try {
               style={{ marginTop: '1rem', width: '100%' }}
             >
               Cerrar
-            </button>
-          </div>
-        </div>,
-        document.body
-      )}
-    </div>
+</button>
+</div>
+</div>,
+document.body
+)}
+</div>
   );
 }
