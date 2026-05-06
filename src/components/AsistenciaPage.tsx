@@ -22,7 +22,7 @@ interface EstudianteAsistencia {
 }
 
 import SearchInput from './SearchInput';
-import FilterHeader from './FilterHeader';
+import { FilterContainer, FilterGroup, FilterActions } from './FilterContainer';
 
 export function AsistenciaPage() {
   // Filtros
@@ -675,188 +675,166 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
         `}
       </style>
       <div className="category-grid" style={{ display: 'block' }}>
-        {/* Filtros de Búsqueda (Mismo estilo que NotasPage) */}
-      <FilterHeader style={{ padding: isAndroidMobile ? '0.5rem' : '0.4rem' }}>
-          <div className="filters-row" style={{ 
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: isAndroidMobile ? '0.5rem' : '0.4rem',
-            justifyContent: 'flex-start',
-            alignItems: 'flex-end',
-            width: '100%'
-          }}>
-            <div className="input-container-small" style={!isAndroidMobile ? {minWidth: '150px', flex: '1 1 auto'} : {}}>
-              {!isAndroidMobile && <label style={{fontSize: '0.8rem', marginBottom: '2px'}}>Fecha:</label>}
-              <input 
-                type="date" 
-                className={`filter-select ${!isFechaHabilitada ? 'invalid-date' : ''}`}
-                style={{ 
-                  padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem',
-                  fontSize: isAndroidMobile ? '0.9rem' : '0.75rem',
-                  height: isAndroidMobile ? '36px' : '28px',
-                  border: !isFechaHabilitada ? '1px solid #ef4444' : undefined,
-                  color: !isFechaHabilitada ? '#ef4444' : 'inherit',
-                  width: '100%'
-                }}
-                value={selectedFecha} 
-                onChange={(e) => handleFilterChange(setSelectedFecha, e.target.value)} 
-                title={!isFechaHabilitada ? "Este colegio no tiene habilitada la asistencia para este día" : ""}
+        {/* Filtros de Búsqueda */}
+        <FilterContainer isMobile={isAndroidMobile} style={{ padding: isAndroidMobile ? '0.5rem' : '0.4rem' }}>
+          {/* Fecha */}
+          <FilterGroup label="Fecha:" isMobile={isAndroidMobile} flex={isAndroidMobile ? '1 1 100%' : '0 0 auto'}>
+            <input 
+              type="date" 
+              className={`filter-select ${!isFechaHabilitada ? 'invalid-date' : ''}`}
+              style={{ 
+                padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem',
+                fontSize: isAndroidMobile ? '0.9rem' : '0.75rem',
+                height: isAndroidMobile ? '36px' : '28px',
+                border: !isFechaHabilitada ? '1px solid #ef4444' : undefined,
+                color: !isFechaHabilitada ? '#ef4444' : 'inherit',
+                width: '100%'
+              }}
+              value={selectedFecha} 
+              onChange={(e) => handleFilterChange(setSelectedFecha, e.target.value)} 
+              title={!isFechaHabilitada ? "Este colegio no tiene habilitada la asistencia para este día" : ""}
             />
-            </div>
-            <div className="input-container-small" style={!isAndroidMobile ? {minWidth: '100px', flex: '1 1 auto'} : {}}>
-              {!isAndroidMobile && <label style={{fontSize: '0.8rem', marginBottom: '2px'}}>Año:</label>}
-              <select
-                className="filter-select"
-                style={{ padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroidMobile ? '0.9rem' : '0.75rem', height: isAndroidMobile ? '36px' : '28px', width: '100%' }}
-                value={selectedAno} 
-                onChange={(e) => handleFilterChange(setSelectedAno, Number(e.target.value))}
-              >
-                {anos.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
-              </select>
-            </div>
-            <div className="input-container-small" style={!isAndroidMobile ? {minWidth: '150px', flex: '0 0 auto'} : {}}>
-              {!isAndroidMobile && <label style={{fontSize: '0.8rem', marginBottom: '2px'}}>Colegio:</label>}
-              <select 
-                className="filter-select"
-                style={{ padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroidMobile ? '0.9rem' : '0.75rem', height: isAndroidMobile ? '36px' : '28px', width: '100%' }}
-                value={selectedColegio} 
-                onChange={(e) => handleFilterChange(setSelectedColegio, Number(e.target.value))}
-              >
-                {colegios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-              </select>
-            </div>
-            <div className="input-container-small" style={!isAndroidMobile ? {minWidth: '120px', flex: '1 1 auto'} : {}}>
-              {!isAndroidMobile && <label style={{fontSize: '0.8rem', marginBottom: '2px'}}>Grado:</label>}
-              <select 
-                className="filter-select"
-                style={{ padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroidMobile ? '0.9rem' : '0.75rem', height: isAndroidMobile ? '36px' : '28px', width: '100%' }}
-                value={selectedGrado} 
-                onChange={(e) => handleFilterChange(setSelectedGrado, Number(e.target.value))}
-              >
-                {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
-              </select>
-            </div>
-            <div className="input-container-small" style={!isAndroidMobile ? {minWidth: '120px', flex: '1 1 auto'} : {}}>
-              {!isAndroidMobile && <label style={{fontSize: '0.8rem', marginBottom: '2px'}}>Sección:</label>}
-              <select 
-                className="filter-select"
-                style={{ padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroidMobile ? '0.9rem' : '0.75rem', height: isAndroidMobile ? '36px' : '28px', width: '100%' }}
-                value={selectedSeccion} 
-                onChange={(e) => handleFilterChange(setSelectedSeccion, e.target.value)}
-              >
-                {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-              </select>
-            </div>
-            <div className="input-container-small" style={!isAndroidMobile ? {minWidth: '80px', flex: '0 0 auto'} : {}}>
-              {!isAndroidMobile && <label style={{fontSize: '0.8rem', marginBottom: '2px'}}>Sexo:</label>}
-              <select 
-                className="filter-select"
-                style={{ padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroidMobile ? '0.9rem' : '0.75rem', height: isAndroidMobile ? '36px' : '28px', width: '100%' }}
-                value={selectedSexo} 
-                onChange={(e) => handleFilterChange(setSelectedSexo, e.target.value)}
-              >
-                <option value="">Todos</option>
-                <option value="M">Masculino</option>
-                <option value="F">Femenino</option>
-</select>
-            </div>
+          </FilterGroup>
 
-            {/* Botones a la derecha para Windows */}
-            {!isAndroidMobile && (
-              <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', marginLeft: 'auto', minWidth: '400px', flex: '1' }}>
-                <button 
-                  type="button"
-                  className="primary"
-                  onClick={handleManualSave}
-                  disabled={!hasUnsavedChanges || saving}
-                  style={{ 
-                    padding: '0.3rem 0.5rem',
-                    borderRadius: '6px',
-                    fontSize: '0.7rem',
-                    height: '28px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: hasUnsavedChanges ? '#3b82f6' : 'rgba(255,255,255,0.1)',
-                    color: hasUnsavedChanges ? 'white' : '#94a3b8',
-                    cursor: hasUnsavedChanges ? 'pointer' : 'default',
-                    fontWeight: 'bold',
-                    boxShadow: hasUnsavedChanges ? '0 0 10px rgba(59, 130, 246, 0.5)' : 'none',
-                    transition: 'all 0.3s ease',
-                    flexShrink: 0,
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  {saving ? (
-                      <><span className="saving-dot"></span> Guardando...</>
-                  ) : (
-                    <>💾</>
-                  )}
-                </button>
+          {/* Año */}
+          <FilterGroup label="Año:" isMobile={isAndroidMobile} flex={isAndroidMobile ? '1 1 40%' : '0 0 auto'}>
+            <select
+              className="filter-select"
+              style={{ padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroidMobile ? '0.9rem' : '0.75rem', height: isAndroidMobile ? '36px' : '28px', width: '100%' }}
+              value={selectedAno} 
+              onChange={(e) => handleFilterChange(setSelectedAno, Number(e.target.value))}
+            >
+              {anos.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
+            </select>
+          </FilterGroup>
 
-                <button 
-                  type="button"
-                  className="icon-button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    limpiarAsistencia();
-                  }}
-                  disabled={estudiantes.length === 0}
-                  style={{ 
-                    background: 'rgba(255,255,255,0.05)', 
-                    padding: '0.3rem 0.4rem',
-                    borderRadius: '6px',
-                    fontSize: '0.7rem',
-                    height: '28px',
-                    width: '28px',
-                    opacity: estudiantes.length === 0 ? 0.5 : 1,
-                    cursor: estudiantes.length === 0 ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0
-                  }}
-                >
-                  🧹
-                </button>
-                
-                <div className="search-container" style={{ flex: '1 1 250px', minWidth: '180px', position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.7rem', pointerEvents: 'none' }}>🔍</span>
-                  <input 
-                    type="text" 
-                    placeholder="Buscar..." 
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    style={{ 
-                      width: '100%', 
-                      padding: '0.3rem 0.4rem 0.3rem 1.5rem', 
-                      fontSize: '0.7rem', 
-                      height: '28px',
-                      background: 'rgba(255,255,255,0.05)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: '6px',
-                      color: 'white',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                  {searchTerm && (
-                    <span 
-                      onClick={() => setSearchTerm("")}
-                      style={{ top: '50%', transform: 'translateY(-50%)', right: '8px', fontSize: '0.7rem', cursor: 'pointer' }}
-                    >
-                      ✕
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Colegio */}
+          <FilterGroup label="Colegio:" isMobile={isAndroidMobile} flex={isAndroidMobile ? '1 1 100%' : '0 0 auto'}>
+            <select 
+              className="filter-select"
+              style={{ padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroidMobile ? '0.9rem' : '0.75rem', height: isAndroidMobile ? '36px' : '28px', width: '100%' }}
+              value={selectedColegio} 
+              onChange={(e) => handleFilterChange(setSelectedColegio, Number(e.target.value))}
+            >
+              {colegios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select>
+          </FilterGroup>
 
-          {/* Search input moved into filters row */}
+          {/* Grado */}
+          <FilterGroup label="Grado:" isMobile={isAndroidMobile} flex={isAndroidMobile ? '1 1 30%' : '0 0 auto'}>
+            <select 
+              className="filter-select"
+              style={{ padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroidMobile ? '0.9rem' : '0.75rem', height: isAndroidMobile ? '36px' : '28px', width: '100%' }}
+              value={selectedGrado} 
+              onChange={(e) => handleFilterChange(setSelectedGrado, Number(e.target.value))}
+            >
+              {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
+            </select>
+          </FilterGroup>
+
+          {/* Sección */}
+          <FilterGroup label="Sección:" isMobile={isAndroidMobile} flex={isAndroidMobile ? '1 1 30%' : '0 0 auto'}>
+            <select 
+              className="filter-select"
+              style={{ padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroidMobile ? '0.9rem' : '0.75rem', height: isAndroidMobile ? '36px' : '28px', width: '100%' }}
+              value={selectedSeccion} 
+              onChange={(e) => handleFilterChange(setSelectedSeccion, e.target.value)}
+            >
+              {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+            </select>
+          </FilterGroup>
+
+          {/* Sexo */}
+          <FilterGroup label="Sexo:" isMobile={isAndroidMobile} flex={isAndroidMobile ? '1 1 30%' : '0 0 auto'}>
+            <select 
+              className="filter-select"
+              style={{ padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroidMobile ? '0.9rem' : '0.75rem', height: isAndroidMobile ? '36px' : '28px', width: '100%' }}
+              value={selectedSexo} 
+              onChange={(e) => handleFilterChange(setSelectedSexo, e.target.value)}
+            >
+              <option value="">Todos</option>
+              <option value="M">Masculino</option>
+              <option value="F">Femenino</option>
+            </select>
+          </FilterGroup>
+
+          {/* Buscador (solo desktop) */}
+          {!isAndroidMobile && (
+            <SearchInput 
+              value={searchTerm} 
+              onChange={setSearchTerm} 
+              placeholder="Buscar..." 
+              isMobile={false} 
+            />
+          )}
+
+          {/* Botones de Acción */}
+          <FilterActions>
+            <button 
+              type="button"
+              className="primary"
+              onClick={handleManualSave}
+              disabled={!hasUnsavedChanges || saving}
+              style={{ 
+                padding: '0.3rem 0.5rem',
+                borderRadius: '6px',
+                fontSize: '0.7rem',
+                height: '28px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: hasUnsavedChanges ? '#3b82f6' : 'rgba(255,255,255,0.1)',
+                color: hasUnsavedChanges ? 'white' : '#94a3b8',
+                cursor: hasUnsavedChanges ? 'pointer' : 'default',
+                fontWeight: 'bold',
+                boxShadow: hasUnsavedChanges ? '0 0 10px rgba(59, 130, 246, 0.5)' : 'none',
+                transition: 'all 0.3s ease',
+                flexShrink: 0,
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {saving ? (
+                  <><span className="saving-dot"></span> Guardando...</>
+              ) : (
+                <>💾</>
+              )}
+            </button>
+
+            <button 
+              type="button"
+              className="icon-button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                limpiarAsistencia();
+              }}
+              disabled={estudiantes.length === 0}
+              style={{ 
+                background: 'rgba(255,255,255,0.05)', 
+                padding: '0.3rem 0.4rem',
+                borderRadius: '6px',
+                fontSize: '0.7rem',
+                height: '28px',
+                width: '28px',
+                opacity: estudiantes.length === 0 ? 0.5 : 1,
+                cursor: estudiantes.length === 0 ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}
+            >
+              🧹
+            </button>
+          </FilterActions>
+        </FilterContainer>
+
+        {/* Buscador móvil (fuera del contenedor) */}
+        {isAndroidMobile && (
           <div style={{ padding: isAndroidMobile ? '0.4rem 0' : '0.2rem 0' }}>
             <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar estudiante por nombre..." isMobile={isAndroidMobile} />
           </div>
+        )}
 
         {isAndroidMobile && (
           <div className="asistencia-summary-mobile" style={{ 
@@ -970,7 +948,6 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
             </div>
           </div>
         )}
-      </FilterHeader>
 
       {/* Información del Reporte ocultada por solicitud del usuario */}
 
