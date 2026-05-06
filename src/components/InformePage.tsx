@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import SearchInput from './SearchInput';
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
@@ -978,35 +979,7 @@ try {
             </div>
             {/* Mover el buscador aquí, justo después de Sexo */}
             <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'flex-end' }}>
-              <div className="search-container" style={{ width: isMobile ? '100%' : '240px', marginRight: '0.4rem' }}>
-                <span className="search-icon-left">🔍</span>
-                <input 
-                  type="text" 
-                  className="search-input search-input-with-icon" 
-                  placeholder="Buscar estudiante por nombre..." 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  style={{ 
-                    width: '100%', 
-                    padding: '0.4rem 0.6rem 0.4rem 2.2rem', 
-                    fontSize: '0.85rem', 
-                    height: '34px',
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    borderRadius: '8px',
-                    color: 'white'
-                  }}
-                />
-                {searchTerm && (
-                  <span 
-                    className="search-clear-icon" 
-                    onClick={() => setSearchTerm("")}
-                    style={{ top: '50%', transform: 'translateY(-50%)', right: '10px' }}
-                  >
-                    ✕
-                  </span>
-                )}
-              </div>
+              <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar estudiante por nombre..." isMobile={isMobile} />
 
               <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.3rem', alignItems: 'flex-end' }}>
               <button 
