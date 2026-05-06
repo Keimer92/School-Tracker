@@ -8,6 +8,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
+import SearchInput from './SearchInput';
 import "../App.css";
 
 interface CategoryItem {
@@ -1829,27 +1830,12 @@ console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({
           </div>
 
           {/* Buscador Dinámico */}
-          <div className="search-container" style={{ minWidth: '180px', flex: '1', maxWidth: '300px' }}>
-            <span className="search-icon-left">🔍</span>
-            <input 
-              type="text" 
-              className="search-input search-input-with-icon" 
-              placeholder="Buscar estudiante..." 
-              style={{ fontSize: '0.75rem', padding: '0.3rem 1.8rem 0.3rem 1.8rem', height: '28px' }}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            {searchTerm && (
-              <span 
-                className="search-clear-icon" 
-                onClick={() => setSearchTerm("")}
-                title="Limpiar búsqueda"
-                style={{ right: '8px', top: '50%', transform: 'translateY(-50%)' }}
-              >
-                ✕
-              </span>
-            )}
-          </div>
+          <SearchInput 
+            value={searchTerm} 
+            onChange={setSearchTerm} 
+            placeholder="Buscar estudiante..." 
+            isMobile={isMobile} 
+          />
         </div>
       </div>
       {/* Área de Contenido (Slides) */}

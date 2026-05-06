@@ -5,6 +5,7 @@ import { emit, listen } from "@tauri-apps/api/event";
 import * as XLSX from "xlsx";
 import { syncService } from "../lib/syncService";
 import { useCamera } from "../hooks/useCamera";
+import SearchInput from './SearchInput';
 import "../App.css"; // Ensure styles are available
 
 interface CategoryItem {
@@ -1168,26 +1169,12 @@ export function EstudiantesPage() {
           {/* Buscador Dinámico */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0' : '0.3rem', flex: '1 1 200px' }}>
             {!isMobile && <label className="input-label" style={{ fontSize: '0.75rem', marginBottom: 0 }}>Buscar Estudiante</label>}
-            <div className="search-container">
-              <span className="search-icon-left">🔍</span>
-              <input 
-                type="text" 
-                className="search-input search-input-with-icon" 
-                placeholder="Nombre o código..." 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                style={{ padding: '0.4rem 0.6rem 0.4rem 2.2rem', fontSize: '0.85rem', height: '38px' }}
-              />
-              {searchTerm && (
-                <span 
-                  className="search-clear-icon" 
-                  onClick={() => setSearchTerm("")}
-                  title="Limpiar búsqueda"
-                >
-                  ✕
-                </span>
-              )}
-            </div>
+            <SearchInput 
+              value={searchTerm} 
+              onChange={setSearchTerm} 
+              placeholder="Nombre o código..." 
+              isMobile={isMobile} 
+            />
           </div>
         </div>
 
