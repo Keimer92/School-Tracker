@@ -1174,7 +1174,7 @@ export function EstudiantesPage() {
             </div>
           </div>
         )}
-      </div>
+
 
       {/* Modal de Ayuda para Importación */}
       {showImportHelp && (
