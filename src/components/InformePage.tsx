@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import SearchInput from './SearchInput';
+import { FilterContainer, FilterGroup, FilterActions } from './FilterContainer';
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
@@ -55,7 +56,6 @@ export function InformePage() {
   const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
   const isWindows = typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent);
   const isAndroidMobile = isAndroid || (isMobile && !isWindows);
-  const filtersRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -831,226 +831,207 @@ try {
         `}
       </style>
       <div className="category-grid" style={{ display: 'block' }}>
-        {/* Filtros */}
-        <div className="category-card sticky-filters" ref={filtersRef}
-          style={{ 
-          position: 'sticky', 
-          top: 0, 
-          zIndex: 1000, 
-          background: '#0f172a',
-          boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
-          width: '100%',
-          borderRadius: '0 0 12px 12px',
-          border: '1px solid rgba(255,255,255,0.05)',
-          borderTop: 'none',
-          padding: '0.4rem'
-        }}>
-          <div className="filters-row" style={{ 
-            display: 'flex', 
-            flexWrap: 'wrap', 
-            gap: '0.4rem',
-            justifyContent: 'flex-start',
-            alignItems: 'flex-end',
-            marginBottom: '0.5rem'
-          }}>
-            <div className="input-container-small">
-              {!isMobile && <label>Período:</label>}
-              <select 
-                className="filter-select"
-                style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
-                value={periodo} 
-                onChange={(e) => setPeriodo(e.target.value as any)}
-              >
-                <option value="diario">Diario</option>
-                <option value="semanal">Semanal</option>
-                <option value="mensual">Mensual</option>
-              </select>
-            </div>
+        <FilterContainer isMobile={isMobile} style={{ padding: '0.4rem' }}>
+          {/* Período */}
+          <FilterGroup label="Período:" isMobile={isMobile} flex={isMobile ? '1 1 100%' : '0 0 auto'}>
+            <select 
+              className="filter-select"
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              value={periodo} 
+              onChange={(e) => setPeriodo(e.target.value as any)}
+            >
+              <option value="diario">Diario</option>
+              <option value="semanal">Semanal</option>
+              <option value="mensual">Mensual</option>
+            </select>
+          </FilterGroup>
 
-            {periodo !== "mensual" ? (
-              <div className="input-container-small">
-                {!isMobile && <label>{periodo === "diario" ? "Fecha:" : "Semana de:"}</label>}
-                <input 
-                  type="date" 
+          {/* Fecha / Semana / Mes-Año */}
+          {periodo !== "mensual" ? (
+            <FilterGroup label={periodo === "diario" ? "Fecha:" : "Semana de:"} isMobile={isMobile} flex={isMobile ? '1 1 100%' : '0 0 auto'}>
+              <input 
+                type="date" 
+                className="filter-select"
+                style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+                value={fechaBase} 
+                onChange={(e) => setFechaBase(e.target.value)} 
+              />
+            </FilterGroup>
+          ) : (
+            <>
+              <FilterGroup label="Mes:" isMobile={isMobile} flex={isMobile ? '1 1 50%' : '0 0 auto'}>
+                <select 
                   className="filter-select"
-                  style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
-                  value={fechaBase} 
-                  onChange={(e) => setFechaBase(e.target.value)} 
-                />
-              </div>
-            ) : (
-              <>
-                <div className="input-container-small">
-                  {!isMobile && <label>Mes:</label>}
-                  <select 
-                    className="filter-select"
-                    style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
-                    value={mesSeleccionado} 
-                    onChange={(e) => setMesSeleccionado(Number(e.target.value))}
-                  >
-                    <option value={1}>Enero</option>
-                    <option value={2}>Febrero</option>
-                    <option value={3}>Marzo</option>
-                    <option value={4}>Abril</option>
-                    <option value={5}>Mayo</option>
-                    <option value={6}>Junio</option>
-                    <option value={7}>Julio</option>
-                    <option value={8}>Agosto</option>
-                    <option value={9}>Septiembre</option>
-                    <option value={10}>Octubre</option>
-                    <option value={11}>Noviembre</option>
-                    <option value={12}>Diciembre</option>
-                  </select>
-                </div>
-                <div className="input-container-small">
-                  {!isMobile && <label>Año:</label>}
-                  <select 
-                    className="filter-select"
-                    style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
-                    value={anoSeleccionado} 
-                    onChange={(e) => setAnoSeleccionado(Number(e.target.value))}
-                  >
-                    {[...Array(5)].map((_, i) => {
-                      const year = new Date().getFullYear() - 2 + i;
-                      return <option key={year} value={year}>{year}</option>;
-                    })}
-                  </select>
-                </div>
-              </>
-            )}
+                  style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+                  value={mesSeleccionado} 
+                  onChange={(e) => setMesSeleccionado(Number(e.target.value))}
+                >
+                  <option value={1}>Enero</option>
+                  <option value={2}>Febrero</option>
+                  <option value={3}>Marzo</option>
+                  <option value={4}>Abril</option>
+                  <option value={5}>Mayo</option>
+                  <option value={6}>Junio</option>
+                  <option value={7}>Julio</option>
+                  <option value={8}>Agosto</option>
+                  <option value={9}>Septiembre</option>
+                  <option value={10}>Octubre</option>
+                  <option value={11}>Noviembre</option>
+                  <option value={12}>Diciembre</option>
+                </select>
+              </FilterGroup>
+              <FilterGroup label="Año:" isMobile={isMobile} flex={isMobile ? '1 1 50%' : '0 0 auto'}>
+                <select 
+                  className="filter-select"
+                  style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+                  value={anoSeleccionado} 
+                  onChange={(e) => setAnoSeleccionado(Number(e.target.value))}
+                >
+                  {[...Array(5)].map((_, i) => {
+                    const year = new Date().getFullYear() - 2 + i;
+                    return <option key={year} value={year}>{year}</option>;
+                  })}
+                </select>
+              </FilterGroup>
+            </>
+          )}
 
-            <div className="input-container-small">
-              {!isMobile && <label>Año Lectivo:</label>}
-              <select 
-                className="filter-select"
-                style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
-                value={selectedAno} 
-                onChange={(e) => setSelectedAno(Number(e.target.value))}
-              >
-                {anos.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
-              </select>
-            </div>
-            <div className="input-container-small">
-              {!isMobile && <label>Colegio:</label>}
-              <select 
-                className="filter-select"
-                style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
-                value={selectedColegio} 
-                onChange={(e) => setSelectedColegio(Number(e.target.value))}
-              >
-                {colegios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-              </select>
-            </div>
-            <div className="input-container-small">
-              {!isMobile && <label>Grado:</label>}
-              <select 
-                className="filter-select"
-                style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
-                value={selectedGrado} 
-                onChange={(e) => setSelectedGrado(Number(e.target.value))}
-              >
-                {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
-              </select>
-            </div>
-            <div className="input-container-small">
-              {!isMobile && <label>Sección:</label>}
-              <select 
-                className="filter-select"
-                style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
-                value={selectedSeccion} 
-                onChange={(e) => setSelectedSeccion(Number(e.target.value))}
-              >
-                {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-              </select>
-            </div>
+          {/* Año Lectivo */}
+          <FilterGroup label="Año Lectivo:" isMobile={isMobile} flex={isMobile ? '1 1 50%' : '0 0 auto'}>
+            <select 
+              className="filter-select"
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              value={selectedAno} 
+              onChange={(e) => setSelectedAno(Number(e.target.value))}
+            >
+              {anos.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
+            </select>
+          </FilterGroup>
 
-            <div className="input-container-small">
-              {!isMobile && <label>Sexo:</label>}
-              <select 
-                className="filter-select"
-                style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
-                value={selectedSexo} 
-                onChange={(e) => setSelectedSexo(e.target.value)}
-              >
-                <option value="">Todos</option>
-                <option value="M">M</option>
-                <option value="F">F</option>
-              </select>
-            </div>
-            {/* Mover el buscador aquí, justo después de Sexo */}
-            <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'flex-end' }}>
-              <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar estudiante por nombre..." isMobile={isMobile} />
+          {/* Colegio */}
+          <FilterGroup label="Colegio:" isMobile={isMobile} flex={isMobile ? '1 1 100%' : '0 0 auto'}>
+            <select 
+              className="filter-select"
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              value={selectedColegio} 
+              onChange={(e) => setSelectedColegio(Number(e.target.value))}
+            >
+              {colegios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select>
+          </FilterGroup>
 
-              <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.3rem', alignItems: 'flex-end' }}>
-              <button 
-                className="secondary" 
-                onClick={handlePrint} 
-                disabled={reporteFiltrado.length === 0 || loading}
-                style={{ 
-                  padding: '0.3rem 0.6rem', 
-                  fontSize: '0.75rem', 
-                  height: '28px',
-                  backgroundColor: '#10b981',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                title={isMobile ? "Compartir reporte" : "Imprimir reporte"}
-              >
-                {isMobile ? "📤" : "🖨️"}
-              </button>
-              <button 
-                className="secondary" 
-                onClick={exportToExcel} 
-                disabled={reporteFiltrado.length === 0 || loading}
-                style={{ 
-                  padding: '0.3rem 0.6rem', 
-                  fontSize: '0.75rem', 
-                  height: '28px',
-                  backgroundColor: '#059669',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                title="Exportar a Excel"
-              >
-                📊 Excel
-              </button>
-              <button 
-                className="secondary" 
-                onClick={exportToPDF} 
-                disabled={reporteFiltrado.length === 0 || loading}
-                style={{ 
-                  padding: '0.3rem 0.6rem', 
-                  fontSize: '0.75rem', 
-                  height: '28px',
-                  backgroundColor: '#ef4444',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                title="Exportar a PDF"
-              >
-                📄 PDF
-              </button>
-              <button 
-                className="secondary" 
-                onClick={() => setShowPrintOptions(true)}
-                style={{ 
-                  padding: '0.3rem 0.6rem', 
-                  fontSize: '0.75rem', 
-                  height: '28px',
-                  backgroundColor: '#6366f1',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                title="Configuración de página"
-              >
-                ⚙️
-              </button>
-            </div>
-          </div>
+          {/* Grado */}
+          <FilterGroup label="Grado:" isMobile={isMobile} flex={isMobile ? '1 1 50%' : '0 0 auto'}>
+            <select 
+              className="filter-select"
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              value={selectedGrado} 
+              onChange={(e) => setSelectedGrado(Number(e.target.value))}
+            >
+              {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
+            </select>
+          </FilterGroup>
+
+          {/* Sección */}
+          <FilterGroup label="Sección:" isMobile={isMobile} flex={isMobile ? '1 1 50%' : '0 0 auto'}>
+            <select 
+              className="filter-select"
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              value={selectedSeccion} 
+              onChange={(e) => setSelectedSeccion(Number(e.target.value))}
+            >
+              {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+            </select>
+          </FilterGroup>
+
+          {/* Sexo */}
+          <FilterGroup label="Sexo:" isMobile={isMobile} flex={isMobile ? '1 1 50%' : '0 0 auto'}>
+            <select 
+              className="filter-select"
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              value={selectedSexo} 
+              onChange={(e) => setSelectedSexo(e.target.value)}
+            >
+              <option value="">Todos</option>
+              <option value="M">M</option>
+              <option value="F">F</option>
+            </select>
+          </FilterGroup>
+
+          {/* Buscador */}
+          <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar..." isMobile={isMobile} />
+
+          {/* Botones de Acción */}
+          <FilterActions>
+            <button 
+              className="secondary" 
+              onClick={handlePrint} 
+              disabled={reporteFiltrado.length === 0 || loading}
+              style={{ 
+                padding: '0.3rem 0.6rem', 
+                fontSize: '0.75rem', 
+                height: '28px',
+                backgroundColor: '#10b981',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              title={isMobile ? "Compartir reporte" : "Imprimir reporte"}
+            >
+              {isMobile ? "📤" : "🖨️"}
+            </button>
+            <button 
+              className="secondary" 
+              onClick={exportToExcel} 
+              disabled={reporteFiltrado.length === 0 || loading}
+              style={{ 
+                padding: '0.3rem 0.6rem', 
+                fontSize: '0.75rem', 
+                height: '28px',
+                backgroundColor: '#059669',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              title="Exportar a Excel"
+            >
+              📊 Excel
+            </button>
+            <button 
+              className="secondary" 
+              onClick={exportToPDF} 
+              disabled={reporteFiltrado.length === 0 || loading}
+              style={{ 
+                padding: '0.3rem 0.6rem', 
+                fontSize: '0.75rem', 
+                height: '28px',
+                backgroundColor: '#ef4444',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              title="Exportar a PDF"
+            >
+              📄 PDF
+            </button>
+            <button 
+              className="secondary" 
+              onClick={() => setShowPrintOptions(true)}
+              style={{ 
+                padding: '0.3rem 0.6rem', 
+                fontSize: '0.75rem', 
+                height: '28px',
+                backgroundColor: '#6366f1',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              title="Configuración de página"
+            >
+              ⚙️
+            </button>
+          </FilterActions>
+        </FilterContainer>
           
           {/* Encabezado de impresión - Oculto en UI normal */}
 <div style={{ display: 'none' }} className="print-header">

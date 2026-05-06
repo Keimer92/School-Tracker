@@ -1,4 +1,5 @@
 import SearchInput from './SearchInput';
+import { FilterContainer, FilterGroup, FilterActions } from './FilterContainer';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo, Fragment, memo } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -1323,227 +1324,176 @@ return (
     <div className="page-container">
       <div className="category-grid" style={{ display: 'block' }}>
       
-      {/* Filtros de Búsqueda */}
-      <div className="category-card sticky-filters" style={{ 
-        position: 'sticky', 
-        top: 0, 
-        zIndex: 999, 
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
-        background: 'rgba(26, 26, 26, 0.8)',
-        backdropFilter: 'blur(10px)',
-        WebkitBackdropFilter: 'blur(10px)',
-        marginBottom: isMobile ? '0.5rem' : '1.5rem',
-        width: '100%',
-        padding: isMobile ? '0.3rem' : '0.6rem',
-        borderRadius: '0 0 12px 12px',
-        border: '1px solid rgba(255,255,255,0.05)',
-        borderTop: 'none'
-      }}>
-        <div className="filters-row" style={{ 
-          padding: isMobile ? '0.2rem' : '0.4rem', 
-          display: 'flex', 
-          flexWrap: 'wrap', 
-          gap: isMobile ? '0.3rem' : '0.4rem',
-          justifyContent: 'flex-start',
-          alignItems: 'flex-end'
-        }}>
-           {/* Año Lectivo */}
-           <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0' : '2px', flex: isMobile ? '1 1 40%' : '0 0 auto' }}>
-             {!isMobile && <label style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: '600' }}>Año Lectivo:</label>}
-             <select 
-               className="filter-select"
-               style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
-               value={selectedAno}
-               onChange={(e) => setSelectedAno(Number(e.target.value))}
-             >
-                {anos.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
-             </select>
-           </div>
-           
-           {/* Corte */}
-           <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0' : '2px', flex: isMobile ? '1 1 40%' : '0 0 auto' }}>
-             {!isMobile && <label style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: '600' }}>Corte:</label>}
-             <select 
-               className="filter-select"
-               style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
-               value={selectedCorte}
-               onChange={(e) => setSelectedCorte(Number(e.target.value))}
-             >
-                {cortes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-             </select>
-           </div>
+<FilterContainer isMobile={isMobile}>
+          {/* Año Lectivo */}
+          <FilterGroup label="Año Lectivo:" isMobile={isMobile} flex={isMobile ? '1 1 40%' : '0 0 auto'}>
+            <select 
+              className="filter-select"
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              value={selectedAno}
+              onChange={(e) => setSelectedAno(Number(e.target.value))}
+            >
+              {anos.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
+            </select>
+          </FilterGroup>
+          
+          {/* Corte */}
+          <FilterGroup label="Corte:" isMobile={isMobile} flex={isMobile ? '1 1 40%' : '0 0 auto'}>
+            <select 
+              className="filter-select"
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              value={selectedCorte}
+              onChange={(e) => setSelectedCorte(Number(e.target.value))}
+            >
+              {cortes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select>
+          </FilterGroup>
 
-           {/* Colegio */}
-           <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0' : '2px', flex: isMobile ? '1 1 100%' : '0 0 auto' }}>
-             {!isMobile && <label style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: '600' }}>Colegio:</label>}
-             <select 
-               className="filter-select"
-               style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
-               value={selectedColegio}
-               onChange={(e) => setSelectedColegio(Number(e.target.value))}
-             >
-                {colegios.map(col => <option key={col.id} value={col.id}>{col.nombre}</option>)}
-             </select>
-           </div>
+          {/* Colegio */}
+          <FilterGroup label="Colegio:" isMobile={isMobile} flex={isMobile ? '1 1 100%' : '0 0 auto'}>
+            <select 
+              className="filter-select"
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              value={selectedColegio}
+              onChange={(e) => setSelectedColegio(Number(e.target.value))}
+            >
+              {colegios.map(col => <option key={col.id} value={col.id}>{col.nombre}</option>)}
+            </select>
+          </FilterGroup>
 
-           {/* Grado */}
-           <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0' : '2px', flex: isMobile ? '1 1 30%' : '0 0 auto' }}>
-             {!isMobile && <label style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: '600' }}>Grado:</label>}
-             <select 
-               className="filter-select"
-               style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
-value={selectedGrado}
-                onChange={(e) => {
-                  const newVal = Number(e.target.value);
-                  setSelectedGrado(newVal);
-                  localStorage.setItem('notas-last-grado', String(newVal));
-                }}
-             >
-                {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
-             </select>
-           </div>
+          {/* Grado */}
+          <FilterGroup label="Grado:" isMobile={isMobile} flex={isMobile ? '1 1 30%' : '0 0 auto'}>
+            <select 
+              className="filter-select"
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              value={selectedGrado}
+              onChange={(e) => {
+                const newVal = Number(e.target.value);
+                setSelectedGrado(newVal);
+                localStorage.setItem('notas-last-grado', String(newVal));
+              }}
+            >
+              {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
+            </select>
+          </FilterGroup>
 
-           {/* Sección */}
-           <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0' : '2px', flex: isMobile ? '1 1 30%' : '0 0 auto' }}>
-             {!isMobile && <label style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: '600' }}>Sección:</label>}
-             <select 
-               className="filter-select"
-               style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
-               value={selectedSeccion}
-               onChange={(e) => setSelectedSeccion(Number(e.target.value))}
-             >
-                {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-             </select>
-           </div>
+          {/* Sección */}
+          <FilterGroup label="Sección:" isMobile={isMobile} flex={isMobile ? '1 1 30%' : '0 0 auto'}>
+            <select 
+              className="filter-select"
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              value={selectedSeccion}
+              onChange={(e) => setSelectedSeccion(Number(e.target.value))}
+            >
+              {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+            </select>
+          </FilterGroup>
 
-           {/* Sexo */}
-           <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0' : '2px', flex: isMobile ? '1 1 30%' : '0 0 auto' }}>
-             {!isMobile && <label style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: '600' }}>Sexo:</label>}
-             <select 
-               className="filter-select"
-               style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
-               value={selectedSexo}
-               onChange={(e) => setSelectedSexo(e.target.value)}
-             >
-                <option value="">Todos</option>
-                <option value="M">Masculino</option>
-                <option value="F">Femenino</option>
-             </select>
-           </div>
+          {/* Sexo */}
+          <FilterGroup label="Sexo:" isMobile={isMobile} flex={isMobile ? '1 1 30%' : '0 0 auto'}>
+            <select 
+              className="filter-select"
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              value={selectedSexo}
+              onChange={(e) => setSelectedSexo(e.target.value)}
+            >
+              <option value="">Todos</option>
+              <option value="M">Masculino</option>
+              <option value="F">Femenino</option>
+            </select>
+          </FilterGroup>
 
-           {/* Asignatura */}
-           <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0' : '2px', flex: isMobile ? '1 1 100%' : '0 0 auto' }}>
-             {!isMobile && <label style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: '600' }}>Asignatura:</label>}
-             <select 
-               className="filter-select"
-               style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
-value={selectedAsignatura}
-                onChange={(e) => {
-                  const newVal = Number(e.target.value);
-                  setSelectedAsignatura(newVal);
-                  localStorage.setItem('notas-last-asignatura', String(newVal));
-                }}
-             >
-                {asignaturas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
-             </select>
-           </div>
+          {/* Asignatura */}
+          <FilterGroup label="Asignatura:" isMobile={isMobile} flex={isMobile ? '1 1 100%' : '0 0 auto'}>
+            <select 
+              className="filter-select"
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              value={selectedAsignatura}
+              onChange={(e) => {
+                const newVal = Number(e.target.value);
+                setSelectedAsignatura(newVal);
+                localStorage.setItem('notas-last-asignatura', String(newVal));
+              }}
+            >
+              {asignaturas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
+            </select>
+          </FilterGroup>
 
-           {/* Buscador Dinámico */}
-           <div className="search-container" style={{ minWidth: isMobile ? '120px' : '180px', flex: '1', maxWidth: '300px' }}>
-             <span className="search-icon-left">🔍</span>
-             <input 
-               type="text" 
-               className="search-input search-input-with-icon" 
-               placeholder={isMobile ? "Buscar..." : "Buscar estudiante..."}
-               style={{ fontSize: '0.75rem', padding: '0.3rem 1.8rem 0.3rem 1.8rem', height: '28px' }}
-               value={searchTerm}
-               onChange={(e) => setSearchTerm(e.target.value)}
-             />
-             {searchTerm && (
-               <span 
-                 className="search-clear-icon" 
-                 onClick={() => setSearchTerm("")}
-                 title="Limpiar búsqueda"
-                 style={{ right: '8px', top: '50%', transform: 'translateY(-50%)' }}
-               >
-                 ✕
-               </span>
-             )}
-           </div>
+          {/* Buscador */}
+          <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar..." isMobile={isMobile} />
 
-           {/* Botones de Acción */}
-           <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
-             <button 
-               onClick={undo} 
-               disabled={history.length === 0}
-               className="icon-button"
-               title="Deshacer (Ctrl+Z)"
-               style={{ 
-                 background: 'rgba(255,255,255,0.05)', 
-                 padding: '0.3rem 0.5rem',
-                 borderRadius: '6px',
-                 opacity: history.length === 0 ? 0.3 : 1,
-                 cursor: history.length === 0 ? 'not-allowed' : 'pointer',
-                 width: 'auto',
-                 fontSize: '0.7rem',
-                 height: '28px',
-                 display: 'flex',
-                 alignItems: 'center',
-                 justifyContent: 'center'
-               }}
-             >
-               ↩️ Deshacer
-             </button>
-             <button 
-               onClick={redo} 
-               disabled={redoStack.length === 0}
-               className="icon-button"
-               title="Rehacer (Ctrl+Y)"
-               style={{ 
-                 background: 'rgba(255,255,255,0.05)', 
-                 padding: '0.3rem 0.5rem',
-                 borderRadius: '6px',
-                 opacity: redoStack.length === 0 ? 0.3 : 1,
-                 cursor: redoStack.length === 0 ? 'not-allowed' : 'pointer',
-                 width: 'auto',
-                 fontSize: '0.7rem',
-                 height: '28px',
-                 display: 'flex',
-                 alignItems: 'center',
-                 justifyContent: 'center'
-               }}
-             >
-               ↪️ Rehacer
-             </button>
-             <button 
-               onClick={handleGuardarNotas}
-               disabled={saving || (estudiantes.length === 0)}
-               className="icon-button"
-               title="Guardar Notas (Ctrl+G)"
-               style={{ 
-                 background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                 padding: '0.3rem 0.6rem',
-                 borderRadius: '6px',
-                 color: 'white',
-                 border: 'none',
-                 opacity: (saving || estudiantes.length === 0) ? 0.5 : 1,
-                 cursor: (saving || estudiantes.length === 0) ? 'not-allowed' : 'pointer',
-                 width: 'auto',
-                 display: 'flex',
-                 alignItems: 'center',
-                 justifyContent: 'center',
-                 gap: '4px',
-                 fontWeight: 'bold',
-                 fontSize: '0.7rem',
-                 height: '28px'
-               }}
-             >
-               <span>{saving ? '⏳' : '💾'}</span>
-               <span>{saving ? 'Guardando...' : 'Guardar'}</span>
-             </button>
-           </div>
-        </div>
-      </div>
+          {/* Botones de Acción */}
+          <FilterActions>
+            <button 
+              onClick={undo} 
+              disabled={history.length === 0}
+              className="icon-button"
+              title="Deshacer (Ctrl+Z)"
+              style={{ 
+                background: 'rgba(255,255,255,0.05)', 
+                padding: '0.3rem 0.5rem',
+                borderRadius: '6px',
+                opacity: history.length === 0 ? 0.3 : 1,
+                cursor: history.length === 0 ? 'not-allowed' : 'pointer',
+                width: 'auto',
+                fontSize: '0.7rem',
+                height: '28px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              ↩️
+            </button>
+            <button 
+              onClick={redo} 
+              disabled={redoStack.length === 0}
+              className="icon-button"
+              title="Rehacer (Ctrl+Y)"
+              style={{ 
+                background: 'rgba(255,255,255,0.05)', 
+                padding: '0.3rem 0.5rem',
+                borderRadius: '6px',
+                opacity: redoStack.length === 0 ? 0.3 : 1,
+                cursor: redoStack.length === 0 ? 'not-allowed' : 'pointer',
+                width: 'auto',
+                fontSize: '0.7rem',
+                height: '28px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              ↪️
+            </button>
+            <button 
+              onClick={handleGuardarNotas}
+              disabled={saving || (estudiantes.length === 0)}
+              className="icon-button"
+              title="Guardar Notas (Ctrl+G)"
+              style={{ 
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                padding: '0.3rem 0.6rem',
+                borderRadius: '6px',
+                color: 'white',
+                border: 'none',
+                opacity: (saving || estudiantes.length === 0) ? 0.5 : 1,
+                cursor: (saving || estudiantes.length === 0) ? 'not-allowed' : 'pointer',
+                width: 'auto',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                fontWeight: 'bold',
+                fontSize: '0.7rem',
+                height: '28px'
+              }}
+            >
+              <span>{saving ? '⏳' : '💾'}</span>
+              <span>{saving ? '...' : ''}</span>
+            </button>
+          </FilterActions>
+        </FilterContainer>
 
       {loading && <div style={{textAlign: 'center', padding: '2rem'}}>Cargando datos...</div>}
 
