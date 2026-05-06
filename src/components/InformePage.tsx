@@ -976,8 +976,39 @@ try {
                 <option value="F">F</option>
               </select>
             </div>
+            {/* Mover el buscador aquí, justo después de Sexo */}
+            <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'flex-end' }}>
+              <div className="search-container" style={{ width: isMobile ? '100%' : '240px', marginRight: '0.4rem' }}>
+                <span className="search-icon-left">🔍</span>
+                <input 
+                  type="text" 
+                  className="search-input search-input-with-icon" 
+                  placeholder="Buscar estudiante por nombre..." 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  style={{ 
+                    width: '100%', 
+                    padding: '0.4rem 0.6rem 0.4rem 2.2rem', 
+                    fontSize: '0.85rem', 
+                    height: '34px',
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px',
+                    color: 'white'
+                  }}
+                />
+                {searchTerm && (
+                  <span 
+                    className="search-clear-icon" 
+                    onClick={() => setSearchTerm("")}
+                    style={{ top: '50%', transform: 'translateY(-50%)', right: '10px' }}
+                  >
+                    ✕
+                  </span>
+                )}
+              </div>
 
-            <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'flex-end', marginLeft: 'auto' }}>
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.3rem', alignItems: 'flex-end' }}>
               <button 
                 className="secondary" 
                 onClick={handlePrint} 
@@ -1047,41 +1078,8 @@ try {
               </button>
             </div>
           </div>
-
-          {/* Buscador y Resumen de Asistencia - Reposicionados debajo de los botones */}
-          <div style={{ padding: '0 0.4rem 0.5rem 0.4rem' }}>
-            {/* Buscador */}
-            <div className="search-container" style={{ width: '100%', marginBottom: '0.5rem' }}>
-              <span className="search-icon-left">🔍</span>
-              <input 
-                type="text" 
-                className="search-input search-input-with-icon" 
-                placeholder="Buscar estudiante por nombre..." 
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                style={{ 
-                  width: '100%', 
-                  padding: '0.4rem 0.6rem 0.4rem 2.2rem', 
-                  fontSize: '0.85rem', 
-                  height: '34px',
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: '8px',
-                  color: 'white'
-                }}
-              />
-              {searchTerm && (
-                <span 
-                  className="search-clear-icon" 
-                  onClick={() => setSearchTerm("")}
-                  style={{ top: '50%', transform: 'translateY(-50%)', right: '10px' }}
-                >
-                  ✕
-                </span>
-              )}
-            </div>
-
-            {/* Encabezado de impresión - Oculto en UI normal */}
+          
+          {/* Encabezado de impresión - Oculto en UI normal */}
 <div style={{ display: 'none' }} className="print-header">
   <div className="print-title">Reporte de Asistencia</div>
   <div className="print-grid">
