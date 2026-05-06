@@ -21,6 +21,8 @@ interface EstudianteAsistencia {
   observacion: string | null;
 }
 
+import SearchInput from './SearchInput';
+
 export function AsistenciaPage() {
   // Filtros
   const [anos, setAnos] = useState<CategoryItem[]>([]);
@@ -860,6 +862,11 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Search input moved into filters row */}
+          <div style={{ padding: isAndroidMobile ? '0.4rem 0' : '0.2rem 0' }}>
+            <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar estudiante por nombre..." isMobile={isAndroidMobile} />
           </div>
 
         {isAndroidMobile && (

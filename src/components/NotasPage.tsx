@@ -1,3 +1,5 @@
+import SearchInput from './SearchInput';
+
 import React, { useState, useEffect, useRef, useCallback, useMemo, Fragment, memo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
@@ -896,7 +898,11 @@ export function NotasPage() {
       }
       return;
     }
-
+      {/* Search input for NotasPage filters */}
+      <div style={{ padding: '0.4rem 0' }}>
+        <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar estudiante por nombre..." isMobile={isMobile} />
+      </div>
+      {/* Lines 1318-1750 omitted */}
     switch (e.key) {
       case 'Delete':
       case 'Backspace':
