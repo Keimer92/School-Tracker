@@ -760,7 +760,8 @@ try {
   const statsJ = getAsistenciaStats('J');
 
   return (
-    <div className="page-container">
+    <>
+      <div className="page-container">
       <style>{`
           .asistencia-summary {
             display: grid;
@@ -1315,10 +1316,12 @@ try {
                         </div>
                         <div style={{ fontSize: '0.7rem', opacity: 0.6, marginLeft: '22px' }}>{item.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                       </td>
-                      {fechasColumnas.map(f => {
+{fechasColumnas.map(f => {
                         const estado = getEstadoEnFecha(item, f);
-                        return (
-                          <td key={f} style={{ 
+return (
+
+
+                            <td key={f} style={{
                             color: getEstadoColor(estado), 
                             fontWeight: 'bold',
                             fontSize: '0.8rem'
@@ -1337,6 +1340,7 @@ try {
                               {estado}
                             </span>
                           </td>
+
                         );
                       })}
                       <td style={{ color: '#4caf50', fontWeight: 'bold' }}>{p}</td>
@@ -1352,137 +1356,137 @@ try {
     </div>
     </div>
     </div>
-    </div>
-    {/* Modal de Detalles de Resumen */}
-      {showSummaryModal.show && createPortal(
-        <div className="modal-overlay" onClick={() => setShowSummaryModal({ ...showSummaryModal, show: false })}>
-          <div 
-            className="modal-content category-card" 
-            style={{ width: '300px', maxWidth: '85%', padding: '1.2rem', textAlign: 'center' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ marginTop: 0, color: '#60a5fa', fontSize: '1.2rem', marginBottom: '1rem' }}>
-              📊 {showSummaryModal.type}
-            </h3>
+    {showSummaryModal.show && createPortal(
+      <div className="modal-overlay" onClick={() => setShowSummaryModal({ ...showSummaryModal, show: false })}>
+        <div 
+          className="modal-content category-card" 
+          style={{ width: '300px', maxWidth: '85%', padding: '1.2rem', textAlign: 'center' }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h3 style={{ marginTop: 0, color: '#60a5fa', fontSize: '1.2rem', marginBottom: '1rem' }}>
+            📊 {showSummaryModal.type}
+          </h3>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+            <div style={{ 
+              background: 'rgba(255,255,255,0.05)', 
+              padding: '0.8rem', 
+              borderRadius: '10px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <span style={{ color: '#94a3b8' }}>Total:</span>
+              <span style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#fff' }}>
+                {showSummaryModal.stats?.total}
+              </span>
+            </div>
             
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
               <div style={{ 
-                background: 'rgba(255,255,255,0.05)', 
+                background: 'rgba(96, 165, 250, 0.1)', 
                 padding: '0.8rem', 
                 borderRadius: '10px',
                 display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
+                flexDirection: 'column',
+                gap: '4px'
               }}>
-                <span style={{ color: '#94a3b8' }}>Total:</span>
-                <span style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#fff' }}>
-                  {showSummaryModal.stats?.total}
+                <span style={{ color: '#60a5fa', fontSize: '0.8rem' }}>Masculino</span>
+                <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#60a5fa' }}>
+                  {showSummaryModal.stats?.m}
                 </span>
               </div>
               
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
-                <div style={{ 
-                  background: 'rgba(96, 165, 250, 0.1)', 
-                  padding: '0.8rem', 
-                  borderRadius: '10px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '4px'
-                }}>
-                  <span style={{ color: '#60a5fa', fontSize: '0.8rem' }}>Masculino</span>
-                  <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#60a5fa' }}>
-                    {showSummaryModal.stats?.m}
-                  </span>
-                </div>
-                
-                <div style={{ 
-                  background: 'rgba(244, 114, 182, 0.1)', 
-                  padding: '0.8rem', 
-                  borderRadius: '10px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '4px'
-                }}>
-                  <span style={{ color: '#f472b6', fontSize: '0.8rem' }}>Femenino</span>
-                  <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#f472b6' }}>
-                    {showSummaryModal.stats?.f}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <button 
-              className="primary" 
-              onClick={() => setShowSummaryModal({ ...showSummaryModal, show: false })}
-              style={{ marginTop: '1.5rem', width: '100%' }}
-            >
-              Cerrar
-            </button>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* Modal de Detalle Estudiante */}
-      {selectedStudentDetail && createPortal(
-        <div className="modal-overlay" onClick={() => setSelectedStudentDetail(null)}>
-          <div 
-            className="modal-content category-card" 
-            onClick={e => e.stopPropagation()}
-            style={{ 
-              width: '400px', 
-              maxWidth: '90%', 
-              padding: '1.5rem',
-              textAlign: 'center',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '1rem'
-            }}
-          >
-            <div style={{ 
-              width: '60px', 
-              height: '60px', 
-              borderRadius: '50%', 
-              backgroundColor: 'var(--primary-light)', 
-              color: 'var(--primary-color)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '1.5rem',
-              margin: '0 auto'
-            }}>
-              👤
-            </div>
-            
-            <div>
-              <h3 style={{ margin: '0.5rem 0', color: '#fff', fontSize: '1.2rem' }}>
-                {selectedStudentDetail.nombre}
-              </h3>
               <div style={{ 
-                display: 'inline-block', 
-                padding: '0.3rem 0.8rem', 
-                borderRadius: '20px', 
-                background: selectedStudentDetail.sexo === 'M' ? 'rgba(96, 165, 250, 0.1)' : 'rgba(244, 114, 182, 0.1)',
-                color: selectedStudentDetail.sexo === 'M' ? '#60a5fa' : '#f472b6',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                marginTop: '0.3rem'
+                background: 'rgba(244, 114, 182, 0.1)', 
+                padding: '0.8rem', 
+                borderRadius: '10px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px'
               }}>
-                {selectedStudentDetail.sexo === 'M' ? 'Masculino' : 'Femenino'}
+                <span style={{ color: '#f472b6', fontSize: '0.8rem' }}>Femenino</span>
+                <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#f472b6' }}>
+                  {showSummaryModal.stats?.f}
+                </span>
               </div>
             </div>
+          </div>
+  
+          <button 
+            className="primary" 
+            onClick={() => setShowSummaryModal({ ...showSummaryModal, show: false })}
+            style={{ marginTop: '1.5rem', width: '100%' }}
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>,
+      document.body
+    )}
 
-            <button 
-              className="primary" 
-              onClick={() => setSelectedStudentDetail(null)}
-              style={{ marginTop: '1rem', width: '100%' }}
-            >
-              Cerrar
-</button>
-</div>
-</div>,
-document.body
-)}
-</div>
-  );
-}
+    {selectedStudentDetail && createPortal(
+      <div className="modal-overlay" onClick={() => setSelectedStudentDetail(null)}>
+        <div 
+          className="modal-content category-card" 
+          onClick={e => e.stopPropagation()}
+          style={{ 
+            width: '400px', 
+            maxWidth: '90%', 
+            padding: '1.5rem',
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem'
+          }}
+        >
+          <div style={{ 
+            width: '60px', 
+            height: '60px', 
+            borderRadius: '50%', 
+            backgroundColor: 'var(--primary-light)', 
+            color: 'var(--primary-color)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '1.5rem',
+            margin: '0 auto'
+          }}>
+            👤
+          </div>
+          
+          <div>
+            <h3 style={{ margin: '0.5rem 0', color: '#fff', fontSize: '1.2rem' }}>
+              {selectedStudentDetail.nombre}
+            </h3>
+            <div style={{ 
+              display: 'inline-block', 
+              padding: '0.3rem 0.8rem', 
+              borderRadius: '20px', 
+              background: selectedStudentDetail.sexo === 'M' ? 'rgba(96, 165, 250, 0.1)' : 'rgba(244, 114, 182, 0.1)',
+              color: selectedStudentDetail.sexo === 'M' ? '#60a5fa' : '#f472b6',
+              fontSize: '0.85rem',
+              fontWeight: '600',
+              marginTop: '0.3rem'
+            }}>
+              {selectedStudentDetail.sexo === 'M' ? 'Masculino' : 'Femenino'}
+            </div>
+          </div>
+  
+          <button 
+            className="primary" 
+            onClick={() => setSelectedStudentDetail(null)}
+            style={{ marginTop: '1rem', width: '100%' }}
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>,
+      document.body
+    )}
+
+
+
+      </>
+    );
+  }
