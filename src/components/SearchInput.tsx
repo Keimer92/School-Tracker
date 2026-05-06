@@ -9,7 +9,7 @@ interface Props {
 
 export default function SearchInput({ value, onChange, placeholder = 'Buscar...', isMobile }: Props) {
   return (
-    <div className="search-container" style={{ width: isMobile ? '100%' : '260px', marginRight: '0.4rem', position: 'relative' }}>
+    <div className="search-container" style={{ width: isMobile ? '100%' : '300px', maxWidth: '40vw', marginRight: '0.4rem', position: 'relative' }}>
       <span className="search-icon-left" style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.95rem' }}>🔍</span>
       <input
         type="text"
@@ -20,8 +20,8 @@ export default function SearchInput({ value, onChange, placeholder = 'Buscar...'
         style={{
           width: '100%',
           padding: '0.45rem 2.6rem 0.45rem 2.4rem',
-          fontSize: '0.9rem',
-          height: '36px',
+          fontSize: isMobile ? '0.9rem' : '0.92rem',
+          height: isMobile ? '36px' : '34px',
           background: 'rgba(255,255,255,0.04)',
           border: '1px solid rgba(255,255,255,0.08)',
           borderRadius: '10px',

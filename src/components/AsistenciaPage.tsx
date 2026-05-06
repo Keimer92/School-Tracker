@@ -22,6 +22,7 @@ interface EstudianteAsistencia {
 }
 
 import SearchInput from './SearchInput';
+import FilterHeader from './FilterHeader';
 
 export function AsistenciaPage() {
   // Filtros
@@ -675,19 +676,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
       </style>
       <div className="category-grid" style={{ display: 'block' }}>
         {/* Filtros de Búsqueda (Mismo estilo que NotasPage) */}
-      <div className="sticky-filters"
-        style={{ 
-        position: 'sticky', 
-        top: 0, 
-        zIndex: 1000, 
-        background: '#0f172a',
-        boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
-        width: '100%',
-        borderRadius: '0 0 12px 12px',
-        border: '1px solid rgba(255,255,255,0.05)',
-        borderTop: 'none',
-        padding: isAndroidMobile ? '0.5rem' : '0.4rem'
-}}>
+      <FilterHeader style={{ padding: isAndroidMobile ? '0.5rem' : '0.4rem' }}>
           <div className="filters-row" style={{ 
             display: 'flex',
             flexWrap: 'wrap',
@@ -981,7 +970,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
             </div>
           </div>
         )}
-      </div>
+      </FilterHeader>
 
       {/* Información del Reporte ocultada por solicitud del usuario */}
 
