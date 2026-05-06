@@ -9,6 +9,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import SearchInput from './SearchInput';
+import { FilterContainer, FilterGroup, FilterActions } from './FilterContainer';
 import "../App.css";
 
 interface CategoryItem {
@@ -1716,18 +1717,9 @@ console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({
         )}
 
         {/* Fila de Filtros Compacta */}
-        <div className="filters-row" style={{ 
-          display: 'flex', 
-          flexWrap: 'wrap',
-          gap: '0.5rem', 
-          padding: '0.5rem',
-          backgroundColor: 'rgba(255, 255, 255, 0.02)',
-          borderRadius: '10px',
-          border: '1px solid rgba(255, 255, 255, 0.05)',
-          alignItems: 'flex-end'
-        }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: '1 1 100px' }}>
-            <label className="input-label" style={{ fontSize: '0.7rem', marginBottom: 0 }}>Año</label>
+        <FilterContainer isMobile={isMobile} style={{ padding: '0.5rem' }}>
+          {/* Año */}
+          <FilterGroup label="Año:" isMobile={isMobile} flex={isMobile ? '1 1 100px' : '0 0 auto'}>
             <select 
               className="filter-select"
               value={selectedAno}
@@ -1736,10 +1728,10 @@ console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({
             >
               {anos.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
             </select>
-          </div>
+          </FilterGroup>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: '1 1 100px' }}>
-            <label className="input-label" style={{ fontSize: '0.7rem', marginBottom: 0 }}>Corte</label>
+          {/* Corte */}
+          <FilterGroup label="Corte:" isMobile={isMobile} flex={isMobile ? '1 1 100px' : '0 0 auto'}>
             <select 
               className="filter-select"
               value={specialCorte ? specialCorte : selectedCorte}
@@ -1764,10 +1756,10 @@ console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({
                 <option value="NF">Nota Final</option>
               </optgroup>
             </select>
-          </div>
+          </FilterGroup>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: '1 1 140px' }}>
-            <label className="input-label" style={{ fontSize: '0.7rem', marginBottom: 0 }}>Colegio</label>
+          {/* Colegio */}
+          <FilterGroup label="Colegio:" isMobile={isMobile} flex={isMobile ? '1 1 140px' : '0 0 auto'}>
             <select 
               className="filter-select"
               value={selectedColegio}
@@ -1776,10 +1768,10 @@ console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({
             >
               {colegios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
             </select>
-          </div>
+          </FilterGroup>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: '1 1 140px' }}>
-            <label className="input-label" style={{ fontSize: '0.7rem', marginBottom: 0 }}>Grado</label>
+          {/* Grado */}
+          <FilterGroup label="Grado:" isMobile={isMobile} flex={isMobile ? '1 1 140px' : '0 0 auto'}>
             <select 
               className="filter-select"
               value={selectedGrado}
@@ -1788,10 +1780,10 @@ console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({
             >
               {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
             </select>
-          </div>
+          </FilterGroup>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: '1 1 140px' }}>
-            <label className="input-label" style={{ fontSize: '0.7rem', marginBottom: 0 }}>Sección</label>
+          {/* Sección */}
+          <FilterGroup label="Sección:" isMobile={isMobile} flex={isMobile ? '1 1 140px' : '0 0 auto'}>
             <select 
               className="filter-select"
               value={selectedSeccion}
@@ -1800,10 +1792,10 @@ console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({
             >
               {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
             </select>
-          </div>
+          </FilterGroup>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: '1 1 90px' }}>
-            <label className="input-label" style={{ fontSize: '0.7rem', marginBottom: 0 }}>Sexo</label>
+          {/* Sexo */}
+          <FilterGroup label="Sexo:" isMobile={isMobile} flex={isMobile ? '1 1 90px' : '0 0 auto'}>
             <select 
               className="filter-select"
               value={selectedSexo}
@@ -1814,10 +1806,10 @@ console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({
               <option value="M">Masc.</option>
               <option value="F">Fem.</option>
             </select>
-          </div>
+          </FilterGroup>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: '1 1 140px' }}>
-            <label className="input-label" style={{ fontSize: '0.7rem', marginBottom: 0 }}>Asignatura</label>
+          {/* Asignatura */}
+          <FilterGroup label="Asignatura:" isMobile={isMobile} flex={isMobile ? '1 1 140px' : '0 0 auto'}>
             <select 
               className="filter-select"
               value={selectedAsignatura}
@@ -1827,16 +1819,16 @@ console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({
             >
               {asignaturas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
             </select>
-          </div>
+          </FilterGroup>
 
-          {/* Buscador Dinámico */}
+          {/* Buscador */}
           <SearchInput 
             value={searchTerm} 
             onChange={setSearchTerm} 
-            placeholder="Buscar estudiante..." 
+            placeholder="Buscar..." 
             isMobile={isMobile} 
           />
-        </div>
+        </FilterContainer>
       </div>
       {/* Área de Contenido (Slides) */}
       <div style={{ position: 'relative', flex: 1, minHeight: '400px', overflow: 'hidden' }}>

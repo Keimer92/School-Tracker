@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import { syncService } from "../lib/syncService";
+import { FilterContainer, FilterGroup, FilterActions } from './FilterContainer';
 import "../App.css";
 
 interface Criterio {
@@ -300,80 +301,59 @@ export function EvaluacionesPage() {
     <div className="page-container">
       <div className="category-grid" style={{ display: 'block' }}>
       
-      {/* Configure Header */}
-      <div className="category-card sticky-filters" style={{ 
-          marginBottom: '1rem', 
-          padding: '0.8rem',
-          position: 'sticky',
-          top: 0,
-          zIndex: 999,
-          background: 'rgba(26, 26, 26, 0.8)',
-          backdropFilter: 'blur(10px)',
-          WebkitBackdropFilter: 'blur(10px)',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
-          borderRadius: '0 0 12px 12px',
-          border: '1px solid rgba(255,255,255,0.05)',
-          borderTop: 'none'
-      }}>
-        <div className="filters-row" style={{ 
-          display: 'flex', 
-          flexWrap: 'wrap', 
-          gap: '0.8rem', 
-          alignItems: 'flex-end' 
-        }}>
-           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', flex: '1 1 120px' }}>
-             <label style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 'bold' }}>Grado</label>
-             <select 
-               className="filter-select"
-               style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
-               value={selectedGrado}
-               onChange={(e) => setSelectedGrado(Number(e.target.value))}
-               aria-label="Seleccionar grado"
-             >
-                {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
-             </select>
-           </div>
-           
-           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', flex: '1 2 180px' }}>
-             <label style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 'bold' }}>Asignatura</label>
-             <select 
-               className="filter-select"
-               style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
-               value={selectedAsignatura}
-               onChange={(e) => setSelectedAsignatura(Number(e.target.value))}
-               disabled={asignaturas.length === 0}
-               aria-label="Seleccionar asignatura"
-             >
-                {asignaturas.length === 0 && <option value="0">Sin asignaturas</option>}
-                {asignaturas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
-             </select>
-           </div>
+      <FilterContainer isMobile={false}>
+          {/* Grado */}
+          <FilterGroup label="Grado" isMobile={false} flex="1 1 120px">
+            <select 
+              className="filter-select"
+              style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+              value={selectedGrado}
+              onChange={(e) => setSelectedGrado(Number(e.target.value))}
+              aria-label="Seleccionar grado"
+            >
+              {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
+            </select>
+          </FilterGroup>
+          
+          {/* Asignatura */}
+          <FilterGroup label="Asignatura" isMobile={false} flex="1 2 180px">
+            <select 
+              className="filter-select"
+              style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+              value={selectedAsignatura}
+              onChange={(e) => setSelectedAsignatura(Number(e.target.value))}
+              disabled={asignaturas.length === 0}
+              aria-label="Seleccionar asignatura"
+            >
+              {asignaturas.length === 0 && <option value="0">Sin asignaturas</option>}
+              {asignaturas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
+            </select>
+          </FilterGroup>
 
-           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', flex: '1 1 120px' }}>
-             <label style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 'bold' }}>Corte</label>
-             <select 
-               className="filter-select"
-               style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
-               value={selectedCorte}
-               onChange={(e) => setSelectedCorte(Number(e.target.value))}
-               aria-label="Seleccionar corte evaluativo"
-             >
-                {cortes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-             </select>
-           </div>
+          {/* Corte */}
+          <FilterGroup label="Corte" isMobile={false} flex="1 1 120px">
+            <select 
+              className="filter-select"
+              style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+              value={selectedCorte}
+              onChange={(e) => setSelectedCorte(Number(e.target.value))}
+              aria-label="Seleccionar corte evaluativo"
+            >
+              {cortes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select>
+          </FilterGroup>
 
-           <div style={{ flex: '1 0 auto', display: 'flex', justifyContent: 'flex-end' }}>
-             <button 
-               className="primary" 
-               onClick={handleSaveConfig}
-               disabled={loading || asignaturas.length === 0}
-               style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
-             >
-               {loading ? '⏳ Guardando...' : '💾 Guardar Todo'}
-             </button>
-           </div>
-        </div>
-      </div>
+          <FilterActions>
+            <button 
+              className="primary" 
+              onClick={handleSaveConfig}
+              disabled={loading || asignaturas.length === 0}
+              style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
+            >
+              {loading ? '⏳...' : '💾'}
+            </button>
+          </FilterActions>
+        </FilterContainer>
 
       {loading && <div style={{textAlign: 'center', padding: '2rem'}}>Cargando configuración...</div>}
 

@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { FilterContainer, FilterGroup, FilterActions } from './FilterContainer';
 import "../App.css";
 
 interface CategoryItem {
@@ -309,128 +310,113 @@ export function ReporteAsistenciaPage() {
   return (
     <div className="page-container">
       <div className="category-grid" style={{ display: 'block' }}>
-        {/* Filtros */}
-        <div className="category-card sticky-filters" style={{ 
-          position: 'sticky', 
-          top: 0, 
-          zIndex: 999, 
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
-          background: 'rgba(26, 26, 26, 0.8)',
-          backdropFilter: 'blur(10px)',
-          WebkitBackdropFilter: 'blur(10px)',
-          marginBottom: '1.5rem',
-          width: '100%',
-          padding: '0.6rem',
-          borderRadius: '0 0 12px 12px',
-          border: '1px solid rgba(255,255,255,0.05)',
-          borderTop: 'none'
-        }}>
-          <div className="filters-row" style={{ 
-            padding: '0.4rem', 
-            display: 'flex', 
-            flexWrap: 'wrap', 
-            gap: '0.4rem',
-            justifyContent: 'flex-start',
-            alignItems: 'center'
-          }}>
-            <div className="input-container-small">
-              <label>Período:</label>
-              <select 
-                className="filter-select"
-                value={periodo} 
-                onChange={(e) => setPeriodo(e.target.value as any)}
-              >
-                <option value="diario">Diario</option>
-                <option value="semanal">Semanal</option>
-                <option value="mensual">Mensual</option>
-              </select>
-            </div>
+        <FilterContainer isMobile={false}>
+          {/* Período */}
+          <FilterGroup label="Período:" isMobile={false} flex="0 0 auto">
+            <select 
+              className="filter-select"
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              value={periodo} 
+              onChange={(e) => setPeriodo(e.target.value as any)}
+            >
+              <option value="diario">Diario</option>
+              <option value="semanal">Semanal</option>
+              <option value="mensual">Mensual</option>
+            </select>
+          </FilterGroup>
 
-            {periodo !== "mensual" ? (
-              <div className="input-container-small">
-                <label>{periodo === "diario" ? "Fecha:" : "Semana de:"}</label>
-                <input 
-                  type="date" 
+          {/* Fecha / Semana / Mes-Año */}
+          {periodo !== "mensual" ? (
+            <FilterGroup label={periodo === "diario" ? "Fecha:" : "Semana de:"} isMobile={false} flex="0 0 auto">
+              <input 
+                type="date" 
+                className="filter-select"
+                style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+                value={fechaBase} 
+                onChange={(e) => setFechaBase(e.target.value)} 
+              />
+            </FilterGroup>
+          ) : (
+            <>
+              <FilterGroup label="Mes:" isMobile={false} flex="0 0 auto">
+                <select 
                   className="filter-select"
-                  value={fechaBase} 
-                  onChange={(e) => setFechaBase(e.target.value)} 
-                />
-              </div>
-            ) : (
-              <>
-                <div className="input-container-small">
-                  <label>Mes:</label>
-                  <select 
-                    className="filter-select"
-                    value={mesSeleccionado} 
-                    onChange={(e) => setMesSeleccionado(Number(e.target.value))}
-                  >
-                    <option value={1}>Enero</option>
-                    <option value={2}>Febrero</option>
-                    <option value={3}>Marzo</option>
-                    <option value={4}>Abril</option>
-                    <option value={5}>Mayo</option>
-                    <option value={6}>Junio</option>
-                    <option value={7}>Julio</option>
-                    <option value={8}>Agosto</option>
-                    <option value={9}>Septiembre</option>
-                    <option value={10}>Octubre</option>
-                    <option value={11}>Noviembre</option>
-                    <option value={12}>Diciembre</option>
-                  </select>
-                </div>
-                <div className="input-container-small">
-                  <label>Año:</label>
-                  <select 
-                    className="filter-select"
-                    value={anoSeleccionado} 
-                    onChange={(e) => setAnoSeleccionado(Number(e.target.value))}
-                  >
-                    {[...Array(5)].map((_, i) => {
-                      const year = new Date().getFullYear() - 2 + i;
-                      return <option key={year} value={year}>{year}</option>;
-                    })}
-                  </select>
-                </div>
-              </>
-            )}
+                  style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+                  value={mesSeleccionado} 
+                  onChange={(e) => setMesSeleccionado(Number(e.target.value))}
+                >
+                  <option value={1}>Enero</option>
+                  <option value={2}>Febrero</option>
+                  <option value={3}>Marzo</option>
+                  <option value={4}>Abril</option>
+                  <option value={5}>Mayo</option>
+                  <option value={6}>Junio</option>
+                  <option value={7}>Julio</option>
+                  <option value={8}>Agosto</option>
+                  <option value={9}>Septiembre</option>
+                  <option value={10}>Octubre</option>
+                  <option value={11}>Noviembre</option>
+                  <option value={12}>Diciembre</option>
+                </select>
+              </FilterGroup>
+              <FilterGroup label="Año:" isMobile={false} flex="0 0 auto">
+                <select 
+                  className="filter-select"
+                  style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+                  value={anoSeleccionado} 
+                  onChange={(e) => setAnoSeleccionado(Number(e.target.value))}
+                >
+                  {[...Array(5)].map((_, i) => {
+                    const year = new Date().getFullYear() - 2 + i;
+                    return <option key={year} value={year}>{year}</option>;
+                  })}
+                </select>
+              </FilterGroup>
+            </>
+          )}
 
+          {/* Colegio */}
+          <FilterGroup label="Colegio:" isMobile={false} flex="0 0 auto">
+            <select 
+              className="filter-select"
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              value={selectedColegio} 
+              onChange={(e) => setSelectedColegio(Number(e.target.value))}
+            >
+              {colegios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+            </select>
+          </FilterGroup>
 
-            <div className="input-container-small">
-              <label>Colegio:</label>
-              <select 
-                className="filter-select"
-                value={selectedColegio} 
-                onChange={(e) => setSelectedColegio(Number(e.target.value))}
-              >
-                {colegios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-              </select>
-            </div>
-            <div className="input-container-small">
-              <label>Grado:</label>
-              <select 
-                className="filter-select"
-                value={selectedGrado} 
-                onChange={(e) => setSelectedGrado(Number(e.target.value))}
-              >
-                {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
-              </select>
-            </div>
-            <div className="input-container-small">
-              <label>Sección:</label>
-              <select 
-                className="filter-select"
-                value={selectedSeccion} 
-                onChange={(e) => setSelectedSeccion(Number(e.target.value))}
-              >
-                {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-              </select>
-            </div>
-            <button className="action-button primary" onClick={exportToPDF} style={{ marginLeft: 'auto' }}>
-              📄 Exportar PDF
+          {/* Grado */}
+          <FilterGroup label="Grado:" isMobile={false} flex="0 0 auto">
+            <select 
+              className="filter-select"
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              value={selectedGrado} 
+              onChange={(e) => setSelectedGrado(Number(e.target.value))}
+            >
+              {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
+            </select>
+          </FilterGroup>
+
+          {/* Sección */}
+          <FilterGroup label="Sección:" isMobile={false} flex="0 0 auto">
+            <select 
+              className="filter-select"
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              value={selectedSeccion} 
+              onChange={(e) => setSelectedSeccion(Number(e.target.value))}
+            >
+              {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+            </select>
+          </FilterGroup>
+
+          <FilterActions>
+            <button className="action-button primary" onClick={exportToPDF}>
+              📄
             </button>
-          </div>
-        </div>
+          </FilterActions>
+        </FilterContainer>
 
         {/* Tabla de Resultados o Estado Vacío */}
         <div className="table-container" style={{ overflowX: 'auto' }}>

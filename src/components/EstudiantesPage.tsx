@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 import { syncService } from "../lib/syncService";
 import { useCamera } from "../hooks/useCamera";
 import SearchInput from './SearchInput';
+import { FilterContainer, FilterGroup, FilterActions } from './FilterContainer';
 import "../App.css"; // Ensure styles are available
 
 interface CategoryItem {
@@ -998,115 +999,89 @@ export function EstudiantesPage() {
           }
         `}
       </style>
-      {/* Top Bar: Filters and Add Button */}
-      <div className="category-card sticky-filters" style={{ 
-        marginBottom: isMobile ? "0.5rem" : "1rem", 
-        padding: isMobile ? "0.5rem" : "1rem", 
-        width: '100%',
-        boxSizing: 'border-box',
-        position: 'sticky',
-        top: 0,
-        zIndex: 999,
-        background: 'rgba(26, 26, 26, 0.8)',
-        backdropFilter: 'blur(10px)',
-        WebkitBackdropFilter: 'blur(10px)',
-        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
-        borderRadius: '0 0 12px 12px',
-        border: '1px solid rgba(255,255,255,0.05)',
-        borderTop: 'none'
-      }}>
-        <div className="filters-row" style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? '0.4rem' : '0.8rem', alignItems: 'flex-end' }}>
+      <FilterContainer isMobile={isMobile}>
           {/* Año Lectivo */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0' : '0.3rem', flex: '1 1 120px' }}>
-            {!isMobile && <label className="input-label" style={{ fontSize: '0.75rem', marginBottom: 0 }}>Año Lectivo</label>}
+          <FilterGroup label="Año Lectivo" isMobile={isMobile} flex={isMobile ? '1 1 120px' : '0 0 auto'}>
             <select
               name="anoLectivoId"
               onChange={handleFilterChange}
               value={filters.anoLectivoId}
               className="filter-select"
-              style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+              style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem', height: isMobile ? '36px' : '38px' }}
             >
-              
               {anos.map(a => (
                 <option key={a.id} value={a.id}>
                   {a.nombre} {a.activo && "✓ (Activo)"}
                 </option>
               ))}
             </select>
-          </div>
+          </FilterGroup>
 
           {/* Colegio */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0' : '0.3rem', flex: '1 1 150px' }}>
-            {!isMobile && <label className="input-label" style={{ fontSize: '0.75rem', marginBottom: 0 }}>Colegio</label>}
+          <FilterGroup label="Colegio" isMobile={isMobile} flex={isMobile ? '1 1 150px' : '0 0 auto'}>
             <select
               name="colegioId"
               onChange={handleFilterChange}
               value={filters.colegioId}
               className="filter-select"
-              style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+              style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem', height: isMobile ? '36px' : '38px' }}
             >
-              
               {colegios.map(c => (
                 <option key={c.id} value={c.id}>
                   {c.nombre} {c.activo && "✓ (Activo)"}
                 </option>
               ))}
             </select>
-          </div>
+          </FilterGroup>
 
           {/* Grado */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0' : '0.3rem', flex: '1 1 120px' }}>
-            {!isMobile && <label className="input-label" style={{ fontSize: '0.75rem', marginBottom: 0 }}>Grado</label>}
+          <FilterGroup label="Grado" isMobile={isMobile} flex={isMobile ? '1 1 120px' : '0 0 auto'}>
             <select 
               name="gradoId" 
               onChange={handleFilterChange} 
               value={filters.gradoId} 
               className="filter-select"
-              style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+              style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem', height: isMobile ? '36px' : '38px' }}
             >
-              
               {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
             </select>
-          </div>
+          </FilterGroup>
 
           {/* Sección */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0' : '0.3rem', flex: '1 1 100px' }}>
-            {!isMobile && <label className="input-label" style={{ fontSize: '0.75rem', marginBottom: 0 }}>Sección</label>}
+          <FilterGroup label="Sección" isMobile={isMobile} flex={isMobile ? '1 1 100px' : '0 0 auto'}>
             <select 
               name="seccionId" 
               onChange={handleFilterChange} 
               value={filters.seccionId} 
               className="filter-select"
-              style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+              style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem', height: isMobile ? '36px' : '38px' }}
             >
-              
               {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
             </select>
-          </div>
+          </FilterGroup>
 
           {/* Sexo */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0' : '0.3rem', flex: '1 1 100px' }}>
-            {!isMobile && <label className="input-label" style={{ fontSize: '0.75rem', marginBottom: 0 }}>Sexo</label>}
+          <FilterGroup label="Sexo" isMobile={isMobile} flex={isMobile ? '1 1 100px' : '0 0 auto'}>
             <select 
               name="sexo" 
               onChange={handleFilterChange} 
               value={filters.sexo} 
               className="filter-select"
-              style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+              style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem', height: isMobile ? '36px' : '38px' }}
             >
               <option value="">Todos</option>
               <option value="M">Masculino</option>
               <option value="F">Femenino</option>
             </select>
-          </div>
+          </FilterGroup>
 
           {/* Botones de Acción */}
-          <div style={{ display: 'flex', gap: '0.5rem', flex: '0 0 auto', justifyContent: 'flex-start' }}>
+          <FilterActions>
             <button 
               className="primary glow-button-primary" 
               onClick={openAddModal} 
               style={{ 
-                height: '38px', 
+                height: isMobile ? '36px' : '38px', 
                 display: 'flex', 
                 alignItems: 'center', 
                 gap: '0.5rem',
@@ -1127,7 +1102,7 @@ export function EstudiantesPage() {
               onClick={handleImportExcel}
               disabled={isImporting}
               style={{ 
-                height: '38px',
+                height: isMobile ? '36px' : '38px',
                 padding: '0.4rem 1rem', 
                 cursor: 'pointer', 
                 display: 'inline-flex', 
@@ -1147,8 +1122,8 @@ export function EstudiantesPage() {
             <button
               onClick={() => setShowImportHelp(true)}
               style={{
-                height: '38px',
-                width: '38px',
+                height: isMobile ? '36px' : '38px',
+                width: isMobile ? '36px' : '38px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -1164,9 +1139,9 @@ export function EstudiantesPage() {
             >
               ?
             </button>
-          </div>
+          </FilterActions>
 
-          {/* Buscador Dinámico */}
+          {/* Buscador */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0' : '0.3rem', flex: '1 1 200px' }}>
             {!isMobile && <label className="input-label" style={{ fontSize: '0.75rem', marginBottom: 0 }}>Buscar Estudiante</label>}
             <SearchInput 
@@ -1176,7 +1151,7 @@ export function EstudiantesPage() {
               isMobile={isMobile} 
             />
           </div>
-        </div>
+        </FilterContainer>
 
         {/* Resumen de estadísticas (Sticky) */}
         {filteredStudents.length > 0 && (
