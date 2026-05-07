@@ -961,18 +961,18 @@ label,
 
 /* Botón de Observaciones */
 .obs-toggle-btn {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   border: none;
   background: rgba(255, 255, 255, 0.05);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   cursor: pointer;
   transition: all 0.2s;
-  margin-left: -4px;
+  margin-left: -6px;
 }
 
 .obs-toggle-btn.has-obs {
