@@ -86,6 +86,7 @@ export function InformePage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showCalendar, setShowCalendar] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [excelHtml, setExcelHtml] = useState<string | null>(null);
   const printConfig = {
     pageSize: 'letter',
     orientation: 'landscape',
@@ -449,66 +450,90 @@ export function InformePage() {
     }
   };
 
-  const exportToExcel = async () => {
+const exportToExcel = async () => {
     try {
-      if (reporteFiltrado.length === 0) return;
+      if (reporteFiltrado.length === 0) {
+        await emit("show-toast", { message: "⚠️ No hay datos para mostrar", type: 'warning' });
+        return;
+      }
+      
+      await emit("show-toast", { message: "✅ Preparando datos...", type: 'success' });
       
       const fechasCols = getFechasUnicas();
-      const data = reporteFiltrado.map(est => {
-        const row: any = {
-          "Estudiante": est.nombre,
-          "Sexo": est.sexo
-        };
-        
-        fechasCols.forEach(f => {
-          row[f.split('-').reverse().join('/')] = getEstadoEnFecha(est, f);
-        });
-
-        if (periodo === "diario") {
-          row["Observación"] = getObservacionEnFecha(est, fechaInicio);
-        }
-        
+      
+      let htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            table { border-collapse: collapse; width: 100%; font-size: 12px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+            th { background-color: #10b981; color: white; }
+            tr:nth-child(even) { background-color: #f9f9f9; }
+            .estado-P { color: #10b981; font-weight: bold; }
+            .estado-A { color: #ef4444; font-weight: bold; }
+            .estado-J { color: #9b59b6; font-weight: bold; }
+            .header-info { margin-bottom: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="header-info">
+            <h2>Reporte de Asistencia</h2>
+            <p><strong>Colegio:</strong> ${colegioNombre}</p>
+            <p><strong>Grado:</strong> ${gradoNombre} - Sección: ${seccionNombre}</p>
+            <p><strong>Período:</strong> ${periodo.toUpperCase()} (${fechaInicio} al ${fechaFin})</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Estudiante</th>
+                <th>Sexo</th>
+                ${fechasCols.map(f => `<th>${f.split('-').slice(1).reverse().join('/')}</th>`).join('')}
+                <th>P</th>
+                <th>A</th>
+                <th>J</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
+      
+      reporteFiltrado.forEach((est, index) => {
         const p = est.fechas.filter(f => f.endsWith(':P')).length;
         const a = est.fechas.filter(f => f.endsWith(':A')).length;
         const j = est.fechas.filter(f => f.endsWith(':J')).length;
         
-        row["P"] = p;
-        row["A"] = a;
-        row["J"] = j;
-        
-        return row;
+        htmlContent += `
+          <tr>
+            <td>${index + 1}</td>
+            <td style="text-align: left;">${est.nombre}</td>
+            <td>${est.sexo}</td>
+            ${fechasCols.map(f => {
+              const estado = getEstadoEnFecha(est, f);
+              return `<td class="estado-${estado}">${estado === '-' ? '' : estado}</td>`;
+            }).join('')}
+            <td>${p}</td>
+            <td>${a}</td>
+            <td>${j}</td>
+          </tr>
+        `;
       });
       
-      const ws = XLSX.utils.json_to_sheet(data);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Asistencia");
+      htmlContent += `
+            </tbody>
+          </table>
+        </body>
+        </html>
+      `;
       
-const fileName = `Asistencia_${gradoNombre}_${seccionNombre}_${fechaInicio}.xlsx`;
-
-if (isAndroid) {
-        // Lógica para Android: Guardar y compartir
-        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-        const dir = await tempDir();
-        const filePath = await join(dir, fileName);
-        const formattedPath = filePath.replace(/\\/g, '/');
-        
-        await writeFile(filePath, new Uint8Array(excelBuffer));
-        await invoke('save_file_android', { 
-          path: formattedPath, 
-          mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-          name: fileName 
-        });
-        await emit("show-toast", { message: "✅ Excel generado. Seleccione dónde guardarlo...", type: 'success' });
-      } else {
-        // Lógica para Desktop
-        XLSX.writeFile(wb, fileName);
-        await emit("show-toast", { message: "✅ Excel generado exitosamente", type: 'success' });
-      }
+      setExcelHtml(htmlContent);
     } catch (error) {
-      console.error("Error exporting to Excel:", error);
-      await emit("show-toast", { message: "❌ Error al exportar a Excel", type: 'error' });
+      console.error("Error generating Excel view:", error);
+      await emit("show-toast", { message: "❌ Error al generar la vista", type: 'error' });
     }
-};
+  };
   
   const handlePrintWithIframe = async () => {
     if (reporteFiltrado.length === 0) {
@@ -1574,6 +1599,105 @@ Cerrar
                 background: '#fff'
               }}
               title="Vista previa de impresión"
+            />
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal de Vista Excel con Iframe */}
+      {excelHtml && createPortal(
+        <div className="modal-overlay" onClick={() => setExcelHtml(null)}>
+          <div 
+            className="modal-content category-card" 
+            onClick={e => e.stopPropagation()}
+            style={{ 
+              width: '95%', 
+              height: '90vh',
+              maxWidth: '1200px',
+              padding: '0',
+              background: '#fff',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            <div style={{ 
+              padding: '10px 15px', 
+              background: 'rgba(30, 41, 59, 0.95)', 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center',
+              borderBottom: '1px solid rgba(255,255,255,0.1)'
+            }}>
+              <span style={{ color: '#fff', fontWeight: '600' }}>Vista de Reporte - Excel</span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button 
+                  onClick={() => {
+                    const iframe = document.getElementById('excel-iframe') as HTMLIFrameElement;
+                    if (iframe?.contentWindow) {
+                      iframe.contentWindow.print();
+                    }
+                  }}
+                  style={{
+                    background: '#10b981',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '8px 16px',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    fontWeight: '600'
+                  }}
+                >
+                  🖨️ Imprimir
+                </button>
+                <button 
+                  onClick={() => {
+                    const blob = new Blob([excelHtml], { type: 'text/html' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `Asistencia_${gradoNombre}_${seccionNombre}_${fechaInicio}.html`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    emit("show-toast", { message: "✅ Archivo guardado", type: 'success' });
+                  }}
+                  style={{
+                    background: '#3b82f6',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '8px 16px',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    fontWeight: '600'
+                  }}
+                >
+                  💾 Guardar
+                </button>
+                <button 
+                  onClick={() => setExcelHtml(null)}
+                  style={{
+                    background: 'rgba(255,255,255,0.1)',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '8px 16px',
+                    color: '#94a3b8',
+                    cursor: 'pointer'
+                  }}
+                >
+                  ✕ Cerrar
+                </button>
+              </div>
+            </div>
+            <iframe 
+              id="excel-iframe"
+              srcDoc={excelHtml}
+              style={{ 
+                flex: 1, 
+                width: '100%', 
+                border: 'none',
+                background: '#fff'
+              }}
+              title="Vista de Excel"
             />
           </div>
         </div>,
