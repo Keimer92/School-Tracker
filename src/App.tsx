@@ -10,10 +10,11 @@ import { NotasPage } from "./components/NotasPage";
 import { ReportesPage } from "./components/ReportesPage";
 import { AsistenciaPage } from "./components/AsistenciaPage";
 import { InformePage } from "./components/InformePage";
+import { CalendarioPage } from "./components/CalendarioPage";
 import { supabase } from "./lib/supabase";
 import { syncService } from "./lib/syncService";
 
-type Tab = "notas" | "reportes" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "informe";
+type Tab = "notas" | "reportes" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "informe" | "calendario";
 
 function App() {
   const [appMode] = useState<string>("unified");
@@ -27,7 +28,7 @@ function App() {
 const [visitedTabs, setVisitedTabs] = useState<Set<Tab>>(() => {
   const saved = localStorage.getItem('visited-tabs');
   // Siempre incluir todas las tabs por defecto para que se muestren en Android
-  const defaultTabs: Tab[] = ["notas", "reportes", "estudiantes", "evaluaciones", "globales", "ajustes", "asistencia", "informe"];
+  const defaultTabs: Tab[] = ["notas", "reportes", "estudiantes", "evaluaciones", "globales", "ajustes", "asistencia", "informe", "calendario"];
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
@@ -412,6 +413,14 @@ useEffect(() => {
             <span>⚙️</span>
             <span>Ajustes</span>
           </button>
+          <button 
+            className={`sidebar-button ${activeTab === "calendario" ? "active" : ""}`} 
+            onClick={() => handleButtonClick("calendario")}
+            type="button"
+          >
+            <span>📆</span>
+            <span>Calendario</span>
+          </button>
         </div>
       </nav>
 
@@ -429,6 +438,7 @@ useEffect(() => {
         {renderTab("estudiantes", <EstudiantesPage />)}
         {renderTab("globales", <GlobalesPage />)}
         {renderTab("ajustes", <AjustesPage />)}
+        {renderTab("calendario", <CalendarioPage />)}
       </main>
 
       {/* Toast Notification */}
