@@ -38,27 +38,30 @@ export function CalendarioPage() {
   };
 
   const generateCalendarDays = () => {
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    
     const daysInMonth = getDaysInMonth(selectedYear, selectedMonth);
     const firstDay = getFirstDayOfMonth(selectedYear, selectedMonth);
     const daysInPrevMonth = getDaysInMonth(selectedYear, selectedMonth - 1);
     
-    const days: { day: number; isCurrentMonth: boolean; dateStr: string }[] = [];
+    const days: { day: number; isCurrentMonth: boolean; dateStr: string; isToday: boolean }[] = [];
 
     for (let i = firstDay - 1; i >= 0; i--) {
       const day = daysInPrevMonth - i;
       const dateStr = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      days.push({ day, isCurrentMonth: false, dateStr });
+      days.push({ day, isCurrentMonth: false, dateStr, isToday: dateStr === todayStr });
     }
 
     for (let i = 1; i <= daysInMonth; i++) {
       const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-      days.push({ day: i, isCurrentMonth: true, dateStr });
+      days.push({ day: i, isCurrentMonth: true, dateStr, isToday: dateStr === todayStr });
     }
 
     const remaining = 42 - days.length;
     for (let i = 1; i <= remaining; i++) {
       const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-      days.push({ day: i, isCurrentMonth: false, dateStr });
+      days.push({ day: i, isCurrentMonth: false, dateStr, isToday: dateStr === todayStr });
     }
 
     return days;
@@ -217,6 +220,21 @@ export function CalendarioPage() {
         .custom-calendar__date--selected::before {
           background-color: rgba(16, 185, 129, 0.2);
         }
+        .custom-calendar__date--today {
+          color: #f59e0b;
+          font-weight: 800;
+        }
+        .custom-calendar__date--today::after {
+          content: "";
+          position: absolute;
+          bottom: 2px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 6px;
+          height: 6px;
+          background-color: #f59e0b;
+          border-radius: 50%;
+        }
         .custom-calendar__date--first-date::before {
           border-top-left-radius: var(--accent-br);
           border-bottom-left-radius: var(--accent-br);
@@ -352,15 +370,16 @@ export function CalendarioPage() {
             </div>
             <div className="custom-calendar__dates">
               {calendarDays.map((day, index) => {
-                const isSelected = isDateSelected(day.dateStr);
-                const isStart = isRangeStart(day.dateStr);
-                const isEnd = isRangeEnd(day.dateStr);
+                const isSelected = isDateSelected(day.dateStr) && day.isCurrentMonth;
+                const isStart = isRangeStart(day.dateStr) && day.isCurrentMonth;
+                const isEnd = isRangeEnd(day.dateStr) && day.isCurrentMonth;
                 const classes = [
                   !day.isCurrentMonth && 'custom-calendar__date--grey',
                   isSelected && 'custom-calendar__date--selected',
                   isStart && 'custom-calendar__date--first-date',
                   isEnd && 'custom-calendar__date--range-end',
-                  isStart && !isEnd && 'custom-calendar__date--range-start'
+                  isStart && !isEnd && 'custom-calendar__date--range-start',
+                  day.isToday && day.isCurrentMonth && 'custom-calendar__date--today'
                 ].filter(Boolean).join(' ');
                 
                 return (
