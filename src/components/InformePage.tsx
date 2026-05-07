@@ -9,7 +9,6 @@ import { writeFile, mkdir, exists } from "@tauri-apps/plugin-fs";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import * as XLSX from "xlsx";
 import { getLocalDateISOString } from "../lib/dateUtils";
 import { CalendarioPage } from './CalendarioPage';
 import "../App.css";
@@ -86,7 +85,7 @@ export function InformePage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showCalendar, setShowCalendar] = useState(false);
   const [printHtml, setPrintHtml] = useState<string | null>(null);
-  const [excelData, setExcelData] = useState<{ filename: string; data: Uint8Array } | null>(null);
+  
   const printConfig = {
     pageSize: 'letter',
     orientation: 'landscape',
@@ -450,54 +449,7 @@ export function InformePage() {
     }
   };
 
-const exportToExcel = async () => {
-    try {
-      if (reporteFiltrado.length === 0) {
-        await emit("show-toast", { message: "⚠️ No hay datos para mostrar", type: 'warning' });
-        return;
-      }
-      
-      await emit("show-toast", { message: "✅ Preparando datos...", type: 'success' });
-      
-      const fechasCols = getFechasUnicas();
-      
-      const data = reporteFiltrado.map((est, index) => {
-        const p = est.fechas.filter(f => f.endsWith(':P')).length;
-        const a = est.fechas.filter(f => f.endsWith(':A')).length;
-        const j = est.fechas.filter(f => f.endsWith(':J')).length;
-        
-        const row: any = {
-          "#": index + 1,
-          "Estudiante": est.nombre,
-          "Sexo": est.sexo
-        };
-        
-        fechasCols.forEach(f => {
-          row[f.split('-').slice(1).reverse().join('/')] = getEstadoEnFecha(est, f);
-        });
-        
-        row["P"] = p;
-        row["A"] = a;
-        row["J"] = j;
-        
-        return row;
-      });
-      
-      const ws = XLSX.utils.json_to_sheet(data);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Asistencia");
-      
-      const xlsxData = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-      const filename = `Asistencia_${gradoNombre}_${seccionNombre}_${fechaInicio}.xlsx`;
-      
-      setExcelData({ filename, data: new Uint8Array(xlsxData) });
-    } catch (error) {
-      console.error("Error generating Excel view:", error);
-      await emit("show-toast", { message: "❌ Error al generar la vista", type: 'error' });
-    }
-  };
-
-  const generateExcelHtmlView = () => {
+const generateExcelHtmlView = () => {
     const fechasCols = getFechasUnicas();
     
     const htmlContent = `
@@ -1079,23 +1031,6 @@ try {
             >
               {isMobile ? "📤" : "🖨️"}
             </button>
-            <button 
-              className="secondary" 
-              onClick={exportToExcel} 
-              disabled={reporteFiltrado.length === 0 || loading}
-              style={{ 
-                padding: '0.3rem 0.6rem', 
-                fontSize: '0.75rem', 
-                height: '28px',
-                backgroundColor: '#059669',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              title="Exportar a Excel"
-            >
-              📊 Excel
-            </button>
           </FilterActions>
         </FilterContainer>
           
@@ -1663,116 +1598,7 @@ Cerrar
         document.body
       )}
 
-      {/* Modal de Vista Excel con Iframe */}
-      {excelData && createPortal(
-        <div className="modal-overlay" onClick={() => setExcelData(null)}>
-          <div 
-            className="modal-content category-card" 
-            onClick={e => e.stopPropagation()}
-            style={{ 
-              width: '95%', 
-              height: '90vh',
-              maxWidth: '1200px',
-              padding: '0',
-              background: '#fff',
-              display: 'flex',
-              flexDirection: 'column'
-            }}
-          >
-            <div style={{ 
-              padding: '10px 15px', 
-              background: 'rgba(30, 41, 59, 0.95)', 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center',
-              borderBottom: '1px solid rgba(255,255,255,0.1)'
-            }}>
-              <span style={{ color: '#fff', fontWeight: '600' }}>Vista de Reporte - Excel</span>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button 
-                  onClick={() => {
-                    const iframe = document.getElementById('excel-iframe') as HTMLIFrameElement;
-                    if (iframe?.contentWindow) {
-                      iframe.contentWindow.print();
-                    }
-                  }}
-                  style={{
-                    background: '#10b981',
-                    border: 'none',
-                    borderRadius: '6px',
-                    padding: '8px 16px',
-                    color: '#fff',
-                    cursor: 'pointer',
-                    fontWeight: '600'
-                  }}
-                >
-                  🖨️ Imprimir
-                </button>
-                <button 
-                  onClick={async () => {
-                    try {
-                      const docsPath = await documentDir();
-                      const folderName = "SchoolTrackerPro";
-                      const fileName = excelData.filename;
-                      
-                      const fullFolderPath = docsPath + "\\" + folderName;
-                      const fullFilePath = fullFolderPath + "\\" + fileName;
-                      
-                      console.log("Guardando en:", fullFolderPath, fullFilePath);
-                      
-                      await mkdir(fullFolderPath, { recursive: true }).catch(e => console.log("mkdir:", e));
-                      await writeFile(fullFilePath, excelData.data);
-                      
-                      const folderUrl = "file:///" + fullFolderPath.replace(/\\/g, "/");
-                      await openUrl(folderUrl);
-                      await emit("show-toast", { message: "✅ Archivo guardado en Documents/SchoolTrackerPro", type: 'success' });
-                    } catch (error) {
-                      console.error("Error guardando archivo:", error);
-                      await emit("show-toast", { message: "❌ Error al guardar archivo: " + String(error), type: 'error' });
-                    }
-                  }}
-                  style={{
-                    background: '#3b82f6',
-                    border: 'none',
-                    borderRadius: '6px',
-                    padding: '8px 16px',
-                    color: '#fff',
-                    cursor: 'pointer',
-                    fontWeight: '600'
-                  }}
-                >
-                  💾 Guardar
-                </button>
-                <button 
-                  onClick={() => setExcelData(null)}
-                  style={{
-                    background: 'rgba(255,255,255,0.1)',
-                    border: 'none',
-                    borderRadius: '6px',
-                    padding: '8px 16px',
-                    color: '#94a3b8',
-                    cursor: 'pointer'
-                  }}
-                >
-                  ✕ Cerrar
-                </button>
-              </div>
-            </div>
-            <iframe 
-              id="excel-iframe"
-              srcDoc={generateExcelHtmlView()}
-              style={{ 
-                flex: 1, 
-                width: '100%', 
-                border: 'none',
-                background: '#fff'
-              }}
-              title="Vista de Excel"
-            />
-          </div>
-        </div>,
-        document.body
-      )}
+      
 
 
 
