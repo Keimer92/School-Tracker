@@ -1422,77 +1422,129 @@ return (
           {/* Buscador */}
           <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar..." isMobile={isMobile} />
 
-          {/* Botones de Acción */}
-          <FilterActions>
-            <button 
-              onClick={undo} 
-              disabled={history.length === 0}
-              className="icon-button"
-              title="Deshacer (Ctrl+Z)"
-              style={{ 
-                background: 'rgba(255,255,255,0.05)', 
-                padding: '0.3rem 0.5rem',
-                borderRadius: '6px',
-                opacity: history.length === 0 ? 0.3 : 1,
-                cursor: history.length === 0 ? 'not-allowed' : 'pointer',
-                width: 'auto',
-                fontSize: '0.7rem',
-                height: '28px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              ↩️
-            </button>
-            <button 
-              onClick={redo} 
-              disabled={redoStack.length === 0}
-              className="icon-button"
-              title="Rehacer (Ctrl+Y)"
-              style={{ 
-                background: 'rgba(255,255,255,0.05)', 
-                padding: '0.3rem 0.5rem',
-                borderRadius: '6px',
-                opacity: redoStack.length === 0 ? 0.3 : 1,
-                cursor: redoStack.length === 0 ? 'not-allowed' : 'pointer',
-                width: 'auto',
-                fontSize: '0.7rem',
-                height: '28px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              ↪️
-            </button>
-            <button 
-              onClick={handleGuardarNotas}
-              disabled={saving || (estudiantes.length === 0)}
-              className="icon-button"
-              title="Guardar Notas (Ctrl+G)"
-              style={{ 
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                padding: '0.3rem 0.6rem',
-                borderRadius: '6px',
-                color: 'white',
-                border: 'none',
-                opacity: (saving || estudiantes.length === 0) ? 0.5 : 1,
-                cursor: (saving || estudiantes.length === 0) ? 'not-allowed' : 'pointer',
-                width: 'auto',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '4px',
-                fontWeight: 'bold',
-                fontSize: '0.7rem',
-                height: '28px'
-              }}
-            >
-              <span>{saving ? '⏳' : '💾'}</span>
-              <span>{saving ? '...' : ''}</span>
-            </button>
-          </FilterActions>
+{/* Botones de Acción */}
+        <FilterActions>
+          <button
+            onClick={undo}
+            disabled={history.length === 0}
+            className="btn-modern btn-undo"
+            title="Deshacer (Ctrl+Z)"
+            style={{
+              padding: '0.6rem 1.2rem',
+              fontSize: '0.9rem',
+              height: '42px',
+              backgroundColor: history.length > 0 ? '#f59e0b' : 'rgba(148, 163, 184, 0.5)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              fontWeight: '600',
+              cursor: history.length > 0 ? 'pointer' : 'not-allowed',
+              transition: 'all 0.3s ease',
+              boxShadow: history.length > 0 ? '0 4px 14px rgba(245, 158, 11, 0.4)' : 'none',
+              transform: history.length > 0 ? 'translateY(0)' : 'none',
+              opacity: history.length > 0 ? 1 : 0.7
+            }}
+            onMouseEnter={(e) => {
+              if (history.length > 0) {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(245, 158, 11, 0.5)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (history.length > 0) {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 14px rgba(245, 158, 11, 0.4)';
+              }
+            }}
+          >
+            <span>↩️</span>
+            <span>Deshacer</span>
+          </button>
+          <button
+            onClick={redo}
+            disabled={redoStack.length === 0}
+            className="btn-modern btn-redo"
+            title="Rehacer (Ctrl+Y)"
+            style={{
+              padding: '0.6rem 1.2rem',
+              fontSize: '0.9rem',
+              height: '42px',
+              backgroundColor: redoStack.length > 0 ? '#f59e0b' : 'rgba(148, 163, 184, 0.5)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              fontWeight: '600',
+              cursor: redoStack.length > 0 ? 'pointer' : 'not-allowed',
+              transition: 'all 0.3s ease',
+              boxShadow: redoStack.length > 0 ? '0 4px 14px rgba(245, 158, 11, 0.4)' : 'none',
+              transform: redoStack.length > 0 ? 'translateY(0)' : 'none',
+              opacity: redoStack.length > 0 ? 1 : 0.7
+            }}
+            onMouseEnter={(e) => {
+              if (redoStack.length > 0) {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(245, 158, 11, 0.5)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (redoStack.length > 0) {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 14px rgba(245, 158, 11, 0.4)';
+              }
+            }}
+          >
+            <span>↪️</span>
+            <span>Rehacer</span>
+          </button>
+          <button
+            onClick={handleGuardarNotas}
+            disabled={saving || (estudiantes.length === 0)}
+            className="btn-modern btn-save-notes"
+            title="Guardar Notas (Ctrl+G)"
+            style={{
+              padding: '0.6rem 1.2rem',
+              fontSize: '0.9rem',
+              height: '42px',
+              backgroundColor: saving ? '#059669' : '#10b981',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              fontWeight: '600',
+              cursor: (saving || estudiantes.length === 0) ? 'not-allowed' : 'pointer',
+              transition: 'all 0.3s ease',
+              boxShadow: !saving && estudiantes.length > 0 ? '0 4px 14px rgba(16, 185, 129, 0.4)' : 'none',
+              transform: !saving && estudiantes.length > 0 ? 'translateY(0)' : 'none',
+              opacity: (saving || estudiantes.length > 0) ? 1 : 0.7
+            }}
+            onMouseEnter={(e) => {
+              if (!saving && estudiantes.length > 0) {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(16, 185, 129, 0.5)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!saving && estudiantes.length > 0) {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 14px rgba(16, 185, 129, 0.4)';
+              }
+            }}
+          >
+            <span>{saving ? '⏳' : '💾'}</span>
+            <span>{saving ? 'Guardando...' : 'Guardar'}</span>
+          </button>
+        </FilterActions>
         </FilterContainer>
 
       {loading && <div style={{textAlign: 'center', padding: '2rem'}}>Cargando datos...</div>}
