@@ -1078,10 +1078,10 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
             <table className="custom-table" style={{ margin: '0.5rem auto 1.5rem auto', tableLayout: 'fixed' }}>
               <thead>
                 <tr>
-                  <th style={{ width: '35px' }}>#</th>
+                  <th style={{ width: '30px' }}>#</th>
                   <th style={{ textAlign: 'left' }}>Estudiante</th>
-                  <th style={{ width: '105px' }}>Asistencia</th>
-                  <th style={{ width: '45px' }}>Obs</th>
+                  <th style={{ width: '100px' }}>Asistencia</th>
+                  <th style={{ width: '40px' }}>Obs</th>
                 </tr>
               </thead>
               <tbody>
