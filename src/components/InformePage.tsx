@@ -1228,10 +1228,10 @@ try {
             <table className="custom-table" style={{ tableLayout: 'fixed' }}>
               <thead>
                 <tr>
-                  <th style={{ width: '35px' }}>#</th>
+                  <th style={{ width: '30px' }}>#</th>
                   <th style={{ textAlign: 'left' }}>Estudiante</th>
-                  <th style={{ width: '105px' }}>Estado</th>
-                  <th style={{ width: '45px' }}>Obs.</th>
+                  <th style={{ width: '100px' }}>Estado</th>
+                  <th style={{ width: '40px' }}>Obs.</th>
                 </tr>
               </thead>
               <tbody>
@@ -1254,7 +1254,7 @@ try {
                         <div style={{ fontSize: '0.7rem', opacity: 0.6, marginLeft: '22px' }}>{item.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                       </td>
                       <td>
-                        <div className="asistencia-options" style={{ justifyContent: 'center', pointerEvents: 'none' }}>
+                        <div className="asistencia-options-mobile" style={{ justifyContent: 'center', pointerEvents: 'none' }}>
                           <label className={`asistencia-opt ${estado === 'P' ? 'active p' : ''}`}>
                             <span>P</span>
                           </label>
