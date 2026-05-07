@@ -533,9 +533,16 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
   const seccionNombre = secciones.find(s => s.id === selectedSeccion)?.nombre || "";
 
   const [expandedObs, setExpandedObs] = useState<Record<number, boolean>>({});
+  const [obsModalStudent, setObsModalStudent] = useState<EstudianteAsistencia | null>(null);
 
-  const toggleObs = (id: number) => {
-    setExpandedObs(prev => ({ ...prev, [id]: !prev[id] }));
+  const toggleObs = (est: EstudianteAsistencia) => {
+    if (obsModalStudent?.id === est.id) {
+      setObsModalStudent(null);
+      setExpandedObs({});
+    } else {
+      setObsModalStudent(est);
+      setExpandedObs({ [est.id]: true });
+    }
   };
 
   const filteredEstudiantes = estudiantes.filter(est => 
@@ -1127,58 +1134,14 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
                     <td>
                       <button 
                         className={`obs-toggle-btn ${est.observacion ? 'has-obs' : ''} ${expandedObs[est.id] ? 'active' : ''}`}
-                        onClick={() => toggleObs(est.id)}
+                        onClick={() => toggleObs(est)}
                         title="Observaciones"
                       >
                         {est.observacion ? '📝' : '💬'}
                       </button>
                     </td>
                   </tr>
-                ))}
-                {filteredEstudiantes.map((est) => expandedObs[est.id] && (
-                  <tr key={`obs-${est.id}`} className="obs-row-expanded">
-                    <td colSpan={4} style={{ padding: '0.5rem 1rem' }}>
-                      <div className="obs-container-mobile">
-                        <div style={{ position: 'relative', width: '100%' }}>
-                          <textarea 
-                            className="asistencia-obs-mobile"
-                            value={est.observacion || ""} 
-                            placeholder="Escribe una observación..."
-                            onChange={(e) => handleObservacionChange(est.id, e.target.value)}
-                            autoFocus
-                          />
-                          {est.observacion && (
-                            <button 
-                              className="clear-obs-btn"
-                              onClick={() => handleObservacionChange(est.id, "")}
-                              style={{
-                                position: 'absolute',
-                                right: '10px',
-                                top: '10px',
-                                background: 'rgba(239, 68, 68, 0.2)',
-                                border: 'none',
-                                borderRadius: '50%',
-                                width: '24px',
-                                height: '24px',
-                                color: '#ef4444',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: '12px',
-                                zIndex: 10
-                              }}
-                              title="Limpiar texto"
-                            >
-                              ✕
-                            </button>
-                          )}
-                        </div>
-                        <button className="close-obs-btn" onClick={() => toggleObs(est.id)}>Aceptar</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+))}
               </tbody>
             </table>
           )}
@@ -1365,6 +1328,97 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
               pressingStatus === 'P' ? 'Presentes' : 
               pressingStatus === 'A' ? 'Ausentes' : 'Justificados'
             }...
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal de Observación */}
+      {obsModalStudent && createPortal(
+        <div className="modal-overlay" onClick={() => setObsModalStudent(null)}>
+          <div 
+            className="modal-content category-card" 
+            onClick={e => e.stopPropagation()}
+            style={{ 
+              width: '350px', 
+              maxWidth: '90%', 
+              padding: '1.2rem',
+              textAlign: 'left',
+              position: 'relative'
+            }}
+          >
+            <button 
+              onClick={() => setObsModalStudent(null)}
+              onMouseEnter={(e) => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'transparent'; }}
+              style={{
+                position: 'absolute',
+                top: '10px',
+                right: '10px',
+                background: 'transparent',
+                border: 'none',
+                color: '#94a3b8',
+                fontSize: '1rem',
+                cursor: 'pointer',
+                padding: '6px 10px',
+                borderRadius: '6px',
+                transition: 'all 0.2s'
+              }}
+            >
+              ✕
+            </button>
+            <h3 style={{ marginTop: 0, marginBottom: '1rem', fontSize: '1rem', color: '#94a3b8', paddingRight: '20px' }}>
+              📝 Observación - {obsModalStudent.nombre.split(' ')[0]}
+            </h3>
+            <textarea 
+              style={{
+                width: '100%',
+                minHeight: '100px',
+                padding: '0.75rem',
+                borderRadius: '8px',
+                border: '1px solid rgba(255,255,255,0.1)',
+                background: 'rgba(15,23,42,0.6)',
+                color: '#fff',
+                fontSize: '0.9rem',
+                resize: 'vertical',
+                boxSizing: 'border-box'
+              }}
+              value={obsModalStudent.observacion || ''}
+              placeholder="Escribe una observación..."
+              onChange={(e) => {
+                const newObs = e.target.value;
+                handleObservacionChange(obsModalStudent.id, newObs);
+                setObsModalStudent({ ...obsModalStudent, observacion: newObs });
+              }}
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+              <button 
+                className="primary" 
+                onClick={() => setObsModalStudent(null)}
+                style={{ flex: 1 }}
+              >
+                ✓ Listo
+              </button>
+              {obsModalStudent.observacion && (
+                <button 
+                  style={{ 
+                    background: 'rgba(239,68,68,0.2)', 
+                    border: '1px solid #ef4444',
+                    borderRadius: '6px',
+                    padding: '0.5rem 1rem',
+                    color: '#ef4444',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => {
+                    handleObservacionChange(obsModalStudent.id, '');
+                    setObsModalStudent(null);
+                  }}
+                >
+                  🗑️
+                </button>
+              )}
+            </div>
           </div>
         </div>,
         document.body
