@@ -84,6 +84,7 @@ export function NotasPage() {
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [rowVersions, setRowVersions] = useState<Map<number, number>>(new Map());
   const [isQualitative, setIsQualitative] = useState(false);
@@ -711,9 +712,12 @@ export function NotasPage() {
       numValue = 0;
     }
     
-    // Actualizar notas cuantitativas en ref (sin re-render)
+// Actualizar notas cuantitativas en ref (sin re-render)
     notasCuantitativasRef.current.set(key, Math.round(numValue));
     
+    // Marcar como hay cambios sin guardar
+    setHasUnsavedChanges(true);
+
   }, [allCriterios, criterioIndexMap]);
 
   // Manejar enfoque y desenfoque para historial por celda
@@ -804,10 +808,13 @@ export function NotasPage() {
     historyRef.current = newHistory;
     setHistory(newHistory);
     
-    // Actualizar estados
+// Actualizar estados
     isUndoRedoAction.current = true;
     updateInputsUI(previousState);
     
+    // Marcar como hay cambios sin guardar después de deshacer
+    setHasUnsavedChanges(true);
+
     // Sincronizar notas cuantitativas inmediatamente para asegurar actualización de UI
     const newNotas = estudiantes.map(est => {
       const studentNotas: Record<number, number> = {};
@@ -852,6 +859,9 @@ export function NotasPage() {
     // Actualizar estados
     isUndoRedoAction.current = true;
     updateInputsUI(nextState);
+    
+    // Marcar como hay cambios sin guardar después de rehacer
+    setHasUnsavedChanges(true);
 
     // Sincronizar notas cuantitativas inmediatamente para asegurar actualización de UI
     const newNotas = estudiantes.map(est => {
@@ -1040,15 +1050,18 @@ export function NotasPage() {
         asignaturaId: selectedAsignatura
       });
 
-      // Limpiar historial tras guardado exitoso
-      historyRef.current = [];
-      redoStackRef.current = [];
-      setHistory([]);
-      setRedoStack([]);
+// Limpiar historial tras guardado exitoso
+    historyRef.current = [];
+    redoStackRef.current = [];
+    setHistory([]);
+    setRedoStack([]);
+    
+    // Resetear estado de cambios
+    setHasUnsavedChanges(false);
 
-      // Feedback inmediato tras guardado local (SQLite es instantáneo)
-      setSaving(false);
-      await emit("show-toast", { message: "✅ Notas guardadas localmente", type: "success" });
+    // Feedback inmediato tras guardado local (SQLite es instantáneo)
+    setSaving(false);
+    await emit("show-toast", { message: "✅ Notas guardadas localmente", type: "success" });
       
       // Sincronización en segundo plano (No bloqueante)
       (async () => {
@@ -1506,14 +1519,14 @@ return (
           </button>
           <button
             onClick={handleGuardarNotas}
-            disabled={saving || (estudiantes.length === 0)}
+            disabled={!hasUnsavedChanges || saving || (estudiantes.length === 0)}
             className="btn-modern btn-save-notes"
             title="Guardar Notas (Ctrl+G)"
             style={{
               padding: '0.6rem 1.2rem',
               fontSize: '0.9rem',
               height: '42px',
-              backgroundColor: saving ? '#059669' : '#10b981',
+              backgroundColor: !hasUnsavedChanges ? 'rgba(148, 163, 184, 0.5)' : (saving ? '#059669' : '#10b981'),
               color: '#fff',
               border: 'none',
               borderRadius: '12px',
@@ -1522,27 +1535,27 @@ return (
               justifyContent: 'center',
               gap: '6px',
               fontWeight: '600',
-              cursor: (saving || estudiantes.length === 0) ? 'not-allowed' : 'pointer',
+              cursor: (!hasUnsavedChanges || saving || estudiantes.length === 0) ? 'not-allowed' : 'pointer',
               transition: 'all 0.3s ease',
-              boxShadow: !saving && estudiantes.length > 0 ? '0 4px 14px rgba(16, 185, 129, 0.4)' : 'none',
-              transform: !saving && estudiantes.length > 0 ? 'translateY(0)' : 'none',
-              opacity: (saving || estudiantes.length > 0) ? 1 : 0.7
+              boxShadow: hasUnsavedChanges && !saving && estudiantes.length > 0 ? '0 4px 14px rgba(16, 185, 129, 0.4)' : 'none',
+              transform: hasUnsavedChanges && !saving && estudiantes.length > 0 ? 'translateY(0)' : 'none',
+              opacity: (hasUnsavedChanges && !saving && estudiantes.length > 0) ? 1 : 0.7
             }}
             onMouseEnter={(e) => {
-              if (!saving && estudiantes.length > 0) {
+              if (hasUnsavedChanges && !saving && estudiantes.length > 0) {
                 e.currentTarget.style.transform = 'translateY(-2px)';
                 e.currentTarget.style.boxShadow = '0 6px 20px rgba(16, 185, 129, 0.5)';
               }
             }}
             onMouseLeave={(e) => {
-              if (!saving && estudiantes.length > 0) {
+              if (hasUnsavedChanges && !saving && estudiantes.length > 0) {
                 e.currentTarget.style.transform = 'translateY(0)';
                 e.currentTarget.style.boxShadow = '0 4px 14px rgba(16, 185, 129, 0.4)';
               }
             }}
           >
             <span>{saving ? '⏳' : '💾'}</span>
-            <span>{saving ? 'Guardando...' : 'Guardar'}</span>
+            <span>{saving ? 'Guardando...' : (hasUnsavedChanges ? 'Guardar' : 'Sin cambios')}</span>
           </button>
         </FilterActions>
         </FilterContainer>
