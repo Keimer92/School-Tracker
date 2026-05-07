@@ -85,7 +85,7 @@ export function InformePage() {
   const [loading, setLoading] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showCalendar, setShowCalendar] = useState(false);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [printHtml, setPrintHtml] = useState<string | null>(null);
   const [excelData, setExcelData] = useState<{ filename: string; data: Uint8Array } | null>(null);
   const printConfig = {
     pageSize: 'letter',
@@ -573,6 +573,14 @@ const exportToExcel = async () => {
     return htmlContent;
   };
   
+const formatDateShort = (dateStr: string) => {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}`;
+    }
+    return dateStr;
+  };
+
   const handlePrintWithIframe = async () => {
     if (reporteFiltrado.length === 0) {
       await emit("show-toast", { message: "⚠️ No hay datos para imprimir", type: 'warning' });
@@ -582,81 +590,93 @@ const exportToExcel = async () => {
     try {
       await emit("show-toast", { message: "✅ Preparando reporte...", type: 'success' });
       
-      const doc = new jsPDF({
-        orientation: printConfig.orientation as 'landscape' | 'portrait',
-        unit: 'mm',
-        format: printConfig.pageSize
-      });
-      const margins = printConfig.margins;
       const colegioNombre = colegios.find(c => c.id === selectedColegio)?.nombre || "";
       const gradoNombre = grados.find(g => g.id === selectedGrado)?.nombre || "";
       const seccionNombre = secciones.find(s => s.id === selectedSeccion)?.nombre || "";
-
-      doc.setFontSize(16);
-      doc.text("Reporte", margins.left + 4, 15);
-      doc.setFontSize(10);
-      doc.text(`Colegio: ${colegioNombre}`, margins.left + 4, 22);
-      doc.text(`Grado: ${gradoNombre} - Sección: ${seccionNombre}`, margins.left + 4, 27);
-      doc.text(`Periodo: ${periodo.toUpperCase()} (${fechaInicio} al ${fechaFin})`, margins.left + 4, 32);
-      if (selectedSexo) {
-        doc.text(`Filtro Sexo: ${selectedSexo === 'M' ? 'Masculino' : 'Femenino'}`, margins.left + 4, 37);
-      }
-
+      
       let headers: string[] = [];
-      let body: any[][] = [];
-
+      let rows: string = "";
+      
       if (periodo === "diario") {
         headers = ["Estudiante", "Sexo", "Estado", "Observación"];
-        body = reporteFiltrado.map(est => {
+        rows = reporteFiltrado.map(est => {
           const estado = getEstadoEnFecha(est, fechaInicio);
           const obs = getObservacionEnFecha(est, fechaInicio);
-          return [
-            est.nombre,
-            est.sexo,
-            estado === '-' ? 'Sin registro' : estado,
-            obs
-          ];
-        });
+          const estadoClass = estado === 'P' ? 'estado-P' : estado === 'A' ? 'estado-A' : estado === 'J' ? 'estado-J' : '';
+          return `<tr>
+            <td>${est.nombre}</td>
+            <td>${est.sexo}</td>
+            <td class="${estadoClass}">${estado}</td>
+            <td>${obs}</td>
+          </tr>`;
+        }).join('');
       } else {
         const fechasCols = getFechasUnicas();
-        headers = ["Estudiante", "Sexo", ...fechasCols.map(f => f.split('-').slice(1).reverse().join('/')), "P", "A", "J"];
-        body = reporteFiltrado.map(est => {
+        headers = ["Estudiante", "Sexo", ...fechasCols.map(f => formatDateShort(f)), "P", "A", "J"];
+        rows = reporteFiltrado.map(est => {
           const p = est.fechas.filter(f => f.endsWith(':P')).length;
           const a = est.fechas.filter(f => f.endsWith(':A')).length;
           const j = est.fechas.filter(f => f.endsWith(':J')).length;
-          return [
-            est.nombre,
-            est.sexo,
-            ...fechasCols.map(f => getEstadoEnFecha(est, f)),
-            p, a, j
-          ];
-        });
+          return `<tr>
+            <td>${est.nombre}</td>
+            <td>${est.sexo}</td>
+            ${fechasCols.map(f => {
+              const estado = getEstadoEnFecha(est, f);
+              const estadoClass = estado === 'P' ? 'estado-P' : estado === 'A' ? 'estado-A' : estado === 'J' ? 'estado-J' : '';
+              return `<td class="${estadoClass}">${estado}</td>`;
+            }).join('')}
+            <td>${p}</td>
+            <td>${a}</td>
+            <td>${j}</td>
+          </tr>`;
+        }).join('');
       }
-
-      autoTable(doc, {
-        startY: selectedSexo ? 42 : 37,
-        margin: { top: margins.top, bottom: margins.bottom, left: margins.left, right: margins.right },
-        head: [headers],
-        body: body,
-        styles: { fontSize: 8, cellPadding: 1 },
-        headStyles: { fillColor: [16, 185, 129] },
-        didParseCell: (data) => {
-          if (data.section === 'body') {
-            const val = String(data.cell.raw);
-            if (val === 'P') data.cell.styles.textColor = [16, 185, 129];
-            if (val === 'A') data.cell.styles.textColor = [239, 68, 68];
-            if (val === 'J') data.cell.styles.textColor = [155, 89, 182];
-          }
-        }
-      });
-
-      // Generar PDF como blob y crear URL
-      const pdfBlob = doc.output('blob');
-      const pdfUrl = URL.createObjectURL(pdfBlob);
-      setPdfUrl(pdfUrl);
+      
+      const htmlContent = `<!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            h2 { margin: 0 0 10px 0; }
+            .info { margin-bottom: 15px; font-size: 12px; }
+            table { border-collapse: collapse; width: 100%; font-size: 11px; }
+            th, td { border: 1px solid #ddd; padding: 6px; text-align: center; }
+            th { background-color: #10b981; color: white; }
+            tr:nth-child(even) { background-color: #f9f9f9; }
+            .estado-P { color: #10b981; font-weight: bold; }
+            .estado-A { color: #ef4444; font-weight: bold; }
+            .estado-J { color: #9b59b6; font-weight: bold; }
+            @media print {
+              * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+              th { background-color: #10b981 !important; }
+              tr:nth-child(even) { background-color: #f9f9f9 !important; }
+              .estado-P { color: #10b981 !important; }
+              .estado-A { color: #ef4444 !important; }
+              .estado-J { color: #9b59b6 !important; }
+            }
+          </style>
+        </head>
+        <body>
+          <h2>Reporte de Asistencia</h2>
+          <div class="info">
+            <p><strong>Colegio:</strong> ${colegioNombre}</p>
+            <p><strong>Grado:</strong> ${gradoNombre} - Sección: ${seccionNombre}</p>
+            <p><strong>Período:</strong> ${periodo.toUpperCase()} (${fechaInicio} al ${fechaFin})${selectedSexo ? ` - Filtro Sexo: ${selectedSexo === 'M' ? 'Masculino' : 'Femenino'}` : ''}</p>
+          </div>
+          <table>
+            <thead>
+              <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </body>
+        </html>`;
+      
+      setPrintHtml(htmlContent);
     } catch (error) {
-      console.error("Error generando PDF:", error);
-      await emit("show-toast", { message: "❌ Error al generar el PDF", type: 'error' });
+      console.error("Error generando reporte:", error);
+      await emit("show-toast", { message: "❌ Error al generar el reporte", type: 'error' });
     }
   };
 
@@ -1567,9 +1587,9 @@ Cerrar
         document.body
       )}
 
-      {/* Modal de Vista Previa PDF con Iframe */}
-      {pdfUrl && createPortal(
-        <div className="modal-overlay" onClick={() => { setPdfUrl(null); }}>
+      {/* Modal de Vista Previa con Iframe */}
+      {printHtml && createPortal(
+        <div className="modal-overlay" onClick={() => { setPrintHtml(null); }}>
           <div 
             className="modal-content category-card" 
             onClick={e => e.stopPropagation()}
@@ -1613,7 +1633,7 @@ Cerrar
                   🖨️ Imprimir
                 </button>
                 <button 
-                  onClick={() => setPdfUrl(null)}
+                  onClick={() => setPrintHtml(null)}
                   style={{
                     background: 'rgba(255,255,255,0.1)',
                     border: 'none',
@@ -1629,7 +1649,7 @@ Cerrar
             </div>
             <iframe 
               id="print-iframe"
-              src={pdfUrl}
+              srcDoc={printHtml || ''}
               style={{ 
                 flex: 1, 
                 width: '100%', 
