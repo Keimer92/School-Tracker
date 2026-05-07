@@ -84,19 +84,18 @@ export function InformePage() {
   const [colegioConfig, setColegioConfig] = useState<ColegioDiasAsistencia | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [showPrintOptions, setShowPrintOptions] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const [printConfig, setPrintConfig] = useState({
+  const printConfig = {
     pageSize: 'letter',
-    orientation: 'landscape', // Predeterminado horizontal para asistencia
+    orientation: 'landscape',
     margins: {
       top: 10,
       bottom: 10,
       left: 10,
       right: 10
     }
-  });
+  };
   const fetchingRef = React.useRef(false);
   const refreshQueuedRef = React.useRef(false);
 
@@ -1013,22 +1012,6 @@ try {
               title="Exportar a Excel"
             >
               📊 Excel
-            </button>
-            <button 
-              className="secondary" 
-              onClick={() => setShowPrintOptions(true)}
-              style={{ 
-                padding: '0.3rem 0.6rem', 
-                fontSize: '0.75rem', 
-                height: '28px',
-                backgroundColor: '#6366f1',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              title="Configuración de página"
-            >
-              ⚙️
             </button>
           </FilterActions>
         </FilterContainer>
