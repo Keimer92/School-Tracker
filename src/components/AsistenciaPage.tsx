@@ -791,65 +791,106 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
             />
           )}
 
-          {/* Botones de Acción */}
-          <FilterActions>
-            <button 
-              type="button"
-              className="primary"
-              onClick={handleManualSave}
-              disabled={!hasUnsavedChanges || saving}
-              style={{ 
-                padding: '0.3rem 0.5rem',
-                borderRadius: '6px',
-                fontSize: '0.7rem',
-                height: '28px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: hasUnsavedChanges ? '#3b82f6' : 'rgba(255,255,255,0.1)',
-                color: hasUnsavedChanges ? 'white' : '#94a3b8',
-                cursor: hasUnsavedChanges ? 'pointer' : 'default',
-                fontWeight: 'bold',
-                boxShadow: hasUnsavedChanges ? '0 0 10px rgba(59, 130, 246, 0.5)' : 'none',
-                transition: 'all 0.3s ease',
-                flexShrink: 0,
-                whiteSpace: 'nowrap'
-              }}
-            >
-              {saving ? (
-                  <><span className="saving-dot"></span> Guardando...</>
-              ) : (
-                <>💾</>
-              )}
-            </button>
+{/* Botones de Acción */}
+        <FilterActions>
+          <button
+            type="button"
+            className="btn-modern btn-save"
+            onClick={handleManualSave}
+            disabled={!hasUnsavedChanges || saving}
+            style={{
+              padding: '0.6rem 1.2rem',
+              fontSize: '0.9rem',
+              height: '42px',
+              backgroundColor: hasUnsavedChanges && !saving ? '#3b82f6' : (saving ? '#059669' : 'rgba(148, 163, 184, 0.5)'),
+              color: '#fff',
+              border: 'none',
+              borderRadius: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              fontWeight: '600',
+              cursor: hasUnsavedChanges && !saving ? 'pointer' : 'default',
+              transition: 'all 0.3s ease',
+              boxShadow: hasUnsavedChanges && !saving ? '0 4px 14px rgba(59, 130, 246, 0.4)' : 'none',
+              transform: hasUnsavedChanges && !saving ? 'translateY(0)' : 'none',
+              flexShrink: 0,
+              whiteSpace: 'nowrap',
+              opacity: hasUnsavedChanges || saving ? 1 : 0.7
+            }}
+            onMouseEnter={(e) => {
+              if (hasUnsavedChanges && !saving) {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.5)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (hasUnsavedChanges && !saving) {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 14px rgba(59, 130, 246, 0.4)';
+              }
+            }}
+          >
+            {saving ? (
+              <>
+                <span className="saving-dot"></span>
+                <span>Guardando...</span>
+              </>
+            ) : (
+              <>
+                <span>💾</span>
+                <span>Guardar</span>
+              </>
+            )}
+          </button>
 
-            <button 
-              type="button"
-              className="icon-button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                limpiarAsistencia();
-              }}
-              disabled={estudiantes.length === 0}
-              style={{ 
-                background: 'rgba(255,255,255,0.05)', 
-                padding: '0.3rem 0.4rem',
-                borderRadius: '6px',
-                fontSize: '0.7rem',
-                height: '28px',
-                width: '28px',
-                opacity: estudiantes.length === 0 ? 0.5 : 1,
-                cursor: estudiantes.length === 0 ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0
-              }}
-            >
-              🧹
-            </button>
-          </FilterActions>
+          <button
+            type="button"
+            className="btn-modern btn-clear"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              limpiarAsistencia();
+            }}
+            disabled={estudiantes.length === 0}
+            style={{
+              padding: '0.6rem 1.2rem',
+              fontSize: '0.9rem',
+              height: '42px',
+              backgroundColor: estudiantes.length > 0 ? '#ef4444' : 'rgba(148, 163, 184, 0.5)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              fontWeight: '600',
+              cursor: estudiantes.length > 0 ? 'pointer' : 'not-allowed',
+              transition: 'all 0.3s ease',
+              boxShadow: estudiantes.length > 0 ? '0 4px 14px rgba(239, 68, 68, 0.4)' : 'none',
+              transform: estudiantes.length > 0 ? 'translateY(0)' : 'none',
+              flexShrink: 0,
+              opacity: estudiantes.length > 0 ? 1 : 0.7
+            }}
+            onMouseEnter={(e) => {
+              if (estudiantes.length > 0) {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(239, 68, 68, 0.5)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (estudiantes.length > 0) {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 14px rgba(239, 68, 68, 0.4)';
+              }
+            }}
+          >
+            <span>🧹</span>
+            <span>Limpiar</span>
+          </button>
+        </FilterActions>
         </FilterContainer>
 
         {/* Buscador móvil (fuera del contenedor) */}

@@ -1098,38 +1098,74 @@ try {
           {/* Botones de Acción */}
           <FilterActions>
             <button 
-              className="secondary" 
+              className="btn-modern btn-pdf"
               onClick={exportToPdf} 
               disabled={reporteFiltrado.length === 0 || loading}
               style={{ 
-                padding: '0.3rem 0.6rem', 
-                fontSize: '0.75rem', 
-                height: '28px',
+                padding: '0.6rem 1.2rem',
+                fontSize: '0.9rem',
+                height: '42px',
                 backgroundColor: '#3b82f6',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '12px',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                gap: '6px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                boxShadow: '0 4px 14px rgba(59, 130, 246, 0.4)',
+                transform: 'translateY(0)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.5)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 14px rgba(59, 130, 246, 0.4)';
               }}
               title="Exportar a PDF"
             >
-              📄 PDF
+              <span>📄</span>
+              <span>PDF</span>
             </button>
             <button 
-              className="secondary" 
+              className="btn-modern btn-print"
               onClick={handlePrintWithIframe} 
               disabled={reporteFiltrado.length === 0 || loading}
               style={{ 
-                padding: '0.3rem 0.6rem', 
-                fontSize: '0.75rem', 
-                height: '28px',
+                padding: '0.6rem 1.2rem',
+                fontSize: '0.9rem',
+                height: '42px',
                 backgroundColor: '#10b981',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '12px',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                gap: '6px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)',
+                transform: 'translateY(0)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(16, 185, 129, 0.5)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 14px rgba(16, 185, 129, 0.4)';
               }}
               title={isMobile ? "Compartir reporte" : "Imprimir reporte"}
             >
-              {isMobile ? "📤" : "🖨️"}
+              <span>{isMobile ? "📤" : "🖨️"}</span>
+              <span>{isMobile ? "Compartir" : "Imprimir"}</span>
             </button>
           </FilterActions>
         </FilterContainer>
