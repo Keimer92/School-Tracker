@@ -4,8 +4,8 @@ import { FilterContainer, FilterGroup, FilterActions } from './FilterContainer';
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
-import { join, tempDir } from "@tauri-apps/api/path";
-import { writeFile } from "@tauri-apps/plugin-fs";
+import { documentDir } from "@tauri-apps/api/path";
+import { writeFile, mkdir, exists } from "@tauri-apps/plugin-fs";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -86,7 +86,7 @@ export function InformePage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showCalendar, setShowCalendar] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const [excelHtml, setExcelHtml] = useState<string | null>(null);
+  const [excelData, setExcelData] = useState<{ filename: string; data: Uint8Array } | null>(null);
   const printConfig = {
     pageSize: 'letter',
     orientation: 'landscape',
@@ -1651,15 +1651,26 @@ Cerrar
                   🖨️ Imprimir
                 </button>
                 <button 
-                  onClick={() => {
-                    const blob = new Blob([excelHtml], { type: 'text/html' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `Asistencia_${gradoNombre}_${seccionNombre}_${fechaInicio}.html`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                    emit("show-toast", { message: "✅ Archivo guardado", type: 'success' });
+                  onClick={async () => {
+                    try {
+                      const docsPath = await documentDir();
+                      const folderName = "School Tracker Pro";
+                      const fileName = `Asistencia_${gradoNombre}_${seccionNombre}_${fechaInicio}.html`;
+                      
+                      const fullFolderPath = docsPath + "\\" + folderName;
+                      const fullFilePath = fullFolderPath + "\\" + fileName;
+                      
+                      const folderExists = await exists(fullFolderPath).catch(() => false);
+                      if (!folderExists) {
+                        await mkdir(fullFolderPath, { recursive: true });
+                      }
+                      
+                      await writeFile(fullFilePath, new TextEncoder().encode(excelHtml));
+                      await emit("show-toast", { message: "✅ Archivo guardado en Documents/School Tracker Pro", type: 'success' });
+                    } catch (error) {
+                      console.error("Error guardando archivo:", error);
+                      await emit("show-toast", { message: "❌ Error al guardar archivo: " + String(error), type: 'error' });
+                    }
                   }}
                   style={{
                     background: '#3b82f6',
