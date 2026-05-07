@@ -6,6 +6,21 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
+#[tauri::command]
+fn create_folder_and_save_file(folder_path: String, file_path: String, file_data: Vec<u8>) -> Result<(), String> {
+    use std::fs;
+    use std::path::Path;
+    
+    let path = Path::new(&folder_path);
+    if !path.exists() {
+        fs::create_dir_all(path).map_err(|e| format!("Error creando carpeta: {}", e))?;
+    }
+    
+    fs::write(&file_path, file_data).map_err(|e| format!("Error guardando archivo: {}", e))?;
+    
+    Ok(())
+}
+
 fn upload_to_supabase(table: &str, data: Vec<serde_json::Value>, _user_id: &str) -> Result<(), String> {
     println!(
         "🔄 [PUSH] Subiendo {} registros a tabla {}",
@@ -640,6 +655,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            create_folder_and_save_file,
             get_anos,
             add_ano,
             update_ano,

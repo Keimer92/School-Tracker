@@ -27,7 +27,10 @@
       "identifier": "fs:allow-write-file",
       "allow": [{ "path": "$APPDATA/**" }, { "path": "$DOWNLOAD/**" }, { "path": "$DOCUMENT/**" }, { "path": "$HOME/**" }, { "path": "$TEMP/**" }]
     },
-    "fs:allow-mkdir",
+    {
+      "identifier": "fs:allow-mkdir",
+      "allow": [{ "path": "$DOCUMENT/**" }]
+    },
     "fs:allow-desktop-write-recursive",
     "fs:allow-download-write-recursive",
     {

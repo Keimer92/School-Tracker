@@ -1684,13 +1684,20 @@ Cerrar
                   onClick={async () => {
                     try {
                       const docsPath = await documentDir();
+                      const folderName = "SchoolTrackerPro";
                       const fileName = excelData.filename;
                       
-                      const fullFilePath = await join(docsPath, fileName);
-                      console.log("Intentando guardar en:", fullFilePath);
+                      const fullFolderPath = docsPath + "\\" + folderName;
+                      const fullFilePath = fullFolderPath + "\\" + fileName;
                       
+                      console.log("Guardando en:", fullFolderPath, fullFilePath);
+                      
+                      await mkdir(fullFolderPath, { recursive: true }).catch(e => console.log("mkdir:", e));
                       await writeFile(fullFilePath, excelData.data);
-                      await emit("show-toast", { message: "✅ Archivo guardado en Documents/" + fileName, type: 'success' });
+                      
+                      const folderUrl = "file:///" + fullFolderPath.replace(/\\/g, "/");
+                      await openUrl(folderUrl);
+                      await emit("show-toast", { message: "✅ Archivo guardado en Documents/SchoolTrackerPro", type: 'success' });
                     } catch (error) {
                       console.error("Error guardando archivo:", error);
                       await emit("show-toast", { message: "❌ Error al guardar archivo: " + String(error), type: 'error' });
