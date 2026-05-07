@@ -515,6 +515,14 @@ const exportToExcel = async () => {
           .estado-A { color: #ef4444; font-weight: bold; }
           .estado-J { color: #9b59b6; font-weight: bold; }
           .header-info { margin-bottom: 20px; }
+          @media print {
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            th { background-color: #10b981 !important; color: white !important; }
+            tr:nth-child(even) { background-color: #f9f9f9 !important; }
+            .estado-P { color: #10b981 !important; }
+            .estado-A { color: #ef4444 !important; }
+            .estado-J { color: #9b59b6 !important; }
+          }
         </style>
       </head>
       <body>
