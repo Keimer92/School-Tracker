@@ -533,6 +533,89 @@ const formatDateShort = (dateStr: string) => {
     return dateStr;
   };
 
+  const exportToPdf = async () => {
+    if (reporteFiltrado.length === 0) {
+      await emit("show-toast", { message: "⚠️ No hay datos para exportar", type: 'warning' });
+      return;
+    }
+
+    try {
+      await emit("show-toast", { message: "✅ Generando PDF...", type: 'success' });
+
+      const colegioNombre = colegios.find(c => c.id === selectedColegio)?.nombre || "";
+      const gradoNombre = grados.find(g => g.id === selectedGrado)?.nombre || "";
+      const seccionNombre = secciones.find(s => s.id === selectedSeccion)?.nombre || "";
+
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'letter'
+      });
+
+      const margins = { top: 10, left: 10, right: 10 };
+
+      doc.setFontSize(16);
+      doc.text("Reporte de Asistencia", margins.left, 15);
+      doc.setFontSize(10);
+      doc.text(`Colegio: ${colegioNombre}`, margins.left, 22);
+      doc.text(`Grado: ${gradoNombre} - Sección: ${seccionNombre}`, margins.left, 27);
+      doc.text(`Período: ${periodo.toUpperCase()} (${fechaInicio} al ${fechaFin})`, margins.left, 32);
+
+      let headers: string[] = [];
+      let body: any[][] = [];
+
+      if (periodo === "diario") {
+        headers = ["Estudiante", "Sexo", "Estado", "Observación"];
+        body = reporteFiltrado.map(est => {
+          const estado = getEstadoEnFecha(est, fechaInicio);
+          const obs = getObservacionEnFecha(est, fechaInicio);
+          return [est.nombre, est.sexo, estado, obs];
+        });
+      } else {
+        const fechasCols = getFechasUnicas();
+        headers = ["Estudiante", "Sexo", ...fechasCols.map(f => formatDateShort(f)), "P", "A", "J"];
+        body = reporteFiltrado.map(est => {
+          const p = est.fechas.filter(f => f.endsWith(':P')).length;
+          const a = est.fechas.filter(f => f.endsWith(':A')).length;
+          const j = est.fechas.filter(f => f.endsWith(':J')).length;
+          return [
+            est.nombre,
+            est.sexo,
+            ...fechasCols.map(f => getEstadoEnFecha(est, f)),
+            p, a, j
+          ];
+        });
+      }
+
+      autoTable(doc, {
+        head: [headers],
+        body: body,
+        startY: 40,
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [16, 185, 129] },
+        alternateRowStyles: { fillColor: [249, 250, 251] }
+      });
+
+      const pdfData = doc.output('arraybuffer');
+      const fileName = `Asistencia_${gradoNombre}_${seccionNombre}_${fechaInicio}.pdf`;
+      const docsPath = await documentDir();
+      const folderName = "SchoolTrackerPro";
+      const fullFolderPath = docsPath + "\\" + folderName;
+      const fullFilePath = fullFolderPath + "\\" + fileName;
+
+      await mkdir(fullFolderPath, { recursive: true }).catch(e => console.log("mkdir:", e));
+      await writeFile(fullFilePath, new Uint8Array(pdfData));
+
+      const folderUrl = "file:///" + fullFolderPath.replace(/\\/g, "/");
+      await openUrl(folderUrl);
+
+      await emit("show-toast", { message: "✅ PDF guardado en Documents/SchoolTrackerPro", type: 'success' });
+    } catch (error) {
+      console.error("Error exportando PDF:", error);
+      await emit("show-toast", { message: "❌ Error al exportar PDF: " + String(error), type: 'error' });
+    }
+  };
+
   const handlePrintWithIframe = async () => {
     if (reporteFiltrado.length === 0) {
       await emit("show-toast", { message: "⚠️ No hay datos para imprimir", type: 'warning' });
@@ -1014,6 +1097,23 @@ try {
 
           {/* Botones de Acción */}
           <FilterActions>
+            <button 
+              className="secondary" 
+              onClick={exportToPdf} 
+              disabled={reporteFiltrado.length === 0 || loading}
+              style={{ 
+                padding: '0.3rem 0.6rem', 
+                fontSize: '0.75rem', 
+                height: '28px',
+                backgroundColor: '#3b82f6',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              title="Exportar a PDF"
+            >
+              📄 PDF
+            </button>
             <button 
               className="secondary" 
               onClick={handlePrintWithIframe} 
