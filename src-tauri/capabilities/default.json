@@ -30,7 +30,10 @@
     "fs:allow-mkdir",
     "fs:allow-desktop-write-recursive",
     "fs:allow-download-write-recursive",
-    "fs:allow-document-write-recursive",
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [{ "path": "$DOCUMENT/**" }]
+    },
     "fs:allow-appdata-write-recursive",
     "fs:allow-appdata-read-recursive",
     "allow-local-commands",

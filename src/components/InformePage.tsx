@@ -1684,26 +1684,13 @@ Cerrar
                   onClick={async () => {
                     try {
                       const docsPath = await documentDir();
-                      console.log("docsPath:", docsPath);
-                      const folderName = "School Tracker Pro";
                       const fileName = excelData.filename;
                       
-                      const fullFolderPath = await join(docsPath, folderName);
-                      console.log("fullFolderPath:", fullFolderPath);
-                      
-                      try {
-                        await mkdir(fullFolderPath, { recursive: true });
-                        console.log("Carpeta creada/existe");
-                      } catch (mkdirError) {
-                        console.log("mkdir error:", mkdirError);
-                      }
-                      
-                      const fullFilePath = await join(fullFolderPath, fileName);
-                      console.log("fullFilePath:", fullFilePath);
+                      const fullFilePath = await join(docsPath, fileName);
+                      console.log("Intentando guardar en:", fullFilePath);
                       
                       await writeFile(fullFilePath, excelData.data);
-                      console.log("Archivo escrito");
-                      await emit("show-toast", { message: "✅ Archivo guardado en Documents/School Tracker Pro", type: 'success' });
+                      await emit("show-toast", { message: "✅ Archivo guardado en Documents/" + fileName, type: 'success' });
                     } catch (error) {
                       console.error("Error guardando archivo:", error);
                       await emit("show-toast", { message: "❌ Error al guardar archivo: " + String(error), type: 'error' });
