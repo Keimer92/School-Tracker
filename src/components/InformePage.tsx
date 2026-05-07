@@ -86,6 +86,7 @@ export function InformePage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showPrintOptions, setShowPrintOptions] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [printConfig, setPrintConfig] = useState({
     pageSize: 'letter',
     orientation: 'landscape', // Predeterminado horizontal para asistencia
@@ -449,8 +450,76 @@ export function InformePage() {
     }
   };
 
-  const exportToPDF = async () => {
+  const exportToExcel = async () => {
     try {
+      if (reporteFiltrado.length === 0) return;
+      
+      const fechasCols = getFechasUnicas();
+      const data = reporteFiltrado.map(est => {
+        const row: any = {
+          "Estudiante": est.nombre,
+          "Sexo": est.sexo
+        };
+        
+        fechasCols.forEach(f => {
+          row[f.split('-').reverse().join('/')] = getEstadoEnFecha(est, f);
+        });
+
+        if (periodo === "diario") {
+          row["Observación"] = getObservacionEnFecha(est, fechaInicio);
+        }
+        
+        const p = est.fechas.filter(f => f.endsWith(':P')).length;
+        const a = est.fechas.filter(f => f.endsWith(':A')).length;
+        const j = est.fechas.filter(f => f.endsWith(':J')).length;
+        
+        row["P"] = p;
+        row["A"] = a;
+        row["J"] = j;
+        
+        return row;
+      });
+      
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Asistencia");
+      
+const fileName = `Asistencia_${gradoNombre}_${seccionNombre}_${fechaInicio}.xlsx`;
+
+if (isAndroid) {
+        // Lógica para Android: Guardar y compartir
+        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const dir = await tempDir();
+        const filePath = await join(dir, fileName);
+        const formattedPath = filePath.replace(/\\/g, '/');
+        
+        await writeFile(filePath, new Uint8Array(excelBuffer));
+        await invoke('save_file_android', { 
+          path: formattedPath, 
+          mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+          name: fileName 
+        });
+        await emit("show-toast", { message: "✅ Excel generado. Seleccione dónde guardarlo...", type: 'success' });
+      } else {
+        // Lógica para Desktop
+        XLSX.writeFile(wb, fileName);
+        await emit("show-toast", { message: "✅ Excel generado exitosamente", type: 'success' });
+      }
+    } catch (error) {
+      console.error("Error exporting to Excel:", error);
+      await emit("show-toast", { message: "❌ Error al exportar a Excel", type: 'error' });
+    }
+};
+  
+  const handlePrintWithIframe = async () => {
+    if (reporteFiltrado.length === 0) {
+      await emit("show-toast", { message: "⚠️ No hay datos para imprimir", type: 'warning' });
+      return;
+    }
+    
+    try {
+      await emit("show-toast", { message: "✅ Preparando reporte...", type: 'success' });
+      
       const doc = new jsPDF({
         orientation: printConfig.orientation as 'landscape' | 'portrait',
         unit: 'mm',
@@ -519,94 +588,13 @@ export function InformePage() {
         }
       });
 
-const fileName = `Asistencia_${gradoNombre}_${seccionNombre}_${fechaInicio}.pdf`;
-
-if (isAndroid) {
-        // Lógica para Android: Guardar en temporal y compartir
-        const pdfArrayBuffer = doc.output('arraybuffer');
-        const dir = await tempDir();
-        const filePath = await join(dir, fileName);
-        const formattedPath = filePath.replace(/\\/g, '/');
-        
-        await writeFile(filePath, new Uint8Array(pdfArrayBuffer));
-        await invoke('save_file_android', { 
-          path: formattedPath, 
-          mime: "application/pdf", 
-          name: fileName 
-        });
-        await emit("show-toast", { message: "✅ PDF generado. Seleccione dónde guardarlo...", type: 'success' });
-      } else {
-        // Lógica para Desktop
-        doc.save(fileName);
-        await emit("show-toast", { message: "✅ PDF generado exitosamente", type: 'success' });
-      }
+      // Generar PDF como blob y crear URL
+      const pdfBlob = doc.output('blob');
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      setPdfUrl(pdfUrl);
     } catch (error) {
-      console.error("Error al exportar PDF:", error);
-      await emit("show-toast", { 
-        message: "❌ Error al generar el PDF: " + (error instanceof Error ? error.message : String(error)), 
-        type: 'error' 
-      });
-    }
-  };
-
-  const exportToExcel = async () => {
-    try {
-      if (reporteFiltrado.length === 0) return;
-      
-      const fechasCols = getFechasUnicas();
-      const data = reporteFiltrado.map(est => {
-        const row: any = {
-          "Estudiante": est.nombre,
-          "Sexo": est.sexo
-        };
-        
-        fechasCols.forEach(f => {
-          row[f.split('-').reverse().join('/')] = getEstadoEnFecha(est, f);
-        });
-
-        if (periodo === "diario") {
-          row["Observación"] = getObservacionEnFecha(est, fechaInicio);
-        }
-        
-        const p = est.fechas.filter(f => f.endsWith(':P')).length;
-        const a = est.fechas.filter(f => f.endsWith(':A')).length;
-        const j = est.fechas.filter(f => f.endsWith(':J')).length;
-        
-        row["P"] = p;
-        row["A"] = a;
-        row["J"] = j;
-        
-        return row;
-      });
-      
-      const ws = XLSX.utils.json_to_sheet(data);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Asistencia");
-      
-const fileName = `Asistencia_${gradoNombre}_${seccionNombre}_${fechaInicio}.xlsx`;
-
-if (isAndroid) {
-        // Lógica para Android: Guardar y compartir
-        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-        const dir = await tempDir();
-        const filePath = await join(dir, fileName);
-        const formattedPath = filePath.replace(/\\/g, '/');
-        
-        await writeFile(filePath, new Uint8Array(excelBuffer));
-        await invoke('save_file_android', { 
-          path: formattedPath, 
-          mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-          name: fileName 
-        });
-        await emit("show-toast", { message: "✅ Excel generado. Seleccione dónde guardarlo...", type: 'success' });
-      } else {
-        // Lógica para Desktop
-        XLSX.writeFile(wb, fileName);
-        await emit("show-toast", { message: "✅ Excel generado exitosamente", type: 'success' });
-      }
-    } catch (error) {
-      console.error("Error exporting to Excel:", error);
-      await emit("show-toast", { message: "❌ Error al exportar a Excel", type: 'error' });
+      console.error("Error generando PDF:", error);
+      await emit("show-toast", { message: "❌ Error al generar el PDF", type: 'error' });
     }
   };
 
@@ -994,7 +982,7 @@ try {
           <FilterActions>
             <button 
               className="secondary" 
-              onClick={handlePrint} 
+              onClick={handlePrintWithIframe} 
               disabled={reporteFiltrado.length === 0 || loading}
               style={{ 
                 padding: '0.3rem 0.6rem', 
@@ -1545,6 +1533,82 @@ Cerrar
               ✕
             </button>
             <CalendarioPage />
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal de Vista Previa PDF con Iframe */}
+      {pdfUrl && createPortal(
+        <div className="modal-overlay" onClick={() => { setPdfUrl(null); }}>
+          <div 
+            className="modal-content category-card" 
+            onClick={e => e.stopPropagation()}
+            style={{ 
+              width: '90%', 
+              height: '90vh',
+              maxWidth: '1000px',
+              padding: '0',
+              background: '#fff',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            <div style={{ 
+              padding: '10px 15px', 
+              background: 'rgba(30, 41, 59, 0.95)', 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center',
+              borderBottom: '1px solid rgba(255,255,255,0.1)'
+            }}>
+              <span style={{ color: '#fff', fontWeight: '600' }}>Vista Previa - Impresión</span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button 
+                  onClick={() => {
+                    const iframe = document.getElementById('print-iframe') as HTMLIFrameElement;
+                    if (iframe?.contentWindow) {
+                      iframe.contentWindow.print();
+                    }
+                  }}
+                  style={{
+                    background: '#10b981',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '8px 16px',
+                    color: '#fff',
+                    cursor: 'pointer',
+                    fontWeight: '600'
+                  }}
+                >
+                  🖨️ Imprimir
+                </button>
+                <button 
+                  onClick={() => setPdfUrl(null)}
+                  style={{
+                    background: 'rgba(255,255,255,0.1)',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '8px 16px',
+                    color: '#94a3b8',
+                    cursor: 'pointer'
+                  }}
+                >
+                  ✕ Cerrar
+                </button>
+              </div>
+            </div>
+            <iframe 
+              id="print-iframe"
+              src={pdfUrl}
+              style={{ 
+                flex: 1, 
+                width: '100%', 
+                border: 'none',
+                background: '#fff'
+              }}
+              title="Vista previa de impresión"
+            />
           </div>
         </div>,
         document.body
