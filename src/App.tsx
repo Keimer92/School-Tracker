@@ -333,6 +333,7 @@ useEffect(() => {
             <div className="mode-info">
               <span className="mode-label">SCHOOL</span>
               <span className="mode-name">TRACKER</span>
+              <span className="mode-pro">PRO</span>
             </div>
           </div>
           {isMobile && (
