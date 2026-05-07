@@ -979,7 +979,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
         <div className="table-container" style={{ 
           width: '100%',
           padding: '0', 
-          overflowX: 'hidden', 
+          overflowX: 'auto', 
           display: 'flex', 
           flexDirection: 'column', 
           alignItems: 'center' 

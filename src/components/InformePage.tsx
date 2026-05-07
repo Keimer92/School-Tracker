@@ -327,6 +327,13 @@ export function InformePage() {
     };
   }, [fetchReporte]);
 
+  // Cargar configuración del colegio cuando cambie
+  useEffect(() => {
+    if (selectedColegio) {
+      fetchColegioConfig(selectedColegio);
+    }
+  }, [selectedColegio]);
+
   // Cargar grados cuando cambie el colegio o el año
   useEffect(() => {
     if (selectedColegio && selectedAno) {
@@ -1162,7 +1169,7 @@ try {
       <div className="table-container" style={{
           width: '100%',
           padding: '0', 
-          overflowX: 'hidden', 
+          overflowX: 'auto', 
           display: 'flex', 
           flexDirection: 'column', 
           alignItems: 'center' 
