@@ -1016,23 +1016,6 @@ try {
             </button>
             <button 
               className="secondary" 
-              onClick={exportToPDF} 
-              disabled={reporteFiltrado.length === 0 || loading}
-              style={{ 
-                padding: '0.3rem 0.6rem', 
-                fontSize: '0.75rem', 
-                height: '28px',
-                backgroundColor: '#ef4444',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              title="Exportar a PDF"
-            >
-              📄 PDF
-            </button>
-            <button 
-              className="secondary" 
               onClick={() => setShowPrintOptions(true)}
               style={{ 
                 padding: '0.3rem 0.6rem', 
