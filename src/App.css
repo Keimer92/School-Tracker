@@ -391,37 +391,38 @@ body {
 }
 
 .mode-badge span:first-child {
-  font-size: 1.2rem;
+  font-size: 1rem;
 }
 
 .mode-info {
   display: flex;
   flex-direction: column;
   line-height: 1;
-  min-width: 0;
 }
 
-.mode-label {
-  font-size: 0.55rem;
-  font-weight: 800;
-  color: #64748b;
-  letter-spacing: 0.08em;
-  margin-bottom: 2px;
-}
-
-.mode-name {
-  font-size: 0.75rem;
+.mode-label, .mode-name, .mode-pro {
+  font-size: 0.65rem;
   font-weight: 700;
-  color: #f1f5f9;
   letter-spacing: 0.02em;
 }
 
+.mode-label {
+  color: #64748b;
+  margin-bottom: 1px;
+}
+
+.mode-name-line {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.mode-name {
+  color: #f1f5f9;
+}
+
 .mode-pro {
-  font-size: 0.55rem;
-  font-weight: 700;
   color: #10b981;
-  letter-spacing: 0.05em;
-  margin-top: 1px;
 }
 
 .mode-switch-indicator {
@@ -442,9 +443,9 @@ body {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
-    width: 220px !important;
-    max-width: 220px !important;
-    min-width: 220px !important;
+    width: 180px !important;
+    max-width: 180px !important;
+    min-width: 180px !important;
     height: 100vh !important;
     transform: translateX(-100%);
     transition: transform 0.3s ease;

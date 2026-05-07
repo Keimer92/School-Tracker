@@ -332,8 +332,10 @@ useEffect(() => {
             <span className="glow-icon-notas">📚</span>
             <div className="mode-info">
               <span className="mode-label">SCHOOL</span>
-              <span className="mode-name">TRACKER</span>
-              <span className="mode-pro">PRO</span>
+              <div className="mode-name-line">
+                <span className="mode-name">TRACKER</span>
+                <span className="mode-pro">PRO</span>
+              </div>
             </div>
           </div>
           {isMobile && (
