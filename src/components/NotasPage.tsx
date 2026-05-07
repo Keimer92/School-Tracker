@@ -718,7 +718,7 @@ export function NotasPage() {
     // Marcar como hay cambios sin guardar
     setHasUnsavedChanges(true);
 
-  }, [allCriterios, criterioIndexMap]);
+  }, [allCriterios, criterioIndexMap, setHasUnsavedChanges]);
 
   // Manejar enfoque y desenfoque para historial por celda
   // Fase 1.2: Lazy snapshot — solo crea snapshot si no existe uno activo
@@ -1152,17 +1152,20 @@ return (
                                   <input
                                     type="text"
                                     defaultValue={currentQualitativeValue}
-                                    onChange={(e) => {
-                                      const rawVal = e.target.value.toUpperCase();
-                                      const val = rawVal.slice(0, 2);
-                                      
-                                      // Validar primer carácter: solo puede ser A
-                                      const firstChar = val.charAt(0);
-                                      const isValidFirstChar = firstChar === '' || firstChar === 'A';
-                                      
-                                      if (!isValidFirstChar) {
-                                        e.target.value = '';
-                                        notasCualitativasRef.current.set(key, '');
+onChange={(e) => {
+        // Marcar como hay cambios sin guardar
+        setHasUnsavedChanges(true);
+        
+        const rawVal = e.target.value.toUpperCase();
+        const val = rawVal.slice(0, 2);
+
+        // Validar primer carácter: solo puede ser A
+        const firstChar = val.charAt(0);
+        const isValidFirstChar = firstChar === '' || firstChar === 'A';
+
+        if (!isValidFirstChar) {
+          e.target.value = '';
+          notasCualitativasRef.current.set(key, '');
                                         e.target.style.borderColor = '#ef4444';
                                         e.target.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
                                         setTimeout(() => {
