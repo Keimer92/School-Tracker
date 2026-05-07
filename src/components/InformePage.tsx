@@ -4,7 +4,7 @@ import { FilterContainer, FilterGroup, FilterActions } from './FilterContainer';
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
-import { documentDir } from "@tauri-apps/api/path";
+import { documentDir, tempDir, join } from "@tauri-apps/api/path";
 import { writeFile, mkdir, exists } from "@tauri-apps/plugin-fs";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import jsPDF from "jspdf";
@@ -461,78 +461,108 @@ const exportToExcel = async () => {
       
       const fechasCols = getFechasUnicas();
       
-      let htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; }
-            table { border-collapse: collapse; width: 100%; font-size: 12px; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
-            th { background-color: #10b981; color: white; }
-            tr:nth-child(even) { background-color: #f9f9f9; }
-            .estado-P { color: #10b981; font-weight: bold; }
-            .estado-A { color: #ef4444; font-weight: bold; }
-            .estado-J { color: #9b59b6; font-weight: bold; }
-            .header-info { margin-bottom: 20px; }
-          </style>
-        </head>
-        <body>
-          <div class="header-info">
-            <h2>Reporte de Asistencia</h2>
-            <p><strong>Colegio:</strong> ${colegioNombre}</p>
-            <p><strong>Grado:</strong> ${gradoNombre} - Sección: ${seccionNombre}</p>
-            <p><strong>Período:</strong> ${periodo.toUpperCase()} (${fechaInicio} al ${fechaFin})</p>
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Estudiante</th>
-                <th>Sexo</th>
-                ${fechasCols.map(f => `<th>${f.split('-').slice(1).reverse().join('/')}</th>`).join('')}
-                <th>P</th>
-                <th>A</th>
-                <th>J</th>
-              </tr>
-            </thead>
-            <tbody>
-      `;
-      
-      reporteFiltrado.forEach((est, index) => {
+      const data = reporteFiltrado.map((est, index) => {
         const p = est.fechas.filter(f => f.endsWith(':P')).length;
         const a = est.fechas.filter(f => f.endsWith(':A')).length;
         const j = est.fechas.filter(f => f.endsWith(':J')).length;
         
-        htmlContent += `
-          <tr>
-            <td>${index + 1}</td>
-            <td style="text-align: left;">${est.nombre}</td>
-            <td>${est.sexo}</td>
-            ${fechasCols.map(f => {
-              const estado = getEstadoEnFecha(est, f);
-              return `<td class="estado-${estado}">${estado === '-' ? '' : estado}</td>`;
-            }).join('')}
-            <td>${p}</td>
-            <td>${a}</td>
-            <td>${j}</td>
-          </tr>
-        `;
+        const row: any = {
+          "#": index + 1,
+          "Estudiante": est.nombre,
+          "Sexo": est.sexo
+        };
+        
+        fechasCols.forEach(f => {
+          row[f.split('-').slice(1).reverse().join('/')] = getEstadoEnFecha(est, f);
+        });
+        
+        row["P"] = p;
+        row["A"] = a;
+        row["J"] = j;
+        
+        return row;
       });
       
-      htmlContent += `
-            </tbody>
-          </table>
-        </body>
-        </html>
-      `;
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Asistencia");
       
-      setExcelHtml(htmlContent);
+      const xlsxData = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const filename = `Asistencia_${gradoNombre}_${seccionNombre}_${fechaInicio}.xlsx`;
+      
+      setExcelData({ filename, data: new Uint8Array(xlsxData) });
     } catch (error) {
       console.error("Error generating Excel view:", error);
       await emit("show-toast", { message: "❌ Error al generar la vista", type: 'error' });
     }
+  };
+
+  const generateExcelHtmlView = () => {
+    const fechasCols = getFechasUnicas();
+    
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          table { border-collapse: collapse; width: 100%; font-size: 11px; }
+          th, td { border: 1px solid #ddd; padding: 6px; text-align: center; }
+          th { background-color: #10b981; color: white; }
+          tr:nth-child(even) { background-color: #f9f9f9; }
+          .estado-P { color: #10b981; font-weight: bold; }
+          .estado-A { color: #ef4444; font-weight: bold; }
+          .estado-J { color: #9b59b6; font-weight: bold; }
+          .header-info { margin-bottom: 20px; }
+        </style>
+      </head>
+      <body>
+        <div class="header-info">
+          <h2>Reporte de Asistencia</h2>
+          <p><strong>Colegio:</strong> ${colegioNombre}</p>
+          <p><strong>Grado:</strong> ${gradoNombre} - Sección: ${seccionNombre}</p>
+          <p><strong>Período:</strong> ${periodo.toUpperCase()} (${fechaInicio} al ${fechaFin})</p>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Estudiante</th>
+              <th>Sexo</th>
+              ${fechasCols.map(f => `<th>${f.split('-').slice(1).reverse().join('/')}</th>`).join('')}
+              <th>P</th>
+              <th>A</th>
+              <th>J</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${reporteFiltrado.map((est, index) => {
+              const p = est.fechas.filter(f => f.endsWith(':P')).length;
+              const a = est.fechas.filter(f => f.endsWith(':A')).length;
+              const j = est.fechas.filter(f => f.endsWith(':J')).length;
+              return `
+                <tr>
+                  <td>${index + 1}</td>
+                  <td style="text-align: left;">${est.nombre}</td>
+                  <td>${est.sexo}</td>
+                  ${fechasCols.map(f => {
+                    const estado = getEstadoEnFecha(est, f);
+                    return `<td class="estado-${estado}">${estado === '-' ? '' : estado}</td>`;
+                  }).join('')}
+                  <td>${p}</td>
+                  <td>${a}</td>
+                  <td>${j}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+    
+    return htmlContent;
   };
   
   const handlePrintWithIframe = async () => {
@@ -1606,8 +1636,8 @@ Cerrar
       )}
 
       {/* Modal de Vista Excel con Iframe */}
-      {excelHtml && createPortal(
-        <div className="modal-overlay" onClick={() => setExcelHtml(null)}>
+      {excelData && createPortal(
+        <div className="modal-overlay" onClick={() => setExcelData(null)}>
           <div 
             className="modal-content category-card" 
             onClick={e => e.stopPropagation()}
@@ -1654,18 +1684,25 @@ Cerrar
                   onClick={async () => {
                     try {
                       const docsPath = await documentDir();
+                      console.log("docsPath:", docsPath);
                       const folderName = "School Tracker Pro";
-                      const fileName = `Asistencia_${gradoNombre}_${seccionNombre}_${fechaInicio}.html`;
+                      const fileName = excelData.filename;
                       
-                      const fullFolderPath = docsPath + "\\" + folderName;
-                      const fullFilePath = fullFolderPath + "\\" + fileName;
+                      const fullFolderPath = await join(docsPath, folderName);
+                      console.log("fullFolderPath:", fullFolderPath);
                       
-                      const folderExists = await exists(fullFolderPath).catch(() => false);
-                      if (!folderExists) {
+                      try {
                         await mkdir(fullFolderPath, { recursive: true });
+                        console.log("Carpeta creada/existe");
+                      } catch (mkdirError) {
+                        console.log("mkdir error:", mkdirError);
                       }
                       
-                      await writeFile(fullFilePath, new TextEncoder().encode(excelHtml));
+                      const fullFilePath = await join(fullFolderPath, fileName);
+                      console.log("fullFilePath:", fullFilePath);
+                      
+                      await writeFile(fullFilePath, excelData.data);
+                      console.log("Archivo escrito");
                       await emit("show-toast", { message: "✅ Archivo guardado en Documents/School Tracker Pro", type: 'success' });
                     } catch (error) {
                       console.error("Error guardando archivo:", error);
@@ -1685,7 +1722,7 @@ Cerrar
                   💾 Guardar
                 </button>
                 <button 
-                  onClick={() => setExcelHtml(null)}
+                  onClick={() => setExcelData(null)}
                   style={{
                     background: 'rgba(255,255,255,0.1)',
                     border: 'none',
@@ -1701,7 +1738,7 @@ Cerrar
             </div>
             <iframe 
               id="excel-iframe"
-              srcDoc={excelHtml}
+              srcDoc={generateExcelHtmlView()}
               style={{ 
                 flex: 1, 
                 width: '100%', 
