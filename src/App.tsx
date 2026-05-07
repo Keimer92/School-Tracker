@@ -413,14 +413,6 @@ useEffect(() => {
             <span>⚙️</span>
             <span>Ajustes</span>
           </button>
-          <button 
-            className={`sidebar-button ${activeTab === "calendario" ? "active" : ""}`} 
-            onClick={() => handleButtonClick("calendario")}
-            type="button"
-          >
-            <span>📆</span>
-            <span>Calendario</span>
-          </button>
         </div>
       </nav>
 

@@ -11,6 +11,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { getLocalDateISOString } from "../lib/dateUtils";
+import { CalendarioPage } from './CalendarioPage';
 import "../App.css";
 
 interface CategoryItem {
@@ -84,6 +85,7 @@ export function InformePage() {
   const [loading, setLoading] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showPrintOptions, setShowPrintOptions] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
   const [printConfig, setPrintConfig] = useState({
     pageSize: 'letter',
     orientation: 'landscape', // Predeterminado horizontal para asistencia
@@ -309,10 +311,19 @@ export function InformePage() {
       setRefreshTrigger(prev => prev + 1);
     });
 
+    const unlistenDateSelected = listen<{ date: string | null }>("date-selected", (event) => {
+      console.log("🔔 Evento 'date-selected' recibido en InformePage:", event.payload);
+      if (event.payload.date) {
+        setFechaBase(event.payload.date);
+      }
+      setShowCalendar(false);
+    });
+
     return () => {
       unlistenAsistencia.then(f => f());
       unlistenEstudiantes.then(f => f());
       unlistenCatalog.then(f => f());
+      unlistenDateSelected.then(f => f());
     };
   }, [fetchReporte]);
 
@@ -850,13 +861,23 @@ try {
           {/* Fecha / Semana / Mes-Año */}
           {periodo !== "mensual" ? (
             <FilterGroup label={periodo === "diario" ? "Fecha:" : "Semana de:"} isMobile={isMobile} flex={isMobile ? '1 1 100%' : '0 0 auto'}>
-              <input 
-                type="date" 
+              <button 
                 className="filter-select"
-                style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
-                value={fechaBase} 
-                onChange={(e) => setFechaBase(e.target.value)} 
-              />
+                style={{ 
+                  padding: '0.3rem 0.4rem', 
+                  fontSize: '0.75rem', 
+                  height: '28px', 
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  cursor: 'pointer',
+                  background: 'rgba(255,255,255,0.05)'
+                }}
+                onClick={() => setShowCalendar(true)}
+              >
+                <span>📅 {new Date(fechaBase + "T12:00:00").toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+              </button>
             </FilterGroup>
           ) : (
             <>
@@ -1478,12 +1499,49 @@ return (
             onClick={() => setSelectedStudentDetail(null)}
             style={{ marginTop: '1rem', width: '100%' }}
           >
-            Cerrar
+Cerrar
           </button>
         </div>
       </div>,
       document.body
     )}
+
+      {/* Modal Calendario */}
+      {showCalendar && createPortal(
+        <div className="modal-overlay" onClick={() => setShowCalendar(false)}>
+          <div 
+            className="modal-content category-card" 
+            onClick={e => e.stopPropagation()}
+            style={{ 
+              width: '400px', 
+              maxWidth: '95%', 
+              padding: '1rem',
+              background: 'rgba(15, 23, 42, 0.95)',
+              maxHeight: '90vh',
+              overflowY: 'auto'
+            }}
+          >
+            <button 
+              onClick={() => setShowCalendar(false)}
+              style={{
+                position: 'absolute',
+                top: '10px',
+                right: '10px',
+                background: 'transparent',
+                border: 'none',
+                color: '#94a3b8',
+                fontSize: '1.2rem',
+                cursor: 'pointer',
+                padding: '4px 8px'
+              }}
+            >
+              ✕
+            </button>
+            <CalendarioPage />
+          </div>
+        </div>,
+        document.body
+      )}
 
 
 
