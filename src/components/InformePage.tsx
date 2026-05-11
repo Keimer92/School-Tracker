@@ -83,17 +83,6 @@ export function InformePage() {
   const [colegioConfig, setColegioConfig] = useState<ColegioDiasAsistencia | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [showPrintOptions, setShowPrintOptions] = useState(false);
-  const [printConfig, setPrintConfig] = useState({
-    pageSize: 'letter',
-    orientation: 'landscape', // Predeterminado horizontal para asistencia
-    margins: {
-      top: 10,
-      bottom: 10,
-      left: 10,
-      right: 10
-    }
-  });
   const fetchingRef = React.useRef(false);
   const refreshQueuedRef = React.useRef(false);
 
@@ -434,11 +423,11 @@ export function InformePage() {
   const exportToPDF = async () => {
     try {
       const doc = new jsPDF({
-        orientation: printConfig.orientation as 'landscape' | 'portrait',
+        orientation: 'landscape',
         unit: 'mm',
-        format: printConfig.pageSize
+        format: 'letter'
       });
-      const margins = printConfig.margins;
+      const margins = { top: 10, bottom: 10, left: 10, right: 10 };
       const colegioNombre = colegios.find(c => c.id === selectedColegio)?.nombre || "";
       const gradoNombre = grados.find(g => g.id === selectedGrado)?.nombre || "";
       const seccionNombre = secciones.find(s => s.id === selectedSeccion)?.nombre || "";
@@ -531,67 +520,6 @@ if (isAndroid) {
     }
   };
 
-  const exportToExcel = async () => {
-    try {
-      if (reporteFiltrado.length === 0) return;
-      
-      const fechasCols = getFechasUnicas();
-      const data = reporteFiltrado.map(est => {
-        const row: any = {
-          "Estudiante": est.nombre,
-          "Sexo": est.sexo
-        };
-        
-        fechasCols.forEach(f => {
-          row[f.split('-').reverse().join('/')] = getEstadoEnFecha(est, f);
-        });
-
-        if (periodo === "diario") {
-          row["Observación"] = getObservacionEnFecha(est, fechaInicio);
-        }
-        
-        const p = est.fechas.filter(f => f.endsWith(':P')).length;
-        const a = est.fechas.filter(f => f.endsWith(':A')).length;
-        const j = est.fechas.filter(f => f.endsWith(':J')).length;
-        
-        row["P"] = p;
-        row["A"] = a;
-        row["J"] = j;
-        
-        return row;
-      });
-      
-      const ws = XLSX.utils.json_to_sheet(data);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Asistencia");
-      
-const fileName = `Asistencia_${gradoNombre}_${seccionNombre}_${fechaInicio}.xlsx`;
-
-if (isAndroid) {
-        // Lógica para Android: Guardar y compartir
-        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-        const dir = await tempDir();
-        const filePath = await join(dir, fileName);
-        const formattedPath = filePath.replace(/\\/g, '/');
-        
-        await writeFile(filePath, new Uint8Array(excelBuffer));
-        await invoke('save_file_android', { 
-          path: formattedPath, 
-          mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-          name: fileName 
-        });
-        await emit("show-toast", { message: "✅ Excel generado. Seleccione dónde guardarlo...", type: 'success' });
-      } else {
-        // Lógica para Desktop
-        XLSX.writeFile(wb, fileName);
-        await emit("show-toast", { message: "✅ Excel generado exitosamente", type: 'success' });
-      }
-    } catch (error) {
-      console.error("Error exporting to Excel:", error);
-      await emit("show-toast", { message: "❌ Error al exportar a Excel", type: 'error' });
-    }
-  };
-
   const handlePrint = async () => {
     if (reporteFiltrado.length === 0) {
       await emit("show-toast", { message: "⚠️ No hay datos para imprimir", type: 'warning' });
@@ -601,11 +529,11 @@ if (isAndroid) {
     try {
       await emit("show-toast", { message: "✅ Preparando impresión...", type: 'success' });
       const doc = new jsPDF({
-        orientation: printConfig.orientation as 'landscape' | 'portrait',
+        orientation: 'landscape',
         unit: 'mm',
-        format: printConfig.pageSize
+        format: 'letter'
       });
-      const margins = printConfig.margins;
+      const margins = { top: 10, bottom: 10, left: 10, right: 10 };
       const colegioNombre = colegios.find(c => c.id === selectedColegio)?.nombre || "";
       const gradoNombre = grados.find(g => g.id === selectedGrado)?.nombre || "";
       const seccionNombre = secciones.find(s => s.id === selectedSeccion)?.nombre || "";
@@ -982,23 +910,6 @@ try {
             </button>
             <button 
               className="secondary" 
-              onClick={exportToExcel} 
-              disabled={reporteFiltrado.length === 0 || loading}
-              style={{ 
-                padding: '0.3rem 0.6rem', 
-                fontSize: '0.75rem', 
-                height: '28px',
-                backgroundColor: '#059669',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              title="Exportar a Excel"
-            >
-              📊 Excel
-            </button>
-            <button 
-              className="secondary" 
               onClick={exportToPDF} 
               disabled={reporteFiltrado.length === 0 || loading}
               style={{ 
@@ -1013,22 +924,6 @@ try {
               title="Exportar a PDF"
             >
               📄 PDF
-            </button>
-            <button 
-              className="secondary" 
-              onClick={() => setShowPrintOptions(true)}
-              style={{ 
-                padding: '0.3rem 0.6rem', 
-                fontSize: '0.75rem', 
-                height: '28px',
-                backgroundColor: '#6366f1',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              title="Configuración de página"
-            >
-              ⚙️
             </button>
           </FilterActions>
         </FilterContainer>
