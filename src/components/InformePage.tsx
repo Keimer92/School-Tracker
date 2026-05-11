@@ -1210,13 +1210,13 @@ try {
             </div>
           ) : periodo === "diario" ? (
             /* Vista simplificada para modo Diario (similar a AsistenciaPage) */
-            <table className="custom-table" style={{ tableLayout: 'fixed' }}>
+            <table className="custom-table" style={{ margin: '0.5rem auto 1.5rem auto', tableLayout: 'fixed' }}>
               <thead>
                 <tr>
-                  <th style={{ width: '35px' }}>#</th>
+                  <th style={{ width: '30px' }}>#</th>
                   <th style={{ textAlign: 'left' }}>Estudiante</th>
-                  <th style={{ width: '105px' }}>Estado</th>
-                  <th style={{ width: '45px' }}>Obs.</th>
+                  <th style={{ width: '100px' }}>Asistencia</th>
+                  <th style={{ width: '40px' }}>Obs</th>
                 </tr>
               </thead>
               <tbody>
@@ -1227,19 +1227,26 @@ try {
                       <td>
                         <span className="student-number-badge">{index + 1}</span>
                       </td>
-                      <td style={{ textAlign: 'left' }}>
+                      <td style={{ textAlign: 'left', overflow: 'hidden' }}>
                         <div 
                           className="student-name-container" 
-                          style={{ fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                          style={{ 
+                            fontWeight: 'bold', 
+                            cursor: 'pointer', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '6px',
+                            width: '100%'
+                          }}
                           onClick={() => setSelectedStudentDetail(item)}
                         >
-                          <span style={{ fontSize: '1.1rem' }}>{item.sexo === 'F' ? '👩' : '👨'}</span>
-                          {item.nombre}
+                          <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{item.sexo === 'F' ? '👩' : '👨'}</span>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nombre}</span>
                         </div>
                         <div style={{ fontSize: '0.7rem', opacity: 0.6, marginLeft: '22px' }}>{item.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                       </td>
                       <td>
-                        <div className="asistencia-options" style={{ justifyContent: 'center', pointerEvents: 'none' }}>
+                        <div className="asistencia-options-mobile">
                           <label className={`asistencia-opt ${estado === 'P' ? 'active p' : ''}`}>
                             <span>P</span>
                           </label>
@@ -1261,7 +1268,7 @@ try {
             </table>
           ) : (
             /* Vista de rango para Semanal/Mensual */
-            <table className="custom-table">
+            <table className="custom-table" style={{ margin: '0.5rem auto 1.5rem auto' }}>
               <thead>
                 <tr>
                   <th style={{ width: '30px' }}>#</th>
@@ -1290,14 +1297,21 @@ try {
                       <td>
                         <span className="student-number-badge">{index + 1}</span>
                       </td>
-                      <td style={{ textAlign: 'left' }}>
+                      <td style={{ textAlign: 'left', overflow: 'hidden' }}>
                         <div 
                           className="student-name-container" 
-                          style={{ fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                          style={{ 
+                            fontWeight: 'bold', 
+                            cursor: 'pointer', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '6px',
+                            width: '100%'
+                          }}
                           onClick={() => setSelectedStudentDetail(item)}
                         >
-                          <span style={{ fontSize: '1.1rem' }}>{item.sexo === 'F' ? '👩' : '👨'}</span>
-                          {item.nombre}
+                          <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{item.sexo === 'F' ? '👩' : '👨'}</span>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nombre}</span>
                         </div>
                         <div style={{ fontSize: '0.7rem', opacity: 0.6, marginLeft: '22px' }}>{item.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                       </td>
