@@ -4,12 +4,11 @@ import { FilterContainer, FilterGroup, FilterActions } from './FilterContainer';
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
-import { join, tempDir } from "@tauri-apps/api/path";
-import { writeFile } from "@tauri-apps/plugin-fs";
+import { join, tempDir, documentDir } from "@tauri-apps/api/path";
+import { writeFile, mkdir } from "@tauri-apps/plugin-fs";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import * as XLSX from "xlsx";
 import { getLocalDateISOString } from "../lib/dateUtils";
 import "../App.css";
 
@@ -83,6 +82,7 @@ export function InformePage() {
   const [colegioConfig, setColegioConfig] = useState<ColegioDiasAsistencia | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [printHtml, setPrintHtml] = useState<string | null>(null);
   const fetchingRef = React.useRef(false);
   const refreshQueuedRef = React.useRef(false);
 
@@ -490,33 +490,97 @@ export function InformePage() {
         }
       });
 
-const fileName = `Asistencia_${gradoNombre}_${seccionNombre}_${fechaInicio}.pdf`;
+const pdfData = doc.output('arraybuffer');
+      const fileName = `Asistencia_${gradoNombre}_${seccionNombre}_${fechaInicio}.pdf`;
+      const docsPath = await documentDir();
+      const folderName = "SchoolTrackerPro";
+      const fullFolderPath = docsPath + "\\" + folderName;
+      const fullFilePath = fullFolderPath + "\\" + fileName;
 
-if (isAndroid) {
-        // Lógica para Android: Guardar en temporal y compartir
-        const pdfArrayBuffer = doc.output('arraybuffer');
-        const dir = await tempDir();
-        const filePath = await join(dir, fileName);
-        const formattedPath = filePath.replace(/\\/g, '/');
-        
-        await writeFile(filePath, new Uint8Array(pdfArrayBuffer));
-        await invoke('save_file_android', { 
-          path: formattedPath, 
-          mime: "application/pdf", 
-          name: fileName 
-        });
-        await emit("show-toast", { message: "✅ PDF generado. Seleccione dónde guardarlo...", type: 'success' });
-      } else {
-        // Lógica para Desktop
-        doc.save(fileName);
-        await emit("show-toast", { message: "✅ PDF generado exitosamente", type: 'success' });
-      }
+      await mkdir(fullFolderPath, { recursive: true }).catch(e => console.log("mkdir:", e));
+      await writeFile(fullFilePath, new Uint8Array(pdfData));
+
+      const folderUrl = "file:///" + fullFolderPath.replace(/\\/g, "/");
+      await openUrl(folderUrl);
+
+      await emit("show-toast", { message: "✅ PDF guardado en Documents/SchoolTrackerPro", type: 'success' });
     } catch (error) {
       console.error("Error al exportar PDF:", error);
       await emit("show-toast", { 
         message: "❌ Error al generar el PDF: " + (error instanceof Error ? error.message : String(error)), 
         type: 'error' 
       });
+    }
+  };
+
+  const handlePrintWithIframe = async () => {
+    if (reporteFiltrado.length === 0) {
+      await emit("show-toast", { message: "⚠️ No hay datos para imprimir", type: 'warning' });
+      return;
+    }
+    
+    try {
+      await emit("show-toast", { message: "✅ Preparando reporte...", type: 'success' });
+      
+      const headers = ["Estudiante", "Sexo", "Estado", "Observación"];
+      
+      const rows = reporteFiltrado.map(est => {
+        const estado = getEstadoEnFecha(est, fechaInicio);
+        const obs = getObservacionEnFecha(est, fechaInicio);
+        const estadoClass = estado === 'P' ? 'estado-P' : estado === 'A' ? 'estado-A' : estado === 'J' ? 'estado-J' : '';
+        return `<tr>
+          <td>${est.nombre}</td>
+          <td>${est.sexo}</td>
+          <td class="${estadoClass}">${estado === '-' ? '' : estado}</td>
+          <td>${obs}</td>
+        </tr>`;
+      }).join('');
+      
+      const htmlContent = `<!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            h2 { margin: 0 0 10px 0; }
+            .info { margin-bottom: 15px; font-size: 12px; }
+            table { border-collapse: collapse; width: 100%; font-size: 11px; }
+            th, td { border: 1px solid #ddd; padding: 6px; text-align: center; }
+            th { background-color: #10b981; color: white; }
+            tr:nth-child(even) { background-color: #f9f9f9; }
+            .estado-P { color: #10b981; font-weight: bold; }
+            .estado-A { color: #ef4444; font-weight: bold; }
+            .estado-J { color: #9b59b6; font-weight: bold; }
+            @media print {
+              * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+              th { background-color: #10b981 !important; }
+              tr:nth-child(even) { background-color: #f9f9f9 !important; }
+              .estado-P { color: #10b981 !important; }
+              .estado-A { color: #ef4444 !important; }
+              .estado-J { color: #9b59b6 !important; }
+            }
+          </style>
+        </head>
+        <body>
+          <h2>Reporte de Asistencia</h2>
+          <div class="info">
+            <p><strong>Colegio:</strong> ${colegioNombre}</p>
+            <p><strong>Grado:</strong> ${gradoNombre} - Sección: ${seccionNombre}</p>
+            <p><strong>Período:</strong> ${periodo.toUpperCase()} (${fechaInicio} al ${fechaFin})${selectedSexo ? ` - Sexo: ${selectedSexo === 'M' ? 'Masculino' : 'Femenino'}` : ''}</p>
+          </div>
+          <table>
+            <thead>
+              <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </body>
+        </html>`;
+      
+      setPrintHtml(htmlContent);
+    } catch (error) {
+      console.error("Error generando reporte:", error);
+      await emit("show-toast", { message: "❌ Error al generar el reporte", type: 'error' });
     }
   };
 
@@ -893,7 +957,7 @@ try {
           <FilterActions>
             <button 
               className="secondary" 
-              onClick={handlePrint} 
+              onClick={handlePrintWithIframe} 
               disabled={reporteFiltrado.length === 0 || loading}
               style={{ 
                 padding: '0.3rem 0.6rem', 
@@ -1376,6 +1440,90 @@ try {
 </div>,
 document.body
 )}
+
+        {/* Modal de Vista Previa de Impresión */}
+        {printHtml && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99999,
+            padding: '20px'
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              width: '100%',
+              maxWidth: '900px',
+              height: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                padding: '15px 20px',
+                borderBottom: '1px solid #e5e7eb',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                backgroundColor: '#f8fafc'
+              }}>
+                <span style={{ fontSize: '16px', fontWeight: '600', color: '#1e293b' }}>Vista Previa de Impresión</span>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button 
+                    onClick={() => {
+                      const iframe = document.querySelector('iframe');
+                      if (iframe && iframe.contentWindow) {
+                        iframe.contentWindow.print();
+                      }
+                    }}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#10b981',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontWeight: '500'
+                    }}
+                  >
+                    🖨️ Imprimir
+                  </button>
+                  <button 
+                    onClick={() => setPrintHtml(null)}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#64748b',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontWeight: '500'
+                    }}
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+              <iframe 
+                srcDoc={printHtml}
+                style={{
+                  flex: 1,
+                  width: '100%',
+                  border: 'none'
+                }}
+                title="Print Preview"
+              />
+            </div>
+          </div>
+        )}
 </div>
   );
 }
