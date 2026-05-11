@@ -2977,6 +2977,45 @@ pub fn save_asistencia(
     Ok(())
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AsistenciaCloudRecord {
+    pub id: i64,
+    pub estudiante_id: i64,
+    pub fecha: String,
+    pub estado: String,
+    pub observacion: Option<String>,
+    pub user_id: String,
+}
+
+#[tauri::command]
+pub fn upsert_asistencia_from_cloud(
+    state: tauri::State<'_, DbState>,
+    records: Vec<AsistenciaCloudRecord>,
+) -> Result<(), String> {
+    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    let count = records.len();
+    for record in &records {
+        tx.execute(
+            "INSERT OR REPLACE INTO asistencia (id, estudiante_id, fecha, estado, observacion) 
+             VALUES (?, ?, ?, ?, ?)",
+            rusqlite::params![
+                record.id,
+                record.estudiante_id,
+                &record.fecha,
+                &record.estado,
+                &record.observacion
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    tx.commit().map_err(|e| e.to_string())?;
+    println!("[CloudSync] {} registros de asistencia guardados desde Supabase", count);
+    Ok(())
+}
+
 #[tauri::command]
 pub fn delete_asistencia_batch(
     state: tauri::State<'_, DbState>,

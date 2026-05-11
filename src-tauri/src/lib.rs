@@ -704,6 +704,7 @@ pub fn run() {
             update_grade_config,
             get_asistencia_estudiantes,
             save_asistencia,
+            upsert_asistencia_from_cloud,
             get_asistencia_rango,
             get_asistencia_all,
             get_colegio_dias_asistencia,
@@ -738,7 +739,7 @@ pub fn run() {
             remove_pending_deletion_colegio_asignatura,
             print_pdf,
             share_pdf,
-            save_file_android
+            save_file_android,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

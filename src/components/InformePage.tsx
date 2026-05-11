@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import { subscribeToTable, startPolling } from "../lib/supabase";
+import { forcePullAsistencia, forcePullNotas } from "../lib/syncService";
 import { join, tempDir, documentDir } from "@tauri-apps/api/path";
 import { writeFile, mkdir } from "@tauri-apps/plugin-fs";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -300,9 +301,11 @@ export function InformePage() {
     });
 
     // Suscribirse a cambios en tiempo real de Supabase para asistencia (solo si hay datos cargados)
-    const unsubscribeRealtime = subscribeToTable('asistencia', (payload) => {
+    const unsubscribeRealtimePromise = subscribeToTable('asistencia', async (payload) => {
       console.log("Cambio en Supabase detectado en asistencia:", payload);
       if (selectedAno && selectedColegio && selectedGrado && selectedSeccion && fechaInicio) {
+        // Force pull de asistencia desde Supabase
+        await forcePullAsistencia(fechaInicio, selectedGrado, selectedSeccion);
         fetchReporte();
       }
     });
@@ -311,8 +314,10 @@ export function InformePage() {
     const pollingRef = { current: () => {} };
     const startDelay = setTimeout(() => {
       if (selectedAno && selectedColegio && selectedGrado && selectedSeccion && fechaInicio) {
-        startPolling(() => {
+        startPolling(async () => {
           if (selectedAno && selectedColegio && selectedGrado && selectedSeccion && fechaInicio) {
+            // Force pull de asistencia desde Supabase
+            await forcePullAsistencia(fechaInicio, selectedGrado, selectedSeccion);
             setRefreshTrigger(prev => prev + 1);
           }
         }, 30000).then(fn => { pollingRef.current = fn; });
@@ -324,7 +329,7 @@ export function InformePage() {
       unlistenAsistencia.then(f => f());
       unlistenEstudiantes.then(f => f());
       unlistenCatalog.then(f => f());
-      unsubscribeRealtime();
+      unsubscribeRealtimePromise.then(f => f());
       pollingRef.current();
     };
   }, [fetchReporte]);

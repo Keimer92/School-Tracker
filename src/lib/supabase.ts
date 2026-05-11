@@ -101,10 +101,9 @@ export const startPolling = async (
   // Luego ejecutar periódicamente
   const intervalId = setInterval(poll, intervalMs);
   
-  return () => {
-    console.log('[Polling] Detenido');
-    clearTimeout(timeoutId);
-    clearInterval(intervalId);
-  };
-};
+return () => {
+      console.log('[Polling] Detenido');
+      clearTimeout(timeoutId);
+      clearInterval(intervalId);
+    };
 };

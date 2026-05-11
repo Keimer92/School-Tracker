@@ -6,6 +6,7 @@ import { syncService } from "../lib/syncService";
 import { getLocalDateISOString } from "../lib/dateUtils";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { subscribeToTable, startPolling } from "../lib/supabase";
+import { forcePullAsistencia } from "../lib/syncService";
 import "../App.css";
 
 interface CategoryItem {
@@ -274,9 +275,11 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
     });
 
     // Suscribirse a cambios en tiempo real de Supabase para asistencia
-    const unsubscribeRealtime = subscribeToTable('asistencia', (payload) => {
+    const unsubscribeRealtimePromise = subscribeToTable('asistencia', async (payload) => {
       console.log("Cambio en Supabase detectado en asistencia:", payload);
       if (selectedFecha && selectedColegio && selectedGrado && selectedSeccion) {
+        // Force pull desde Supabase
+        await forcePullAsistencia(selectedFecha, selectedGrado, selectedSeccion);
         setRefreshTrigger(prev => prev + 1);
       }
     });
@@ -285,8 +288,10 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
     const pollingRef = { current: () => {} };
     const startDelay = setTimeout(() => {
       if (selectedFecha && selectedColegio && selectedGrado && selectedSeccion && isFechaHabilitada) {
-        startPolling(() => {
+        startPolling(async () => {
           if (selectedFecha && selectedColegio && selectedGrado && selectedSeccion && isFechaHabilitada) {
+            // Force pull desde Supabase antes de recargar
+            await forcePullAsistencia(selectedFecha, selectedGrado, selectedSeccion);
             setRefreshTrigger(prev => prev + 1);
           }
         }, 30000).then(fn => { pollingRef.current = fn; });
@@ -299,7 +304,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
       unlistenCatalog.then(f => f());
       unlistenSubjects.then(f => f());
       unlistenDateSelected.then(f => f());
-      unsubscribeRealtime();
+      unsubscribeRealtimePromise.then(f => f());
       pollingRef.current();
     };
   }, [fetchColegioConfig]);

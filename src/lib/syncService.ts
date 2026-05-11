@@ -1444,3 +1444,107 @@ export const syncService = {
     })(), 'limpieza de la nube');
   }
 };
+
+// Force pull - traer datos de Supabase y actualizar SQLite local
+export const forcePullAsistencia = async (
+  fecha: string,
+  gradoId: number,
+  seccionId: number
+): Promise<void> => {
+  console.log('[ForcePull] Obteniendo asistencia desde Supabase...');
+  
+  try {
+    const { data: supabaseData, error } = await supabase
+      .from('asistencia')
+      .select('*')
+      .eq('fecha', fecha);
+
+    if (error) {
+      console.error('[ForcePull] Error trayendo asistencia:', error);
+      return;
+    }
+
+    if (supabaseData && supabaseData.length > 0) {
+      console.log(`[ForcePull] ${supabaseData.length} registros de asistencia encontrados en Supabase`);
+      
+      // Convertir al formato esperado por SQLite
+      const localData = supabaseData.map(record => ({
+        id: record.id,
+        estudiante_id: record.estudiante_id,
+        fecha: record.fecha,
+        estado: record.estado,
+        observacion: record.observacion || '',
+        user_id: record.user_id
+      }));
+      
+      // Guardar en SQLite usando invoke
+      try {
+        await invoke('upsert_asistencia_from_cloud', { records: localData });
+        console.log('[ForcePull] Asistencia actualizada en SQLite local');
+      } catch (e) {
+        console.error('[ForcePull] Error guardando en SQLite:', e);
+      }
+    } else {
+      console.log('[ForcePull] No hay asistencia en Supabase para esta fecha');
+    }
+  } catch (e) {
+    console.error('[ForcePull] Error general:', e);
+  }
+};
+
+// Force pull para notas
+export const forcePullNotas = async (
+  anoLectivoId: number,
+  corteId: number,
+  colegioId: number,
+  gradoId: number,
+  seccionId: number,
+  asignaturaId: number
+): Promise<void> => {
+  console.log('[ForcePull Notas] Obteniendo notas desde Supabase...');
+  
+  try {
+    const { data: supabaseData, error } = await supabase
+      .from('nota')
+      .select('*')
+      .eq('ano_lectivo_id', anoLectivoId)
+      .eq('corte_id', corteId)
+      .eq('colegio_id', colegioId)
+      .eq('grado_id', gradoId)
+      .eq('seccion_id', seccionId)
+      .eq('asignatura_id', asignaturaId);
+
+    if (error) {
+      console.error('[ForcePull Notas] Error:', error);
+      return;
+    }
+
+    if (supabaseData && supabaseData.length > 0) {
+      console.log(`[ForcePull Notas] ${supabaseData.length} registros encontrados`);
+      
+      try {
+        await invoke('upsert_notas_from_cloud', { 
+          notas: supabaseData.map(r => ({
+            id: r.id,
+            estudiante_id: r.estudiante_id,
+            indicador_id: r.indicador_id,
+            criterio_id: r.criterio_id,
+            ano_lectivo_id: r.ano_lectivo_id,
+            corte_id: r.corte_id,
+            colegio_id: r.colegio_id,
+            grado_id: r.grado_id,
+            seccion_id: r.seccion_id,
+            asignatura_id: r.asignatura_id,
+            puntaje: r.puntaje,
+            estado: r.estado || 'active'
+          }))
+        });
+        console.log('[ForcePull Notas] Notas actualizadas en SQLite');
+      } catch (e) {
+        console.error('[ForcePull Notas] Error guardando:', e);
+      }
+    }
+  } catch (e) {
+    console.error('[ForcePull Notas] Error general:', e);
+  }
+};
