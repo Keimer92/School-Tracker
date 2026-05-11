@@ -104,18 +104,7 @@ export function ReportesPage() {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
-  const [showPrintOptions, setShowPrintOptions] = useState(false);
   const [printHtml, setPrintHtml] = useState<string | null>(null);
-  const [printConfig, setPrintConfig] = useState({
-    pageSize: 'letter',
-    orientation: 'portrait',
-    margins: {
-      top: 10,
-      bottom: 10,
-      left: 10,
-      right: 10
-    }
-  });
 
   const isQualitative = useMemo(() => {
     const grado = grados.find(g => g.id === selectedGrado);
@@ -725,9 +714,9 @@ console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({
     try {
       // @ts-ignore
       const doc = new jsPDF({
-        orientation: printConfig.orientation,
+        orientation: 'portrait',
         unit: 'mm',
-        format: printConfig.pageSize
+        format: 'letter'
       });
       const names = getSelectedNames();
       const date = new Date().toLocaleDateString();
@@ -749,7 +738,7 @@ console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({
       ];
 
       let yPos = 25;
-      const margins = printConfig.margins;
+      const margins = { top: 10, bottom: 10, left: 10, right: 10 };
       filterInfo.forEach(row => {
         doc.setFont("helvetica", "bold");
         doc.text(row[0], margins.left + 10, yPos);
@@ -982,14 +971,14 @@ console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({
        return;
      }
      
-     try {
-       await emit("show-toast", { message: "✅ Preparando impresión...", type: 'success' });
-       const doc = new jsPDF({
-        orientation: printConfig.orientation as 'landscape' | 'portrait',
-        unit: 'mm',
-        format: printConfig.pageSize
-      });
-      const margins = printConfig.margins;
+try {
+        await emit("show-toast", { message: "✅ Preparando impresión...", type: 'success' });
+        const doc = new jsPDF({
+         orientation: 'portrait',
+         unit: 'mm',
+         format: 'letter'
+       });
+       const margins = { top: 10, bottom: 10, left: 10, right: 10 };
       const names = getSelectedNames();
       const date = new Date().toLocaleDateString();
 
@@ -1436,187 +1425,9 @@ console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({
             >
               PDF
             </button>
-            <button 
-              className="secondary" 
-              onClick={() => setShowPrintOptions(true)}
-              style={{ 
-                padding: '0.3rem 0.6rem', 
-                fontSize: '0.75rem', 
-                height: '28px',
-                backgroundColor: '#6366f1',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              title="Configuración de página"
-            >
-              ⚙️
-            </button>
+            
           </div>
         </div>
-
-        {/* Modal de Configuración de Impresión */}
-        {showPrintOptions && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 99999,
-            backdropFilter: 'blur(8px)',
-            padding: '20px',
-            overflowY: 'auto'
-          }}
-          onClick={() => setShowPrintOptions(false)}
-          >
-            <div style={{
-              backgroundColor: '#1e293b',
-              padding: '2rem',
-              borderRadius: '20px',
-              width: '100%',
-              maxWidth: '360px',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
-              position: 'relative'
-            }}
-            onClick={(e) => e.stopPropagation()}
-            >
-              <h3 style={{ 
-                color: 'white', 
-                marginBottom: '1.5rem', 
-                marginTop: 0, 
-                fontSize: '1.25rem',
-                fontWeight: '600',
-                textAlign: 'center',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                paddingBottom: '1rem'
-              }}>
-                Configuración de Página
-              </h3>
-              
-              <div style={{ marginBottom: '1.2rem' }}>
-                <label style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Tamaño de Página</label>
-                <select 
-                  value={printConfig.pageSize}
-                  onChange={(e) => setPrintConfig({...printConfig, pageSize: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '0.7rem', 
-                    borderRadius: '10px', 
-                    backgroundColor: '#0f172a', 
-                    color: 'white', 
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    fontSize: '0.9rem',
-                    outline: 'none'
-                  }}
-                >
-                  <option value="a4">A4 (Estándar)</option>
-                  <option value="letter">Carta (Letter)</option>
-                  <option value="legal">Oficio (Legal)</option>
-                </select>
-              </div>
-
-              <div style={{ marginBottom: '1.2rem' }}>
-                <label style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>Orientación</label>
-                <select 
-                  value={printConfig.orientation}
-                  onChange={(e) => setPrintConfig({...printConfig, orientation: e.target.value})}
-                  style={{ 
-                    width: '100%', 
-                    padding: '0.7rem', 
-                    borderRadius: '10px', 
-                    backgroundColor: '#0f172a', 
-                    color: 'white', 
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    fontSize: '0.9rem',
-                    outline: 'none'
-                  }}
-                >
-                  <option value="portrait">Vertical (Retrato)</option>
-                  <option value="landscape">Horizontal (Paisaje)</option>
-                </select>
-              </div>
-
-              <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid rgba(255, 255, 255, 0.1)', paddingBottom: '1rem' }}>
-                <label style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'block', marginBottom: '0.8rem', fontWeight: '600' }}>Márgenes (mm)</label>
-                
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                      <label style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Arriba</label>
-                      <span style={{ color: '#6366f1', fontSize: '0.75rem' }}>{printConfig.margins.top}</span>
-                    </div>
-                    <input 
-                      type="range" min="0" max="50" step="1"
-                      value={printConfig.margins.top}
-                      onChange={(e) => setPrintConfig({...printConfig, margins: {...printConfig.margins, top: Number(e.target.value)}})}
-                      style={{ width: '100%', accentColor: '#6366f1' }}
-                    />
-                  </div>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                      <label style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Abajo</label>
-                      <span style={{ color: '#6366f1', fontSize: '0.75rem' }}>{printConfig.margins.bottom}</span>
-                    </div>
-                    <input 
-                      type="range" min="0" max="50" step="1"
-                      value={printConfig.margins.bottom}
-                      onChange={(e) => setPrintConfig({...printConfig, margins: {...printConfig.margins, bottom: Number(e.target.value)}})}
-                      style={{ width: '100%', accentColor: '#6366f1' }}
-                    />
-                  </div>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                      <label style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Izquierda</label>
-                      <span style={{ color: '#6366f1', fontSize: '0.75rem' }}>{printConfig.margins.left}</span>
-                    </div>
-                    <input 
-                      type="range" min="0" max="50" step="1"
-                      value={printConfig.margins.left}
-                      onChange={(e) => setPrintConfig({...printConfig, margins: {...printConfig.margins, left: Number(e.target.value)}})}
-                      style={{ width: '100%', accentColor: '#6366f1' }}
-                    />
-                  </div>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                      <label style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Derecha</label>
-                      <span style={{ color: '#6366f1', fontSize: '0.75rem' }}>{printConfig.margins.right}</span>
-                    </div>
-                    <input 
-                      type="range" min="0" max="50" step="1"
-                      value={printConfig.margins.right}
-                      onChange={(e) => setPrintConfig({...printConfig, margins: {...printConfig.margins, right: Number(e.target.value)}})}
-                      style={{ width: '100%', accentColor: '#6366f1' }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <button 
-                onClick={() => setShowPrintOptions(false)}
-                className="secondary"
-                style={{ 
-                  width: '100%', 
-                  padding: '0.8rem', 
-                  borderRadius: '12px',
-                  backgroundColor: '#6366f1',
-                  color: 'white',
-                  fontWeight: '600',
-                  border: 'none',
-                  cursor: 'pointer',
-                  transition: 'background-color 0.2s'
-                }}
-              >
-                Listo
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Modal de Vista Previa de Impresión */}
         {printHtml && (
