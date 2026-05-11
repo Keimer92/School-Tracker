@@ -190,7 +190,7 @@ export function ReportesPage() {
   };
 
   // Función para obtener el color de una nota basado en la configuración
-  const getNoteColor = (score: number, label?: string) => {
+  const getNoteColor = (score: number, label?: string, maxScore?: number) => {
     // Si es cualitativo y tenemos una etiqueta, buscar por ID directamente
     if (isQualitative && label) {
       const config = gradeConfigs.find(c => c.id === label);
@@ -201,9 +201,12 @@ export function ReportesPage() {
       return score >= 60 ? '#4ade80' : '#f87171';
     }
 
+    // Normalizar score a porcentaje si hay maxScore
+    const scorePercent = maxScore && maxScore > 0 ? (score / maxScore) * 100 : score;
+
     // Ordenar por puntaje mínimo descendente para encontrar el rango correcto
     const sortedConfigs = [...gradeConfigs].sort((a, b) => b.minimo - a.minimo);
-    const config = sortedConfigs.find(c => score >= c.minimo);
+    const config = sortedConfigs.find(c => scorePercent >= c.minimo);
     
     if (!config) {
       // Fallback a AI si no encuentra configuración (puntaje muy bajo)
@@ -212,6 +215,22 @@ export function ReportesPage() {
     }
     
     return config.color;
+  };
+
+  // Función para obtener el puntaje máximo de un indicador
+  const getIndicatorMaxScore = (indicatorId: number) => {
+    const indicator = configIndicadores.find(ind => ind.id === indicatorId);
+    if (!indicator) return 0;
+    return indicator.criterios.reduce((sum, crit) => sum + (crit.puntajeMaximo || 0), 0);
+  };
+
+  // Función para obtener el color de una nota con porcentaje
+  const getNoteColorWithPercent = (score: number, label?: string, isIndicator: boolean = false, indicatorId?: number) => {
+    if (isIndicator && indicatorId) {
+      const maxScore = getIndicatorMaxScore(indicatorId);
+      return getNoteColor(score, label, maxScore);
+    }
+    return getNoteColor(score, label, totalPuntajeMaximoConfig);
   };
 
   const hexToRgb = (hex: string): [number, number, number] => {
@@ -807,7 +826,7 @@ console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({
               if (estudiante.notaFinalCualitativa === "-") {
                 colorHex = "#64748b";
               } else {
-                colorHex = getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa);
+                colorHex = getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa, totalPuntajeMaximoConfig);
               }
             } else {
               // Columnas de Indicadores
@@ -823,7 +842,8 @@ console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({
                 if (label === "-") {
                   colorHex = "#64748b";
                 } else {
-                  colorHex = getNoteColor(isQualitative ? 0 : (estudiante.notasIndicadores[indicatorId] || 0), label);
+                  const maxScore = getIndicatorMaxScore(indicatorId);
+                  colorHex = getNoteColor(isQualitative ? 0 : (estudiante.notasIndicadores[indicatorId] || 0), label, maxScore);
                 }
               }
             }
@@ -1051,7 +1071,7 @@ try {
             const estudiante = estudiantes[rowIndex];
             let colorHex = "";
             if (colIndex === tableHeaders.length - 1) {
-              colorHex = estudiante.notaFinalCualitativa === "-" ? "#64748b" : getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa);
+              colorHex = estudiante.notaFinalCualitativa === "-" ? "#64748b" : getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa, totalPuntajeMaximoConfig);
             } else {
               const indicatorIndex = colIndex - 2;
               const indicator = configIndicadores[indicatorIndex];
@@ -1059,7 +1079,8 @@ try {
                 colorHex = "#64748b";
               } else {
                 const label = estudiante.notasCualitativasIndicadores[indicator.id] || (isQualitative ? 'AI' : '');
-                colorHex = label === "-" ? "#64748b" : getNoteColor(isQualitative ? 0 : (estudiante.notasIndicadores[indicator.id] || 0), label);
+                const maxScore = getIndicatorMaxScore(indicator.id);
+                colorHex = label === "-" ? "#64748b" : getNoteColor(isQualitative ? 0 : (estudiante.notasIndicadores[indicator.id] || 0), label, maxScore);
               }
             }
             const [r, g, b] = hexToRgb(colorHex);
@@ -1725,9 +1746,9 @@ try {
                             const nota = estudiante.notasIndicadores[ind.id] || 0;
                             const label = estudiante.notasCualitativasIndicadores[ind.id] || (isQualitative ? '' : '');
                             const isMissing = label === "-" || label === "";
+                            const maxScore = getIndicatorMaxScore(ind.id);
                             
-                            // Ahora 'nota' ya es un porcentaje (0-100)
-                            const noteColor = isMissing ? '#64748b' : getNoteColor(isQualitative ? 0 : nota, label);
+                            const noteColor = isMissing ? '#64748b' : getNoteColor(isQualitative ? 0 : nota, label, maxScore);
                             
                             return (
                               <td key={ind.id} style={{ 
@@ -1752,15 +1773,15 @@ try {
                             textAlign: 'center', 
                             borderBottom: '1px solid rgba(255, 255, 255, 0.05)', 
                             fontWeight: 'bold', 
-                            color: (estudiante.notaFinalCualitativa === "-" || estudiante.notaFinalCualitativa === "") ? "#64748b" : getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa),
+                            color: (estudiante.notaFinalCualitativa === "-" || estudiante.notaFinalCualitativa === "") ? "#64748b" : getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa, totalPuntajeMaximoConfig),
                             backgroundColor: 'rgba(59, 130, 246, 0.05)' 
                           }}>
                             {isQualitative ? (
-                              <span style={{ color: (estudiante.notaFinalCualitativa === "-" || estudiante.notaFinalCualitativa === "") ? "#64748b" : getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa) }}>
+                              <span style={{ color: (estudiante.notaFinalCualitativa === "-" || estudiante.notaFinalCualitativa === "") ? "#64748b" : getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa, totalPuntajeMaximoConfig) }}>
                                 {(!estudiante.notaFinalCualitativa || estudiante.notaFinalCualitativa === "-") ? "-" : estudiante.notaFinalCualitativa}
                               </span>
                             ) : (
-                              <span style={{ color: (estudiante.notaFinalCualitativa === "-" || estudiante.notaFinalCualitativa === "") ? "#64748b" : getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa) }}>
+                              <span style={{ color: (estudiante.notaFinalCualitativa === "-" || estudiante.notaFinalCualitativa === "") ? "#64748b" : getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa, totalPuntajeMaximoConfig) }}>
                                 {(estudiante.notaFinalCualitativa === "-" || estudiante.notaFinalCualitativa === "") ? "-" : (
                                   <>
                                     {Math.round(estudiante.notaFinal)}
@@ -1805,7 +1826,7 @@ try {
                           const labelsFinales = conNotas.map(e => e.notaFinalCualitativa || 'AI');
                           label = calcularNotaCualitativaFinal(labelsFinales);
                         }
-                        return getNoteColor(promedio, label);
+                        return getNoteColor(promedio, label, totalPuntajeMaximoConfig);
                       })()
                     }}>
                     {(() => {
