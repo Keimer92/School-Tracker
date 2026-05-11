@@ -5,6 +5,7 @@ import { emit, listen } from "@tauri-apps/api/event";
 import { syncService } from "../lib/syncService";
 import { getLocalDateISOString } from "../lib/dateUtils";
 import { ask } from "@tauri-apps/plugin-dialog";
+import { subscribeToTable } from "../lib/supabase";
 import "../App.css";
 
 interface CategoryItem {
@@ -272,11 +273,20 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
       setShowCalendar(false);
     });
 
+    // Suscribirse a cambios en tiempo real de Supabase para asistencia
+    const unsubscribeAsistencia = subscribeToTable('asistencia', (payload) => {
+      console.log("Cambio en Supabase detectado en asistencia:", payload);
+      if (selectedFecha && selectedColegio && selectedGrado && selectedSeccion) {
+        setRefreshTrigger(prev => prev + 1);
+      }
+    });
+
     return () => {
       unlistenStudent.then(f => f());
       unlistenCatalog.then(f => f());
       unlistenSubjects.then(f => f());
       unlistenDateSelected.then(f => f());
+      unsubscribeAsistencia();
     };
   }, [fetchColegioConfig]);
 

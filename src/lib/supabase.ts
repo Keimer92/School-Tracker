@@ -14,10 +14,16 @@ export const getSupabase = () => {
   if (!instance) {
     instance = createClient(supabaseUrl || '', supabaseAnonKey || '', {
       auth: {
-        flowType: 'implicit', // Cambiamos a implicit para evitar errores de "invalid flow state"
+        flowType: 'implicit',
         detectSessionInUrl: true,
         persistSession: true,
         autoRefreshToken: true
+      },
+      realtime: {
+        enabled: true,
+        params: {
+          eventsPerSecond: 10
+        }
       }
     });
   }
@@ -25,3 +31,28 @@ export const getSupabase = () => {
 };
 
 export const supabase = getSupabase();
+
+// Función helper para suscribirse a cambios en una tabla
+export const subscribeToTable = (
+  table: string,
+  callback: (payload: any) => void,
+  filter?: string
+) => {
+  const channel = supabase
+    .channel(`${table}-changes`)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: table,
+        ...(filter ? { filter } : {})
+      },
+      callback
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+};
