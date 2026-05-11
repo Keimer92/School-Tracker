@@ -1351,8 +1351,6 @@ try {
     </div>
     </div>
     </div>
-    </div>
-    </div>
     {/* Modal de Detalles de Resumen */}
       {showSummaryModal.show && createPortal(
         <div className="modal-overlay" onClick={() => setShowSummaryModal({ ...showSummaryModal, show: false })}>
