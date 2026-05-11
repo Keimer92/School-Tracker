@@ -1246,16 +1246,16 @@ try {
                         <div style={{ fontSize: '0.7rem', opacity: 0.6, marginLeft: '22px' }}>{item.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                       </td>
                       <td>
-                        <div className="asistencia-options-mobile">
-                          <label className={`asistencia-opt ${estado === 'P' ? 'active p' : ''}`}>
+                        <div className="asistencia-options-mobile" style={{ pointerEvents: isAndroid ? 'none' : 'auto', opacity: isAndroid ? 0.8 : 1 }}>
+                          <div className={`asistencia-opt ${estado === 'P' ? 'active p' : ''}`}>
                             <span>P</span>
-                          </label>
-                          <label className={`asistencia-opt ${estado === 'A' ? 'active a' : ''}`}>
+                          </div>
+                          <div className={`asistencia-opt ${estado === 'A' ? 'active a' : ''}`}>
                             <span>A</span>
-                          </label>
-                          <label className={`asistencia-opt ${estado === 'J' ? 'active j' : ''}`}>
+                          </div>
+                          <div className={`asistencia-opt ${estado === 'J' ? 'active j' : ''}`}>
                             <span>J</span>
-                          </label>
+                          </div>
                         </div>
                       </td>
                       <td style={{ color: '#94a3b8', fontSize: '0.8rem', fontStyle: 'italic', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={getObservacionEnFecha(item, fechaInicio)}>

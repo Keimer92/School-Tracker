@@ -519,8 +519,6 @@ fn set_orientation(_app_handle: tauri::AppHandle, _orientation: String) -> Resul
     Ok(())
 }
 
-#[allow(dead_code)]
-#[allow(dead_code)]
 #[tauri::command]
 fn print_pdf(_app_handle: tauri::AppHandle, _path: String) -> Result<(), String> {
     #[cfg(target_os = "android")]
@@ -552,8 +550,6 @@ fn print_pdf(_app_handle: tauri::AppHandle, _path: String) -> Result<(), String>
     }
 }
 
-#[allow(dead_code)]
-#[allow(dead_code)]
 #[tauri::command]
 fn share_pdf(_app_handle: tauri::AppHandle, _path: String) -> Result<(), String> {
     #[cfg(target_os = "android")]
@@ -585,8 +581,6 @@ fn share_pdf(_app_handle: tauri::AppHandle, _path: String) -> Result<(), String>
     }
 }
 
-#[allow(dead_code)]
-#[allow(dead_code)]
 #[tauri::command]
 fn save_file_android(
     _app_handle: tauri::AppHandle,
@@ -741,7 +735,10 @@ pub fn run() {
             get_pending_deletions_grado_asignatura,
             remove_pending_deletion_grado_asignatura,
             get_pending_deletions_colegio_asignatura,
-            remove_pending_deletion_colegio_asignatura
+            remove_pending_deletion_colegio_asignatura,
+            print_pdf,
+            share_pdf,
+            save_file_android
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
