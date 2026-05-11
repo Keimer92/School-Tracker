@@ -494,16 +494,40 @@ const pdfData = doc.output('arraybuffer');
       const fileName = `Asistencia_${gradoNombre}_${seccionNombre}_${fechaInicio}.pdf`;
       const docsPath = await documentDir();
       const folderName = "SchoolTrackerPro";
-      const fullFolderPath = docsPath + "\\" + folderName;
-      const fullFilePath = fullFolderPath + "\\" + fileName;
+      const separator = isAndroid ? '/' : '\\';
+      const fullFolderPath = docsPath + separator + folderName;
+      const fullFilePath = fullFolderPath + separator + fileName;
 
       await mkdir(fullFolderPath, { recursive: true }).catch(e => console.log("mkdir:", e));
       await writeFile(fullFilePath, new Uint8Array(pdfData));
 
-      const folderUrl = "file:///" + fullFolderPath.replace(/\\/g, "/");
-      await openUrl(folderUrl);
+      const formattedPath = fullFilePath.replace(/\\/g, '/');
 
-      await emit("show-toast", { message: "✅ PDF guardado en Documents/SchoolTrackerPro", type: 'success' });
+      if (isAndroid) {
+        // En Android, usar share para abrir el PDF con otra app
+        try {
+          await invoke('share_pdf', { path: formattedPath });
+          await emit("show-toast", { message: "✅ PDF guardado. Abriendo...", type: 'success' });
+        } catch (shareError) {
+          console.error("Error en share_pdf:", shareError);
+          // Fallback: intentar guardar en Downloads
+          try {
+            await invoke('save_file_android', { 
+              path: formattedPath, 
+              mime: "application/pdf", 
+              name: fileName 
+            });
+            await emit("show-toast", { message: "✅ PDF guardado en descargas", type: 'success' });
+          } catch (saveError) {
+            await emit("show-toast", { message: "✅ PDF guardado en Documents/SchoolTrackerPro", type: 'success' });
+          }
+        }
+      } else {
+        // En desktop, abrir la carpeta
+        const folderUrl = "file:///" + fullFolderPath.replace(/\\/g, "/");
+        await openUrl(folderUrl);
+        await emit("show-toast", { message: "✅ PDF guardado en Documents/SchoolTrackerPro", type: 'success' });
+      }
     } catch (error) {
       console.error("Error al exportar PDF:", error);
       await emit("show-toast", { 
@@ -955,23 +979,26 @@ try {
 
           {/* Botones de Acción */}
           <FilterActions>
-            <button 
-              className="secondary" 
-              onClick={handlePrintWithIframe} 
-              disabled={reporteFiltrado.length === 0 || loading}
-              style={{ 
-                padding: '0.3rem 0.6rem', 
-                fontSize: '0.75rem', 
-                height: '28px',
-                backgroundColor: '#10b981',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              title={isMobile ? "Compartir reporte" : "Imprimir reporte"}
-            >
-              {isMobile ? "📤" : "🖨️"}
-            </button>
+            {/* Solo mostrar botón imprimir en desktop (no Android) */}
+            {!isAndroid && (
+              <button 
+                className="secondary" 
+                onClick={handlePrintWithIframe} 
+                disabled={reporteFiltrado.length === 0 || loading}
+                style={{ 
+                  padding: '0.3rem 0.6rem', 
+                  fontSize: '0.75rem', 
+                  height: '28px',
+                  backgroundColor: '#10b981',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title={isMobile ? "Compartir reporte" : "Imprimir reporte"}
+              >
+                {isMobile ? "📤" : "🖨️"}
+              </button>
+            )}
             <button 
               className="secondary" 
               onClick={exportToPDF} 

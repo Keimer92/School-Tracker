@@ -885,16 +885,40 @@ console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({
       const fileName = `Reporte_${names.grado}_${names.seccion}_${names.asignatura}_${new Date().toISOString().split('T')[0]}.pdf`.replace(/\s+/g, '_');
       const docsPath = await documentDir();
       const folderName = "SchoolTrackerPro";
-      const fullFolderPath = docsPath + "\\" + folderName;
-      const fullFilePath = fullFolderPath + "\\" + fileName;
+      const separator = isAndroid ? '/' : '\\';
+      const fullFolderPath = docsPath + separator + folderName;
+      const fullFilePath = fullFolderPath + separator + fileName;
 
       await mkdir(fullFolderPath, { recursive: true }).catch(e => console.log("mkdir:", e));
       await writeFile(fullFilePath, new Uint8Array(pdfData));
 
-      const folderUrl = "file:///" + fullFolderPath.replace(/\\/g, "/");
-      await openUrl(folderUrl);
+      const formattedPath = fullFilePath.replace(/\\/g, '/');
 
-      await emit("show-toast", { message: "✅ PDF guardado en Documents/SchoolTrackerPro", type: 'success' });
+      if (isAndroid) {
+        // En Android, usar share para abrir el PDF con otra app
+        try {
+          await invoke('share_pdf', { path: formattedPath });
+          await emit("show-toast", { message: "✅ PDF guardado. Abriendo...", type: 'success' });
+        } catch (shareError) {
+          console.error("Error en share_pdf:", shareError);
+          // Fallback: intentar guardar en Downloads
+          try {
+            await invoke('save_file_android', { 
+              path: formattedPath, 
+              mime: "application/pdf", 
+              name: fileName 
+            });
+            await emit("show-toast", { message: "✅ PDF guardado en descargas", type: 'success' });
+          } catch (saveError) {
+            await emit("show-toast", { message: "✅ PDF guardado en Documents/SchoolTrackerPro", type: 'success' });
+          }
+        }
+      } else {
+        // En desktop, abrir la carpeta
+        const folderUrl = "file:///" + fullFolderPath.replace(/\\/g, "/");
+        await openUrl(folderUrl);
+        await emit("show-toast", { message: "✅ PDF guardado en Documents/SchoolTrackerPro", type: 'success' });
+      }
     } catch (error) {
       console.error("Error al generar PDF:", error);
       await emit("show-toast", { 
@@ -1413,23 +1437,26 @@ try {
               </button>
             </div>
 
-            <button 
-              className="secondary" 
-              onClick={handlePrintWithIframe}
-              disabled={estudiantes.length === 0 || loading}
-              style={{ 
-                padding: '0.3rem 0.6rem', 
-                fontSize: '0.75rem', 
-                height: '28px',
-                backgroundColor: '#10b981',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-              title={(isMobile || isAndroid) ? "Compartir PDF" : "Imprimir"}
-            >
-              {(isMobile || isAndroid) ? "📤" : "🖨️"}
-            </button>
+            {/* Solo mostrar botón imprimir en desktop (no Android) */}
+            {!isAndroid && (
+              <button 
+                className="secondary" 
+                onClick={handlePrintWithIframe}
+                disabled={estudiantes.length === 0 || loading}
+                style={{ 
+                  padding: '0.3rem 0.6rem', 
+                  fontSize: '0.75rem', 
+                  height: '28px',
+                  backgroundColor: '#10b981',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title={(isMobile || isAndroid) ? "Compartir PDF" : "Imprimir"}
+              >
+                {(isMobile || isAndroid) ? "📤" : "🖨️"}
+              </button>
+            )}
             
             <button 
               className="primary" 
