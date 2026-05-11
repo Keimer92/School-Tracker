@@ -274,26 +274,32 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
     });
 
     // Suscribirse a cambios en tiempo real de Supabase para asistencia
-    subscribeToTable('asistencia', (payload) => {
+    const unsubscribeRealtime = subscribeToTable('asistencia', (payload) => {
       console.log("Cambio en Supabase detectado en asistencia:", payload);
       if (selectedFecha && selectedColegio && selectedGrado && selectedSeccion) {
         setRefreshTrigger(prev => prev + 1);
       }
     });
 
-    // Polling fallback cada 10 segundos
+    // Polling fallback solo cada 30 segundos para evitar parpadeo
     const pollingRef = { current: () => {} };
-    const stopPolling = startPolling(() => {
-      if (selectedFecha && selectedColegio && selectedGrado && selectedSeccion) {
-        setRefreshTrigger(prev => prev + 1);
+    const startDelay = setTimeout(() => {
+      if (selectedFecha && selectedColegio && selectedGrado && selectedSeccion && isFechaHabilitada) {
+        startPolling(() => {
+          if (selectedFecha && selectedColegio && selectedGrado && selectedSeccion && isFechaHabilitada) {
+            setRefreshTrigger(prev => prev + 1);
+          }
+        }, 30000).then(fn => { pollingRef.current = fn; });
       }
-    }, 10000).then(fn => { pollingRef.current = fn; });
+    }, 3000); // esperar 3 segundos antes de iniciar polling
 
     return () => {
+      clearTimeout(startDelay);
       unlistenStudent.then(f => f());
       unlistenCatalog.then(f => f());
       unlistenSubjects.then(f => f());
       unlistenDateSelected.then(f => f());
+      unsubscribeRealtime();
       pollingRef.current();
     };
   }, [fetchColegioConfig]);

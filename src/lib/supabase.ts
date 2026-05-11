@@ -75,15 +75,36 @@ export const subscribeToTable = async (
   }
 };
 
-// Polling fallback para cuando realtime no funcione
+// Polling - força sync desde Supabase
 export const startPolling = async (
-  callback: () => void,
-  intervalMs: number = 5000
-): (() => void) => {
+  onSync: () => Promise<void>,
+  canSync: () => boolean,
+  intervalMs: number = 30000
+): Promise<() => void> => {
   console.log(`[Polling] Iniciado cada ${intervalMs}ms`);
-  const intervalId = setInterval(callback, intervalMs);
+  
+  const poll = async () => {
+    if (!canSync()) return;
+    
+    console.log('[Polling] Sincronizando desde Supabase...');
+    try {
+      await onSync();
+      console.log('[Polling] Sync completado');
+    } catch (e) {
+      console.error('[Polling] Error:', e);
+    }
+  };
+  
+  // Primera ejecución tras 2 segundos
+  const timeoutId = setTimeout(poll, 2000);
+  
+  // Luego ejecutar periódicamente
+  const intervalId = setInterval(poll, intervalMs);
+  
   return () => {
     console.log('[Polling] Detenido');
+    clearTimeout(timeoutId);
     clearInterval(intervalId);
   };
+};
 };
