@@ -4,7 +4,7 @@ import { FilterContainer, FilterGroup, FilterActions } from './FilterContainer';
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
-import { subscribeToTable } from "../lib/supabase";
+import { subscribeToTable, startPolling } from "../lib/supabase";
 import { join, tempDir, documentDir } from "@tauri-apps/api/path";
 import { writeFile, mkdir } from "@tauri-apps/plugin-fs";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -300,16 +300,22 @@ export function InformePage() {
     });
 
     // Suscribirse a cambios en tiempo real de Supabase para asistencia
-    const unsubscribeAsistencia = subscribeToTable('asistencia', (payload) => {
+    subscribeToTable('asistencia', (payload) => {
       console.log("Cambio en Supabase detectado en asistencia:", payload);
       fetchReporte();
     });
+
+    // Polling fallback cada 10 segundos
+    const pollingRef = { current: () => {} };
+    startPolling(() => {
+      fetchReporte();
+    }, 10000).then(fn => { pollingRef.current = fn; });
 
     return () => {
       unlistenAsistencia.then(f => f());
       unlistenEstudiantes.then(f => f());
       unlistenCatalog.then(f => f());
-      unsubscribeAsistencia();
+      pollingRef.current();
     };
   }, [fetchReporte]);
 

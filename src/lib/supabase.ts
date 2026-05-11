@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -18,12 +18,6 @@ export const getSupabase = () => {
         detectSessionInUrl: true,
         persistSession: true,
         autoRefreshToken: true
-      },
-      realtime: {
-        enabled: true,
-        params: {
-          eventsPerSecond: 10
-        }
       }
     });
   }
@@ -33,26 +27,63 @@ export const getSupabase = () => {
 export const supabase = getSupabase();
 
 // Función helper para suscribirse a cambios en una tabla
-export const subscribeToTable = (
+export const subscribeToTable = async (
   table: string,
   callback: (payload: any) => void,
   filter?: string
-) => {
-  const channel = supabase
-    .channel(`${table}-changes`)
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: table,
-        ...(filter ? { filter } : {})
-      },
-      callback
-    )
-    .subscribe();
+): Promise<() => void> => {
+  try {
+    // Verificar que el usuario esté autenticado
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      console.log('[Supabase] No hay sesión activa, saltando suscripción realtime');
+      return () => {};
+    }
 
+    console.log(`[Supabase] Suscribiéndose a cambios en tabla: ${table}${filter ? ` con filtro: ${filter}` : ''} (User: ${session.user.id})`);
+
+    const channel = supabase
+      .channel(`${table}-changes-${Date.now()}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: table,
+          ...(filter ? { filter } : {})
+        },
+        (payload) => {
+          console.log(`[Supabase] Cambio detectado en ${table}:`, payload);
+          callback(payload);
+        }
+      )
+      .subscribe((status, err) => {
+        if (err) {
+          console.error(`[Supabase] Error en suscripción para ${table}:`, err);
+        } else {
+          console.log(`[Supabase] Estado de suscripción para ${table}:`, status);
+        }
+      });
+
+    return () => {
+      console.log(`[Supabase] Desuscribiéndose de ${table}`);
+      supabase.removeChannel(channel);
+    };
+  } catch (error) {
+    console.error(`[Supabase] Error al suscribirse a ${table}:`, error);
+    return () => {};
+  }
+};
+
+// Polling fallback para cuando realtime no funcione
+export const startPolling = async (
+  callback: () => void,
+  intervalMs: number = 5000
+): (() => void) => {
+  console.log(`[Polling] Iniciado cada ${intervalMs}ms`);
+  const intervalId = setInterval(callback, intervalMs);
   return () => {
-    supabase.removeChannel(channel);
+    console.log('[Polling] Detenido');
+    clearInterval(intervalId);
   };
 };
