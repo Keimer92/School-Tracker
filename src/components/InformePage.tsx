@@ -4,13 +4,13 @@ import { FilterContainer, FilterGroup, FilterActions } from './FilterContainer';
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
-import { documentDir, tempDir, join } from "@tauri-apps/api/path";
-import { writeFile, mkdir, exists } from "@tauri-apps/plugin-fs";
+import { join, tempDir } from "@tauri-apps/api/path";
+import { writeFile } from "@tauri-apps/plugin-fs";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 import { getLocalDateISOString } from "../lib/dateUtils";
-import { CalendarioPage } from './CalendarioPage';
 import "../App.css";
 
 interface CategoryItem {
@@ -83,19 +83,17 @@ export function InformePage() {
   const [colegioConfig, setColegioConfig] = useState<ColegioDiasAsistencia | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [showCalendar, setShowCalendar] = useState(false);
-  const [printHtml, setPrintHtml] = useState<string | null>(null);
-  
-  const printConfig = {
+  const [showPrintOptions, setShowPrintOptions] = useState(false);
+  const [printConfig, setPrintConfig] = useState({
     pageSize: 'letter',
-    orientation: 'landscape',
+    orientation: 'landscape', // Predeterminado horizontal para asistencia
     margins: {
       top: 10,
       bottom: 10,
       left: 10,
       right: 10
     }
-  };
+  });
   const fetchingRef = React.useRef(false);
   const refreshQueuedRef = React.useRef(false);
 
@@ -311,28 +309,12 @@ export function InformePage() {
       setRefreshTrigger(prev => prev + 1);
     });
 
-    const unlistenDateSelected = listen<{ date: string | null }>("date-selected", (event) => {
-      console.log("🔔 Evento 'date-selected' recibido en InformePage:", event.payload);
-      if (event.payload.date) {
-        setFechaBase(event.payload.date);
-      }
-      setShowCalendar(false);
-    });
-
     return () => {
       unlistenAsistencia.then(f => f());
       unlistenEstudiantes.then(f => f());
       unlistenCatalog.then(f => f());
-      unlistenDateSelected.then(f => f());
     };
   }, [fetchReporte]);
-
-  // Cargar configuración del colegio cuando cambie
-  useEffect(() => {
-    if (selectedColegio) {
-      fetchColegioConfig(selectedColegio);
-    }
-  }, [selectedColegio]);
 
   // Cargar grados cuando cambie el colegio o el año
   useEffect(() => {
@@ -449,117 +431,27 @@ export function InformePage() {
     }
   };
 
-const generateExcelHtmlView = () => {
-    const fechasCols = getFechasUnicas();
-    
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          body { font-family: Arial, sans-serif; padding: 20px; }
-          table { border-collapse: collapse; width: 100%; font-size: 11px; }
-          th, td { border: 1px solid #ddd; padding: 6px; text-align: center; }
-          th { background-color: #10b981; color: white; }
-          tr:nth-child(even) { background-color: #f9f9f9; }
-          .estado-P { color: #10b981; font-weight: bold; }
-          .estado-A { color: #ef4444; font-weight: bold; }
-          .estado-J { color: #9b59b6; font-weight: bold; }
-          .header-info { margin-bottom: 20px; }
-          @media print {
-            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-            th { background-color: #10b981 !important; color: white !important; }
-            tr:nth-child(even) { background-color: #f9f9f9 !important; }
-            .estado-P { color: #10b981 !important; }
-            .estado-A { color: #ef4444 !important; }
-            .estado-J { color: #9b59b6 !important; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header-info">
-          <h2>Reporte de Asistencia</h2>
-          <p><strong>Colegio:</strong> ${colegioNombre}</p>
-          <p><strong>Grado:</strong> ${gradoNombre} - Sección: ${seccionNombre}</p>
-          <p><strong>Período:</strong> ${periodo.toUpperCase()} (${fechaInicio} al ${fechaFin})</p>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Estudiante</th>
-              <th>Sexo</th>
-              ${fechasCols.map(f => `<th>${f.split('-').slice(1).reverse().join('/')}</th>`).join('')}
-              <th>P</th>
-              <th>A</th>
-              <th>J</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${reporteFiltrado.map((est, index) => {
-              const p = est.fechas.filter(f => f.endsWith(':P')).length;
-              const a = est.fechas.filter(f => f.endsWith(':A')).length;
-              const j = est.fechas.filter(f => f.endsWith(':J')).length;
-              return `
-                <tr>
-                  <td>${index + 1}</td>
-                  <td style="text-align: left;">${est.nombre}</td>
-                  <td>${est.sexo}</td>
-                  ${fechasCols.map(f => {
-                    const estado = getEstadoEnFecha(est, f);
-                    return `<td class="estado-${estado}">${estado === '-' ? '' : estado}</td>`;
-                  }).join('')}
-                  <td>${p}</td>
-                  <td>${a}</td>
-                  <td>${j}</td>
-                </tr>
-              `;
-            }).join('')}
-          </tbody>
-        </table>
-      </body>
-      </html>
-    `;
-    
-    return htmlContent;
-  };
-  
-const formatDateShort = (dateStr: string) => {
-    const parts = dateStr.split('-');
-    if (parts.length === 3) {
-      return `${parts[2]}/${parts[1]}`;
-    }
-    return dateStr;
-  };
-
-  const exportToPdf = async () => {
-    if (reporteFiltrado.length === 0) {
-      await emit("show-toast", { message: "⚠️ No hay datos para exportar", type: 'warning' });
-      return;
-    }
-
+  const exportToPDF = async () => {
     try {
-      await emit("show-toast", { message: "✅ Generando PDF...", type: 'success' });
-
+      const doc = new jsPDF({
+        orientation: printConfig.orientation as 'landscape' | 'portrait',
+        unit: 'mm',
+        format: printConfig.pageSize
+      });
+      const margins = printConfig.margins;
       const colegioNombre = colegios.find(c => c.id === selectedColegio)?.nombre || "";
       const gradoNombre = grados.find(g => g.id === selectedGrado)?.nombre || "";
       const seccionNombre = secciones.find(s => s.id === selectedSeccion)?.nombre || "";
 
-      const doc = new jsPDF({
-        orientation: 'landscape',
-        unit: 'mm',
-        format: 'letter'
-      });
-
-      const margins = { top: 10, left: 10, right: 10 };
-
       doc.setFontSize(16);
-      doc.text("Reporte de Asistencia", margins.left, 15);
+      doc.text("Reporte", margins.left + 4, 15);
       doc.setFontSize(10);
-      doc.text(`Colegio: ${colegioNombre}`, margins.left, 22);
-      doc.text(`Grado: ${gradoNombre} - Sección: ${seccionNombre}`, margins.left, 27);
-      doc.text(`Período: ${periodo.toUpperCase()} (${fechaInicio} al ${fechaFin})`, margins.left, 32);
+      doc.text(`Colegio: ${colegioNombre}`, margins.left + 4, 22);
+      doc.text(`Grado: ${gradoNombre} - Sección: ${seccionNombre}`, margins.left + 4, 27);
+      doc.text(`Periodo: ${periodo.toUpperCase()} (${fechaInicio} al ${fechaFin})`, margins.left + 4, 32);
+      if (selectedSexo) {
+        doc.text(`Filtro Sexo: ${selectedSexo === 'M' ? 'Masculino' : 'Femenino'}`, margins.left + 4, 37);
+      }
 
       let headers: string[] = [];
       let body: any[][] = [];
@@ -569,11 +461,16 @@ const formatDateShort = (dateStr: string) => {
         body = reporteFiltrado.map(est => {
           const estado = getEstadoEnFecha(est, fechaInicio);
           const obs = getObservacionEnFecha(est, fechaInicio);
-          return [est.nombre, est.sexo, estado, obs];
+          return [
+            est.nombre,
+            est.sexo,
+            estado === '-' ? 'Sin registro' : estado,
+            obs
+          ];
         });
       } else {
         const fechasCols = getFechasUnicas();
-        headers = ["Estudiante", "Sexo", ...fechasCols.map(f => formatDateShort(f)), "P", "A", "J"];
+        headers = ["Estudiante", "Sexo", ...fechasCols.map(f => f.split('-').slice(1).reverse().join('/')), "P", "A", "J"];
         body = reporteFiltrado.map(est => {
           const p = est.fechas.filter(f => f.endsWith(':P')).length;
           const a = est.fechas.filter(f => f.endsWith(':A')).length;
@@ -588,130 +485,110 @@ const formatDateShort = (dateStr: string) => {
       }
 
       autoTable(doc, {
+        startY: selectedSexo ? 42 : 37,
+        margin: { top: margins.top, bottom: margins.bottom, left: margins.left, right: margins.right },
         head: [headers],
         body: body,
-        startY: 40,
-        styles: { fontSize: 8, cellPadding: 2 },
+        styles: { fontSize: 8, cellPadding: 1 },
         headStyles: { fillColor: [16, 185, 129] },
-        alternateRowStyles: { fillColor: [249, 250, 251] }
+        didParseCell: (data) => {
+          if (data.section === 'body') {
+            const val = String(data.cell.raw);
+            if (val === 'P') data.cell.styles.textColor = [16, 185, 129];
+            if (val === 'A') data.cell.styles.textColor = [239, 68, 68];
+            if (val === 'J') data.cell.styles.textColor = [155, 89, 182];
+          }
+        }
       });
 
-      const pdfData = doc.output('arraybuffer');
-      const fileName = `Asistencia_${gradoNombre}_${seccionNombre}_${fechaInicio}.pdf`;
-      const docsPath = await documentDir();
-      const folderName = "SchoolTrackerPro";
-      const fullFolderPath = docsPath + "\\" + folderName;
-      const fullFilePath = fullFolderPath + "\\" + fileName;
+const fileName = `Asistencia_${gradoNombre}_${seccionNombre}_${fechaInicio}.pdf`;
 
-      await mkdir(fullFolderPath, { recursive: true }).catch(e => console.log("mkdir:", e));
-      await writeFile(fullFilePath, new Uint8Array(pdfData));
-
-      const folderUrl = "file:///" + fullFolderPath.replace(/\\/g, "/");
-      await openUrl(folderUrl);
-
-      await emit("show-toast", { message: "✅ PDF guardado en Documents/SchoolTrackerPro", type: 'success' });
+if (isAndroid) {
+        // Lógica para Android: Guardar en temporal y compartir
+        const pdfArrayBuffer = doc.output('arraybuffer');
+        const dir = await tempDir();
+        const filePath = await join(dir, fileName);
+        const formattedPath = filePath.replace(/\\/g, '/');
+        
+        await writeFile(filePath, new Uint8Array(pdfArrayBuffer));
+        await invoke('save_file_android', { 
+          path: formattedPath, 
+          mime: "application/pdf", 
+          name: fileName 
+        });
+        await emit("show-toast", { message: "✅ PDF generado. Seleccione dónde guardarlo...", type: 'success' });
+      } else {
+        // Lógica para Desktop
+        doc.save(fileName);
+        await emit("show-toast", { message: "✅ PDF generado exitosamente", type: 'success' });
+      }
     } catch (error) {
-      console.error("Error exportando PDF:", error);
-      await emit("show-toast", { message: "❌ Error al exportar PDF: " + String(error), type: 'error' });
+      console.error("Error al exportar PDF:", error);
+      await emit("show-toast", { 
+        message: "❌ Error al generar el PDF: " + (error instanceof Error ? error.message : String(error)), 
+        type: 'error' 
+      });
     }
   };
 
-  const handlePrintWithIframe = async () => {
-    if (reporteFiltrado.length === 0) {
-      await emit("show-toast", { message: "⚠️ No hay datos para imprimir", type: 'warning' });
-      return;
-    }
-    
+  const exportToExcel = async () => {
     try {
-      await emit("show-toast", { message: "✅ Preparando reporte...", type: 'success' });
+      if (reporteFiltrado.length === 0) return;
       
-      const colegioNombre = colegios.find(c => c.id === selectedColegio)?.nombre || "";
-      const gradoNombre = grados.find(g => g.id === selectedGrado)?.nombre || "";
-      const seccionNombre = secciones.find(s => s.id === selectedSeccion)?.nombre || "";
+      const fechasCols = getFechasUnicas();
+      const data = reporteFiltrado.map(est => {
+        const row: any = {
+          "Estudiante": est.nombre,
+          "Sexo": est.sexo
+        };
+        
+        fechasCols.forEach(f => {
+          row[f.split('-').reverse().join('/')] = getEstadoEnFecha(est, f);
+        });
+
+        if (periodo === "diario") {
+          row["Observación"] = getObservacionEnFecha(est, fechaInicio);
+        }
+        
+        const p = est.fechas.filter(f => f.endsWith(':P')).length;
+        const a = est.fechas.filter(f => f.endsWith(':A')).length;
+        const j = est.fechas.filter(f => f.endsWith(':J')).length;
+        
+        row["P"] = p;
+        row["A"] = a;
+        row["J"] = j;
+        
+        return row;
+      });
       
-      let headers: string[] = [];
-      let rows: string = "";
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Asistencia");
       
-      if (periodo === "diario") {
-        headers = ["Estudiante", "Sexo", "Estado", "Observación"];
-        rows = reporteFiltrado.map(est => {
-          const estado = getEstadoEnFecha(est, fechaInicio);
-          const obs = getObservacionEnFecha(est, fechaInicio);
-          const estadoClass = estado === 'P' ? 'estado-P' : estado === 'A' ? 'estado-A' : estado === 'J' ? 'estado-J' : '';
-          return `<tr>
-            <td>${est.nombre}</td>
-            <td>${est.sexo}</td>
-            <td class="${estadoClass}">${estado}</td>
-            <td>${obs}</td>
-          </tr>`;
-        }).join('');
+const fileName = `Asistencia_${gradoNombre}_${seccionNombre}_${fechaInicio}.xlsx`;
+
+if (isAndroid) {
+        // Lógica para Android: Guardar y compartir
+        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const dir = await tempDir();
+        const filePath = await join(dir, fileName);
+        const formattedPath = filePath.replace(/\\/g, '/');
+        
+        await writeFile(filePath, new Uint8Array(excelBuffer));
+        await invoke('save_file_android', { 
+          path: formattedPath, 
+          mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+          name: fileName 
+        });
+        await emit("show-toast", { message: "✅ Excel generado. Seleccione dónde guardarlo...", type: 'success' });
       } else {
-        const fechasCols = getFechasUnicas();
-        headers = ["Estudiante", "Sexo", ...fechasCols.map(f => formatDateShort(f)), "P", "A", "J"];
-        rows = reporteFiltrado.map(est => {
-          const p = est.fechas.filter(f => f.endsWith(':P')).length;
-          const a = est.fechas.filter(f => f.endsWith(':A')).length;
-          const j = est.fechas.filter(f => f.endsWith(':J')).length;
-          return `<tr>
-            <td>${est.nombre}</td>
-            <td>${est.sexo}</td>
-            ${fechasCols.map(f => {
-              const estado = getEstadoEnFecha(est, f);
-              const estadoClass = estado === 'P' ? 'estado-P' : estado === 'A' ? 'estado-A' : estado === 'J' ? 'estado-J' : '';
-              return `<td class="${estadoClass}">${estado}</td>`;
-            }).join('')}
-            <td>${p}</td>
-            <td>${a}</td>
-            <td>${j}</td>
-          </tr>`;
-        }).join('');
+        // Lógica para Desktop
+        XLSX.writeFile(wb, fileName);
+        await emit("show-toast", { message: "✅ Excel generado exitosamente", type: 'success' });
       }
-      
-      const htmlContent = `<!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; }
-            h2 { margin: 0 0 10px 0; }
-            .info { margin-bottom: 15px; font-size: 12px; }
-            table { border-collapse: collapse; width: 100%; font-size: 11px; }
-            th, td { border: 1px solid #ddd; padding: 6px; text-align: center; }
-            th { background-color: #10b981; color: white; }
-            tr:nth-child(even) { background-color: #f9f9f9; }
-            .estado-P { color: #10b981; font-weight: bold; }
-            .estado-A { color: #ef4444; font-weight: bold; }
-            .estado-J { color: #9b59b6; font-weight: bold; }
-            @media print {
-              * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-              th { background-color: #10b981 !important; }
-              tr:nth-child(even) { background-color: #f9f9f9 !important; }
-              .estado-P { color: #10b981 !important; }
-              .estado-A { color: #ef4444 !important; }
-              .estado-J { color: #9b59b6 !important; }
-            }
-          </style>
-        </head>
-        <body>
-          <h2>Reporte de Asistencia</h2>
-          <div class="info">
-            <p><strong>Colegio:</strong> ${colegioNombre}</p>
-            <p><strong>Grado:</strong> ${gradoNombre} - Sección: ${seccionNombre}</p>
-            <p><strong>Período:</strong> ${periodo.toUpperCase()} (${fechaInicio} al ${fechaFin})${selectedSexo ? ` - Filtro Sexo: ${selectedSexo === 'M' ? 'Masculino' : 'Femenino'}` : ''}</p>
-          </div>
-          <table>
-            <thead>
-              <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </body>
-        </html>`;
-      
-      setPrintHtml(htmlContent);
     } catch (error) {
-      console.error("Error generando reporte:", error);
-      await emit("show-toast", { message: "❌ Error al generar el reporte", type: 'error' });
+      console.error("Error exporting to Excel:", error);
+      await emit("show-toast", { message: "❌ Error al exportar a Excel", type: 'error' });
     }
   };
 
@@ -883,8 +760,7 @@ try {
   const statsJ = getAsistenciaStats('J');
 
   return (
-    <>
-      <div className="page-container">
+    <div className="page-container">
       <style>{`
           .asistencia-summary {
             display: grid;
@@ -973,23 +849,13 @@ try {
           {/* Fecha / Semana / Mes-Año */}
           {periodo !== "mensual" ? (
             <FilterGroup label={periodo === "diario" ? "Fecha:" : "Semana de:"} isMobile={isMobile} flex={isMobile ? '1 1 100%' : '0 0 auto'}>
-              <button 
+              <input 
+                type="date" 
                 className="filter-select"
-                style={{ 
-                  padding: '0.3rem 0.4rem', 
-                  fontSize: '0.75rem', 
-                  height: '28px', 
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  cursor: 'pointer',
-                  background: 'rgba(255,255,255,0.05)'
-                }}
-                onClick={() => setShowCalendar(true)}
-              >
-                <span>📅 {new Date(fechaBase + "T12:00:00").toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-              </button>
+                style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+                value={fechaBase} 
+                onChange={(e) => setFechaBase(e.target.value)} 
+              />
             </FilterGroup>
           ) : (
             <>
@@ -1098,74 +964,71 @@ try {
           {/* Botones de Acción */}
           <FilterActions>
             <button 
-              className="btn-modern btn-pdf"
-              onClick={exportToPdf} 
+              className="secondary" 
+              onClick={handlePrint} 
               disabled={reporteFiltrado.length === 0 || loading}
               style={{ 
-                padding: '0.6rem 1.2rem',
-                fontSize: '0.9rem',
-                height: '42px',
-                backgroundColor: '#3b82f6',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease',
-                boxShadow: '0 4px 14px rgba(59, 130, 246, 0.4)',
-                transform: 'translateY(0)',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.5)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 14px rgba(59, 130, 246, 0.4)';
-              }}
-              title="Exportar a PDF"
-            >
-              <span>📄</span>
-              <span>PDF</span>
-            </button>
-            <button 
-              className="btn-modern btn-print"
-              onClick={handlePrintWithIframe} 
-              disabled={reporteFiltrado.length === 0 || loading}
-              style={{ 
-                padding: '0.6rem 1.2rem',
-                fontSize: '0.9rem',
-                height: '42px',
+                padding: '0.3rem 0.6rem', 
+                fontSize: '0.75rem', 
+                height: '28px',
                 backgroundColor: '#10b981',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '12px',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease',
-                boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)',
-                transform: 'translateY(0)',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 6px 20px rgba(16, 185, 129, 0.5)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 14px rgba(16, 185, 129, 0.4)';
+                justifyContent: 'center'
               }}
               title={isMobile ? "Compartir reporte" : "Imprimir reporte"}
             >
-              <span>{isMobile ? "📤" : "🖨️"}</span>
-              <span>{isMobile ? "Compartir" : "Imprimir"}</span>
+              {isMobile ? "📤" : "🖨️"}
+            </button>
+            <button 
+              className="secondary" 
+              onClick={exportToExcel} 
+              disabled={reporteFiltrado.length === 0 || loading}
+              style={{ 
+                padding: '0.3rem 0.6rem', 
+                fontSize: '0.75rem', 
+                height: '28px',
+                backgroundColor: '#059669',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              title="Exportar a Excel"
+            >
+              📊 Excel
+            </button>
+            <button 
+              className="secondary" 
+              onClick={exportToPDF} 
+              disabled={reporteFiltrado.length === 0 || loading}
+              style={{ 
+                padding: '0.3rem 0.6rem', 
+                fontSize: '0.75rem', 
+                height: '28px',
+                backgroundColor: '#ef4444',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              title="Exportar a PDF"
+            >
+              📄 PDF
+            </button>
+            <button 
+              className="secondary" 
+              onClick={() => setShowPrintOptions(true)}
+              style={{ 
+                padding: '0.3rem 0.6rem', 
+                fontSize: '0.75rem', 
+                height: '28px',
+                backgroundColor: '#6366f1',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              title="Configuración de página"
+            >
+              ⚙️
             </button>
           </FilterActions>
         </FilterContainer>
@@ -1277,7 +1140,7 @@ try {
       <div className="table-container" style={{
           width: '100%',
           padding: '0', 
-          overflowX: 'auto', 
+          overflowX: 'hidden', 
           display: 'flex', 
           flexDirection: 'column', 
           alignItems: 'center' 
@@ -1364,10 +1227,10 @@ try {
             <table className="custom-table" style={{ tableLayout: 'fixed' }}>
               <thead>
                 <tr>
-                  <th style={{ width: '30px' }}>#</th>
+                  <th style={{ width: '35px' }}>#</th>
                   <th style={{ textAlign: 'left' }}>Estudiante</th>
-                  <th style={{ width: '100px' }}>Estado</th>
-                  <th style={{ width: '40px' }}>Obs.</th>
+                  <th style={{ width: '105px' }}>Estado</th>
+                  <th style={{ width: '45px' }}>Obs.</th>
                 </tr>
               </thead>
               <tbody>
@@ -1390,7 +1253,7 @@ try {
                         <div style={{ fontSize: '0.7rem', opacity: 0.6, marginLeft: '22px' }}>{item.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                       </td>
                       <td>
-                        <div className="asistencia-options-mobile" style={{ justifyContent: 'center', pointerEvents: 'none' }}>
+                        <div className="asistencia-options" style={{ justifyContent: 'center', pointerEvents: 'none' }}>
                           <label className={`asistencia-opt ${estado === 'P' ? 'active p' : ''}`}>
                             <span>P</span>
                           </label>
@@ -1452,12 +1315,10 @@ try {
                         </div>
                         <div style={{ fontSize: '0.7rem', opacity: 0.6, marginLeft: '22px' }}>{item.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                       </td>
-{fechasColumnas.map(f => {
+                      {fechasColumnas.map(f => {
                         const estado = getEstadoEnFecha(item, f);
-return (
-
-
-                            <td key={f} style={{
+                        return (
+                          <td key={f} style={{ 
                             color: getEstadoColor(estado), 
                             fontWeight: 'bold',
                             fontSize: '0.8rem'
@@ -1476,7 +1337,6 @@ return (
                               {estado}
                             </span>
                           </td>
-
                         );
                       })}
                       <td style={{ color: '#4caf50', fontWeight: 'bold' }}>{p}</td>
@@ -1492,252 +1352,137 @@ return (
     </div>
     </div>
     </div>
-    {showSummaryModal.show && createPortal(
-      <div className="modal-overlay" onClick={() => setShowSummaryModal({ ...showSummaryModal, show: false })}>
-        <div 
-          className="modal-content category-card" 
-          style={{ width: '300px', maxWidth: '85%', padding: '1.2rem', textAlign: 'center' }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <h3 style={{ marginTop: 0, color: '#60a5fa', fontSize: '1.2rem', marginBottom: '1rem' }}>
-            📊 {showSummaryModal.type}
-          </h3>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-            <div style={{ 
-              background: 'rgba(255,255,255,0.05)', 
-              padding: '0.8rem', 
-              borderRadius: '10px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
-              <span style={{ color: '#94a3b8' }}>Total:</span>
-              <span style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#fff' }}>
-                {showSummaryModal.stats?.total}
-              </span>
-            </div>
+    </div>
+    {/* Modal de Detalles de Resumen */}
+      {showSummaryModal.show && createPortal(
+        <div className="modal-overlay" onClick={() => setShowSummaryModal({ ...showSummaryModal, show: false })}>
+          <div 
+            className="modal-content category-card" 
+            style={{ width: '300px', maxWidth: '85%', padding: '1.2rem', textAlign: 'center' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ marginTop: 0, color: '#60a5fa', fontSize: '1.2rem', marginBottom: '1rem' }}>
+              📊 {showSummaryModal.type}
+            </h3>
             
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
               <div style={{ 
-                background: 'rgba(96, 165, 250, 0.1)', 
+                background: 'rgba(255,255,255,0.05)', 
                 padding: '0.8rem', 
                 borderRadius: '10px',
                 display: 'flex',
-                flexDirection: 'column',
-                gap: '4px'
+                justifyContent: 'space-between',
+                alignItems: 'center'
               }}>
-                <span style={{ color: '#60a5fa', fontSize: '0.8rem' }}>Masculino</span>
-                <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#60a5fa' }}>
-                  {showSummaryModal.stats?.m}
+                <span style={{ color: '#94a3b8' }}>Total:</span>
+                <span style={{ fontSize: '1.3rem', fontWeight: 'bold', color: '#fff' }}>
+                  {showSummaryModal.stats?.total}
                 </span>
               </div>
               
-              <div style={{ 
-                background: 'rgba(244, 114, 182, 0.1)', 
-                padding: '0.8rem', 
-                borderRadius: '10px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '4px'
-              }}>
-                <span style={{ color: '#f472b6', fontSize: '0.8rem' }}>Femenino</span>
-                <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#f472b6' }}>
-                  {showSummaryModal.stats?.f}
-                </span>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+                <div style={{ 
+                  background: 'rgba(96, 165, 250, 0.1)', 
+                  padding: '0.8rem', 
+                  borderRadius: '10px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px'
+                }}>
+                  <span style={{ color: '#60a5fa', fontSize: '0.8rem' }}>Masculino</span>
+                  <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#60a5fa' }}>
+                    {showSummaryModal.stats?.m}
+                  </span>
+                </div>
+                
+                <div style={{ 
+                  background: 'rgba(244, 114, 182, 0.1)', 
+                  padding: '0.8rem', 
+                  borderRadius: '10px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px'
+                }}>
+                  <span style={{ color: '#f472b6', fontSize: '0.8rem' }}>Femenino</span>
+                  <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#f472b6' }}>
+                    {showSummaryModal.stats?.f}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-  
-          <button 
-            className="primary" 
-            onClick={() => setShowSummaryModal({ ...showSummaryModal, show: false })}
-            style={{ marginTop: '1.5rem', width: '100%' }}
-          >
-            Cerrar
-          </button>
-        </div>
-      </div>,
-      document.body
-    )}
 
-    {selectedStudentDetail && createPortal(
-      <div className="modal-overlay" onClick={() => setSelectedStudentDetail(null)}>
-        <div 
-          className="modal-content category-card" 
-          onClick={e => e.stopPropagation()}
-          style={{ 
-            width: '400px', 
-            maxWidth: '90%', 
-            padding: '1.5rem',
-            textAlign: 'center',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '1rem'
-          }}
-        >
-          <div style={{ 
-            width: '60px', 
-            height: '60px', 
-            borderRadius: '50%', 
-            backgroundColor: 'var(--primary-light)', 
-            color: 'var(--primary-color)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '1.5rem',
-            margin: '0 auto'
-          }}>
-            👤
+            <button 
+              className="primary" 
+              onClick={() => setShowSummaryModal({ ...showSummaryModal, show: false })}
+              style={{ marginTop: '1.5rem', width: '100%' }}
+            >
+              Cerrar
+            </button>
           </div>
-          
-          <div>
-            <h3 style={{ margin: '0.5rem 0', color: '#fff', fontSize: '1.2rem' }}>
-              {selectedStudentDetail.nombre}
-            </h3>
-            <div style={{ 
-              display: 'inline-block', 
-              padding: '0.3rem 0.8rem', 
-              borderRadius: '20px', 
-              background: selectedStudentDetail.sexo === 'M' ? 'rgba(96, 165, 250, 0.1)' : 'rgba(244, 114, 182, 0.1)',
-              color: selectedStudentDetail.sexo === 'M' ? '#60a5fa' : '#f472b6',
-              fontSize: '0.85rem',
-              fontWeight: '600',
-              marginTop: '0.3rem'
-            }}>
-              {selectedStudentDetail.sexo === 'M' ? 'Masculino' : 'Femenino'}
-            </div>
-          </div>
-  
-          <button 
-            className="primary" 
-            onClick={() => setSelectedStudentDetail(null)}
-            style={{ marginTop: '1rem', width: '100%' }}
-          >
-Cerrar
-          </button>
-        </div>
-      </div>,
-      document.body
-    )}
+        </div>,
+        document.body
+      )}
 
-      {/* Modal Calendario */}
-      {showCalendar && createPortal(
-        <div className="modal-overlay" onClick={() => setShowCalendar(false)}>
+      {/* Modal de Detalle Estudiante */}
+      {selectedStudentDetail && createPortal(
+        <div className="modal-overlay" onClick={() => setSelectedStudentDetail(null)}>
           <div 
             className="modal-content category-card" 
             onClick={e => e.stopPropagation()}
             style={{ 
               width: '400px', 
-              maxWidth: '95%', 
-              padding: '1rem',
-              background: 'rgba(15, 23, 42, 0.95)',
-              maxHeight: '90vh',
-              overflowY: 'auto'
-            }}
-          >
-            <button 
-              onClick={() => setShowCalendar(false)}
-              style={{
-                position: 'absolute',
-                top: '10px',
-                right: '10px',
-                background: 'transparent',
-                border: 'none',
-                color: '#94a3b8',
-                fontSize: '1.2rem',
-                cursor: 'pointer',
-                padding: '4px 8px'
-              }}
-            >
-              ✕
-            </button>
-            <CalendarioPage />
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* Modal de Vista Previa con Iframe */}
-      {printHtml && createPortal(
-        <div className="modal-overlay" onClick={() => { setPrintHtml(null); }}>
-          <div 
-            className="modal-content category-card" 
-            onClick={e => e.stopPropagation()}
-            style={{ 
-              width: '90%', 
-              height: '90vh',
-              maxWidth: '1000px',
-              padding: '0',
-              background: '#fff',
+              maxWidth: '90%', 
+              padding: '1.5rem',
+              textAlign: 'center',
               display: 'flex',
-              flexDirection: 'column'
+              flexDirection: 'column',
+              gap: '1rem'
             }}
           >
             <div style={{ 
-              padding: '10px 15px', 
-              background: 'rgba(30, 41, 59, 0.95)', 
-              display: 'flex', 
-              justifyContent: 'space-between', 
+              width: '60px', 
+              height: '60px', 
+              borderRadius: '50%', 
+              backgroundColor: 'var(--primary-light)', 
+              color: 'var(--primary-color)',
+              display: 'flex',
               alignItems: 'center',
-              borderBottom: '1px solid rgba(255,255,255,0.1)'
+              justifyContent: 'center',
+              fontSize: '1.5rem',
+              margin: '0 auto'
             }}>
-              <span style={{ color: '#fff', fontWeight: '600' }}>Vista Previa - Impresión</span>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button 
-                  onClick={() => {
-                    const iframe = document.getElementById('print-iframe') as HTMLIFrameElement;
-                    if (iframe?.contentWindow) {
-                      iframe.contentWindow.print();
-                    }
-                  }}
-                  style={{
-                    background: '#10b981',
-                    border: 'none',
-                    borderRadius: '6px',
-                    padding: '8px 16px',
-                    color: '#fff',
-                    cursor: 'pointer',
-                    fontWeight: '600'
-                  }}
-                >
-                  🖨️ Imprimir
-                </button>
-                <button 
-                  onClick={() => setPrintHtml(null)}
-                  style={{
-                    background: 'rgba(255,255,255,0.1)',
-                    border: 'none',
-                    borderRadius: '6px',
-                    padding: '8px 16px',
-                    color: '#94a3b8',
-                    cursor: 'pointer'
-                  }}
-                >
-                  ✕ Cerrar
-                </button>
+              👤
+            </div>
+            
+            <div>
+              <h3 style={{ margin: '0.5rem 0', color: '#fff', fontSize: '1.2rem' }}>
+                {selectedStudentDetail.nombre}
+              </h3>
+              <div style={{ 
+                display: 'inline-block', 
+                padding: '0.3rem 0.8rem', 
+                borderRadius: '20px', 
+                background: selectedStudentDetail.sexo === 'M' ? 'rgba(96, 165, 250, 0.1)' : 'rgba(244, 114, 182, 0.1)',
+                color: selectedStudentDetail.sexo === 'M' ? '#60a5fa' : '#f472b6',
+                fontSize: '0.85rem',
+                fontWeight: '600',
+                marginTop: '0.3rem'
+              }}>
+                {selectedStudentDetail.sexo === 'M' ? 'Masculino' : 'Femenino'}
               </div>
             </div>
-            <iframe 
-              id="print-iframe"
-              srcDoc={printHtml || ''}
-              style={{ 
-                flex: 1, 
-                width: '100%', 
-                border: 'none',
-                background: '#fff'
-              }}
-              title="Vista previa de impresión"
-            />
-          </div>
-        </div>,
-        document.body
-      )}
 
-      
-
-
-
-      </>
-    );
-  }
+            <button 
+              className="primary" 
+              onClick={() => setSelectedStudentDetail(null)}
+              style={{ marginTop: '1rem', width: '100%' }}
+            >
+              Cerrar
+</button>
+</div>
+</div>,
+document.body
+)}
+</div>
+  );
+}
