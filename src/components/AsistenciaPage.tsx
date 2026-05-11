@@ -333,12 +333,12 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
     setSaving(true);
     try {
       const records = updatedEstudiantes
-        .filter(est => est.estado) // Solo guardar los que tienen estado seleccionado
+        .filter(est => est.estado && ['P', 'A', 'J'].includes(est.estado)) // Solo guardar estados válidos
         .map(est => ({
           estudianteId: est.id,
           fecha: selectedFecha,
           estado: est.estado,
-          observacion: est.observacion
+          observacion: est.observacion || ''
         }));
 
       // Siempre enviamos aunque esté vacío para limpiar si es necesario, 

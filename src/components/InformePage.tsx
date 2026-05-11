@@ -504,24 +504,14 @@ const pdfData = doc.output('arraybuffer');
       const formattedPath = fullFilePath.replace(/\\/g, '/');
 
       if (isAndroid) {
-        // En Android, usar share para abrir el PDF con otra app
+        // En Android, el PDF ya está guardado, mostrar mensaje de ubicación
+        // Intentar usar share si está disponible, si no solo mostrar éxito
         try {
           await invoke('share_pdf', { path: formattedPath });
-          await emit("show-toast", { message: "✅ PDF guardado. Abriendo...", type: 'success' });
-        } catch (shareError) {
-          console.error("Error en share_pdf:", shareError);
-          // Fallback: intentar guardar en Downloads
-          try {
-            await invoke('save_file_android', { 
-              path: formattedPath, 
-              mime: "application/pdf", 
-              name: fileName 
-            });
-            await emit("show-toast", { message: "✅ PDF guardado en descargas", type: 'success' });
-          } catch (saveError) {
-            await emit("show-toast", { message: "✅ PDF guardado en Documents/SchoolTrackerPro", type: 'success' });
-          }
+        } catch {
+          // Ignorar errores, el PDF ya está guardado
         }
+        await emit("show-toast", { message: "✅ PDF guardado en Documents/SchoolTrackerPro", type: 'success' });
       } else {
         // En desktop, abrir la carpeta
         const folderUrl = "file:///" + fullFolderPath.replace(/\\/g, "/");
