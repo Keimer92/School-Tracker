@@ -1,9 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
-import { join, tempDir } from "@tauri-apps/api/path";
-import { save } from "@tauri-apps/plugin-dialog";
-import { writeFile } from "@tauri-apps/plugin-fs";
+import { join, tempDir, documentDir } from "@tauri-apps/api/path";
+import { writeFile, mkdir, exists } from "@tauri-apps/plugin-fs";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -106,6 +105,7 @@ export function ReportesPage() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
   const [showPrintOptions, setShowPrintOptions] = useState(false);
+  const [printHtml, setPrintHtml] = useState<string | null>(null);
   const [printConfig, setPrintConfig] = useState({
     pageSize: 'letter',
     orientation: 'portrait',
@@ -870,42 +870,109 @@ console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({
       doc.text(`Total Estudiantes: ${estudiantes.length}`, margins.left + 10, finalY);
       doc.text(`Promedio Grupal: ${promedioText}`, doc.internal.pageSize.getWidth() / 2 + 15, finalY);
 
-      // --- LÓGICA DE GUARDADO NATIVO ---
+      // --- GUARDADO DIRECTO A Documents/SchoolTrackerPro ---
       
-      // 1. Obtener el nombre de archivo sugerido
-      const suggestedName = `Reporte_${names.grado}_${names.seccion}_${names.asignatura}.pdf`.replace(/\s+/g, '_');
-      
-      // 2. Abrir el diálogo de guardado de Tauri en todos los dispositivos
-      const filePath = await save({
-        filters: [{
-          name: 'PDF',
-          extensions: ['pdf']
-        }],
-        defaultPath: suggestedName
-      });
+      const pdfData = doc.output('arraybuffer');
+      const fileName = `Reporte_${names.grado}_${names.seccion}_${names.asignatura}_${new Date().toISOString().split('T')[0]}.pdf`.replace(/\s+/g, '_');
+      const docsPath = await documentDir();
+      const folderName = "SchoolTrackerPro";
+      const fullFolderPath = docsPath + "\\" + folderName;
+      const fullFilePath = fullFolderPath + "\\" + fileName;
 
-      if (!filePath) return; // El usuario canceló el diálogo
+      await mkdir(fullFolderPath, { recursive: true }).catch(e => console.log("mkdir:", e));
+      await writeFile(fullFilePath, new Uint8Array(pdfData));
 
-      // 3. Obtener el contenido del PDF como ArrayBuffer y escribirlo usando el sistema de archivos de Tauri
-      const pdfArrayBuffer = doc.output('arraybuffer');
-      await writeFile(filePath, new Uint8Array(pdfArrayBuffer));
-      
-      // Abrir el archivo automáticamente después de guardarlo usando shell.open o openUrl
-      try {
-        const formattedPath = filePath.replace(/\\/g, '/');
-        const fileUrl = formattedPath.startsWith('/') ? `file://${formattedPath}` : `file:///${formattedPath}`;
-        await openUrl(fileUrl);
-      } catch (openError) {
-        console.warn("No se pudo abrir automáticamente:", openError);
-      }
-      
-      await emit("show-toast", { message: "✅ PDF guardado exitosamente", type: 'success' });
+      const folderUrl = "file:///" + fullFolderPath.replace(/\\/g, "/");
+      await openUrl(folderUrl);
+
+      await emit("show-toast", { message: "✅ PDF guardado en Documents/SchoolTrackerPro", type: 'success' });
     } catch (error) {
       console.error("Error al generar PDF:", error);
       await emit("show-toast", { 
         message: "❌ Error al generar el PDF: " + (error instanceof Error ? error.message : String(error)), 
         type: 'error' 
       });
+    }
+  };
+
+  const handlePrintWithIframe = async () => {
+    if (estudiantes.length === 0) {
+      await emit("show-toast", { message: "⚠️ No hay datos para imprimir", type: 'warning' });
+      return;
+    }
+    
+    try {
+      await emit("show-toast", { message: "✅ Preparando reporte...", type: 'success' });
+      
+      const names = getSelectedNames();
+      const date = new Date().toLocaleDateString();
+      
+      const headers = ["Estudiante", "Sexo", ...(specialCorte ? [] : configIndicadores.map(ind => `Ind. ${ind.orden}`)), "Nota Final"];
+      
+      const rows = estudiantes.map(est => {
+        const cells = [
+          est.nombre,
+          est.sexo,
+          ...(specialCorte ? [] : configIndicadores.map(ind => {
+            const nota = est.notasIndicadores[ind.id] || 0;
+            const label = est.notasCualitativasIndicadores[ind.id] || "";
+            if (label === "-" || label === "") return "-";
+            if (isQualitative) return label;
+            return `${nota}${label ? ` ${label}` : ''}`;
+          })),
+          (est.notaFinalCualitativa === "-" || est.notaFinalCualitativa === "") 
+            ? "-" 
+            : (isQualitative 
+                ? (est.notaFinalCualitativa || '-') 
+                : `${est.notaFinal}${est.notaFinalCualitativa ? ` ${est.notaFinalCualitativa}` : ''}`)
+        ];
+        
+        return `<tr>${cells.map(c => `<td>${c}</td>`).join('')}</tr>`;
+      }).join('');
+      
+      const htmlContent = `<!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            h2 { margin: 0 0 10px 0; text-align: center; }
+            .info { margin-bottom: 15px; font-size: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+            table { border-collapse: collapse; width: 100%; font-size: 11px; }
+            th, td { border: 1px solid #ddd; padding: 6px; text-align: center; }
+            th { background-color: #3b82f6; color: white; }
+            tr:nth-child(even) { background-color: #f9f9f9; }
+            td:first-child { text-align: left; }
+            @media print {
+              * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+              th { background-color: #3b82f6 !important; }
+              tr:nth-child(even) { background-color: #f9f9f9 !important; }
+            }
+          </style>
+        </head>
+        <body>
+          <h2>Reporte de Calificaciones</h2>
+          <div class="info">
+            <p><strong>Colegio:</strong> ${names.colegio}</p>
+            <p><strong>Año Lectivo:</strong> ${names.ano}</p>
+            <p><strong>Grado:</strong> ${names.grado} - Sección: ${names.seccion}</p>
+            <p><strong>Asignatura:</strong> ${names.asignatura}</p>
+            <p><strong>Corte:</strong> ${names.corte}</p>
+            <p><strong>Fecha:</strong> ${date}${selectedSexo ? ` - Sexo: ${selectedSexo === 'M' ? 'Masculino' : 'Femenino'}` : ''}</p>
+          </div>
+          <table>
+            <thead>
+              <tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </body>
+        </html>`;
+      
+      setPrintHtml(htmlContent);
+    } catch (error) {
+      console.error("Error generando reporte:", error);
+      await emit("show-toast", { message: "❌ Error al generar el reporte", type: 'error' });
     }
   };
 
@@ -1338,7 +1405,7 @@ console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({
 
             <button 
               className="secondary" 
-              onClick={handlePrint}
+              onClick={handlePrintWithIframe}
               disabled={estudiantes.length === 0 || loading}
               style={{ 
                 padding: '0.3rem 0.6rem', 
@@ -1547,6 +1614,90 @@ console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({
               >
                 Listo
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de Vista Previa de Impresión */}
+        {printHtml && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99999,
+            padding: '20px'
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              width: '100%',
+              maxWidth: '900px',
+              height: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                padding: '15px 20px',
+                borderBottom: '1px solid #e5e7eb',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                backgroundColor: '#f8fafc'
+              }}>
+                <span style={{ fontSize: '16px', fontWeight: '600', color: '#1e293b' }}>Vista Previa de Impresión</span>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button 
+                    onClick={() => {
+                      const iframe = document.querySelector('iframe');
+                      if (iframe && iframe.contentWindow) {
+                        iframe.contentWindow.print();
+                      }
+                    }}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#3b82f6',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontWeight: '500'
+                    }}
+                  >
+                    🖨️ Imprimir
+                  </button>
+                  <button 
+                    onClick={() => setPrintHtml(null)}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#64748b',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontWeight: '500'
+                    }}
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+              <iframe 
+                srcDoc={printHtml}
+                style={{
+                  flex: 1,
+                  width: '100%',
+                  border: 'none'
+                }}
+                title="Print Preview"
+              />
             </div>
           </div>
         )}
