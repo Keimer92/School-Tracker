@@ -139,14 +139,16 @@ export function NotasPage() {
     });
 
     const unlistenNotas = listen("notas-updated", () => {
-      console.log("Evento notas-updated recibido en NotasPage, refrescando...");
+      console.log("🔔 [Realtime] Evento notas-updated recibido en NotasPage");
       nextRefreshSilent.current = true;
       setRefreshTrigger(prev => prev + 1);
     });
 
     const unlistenCatalog = listen("catalog-updated", () => {
-      console.log("Evento catalog-updated recibido en NotasPage, refrescando catálogos...");
+      console.log("🔔 [Realtime] Evento catalog-updated recibido en NotasPage");
+      // Si es un cambio de catálogo general, refrescamos todo
       fetchCatalogs();
+      nextRefreshSilent.current = true;
       setRefreshTrigger(prev => prev + 1);
     });
 

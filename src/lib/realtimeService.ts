@@ -48,11 +48,16 @@ export const realtimeService = {
           }
           
           // Notificar a la UI que algo cambió
-          console.log(`[Realtime] Emitiendo eventos para ${table}`);
-          await emit('catalog-updated');
-          if (table === 'asistencia') await emit('asistencia-updated');
-          if (table === 'nota') await emit('notas-updated');
-          if (table === 'estudiante') await emit('student-updated');
+          console.log(`[Realtime] Notificando cambios para tabla: ${table}`);
+          if (table === 'asistencia') {
+            await emit('asistencia-updated');
+          } else if (table === 'nota') {
+            await emit('notas-updated');
+          } else if (table === 'estudiante') {
+            await emit('student-updated');
+          } else {
+            await emit('catalog-updated');
+          }
           
         } catch (error) {
           console.error(`[Realtime] Error aplicando cambio de ${table}:`, error);
