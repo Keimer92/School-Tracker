@@ -353,7 +353,14 @@ export function NotasPage() {
     };
     
     loadData();
-  }, [selectedAno, selectedCorte, selectedColegio, selectedAsignatura, selectedGrado, selectedSeccion, selectedSexo, refreshTrigger]);
+  }, [selectedAno, selectedCorte, selectedColegio, selectedAsignatura, selectedGrado, selectedSeccion, selectedSexo]);
+
+  // Efecto separado solo para refrescos en tiempo real
+  useEffect(() => {
+    if (refreshTrigger > 0 && selectedAno > 0 && selectedCorte > 0 && selectedColegio > 0 && selectedAsignatura > 0 && selectedGrado > 0 && selectedSeccion > 0) {
+      fetchEstudiantes();
+    }
+  }, [refreshTrigger]);
 
   // Atajos de teclado para deshacer/rehacer y guardar
   useEffect(() => {
@@ -589,6 +596,16 @@ export function NotasPage() {
       console.log("[DEBUG] Notas cualitativas mapeadas:", notasMap.size);
       console.log("[DEBUG] Notas cuantitativas mapeadas:", Object.keys(cuantitativasMap).length);
       
+      // En un refresco silencioso (tiempo real), aceptamos la verdad del servidor
+      // y sobrescribimos cualquier estado local para evitar inconsistencias.
+      if (isActuallySilent) {
+        historyRef.current = [];
+        redoStackRef.current = [];
+        setHistory([]);
+        setRedoStack([]);
+        setHasUnsavedChanges(false);
+      }
+
       setNotas(prevNotas => {
         const notasIniciales = data.map(est => ({
           estudianteId: est.id,
@@ -596,8 +613,8 @@ export function NotasPage() {
           notas: cuantitativasMap[est.id] || {}
         }));
         
-        // Si hay historial de cambios (dirty state), mezclamos
-        if (historyRef.current.length > 0) {
+        // Si hay historial de cambios (dirty state) y NO es un refresco por tiempo real, mezclamos
+        if (historyRef.current.length > 0 && !isActuallySilent) {
           return notasIniciales.map(newEst => {
             const matchingOld = prevNotas.find(p => p.estudianteId === newEst.estudianteId);
             if (matchingOld) {
@@ -612,12 +629,13 @@ export function NotasPage() {
         return notasIniciales;
       });
 
-      // Actualizar el ref de cualitativas para que los inputs muestren los valores cargados
-      notasCualitativasRef.current = new Map(notasMap);
+      // Actualizar el ref de cualitativas
+      const finalQualState = new Map(notasMap);
+      notasCualitativasRef.current = finalQualState;
 
       setNotasCualitativas(prevQual => {
-        // Si hay historial de cambios, mezclamos las cualitativas
-        if (historyRef.current.length > 0) {
+        // Si hay historial de cambios y NO es tiempo real, preservamos valores locales
+        if (historyRef.current.length > 0 && !isActuallySilent) {
           const newQual = new Map(notasMap);
           prevQual.forEach((val, key) => {
             const studentId = parseInt(key.split('-')[0]);
@@ -627,8 +645,39 @@ export function NotasPage() {
           });
           return newQual;
         }
-        return notasMap;
+        return finalQualState;
       });
+
+      // FORZAR ACTUALIZACIÓN VISUAL DE LOS INPUTS (Uncontrolled)
+      if (isActuallySilent) {
+        setTimeout(() => {
+          const flattenedCriterios = indToUse.flatMap(ind => ind.criterios);
+          inputsRef.current.forEach((inputEl, inputKey) => {
+            const parts = inputKey.split('-');
+            if (parts.length === 4) {
+              const estId = parseInt(parts[1]);
+              const critIdx = parseInt(parts[3]);
+              const criterio = flattenedCriterios[critIdx];
+              if (criterio) {
+                const key = `${estId}-${criterio.id}`;
+                const val = finalQualState.get(key) || '';
+                if (inputEl.value !== val) {
+                  inputEl.value = val;
+                }
+              }
+            }
+          });
+          // Forzar recalculo de totales
+          setRowVersions(prev => {
+            const next = new Map(prev);
+            data.forEach(est => {
+              next.set(est.id, (next.get(est.id) || 0) + 1);
+            });
+            return next;
+          });
+        }, 100);
+      }
+
     } catch (error) {
       console.error("Error fetching estudiantes:", error);
       if (!silent) {
@@ -640,7 +689,8 @@ export function NotasPage() {
   };
 
   const fetchConfiguracionEvaluacion = async (silent = false): Promise<Indicador[]> => {
-    if (!silent) setLoading(true);
+    const isActuallySilent = silent || nextRefreshSilent.current;
+    if (!isActuallySilent) setLoading(true);
     const { corte, asignatura, grado } = filtersRef.current;
     try {
       const data = await invoke<Indicador[]>("get_evaluation_config", {
