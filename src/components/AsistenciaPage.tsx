@@ -59,6 +59,7 @@ export function AsistenciaPage() {
     stats: null
   });
   const [showCalendar, setShowCalendar] = useState(false);
+  const nextRefreshSilent = useRef(false);
 
 const [isMobile, setIsMobile] = useState(false);
 const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
@@ -254,8 +255,9 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
     });
 
     const unlistenAsistencia = listen("asistencia-updated", () => {
-      console.log("Evento asistencia-updated recibido en AsistenciaPage, refrescando silenciosamente...");
-      fetchAsistencia(true);
+      console.log("🔔 [Realtime] Evento asistencia-updated recibido en AsistenciaPage");
+      nextRefreshSilent.current = true;
+      setRefreshTrigger(prev => prev + 1);
     });
 
     const unlistenCatalog = listen("catalog-updated", () => {
@@ -305,7 +307,8 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
   }, [selectedAno, selectedColegio, selectedGrado, selectedSeccion, selectedSexo, selectedFecha, isFechaHabilitada, refreshTrigger]);
 
   const fetchEstudiantes = async () => {
-    setLoading(true);
+    if (!nextRefreshSilent.current) setLoading(true);
+    nextRefreshSilent.current = false;
     try {
       const data = await invoke<EstudianteAsistencia[]>("get_asistencia_estudiantes", {
         fecha: selectedFecha,
