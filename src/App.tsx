@@ -155,15 +155,16 @@ useEffect(() => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       const currentUser = session?.user ?? null;
+      console.log(`[App] Evento Auth: ${event} | Usuario: ${currentUser?.email || 'ninguno'}`);
 
       if (currentUser && currentUser.id !== lastUserId) {
         const isInitialLoad = lastUserId === null;
         lastUserId = currentUser.id;
+        console.log(`[App] Cambio de usuario o sesión inicial. Iniciando Realtime.`);
+        realtimeService.init(currentUser.id);
 
-        console.log(`[Auto-Sync] Evento: ${event} | Usuario: ${currentUser.email}`);
-
-        // Solo disparar sync en eventos de inicio de sesión o sesión inicial
         if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+
           // Descargar datos de la nube en segundo plano (no bloqueante)
           syncService.pullAll()
             .then(async () => {
@@ -178,9 +179,6 @@ useEffect(() => {
               if (!isInitialLoad) {
                 showToast('✅ Datos actualizados desde la nube', 'success');
               }
-              
-              // Iniciar suscripciones Realtime
-              realtimeService.init(currentUser.id);
             })
             .catch(err => {
               // Silenciar errores de usuario no logueado (esperado en carga inicial offline)
