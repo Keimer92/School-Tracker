@@ -132,27 +132,39 @@ export function NotasPage() {
 
   // Escuchar actualizaciones de estudiantes y catálogos desde otros componentes
   useEffect(() => {
+    let studentTimeout: NodeJS.Timeout;
+    let notasTimeout: NodeJS.Timeout;
+    let catalogTimeout: NodeJS.Timeout;
+
     const unlistenStudent = listen("student-updated", () => {
-      console.log("Evento student-updated recibido en NotasPage, refrescando...");
-      nextRefreshSilent.current = true;
-      setRefreshTrigger(prev => prev + 1);
+      clearTimeout(studentTimeout);
+      studentTimeout = setTimeout(() => {
+        console.log("🔔 [Realtime] Evento student-updated recibido en NotasPage (debounced)");
+        nextRefreshSilent.current = true;
+        setRefreshTrigger(prev => prev + 1);
+      }, 500);
     });
 
     const unlistenNotas = listen("notas-updated", () => {
-      console.log("🔔 [Realtime] Evento notas-updated recibido en NotasPage");
-      nextRefreshSilent.current = true;
-      setRefreshTrigger(prev => prev + 1);
+      clearTimeout(notasTimeout);
+      notasTimeout = setTimeout(() => {
+        console.log("🔔 [Realtime] Evento notas-updated recibido en NotasPage (debounced)");
+        nextRefreshSilent.current = true;
+        setRefreshTrigger(prev => prev + 1);
+      }, 500);
     });
 
     const unlistenCatalog = listen("catalog-updated", () => {
-      console.log("🔔 [Realtime] Evento catalog-updated recibido en NotasPage");
-      // Si es un cambio de catálogo general, refrescamos todo
-      fetchCatalogs();
-      if (selectedColegio && selectedAno) {
-         fetchGradosYAsignaturas();
-      }
-      nextRefreshSilent.current = true;
-      setRefreshTrigger(prev => prev + 1);
+      clearTimeout(catalogTimeout);
+      catalogTimeout = setTimeout(() => {
+        console.log("🔔 [Realtime] Evento catalog-updated recibido en NotasPage (debounced)");
+        fetchCatalogs();
+        if (selectedColegio && selectedAno) {
+           fetchGradosYAsignaturas();
+        }
+        nextRefreshSilent.current = true;
+        setRefreshTrigger(prev => prev + 1);
+      }, 500);
     });
 
     return () => {

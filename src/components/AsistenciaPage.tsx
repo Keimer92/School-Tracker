@@ -249,28 +249,40 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
   };
   // Escuchar actualizaciones de estudiantes y catálogos desde otros componentes
   useEffect(() => {
+    let studentTimeout: NodeJS.Timeout;
+    let asistenciaTimeout: NodeJS.Timeout;
+    let catalogTimeout: NodeJS.Timeout;
+
     const unlistenStudent = listen("student-updated", () => {
-      console.log("🔔 [Realtime] Evento student-updated recibido en AsistenciaPage");
-      nextRefreshSilent.current = true;
-      setRefreshTrigger(prev => prev + 1);
+      clearTimeout(studentTimeout);
+      studentTimeout = setTimeout(() => {
+        console.log("🔔 [Realtime] Evento student-updated recibido en AsistenciaPage (debounced)");
+        nextRefreshSilent.current = true;
+        setRefreshTrigger(prev => prev + 1);
+      }, 500);
     });
 
     const unlistenAsistencia = listen("asistencia-updated", () => {
-      console.log("🔔 [Realtime] Evento asistencia-updated recibido en AsistenciaPage");
-      nextRefreshSilent.current = true;
-      setRefreshTrigger(prev => prev + 1);
+      clearTimeout(asistenciaTimeout);
+      asistenciaTimeout = setTimeout(() => {
+        console.log("🔔 [Realtime] Evento asistencia-updated recibido en AsistenciaPage (debounced)");
+        nextRefreshSilent.current = true;
+        setRefreshTrigger(prev => prev + 1);
+      }, 500);
     });
 
     const unlistenCatalog = listen("catalog-updated", () => {
-      console.log("🔔 [Realtime] Evento catalog-updated recibido en AsistenciaPage");
-      fetchCatalogs();
-      fetchColegioConfig();
-      // Refrescar grados explícitamente ya que quitamos el refreshTrigger del effect
-      if (selectedColegio && selectedAno) {
-         fetchGrados();
-      }
-      nextRefreshSilent.current = true;
-      setRefreshTrigger(prev => prev + 1);
+      clearTimeout(catalogTimeout);
+      catalogTimeout = setTimeout(() => {
+        console.log("🔔 [Realtime] Evento catalog-updated recibido en AsistenciaPage (debounced)");
+        fetchCatalogs();
+        fetchColegioConfig();
+        if (selectedColegio && selectedAno) {
+           fetchGrados();
+        }
+        nextRefreshSilent.current = true;
+        setRefreshTrigger(prev => prev + 1);
+      }, 500);
     });
 
     const unlistenSubjects = listen("subjects-updated", () => {
