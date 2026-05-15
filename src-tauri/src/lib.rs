@@ -705,6 +705,7 @@ pub fn run() {
             get_asistencia_estudiantes,
             save_asistencia,
             upsert_asistencia_from_cloud,
+            upsert_notas_from_cloud,
             get_asistencia_rango,
             get_asistencia_all,
             get_colegio_dias_asistencia,

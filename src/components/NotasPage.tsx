@@ -136,7 +136,7 @@ export function NotasPage() {
       fetchEstudiantes();
     });
 
-    const unlistenCatalog = listen("catalog-updated", () => {
+    const unlistenNotas = listen("notas-updated", () => { fetchEstudiantes(); }); const unlistenCatalog = listen("catalog-updated", () => {
       console.log("Evento catalog-updated recibido en NotasPage, refrescando catálogos...");
       fetchCatalogs();
       setRefreshTrigger(prev => prev + 1);

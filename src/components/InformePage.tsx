@@ -300,15 +300,7 @@ export function InformePage() {
       setRefreshTrigger(prev => prev + 1);
     });
 
-    // Suscribirse a cambios en tiempo real de Supabase para asistencia (solo si hay datos cargados)
-    const unsubscribeRealtimePromise = subscribeToTable('asistencia', async (payload) => {
-      console.log("Cambio en Supabase detectado en asistencia:", payload);
-      if (selectedAno && selectedColegio && selectedGrado && selectedSeccion && fechaInicio) {
-        // Force pull de asistencia desde Supabase
-        await forcePullAsistencia(fechaInicio, selectedGrado, selectedSeccion);
-        fetchReporte();
-      }
-    });
+    // Suscribirse a cambios en tiempo real de Supabase ahora es global en App.tsx vía realtimeService
 
     // Polling fallback solo cada 30 segundos para evitar parpadeo
     const pollingRef = { current: () => {} };
@@ -320,7 +312,7 @@ export function InformePage() {
             await forcePullAsistencia(fechaInicio, selectedGrado, selectedSeccion);
             setRefreshTrigger(prev => prev + 1);
           }
-        }, 30000).then(fn => { pollingRef.current = fn; });
+        }, () => true, 30000).then(fn => { pollingRef.current = fn; });
       }
     }, 3000); // esperar 3 segundos antes de iniciar polling
 
@@ -329,7 +321,6 @@ export function InformePage() {
       unlistenAsistencia.then(f => f());
       unlistenEstudiantes.then(f => f());
       unlistenCatalog.then(f => f());
-      unsubscribeRealtimePromise.then(f => f());
       pollingRef.current();
     };
   }, [fetchReporte]);

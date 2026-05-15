@@ -70,6 +70,9 @@ commands.allow = [
     "get_grados_by_colegio",
     "get_secciones_by_grado_colegio",
     "upsert_pull_data",
+    "upsert_asistencia_from_cloud",
+    "upsert_notas_from_cloud",
+    "delete_record_local",
     "print_pdf",
     "share_pdf",
     "save_file_android",
@@ -79,5 +82,14 @@ commands.allow = [
     "remove_pending_deletion",
     "remove_pending_deletion_by_record",
     "get_recommended_colegio",
-    "sync_push_all_to_cloud"
+    "sync_push_all_to_cloud",
+    "get_pending_deletions_asistencia",
+    "remove_pending_deletion_asistencia",
+    "get_pending_deletions_nota",
+    "remove_pending_deletion_nota",
+    "get_pending_deletions_grado_asignatura",
+    "remove_pending_deletion_grado_asignatura",
+    "get_pending_deletions_colegio_asignatura",
+    "remove_pending_deletion_colegio_asignatura",
+    "get_all_subjects"
 ]

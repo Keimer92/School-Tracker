@@ -3016,6 +3016,51 @@ pub fn upsert_asistencia_from_cloud(
     Ok(())
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NotaCloudRecord {
+    pub id: Option<i64>,
+    pub estudiante_id: i64,
+    pub indicador_id: Option<i64>,
+    pub criterio_id: i64,
+    pub ano_lectivo_id: i64,
+    pub corte_id: i64,
+    pub colegio_id: i64,
+    pub grado_id: i64,
+    pub seccion_id: i64,
+    pub asignatura_id: i64,
+    pub puntaje: f64,
+    pub estado: Option<String>,
+}
+
+#[tauri::command]
+pub fn upsert_notas_from_cloud(
+    state: tauri::State<'_, DbState>,
+    notas: Vec<NotaCloudRecord>,
+) -> Result<(), String> {
+    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    let count = notas.len();
+    for n in &notas {
+        tx.execute(
+            "INSERT OR REPLACE INTO nota (estudiante_id, criterio_id, valor, corte_evaluativo_id, asignatura_id) 
+             VALUES (?, ?, ?, ?, ?)",
+            rusqlite::params![
+                n.estudiante_id,
+                n.criterio_id,
+                n.puntaje,
+                n.corte_id,
+                n.asignatura_id
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    tx.commit().map_err(|e| e.to_string())?;
+    println!("[CloudSync] {} registros de notas guardados desde Supabase", count);
+    Ok(())
+}
+
 #[tauri::command]
 pub fn delete_asistencia_batch(
     state: tauri::State<'_, DbState>,

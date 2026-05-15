@@ -246,11 +246,15 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
       await emit("show-toast", { message: "❌ Error al cargar secciones: " + error, type: "error" });
     }
   };
-
   // Escuchar actualizaciones de estudiantes y catálogos desde otros componentes
   useEffect(() => {
     const unlistenStudent = listen("student-updated", () => {
       console.log("Evento student-updated recibido en AsistenciaPage, refrescando...");
+      setRefreshTrigger(prev => prev + 1);
+    });
+
+    const unlistenAsistencia = listen("asistencia-updated", () => {
+      console.log("Evento asistencia-updated recibido en AsistenciaPage, refrescando...");
       setRefreshTrigger(prev => prev + 1);
     });
 
@@ -286,12 +290,13 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
             await forcePullAsistencia(selectedFecha, selectedGrado, selectedSeccion);
             setRefreshTrigger(prev => prev + 1);
           }
-        }, 30000).then(fn => { pollingRef.current = fn; });
+        }, () => true, 30000).then(fn => { pollingRef.current = fn; });
       }
     }, 3000); // esperar 3 segundos antes de iniciar polling
 
     return () => {
       clearTimeout(startDelay);
+      unlistenAsistencia.then(f => f());
       unlistenStudent.then(f => f());
       unlistenCatalog.then(f => f());
       unlistenSubjects.then(f => f());
