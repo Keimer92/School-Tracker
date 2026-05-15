@@ -36,6 +36,7 @@ export const realtimeService = {
     ];
 
     const promises = tables.map(async (table) => {
+      console.log(`[Realtime] Intentando suscripción para tabla: ${table}`);
       const unsub = await subscribeToTable(table, async (payload) => {
         console.log(`[Realtime] Cambio detectado en ${table}:`, payload.eventType, payload);
         
@@ -47,6 +48,7 @@ export const realtimeService = {
           }
           
           // Notificar a la UI que algo cambió
+          console.log(`[Realtime] Emitiendo eventos para ${table}`);
           await emit('catalog-updated');
           if (table === 'asistencia') await emit('asistencia-updated');
           if (table === 'nota') await emit('notas-updated');
@@ -55,7 +57,7 @@ export const realtimeService = {
         } catch (error) {
           console.error(`[Realtime] Error aplicando cambio de ${table}:`, error);
         }
-      }, `user_id=eq.${userId}`);
+      }); // Eliminamos el filtro user_id para depurar y porque RLS ya debería encargarse
       
       return unsub;
     });
@@ -92,14 +94,26 @@ async function applyChangeToLocal(table: string, record: any) {
   } else if (table === 'nota') {
     try {
       console.log(`[Realtime] Procesando actualización de nota para estudiante ${record.estudiante_id}`);
-      // Supabase puede enviar 'puntaje'/'corte_id' o 'valor'/'corte_evaluativo_id'
-      const notaRecord = { ...record };
-      if (notaRecord.puntaje == null) notaRecord.puntaje = record.valor;
-      if (notaRecord.corte_id == null) notaRecord.corte_id = record.corte_evaluativo_id;
+      // Forzar conversión a números para evitar problemas con JSON de Supabase
+      const notaRecord = {
+        ...record,
+        estudiante_id: Number(record.estudiante_id),
+        criterio_id: Number(record.criterio_id),
+        asignatura_id: Number(record.asignatura_id),
+        puntaje: Number(record.puntaje ?? record.valor),
+        corte_id: Number(record.corte_id ?? record.corte_evaluativo_id),
+        indicador_id: record.indicador_id ? Number(record.indicador_id) : undefined,
+        ano_lectivo_id: record.ano_lectivo_id ? Number(record.ano_lectivo_id) : undefined,
+        colegio_id: record.colegio_id ? Number(record.colegio_id) : undefined,
+        grado_id: record.grado_id ? Number(record.grado_id) : undefined,
+        seccion_id: record.seccion_id ? Number(record.seccion_id) : undefined,
+      };
+
+      console.log(`[Realtime] Nota mapeada para Rust:`, notaRecord);
       
       // Asegurar que tenemos los campos mínimos para NotaCloudRecord (Rust)
-      if (notaRecord.puntaje == null || notaRecord.corte_id == null || !notaRecord.estudiante_id || !notaRecord.criterio_id || !notaRecord.asignatura_id) {
-        console.warn("[Realtime] Datos de nota incompletos, ignorando:", notaRecord);
+      if (isNaN(notaRecord.puntaje) || isNaN(notaRecord.corte_id) || !notaRecord.estudiante_id || !notaRecord.criterio_id || !notaRecord.asignatura_id) {
+        console.warn("[Realtime] Datos de nota incompletos o inválidos, ignorando:", notaRecord);
         return;
       }
 

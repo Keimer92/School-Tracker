@@ -517,6 +517,11 @@ export function NotasPage() {
           asignaturaId: asignatura,
         })
       ]);
+      
+      console.log(`[DEBUG] fetchEstudiantes: ${notasGuardadas.length} notas obtenidas de SQLite`);
+      if (notasGuardadas.length > 0) {
+        console.log(`[DEBUG] Ejemplo de nota obtenida:`, notasGuardadas[0]);
+      }
 
       // Filtrar por sexo localmente si hay un filtro seleccionado
       const data = sexo 

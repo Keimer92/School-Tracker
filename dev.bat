@@ -33,12 +33,13 @@ echo 10. Conectar ADB por WiFi
 echo.
 echo === MANTENIMIENTO ===
 echo 11. Limpiar cache y dependencias
-echo 12. Salir
+echo 12. Ver Logs (Android Logcat)
+echo 13. Salir
 echo ==============================================
 echo.
 
 set /p modo="Seleccione una opcion: "
-if "%modo%"=="12" goto exit_script
+if "%modo%"=="13" goto exit_script
 if "%modo%"=="1" goto windows_dev
 if "%modo%"=="2" goto android_dev
 if "%modo%"=="3" goto android_hot_reload
@@ -50,6 +51,7 @@ if "%modo%"=="8" goto delete_emulator
 if "%modo%"=="9" goto start_emulator
 if "%modo%"=="10" goto adb_wifi
 if "%modo%"=="11" goto clean_cache
+if "%modo%"=="12" goto android_logs
 cls
 goto menu
 
@@ -173,7 +175,7 @@ echo [INFO] Iniciando desarrollo en Android...
 echo.
 if "%ANDROID_HOME%"=="" (echo [ERROR] ANDROID_HOME no configurada.&pause&cls&goto menu)
 
-echo [INFO] Limpiando locks de compilación...
+echo [INFO] Limpiando locks de compilaci?n...
 if exist "%SCRIPT_DIR%src-tauri\target\.cargo-lock" del /q "%SCRIPT_DIR%src-tauri\target\.cargo-lock" 2>nul
 if exist "%SCRIPT_DIR%src-tauri\gen\android\app\build\.gradle" rmdir /s /q "%SCRIPT_DIR%src-tauri\gen\android\app\build\.gradle" 2>nul
 taskkill /F /IM java.exe /T 2>nul
@@ -286,7 +288,7 @@ echo [INFO] Android Hot Reload (Rapido)
 echo.
 if "%ANDROID_HOME%"=="" (echo [ERROR] ANDROID_HOME no configurada.&pause&cls&goto menu)
 
-echo [INFO] Limpiando locks de compilación...
+echo [INFO] Limpiando locks de compilaci?n...
 if exist "%SCRIPT_DIR%src-tauri\target\.cargo-lock" del /q "%SCRIPT_DIR%src-tauri\target\.cargo-lock" 2>nul
 if exist "%SCRIPT_DIR%src-tauri\gen\android\app\build\.gradle" rmdir /s /q "%SCRIPT_DIR%src-tauri\gen\android\app\build\.gradle" 2>nul
 taskkill /F /IM java.exe /T 2>nul
@@ -294,6 +296,18 @@ taskkill /F /IM java.exe /T 2>nul
 echo [INFO] Iniciando Tauri Android (servidor se iniciara automaticamente)...
 start "Tauri Android" cmd /k "cd /d %SCRIPT_DIR% && npx tauri android dev"
 
+cls
+goto menu
+
+:android_logs
+cls
+echo ==============================================
+echo ANDROID LOGCAT - CONSOLA DE LA APP
+echo ==============================================
+echo [INFO] Presiona Ctrl+C para detener el seguimiento.
+echo.
+"%ADB_PATH%" logcat *:S Webview:V WebConsole:V
+pause
 cls
 goto menu
 
