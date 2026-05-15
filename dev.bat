@@ -33,7 +33,7 @@ echo 10. Conectar ADB por WiFi
 echo.
 echo === MANTENIMIENTO ===
 echo 11. Limpiar cache y dependencias
-echo 12. Ver Logs (Android Logcat)
+echo 12. Depurar Android (Chrome Inspect)
 echo 13. Salir
 echo ==============================================
 echo.
@@ -302,11 +302,12 @@ goto menu
 :android_logs
 cls
 echo ==============================================
-echo ANDROID LOGCAT - CONSOLA DE LA APP
+echo ABRIR DEPURADOR DE CHROME
 echo ==============================================
-echo [INFO] Presiona Ctrl+C para detener el seguimiento.
+echo [INFO] Se abrira Chrome en la pagina de inspeccion.
+echo [INFO] Asegurate de tener el dispositivo conectado por USB.
 echo.
-"%ADB_PATH%" logcat -v time *:S Webview:V WebConsole:V chromium:V
+start chrome "chrome://inspect/#devices"
 pause
 cls
 goto menu
