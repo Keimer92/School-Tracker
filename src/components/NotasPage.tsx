@@ -148,6 +148,9 @@ export function NotasPage() {
       console.log("🔔 [Realtime] Evento catalog-updated recibido en NotasPage");
       // Si es un cambio de catálogo general, refrescamos todo
       fetchCatalogs();
+      if (selectedColegio && selectedAno) {
+         fetchGradosYAsignaturas();
+      }
       nextRefreshSilent.current = true;
       setRefreshTrigger(prev => prev + 1);
     });
@@ -392,7 +395,7 @@ export function NotasPage() {
       setSelectedGrado(0);
       setSelectedAsignatura(0);
     }
-  }, [selectedColegio, selectedAno, refreshTrigger]);
+  }, [selectedColegio, selectedAno]);
 
   const fetchGradosYAsignaturas = async () => {
     try {

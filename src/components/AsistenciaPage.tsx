@@ -162,7 +162,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
       setGrados([]);
       setSelectedGrado(0);
     }
-  }, [selectedColegio, selectedAno, refreshTrigger]);
+  }, [selectedColegio, selectedAno]);
 
   const fetchColegioConfig = async () => {
     try {
@@ -250,7 +250,8 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
   // Escuchar actualizaciones de estudiantes y catálogos desde otros componentes
   useEffect(() => {
     const unlistenStudent = listen("student-updated", () => {
-      console.log("Evento student-updated recibido en AsistenciaPage, refrescando...");
+      console.log("🔔 [Realtime] Evento student-updated recibido en AsistenciaPage");
+      nextRefreshSilent.current = true;
       setRefreshTrigger(prev => prev + 1);
     });
 
@@ -261,9 +262,14 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
     });
 
     const unlistenCatalog = listen("catalog-updated", () => {
-      console.log("Evento catalog-updated recibido en AsistenciaPage, refrescando catálogos...");
+      console.log("🔔 [Realtime] Evento catalog-updated recibido en AsistenciaPage");
       fetchCatalogs();
       fetchColegioConfig();
+      // Refrescar grados explícitamente ya que quitamos el refreshTrigger del effect
+      if (selectedColegio && selectedAno) {
+         fetchGrados();
+      }
+      nextRefreshSilent.current = true;
       setRefreshTrigger(prev => prev + 1);
     });
 
