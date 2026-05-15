@@ -20,6 +20,12 @@ export class SupabaseBackend implements CloudProvider {
 
 
 
+  async signInWithGoogle(): Promise<void> {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+    });
+  }
+
   async signOut(): Promise<void> {
     await supabase.auth.signOut();
   }

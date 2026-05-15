@@ -5,8 +5,8 @@ import { emit, listen } from "@tauri-apps/api/event";
 import { syncService } from "../lib/syncService";
 import { getLocalDateISOString } from "../lib/dateUtils";
 import { ask } from "@tauri-apps/plugin-dialog";
-import { subscribeToTable, startPolling } from "../lib/supabase";
-import { forcePullAsistencia } from "../lib/syncService";
+// import { subscribeToTable, startPolling } from "../lib/supabase";
+// import { forcePullAsistencia } from "../lib/syncService";
 import "../App.css";
 
 interface CategoryItem {
@@ -569,9 +569,9 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
   const statsA = getStats('A');
   const statsJ = getStats('J');
 
-  const colegioNombre = colegios.find(c => c.id === selectedColegio)?.nombre || "";
-  const gradoNombre = grados.find(g => g.id === selectedGrado)?.nombre || "";
-  const seccionNombre = secciones.find(s => s.id === selectedSeccion)?.nombre || "";
+  // const colegioNombre = colegios.find(c => c.id === selectedColegio)?.nombre || "";
+  // const gradoNombre = grados.find(g => g.id === selectedGrado)?.nombre || "";
+  // const seccionNombre = secciones.find(s => s.id === selectedSeccion)?.nombre || "";
 
   const [expandedObs, setExpandedObs] = useState<Record<number, boolean>>({});
   const [obsModalStudent, setObsModalStudent] = useState<EstudianteAsistencia | null>(null);

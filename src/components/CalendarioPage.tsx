@@ -3,13 +3,13 @@ import { emit } from "@tauri-apps/api/event";
 import "../App.css";
 
 export function CalendarioPage() {
-  const [isMobile, setIsMobile] = useState(false);
-  const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
-  const isWindows = typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent);
+  // const [isMobile, setIsMobile] = useState(false);
+  // const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+  // const isWindows = typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent);
 
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 768);
+      // setIsMobile(window.innerWidth <= 768);
     };
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -84,23 +84,23 @@ export function CalendarioPage() {
     setSelectedDate(dateStr);
   };
 
-  const goToPrevMonth = () => {
-    if (selectedMonth === 0) {
-      setSelectedMonth(11);
-      setSelectedYear(selectedYear - 1);
-    } else {
-      setSelectedMonth(selectedMonth - 1);
-    }
-  };
+  // const goToPrevMonth = () => {
+  //   if (selectedMonth === 0) {
+  //     setSelectedMonth(11);
+  //     setSelectedYear(selectedYear - 1);
+  //   } else {
+  //     setSelectedMonth(selectedMonth - 1);
+  //   }
+  // };
 
-  const goToNextMonth = () => {
-    if (selectedMonth === 11) {
-      setSelectedMonth(0);
-      setSelectedYear(selectedYear + 1);
-    } else {
-      setSelectedMonth(selectedMonth + 1);
-    }
-  };
+  // const goToNextMonth = () => {
+  //   if (selectedMonth === 11) {
+  //     setSelectedMonth(0);
+  //     setSelectedYear(selectedYear + 1);
+  //   } else {
+  //     setSelectedMonth(selectedMonth + 1);
+  //   }
+  // };
 
   const handleApply = () => {
     if (selectedDate) {
