@@ -272,16 +272,8 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
         setSelectedFecha(event.payload.date);
       }
       setShowCalendar(false);
-    });
-
-    // Suscribirse a cambios en tiempo real de Supabase para asistencia
-    const unsubscribeRealtimePromise = subscribeToTable('asistencia', async (payload) => {
-      console.log("Cambio en Supabase detectado en asistencia:", payload);
-      if (selectedFecha && selectedColegio && selectedGrado && selectedSeccion) {
-        // Force pull desde Supabase
-        await forcePullAsistencia(selectedFecha, selectedGrado, selectedSeccion);
-        setRefreshTrigger(prev => prev + 1);
-      }
+      // El manejo de tiempo real ahora es global en App.tsx vía realtimeService
+      // No es necesario suscribirse aquí localmente
     });
 
     // Polling fallback solo cada 30 segundos para evitar parpadeo
@@ -304,7 +296,6 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
       unlistenCatalog.then(f => f());
       unlistenSubjects.then(f => f());
       unlistenDateSelected.then(f => f());
-      unsubscribeRealtimePromise.then(f => f());
       pollingRef.current();
     };
   }, [fetchColegioConfig]);

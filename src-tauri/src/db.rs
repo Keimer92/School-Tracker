@@ -3453,7 +3453,73 @@ pub fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) -> Res
 }
 
 #[tauri::command]
+pub fn delete_record_local(
+    state: tauri::State<'_, DbState>,
+    table: String,
+    id: serde_json::Value,
+) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    
+    println!("🗑️ [DB] delete_record_local: {} con id {:?}", table, id);
+
+    let sql = match table.as_str() {
+        "asistencia" => {
+            // Asistencia usa clave compuesta o ID. Si viene un objeto, es clave compuesta.
+            if let Some(obj) = id.as_object() {
+                let student_id = obj.get("estudianteId").or_else(|| obj.get("estudiante_id")).and_then(|v| v.as_i64());
+                let fecha = obj.get("fecha").and_then(|v| v.as_str());
+                if let (Some(sid), Some(f)) = (student_id, fecha) {
+                    conn.execute("DELETE FROM asistencia WHERE estudiante_id = ? AND fecha = ?", rusqlite::params![sid, f])
+                        .map_err(|e| e.to_string())?;
+                    return Ok(());
+                }
+            }
+            "DELETE FROM asistencia WHERE id = ?"
+        },
+        "nota" => {
+            if let Some(obj) = id.as_object() {
+                let est_id = obj.get("estudianteId").or_else(|| obj.get("estudiante_id")).and_then(|v| v.as_i64());
+                let crit_id = obj.get("criterioId").or_else(|| obj.get("criterio_id")).and_then(|v| v.as_i64());
+                let corte_id = obj.get("corteId").or_else(|| obj.get("corte_evaluativo_id")).and_then(|v| v.as_i64());
+                let asig_id = obj.get("asignaturaId").or_else(|| obj.get("asignatura_id")).and_then(|v| v.as_i64());
+                
+                if let (Some(sid), Some(cid), Some(coid), Some(aid)) = (est_id, crit_id, corte_id, asig_id) {
+                    conn.execute(
+                        "DELETE FROM nota WHERE estudiante_id = ? AND criterio_id = ? AND corte_evaluativo_id = ? AND asignatura_id = ?",
+                        rusqlite::params![sid, cid, coid, aid]
+                    ).map_err(|e| e.to_string())?;
+                    return Ok(());
+                }
+            }
+            return Err("Nota requiere clave compuesta para eliminación".to_string());
+        },
+        "grado_asignatura" => "DELETE FROM grado_asignatura WHERE grado_id = ? AND asignatura_id = ?",
+        "colegio_asignatura" => "DELETE FROM colegio_asignatura WHERE colegio_id = ? AND asignatura_id = ?",
+        "colegio_dias_asistencia" => "DELETE FROM colegio_dias_asistencia WHERE colegio_id = ?",
+        _ => "DELETE FROM {} WHERE id = ?",
+    };
+
+    let sql_final = if sql.contains("{}") {
+        sql.replace("{}", &table)
+    } else {
+        sql.to_string()
+    };
+
+    if let Some(id_int) = id.as_i64() {
+        conn.execute(&sql_final, [id_int]).map_err(|e| e.to_string())?;
+    } else if let Some(id_str) = id.as_str() {
+        conn.execute(&sql_final, [id_str]).map_err(|e| e.to_string())?;
+    } else {
+        // Para tablas con claves compuestas que no se manejaron arriba
+        return Err(format!("ID no soportado para tabla {}", table));
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
 pub fn get_colegio_dias_asistencia_all(
+
     state: tauri::State<'_, DbState>,
 ) -> Result<Vec<ColegioDiasAsistencia>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;

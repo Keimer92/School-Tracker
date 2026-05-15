@@ -737,6 +737,7 @@ pub fn run() {
             remove_pending_deletion_grado_asignatura,
             get_pending_deletions_colegio_asignatura,
             remove_pending_deletion_colegio_asignatura,
+            delete_record_local,
             print_pdf,
             share_pdf,
             save_file_android,

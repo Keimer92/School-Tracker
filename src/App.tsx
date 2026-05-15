@@ -13,6 +13,7 @@ import { InformePage } from "./components/InformePage";
 import { CalendarioPage } from "./components/CalendarioPage";
 import { supabase } from "./lib/supabase";
 import { syncService } from "./lib/syncService";
+import { realtimeService } from "./lib/realtimeService";
 
 type Tab = "notas" | "reportes" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "informe" | "calendario";
 
@@ -173,9 +174,13 @@ useEffect(() => {
               } catch (e) {
                 console.error('Error emitting subjects-updated:', e);
               }
+              
               if (!isInitialLoad) {
                 showToast('✅ Datos actualizados desde la nube', 'success');
               }
+              
+              // Iniciar suscripciones Realtime
+              realtimeService.init(currentUser.id);
             })
             .catch(err => {
               // Silenciar errores de usuario no logueado (esperado en carga inicial offline)
@@ -186,6 +191,8 @@ useEffect(() => {
                 }
               }
             });
+        } else if (event === 'SIGNED_OUT') {
+           realtimeService.stop();
         }
 
       } else if (!currentUser) {
