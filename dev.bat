@@ -34,12 +34,13 @@ echo.
 echo === MANTENIMIENTO ===
 echo 11. Limpiar cache y dependencias
 echo 12. Depurar Android (Chrome Inspect)
-echo 13. Salir
+echo 13. Configurar firmas Android (Release)
+echo 14. Salir
 echo ==============================================
 echo.
 
 set /p modo="Seleccione una opcion: "
-if "%modo%"=="13" goto exit_script
+if "%modo%"=="14" goto exit_script
 if "%modo%"=="1" goto windows_dev
 if "%modo%"=="2" goto android_dev
 if "%modo%"=="3" goto android_hot_reload
@@ -52,6 +53,7 @@ if "%modo%"=="9" goto start_emulator
 if "%modo%"=="10" goto adb_wifi
 if "%modo%"=="11" goto clean_cache
 if "%modo%"=="12" goto android_logs
+if "%modo%"=="13" goto android_signer
 cls
 goto menu
 
@@ -311,6 +313,22 @@ echo [INFO] 3. Haz clic en 'inspect' bajo tu dispositivo.
 echo.
 powershell -Command "Set-Clipboard 'chrome://inspect/#devices'"
 start chrome
+pause
+cls
+goto menu
+
+:android_signer
+cls
+echo ==============================================
+echo CONFIGURAR FIRMAS ANDROID (RELEASE)
+echo ==============================================
+echo.
+echo Ejecutando Tauri Android Signer...
+tauri-android-signer 2>nul
+if %errorlevel% neq 0 (
+    echo [INFO] La herramienta no esta instalada globalmente. Compilando y ejecutando...
+    cargo run --manifest-path "%SCRIPT_DIR%tauri-android-signer\Cargo.toml"
+)
 pause
 cls
 goto menu
