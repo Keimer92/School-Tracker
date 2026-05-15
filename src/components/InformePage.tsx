@@ -302,22 +302,7 @@ export function InformePage() {
 
     // Suscribirse a cambios en tiempo real de Supabase ahora es global en App.tsx vía realtimeService
 
-    // Polling fallback solo cada 30 segundos para evitar parpadeo
-    const pollingRef = { current: () => {} };
-    const startDelay = setTimeout(() => {
-      if (selectedAno && selectedColegio && selectedGrado && selectedSeccion && fechaInicio) {
-        startPolling(async () => {
-          if (selectedAno && selectedColegio && selectedGrado && selectedSeccion && fechaInicio) {
-            // Force pull de asistencia desde Supabase
-            await forcePullAsistencia(fechaInicio, selectedGrado, selectedSeccion);
-            setRefreshTrigger(prev => prev + 1);
-          }
-        }, () => true, 30000).then(fn => { pollingRef.current = fn; });
-      }
-    }, 3000); // esperar 3 segundos antes de iniciar polling
-
     return () => {
-      clearTimeout(startDelay);
       unlistenAsistencia.then(f => f());
       unlistenEstudiantes.then(f => f());
       unlistenCatalog.then(f => f());

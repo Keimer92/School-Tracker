@@ -132,11 +132,16 @@ export function NotasPage() {
   // Escuchar actualizaciones de estudiantes y catálogos desde otros componentes
   useEffect(() => {
     const unlistenStudent = listen("student-updated", () => {
-      console.log("Evento student-updated recibido en NotasPage, refrescando...");
-      fetchEstudiantes();
+      console.log("Evento student-updated recibido en NotasPage, refrescando silenciosamente...");
+      fetchEstudiantes(undefined, true);
     });
 
-    const unlistenNotas = listen("notas-updated", () => { fetchEstudiantes(); }); const unlistenCatalog = listen("catalog-updated", () => {
+    const unlistenNotas = listen("notas-updated", () => {
+      console.log("Evento notas-updated recibido en NotasPage, refrescando silenciosamente...");
+      fetchEstudiantes(undefined, true);
+    });
+
+    const unlistenCatalog = listen("catalog-updated", () => {
       console.log("Evento catalog-updated recibido en NotasPage, refrescando catálogos...");
       fetchCatalogs();
       setRefreshTrigger(prev => prev + 1);
@@ -145,6 +150,7 @@ export function NotasPage() {
     return () => {
       unlistenStudent.then(f => f());
       unlistenCatalog.then(f => f());
+      unlistenNotas.then(f => f());
     };
   }, []);
 

@@ -254,8 +254,8 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
     });
 
     const unlistenAsistencia = listen("asistencia-updated", () => {
-      console.log("Evento asistencia-updated recibido en AsistenciaPage, refrescando...");
-      setRefreshTrigger(prev => prev + 1);
+      console.log("Evento asistencia-updated recibido en AsistenciaPage, refrescando silenciosamente...");
+      fetchAsistencia(true);
     });
 
     const unlistenCatalog = listen("catalog-updated", () => {
@@ -280,22 +280,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
       // No es necesario suscribirse aquí localmente
     });
 
-    // Polling fallback solo cada 30 segundos para evitar parpadeo
-    const pollingRef = { current: () => {} };
-    const startDelay = setTimeout(() => {
-      if (selectedFecha && selectedColegio && selectedGrado && selectedSeccion && isFechaHabilitada) {
-        startPolling(async () => {
-          if (selectedFecha && selectedColegio && selectedGrado && selectedSeccion && isFechaHabilitada) {
-            // Force pull desde Supabase antes de recargar
-            await forcePullAsistencia(selectedFecha, selectedGrado, selectedSeccion);
-            setRefreshTrigger(prev => prev + 1);
-          }
-        }, () => true, 30000).then(fn => { pollingRef.current = fn; });
-      }
-    }, 3000); // esperar 3 segundos antes de iniciar polling
-
     return () => {
-      clearTimeout(startDelay);
       unlistenAsistencia.then(f => f());
       unlistenStudent.then(f => f());
       unlistenCatalog.then(f => f());

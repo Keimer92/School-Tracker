@@ -123,13 +123,17 @@ async function applyChangeToLocal(table: string, record: any) {
     descripcion: record.descripcion,
     puntajeMaximo: record.puntaje_maximo
   });
-  else if (table === 'nota') pullData.notas.push({
-    estudianteId: record.estudiante_id,
-    criterioId: record.criterio_id,
-    valor: record.valor,
-    corteEvaluativoId: record.corte_evaluativo_id,
-    asignaturaId: record.asignatura_id
-  });
+  else if (table === 'nota') {
+    // Para notas, usamos una estructura plana para upsert_notas_from_cloud
+    // O usamos upsert_pull_data con la estructura que espera
+    pullData.notas.push({
+      estudianteId: record.estudiante_id,
+      criterioId: record.criterio_id,
+      valor: record.puntaje ?? record.valor,
+      corteEvaluativoId: record.corte_id ?? record.corte_evaluativo_id,
+      asignaturaId: record.asignatura_id
+    });
+  }
   else if (table === 'asistencia') pullData.asistencia.push({
     id: record.id,
     estudianteId: record.estudiante_id,
@@ -171,7 +175,7 @@ async function applyDeletionToLocal(table: string, oldRecord: any) {
     id = { 
       estudianteId: oldRecord.estudiante_id, 
       criterioId: oldRecord.criterio_id,
-      corteId: oldRecord.corte_evaluativo_id,
+      corteId: oldRecord.corte_id ?? oldRecord.corte_evaluativo_id,
       asignaturaId: oldRecord.asignatura_id
     };
   }
