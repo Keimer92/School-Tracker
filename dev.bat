@@ -302,12 +302,15 @@ goto menu
 :android_logs
 cls
 echo ==============================================
-echo ABRIR DEPURADOR DE CHROME
+echo DEPURADOR DE CHROME (Android)
 echo ==============================================
-echo [INFO] Se abrira Chrome en la pagina de inspeccion.
-echo [INFO] Asegurate de tener el dispositivo conectado por USB.
+echo [INFO] La URL 'chrome://inspect/#devices' ha sido copiada al portapapeles.
+echo [INFO] 1. Abre Chrome (o Edge).
+echo [INFO] 2. Pega la URL en la barra de direcciones (Ctrl+V).
+echo [INFO] 3. Haz clic en 'inspect' bajo tu dispositivo.
 echo.
-start chrome "chrome://inspect/#devices"
+powershell -Command "Set-Clipboard 'chrome://inspect/#devices'"
+start chrome
 pause
 cls
 goto menu
