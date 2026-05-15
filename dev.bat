@@ -306,7 +306,7 @@ echo ANDROID LOGCAT - CONSOLA DE LA APP
 echo ==============================================
 echo [INFO] Presiona Ctrl+C para detener el seguimiento.
 echo.
-"%ADB_PATH%" logcat *:S Webview:V WebConsole:V
+"%ADB_PATH%" logcat -v time *:S Webview:V WebConsole:V chromium:V
 pause
 cls
 goto menu
