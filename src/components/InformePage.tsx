@@ -306,7 +306,6 @@ export function InformePage() {
       unlistenAsistencia.then(f => f());
       unlistenEstudiantes.then(f => f());
       unlistenCatalog.then(f => f());
-      pollingRef.current();
     };
   }, [fetchReporte]);
 

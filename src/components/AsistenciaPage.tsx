@@ -286,7 +286,6 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
       unlistenCatalog.then(f => f());
       unlistenSubjects.then(f => f());
       unlistenDateSelected.then(f => f());
-      pollingRef.current();
     };
   }, [fetchColegioConfig]);
 
