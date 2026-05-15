@@ -80,6 +80,38 @@ export const realtimeService = {
  * Aplica un cambio (INSERT/UPDATE) recibido desde Supabase a la base de datos local SQLite.
  */
 async function applyChangeToLocal(table: string, record: any) {
+  // Caso especial: Asistencia y Notas tienen comandos dedicados más eficientes
+  if (table === 'asistencia') {
+    try {
+      await invoke('upsert_asistencia_from_cloud', { records: [record] });
+      await emit('asistencia-updated');
+      return;
+    } catch (e) {
+      console.error("[Realtime] Error en upsert_asistencia_from_cloud:", e);
+    }
+  } else if (table === 'nota') {
+    try {
+      console.log(`[Realtime] Procesando actualización de nota para estudiante ${record.estudiante_id}`);
+      // Supabase puede enviar 'puntaje'/'corte_id' o 'valor'/'corte_evaluativo_id'
+      const notaRecord = { ...record };
+      if (notaRecord.puntaje == null) notaRecord.puntaje = record.valor;
+      if (notaRecord.corte_id == null) notaRecord.corte_id = record.corte_evaluativo_id;
+      
+      // Asegurar que tenemos los campos mínimos para NotaCloudRecord (Rust)
+      if (notaRecord.puntaje == null || notaRecord.corte_id == null || !notaRecord.estudiante_id || !notaRecord.criterio_id || !notaRecord.asignatura_id) {
+        console.warn("[Realtime] Datos de nota incompletos, ignorando:", notaRecord);
+        return;
+      }
+
+      await invoke('upsert_notas_from_cloud', { notas: [notaRecord] });
+      console.log("[Realtime] Nota guardada en SQLite local con éxito");
+      await emit('notas-updated');
+      return;
+    } catch (e) {
+      console.error("[Realtime] Error en upsert_notas_from_cloud:", e);
+    }
+  }
+
   const pullData: any = {
     anos: [], cortes: [], colegios: [], asignaturas: [], grados: [], secciones: [],
     estudiantes: [], indicadores: [], criterios: [], notas: [], asistencia: [],
@@ -122,24 +154,6 @@ async function applyChangeToLocal(table: string, record: any) {
     orden: record.orden,
     descripcion: record.descripcion,
     puntajeMaximo: record.puntaje_maximo
-  });
-  else if (table === 'nota') {
-    // Para notas, usamos una estructura plana para upsert_notas_from_cloud
-    // O usamos upsert_pull_data con la estructura que espera
-    pullData.notas.push({
-      estudianteId: record.estudiante_id,
-      criterioId: record.criterio_id,
-      valor: record.puntaje ?? record.valor,
-      corteEvaluativoId: record.corte_id ?? record.corte_evaluativo_id,
-      asignaturaId: record.asignatura_id
-    });
-  }
-  else if (table === 'asistencia') pullData.asistencia.push({
-    id: record.id,
-    estudianteId: record.estudiante_id,
-    fecha: record.fecha,
-    estado: record.estado,
-    observacion: record.observacion
   });
   else if (table === 'configuracion_calificacion') pullData.gradeConfigs.push({
     id: record.id,

@@ -86,6 +86,7 @@ export function NotasPage() {
   const [saving, setSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const nextRefreshSilent = useRef(false);
   const [rowVersions, setRowVersions] = useState<Map<number, number>>(new Map());
   const [isQualitative, setIsQualitative] = useState(false);
   // editingStudentId eliminado — ahora se usa CSS :focus-within
@@ -132,13 +133,15 @@ export function NotasPage() {
   // Escuchar actualizaciones de estudiantes y catálogos desde otros componentes
   useEffect(() => {
     const unlistenStudent = listen("student-updated", () => {
-      console.log("Evento student-updated recibido en NotasPage, refrescando silenciosamente...");
-      fetchEstudiantes(undefined, true);
+      console.log("Evento student-updated recibido en NotasPage, refrescando...");
+      nextRefreshSilent.current = true;
+      setRefreshTrigger(prev => prev + 1);
     });
 
     const unlistenNotas = listen("notas-updated", () => {
-      console.log("Evento notas-updated recibido en NotasPage, refrescando silenciosamente...");
-      fetchEstudiantes(undefined, true);
+      console.log("Evento notas-updated recibido en NotasPage, refrescando...");
+      nextRefreshSilent.current = true;
+      setRefreshTrigger(prev => prev + 1);
     });
 
     const unlistenCatalog = listen("catalog-updated", () => {
@@ -333,7 +336,7 @@ export function NotasPage() {
     };
     
     loadData();
-  }, [selectedAno, selectedCorte, selectedColegio, selectedAsignatura, selectedGrado, selectedSeccion, selectedSexo]);
+  }, [selectedAno, selectedCorte, selectedColegio, selectedAsignatura, selectedGrado, selectedSeccion, selectedSexo, refreshTrigger]);
 
   // Atajos de teclado para deshacer/rehacer y guardar
   useEffect(() => {
@@ -493,7 +496,9 @@ export function NotasPage() {
   };
 
   const fetchEstudiantes = async (currentIndicadores?: Indicador[], silent = false) => {
-    if (!silent) setLoading(true);
+    const isActuallySilent = silent || nextRefreshSilent.current;
+    if (!isActuallySilent) setLoading(true);
+    nextRefreshSilent.current = false; // Reset for next time
     const indToUse = currentIndicadores || indicadores;
     const { corte, asignatura, grado, seccion, sexo } = filtersRef.current;
     
