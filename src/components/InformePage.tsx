@@ -1210,7 +1210,7 @@ try {
                   <th style={{ width: '30px' }}>#</th>
                   <th style={{ textAlign: 'left' }}>Estudiante</th>
                   <th style={{ width: '100px' }}>Asistencia</th>
-                  <th style={{ width: '40px' }}>Obs</th>
+                  <th style={{ width: '65px', textAlign: 'center' }}>Obs</th>
                 </tr>
               </thead>
               <tbody>
@@ -1252,8 +1252,25 @@ try {
                           </div>
                         </div>
                       </td>
-                      <td style={{ color: '#94a3b8', fontSize: '0.8rem', fontStyle: 'italic', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={getObservacionEnFecha(item, fechaInicio)}>
-                        {getObservacionEnFecha(item, fechaInicio) || (estado === '-' ? "Sin registro" : "")}
+                      <td style={{ textAlign: 'center', padding: '0.2rem' }}>
+                        {getObservacionEnFecha(item, fechaInicio) ? (
+                          <button 
+                            className="obs-toggle-btn has-obs"
+                            onClick={() => emit("show-toast", { message: `Observación de ${item.nombre}: ${getObservacionEnFecha(item, fechaInicio)}`, type: 'info' })}
+                            title="Ver observación"
+                          >
+                            📝
+                          </button>
+                        ) : (
+                          <button 
+                            className="obs-toggle-btn"
+                            disabled
+                            style={{ opacity: 0.3, cursor: 'default', background: 'transparent', boxShadow: 'none', border: '1px solid rgba(255,255,255,0.05)' }}
+                            title={estado === '-' ? "Sin registro" : "Sin observaciones"}
+                          >
+                            💬
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );

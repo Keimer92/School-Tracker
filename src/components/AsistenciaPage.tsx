@@ -1175,7 +1175,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
                   <th style={{ width: '30px' }}>#</th>
                   <th style={{ textAlign: 'left' }}>Estudiante</th>
                   <th style={{ width: '100px' }}>Asistencia</th>
-                  <th style={{ width: '40px' }}>Obs</th>
+                  <th style={{ width: '65px', textAlign: 'center' }}>Obs</th>
                 </tr>
               </thead>
               <tbody>
@@ -1218,7 +1218,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
                         </label>
                       </div>
                     </td>
-                    <td>
+                    <td style={{ textAlign: 'center', padding: '0.2rem' }}>
                       <button 
                         className={`obs-toggle-btn ${est.observacion ? 'has-obs' : ''} ${expandedObs[est.id] ? 'active' : ''}`}
                         onClick={() => toggleObs(est)}
