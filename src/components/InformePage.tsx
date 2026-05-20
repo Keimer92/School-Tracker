@@ -1185,7 +1185,7 @@ try {
             <div className="loading-container">Cargando reporte...</div>
           ) : reporteFiltrado.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '5rem 2rem', border: '2px dashed rgba(255, 255, 255, 0.1)', borderRadius: '16px', margin: '0 1rem' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>{searchTerm ? '🔍' : '📋'}</div>
+              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>{searchTerm ? '🔍' : '📊'}</div>
               <h4 style={{ color: '#cbd5e1', marginBottom: '0.5rem' }}>
                 {searchTerm ? 'No se encontraron resultados' : 'No hay datos para mostrar'}
               </h4>

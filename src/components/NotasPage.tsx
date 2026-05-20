@@ -1665,7 +1665,7 @@ onChange={(e) => {
               alignItems: 'center',
               gap: '0.5rem'
             }}>
-              📋 Estudiantes <span style={{ opacity: 0.7, fontSize: '0.8em' }}>({filteredNotas.length})</span>
+              📝 Estudiantes <span style={{ opacity: 0.7, fontSize: '0.8em' }}>({filteredNotas.length})</span>
             </h3>
             <div style={{ fontSize: isMobile ? '0.75rem' : '0.9rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
               <span>{isMobile ? 'Indicadores Activos:' : 'Indicadores Activos:'}</span> 
@@ -1839,7 +1839,7 @@ onChange={(e) => {
             </div>
           ) : !selectedGrado || !selectedSeccion ? (
             <div style={{ textAlign: 'center', padding: '5rem 2rem', border: '2px dashed rgba(255, 255, 255, 0.1)', borderRadius: '16px', margin: '1rem 0' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📋</div>
+              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📝</div>
               <h4 style={{ color: '#cbd5e1', marginBottom: '0.5rem' }}>Seleccione los filtros</h4>
               <p style={{ color: '#94a3b8', maxWidth: '400px', margin: '0 auto' }}>
                 Seleccione un año, corte, colegio, asignatura, grado y sección para ver y calificar a los estudiantes.
