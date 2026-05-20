@@ -1545,134 +1545,99 @@ onChange={(e) => {
             </select>
           </FilterGroup>
 
-          {/* Buscador */}
-          <div style={{ flex: isMobile ? '1 1 calc(66.66% - 0.4rem)' : '0 0 auto' }}>
-            <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar..." isMobile={isMobile} />
+          {/* Buscador y Botones en la misma fila */}
+          <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'flex-end', flex: isMobile ? '1 1 100%' : '0 0 auto' }}>
+            <div style={{ flex: '1', minWidth: '80px' }}>
+              <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar..." isMobile={isMobile} />
+            </div>
+            <button
+              onClick={undo}
+              disabled={history.length === 0}
+              className="btn-modern btn-undo"
+              title="Deshacer (Ctrl+Z)"
+              style={{
+                padding: isMobile ? '0.4rem 0.6rem' : '0.6rem 1.2rem',
+                fontSize: isMobile ? '0.75rem' : '0.9rem',
+                height: isMobile ? '28px' : '42px',
+                backgroundColor: history.length > 0 ? '#f59e0b' : 'rgba(148, 163, 184, 0.5)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                fontWeight: '600',
+                cursor: history.length > 0 ? 'pointer' : 'not-allowed',
+                transition: 'all 0.3s ease',
+                boxShadow: history.length > 0 ? '0 4px 14px rgba(245, 158, 11, 0.4)' : 'none',
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
+                opacity: history.length > 0 ? 1 : 0.7
+              }}
+            >
+              <span>↩️</span>
+              {!isMobile && <span>Deshacer</span>}
+            </button>
+            <button
+              onClick={redo}
+              disabled={redoStack.length === 0}
+              className="btn-modern btn-redo"
+              title="Rehacer (Ctrl+Y)"
+              style={{
+                padding: isMobile ? '0.4rem 0.6rem' : '0.6rem 1.2rem',
+                fontSize: isMobile ? '0.75rem' : '0.9rem',
+                height: isMobile ? '28px' : '42px',
+                backgroundColor: redoStack.length > 0 ? '#f59e0b' : 'rgba(148, 163, 184, 0.5)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                fontWeight: '600',
+                cursor: redoStack.length > 0 ? 'pointer' : 'not-allowed',
+                transition: 'all 0.3s ease',
+                boxShadow: redoStack.length > 0 ? '0 4px 14px rgba(245, 158, 11, 0.4)' : 'none',
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
+                opacity: redoStack.length > 0 ? 1 : 0.7
+              }}
+            >
+              <span>↪️</span>
+              {!isMobile && <span>Rehacer</span>}
+            </button>
+            <button
+              onClick={handleGuardarNotas}
+              disabled={!hasUnsavedChanges || saving || (estudiantes.length === 0)}
+              className="btn-modern btn-save-notes"
+              title="Guardar Notas (Ctrl+G)"
+              style={{
+                padding: isMobile ? '0.4rem 0.6rem' : '0.6rem 1.2rem',
+                fontSize: isMobile ? '0.75rem' : '0.9rem',
+                height: isMobile ? '28px' : '42px',
+                backgroundColor: !hasUnsavedChanges ? 'rgba(148, 163, 184, 0.5)' : (saving ? '#059669' : '#10b981'),
+                color: '#fff',
+                border: 'none',
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                fontWeight: '600',
+                cursor: (!hasUnsavedChanges || saving || estudiantes.length === 0) ? 'not-allowed' : 'pointer',
+                transition: 'all 0.3s ease',
+                boxShadow: hasUnsavedChanges && !saving && estudiantes.length > 0 ? '0 4px 14px rgba(16, 185, 129, 0.4)' : 'none',
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
+                opacity: (hasUnsavedChanges && !saving && estudiantes.length > 0) ? 1 : 0.7
+              }}
+            >
+              <span>{saving ? '⏳' : '💾'}</span>
+              {!isMobile && <span>{saving ? 'Guardando...' : (hasUnsavedChanges ? 'Guardar' : 'Sin cambios')}</span>}
+            </button>
           </div>
-
-{/* Botones de Acción */}
-        <FilterActions>
-          <button
-            onClick={undo}
-            disabled={history.length === 0}
-            className="btn-modern btn-undo"
-            title="Deshacer (Ctrl+Z)"
-            style={{
-              padding: '0.6rem 1.2rem',
-              fontSize: '0.9rem',
-              height: '42px',
-              backgroundColor: history.length > 0 ? '#f59e0b' : 'rgba(148, 163, 184, 0.5)',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              fontWeight: '600',
-              cursor: history.length > 0 ? 'pointer' : 'not-allowed',
-              transition: 'all 0.3s ease',
-              boxShadow: history.length > 0 ? '0 4px 14px rgba(245, 158, 11, 0.4)' : 'none',
-              transform: history.length > 0 ? 'translateY(0)' : 'none',
-              opacity: history.length > 0 ? 1 : 0.7
-            }}
-            onMouseEnter={(e) => {
-              if (history.length > 0) {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 6px 20px rgba(245, 158, 11, 0.5)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (history.length > 0) {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 14px rgba(245, 158, 11, 0.4)';
-              }
-            }}
-          >
-            <span>↩️</span>
-            <span>Deshacer</span>
-          </button>
-          <button
-            onClick={redo}
-            disabled={redoStack.length === 0}
-            className="btn-modern btn-redo"
-            title="Rehacer (Ctrl+Y)"
-            style={{
-              padding: '0.6rem 1.2rem',
-              fontSize: '0.9rem',
-              height: '42px',
-              backgroundColor: redoStack.length > 0 ? '#f59e0b' : 'rgba(148, 163, 184, 0.5)',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              fontWeight: '600',
-              cursor: redoStack.length > 0 ? 'pointer' : 'not-allowed',
-              transition: 'all 0.3s ease',
-              boxShadow: redoStack.length > 0 ? '0 4px 14px rgba(245, 158, 11, 0.4)' : 'none',
-              transform: redoStack.length > 0 ? 'translateY(0)' : 'none',
-              opacity: redoStack.length > 0 ? 1 : 0.7
-            }}
-            onMouseEnter={(e) => {
-              if (redoStack.length > 0) {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 6px 20px rgba(245, 158, 11, 0.5)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (redoStack.length > 0) {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 14px rgba(245, 158, 11, 0.4)';
-              }
-            }}
-          >
-            <span>↪️</span>
-            <span>Rehacer</span>
-          </button>
-          <button
-            onClick={handleGuardarNotas}
-            disabled={!hasUnsavedChanges || saving || (estudiantes.length === 0)}
-            className="btn-modern btn-save-notes"
-            title="Guardar Notas (Ctrl+G)"
-            style={{
-              padding: '0.6rem 1.2rem',
-              fontSize: '0.9rem',
-              height: '42px',
-              backgroundColor: !hasUnsavedChanges ? 'rgba(148, 163, 184, 0.5)' : (saving ? '#059669' : '#10b981'),
-              color: '#fff',
-              border: 'none',
-              borderRadius: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              fontWeight: '600',
-              cursor: (!hasUnsavedChanges || saving || estudiantes.length === 0) ? 'not-allowed' : 'pointer',
-              transition: 'all 0.3s ease',
-              boxShadow: hasUnsavedChanges && !saving && estudiantes.length > 0 ? '0 4px 14px rgba(16, 185, 129, 0.4)' : 'none',
-              transform: hasUnsavedChanges && !saving && estudiantes.length > 0 ? 'translateY(0)' : 'none',
-              opacity: (hasUnsavedChanges && !saving && estudiantes.length > 0) ? 1 : 0.7
-            }}
-            onMouseEnter={(e) => {
-              if (hasUnsavedChanges && !saving && estudiantes.length > 0) {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 6px 20px rgba(16, 185, 129, 0.5)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (hasUnsavedChanges && !saving && estudiantes.length > 0) {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 14px rgba(16, 185, 129, 0.4)';
-              }
-            }}
-          >
-            <span>{saving ? '⏳' : '💾'}</span>
-            <span>{saving ? 'Guardando...' : (hasUnsavedChanges ? 'Guardar' : 'Sin cambios')}</span>
-          </button>
-        </FilterActions>
         </FilterContainer>
 
       {loading && <div style={{textAlign: 'center', padding: '2rem'}}>Cargando datos...</div>}

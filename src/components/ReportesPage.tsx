@@ -1426,44 +1426,6 @@ try {
                 Stats
               </button>
             </div>
-
-            {/* Solo mostrar botón imprimir en desktop (no Android) */}
-            {!isAndroid && (
-              <button 
-                className="secondary" 
-                onClick={handlePrintWithIframe}
-                disabled={estudiantes.length === 0 || loading}
-                style={{ 
-                  padding: '0.3rem 0.6rem', 
-                  fontSize: '0.75rem', 
-                  height: '28px',
-                  backgroundColor: '#10b981',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                title={(isMobile || isAndroid) ? "Compartir PDF" : "Imprimir"}
-              >
-                {(isMobile || isAndroid) ? "📤" : "🖨️"}
-              </button>
-            )}
-            
-            <button 
-              className="primary" 
-              onClick={exportToPDF}
-              disabled={estudiantes.length === 0 || loading}
-              style={{ 
-                padding: '0.3rem 0.6rem', 
-                fontSize: '0.75rem', 
-                height: '28px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              PDF
-            </button>
-            
           </div>
         </div>
 
@@ -1656,14 +1618,54 @@ try {
             </select>
           </FilterGroup>
 
-          {/* Buscador */}
-          <div style={{ flex: isMobile ? '1 1 calc(66.66% - 0.4rem)' : '0 0 auto' }}>
-            <SearchInput 
-              value={searchTerm} 
-              onChange={setSearchTerm} 
-              placeholder="Buscar..." 
-              isMobile={isMobile} 
-            />
+          {/* Buscador y Botones en la misma fila */}
+          <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'flex-end', flex: isMobile ? '1 1 100%' : '0 0 auto' }}>
+            <div style={{ flex: '1', minWidth: '80px' }}>
+              <SearchInput 
+                value={searchTerm} 
+                onChange={setSearchTerm} 
+                placeholder="Buscar..." 
+                isMobile={isMobile} 
+              />
+            </div>
+            {/* Solo mostrar botón imprimir en desktop (no Android) */}
+            {!isAndroid && (
+              <button 
+                className="secondary" 
+                onClick={handlePrintWithIframe}
+                disabled={estudiantes.length === 0 || loading}
+                style={{ 
+                  padding: '0.3rem 0.6rem', 
+                  fontSize: '0.75rem', 
+                  height: '28px',
+                  backgroundColor: '#10b981',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+                title={(isMobile || isAndroid) ? "Compartir PDF" : "Imprimir"}
+              >
+                {(isMobile || isAndroid) ? "📤" : "🖨️"}
+              </button>
+            )}
+            
+            <button 
+              className="primary" 
+              onClick={exportToPDF}
+              disabled={estudiantes.length === 0 || loading}
+              style={{ 
+                padding: '0.3rem 0.6rem', 
+                fontSize: '0.75rem', 
+                height: '28px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}
+            >
+              PDF
+            </button>
           </div>
         </FilterContainer>
       </div>

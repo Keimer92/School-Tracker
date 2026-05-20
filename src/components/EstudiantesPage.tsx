@@ -1075,8 +1075,16 @@ export function EstudiantesPage() {
             </select>
           </FilterGroup>
 
-          {/* Botones de Acción */}
-          <FilterActions>
+          {/* Buscador y Botones en la misma fila */}
+          <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'flex-end', flex: isMobile ? '1 1 100%' : '0 0 auto' }}>
+            <div style={{ flex: '1', minWidth: '80px' }}>
+              <SearchInput 
+                value={searchTerm} 
+                onChange={setSearchTerm} 
+                placeholder="Nombre o código..." 
+                isMobile={isMobile} 
+              />
+            </div>
             <button 
               className="primary glow-button-primary" 
               onClick={openAddModal} 
@@ -1091,7 +1099,8 @@ export function EstudiantesPage() {
                 border: 'none',
                 color: 'white',
                 fontWeight: 'bold',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                flexShrink: 0
               }}
             >
               <span style={{ fontSize: '1.1rem' }}>👨‍🎓</span>
@@ -1113,7 +1122,8 @@ export function EstudiantesPage() {
                 border: 'none',
                 color: 'white',
                 fontWeight: 'bold',
-                whiteSpace: 'nowrap'
+                whiteSpace: 'nowrap',
+                flexShrink: 0
               }}
             >
               <span style={{ fontSize: '1.1rem' }}>{isImporting ? "⌛" : "📗"}</span>
@@ -1133,22 +1143,13 @@ export function EstudiantesPage() {
                 border: '1px solid rgba(255, 255, 255, 0.1)',
                 cursor: 'pointer',
                 fontSize: '1.1rem',
-                fontWeight: 'bold'
+                fontWeight: 'bold',
+                flexShrink: 0
               }}
               title="Ayuda de importación"
             >
               ?
             </button>
-          </FilterActions>
-
-          {/* Buscador */}
-          <div style={{ flex: isMobile ? '1 1 calc(66.66% - 0.4rem)' : '0 0 auto' }}>
-            <SearchInput 
-              value={searchTerm} 
-              onChange={setSearchTerm} 
-              placeholder="Nombre o código..." 
-              isMobile={isMobile} 
-            />
           </div>
         </FilterContainer>
 

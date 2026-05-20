@@ -968,13 +968,11 @@ try {
             </select>
           </FilterGroup>
 
-          {/* Buscador */}
-          <div style={{ flex: isMobile ? '1 1 calc(66.66% - 0.4rem)' : '0 0 auto' }}>
-            <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar..." isMobile={isMobile} />
-          </div>
-
-          {/* Botones de Acción */}
-          <FilterActions>
+          {/* Buscador y Botones en la misma fila */}
+          <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'flex-end', flex: isMobile ? '1 1 100%' : '0 0 auto' }}>
+            <div style={{ flex: '1', minWidth: '80px' }}>
+              <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar..." isMobile={isMobile} />
+            </div>
             {/* Solo mostrar botón imprimir en desktop (no Android) */}
             {!isAndroid && (
               <button 
@@ -988,7 +986,8 @@ try {
                   backgroundColor: '#10b981',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  flexShrink: 0
                 }}
                 title={isMobile ? "Compartir reporte" : "Imprimir reporte"}
               >
@@ -1006,13 +1005,14 @@ try {
                 backgroundColor: '#ef4444',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'center',
+                flexShrink: 0
               }}
               title="Exportar a PDF"
             >
               📄 PDF
             </button>
-          </FilterActions>
+          </div>
         </FilterContainer>
           
           {/* Encabezado de impresión - Oculto en UI normal */}
