@@ -27,7 +27,8 @@ export function AjustesPage() {
     | "almacenamiento"
     | "debugging"
     | "acercaDe"
-  >("configuracion");
+    | null
+  >(isAndroid ? null : "configuracion");
   const [theme, setTheme] = useState<string>(() => {
     return localStorage.getItem("app-theme") || "mint";
   });
@@ -783,7 +784,8 @@ export function AjustesPage() {
       `}</style>
 
       {/* Cinta de Pestañas Inteligente */}
-      <div className="ajustes-ribbon-container">
+      {!isAndroid && (
+        <div className="ajustes-ribbon-container">
         <div className="ajustes-ribbon">
           {TABS.map((tab) => (
             <button
@@ -812,8 +814,136 @@ export function AjustesPage() {
           ))}
         </div>
       </div>
+      )}
 
-      <div className="settings-content-wrapper">
+      {isAndroid && activeTab === null ? (
+        <div style={{
+          padding: '1rem',
+        }}>
+          <h1 style={{
+            fontSize: '1.5rem',
+            fontWeight: '700',
+            color: '#f1f5f9',
+            marginBottom: '1.5rem',
+            textAlign: 'center',
+          }}>
+            Ajustes
+          </h1>
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.75rem',
+          }}>
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '1rem 1.25rem',
+                  background: 'rgba(51, 65, 85, 0.5)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  width: '100%',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(51, 65, 85, 0.7)';
+                  e.currentTarget.style.transform = 'translateX(4px)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(51, 65, 85, 0.5)';
+                  e.currentTarget.style.transform = 'translateX(0)';
+                }}
+              >
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '1rem',
+                }}>
+                  <div style={{
+                    width: '4px',
+                    height: '40px',
+                    background: 'linear-gradient(180deg, var(--primary-color, #3b82f6) 0%, #1d4ed8 100%)',
+                    borderRadius: '2px',
+                  }} />
+                  {tab.icon === "supabase" ? (
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+                      <path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z" stroke="url(#cloudGradMenu)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <defs>
+                        <linearGradient id="cloudGradMenu" x1="6" y1="8" x2="19" y2="18" gradientUnits="userSpaceOnUse">
+                          <stop stopColor="#60A5FA"/>
+                          <stop offset="1" stopColor="#A78BFA"/>
+                        </linearGradient>
+                      </defs>
+                    </svg>
+                  ) : (
+                    <span style={{ fontSize: '1.25rem' }}>{tab.icon}</span>
+                  )}
+                  <span style={{
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    color: '#e2e8f0',
+                    textAlign: 'left',
+                  }}>
+                    {tab.label}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  {tab.id === "sync" && isSynced && (
+                    <span className="sync-dot-mini" style={{ position: 'static', display: 'inline-block' }}></span>
+                  )}
+                  <span style={{
+                    fontSize: '1.25rem',
+                    color: '#64748b',
+                  }}>
+                    →
+                  </span>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div style={{ padding: isAndroid ? '1rem' : '0' }}>
+          {isAndroid && activeTab !== null && (
+            <button
+              onClick={() => setActiveTab(null)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.75rem 1rem',
+                background: 'rgba(51, 65, 85, 0.5)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: '10px',
+                cursor: 'pointer',
+                marginBottom: '1.5rem',
+                width: '100%',
+                transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(51, 65, 85, 0.7)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(51, 65, 85, 0.5)';
+              }}
+            >
+              <span style={{ fontSize: '1.25rem' }}>←</span>
+              <span style={{
+                fontSize: '0.95rem',
+                fontWeight: '600',
+                color: '#94a3b8',
+              }}>
+                Volver a Ajustes
+              </span>
+            </button>
+          )}
+
+          <div className="settings-content-wrapper">
         {/* SECCIÓN: CONFIGURACIÓN */}
         {activeTab === "configuracion" && (
           <div className="category-card">
@@ -2870,7 +3000,9 @@ export function AjustesPage() {
             </div>
           </div>
         )}
-      </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de Confirmación */}
       {showResetConfirm &&
