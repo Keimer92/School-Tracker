@@ -33,13 +33,11 @@ export function FilterContainer({ children, isMobile = false, className = '', st
         style={{
           padding: isMobile ? '0.2rem' : '0.4rem',
           display: 'flex',
-          flexWrap: isMobile ? 'nowrap' : 'wrap',
+          flexWrap: 'wrap',
           gap: isMobile ? '0.3rem' : '0.4rem',
           justifyContent: 'flex-start',
           alignItems: 'flex-end',
-          overflowX: isMobile ? 'auto' : 'visible',
-          scrollbarWidth: 'none', // Ocultar barra de scroll en firefox
-          WebkitOverflowScrolling: 'touch'
+          width: '100%'
         }}
       >
         {children}
@@ -133,8 +131,9 @@ export function FilterActions({ children }: FilterActionsProps) {
       gap: '0.3rem', 
       flexWrap: 'nowrap', 
       alignItems: 'center',
-      marginLeft: 'auto',
-      flexShrink: 0
+      justifyContent: 'flex-end',
+      width: '100%',
+      marginTop: '0.2rem'
     }}>
       {children}
     </div>
