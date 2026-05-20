@@ -249,7 +249,7 @@ export function ReportesPage() {
     let unlistenCatalogs: (() => void) | null = null;
 
     // REGISTRAR LISTENERS PRIMERO
-    listen("grade-configs-updated", async (_event) => {
+      listen("grade-configs-updated", async (_event) => {
       try {
         const configsData = await invoke<GradeConfig[]>("get_grade_configs");
         setGradeConfigs(configsData);
@@ -258,16 +258,16 @@ export function ReportesPage() {
       }
     }).then(u => unlistenGradeConfigs = u);
 
-    listen("notas-updated", () => {
+      listen("notas-updated", () => {
       console.log("ReportesPage: Evento notas-updated recibido, refrescando reporte...");
       setRefreshTrigger(prev => prev + 1);
     }).then(u => unlistenNotas = u);
 
-    listen("student-updated", () => {
+      listen("student-updated", () => {
       setRefreshTrigger(prev => prev + 1);
     }).then(u => unlistenStudents = u);
 
-    listen("catalog-updated", () => {
+      listen("catalog-updated", () => {
       console.log("ReportesPage: Evento catalog-updated recibido, refrescando...");
       fetchInitialCatalogs();
     }).then(u => unlistenCatalogs = u);
