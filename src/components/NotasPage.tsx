@@ -1451,7 +1451,7 @@ onChange={(e) => {
       
 <FilterContainer isMobile={isMobile}>
           {/* Año Lectivo */}
-          <FilterGroup label="Año Lectivo:" isMobile={isMobile} flex={isMobile ? '1 1 40%' : '0 0 auto'}>
+          <FilterGroup label="Año Lectivo:" isMobile={isMobile} flex="1 1 auto">
             <select 
               className="filter-select"
               style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
@@ -1463,7 +1463,7 @@ onChange={(e) => {
           </FilterGroup>
           
           {/* Corte */}
-          <FilterGroup label="Corte:" isMobile={isMobile} flex={isMobile ? '1 1 40%' : '0 0 auto'}>
+          <FilterGroup label="Corte:" isMobile={isMobile} flex="1 1 auto">
             <select 
               className="filter-select"
               style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
@@ -1475,7 +1475,7 @@ onChange={(e) => {
           </FilterGroup>
 
           {/* Colegio */}
-          <FilterGroup label="Colegio:" isMobile={isMobile} flex={isMobile ? '1 1 100%' : '0 0 auto'}>
+          <FilterGroup label="Colegio:" isMobile={isMobile} flex="1 1 auto">
             <select 
               className="filter-select"
               style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
@@ -1487,7 +1487,7 @@ onChange={(e) => {
           </FilterGroup>
 
           {/* Grado */}
-          <FilterGroup label="Grado:" isMobile={isMobile} flex={isMobile ? '1 1 30%' : '0 0 auto'}>
+          <FilterGroup label="Grado:" isMobile={isMobile} flex="1 1 auto">
             <select 
               className="filter-select"
               style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
@@ -1503,7 +1503,7 @@ onChange={(e) => {
           </FilterGroup>
 
           {/* Sección */}
-          <FilterGroup label="Sección:" isMobile={isMobile} flex={isMobile ? '1 1 30%' : '0 0 auto'}>
+          <FilterGroup label="Sección:" isMobile={isMobile} flex="1 1 auto">
             <select 
               className="filter-select"
               style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
@@ -1515,7 +1515,7 @@ onChange={(e) => {
           </FilterGroup>
 
           {/* Sexo */}
-          <FilterGroup label="Sexo:" isMobile={isMobile} flex={isMobile ? '1 1 30%' : '0 0 auto'}>
+          <FilterGroup label="Sexo:" isMobile={isMobile} flex="1 1 auto">
             <select 
               className="filter-select"
               style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
@@ -1529,7 +1529,7 @@ onChange={(e) => {
           </FilterGroup>
 
           {/* Asignatura */}
-          <FilterGroup label="Asignatura:" isMobile={isMobile} flex={isMobile ? '1 1 100%' : '0 0 auto'}>
+          <FilterGroup label="Asignatura:" isMobile={isMobile} flex="1 1 auto">
             <select 
               className="filter-select"
               style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
@@ -1545,7 +1545,9 @@ onChange={(e) => {
           </FilterGroup>
 
           {/* Buscador */}
-          <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar..." isMobile={isMobile} />
+          <div style={{ flex: '1 1 auto', minWidth: '120px' }}>
+            <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar..." isMobile={isMobile} />
+          </div>
 
 {/* Botones de Acción */}
         <FilterActions>

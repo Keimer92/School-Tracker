@@ -33,10 +33,13 @@ export function FilterContainer({ children, isMobile = false, className = '', st
         style={{
           padding: isMobile ? '0.2rem' : '0.4rem',
           display: 'flex',
-          flexWrap: 'wrap',
+          flexWrap: isMobile ? 'nowrap' : 'wrap',
           gap: isMobile ? '0.3rem' : '0.4rem',
           justifyContent: 'flex-start',
-          alignItems: 'flex-end'
+          alignItems: 'flex-end',
+          overflowX: isMobile ? 'auto' : 'visible',
+          scrollbarWidth: 'none', // Ocultar barra de scroll en firefox
+          WebkitOverflowScrolling: 'touch'
         }}
       >
         {children}
