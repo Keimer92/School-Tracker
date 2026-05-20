@@ -1839,7 +1839,7 @@ onChange={(e) => {
             </div>
           ) : !selectedGrado || !selectedSeccion ? (
             <div style={{ textAlign: 'center', padding: '5rem 2rem', border: '2px dashed rgba(255, 255, 255, 0.1)', borderRadius: '16px', margin: '1rem 0' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📝</div>
+              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📋</div>
               <h4 style={{ color: '#cbd5e1', marginBottom: '0.5rem' }}>Seleccione los filtros</h4>
               <p style={{ color: '#94a3b8', maxWidth: '400px', margin: '0 auto' }}>
                 Seleccione un año, corte, colegio, asignatura, grado y sección para ver y calificar a los estudiantes.

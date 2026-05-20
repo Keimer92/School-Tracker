@@ -373,7 +373,7 @@ useEffect(() => {
             onClick={() => handleButtonClick("notas")}
             type="button"
           >
-            <span>📊</span>
+            <span>📓</span>
             <span>Notas</span>
           </button>
           <button 
