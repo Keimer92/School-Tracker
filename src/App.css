@@ -1847,3 +1847,52 @@ input:checked + .slider:before {
 .notas-row:focus-within .student-number {
   color: var(--highlight-color, #4ade80) !important;
 }
+/* ------------------------------------- */
+/* RESPONSIVE FIXES FOR GALAXY S9 MINI   */
+/* ------------------------------------- */
+.category-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)) !important;
+  gap: 1.5rem !important;
+}
+
+@media (max-width: 400px) {
+  .category-grid {
+    gap: 1rem !important;
+  }
+  
+  .main-content {
+    padding: 8px !important;
+    padding-bottom: 90px !important;
+  }
+  
+  .category-card {
+    padding: 0.75rem !important;
+    border-radius: 12px !important;
+  }
+  
+  h1 { font-size: 1.5rem !important; }
+  h3 { font-size: 1.1rem !important; }
+  
+  .filters-row {
+    gap: 0.2rem !important;
+  }
+  
+  .filter-select {
+    font-size: 0.85rem !important;
+    padding: 0.3rem 0.5rem !important;
+  }
+  
+  .sticky-filters {
+    padding: 0.2rem !important;
+  }
+  
+  .btn-modern {
+    padding: 0.4rem 0.8rem !important;
+    font-size: 0.8rem !important;
+    height: 36px !important;
+  }
+  
+  .auth-container {
+    padding: 1rem !important;
+  }
+}
