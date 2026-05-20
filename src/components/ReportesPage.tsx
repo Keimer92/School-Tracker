@@ -1554,19 +1554,19 @@ try {
         {/* Fila de Filtros Compacta */}
         <FilterContainer isMobile={isMobile} style={{ padding: '0.5rem' }}>
           {/* Año */}
-          <FilterGroup label="Año:" isMobile={isMobile} flex={isMobile ? '1 1 100px' : '0 0 auto'}>
+          <FilterGroup label="Año:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
               value={selectedAno}
               onChange={(e) => setSelectedAno(Number(e.target.value))}
-              style={{ width: '100%', padding: '0.3rem 0.5rem', fontSize: '0.8rem', height: '28px' }}
+              style={{ width: '100%', padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
             >
               {anos.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
             </select>
           </FilterGroup>
 
           {/* Corte */}
-          <FilterGroup label="Corte:" isMobile={isMobile} flex={isMobile ? '1 1 100px' : '0 0 auto'}>
+          <FilterGroup label="Corte:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
               value={specialCorte ? specialCorte : selectedCorte}
@@ -1580,7 +1580,7 @@ try {
                   setSelectedCorte(Number(val));
                 }
               }}
-              style={{ width: '100%', padding: '0.3rem 0.5rem', fontSize: '0.8rem', height: '28px' }}
+              style={{ width: '100%', padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
             >
               <optgroup label="Cortes Individuales">
                 {cortes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
@@ -1594,75 +1594,77 @@ try {
           </FilterGroup>
 
           {/* Colegio */}
-          <FilterGroup label="Colegio:" isMobile={isMobile} flex={isMobile ? '1 1 140px' : '0 0 auto'}>
+          <FilterGroup label="Colegio:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
               value={selectedColegio}
               onChange={(e) => setSelectedColegio(Number(e.target.value))}
-              style={{ width: '100%', padding: '0.3rem 0.5rem', fontSize: '0.8rem', height: '28px' }}
+              style={{ width: '100%', padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
             >
               {colegios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
             </select>
           </FilterGroup>
 
           {/* Grado */}
-          <FilterGroup label="Grado:" isMobile={isMobile} flex={isMobile ? '1 1 140px' : '0 0 auto'}>
+          <FilterGroup label="Grado:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
               value={selectedGrado}
               onChange={(e) => setSelectedGrado(Number(e.target.value))}
-              style={{ width: '100%', padding: '0.3rem 0.5rem', fontSize: '0.8rem', height: '28px' }}
+              style={{ width: '100%', padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
             >
               {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
             </select>
           </FilterGroup>
 
           {/* Sección */}
-          <FilterGroup label="Sección:" isMobile={isMobile} flex={isMobile ? '1 1 140px' : '0 0 auto'}>
+          <FilterGroup label="Sección:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
               value={selectedSeccion}
               onChange={(e) => setSelectedSeccion(Number(e.target.value))}
-              style={{ width: '100%', padding: '0.3rem 0.5rem', fontSize: '0.8rem', height: '28px' }}
+              style={{ width: '100%', padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
             >
               {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
             </select>
           </FilterGroup>
 
           {/* Sexo */}
-          <FilterGroup label="Sexo:" isMobile={isMobile} flex={isMobile ? '1 1 90px' : '0 0 auto'}>
+          <FilterGroup label="Sexo:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
               value={selectedSexo}
               onChange={(e) => setSelectedSexo(e.target.value)}
-              style={{ width: '100%', padding: '0.3rem 0.5rem', fontSize: '0.8rem', height: '28px' }}
+              style={{ width: '100%', padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
             >
               <option value="">Todos</option>
-              <option value="M">Masc.</option>
-              <option value="F">Fem.</option>
+              <option value="M">Masculino</option>
+              <option value="F">Femenino</option>
             </select>
           </FilterGroup>
 
           {/* Asignatura */}
-          <FilterGroup label="Asignatura:" isMobile={isMobile} flex={isMobile ? '1 1 140px' : '0 0 auto'}>
+          <FilterGroup label="Asignatura:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
               value={selectedAsignatura}
               onChange={(e) => setSelectedAsignatura(Number(e.target.value))}
               disabled={asignaturas.length === 0}
-              style={{ width: '100%', padding: '0.3rem 0.5rem', fontSize: '0.8rem', height: '28px' }}
+              style={{ width: '100%', padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
             >
               {asignaturas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
             </select>
           </FilterGroup>
 
           {/* Buscador */}
-          <SearchInput 
-            value={searchTerm} 
-            onChange={setSearchTerm} 
-            placeholder="Buscar..." 
-            isMobile={isMobile} 
-          />
+          <div style={{ flex: isMobile ? '1 1 calc(66.66% - 0.4rem)' : '0 0 auto' }}>
+            <SearchInput 
+              value={searchTerm} 
+              onChange={setSearchTerm} 
+              placeholder="Buscar..." 
+              isMobile={isMobile} 
+            />
+          </div>
         </FilterContainer>
       </div>
       {/* Área de Contenido (Slides) */}
