@@ -811,15 +811,15 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
             </select>
           </FilterGroup>
 
-          {/* Buscador (solo desktop) */}
-          {!isAndroidMobile && (
+          {/* Buscador */}
+          <div style={{ flex: isAndroidMobile ? '1 1 calc(66.66% - 0.4rem)' : '0 0 auto' }}>
             <SearchInput 
               value={searchTerm} 
               onChange={setSearchTerm} 
-              placeholder="Buscar..." 
-              isMobile={false} 
+              placeholder="Buscar estudiante por nombre..." 
+              isMobile={isAndroidMobile} 
             />
-          )}
+          </div>
 
 {/* Botones de Acción */}
         <FilterActions>
@@ -922,13 +922,6 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
           </button>
         </FilterActions>
         </FilterContainer>
-
-        {/* Buscador móvil (fuera del contenedor) */}
-        {isAndroidMobile && (
-          <div style={{ padding: isAndroidMobile ? '0.4rem 0' : '0.2rem 0' }}>
-            <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar estudiante por nombre..." isMobile={isAndroidMobile} />
-          </div>
-        )}
 
         {isAndroidMobile && (
           <div className="asistencia-summary-mobile" style={{ 
