@@ -103,8 +103,8 @@ export function NotasPage() {
     // Forzar orientación horizontal en móviles al entrar a esta página
     const lockOrientation = async () => {
       try {
-        if (window.innerWidth <= 768 && screen.orientation && screen.orientation.lock) {
-          // Forzar a landscape. Usamos ts-ignore por ser una API parcialmente soportada en TS
+        if (window.innerWidth <= 768 && screen.orientation && ('lock' in screen.orientation)) {
+          // Forzar a landscape.
           // @ts-ignore
           await screen.orientation.lock("landscape");
         }
@@ -119,7 +119,8 @@ export function NotasPage() {
       window.removeEventListener('resize', handleResize);
       // Desbloquear al salir para volver a la orientación normal
       try {
-        if (screen.orientation && screen.orientation.unlock) {
+        if (screen.orientation && ('unlock' in screen.orientation)) {
+          // @ts-ignore
           screen.orientation.unlock();
         }
       } catch (err) {
