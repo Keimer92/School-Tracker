@@ -3,7 +3,18 @@ chcp 65001 >nul
 setlocal enabledelayedexpansion
 
 set "SCRIPT_DIR=%~dp0"
-set "ANDROID_HOME=%ANDROID_HOME%"
+
+REM Detectar y configurar ANDROID_HOME si no esta definido o esta vacio en la sesion actual
+if "%ANDROID_HOME%"=="" (
+    if exist "C:\Users\Admin\Android" (
+        set "ANDROID_HOME=C:\Users\Admin\Android"
+    ) else if exist "%LOCALAPPDATA%\Android\Sdk" (
+        set "ANDROID_HOME=%LOCALAPPDATA%\Android\Sdk"
+    ) else if exist "%USERPROFILE%\AppData\Local\Android\Sdk" (
+        set "ANDROID_HOME=%USERPROFILE%\AppData\Local\Android\Sdk"
+    )
+)
+
 set "EMULATOR_PATH=%ANDROID_HOME%\emulator\emulator.exe"
 set "ADB_PATH=%ANDROID_HOME%\platform-tools\adb.exe"
 set "AVDMANAGER=%ANDROID_HOME%\cmdline-tools\latest\bin\avdmanager.bat"
@@ -106,9 +117,15 @@ if "%v%"=="2" set "api=33"
 if "%v%"=="3" set "api=34"
 set /p n="Nombre (ej: android%api%): "
 if "%n%"=="" set "n=android%api%"
-echo y | "%SDKMANAGER%" "system-images;android-%api%;google_apis;x86_64"
-"%AVDMANAGER%" create avd -n "%n%" -k "system-images;android-%api%;google_apis;x86_64"
-echo [OK] Creado!
+echo [INFO] Aceptando todas las licencias del SDK de Android...
+(echo y & echo y & echo y & echo y & echo y & echo y & echo y) | call "%SDKMANAGER%" --licenses >nul 2>&1
+echo [INFO] Descargando imagen de sistema para API %api% (esto puede tardar unos minutos)...
+call "%SDKMANAGER%" "system-images;android-%api%;google_apis;x86_64"
+echo.
+echo [INFO] Creando emulador virtual (AVD)...
+echo no | call "%AVDMANAGER%" create avd -n "%n%" -k "system-images;android-%api%;google_apis;x86_64" --force
+echo.
+echo [OK] Emulador "%n%" creado exitosamente!
 pause
 cls
 goto menu
@@ -118,10 +135,56 @@ cls
 echo ==============================================
 echo ELIMINAR EMULADOR
 echo ==============================================
-"%EMULATOR_PATH%" -list-avds
 echo.
-set /p n="Nombre a eliminar: "
-if not "%n%"=="" "%AVDMANAGER%" delete avd -n "%n%"
+echo Buscando emuladores creados...
+echo.
+
+"%EMULATOR_PATH%" -list-avds > "%TEMP%\avd_list.txt" 2>nul
+
+set "cnt=0"
+for /f "usebackq delims=" %%a in ("%TEMP%\avd_list.txt") do (
+    set /a cnt+=1
+    set "avd_!cnt!=%%a"
+    echo   !cnt!. %%a
+)
+
+echo.
+if %cnt%==0 (
+    echo [ERROR] No se encontraron emuladores para eliminar.
+    echo.
+    pause
+    cls
+    goto menu
+)
+
+set /p sel="Selecciona el numero a eliminar (1-%cnt%): "
+if "%sel%"=="" (
+    cls
+    goto menu
+)
+
+set "selected="
+for /l %%i in (1,1,%cnt%) do (
+    if "%sel%"=="%%i" set "selected=!avd_%%i!"
+)
+
+if "%selected%"=="" (
+    echo.
+    echo [ERROR] Seleccion invalida. Intentalo de nuevo.
+    pause
+    goto delete_emulator
+)
+
+echo.
+echo [WARNING] Estas a punto de eliminar el emulador "%selected%".
+set /p confirm="¿Estas seguro? (s/n): "
+if /i "%confirm%"=="s" (
+    echo [INFO] Eliminando "%selected%"...
+    call "%AVDMANAGER%" delete avd -n "%selected%"
+    echo [OK] Eliminado!
+) else (
+    echo [INFO] Operacion cancelada.
+)
 pause
 cls
 goto menu
@@ -131,12 +194,51 @@ cls
 echo ==============================================
 echo INICIAR EMULADOR
 echo ==============================================
-"%EMULATOR_PATH%" -list-avds
 echo.
-set /p n="Nombre del emulador: "
-if not "%n%"=="" (
-    start "Emulador" cmd /k "\"%EMULATOR_PATH%\" -avd %n%"
+echo Buscando emuladores creados...
+echo.
+
+"%EMULATOR_PATH%" -list-avds > "%TEMP%\avd_list.txt" 2>nul
+
+set "cnt=0"
+for /f "usebackq delims=" %%a in ("%TEMP%\avd_list.txt") do (
+    set /a cnt+=1
+    set "avd_!cnt!=%%a"
+    echo   !cnt!. %%a
 )
+
+echo.
+if %cnt%==0 (
+    echo [ERROR] No se encontraron emuladores creados.
+    echo Crea uno primero usando la opcion 7.
+    echo.
+    pause
+    cls
+    goto menu
+)
+
+set /p sel="Selecciona el numero de emulador (1-%cnt%): "
+if "%sel%"=="" (
+    cls
+    goto menu
+)
+
+set "selected="
+for /l %%i in (1,1,%cnt%) do (
+    if "%sel%"=="%%i" set "selected=!avd_%%i!"
+)
+
+if "%selected%"=="" (
+    echo.
+    echo [ERROR] Seleccion invalida. Intentalo de nuevo.
+    pause
+    goto start_emulator
+)
+
+echo.
+echo [INFO] Iniciando emulador "%selected%" en segundo plano...
+start "" "%EMULATOR_PATH%" -avd %selected%
+echo [OK] Iniciado!
 pause
 cls
 goto menu
@@ -187,7 +289,8 @@ setx ANDROID_NDK_HOME "%ANDROID_HOME%\ndk\27.0.12077973" >nul 2>&1
 REM Verificar NDK
 if not exist "%ANDROID_HOME%\ndk\27.0.12077973\source.properties" (
     echo [INFO] Instalando NDK...
-    echo y | "%SDKMANAGER%" "ndk;27.0.12077973"
+    (echo y & echo y & echo y & echo y & echo y & echo y & echo y) | call "%SDKMANAGER%" --licenses >nul 2>&1
+    echo y | call "%SDKMANAGER%" "ndk;27.0.12077973"
 )
 
 REM Verificar proyecto
