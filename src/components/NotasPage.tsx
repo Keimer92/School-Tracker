@@ -1452,10 +1452,10 @@ onChange={(e) => {
       
 <FilterContainer isMobile={isMobile}>
           {/* Año Lectivo */}
-          <FilterGroup label="Año Lectivo:" isMobile={isMobile} flex="1 1 auto">
+          <FilterGroup label="Año Lectivo:" isMobile={isMobile} flex="0 0 auto">
             <select 
               className="filter-select"
-              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', minWidth: '100px' }}
               value={selectedAno}
               onChange={(e) => setSelectedAno(Number(e.target.value))}
             >
@@ -1464,10 +1464,10 @@ onChange={(e) => {
           </FilterGroup>
           
           {/* Corte */}
-          <FilterGroup label="Corte:" isMobile={isMobile} flex="1 1 auto">
+          <FilterGroup label="Corte:" isMobile={isMobile} flex="0 0 auto">
             <select 
               className="filter-select"
-              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', minWidth: '100px' }}
               value={selectedCorte}
               onChange={(e) => setSelectedCorte(Number(e.target.value))}
             >
@@ -1476,10 +1476,10 @@ onChange={(e) => {
           </FilterGroup>
 
           {/* Colegio */}
-          <FilterGroup label="Colegio:" isMobile={isMobile} flex="1 1 auto">
+          <FilterGroup label="Colegio:" isMobile={isMobile} flex="0 0 auto">
             <select 
               className="filter-select"
-              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', minWidth: '130px' }}
               value={selectedColegio}
               onChange={(e) => setSelectedColegio(Number(e.target.value))}
             >
@@ -1488,10 +1488,10 @@ onChange={(e) => {
           </FilterGroup>
 
           {/* Grado */}
-          <FilterGroup label="Grado:" isMobile={isMobile} flex="1 1 auto">
+          <FilterGroup label="Grado:" isMobile={isMobile} flex="0 0 auto">
             <select 
               className="filter-select"
-              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', minWidth: '100px' }}
               value={selectedGrado}
               onChange={(e) => {
                 const newVal = Number(e.target.value);
@@ -1504,10 +1504,10 @@ onChange={(e) => {
           </FilterGroup>
 
           {/* Sección */}
-          <FilterGroup label="Sección:" isMobile={isMobile} flex="1 1 auto">
+          <FilterGroup label="Sección:" isMobile={isMobile} flex="0 0 auto">
             <select 
               className="filter-select"
-              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', minWidth: '100px' }}
               value={selectedSeccion}
               onChange={(e) => setSelectedSeccion(Number(e.target.value))}
             >
@@ -1516,10 +1516,10 @@ onChange={(e) => {
           </FilterGroup>
 
           {/* Sexo */}
-          <FilterGroup label="Sexo:" isMobile={isMobile} flex="1 1 auto">
+          <FilterGroup label="Sexo:" isMobile={isMobile} flex="0 0 auto">
             <select 
               className="filter-select"
-              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', minWidth: '90px' }}
               value={selectedSexo}
               onChange={(e) => setSelectedSexo(e.target.value)}
             >
@@ -1530,10 +1530,10 @@ onChange={(e) => {
           </FilterGroup>
 
           {/* Asignatura */}
-          <FilterGroup label="Asignatura:" isMobile={isMobile} flex="1 1 auto">
+          <FilterGroup label="Asignatura:" isMobile={isMobile} flex="0 0 auto">
             <select 
               className="filter-select"
-              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', minWidth: '120px' }}
               value={selectedAsignatura}
               onChange={(e) => {
                 const newVal = Number(e.target.value);
@@ -1546,7 +1546,7 @@ onChange={(e) => {
           </FilterGroup>
 
           {/* Buscador */}
-          <div style={{ flex: '1 1 auto', minWidth: '120px' }}>
+          <div style={{ flex: '0 0 auto', minWidth: '150px' }}>
             <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar..." isMobile={isMobile} />
           </div>
 

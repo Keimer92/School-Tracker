@@ -131,9 +131,10 @@ export function FilterActions({ children }: FilterActionsProps) {
     <div style={{ 
       display: 'flex', 
       gap: '0.3rem', 
-      flexWrap: 'wrap', 
+      flexWrap: 'nowrap', 
       alignItems: 'center',
-      marginLeft: 'auto'
+      marginLeft: 'auto',
+      flexShrink: 0
     }}>
       {children}
     </div>
