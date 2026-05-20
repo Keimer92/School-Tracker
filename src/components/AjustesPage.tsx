@@ -950,7 +950,7 @@ export function AjustesPage() {
             <div className="category-header">
               <h3>⚙️ Configuración del Sistema</h3>
             </div>
-            <div style={{ padding: "2rem" }}>
+            <div style={{ padding: isAndroid ? "1rem" : "2rem" }}>
               <div style={{ marginBottom: "2rem" }}>
                 <h4 style={{ margin: "0 0 1rem 0", color: "#e2e8f0" }}>
                   Personalización de Tabla de Notas
@@ -976,9 +976,10 @@ export function AjustesPage() {
                   <div
                     style={{
                       display: "flex",
-                      alignItems: "center",
+                      flexDirection: isAndroid ? "column" : "row",
+                      alignItems: isAndroid ? "stretch" : "center",
                       justifyContent: "space-between",
-                      gap: "2rem",
+                      gap: isAndroid ? "1rem" : "2rem",
                     }}
                   >
                     <div style={{ flex: 1 }}>
@@ -1152,9 +1153,8 @@ export function AjustesPage() {
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns:
-                        "repeat(auto-fit, minmax(140px, 1fr))",
-                      gap: "1rem",
+                      gridTemplateColumns: isAndroid ? "1fr" : "repeat(auto-fit, minmax(140px, 1fr))",
+                      gap: "0.8rem",
                     }}
                   >
                     {[
@@ -1550,7 +1550,7 @@ export function AjustesPage() {
                 </span>
               </h3>
             </div>
-            <div style={{ padding: "1.5rem" }}>
+            <div style={{ padding: isAndroid ? "1rem" : "1.5rem" }}>
               <Auth />
             </div>
             
@@ -1646,8 +1646,8 @@ export function AjustesPage() {
 <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: "1rem",
+                      gridTemplateColumns: isAndroid ? "1fr" : "1fr 1fr",
+                      gap: "1.2rem",
                       alignItems: "start"
                     }}
                   >
@@ -1988,7 +1988,7 @@ export function AjustesPage() {
                       </div>
                     </div>
                     
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: isAndroid ? "1fr" : "1fr 1fr", gap: "12px" }}>
                       <div style={{
                         padding: "12px",
                         background: "rgba(0,0,0,0.2)",
@@ -2384,7 +2384,7 @@ export function AjustesPage() {
             <div className="category-header">
               <h3>🐛 Debugging</h3>
             </div>
-            <div style={{ padding: "2rem" }}>
+            <div style={{ padding: isAndroid ? "1rem" : "2rem" }}>
               <div style={{ marginBottom: "2rem" }}>
                 <h4 style={{ color: "#e2e8f0" }}>
                   Gestión de Datos y Configuración
@@ -2403,7 +2403,7 @@ export function AjustesPage() {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+                  gridTemplateColumns: isAndroid ? "1fr" : "repeat(auto-fit, minmax(280px, 1fr))",
                   gap: "1.5rem",
                   marginBottom: "2rem",
                 }}
@@ -2662,7 +2662,7 @@ export function AjustesPage() {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                    gridTemplateColumns: isAndroid ? "1fr" : "repeat(auto-fit, minmax(220px, 1fr))",
                     gap: "1rem",
                   }}
                 >
