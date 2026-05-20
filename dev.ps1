@@ -98,7 +98,7 @@ try {
         Write-Host "[INFO] Iniciando desarrollo en Windows..." -ForegroundColor Cyan
         Write-Host "[INFO] Servidor: http://localhost:1420" -ForegroundColor Cyan
         Write-Host ""
-        $cmd = "`$host.UI.RawUI.WindowTitle = `"Tauri Windows (Dev)`"; Set-Location `"$ScriptDir`"; npm run tauri dev"
+        $cmd = "`$host.UI.RawUI.WindowTitle = 'Tauri Windows (Dev)'; Set-Location '$ScriptDir'; npm run tauri dev"
         Start-Process powershell -ArgumentList "-NoExit", "-Command", $cmd
     }
 
@@ -220,10 +220,10 @@ try {
         Write-Host ""
         
         Write-Host "[INFO] Iniciando servidor Vite y Android..." -ForegroundColor Cyan
-        $cmdVite = "`$host.UI.RawUI.WindowTitle = `"Vite Dev Server`"; Set-Location `"$ScriptDir`"; npm run dev"
+        $cmdVite = "`$host.UI.RawUI.WindowTitle = 'Vite Dev Server'; Set-Location '$ScriptDir'; npm run dev"
         Start-Process powershell -ArgumentList "-NoExit", "-Command", $cmdVite
         Start-Sleep -Seconds 5
-        $cmdTauri = "`$host.UI.RawUI.WindowTitle = `"Tauri Android (Dev)`"; Set-Location `"$ScriptDir`"; npx tauri android dev"
+        $cmdTauri = "`$host.UI.RawUI.WindowTitle = 'Tauri Android (Dev)'; Set-Location '$ScriptDir'; npx tauri android dev"
         Start-Process powershell -ArgumentList "-NoExit", "-Command", $cmdTauri
     }
 
@@ -244,14 +244,14 @@ try {
         Stop-Process -Name "java" -Force -ErrorAction SilentlyContinue
         
         Write-Host "[INFO] Iniciando Tauri Android..." -ForegroundColor Cyan
-        $cmd = "`$host.UI.RawUI.WindowTitle = `"Tauri Android (Hot Reload)`"; Set-Location `"$ScriptDir`"; npx tauri android dev"
+        $cmd = "`$host.UI.RawUI.WindowTitle = 'Tauri Android (Hot Reload)'; Set-Location '$ScriptDir'; npx tauri android dev"
         Start-Process powershell -ArgumentList "-NoExit", "-Command", $cmd
     }
 
     function Invoke-WindowsBuild {
         Write-Host ""
         Write-Host "[INFO] Compilando Windows (Release)..." -ForegroundColor Cyan
-        $cmd = "`$host.UI.RawUI.WindowTitle = `"Windows Build (Release)`"; Set-Location `"$ScriptDir`"; npm run tauri build"
+        $cmd = "`$host.UI.RawUI.WindowTitle = 'Windows Build (Release)'; Set-Location '$ScriptDir'; npm run tauri build"
         Start-Process powershell -ArgumentList "-NoExit", "-Command", $cmd
         Read-Host "Presione Enter para continuar..."
     }
@@ -259,7 +259,7 @@ try {
     function Invoke-AndroidBuild {
         Write-Host ""
         Write-Host "[INFO] Compilando Android (Release)..." -ForegroundColor Cyan
-        $cmd = "`$host.UI.RawUI.WindowTitle = `"Android Build (Release)`"; Set-Location `"$ScriptDir`"; npm run tauri android build"
+        $cmd = "`$host.UI.RawUI.WindowTitle = 'Android Build (Release)'; Set-Location '$ScriptDir'; npm run tauri android build"
         Start-Process powershell -ArgumentList "-NoExit", "-Command", $cmd
         Read-Host "Presione Enter para continuar..."
     }
