@@ -99,7 +99,33 @@ export function NotasPage() {
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    
+    // Forzar orientación horizontal en móviles al entrar a esta página
+    const lockOrientation = async () => {
+      try {
+        if (window.innerWidth <= 768 && screen.orientation && screen.orientation.lock) {
+          // Forzar a landscape. Usamos ts-ignore por ser una API parcialmente soportada en TS
+          // @ts-ignore
+          await screen.orientation.lock("landscape");
+        }
+      } catch (err) {
+        console.warn("No se pudo bloquear la orientación:", err);
+      }
+    };
+    
+    lockOrientation();
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      // Desbloquear al salir para volver a la orientación normal
+      try {
+        if (screen.orientation && screen.orientation.unlock) {
+          screen.orientation.unlock();
+        }
+      } catch (err) {
+        console.warn("No se pudo desbloquear la orientación:", err);
+      }
+    };
   }, []);
 
 // Refs para filtros (para usar en listeners globales sin problemas de stale closure)
