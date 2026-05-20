@@ -1001,13 +1001,13 @@ export function EstudiantesPage() {
       </style>
       <FilterContainer isMobile={isMobile}>
           {/* Año Lectivo */}
-          <FilterGroup label="Año Lectivo" isMobile={isMobile} flex={isMobile ? '1 1 120px' : '0 0 auto'}>
+          <FilterGroup label="Año Lectivo:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select
               name="anoLectivoId"
               onChange={handleFilterChange}
               value={filters.anoLectivoId}
               className="filter-select"
-              style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem', height: isMobile ? '36px' : '38px' }}
+              style={{ width: '100%', padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
             >
               {anos.map(a => (
                 <option key={a.id} value={a.id}>
@@ -1018,13 +1018,13 @@ export function EstudiantesPage() {
           </FilterGroup>
 
           {/* Colegio */}
-          <FilterGroup label="Colegio" isMobile={isMobile} flex={isMobile ? '1 1 150px' : '0 0 auto'}>
+          <FilterGroup label="Colegio:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select
               name="colegioId"
               onChange={handleFilterChange}
               value={filters.colegioId}
               className="filter-select"
-              style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem', height: isMobile ? '36px' : '38px' }}
+              style={{ width: '100%', padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
             >
               {colegios.map(c => (
                 <option key={c.id} value={c.id}>
@@ -1035,39 +1035,39 @@ export function EstudiantesPage() {
           </FilterGroup>
 
           {/* Grado */}
-          <FilterGroup label="Grado" isMobile={isMobile} flex={isMobile ? '1 1 120px' : '0 0 auto'}>
+          <FilterGroup label="Grado:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               name="gradoId" 
               onChange={handleFilterChange} 
               value={filters.gradoId} 
               className="filter-select"
-              style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem', height: isMobile ? '36px' : '38px' }}
+              style={{ width: '100%', padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
             >
               {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
             </select>
           </FilterGroup>
 
           {/* Sección */}
-          <FilterGroup label="Sección" isMobile={isMobile} flex={isMobile ? '1 1 100px' : '0 0 auto'}>
+          <FilterGroup label="Sección:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               name="seccionId" 
               onChange={handleFilterChange} 
               value={filters.seccionId} 
               className="filter-select"
-              style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem', height: isMobile ? '36px' : '38px' }}
+              style={{ width: '100%', padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
             >
               {secciones.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
             </select>
           </FilterGroup>
 
           {/* Sexo */}
-          <FilterGroup label="Sexo" isMobile={isMobile} flex={isMobile ? '1 1 100px' : '0 0 auto'}>
+          <FilterGroup label="Sexo:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               name="sexo" 
               onChange={handleFilterChange} 
               value={filters.sexo} 
               className="filter-select"
-              style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem', height: isMobile ? '36px' : '38px' }}
+              style={{ width: '100%', padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
             >
               <option value="">Todos</option>
               <option value="M">Masculino</option>
@@ -1081,12 +1081,12 @@ export function EstudiantesPage() {
               className="primary glow-button-primary" 
               onClick={openAddModal} 
               style={{ 
-                height: isMobile ? '36px' : '38px', 
+                height: '28px', 
                 display: 'flex', 
                 alignItems: 'center', 
                 gap: '0.5rem',
-                padding: '0.4rem 1rem',
-                fontSize: '0.85rem',
+                padding: '0.3rem 0.8rem',
+                fontSize: '0.75rem',
                 borderRadius: '10px',
                 border: 'none',
                 color: 'white',
@@ -1102,13 +1102,13 @@ export function EstudiantesPage() {
               onClick={handleImportExcel}
               disabled={isImporting}
               style={{ 
-                height: isMobile ? '36px' : '38px',
-                padding: '0.4rem 1rem', 
+                height: '28px',
+                padding: '0.3rem 0.8rem', 
                 cursor: 'pointer', 
                 display: 'inline-flex', 
                 alignItems: 'center', 
                 gap: '0.5rem',
-                fontSize: '0.85rem',
+                fontSize: '0.75rem',
                 borderRadius: '10px',
                 border: 'none',
                 color: 'white',
@@ -1122,8 +1122,8 @@ export function EstudiantesPage() {
             <button
               onClick={() => setShowImportHelp(true)}
               style={{
-                height: isMobile ? '36px' : '38px',
-                width: isMobile ? '36px' : '38px',
+                height: '28px',
+                width: '28px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -1142,8 +1142,7 @@ export function EstudiantesPage() {
           </FilterActions>
 
           {/* Buscador */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0' : '0.3rem', flex: '1 1 200px' }}>
-            {!isMobile && <label className="input-label" style={{ fontSize: '0.75rem', marginBottom: 0 }}>Buscar Estudiante</label>}
+          <div style={{ flex: isMobile ? '1 1 calc(66.66% - 0.4rem)' : '0 0 auto' }}>
             <SearchInput 
               value={searchTerm} 
               onChange={setSearchTerm} 

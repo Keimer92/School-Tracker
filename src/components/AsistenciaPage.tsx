@@ -726,7 +726,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
         {/* Filtros de Búsqueda */}
         <FilterContainer isMobile={isAndroidMobile} style={{ padding: isAndroidMobile ? '0.5rem' : '0.4rem' }}>
           {/* Fecha */}
-          <FilterGroup label="Fecha:" isMobile={isAndroidMobile} flex={isAndroidMobile ? '1 1 100%' : '0 0 auto'}>
+          <FilterGroup label="Fecha:" isMobile={isAndroidMobile} flex={isAndroidMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <button 
               className={`filter-select ${!isFechaHabilitada ? 'invalid-date' : ''}`}
               style={{ 
@@ -750,7 +750,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
           </FilterGroup>
 
           {/* Año */}
-          <FilterGroup label="Año:" isMobile={isAndroidMobile} flex={isAndroidMobile ? '1 1 40%' : '0 0 auto'}>
+          <FilterGroup label="Año:" isMobile={isAndroidMobile} flex={isAndroidMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select
               className="filter-select"
               style={{ padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroidMobile ? '0.9rem' : '0.75rem', height: isAndroidMobile ? '36px' : '28px', width: '100%' }}
@@ -762,7 +762,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
           </FilterGroup>
 
           {/* Colegio */}
-          <FilterGroup label="Colegio:" isMobile={isAndroidMobile} flex={isAndroidMobile ? '1 1 100%' : '0 0 auto'}>
+          <FilterGroup label="Colegio:" isMobile={isAndroidMobile} flex={isAndroidMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
               style={{ padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroidMobile ? '0.9rem' : '0.75rem', height: isAndroidMobile ? '36px' : '28px', width: '100%' }}
@@ -774,7 +774,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
           </FilterGroup>
 
           {/* Grado */}
-          <FilterGroup label="Grado:" isMobile={isAndroidMobile} flex={isAndroidMobile ? '1 1 30%' : '0 0 auto'}>
+          <FilterGroup label="Grado:" isMobile={isAndroidMobile} flex={isAndroidMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
               style={{ padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroidMobile ? '0.9rem' : '0.75rem', height: isAndroidMobile ? '36px' : '28px', width: '100%' }}
@@ -786,7 +786,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
           </FilterGroup>
 
           {/* Sección */}
-          <FilterGroup label="Sección:" isMobile={isAndroidMobile} flex={isAndroidMobile ? '1 1 30%' : '0 0 auto'}>
+          <FilterGroup label="Sección:" isMobile={isAndroidMobile} flex={isAndroidMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
               style={{ padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroidMobile ? '0.9rem' : '0.75rem', height: isAndroidMobile ? '36px' : '28px', width: '100%' }}
@@ -798,7 +798,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
           </FilterGroup>
 
           {/* Sexo */}
-          <FilterGroup label="Sexo:" isMobile={isAndroidMobile} flex={isAndroidMobile ? '1 1 30%' : '0 0 auto'}>
+          <FilterGroup label="Sexo:" isMobile={isAndroidMobile} flex={isAndroidMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
               style={{ padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem', fontSize: isAndroidMobile ? '0.9rem' : '0.75rem', height: isAndroidMobile ? '36px' : '28px', width: '100%' }}

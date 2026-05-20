@@ -843,7 +843,7 @@ try {
       <div className="category-grid" style={{ display: 'block' }}>
         <FilterContainer isMobile={isMobile} style={{ padding: '0.4rem' }}>
           {/* Período */}
-          <FilterGroup label="Período:" isMobile={isMobile} flex={isMobile ? '1 1 100%' : '0 0 auto'}>
+          <FilterGroup label="Período:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
               style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
@@ -858,7 +858,7 @@ try {
 
           {/* Fecha / Semana / Mes-Año */}
           {periodo !== "mensual" ? (
-            <FilterGroup label={periodo === "diario" ? "Fecha:" : "Semana de:"} isMobile={isMobile} flex={isMobile ? '1 1 100%' : '0 0 auto'}>
+            <FilterGroup label={periodo === "diario" ? "Fecha:" : "Semana de:"} isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
               <input 
                 type="date" 
                 className="filter-select"
@@ -869,7 +869,7 @@ try {
             </FilterGroup>
           ) : (
             <>
-              <FilterGroup label="Mes:" isMobile={isMobile} flex={isMobile ? '1 1 50%' : '0 0 auto'}>
+              <FilterGroup label="Mes:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
                 <select 
                   className="filter-select"
                   style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
@@ -890,7 +890,7 @@ try {
                   <option value={12}>Diciembre</option>
                 </select>
               </FilterGroup>
-              <FilterGroup label="Año:" isMobile={isMobile} flex={isMobile ? '1 1 50%' : '0 0 auto'}>
+              <FilterGroup label="Año:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
                 <select 
                   className="filter-select"
                   style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
@@ -907,7 +907,7 @@ try {
           )}
 
           {/* Año Lectivo */}
-          <FilterGroup label="Año Lectivo:" isMobile={isMobile} flex={isMobile ? '1 1 50%' : '0 0 auto'}>
+          <FilterGroup label="Año Lectivo:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
               style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
@@ -919,7 +919,7 @@ try {
           </FilterGroup>
 
           {/* Colegio */}
-          <FilterGroup label="Colegio:" isMobile={isMobile} flex={isMobile ? '1 1 100%' : '0 0 auto'}>
+          <FilterGroup label="Colegio:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
               style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
@@ -931,7 +931,7 @@ try {
           </FilterGroup>
 
           {/* Grado */}
-          <FilterGroup label="Grado:" isMobile={isMobile} flex={isMobile ? '1 1 50%' : '0 0 auto'}>
+          <FilterGroup label="Grado:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
               style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
@@ -943,7 +943,7 @@ try {
           </FilterGroup>
 
           {/* Sección */}
-          <FilterGroup label="Sección:" isMobile={isMobile} flex={isMobile ? '1 1 50%' : '0 0 auto'}>
+          <FilterGroup label="Sección:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
               style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
@@ -955,7 +955,7 @@ try {
           </FilterGroup>
 
           {/* Sexo */}
-          <FilterGroup label="Sexo:" isMobile={isMobile} flex={isMobile ? '1 1 50%' : '0 0 auto'}>
+          <FilterGroup label="Sexo:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
               style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
@@ -963,13 +963,15 @@ try {
               onChange={(e) => setSelectedSexo(e.target.value)}
             >
               <option value="">Todos</option>
-              <option value="M">M</option>
-              <option value="F">F</option>
+              <option value="M">Masculino</option>
+              <option value="F">Femenino</option>
             </select>
           </FilterGroup>
 
           {/* Buscador */}
-          <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar..." isMobile={isMobile} />
+          <div style={{ flex: isMobile ? '1 1 calc(66.66% - 0.4rem)' : '0 0 auto' }}>
+            <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar..." isMobile={isMobile} />
+          </div>
 
           {/* Botones de Acción */}
           <FilterActions>

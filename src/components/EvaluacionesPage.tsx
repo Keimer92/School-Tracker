@@ -40,6 +40,15 @@ export function EvaluacionesPage() {
   const [loading, setLoading] = useState(false);
   const [isQualitative, setIsQualitative] = useState(false);
 
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   useEffect(() => {
     fetchCatalogs();
   }, []);
@@ -301,12 +310,12 @@ export function EvaluacionesPage() {
     <div className="page-container">
       <div className="category-grid" style={{ display: 'block' }}>
       
-      <FilterContainer isMobile={false}>
+      <FilterContainer isMobile={isMobile}>
           {/* Grado */}
-          <FilterGroup label="Grado" isMobile={false} flex="1 1 120px">
+          <FilterGroup label="Grado:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
-              style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+              style={{ width: '100%', padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
               value={selectedGrado}
               onChange={(e) => setSelectedGrado(Number(e.target.value))}
               aria-label="Seleccionar grado"
@@ -316,10 +325,10 @@ export function EvaluacionesPage() {
           </FilterGroup>
           
           {/* Asignatura */}
-          <FilterGroup label="Asignatura" isMobile={false} flex="1 2 180px">
+          <FilterGroup label="Asignatura:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
-              style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+              style={{ width: '100%', padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
               value={selectedAsignatura}
               onChange={(e) => setSelectedAsignatura(Number(e.target.value))}
               disabled={asignaturas.length === 0}
@@ -331,10 +340,10 @@ export function EvaluacionesPage() {
           </FilterGroup>
 
           {/* Corte */}
-          <FilterGroup label="Corte" isMobile={false} flex="1 1 120px">
+          <FilterGroup label="Corte:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
-              style={{ width: '100%', padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+              style={{ width: '100%', padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
               value={selectedCorte}
               onChange={(e) => setSelectedCorte(Number(e.target.value))}
               aria-label="Seleccionar corte evaluativo"
