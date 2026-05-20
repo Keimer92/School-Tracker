@@ -811,116 +811,89 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
             </select>
           </FilterGroup>
 
-          {/* Buscador */}
-          <div style={{ flex: isAndroidMobile ? '1 1 calc(66.66% - 0.4rem)' : '0 0 auto' }}>
-            <SearchInput 
-              value={searchTerm} 
-              onChange={setSearchTerm} 
-              placeholder="Buscar estudiante por nombre..." 
-              isMobile={isAndroidMobile} 
-            />
+          {/* Buscador y Botones en la misma fila */}
+          <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'flex-end', flex: isAndroidMobile ? '1 1 100%' : '0 0 auto' }}>
+            <div style={{ flex: '1', minWidth: '80px' }}>
+              <SearchInput 
+                value={searchTerm} 
+                onChange={setSearchTerm} 
+                placeholder="Buscar..." 
+                isMobile={isAndroidMobile} 
+              />
+            </div>
+            <button
+              type="button"
+              className="btn-modern btn-save"
+              onClick={handleManualSave}
+              disabled={!hasUnsavedChanges || saving}
+              style={{
+                padding: '0.4rem 0.8rem',
+                fontSize: isAndroidMobile ? '0.75rem' : '0.9rem',
+                height: isAndroidMobile ? '28px' : '42px',
+                backgroundColor: hasUnsavedChanges && !saving ? '#3b82f6' : (saving ? '#059669' : 'rgba(148, 163, 184, 0.5)'),
+                color: '#fff',
+                border: 'none',
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                fontWeight: '600',
+                cursor: hasUnsavedChanges && !saving ? 'pointer' : 'default',
+                transition: 'all 0.3s ease',
+                boxShadow: hasUnsavedChanges && !saving ? '0 4px 14px rgba(59, 130, 246, 0.4)' : 'none',
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
+                opacity: hasUnsavedChanges || saving ? 1 : 0.7
+              }}
+            >
+              {saving ? (
+                <>
+                  <span className="saving-dot"></span>
+                  <span>{isAndroidMobile ? '' : 'Guardando'}</span>
+                </>
+              ) : (
+                <>
+                  <span>💾</span>
+                  <span>{isAndroidMobile ? '' : 'Guardar'}</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              className="btn-modern btn-clear"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                limpiarAsistencia();
+              }}
+              disabled={estudiantes.length === 0}
+              style={{
+                padding: '0.4rem 0.8rem',
+                fontSize: isAndroidMobile ? '0.75rem' : '0.9rem',
+                height: isAndroidMobile ? '28px' : '42px',
+                backgroundColor: estudiantes.length > 0 ? '#ef4444' : 'rgba(148, 163, 184, 0.5)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                fontWeight: '600',
+                cursor: estudiantes.length > 0 ? 'pointer' : 'not-allowed',
+                transition: 'all 0.3s ease',
+                boxShadow: estudiantes.length > 0 ? '0 4px 14px rgba(239, 68, 68, 0.4)' : 'none',
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
+                opacity: estudiantes.length > 0 ? 1 : 0.7
+              }}
+            >
+              <span>🧹</span>
+              <span>{isAndroidMobile ? '' : 'Limpiar'}</span>
+            </button>
           </div>
-
-{/* Botones de Acción */}
-        <FilterActions>
-          <button
-            type="button"
-            className="btn-modern btn-save"
-            onClick={handleManualSave}
-            disabled={!hasUnsavedChanges || saving}
-            style={{
-              padding: '0.6rem 1.2rem',
-              fontSize: '0.9rem',
-              height: '42px',
-              backgroundColor: hasUnsavedChanges && !saving ? '#3b82f6' : (saving ? '#059669' : 'rgba(148, 163, 184, 0.5)'),
-              color: '#fff',
-              border: 'none',
-              borderRadius: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              fontWeight: '600',
-              cursor: hasUnsavedChanges && !saving ? 'pointer' : 'default',
-              transition: 'all 0.3s ease',
-              boxShadow: hasUnsavedChanges && !saving ? '0 4px 14px rgba(59, 130, 246, 0.4)' : 'none',
-              transform: hasUnsavedChanges && !saving ? 'translateY(0)' : 'none',
-              flexShrink: 0,
-              whiteSpace: 'nowrap',
-              opacity: hasUnsavedChanges || saving ? 1 : 0.7
-            }}
-            onMouseEnter={(e) => {
-              if (hasUnsavedChanges && !saving) {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 6px 20px rgba(59, 130, 246, 0.5)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (hasUnsavedChanges && !saving) {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 14px rgba(59, 130, 246, 0.4)';
-              }
-            }}
-          >
-            {saving ? (
-              <>
-                <span className="saving-dot"></span>
-                <span>Guardando...</span>
-              </>
-            ) : (
-              <>
-                <span>💾</span>
-                <span>Guardar</span>
-              </>
-            )}
-          </button>
-
-          <button
-            type="button"
-            className="btn-modern btn-clear"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              limpiarAsistencia();
-            }}
-            disabled={estudiantes.length === 0}
-            style={{
-              padding: '0.6rem 1.2rem',
-              fontSize: '0.9rem',
-              height: '42px',
-              backgroundColor: estudiantes.length > 0 ? '#ef4444' : 'rgba(148, 163, 184, 0.5)',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              fontWeight: '600',
-              cursor: estudiantes.length > 0 ? 'pointer' : 'not-allowed',
-              transition: 'all 0.3s ease',
-              boxShadow: estudiantes.length > 0 ? '0 4px 14px rgba(239, 68, 68, 0.4)' : 'none',
-              transform: estudiantes.length > 0 ? 'translateY(0)' : 'none',
-              flexShrink: 0,
-              opacity: estudiantes.length > 0 ? 1 : 0.7
-            }}
-            onMouseEnter={(e) => {
-              if (estudiantes.length > 0) {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 6px 20px rgba(239, 68, 68, 0.5)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (estudiantes.length > 0) {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 4px 14px rgba(239, 68, 68, 0.4)';
-              }
-            }}
-          >
-            <span>🧹</span>
-            <span>Limpiar</span>
-          </button>
-        </FilterActions>
         </FilterContainer>
 
         {isAndroidMobile && (
