@@ -1224,7 +1224,7 @@ try {
             )}
           </div>
         ) : periodo === "diario" ? (
-          <table className="custom-table" style={{ width: '100%', margin: '0' }}>
+          <table className="custom-table" style={{ width: '100%', margin: '0', overflow: 'visible' }}>
             <thead>
               <tr>
                 <th style={{ width: '30px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>#</th>
@@ -1298,7 +1298,7 @@ try {
             </tbody>
           </table>
         ) : (
-          <table className="custom-table" style={{ width: '100%', margin: '0' }}>
+          <table className="custom-table" style={{ width: '100%', margin: '0', overflow: 'visible' }}>
             <thead>
               <tr>
                 <th style={{ width: '30px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>#</th>
