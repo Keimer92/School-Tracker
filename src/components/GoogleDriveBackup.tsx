@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
+import { ConfirmDialog } from './ConfirmDialog';
 
 const DEFAULT_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 const DEFAULT_CLIENT_SECRET = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
@@ -54,6 +55,13 @@ export const GoogleDriveBackup: React.FC = () => {
     const [isFetchingFiles, setIsFetchingFiles] = useState(false);
     const [backupProgress, setBackupProgress] = useState<'idle' | 'backing_up' | 'uploading' | 'done'>('idle');
     const [progressBytes, setProgressBytes] = useState({ loaded: 0, total: 0 });
+    const [confirmDialog, setConfirmDialog] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        variant: 'danger' | 'warning' | 'info';
+        onConfirm: () => void;
+    }>({ isOpen: false, title: '', message: '', variant: 'danger', onConfirm: () => {} });
 
     useEffect(() => {
         const stored = localStorage.getItem(STORAGE_KEY);
@@ -218,24 +226,31 @@ export const GoogleDriveBackup: React.FC = () => {
     };
 
     const handleGoogleDisconnect = () => {
-        if (window.confirm('¿Estás seguro de que deseas desvincular tu cuenta de Google Drive?')) {
-            const cleared: GoogleDriveSettings = {
-                clientId: DEFAULT_CLIENT_ID,
-                backupEnabled: false,
-                backupInterval: 12,
-                lastBackupTime: null,
-                accessToken: null,
-                refreshToken: null,
-                tokenExpiry: null,
-                deviceName: settings.deviceName,
-                googleUserEmail: null,
-                googleUserName: null,
-                googleUserProfilePic: null,
-            };
-            saveSettings(cleared);
-            setDriveFiles([]);
-            emit("show-toast", { message: 'Cuenta desvinculada correctamente.', type: "success" });
-        }
+        setConfirmDialog({
+            isOpen: true,
+            title: 'Desvincular Cuenta',
+            message: '¿Estás seguro de que deseas desvincular tu cuenta de Google Drive? Se perderá la conexión automática de respaldos.',
+            variant: 'warning',
+            onConfirm: () => {
+                setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                const cleared: GoogleDriveSettings = {
+                    clientId: DEFAULT_CLIENT_ID,
+                    backupEnabled: false,
+                    backupInterval: 12,
+                    lastBackupTime: null,
+                    accessToken: null,
+                    refreshToken: null,
+                    tokenExpiry: null,
+                    deviceName: settings.deviceName,
+                    googleUserEmail: null,
+                    googleUserName: null,
+                    googleUserProfilePic: null,
+                };
+                saveSettings(cleared);
+                setDriveFiles([]);
+                emit("show-toast", { message: 'Cuenta desvinculada correctamente.', type: "success" });
+            },
+        });
     };
 
     const getOrCreateBackupFolder = async (token: string): Promise<string> => {
@@ -396,12 +411,19 @@ export const GoogleDriveBackup: React.FC = () => {
     };
 
     const handleRestoreBackup = async (file: GoogleDriveFile) => {
-        const confirmRestore = window.confirm(
-            `¿Estás seguro de que deseas restaurar el respaldo del dispositivo "${file.device}" creado el ${new Date(file.createdTime).toLocaleString()}?\n\nEsto reemplazará COMPLETAMENTE tu base de datos actual.`
-        );
+        setConfirmDialog({
+            isOpen: true,
+            title: 'Restaurar Respaldo',
+            message: `¿Estás seguro de que deseas restaurar el respaldo del dispositivo "${file.device}" creado el ${new Date(file.createdTime).toLocaleString()}?\n\nEsto reemplazará COMPLETAMENTE tu base de datos actual.`,
+            variant: 'danger',
+            onConfirm: async () => {
+                setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                await executeRestoreBackup(file);
+            },
+        });
+    };
 
-        if (!confirmRestore) return;
-
+    const executeRestoreBackup = async (file: GoogleDriveFile) => {
         const token = await refreshAccessTokenIfNeeded(settings);
         if (!token) return;
 
@@ -473,8 +495,19 @@ export const GoogleDriveBackup: React.FC = () => {
     };
 
     const handleDeleteDriveBackup = async (file: GoogleDriveFile) => {
-        if (!window.confirm('¿Eliminar este respaldo de Google Drive?')) return;
+        setConfirmDialog({
+            isOpen: true,
+            title: 'Eliminar Respaldo',
+            message: '¿Eliminar este respaldo de Google Drive? Esta acción no se puede deshacer.',
+            variant: 'danger',
+            onConfirm: async () => {
+                setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                await executeDeleteDriveBackup(file);
+            },
+        });
+    };
 
+    const executeDeleteDriveBackup = async (file: GoogleDriveFile) => {
         const token = await refreshAccessTokenIfNeeded(settings);
         if (!token) return;
 
@@ -511,7 +544,16 @@ export const GoogleDriveBackup: React.FC = () => {
     const isConnected = !!settings.refreshToken;
 
     return (
-        <div style={{ 
+        <>
+            <ConfirmDialog
+                isOpen={confirmDialog.isOpen}
+                title={confirmDialog.title}
+                message={confirmDialog.message}
+                variant={confirmDialog.variant}
+                onConfirm={confirmDialog.onConfirm}
+                onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+            />
+            <div style={{ 
             background: 'rgba(30, 41, 59, 0.5)', 
             borderRadius: '16px', 
             border: '1px solid rgba(255, 255, 255, 0.1)',
@@ -960,6 +1002,7 @@ export const GoogleDriveBackup: React.FC = () => {
                 <span style={{ fontSize: '0.65rem', color: '#475569', fontStyle: 'italic' }}>Google Drive API v3</span>
             </div>
         </div>
+        </>
     );
 };
 

@@ -705,26 +705,124 @@ async fn gd_start_oauth_server(port: u16) -> Result<String, String> {
         }
         
         let html = r#"<!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>School Tracker Pro - Vinculación Exitosa</title>
+    <title>Conexión Exitosa</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; padding: 1rem; }
-        .card { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); padding: 3rem; border-radius: 2rem; text-align: center; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4); border: 1px solid rgba(51, 65, 85, 0.6); max-width: 450px; width: 100%; }
-        .icon { font-size: 4rem; color: #10b981; margin-bottom: 1.5rem; }
-        h1 { color: #ffffff; margin-top: 0; font-size: 1.8rem; font-weight: 800; }
-        p { color: #94a3b8; font-size: 0.95rem; line-height: 1.6; margin-bottom: 2rem; }
-        .badge { display: inline-block; padding: 0.5rem 1.5rem; background: rgba(16, 185, 129, 0.15); color: #34d399; border-radius: 9999px; font-weight: 700; font-size: 0.8rem; text-transform: uppercase; }
+        body { 
+            margin: 0; 
+            min-height: 100vh; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            background: #0f172a; 
+            font-family: system-ui, -apple-system, sans-serif;
+            overflow: hidden;
+        }
+        .bg-gradient {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.15), transparent 70%);
+            pointer-events: none;
+        }
+        .card {
+            position: relative;
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 3rem 2.5rem;
+            text-align: center;
+            max-width: 420px;
+            width: 90%;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            animation: slideUp 0.6s ease-out;
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .icon-wrapper {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 1.5rem;
+            background: linear-gradient(135deg, #10b981, #059669);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.4); }
+            50% { box-shadow: 0 0 30px rgba(16, 185, 129, 0.6); }
+        }
+        .check-icon {
+            width: 40px;
+            height: 40px;
+            stroke: white;
+            stroke-width: 3;
+            fill: none;
+            stroke-dasharray: 50;
+            stroke-dashoffset: 50;
+            animation: drawCheck 0.5s 0.3s forwards ease-in-out;
+        }
+        @keyframes drawCheck {
+            to { stroke-dashoffset: 0; }
+        }
+        h1 {
+            color: #f8fafc;
+            font-size: 1.75rem;
+            font-weight: 800;
+            margin: 0 0 0.75rem;
+            letter-spacing: -0.02em;
+        }
+        p {
+            color: #94a3b8;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin: 0 0 1.5rem;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: 9999px;
+            color: #34d399;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .badge::before {
+            content: '';
+            width: 6px;
+            height: 6px;
+            background: #10b981;
+            border-radius: 50%;
+        }
     </style>
 </head>
 <body>
+    <div class="bg-gradient"></div>
     <div class="card">
-        <div class="icon">✓</div>
-        <h1>¡Vinculación Exitosa!</h1>
-        <p>School Tracker Pro se ha conectado correctamente con tu cuenta de Google Drive.</p>
-        <span class="badge">Conexión Segura</span>
+        <div class="icon-wrapper">
+            <svg class="check-icon" viewBox="0 0 24 24">
+                <polyline points="4 12 9 17 20 6"></polyline>
+            </svg>
+        </div>
+        <h1>¡Conexión Exitosa!</h1>
+        <p>Tu cuenta de Google Drive se ha vinculado correctamente con School Tracker Pro.</p>
+        <span class="badge">Seguro y Cifrado</span>
     </div>
 </body>
 </html>"#;
