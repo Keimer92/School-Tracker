@@ -1137,255 +1137,248 @@ try {
 )}
 
 
-
-      {/* Tabla de Resultados o Estado Vacío */}
-      <div className="table-container" style={{
-          width: '100%',
-          padding: '0',
-          maxHeight: isMobile ? 'calc(100vh - 320px)' : 'calc(100vh - 260px)',
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          WebkitOverflowScrolling: 'touch',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center'
-        }}>
-          {/* Tarjetas de Resumen */}
-          {!isMobile && reporteFiltrado.length > 0 && (
-            <div className="asistencia-summary" style={{ margin: '0.5rem 0', padding: '0 0.4rem', width: '100%', maxWidth: '100%' }}>
-              <div 
-                className="summary-card students"
-                onClick={() => handleCardClick('Total', statsTotal)}
-                style={{ cursor: 'pointer' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 'bold', fontSize: '0.95rem' }}>
-                  <span><span style={{ color: '#06b6d4' }}>E</span>: {statsTotal.total}</span>
-                  <span className="gender-m" style={{ marginLeft: '2px' }}>M: {statsTotal.m}</span>
-                  <span className="gender-f" style={{ marginLeft: '2px' }}>F: {statsTotal.f}</span>
-                </div>
-              </div>
-
-              <div 
-                className="summary-card p"
-                onClick={() => handleCardClick('Presentes', statsP)}
-                style={{ cursor: 'pointer' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 'bold', fontSize: '0.95rem' }}>
-                  <span><span style={{ color: '#10b981' }}>P</span>: {statsP.total}</span>
-                  <span className="gender-m" style={{ marginLeft: '2px' }}>M: {statsP.m}</span>
-                  <span className="gender-f" style={{ marginLeft: '2px' }}>F: {statsP.f}</span>
-                </div>
-              </div>
-
-              <div 
-                className="summary-card a"
-                onClick={() => handleCardClick('Ausentes', statsA)}
-                style={{ cursor: 'pointer' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 'bold', fontSize: '0.95rem' }}>
-                  <span><span style={{ color: '#ef4444' }}>A</span>: {statsA.total}</span>
-                  <span className="gender-m" style={{ marginLeft: '2px' }}>M: {statsA.m}</span>
-                  <span className="gender-f" style={{ marginLeft: '2px' }}>F: {statsA.f}</span>
-                </div>
-              </div>
-
-              <div 
-                className="summary-card j"
-                onClick={() => handleCardClick('Justificados', statsJ)}
-                style={{ cursor: 'pointer' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 'bold', fontSize: '0.95rem' }}>
-                  <span><span style={{ color: '#f59e0b' }}>J</span>: {statsJ.total}</span>
-                  <span className="gender-m" style={{ marginLeft: '2px' }}>M: {statsJ.m}</span>
-                  <span className="gender-f" style={{ marginLeft: '2px' }}>F: {statsJ.f}</span>
-                </div>
-              </div>
+      {/* Tarjetas de Resumen - FUERA del scroll */}
+      {!isMobile && reporteFiltrado.length > 0 && (
+        <div className="asistencia-summary" style={{ margin: '0.5rem 0', padding: '0 0.4rem', width: '100%', maxWidth: '100%' }}>
+          <div
+            className="summary-card students"
+            onClick={() => handleCardClick('Total', statsTotal)}
+            style={{ cursor: 'pointer' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 'bold', fontSize: '0.95rem' }}>
+              <span><span style={{ color: '#06b6d4' }}>E</span>: {statsTotal.total}</span>
+              <span className="gender-m" style={{ marginLeft: '2px' }}>M: {statsTotal.m}</span>
+              <span className="gender-f" style={{ marginLeft: '2px' }}>F: {statsTotal.f}</span>
             </div>
-          )}
+          </div>
 
-          <div style={{ width: '100%', overflowX: 'auto' }}>
-          {loading ? (
-            <div className="loading-container">Cargando reporte...</div>
-          ) : reporteFiltrado.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '5rem 2rem', border: '2px dashed rgba(255, 255, 255, 0.1)', borderRadius: '16px', margin: '0 1rem' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>{searchTerm ? '🔍' : '📊'}</div>
-              <h4 style={{ color: '#cbd5e1', marginBottom: '0.5rem' }}>
-                {searchTerm ? 'No se encontraron resultados' : 'No hay datos para mostrar'}
-              </h4>
-              <p style={{ color: '#94a3b8', maxWidth: '400px', margin: '0 auto' }}>
-                {searchTerm 
-                  ? `No se encontró ningún estudiante que coincida con "${searchTerm}"`
-                  : 'No se encontraron registros de asistencia para los filtros seleccionados (Año, Colegio, Grado, Sección, Rango de fechas).'}
-              </p>
-              {searchTerm && (
-                <button 
-                  className="secondary" 
-                  onClick={() => setSearchTerm("")}
-                  style={{ marginTop: '1.5rem', padding: '0.5rem 1rem' }}
-                >
-                  Limpiar búsqueda
-                </button>
-              )}
+          <div
+            className="summary-card p"
+            onClick={() => handleCardClick('Presentes', statsP)}
+            style={{ cursor: 'pointer' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 'bold', fontSize: '0.95rem' }}>
+              <span><span style={{ color: '#10b981' }}>P</span>: {statsP.total}</span>
+              <span className="gender-m" style={{ marginLeft: '2px' }}>M: {statsP.m}</span>
+              <span className="gender-f" style={{ marginLeft: '2px' }}>F: {statsP.f}</span>
             </div>
-          ) : periodo === "diario" ? (
-            /* Vista simplificada para modo Diario (similar a AsistenciaPage) */
-            <table className="custom-table" style={{ width: '100%', margin: '0', tableLayout: 'auto' }}>
-              <thead>
-                <tr>
-                  <th style={{ width: '30px' }}>#</th>
-                  <th style={{ textAlign: 'left' }}>Estudiante</th>
-                  <th style={{ width: '100px' }}>Asistencia</th>
-                  <th style={{ width: '65px', textAlign: 'center' }}>Obs</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reporteFiltrado.map((item, index) => {
-                  const estado = getEstadoEnFecha(item, fechaInicio);
-                  return (
-                    <tr key={item.id}>
-                      <td>
-                        <span className="student-number-badge">{index + 1}</span>
-                      </td>
-                      <td style={{ textAlign: 'left', overflow: 'hidden' }}>
-                        <div 
-                          className="student-name-container" 
-                          style={{ 
-                            fontWeight: 'bold', 
-                            cursor: 'pointer', 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: '6px',
-                            width: '100%'
-                          }}
-                          onClick={() => setSelectedStudentDetail(item)}
-                        >
-                          <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{item.sexo === 'F' ? '👩' : '👨'}</span>
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nombre}</span>
-                        </div>
-                        <div style={{ fontSize: '0.7rem', opacity: 0.6, marginLeft: '22px' }}>{item.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
-                      </td>
-                      <td>
-                        <div className="asistencia-options-mobile" style={{ pointerEvents: isAndroid ? 'none' : 'auto', opacity: isAndroid ? 0.8 : 1 }}>
-                          <div className={`asistencia-opt ${estado === 'P' ? 'active p' : ''}`}>
-                            <span>P</span>
-                          </div>
-                          <div className={`asistencia-opt ${estado === 'A' ? 'active a' : ''}`}>
-                            <span>A</span>
-                          </div>
-                          <div className={`asistencia-opt ${estado === 'J' ? 'active j' : ''}`}>
-                            <span>J</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td style={{ textAlign: 'center', padding: '0.2rem' }}>
-                        {getObservacionEnFecha(item, fechaInicio) ? (
-                          <button 
-                            className="obs-toggle-btn has-obs"
-                            onClick={() => emit("show-toast", { message: `Observación de ${item.nombre}: ${getObservacionEnFecha(item, fechaInicio)}`, type: 'info' })}
-                            title="Ver observación"
-                          >
-                            📝
-                          </button>
-                        ) : (
-                          <button 
-                            className="obs-toggle-btn"
-                            disabled
-                            style={{ opacity: 0.3, cursor: 'default', background: 'transparent', boxShadow: 'none', border: '1px solid rgba(255,255,255,0.05)' }}
-                            title={estado === '-' ? "Sin registro" : "Sin observaciones"}
-                          >
-                            💬
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          ) : (
-            /* Vista de rango para Semanal/Mensual */
-            <table className="custom-table" style={{ width: '100%', margin: '0' }}>
-              <thead>
-                <tr>
-                  <th style={{ width: '30px' }}>#</th>
-                  <th style={{ textAlign: 'left' }}>Estudiante</th>
-                  {fechasColumnas.map(f => (
-                    <th key={f} style={{ fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
-                      <div style={{ fontSize: '0.6rem', opacity: 0.7 }}>
-                        {new Date(f + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short' })}
-                      </div>
-                      {f.split('-').slice(1).reverse().join('/')}
-                    </th>
-                  ))}
-                  <th style={{ width: '30px' }}>P</th>
-                  <th style={{ width: '30px' }}>A</th>
-                  <th style={{ width: '30px' }}>J</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reporteFiltrado.map((item, index) => {
-                  const p = item.fechas.filter(f => f.endsWith(':P')).length;
-                  const a = item.fechas.filter(f => f.endsWith(':A')).length;
-                  const j = item.fechas.filter(f => f.endsWith(':J')).length;
-                  
-                  return (
-                    <tr key={item.id}>
-                      <td>
-                        <span className="student-number-badge">{index + 1}</span>
-                      </td>
-                      <td style={{ textAlign: 'left', overflow: 'hidden' }}>
-                        <div 
-                          className="student-name-container" 
-                          style={{ 
-                            fontWeight: 'bold', 
-                            cursor: 'pointer', 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: '6px',
-                            width: '100%'
-                          }}
-                          onClick={() => setSelectedStudentDetail(item)}
-                        >
-                          <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{item.sexo === 'F' ? '👩' : '👨'}</span>
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nombre}</span>
-                        </div>
-                        <div style={{ fontSize: '0.7rem', opacity: 0.6, marginLeft: '22px' }}>{item.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
-                      </td>
-                      {fechasColumnas.map(f => {
-                        const estado = getEstadoEnFecha(item, f);
-                        return (
-                          <td key={f} style={{ 
-                            color: getEstadoColor(estado), 
-                            fontWeight: 'bold',
-                            fontSize: '0.8rem'
-                          }}>
-                            <span style={{
-                              display: 'inline-block',
-                              width: '24px',
-                              height: '24px',
-                              lineHeight: '24px',
-                              borderRadius: '4px',
-                              backgroundColor: getEstadoColor(estado),
-                              color: estado === '-' ? 'rgba(255,255,255,0.2)' : 'white',
-                              fontSize: '0.8rem',
-                              fontWeight: 'bold'
-                            }}>
-                              {estado}
-                            </span>
-                          </td>
-                        );
-                      })}
-                      <td style={{ color: '#4caf50', fontWeight: 'bold' }}>{p}</td>
-                      <td style={{ color: '#f44336', fontWeight: 'bold' }}>{a}</td>
-                      <td style={{ color: '#ff9800', fontWeight: 'bold' }}>{j}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-</table>
+          </div>
+
+          <div
+            className="summary-card a"
+            onClick={() => handleCardClick('Ausentes', statsA)}
+            style={{ cursor: 'pointer' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 'bold', fontSize: '0.95rem' }}>
+              <span><span style={{ color: '#ef4444' }}>A</span>: {statsA.total}</span>
+              <span className="gender-m" style={{ marginLeft: '2px' }}>M: {statsA.m}</span>
+              <span className="gender-f" style={{ marginLeft: '2px' }}>F: {statsA.f}</span>
+            </div>
+          </div>
+
+          <div
+            className="summary-card j"
+            onClick={() => handleCardClick('Justificados', statsJ)}
+            style={{ cursor: 'pointer' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 'bold', fontSize: '0.95rem' }}>
+              <span><span style={{ color: '#f59e0b' }}>J</span>: {statsJ.total}</span>
+              <span className="gender-m" style={{ marginLeft: '2px' }}>M: {statsJ.m}</span>
+              <span className="gender-f" style={{ marginLeft: '2px' }}>F: {statsJ.f}</span>
+            </div>
+          </div>
+        </div>
       )}
-    </div>
-    </div>
+
+      {/* Tabla de Resultados con scroll interno */}
+      <div className="table-container" style={{
+        width: '100%',
+        padding: '0',
+        maxHeight: isMobile ? 'calc(100vh - 320px)' : 'calc(100vh - 260px)',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        WebkitOverflowScrolling: 'touch',
+        display: 'block'
+      }}>
+        {loading ? (
+          <div className="loading-container">Cargando reporte...</div>
+        ) : reporteFiltrado.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '5rem 2rem', border: '2px dashed rgba(255, 255, 255, 0.1)', borderRadius: '16px', margin: '0 1rem' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>{searchTerm ? '🔍' : '📊'}</div>
+            <h4 style={{ color: '#cbd5e1', marginBottom: '0.5rem' }}>
+              {searchTerm ? 'No se encontraron resultados' : 'No hay datos para mostrar'}
+            </h4>
+            <p style={{ color: '#94a3b8', maxWidth: '400px', margin: '0 auto' }}>
+              {searchTerm
+                ? `No se encontró ningún estudiante que coincida con "${searchTerm}"`
+                : 'No se encontraron registros de asistencia para los filtros seleccionados (Año, Colegio, Grado, Sección, Rango de fechas).'}
+            </p>
+            {searchTerm && (
+              <button
+                className="secondary"
+                onClick={() => setSearchTerm("")}
+                style={{ marginTop: '1.5rem', padding: '0.5rem 1rem' }}
+              >
+                Limpiar búsqueda
+              </button>
+            )}
+          </div>
+        ) : periodo === "diario" ? (
+          <table className="custom-table" style={{ width: '100%', margin: '0' }}>
+            <thead>
+              <tr>
+                <th style={{ width: '30px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>#</th>
+                <th style={{ textAlign: 'left', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Estudiante</th>
+                <th style={{ width: '100px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Asistencia</th>
+                <th style={{ width: '65px', textAlign: 'center', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Obs</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reporteFiltrado.map((item, index) => {
+                const estado = getEstadoEnFecha(item, fechaInicio);
+                return (
+                  <tr key={item.id}>
+                    <td>
+                      <span className="student-number-badge">{index + 1}</span>
+                    </td>
+                    <td style={{ textAlign: 'left', overflow: 'hidden' }}>
+                      <div
+                        className="student-name-container"
+                        style={{
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          width: '100%'
+                        }}
+                        onClick={() => setSelectedStudentDetail(item)}
+                      >
+                        <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{item.sexo === 'F' ? '👩' : '👨'}</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nombre}</span>
+                      </div>
+                      <div style={{ fontSize: '0.7rem', opacity: 0.6, marginLeft: '22px' }}>{item.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
+                    </td>
+                    <td>
+                      <div className="asistencia-options-mobile" style={{ pointerEvents: isAndroid ? 'none' : 'auto', opacity: isAndroid ? 0.8 : 1 }}>
+                        <div className={`asistencia-opt ${estado === 'P' ? 'active p' : ''}`}>
+                          <span>P</span>
+                        </div>
+                        <div className={`asistencia-opt ${estado === 'A' ? 'active a' : ''}`}>
+                          <span>A</span>
+                        </div>
+                        <div className={`asistencia-opt ${estado === 'J' ? 'active j' : ''}`}>
+                          <span>J</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ textAlign: 'center', padding: '0.2rem' }}>
+                      {getObservacionEnFecha(item, fechaInicio) ? (
+                        <button
+                          className="obs-toggle-btn has-obs"
+                          onClick={() => emit("show-toast", { message: `Observación de ${item.nombre}: ${getObservacionEnFecha(item, fechaInicio)}`, type: 'info' })}
+                          title="Ver observación"
+                        >
+                          📝
+                        </button>
+                      ) : (
+                        <button
+                          className="obs-toggle-btn"
+                          disabled
+                          style={{ opacity: 0.3, cursor: 'default', background: 'transparent', boxShadow: 'none', border: '1px solid rgba(255,255,255,0.05)' }}
+                          title={estado === '-' ? "Sin registro" : "Sin observaciones"}
+                        >
+                          💬
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        ) : (
+          <table className="custom-table" style={{ width: '100%', margin: '0' }}>
+            <thead>
+              <tr>
+                <th style={{ width: '30px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>#</th>
+                <th style={{ textAlign: 'left', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Estudiante</th>
+                {fechasColumnas.map(f => (
+                  <th key={f} style={{ fontSize: '0.7rem', whiteSpace: 'nowrap', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>
+                    <div style={{ fontSize: '0.6rem', opacity: 0.7 }}>
+                      {new Date(f + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short' })}
+                    </div>
+                    {f.split('-').slice(1).reverse().join('/')}
+                  </th>
+                ))}
+                <th style={{ width: '30px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>P</th>
+                <th style={{ width: '30px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>A</th>
+                <th style={{ width: '30px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>J</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reporteFiltrado.map((item, index) => {
+                const p = item.fechas.filter(f => f.endsWith(':P')).length;
+                const a = item.fechas.filter(f => f.endsWith(':A')).length;
+                const j = item.fechas.filter(f => f.endsWith(':J')).length;
+
+                return (
+                  <tr key={item.id}>
+                    <td>
+                      <span className="student-number-badge">{index + 1}</span>
+                    </td>
+                    <td style={{ textAlign: 'left', overflow: 'hidden' }}>
+                      <div
+                        className="student-name-container"
+                        style={{
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          width: '100%'
+                        }}
+                        onClick={() => setSelectedStudentDetail(item)}
+                      >
+                        <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{item.sexo === 'F' ? '👩' : '👨'}</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nombre}</span>
+                      </div>
+                      <div style={{ fontSize: '0.7rem', opacity: 0.6, marginLeft: '22px' }}>{item.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
+                    </td>
+                    {fechasColumnas.map(f => {
+                      const estado = getEstadoEnFecha(item, f);
+                      return (
+                        <td key={f} style={{
+                          color: getEstadoColor(estado),
+                          fontWeight: 'bold',
+                          fontSize: '0.8rem'
+                        }}>
+                          <span style={{
+                            display: 'inline-block',
+                            width: '24px',
+                            height: '24px',
+                            lineHeight: '24px',
+                            borderRadius: '4px',
+                            backgroundColor: getEstadoColor(estado),
+                            color: estado === '-' ? 'rgba(255,255,255,0.2)' : 'white',
+                            fontSize: '0.8rem',
+                            fontWeight: 'bold'
+                          }}>
+                            {estado}
+                          </span>
+                        </td>
+                      );
+                    })}
+                    <td style={{ color: '#4caf50', fontWeight: 'bold' }}>{p}</td>
+                    <td style={{ color: '#f44336', fontWeight: 'bold' }}>{a}</td>
+                    <td style={{ color: '#ff9800', fontWeight: 'bold' }}>{j}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
     {/* Modal de Detalles de Resumen */}
       {showSummaryModal.show && createPortal(
