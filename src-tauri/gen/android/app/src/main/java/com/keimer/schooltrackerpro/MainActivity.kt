@@ -12,6 +12,7 @@ import android.webkit.WebViewClient
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.activity.result.contract.ActivityResultContracts
 import java.io.File
 
 class MainActivity : TauriActivity() {
@@ -23,6 +24,25 @@ class MainActivity : TauriActivity() {
       val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
       view.setPadding(insets.left, insets.top, insets.right, insets.bottom)
       WindowInsetsCompat.CONSUMED
+    }
+
+    handleIntent(intent)
+  }
+
+  override fun onNewIntent(intent: Intent?) {
+    super.onNewIntent(intent)
+    handleIntent(intent)
+  }
+
+  private fun handleIntent(intent: Intent?) {
+    if (intent?.data != null) {
+      val uri = intent.data!!
+      if (uri.scheme == "http" && uri.host == "127.0.0.1" && uri.path == "/callback") {
+        val code = uri.getQueryParameter("code")
+        if (code != null) {
+          emit("oauth-callback-android", code)
+        }
+      }
     }
   }
 
