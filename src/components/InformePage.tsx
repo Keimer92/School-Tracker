@@ -1229,7 +1229,7 @@ try {
             </div>
           ) : periodo === "diario" ? (
             /* Vista simplificada para modo Diario (similar a AsistenciaPage) */
-            <table className="custom-table" style={{ margin: '0.5rem auto 1.5rem auto', tableLayout: 'fixed' }}>
+            <table className="custom-table" style={{ width: '100%', margin: '0', tableLayout: 'auto' }}>
               <thead>
                 <tr>
                   <th style={{ width: '30px' }}>#</th>
@@ -1304,7 +1304,7 @@ try {
             </table>
           ) : (
             /* Vista de rango para Semanal/Mensual */
-            <table className="custom-table" style={{ margin: '0.5rem auto 1.5rem auto' }}>
+            <table className="custom-table" style={{ width: '100%', margin: '0' }}>
               <thead>
                 <tr>
                   <th style={{ width: '30px' }}>#</th>

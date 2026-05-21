@@ -1039,24 +1039,9 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
           </div>
         )}
 
-      {/* Información del Reporte ocultada por solicitud del usuario */}
-
-
-
-        <div className="table-container" style={{
-          width: '100%',
-          padding: '0',
-          maxHeight: isAndroidMobile ? 'calc(100vh - 300px)' : 'calc(100vh - 240px)',
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          WebkitOverflowScrolling: 'touch',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center'
-        }}>
-        {/* Resumen de Asistencia */}
-        {!isAndroidMobile && (
-          <div className="asistencia-summary" style={{ margin: '0.5rem 0', padding: '0 0.4rem', width: '100%', maxWidth: '100%' }}>
+      {/* Resumen de Asistencia - FUERA del scroll */}
+      {!isAndroidMobile && filteredEstudiantes.length > 0 && (
+        <div className="asistencia-summary" style={{ margin: '0.5rem 0', padding: '0 0.4rem', width: '100%', maxWidth: '100%' }}>
           <div className="summary-card students" onClick={() => handleCardClick('Total', { total: totalEstudiantes, m: totalM, f: totalF })}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontWeight: 'bold', fontSize: '0.95rem' }}>
               <span><span style={{ color: '#06b6d4' }}>E</span>: {totalEstudiantes}</span>
@@ -1064,15 +1049,15 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
               <span className="gender-f" style={{ marginLeft: '2px' }}>F: {totalF}</span>
             </div>
           </div>
-          <div 
+          <div
             className={`summary-card p ${pressingStatus === 'P' ? 'pressing' : ''}`}
             onClick={() => handleCardClick('Presentes', statsP)}
             onMouseDown={() => handleLongPressStart('P')}
             onMouseUp={handleLongPressEnd}
             onMouseLeave={handleLongPressEnd}
-            onTouchStart={(e) => { 
-              e.preventDefault(); 
-              handleLongPressStart('P'); 
+            onTouchStart={(e) => {
+              e.preventDefault();
+              handleLongPressStart('P');
             }}
             onTouchEnd={handleLongPressEnd}
             onContextMenu={(e) => e.preventDefault()}
@@ -1085,15 +1070,15 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
               <span className="gender-f" style={{ marginLeft: '2px' }}>F: {statsP.f}</span>
             </div>
           </div>
-          <div 
+          <div
             className={`summary-card a ${pressingStatus === 'A' ? 'pressing' : ''}`}
             onClick={() => handleCardClick('Ausentes', statsA)}
             onMouseDown={() => handleLongPressStart('A')}
             onMouseUp={handleLongPressEnd}
             onMouseLeave={handleLongPressEnd}
-            onTouchStart={(e) => { 
-              e.preventDefault(); 
-              handleLongPressStart('A'); 
+            onTouchStart={(e) => {
+              e.preventDefault();
+              handleLongPressStart('A');
             }}
             onTouchEnd={handleLongPressEnd}
             onContextMenu={(e) => e.preventDefault()}
@@ -1106,15 +1091,15 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
               <span className="gender-f" style={{ marginLeft: '2px' }}>F: {statsA.f}</span>
             </div>
           </div>
-          <div 
+          <div
             className={`summary-card j ${pressingStatus === 'J' ? 'pressing' : ''}`}
             onClick={() => handleCardClick('Justificados', statsJ)}
             onMouseDown={() => handleLongPressStart('J')}
             onMouseUp={handleLongPressEnd}
             onMouseLeave={handleLongPressEnd}
-            onTouchStart={(e) => { 
-              e.preventDefault(); 
-              handleLongPressStart('J'); 
+            onTouchStart={(e) => {
+              e.preventDefault();
+              handleLongPressStart('J');
             }}
             onTouchEnd={handleLongPressEnd}
             onContextMenu={(e) => e.preventDefault()}
@@ -1128,111 +1113,122 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
             </div>
           </div>
         </div>
-        )}
-          {loading ? (
-            <div className="loading-state">Cargando estudiantes...</div>
-          ) : !isFechaHabilitada ? (
-            <div className="empty-state" style={{ 
-              padding: '40px', 
-              textAlign: 'center', 
-              background: 'rgba(239, 68, 68, 0.1)', 
-              borderRadius: '12px',
-              border: '1px dashed #ef4444',
-              color: '#ef4444'
-            }}>
-              <h3>📅 Día no laborable</h3>
-              <p>El colegio seleccionado no tiene habilitada la toma de asistencia para los días <strong>{
-                new Date(selectedFecha + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'long' })
-              }</strong>.</p>
-              <p style={{ fontSize: '0.9rem', opacity: 0.8 }}>Puedes cambiar esto en la configuración de Colegios en la página Globales.</p>
-            </div>
-          ) : filteredEstudiantes.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '5rem 2rem', border: '2px dashed rgba(255, 255, 255, 0.1)', borderRadius: '16px', margin: '0 1rem' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>{searchTerm ? '🔍' : '📋'}</div>
-              <h4 style={{ color: '#cbd5e1', marginBottom: '0.5rem' }}>
-                {searchTerm ? 'No se encontraron resultados' : 'No hay estudiantes para mostrar'}
-              </h4>
-              <p style={{ color: '#94a3b8', maxWidth: '400px', margin: '0 auto' }}>
-                {searchTerm 
-                  ? `No se encontró ningún estudiante que coincida con "${searchTerm}"`
-                  : 'No se encontraron estudiantes para los filtros seleccionados (Año, Colegio, Grado, Sección).'}
-              </p>
-              {searchTerm && (
-                <button 
-                  className="secondary" 
-                  onClick={() => setSearchTerm("")}
-                  style={{ marginTop: '1.5rem', padding: '0.5rem 1rem' }}
-                >
-                  Limpiar búsqueda
-                </button>
-              )}
-            </div>
-          ) : (
-            <table className="custom-table" style={{ margin: '0.5rem auto 1.5rem auto', tableLayout: 'fixed' }}>
-              <thead>
-                <tr>
-                  <th style={{ width: '30px' }}>#</th>
-                  <th style={{ textAlign: 'left' }}>Estudiante</th>
-                  <th style={{ width: '100px' }}>Asistencia</th>
-                  <th style={{ width: '65px', textAlign: 'center' }}>Obs</th>
+      )}
+
+      {/* Tabla de Asistencia con scroll interno */}
+      <div className="table-container" style={{
+        width: '100%',
+        padding: '0',
+        maxHeight: isAndroidMobile ? 'calc(100vh - 300px)' : 'calc(100vh - 240px)',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        WebkitOverflowScrolling: 'touch',
+        display: 'block'
+      }}>
+        {loading ? (
+          <div className="loading-state">Cargando estudiantes...</div>
+        ) : !isFechaHabilitada ? (
+          <div className="empty-state" style={{
+            padding: '40px',
+            textAlign: 'center',
+            background: 'rgba(239, 68, 68, 0.1)',
+            borderRadius: '12px',
+            border: '1px dashed #ef4444',
+            color: '#ef4444'
+          }}>
+            <h3>📅 Día no laborable</h3>
+            <p>El colegio seleccionado no tiene habilitada la toma de asistencia para los días <strong>{
+              new Date(selectedFecha + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'long' })
+            }</strong>.</p>
+            <p style={{ fontSize: '0.9rem', opacity: 0.8 }}>Puedes cambiar esto en la configuración de Colegios en la página Globales.</p>
+          </div>
+        ) : filteredEstudiantes.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '5rem 2rem', border: '2px dashed rgba(255, 255, 255, 0.1)', borderRadius: '16px', margin: '0 1rem' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>{searchTerm ? '🔍' : '📋'}</div>
+            <h4 style={{ color: '#cbd5e1', marginBottom: '0.5rem' }}>
+              {searchTerm ? 'No se encontraron resultados' : 'No hay estudiantes para mostrar'}
+            </h4>
+            <p style={{ color: '#94a3b8', maxWidth: '400px', margin: '0 auto' }}>
+              {searchTerm
+                ? `No se encontró ningún estudiante que coincida con "${searchTerm}"`
+                : 'No se encontraron estudiantes para los filtros seleccionados (Año, Colegio, Grado, Sección).'}
+            </p>
+            {searchTerm && (
+              <button
+                className="secondary"
+                onClick={() => setSearchTerm("")}
+                style={{ marginTop: '1.5rem', padding: '0.5rem 1rem' }}
+              >
+                Limpiar búsqueda
+              </button>
+            )}
+          </div>
+        ) : (
+          <table className="custom-table" style={{ width: '100%', margin: '0' }}>
+            <thead>
+              <tr>
+                <th style={{ width: '30px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>#</th>
+                <th style={{ textAlign: 'left', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Estudiante</th>
+                <th style={{ width: '100px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Asistencia</th>
+                <th style={{ width: '65px', textAlign: 'center', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Obs</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredEstudiantes.map((est, index) => (
+                <tr key={est.id} className={expandedObs[est.id] ? 'row-expanded' : ''}>
+                  <td>
+                    <span className="student-number-badge">{index + 1}</span>
+                  </td>
+                  <td style={{ textAlign: 'left', overflow: 'hidden' }}>
+                    <div
+                      className="student-name-container"
+                      style={{
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        width: '100%'
+                      }}
+                      onClick={() => setSelectedStudentDetail(est)}
+                    >
+                      <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{est.sexo === 'F' ? '👩' : '👨'}</span>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{est.nombre}</span>
+                    </div>
+                    <div style={{ fontSize: '0.7rem', opacity: 0.6, marginLeft: '22px' }}>{est.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
+                  </td>
+                  <td>
+                    <div className="asistencia-options-mobile">
+                      <label className={`asistencia-opt ${est.estado === 'P' ? 'active p' : ''}`}>
+                        <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'P'} onChange={() => handleEstadoChange(est.id, 'P')} />
+                        <span>P</span>
+                      </label>
+                      <label className={`asistencia-opt ${est.estado === 'A' ? 'active a' : ''}`}>
+                        <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'A'} onChange={() => handleEstadoChange(est.id, 'A')} />
+                        <span>A</span>
+                      </label>
+                      <label className={`asistencia-opt ${est.estado === 'J' ? 'active j' : ''}`}>
+                        <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'J'} onChange={() => handleEstadoChange(est.id, 'J')} />
+                        <span>J</span>
+                      </label>
+                    </div>
+                  </td>
+                  <td style={{ textAlign: 'center', padding: '0.2rem' }}>
+                    <button
+                      className={`obs-toggle-btn ${est.observacion ? 'has-obs' : ''} ${expandedObs[est.id] ? 'active' : ''}`}
+                      onClick={() => toggleObs(est)}
+                      title="Observaciones"
+                    >
+                      {est.observacion ? '📝' : '💬'}
+                    </button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {filteredEstudiantes.map((est, index) => (
-                  <tr key={est.id} className={expandedObs[est.id] ? 'row-expanded' : ''}>
-                    <td>
-                      <span className="student-number-badge">{index + 1}</span>
-                    </td>
-                    <td style={{ textAlign: 'left', overflow: 'hidden' }}>
-                      <div 
-                        className="student-name-container" 
-                        style={{ 
-                          fontWeight: 'bold', 
-                          cursor: 'pointer', 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: '6px',
-                          width: '100%'
-                        }}
-                        onClick={() => setSelectedStudentDetail(est)}
-                      >
-                        <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{est.sexo === 'F' ? '👩' : '👨'}</span>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{est.nombre}</span>
-                      </div>
-                      <div style={{ fontSize: '0.7rem', opacity: 0.6, marginLeft: '22px' }}>{est.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
-                    </td>
-                    <td>
-                      <div className="asistencia-options-mobile">
-                        <label className={`asistencia-opt ${est.estado === 'P' ? 'active p' : ''}`}>
-                          <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'P'} onChange={() => handleEstadoChange(est.id, 'P')} />
-                          <span>P</span>
-                        </label>
-                        <label className={`asistencia-opt ${est.estado === 'A' ? 'active a' : ''}`}>
-                          <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'A'} onChange={() => handleEstadoChange(est.id, 'A')} />
-                          <span>A</span>
-                        </label>
-                        <label className={`asistencia-opt ${est.estado === 'J' ? 'active j' : ''}`}>
-                          <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'J'} onChange={() => handleEstadoChange(est.id, 'J')} />
-                          <span>J</span>
-                        </label>
-                      </div>
-                    </td>
-                    <td style={{ textAlign: 'center', padding: '0.2rem' }}>
-                      <button 
-                        className={`obs-toggle-btn ${est.observacion ? 'has-obs' : ''} ${expandedObs[est.id] ? 'active' : ''}`}
-                        onClick={() => toggleObs(est)}
-                        title="Observaciones"
-                      >
-                        {est.observacion ? '📝' : '💬'}
-                      </button>
-                    </td>
-                  </tr>
-))}
-              </tbody>
-            </table>
-          )}
-        </div>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
+    </div>
 
       {/* Modal de Detalles de Resumen */}
       {showSummaryModal.show && createPortal(
