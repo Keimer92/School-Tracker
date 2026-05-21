@@ -1935,6 +1935,11 @@ try {
         .notas-table-container::-webkit-scrollbar-thumb:hover {
           background: rgba(255,255,255,0.3);
         }
+        .notas-table-container table thead th {
+          position: sticky;
+          top: 0;
+          z-index: 10;
+        }
       `}</style>
 
     </div>
