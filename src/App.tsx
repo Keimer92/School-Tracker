@@ -14,6 +14,7 @@ import { CalendarioPage } from "./components/CalendarioPage";
 import { supabase } from "./lib/supabase";
 import { syncService } from "./lib/syncService";
 import { realtimeService } from "./lib/realtimeService";
+import { runAutomaticGoogleDriveBackupIfNeeded } from "./components/GoogleDriveBackup";
 
 type Tab = "notas" | "reportes" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "informe" | "calendario";
 
@@ -199,6 +200,22 @@ useEffect(() => {
     });
 
     return () => subscription.unsubscribe();
+  }, []);
+
+  // Google Drive Backup Scheduler
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      runAutomaticGoogleDriveBackupIfNeeded();
+    }, 10000);
+
+    const intervalId = setInterval(() => {
+      runAutomaticGoogleDriveBackupIfNeeded();
+    }, 300000);
+
+    return () => {
+      clearTimeout(timeoutId);
+      clearInterval(intervalId);
+    };
   }, []);
 
   const startResizing = (e: React.MouseEvent) => {

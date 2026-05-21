@@ -117,7 +117,7 @@ for record in data {
                 if status >= 200 && status < 300 {
                     println!("✅ [PUSH] Registro subido exitosamente a {}", table);
                 } else if status == 409 {
-                    let error_text = resp.into_string().unwrap_or_else(|_| "Conflicto".to_string());
+                    let _error_text = resp.into_string().unwrap_or_else(|_| "Conflicto".to_string());
                     println!("⚠️ [PUSH] Conflicto 409 en {} (probablemente ya existe), ignorando...", table);
                 } else {
                     let error_text = resp.into_string().unwrap_or_else(|_| "Error desconocido".to_string());
@@ -619,6 +619,236 @@ fn save_file_android(
     Ok(())
 }
 
+// ========================
+// GOOGLE DRIVE BACKUP COMMANDS
+// ========================
+
+#[tauri::command]
+async fn gd_read_file_base64(path: String) -> Result<String, String> {
+    use base64::{Engine as _, engine::general_purpose};
+    use std::fs;
+    
+    let bytes = fs::read(&path)
+        .map_err(|e| format!("Error leyendo archivo: {}", e))?;
+    Ok(general_purpose::STANDARD.encode(bytes))
+}
+
+#[tauri::command]
+async fn gd_write_file_base64(path: String, content_base64: String) -> Result<(), String> {
+    use base64::{Engine as _, engine::general_purpose};
+    use std::fs;
+    
+    let bytes = general_purpose::STANDARD
+        .decode(&content_base64)
+        .map_err(|e| format!("Error decodificando base64: {}", e))?;
+    fs::write(&path, bytes)
+        .map_err(|e| format!("Error escribiendo archivo: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn gd_open_url_browser(url: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("rundll32")
+            .args(["url.dll,FileProtocolHandler", &url])
+            .spawn()
+            .map_err(|e| format!("Failed to open browser: {}", e))?;
+    }
+    
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("Failed to open browser: {}", e))?;
+    }
+    
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("Failed to open browser: {}", e))?;
+    }
+    
+    Ok(())
+}
+
+#[tauri::command]
+async fn gd_start_oauth_server(port: u16) -> Result<String, String> {
+    use tokio::net::TcpListener;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let addr = format!("127.0.0.1:{}", port);
+    let listener = TcpListener::bind(&addr)
+        .await
+        .map_err(|e| format!("No se pudo iniciar el servidor local en {}: {}", addr, e))?;
+    
+    let mut code = String::new();
+    
+    if let Ok((mut socket, _)) = listener.accept().await {
+        let mut buffer = [0; 2048];
+        let mut request = String::new();
+        
+        if let Ok(size) = socket.read(&mut buffer).await {
+            request = String::from_utf8_lossy(&buffer[..size]).into_owned();
+        }
+        
+        if let Some(code_pos) = request.find("code=") {
+            let start = code_pos + 5;
+            let end = request[start..]
+                .find(|c| c == ' ' || c == '&')
+                .map(|pos| start + pos)
+                .unwrap_or(request.len());
+            code = request[start..end].to_string();
+        }
+        
+        let html = r#"<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>School Tracker Pro - Vinculación Exitosa</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; padding: 1rem; }
+        .card { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); padding: 3rem; border-radius: 2rem; text-align: center; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4); border: 1px solid rgba(51, 65, 85, 0.6); max-width: 450px; width: 100%; }
+        .icon { font-size: 4rem; color: #10b981; margin-bottom: 1.5rem; }
+        h1 { color: #ffffff; margin-top: 0; font-size: 1.8rem; font-weight: 800; }
+        p { color: #94a3b8; font-size: 0.95rem; line-height: 1.6; margin-bottom: 2rem; }
+        .badge { display: inline-block; padding: 0.5rem 1.5rem; background: rgba(16, 185, 129, 0.15); color: #34d399; border-radius: 9999px; font-weight: 700; font-size: 0.8rem; text-transform: uppercase; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="icon">✓</div>
+        <h1>¡Vinculación Exitosa!</h1>
+        <p>School Tracker Pro se ha conectado correctamente con tu cuenta de Google Drive.</p>
+        <span class="badge">Conexión Segura</span>
+    </div>
+</body>
+</html>"#;
+        
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+            html.len(),
+            html
+        );
+        
+        let _ = socket.write_all(response.as_bytes()).await;
+        let _ = socket.flush().await;
+    }
+    
+    if code.is_empty() {
+        return Err("No se recibió ningún código de autorización de Google.".to_string());
+    }
+    
+    Ok(code)
+}
+
+#[tauri::command]
+async fn gd_create_backup(app_handle: tauri::AppHandle) -> Result<String, String> {
+    use std::fs;
+    use chrono::Local;
+    
+    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    let db_path = app_data_dir.join("school.db");
+    
+    if !db_path.exists() {
+        return Err("Database file not found".to_string());
+    }
+    
+    let backups_dir = app_data_dir.join("backups");
+    if !backups_dir.exists() {
+        fs::create_dir_all(&backups_dir).map_err(|e| format!("Failed to create backups dir: {}", e))?;
+    }
+    
+    let timestamp = Local::now().format("%Y-%m-%d_%H-%M-%S");
+    let dest_path = backups_dir.join(format!("backup_{}.db", timestamp));
+    
+    fs::copy(&db_path, &dest_path).map_err(|e| format!("Failed to copy database: {}", e))?;
+    Ok(dest_path.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+async fn gd_get_backups(app_handle: tauri::AppHandle) -> Result<Vec<serde_json::Value>, String> {
+    use std::fs;
+    
+    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    let backups_dir = app_data_dir.join("backups");
+    let mut backups = Vec::new();
+    
+    if !backups_dir.exists() {
+        return Ok(backups);
+    }
+    
+    if let Ok(entries) = fs::read_dir(backups_dir) {
+        for entry in entries.flatten() {
+            if let Ok(metadata) = entry.metadata() {
+                if metadata.is_file() {
+                    let path = entry.path();
+                    if let Some(ext) = path.extension() {
+                        if ext == "db" {
+                            let created_at = if let Ok(time) = metadata.created() {
+                                let datetime: chrono::DateTime<chrono::Local> = time.into();
+                                datetime.format("%Y-%m-%d %H:%M:%S").to_string()
+                            } else { "Unknown".to_string() };
+                            
+                            backups.push(serde_json::json!({
+                                "name": entry.file_name().to_string_lossy().into_owned(),
+                                "path": path.to_string_lossy().into_owned(),
+                                "size": metadata.len(),
+                                "created_at": created_at
+                            }));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    backups.sort_by(|a, b| b["created_at"].as_str().unwrap_or("").cmp(a["created_at"].as_str().unwrap_or("")));
+    Ok(backups)
+}
+
+#[tauri::command]
+async fn gd_delete_backup(path: String) -> Result<(), String> {
+    use std::fs;
+    let backup_path = std::path::PathBuf::from(path);
+    if backup_path.exists() {
+        fs::remove_file(&backup_path).map_err(|e| format!("Failed to delete backup: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn gd_import_db_from_file(app_handle: tauri::AppHandle, source_path: String) -> Result<String, String> {
+    use std::fs;
+    
+    let import_path = std::path::PathBuf::from(&source_path);
+    if !import_path.exists() {
+        return Err("El archivo especificado no existe".to_string());
+    }
+    if !import_path.is_file() {
+        return Err("La ruta especificada no es un archivo".to_string());
+    }
+    match import_path.extension() {
+        Some(ext) if ext == "db" => {},
+        _ => return Err("El archivo debe tener extensión .db".to_string()),
+    }
+    
+    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    let db_path = app_data_dir.join("school.db");
+    
+    let backups_dir = app_data_dir.join("backups");
+    if !backups_dir.exists() { fs::create_dir_all(&backups_dir).ok(); }
+    let safety_backup = backups_dir.join(format!("safety_before_import_{}.db", chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")));
+    let _ = fs::copy(&db_path, &safety_backup);
+    
+    fs::copy(&import_path, &db_path).map_err(|e| format!("Failed to import database: {}", e))?;
+    Ok(db_path.to_string_lossy().into_owned())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -742,6 +972,14 @@ pub fn run() {
             print_pdf,
             share_pdf,
             save_file_android,
+            gd_read_file_base64,
+            gd_write_file_base64,
+            gd_open_url_browser,
+            gd_start_oauth_server,
+            gd_create_backup,
+            gd_get_backups,
+            gd_delete_backup,
+            gd_import_db_from_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

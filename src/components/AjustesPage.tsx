@@ -9,6 +9,7 @@ import { Auth } from "./Auth";
 import { supabase } from "../lib/supabase";
 import { syncService, syncManager, SyncStatus } from "../lib/syncService";
 import { cloud } from "../lib/cloud/CloudBridge";
+import { GoogleDriveBackup } from "./GoogleDriveBackup";
 import "../App.css";
 
 interface CategoryItem {
@@ -24,6 +25,7 @@ export function AjustesPage() {
     | "apariencia"
     | "calificaciones"
     | "sync"
+    | "google-drive"
     | "almacenamiento"
     | "debugging"
     | "acercaDe"
@@ -663,6 +665,7 @@ export function AjustesPage() {
     { id: "apariencia", label: "Diseño", icon: "🎨" },
     { id: "calificaciones", label: "Notas", icon: "⭐" },
     { id: "sync", label: "Sync", icon: "supabase" },
+    { id: "google-drive", label: "Drive", icon: "☁️" },
     { id: "almacenamiento", label: "Almacén", icon: "📦" },
     { id: "debugging", label: "Debug", icon: "🐛" },
     { id: "acercaDe", label: "Info", icon: "📖" },
@@ -2030,6 +2033,18 @@ export function AjustesPage() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* SECCIÓN: GOOGLE DRIVE */}
+        {activeTab === "google-drive" && (
+          <div className="category-card">
+            <div className="category-header">
+              <h3>☁️ Respaldo en Google Drive</h3>
+            </div>
+            <div style={{ padding: isAndroid ? "1rem" : "2rem" }}>
+              <GoogleDriveBackup />
+            </div>
           </div>
         )}
 
