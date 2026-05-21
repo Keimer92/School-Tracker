@@ -91,5 +91,13 @@ commands.allow = [
     "remove_pending_deletion_grado_asignatura",
     "get_pending_deletions_colegio_asignatura",
     "remove_pending_deletion_colegio_asignatura",
-    "get_all_subjects"
+    "get_all_subjects",
+    "gd_read_file_base64",
+    "gd_write_file_base64",
+    "gd_open_url_browser",
+    "gd_start_oauth_server",
+    "gd_create_backup",
+    "gd_get_backups",
+    "gd_delete_backup",
+    "gd_import_db_from_file"
 ]
