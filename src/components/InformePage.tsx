@@ -838,6 +838,20 @@ try {
           .asistencia-options {
             gap: 3px !important;
           }
+          .table-container::-webkit-scrollbar {
+            width: 6px;
+          }
+          .table-container::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05);
+            border-radius: 3px;
+          }
+          .table-container::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.2);
+            border-radius: 3px;
+          }
+          .table-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.3);
+          }
         `}
       </style>
       <div className="category-grid" style={{ display: 'block' }}>
@@ -1121,11 +1135,14 @@ try {
       {/* Tabla de Resultados o Estado Vacío */}
       <div className="table-container" style={{
           width: '100%',
-          padding: '0', 
-          overflowX: 'hidden', 
-          display: 'flex', 
-          flexDirection: 'column', 
-          alignItems: 'center' 
+          padding: '0',
+          maxHeight: isMobile ? 'calc(100vh - 320px)' : 'calc(100vh - 260px)',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center'
         }}>
           {/* Tarjetas de Resumen */}
           {!isMobile && reporteFiltrado.length > 0 && (

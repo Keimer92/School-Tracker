@@ -1713,7 +1713,10 @@ try {
             }}>
               <div className="category-card table-card" style={{ padding: '0', overflow: 'hidden' }}>
                 <div className="notas-table-container" style={{ 
-                  overflowX: 'auto', 
+                  maxHeight: isMobile ? 'calc(100vh - 320px)' : 'calc(100vh - 260px)',
+                  overflowY: 'auto',
+                  overflowX: 'hidden',
+                  WebkitOverflowScrolling: 'touch',
                   width: '100%',
                   borderRadius: '12px', 
                   backgroundColor: 'transparent' 
@@ -1917,6 +1920,20 @@ try {
           font-size: 0.8rem;
           color: #94a3b8;
           font-weight: 600;
+        }
+        .notas-table-container::-webkit-scrollbar {
+          width: 6px;
+        }
+        .notas-table-container::-webkit-scrollbar-track {
+          background: rgba(255,255,255,0.05);
+          border-radius: 3px;
+        }
+        .notas-table-container::-webkit-scrollbar-thumb {
+          background: rgba(255,255,255,0.2);
+          border-radius: 3px;
+        }
+        .notas-table-container::-webkit-scrollbar-thumb:hover {
+          background: rgba(255,255,255,0.3);
         }
       `}</style>
 
