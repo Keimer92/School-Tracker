@@ -853,11 +853,11 @@ try {
             background: rgba(255,255,255,0.3);
           }
           .custom-table thead th {
-            position: sticky;
-            top: 0;
-            z-index: 10;
-            background: rgba(30, 41, 59, 0.95);
-          }
+             position: sticky;
+             top: 0;
+             z-index: 10;
+             background: #1e293b !important;
+           }
         `}
       </style>
       <div className="category-grid" style={{ display: 'block' }}>
