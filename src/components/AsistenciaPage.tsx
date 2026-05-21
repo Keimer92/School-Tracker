@@ -720,6 +720,30 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
             gap: 4px !important;
             justify-content: center;
           }
+          .table-container::-webkit-scrollbar {
+            width: 6px;
+          }
+          .table-container::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05);
+            border-radius: 3px;
+          }
+          .table-container::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.2);
+            border-radius: 3px;
+          }
+          .table-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.3);
+          }
+          @media (max-width: 768px) {
+            .table-container {
+              max-height: calc(100vh - 320px);
+            }
+          }
+          @media (min-width: 769px) {
+            .table-container {
+              max-height: calc(100vh - 260px);
+            }
+          }
         `}
       </style>
       <div className="category-grid" style={{ display: 'block' }}>
@@ -1013,13 +1037,16 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
 
 
 
-        <div className="table-container" style={{ 
+        <div className="table-container" style={{
           width: '100%',
-          padding: '0', 
-          overflowX: 'auto', 
-          display: 'flex', 
-          flexDirection: 'column', 
-          alignItems: 'center' 
+          padding: '0',
+          maxHeight: isAndroidMobile ? 'calc(100vh - 300px)' : 'calc(100vh - 240px)',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center'
         }}>
         {/* Resumen de Asistencia */}
         {!isAndroidMobile && (
