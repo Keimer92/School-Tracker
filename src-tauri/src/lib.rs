@@ -672,6 +672,9 @@ async fn gd_open_url_browser(url: String) -> Result<(), String> {
             .map_err(|e| format!("Failed to open browser: {}", e))?;
     }
     
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    let _ = url;
+
     Ok(())
 }
 
