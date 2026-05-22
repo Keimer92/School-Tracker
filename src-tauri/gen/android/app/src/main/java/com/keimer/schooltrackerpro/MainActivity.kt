@@ -16,6 +16,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import java.io.File
 
 class MainActivity : TauriActivity() {
+  private var webView: WebView? = null
+
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
@@ -29,7 +31,11 @@ class MainActivity : TauriActivity() {
     handleIntent(intent)
   }
 
-  override fun onNewIntent(intent: Intent?) {
+  override fun onWebViewCreate(webView: WebView) {
+    this.webView = webView
+  }
+
+  override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
     handleIntent(intent)
   }
@@ -40,7 +46,13 @@ class MainActivity : TauriActivity() {
       if (uri.scheme == "http" && uri.host == "127.0.0.1" && uri.path == "/callback") {
         val code = uri.getQueryParameter("code")
         if (code != null) {
-          emit("oauth-callback-android", code)
+          val escapedCode = code.replace("\\", "\\\\").replace("'", "\\'")
+          webView?.post {
+            webView?.evaluateJavascript(
+              "window.__TAURI__.event.emit('oauth-callback-android', '$escapedCode')",
+              null
+            )
+          }
         }
       }
     }
