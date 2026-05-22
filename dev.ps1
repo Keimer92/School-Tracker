@@ -102,8 +102,34 @@ try {
         Start-Process powershell -ArgumentList "-NoExit", "-Command", $cmd
     }
 
+    function Select-AndroidArchitecture {
+        Write-Host ""
+        Write-Host "Selecciona arquitectura de compilacion:" -ForegroundColor Yellow
+        Write-Host "  1. Todas las arquitecturas (arm64 + arm7 + x86 + x86_64) [mas lento]"
+        Write-Host "  2. Solo arm64 (mas rapido)"
+        Write-Host ""
+        $archSel = Read-Host "Arquitectura (1-2)"
+        
+        # Limpiar env vars anteriores
+        Remove-Item Env:ORG_GRADLE_PROJECT_abiList -ErrorAction SilentlyContinue
+        Remove-Item Env:ORG_GRADLE_PROJECT_archList -ErrorAction SilentlyContinue
+        Remove-Item Env:ORG_GRADLE_PROJECT_targetList -ErrorAction SilentlyContinue
+        
+        if ($archSel -eq "2") {
+            Write-Host "[INFO] Compilando solo arm64..." -ForegroundColor Cyan
+            $env:ORG_GRADLE_PROJECT_abiList = "arm64-v8a"
+            $env:ORG_GRADLE_PROJECT_archList = "arm64"
+            $env:ORG_GRADLE_PROJECT_targetList = "aarch64"
+        } else {
+            Write-Host "[INFO] Compilando para todas las arquitecturas..." -ForegroundColor Cyan
+        }
+        Write-Host ""
+    }
+
     function Invoke-AndroidDev {
         if (-not (Assert-AndroidSdk)) { return }
+        
+        Select-AndroidArchitecture
         
         Write-Host ""
         Write-Host "[INFO] Iniciando desarrollo en Android..." -ForegroundColor Cyan
@@ -230,6 +256,8 @@ try {
     function Invoke-AndroidHotReload {
         if (-not (Assert-AndroidSdk)) { return }
         
+        Select-AndroidArchitecture
+        
         Write-Host ""
         Write-Host "[INFO] Android Hot Reload (Rapido)..." -ForegroundColor Cyan
         Write-Host ""
@@ -257,6 +285,10 @@ try {
     }
 
     function Invoke-AndroidBuild {
+        if (-not (Assert-AndroidSdk)) { return }
+        
+        Select-AndroidArchitecture
+        
         Write-Host ""
         Write-Host "[INFO] Compilando Android (Release)..." -ForegroundColor Cyan
         $cmd = "`$host.UI.RawUI.WindowTitle = 'Android Build (Release)'; Set-Location '$ScriptDir'; npm run tauri android build"
