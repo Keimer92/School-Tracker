@@ -834,9 +834,29 @@ try {
             width: 28px !important;
             height: 28px !important;
             font-size: 0.75rem !important;
+            min-width: 28px !important;
+            flex-shrink: 0 !important;
+          }
+          .asistencia-options-mobile {
+            gap: 2px !important;
+            flex-wrap: nowrap !important;
           }
           .asistencia-options {
             gap: 3px !important;
+          }
+          @media (max-width: 480px) {
+            .asistencia-opt {
+              width: 24px !important;
+              height: 24px !important;
+              font-size: 0.65rem !important;
+              min-width: 24px !important;
+            }
+            .obs-toggle-btn {
+              width: 26px !important;
+              height: 26px !important;
+              min-width: 26px !important;
+              font-size: 0.7rem !important;
+            }
           }
           .table-container::-webkit-scrollbar {
             width: 6px;
@@ -1196,7 +1216,7 @@ try {
         padding: '0',
         maxHeight: isMobile ? 'calc(100vh - 320px)' : 'calc(100vh - 260px)',
         overflowY: 'auto',
-        overflowX: 'hidden',
+        overflowX: isAndroidMobile ? 'auto' : 'hidden',
         WebkitOverflowScrolling: 'touch',
         display: 'block'
       }}>
@@ -1227,10 +1247,10 @@ try {
           <table className="custom-table" style={{ width: '100%', margin: '0', overflow: 'visible' }}>
             <thead>
               <tr>
-                <th style={{ width: '30px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>#</th>
+                <th style={{ width: isAndroidMobile ? '24px' : '30px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>#</th>
                 <th style={{ textAlign: 'left', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Estudiante</th>
-                <th style={{ width: '100px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Asistencia</th>
-                <th style={{ width: '65px', textAlign: 'center', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Obs</th>
+                <th style={{ width: isAndroidMobile ? '85px' : '100px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Asistencia</th>
+                <th style={{ width: isAndroidMobile ? '50px' : '65px', textAlign: 'center', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Obs</th>
               </tr>
             </thead>
             <tbody>
@@ -1311,9 +1331,9 @@ try {
                     {f.split('-').slice(1).reverse().join('/')}
                   </th>
                 ))}
-                <th style={{ width: '30px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>P</th>
-                <th style={{ width: '30px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>A</th>
-                <th style={{ width: '30px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>J</th>
+                <th style={{ width: isAndroidMobile ? '24px' : '30px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>P</th>
+                <th style={{ width: isAndroidMobile ? '24px' : '30px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>A</th>
+                <th style={{ width: isAndroidMobile ? '24px' : '30px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>J</th>
               </tr>
             </thead>
             <tbody>

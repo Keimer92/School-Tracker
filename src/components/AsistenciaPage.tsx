@@ -40,7 +40,7 @@ export function AsistenciaPage() {
   const [selectedSeccion, setSelectedSeccion] = useState<number>(() => Number(localStorage.getItem("selectedSeccion")) || 0);
   const [selectedSexo, setSelectedSexo] = useState<string>(() => localStorage.getItem("selectedSexo") || "");
   const [selectedFecha, setSelectedFecha] = useState<string>(() => {
-    const savedFecha = sessionStorage.getItem("asistencia_selectedFecha");
+    const savedFecha = sessionStorage.getItem("asistencia_selectedFecha_v2") || sessionStorage.getItem("asistencia_selectedFecha");
     return savedFecha || getLocalDateISOString();
   });
   const [searchTerm, setSearchTerm] = useState("");
@@ -258,6 +258,10 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
       studentTimeout = setTimeout(() => {
         console.log("🔔 [Realtime] Evento student-updated recibido en AsistenciaPage (debounced)");
         nextRefreshSilent.current = true;
+        // Refrescar catálogos por si el estudiante cambió de grado/sección
+        if (selectedColegio && selectedAno) {
+          fetchGrados();
+        }
         setRefreshTrigger(prev => prev + 1);
       }, 500);
     });
@@ -712,13 +716,22 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
             }
           }
           .asistencia-opt {
-            width: 30px !important;
-            height: 30px !important;
-            font-size: 0.8rem !important;
+            width: 26px !important;
+            height: 26px !important;
+            font-size: 0.7rem !important;
+            min-width: 26px !important;
+            flex-shrink: 0 !important;
           }
           .asistencia-options-mobile {
-            gap: 4px !important;
+            gap: 2px !important;
             justify-content: center;
+            flex-wrap: nowrap !important;
+          }
+          .obs-toggle-btn {
+            width: 28px !important;
+            height: 28px !important;
+            min-width: 28px !important;
+            font-size: 0.8rem !important;
           }
           .table-container::-webkit-scrollbar {
             width: 6px;
@@ -1121,7 +1134,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
         padding: '0',
         maxHeight: isAndroidMobile ? 'calc(100vh - 300px)' : 'calc(100vh - 240px)',
         overflowY: 'auto',
-        overflowX: 'hidden',
+        overflowX: isAndroidMobile ? 'auto' : 'hidden',
         WebkitOverflowScrolling: 'touch',
         display: 'block'
       }}>
@@ -1167,10 +1180,10 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
           <table className="custom-table" style={{ width: '100%', margin: '0', overflow: 'visible' }}>
             <thead>
               <tr>
-                <th style={{ width: '30px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>#</th>
+                <th style={{ width: isAndroidMobile ? '24px' : '30px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>#</th>
                 <th style={{ textAlign: 'left', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Estudiante</th>
-                <th style={{ width: '100px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Asistencia</th>
-                <th style={{ width: '65px', textAlign: 'center', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Obs</th>
+                <th style={{ width: isAndroidMobile ? '85px' : '100px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Asistencia</th>
+                <th style={{ width: isAndroidMobile ? '50px' : '65px', textAlign: 'center', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Obs</th>
               </tr>
             </thead>
             <tbody>
