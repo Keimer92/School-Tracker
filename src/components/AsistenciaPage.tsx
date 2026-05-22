@@ -383,26 +383,48 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
       // La implementación actual de save_asistencia probablemente hace upsert.
       
       if (records.length === 0) {
-        // Si no hay registros con estado, podría ser que se limpiaron todos.
-        // Pero save_asistencia espera registros.
-        setSaving(false);
-        // Si todos los estados son "-", significa que el usuario quiere limpiar la asistencia
-        // Podemos llamar a una función específica para borrar la asistencia de ese día si es necesario,
-        // o simplemente no hacer nada y decir que se guardó (ya que localmente se ve limpio).
-        // Sin embargo, para persistir el "borrado" en la BD, necesitaríamos una lógica de borrado.
-        // Asumiendo que save_asistencia hace upsert, si no mandamos nada, no borra lo existente.
-        
-        // Vamos a verificar si la intención era borrar.
         const intentClear = updatedEstudiantes.every(est => !est.estado || est.estado === '-');
         if (intentClear) {
-             try {
-                // Si existe un endpoint para borrar asistencia por día/sección, llamarlo aquí.
-                // Si no, podríamos enviar registros con un estado especial o null si el backend lo soporta.
-                // Por ahora, solo simularemos el guardado para que no se quede pegado.
-                await emit("show-toast", { message: "⚠️ No hay asistencias marcadas para guardar.", type: "warning" });
-             } catch (e) {
-                console.error(e);
-             }
+          // El usuario quiere limpiar la asistencia: eliminar registros existentes en BD local y sincronizar
+          try {
+            const estudianteIds = updatedEstudiantes.map(est => est.id);
+            await invoke("delete_asistencia_batch", { 
+              estudianteIds, 
+              fecha: selectedFecha 
+            });
+
+            // Limpiar borrador tras eliminar
+            draftRef.current = {};
+            syncDraftToStorage();
+            setHasUnsavedChanges(false);
+            setSaving(false);
+
+            await emit("show-toast", { message: "✅ Asistencia limpiada correctamente", type: "success" });
+
+            // Sincronizar eliminaciones con Supabase en segundo plano
+            (async () => {
+              try {
+                await syncService.syncPendingDeletions();
+                console.log("LOG [Sincronización]: Eliminaciones de asistencia sincronizadas con Supabase");
+              } catch (syncError) {
+                console.error("Error en sincronización de eliminaciones:", syncError);
+              }
+            })();
+
+            // Emitir evento para refrescar InformePage
+            try {
+              await emit("asistencia-updated");
+            } catch (eventError) {
+              console.error("Error al emitir evento:", eventError);
+            }
+          } catch (error) {
+            console.error("Error al limpiar asistencia:", error);
+            await emit("show-toast", { message: "❌ Error al limpiar asistencia: " + error, type: "error" });
+            setSaving(false);
+          }
+        } else {
+          setSaving(false);
+          await emit("show-toast", { message: "⚠️ No hay asistencias marcadas para guardar.", type: "warning" });
         }
         return;
       }
