@@ -93,6 +93,16 @@ export function NotasPage() {
   const [highlightColor, setHighlightColor] = useState<string>(() => {
     return localStorage.getItem('student-highlight-color') || '#4ade80';
   });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--highlight-color', highlightColor);
+    const hex = highlightColor.replace('#', '');
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    root.style.setProperty('--highlight-bg', `rgba(${r}, ${g}, ${b}, 0.2)`);
+  }, [highlightColor]);
   
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
