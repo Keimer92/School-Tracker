@@ -794,6 +794,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
               }}
               value={selectedFecha}
               onChange={(e) => setSelectedFecha(e.target.value)}
+              onClick={(e) => (e.target as HTMLInputElement).showPicker()}
             />
           </FilterGroup>
 

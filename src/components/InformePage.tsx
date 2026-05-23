@@ -904,7 +904,8 @@ try {
                 className="filter-select"
                 style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
                 value={fechaBase} 
-                onChange={(e) => setFechaBase(e.target.value)} 
+                onChange={(e) => setFechaBase(e.target.value)}
+                onClick={(e) => (e.target as HTMLInputElement).showPicker()}
               />
             </FilterGroup>
           ) : (
