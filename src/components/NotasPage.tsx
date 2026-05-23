@@ -361,6 +361,7 @@ export function NotasPage() {
 
   // Flag para evitar múltiples cargas rápidas
   const isLoadingRef = useRef(false);
+  const configSyncedRef = useRef(false);
 
   // Cargar estudiantes cuando cambien los filtros
   useEffect(() => {
@@ -1187,9 +1188,12 @@ export function NotasPage() {
       (async () => {
         try {
           console.log("LOG [Sincronización]: Iniciando en segundo plano...");
-          // Asegurar que los indicadores y criterios existan en Supabase antes de las notas
-          await syncService.syncEvaluacionConfig(indicadores);
-            await emit("sync-completed", { message: "⚡ Sync completed successfully" });
+
+          // Sincronizar configuración de evaluación solo una vez por sesión
+          if (!configSyncedRef.current) {
+            await syncService.syncEvaluacionConfig(indicadores);
+            configSyncedRef.current = true;
+          }
 
           // Preparar todas las notas para sincronización en lote
           const todasLasNotasParaSync: any[] = [];
