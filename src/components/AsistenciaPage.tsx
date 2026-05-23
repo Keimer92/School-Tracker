@@ -25,7 +25,6 @@ interface EstudianteAsistencia {
 
 import SearchInput from './SearchInput';
 import { FilterContainer, FilterGroup, FilterActions } from './FilterContainer';
-import { CalendarioPage } from './CalendarioPage';
 
 export function AsistenciaPage() {
   // Filtros
@@ -58,7 +57,6 @@ export function AsistenciaPage() {
     type: '',
     stats: null
   });
-  const [showCalendar, setShowCalendar] = useState(false);
   const nextRefreshSilent = useRef(false);
 
 const [isMobile, setIsMobile] = useState(false);
@@ -294,22 +292,11 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
       fetchColegioConfig();
     });
 
-    const unlistenDateSelected = listen<{ date: string | null; startDate: string | null; endDate: string | null }>("date-selected", (event) => {
-      console.log("Evento date-selected recibido en AsistenciaPage:", event.payload);
-      if (event.payload.date) {
-        setSelectedFecha(event.payload.date);
-      }
-      setShowCalendar(false);
-      // El manejo de tiempo real ahora es global en App.tsx vía realtimeService
-      // No es necesario suscribirse aquí localmente
-    });
-
     return () => {
       unlistenAsistencia.then(f => f());
       unlistenStudent.then(f => f());
       unlistenCatalog.then(f => f());
       unlistenSubjects.then(f => f());
-      unlistenDateSelected.then(f => f());
     };
   }, [fetchColegioConfig]);
 
@@ -792,7 +779,9 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
         <FilterContainer isMobile={isAndroidMobile} style={{ padding: isAndroidMobile ? '0.5rem' : '0.4rem' }}>
           {/* Fecha */}
           <FilterGroup label="Fecha:" isMobile={isAndroidMobile} flex={isAndroidMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
-            <button 
+            <input 
+              type="date"
+              lang="es-ES"
               className={`filter-select ${!isFechaHabilitada ? 'invalid-date' : ''}`}
               style={{ 
                 padding: isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem',
@@ -801,17 +790,11 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
                 border: !isFechaHabilitada ? '1px solid #ef4444' : undefined,
                 color: !isFechaHabilitada ? '#ef4444' : 'inherit',
                 width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                cursor: 'pointer',
                 background: 'rgba(255,255,255,0.05)'
               }}
-              onClick={() => setShowCalendar(true)}
-              title={!isFechaHabilitada ? "Este colegio no tiene habilitada la asistencia para este día" : ""}
-            >
-              <span>📅 {new Date(selectedFecha + "T12:00:00").toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-            </button>
+              value={selectedFecha}
+              onChange={(e) => setSelectedFecha(e.target.value)}
+            />
           </FilterGroup>
 
           {/* Año */}
@@ -1541,42 +1524,6 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
         document.body
       )}
 
-      {/* Modal Calendario */}
-      {showCalendar && createPortal(
-        <div className="modal-overlay" onClick={() => setShowCalendar(false)}>
-          <div 
-            className="modal-content category-card" 
-            onClick={e => e.stopPropagation()}
-            style={{ 
-              width: '400px', 
-              maxWidth: '95%', 
-              padding: '1rem',
-              background: 'rgba(15, 23, 42, 0.95)',
-              maxHeight: '90vh',
-              overflowY: 'auto'
-            }}
-          >
-            <button 
-              onClick={() => setShowCalendar(false)}
-              style={{
-                position: 'absolute',
-                top: '10px',
-                right: '10px',
-                background: 'transparent',
-                border: 'none',
-                color: '#94a3b8',
-                fontSize: '1.2rem',
-                cursor: 'pointer',
-                padding: '4px 8px'
-              }}
-            >
-              ✕
-            </button>
-            <CalendarioPage />
-          </div>
-        </div>,
-        document.body
-      )}
       </div>
       );
       }
