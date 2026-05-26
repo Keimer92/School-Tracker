@@ -49,7 +49,7 @@ try {
         Clear-Host
         Write-Host "+----------------------------------------------+" -ForegroundColor Cyan
         Write-Host "|    GESTOR DE DESARROLLO - TAURI / RUST       |" -ForegroundColor Cyan
-        Write-Host "|               PowerShell v1.3                |" -ForegroundColor Cyan
+        Write-Host "|               PowerShell v1.4                |" -ForegroundColor Cyan
         Write-Host "+----------------------------------------------+" -ForegroundColor Cyan
         if (-not $env:ANDROID_HOME) {
             Write-Host "ADVERTENCIA: ANDROID_HOME no esta configurada en este sistema." -ForegroundColor Yellow
@@ -75,7 +75,8 @@ try {
         Write-Host "  13. Configurar firmas Android (Release)"
         Write-Host ""
         Write-Host " === OTROS ===" -ForegroundColor Yellow
-        Write-Host "  14. Salir"
+        Write-Host "  14. Crear .gitignore para Rust/Tauri"
+        Write-Host "  15. Salir"
         Write-Host "------------------------------------------------" -ForegroundColor Cyan
         Write-Host ""
     }
@@ -542,10 +543,101 @@ try {
         Read-Host "Presione Enter para continuar..."
     }
 
+    function New-GitIgnore {
+        Clear-Host
+        Write-Host "==============================================" -ForegroundColor Cyan
+        Write-Host "CREAR .gitignore PARA RUST/TAURI" -ForegroundColor Yellow
+        Write-Host "==============================================" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "Se ignoraran archivos de compilacion, dependencias, caches"
+        Write-Host "y archivos del sistema/IDE."
+        Write-Host "Se conservara codigo fuente, configuraciones y assets."
+        Write-Host ""
+        
+        $confirm = Read-Host "¿Crear/sobrescribir .gitignore? (s/n)"
+        if ($confirm -ne "s" -and $confirm -ne "S") {
+            Write-Host "[INFO] Operacion cancelada."
+            Read-Host "Presione Enter para continuar..."
+            return
+        }
+        
+        $gitignorePath = Join-Path $ScriptDir ".gitignore"
+        
+        @"
+# ============================================
+# .gitignore para Rust/Tauri + Windows/Android
+# ============================================
+
+# --- Rust / Cargo (build artifacts, muy pesados) ---
+src-tauri/target/
+
+# --- Node.js ---
+node_modules/
+
+# --- Vite cache ---
+node_modules/.vite
+
+# --- Frontend build output ---
+dist/
+build/
+
+# --- Android nativo (auto-generado por 'npx tauri android init') ---
+# Ignorar todo src-tauri/gen/ porque es regenerable desde cero
+src-tauri/gen/
+src-tauri/gen/android/
+src-tauri/gen/schemas/
+
+# --- Sistema operativo ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+
+# --- IDE ---
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# --- Variables de entorno (pueden contener keys) ---
+.env
+.env.local
+.env.*.local
+
+# --- Logs ---
+*.log
+"@ | Out-File -FilePath $gitignorePath -Encoding utf8 -Force
+        
+        Write-Host ""
+        Write-Host "[OK] .gitignore creado exitosamente!" -ForegroundColor Green
+        Write-Host ""
+        Write-Host "Archivos PRESERVADOS en git (esenciales para compilar):" -ForegroundColor Cyan
+        Write-Host "  - src/ (codigo frontend)"
+        Write-Host "  - src-tauri/src/ (codigo Rust)"
+        Write-Host "  - src-tauri/Cargo.toml + Cargo.lock"
+        Write-Host "  - src-tauri/tauri.conf.json"
+        Write-Host "  - src-tauri/icons/"
+        Write-Host "  - src-tauri/capabilities/"
+        Write-Host "  - src-tauri/build.rs"
+        Write-Host "  - package.json + package-lock.json"
+        Write-Host "  - tsconfig.json, vite.config.ts"
+        Write-Host "  - index.html, public/"
+        Write-Host ""
+        Write-Host "Para compilar en maquina nueva:" -ForegroundColor Yellow
+        Write-Host "  1. git clone <repo>"
+        Write-Host "  2. npm install"
+        Write-Host "  3. npx tauri android init (solo si compilas para Android)"
+        Write-Host "  4. npm run tauri dev (Windows) / tauri android dev (Android)"
+        Write-Host ""
+        Read-Host "Presione Enter para continuar..."
+    }
+
     # Main Loop
     while ($true) {
         Show-Menu
-        $modo = Read-Host "Seleccione una opcion (1-14)"
+        $modo = Read-Host "Seleccione una opcion (1-15)"
         
         switch ($modo) {
             "1" { Invoke-WindowsDev }
@@ -561,7 +653,8 @@ try {
             "11" { Clear-AppCache }
             "12" { Get-AndroidLogs }
             "13" { Invoke-AndroidSigner }
-            "14" { break }
+            "14" { New-GitIgnore }
+            "15" { break }
             default {
                 # Let the loop clear the screen and show menu again
             }
