@@ -134,7 +134,8 @@ async function applyChangeToLocal(table: string, record: any) {
   const pullData: any = {
     anos: [], cortes: [], colegios: [], asignaturas: [], grados: [], secciones: [],
     estudiantes: [], indicadores: [], criterios: [], notas: [], asistencia: [],
-    gradeConfigs: [], gradoAsignatura: [], colegioAsignatura: [], colegioDiasAsistencia: []
+    gradeConfigs: [], gradoAsignatura: [], colegioAsignatura: [], colegioDiasAsistencia: [],
+    isPartial: true
   };
 
   // Mapeo de campos según lo que espera Rust en PullData

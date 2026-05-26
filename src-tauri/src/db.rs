@@ -3219,11 +3219,13 @@ pub struct PullData {
     pub grado_asignatura: Vec<(i64, i64)>,
     pub colegio_asignatura: Vec<(i64, i64)>,
     pub colegio_dias_asistencia: Vec<ColegioDiasAsistencia>,
+    pub is_partial: Option<bool>,
 }
 
 #[tauri::command]
 pub fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) -> Result<(), String> {
     println!("🔄 [DB] upsert_pull_data llamado con datos:");
+    let is_partial = data.is_partial.unwrap_or(false);
     println!("   - años: {}", data.anos.len());
     println!("   - cortes: {}", data.cortes.len());
     println!("   - colegios: {}", data.colegios.len());
@@ -3440,15 +3442,17 @@ pub fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) -> Res
     };
 
     // Ejecutar limpieza para cada tabla (ignorando errores individualmente para no bloquear si una tabla falla)
-    let _ = delete_not_in_cloud(&tx, "ano_lectivo", &cloud_ano_ids);
-    let _ = delete_not_in_cloud(&tx, "corte_evaluativo", &cloud_corte_ids);
-    let _ = delete_not_in_cloud(&tx, "colegio", &cloud_colegio_ids);
-    let _ = delete_not_in_cloud(&tx, "asignatura", &cloud_asignatura_ids);
-    let _ = delete_not_in_cloud(&tx, "grado", &cloud_grado_ids);
-    let _ = delete_not_in_cloud(&tx, "seccion", &cloud_seccion_ids);
-    let _ = delete_not_in_cloud(&tx, "estudiante", &cloud_estudiante_ids);
-    let _ = delete_not_in_cloud(&tx, "indicador", &cloud_indicador_ids);
-    let _ = delete_not_in_cloud(&tx, "criterio", &cloud_criterio_ids);
+    if !is_partial {
+        let _ = delete_not_in_cloud(&tx, "ano_lectivo", &cloud_ano_ids);
+        let _ = delete_not_in_cloud(&tx, "corte_evaluativo", &cloud_corte_ids);
+        let _ = delete_not_in_cloud(&tx, "colegio", &cloud_colegio_ids);
+        let _ = delete_not_in_cloud(&tx, "asignatura", &cloud_asignatura_ids);
+        let _ = delete_not_in_cloud(&tx, "grado", &cloud_grado_ids);
+        let _ = delete_not_in_cloud(&tx, "seccion", &cloud_seccion_ids);
+        let _ = delete_not_in_cloud(&tx, "estudiante", &cloud_estudiante_ids);
+        let _ = delete_not_in_cloud(&tx, "indicador", &cloud_indicador_ids);
+        let _ = delete_not_in_cloud(&tx, "criterio", &cloud_criterio_ids);
+    }
 
     // ============================================================================
     // SINCRONIZACIÓN DE ELIMINACIONES - TABLAS CON CLAVES COMPUESTAS
