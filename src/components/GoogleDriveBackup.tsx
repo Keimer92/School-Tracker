@@ -65,6 +65,12 @@ export const GoogleDriveBackup: React.FC = () => {
         onConfirm: () => void;
     }>({ isOpen: false, title: '', message: '', variant: 'danger', onConfirm: () => {} });
 
+    const [imgError, setImgError] = useState(false);
+
+    useEffect(() => {
+        setImgError(false);
+    }, [settings.googleUserProfilePic]);
+
     useEffect(() => {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
@@ -742,8 +748,14 @@ export const GoogleDriveBackup: React.FC = () => {
                                     overflow: 'hidden',
                                     flexShrink: 0
                                 }}>
-                                    {settings.googleUserProfilePic ? (
-                                        <img src={settings.googleUserProfilePic} alt="Google User" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    {settings.googleUserProfilePic && !imgError ? (
+                                        <img 
+                                            src={settings.googleUserProfilePic} 
+                                            alt="Google User" 
+                                            referrerPolicy="no-referrer"
+                                            onError={() => setImgError(true)}
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                                        />
                                     ) : '👤'}
                                 </div>
                                 <div>
