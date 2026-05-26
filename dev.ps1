@@ -103,6 +103,8 @@ try {
         Start-Process powershell -ArgumentList "-NoExit", "-Command", $cmd
     }
 
+    $Global:IsArm64Only = $false
+
     function Select-AndroidArchitecture {
         Write-Host ""
         Write-Host "Selecciona arquitectura de compilacion:" -ForegroundColor Yellow
@@ -121,8 +123,10 @@ try {
             $env:ORG_GRADLE_PROJECT_abiList = "arm64-v8a"
             $env:ORG_GRADLE_PROJECT_archList = "arm64"
             $env:ORG_GRADLE_PROJECT_targetList = "aarch64"
+            $Global:IsArm64Only = $true
         } else {
             Write-Host "[INFO] Compilando para todas las arquitecturas..." -ForegroundColor Cyan
+            $Global:IsArm64Only = $false
         }
         Write-Host ""
     }
@@ -250,6 +254,11 @@ try {
         $cmdVite = "`$host.UI.RawUI.WindowTitle = 'Vite Dev Server'; Set-Location '$ScriptDir'; npm run dev"
         Start-Process powershell -ArgumentList "-NoExit", "-Command", $cmdVite
         Start-Sleep -Seconds 5
+        $tauriDevArgs = ""
+        if ($Global:IsArm64Only) {
+            # Nota: tauri android dev acepta el nombre de dispositivo como argumento posicional
+            # y no tiene flag --target nativa, pero se compilará por defecto según la arquitectura del dispositivo seleccionado.
+        }
         $cmdTauri = "`$host.UI.RawUI.WindowTitle = 'Tauri Android (Dev)'; Set-Location '$ScriptDir'; npx tauri android dev"
         Start-Process powershell -ArgumentList "-NoExit", "-Command", $cmdTauri
     }
@@ -292,7 +301,14 @@ try {
         
         Write-Host ""
         Write-Host "[INFO] Compilando Android (Release)..." -ForegroundColor Cyan
-        $cmd = "`$host.UI.RawUI.WindowTitle = 'Android Build (Release)'; Set-Location '$ScriptDir'; npm run tauri android build"
+        
+        $buildCmd = "npm run tauri android build"
+        if ($Global:IsArm64Only) {
+            # En Tauri v2, pasamos los argumentos para tauri android build usando '--' seguido del flag '--target'
+            $buildCmd = "npx tauri android build -- --target aarch64"
+        }
+        
+        $cmd = "`$host.UI.RawUI.WindowTitle = 'Android Build (Release)'; Set-Location '$ScriptDir'; $buildCmd"
         Start-Process powershell -ArgumentList "-NoExit", "-Command", $cmd
         Read-Host "Presione Enter para continuar..."
     }
