@@ -121,8 +121,8 @@ try {
         if ($archSel -eq "2") {
             Write-Host "[INFO] Compilando solo arm64..." -ForegroundColor Cyan
             $env:ORG_GRADLE_PROJECT_abiList = "arm64-v8a"
-            $env:ORG_GRADLE_PROJECT_archList = "arm64"
-            $env:ORG_GRADLE_PROJECT_targetList = "aarch64"
+            # No definimos archList ni targetList porque confunden a Gradle/Rust al intentar compilar
+            # con el target literal "aarch64" en lugar de "aarch64-linux-android"
             $Global:IsArm64Only = $true
         } else {
             Write-Host "[INFO] Compilando para todas las arquitecturas..." -ForegroundColor Cyan
@@ -131,8 +131,24 @@ try {
         Write-Host ""
     }
 
+    function Assert-AndroidProject {
+        $gradlewBat = Join-Path $ScriptDir "src-tauri\gen\android\gradlew.bat"
+        if (-not (Test-Path $gradlewBat)) {
+            Write-Host "[WARNING] No se encontro el wrapper de Gradle (gradlew.bat)." -ForegroundColor Yellow
+            Write-Host "[INFO] Inicializando el proyecto Android con Tauri para restaurar Gradle..." -ForegroundColor Cyan
+            npx tauri android init
+            if (-not (Test-Path $gradlewBat)) {
+                Write-Host "[ERROR] No se pudo inicializar Gradle en el proyecto de Android." -ForegroundColor Red
+                Read-Host "Presione Enter para continuar..."
+                return $false
+            }
+        }
+        return $true
+    }
+
     function Invoke-AndroidDev {
         if (-not (Assert-AndroidSdk)) { return }
+        if (-not (Assert-AndroidProject)) { return }
         
         Select-AndroidArchitecture
         
@@ -265,6 +281,7 @@ try {
 
     function Invoke-AndroidHotReload {
         if (-not (Assert-AndroidSdk)) { return }
+        if (-not (Assert-AndroidProject)) { return }
         
         Select-AndroidArchitecture
         
@@ -296,6 +313,7 @@ try {
 
     function Invoke-AndroidBuild {
         if (-not (Assert-AndroidSdk)) { return }
+        if (-not (Assert-AndroidProject)) { return }
         
         Select-AndroidArchitecture
         
@@ -305,7 +323,7 @@ try {
         $buildCmd = "npm run tauri android build"
         if ($Global:IsArm64Only) {
             # En Tauri v2, pasamos los argumentos para tauri android build usando '--' seguido del flag '--target'
-            $buildCmd = "npx tauri android build -- --target aarch64"
+            $buildCmd = "npx tauri android build -- --target aarch64-linux-android"
         }
         
         $cmd = "`$host.UI.RawUI.WindowTitle = 'Android Build (Release)'; Set-Location '$ScriptDir'; $buildCmd"
