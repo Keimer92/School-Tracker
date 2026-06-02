@@ -305,7 +305,7 @@ try {
         $buildCmd = if ($allArchs) {
             "npx tauri android build"
         } else {
-            "npx tauri android build -- --target aarch64"
+            "npx tauri android build -- --target aarch64-linux-android"
         }
         
         $cmd = "`$host.UI.RawUI.WindowTitle = 'Android Build ($archLabel)'; Set-Location '$ScriptDir'; $buildCmd"
