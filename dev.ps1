@@ -34,14 +34,10 @@ try {
 
     # Safely define paths if ANDROID_HOME is set
     if ($env:ANDROID_HOME) {
-        $EmulatorPath = Join-Path $env:ANDROID_HOME "emulator\emulator.exe"
         $AdbPath = Join-Path $env:ANDROID_HOME "platform-tools\adb.exe"
-        $AvdManager = Join-Path $env:ANDROID_HOME "cmdline-tools\latest\bin\avdmanager.bat"
         $SdkManager = Join-Path $env:ANDROID_HOME "cmdline-tools\latest\bin\sdkmanager.bat"
     } else {
-        $EmulatorPath = ""
         $AdbPath = ""
-        $AvdManager = ""
         $SdkManager = ""
     }
 
@@ -57,16 +53,16 @@ try {
         Write-Host ""
         Write-Host " === DESARROLLO ===" -ForegroundColor Yellow
         Write-Host "   1. Windows (Desarrollo)"
-        Write-Host "   2. Android (Desarrollo - Compila todo)"
-        Write-Host "   3. Android (Hot Reload - Rapido, requiere servidor)"
-        Write-Host "   4. Windows Build (Release)"
-        Write-Host "   5. Android Build (Release)"
+        Write-Host "   2. Android (Desarrollo - arm64) [Rapido]"
+        Write-Host "   3. Android (Desarrollo - Todas las arquitecturas)"
+        Write-Host "   4. Android (Hot Reload - arm64) [Rapido]"
+        Write-Host "   5. Android (Hot Reload - Todas las arquitecturas)"
+        Write-Host "   6. Windows Build (Release)"
+        Write-Host "   7. Android Build (Release - arm64) [Rapido]"
+        Write-Host "   8. Android Build (Release - Todas las arquitecturas)"
         Write-Host ""
-        Write-Host " === GESTOR DE EMULADORES ===" -ForegroundColor Yellow
-        Write-Host "   6. Ver emuladores / dispositivos"
-        Write-Host "   7. Crear nuevo emulador"
-        Write-Host "   8. Eliminar emulador"
-        Write-Host "   9. Iniciar emulador (sin app)"
+        Write-Host " === DISPOSITIVOS ===" -ForegroundColor Yellow
+        Write-Host "   9. Ver dispositivos conectados"
         Write-Host "  10. Conectar ADB por WiFi"
         Write-Host ""
         Write-Host " === MANTENIMIENTO ===" -ForegroundColor Yellow
@@ -103,32 +99,19 @@ try {
         Start-Process powershell -ArgumentList "-NoExit", "-Command", $cmd
     }
 
-    $Global:IsArm64Only = $false
-
-    function Select-AndroidArchitecture {
-        Write-Host ""
-        Write-Host "Selecciona arquitectura de compilacion:" -ForegroundColor Yellow
-        Write-Host "  1. Todas las arquitecturas (arm64 + arm7 + x86 + x86_64) [mas lento]"
-        Write-Host "  2. Solo arm64 (mas rapido)"
-        Write-Host ""
-        $archSel = Read-Host "Arquitectura (1-2)"
-        
-        # Limpiar env vars anteriores
+    function Set-AndroidArchArm64 {
         Remove-Item Env:ORG_GRADLE_PROJECT_abiList -ErrorAction SilentlyContinue
         Remove-Item Env:ORG_GRADLE_PROJECT_archList -ErrorAction SilentlyContinue
         Remove-Item Env:ORG_GRADLE_PROJECT_targetList -ErrorAction SilentlyContinue
-        
-        if ($archSel -eq "2") {
-            Write-Host "[INFO] Compilando solo arm64..." -ForegroundColor Cyan
-            $env:ORG_GRADLE_PROJECT_abiList = "arm64-v8a"
-            # No definimos archList ni targetList porque confunden a Gradle/Rust al intentar compilar
-            # con el target literal "aarch64" en lugar de "aarch64-linux-android"
-            $Global:IsArm64Only = $true
-        } else {
-            Write-Host "[INFO] Compilando para todas las arquitecturas..." -ForegroundColor Cyan
-            $Global:IsArm64Only = $false
-        }
-        Write-Host ""
+        $env:ORG_GRADLE_PROJECT_abiList = "arm64-v8a"
+        $env:ORG_GRADLE_PROJECT_archList = "arm64"
+        $env:ORG_GRADLE_PROJECT_targetList = "aarch64"
+    }
+
+    function Set-AndroidArchAll {
+        Remove-Item Env:ORG_GRADLE_PROJECT_abiList -ErrorAction SilentlyContinue
+        Remove-Item Env:ORG_GRADLE_PROJECT_archList -ErrorAction SilentlyContinue
+        Remove-Item Env:ORG_GRADLE_PROJECT_targetList -ErrorAction SilentlyContinue
     }
 
     function Assert-AndroidProject {
@@ -146,14 +129,16 @@ try {
         return $true
     }
 
-    function Invoke-AndroidDev {
+    function Invoke-AndroidDevBase {
+        param([bool]$allArchs)
         if (-not (Assert-AndroidSdk)) { return }
         if (-not (Assert-AndroidProject)) { return }
         
-        Select-AndroidArchitecture
+        if ($allArchs) { Set-AndroidArchAll } else { Set-AndroidArchArm64 }
+        $archLabel = if ($allArchs) { "Todas las arquitecturas" } else { "arm64" }
         
         Write-Host ""
-        Write-Host "[INFO] Iniciando desarrollo en Android..." -ForegroundColor Cyan
+        Write-Host "[INFO] Iniciando desarrollo en Android ($archLabel)..." -ForegroundColor Cyan
         Write-Host ""
         
         Write-Host "[INFO] Limpiando locks de compilacion..." -ForegroundColor Cyan
@@ -169,7 +154,6 @@ try {
         [Environment]::SetEnvironmentVariable("ANDROID_NDK_HOME", $ndkPath, "Machine")
         $env:ANDROID_NDK_HOME = $ndkPath
         
-        # Verificar NDK
         $ndkProps = Join-Path $ndkPath "source.properties"
         if (-not (Test-Path $ndkProps)) {
             Write-Host "[INFO] Instalando NDK..." -ForegroundColor Cyan
@@ -177,14 +161,12 @@ try {
             "y" | & $SdkManager "ndk;27.0.12077973"
         }
         
-        # Verificar proyecto
         $genAndroid = Join-Path $ScriptDir "src-tauri\gen\android"
         if (-not (Test-Path $genAndroid)) {
             Write-Host "[INFO] Inicializando proyecto..." -ForegroundColor Cyan
             npm run tauri android init
         }
         
-        # Verificar targets
         $installedTargets = rustup target list --installed
         $hasAndroidTarget = $installedTargets | Out-String -Stream | Select-String "android"
         if (-not $hasAndroidTarget) {
@@ -192,7 +174,6 @@ try {
             rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
         }
         
-        # DETECTAR DISPOSITIVOS
         Write-Host ""
         Write-Host "[INFO] Buscando dispositivos..." -ForegroundColor Cyan
         $adbDevicesOutput = & $AdbPath devices -l 2>$null
@@ -216,10 +197,9 @@ try {
         
         if ($devices.Count -eq 0) {
             Write-Host ""
-            Write-Host "[ERROR] No hay dispositivos conectados." -ForegroundColor Red
+            Write-Host "[ERROR] No hay dispositivos fisicos conectados." -ForegroundColor Red
             Write-Host "  - Conecta USB con depuracion activada"
             Write-Host "  - O usa la opcion 10 para conectar por WiFi"
-            Write-Host "  - O usa la opcion 9 para iniciar un emulador"
             Write-Host ""
             Read-Host "Presione Enter para continuar..."
             return
@@ -235,15 +215,12 @@ try {
         if ([string]::IsNullOrWhiteSpace($sel)) { return }
         
         [int]$idx = 0
-        if (-not [int]::TryParse($sel, [ref]$idx) -or $idx -lt 1 -or $idx -gt $devices.Count) {
-            return
-        }
+        if (-not [int]::TryParse($sel, [ref]$idx) -or $idx -lt 1 -or $idx -gt $devices.Count) { return }
         
         $selected = $devices[$idx - 1]
         Write-Host "[OK] Seleccionado: $selected" -ForegroundColor Green
         Write-Host ""
         
-        # Obtener IP de la PC
         $pc_ip = ""
         $ipConfig = ipconfig
         foreach ($line in $ipConfig) {
@@ -270,23 +247,23 @@ try {
         $cmdVite = "`$host.UI.RawUI.WindowTitle = 'Vite Dev Server'; Set-Location '$ScriptDir'; npm run dev"
         Start-Process powershell -ArgumentList "-NoExit", "-Command", $cmdVite
         Start-Sleep -Seconds 5
-        $tauriDevArgs = ""
-        if ($Global:IsArm64Only) {
-            # Nota: tauri android dev acepta el nombre de dispositivo como argumento posicional
-            # y no tiene flag --target nativa, pero se compilará por defecto según la arquitectura del dispositivo seleccionado.
-        }
         $cmdTauri = "`$host.UI.RawUI.WindowTitle = 'Tauri Android (Dev)'; Set-Location '$ScriptDir'; npx tauri android dev"
         Start-Process powershell -ArgumentList "-NoExit", "-Command", $cmdTauri
     }
 
-    function Invoke-AndroidHotReload {
+    function Invoke-AndroidDevArm64 { Invoke-AndroidDevBase -allArchs $false }
+    function Invoke-AndroidDevAll { Invoke-AndroidDevBase -allArchs $true }
+
+    function Invoke-AndroidHotReloadBase {
+        param([bool]$allArchs)
         if (-not (Assert-AndroidSdk)) { return }
         if (-not (Assert-AndroidProject)) { return }
         
-        Select-AndroidArchitecture
+        if ($allArchs) { Set-AndroidArchAll } else { Set-AndroidArchArm64 }
+        $archLabel = if ($allArchs) { "Todas las arquitecturas" } else { "arm64" }
         
         Write-Host ""
-        Write-Host "[INFO] Android Hot Reload (Rapido)..." -ForegroundColor Cyan
+        Write-Host "[INFO] Android Hot Reload ($archLabel)..." -ForegroundColor Cyan
         Write-Host ""
         
         Write-Host "[INFO] Limpiando locks de compilacion..." -ForegroundColor Cyan
@@ -303,6 +280,9 @@ try {
         Start-Process powershell -ArgumentList "-NoExit", "-Command", $cmd
     }
 
+    function Invoke-AndroidHotReloadArm64 { Invoke-AndroidHotReloadBase -allArchs $false }
+    function Invoke-AndroidHotReloadAll { Invoke-AndroidHotReloadBase -allArchs $true }
+
     function Invoke-WindowsBuild {
         Write-Host ""
         Write-Host "[INFO] Compilando Windows (Release)..." -ForegroundColor Cyan
@@ -311,177 +291,41 @@ try {
         Read-Host "Presione Enter para continuar..."
     }
 
-    function Invoke-AndroidBuild {
+    function Invoke-AndroidBuildBase {
+        param([bool]$allArchs)
         if (-not (Assert-AndroidSdk)) { return }
         if (-not (Assert-AndroidProject)) { return }
         
-        Select-AndroidArchitecture
+        if ($allArchs) { Set-AndroidArchAll } else { Set-AndroidArchArm64 }
+        $archLabel = if ($allArchs) { "Todas las arquitecturas" } else { "arm64" }
         
         Write-Host ""
-        Write-Host "[INFO] Compilando Android (Release)..." -ForegroundColor Cyan
+        Write-Host "[INFO] Compilando Android ($archLabel)..." -ForegroundColor Cyan
         
-        $buildCmd = "npm run tauri android build"
-        if ($Global:IsArm64Only) {
-            # En Tauri v2, pasamos los argumentos para tauri android build usando '--' seguido del flag '--target'
-            $buildCmd = "npx tauri android build -- --target aarch64-linux-android"
+        $buildCmd = if ($allArchs) {
+            "npx tauri android build"
+        } else {
+            "npx tauri android build -- --target aarch64"
         }
         
-        $cmd = "`$host.UI.RawUI.WindowTitle = 'Android Build (Release)'; Set-Location '$ScriptDir'; $buildCmd"
+        $cmd = "`$host.UI.RawUI.WindowTitle = 'Android Build ($archLabel)'; Set-Location '$ScriptDir'; $buildCmd"
         Start-Process powershell -ArgumentList "-NoExit", "-Command", $cmd
         Read-Host "Presione Enter para continuar..."
     }
 
-    function Get-AndroidEmulator {
+    function Invoke-AndroidBuildArm64 { Invoke-AndroidBuildBase -allArchs $false }
+    function Invoke-AndroidBuildAll { Invoke-AndroidBuildBase -allArchs $true }
+
+    function Get-AndroidDevices {
         if (-not (Assert-AndroidSdk)) { return }
         
         Clear-Host
         Write-Host "==============================================" -ForegroundColor Cyan
-        Write-Host "DISPOSITIVOS Y EMULADORES" -ForegroundColor Yellow
+        Write-Host "DISPOSITIVOS CONECTADOS" -ForegroundColor Yellow
         Write-Host "==============================================" -ForegroundColor Cyan
         Write-Host ""
-        Write-Host "--- Dispositivos conectados ---" -ForegroundColor Yellow
         & $AdbPath devices -l
         Write-Host ""
-        Write-Host "--- Emuladores instalados ---" -ForegroundColor Yellow
-        & $EmulatorPath -list-avds
-        Write-Host ""
-        Read-Host "Presione Enter para continuar..."
-    }
-
-    function New-AndroidEmulator {
-        if (-not (Assert-AndroidSdk)) { return }
-        
-        while ($true) {
-            Clear-Host
-            Write-Host "==============================================" -ForegroundColor Cyan
-            Write-Host "CREAR NUEVO EMULADOR" -ForegroundColor Yellow
-            Write-Host "==============================================" -ForegroundColor Cyan
-            Write-Host "1. Android 12 (API 31) - x86_64 [RECOMENDADO]"
-            Write-Host "2. Android 13 (API 33) - x86_64"
-            Write-Host "3. Android 14 (API 34) - x86_64"
-            Write-Host ""
-            $v = Read-Host "Version (1-3)"
-            if ($v -eq "1") { $api = "31"; break }
-            elseif ($v -eq "2") { $api = "33"; break }
-            elseif ($v -eq "3") { $api = "34"; break }
-        }
-        
-        $n = Read-Host "Nombre (ej: android$api)"
-        if ([string]::IsNullOrWhiteSpace($n)) { $n = "android$api" }
-        
-        Write-Host "[INFO] Aceptando todas las licencias del SDK de Android..." -ForegroundColor Cyan
-        @("y", "y", "y", "y", "y", "y", "y", "y", "y", "y") | & $SdkManager --licenses > $null 2>&1
-        
-        Write-Host "[INFO] Descargando imagen de sistema para API $api (esto puede tardar unos minutos)..." -ForegroundColor Cyan
-        & $SdkManager "system-images;android-$api;google_apis;x86_64"
-        
-        Write-Host ""
-        Write-Host "[INFO] Creando emulador virtual (AVD)..." -ForegroundColor Cyan
-        "no" | & $AvdManager create avd -n $n -k "system-images;android-$api;google_apis;x86_64" --force
-        
-        Write-Host ""
-        Write-Host "[OK] Emulador `"$n`" creado exitosamente!" -ForegroundColor Green
-        Read-Host "Presione Enter para continuar..."
-    }
-
-    function Remove-AndroidEmulator {
-        if (-not (Assert-AndroidSdk)) { return }
-        
-        Clear-Host
-        Write-Host "==============================================" -ForegroundColor Cyan
-        Write-Host "ELIMINAR EMULADOR" -ForegroundColor Yellow
-        Write-Host "==============================================" -ForegroundColor Cyan
-        Write-Host ""
-        Write-Host "Buscando emuladores creados..."
-        Write-Host ""
-        
-        $avds = & $EmulatorPath -list-avds 2>$null
-        if ($null -eq $avds -or $avds.Count -eq 0 -or ($avds.Count -eq 1 -and [string]::IsNullOrWhiteSpace($avds[0]))) {
-            Write-Host "[ERROR] No se encontraron emuladores para eliminar." -ForegroundColor Red
-            Write-Host ""
-            Read-Host "Presione Enter para continuar..."
-            return
-        }
-        
-        $avds = $avds | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-        
-        for ($i = 0; $i -lt $avds.Count; $i++) {
-            Write-Host "  $($i + 1). $($avds[$i])"
-        }
-        
-        Write-Host ""
-        $sel = Read-Host "Selecciona el numero a eliminar (1-$($avds.Count))"
-        if ([string]::IsNullOrWhiteSpace($sel)) { return }
-        
-        [int]$idx = 0
-        if (-not [int]::TryParse($sel, [ref]$idx) -or $idx -lt 1 -or $idx -gt $avds.Count) {
-            Write-Host ""
-            Write-Host "[ERROR] Seleccion invalida. Intentalo de nuevo." -ForegroundColor Red
-            Read-Host "Presione Enter para continuar..."
-            Remove-AndroidEmulator
-            return
-        }
-        
-        $selected = $avds[$idx - 1]
-        
-        Write-Host ""
-        Write-Host "[WARNING] Estas a punto de eliminar el emulador `"$selected`"." -ForegroundColor Yellow
-        $confirm = Read-Host "¿Estas seguro? (s/n)"
-        if ($confirm -eq "s" -or $confirm -eq "S") {
-            Write-Host "[INFO] Eliminando `"$selected`"..." -ForegroundColor Cyan
-            & $AvdManager delete avd -n $selected
-            Write-Host "[OK] Eliminado!" -ForegroundColor Green
-        } else {
-            Write-Host "[INFO] Operacion cancelada."
-        }
-        Read-Host "Presione Enter para continuar..."
-    }
-
-    function Start-AndroidEmulator {
-        if (-not (Assert-AndroidSdk)) { return }
-        
-        Clear-Host
-        Write-Host "==============================================" -ForegroundColor Cyan
-        Write-Host "INICIAR EMULADOR" -ForegroundColor Yellow
-        Write-Host "==============================================" -ForegroundColor Cyan
-        Write-Host ""
-        Write-Host "Buscando emuladores creados..."
-        Write-Host ""
-        
-        $avds = & $EmulatorPath -list-avds 2>$null
-        if ($null -eq $avds -or $avds.Count -eq 0 -or ($avds.Count -eq 1 -and [string]::IsNullOrWhiteSpace($avds[0]))) {
-            Write-Host "[ERROR] No se encontraron emuladores creados." -ForegroundColor Red
-            Write-Host "Crea uno primero usando la opcion 7."
-            Write-Host ""
-            Read-Host "Presione Enter para continuar..."
-            return
-        }
-        
-        $avds = $avds | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-        
-        for ($i = 0; $i -lt $avds.Count; $i++) {
-            Write-Host "  $($i + 1). $($avds[$i])"
-        }
-        
-        Write-Host ""
-        $sel = Read-Host "Selecciona el numero de emulador (1-$($avds.Count))"
-        if ([string]::IsNullOrWhiteSpace($sel)) { return }
-        
-        [int]$idx = 0
-        if (-not [int]::TryParse($sel, [ref]$idx) -or $idx -lt 1 -or $idx -gt $avds.Count) {
-            Write-Host ""
-            Write-Host "[ERROR] Seleccion invalida. Intentalo de nuevo." -ForegroundColor Red
-            Read-Host "Presione Enter para continuar..."
-            Start-AndroidEmulator
-            return
-        }
-        
-        $selected = $avds[$idx - 1]
-        
-        Write-Host ""
-        Write-Host "[INFO] Iniciando emulador `"$selected`" en segundo plano..." -ForegroundColor Cyan
-        Start-Process -FilePath $EmulatorPath -ArgumentList "-avd", $selected -WindowStyle Minimized
-        Write-Host "[OK] Iniciado!" -ForegroundColor Green
         Read-Host "Presione Enter para continuar..."
     }
 
@@ -512,27 +356,78 @@ try {
         Write-Host "==============================================" -ForegroundColor Cyan
         Write-Host "LIMPIEZA DE CACHE Y DEPENDENCIAS" -ForegroundColor Yellow
         Write-Host "==============================================" -ForegroundColor Cyan
-        
-        $viteDir = Join-Path $ScriptDir "node_modules\.vite"
-        if (Test-Path $viteDir) { Remove-Item -Recurse -Force $viteDir }
-        
-        $targetDir = Join-Path $ScriptDir "src-tauri\target"
-        if (Test-Path $targetDir) { Remove-Item -Recurse -Force $targetDir }
-        
-        $androidBuildDir = Join-Path $ScriptDir "src-tauri\gen\android\app\build"
-        if (Test-Path $androidBuildDir) { Remove-Item -Recurse -Force $androidBuildDir }
-        
-        $distDir = Join-Path $ScriptDir "dist"
-        if (Test-Path $distDir) { Remove-Item -Recurse -Force $distDir }
-        
-        Write-Host "[INFO] Limpiando cache de npm..." -ForegroundColor Cyan
-        npm cache clean --force
-        
-        Write-Host "[INFO] Ejecutando cargo clean..." -ForegroundColor Cyan
-        Push-Location (Join-Path $ScriptDir "src-tauri")
-        cargo clean
-        Pop-Location
-        
+        Write-Host ""
+        Write-Host " 1. Rapida - Solo limpia builds (Android + Windows)"
+        Write-Host " 2. Agresiva - Limpia TODO (target, node_modules, npm cache, builds)"
+        Write-Host ""
+        $choice = Read-Host "Selecciona tipo de limpieza (1-2)"
+        Write-Host ""
+
+        if ($choice -eq "1") {
+            Write-Host "[INFO] Limpieza rapida (builds)..." -ForegroundColor Cyan
+
+            $androidBuildDir = Join-Path $ScriptDir "src-tauri\gen\android\app\build"
+            if (Test-Path $androidBuildDir) {
+                Remove-Item -Recurse -Force $androidBuildDir
+                Write-Host "  [OK] Android build limpiado" -ForegroundColor Green
+            } else {
+                Write-Host "  [--] No hay build de Android" -ForegroundColor Gray
+            }
+
+            $windowsBuildDir = Join-Path $ScriptDir "src-tauri\target\release"
+            if (Test-Path $windowsBuildDir) {
+                Remove-Item -Recurse -Force $windowsBuildDir
+                Write-Host "  [OK] Release de Windows limpiado" -ForegroundColor Green
+            } else {
+                Write-Host "  [--] No hay build de Windows" -ForegroundColor Gray
+            }
+
+            $debugBuildDir = Join-Path $ScriptDir "src-tauri\target\debug"
+            if (Test-Path $debugBuildDir) {
+                Remove-Item -Recurse -Force $debugBuildDir
+                Write-Host "  [OK] Debug de Windows limpiado" -ForegroundColor Green
+            } else {
+                Write-Host "  [--] No hay build debug de Windows" -ForegroundColor Gray
+            }
+
+            $distDir = Join-Path $ScriptDir "dist"
+            if (Test-Path $distDir) {
+                Remove-Item -Recurse -Force $distDir
+                Write-Host "  [OK] Dist limpiado" -ForegroundColor Green
+            } else {
+                Write-Host "  [--] No hay dist" -ForegroundColor Gray
+            }
+
+            $viteDir = Join-Path $ScriptDir "node_modules\.vite"
+            if (Test-Path $viteDir) {
+                Remove-Item -Recurse -Force $viteDir
+                Write-Host "  [OK] Cache de Vite limpiado" -ForegroundColor Green
+            } else {
+                Write-Host "  [--] No hay cache de Vite" -ForegroundColor Gray
+            }
+        } else {
+            $viteDir = Join-Path $ScriptDir "node_modules\.vite"
+            if (Test-Path $viteDir) { Remove-Item -Recurse -Force $viteDir }
+            
+            $targetDir = Join-Path $ScriptDir "src-tauri\target"
+            if (Test-Path $targetDir) { Remove-Item -Recurse -Force $targetDir }
+            
+            $androidBuildDir = Join-Path $ScriptDir "src-tauri\gen\android\app\build"
+            if (Test-Path $androidBuildDir) { Remove-Item -Recurse -Force $androidBuildDir }
+            
+            $distDir = Join-Path $ScriptDir "dist"
+            if (Test-Path $distDir) { Remove-Item -Recurse -Force $distDir }
+            
+            Write-Host "[INFO] Limpiando cache de npm..." -ForegroundColor Cyan
+            npm cache clean --force
+            
+            Write-Host "[INFO] Ejecutando cargo clean..." -ForegroundColor Cyan
+            Push-Location (Join-Path $ScriptDir "src-tauri")
+            cargo clean
+            Pop-Location
+        }
+
+        Write-Host ""
         Write-Host "[OK] Limpieza completada!" -ForegroundColor Green
         Read-Host "Presione Enter para continuar..."
     }
@@ -675,14 +570,14 @@ Desktop.ini
         
         switch ($modo) {
             "1" { Invoke-WindowsDev }
-            "2" { Invoke-AndroidDev }
-            "3" { Invoke-AndroidHotReload }
-            "4" { Invoke-WindowsBuild }
-            "5" { Invoke-AndroidBuild }
-            "6" { Get-AndroidEmulator }
-            "7" { New-AndroidEmulator }
-            "8" { Remove-AndroidEmulator }
-            "9" { Start-AndroidEmulator }
+            "2" { Invoke-AndroidDevArm64 }
+            "3" { Invoke-AndroidDevAll }
+            "4" { Invoke-AndroidHotReloadArm64 }
+            "5" { Invoke-AndroidHotReloadAll }
+            "6" { Invoke-WindowsBuild }
+            "7" { Invoke-AndroidBuildArm64 }
+            "8" { Invoke-AndroidBuildAll }
+            "9" { Get-AndroidDevices }
             "10" { Connect-AdbWifi }
             "11" { Clear-AppCache }
             "12" { Get-AndroidLogs }
