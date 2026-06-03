@@ -319,12 +319,17 @@ try {
 `$host.UI.RawUI.WindowTitle = 'Android Build arm64 (Release)'
 Set-Location "${ScriptDir}"
 
+# Filtrar solo arm64-v8a para que RustPlugin compile solo aarch64
+`$env:ORG_GRADLE_PROJECT_abiList = "arm64-v8a"
+`$env:ORG_GRADLE_PROJECT_archList = "arm64"
+`$env:ORG_GRADLE_PROJECT_targetList = "aarch64"
+
 Write-Host "==============================================" -ForegroundColor Cyan
 Write-Host "COMPILANDO ANDROID SOLO arm64 (RELEASE)" -ForegroundColor Yellow
 Write-Host "==============================================" -ForegroundColor Cyan
 Write-Host ""
 
-Write-Host "[1/4] Compilando frontend..." -ForegroundColor Cyan
+Write-Host "[1/2] Compilando frontend..." -ForegroundColor Cyan
 npm run build
 if (`$LASTEXITCODE -ne 0) {
     Write-Host "[ERROR] Fallo la compilacion del frontend." -ForegroundColor Red
@@ -332,42 +337,7 @@ if (`$LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Host "[2/4] Compilando Rust solo para aarch64..." -ForegroundColor Cyan
-
-# Configurar NDK toolchain y PATH (cargo, java, etc.)
-`$ndkBin = Join-Path `$env:ANDROID_NDK_HOME "toolchains\llvm\prebuilt\windows-x86_64\bin"
-`$clang = Join-Path `$ndkBin "aarch64-linux-android21-clang.cmd"
-`$env:CC_aarch64_linux_android = `$clang
-`$env:AR_aarch64_linux_android = Join-Path `$ndkBin "llvm-ar.exe"
-`$env:CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER = `$clang
-`$env:PATH = "`$ndkBin;`$env:PATH"
-`$cargoDir = Join-Path `$env:USERPROFILE ".cargo\bin"
-if (Test-Path `$cargoDir) { `$env:PATH = "`$env:PATH;`$cargoDir" }
-
-Push-Location (Join-Path "${ScriptDir}" "src-tauri")
-cargo build --target aarch64-linux-android --release
-if (`$LASTEXITCODE -ne 0) {
-    Write-Host "[ERROR] Fallo la compilacion de Rust." -ForegroundColor Red
-    Pop-Location
-    Read-Host "Presione Enter para salir..."
-    exit 1
-}
-Pop-Location
-
-Write-Host "[3/4] Preparando libreria para APK..." -ForegroundColor Cyan
-`$libName = "libschool_tracker_pro_lib.so"
-`$soFile = Join-Path "${ScriptDir}" "src-tauri\target\aarch64-linux-android\release" `$libName
-`$jniDir = Join-Path "${ScriptDir}" "src-tauri\gen\android\app\src\main\jniLibs\arm64-v8a"
-if (-not (Test-Path `$jniDir)) { New-Item -ItemType Directory -Path `$jniDir -Force | Out-Null }
-`$linkPath = Join-Path `$jniDir `$libName
-if (Test-Path `$linkPath) { Remove-Item -Force `$linkPath }
-New-Item -ItemType SymbolicLink -Path `$linkPath -Target `$soFile -Force | Out-Null
-Write-Host "[OK] Symlink creado" -ForegroundColor Green
-
-Write-Host "[4/4] Ejecutando Gradle (solo arm64-v8a)..." -ForegroundColor Cyan
-`$env:ORG_GRADLE_PROJECT_abiList = "arm64-v8a"
-`$env:ORG_GRADLE_PROJECT_archList = "arm64"
-`$env:ORG_GRADLE_PROJECT_targetList = "aarch64"
+Write-Host "[2/2] Ejecutando Gradle (solo arm64-v8a)..." -ForegroundColor Cyan
 
 Push-Location (Join-Path "${ScriptDir}" "src-tauri\gen\android")
 .\gradlew.bat assembleRelease
