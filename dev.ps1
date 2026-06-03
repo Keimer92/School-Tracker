@@ -336,8 +336,10 @@ Write-Host "[2/4] Compilando Rust solo para aarch64..." -ForegroundColor Cyan
 
 # Configurar NDK toolchain y PATH (cargo, java, etc.)
 `$ndkBin = Join-Path `$env:ANDROID_NDK_HOME "toolchains\llvm\prebuilt\windows-x86_64\bin"
-`$env:CC_aarch64_linux_android = Join-Path `$ndkBin "aarch64-linux-android21-clang.cmd"
+`$clang = Join-Path `$ndkBin "aarch64-linux-android21-clang.cmd"
+`$env:CC_aarch64_linux_android = `$clang
 `$env:AR_aarch64_linux_android = Join-Path `$ndkBin "llvm-ar.exe"
+`$env:CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER = `$clang
 `$env:PATH = "`$ndkBin;`$env:PATH"
 `$cargoDir = Join-Path `$env:USERPROFILE ".cargo\bin"
 if (Test-Path `$cargoDir) { `$env:PATH = "`$env:PATH;`$cargoDir" }
