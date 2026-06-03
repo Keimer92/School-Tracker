@@ -313,59 +313,68 @@ try {
         if (-not (Assert-AndroidSdk)) { return }
         if (-not (Assert-AndroidProject)) { return }
         
-        Write-Host ""
-        Write-Host "[INFO] Compilando Android solo arm64 (Release)..." -ForegroundColor Cyan
-        Write-Host "[INFO] Paso 1/4: Compilando frontend..." -ForegroundColor Cyan
-        npm run build
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "[ERROR] Falló la compilación del frontend." -ForegroundColor Red
-            Read-Host "Presione Enter para continuar..."
-            return
-        }
-        
-        Write-Host "[INFO] Paso 2/4: Compilando Rust solo para aarch64..." -ForegroundColor Cyan
-        Push-Location (Join-Path $ScriptDir "src-tauri")
-        cargo build --target aarch64-linux-android --release
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "[ERROR] Falló la compilación de Rust." -ForegroundColor Red
-            Pop-Location
-            Read-Host "Presione Enter para continuar..."
-            return
-        }
-        Pop-Location
-        
-        Write-Host "[INFO] Paso 3/4: Preparando librería para APK..." -ForegroundColor Cyan
-        $libName = "libschool_tracker_pro_lib.so"
-        $soFile = Join-Path $ScriptDir "src-tauri\target\aarch64-linux-android\release" $libName
-        $jniDir = Join-Path $ScriptDir "src-tauri\gen\android\app\src\main\jniLibs\arm64-v8a"
-        if (-not (Test-Path $jniDir)) { New-Item -ItemType Directory -Path $jniDir -Force | Out-Null }
-        
-        # Eliminar symlink anterior si existe y crear nuevo
-        $linkPath = Join-Path $jniDir $libName
-        if (Test-Path $linkPath) { Remove-Item -Force $linkPath }
-        New-Item -ItemType SymbolicLink -Path $linkPath -Target $soFile -Force | Out-Null
-        Write-Host "[OK] Symlink creado: $linkPath -> $soFile" -ForegroundColor Green
-        
-        Write-Host "[INFO] Paso 4/4: Ejecutando Gradle (solo arm64-v8a)..." -ForegroundColor Cyan
-        Set-AndroidArchArm64
-        
-        $gradleDir = Join-Path $ScriptDir "src-tauri\gen\android"
-        Push-Location $gradleDir
-        .\gradlew.bat assembleRelease
-        Pop-Location
-        
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host ""
-            Write-Host "[OK] Build completado exitosamente!" -ForegroundColor Green
-            $apkPath = Join-Path $ScriptDir "src-tauri\gen\android\app\build\outputs\apk\release"
-            if (Test-Path $apkPath) {
-                Write-Host "APK generado en: $apkPath" -ForegroundColor Cyan
-                Get-ChildItem $apkPath -Filter "*.apk" | ForEach-Object { Write-Host "  - $_" }
-            }
-        } else {
-            Write-Host "[ERROR] Falló el build de Gradle." -ForegroundColor Red
-        }
-        
+        $buildScript = @"
+`$host.UI.RawUI.WindowTitle = 'Android Build arm64 (Release)'
+Set-Location '$ScriptDir'
+
+Write-Host "==============================================" -ForegroundColor Cyan
+Write-Host "COMPILANDO ANDROID SOLO arm64 (RELEASE)" -ForegroundColor Yellow
+Write-Host "==============================================" -ForegroundColor Cyan
+Write-Host ""
+
+Write-Host "[1/4] Compilando frontend..." -ForegroundColor Cyan
+npm run build
+if (`$LASTEXITCODE -ne 0) {
+    Write-Host "[ERROR] Fallo la compilacion del frontend." -ForegroundColor Red
+    Read-Host "Presione Enter para salir..."
+    exit 1
+}
+
+Write-Host "[2/4] Compilando Rust solo para aarch64 (esto puede tardar)..." -ForegroundColor Cyan
+Push-Location (Join-Path "${ScriptDir}" "src-tauri")
+cargo build --target aarch64-linux-android --release
+if (`$LASTEXITCODE -ne 0) {
+    Write-Host "[ERROR] Fallo la compilacion de Rust." -ForegroundColor Red
+    Pop-Location
+    Read-Host "Presione Enter para salir..."
+    exit 1
+}
+Pop-Location
+
+Write-Host "[3/4] Preparando libreria para APK..." -ForegroundColor Cyan
+`$libName = "libschool_tracker_pro_lib.so"
+`$soFile = Join-Path "${ScriptDir}" "src-tauri\target\aarch64-linux-android\release" `$libName
+`$jniDir = Join-Path "${ScriptDir}" "src-tauri\gen\android\app\src\main\jniLibs\arm64-v8a"
+if (-not (Test-Path `$jniDir)) { New-Item -ItemType Directory -Path `$jniDir -Force | Out-Null }
+`$linkPath = Join-Path `$jniDir `$libName
+if (Test-Path `$linkPath) { Remove-Item -Force `$linkPath }
+New-Item -ItemType SymbolicLink -Path `$linkPath -Target `$soFile -Force | Out-Null
+Write-Host "[OK] Symlink creado" -ForegroundColor Green
+
+Write-Host "[4/4] Ejecutando Gradle (solo arm64-v8a)..." -ForegroundColor Cyan
+`$env:ORG_GRADLE_PROJECT_abiList = "arm64-v8a"
+`$env:ORG_GRADLE_PROJECT_archList = "arm64"
+`$env:ORG_GRADLE_PROJECT_targetList = "aarch64"
+
+Push-Location (Join-Path "${ScriptDir}" "src-tauri\gen\android")
+.\gradlew.bat assembleRelease
+Pop-Location
+
+if (`$LASTEXITCODE -eq 0) {
+    Write-Host ""
+    Write-Host "[OK] Build completado exitosamente!" -ForegroundColor Green
+    `$apkPath = Join-Path "${ScriptDir}" "src-tauri\gen\android\app\build\outputs\apk\release"
+    if (Test-Path `$apkPath) {
+        Write-Host "APK generado en: `$apkPath" -ForegroundColor Cyan
+        Get-ChildItem `$apkPath -Filter "*.apk" | ForEach-Object { Write-Host "  - `$_" }
+    }
+} else {
+    Write-Host "[ERROR] Fallo el build de Gradle." -ForegroundColor Red
+}
+Read-Host "Presione Enter para salir..."
+"@
+        Start-Process powershell -ArgumentList "-NoExit", "-Command", $buildScript
+        Write-Host "[INFO] Build arm64 iniciado en ventana separada." -ForegroundColor Cyan
         Read-Host "Presione Enter para continuar..."
     }
 
