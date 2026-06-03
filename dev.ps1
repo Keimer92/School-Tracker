@@ -313,9 +313,11 @@ try {
         if (-not (Assert-AndroidSdk)) { return }
         if (-not (Assert-AndroidProject)) { return }
         
-        $buildScript = @"
+        $tmpFile = Join-Path $env:TEMP "android-build-arm64.ps1"
+        
+        @"
 `$host.UI.RawUI.WindowTitle = 'Android Build arm64 (Release)'
-Set-Location '$ScriptDir'
+Set-Location "${ScriptDir}"
 
 Write-Host "==============================================" -ForegroundColor Cyan
 Write-Host "COMPILANDO ANDROID SOLO arm64 (RELEASE)" -ForegroundColor Yellow
@@ -330,7 +332,16 @@ if (`$LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Host "[2/4] Compilando Rust solo para aarch64 (esto puede tardar)..." -ForegroundColor Cyan
+Write-Host "[2/4] Compilando Rust solo para aarch64..." -ForegroundColor Cyan
+
+# Configurar NDK toolchain y PATH (cargo, java, etc.)
+`$ndkBin = Join-Path `$env:ANDROID_NDK_HOME "toolchains\llvm\prebuilt\windows-x86_64\bin"
+`$env:CC_aarch64_linux_android = Join-Path `$ndkBin "aarch64-linux-android21-clang.cmd"
+`$env:AR_aarch64_linux_android = Join-Path `$ndkBin "llvm-ar.exe"
+`$env:PATH = "`$ndkBin;`$env:PATH"
+`$cargoDir = Join-Path `$env:USERPROFILE ".cargo\bin"
+if (Test-Path `$cargoDir) { `$env:PATH = "`$env:PATH;`$cargoDir" }
+
 Push-Location (Join-Path "${ScriptDir}" "src-tauri")
 cargo build --target aarch64-linux-android --release
 if (`$LASTEXITCODE -ne 0) {
@@ -372,8 +383,9 @@ if (`$LASTEXITCODE -eq 0) {
     Write-Host "[ERROR] Fallo el build de Gradle." -ForegroundColor Red
 }
 Read-Host "Presione Enter para salir..."
-"@
-        Start-Process powershell -ArgumentList "-NoExit", "-Command", $buildScript
+"@ | Set-Content $tmpFile -Encoding UTF8
+        
+        Start-Process powershell -ArgumentList "-NoExit", "-File", $tmpFile
         Write-Host "[INFO] Build arm64 iniciado en ventana separada." -ForegroundColor Cyan
         Read-Host "Presione Enter para continuar..."
     }
