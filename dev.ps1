@@ -51,28 +51,26 @@ try {
             Write-Host "ADVERTENCIA: ANDROID_HOME no esta configurada en este sistema." -ForegroundColor Yellow
         }
         Write-Host ""
-        Write-Host " === DESARROLLO ===" -ForegroundColor Yellow
+         Write-Host " === DESARROLLO ===" -ForegroundColor Yellow
         Write-Host "   1. Windows (Desarrollo)"
-        Write-Host "   2. Android (Desarrollo - arm64) [Rapido]"
-        Write-Host "   3. Android (Desarrollo - Todas las arquitecturas)"
-        Write-Host "   4. Android (Hot Reload - arm64) [Rapido]"
-        Write-Host "   5. Android (Hot Reload - Todas las arquitecturas)"
-        Write-Host "   6. Windows Build (Release)"
-        Write-Host "   7. Android Build (Release - arm64) [Rapido]"
-        Write-Host "   8. Android Build (Release - Todas las arquitecturas)"
+        Write-Host "   2. Android (Desarrollo)"
+        Write-Host "   3. Android (Hot Reload)"
+        Write-Host "   4. Windows Build (Release)"
+        Write-Host "   5. Android Build (Release - arm64) [Rapido]"
+        Write-Host "   6. Android Build (Release - Todas las arquitecturas)"
         Write-Host ""
         Write-Host " === DISPOSITIVOS ===" -ForegroundColor Yellow
-        Write-Host "   9. Ver dispositivos conectados"
-        Write-Host "  10. Conectar ADB por WiFi"
+        Write-Host "   7. Ver dispositivos conectados"
+        Write-Host "   8. Conectar ADB por WiFi"
         Write-Host ""
         Write-Host " === MANTENIMIENTO ===" -ForegroundColor Yellow
-        Write-Host "  11. Limpiar cache y dependencias"
-        Write-Host "  12. Depurar Android (Chrome Inspect)"
-        Write-Host "  13. Configurar firmas Android (Release)"
+        Write-Host "   9. Limpiar cache y dependencias"
+        Write-Host "  10. Depurar Android (Chrome Inspect)"
+        Write-Host "  11. Configurar firmas Android (Release)"
         Write-Host ""
         Write-Host " === OTROS ===" -ForegroundColor Yellow
-        Write-Host "  14. Crear .gitignore para Rust/Tauri"
-        Write-Host "  15. Salir"
+        Write-Host "  12. Crear .gitignore para Rust/Tauri"
+        Write-Host "  13. Salir"
         Write-Host "------------------------------------------------" -ForegroundColor Cyan
         Write-Host ""
     }
@@ -251,9 +249,6 @@ try {
         Start-Process powershell -ArgumentList "-NoExit", "-Command", $cmdTauri
     }
 
-    function Invoke-AndroidDevArm64 { Invoke-AndroidDevBase -allArchs $false }
-    function Invoke-AndroidDevAll { Invoke-AndroidDevBase -allArchs $true }
-
     function Invoke-AndroidHotReloadBase {
         param([bool]$allArchs)
         if (-not (Assert-AndroidSdk)) { return }
@@ -279,9 +274,6 @@ try {
         $cmd = "`$host.UI.RawUI.WindowTitle = 'Tauri Android (Hot Reload)'; Set-Location '$ScriptDir'; npx tauri android dev"
         Start-Process powershell -ArgumentList "-NoExit", "-Command", $cmd
     }
-
-    function Invoke-AndroidHotReloadArm64 { Invoke-AndroidHotReloadBase -allArchs $false }
-    function Invoke-AndroidHotReloadAll { Invoke-AndroidHotReloadBase -allArchs $true }
 
     function Invoke-WindowsBuild {
         Write-Host ""
@@ -575,24 +567,22 @@ Desktop.ini
     # Main Loop
     while ($true) {
         Show-Menu
-        $modo = Read-Host "Seleccione una opcion (1-15)"
+        $modo = Read-Host "Seleccione una opcion (1-13)"
         
         switch ($modo) {
             "1" { Invoke-WindowsDev }
-            "2" { Invoke-AndroidDevArm64 }
-            "3" { Invoke-AndroidDevAll }
-            "4" { Invoke-AndroidHotReloadArm64 }
-            "5" { Invoke-AndroidHotReloadAll }
-            "6" { Invoke-WindowsBuild }
-            "7" { Invoke-AndroidBuildArm64 }
-            "8" { Invoke-AndroidBuildAll }
-            "9" { Get-AndroidDevices }
-            "10" { Connect-AdbWifi }
-            "11" { Clear-AppCache }
-            "12" { Get-AndroidLogs }
-            "13" { Invoke-AndroidSigner }
-            "14" { New-GitIgnore }
-            "15" { break }
+            "2" { Invoke-AndroidDevBase -allArchs $false }
+            "3" { Invoke-AndroidHotReloadBase -allArchs $false }
+            "4" { Invoke-WindowsBuild }
+            "5" { Invoke-AndroidBuildArm64 }
+            "6" { Invoke-AndroidBuildAll }
+            "7" { Get-AndroidDevices }
+            "8" { Connect-AdbWifi }
+            "9" { Clear-AppCache }
+            "10" { Get-AndroidLogs }
+            "11" { Invoke-AndroidSigner }
+            "12" { New-GitIgnore }
+            "13" { break }
             default {
                 # Let the loop clear the screen and show menu again
             }
