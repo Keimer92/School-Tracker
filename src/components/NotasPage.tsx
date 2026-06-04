@@ -1461,8 +1461,8 @@ onChange={(e) => {
   }, [notas, indicadores, criterioIndexMap, isQualitative, getGradeColor, getGradeFromScore, calcularTotalIndicador, calcularNotaCualitativaFinal, calcularTotalFinal, handleKeyDown, handleInputFocus, handleInputBlur]);
 
   return (
-    <div className="page-container" style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh', maxHeight: '100dvh' }}>
-      <div className="category-grid" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+    <div className="page-container">
+      <div className="category-grid" style={{ display: 'block' }}>
       
 <FilterContainer isMobile={isMobile}>
           {/* Año Lectivo */}
@@ -1664,9 +1664,7 @@ onChange={(e) => {
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          padding: isMobile ? '0.3rem' : '0.75rem',
-          flex: 1,
-          minHeight: 0
+          padding: isMobile ? '0.3rem' : '0.75rem'
         }}>
           <div className="category-header" style={{ 
             display: 'flex', 
@@ -1697,12 +1695,11 @@ onChange={(e) => {
             WebkitOverflowScrolling: 'touch', 
             border: '1px solid rgba(255,255,255,0.1)', 
             borderRadius: '8px',
-            flex: 1,
-            minHeight: 0
+            maxHeight: isMobile ? 'calc(100dvh - 290px)' : 'calc(100vh - 180px)'
           }}>
             <table className="notas-table" style={{ width: '100%', minWidth: 'max-content', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.7rem' }}>
-              <thead>
-                <tr style={{ background: '#1e293b', position: 'sticky', top: 0, zIndex: 100 }}>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 100 }}>
+                <tr style={{ background: '#1e293b' }}>
                   <th style={{ 
                     padding: '0.3rem', 
                     textAlign: 'center', 
