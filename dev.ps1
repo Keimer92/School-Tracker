@@ -313,52 +313,13 @@ try {
         if (-not (Assert-AndroidSdk)) { return }
         if (-not (Assert-AndroidProject)) { return }
         
-        $tmpFile = Join-Path $env:TEMP "android-build-arm64.ps1"
+        Write-Host ""
+        Write-Host "[INFO] Compilando Android solo arm64 (Release)..." -ForegroundColor Cyan
+        Write-Host "[INFO] Usando: npx tauri android build --release --target aarch64" -ForegroundColor Cyan
         
-        @"
-`$host.UI.RawUI.WindowTitle = 'Android Build arm64 (Release)'
-Set-Location "${ScriptDir}"
-
-# Filtrar solo arm64-v8a para que RustPlugin compile solo aarch64
-`$env:ORG_GRADLE_PROJECT_abiList = "arm64-v8a"
-`$env:ORG_GRADLE_PROJECT_archList = "arm64"
-`$env:ORG_GRADLE_PROJECT_targetList = "aarch64"
-
-Write-Host "==============================================" -ForegroundColor Cyan
-Write-Host "COMPILANDO ANDROID SOLO arm64 (RELEASE)" -ForegroundColor Yellow
-Write-Host "==============================================" -ForegroundColor Cyan
-Write-Host ""
-
-Write-Host "[1/2] Compilando frontend..." -ForegroundColor Cyan
-npm run build
-if (`$LASTEXITCODE -ne 0) {
-    Write-Host "[ERROR] Fallo la compilacion del frontend." -ForegroundColor Red
-    Read-Host "Presione Enter para salir..."
-    exit 1
-}
-
-Write-Host "[2/2] Ejecutando Gradle (solo arm64-v8a)..." -ForegroundColor Cyan
-
-Push-Location (Join-Path "${ScriptDir}" "src-tauri\gen\android")
-.\gradlew.bat assembleRelease
-Pop-Location
-
-if (`$LASTEXITCODE -eq 0) {
-    Write-Host ""
-    Write-Host "[OK] Build completado exitosamente!" -ForegroundColor Green
-    `$apkPath = Join-Path "${ScriptDir}" "src-tauri\gen\android\app\build\outputs\apk\release"
-    if (Test-Path `$apkPath) {
-        Write-Host "APK generado en: `$apkPath" -ForegroundColor Cyan
-        Get-ChildItem `$apkPath -Filter "*.apk" | ForEach-Object { Write-Host "  - `$_" }
-    }
-} else {
-    Write-Host "[ERROR] Fallo el build de Gradle." -ForegroundColor Red
-}
-Read-Host "Presione Enter para salir..."
-"@ | Set-Content $tmpFile -Encoding UTF8
-        
-        Start-Process powershell -ArgumentList "-NoExit", "-File", $tmpFile
-        Write-Host "[INFO] Build arm64 iniciado en ventana separada." -ForegroundColor Cyan
+        $buildCmd = "npx tauri android build --target aarch64"
+        $cmd = "`$host.UI.RawUI.WindowTitle = 'Android Build arm64'; Set-Location '$ScriptDir'; $buildCmd"
+        Start-Process powershell -ArgumentList "-NoExit", "-Command", $cmd
         Read-Host "Presione Enter para continuar..."
     }
 
