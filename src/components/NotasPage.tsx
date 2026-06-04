@@ -369,19 +369,42 @@ export function NotasPage() {
     
     const loadData = async () => {
       if (selectedAno > 0 && selectedCorte > 0 && selectedColegio > 0 && selectedAsignatura > 0 && selectedGrado > 0 && selectedSeccion > 0) {
-        // Primero cargar la configuración de evaluación para tener los indicadores
-        const currentIndicadores = await fetchConfiguracionEvaluacion();
-        if (loadId !== loadIdRef.current) return; // Descarta respuesta obsoleta
-        
-        // Luego cargar los estudiantes y sus notas (que depende de los indicadores para el mapeo cualitativo)
-        await fetchEstudiantes(currentIndicadores);
-        if (loadId !== loadIdRef.current) return; // Descarta respuesta obsoleta
-        
-        // Limpiar historial al cambiar filtros
-        historyRef.current = [];
-        redoStackRef.current = [];
-        setHistory([]);
-        setRedoStack([]);
+        setLoading(true);
+        try {
+          // Disparar las 3 consultas en paralelo y procesar cuando todas terminen
+          const [currentIndicadores, estudiantesData, notasData] = await Promise.all([
+            fetchConfiguracionEvaluacion(true),
+            invoke<Estudiante[]>("get_estudiantes_by_filters", {
+              gradoId: selectedGrado,
+              seccionId: selectedSeccion,
+            }),
+            invoke<{estudianteId: number, criterioId: number, valor: number}[]>("get_notas_by_filters", {
+              gradoId: selectedGrado,
+              seccionId: selectedSeccion,
+              corteId: selectedCorte,
+              asignaturaId: selectedAsignatura,
+            })
+          ]);
+          
+          if (loadId !== loadIdRef.current) return; // Descarta respuesta obsoleta
+          
+          // Procesar estudiantes y notas con la configuración recién obtenida
+          await fetchEstudiantes(currentIndicadores, true, { estudiantes: estudiantesData, notas: notasData });
+          if (loadId !== loadIdRef.current) return; // Descarta respuesta obsoleta
+          
+          // Limpiar historial al cambiar filtros
+          historyRef.current = [];
+          redoStackRef.current = [];
+          setHistory([]);
+          setRedoStack([]);
+        } catch (error) {
+          console.error("Error loading data:", error);
+          if (loadId === loadIdRef.current) {
+            await emit("show-toast", { message: "❌ Error al cargar datos: " + error, type: 'error' });
+          }
+        } finally {
+          setLoading(false);
+        }
       } else {
         setEstudiantes([]);
         setNotas([]);
@@ -556,7 +579,7 @@ export function NotasPage() {
     }
   };
 
-  const fetchEstudiantes = async (currentIndicadores?: Indicador[], silent = false) => {
+  const fetchEstudiantes = async (currentIndicadores?: Indicador[], silent = false, preFetchedData?: { estudiantes: Estudiante[]; notas: {estudianteId: number, criterioId: number, valor: number}[] }) => {
     const isActuallySilent = silent || nextRefreshSilent.current;
     if (!isActuallySilent) setLoading(true);
     nextRefreshSilent.current = false; // Reset for next time
@@ -566,18 +589,20 @@ export function NotasPage() {
     console.log("[DEBUG] fetchEstudiantes - filtros:", { grado, seccion, corte, asignatura });
     
     try {
-      const [dataRaw, notasGuardadas] = await Promise.all([
-        invoke<Estudiante[]>("get_estudiantes_by_filters", {
-          gradoId: grado,
-          seccionId: seccion,
-        }),
-        invoke<{estudianteId: number, criterioId: number, valor: number}[]>("get_notas_by_filters", {
-          gradoId: grado,
-          seccionId: seccion,
-          corteId: corte,
-          asignaturaId: asignatura,
-        })
-      ]);
+      const [dataRaw, notasGuardadas] = preFetchedData
+        ? [preFetchedData.estudiantes, preFetchedData.notas]
+        : await Promise.all([
+            invoke<Estudiante[]>("get_estudiantes_by_filters", {
+              gradoId: grado,
+              seccionId: seccion,
+            }),
+            invoke<{estudianteId: number, criterioId: number, valor: number}[]>("get_notas_by_filters", {
+              gradoId: grado,
+              seccionId: seccion,
+              corteId: corte,
+              asignaturaId: asignatura,
+            })
+          ]);
       
       console.log(`[DEBUG] fetchEstudiantes: ${notasGuardadas.length} notas obtenidas de SQLite`);
       if (notasGuardadas.length > 0) {
