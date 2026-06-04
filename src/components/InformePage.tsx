@@ -1244,14 +1244,70 @@ try {
               </button>
             )}
           </div>
-        ) : periodo === "diario" ? (
+        ) : periodo === "diario" ? isAndroidMobile ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.4rem 0' }}>
+            {reporteFiltrado.map((item, index) => {
+              const estado = getEstadoEnFecha(item, fechaInicio);
+              const obs = getObservacionEnFecha(item, fechaInicio);
+              return (
+                <div key={item.id} style={{
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '12px',
+                  padding: '0.5rem 0.6rem',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 'bold', minWidth: '20px' }}>{index + 1}</span>
+                    <span style={{ fontSize: '1rem', flexShrink: 0 }}>{item.sexo === 'F' ? '👩' : '👨'}</span>
+                    <span
+                      style={{ flex: 1, fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      onClick={() => setSelectedStudentDetail(item)}
+                    >{item.nombre}</span>
+                    <button
+                      className={`obs-toggle-btn ${obs ? 'has-obs' : ''}`}
+                      onClick={() => obs ? emit("show-toast", { message: `Observación de ${item.nombre}: ${obs}`, type: 'info' }) : undefined}
+                      title={obs ? "Ver observación" : "Sin observaciones"}
+                      style={{ width: '30px', height: '30px', minWidth: '30px', fontSize: '0.9rem', flexShrink: 0, opacity: obs ? 1 : 0.3 }}
+                      disabled={!obs}
+                    >
+                      {obs ? '📝' : '💬'}
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    {['P', 'A', 'J'].map(tipo => {
+                      const colors: Record<string, { bg: string, border: string, text: string }> = {
+                        P: { bg: 'rgba(16, 185, 129, 0.2)', border: '#10b981', text: '#10b981' },
+                        A: { bg: 'rgba(239, 68, 68, 0.2)', border: '#ef4444', text: '#ef4444' },
+                        J: { bg: 'rgba(245, 158, 11, 0.2)', border: '#f59e0b', text: '#f59e0b' },
+                      };
+                      const c = colors[tipo];
+                      const active = estado === tipo;
+                      return (
+                        <div key={tipo} style={{
+                          flex: 1, height: '36px', fontSize: '0.85rem',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          borderRadius: '8px', fontWeight: 'bold',
+                          background: active ? c.bg : 'rgba(255,255,255,0.05)',
+                          border: active ? `1px solid ${c.border}` : '1px solid rgba(255,255,255,0.1)',
+                          color: active ? c.text : '#94a3b8'
+                        }}>
+                          {tipo}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
           <table className="custom-table" style={{ width: '100%', margin: '0', overflow: 'visible' }}>
             <thead>
               <tr>
-                <th style={{ width: isAndroidMobile ? '24px' : '30px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>#</th>
+                <th style={{ width: '30px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>#</th>
                 <th style={{ textAlign: 'left', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Estudiante</th>
-                <th style={{ width: isAndroidMobile ? '85px' : '100px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Asistencia</th>
-                <th style={{ width: isAndroidMobile ? '50px' : '65px', textAlign: 'center', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Obs</th>
+                <th style={{ width: '100px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Asistencia</th>
+                <th style={{ width: '65px', textAlign: 'center', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Obs</th>
               </tr>
             </thead>
             <tbody>
@@ -1264,7 +1320,6 @@ try {
                     </td>
                     <td style={{ textAlign: 'left', overflow: 'hidden' }}>
                       <div
-                        className="student-name-container"
                         style={{
                           fontWeight: 'bold',
                           cursor: 'pointer',
