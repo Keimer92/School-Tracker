@@ -1713,18 +1713,19 @@ try {
             }}>
               <div className="category-card table-card" style={{ padding: '0', overflow: 'hidden' }}>
                 <div className="notas-table-container" style={{ 
-                  maxHeight: isMobile ? 'calc(100vh - 320px)' : 'calc(100vh - 260px)',
-                  overflowY: 'auto',
-                  overflowX: 'hidden',
-                  WebkitOverflowScrolling: 'touch',
-                  width: '100%',
-                  borderRadius: '12px', 
-                  backgroundColor: 'transparent' 
+                  overflow: 'auto',
+                  padding: '0', 
+                  width: '100%', 
+                  maxWidth: '100%',
+                  WebkitOverflowScrolling: 'touch', 
+                  border: '1px solid rgba(255,255,255,0.1)', 
+                  borderRadius: '8px',
+                  maxHeight: isMobile ? 'calc(100dvh - 290px)' : 'calc(100vh - 180px)'
                 }}>
-                  <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
-                    <thead>
+                  <table style={{ width: '100%', minWidth: 'max-content', borderCollapse: 'separate', borderSpacing: 0 }}>
+                    <thead style={{ position: 'sticky', top: 0, zIndex: 100 }}>
                       <tr>
-                        <th style={{ padding: '1rem', textAlign: 'left', backgroundColor: 'rgba(255, 255, 255, 0.05)', borderBottom: '2px solid rgba(255, 255, 255, 0.1)', color: '#93c5fd', position: 'sticky', left: 0, zIndex: 10 }}>Estudiante</th>
+                        <th style={{ padding: '1rem', textAlign: 'left', backgroundColor: '#1e293b', borderBottom: '2px solid rgba(255, 255, 255, 0.1)', color: '#93c5fd', position: 'sticky', left: 0, zIndex: 110 }}>Estudiante</th>
                         <th style={{ padding: '1rem', textAlign: 'center', backgroundColor: 'rgba(255, 255, 255, 0.05)', borderBottom: '2px solid rgba(255, 255, 255, 0.1)', color: '#94a3b8' }}>Sexo</th>
                         {!specialCorte && configIndicadores.map((ind) => (
                           <th key={ind.id} 
@@ -1936,9 +1937,6 @@ try {
           background: rgba(255,255,255,0.3);
         }
         .notas-table-container table thead th {
-           position: sticky;
-           top: 0;
-           z-index: 10;
            background: #1e293b !important;
          }
       `}</style>
