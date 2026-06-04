@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
 import { join, tempDir, documentDir } from "@tauri-apps/api/path";
@@ -90,6 +90,7 @@ export function ReportesPage() {
   }, [estudiantes, searchTerm]);
   
   const [loading, setLoading] = useState(false);
+  const loadIdRef = useRef(0);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [activeSlide, setActiveSlide] = useState<'tabla' | 'estadisticas'>('tabla');
   const [isMobile, setIsMobile] = useState(false);
@@ -316,14 +317,21 @@ export function ReportesPage() {
 
   // Cargar reporte cuando cambien los filtros críticos
   useEffect(() => {
+    const loadId = ++loadIdRef.current;
     console.log("ReportesPage: useEffect disparado por cambios en dependencias", {
       selectedGrado, selectedSeccion, selectedCorte, specialCorte, selectedAsignatura, refreshTrigger
     });
     if (selectedGrado > 0 && selectedSeccion > 0 && (selectedCorte > 0 || specialCorte) && selectedAsignatura > 0) {
-      fetchReporte();
+      setLoading(true);
+      fetchReporte(loadId).finally(() => {
+        if (loadIdRef.current === loadId) {
+          setLoading(false);
+        }
+      });
     } else {
       setEstudiantes([]);
       setConfigIndicadores([]);
+      setLoading(false);
     }
   }, [selectedAno, selectedCorte, specialCorte, selectedColegio, selectedAsignatura, selectedGrado, selectedSeccion, selectedSexo, refreshTrigger]);
 
@@ -459,11 +467,8 @@ export function ReportesPage() {
     }
   };
 
-  const fetchReporte = async () => {
-    // Validar sincronización para asegurar datos actualizados
-    await new Promise(resolve => setTimeout(resolve, 500));  // Espera breve
+  const fetchReporte = async (loadId: number) => {
     console.log("ReportesPage: Ejecutando fetchReporte...", { specialCorte });
-    setLoading(true);
     try {
       // 1. Determinar qué cortes evaluativos usar
       let cortesIds: number[] = [];
@@ -496,6 +501,9 @@ export function ReportesPage() {
         asignaturaId: selectedAsignatura,
         corteEvaluativoId: cortesIds[0]
       });
+
+      if (loadId !== loadIdRef.current) return;
+
 console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({ 
         id: i.id, 
         orden: i.orden, 
@@ -514,7 +522,6 @@ console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({
       } else if (indicadores.length === 0) {
         setConfigIndicadores([]);
         setEstudiantes([]);
-        setLoading(false);
         await emit("show-toast", { 
           message: "⚠️ No hay indicadores configurados para esta asignatura en este grado. Configure los indicadores en la página Evaluaciones.", 
           type: "warning" 
@@ -524,21 +531,26 @@ console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({
       
       setConfigIndicadores(indicadores);
 
-      // 3. Obtener estudiantes
-      const listaEstudiantes = await invoke<any[]>("get_estudiantes_by_filters", {
-        gradoId: selectedGrado,
-        seccionId: selectedSeccion
-      });
-
-      // 4. Obtener notas para TODOS los cortes necesarios
-      const todasLasNotas = await Promise.all(cortesIds.map(cId => 
-        invoke<any[]>("get_notas_by_filters", {
+      // 3. Obtener estudiantes y notas en paralelo
+      const results = await Promise.all([
+        invoke<any[]>("get_estudiantes_by_filters", {
           gradoId: selectedGrado,
-          seccionId: selectedSeccion,
-          corteId: cId,
-          asignaturaId: selectedAsignatura
-        })
-      ));
+          seccionId: selectedSeccion
+        }),
+        ...cortesIds.map(cId => 
+          invoke<any[]>("get_notas_by_filters", {
+            gradoId: selectedGrado,
+            seccionId: selectedSeccion,
+            corteId: cId,
+            asignaturaId: selectedAsignatura
+          })
+        )
+      ]);
+
+      if (loadId !== loadIdRef.current) return;
+
+      const listaEstudiantes = results[0];
+      const todasLasNotas = results.slice(1);
       console.log("ReportesPage: notas obtenidas:", todasLasNotas);
 
       // 5. Mapear todas las notas en un objeto global para acceso rápido: [corteId][estudianteId][criterioId] = valor
@@ -722,8 +734,6 @@ console.log("ReportesPage: indicadores obtenidos:", indicadores.map(i => ({
     } catch (error) {
       console.error("Error fetching reporte:", error);
       await emit("show-toast", { message: "❌ Error al cargar el reporte: " + error, type: 'error' });
-    } finally {
-      setLoading(false);
     }
   };
 
