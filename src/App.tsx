@@ -10,6 +10,7 @@ import { NotasPage } from "./components/NotasPage";
 import { ReportesPage } from "./components/ReportesPage";
 import { AsistenciaPage } from "./components/AsistenciaPage";
 import { InformePage } from "./components/InformePage";
+import { LoginPage } from "./components/LoginPage";
 import { supabase } from "./lib/supabase";
 import { syncService } from "./lib/syncService";
 import { realtimeService } from "./lib/realtimeService";
@@ -19,6 +20,9 @@ type Tab = "notas" | "reportes" | "estudiantes" | "evaluaciones" | "globales" | 
 
 function App() {
   const [appMode] = useState<string>("unified");
+  const [isFirstLaunch, setIsFirstLaunch] = useState(() => {
+    return localStorage.getItem("schooltracker-first-launch-complete") !== "true";
+  });
 
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const savedTab = localStorage.getItem('active-tab') as Tab;
@@ -323,6 +327,10 @@ useEffect(() => {
       </div>
     );
   };
+
+  if (isFirstLaunch) {
+    return <LoginPage onComplete={() => setIsFirstLaunch(false)} />;
+  }
 
   return (
     <div 
