@@ -562,7 +562,9 @@ export const GoogleDriveBackup: React.FC = () => {
             background: 'rgba(30, 41, 59, 0.5)', 
             borderRadius: '16px', 
             border: '1px solid rgba(255, 255, 255, 0.1)',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            maxWidth: '100%',
+            boxSizing: 'border-box'
         }}>
             {/* Header */}
             <div style={{ 
@@ -586,8 +588,8 @@ export const GoogleDriveBackup: React.FC = () => {
                             <path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z"/>
                         </svg>
                     </div>
-                    <div>
-                        <h3 style={{ margin: 0, color: '#f1f5f9', fontSize: isAndroid ? '1rem' : '1.1rem', fontWeight: 'bold' }}>Respaldo Automático Google Drive</h3>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                        <h3 style={{ margin: 0, color: '#f1f5f9', fontSize: isAndroid ? '1rem' : '1.1rem', fontWeight: 'bold', overflowWrap: 'break-word', wordBreak: 'break-word' }}>Respaldo Automático Google Drive</h3>
                         {!isAndroid && <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>Copia de seguridad automática de tu base de datos SQLite</p>}
                     </div>
                 </div>
@@ -730,7 +732,7 @@ export const GoogleDriveBackup: React.FC = () => {
                         </div>
 
                         {/* Config & Manual Backup */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: '1rem' }}>
                             {/* Automatic Settings */}
                             <div style={{ 
                                 background: 'rgba(15, 23, 42, 0.4)',
