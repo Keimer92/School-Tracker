@@ -359,23 +359,23 @@ export function NotasPage() {
     return '#94a3b8';
   }, [getGradeConfig, getGradeFromScore]);
 
-  // Flag para evitar múltiples cargas rápidas
-  const isLoadingRef = useRef(false);
+  // Contador de versión para descartar respuestas asincrónicas obsoletas al cambiar filtros
+  const loadIdRef = useRef(0);
   const configSyncedRef = useRef(false);
 
   // Cargar estudiantes cuando cambien los filtros
   useEffect(() => {
-    // Si ya está cargando o los filtros no están completos, salir
-    if (isLoadingRef.current) return;
+    const loadId = ++loadIdRef.current;
     
     const loadData = async () => {
-      isLoadingRef.current = true;
-      
       if (selectedAno > 0 && selectedCorte > 0 && selectedColegio > 0 && selectedAsignatura > 0 && selectedGrado > 0 && selectedSeccion > 0) {
         // Primero cargar la configuración de evaluación para tener los indicadores
         const currentIndicadores = await fetchConfiguracionEvaluacion();
+        if (loadId !== loadIdRef.current) return; // Descarta respuesta obsoleta
+        
         // Luego cargar los estudiantes y sus notas (que depende de los indicadores para el mapeo cualitativo)
         await fetchEstudiantes(currentIndicadores);
+        if (loadId !== loadIdRef.current) return; // Descarta respuesta obsoleta
         
         // Limpiar historial al cambiar filtros
         historyRef.current = [];
@@ -386,8 +386,6 @@ export function NotasPage() {
         setEstudiantes([]);
         setNotas([]);
       }
-      
-      isLoadingRef.current = false;
     };
     
     loadData();
@@ -445,6 +443,15 @@ export function NotasPage() {
   // Cargar grados y asignaturas cuando cambie el colegio o el año
   useEffect(() => {
     if (selectedColegio && selectedAno) {
+      // Reiniciar filtros dependientes inmediatamente para evitar carga con datos obsoletos
+      setGrados([]);
+      setAsignaturas([]);
+      setSecciones([]);
+      setSelectedGrado(0);
+      setSelectedSeccion(0);
+      setSelectedAsignatura(0);
+      setEstudiantes([]);
+      setNotas([]);
       fetchGradosYAsignaturas();
     } else {
       setGrados([]);
@@ -465,23 +472,20 @@ export function NotasPage() {
       ]);
       setGrados(gradosData);
       
-      let currentGradoId = selectedGrado;
+      // Siempre usar el primer grado disponible de los datos recién obtenidos
+      // (no leer selectedGrado del closure para evitar datos obsoletos al cambiar colegio)
+      const firstGradoId = gradosData.length > 0 ? gradosData[0].id : 0;
       if (gradosData.length > 0) {
-        const stillExists = gradosData.some(g => g.id === selectedGrado);
-        if (!stillExists) {
-          currentGradoId = gradosData[0].id;
-          setSelectedGrado(currentGradoId);
-        }
+        setSelectedGrado(firstGradoId);
       } else {
-        currentGradoId = 0;
         setSelectedGrado(0);
       }
       
       // Intentar obtener asignaturas por grado si el comando existe
       let filteredAsignaturas = asignaturasData;
-      if (currentGradoId > 0) {
+      if (firstGradoId > 0) {
         try {
-          const subjectsByGrade = await invoke<CategoryItem[]>("get_subjects_by_grade", { gradoId: currentGradoId });
+          const subjectsByGrade = await invoke<CategoryItem[]>("get_subjects_by_grade", { gradoId: firstGradoId });
           if (subjectsByGrade.length > 0) {
             // Filtrar las asignaturas del grado para asegurar que pertenezcan al colegio seleccionado
             filteredAsignaturas = subjectsByGrade.filter(sg => asignaturasData.some(ca => ca.id === sg.id));
@@ -495,14 +499,9 @@ export function NotasPage() {
       
       setAsignaturas(sortedAsignaturas);
       
-      // Solo cambiar la asignatura si es 0 (nunca se ha seleccionado) O si la actual no existe en la lista nueva
+      // Siempre usar la primera asignatura disponible (evitar stale closure)
       if (sortedAsignaturas.length > 0) {
-        const stillExists = sortedAsignaturas.some(a => a.id === selectedAsignatura);
-        // Solo seleccionar automáticamente si es la primera vez (selectedAsignatura === 0)
-        // O si la seleccionada actualmente no existe en la lista
-        if (selectedAsignatura === 0 || !stillExists) {
-          setSelectedAsignatura(sortedAsignaturas[0].id);
-        }
+        setSelectedAsignatura(sortedAsignaturas[0].id);
       } else {
         setSelectedAsignatura(0);
       }
