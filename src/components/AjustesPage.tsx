@@ -1558,13 +1558,13 @@ export function AjustesPage() {
             </div>
             
             {isSynced && (
-              <div style={{ padding: "0 1.5rem 1.5rem" }}>
+              <div style={{ padding: isAndroid ? "0 1rem 1rem" : "0 1.5rem 1.5rem" }}>
                 <div
                   style={{
-                    background: "linear-gradient(135deg, rgba(34, 197, 94, 0.08) 0%, rgba(34, 197, 94, 0.02) 100%)",
+                    background: isAndroid ? "transparent" : "linear-gradient(135deg, rgba(34, 197, 94, 0.08) 0%, rgba(34, 197, 94, 0.02) 100%)",
                     borderRadius: "16px",
-                    border: "1px solid rgba(34, 197, 94, 0.15)",
-                    padding: "1.5rem",
+                    border: isAndroid ? "none" : "1px solid rgba(34, 197, 94, 0.15)",
+                    padding: isAndroid ? "0.5rem 0" : "1.5rem",
                     display: "flex",
                     flexDirection: "column",
                     gap: "1.2rem",
@@ -1767,7 +1767,7 @@ export function AjustesPage() {
                         {showUserIdBox ? 'Ocultar ID' : 'Mostrar User ID'}
                       </button>
 
-                      {showUserIdBox && (
+                       {showUserIdBox && (
                         <div style={{
                           background: "rgba(139, 92, 246, 0.05)",
                           border: "1px solid rgba(139, 92, 246, 0.15)",
@@ -1775,27 +1775,32 @@ export function AjustesPage() {
                           padding: "10px",
                           display: "flex",
                           gap: "8px",
-                          alignItems: "center"
+                          alignItems: "center",
+                          flexWrap: "wrap"
                         }}>
                           <input
                             type="text"
                             value={currentUserId}
                             readOnly
                             style={{
-                              flex: 1,
+                              flex: "1 1 150px",
                               padding: "6px 10px",
                               border: "none",
                               background: "transparent",
                               color: "#a78bfa",
                               fontSize: "0.7rem",
-                              fontFamily: "monospace"
+                              fontFamily: "monospace",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap"
                             }}
                           />
                           <button
                             onClick={copyUserId}
                             disabled={currentUserId === 'No conectado'}
                             style={{
-                              padding: "4px 10px",
+                              width: isAndroid ? "100%" : "auto",
+                              padding: "6px 10px",
                               background: "rgba(34, 197, 94, 0.15)",
                               border: "none",
                               borderRadius: "4px",
