@@ -547,6 +547,8 @@ export const GoogleDriveBackup: React.FC = () => {
 
     const isConnected = !!settings.refreshToken;
 
+    const isAndroid = /Android/i.test(navigator.userAgent);
+
     return (
         <>
             <ConfirmDialog
@@ -558,408 +560,447 @@ export const GoogleDriveBackup: React.FC = () => {
                 onCancel={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
             />
             <div style={{ 
-            background: 'rgba(30, 41, 59, 0.5)', 
-            borderRadius: '16px', 
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            overflow: 'hidden',
-            maxWidth: '100%',
-            boxSizing: 'border-box'
-        }}>
-            {/* Header */}
-            <div style={{ 
-                padding: '1.5rem', 
-                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'space-between'
+                background: isAndroid ? 'transparent' : 'rgba(30, 41, 59, 0.5)', 
+                borderRadius: '16px', 
+                border: isAndroid ? 'none' : '1px solid rgba(255, 255, 255, 0.1)',
+                overflow: 'hidden',
+                maxWidth: '100%',
+                boxSizing: 'border-box'
             }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                {/* Header */}
+                {!isAndroid ? (
                     <div style={{ 
-                        padding: '0.75rem', 
-                        background: 'rgba(99, 102, 241, 0.2)', 
-                        borderRadius: '12px',
-                        color: '#818cf8'
-                    }}>
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <h3 style={{ margin: 0, color: '#f1f5f9', fontSize: '1.1rem', fontWeight: 'bold' }}>Respaldo Automático Google Drive</h3>
-                        <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>Copia de seguridad automática de tu base de datos SQLite</p>
-                    </div>
-                </div>
-                <div style={{ 
-                    padding: '0.4rem 0.8rem', 
-                    borderRadius: '9999px',
-                    fontSize: '0.7rem',
-                    fontWeight: 'bold',
-                    textTransform: 'uppercase',
-                    background: isConnected ? 'rgba(16, 185, 129, 0.1)' : 'rgba(100, 116, 139, 0.1)',
-                    color: isConnected ? '#10b981' : '#64748b',
-                    border: `1px solid ${isConnected ? 'rgba(16, 185, 129, 0.3)' : 'rgba(100, 116, 139, 0.3)'}`
-                }}>
-                    <span style={{ 
-                        display: 'inline-block', 
-                        width: '6px', 
-                        height: '6px', 
-                        borderRadius: '50%', 
-                        background: isConnected ? '#10b981' : '#64748b',
-                        marginRight: '6px'
-                    }}></span>
-                    {isConnected ? 'Conectado' : 'Desconectado'}
-                </div>
-            </div>
-
-            {/* Main Area */}
-            <div style={{ padding: '1.5rem' }}>
-                {!isConnected ? (
-                    <div style={{ 
-                        background: 'rgba(15, 23, 42, 0.4)', 
                         padding: '1.5rem', 
-                        borderRadius: '12px',
-                        border: '1px solid rgba(255, 255, 255, 0.05)',
-                        maxWidth: '600px',
-                        margin: '0 auto'
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'space-between'
                     }}>
-                        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                            <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>☁️</div>
-                            <h4 style={{ margin: '0 0 0.5rem 0', color: '#e2e8f0' }}>Vincular cuenta de Google</h4>
-                            <p style={{ color: '#94a3b8', fontSize: '0.85rem', margin: 0 }}>
-                                Al conectar tu cuenta, School Tracker Pro podrá subir copias de seguridad a una carpeta segura llamada <strong style={{ color: '#818cf8' }}>SchoolTracker Backups</strong> en tu Google Drive.
-                            </p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <div style={{ 
+                                padding: '0.75rem', 
+                                background: 'rgba(99, 102, 241, 0.2)', 
+                                borderRadius: '12px',
+                                color: '#818cf8'
+                            }}>
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 style={{ margin: 0, color: '#f1f5f9', fontSize: '1.1rem', fontWeight: 'bold' }}>Respaldo Automático Google Drive</h3>
+                                <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>Copia de seguridad automática de tu base de datos SQLite</p>
+                            </div>
                         </div>
-
-                        <button
-                            onClick={handleGoogleConnect}
-                            disabled={isLoading}
-                            style={{ 
-                                width: '100%', 
-                                padding: '0.85rem', 
-                                background: '#6366f1', 
-                                color: 'white', 
-                                border: 'none', 
-                                borderRadius: '10px',
-                                fontWeight: 'bold',
-                                cursor: isLoading ? 'not-allowed' : 'pointer',
-                                opacity: isLoading ? 0.7 : 1,
-                                fontSize: '0.95rem'
-                            }}
-                        >
-                            {isLoading ? 'Esperando autorización...' : 'Iniciar Sesión con Google'}
-                        </button>
+                        <div style={{ 
+                            padding: '0.4rem 0.8rem', 
+                            borderRadius: '9999px',
+                            fontSize: '0.7rem',
+                            fontWeight: 'bold',
+                            textTransform: 'uppercase',
+                            background: isConnected ? 'rgba(16, 185, 129, 0.1)' : 'rgba(100, 116, 139, 0.1)',
+                            color: isConnected ? '#10b981' : '#64748b',
+                            border: `1px solid ${isConnected ? 'rgba(16, 185, 129, 0.3)' : 'rgba(100, 116, 139, 0.3)'}`
+                        }}>
+                            <span style={{ 
+                                display: 'inline-block', 
+                                width: '6px', 
+                                height: '6px', 
+                                borderRadius: '50%', 
+                                background: isConnected ? '#10b981' : '#64748b',
+                                marginRight: '6px'
+                            }}></span>
+                            {isConnected ? 'Conectado' : 'Desconectado'}
+                        </div>
                     </div>
                 ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                        {/* Connected User */}
+                    <div style={{ 
+                        padding: '0.5rem 0', 
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'space-between',
+                        marginBottom: '1rem'
+                    }}>
+                        <span style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 'bold' }}>Estado de Conexión:</span>
                         <div style={{ 
-                            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1))',
-                            padding: '1.25rem',
-                            borderRadius: '16px',
-                            border: '1px solid rgba(99, 102, 241, 0.2)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            flexWrap: 'wrap',
-                            gap: '1rem'
+                            padding: '0.3rem 0.6rem', 
+                            borderRadius: '9999px',
+                            fontSize: '0.65rem',
+                            fontWeight: 'bold',
+                            textTransform: 'uppercase',
+                            background: isConnected ? 'rgba(16, 185, 129, 0.1)' : 'rgba(100, 116, 139, 0.1)',
+                            color: isConnected ? '#10b981' : '#64748b',
+                            border: `1px solid ${isConnected ? 'rgba(16, 185, 129, 0.3)' : 'rgba(100, 116, 139, 0.3)'}`
                         }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                <div style={{ 
-                                    width: '50px', 
-                                    height: '50px', 
-                                    borderRadius: '50%',
-                                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    color: 'white',
-                                    fontSize: '1.5rem',
-                                    overflow: 'hidden',
-                                    flexShrink: 0
-                                }}>
-                                    {settings.googleUserProfilePic && !imgError ? (
-                                        <img 
-                                            src={settings.googleUserProfilePic} 
-                                            alt="Google User" 
-                                            referrerPolicy="no-referrer"
-                                            onError={() => setImgError(true)}
-                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                                        />
-                                    ) : '👤'}
-                                </div>
-                                <div>
-                                    <p style={{ margin: 0, fontSize: '0.65rem', color: '#818cf8', fontWeight: 'bold', textTransform: 'uppercase' }}>Cuenta Google Vinculada</p>
-                                    <h4 style={{ margin: '0.25rem 0 0 0', color: '#f1f5f9', fontSize: '1rem', fontWeight: 'bold' }}>{settings.googleUserName || 'Usuario Google'}</h4>
-                                    <p style={{ margin: 0, fontSize: '0.75rem', color: '#94a3b8', fontFamily: 'monospace' }}>{settings.googleUserEmail}</p>
-                                </div>
-                            </div>
-                            <button
-                                onClick={handleGoogleDisconnect}
-                                style={{ 
-                                    padding: '0.5rem 1rem', 
-                                    background: 'rgba(239, 68, 68, 0.1)', 
-                                    color: '#ef4444',
-                                    border: '1px solid rgba(239, 68, 68, 0.2)',
-                                    borderRadius: '8px',
-                                    fontSize: '0.75rem',
-                                    fontWeight: 'bold',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                Desvincular Cuenta
-                            </button>
-                        </div>
-
-                        {/* Config & Manual Backup */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: '1rem' }}>
-                            {/* Automatic Settings */}
-                            <div style={{ 
-                                background: 'rgba(15, 23, 42, 0.4)',
-                                padding: '1.25rem',
-                                borderRadius: '12px',
-                                border: '1px solid rgba(255, 255, 255, 0.05)'
-                            }}>
-                                <h4 style={{ margin: '0 0 1rem 0', color: '#e2e8f0', fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    <span>⚙️</span> Automatización
-                                </h4>
-
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', marginBottom: '1rem' }}>
-                                    <input
-                                        type="checkbox"
-                                        checked={settings.backupEnabled}
-                                        onChange={(e) => saveSettings({ ...settings, backupEnabled: e.target.checked })}
-                                        style={{ width: '18px', height: '18px', accentColor: '#6366f1' }}
-                                    />
-                                    <span style={{ color: '#e2e8f0', fontSize: '0.85rem' }}>Respaldo Automático Activo</span>
-                                </label>
-
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', marginBottom: '0.35rem', fontWeight: 'bold', textTransform: 'uppercase' }}>Frecuencia (Horas)</label>
-                                        <select
-                                            value={settings.backupInterval}
-                                            disabled={!settings.backupEnabled}
-                                            onChange={(e) => saveSettings({ ...settings, backupInterval: parseInt(e.target.value) })}
-                                            style={{ 
-                                                width: '100%', 
-                                                padding: '0.5rem', 
-                                                background: 'rgba(15, 23, 42, 0.6)',
-                                                border: '1px solid rgba(255, 255, 255, 0.1)',
-                                                borderRadius: '6px',
-                                                color: '#e2e8f0',
-                                                fontSize: '0.8rem',
-                                                opacity: settings.backupEnabled ? 1 : 0.5
-                                            }}
-                                        >
-                                            <option value={1}>Cada 1 hora</option>
-                                            <option value={6}>Cada 6 horas</option>
-                                            <option value={12}>Cada 12 horas</option>
-                                            <option value={24}>Cada 24 horas</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', marginBottom: '0.35rem', fontWeight: 'bold', textTransform: 'uppercase' }}>Nombre de Equipo</label>
-                                        <input
-                                            type="text"
-                                            value={settings.deviceName}
-                                            onChange={(e) => saveSettings({ ...settings, deviceName: e.target.value })}
-                                            placeholder="Ej: PC Principal"
-                                            style={{ 
-                                                width: '100%', 
-                                                padding: '0.5rem', 
-                                                background: 'rgba(15, 23, 42, 0.6)',
-                                                border: '1px solid rgba(255, 255, 255, 0.1)',
-                                                borderRadius: '6px',
-                                                color: '#e2e8f0',
-                                                fontSize: '0.8rem',
-                                                boxSizing: 'border-box'
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Manual Backup */}
-                            <div style={{ 
-                                background: 'rgba(15, 23, 42, 0.4)',
-                                padding: '1.25rem',
-                                borderRadius: '12px',
-                                border: '1px solid rgba(255, 255, 255, 0.05)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                justifyContent: 'space-between'
-                            }}>
-                                <div>
-                                    <h4 style={{ margin: '0 0 1rem 0', color: '#e2e8f0', fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                        <span>🚀</span> Respaldar Ahora
-                                    </h4>
-                                    <div style={{ marginBottom: '0.5rem' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.25rem' }}>
-                                            <span style={{ color: '#94a3b8' }}>Último respaldo:</span>
-                                            <span style={{ color: '#e2e8f0', fontWeight: 'bold' }}>
-                                                {settings.lastBackupTime ? new Date(settings.lastBackupTime).toLocaleString('es-ES') : 'Nunca'}
-                                            </span>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                                            <span style={{ color: '#94a3b8' }}>Ubicación:</span>
-                                            <span style={{ color: '#e2e8f0', fontWeight: 'bold' }}>/SchoolTracker Backups/</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={handleBackupNow}
-                                    disabled={isTesting}
-                                    style={{ 
-                                        width: '100%', 
-                                        padding: '0.75rem', 
-                                        background: '#6366f1', 
-                                        color: 'white',
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                        fontWeight: 'bold',
-                                        cursor: isTesting ? 'not-allowed' : 'pointer',
-                                        opacity: isTesting ? 0.7 : 1,
-                                        fontSize: '0.85rem',
-                                        marginTop: '0.75rem'
-                                    }}
-                                >
-                                    {isTesting ? 'Procesando...' : 'Subir Respaldo Manual'}
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* List of Backups */}
-                        <div style={{ 
-                            background: 'rgba(15, 23, 42, 0.4)',
-                            borderRadius: '12px',
-                            border: '1px solid rgba(255, 255, 255, 0.05)',
-                            overflow: 'hidden'
-                        }}>
-                            <div style={{ 
-                                padding: '0.85rem 1rem', 
-                                borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-                                display: 'flex', 
-                                justifyContent: 'space-between', 
-                                alignItems: 'center',
-                                background: 'rgba(255, 255, 255, 0.02)'
-                            }}>
-                                <h4 style={{ margin: 0, color: '#e2e8f0', fontSize: '0.8rem', fontWeight: 'bold' }}>Copias en Google Drive</h4>
-                                <button
-                                    onClick={() => fetchDriveBackups(settings)}
-                                    disabled={isFetchingFiles}
-                                    style={{ 
-                                        background: 'transparent', 
-                                        border: 'none', 
-                                        color: '#94a3b8', 
-                                        cursor: isFetchingFiles ? 'not-allowed' : 'pointer',
-                                        padding: '0.35rem',
-                                        opacity: isFetchingFiles ? 0.5 : 1
-                                    }}
-                                    title="Refrescar"
-                                >
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={isFetchingFiles ? 'animate-spin' : ''}>
-                                        <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
-                                    </svg>
-                                </button>
-                            </div>
-
-                            <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
-                                {isFetchingFiles && driveFiles.length === 0 ? (
-                                    <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
-                                        <p style={{ fontSize: '0.8rem' }}>Buscando respaldos...</p>
-                                    </div>
-                                ) : driveFiles.length > 0 ? (
-                                    driveFiles.map(file => (
-                                        <div key={file.id} style={{ 
-                                            padding: '0.85rem 1rem', 
-                                            borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-                                            display: 'flex', 
-                                            alignItems: 'center', 
-                                            justifyContent: 'space-between',
-                                            gap: '1rem'
-                                        }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: 0 }}>
-                                                <div style={{ 
-                                                    width: '36px', 
-                                                    height: '36px', 
-                                                    borderRadius: '8px',
-                                                    background: 'rgba(99, 102, 241, 0.1)',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    color: '#818cf8',
-                                                    flexShrink: 0
-                                                }}>
-                                                    💾
-                                                </div>
-                                                <div style={{ minWidth: 0 }}>
-                                                    <h5 style={{ margin: 0, color: '#e2e8f0', fontSize: '0.8rem', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                        {file.name}
-                                                    </h5>
-                                                    <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '0.15rem' }}>
-                                                        {file.device} • {new Date(file.createdTime).toLocaleString()} • {formatBytes(file.size)}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
-                                                <button
-                                                    onClick={() => handleRestoreBackup(file)}
-                                                    style={{ 
-                                                        padding: '0.4rem 0.75rem', 
-                                                        background: '#10b981', 
-                                                        color: 'white',
-                                                        border: 'none',
-                                                        borderRadius: '6px',
-                                                        fontSize: '0.7rem',
-                                                        fontWeight: 'bold',
-                                                        cursor: 'pointer'
-                                                    }}
-                                                >
-                                                    Restaurar
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDeleteDriveBackup(file)}
-                                                    style={{ 
-                                                        padding: '0.4rem', 
-                                                        background: 'rgba(239, 68, 68, 0.1)', 
-                                                        color: '#ef4444',
-                                                        border: '1px solid rgba(239, 68, 68, 0.2)',
-                                                        borderRadius: '6px',
-                                                        cursor: 'pointer'
-                                                    }}
-                                                    title="Eliminar"
-                                                >
-                                                    🗑️
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
-                                        <p style={{ fontSize: '0.8rem' }}>No se encontraron respaldos en /SchoolTracker Backups/</p>
-                                    </div>
-                                )}
-                            </div>
+                            <span style={{ 
+                                display: 'inline-block', 
+                                width: '6px', 
+                                height: '6px', 
+                                borderRadius: '50%', 
+                                background: isConnected ? '#10b981' : '#64748b',
+                                marginRight: '6px'
+                            }}></span>
+                            {isConnected ? 'Conectado' : 'Desconectado'}
                         </div>
                     </div>
                 )}
-            </div>
 
-            {/* Bottom Info */}
-            <div style={{ 
-                padding: '0.75rem 1rem', 
-                borderTop: '1px solid rgba(255, 255, 255, 0.05)',
-                display: 'flex', 
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                background: 'rgba(15, 23, 42, 0.3)'
-            }}>
-                <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>
-                    Cifrado e Integridad Garantizada
-                </span>
-                <span style={{ fontSize: '0.65rem', color: '#475569', fontStyle: 'italic' }}>Google Drive API v3</span>
+                {/* Main Area */}
+                <div style={{ padding: isAndroid ? '0.5rem 0' : '1.5rem' }}>
+                    {!isConnected ? (
+                        <div style={{ 
+                            background: 'rgba(15, 23, 42, 0.4)', 
+                            padding: isAndroid ? '1rem' : '1.5rem', 
+                            borderRadius: '12px',
+                            border: '1px solid rgba(255, 255, 255, 0.05)',
+                            maxWidth: '600px',
+                            margin: '0 auto'
+                        }}>
+                            <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+                                <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>☁️</div>
+                                <h4 style={{ margin: '0 0 0.5rem 0', color: '#e2e8f0' }}>Vincular cuenta de Google</h4>
+                                <p style={{ color: '#94a3b8', fontSize: '0.85rem', margin: 0 }}>
+                                    Al conectar tu cuenta, School Tracker Pro podrá subir copias de seguridad a una carpeta segura llamada <strong style={{ color: '#818cf8' }}>SchoolTracker Backups</strong> en tu Google Drive.
+                                </p>
+                            </div>
+
+                            <button
+                                onClick={handleGoogleConnect}
+                                disabled={isLoading}
+                                style={{ 
+                                    width: '100%', 
+                                    padding: '0.85rem', 
+                                    background: '#6366f1', 
+                                    color: 'white', 
+                                    border: 'none', 
+                                    borderRadius: '10px',
+                                    fontWeight: 'bold',
+                                    cursor: isLoading ? 'not-allowed' : 'pointer',
+                                    opacity: isLoading ? 0.7 : 1,
+                                    fontSize: '0.95rem'
+                                }}
+                            >
+                                {isLoading ? 'Esperando autorización...' : 'Iniciar Sesión con Google'}
+                            </button>
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                            {/* Connected User */}
+                            <div style={{ 
+                                background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1))',
+                                padding: isAndroid ? '0.75rem' : '1.25rem',
+                                borderRadius: '16px',
+                                border: '1px solid rgba(99, 102, 241, 0.2)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                flexWrap: 'wrap',
+                                gap: '0.75rem'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: '1 1 auto', minWidth: '200px' }}>
+                                    <div style={{ 
+                                        width: isAndroid ? '40px' : '50px', 
+                                        height: isAndroid ? '40px' : '50px', 
+                                        borderRadius: '50%',
+                                        background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: 'white',
+                                        fontSize: isAndroid ? '1.2rem' : '1.5rem',
+                                        overflow: 'hidden',
+                                        flexShrink: 0
+                                    }}>
+                                        {settings.googleUserProfilePic && !imgError ? (
+                                            <img 
+                                                src={settings.googleUserProfilePic} 
+                                                alt="Google User" 
+                                                referrerPolicy="no-referrer"
+                                                onError={() => setImgError(true)}
+                                                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                                            />
+                                        ) : '👤'}
+                                    </div>
+                                    <div style={{ minWidth: 0, flex: 1 }}>
+                                        <p style={{ margin: 0, fontSize: '0.6rem', color: '#818cf8', fontWeight: 'bold', textTransform: 'uppercase' }}>Cuenta Google Vinculada</p>
+                                        <h4 style={{ margin: '0.15rem 0 0 0', color: '#f1f5f9', fontSize: '0.9rem', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{settings.googleUserName || 'Usuario Google'}</h4>
+                                        <p style={{ margin: 0, fontSize: '0.7rem', color: '#94a3b8', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{settings.googleUserEmail}</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleGoogleDisconnect}
+                                    style={{ 
+                                        width: isAndroid ? '100%' : 'auto',
+                                        padding: '0.5rem 1rem', 
+                                        background: 'rgba(239, 68, 68, 0.1)', 
+                                        color: '#ef4444',
+                                        border: '1px solid rgba(239, 68, 68, 0.2)',
+                                        borderRadius: '8px',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 'bold',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Desvincular Cuenta
+                                </button>
+                            </div>
+
+                            {/* Config & Manual Backup */}
+                            <div style={{ display: 'grid', gridTemplateColumns: isAndroid ? '1fr' : 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: '1rem' }}>
+                                {/* Automatic Settings */}
+                                <div style={{ 
+                                    background: 'rgba(15, 23, 42, 0.4)',
+                                    padding: '1.25rem',
+                                    borderRadius: '12px',
+                                    border: '1px solid rgba(255, 255, 255, 0.05)'
+                                }}>
+                                    <h4 style={{ margin: '0 0 1rem 0', color: '#e2e8f0', fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <span>⚙️</span> Automatización
+                                    </h4>
+
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', marginBottom: '1rem' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={settings.backupEnabled}
+                                            onChange={(e) => saveSettings({ ...settings, backupEnabled: e.target.checked })}
+                                            style={{ width: '18px', height: '18px', accentColor: '#6366f1' }}
+                                        />
+                                        <span style={{ color: '#e2e8f0', fontSize: '0.85rem' }}>Respaldo Automático Activo</span>
+                                    </label>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', marginBottom: '0.35rem', fontWeight: 'bold', textTransform: 'uppercase' }}>Frecuencia</label>
+                                            <select
+                                                value={settings.backupInterval}
+                                                disabled={!settings.backupEnabled}
+                                                onChange={(e) => saveSettings({ ...settings, backupInterval: parseInt(e.target.value) })}
+                                                style={{ 
+                                                    width: '100%', 
+                                                    padding: '0.5rem', 
+                                                    background: 'rgba(15, 23, 42, 0.6)',
+                                                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                                                    borderRadius: '6px',
+                                                    color: '#e2e8f0',
+                                                    fontSize: '0.8rem',
+                                                    opacity: settings.backupEnabled ? 1 : 0.5
+                                                }}
+                                            >
+                                                <option value={1}>1 hora</option>
+                                                <option value={6}>6 horas</option>
+                                                <option value={12}>12 horas</option>
+                                                <option value={24}>24 horas</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '0.7rem', color: '#94a3b8', marginBottom: '0.35rem', fontWeight: 'bold', textTransform: 'uppercase' }}>Equipo</label>
+                                            <input
+                                                type="text"
+                                                value={settings.deviceName}
+                                                onChange={(e) => saveSettings({ ...settings, deviceName: e.target.value })}
+                                                placeholder="Ej: PC Principal"
+                                                style={{ 
+                                                    width: '100%', 
+                                                    padding: '0.5rem', 
+                                                    background: 'rgba(15, 23, 42, 0.6)',
+                                                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                                                    borderRadius: '6px',
+                                                    color: '#e2e8f0',
+                                                    fontSize: '0.8rem',
+                                                    boxSizing: 'border-box'
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Manual Backup */}
+                                <div style={{ 
+                                    background: 'rgba(15, 23, 42, 0.4)',
+                                    padding: '1.25rem',
+                                    borderRadius: '12px',
+                                    border: '1px solid rgba(255, 255, 255, 0.05)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    justifyContent: 'space-between'
+                                }}>
+                                    <div>
+                                        <h4 style={{ margin: '0 0 1rem 0', color: '#e2e8f0', fontSize: '0.8rem', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <span>🚀</span> Respaldar Ahora
+                                        </h4>
+                                        <div style={{ marginBottom: '0.5rem' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.25rem' }}>
+                                                <span style={{ color: '#94a3b8' }}>Último respaldo:</span>
+                                                <span style={{ color: '#e2e8f0', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {settings.lastBackupTime ? new Date(settings.lastBackupTime).toLocaleString('es-ES') : 'Nunca'}
+                                                </span>
+                                            </div>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                                                <span style={{ color: '#94a3b8' }}>Ubicación:</span>
+                                                <span style={{ color: '#e2e8f0', fontWeight: 'bold' }}>/SchoolTracker Backups/</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={handleBackupNow}
+                                        disabled={isTesting}
+                                        style={{ 
+                                            width: '100%', 
+                                            padding: '0.75rem', 
+                                            background: '#6366f1', 
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            fontWeight: 'bold',
+                                            cursor: isTesting ? 'not-allowed' : 'pointer',
+                                            opacity: isTesting ? 0.7 : 1,
+                                            fontSize: '0.85rem',
+                                            marginTop: '0.75rem'
+                                        }}
+                                    >
+                                        {isTesting ? 'Procesando...' : 'Subir Respaldo Manual'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* List of Backups */}
+                            <div style={{ 
+                                background: 'rgba(15, 23, 42, 0.4)',
+                                borderRadius: '12px',
+                                border: '1px solid rgba(255, 255, 255, 0.05)',
+                                overflow: 'hidden'
+                            }}>
+                                <div style={{ 
+                                    padding: '0.85rem 1rem', 
+                                    borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                                    display: 'flex', 
+                                    justifyContent: 'space-between', 
+                                    alignItems: 'center',
+                                    background: 'rgba(255, 255, 255, 0.02)'
+                                }}>
+                                    <h4 style={{ margin: 0, color: '#e2e8f0', fontSize: '0.8rem', fontWeight: 'bold' }}>Copias en Google Drive</h4>
+                                    <button
+                                        onClick={() => fetchDriveBackups(settings)}
+                                        disabled={isFetchingFiles}
+                                        style={{ 
+                                            background: 'transparent', 
+                                            border: 'none', 
+                                            color: '#94a3b8', 
+                                            cursor: isFetchingFiles ? 'not-allowed' : 'pointer',
+                                            padding: '0.35rem',
+                                            opacity: isFetchingFiles ? 0.5 : 1
+                                        }}
+                                        title="Refrescar"
+                                    >
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={isFetchingFiles ? 'animate-spin' : ''}>
+                                            <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16"/>
+                                        </svg>
+                                    </button>
+                                </div>
+
+                                <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
+                                    {isFetchingFiles && driveFiles.length === 0 ? (
+                                        <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
+                                            <p style={{ fontSize: '0.8rem' }}>Buscando respaldos...</p>
+                                        </div>
+                                    ) : driveFiles.length > 0 ? (
+                                        driveFiles.map(file => (
+                                            <div key={file.id} style={{ 
+                                                padding: '0.85rem 1rem', 
+                                                borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                                                display: 'flex', 
+                                                flexDirection: isAndroid ? 'column' : 'row',
+                                                alignItems: isAndroid ? 'stretch' : 'center', 
+                                                justifyContent: 'space-between',
+                                                gap: '0.75rem'
+                                            }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: 0 }}>
+                                                    <div style={{ 
+                                                        width: '36px', 
+                                                        height: '36px', 
+                                                        borderRadius: '8px',
+                                                        background: 'rgba(99, 102, 241, 0.1)',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        color: '#818cf8',
+                                                        flexShrink: 0
+                                                    }}>
+                                                        💾
+                                                    </div>
+                                                    <div style={{ minWidth: 0, flex: 1 }}>
+                                                        <h5 style={{ margin: 0, color: '#e2e8f0', fontSize: '0.8rem', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                            {file.name}
+                                                        </h5>
+                                                        <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                            {file.device} • {new Date(file.createdTime).toLocaleString()} • {formatBytes(file.size)}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: isAndroid ? 'flex-end' : 'flex-start', flexShrink: 0 }}>
+                                                    <button
+                                                        onClick={() => handleRestoreBackup(file)}
+                                                        style={{ 
+                                                            flex: isAndroid ? 1 : 'none',
+                                                            padding: '0.4rem 0.75rem', 
+                                                            background: '#10b981', 
+                                                            color: 'white',
+                                                            border: 'none',
+                                                            borderRadius: '6px',
+                                                            fontSize: '0.7rem',
+                                                            fontWeight: 'bold',
+                                                            cursor: 'pointer'
+                                                        }}
+                                                    >
+                                                        Restaurar
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteDriveBackup(file)}
+                                                        style={{ 
+                                                            padding: '0.4rem 0.75rem', 
+                                                            background: 'rgba(239, 68, 68, 0.1)', 
+                                                            color: '#ef4444',
+                                                            border: '1px solid rgba(239, 68, 68, 0.2)',
+                                                            borderRadius: '6px',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center'
+                                                        }}
+                                                        title="Eliminar"
+                                                    >
+                                                        🗑️ {isAndroid && <span style={{ marginLeft: '0.25rem', fontSize: '0.7rem', fontWeight: 'bold' }}>Eliminar</span>}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
+                                            <p style={{ fontSize: '0.8rem' }}>No se encontraron respaldos en /SchoolTracker Backups/</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Bottom Info */}
+                <div style={{ 
+                    padding: '0.75rem 1rem', 
+                    borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                    display: 'flex', 
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    background: 'rgba(15, 23, 42, 0.3)'
+                }}>
+                    <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                        Cifrado e Integridad Garantizada
+                    </span>
+                    <span style={{ fontSize: '0.65rem', color: '#475569', fontStyle: 'italic' }}>Google Drive API v3</span>
+                </div>
             </div>
-        </div>
         </>
     );
 };
