@@ -1182,25 +1182,111 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
               </button>
             )}
           </div>
+        ) : isAndroidMobile ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.4rem 0' }}>
+            {filteredEstudiantes.map((est, index) => (
+              <div key={est.id} style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: '12px',
+                padding: '0.5rem 0.6rem',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
+                  <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 'bold', minWidth: '20px' }}>{index + 1}</span>
+                  <span style={{ fontSize: '1rem', flexShrink: 0 }}>{est.sexo === 'F' ? '👩' : '👨'}</span>
+                  <span
+                    style={{ flex: 1, fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    onClick={() => setSelectedStudentDetail(est)}
+                  >{est.nombre}</span>
+                  <button
+                    className={`obs-toggle-btn ${est.observacion ? 'has-obs' : ''} ${expandedObs[est.id] ? 'active' : ''}`}
+                    onClick={() => toggleObs(est)}
+                    title="Observaciones"
+                    style={{ width: '30px', height: '30px', minWidth: '30px', fontSize: '0.9rem', flexShrink: 0 }}
+                  >
+                    {est.observacion ? '📝' : '💬'}
+                  </button>
+                </div>
+                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  <label
+                    className={`asistencia-opt ${est.estado === 'P' ? 'active p' : ''}`}
+                    style={{
+                      flex: 1, height: '36px', fontSize: '0.85rem',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold',
+                      background: est.estado === 'P' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.05)',
+                      border: est.estado === 'P' ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.1)',
+                      color: est.estado === 'P' ? '#10b981' : '#94a3b8'
+                    }}
+                  >
+                    <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'P'} onChange={() => handleEstadoChange(est.id, 'P')} style={{ display: 'none' }} />
+                    <span>P</span>
+                  </label>
+                  <label
+                    className={`asistencia-opt ${est.estado === 'A' ? 'active a' : ''}`}
+                    style={{
+                      flex: 1, height: '36px', fontSize: '0.85rem',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold',
+                      background: est.estado === 'A' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255,255,255,0.05)',
+                      border: est.estado === 'A' ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.1)',
+                      color: est.estado === 'A' ? '#ef4444' : '#94a3b8'
+                    }}
+                  >
+                    <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'A'} onChange={() => handleEstadoChange(est.id, 'A')} style={{ display: 'none' }} />
+                    <span>A</span>
+                  </label>
+                  <label
+                    className={`asistencia-opt ${est.estado === 'J' ? 'active j' : ''}`}
+                    style={{
+                      flex: 1, height: '36px', fontSize: '0.85rem',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold',
+                      background: est.estado === 'J' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255,255,255,0.05)',
+                      border: est.estado === 'J' ? '1px solid #f59e0b' : '1px solid rgba(255,255,255,0.1)',
+                      color: est.estado === 'J' ? '#f59e0b' : '#94a3b8'
+                    }}
+                  >
+                    <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'J'} onChange={() => handleEstadoChange(est.id, 'J')} style={{ display: 'none' }} />
+                    <span>J</span>
+                  </label>
+                </div>
+                {expandedObs[est.id] && (
+                  <div style={{ marginTop: '0.4rem' }}>
+                    <input
+                      type="text"
+                      placeholder="Observación..."
+                      value={est.observacion || ''}
+                      onChange={(e) => handleObservacionChange(est.id, e.target.value)}
+                      style={{
+                        width: '100%', padding: '0.4rem 0.6rem', borderRadius: '6px',
+                        border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.3)',
+                        color: '#fff', fontSize: '0.8rem', outline: 'none', boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         ) : (
           <table className="custom-table" style={{ width: '100%', margin: '0', overflow: 'visible' }}>
             <thead>
               <tr>
-                <th style={{ width: isAndroidMobile ? '24px' : '30px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>#</th>
+                <th style={{ width: '30px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>#</th>
                 <th style={{ textAlign: 'left', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Estudiante</th>
-                <th style={{ width: isAndroidMobile ? '85px' : '100px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Asistencia</th>
-                <th style={{ width: isAndroidMobile ? '50px' : '65px', textAlign: 'center', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Obs</th>
+                <th style={{ width: '100px', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Asistencia</th>
+                <th style={{ width: '65px', textAlign: 'center', position: 'sticky', top: 0, background: '#1e293b', zIndex: 10 }}>Obs</th>
               </tr>
             </thead>
             <tbody>
               {filteredEstudiantes.map((est, index) => (
-                <tr key={est.id} className={expandedObs[est.id] ? 'row-expanded' : ''}>
+                <tr key={est.id}>
                   <td>
                     <span className="student-number-badge">{index + 1}</span>
                   </td>
                   <td style={{ textAlign: 'left', overflow: 'hidden' }}>
                     <div
-                      className="student-name-container"
                       style={{
                         fontWeight: 'bold',
                         cursor: 'pointer',
