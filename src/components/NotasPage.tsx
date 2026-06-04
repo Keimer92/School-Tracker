@@ -1695,7 +1695,7 @@ onChange={(e) => {
             WebkitOverflowScrolling: 'touch', 
             border: '1px solid rgba(255,255,255,0.1)', 
             borderRadius: '8px',
-            maxHeight: isMobile ? 'calc(100dvh - 290px)' : 'calc(100vh - 180px)'
+            maxHeight: isMobile ? 'calc(100dvh - 290px)' : 'calc(100vh - 250px)'
           }}>
             <table className="notas-table" style={{ width: '100%', minWidth: 'max-content', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.7rem' }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 100 }}>

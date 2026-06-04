@@ -1720,7 +1720,7 @@ try {
                   WebkitOverflowScrolling: 'touch', 
                   border: '1px solid rgba(255,255,255,0.1)', 
                   borderRadius: '8px',
-                  maxHeight: isMobile ? 'calc(100dvh - 290px)' : 'calc(100vh - 180px)'
+                  maxHeight: isMobile ? 'calc(100dvh - 290px)' : 'calc(100vh - 250px)'
                 }}>
                   <table style={{ width: '100%', minWidth: 'max-content', borderCollapse: 'separate', borderSpacing: 0 }}>
                     <thead style={{ position: 'sticky', top: 0, zIndex: 100 }}>
