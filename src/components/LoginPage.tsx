@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Auth } from "./Auth";
 import { emit } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import "../App.css";
 
@@ -24,7 +23,7 @@ export function LoginPage({ onComplete }: LoginPageProps) {
   const GD_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
   const GD_CLIENT_SECRET = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
   const GD_DESKTOP_REDIRECT = 'http://localhost:51733/callback';
-  const GD_ANDROID_REDIRECT = 'http://127.0.0.1/callback';
+  const GD_ANDROID_REDIRECT = 'http://127.0.0.1:51733/callback';
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", localStorage.getItem("app-theme") || "mint");
@@ -90,15 +89,22 @@ export function LoginPage({ onComplete }: LoginPageProps) {
     const isAndroid = /Android/i.test(navigator.userAgent);
     const redirectUri = isAndroid ? GD_ANDROID_REDIRECT : GD_DESKTOP_REDIRECT;
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${GD_CLIENT_ID}&redirect_uri=${redirectUri}&response_type=code&scope=https://www.googleapis.com/auth/drive.file%20https://www.googleapis.com/auth/userinfo.email%20https://www.googleapis.com/auth/userinfo.profile&access_type=offline&prompt=consent`;
+    
+    // Timeout de seguridad para no quedarse en "Esperando autorización" para siempre
+    const timeout = setTimeout(() => {
+      setDriveLoading(false);
+    }, 120000);
+
     if (isAndroid) {
       try {
+        const serverPromise = invoke<string>('gd_start_oauth_server', { port: 51733 });
         await openUrl(authUrl);
-        const unlisten = await listen<string>('oauth-callback-android', (event) => {
-          unlisten();
-          completeDriveConnect(event.payload);
-        });
+        const capturedCode = await serverPromise;
+        clearTimeout(timeout);
+        await completeDriveConnect(capturedCode);
       } catch (e) {
-        await emit("show-toast", { message: `Error al abrir navegador: ${e}`, type: "error" });
+        clearTimeout(timeout);
+        await emit("show-toast", { message: `Error: ${e}`, type: "error" });
         setDriveLoading(false);
       }
     } else {
@@ -110,8 +116,10 @@ export function LoginPage({ onComplete }: LoginPageProps) {
       }
       try {
         const capturedCode = await serverPromise;
+        clearTimeout(timeout);
         await completeDriveConnect(capturedCode);
       } catch {
+        clearTimeout(timeout);
         setDriveLoading(false);
       }
     }

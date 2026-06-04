@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { emit, listen } from '@tauri-apps/api/event';
+import { emit } from '@tauri-apps/api/event';
 import { ConfirmDialog } from './ConfirmDialog';
 import { openUrl } from '@tauri-apps/plugin-opener';
 
 const DEFAULT_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 const DEFAULT_CLIENT_SECRET = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
 const DESKTOP_REDIRECT_URI = 'http://localhost:51733/callback';
-const ANDROID_REDIRECT_URI = 'http://127.0.0.1/callback';
+const ANDROID_REDIRECT_URI = 'http://127.0.0.1:51733/callback';
 
 export interface GoogleDriveSettings {
     clientId: string;
@@ -211,32 +211,23 @@ export const GoogleDriveBackup: React.FC = () => {
         const redirectUri = isAndroid ? ANDROID_REDIRECT_URI : DESKTOP_REDIRECT_URI;
         const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${settings.clientId}&redirect_uri=${redirectUri}&response_type=code&scope=https://www.googleapis.com/auth/drive.file%20https://www.googleapis.com/auth/userinfo.email%20https://www.googleapis.com/auth/userinfo.profile&access_type=offline&prompt=consent`;
         
-        if (isAndroid) {
-            try {
+        emit("show-toast", { message: "Esperando autorización en el navegador...", type: "info" });
+        const serverPromise = invoke<string>('gd_start_oauth_server', { port: 51733 });
+        try {
+            if (isAndroid) {
                 await openUrl(authUrl);
-                const unlisten = await listen<string>('oauth-callback-android', (event) => {
-                    unlisten();
-                    completeConnectWithCode(event.payload);
-                });
-            } catch (e) {
-                emit("show-toast", { message: `Error al abrir navegador: ${e}`, type: "error" });
-                setIsLoading(false);
-            }
-        } else {
-            emit("show-toast", { message: "Esperando autorización en el navegador...", type: "info" });
-            const serverPromise = invoke<string>('gd_start_oauth_server', { port: 51733 });
-            try {
+            } else {
                 await invoke('gd_open_url_browser', { url: authUrl });
-            } catch (e) {
-                window.open(authUrl, '_blank');
             }
-            try {
-                const capturedCode = await serverPromise;
-                await completeConnectWithCode(capturedCode);
-            } catch (error: any) {
-                emit("show-toast", { message: `Vínculo automático cancelado: ${error}`, type: "error" });
-                setIsLoading(false);
-            }
+        } catch (e) {
+            window.open(authUrl, '_blank');
+        }
+        try {
+            const capturedCode = await serverPromise;
+            await completeConnectWithCode(capturedCode);
+        } catch (error: any) {
+            emit("show-toast", { message: `Vínculo automático cancelado: ${error}`, type: "error" });
+            setIsLoading(false);
         }
     };
 

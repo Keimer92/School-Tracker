@@ -43,7 +43,9 @@ class MainActivity : TauriActivity() {
   private fun handleIntent(intent: Intent?) {
     if (intent?.data != null) {
       val uri = intent.data!!
-      if (uri.scheme == "http" && uri.host == "127.0.0.1" && uri.path == "/callback") {
+      val isMatch = (uri.scheme == "http" && uri.host == "127.0.0.1" && uri.path == "/callback") ||
+                    (uri.scheme == "schooltracker-auth" && uri.host == "callback")
+      if (isMatch) {
         val code = uri.getQueryParameter("code")
         if (code != null) {
           val escapedCode = code.replace("\\", "\\\\").replace("'", "\\'")
