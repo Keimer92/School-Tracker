@@ -35,7 +35,6 @@ const STORAGE_KEY = 'schooltracker-google-drive-settings';
 const CACHE_KEY = 'schooltracker-google-drive-backups-cache';
 
 export const GoogleDriveBackup: React.FC = () => {
-    const isAndroid = /Android/i.test(navigator.userAgent);
     const [settings, setSettings] = useState<GoogleDriveSettings>({
         clientId: DEFAULT_CLIENT_ID,
         backupEnabled: false,
@@ -568,29 +567,26 @@ export const GoogleDriveBackup: React.FC = () => {
         }}>
             {/* Header */}
             <div style={{ 
-                padding: isAndroid ? '1rem' : '1.5rem', 
+                padding: '1.5rem', 
                 borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
                 display: 'flex', 
                 alignItems: 'center', 
-                justifyContent: 'space-between',
-                flexWrap: 'wrap',
-                gap: '0.5rem'
+                justifyContent: 'space-between'
             }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: isAndroid ? '0.6rem' : '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <div style={{ 
-                        padding: isAndroid ? '0.5rem' : '0.75rem', 
+                        padding: '0.75rem', 
                         background: 'rgba(99, 102, 241, 0.2)', 
                         borderRadius: '12px',
-                        color: '#818cf8',
-                        flexShrink: 0
+                        color: '#818cf8'
                     }}>
-                        <svg width={isAndroid ? "20" : "24"} height={isAndroid ? "20" : "24"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z"/>
                         </svg>
                     </div>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                        <h3 style={{ margin: 0, color: '#f1f5f9', fontSize: isAndroid ? '1rem' : '1.1rem', fontWeight: 'bold', overflowWrap: 'break-word', wordBreak: 'break-word' }}>Respaldo Automático Google Drive</h3>
-                        {!isAndroid && <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>Copia de seguridad automática de tu base de datos SQLite</p>}
+                    <div>
+                        <h3 style={{ margin: 0, color: '#f1f5f9', fontSize: '1.1rem', fontWeight: 'bold' }}>Respaldo Automático Google Drive</h3>
+                        <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>Copia de seguridad automática de tu base de datos SQLite</p>
                     </div>
                 </div>
                 <div style={{ 
@@ -616,21 +612,21 @@ export const GoogleDriveBackup: React.FC = () => {
             </div>
 
             {/* Main Area */}
-            <div style={{ padding: isAndroid ? '1rem' : '1.5rem' }}>
+            <div style={{ padding: '1.5rem' }}>
                 {!isConnected ? (
                     <div style={{ 
                         background: 'rgba(15, 23, 42, 0.4)', 
-                        padding: isAndroid ? '1rem' : '1.5rem', 
+                        padding: '1.5rem', 
                         borderRadius: '12px',
                         border: '1px solid rgba(255, 255, 255, 0.05)',
                         maxWidth: '600px',
                         margin: '0 auto'
                     }}>
                         <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                            <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>☁️</div>
-                            <h4 style={{ margin: '0 0 0.5rem 0', color: '#e2e8f0', fontSize: isAndroid ? '1rem' : '1.1rem' }}>Vincular cuenta de Google</h4>
-                            <p style={{ color: '#94a3b8', fontSize: isAndroid ? '0.8rem' : '0.85rem', margin: 0 }}>
-                                Conecta tu cuenta para activar las copias de seguridad automáticas de tu base de datos en una carpeta segura de Google Drive.
+                            <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>☁️</div>
+                            <h4 style={{ margin: '0 0 0.5rem 0', color: '#e2e8f0' }}>Vincular cuenta de Google</h4>
+                            <p style={{ color: '#94a3b8', fontSize: '0.85rem', margin: 0 }}>
+                                Al conectar tu cuenta, School Tracker Pro podrá subir copias de seguridad a una carpeta segura llamada <strong style={{ color: '#818cf8' }}>SchoolTracker Backups</strong> en tu Google Drive.
                             </p>
                         </div>
 
@@ -640,59 +636,44 @@ export const GoogleDriveBackup: React.FC = () => {
                             style={{ 
                                 width: '100%', 
                                 padding: '0.85rem', 
-                                background: 'linear-gradient(135deg, #6366f1, #4f46e5)', 
+                                background: '#6366f1', 
                                 color: 'white', 
                                 border: 'none', 
                                 borderRadius: '10px',
                                 fontWeight: 'bold',
                                 cursor: isLoading ? 'not-allowed' : 'pointer',
                                 opacity: isLoading ? 0.7 : 1,
-                                fontSize: '0.95rem',
-                                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
-                            }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.transform = 'translateY(-1px)';
-                                e.currentTarget.style.boxShadow = '0 6px 20px rgba(99, 102, 241, 0.4)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.transform = 'translateY(0)';
-                                e.currentTarget.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.3)';
+                                fontSize: '0.95rem'
                             }}
                         >
-                            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z"/>
-                                </svg>
-                                {isLoading ? 'Esperando autorización...' : 'Iniciar Sesión con Google'}
-                            </span>
+                            {isLoading ? 'Esperando autorización...' : 'Iniciar Sesión con Google'}
                         </button>
                     </div>
                 ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: isAndroid ? '1rem' : '1.5rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                         {/* Connected User */}
                         <div style={{ 
                             background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1))',
-                            padding: isAndroid ? '1rem' : '1.25rem',
+                            padding: '1.25rem',
                             borderRadius: '16px',
                             border: '1px solid rgba(99, 102, 241, 0.2)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            flexDirection: isAndroid ? 'column' : 'row',
                             flexWrap: 'wrap',
-                            gap: isAndroid ? '0.75rem' : '1rem'
+                            gap: '1rem'
                         }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: isAndroid ? '0.75rem' : '1rem', width: isAndroid ? '100%' : 'auto' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                 <div style={{ 
-                                    width: isAndroid ? '44px' : '50px', 
-                                    height: isAndroid ? '44px' : '50px', 
+                                    width: '50px', 
+                                    height: '50px', 
                                     borderRadius: '50%',
                                     background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     color: 'white',
-                                    fontSize: isAndroid ? '1.3rem' : '1.5rem',
+                                    fontSize: '1.5rem',
                                     overflow: 'hidden',
                                     flexShrink: 0
                                 }}>
@@ -706,25 +687,23 @@ export const GoogleDriveBackup: React.FC = () => {
                                         />
                                     ) : '👤'}
                                 </div>
-                                <div style={{ flex: 1, minWidth: 0 }}>
+                                <div>
                                     <p style={{ margin: 0, fontSize: '0.65rem', color: '#818cf8', fontWeight: 'bold', textTransform: 'uppercase' }}>Cuenta Google Vinculada</p>
-                                    <h4 style={{ margin: '0.25rem 0 0 0', color: '#f1f5f9', fontSize: isAndroid ? '0.9rem' : '1rem', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{settings.googleUserName || 'Usuario Google'}</h4>
-                                    <p style={{ margin: 0, fontSize: '0.75rem', color: '#94a3b8', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{settings.googleUserEmail}</p>
+                                    <h4 style={{ margin: '0.25rem 0 0 0', color: '#f1f5f9', fontSize: '1rem', fontWeight: 'bold' }}>{settings.googleUserName || 'Usuario Google'}</h4>
+                                    <p style={{ margin: 0, fontSize: '0.75rem', color: '#94a3b8', fontFamily: 'monospace' }}>{settings.googleUserEmail}</p>
                                 </div>
                             </div>
                             <button
                                 onClick={handleGoogleDisconnect}
                                 style={{ 
-                                    padding: isAndroid ? '0.65rem 1rem' : '0.5rem 1rem', 
+                                    padding: '0.5rem 1rem', 
                                     background: 'rgba(239, 68, 68, 0.1)', 
                                     color: '#ef4444',
                                     border: '1px solid rgba(239, 68, 68, 0.2)',
                                     borderRadius: '8px',
                                     fontSize: '0.75rem',
                                     fontWeight: 'bold',
-                                    cursor: 'pointer',
-                                    width: isAndroid ? '100%' : 'auto',
-                                    textAlign: 'center'
+                                    cursor: 'pointer'
                                 }}
                             >
                                 Desvincular Cuenta
@@ -736,7 +715,7 @@ export const GoogleDriveBackup: React.FC = () => {
                             {/* Automatic Settings */}
                             <div style={{ 
                                 background: 'rgba(15, 23, 42, 0.4)',
-                                padding: isAndroid ? '1rem' : '1.25rem',
+                                padding: '1.25rem',
                                 borderRadius: '12px',
                                 border: '1px solid rgba(255, 255, 255, 0.05)'
                             }}>
@@ -749,7 +728,7 @@ export const GoogleDriveBackup: React.FC = () => {
                                         type="checkbox"
                                         checked={settings.backupEnabled}
                                         onChange={(e) => saveSettings({ ...settings, backupEnabled: e.target.checked })}
-                                        style={{ width: isAndroid ? '22px' : '18px', height: isAndroid ? '22px' : '18px', accentColor: '#6366f1' }}
+                                        style={{ width: '18px', height: '18px', accentColor: '#6366f1' }}
                                     />
                                     <span style={{ color: '#e2e8f0', fontSize: '0.85rem' }}>Respaldo Automático Activo</span>
                                 </label>
@@ -832,7 +811,7 @@ export const GoogleDriveBackup: React.FC = () => {
                                     disabled={isTesting}
                                     style={{ 
                                         width: '100%', 
-                                        padding: isAndroid ? '1rem' : '0.75rem', 
+                                        padding: '0.75rem', 
                                         background: '#6366f1', 
                                         color: 'white',
                                         border: 'none',
@@ -926,7 +905,7 @@ export const GoogleDriveBackup: React.FC = () => {
                                                 <button
                                                     onClick={() => handleRestoreBackup(file)}
                                                     style={{ 
-                                                        padding: isAndroid ? '0.5rem 0.85rem' : '0.4rem 0.75rem', 
+                                                        padding: '0.4rem 0.75rem', 
                                                         background: '#10b981', 
                                                         color: 'white',
                                                         border: 'none',
