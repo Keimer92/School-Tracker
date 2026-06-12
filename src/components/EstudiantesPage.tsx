@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
@@ -55,6 +55,8 @@ export function EstudiantesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const initialLoadDone = useRef(false);
+  const initialMountDone = useRef(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
   useEffect(() => {
@@ -279,9 +281,23 @@ export function EstudiantesPage() {
         setFilters(currentFilters);
       }
 
-      // Cargar grados inicialmente basados en los filtros por defecto
-      if (currentFilters.colegioId && currentFilters.anoLectivoId) {
-        await fetchGrados(currentFilters.colegioId, currentFilters.anoLectivoId);
+      // Solo precargar datos dependientes en el primer montaje
+      if (!initialMountDone.current) {
+        initialMountDone.current = true;
+
+        // Cargar grados basados en los filtros por defecto
+        if (currentFilters.colegioId && currentFilters.anoLectivoId) {
+          const loadedGrados = await fetchGrados(currentFilters.colegioId, currentFilters.anoLectivoId);
+          // Precargar secciones del primer grado disponible
+          const firstGradoId = loadedGrados.length > 0 ? loadedGrados[0].id : 0;
+          if (firstGradoId > 0) {
+            await fetchSecciones(firstGradoId, currentFilters.colegioId, currentFilters.anoLectivoId);
+            // Auto-seleccionar el primer grado
+            setFilters(prev => ({ ...prev, gradoId: firstGradoId }));
+          }
+        }
+
+        initialLoadDone.current = true;
       }
 
       // Initialize form defaults if catalogs exist
@@ -627,6 +643,10 @@ export function EstudiantesPage() {
   // Efectos para carga en cascada de catálogos en filtros
   useEffect(() => {
     if (filters.colegioId && filters.anoLectivoId) {
+      if (initialLoadDone.current) {
+        initialLoadDone.current = false;
+        return;
+      }
       fetchGrados(filters.colegioId, filters.anoLectivoId).then((loadedGrados) => {
         // Si no hay grado seleccionado y hay grados disponibles, seleccionar el primero
         if (filters.gradoId === 0 && loadedGrados.length > 0) {
@@ -638,6 +658,7 @@ export function EstudiantesPage() {
 
   useEffect(() => {
     if (filters.gradoId && filters.colegioId && filters.anoLectivoId) {
+      if (initialLoadDone.current) return;
       fetchSecciones(filters.gradoId, filters.colegioId, filters.anoLectivoId);
     } else {
       setSecciones([]);
