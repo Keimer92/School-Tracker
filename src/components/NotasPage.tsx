@@ -151,7 +151,10 @@ export function NotasPage() {
 
   });
 
-// Ref para notas cualitativas sin re-render durante escritura
+  // Flag para evitar que los efectos re-disparen la cascada tras la precarga inicial
+  const initialLoadDone = useRef(false);
+
+  // Ref para notas cualitativas sin re-render durante escritura
   const notasCualitativasRef = useRef<Map<string, string>>(new Map());
 
   // Actualizar refs cuando cambian los filtros
@@ -308,12 +311,6 @@ export function NotasPage() {
     fetchCatalogs();
   }, []);
 
-  // Cargar configuraciones de calificación al montar
-  useEffect(() => {
-    console.log("Loading grade configs on mount...");
-    fetchGradeConfigs();
-  }, []);
-
   // Pre-sortear gradeConfigs una sola vez (Fase 3)
   const sortedGradeConfigs = useMemo(() => {
     const defaultConfigs = [
@@ -447,17 +444,62 @@ export function NotasPage() {
         invoke<CategoryItem[]>("get_cortes"),
         invoke<CategoryItem[]>("get_colegios"),
       ]);
-      setAnos(anosData);
-      setCortes(cortesData);
-      setColegios(colegiosData);
-      
+
       const activeAno = anosData.find(a => a.activo)?.id || (anosData.length > 0 ? anosData[0].id : 0);
       const activeCorte = cortesData.find(c => c.activo)?.id || (cortesData.length > 0 ? cortesData[0].id : 0);
       const activeColegio = colegiosData.find(c => c.activo)?.id || (colegiosData.length > 0 ? colegiosData[0].id : 0);
 
-      if (activeAno) setSelectedAno(activeAno);
-      if (activeCorte) setSelectedCorte(activeCorte);
-      if (activeColegio) setSelectedColegio(activeColegio);
+      // Precargar datos dependientes en el mismo lote para evitar cascada de efectos
+      let gradosData: CategoryItem[] = [];
+      let sortedAsignaturas: CategoryItem[] = [];
+      let seccionesData: CategoryItem[] = [];
+      let firstGradoId = 0;
+
+      if (activeColegio && activeAno) {
+        const [gradosRaw, asignaturasRaw] = await Promise.all([
+          invoke<CategoryItem[]>("get_grados_by_colegio", { colegioId: activeColegio, anoLectivoId: activeAno }),
+          invoke<CategoryItem[]>("get_subjects_by_colegio", { colegioId: activeColegio }),
+        ]);
+        gradosData = gradosRaw;
+        firstGradoId = gradosData.length > 0 ? gradosData[0].id : 0;
+
+        let filteredAsignaturas = asignaturasRaw;
+        if (firstGradoId > 0) {
+          try {
+            const subjectsByGrade = await invoke<CategoryItem[]>("get_subjects_by_grade", { gradoId: firstGradoId });
+            if (subjectsByGrade.length > 0) {
+              filteredAsignaturas = subjectsByGrade.filter(sg => asignaturasRaw.some(ca => ca.id === sg.id));
+            }
+          } catch (e) {}
+        }
+        sortedAsignaturas = [...filteredAsignaturas].sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+        if (firstGradoId > 0) {
+          try {
+            seccionesData = await invoke<CategoryItem[]>("get_secciones_by_grado_colegio", {
+              gradoId: firstGradoId,
+              colegioId: activeColegio,
+              anoLectivoId: activeAno,
+            });
+          } catch (e) {}
+        }
+      }
+
+      // Setear todo en un solo lote — React 18 batea todos los setState
+      setAnos(anosData);
+      setCortes(cortesData);
+      setColegios(colegiosData);
+      setSelectedAno(activeAno);
+      setSelectedCorte(activeCorte);
+      setSelectedColegio(activeColegio);
+      setGrados(gradosData);
+      setAsignaturas(sortedAsignaturas);
+      setSecciones(seccionesData);
+      setSelectedGrado(firstGradoId);
+      setSelectedAsignatura(sortedAsignaturas.length > 0 ? sortedAsignaturas[0].id : 0);
+      setSelectedSeccion(seccionesData.length > 0 ? seccionesData[0].id : 0);
+
+      initialLoadDone.current = true; // Evita que los efectos re-disparen la cascada
     } catch (error) {
       console.error("Error fetching catalogs:", error);
     }
@@ -466,6 +508,10 @@ export function NotasPage() {
   // Cargar grados y asignaturas cuando cambie el colegio o el año
   useEffect(() => {
     if (selectedColegio && selectedAno) {
+      if (initialLoadDone.current) {
+        initialLoadDone.current = false;
+        return; // Ya precargado por fetchCatalogs
+      }
       // Reiniciar filtros dependientes inmediatamente para evitar carga con datos obsoletos
       setGrados([]);
       setAsignaturas([]);
