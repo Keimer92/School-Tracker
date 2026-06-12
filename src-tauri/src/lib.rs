@@ -107,7 +107,7 @@ for record in data {
             .set("apikey", supabase_key)
             .set("Authorization", &format!("Bearer {}", supabase_key))
             .set("Content-Type", "application/json")
-            .set("Prefer", "return=minimal,resolution=ignore-duplicates")
+            .set("Prefer", "return=minimal,resolution=merge-duplicates")
             .set("On-Conflict", on_conflict)
             .send_string(&json_data);
 

@@ -11,7 +11,7 @@ import { ReportesPage } from "./components/ReportesPage";
 import { AsistenciaPage } from "./components/AsistenciaPage";
 import { InformePage } from "./components/InformePage";
 import { LoginPage } from "./components/LoginPage";
-import { supabase } from "./lib/supabase";
+import { supabase, startPolling } from "./lib/supabase";
 import { syncService } from "./lib/syncService";
 import { realtimeService } from "./lib/realtimeService";
 import { runAutomaticGoogleDriveBackupIfNeeded } from "./components/GoogleDriveBackup";
@@ -203,6 +203,25 @@ useEffect(() => {
     });
 
     return () => subscription.unsubscribe();
+  }, []);
+
+  // Polling periódico cada 30s — respaldo si Realtime pierde mensajes
+  useEffect(() => {
+    let stopPolling: (() => void) | null = null;
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        startPolling(
+          () => syncService.pullAll(),
+          () => true,
+          30000
+        ).then(stop => { stopPolling = stop; });
+      }
+    });
+
+    return () => {
+      if (stopPolling) stopPolling();
+    };
   }, []);
 
   // Google Drive Backup Scheduler
