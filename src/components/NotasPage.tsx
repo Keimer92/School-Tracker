@@ -1321,8 +1321,8 @@ export function NotasPage() {
       const deleted = await invoke<number>("delete_notas", {
         corteEvaluativoId: selectedCorte,
         asignaturaId: selectedAsignatura,
-        estudianteId: deleteMode === 'student' ? deleteStudentId : null,
-        criterioId: deleteMode === 'indicator' ? deleteIndicatorId : null,
+        estudianteId: deleteMode === 'student' ? deleteStudentId : 0,
+        criterioId: deleteMode === 'indicator' ? deleteIndicatorId : 0,
       });
 
       setShowDeleteModal(false);
@@ -2044,73 +2044,189 @@ onChange={(e) => {
               background: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(4px)',
             }}
           />
-          <div className="category-card" style={{
-            position: 'relative', padding: '1.5rem', maxWidth: '500px', width: '100%',
+          <div style={{
+            position: 'relative',
+            background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98))',
+            border: '1px solid rgba(239, 68, 68, 0.25)',
             borderRadius: '20px',
+            padding: '2rem',
+            maxWidth: '520px',
+            width: '100%',
+            boxShadow: '0 25px 60px -12px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255,255,255,0.05)',
+            transform: 'scale(1)',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           }}>
-            <h3 style={{ margin: '0 0 1rem', color: '#f1f5f9' }}>🗑️ Eliminar Notas</h3>
-            <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1rem' }}>
-              Seleccione qué notas eliminar para el corte y asignatura actuales:
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#e2e8f0', cursor: 'pointer' }}>
-                <input type="radio" name="deleteMode" value="all" checked={deleteMode === 'all'}
-                  onChange={() => setDeleteMode('all')} />
-                Todas las notas mostradas
-              </label>
-
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#e2e8f0', cursor: 'pointer' }}>
-                <input type="radio" name="deleteMode" value="student" checked={deleteMode === 'student'}
-                  onChange={() => { setDeleteMode('student'); setDeleteStudentId(0); }} />
-                Por estudiante
-              </label>
-              {deleteMode === 'student' && (
-                <select value={deleteStudentId} onChange={e => setDeleteStudentId(Number(e.target.value))}
-                  style={{ marginLeft: '1.5rem', padding: '0.4rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: '#1e293b', color: '#e2e8f0' }}>
-                  <option value={0}>Seleccione estudiante...</option>
-                  {filteredNotas.map(n => (
-                    <option key={n.estudianteId} value={n.estudianteId}>{n.estudianteNombre}</option>
-                  ))}
-                </select>
-              )}
-
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#e2e8f0', cursor: 'pointer' }}>
-                <input type="radio" name="deleteMode" value="indicator" checked={deleteMode === 'indicator'}
-                  onChange={() => { setDeleteMode('indicator'); setDeleteIndicatorId(0); }} />
-                Por indicador
-              </label>
-              {deleteMode === 'indicator' && (
-                <select value={deleteIndicatorId} onChange={e => setDeleteIndicatorId(Number(e.target.value))}
-                  style={{ marginLeft: '1.5rem', padding: '0.4rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: '#1e293b', color: '#e2e8f0' }}>
-                  <option value={0}>Seleccione indicador...</option>
-                  {indicadores.filter(i => i.activo).map(ind => (
-                    <option key={ind.id} value={ind.id}>
-                      Indicador {ind.orden}: {ind.descripcion || `Indicador ${ind.orden}`}
-                    </option>
-                  ))}
-                </select>
-              )}
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+              <div style={{
+                width: '48px', height: '48px', borderRadius: '14px',
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid rgba(239, 68, 68, 0.2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '1.5rem', flexShrink: 0,
+              }}>
+                🗑️
+              </div>
+              <div>
+                <h3 style={{ margin: 0, color: '#f1f5f9', fontSize: '1.2rem', fontWeight: '700' }}>
+                  Eliminar Notas
+                </h3>
+                <p style={{ margin: '0.25rem 0 0', color: '#94a3b8', fontSize: '0.8rem' }}>
+                  Esta acción no se puede deshacer
+                </p>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowDeleteModal(false)} className="secondary"
-                style={{ padding: '0.5rem 1rem' }}>
+            {/* Opciones tipo tarjeta */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1.5rem' }}>
+
+              {/* Opción: Todas */}
+              <div
+                onClick={() => setDeleteMode('all')}
+                style={{
+                  display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer',
+                  padding: '0.85rem 1rem',
+                  borderRadius: '12px',
+                  background: deleteMode === 'all' ? 'rgba(239, 68, 68, 0.08)' : 'transparent',
+                  border: deleteMode === 'all' ? '1.5px solid rgba(239, 68, 68, 0.4)' : '1.5px solid rgba(255,255,255,0.06)',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={e => { if (deleteMode !== 'all') e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
+                onMouseLeave={e => { if (deleteMode !== 'all') e.currentTarget.style.background = 'transparent'; }}
+              >
+                <div style={{
+                  width: '22px', height: '22px', borderRadius: '50%', flexShrink: 0, marginTop: '1px',
+                  border: deleteMode === 'all' ? '6px solid #ef4444' : '2px solid rgba(255,255,255,0.2)',
+                  background: deleteMode === 'all' ? '#ef4444' : 'transparent',
+                  transition: 'all 0.2s ease',
+                }} />
+                <div>
+                  <div style={{ color: '#f1f5f9', fontWeight: '600', fontSize: '0.9rem' }}>Todas las notas mostradas</div>
+                  <div style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '2px' }}>
+                    Elimina todas las notas del corte y asignatura actuales
+                  </div>
+                </div>
+              </div>
+
+              {/* Opción: Por estudiante */}
+              <div
+                onClick={() => { setDeleteMode('student'); setDeleteStudentId(0); }}
+                style={{
+                  display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer',
+                  padding: '0.85rem 1rem',
+                  borderRadius: '12px',
+                  background: deleteMode === 'student' ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
+                  border: deleteMode === 'student' ? '1.5px solid rgba(59, 130, 246, 0.4)' : '1.5px solid rgba(255,255,255,0.06)',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={e => { if (deleteMode !== 'student') e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
+                onMouseLeave={e => { if (deleteMode !== 'student') e.currentTarget.style.background = 'transparent'; }}
+              >
+                <div style={{
+                  width: '22px', height: '22px', borderRadius: '50%', flexShrink: 0, marginTop: '1px',
+                  border: deleteMode === 'student' ? '6px solid #3b82f6' : '2px solid rgba(255,255,255,0.2)',
+                  background: deleteMode === 'student' ? '#3b82f6' : 'transparent',
+                  transition: 'all 0.2s ease',
+                }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: '#f1f5f9', fontWeight: '600', fontSize: '0.9rem' }}>Por estudiante</div>
+                  <div style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '2px' }}>
+                    Elimina todas las notas de un estudiante específico
+                  </div>
+                  {deleteMode === 'student' && (
+                    <select value={deleteStudentId} onChange={e => setDeleteStudentId(Number(e.target.value))}
+                      onClick={e => e.stopPropagation()}
+                      style={{
+                        width: '100%', marginTop: '0.5rem', padding: '0.5rem 0.75rem',
+                        borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)',
+                        background: 'rgba(15, 23, 42, 0.6)', color: '#e2e8f0',
+                        fontSize: '0.82rem', cursor: 'pointer',
+                        outline: 'none',
+                      }}>
+                      <option value={0}>Seleccione estudiante...</option>
+                      {filteredNotas.map(n => (
+                        <option key={n.estudianteId} value={n.estudianteId} style={{ background: '#1e293b' }}>{n.estudianteNombre}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              </div>
+
+              {/* Opción: Por indicador */}
+              <div
+                onClick={() => { setDeleteMode('indicator'); setDeleteIndicatorId(0); }}
+                style={{
+                  display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer',
+                  padding: '0.85rem 1rem',
+                  borderRadius: '12px',
+                  background: deleteMode === 'indicator' ? 'rgba(245, 158, 11, 0.08)' : 'transparent',
+                  border: deleteMode === 'indicator' ? '1.5px solid rgba(245, 158, 11, 0.4)' : '1.5px solid rgba(255,255,255,0.06)',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={e => { if (deleteMode !== 'indicator') e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
+                onMouseLeave={e => { if (deleteMode !== 'indicator') e.currentTarget.style.background = 'transparent'; }}
+              >
+                <div style={{
+                  width: '22px', height: '22px', borderRadius: '50%', flexShrink: 0, marginTop: '1px',
+                  border: deleteMode === 'indicator' ? '6px solid #f59e0b' : '2px solid rgba(255,255,255,0.2)',
+                  background: deleteMode === 'indicator' ? '#f59e0b' : 'transparent',
+                  transition: 'all 0.2s ease',
+                }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: '#f1f5f9', fontWeight: '600', fontSize: '0.9rem' }}>Por indicador</div>
+                  <div style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '2px' }}>
+                    Elimina todas las notas de un indicador específico
+                  </div>
+                  {deleteMode === 'indicator' && (
+                    <select value={deleteIndicatorId} onChange={e => setDeleteIndicatorId(Number(e.target.value))}
+                      onClick={e => e.stopPropagation()}
+                      style={{
+                        width: '100%', marginTop: '0.5rem', padding: '0.5rem 0.75rem',
+                        borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)',
+                        background: 'rgba(15, 23, 42, 0.6)', color: '#e2e8f0',
+                        fontSize: '0.82rem', cursor: 'pointer',
+                        outline: 'none',
+                      }}>
+                      <option value={0}>Seleccione indicador...</option>
+                      {indicadores.filter(i => i.activo).map(ind => (
+                        <option key={ind.id} value={ind.id} style={{ background: '#1e293b' }}>
+                          Indicador {ind.orden}: {ind.descripcion || `Indicador ${ind.orden}`}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Acciones */}
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1rem' }}>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                style={{
+                  padding: '0.6rem 1.2rem', borderRadius: '10px',
+                  background: 'transparent', border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#94a3b8', fontWeight: '600', fontSize: '0.85rem',
+                  cursor: 'pointer', transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#e2e8f0'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#94a3b8'; }}
+              >
                 Cancelar
               </button>
               <button
                 onClick={openDeleteConfirm}
                 disabled={deleting}
                 style={{
-                  padding: '0.5rem 1rem',
-                  background: '#ef4444',
-                  border: 'none',
-                  borderRadius: '10px',
-                  color: 'white',
-                  fontWeight: 'bold',
+                  padding: '0.6rem 1.4rem', borderRadius: '10px',
+                  background: deleting ? 'rgba(239, 68, 68, 0.5)' : 'linear-gradient(135deg, #ef4444, #dc2626)',
+                  border: 'none', color: 'white', fontWeight: '700', fontSize: '0.85rem',
                   cursor: deleting ? 'not-allowed' : 'pointer',
-                  opacity: deleting ? 0.7 : 1,
+                  transition: 'all 0.2s ease',
+                  boxShadow: deleting ? 'none' : '0 4px 14px rgba(239, 68, 68, 0.35)',
                 }}
+                onMouseEnter={e => { if (!deleting) e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                onMouseLeave={e => { if (!deleting) e.currentTarget.style.transform = 'translateY(0)'; }}
               >
                 {deleting ? 'Eliminando...' : 'Continuar'}
               </button>

@@ -1029,7 +1029,7 @@ pub fn run() {
             update_criterio,
             get_estudiantes_by_filters,
             save_notas_estudiantes,
-            delete_notas,
+            db::delete_notas,
             get_notas_by_filters,
             get_db_path,
             get_grade_configs,

@@ -2564,8 +2564,8 @@ pub fn delete_notas(
     state: tauri::State<'_, DbState>,
     corteEvaluativoId: i64,
     asignaturaId: i64,
-    estudianteId: Option<i64>,
-    criterioId: Option<i64>,
+    estudianteId: i64,
+    criterioId: i64,
 ) -> Result<u64, String> {
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
     let tx = conn.transaction().map_err(|e| e.to_string())?;
@@ -2578,13 +2578,13 @@ pub fn delete_notas(
     param_values.push(Box::new(corteEvaluativoId));
     param_values.push(Box::new(asignaturaId));
 
-    if let Some(eid) = estudianteId {
+    if estudianteId > 0 {
         conditions.push("estudiante_id = ?".to_string());
-        param_values.push(Box::new(eid));
+        param_values.push(Box::new(estudianteId));
     }
-    if let Some(cid) = criterioId {
+    if criterioId > 0 {
         conditions.push("criterio_id = ?".to_string());
-        param_values.push(Box::new(cid));
+        param_values.push(Box::new(criterioId));
     }
     let where_clause = conditions.join(" AND ");
 
