@@ -411,15 +411,11 @@ fn seed_default_data(conn: &Connection) -> Result<(), String> {
 
     // Colegios
     conn.execute(
-        "INSERT INTO colegio (nombre, orden) VALUES ('ELA Malpaisillo', 1)",
+        "INSERT INTO colegio (nombre, orden) VALUES ('Candelario Sotelo', 1)",
         [],
     ).ok();
     conn.execute(
-        "INSERT INTO colegio (nombre, orden) VALUES ('Candelario Sotelo', 2)",
-        [],
-    ).ok();
-    conn.execute(
-        "INSERT INTO colegio (nombre, orden) VALUES ('Manuel Ignacio Pereira Quintana', 3)",
+        "INSERT INTO colegio (nombre, orden) VALUES ('Manuel Ignacio Pereira Quintana', 2)",
         [],
     ).ok();
 
