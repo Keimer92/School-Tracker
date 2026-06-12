@@ -1,5 +1,6 @@
 import SearchInput from './SearchInput';
 import { FilterContainer, FilterGroup, FilterActions } from './FilterContainer';
+import { ConfirmDialog } from './ConfirmDialog';
 
 import React, { useState, useEffect, useRef, useCallback, useMemo, Fragment, memo } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -93,6 +94,13 @@ export function NotasPage() {
   const [highlightColor, setHighlightColor] = useState<string>(() => {
     return localStorage.getItem('student-highlight-color') || '#4ade80';
   });
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteMode, setDeleteMode] = useState<'all' | 'student' | 'indicator'>('all');
+  const [deleteStudentId, setDeleteStudentId] = useState<number>(0);
+  const [deleteIndicatorId, setDeleteIndicatorId] = useState<number>(0);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -1307,6 +1315,49 @@ export function NotasPage() {
     }
   };
 
+  const handleDeleteNotas = async () => {
+    try {
+      setDeleting(true);
+      const deleted = await invoke<number>("delete_notas", {
+        corteEvaluativoId: selectedCorte,
+        asignaturaId: selectedAsignatura,
+        estudianteId: deleteMode === 'student' ? deleteStudentId : null,
+        criterioId: deleteMode === 'indicator' ? deleteIndicatorId : null,
+      });
+
+      setShowDeleteModal(false);
+      setShowDeleteConfirm(false);
+      await emit("show-toast", { message: `✅ ${deleted} nota(s) eliminada(s)`, type: "success" });
+
+      // Resetear historial porque las notas locales ya no coinciden
+      historyRef.current = [];
+      redoStackRef.current = [];
+      setHistory([]);
+      setRedoStack([]);
+      setHasUnsavedChanges(false);
+
+      setTimeout(() => {
+        fetchEstudiantes(undefined, true);
+      }, 200);
+    } catch (error) {
+      console.error("Error deleting notas:", error);
+      await emit("show-toast", { message: "❌ Error al eliminar notas: " + error, type: "error" });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const openDeleteConfirm = () => {
+    if (deleteMode === 'student' && !deleteStudentId) {
+      emit("show-toast", { message: "⚠️ Seleccione un estudiante", type: "warning" });
+      return;
+    }
+    if (deleteMode === 'indicator' && !deleteIndicatorId) {
+      emit("show-toast", { message: "⚠️ Seleccione un indicador", type: "warning" });
+      return;
+    }
+    setShowDeleteConfirm(true);
+  };
 
   const renderRow = useCallback((est: NotaEstudiante, index: number) => {
 ﻿                  const estudianteNotas = notas.find(n => n.estudianteId === est.estudianteId) || { notas: {} };
@@ -1727,6 +1778,44 @@ onChange={(e) => {
               <span>{saving ? '⏳' : '💾'}</span>
               {!isMobile && <span>{saving ? 'Guardando...' : (hasUnsavedChanges ? 'Guardar' : 'Sin cambios')}</span>}
             </button>
+            <button
+              onClick={() => {
+                if (!selectedCorte || !selectedAsignatura) {
+                  emit("show-toast", { message: "⚠️ Seleccione un corte y asignatura primero", type: "warning" });
+                  return;
+                }
+                setDeleteMode('all');
+                setDeleteStudentId(0);
+                setDeleteIndicatorId(0);
+                setShowDeleteModal(true);
+              }}
+              disabled={estudiantes.length === 0}
+              className="btn-modern btn-delete-notes"
+              title="Eliminar notas"
+              style={{
+                padding: isMobile ? '0.4rem 0.6rem' : '0.6rem 1.2rem',
+                fontSize: isMobile ? '0.75rem' : '0.9rem',
+                height: isMobile ? '28px' : '42px',
+                backgroundColor: estudiantes.length > 0 ? '#ef4444' : 'rgba(148, 163, 184, 0.5)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                fontWeight: '600',
+                cursor: estudiantes.length > 0 ? 'pointer' : 'not-allowed',
+                transition: 'all 0.3s ease',
+                boxShadow: estudiantes.length > 0 ? '0 4px 14px rgba(239, 68, 68, 0.4)' : 'none',
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
+                opacity: estudiantes.length > 0 ? 1 : 0.7
+              }}
+            >
+              <span>🗑️</span>
+              {!isMobile && <span>Eliminar</span>}
+            </button>
           </div>
         </FilterContainer>
 
@@ -1939,6 +2028,113 @@ onChange={(e) => {
           ) : null}
         </>
       )}
+
+      {/* Modal de Eliminación de Notas */}
+      {showDeleteModal && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 99999,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
+          }}
+        >
+          <div
+            onClick={() => setShowDeleteModal(false)}
+            style={{
+              position: 'absolute', inset: 0,
+              background: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(4px)',
+            }}
+          />
+          <div className="category-card" style={{
+            position: 'relative', padding: '1.5rem', maxWidth: '500px', width: '100%',
+            borderRadius: '20px',
+          }}>
+            <h3 style={{ margin: '0 0 1rem', color: '#f1f5f9' }}>🗑️ Eliminar Notas</h3>
+            <p style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1rem' }}>
+              Seleccione qué notas eliminar para el corte y asignatura actuales:
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#e2e8f0', cursor: 'pointer' }}>
+                <input type="radio" name="deleteMode" value="all" checked={deleteMode === 'all'}
+                  onChange={() => setDeleteMode('all')} />
+                Todas las notas mostradas
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#e2e8f0', cursor: 'pointer' }}>
+                <input type="radio" name="deleteMode" value="student" checked={deleteMode === 'student'}
+                  onChange={() => { setDeleteMode('student'); setDeleteStudentId(0); }} />
+                Por estudiante
+              </label>
+              {deleteMode === 'student' && (
+                <select value={deleteStudentId} onChange={e => setDeleteStudentId(Number(e.target.value))}
+                  style={{ marginLeft: '1.5rem', padding: '0.4rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: '#1e293b', color: '#e2e8f0' }}>
+                  <option value={0}>Seleccione estudiante...</option>
+                  {filteredNotas.map(n => (
+                    <option key={n.estudianteId} value={n.estudianteId}>{n.estudianteNombre}</option>
+                  ))}
+                </select>
+              )}
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#e2e8f0', cursor: 'pointer' }}>
+                <input type="radio" name="deleteMode" value="indicator" checked={deleteMode === 'indicator'}
+                  onChange={() => { setDeleteMode('indicator'); setDeleteIndicatorId(0); }} />
+                Por indicador
+              </label>
+              {deleteMode === 'indicator' && (
+                <select value={deleteIndicatorId} onChange={e => setDeleteIndicatorId(Number(e.target.value))}
+                  style={{ marginLeft: '1.5rem', padding: '0.4rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: '#1e293b', color: '#e2e8f0' }}>
+                  <option value={0}>Seleccione indicador...</option>
+                  {indicadores.filter(i => i.activo).map(ind => (
+                    <option key={ind.id} value={ind.id}>
+                      Indicador {ind.orden}: {ind.descripcion || `Indicador ${ind.orden}`}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowDeleteModal(false)} className="secondary"
+                style={{ padding: '0.5rem 1rem' }}>
+                Cancelar
+              </button>
+              <button
+                onClick={openDeleteConfirm}
+                disabled={deleting}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: '#ef4444',
+                  border: 'none',
+                  borderRadius: '10px',
+                  color: 'white',
+                  fontWeight: 'bold',
+                  cursor: deleting ? 'not-allowed' : 'pointer',
+                  opacity: deleting ? 0.7 : 1,
+                }}
+              >
+                {deleting ? 'Eliminando...' : 'Continuar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        title="🗑️ Confirmar eliminación"
+        message={
+          deleteMode === 'all'
+            ? '¿Está seguro de eliminar TODAS las notas mostradas para este corte y asignatura? Esta acción no se puede deshacer.'
+            : deleteMode === 'student'
+            ? `¿Está seguro de eliminar todas las notas de "${filteredNotas.find(n => n.estudianteId === deleteStudentId)?.estudianteNombre || ''}" para este corte y asignatura?`
+            : `¿Está seguro de eliminar todas las notas del ${indicadores.find(i => i.id === deleteIndicatorId) ? `Indicador ${indicadores.find(i => i.id === deleteIndicatorId)!.orden}` : 'indicador seleccionado'} para este corte y asignatura?`
+        }
+        confirmText="Sí, eliminar"
+        cancelText="Cancelar"
+        variant="danger"
+        onConfirm={handleDeleteNotas}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
       </div>
     </div>
   );
