@@ -58,14 +58,17 @@ try {
         Write-Host "   4. Android Build (Release - arm64) [Rapido]"
         Write-Host "   5. Android Build (Release - Todas las arquitecturas)"
         Write-Host ""
-        Write-Host " === MANTENIMIENTO ===" -ForegroundColor Yellow
-        Write-Host "   6. Limpiar cache y dependencias"
-        Write-Host "   7. Depurar Android (Chrome Inspect)"
-        Write-Host "   8. Configurar firmas Android (Release)"
-        Write-Host ""
-        Write-Host " === OTROS ===" -ForegroundColor Yellow
-        Write-Host "   9. Crear .gitignore para Rust/Tauri"
-        Write-Host "  10. Salir"
+         Write-Host " === MANTENIMIENTO ===" -ForegroundColor Yellow
+         Write-Host "   6. Limpiar cache y dependencias"
+         Write-Host "   7. Depurar Android (Chrome Inspect)"
+         Write-Host "   8. Configurar firmas Android (Release)"
+         Write-Host "   9. Limpiar proyecto para portabilidad"
+         Write-Host ""
+          Write-Host " === OTROS ===" -ForegroundColor Yellow
+          Write-Host " 10. Crear .gitignore para Rust/Tauri"
+          Write-Host " 11. Gestionar llaves (keystore)"
+          Write-Host " 12. Compilar motor de WhatsApp"
+          Write-Host " 13. Salir"
         Write-Host "------------------------------------------------" -ForegroundColor Cyan
         Write-Host ""
     }
@@ -84,6 +87,7 @@ try {
     }
 
     function Invoke-WindowsDev {
+        if (-not (Assert-NodeModules)) { return }
         Write-Host ""
         Write-Host "[INFO] Iniciando desarrollo en Windows..." -ForegroundColor Cyan
         Write-Host "[INFO] Servidor: http://localhost:1420" -ForegroundColor Cyan
@@ -107,6 +111,27 @@ try {
         Remove-Item Env:ORG_GRADLE_PROJECT_targetList -ErrorAction SilentlyContinue
     }
 
+    function Assert-NodeModules {
+        $nmDir = Join-Path $ScriptDir "node_modules"
+        if (-not (Test-Path $nmDir)) {
+            Write-Host ""
+            Write-Host "[INFO] node_modules no encontrado. Ejecutando npm install..." -ForegroundColor Cyan
+            Write-Host ""
+            Push-Location $ScriptDir
+            npm install
+            Pop-Location
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host ""
+                Write-Host "[ERROR] npm install fallo." -ForegroundColor Red
+                Read-Host "Presione Enter para continuar..."
+                return $false
+            }
+            Write-Host ""
+            Write-Host "[OK] npm install completado." -ForegroundColor Green
+        }
+        return $true
+    }
+
     function Assert-AndroidProject {
         $gradlewBat = Join-Path $ScriptDir "src-tauri\gen\android\gradlew.bat"
         if (-not (Test-Path $gradlewBat)) {
@@ -124,6 +149,7 @@ try {
 
     function Invoke-AndroidDevBase {
         param([bool]$allArchs)
+        if (-not (Assert-NodeModules)) { return }
         if (-not (Assert-AndroidSdk)) { return }
         if (-not (Assert-AndroidProject)) { return }
         
@@ -245,6 +271,7 @@ try {
     }
 
     function Invoke-WindowsBuild {
+        if (-not (Assert-NodeModules)) { return }
         Write-Host ""
         Write-Host "[INFO] Compilando Windows (Release)..." -ForegroundColor Cyan
         $cmd = "`$host.UI.RawUI.WindowTitle = 'Windows Build (Release)'; Set-Location '$ScriptDir'; npm run tauri build"
@@ -254,6 +281,7 @@ try {
 
     function Invoke-AndroidBuildBase {
         param([bool]$allArchs)
+        if (-not (Assert-NodeModules)) { return }
         if (-not (Assert-AndroidSdk)) { return }
         if (-not (Assert-AndroidProject)) { return }
         
@@ -271,6 +299,7 @@ try {
     }
 
     function Invoke-AndroidBuildArm64 {
+        if (-not (Assert-NodeModules)) { return }
         if (-not (Assert-AndroidSdk)) { return }
         if (-not (Assert-AndroidProject)) { return }
         
@@ -367,6 +396,154 @@ try {
         Read-Host "Presione Enter para continuar..."
     }
 
+    function Invoke-CleanProject {
+        Clear-Host
+        Write-Host "==============================================" -ForegroundColor Cyan
+        Write-Host "LIMPIAR PROYECTO PARA PORTABILIDAD" -ForegroundColor Yellow
+        Write-Host "==============================================" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "Se eliminaran TODOS los archivos de compilacion y dependencias,"
+        Write-Host "dejando solo el codigo fuente y configuracion necesaria para"
+        Write-Host "compilar en cualquier maquina."
+        Write-Host ""
+        Write-Host "Se eliminara:" -ForegroundColor Red
+        Write-Host "  - src-tauri\target\    (build artifacts de Rust)"
+        Write-Host "  - src-tauri\gen\       (proyecto Android auto-generado)"
+        Write-Host "  - node_modules\        (dependencias npm)"
+        Write-Host "  - dist\                (build del frontend)"
+        Write-Host "  - node_modules\.vite\  (cache de Vite)"
+        Write-Host "  - *.log, .cargo-lock   (archivos temporales)"
+        Write-Host ""
+        Write-Host "Se conservara:" -ForegroundColor Green
+        Write-Host "  - src-tauri\src\       (codigo fuente Rust)"
+        Write-Host "  - src-tauri\Cargo.toml + Cargo.lock"
+        Write-Host "  - src-tauri\tauri.conf.json, build.rs, icons, capabilities"
+        Write-Host "  - src\                 (codigo fuente frontend)"
+        Write-Host "  - package.json + package-lock.json"
+        Write-Host "  - vite.config.ts, tsconfig*.json, index.html"
+        Write-Host "  - public\              (assets estaticos)"
+        Write-Host ""
+        $confirm = Read-Host "Esta seguro? (s/n)"
+        if ($confirm -ne "s" -and $confirm -ne "S") {
+            Write-Host "[INFO] Operacion cancelada."
+            Read-Host "Presione Enter para continuar..."
+            return
+        }
+
+        function Get-DirSize($path) {
+            if (-not (Test-Path $path)) { return 0 }
+            $result = Get-ChildItem -Path $path -Recurse -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum -ErrorAction SilentlyContinue
+            if ($null -eq $result -or $null -eq $result.Sum) { return 0 }
+            $size = [long]$result.Sum
+            if ($size -lt 0) { return 0 }
+            return $size
+        }
+
+        $totalFreed = 0
+        Write-Host ""
+        Write-Host "[INFO] Limpiando..." -ForegroundColor Cyan
+        Write-Host ""
+
+        # 1. Rust build artifacts
+        $targetDir = Join-Path $ScriptDir "src-tauri\target"
+        if (Test-Path $targetDir) {
+            $size = Get-DirSize $targetDir
+            Write-Host "  Eliminando src-tauri\target\... " -NoNewline
+            Remove-Item -Recurse -Force $targetDir -ErrorAction SilentlyContinue
+            $totalFreed += $size
+            Write-Host "[OK] ($(if ($size -gt 1GB) { '{0:N2} GB' -f ($size/1GB) } elseif ($size -gt 1MB) { '{0:N2} MB' -f ($size/1MB) } else { '{0:N2} KB' -f ($size/1KB) }))" -ForegroundColor Green
+        } else {
+            Write-Host "  src-tauri\target\ no existe" -ForegroundColor Gray
+        }
+
+        # 2. Android auto-generated project
+        $genDir = Join-Path $ScriptDir "src-tauri\gen"
+        if (Test-Path $genDir) {
+            $size = Get-DirSize $genDir
+            Write-Host "  Eliminando src-tauri\gen\... " -NoNewline
+            Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
+            $totalFreed += $size
+            Write-Host "[OK] ($(if ($size -gt 1GB) { '{0:N2} GB' -f ($size/1GB) } elseif ($size -gt 1MB) { '{0:N2} MB' -f ($size/1MB) } else { '{0:N2} KB' -f ($size/1KB) }))" -ForegroundColor Green
+        } else {
+            Write-Host "  src-tauri\gen\ no existe" -ForegroundColor Gray
+        }
+
+        # 3. node_modules
+        $nmDir = Join-Path $ScriptDir "node_modules"
+        if (Test-Path $nmDir) {
+            $size = Get-DirSize $nmDir
+            Write-Host "  Eliminando node_modules\... " -NoNewline
+            Remove-Item -Recurse -Force $nmDir -ErrorAction SilentlyContinue
+            $totalFreed += $size
+            Write-Host "[OK] ($(if ($size -gt 1GB) { '{0:N2} GB' -f ($size/1GB) } elseif ($size -gt 1MB) { '{0:N2} MB' -f ($size/1MB) } else { '{0:N2} KB' -f ($size/1KB) }))" -ForegroundColor Green
+        } else {
+            Write-Host "  node_modules\ no existe" -ForegroundColor Gray
+        }
+
+        # 4. dist
+        $distDir = Join-Path $ScriptDir "dist"
+        if (Test-Path $distDir) {
+            $size = Get-DirSize $distDir
+            Write-Host "  Eliminando dist\... " -NoNewline
+            Remove-Item -Recurse -Force $distDir -ErrorAction SilentlyContinue
+            $totalFreed += $size
+            Write-Host "[OK] ($(if ($size -gt 1GB) { '{0:N2} GB' -f ($size/1GB) } elseif ($size -gt 1MB) { '{0:N2} MB' -f ($size/1MB) } else { '{0:N2} KB' -f ($size/1KB) }))" -ForegroundColor Green
+        } else {
+            Write-Host "  dist\ no existe" -ForegroundColor Gray
+        }
+
+        # 5. Vite cache
+        $viteDir = Join-Path $ScriptDir "node_modules\.vite"
+        if (Test-Path $viteDir) {
+            $size = Get-DirSize $viteDir
+            Write-Host "  Eliminando cache de Vite... " -NoNewline
+            Remove-Item -Recurse -Force $viteDir -ErrorAction SilentlyContinue
+            $totalFreed += $size
+            Write-Host "[OK] ($(if ($size -gt 1GB) { '{0:N2} GB' -f ($size/1GB) } elseif ($size -gt 1MB) { '{0:N2} MB' -f ($size/1MB) } else { '{0:N2} KB' -f ($size/1KB) }))" -ForegroundColor Green
+        } else {
+            Write-Host "  cache de Vite no existe" -ForegroundColor Gray
+        }
+
+        # 6. .cargo-lock files
+        $cargoLock = Join-Path $ScriptDir "src-tauri\target\.cargo-lock"
+        if (Test-Path $cargoLock) {
+            $size = (Get-Item $cargoLock -ErrorAction SilentlyContinue).Length
+            Remove-Item -Force $cargoLock -ErrorAction SilentlyContinue
+            $totalFreed += $size
+            Write-Host "  [OK] .cargo-lock eliminado ($(if ($size -gt 1MB) { '{0:N2} MB' -f ($size/1MB) } else { '{0:N2} KB' -f ($size/1KB) }))" -ForegroundColor Green
+        }
+
+        # 7. Build logs
+        $buildLog = Join-Path $ScriptDir "src-tauri\build_log.txt"
+        if (Test-Path $buildLog) {
+            $size = (Get-Item $buildLog -ErrorAction SilentlyContinue).Length
+            Remove-Item -Force $buildLog -ErrorAction SilentlyContinue
+            $totalFreed += $size
+            Write-Host "  [OK] build_log.txt eliminado ($(if ($size -gt 1MB) { '{0:N2} MB' -f ($size/1MB) } else { '{0:N2} KB' -f ($size/1KB) }))" -ForegroundColor Green
+        }
+
+        # 8. Gradle build artifacts (if gen/android still had build)
+        $gradleBuild = Join-Path $ScriptDir "src-tauri\gen\android\app\build"
+        if (Test-Path $gradleBuild) {
+            $size = Get-DirSize $gradleBuild
+            Remove-Item -Recurse -Force $gradleBuild -ErrorAction SilentlyContinue
+            $totalFreed += $size
+            Write-Host "  [OK] Gradle build eliminado ($(if ($size -gt 1GB) { '{0:N2} GB' -f ($size/1GB) } elseif ($size -gt 1MB) { '{0:N2} MB' -f ($size/1MB) } else { '{0:N2} KB' -f ($size/1KB) }))" -ForegroundColor Green
+        }
+
+        Write-Host ""
+        Write-Host "[OK] Proyecto limpiado para portabilidad!" -ForegroundColor Green
+        Write-Host "     Espacio liberado: $(if ($totalFreed -gt 1GB) { '{0:N2} GB' -f ($totalFreed/1GB) } elseif ($totalFreed -gt 1MB) { '{0:N2} MB' -f ($totalFreed/1MB) } else { '{0:N2} KB' -f ($totalFreed/1KB) } )" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "Para compilar en una maquina nueva:" -ForegroundColor Yellow
+        Write-Host "  1. npm install"
+        Write-Host "  2. npx tauri android init  (solo para Android)"
+        Write-Host "  3. npm run tauri dev       (Windows)"
+        Write-Host "  4. npm run tauri android dev (Android)"
+        Write-Host ""
+        Read-Host "Presione Enter para continuar..."
+    }
+
     function Get-AndroidLogs {
         Clear-Host
         Write-Host "==============================================" -ForegroundColor Cyan
@@ -387,6 +564,16 @@ try {
         Read-Host "Presione Enter para continuar..."
     }
 
+    function Invoke-SignerTool {
+        Write-Host "[INFO] Compilando herramienta de firmas desde codigo fuente..." -ForegroundColor Cyan
+        $cargoToml = Join-Path $ScriptDir "tauri-android-signer\Cargo.toml"
+        cargo run --manifest-path $cargoToml
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[ERROR] Fallo la compilacion." -ForegroundColor Red
+            Read-Host "Presione Enter para continuar..."
+        }
+    }
+
     function Invoke-AndroidSigner {
         Clear-Host
         Write-Host "==============================================" -ForegroundColor Cyan
@@ -394,16 +581,236 @@ try {
         Write-Host "==============================================" -ForegroundColor Cyan
         Write-Host ""
         Write-Host "Ejecutando Tauri Android Signer..." -ForegroundColor Cyan
+        Invoke-SignerTool
+        Read-Host "Presione Enter para continuar..."
+    }
+
+    function Manage-Keystore {
+        while ($true) {
+            Clear-Host
+            Write-Host "==============================================" -ForegroundColor Cyan
+            Write-Host "GESTION DE LLAVES (KEYSTORE)" -ForegroundColor Yellow
+            Write-Host "==============================================" -ForegroundColor Cyan
+            Write-Host ""
+            Write-Host " 1. Abrir herramienta de firmas (crear/usar/importar)"
+            Write-Host " 2. Respaldar keystore actual"
+            Write-Host " 3. Restaurar keystore desde respaldo"
+            Write-Host " 4. Ver respaldos disponibles"
+            Write-Host " 5. Volver al menu principal"
+            Write-Host ""
+
+            $opt = Read-Host "Seleccione una opcion (1-5)"
+            
+            switch ($opt) {
+                "1" {
+                    Clear-Host
+                    Write-Host "==============================================" -ForegroundColor Cyan
+                    Write-Host "CONFIGURAR FIRMAS ANDROID (RELEASE)" -ForegroundColor Yellow
+                    Write-Host "==============================================" -ForegroundColor Cyan
+                    Write-Host ""
+                    Invoke-SignerTool
+                    Read-Host "`nPresione Enter para continuar..."
+                }
+                "2" {
+                    Clear-Host
+                    Write-Host "--- RESPALDAR KEYSTORE ---" -ForegroundColor Cyan
+                    $backupDir = Join-Path $ScriptDir "keystore-backups"
+                    $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+                    $destDir = Join-Path $backupDir $timestamp
+
+                    $androidApp = Join-Path $ScriptDir "src-tauri\gen\android\app"
+                    $keystoreFiles = Get-ChildItem -Path $androidApp -Filter "*.keystore" -ErrorAction SilentlyContinue
+                    $jksFiles = Get-ChildItem -Path $androidApp -Filter "*.jks" -ErrorAction SilentlyContinue
+                    $allKeys = @($keystoreFiles) + @($jksFiles)
+
+                    if ($allKeys.Count -eq 0) {
+                        Write-Host ""
+                        Write-Host "[ERROR] No se encontraron archivos .keystore o .jks en el proyecto." -ForegroundColor Red
+                        Write-Host "La ruta buscada es: $androidApp" -ForegroundColor Yellow
+                        Write-Host "Primero crea uno con la opcion 1 (Abrir herramienta de firmas)."
+                        Read-Host "`nPresione Enter para continuar..."
+                        continue
+                    }
+
+                    New-Item -ItemType Directory -Path $destDir -Force | Out-Null
+                    
+                    foreach ($key in $allKeys) {
+                        Copy-Item -Path $key.FullName -Destination (Join-Path $destDir $key.Name)
+                        Write-Host "  [OK] $($key.Name) respaldado." -ForegroundColor Green
+                    }
+
+                    $propsFile = Join-Path $androidApp "keystore.properties"
+                    if (Test-Path $propsFile) {
+                        Copy-Item -Path $propsFile -Destination (Join-Path $destDir "keystore.properties")
+                        Write-Host "  [OK] keystore.properties respaldado." -ForegroundColor Green
+                    }
+
+                    Write-Host ""
+                    Write-Host "[OK] Respaldo completado en:" -ForegroundColor Green
+                    Write-Host "     $destDir" -ForegroundColor Cyan
+                    Write-Host ""
+                    Write-Host "IMPORTANTE: Guarda esta carpeta en un lugar seguro (USB, nube)." -ForegroundColor Yellow
+                    Write-Host "Para usarla en otra PC, elige 'Restaurar keystore desde respaldo'." -ForegroundColor Yellow
+                    Read-Host "`nPresione Enter para continuar..."
+                }
+                "3" {
+                    Clear-Host
+                    Write-Host "--- RESTAURAR KEYSTORE ---" -ForegroundColor Cyan
+                    $backupDir = Join-Path $ScriptDir "keystore-backups"
+
+                    if (-not (Test-Path $backupDir)) {
+                        Write-Host ""
+                        Write-Host "[ERROR] No existe la carpeta de respaldos." -ForegroundColor Red
+                        Write-Host "Primero debes crear un respaldo con la opcion 2."
+                        Read-Host "`nPresione Enter para continuar..."
+                        continue
+                    }
+
+                    $backups = Get-ChildItem -Path $backupDir -Directory | Sort-Object Name
+                    if ($backups.Count -eq 0) {
+                        Write-Host ""
+                        Write-Host "[ERROR] No hay respaldos disponibles." -ForegroundColor Red
+                        Read-Host "`nPresione Enter para continuar..."
+                        continue
+                    }
+
+                    Write-Host ""
+                    Write-Host "Respaldos disponibles:" -ForegroundColor Yellow
+                    for ($i = 0; $i -lt $backups.Count; $i++) {
+                        $fileCount = (Get-ChildItem -Path $backups[$i].FullName -File).Count
+                        Write-Host "  $($i + 1). $($backups[$i].Name) ($fileCount archivo(s))"
+                    }
+                    Write-Host ""
+                    $sel = Read-Host "Seleccione respaldo a restaurar (1-$($backups.Count))"
+                    
+                    [int]$idx = 0
+                    if (-not [int]::TryParse($sel, [ref]$idx) -or $idx -lt 1 -or $idx -gt $backups.Count) {
+                        continue
+                    }
+
+                    $selected = $backups[$idx - 1]
+                    $androidApp = Join-Path $ScriptDir "src-tauri\gen\android\app"
+                    $files = Get-ChildItem -Path $selected.FullName -File
+                    $count = 0
+
+                    foreach ($f in $files) {
+                        Copy-Item -Path $f.FullName -Destination (Join-Path $androidApp $f.Name) -Force
+                        Write-Host "  [OK] $($f.Name) restaurado." -ForegroundColor Green
+                        $count++
+                    }
+
+                    Write-Host ""
+                    Write-Host "[OK] Restauracion completada ($count archivo(s))." -ForegroundColor Green
+                    Write-Host "Ya puedes compilar tu Android en modo release con firma."
+                    Read-Host "`nPresione Enter para continuar..."
+                }
+                "4" {
+                    Clear-Host
+                    Write-Host "--- RESPALDOS DISPONIBLES ---" -ForegroundColor Cyan
+                    $backupDir = Join-Path $ScriptDir "keystore-backups"
+                    
+                    if (-not (Test-Path $backupDir)) {
+                        Write-Host ""
+                        Write-Host "No existe la carpeta de respaldos." -ForegroundColor Yellow
+                        Write-Host "Usa la opcion 2 para crear tu primer respaldo."
+                        Read-Host "`nPresione Enter para continuar..."
+                        continue
+                    }
+
+                    $backups = Get-ChildItem -Path $backupDir -Directory | Sort-Object Name -Descending
+                    if ($backups.Count -eq 0) {
+                        Write-Host ""
+                        Write-Host "No hay respaldos aun." -ForegroundColor Yellow
+                        Write-Host "Usa la opcion 2 para crear tu primer respaldo."
+                    } else {
+                        Write-Host ""
+                        Write-Host "Total de respaldos: $($backups.Count)" -ForegroundColor Yellow
+                        Write-Host ""
+                        foreach ($b in $backups) {
+                            $fileCount = (Get-ChildItem -Path $b.FullName -File).Count
+                            $totalSize = "{0:N2} KB" -f ((Get-ChildItem -Path $b.FullName -Recurse | Measure-Object -Property Length -Sum).Sum / 1KB)
+                            $backupLine = "  $($b.Name)  |  $($fileCount) archivo(s)  |  $($totalSize)"
+                            Write-Host $backupLine
+                        }
+                    }
+                    Read-Host "`nPresione Enter para continuar..."
+                }
+                "5" { break }
+                default { }
+            }
+        }
+    }
+
+    function Invoke-WhatsAppEngineBuild {
+        Clear-Host
+        Write-Host "==============================================" -ForegroundColor Cyan
+        Write-Host "COMPILAR MOTOR DE WHATSAPP" -ForegroundColor Yellow
+        Write-Host "==============================================" -ForegroundColor Cyan
         
-        $commandExists = Get-Command tauri-android-signer -ErrorAction SilentlyContinue
-        if ($commandExists) {
-            & tauri-android-signer
-        } else {
-            Write-Host "[INFO] La herramienta no esta instalada globalmente. Compilando y ejecutando..." -ForegroundColor Yellow
-            $cargoToml = Join-Path $ScriptDir "tauri-android-signer\Cargo.toml"
-            cargo run --manifest-path $cargoToml
+        $engineJs = Join-Path $ScriptDir "src-tauri\whatsapp-engine\engine.js"
+        $bundleMjs = Join-Path $ScriptDir "src-tauri\whatsapp-engine\bundle.mjs"
+        
+        if (-not (Test-Path $engineJs)) {
+            Write-Host ""
+            Write-Host "[ERROR] No se encontro el motor de WhatsApp en este proyecto." -ForegroundColor Red
+            Write-Host "  Ruta esperada: src-tauri\whatsapp-engine\engine.js" -ForegroundColor Yellow
+            Write-Host ""
+            Write-Host "  Este proyecto no tiene un motor de WhatsApp integrado." -ForegroundColor Gray
+            Read-Host "Presione Enter para continuar..."
+            return
         }
         
+        if (-not (Test-Path $bundleMjs)) {
+            Write-Host ""
+            Write-Host "[ERROR] No se encontro el script de compilacion del motor." -ForegroundColor Red
+            Write-Host "  Ruta esperada: src-tauri\whatsapp-engine\bundle.mjs" -ForegroundColor Yellow
+            Read-Host "Presione Enter para continuar..."
+            return
+        }
+        
+        $nccPath = Join-Path $ScriptDir "node_modules\.bin\ncc"
+        if (-not (Test-Path "$nccPath.cmd") -and -not (Test-Path "$nccPath.ps1")) {
+            Write-Host ""
+            Write-Host "[INFO] @vercel/ncc no encontrado. Instalando..." -ForegroundColor Cyan
+            npm install 2>&1 | Out-Null
+            if (-not (Test-Path "$nccPath.cmd") -and -not (Test-Path "$nccPath.ps1")) {
+                Write-Host "[ERROR] No se pudo instalar @vercel/ncc. Verifica que este en devDependencies." -ForegroundColor Red
+                Read-Host "Presione Enter para continuar..."
+                return
+            }
+        }
+        
+        Write-Host ""
+        Write-Host "[INFO] Instalando dependencias del motor..." -ForegroundColor Cyan
+        Push-Location (Join-Path $ScriptDir "src-tauri\whatsapp-engine")
+        npm install 2>&1 | Out-Null
+        Pop-Location
+        
+        Write-Host "[INFO] Compilando motor de WhatsApp con ncc..." -ForegroundColor Cyan
+        Write-Host ""
+        
+        $result = & node $bundleMjs 2>&1
+        $output = $result | Out-String
+        
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[ERROR] Fallo la compilacion del motor:" -ForegroundColor Red
+            Write-Host $output -ForegroundColor Red
+            Read-Host "Presione Enter para continuar..."
+            return
+        }
+        
+        Write-Host ""
+        Write-Host $output -ForegroundColor Green
+        Write-Host "[OK] Motor de WhatsApp compilado exitosamente!" -ForegroundColor Green
+        
+        $bundleDir = Join-Path $ScriptDir "src-tauri\resources\whatsapp-engine-bundle"
+        if (Test-Path $bundleDir) {
+            $bundleSize = "{0:N2} MB" -f ((Get-ChildItem -Path $bundleDir -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB)
+            Write-Host "  Bundle generado en: $bundleDir" -ForegroundColor Cyan
+            Write-Host "  Tamano total del bundle: $bundleSize" -ForegroundColor Cyan
+        }
+        
+        Write-Host ""
         Read-Host "Presione Enter para continuar..."
     }
 
@@ -501,7 +908,7 @@ Desktop.ini
     # Main Loop
     while ($true) {
         Show-Menu
-        $modo = Read-Host "Seleccione una opcion (1-10)"
+        $modo = Read-Host "Seleccione una opcion (1-12)"
         
         switch ($modo) {
             "1" { Invoke-WindowsDev }
@@ -512,8 +919,11 @@ Desktop.ini
             "6" { Clear-AppCache }
             "7" { Get-AndroidLogs }
             "8" { Invoke-AndroidSigner }
-            "9" { New-GitIgnore }
-            "10" { break }
+            "9" { Invoke-CleanProject }
+            "10" { New-GitIgnore }
+            "11" { Manage-Keystore }
+            "12" { Invoke-WhatsAppEngineBuild }
+            "13" { break }
             default {
                 # Let the loop clear the screen and show menu again
             }

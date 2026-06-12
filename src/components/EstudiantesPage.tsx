@@ -883,7 +883,7 @@ export function EstudiantesPage() {
   };
 
   return (
-    <div className="page-container">
+    <div className="page-container" id="estudiantes-page" style={{ height: '100%', minHeight: 0, overflow: 'hidden' }}>
       <style>
         {`
           .input-label {
@@ -979,6 +979,9 @@ export function EstudiantesPage() {
             box-shadow: 0 6px 20px rgba(5, 150, 105, 0.5);
             -webkit-transform: translateY(-2px) scale(1.05);
             transform: translateY(-2px) scale(1.05);
+          }
+          body:has(#estudiantes-page) .main-content {
+            overflow: hidden !important;
           }
           .glow-button-primary::after, .glow-button-success::after {
             content: '';
@@ -1295,6 +1298,9 @@ export function EstudiantesPage() {
 
       {/* Student Grid or Empty State */}
       <div style={{ 
+        flex: 1,
+        overflowY: 'auto',
+        minHeight: 0,
         display: filteredStudents.length === 0 ? "block" : "grid", 
         gridTemplateColumns: filteredStudents.length === 0 ? "none" : "repeat(auto-fill, minmax(350px, 1fr))", 
         gap: "1rem",
