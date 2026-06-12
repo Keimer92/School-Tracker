@@ -362,7 +362,7 @@ export const syncService = {
           sabado: config.sabado,
           domingo: config.domingo,
           user_id: userId
-        }, { onConflict: 'colegio_id' });
+        }, { onConflict: 'colegio_id,user_id' });
 
       if (error) throw error;
     })(), `Días de asistencia actualizados`);
