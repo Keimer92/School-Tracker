@@ -216,11 +216,19 @@ export const syncService = {
 
       for (const item of pending) {
         try {
-          const { error } = await supabase
+          let query = supabase
             .from(item.tabla)
             .delete()
-            .eq('id', item.registroId)
             .eq('user_id', userId);
+
+          // Tablas sin columna 'id' — usar su clave real
+          if (item.tabla === 'colegio_dias_asistencia') {
+            query = query.eq('colegio_id', item.registroId);
+          } else {
+            query = query.eq('id', item.registroId);
+          }
+
+          const { error } = await query;
 
           // Si el error es null (éxito) o PGRST116 (ya no existe), limpiamos el pendiente local
           if (!error || error.code === 'PGRST116') {
