@@ -2,6 +2,8 @@ mod db;
 
 use db::*;
 use rusqlite::Connection;
+use rusqlite::params;
+use rusqlite::types::ToSql;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
@@ -1029,7 +1031,7 @@ pub fn run() {
             update_criterio,
             get_estudiantes_by_filters,
             save_notas_estudiantes,
-            db::delete_notas,
+            delete_notas,
             get_notas_by_filters,
             get_db_path,
             get_grade_configs,
@@ -1085,4 +1087,78 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+pub fn delete_notas(
+    state: tauri::State<'_, DbState>,
+    corteEvaluativoId: i64,
+    asignaturaId: i64,
+    estudianteId: i64,
+    criterioId: i64,
+) -> Result<i64, String> {
+    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    let mut conditions = vec![
+        "corte_evaluativo_id = ?".to_string(),
+        "asignatura_id = ?".to_string(),
+    ];
+    let mut param_values: Vec<Box<dyn ToSql>> = Vec::new();
+    param_values.push(Box::new(corteEvaluativoId));
+    param_values.push(Box::new(asignaturaId));
+
+    if estudianteId > 0 {
+        conditions.push("estudiante_id = ?".to_string());
+        param_values.push(Box::new(estudianteId));
+    }
+    if criterioId > 0 {
+        conditions.push("criterio_id = ?".to_string());
+        param_values.push(Box::new(criterioId));
+    }
+    let where_clause = conditions.join(" AND ");
+
+    let param_refs: Vec<&dyn ToSql> = param_values.iter().map(|p| p.as_ref()).collect();
+
+    // Insert into sync_pending_deletions_nota first
+    let select_sql = format!(
+        "SELECT estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id FROM nota WHERE {}",
+        where_clause
+    );
+    let mut stmt = tx.prepare(&select_sql).map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map(param_refs.as_slice(), |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, i64>(2)?,
+                row.get::<_, i64>(3)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    drop(stmt);
+
+    let mut insert_stmt = tx
+        .prepare(
+            "INSERT OR IGNORE INTO sync_pending_deletions_nota (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id) VALUES (?, ?, ?, ?)",
+        )
+        .map_err(|e| e.to_string())?;
+    for (est_id, crit_id, corte_id, asig_id) in &rows {
+        insert_stmt
+            .execute(params![est_id, crit_id, corte_id, asig_id])
+            .map_err(|e| e.to_string())?;
+    }
+    drop(insert_stmt);
+
+    // Delete from nota table
+    let delete_sql = format!("DELETE FROM nota WHERE {}", where_clause);
+    let deleted = tx
+        .execute(&delete_sql, param_refs.as_slice())
+        .map_err(|e| e.to_string())?;
+
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(deleted as i64)
 }
