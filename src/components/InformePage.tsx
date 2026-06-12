@@ -346,7 +346,7 @@ export function InformePage() {
     };
   }, [fetchReporte]);
 
-  // Cargar grados cuando cambie el colegio o el año
+  // Cargar grados y config de días cuando cambie el colegio o el año
   useEffect(() => {
     if (selectedColegio && selectedAno) {
       if (initialLoadDone.current) {
@@ -354,6 +354,7 @@ export function InformePage() {
         return;
       }
       fetchGrados();
+      fetchColegioConfig(selectedColegio);
     }
   }, [selectedColegio, selectedAno, refreshTrigger]);
 
