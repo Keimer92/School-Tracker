@@ -50,6 +50,7 @@ export function AsistenciaPage() {
   const [loading, setLoading] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const initialLoadDone = useRef(false);
+  const initialMountDone = useRef(false);
   const [saving, setSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [pressingStatus, setPressingStatus] = useState<string | null>(null);
@@ -134,54 +135,59 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
       const finalAno = savedAno ? Number(savedAno) : (activeAno || 0);
       const finalColegio = colegioToSelect || 0;
 
-      // Precargar datos dependientes para evitar cascada
-      let gradosData: CategoryItem[] = [];
-      let seccionesData: CategoryItem[] = [];
-      let colegioConfigData = null;
-      let firstGradoId = 0;
-      const savedGrado = Number(localStorage.getItem("selectedGrado")) || 0;
-      const savedSeccion = Number(localStorage.getItem("selectedSeccion")) || 0;
-
-      if (finalColegio && finalAno) {
-        const [gradosRaw, config] = await Promise.all([
-          invoke<CategoryItem[]>("get_grados_by_colegio", { colegioId: finalColegio, anoLectivoId: finalAno }),
-          invoke("get_colegio_dias_asistencia", { colegioId: finalColegio }),
-        ]);
-        gradosData = gradosRaw;
-        colegioConfigData = config;
-
-        if (gradosData.length > 0) {
-          const stillExists = savedGrado && gradosData.some(g => g.id === savedGrado);
-          firstGradoId = stillExists ? savedGrado : gradosData[0].id;
-        }
-
-        if (firstGradoId > 0) {
-          try {
-            seccionesData = await invoke<CategoryItem[]>("get_secciones_by_grado_colegio", {
-              gradoId: firstGradoId,
-              colegioId: finalColegio,
-              anoLectivoId: finalAno,
-            });
-          } catch (e) {}
-        }
-      }
-
-      const firstSeccionId = seccionesData.length > 0
-        ? (savedSeccion && seccionesData.some(s => s.id === savedSeccion) ? savedSeccion : seccionesData[0].id)
-        : 0;
-
-      // Setear todo en un solo lote
       setAnos(anosData);
       setColegios(colegiosData);
-      setSelectedAno(finalAno);
-      setSelectedColegio(finalColegio);
-      setGrados(gradosData);
-      setColegioConfig(colegioConfigData);
-      setSecciones(seccionesData);
-      setSelectedGrado(firstGradoId);
-      setSelectedSeccion(firstSeccionId);
 
-      initialLoadDone.current = true;
+      // Solo precargar datos dependientes en el primer montaje
+      if (!initialMountDone.current) {
+        initialMountDone.current = true;
+
+        setSelectedAno(finalAno);
+        setSelectedColegio(finalColegio);
+
+        let gradosData: CategoryItem[] = [];
+        let seccionesData: CategoryItem[] = [];
+        let colegioConfigData = null;
+        let firstGradoId = 0;
+        const savedGrado = Number(localStorage.getItem("selectedGrado")) || 0;
+        const savedSeccion = Number(localStorage.getItem("selectedSeccion")) || 0;
+
+        if (finalColegio && finalAno) {
+          const [gradosRaw, config] = await Promise.all([
+            invoke<CategoryItem[]>("get_grados_by_colegio", { colegioId: finalColegio, anoLectivoId: finalAno }),
+            invoke("get_colegio_dias_asistencia", { colegioId: finalColegio }),
+          ]);
+          gradosData = gradosRaw;
+          colegioConfigData = config;
+
+          if (gradosData.length > 0) {
+            const stillExists = savedGrado && gradosData.some(g => g.id === savedGrado);
+            firstGradoId = stillExists ? savedGrado : gradosData[0].id;
+          }
+
+          if (firstGradoId > 0) {
+            try {
+              seccionesData = await invoke<CategoryItem[]>("get_secciones_by_grado_colegio", {
+                gradoId: firstGradoId,
+                colegioId: finalColegio,
+                anoLectivoId: finalAno,
+              });
+            } catch (e) {}
+          }
+        }
+
+        const firstSeccionId = seccionesData.length > 0
+          ? (savedSeccion && seccionesData.some(s => s.id === savedSeccion) ? savedSeccion : seccionesData[0].id)
+          : 0;
+
+        setGrados(gradosData);
+        setColegioConfig(colegioConfigData);
+        setSecciones(seccionesData);
+        setSelectedGrado(firstGradoId);
+        setSelectedSeccion(firstSeccionId);
+
+        initialLoadDone.current = true;
+      }
     } catch (error) {
       console.error("Error fetching catalogs:", error);
       await emit("show-toast", { message: "❌ Error al cargar catálogos: " + error, type: "error" });
