@@ -91,6 +91,7 @@ export function ReportesPage() {
   
   const [loading, setLoading] = useState(false);
   const loadIdRef = useRef(0);
+  const initialLoadDone = useRef(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [activeSlide, setActiveSlide] = useState<'tabla' | 'estadisticas'>('tabla');
   const [isMobile, setIsMobile] = useState(false);
@@ -296,6 +297,10 @@ export function ReportesPage() {
   // Cargar grados y asignaturas cuando cambie el colegio
   useEffect(() => {
     if (selectedColegio > 0 && selectedAno > 0) {
+      if (initialLoadDone.current) {
+        initialLoadDone.current = false;
+        return;
+      }
       fetchGradosYAsignaturas();
     } else {
       setGrados([]);
@@ -308,6 +313,7 @@ export function ReportesPage() {
   // Cargar secciones cuando cambie el grado o el colegio o el año
   useEffect(() => {
     if (selectedGrado > 0 && selectedColegio > 0 && selectedAno > 0) {
+      if (initialLoadDone.current) return;
       fetchSecciones();
     } else {
       setSecciones([]);
@@ -362,26 +368,70 @@ export function ReportesPage() {
         invoke<CategoryItem[]>("get_colegios"),
         invoke<GradeConfig[]>("get_grade_configs"),
       ]);
+
+      const activeAno = anosData.length > 0 ? (anosData.find(a => a.activo)?.id || anosData[0].id) : 0;
+      const activeCorte = cortesData.length > 0 ? (cortesData.find(c => c.activo)?.id || cortesData[0].id) : 0;
+      const activeColegio = colegiosData.length > 0 ? (colegiosData.find(c => c.activo)?.id || colegiosData[0].id) : 0;
+
+      // Precargar datos dependientes para evitar cascada
+      let gradosData: CategoryItem[] = [];
+      let asignaturasData: CategoryItem[] = [];
+      let seccionesData: CategoryItem[] = [];
+      let firstGradoId = 0;
+
+      if (activeColegio && activeAno) {
+        const [gradosRaw, asignaturasRaw] = await Promise.all([
+          invoke<CategoryItem[]>("get_grados_by_colegio", { colegioId: activeColegio, anoLectivoId: activeAno }),
+          invoke<CategoryItem[]>("get_subjects_by_colegio", { colegioId: activeColegio }),
+        ]);
+        gradosData = gradosRaw;
+        firstGradoId = gradosData.length > 0 ? gradosData[0].id : 0;
+
+        let finalAsignaturas = asignaturasRaw;
+        if (asignaturasRaw.length === 0) {
+          try {
+            const allSubjects = await invoke<CategoryItem[]>("get_all_subjects");
+            finalAsignaturas = allSubjects;
+          } catch (e) {}
+        }
+
+        if (firstGradoId > 0) {
+          try {
+            const subjectsByGrade = await invoke<CategoryItem[]>("get_subjects_by_grade", { gradoId: firstGradoId });
+            if (subjectsByGrade.length > 0) {
+              finalAsignaturas = subjectsByGrade.filter(sg => finalAsignaturas.some(ca => ca.id === sg.id));
+            }
+          } catch (e) {}
+        }
+        asignaturasData = finalAsignaturas;
+
+        if (firstGradoId > 0) {
+          try {
+            seccionesData = await invoke<CategoryItem[]>("get_secciones_by_grado_colegio", {
+              gradoId: firstGradoId,
+              colegioId: activeColegio,
+              anoLectivoId: activeAno,
+            });
+          } catch (e) {}
+        }
+      }
+
+      // Setear todo en un solo lote
       setAnos(anosData);
       setCortes(cortesData);
       setColegios(colegiosData);
       setGradeConfigs(configsData);
-      
-      // Seleccionar valores por defecto (activos o el primero)
-      if (anosData.length > 0) {
-        const activo = anosData.find(a => a.activo);
-        setSelectedAno(activo ? activo.id : anosData[0].id);
-      }
-      
-      if (cortesData.length > 0) {
-        const activo = cortesData.find(c => c.activo);
-        setSelectedCorte(activo ? activo.id : cortesData[0].id);
-      }
-      
-      if (colegiosData.length > 0) {
-        const activo = colegiosData.find(c => c.activo);
-        setSelectedColegio(activo ? activo.id : colegiosData[0].id);
-      }
+      setSelectedAno(activeAno);
+      setSelectedCorte(activeCorte);
+      setSelectedColegio(activeColegio);
+      setGrados(gradosData);
+      setAsignaturas(asignaturasData);
+      setSecciones(seccionesData);
+      setSelectedGrado(firstGradoId);
+      setSelectedAsignatura(asignaturasData.length > 0 ? asignaturasData[0].id : 0);
+      setSelectedSeccion(seccionesData.length > 0 ? seccionesData[0].id : 0);
+
+      initialLoadDone.current = true;
     } catch (error) {
       console.error("Error fetching catalogs:", error);
       await emit("show-toast", { message: "❌ Error al cargar catálogos: " + error, type: "error" });
