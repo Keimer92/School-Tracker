@@ -904,7 +904,7 @@ export function EstudiantesPage() {
   };
 
   return (
-    <div className="page-container" id="estudiantes-page" style={{ height: '100%', minHeight: 0, overflow: 'hidden' }} data-mobile={isMobile}>
+    <div className="page-container" id="estudiantes-page" style={{ height: '100%', minHeight: 0 }}>
       <style>
         {`
           .input-label {
@@ -1001,8 +1001,10 @@ export function EstudiantesPage() {
             -webkit-transform: translateY(-2px) scale(1.05);
             transform: translateY(-2px) scale(1.05);
           }
-          body:has(#estudiantes-page) .main-content {
-            overflow: hidden !important;
+          .category-card {
+            width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
           }
           .glow-button-primary::after, .glow-button-success::after {
             content: '';
@@ -1321,11 +1323,15 @@ export function EstudiantesPage() {
       <div style={{ 
         flex: 1,
         overflowY: 'auto',
+        overflowX: 'hidden',
         minHeight: 0,
-        display: filteredStudents.length === 0 ? "block" : "grid", 
-        gridTemplateColumns: filteredStudents.length === 0 ? "none" : `repeat(auto-fill, minmax(${isMobile ? '280px' : '350px'}, 1fr))`, 
-        gap: isMobile ? "0.6rem" : "1rem",
-        width: '100%' 
+        display: filteredStudents.length === 0 ? "block" : (isMobile ? "flex" : "grid"), 
+        flexDirection: isMobile ? "column" : undefined,
+        gridTemplateColumns: (!isMobile && filteredStudents.length !== 0) ? "repeat(auto-fill, minmax(350px, 1fr))" : undefined, 
+        gap: isMobile ? "0.5rem" : "1rem",
+        width: '100%',
+        boxSizing: 'border-box',
+        padding: isMobile ? '0 0.25rem' : '0',
       }}>
         {filteredStudents.length === 0 ? (
           <div style={{ 
