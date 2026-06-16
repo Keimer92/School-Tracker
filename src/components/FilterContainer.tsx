@@ -19,9 +19,9 @@ export function FilterContainer({ children, isMobile = false, className = '', st
         background: 'rgba(26, 26, 26, 0.8)',
         backdropFilter: 'blur(10px)',
         WebkitBackdropFilter: 'blur(10px)',
-        marginBottom: isMobile ? '0.5rem' : '1.5rem',
+        marginBottom: isMobile ? '0.3rem' : '1.5rem',
         width: '100%',
-        padding: isMobile ? '0.3rem' : '0.6rem',
+        padding: isMobile ? '0.2rem' : '0.6rem',
         borderRadius: '0 0 12px 12px',
         border: '1px solid rgba(255,255,255,0.05)',
         borderTop: 'none',
@@ -31,10 +31,10 @@ export function FilterContainer({ children, isMobile = false, className = '', st
       <div 
         className="filters-row"
         style={{
-          padding: isMobile ? '0.2rem' : '0.4rem',
+          padding: isMobile ? '0.1rem' : '0.4rem',
           display: 'flex',
           flexWrap: 'wrap',
-          gap: isMobile ? '0.3rem' : '0.4rem',
+          gap: isMobile ? '0.2rem' : '0.4rem',
           justifyContent: 'flex-start',
           alignItems: 'flex-end',
           width: '100%'
@@ -101,9 +101,9 @@ export function FilterSelect({
     <select
       className="filter-select"
       style={{
-        padding: '0.3rem 0.4rem',
-        fontSize: '0.75rem',
-        height: '28px',
+        padding: isMobile ? '0.2rem 0.3rem' : '0.3rem 0.4rem',
+        fontSize: isMobile ? '0.7rem' : '0.75rem',
+        height: isMobile ? '24px' : '28px',
         width: '100%',
         ...style
       }}

@@ -1363,9 +1363,9 @@ export function NotasPage() {
 ﻿                  const estudianteNotas = notas.find(n => n.estudianteId === est.estudianteId) || { notas: {} };
                   
                   return (
-                    <tr key={est.estudianteId} className="notas-row">
+                    <tr key={est.estudianteId} className="notas-row" style={isMobile ? { borderBottom: '2px solid rgba(255,255,255,0.08)' } : undefined}>
                       <td className="sticky-cell student-number" style={{ 
-                        padding: '0.2rem', 
+                        padding: isMobile ? '0.3rem' : '0.2rem', 
                         textAlign: 'center', 
                         position: 'sticky',
                         left: 0,
@@ -1374,7 +1374,7 @@ export function NotasPage() {
                         fontSize: '0.65rem'
                       }}>{index + 1}</td>
                       <td className="sticky-cell student-name" style={{ 
-                        padding: '0.3rem', 
+                        padding: isMobile ? '0.35rem 0.3rem' : '0.3rem', 
                         position: 'sticky',
                         left: '35px',
                         zIndex: 5,
@@ -1382,7 +1382,7 @@ export function NotasPage() {
                       }}>
                         <div style={{ 
                           fontWeight: 'bold', 
-                          fontSize: '0.75rem', 
+                          fontSize: isMobile ? '0.8rem' : '0.75rem', 
                           whiteSpace: 'nowrap', 
                           overflow: 'hidden', 
                           textOverflow: 'ellipsis', 
@@ -1399,7 +1399,7 @@ export function NotasPage() {
                               const currentQualitativeValue = notasCualitativasRef.current.get(key) || '';
                               
 return (
-                                <td key={`${est.estudianteId}-${crit.id}`} style={{ padding: '0.15rem', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                <td key={`${est.estudianteId}-${crit.id}`} style={{ padding: isMobile ? '0.25rem 0.15rem' : '0.15rem', textAlign: 'center', borderBottom: isMobile ? '2px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.05)' }}>
                                   <input
                                     type="text"
                                     defaultValue={currentQualitativeValue}
@@ -1467,9 +1467,9 @@ onChange={(e) => {
                                       else inputsRef.current.delete(inputKey);
                                     }}
                                     style={{
-                                      width: isQualitative ? '48px' : '32px',
-                                      padding: '0.15rem',
-                                      fontSize: isQualitative ? '0.85rem' : '0.75rem',
+                                      width: isQualitative ? (isMobile ? '42px' : '48px') : (isMobile ? '36px' : '32px'),
+                                      padding: isMobile ? '0.25rem' : '0.15rem',
+                                      fontSize: isQualitative ? (isMobile ? '0.9rem' : '0.85rem') : (isMobile ? '0.8rem' : '0.75rem'),
                                       textAlign: 'center',
                                       background: isQualitative ? 'rgba(139, 92, 246, 0.1)' : 'rgba(255,255,255,0.03)',
                                       border: `2px solid ${currentQualitativeValue ? getGradeColor(currentQualitativeValue, crit.puntajeMaximo) : (isQualitative ? 'rgba(139, 92, 256, 0.4)' : 'rgba(255,255,255,0.1)')}`,
@@ -1485,11 +1485,11 @@ onChange={(e) => {
                               );
                             })}
                             <td style={{ 
-                              padding: '0.2rem', 
+                              padding: isMobile ? '0.3rem' : '0.2rem', 
                               textAlign: 'center', 
                               fontWeight: 'bold', 
                               background: ind.activo ? 'rgba(100, 108, 255, 0.05)' : 'rgba(100, 116, 139, 0.08)',
-                              borderBottom: '1px solid rgba(255,255,255,0.05)'
+                              borderBottom: isMobile ? '2px solid rgba(255,255,255,0.08)' : '1px solid rgba(255,255,255,0.05)'
                             }}>
                               {(() => {
                                 // Calcular desde cualitativas (más actualizado durante edición)
@@ -1529,14 +1529,14 @@ onChange={(e) => {
                         ));
                       })()}
                       <td style={{ 
-                        padding: '0.2rem', 
+                        padding: isMobile ? '0.3rem' : '0.2rem', 
                         textAlign: 'center', 
                         fontWeight: 'bold', 
                         background: '#1e293b',
                         position: 'sticky',
                         right: 0,
                         zIndex: 5,
-                        borderBottom: '1px solid rgba(34, 197, 94, 0.2)',
+                        borderBottom: isMobile ? '2px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(34, 197, 94, 0.2)',
                         whiteSpace: 'nowrap',
                         minWidth: '50px'
                       }}>
@@ -1588,7 +1588,7 @@ onChange={(e) => {
   }, [notas, indicadores, criterioIndexMap, isQualitative, getGradeColor, getGradeFromScore, calcularTotalIndicador, calcularNotaCualitativaFinal, calcularTotalFinal, handleKeyDown, handleInputFocus, handleInputBlur]);
 
   return (
-    <div className="page-container">
+    <div className="page-container" style={{ height: '100%', minHeight: 0 }}>
       <div className="category-grid" style={{ display: 'block' }}>
       
 <FilterContainer isMobile={isMobile}>
@@ -1596,7 +1596,7 @@ onChange={(e) => {
           <FilterGroup label="Año Lectivo:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
-              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              style={{ padding: isMobile ? '0.2rem 0.3rem' : '0.3rem 0.4rem', fontSize: isMobile ? '0.7rem' : '0.75rem', height: isMobile ? '24px' : '28px', width: '100%' }}
               value={selectedAno}
               onChange={(e) => setSelectedAno(Number(e.target.value))}
             >
@@ -1608,7 +1608,7 @@ onChange={(e) => {
           <FilterGroup label="Corte:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
-              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              style={{ padding: isMobile ? '0.2rem 0.3rem' : '0.3rem 0.4rem', fontSize: isMobile ? '0.7rem' : '0.75rem', height: isMobile ? '24px' : '28px', width: '100%' }}
               value={selectedCorte}
               onChange={(e) => setSelectedCorte(Number(e.target.value))}
             >
@@ -1620,7 +1620,7 @@ onChange={(e) => {
           <FilterGroup label="Colegio:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
-              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              style={{ padding: isMobile ? '0.2rem 0.3rem' : '0.3rem 0.4rem', fontSize: isMobile ? '0.7rem' : '0.75rem', height: isMobile ? '24px' : '28px', width: '100%' }}
               value={selectedColegio}
               onChange={(e) => setSelectedColegio(Number(e.target.value))}
             >
@@ -1632,7 +1632,7 @@ onChange={(e) => {
           <FilterGroup label="Grado:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
-              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              style={{ padding: isMobile ? '0.2rem 0.3rem' : '0.3rem 0.4rem', fontSize: isMobile ? '0.7rem' : '0.75rem', height: isMobile ? '24px' : '28px', width: '100%' }}
               value={selectedGrado}
               onChange={(e) => {
                 const newVal = Number(e.target.value);
@@ -1648,7 +1648,7 @@ onChange={(e) => {
           <FilterGroup label="Sección:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
-              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              style={{ padding: isMobile ? '0.2rem 0.3rem' : '0.3rem 0.4rem', fontSize: isMobile ? '0.7rem' : '0.75rem', height: isMobile ? '24px' : '28px', width: '100%' }}
               value={selectedSeccion}
               onChange={(e) => setSelectedSeccion(Number(e.target.value))}
             >
@@ -1660,7 +1660,7 @@ onChange={(e) => {
           <FilterGroup label="Sexo:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
-              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              style={{ padding: isMobile ? '0.2rem 0.3rem' : '0.3rem 0.4rem', fontSize: isMobile ? '0.7rem' : '0.75rem', height: isMobile ? '24px' : '28px', width: '100%' }}
               value={selectedSexo}
               onChange={(e) => setSelectedSexo(e.target.value)}
             >
@@ -1674,7 +1674,7 @@ onChange={(e) => {
           <FilterGroup label="Asignatura:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
               className="filter-select"
-              style={{ padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px', width: '100%' }}
+              style={{ padding: isMobile ? '0.2rem 0.3rem' : '0.3rem 0.4rem', fontSize: isMobile ? '0.7rem' : '0.75rem', height: isMobile ? '24px' : '28px', width: '100%' }}
               value={selectedAsignatura}
               onChange={(e) => {
                 const newVal = Number(e.target.value);
@@ -1697,9 +1697,9 @@ onChange={(e) => {
               className="btn-modern btn-undo"
               title="Deshacer (Ctrl+Z)"
               style={{
-                padding: isMobile ? '0.4rem 0.6rem' : '0.6rem 1.2rem',
-                fontSize: isMobile ? '0.75rem' : '0.9rem',
-                height: isMobile ? '28px' : '42px',
+                padding: isMobile ? '0.2rem 0.4rem' : '0.6rem 1.2rem',
+                fontSize: isMobile ? '0.7rem' : '0.9rem',
+                height: isMobile ? '24px' : '42px',
                 backgroundColor: history.length > 0 ? '#f59e0b' : 'rgba(148, 163, 184, 0.5)',
                 color: '#fff',
                 border: 'none',
@@ -1726,9 +1726,9 @@ onChange={(e) => {
               className="btn-modern btn-redo"
               title="Rehacer (Ctrl+Y)"
               style={{
-                padding: isMobile ? '0.4rem 0.6rem' : '0.6rem 1.2rem',
-                fontSize: isMobile ? '0.75rem' : '0.9rem',
-                height: isMobile ? '28px' : '42px',
+                padding: isMobile ? '0.2rem 0.4rem' : '0.6rem 1.2rem',
+                fontSize: isMobile ? '0.7rem' : '0.9rem',
+                height: isMobile ? '24px' : '42px',
                 backgroundColor: redoStack.length > 0 ? '#f59e0b' : 'rgba(148, 163, 184, 0.5)',
                 color: '#fff',
                 border: 'none',
@@ -1755,9 +1755,9 @@ onChange={(e) => {
               className="btn-modern btn-save-notes"
               title="Guardar Notas (Ctrl+G)"
               style={{
-                padding: isMobile ? '0.4rem 0.6rem' : '0.6rem 1.2rem',
-                fontSize: isMobile ? '0.75rem' : '0.9rem',
-                height: isMobile ? '28px' : '42px',
+                padding: isMobile ? '0.2rem 0.4rem' : '0.6rem 1.2rem',
+                fontSize: isMobile ? '0.7rem' : '0.9rem',
+                height: isMobile ? '24px' : '42px',
                 backgroundColor: !hasUnsavedChanges ? 'rgba(148, 163, 184, 0.5)' : (saving ? '#059669' : '#10b981'),
                 color: '#fff',
                 border: 'none',
@@ -1793,9 +1793,9 @@ onChange={(e) => {
               className="btn-modern btn-delete-notes"
               title="Eliminar notas"
               style={{
-                padding: isMobile ? '0.4rem 0.6rem' : '0.6rem 1.2rem',
-                fontSize: isMobile ? '0.75rem' : '0.9rem',
-                height: isMobile ? '28px' : '42px',
+                padding: isMobile ? '0.2rem 0.4rem' : '0.6rem 1.2rem',
+                fontSize: isMobile ? '0.7rem' : '0.9rem',
+                height: isMobile ? '24px' : '42px',
                 backgroundColor: estudiantes.length > 0 ? '#ef4444' : 'rgba(148, 163, 184, 0.5)',
                 color: '#fff',
                 border: 'none',
@@ -1819,11 +1819,13 @@ onChange={(e) => {
           </div>
         </FilterContainer>
 
-      {loading && <div style={{textAlign: 'center', padding: '2rem'}}>Cargando datos...</div>}
+      {loading && <div style={{textAlign: 'center', padding: isMobile ? '0.5rem' : '2rem', fontSize: isMobile ? '0.75rem' : '1rem'}}>Cargando datos...</div>}
 
       {/* Tabla de Notas */}
       {!loading && estudiantes.length > 0 && (
         <div className="category-card" style={{
+          flex: 1,
+          minHeight: 0,
           width: '100%',
           maxWidth: '100%',
           overflow: 'hidden',
@@ -1835,24 +1837,27 @@ onChange={(e) => {
             display: 'flex', 
             justifyContent: 'space-between', 
             alignItems: 'center',
-            marginBottom: isMobile ? '0.2rem' : '0.5rem'
+            marginBottom: isMobile ? '0.2rem' : '0.5rem',
+            flexShrink: 0,
           }}>
             <h3 style={{ 
               margin: 0, 
-              fontSize: isMobile ? '1rem' : '1.2rem',
+              fontSize: isMobile ? '0.95rem' : '1.2rem',
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem'
             }}>
-              📝 Estudiantes <span style={{ opacity: 0.7, fontSize: '0.8em' }}>({filteredNotas.length})</span>
+              📝 {isMobile ? '' : 'Estudiantes '}<span style={{ opacity: 0.7, fontSize: '0.8em' }}>({filteredNotas.length})</span>
             </h3>
-            <div style={{ fontSize: isMobile ? '0.75rem' : '0.9rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-              <span>{isMobile ? 'Indicadores Activos:' : 'Indicadores Activos:'}</span> 
+            <div style={{ fontSize: isMobile ? '0.7rem' : '0.9rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+              <span>{isMobile ? 'Activos:' : 'Indicadores Activos:'}</span> 
               <span style={{ fontWeight: 'bold', color: '#fff' }}>{indicadores.filter(i => i.activo).length}/5</span>
             </div>
           </div>
           
           <div className="notas-table-container" style={{ 
+            flex: 1,
+            minHeight: 0,
             overflow: 'auto',
             padding: '0', 
             width: '100%', 
@@ -1860,7 +1865,6 @@ onChange={(e) => {
             WebkitOverflowScrolling: 'touch', 
             border: '1px solid rgba(255,255,255,0.1)', 
             borderRadius: '8px',
-            maxHeight: isMobile ? 'calc(100dvh - 290px)' : 'calc(100vh - 250px)'
           }}>
             <table className="notas-table" style={{ width: '100%', minWidth: 'max-content', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.7rem' }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 100 }}>
