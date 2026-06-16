@@ -904,7 +904,7 @@ export function EstudiantesPage() {
   };
 
   return (
-    <div className="page-container" id="estudiantes-page" style={{ height: '100%', minHeight: 0, overflow: 'hidden' }}>
+    <div className="page-container" id="estudiantes-page" style={{ height: '100%', minHeight: 0, overflow: 'hidden' }} data-mobile={isMobile}>
       <style>
         {`
           .input-label {
@@ -1323,8 +1323,8 @@ export function EstudiantesPage() {
         overflowY: 'auto',
         minHeight: 0,
         display: filteredStudents.length === 0 ? "block" : "grid", 
-        gridTemplateColumns: filteredStudents.length === 0 ? "none" : "repeat(auto-fill, minmax(350px, 1fr))", 
-        gap: "1rem",
+        gridTemplateColumns: filteredStudents.length === 0 ? "none" : `repeat(auto-fill, minmax(${isMobile ? '280px' : '350px'}, 1fr))`, 
+        gap: isMobile ? "0.6rem" : "1rem",
         width: '100%' 
       }}>
         {filteredStudents.length === 0 ? (

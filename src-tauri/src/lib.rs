@@ -1050,7 +1050,6 @@ pub fn run() {
             get_indicadores_all,
             get_criterios_all,
             get_notas_all,
-            get_asistencia_all,
             get_student_impact,
             reset_local_database,
             get_grados_by_colegio,
@@ -1091,7 +1090,7 @@ pub fn run() {
 
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn delete_notas(
+fn delete_notas(
     state: tauri::State<'_, DbState>,
     corteEvaluativoId: i64,
     asignaturaId: i64,
