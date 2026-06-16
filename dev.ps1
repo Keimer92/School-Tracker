@@ -68,7 +68,10 @@ try {
           Write-Host " 10. Crear .gitignore para Rust/Tauri"
           Write-Host " 11. Gestionar llaves (keystore)"
           Write-Host " 12. Compilar motor de WhatsApp"
-          Write-Host " 13. Salir"
+          Write-Host ""
+          Write-Host " === UTILIDADES ===" -ForegroundColor Yellow
+          Write-Host " 13. Configurar terminal (autocompletado TAB/Historial)"
+          Write-Host " 14. Salir"
         Write-Host "------------------------------------------------" -ForegroundColor Cyan
         Write-Host ""
     }
@@ -408,7 +411,17 @@ try {
         Write-Host ""
         Write-Host "Se eliminara:" -ForegroundColor Red
         Write-Host "  - src-tauri\target\    (build artifacts de Rust)"
-        Write-Host "  - src-tauri\gen\       (proyecto Android auto-generado)"
+        Write-Host "  - src-tauri\gen\android\app\build\ (build de Gradle)"
+        Write-Host "  - src-tauri\gen\android\.gradle\  (cache de Gradle)"
+        Write-Host "  - src-tauri\gen\android\build\    (build root de Gradle)"
+        Write-Host "  - src-tauri\gen\android\gradle\   (Gradle wrapper)"
+        Write-Host "  - src-tauri\gen\android\buildSrc\ (auto-generado)"
+        Write-Host "  - src-tauri\gen\android\app\keimer* (signing keys)"
+        Write-Host "  - src-tauri\gen\android\app\proguard-* (auto-generado)"
+        Write-Host "  - src-tauri\gen\android\app\tauri.* (auto-generado)"
+        Write-Host "  - src-tauri\gen\android\app\src\main\assets\ + jniLibs\"
+        Write-Host "  - src-tauri\gen\android\app\src\main\java\...\generated\"
+        Write-Host "  - src-tauri\gen\schemas\  (auto-generado)"
         Write-Host "  - node_modules\        (dependencias npm)"
         Write-Host "  - dist\                (build del frontend)"
         Write-Host "  - node_modules\.vite\  (cache de Vite)"
@@ -422,6 +435,10 @@ try {
         Write-Host "  - package.json + package-lock.json"
         Write-Host "  - vite.config.ts, tsconfig*.json, index.html"
         Write-Host "  - public\              (assets estaticos)"
+        Write-Host "  - src-tauri\gen\android\...\AndroidManifest.xml (config manual)"
+        Write-Host "  - src-tauri\gen\android\...\MainActivity.kt (config manual)"
+        Write-Host "  - src-tauri\gen\android\...\ForegroundService.kt (config manual)"
+        Write-Host "  - src-tauri\gen\android\...\res\ (recursos como iconos)"
         Write-Host ""
         $confirm = Read-Host "Esta seguro? (s/n)"
         if ($confirm -ne "s" -and $confirm -ne "S") {
@@ -456,12 +473,38 @@ try {
             Write-Host "  src-tauri\target\ no existe" -ForegroundColor Gray
         }
 
-        # 2. Android auto-generated project
+        # 2. Android build artifacts (preserving manual config)
         $genDir = Join-Path $ScriptDir "src-tauri\gen"
         if (Test-Path $genDir) {
             $size = Get-DirSize $genDir
-            Write-Host "  Eliminando src-tauri\gen\... " -NoNewline
-            Remove-Item -Recurse -Force $genDir -ErrorAction SilentlyContinue
+            Write-Host "  Limpiando src-tauri\gen\ (preservando config manual)... " -NoNewline
+
+            # Delete auto-generated build artifacts only
+            $targets = @(
+                "android\app\build",
+                "android\.gradle",
+                "android\build",
+                "android\gradle",
+                "android\buildSrc",
+                "android\app\keimer",
+                "android\app\keimer.keystore",
+                "android\app\keystore.properties",
+                "android\app\proguard-rules.pro",
+                "android\app\proguard-tauri.pro",
+                "android\app\tauri.build.gradle.kts",
+                "android\app\tauri.properties",
+                "android\app\src\main\assets",
+                "android\app\src\main\jniLibs",
+                "android\app\src\main\java\com\schooltracker\proela\generated",
+                "schemas"
+            )
+            foreach ($rel in $targets) {
+                $full = Join-Path $genDir $rel
+                if (Test-Path $full) {
+                    Remove-Item -Recurse -Force $full -ErrorAction SilentlyContinue
+                }
+            }
+
             $totalFreed += $size
             Write-Host "[OK] ($(if ($size -gt 1GB) { '{0:N2} GB' -f ($size/1GB) } elseif ($size -gt 1MB) { '{0:N2} MB' -f ($size/1MB) } else { '{0:N2} KB' -f ($size/1KB) }))" -ForegroundColor Green
         } else {
@@ -853,9 +896,22 @@ dist/
 build/
 
 # --- Android nativo (auto-generado por 'npx tauri android init') ---
-# Ignorar todo src-tauri/gen/ porque es regenerable desde cero
-src-tauri/gen/
-src-tauri/gen/android/
+# Ignorar builds y auto-generados, pero preservar configuracion manual
+src-tauri/gen/android/app/build/
+src-tauri/gen/android/.gradle/
+src-tauri/gen/android/build/
+src-tauri/gen/android/gradle/
+src-tauri/gen/android/buildSrc/
+src-tauri/gen/android/app/keimer
+src-tauri/gen/android/app/keimer.keystore
+src-tauri/gen/android/app/keystore.properties
+src-tauri/gen/android/app/proguard-rules.pro
+src-tauri/gen/android/app/proguard-tauri.pro
+src-tauri/gen/android/app/tauri.build.gradle.kts
+src-tauri/gen/android/app/tauri.properties
+src-tauri/gen/android/app/src/main/assets/
+src-tauri/gen/android/app/src/main/jniLibs/
+src-tauri/gen/android/app/src/main/java/com/schooltracker/proela/generated/
 src-tauri/gen/schemas/
 
 # --- Sistema operativo ---
@@ -905,6 +961,44 @@ Desktop.ini
         Read-Host "Presione Enter para continuar..."
     }
 
+    function Configure-TerminalAutocomplete {
+        Clear-Host
+        Write-Host "==============================================" -ForegroundColor Cyan
+        Write-Host "CONFIGURAR TERMINAL - AUTOCOMPLETADO" -ForegroundColor Yellow
+        Write-Host "==============================================" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "Esto configurara tu perfil de PowerShell con:" -ForegroundColor Cyan
+        Write-Host "  1. Autocompletado visual del historial (PredictionSource History)"
+        Write-Host "  2. TAB acepta la sugerencia COMPLETA"
+        Write-Host "  3. Flecha Derecha acepta palabra por palabra"
+        Write-Host ""
+
+        $PS_PROFILE_DIR = Join-Path $env:USERPROFILE "Documents\WindowsPowerShell"
+        $PS_PROFILE_FILE = Join-Path $PS_PROFILE_DIR "Microsoft.PowerShell_profile.ps1"
+
+        if (-not (Test-Path $PS_PROFILE_DIR)) {
+            New-Item -ItemType Directory -Path $PS_PROFILE_DIR -Force | Out-Null
+        }
+
+        @"
+# 1. Autocompletado visual del historial
+Set-PSReadLineOption -PredictionSource History
+
+# 2. TAB acepta la sugerencia COMPLETA
+Set-PSReadLineKeyHandler -Key Tab -Function AcceptSuggestion
+
+# 3. Flecha Derecha acepta palabra por palabra
+Set-PSReadLineKeyHandler -Key RightArrow -Function AcceptNextSuggestionWord
+"@ | Out-File -FilePath $PS_PROFILE_FILE -Encoding utf8 -Force
+
+        Write-Host "[LISTO] La configuracion se ha guardado en:" -ForegroundColor Green
+        Write-Host "  $PS_PROFILE_FILE" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "Abre una nueva terminal para disfrutar del autocompletado." -ForegroundColor Yellow
+        Write-Host ""
+        Read-Host "Presione Enter para continuar..."
+    }
+
     # Main Loop
     while ($true) {
         Show-Menu
@@ -923,7 +1017,8 @@ Desktop.ini
             "10" { New-GitIgnore }
             "11" { Manage-Keystore }
             "12" { Invoke-WhatsAppEngineBuild }
-            "13" { break }
+            "13" { Configure-TerminalAutocomplete }
+            "14" { break }
             default {
                 # Let the loop clear the screen and show menu again
             }
