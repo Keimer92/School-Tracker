@@ -1097,6 +1097,7 @@ fn delete_notas(
     estudianteId: i64,
     criterioId: i64,
 ) -> Result<i64, String> {
+    println!("[delete_notas] CALLED with corte={}, asig={}, est={}, crit={}", corteEvaluativoId, asignaturaId, estudianteId, criterioId);
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 

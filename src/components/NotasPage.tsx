@@ -1318,12 +1318,14 @@ export function NotasPage() {
   const handleDeleteNotas = async () => {
     try {
       setDeleting(true);
+      console.log("[delete_notas] Invocando comando...", { corte: selectedCorte, asig: selectedAsignatura, est: deleteMode === 'student' ? deleteStudentId : 0, crit: deleteMode === 'indicator' ? deleteIndicatorId : 0 });
       const deleted = await invoke<number>("delete_notas", {
         corteEvaluativoId: selectedCorte,
         asignaturaId: selectedAsignatura,
         estudianteId: deleteMode === 'student' ? deleteStudentId : 0,
         criterioId: deleteMode === 'indicator' ? deleteIndicatorId : 0,
       });
+      console.log("[delete_notas] Respuesta exitosa:", deleted);
 
       setShowDeleteModal(false);
       setShowDeleteConfirm(false);
