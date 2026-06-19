@@ -25,6 +25,7 @@ interface EstudianteAsistencia {
 
 import SearchInput from './SearchInput';
 import { FilterContainer, FilterGroup, FilterActions } from './FilterContainer';
+import { PageLayout, ScrollableTable } from './PageLayout';
 
 export function AsistenciaPage() {
   // Filtros
@@ -810,10 +811,9 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
             background: #1e293b !important;
           }
         `}
-      </style>
-      <div className="category-grid" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-        {/* Filtros de Búsqueda */}
-        <FilterContainer isMobile={isAndroidMobile} style={{ padding: isAndroidMobile ? '0.5rem' : '0.4rem' }}>
+      <PageLayout
+        filters={
+          <FilterContainer isMobile={isAndroidMobile} style={{ padding: isAndroidMobile ? '0.5rem' : '0.4rem' }}>
           {/* Fecha */}
           <FilterGroup label="Fecha:" isMobile={isAndroidMobile} flex={isAndroidMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <input 
@@ -980,8 +980,9 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
               <span>{isAndroidMobile ? '' : 'Limpiar'}</span>
             </button>
           </div>
-        </FilterContainer>
-
+          </FilterContainer>
+        }
+      >
         {isAndroidMobile && (
           <div className="asistencia-summary-mobile" style={{ 
             marginTop: '0',
@@ -1172,16 +1173,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
       )}
 
       {/* Tabla de Asistencia con scroll interno */}
-      <div className="table-container" style={{
-        width: '100%',
-        padding: '0',
-        flex: 1,
-        minHeight: 0,
-        overflowY: 'auto',
-        overflowX: isAndroidMobile ? 'auto' : 'hidden',
-        WebkitOverflowScrolling: 'touch',
-        display: 'block'
-      }}>
+      <ScrollableTable style={{ overflowX: isAndroidMobile ? 'auto' : 'hidden' }}>
         {loading ? (
           <div className="loading-state">Cargando estudiantes...</div>
         ) : !isFechaHabilitada ? (
@@ -1370,8 +1362,8 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
             </tbody>
           </table>
         )}
-      </div>
-    </div>
+      </ScrollableTable>
+    </PageLayout>
 
       {/* Modal de Detalles de Resumen */}
       {showSummaryModal.show && createPortal(
@@ -1648,7 +1640,6 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
         </div>,
         document.body
       )}
-
-      </div>
-      );
-      }
+    </div>
+  );
+  }

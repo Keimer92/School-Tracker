@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import SearchInput from './SearchInput';
 import { FilterContainer, FilterGroup, FilterActions } from './FilterContainer';
+import { PageLayout, ScrollableTable } from './PageLayout';
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
@@ -923,8 +924,9 @@ try {
            }
         `}
       </style>
-      <div className="category-grid" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-        <FilterContainer isMobile={isMobile} style={{ padding: '0.4rem' }}>
+      <PageLayout
+        filters={
+          <FilterContainer isMobile={isMobile} style={{ padding: '0.4rem' }}>
           {/* Período */}
           <FilterGroup label="Período:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
             <select 
@@ -1097,8 +1099,9 @@ try {
               📄 PDF
             </button>
           </div>
-        </FilterContainer>
-          
+          </FilterContainer>
+        }
+      >
           {/* Encabezado de impresión - Oculto en UI normal */}
 <div style={{ display: 'none' }} className="print-header">
   <div className="print-title">Reporte de Asistencia</div>
@@ -1255,16 +1258,7 @@ try {
       )}
 
       {/* Tabla de Resultados con scroll interno */}
-      <div className="table-container" style={{
-        width: '100%',
-        padding: '0',
-        flex: 1,
-        minHeight: 0,
-        overflowY: 'auto',
-        overflowX: isAndroidMobile ? 'auto' : 'hidden',
-        WebkitOverflowScrolling: 'touch',
-        display: 'block'
-      }}>
+      <ScrollableTable style={{ overflowX: isAndroidMobile ? 'auto' : 'hidden' }}>
         {loading ? (
           <div className="loading-container">Cargando reporte...</div>
         ) : reporteFiltrado.length === 0 ? (
@@ -1498,8 +1492,8 @@ try {
             </tbody>
           </table>
         )}
-      </div>
-    </div>
+      </ScrollableTable>
+    </PageLayout>
     {/* Modal de Detalles de Resumen */}
       {showSummaryModal.show && createPortal(
         <div className="modal-overlay" onClick={() => setShowSummaryModal({ ...showSummaryModal, show: false })}>
