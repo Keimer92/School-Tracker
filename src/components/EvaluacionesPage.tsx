@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import { syncService } from "../lib/syncService";
 import { FilterContainer, FilterGroup, FilterActions } from './FilterContainer';
+import { useIsMobile } from "../hooks/useAndroid";
 import "../App.css";
 
 interface Criterio {
@@ -27,11 +28,22 @@ interface CategoryItem {
   cualitativo?: boolean;
 }
 
+type ViewMode = 'modern-cards' | 'accordion' | 'split-panel' | 'refined';
+
+const VIEW_MODES: { key: ViewMode; label: string; icon: string }[] = [
+  { key: 'modern-cards', label: 'Moderno', icon: '🎴' },
+  { key: 'accordion', label: 'Acordeón', icon: '📋' },
+  { key: 'split-panel', label: 'Panel', icon: '⛶' },
+  { key: 'refined', label: 'Clásico', icon: '🎨' },
+];
+
+const VIEW_MODE_KEY = 'evaluaciones-view-mode';
+
 export function EvaluacionesPage() {
   const [grados, setGrados] = useState<CategoryItem[]>([]);
   const [asignaturas, setAsignaturas] = useState<CategoryItem[]>([]);
   const [cortes, setCortes] = useState<CategoryItem[]>([]);
-  
+
   const [selectedGrado, setSelectedGrado] = useState<number>(0);
   const [selectedAsignatura, setSelectedAsignatura] = useState<number>(0);
   const [selectedCorte, setSelectedCorte] = useState<number>(0);
@@ -40,30 +52,41 @@ export function EvaluacionesPage() {
   const [loading, setLoading] = useState(false);
   const [isQualitative, setIsQualitative] = useState(false);
 
-  const [isMobile, setIsMobile] = useState(false);
+  const isMobile = useIsMobile();
 
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth <= 768);
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    const saved = localStorage.getItem(VIEW_MODE_KEY) as ViewMode | null;
+    if (saved) return saved;
+    const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+    return isAndroid ? 'accordion' : 'split-panel';
+  });
+  const [expandedIndicador, setExpandedIndicador] = useState<number | null>(null);
+  const [accordionOpen, setAccordionOpen] = useState<Set<number>>(new Set());
+
+  const filteredActiveIndicadores = indicadores.filter(i => i.activo);
+  const puntosActivos = filteredActiveIndicadores.reduce((sum, ind) => {
+    if (isQualitative) return sum;
+    return sum + ind.criterios.reduce((s, c) => s + Number(c.puntajeMaximo), 0);
+  }, 0);
+
+  const handleViewModeChange = (mode: ViewMode) => {
+    setViewMode(mode);
+    localStorage.setItem(VIEW_MODE_KEY, mode);
+    setExpandedIndicador(null);
+    setAccordionOpen(new Set());
+  };
 
   useEffect(() => {
     fetchCatalogs();
   }, []);
 
-  // Listen for subject-specific updates to refresh subjects
   useEffect(() => {
     const unlistenSubjects = listen("subjects-updated", async () => {
-      console.log("EvaluacionesPage: Evento 'subjects-updated' recibido, refrescando asignaturas...");
-      // Refresh subjects for the currently selected grade
       if (selectedGrado) {
         try {
           const asignaturasData = await invoke<CategoryItem[]>("get_subjects_by_grade", { gradoId: selectedGrado });
           const sortedAsignaturas = asignaturasData.sort((a, b) => a.nombre.localeCompare(b.nombre));
           setAsignaturas(sortedAsignaturas);
-          // Keep current selection if still valid, otherwise reset
           if (sortedAsignaturas.length > 0 && !sortedAsignaturas.some(a => a.id === selectedAsignatura)) {
             setSelectedAsignatura(sortedAsignaturas[0].id);
           }
@@ -72,10 +95,7 @@ export function EvaluacionesPage() {
         }
       }
     });
-
-    return () => {
-      unlistenSubjects.then(f => f());
-    };
+    return () => { unlistenSubjects.then(f => f()); };
   }, [selectedGrado, selectedAsignatura]);
 
   useEffect(() => {
@@ -151,11 +171,11 @@ export function EvaluacionesPage() {
 
   const handleToggleIndicador = async (indicador: Indicador) => {
     const activeCount = indicadores.filter(i => i.activo).length;
-    
+
     if (!indicador.activo && activeCount >= 5) {
-      await emit("show-toast", { 
-        message: "⚠️ Solo pueden haber 5 indicadores activos. Desmarque uno antes de activar este.", 
-        type: "warning" 
+      await emit("show-toast", {
+        message: "⚠️ Solo pueden haber 5 indicadores activos. Desmarque uno antes de activar este.",
+        type: "warning"
       });
       return;
     }
@@ -166,63 +186,51 @@ export function EvaluacionesPage() {
         descripcion: indicador.descripcion,
         activo: !indicador.activo
       });
-      // Optimistic update
       setIndicadores(prev => prev.map(i => i.id === indicador.id ? { ...i, activo: !i.activo } : i));
-      
-      console.log("EvaluacionesPage: Emitiendo evento 'notas-updated' tras cambiar estado de indicador");
       await emit("notas-updated", { timestamp: Date.now() });
-      console.log("EvaluacionesPage: Evento 'notas-updated' emitido con éxito.");
     } catch (error) {
-       await emit("show-toast", { message: "❌ Error al actualizar: " + error, type: "error" });
+      await emit("show-toast", { message: "❌ Error al actualizar: " + error, type: "error" });
     }
   };
 
   const handleUpdateIndicadorDesc = async (id: number, desc: string) => {
-      // Local update first for responsiveness
-      setIndicadores(prev => prev.map(i => i.id === id ? { ...i, descripcion: desc } : i));
+    setIndicadores(prev => prev.map(i => i.id === id ? { ...i, descripcion: desc } : i));
   };
 
   const handleBlurIndicador = async (indicador: Indicador) => {
-      // Save on blur
-      try {
-        await invoke("update_indicador", {
-            id: indicador.id,
-            descripcion: indicador.descripcion,
-            activo: indicador.activo
-        });
-        // Emitir evento para que NotasPage se entere del cambio de descripción inmediatamente
-        await emit("notas-updated", { timestamp: Date.now(), source: 'EvaluacionesPage-BlurIndicador' });
-      } catch (error) {
-          console.error("Error saving description", error);
-          await emit("show-toast", { message: "❌ Error al guardar descripción: " + error, type: "error" });
-      }
+    try {
+      await invoke("update_indicador", {
+        id: indicador.id,
+        descripcion: indicador.descripcion,
+        activo: indicador.activo
+      });
+      await emit("notas-updated", { timestamp: Date.now(), source: 'EvaluacionesPage-BlurIndicador' });
+    } catch (error) {
+      console.error("Error saving description", error);
+      await emit("show-toast", { message: "❌ Error al guardar descripción: " + error, type: "error" });
+    }
   };
 
   const handleUpdateCriterio = async (indicadorId: number, criterioId: number, field: 'descripcion' | 'puntajeMaximo', value: string | number) => {
-     setIndicadores(prev => prev.map(ind => {
-         if (ind.id !== indicadorId) return ind;
-         return {
-             ...ind,
-             criterios: ind.criterios.map(crit => crit.id === criterioId ? { ...crit, [field]: value } : crit)
-         };
-     }));
+    setIndicadores(prev => prev.map(ind => {
+      if (ind.id !== indicadorId) return ind;
+      return {
+        ...ind,
+        criterios: ind.criterios.map(crit => crit.id === criterioId ? { ...crit, [field]: value } : crit)
+      };
+    }));
   };
 
   const handleSaveConfig = async () => {
-    // Validar puntajes antes de guardar (solo si no es cualitativo)
     const problemas = [];
     let primerIndicadorConProblema = null;
 
     if (!isQualitative) {
       for (const indicador of indicadores) {
         if (!indicador.activo) continue;
-        
         const totalPuntaje = indicador.criterios.reduce((sum, crit) => sum + Number(crit.puntajeMaximo), 0);
-        
         if (totalPuntaje > 20) {
           problemas.push(`Indicador ${indicador.orden}: ${totalPuntaje} pts (máximo 20)`);
-          
-          // Guardar el primer indicador con problema para hacer scroll
           if (!primerIndicadorConProblema) {
             primerIndicadorConProblema = indicador;
           }
@@ -230,13 +238,9 @@ export function EvaluacionesPage() {
       }
     }
 
-    // Si hay problemas, mostrar alerta y hacer scroll al primer indicador con problema
     if (problemas.length > 0) {
       const mensaje = `⚠️ Errores de validación encontrados:\n\n${problemas.join('\n')}\n\nPor favor corrija los puntajes antes de guardar.`;
-      
       await emit("show-toast", { message: mensaje, type: "error" });
-
-      // Hacer scroll al primer indicador con problema
       if (primerIndicadorConProblema) {
         setTimeout(() => {
           const element = document.getElementById(`indicador-${primerIndicadorConProblema.id}`);
@@ -244,29 +248,22 @@ export function EvaluacionesPage() {
             element.scrollIntoView({ behavior: 'smooth', block: 'center' });
             element.style.boxShadow = '0 0 0 3px rgba(244, 63, 94, 0.5)';
             element.style.transition = 'box-shadow 0.3s ease';
-            
-            // Remover el efecto después de 2 segundos
             setTimeout(() => {
-              if (element) {
-                element.style.boxShadow = 'none';
-              }
+              if (element) element.style.boxShadow = 'none';
             }, 2000);
           }
         }, 100);
       }
-      
       return;
     }
 
     try {
-      // Guardar todos los indicadores y criterios
       for (const indicador of indicadores) {
         await invoke("update_indicador", {
           id: indicador.id,
           descripcion: indicador.descripcion,
           activo: indicador.activo
         });
-        
         for (const criterio of indicador.criterios) {
           await invoke("update_criterio", {
             id: criterio.id,
@@ -275,16 +272,10 @@ export function EvaluacionesPage() {
           });
         }
       }
-      
-      console.log("EvaluacionesPage: Emitiendo evento 'notas-updated' después de guardar configuración");
       await emit("notas-updated", { timestamp: Date.now() });
-      console.log("EvaluacionesPage: Evento 'notas-updated' emitido con éxito.");
-      
-      // Sincronizar con Supabase en segundo plano (sin await)
       syncService.syncEvaluacionConfig(indicadores).catch(err => {
         console.error("Error en sincronización background de evaluación:", err);
       });
-      
       await emit("show-toast", { message: "✅ Configuración guardada localmente (Sincronizando...)", type: "success" });
     } catch (error) {
       await emit("show-toast", { message: "❌ Error al guardar la configuración: " + error, type: "error" });
@@ -292,28 +283,349 @@ export function EvaluacionesPage() {
   };
 
   const handleBlurCriterio = async (criterio: Criterio) => {
-      try {
-          await invoke("update_criterio", {
-              id: criterio.id,
-              descripcion: criterio.descripcion,
-              puntajeMaximo: Number(criterio.puntajeMaximo) // Ensure number
-          });
-          // Emitir evento para que NotasPage se entere del cambio de descripción inmediatamente
-          await emit("notas-updated", { timestamp: Date.now(), source: 'EvaluacionesPage-BlurCriterio' });
-      } catch (error) {
-          console.error("Error saving criterio", error);
-          await emit("show-toast", { message: "❌ Error al guardar criterio: " + error, type: "error" });
-      }
+    try {
+      await invoke("update_criterio", {
+        id: criterio.id,
+        descripcion: criterio.descripcion,
+        puntajeMaximo: Number(criterio.puntajeMaximo)
+      });
+      await emit("notas-updated", { timestamp: Date.now(), source: 'EvaluacionesPage-BlurCriterio' });
+    } catch (error) {
+      console.error("Error saving criterio", error);
+      await emit("show-toast", { message: "❌ Error al guardar criterio: " + error, type: "error" });
+    }
   };
 
+  const renderCriterioInputs = (ind: Indicador, crit: Criterio) => (
+    <div key={crit.id} className="criterio-row">
+      <span className="criterio-label">Crit. {crit.orden}</span>
+      <input
+        type="text"
+        value={crit.descripcion}
+        onChange={(e) => handleUpdateCriterio(ind.id, crit.id, 'descripcion', e.target.value)}
+        onBlur={() => handleBlurCriterio(crit)}
+        placeholder="Descripción del criterio..."
+        className="criterio-input"
+      />
+      <div className="criterio-score">
+        <input
+          type="number"
+          value={crit.puntajeMaximo}
+          onChange={(e) => handleUpdateCriterio(ind.id, crit.id, 'puntajeMaximo', Number(e.target.value))}
+          onBlur={() => handleBlurCriterio(crit)}
+          disabled={isQualitative}
+          className="criterio-puntaje"
+        />
+        <span className="criterio-pts">pts</span>
+      </div>
+    </div>
+  );
+
+  const renderIndicadorSwitch = (ind: Indicador) => (
+    <label className="switch" title={ind.activo ? "Desactivar" : "Activar"}>
+      <input
+        type="checkbox"
+        checked={ind.activo}
+        onChange={() => handleToggleIndicador(ind)}
+      />
+      <span className="slider round"></span>
+    </label>
+  );
+
+  const renderIndicadorBadge = (ind: Indicador) => (
+    <div className={`indicador-badge ${ind.activo ? 'active' : 'inactive'}`}>
+      {ind.orden}
+    </div>
+  );
+
+  const renderStatusTag = (ind: Indicador) => {
+    if (!ind.activo) return <span className="status-tag inactive">Inactivo</span>;
+    return (
+      <span className={`status-tag ${isQualitative ? 'qualitative' : 'quantitative'}`}>
+        {isQualitative ? 'Cualitativo' : '20 pts'}
+      </span>
+    );
+  };
+
+  // ──────────────── VIEW MODE: MODERN CARDS ────────────────
+  const renderModernCards = () => (
+    <div className="ev-cards-container">
+      {indicadores.map((ind) => (
+        <div
+          key={ind.id}
+          id={`indicador-${ind.id}`}
+          className={`indicador-card ${ind.activo ? 'active' : 'inactive'}`}
+        >
+          <div className="indicador-header">
+            <div className="indicador-header-left">
+              {renderIndicadorSwitch(ind)}
+              {renderIndicadorBadge(ind)}
+              <input
+                type="text"
+                value={ind.descripcion}
+                onChange={(e) => handleUpdateIndicadorDesc(ind.id, e.target.value)}
+                onBlur={() => handleBlurIndicador(ind)}
+                placeholder="Descripción del indicador..."
+                className="indicador-desc-input"
+              />
+            </div>
+            <div className="indicador-header-right">
+              {renderStatusTag(ind)}
+            </div>
+          </div>
+
+          {ind.activo && (
+            <div className="indicador-body">
+              {ind.criterios.map(crit => renderCriterioInputs(ind, crit))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
+  // ──────────────── VIEW MODE: ACCORDION ────────────────
+  const renderAccordion = () => (
+    <div className="accordion-container">
+      {indicadores.map((ind) => {
+        const isOpen = accordionOpen.has(ind.id) || (!ind.activo && accordionOpen.has(ind.id));
+        const expanded = accordionOpen.has(ind.id);
+        return (
+          <div
+            key={ind.id}
+            id={`indicador-${ind.id}`}
+            className={`accordion-item ${ind.activo ? 'active' : 'inactive'} ${expanded ? 'expanded' : ''}`}
+          >
+            <div
+              className="accordion-header"
+              onClick={() => {
+                const next = new Set(accordionOpen);
+                if (next.has(ind.id)) next.delete(ind.id);
+                else next.add(ind.id);
+                setAccordionOpen(next);
+              }}
+            >
+              <div className="accordion-header-left">
+                {renderIndicadorSwitch(ind)}
+                {renderIndicadorBadge(ind)}
+                <input
+                  type="text"
+                  value={ind.descripcion}
+                  onChange={(e) => handleUpdateIndicadorDesc(ind.id, e.target.value)}
+                  onBlur={() => handleBlurIndicador(ind)}
+                  placeholder="Descripción del indicador..."
+                  className="indicador-desc-input"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+              <div className="accordion-header-right">
+                {renderStatusTag(ind)}
+                <span className={`accordion-chevron ${expanded ? 'open' : ''}`}>&#9660;</span>
+              </div>
+            </div>
+
+            {expanded && (
+              <div className="accordion-body">
+                {ind.activo ? (
+                  ind.criterios.length > 0 ? (
+                    ind.criterios.map(crit => renderCriterioInputs(ind, crit))
+                  ) : (
+                    <div className="accordion-empty">Sin criterios</div>
+                  )
+                ) : (
+                  <div className="accordion-empty">Indicador inactivo — activa el switch para editar criterios</div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // ──────────────── VIEW MODE: SPLIT PANEL ────────────────
+  const renderSplitPanel = () => {
+    if (isMobile) return renderAccordion();
+
+    const selected = indicadores.find(i => i.id === expandedIndicador) || indicadores[0] || null;
+
+    return (
+      <div className="split-layout">
+        <div className="split-list">
+          {indicadores.map((ind) => (
+            <div
+              key={ind.id}
+              id={`indicador-${ind.id}`}
+              className={`split-item ${ind.activo ? 'active' : 'inactive'} ${expandedIndicador === ind.id ? 'selected' : ''}`}
+              onClick={() => setExpandedIndicador(ind.id)}
+            >
+              <div className="split-item-row">
+                {renderIndicadorSwitch(ind)}
+                {renderIndicadorBadge(ind)}
+                <span className="split-item-desc">{ind.descripcion || `Indicador ${ind.orden}`}</span>
+                {renderStatusTag(ind)}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="split-detail">
+          {selected ? (
+            <>
+              <div className="split-detail-header">
+                <h3>Indicador {selected.orden}</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  {renderIndicadorSwitch(selected)}
+                  {renderStatusTag(selected)}
+                </div>
+              </div>
+              <input
+                type="text"
+                value={selected.descripcion}
+                onChange={(e) => handleUpdateIndicadorDesc(selected.id, e.target.value)}
+                onBlur={() => handleBlurIndicador(selected)}
+                placeholder="Descripción del indicador..."
+                className="split-detail-desc"
+              />
+              <div className="split-detail-criterios">
+                {selected.activo ? (
+                  selected.criterios.map(crit => renderCriterioInputs(selected, crit))
+                ) : (
+                  <div className="accordion-empty">Indicador inactivo — activa el switch para editar criterios</div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="accordion-empty">Selecciona un indicador de la lista</div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // ──────────────── VIEW MODE: REFINED ────────────────
+  const renderRefined = () => (
+    <div className="ev-cards-container">
+      {indicadores.map((ind) => (
+        <div
+          key={ind.id}
+          id={`indicador-${ind.id}`}
+          className={`refined-card ${ind.activo ? 'active' : 'inactive'}`}
+        >
+          <div className="refined-header">
+            <div className="refined-header-top">
+              <div className="refined-header-left">
+                {renderIndicadorSwitch(ind)}
+                <span className="refined-num">Ind. {ind.orden}</span>
+              </div>
+              {renderStatusTag(ind)}
+            </div>
+            <input
+              type="text"
+              value={ind.descripcion}
+              onChange={(e) => handleUpdateIndicadorDesc(ind.id, e.target.value)}
+              onBlur={() => handleBlurIndicador(ind)}
+              placeholder="Descripción del indicador..."
+              className="refined-desc-input"
+            />
+          </div>
+
+          {ind.activo && (
+            <div className="refined-body">
+              {ind.criterios.map(crit => (
+                <div key={crit.id} className="refined-criterio">
+                  <span className="refined-crit-label">Crit. {crit.orden}</span>
+                  <input
+                    type="text"
+                    value={crit.descripcion}
+                    onChange={(e) => handleUpdateCriterio(ind.id, crit.id, 'descripcion', e.target.value)}
+                    onBlur={() => handleBlurCriterio(crit)}
+                    placeholder="Descripción del criterio..."
+                    className="refined-crit-input"
+                  />
+                  <div className="refined-crit-score">
+                    <input
+                      type="number"
+                      value={crit.puntajeMaximo}
+                      onChange={(e) => handleUpdateCriterio(ind.id, crit.id, 'puntajeMaximo', Number(e.target.value))}
+                      onBlur={() => handleBlurCriterio(crit)}
+                      disabled={isQualitative}
+                      className="refined-crit-puntaje"
+                    />
+                    <span className="criterio-pts">pts</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
+  // ──────────────── RENDER CONTENT ────────────────
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <div className="ev-loading">
+          <div className="ev-loading-spinner" />
+          <span>Cargando configuración...</span>
+        </div>
+      );
+    }
+
+    if (indicadores.length === 0) {
+      return (
+        <div className="ev-empty">
+          <div className="ev-empty-icon">⚙️</div>
+          <h4>No hay configuración de evaluación</h4>
+          <p>
+            {!selectedGrado || !selectedAsignatura || !selectedCorte
+              ? 'Seleccione un grado, asignatura y corte para configurar los indicadores y criterios de evaluación.'
+              : 'No se encontró una configuración para la combinación seleccionada. Intente con otros filtros.'}
+          </p>
+        </div>
+      );
+    }
+
+    // Score summary bar
+    const activeCount = filteredActiveIndicadores.length;
+    const maxScore = isQualitative ? activeCount * 20 : 100;
+    const scoreRatio = maxScore > 0 ? Math.min(puntosActivos / maxScore, 1) : 0;
+
+    return (
+      <>
+        <div className="ev-score-summary">
+          <div className="ev-score-text">
+            <span>Activos: <strong>{activeCount}</strong> / 5</span>
+            {!isQualitative && (
+              <span style={{ marginLeft: '1rem' }}>
+                Puntaje: <strong>{puntosActivos}</strong> / {maxScore} pts
+              </span>
+            )}
+          </div>
+          {!isQualitative && (
+            <div className="ev-score-bar">
+              <div className="ev-score-fill" style={{ width: `${scoreRatio * 100}%` }} />
+            </div>
+          )}
+        </div>
+
+        {viewMode === 'modern-cards' && renderModernCards()}
+        {viewMode === 'accordion' && renderAccordion()}
+        {viewMode === 'split-panel' && renderSplitPanel()}
+        {viewMode === 'refined' && renderRefined()}
+      </>
+    );
+  };
+
+  // ──────────────── MAIN RENDER ────────────────
   return (
     <div className="page-container">
       <div className="category-grid" style={{ display: 'block' }}>
-      
-      <FilterContainer isMobile={isMobile}>
-          {/* Grado */}
+        <FilterContainer isMobile={isMobile}>
           <FilterGroup label="Grado:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
-            <select 
+            <select
               className="filter-select"
               style={{ width: '100%', padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
               value={selectedGrado}
@@ -323,10 +635,8 @@ export function EvaluacionesPage() {
               {grados.map(g => <option key={g.id} value={g.id}>{g.nombre}</option>)}
             </select>
           </FilterGroup>
-          
-          {/* Asignatura */}
           <FilterGroup label="Asignatura:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
-            <select 
+            <select
               className="filter-select"
               style={{ width: '100%', padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
               value={selectedAsignatura}
@@ -338,10 +648,8 @@ export function EvaluacionesPage() {
               {asignaturas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
             </select>
           </FilterGroup>
-
-          {/* Corte */}
           <FilterGroup label="Corte:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
-            <select 
+            <select
               className="filter-select"
               style={{ width: '100%', padding: '0.3rem 0.4rem', fontSize: '0.75rem', height: '28px' }}
               value={selectedCorte}
@@ -351,10 +659,9 @@ export function EvaluacionesPage() {
               {cortes.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
             </select>
           </FilterGroup>
-
           <FilterActions>
-            <button 
-              className="primary" 
+            <button
+              className="primary"
               onClick={handleSaveConfig}
               disabled={loading || asignaturas.length === 0}
               style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}
@@ -364,139 +671,22 @@ export function EvaluacionesPage() {
           </FilterActions>
         </FilterContainer>
 
-      {loading && <div style={{textAlign: 'center', padding: '2rem'}}>Cargando configuración...</div>}
+        {/* View mode toggle */}
+        <div className="ev-view-toggle">
+          {VIEW_MODES.map(({ key, label, icon }) => (
+            <button
+              key={key}
+              className={`ev-view-btn ${viewMode === key ? 'active' : ''}`}
+              onClick={() => handleViewModeChange(key)}
+              title={label}
+            >
+              <span className="ev-view-icon">{icon}</span>
+              {!isMobile && <span className="ev-view-label">{label}</span>}
+            </button>
+          ))}
+        </div>
 
-      {/* Indicators List */}
-      {!loading && (
-        <>
-          {indicadores.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ padding: '0 1rem', color: '#aaa', fontSize: '0.9rem' }}>
-                 Total Activos: {indicadores.filter(i => i.activo).length} / 5 {!isQualitative && '(100 pts)'}
-              </div>
-
-              {indicadores.map((ind) => (
-                  <div key={ind.id} id={`indicador-${ind.id}`} className={`category-card ${!ind.activo ? 'inactive-card' : ''}`} style={{ opacity: ind.activo ? 1 : 0.6 }}>
-                      <div className="category-header" style={{ 
-                          background: ind.activo ? 'rgba(100, 108, 255, 0.1)' : 'rgba(0,0,0,0.2)', 
-                          justifyContent: 'space-between',
-                          flexWrap: 'wrap',
-                          gap: '0.5rem',
-                          padding: '0.8rem'
-                      }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', flex: '1 1 250px' }}>
-                              <label className="switch" title={ind.activo ? "Desactivar" : "Activar"}>
-                                 <input 
-                                     type="checkbox" 
-                                     checked={ind.activo} 
-                                     onChange={() => handleToggleIndicador(ind)}
-                                 />
-                                 <span className="slider round"></span>
-                             </label>
-                             <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>Ind. {ind.orden}</span>
-                             <input 
-                                 type="text" 
-                                 value={ind.descripcion}
-                                 onChange={(e) => handleUpdateIndicadorDesc(ind.id, e.target.value)}
-                                 onBlur={() => handleBlurIndicador(ind)}
-                                 placeholder="Descripción del indicador..."
-                                 aria-label={`Descripción del indicador ${ind.orden}`}
-                                 style={{ 
-                                     background: 'transparent', 
-                                     border: 'none', 
-                                     borderBottom: '1px solid rgba(255,255,255,0.2)', 
-                                     color: 'white', 
-                                     flex: 1,
-                                     padding: '0.3rem',
-                                     minWidth: '100px'
-                                 }}
-                             />
-                          </div>
-                          <span style={{ 
-                              fontSize: '0.75rem', 
-                              background: ind.activo ? (isQualitative ? '#3b82f6' : '#4ade80') : '#64748b', 
-                              color: ind.activo && isQualitative ? '#fff' : '#000', 
-                              padding: '2px 8px', 
-                              borderRadius: '10px',
-                              marginLeft: 'auto'
-                          }}>
-                              {ind.activo ? (isQualitative ? 'Cualitativo' : '20 pts') : 'Inactivo'}
-                          </span>
-                      </div>
-                      
-                      {/* Criteria */}
-                      {ind.activo && (
-                          <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                              {ind.criterios.map(crit => (
-                                  <div key={crit.id} style={{ 
-                                      display: 'flex', 
-                                      flexWrap: 'wrap', 
-                                      gap: '0.5rem', 
-                                      alignItems: 'center',
-                                      padding: '0.5rem',
-                                      background: 'rgba(255,255,255,0.02)',
-                                      borderRadius: '8px',
-                                      marginBottom: '0.2rem'
-                                  }}>
-                                      <span style={{ fontSize: '0.7rem', color: '#aaa', minWidth: '60px' }}>Crit. {crit.orden}</span>
-                                      <input 
-                                         type="text" 
-                                         value={crit.descripcion}
-                                         onChange={(e) => handleUpdateCriterio(ind.id, crit.id, 'descripcion', e.target.value)}
-                                         onBlur={() => handleBlurCriterio(crit)}
-                                         placeholder="Descripción del criterio..."
-                                         aria-label={`Descripción del criterio ${crit.orden}`}
-                                         style={{ 
-                                             background: 'rgba(255,255,255,0.05)', 
-                                             border: '1px solid rgba(255,255,255,0.1)', 
-                                             color: 'white', 
-                                             padding: '0.3rem', 
-                                             borderRadius: '4px',
-                                             flex: '1 1 150px'
-                                         }}
-                                      />
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', marginLeft: 'auto' }}>
-                                          <input 
-                                             type="number" 
-                                             value={crit.puntajeMaximo}
-                                             onChange={(e) => handleUpdateCriterio(ind.id, crit.id, 'puntajeMaximo', Number(e.target.value))}
-                                             onBlur={() => handleBlurCriterio(crit)}
-                                             disabled={isQualitative}
-                                             aria-label={`Puntaje máximo del criterio ${crit.orden}`}
-                                             style={{ 
-                                                 width: '45px', 
-                                                 padding: '0.2rem', 
-                                                 textAlign: 'center', 
-                                                 background: isQualitative ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.3)', 
-                                                 border: isQualitative ? '1px solid #64748b' : '1px solid #4ade80', 
-                                                 borderRadius: '4px', 
-                                                 color: isQualitative ? '#64748b' : '#4ade80', 
-                                                 fontWeight: 'bold',
-                                                 fontSize: '0.85rem'
-                                             }}
-                                          />
-                                          <span style={{ fontSize: '0.65rem', color: isQualitative ? '#64748b' : '#aaa' }}>pts</span>
-                                      </div>
-                                  </div>
-                              ))}
-                          </div>
-                      )}
-                  </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '5rem 2rem', border: '2px dashed rgba(255, 255, 255, 0.1)', borderRadius: '16px', margin: '0 1rem' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚙️</div>
-              <h4 style={{ color: '#cbd5e1', marginBottom: '0.5rem' }}>No hay configuración de evaluación</h4>
-              <p style={{ color: '#94a3b8', maxWidth: '400px', margin: '0 auto' }}>
-                {!selectedGrado || !selectedAsignatura || !selectedCorte 
-                  ? 'Seleccione un grado, asignatura y corte para configurar los indicadores y criterios de evaluación.'
-                  : 'No se encontró una configuración para la combinación seleccionada. Intente con otros filtros.'}
-              </p>
-            </div>
-          )}
-        </>
-      )}
+        {renderContent()}
       </div>
     </div>
   );
