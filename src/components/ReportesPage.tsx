@@ -2015,6 +2015,9 @@ try {
         }
         .notas-table-container table thead th {
            background: #1e293b !important;
+           position: sticky;
+           top: 0;
+           z-index: 100;
          }
       `}</style>
 

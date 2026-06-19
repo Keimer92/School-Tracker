@@ -1134,9 +1134,7 @@ label,
     padding: 0.5rem;
     padding-bottom: 0.5rem;
     height: 100vh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden; /* Evitar scroll en main-content, debe ser interno en cada tab */
+    overflow-y: auto;
   }
   /* Hacer que los encabezados sticky no ocupen tanto espacio en landscape */
   .sticky-filters {
@@ -1206,9 +1204,7 @@ label,
 
   .main-content {
     height: calc(100vh - 56px - 35vh) !important;
-    display: flex !important;
-    flex-direction: column !important;
-    overflow: hidden !important;
+    overflow-y: auto !important;
   }
 }
 
