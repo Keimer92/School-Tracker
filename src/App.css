@@ -266,7 +266,7 @@ body {
   margin-top: 0.5rem;
   background: rgba(15, 23, 42, 0.4);
   border-radius: 12px;
-  overflow: hidden;
+  overflow: visible; /* Fix para position sticky */
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
@@ -1134,15 +1134,17 @@ label,
     padding: 0.5rem;
     padding-bottom: 0.5rem;
     height: 100vh;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Evitar scroll en main-content, debe ser interno en cada tab */
   }
-
   /* Hacer que los encabezados sticky no ocupen tanto espacio en landscape */
   .sticky-filters {
     position: relative !important;
     top: auto !important;
     margin-bottom: 0.5rem !important;
     padding: 0.5rem !important;
+    z-index: 100;
   }
 
   .filters-row {
@@ -1204,7 +1206,9 @@ label,
 
   .main-content {
     height: calc(100vh - 56px - 35vh) !important;
-    overflow-y: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
   }
 }
 
@@ -1293,6 +1297,12 @@ h1 {
   transform: translateY(-5px);
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
   border-color: rgba(96, 165, 250, 0.2);
+}
+
+.sticky-filters {
+  position: sticky;
+  top: 0;
+  z-index: 99;
 }
 
 .category-header {

@@ -811,7 +811,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
           }
         `}
       </style>
-      <div className="category-grid" style={{ display: 'block' }}>
+      <div className="category-grid" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
         {/* Filtros de Búsqueda */}
         <FilterContainer isMobile={isAndroidMobile} style={{ padding: isAndroidMobile ? '0.5rem' : '0.4rem' }}>
           {/* Fecha */}

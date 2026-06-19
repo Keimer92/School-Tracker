@@ -923,7 +923,7 @@ try {
            }
         `}
       </style>
-      <div className="category-grid" style={{ display: 'block' }}>
+      <div className="category-grid" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
         <FilterContainer isMobile={isMobile} style={{ padding: '0.4rem' }}>
           {/* Período */}
           <FilterGroup label="Período:" isMobile={isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
