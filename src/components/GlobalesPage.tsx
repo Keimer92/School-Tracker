@@ -387,7 +387,17 @@ function CategoryTabContent({
     if (!config.endpoints.setActive) return;
     try {
       await invoke(config.endpoints.setActive, { id });
-      fetchItems();
+      const data: CategoryItem[] = await invoke(config.endpoints.get);
+      setItems(data);
+      // Sincronizar el estado activo de todos los items con la nube
+      for (const item of data) {
+        syncService.syncGlobal(config.table, {
+          id: item.id,
+          nombre: item.nombre,
+          activo: item.activo,
+          cualitativo: item.cualitativo,
+        }, false);
+      }
       await emit("show-toast", {
         message: "✅ Activado correctamente",
         type: "success",
