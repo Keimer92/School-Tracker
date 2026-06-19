@@ -645,6 +645,8 @@ body {
 
 .main-content {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 1rem;
@@ -739,6 +741,8 @@ body {
 
   .main-content {
     flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
     padding: 16px !important;
@@ -1104,6 +1108,8 @@ label,
 
   .main-content {
     flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
     padding: 16px !important;
