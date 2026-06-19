@@ -84,8 +84,6 @@ export function InformePage() {
   const [reporte, setReporte] = useState<AsistenciaReporteItem[]>([]);
   const [colegioConfig, setColegioConfig] = useState<ColegioDiasAsistencia | null>(null);
   const [loading, setLoading] = useState(false);
-  const initialLoadDone = useRef(false);
-  const initialMountDone = useRef(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [printHtml, setPrintHtml] = useState<string | null>(null);
   const fetchingRef = React.useRef(false);
@@ -172,54 +170,8 @@ export function InformePage() {
       setAnos(anosData);
       setColegios(colegiosData);
 
-      // Solo precargar datos dependientes en el primer montaje
-      if (!initialMountDone.current) {
-        initialMountDone.current = true;
-
-        setSelectedAno(finalAno);
-        setSelectedColegio(finalColegio);
-
-        let gradosData: CategoryItem[] = [];
-        let seccionesData: CategoryItem[] = [];
-        let colegioConfigData = null;
-        let firstGradoId = 0;
-
-        if (finalColegio && finalAno) {
-          const [gradosRaw, config] = await Promise.all([
-            invoke<CategoryItem[]>("get_grados_by_colegio", { colegioId: finalColegio, anoLectivoId: finalAno }),
-            invoke<ColegioDiasAsistencia>("get_colegio_dias_asistencia", { colegioId: finalColegio }).catch(() => null),
-          ]);
-          gradosData = gradosRaw;
-          colegioConfigData = config;
-
-          if (gradosData.length > 0) {
-            const stillExists = savedGrado && gradosData.some(g => g.id === savedGrado);
-            firstGradoId = stillExists ? savedGrado : gradosData[0].id;
-          }
-
-          if (firstGradoId > 0) {
-            try {
-              seccionesData = await invoke<CategoryItem[]>("get_secciones_by_grado_colegio", {
-                gradoId: firstGradoId,
-                colegioId: finalColegio,
-                anoLectivoId: finalAno,
-              });
-            } catch (e) {}
-          }
-        }
-
-        const firstSeccionId = seccionesData.length > 0
-          ? (savedSeccion && seccionesData.some(s => s.id === savedSeccion) ? savedSeccion : seccionesData[0].id)
-          : 0;
-
-        setGrados(gradosData);
-        setSecciones(seccionesData);
-        setSelectedGrado(firstGradoId);
-        setSelectedSeccion(firstSeccionId);
-        setColegioConfig(colegioConfigData);
-
-        initialLoadDone.current = true;
-      }
+      setSelectedAno(finalAno);
+      setSelectedColegio(finalColegio);
     } catch (error) {
       console.error("Error fetching catalogs:", error);
       await emit("show-toast", { message: "❌ Error al cargar catálogos: " + error, type: "error" });
@@ -350,10 +302,6 @@ export function InformePage() {
   // Cargar grados y config de días cuando cambie el colegio o el año
   useEffect(() => {
     if (selectedColegio && selectedAno) {
-      if (initialLoadDone.current) {
-        initialLoadDone.current = false;
-        return;
-      }
       fetchGrados();
       fetchColegioConfig(selectedColegio);
     }
@@ -362,7 +310,6 @@ export function InformePage() {
   // Cargar secciones cuando cambie el grado o el colegio o el año
   useEffect(() => {
     if (selectedGrado && selectedColegio && selectedAno) {
-      if (initialLoadDone.current) return;
       fetchSecciones();
     }
   }, [selectedGrado, selectedColegio, selectedAno, refreshTrigger]);
