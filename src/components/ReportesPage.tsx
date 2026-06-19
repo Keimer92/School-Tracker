@@ -1405,7 +1405,13 @@ try {
           .table-slide-container, .statistics-slide-container {
             display: none;
           }
-          .table-slide-container.active, .statistics-slide-container.active {
+          .table-slide-container.active {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+          }
+          .statistics-slide-container.active {
             display: block;
           }
         `}
@@ -1775,9 +1781,13 @@ try {
           <>
             {/* Slide de Tabla */}
             <div className={`table-slide-container ${activeSlide === 'tabla' ? 'active' : ''}`} style={{ 
-              animation: activeSlide === 'tabla' ? 'fadeIn 0.3s ease-out' : 'none'
+              animation: activeSlide === 'tabla' ? 'fadeIn 0.3s ease-out' : 'none',
+              display: 'flex',
+              flexDirection: 'column',
+              flex: 1,
+              minHeight: 0
             }}>
-              <div className="category-card table-card" style={{ padding: '0', overflow: 'hidden' }}>
+              <div className="category-card table-card" style={{ padding: '0', overflow: 'hidden', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
                 <div className="notas-table-container" style={{ 
                   overflow: 'auto',
                   padding: '0', 
@@ -1786,7 +1796,8 @@ try {
                   WebkitOverflowScrolling: 'touch', 
                   border: '1px solid rgba(255,255,255,0.1)', 
                   borderRadius: '8px',
-                  maxHeight: isMobile ? 'calc(100dvh - 290px)' : 'calc(100vh - 250px)'
+                  flex: 1,
+                  minHeight: 0
                 }}>
                   <table style={{ width: '100%', minWidth: 'max-content', borderCollapse: 'separate', borderSpacing: 0 }}>
                     <thead style={{ position: 'sticky', top: 0, zIndex: 100 }}>

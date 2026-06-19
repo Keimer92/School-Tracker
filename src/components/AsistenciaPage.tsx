@@ -803,16 +803,6 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
           .table-container::-webkit-scrollbar-thumb:hover {
             background: rgba(255,255,255,0.3);
           }
-          @media (max-width: 768px) {
-            .table-container {
-              max-height: calc(100vh - 320px);
-            }
-          }
-          @media (min-width: 769px) {
-            .table-container {
-              max-height: calc(100vh - 260px);
-            }
-          }
           .custom-table thead th {
             position: sticky;
             top: 0;
@@ -1185,7 +1175,8 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
       <div className="table-container" style={{
         width: '100%',
         padding: '0',
-        maxHeight: isAndroidMobile ? 'calc(100vh - 300px)' : 'calc(100vh - 240px)',
+        flex: 1,
+        minHeight: 0,
         overflowY: 'auto',
         overflowX: isAndroidMobile ? 'auto' : 'hidden',
         WebkitOverflowScrolling: 'touch',

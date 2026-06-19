@@ -1258,7 +1258,8 @@ try {
       <div className="table-container" style={{
         width: '100%',
         padding: '0',
-        maxHeight: isMobile ? 'calc(100vh - 320px)' : 'calc(100vh - 260px)',
+        flex: 1,
+        minHeight: 0,
         overflowY: 'auto',
         overflowX: isAndroidMobile ? 'auto' : 'hidden',
         WebkitOverflowScrolling: 'touch',
