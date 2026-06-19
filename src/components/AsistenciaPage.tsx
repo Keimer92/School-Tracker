@@ -130,15 +130,11 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
         colegioToSelect = activeColegio;
       }
 
-      const savedAno = localStorage.getItem("selectedAno");
-      const finalAno = savedAno ? Number(savedAno) : (activeAno || 0);
-      const finalColegio = colegioToSelect || 0;
-
       setAnos(anosData);
       setColegios(colegiosData);
 
-      setSelectedAno(finalAno);
-      setSelectedColegio(finalColegio);
+      setSelectedAno(activeAno);
+      setSelectedColegio(colegioToSelect);
     } catch (error) {
       console.error("Error fetching catalogs:", error);
       await emit("show-toast", { message: "❌ Error al cargar catálogos: " + error, type: "error" });

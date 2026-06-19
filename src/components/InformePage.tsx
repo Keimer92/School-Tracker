@@ -159,19 +159,11 @@ export function InformePage() {
       const activeAno = anosData.find(a => a.activo)?.id || (anosData.length > 0 ? anosData[0].id : 0);
       const activeColegio = colegiosData.find(c => c.activo)?.id || (colegiosData.length > 0 ? colegiosData[0].id : 0);
 
-      const savedAno = localStorage.getItem("selectedAno");
-      const savedColegio = localStorage.getItem("selectedColegio");
-      const savedGrado = Number(localStorage.getItem("selectedGrado")) || 0;
-      const savedSeccion = Number(localStorage.getItem("selectedSeccion")) || 0;
-
-      const finalAno = savedAno ? Number(savedAno) : (activeAno || 0);
-      const finalColegio = savedColegio ? Number(savedColegio) : (activeColegio || 0);
-
       setAnos(anosData);
       setColegios(colegiosData);
 
-      setSelectedAno(finalAno);
-      setSelectedColegio(finalColegio);
+      setSelectedAno(activeAno);
+      setSelectedColegio(activeColegio);
     } catch (error) {
       console.error("Error fetching catalogs:", error);
       await emit("show-toast", { message: "❌ Error al cargar catálogos: " + error, type: "error" });

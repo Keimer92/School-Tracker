@@ -1,10 +1,13 @@
 @echo off
-set "RUNNER=%USERPROFILE%\.cargo\bin\developing-runner.exe"
+set "RUNNER=%USERPROFILE%\.cargo\bin\code-runner.exe"
 if not exist "%RUNNER%" (
-    echo [ERROR] No se encontro developing-runner.exe
+    echo [ERROR] No se encontro code-runner.exe
     echo Ejecuta: cargo install --path "%~dp0"
     pause
     exit /b 1
 )
 "%RUNNER%" -p "%CD%"
-pause
+if %errorlevel% neq 0 (
+    echo.
+    pause
+)
