@@ -811,6 +811,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
             background: #1e293b !important;
           }
         `}
+      </style>
       <PageLayout
         filters={
           <FilterContainer isMobile={isAndroidMobile} style={{ padding: isAndroidMobile ? '0.5rem' : '0.4rem' }}>

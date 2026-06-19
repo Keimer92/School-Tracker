@@ -9,6 +9,7 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import SearchInput from './SearchInput';
 import { FilterContainer, FilterGroup, FilterActions } from './FilterContainer';
+import { PageLayout } from './PageLayout';
 import "../App.css";
 
 interface CategoryItem {
@@ -1432,21 +1433,22 @@ try {
   </div>
 </div>
 
-      {/* Contenedor de Filtros - Siempre Visible */}
-      <div className="category-card sticky-filters" style={{ 
-          marginBottom: '1rem', 
-          padding: '0.8rem',
-          position: 'sticky',
-          top: 0,
-          zIndex: 999,
-          background: 'rgba(26, 26, 26, 0.8)',
-          backdropFilter: 'blur(10px)',
-          WebkitBackdropFilter: 'blur(10px)',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
-          borderRadius: '0 0 12px 12px',
-          border: '1px solid rgba(255,255,255,0.05)',
-          borderTop: 'none'
-      }}>
+      <PageLayout
+        filters={
+          <div className="category-card sticky-filters" style={{ 
+              marginBottom: '1rem', 
+              padding: '0.8rem',
+              position: 'sticky',
+              top: 0,
+              zIndex: 999,
+              background: 'rgba(26, 26, 26, 0.8)',
+              backdropFilter: 'blur(10px)',
+              WebkitBackdropFilter: 'blur(10px)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)',
+              borderRadius: '0 0 12px 12px',
+              border: '1px solid rgba(255,255,255,0.05)',
+              borderTop: 'none'
+          }}>
         <div className="filters-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem', flexWrap: 'wrap', gap: '0.8rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: '1 1 auto' }}>
             <h3 style={{ margin: 0, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '1.1rem' }}>
@@ -1741,6 +1743,8 @@ try {
           </div>
         </FilterContainer>
       </div>
+      }
+    >
       {/* Área de Contenido (Slides) */}
       <div style={{ position: 'relative', flex: 1, minHeight: '400px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {loading ? (
@@ -2021,6 +2025,7 @@ try {
          }
       `}</style>
 
+    </PageLayout>
     </div>
   );
 }
