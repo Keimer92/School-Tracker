@@ -65,6 +65,9 @@ export function EstudiantesPage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  const [viewMode, setViewMode] = useState<'card' | 'list' | 'grid'>('grid');
+  const [gridSelectedStudent, setGridSelectedStudent] = useState<Student | null>(null);
+
   // Stats calculation
   const stats = useMemo(() => {
     return {
@@ -1319,19 +1322,57 @@ export function EstudiantesPage() {
         </div>
       )}
 
+      {/* View Toggle */}
+      {filteredStudents.length > 0 && (
+        <div style={{
+          display: 'flex', justifyContent: isMobile ? 'center' : 'flex-end',
+          marginBottom: '0.5rem', marginTop: '0.2rem'
+        }}>
+          <div style={{
+            display: 'flex', gap: '2px',
+            background: 'rgba(255,255,255,0.04)',
+            borderRadius: '10px', padding: '3px',
+            border: '1px solid rgba(255,255,255,0.06)'
+          }}>
+            {(['grid', 'list', 'card'] as const).map(mode => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                style={{
+                  padding: isMobile ? '4px 8px' : '5px 12px',
+                  fontSize: isMobile ? '0.75rem' : '0.8rem',
+                  fontWeight: viewMode === mode ? '700' : '500',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: viewMode === mode
+                    ? 'linear-gradient(135deg, rgba(56,189,248,0.25), rgba(99,102,241,0.25))'
+                    : 'transparent',
+                  color: viewMode === mode ? '#38bdf8' : '#64748b',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'all 0.2s',
+                  whiteSpace: 'nowrap',
+                }}
+                title={mode === 'card' ? 'Vista tarjetas' : mode === 'list' ? 'Vista lista' : 'Vista avatares'}
+              >
+                {mode === 'card' ? '▦' : mode === 'list' ? '☰' : '⊞'}
+                {!isMobile && <span>{mode === 'card' ? 'Cards' : mode === 'list' ? 'Lista' : 'Grid'}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Student Grid or Empty State */}
-      <div style={{ 
+      <div style={{
         flex: 1,
         overflowY: 'auto',
         overflowX: 'hidden',
         minHeight: 0,
-        display: filteredStudents.length === 0 ? "block" : (isMobile ? "flex" : "grid"), 
-        flexDirection: isMobile ? "column" : undefined,
-        gridTemplateColumns: (!isMobile && filteredStudents.length !== 0) ? "repeat(auto-fill, minmax(350px, 1fr))" : undefined, 
-        gap: isMobile ? "0.5rem" : "1rem",
         width: '100%',
         boxSizing: 'border-box',
-        padding: isMobile ? '0 0.25rem' : '0',
       }}>
         {filteredStudents.length === 0 ? (
           <div style={{ 
@@ -1361,112 +1402,141 @@ export function EstudiantesPage() {
               </button>
             )}
           </div>
-        ) : (
-          filteredStudents.map((st, index) => (
-            <div key={st.id} className="category-card" style={{ margin: 0, padding: "0.8rem" }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flex: 1, minWidth: 0 }}>
-                    {/* Foto del estudiante */}
+        ) : viewMode === 'card' ? (
+          /* Cards compact view */
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(320px, 1fr))',
+            gap: isMobile ? '0.5rem' : '0.75rem',
+            padding: isMobile ? '0 0.25rem' : '0',
+            alignContent: 'flex-start',
+          }}>
+            {filteredStudents.map((st, index) => (
+              <div key={st.id} className="category-card" style={{ margin: 0, padding: "0.6rem 0.8rem" }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flex: 1, minWidth: 0 }}>
                     {st.foto ? (
-                      <img 
-                        src={st.foto} 
-                        alt={st.nombre}
-                        style={{
-                          width: '40px',
-                          height: '40px',
-                          borderRadius: '50%',
-                          objectFit: 'cover',
-                          border: '2px solid rgba(56, 189, 248, 0.3)',
-                          flexShrink: 0,
-                        }}
-                      />
+                      <img src={st.foto} alt={st.nombre}
+                        style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: '2px solid rgba(56, 189, 248, 0.3)', flexShrink: 0 }} />
                     ) : (
-                      <div style={{
-                        width: '40px',
-                        height: '40px',
-                        borderRadius: '50%',
-                        background: 'rgba(255,255,255,0.1)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '1.2rem',
-                        flexShrink: 0,
-                      }}>
+                      <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', flexShrink: 0 }}>
                         👤
                       </div>
                     )}
-                    
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
-                      <span style={{
-                        fontSize: "0.75rem",
-                        background: "rgba(56, 189, 248, 0.15)",
-                        color: "#38bdf8",
-                        padding: "1px 6px",
-                        borderRadius: "4px",
-                        fontWeight: "bold",
-                        flexShrink: 0,
-                        border: "1px solid rgba(56, 189, 248, 0.2)"
-                      }}>
-                        #{index + 1}
-                      </span>
-                      <span style={{ fontSize: "0.95rem", fontWeight: "bold", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {st.nombre}
-                      </span>
-                    </div>
+                    <span style={{ fontSize: "0.7rem", background: "rgba(56, 189, 248, 0.15)", color: "#38bdf8", padding: "1px 5px", borderRadius: "4px", fontWeight: "bold", flexShrink: 0, border: "1px solid rgba(56, 189, 248, 0.2)" }}>
+                      #{index + 1}
+                    </span>
+                    <span style={{ fontSize: "0.9rem", fontWeight: "bold", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {st.nombre}
+                    </span>
                   </div>
                   <div className="item-actions" style={{ display: "flex", gap: "0.2rem", flexShrink: 0 }}>
-                    <button 
-                      className="icon-button edit" 
-                      onClick={() => openEditModal(st)} 
-                      style={{ color: "#38bdf8", padding: '4px' }}
-                    >
-                      ✏️
-                    </button>
-                    <button 
-                      className="icon-button delete" 
-                      onClick={() => handleDelete(st.id!)} 
-                      style={{ padding: '4px' }}
-                    >
-                      🗑
-                    </button>
+                    <button className="icon-button edit" onClick={() => openEditModal(st)} style={{ width: '30px', height: '30px', fontSize: '0.8rem' }}>✏️</button>
+                    <button className="icon-button delete" onClick={() => handleDelete(st.id!)} style={{ width: '30px', height: '30px', fontSize: '0.8rem' }}>🗑</button>
                   </div>
                 </div>
-                
-                <div style={{ 
-                  display: 'flex', 
-                  flexWrap: 'wrap', 
-                  gap: '0.6rem', 
-                  fontSize: '0.75rem', 
-                  color: '#94a3b8',
-                  alignItems: 'center',
-                  background: 'rgba(255,255,255,0.03)',
-                  padding: '0.5rem',
-                  borderRadius: '6px'
-                }}>
-                  <span style={{ whiteSpace: 'nowrap' }}><strong style={{color: '#38bdf8'}}>Cod:</strong> {st.codigo}</span>
-                  <span style={{ whiteSpace: 'nowrap' }}>{st.sexo === 'M' ? 'Masc' : 'Fem'}</span>
-                  
-                  <div style={{ width: '1px', height: '12px', background: 'rgba(255,255,255,0.1)', margin: '0 2px' }}></div>
-
-                  <span style={{ background: "rgba(56, 189, 248, 0.1)", color: "#38bdf8", padding: "1px 6px", borderRadius: "3px", whiteSpace: 'nowrap' }}>
-                    {allGrados.find(g => g.id === st.gradoId)?.nombre || 'Grado'}
-                  </span>
-                  <span style={{ background: "rgba(168, 85, 247, 0.1)", color: "#a855f7", padding: "1px 6px", borderRadius: "3px", whiteSpace: 'nowrap' }}>
-                    {allSecciones.find(s => s.id === st.seccionId)?.nombre || 'Sección'}
-                  </span>
-                </div>
-
-                {(st.telefono || st.email || st.direccion) && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.8rem', fontSize: '0.75rem', color: '#64748b', paddingLeft: '0.2rem' }}>
-                     {st.telefono && <span>📞 {st.telefono}</span>}
-                     {st.email && <span>📧 {st.email}</span>}
-                     {st.direccion && <span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📍 {st.direccion}</span>}
+              </div>
+            ))}
+          </div>
+        ) : viewMode === 'list' ? (
+          /* Compact list view */
+          <div style={{ display: 'flex', flexDirection: 'column', borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.05)' }}>
+            {filteredStudents.map((st, index) => (
+              <div key={st.id} style={{
+                display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem',
+                borderBottom: index < filteredStudents.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                background: index % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
+                transition: 'background 0.15s',
+              }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                onMouseLeave={e => e.currentTarget.style.background = index % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent'}
+              >
+                {st.foto ? (
+                  <img src={st.foto} alt={st.nombre}
+                    style={{ width: '30px', height: '30px', borderRadius: '50%', objectFit: 'cover', border: '1px solid rgba(56, 189, 248, 0.2)', flexShrink: 0 }} />
+                ) : (
+                  <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: 'rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', flexShrink: 0 }}>
+                    👤
                   </div>
                 )}
+                <span style={{
+                  fontSize: "0.65rem", fontWeight: "bold", flexShrink: 0, minWidth: '26px', textAlign: 'center',
+                  background: "rgba(56, 189, 248, 0.15)", color: "#38bdf8",
+                  padding: "1px 5px", borderRadius: "4px",
+                  border: "1px solid rgba(56, 189, 248, 0.2)"
+                }}>
+                  {index + 1}
+                </span>
+                <span style={{ fontSize: "0.85rem", fontWeight: "500", whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+                  {st.nombre}
+                </span>
+                <div style={{ display: "flex", gap: "0.15rem", flexShrink: 0 }}>
+                  <button className="icon-button edit" onClick={() => openEditModal(st)} style={{ width: '26px', height: '26px', fontSize: '0.7rem' }}>✏️</button>
+                  <button className="icon-button delete" onClick={() => handleDelete(st.id!)} style={{ width: '26px', height: '26px', fontSize: '0.7rem' }}>🗑</button>
+                </div>
               </div>
-            </div>
-          ))
+            ))}
+          </div>
+        ) : (
+          /* Avatar grid view */
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : 'repeat(6, 1fr)',
+            gap: isMobile ? '0.6rem' : '0.8rem',
+            padding: '0.25rem 0',
+          }}>
+            {filteredStudents.map((st, index) => (
+              <div key={st.id}
+                onClick={() => setGridSelectedStudent(st)}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem',
+                  cursor: 'pointer', padding: '0.6rem 0.4rem', borderRadius: '12px',
+                  transition: 'background 0.2s',
+                  background: 'rgba(255,255,255,0.02)',
+                  border: '1px solid rgba(255,255,255,0.04)',
+                }}
+              >
+                <div style={{ position: 'relative', display: 'inline-flex' }}>
+                  {st.foto ? (
+                    <img src={st.foto} alt={st.nombre}
+                      style={{ width: isMobile ? '52px' : '64px', height: isMobile ? '52px' : '64px', borderRadius: '50%', objectFit: 'cover', border: '2px solid rgba(56, 189, 248, 0.25)', boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }} />
+                  ) : (
+                    <div style={{
+                      width: isMobile ? '52px' : '64px', height: isMobile ? '52px' : '64px', borderRadius: '50%',
+                      background: 'linear-gradient(135deg, rgba(56,189,248,0.15), rgba(168,85,247,0.15))',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isMobile ? '1.3rem' : '1.6rem',
+                      border: '2px solid rgba(56, 189, 248, 0.15)'
+                    }}>
+                      👤
+                    </div>
+                  )}
+                  <span style={{
+                    position: 'absolute', top: '-4px', right: '-4px',
+                    fontSize: '0.6rem', fontWeight: 'bold',
+                    background: 'linear-gradient(135deg, #38bdf8, #6366f1)',
+                    color: 'white',
+                    width: '20px', height: '20px',
+                    borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                    border: '2px solid rgba(15,23,42,0.8)',
+                  }}>
+                    {index + 1}
+                  </span>
+                </div>
+                <span style={{
+                  fontSize: isMobile ? '0.7rem' : '0.8rem',
+                  color: '#e2e8f0', textAlign: 'center',
+                  overflow: 'hidden', textOverflow: 'ellipsis',
+                  maxWidth: '100%', whiteSpace: 'nowrap',
+                  fontWeight: 600,
+                  marginTop: '3px'
+                }}>
+                  {st.nombre}
+                </span>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
@@ -1656,6 +1726,86 @@ export function EstudiantesPage() {
                 style={{ backgroundColor: '#ef4444' }}
               >
                 {isDeleting ? "Eliminando..." : "Eliminar Todo"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Bottom Sheet para Grid View */}
+      {gridSelectedStudent && createPortal(
+        <div
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            zIndex: 10000, display: 'flex', flexDirection: 'column',
+            justifyContent: 'flex-end',
+            background: 'rgba(0,0,0,0.5)',
+            animation: 'fadeIn 0.2s ease-out',
+          }}
+          onClick={() => setGridSelectedStudent(null)}
+        >
+          <div
+            className="category-card"
+            onClick={e => e.stopPropagation()}
+            style={{
+              margin: '0 0.5rem 0.5rem', padding: '1.25rem', borderRadius: '16px',
+              maxWidth: '400px', alignSelf: 'center', width: '100%',
+              animation: 'slideUp 0.3s ease-out',
+              borderBottom: 'none',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+              {gridSelectedStudent.foto ? (
+                <img src={gridSelectedStudent.foto} alt={gridSelectedStudent.nombre}
+                  style={{ width: '56px', height: '56px', borderRadius: '50%', objectFit: 'cover', border: '2px solid rgba(56, 189, 248, 0.3)' }} />
+              ) : (
+                <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' }}>
+                  👤
+                </div>
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '1.1rem', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {gridSelectedStudent.nombre}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '2px' }}>
+                  Código: {gridSelectedStudent.codigo}
+                </div>
+              </div>
+              <button
+                onClick={() => setGridSelectedStudent(null)}
+                style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '1.2rem', cursor: 'pointer', padding: '4px' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', fontSize: '0.75rem', marginBottom: '1rem' }}>
+              <span style={{ background: "rgba(56, 189, 248, 0.1)", color: "#38bdf8", padding: "2px 8px", borderRadius: "4px" }}>
+                {allGrados.find(g => g.id === gridSelectedStudent.gradoId)?.nombre || 'Grado'}
+              </span>
+              <span style={{ background: "rgba(168, 85, 247, 0.1)", color: "#a855f7", padding: "2px 8px", borderRadius: "4px" }}>
+                {allSecciones.find(s => s.id === gridSelectedStudent.seccionId)?.nombre || 'Sección'}
+              </span>
+              <span style={{ background: gridSelectedStudent.sexo === 'M' ? "rgba(96, 165, 250, 0.1)" : "rgba(244, 114, 182, 0.1)", color: gridSelectedStudent.sexo === 'M' ? "#60a5fa" : "#f472b6", padding: "2px 8px", borderRadius: "4px" }}>
+                {gridSelectedStudent.sexo === 'M' ? 'Masculino' : 'Femenino'}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                className="primary"
+                onClick={() => { openEditModal(gridSelectedStudent); setGridSelectedStudent(null); }}
+                style={{ flex: 1, justifyContent: 'center', padding: '0.6rem', fontSize: '0.85rem' }}
+              >
+                ✏️ Editar
+              </button>
+              <button
+                className="cancel"
+                onClick={() => { handleDelete(gridSelectedStudent.id!); setGridSelectedStudent(null); }}
+                style={{ flex: 1, justifyContent: 'center', padding: '0.6rem', fontSize: '0.85rem' }}
+              >
+                🗑 Eliminar
               </button>
             </div>
           </div>
