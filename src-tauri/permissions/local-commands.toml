@@ -99,5 +99,7 @@ commands.allow = [
     "gd_create_backup",
     "gd_get_backups",
     "gd_delete_backup",
-    "gd_import_db_from_file"
+    "gd_import_db_from_file",
+    "delete_notas"
 ]
+
