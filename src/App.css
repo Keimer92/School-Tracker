@@ -647,6 +647,7 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 1rem;
@@ -743,12 +744,12 @@ body {
     flex: 1 !important;
     display: flex !important;
     flex-direction: column !important;
+    min-height: 0 !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
     padding: 16px !important;
     padding-bottom: 16px !important;
     box-sizing: border-box !important;
-    min-height: 0 !important;
     margin: 0 !important;
     height: auto !important;
     max-height: none !important;
@@ -836,8 +837,7 @@ body {
   margin: 0;
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
+  min-height: 100%;
 }
 
 /* Ajustes para tarjetas y contenedores de rejilla */
@@ -1110,12 +1110,12 @@ label,
     flex: 1 !important;
     display: flex !important;
     flex-direction: column !important;
+    min-height: 0 !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
     padding: 16px !important;
     padding-bottom: 16px !important;
     box-sizing: border-box !important;
-    min-height: 0 !important;
     margin: 0 !important;
     height: auto !important;
     max-height: none !important;

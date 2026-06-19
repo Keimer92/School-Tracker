@@ -1251,7 +1251,7 @@ try {
 
   
   return (
-    <div className="page-container">
+    <div className="page-container" style={{ height: '100%', minHeight: 0 }}>
       <style>
         {`
           @media print {

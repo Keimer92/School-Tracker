@@ -677,7 +677,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
   };
 
   return (
-    <div className="page-container">
+    <div className="page-container" style={{ height: '100%', minHeight: 0 }}>
       <style>
         {`
           .asistencia-summary {
