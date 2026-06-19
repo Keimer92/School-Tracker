@@ -1742,7 +1742,7 @@ try {
         </FilterContainer>
       </div>
       {/* Área de Contenido (Slides) */}
-      <div style={{ position: 'relative', flex: 1, minHeight: '400px', overflow: 'hidden' }}>
+      <div style={{ position: 'relative', flex: 1, minHeight: '400px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '5rem' }}>
             <div className="loading-spinner" style={{ 
