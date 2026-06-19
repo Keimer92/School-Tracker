@@ -65,8 +65,16 @@ export function EstudiantesPage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const [viewMode, setViewMode] = useState<'card' | 'list' | 'grid'>('grid');
-  const [gridSelectedStudent, setGridSelectedStudent] = useState<Student | null>(null);
+const [viewMode, setViewMode] = useState<'card' | 'list' | 'grid'>(() => {
+  const saved = localStorage.getItem('estudiantes-view-mode');
+  if (saved === 'card' || saved === 'list' || saved === 'grid') return saved;
+  return isMobile ? 'list' : 'grid';
+});
+const [gridSelectedStudent, setGridSelectedStudent] = useState<Student | null>(null);
+
+useEffect(() => {
+  localStorage.setItem('estudiantes-view-mode', viewMode);
+}, [viewMode]);
 
   // Stats calculation
   const stats = useMemo(() => {
@@ -1733,28 +1741,12 @@ export function EstudiantesPage() {
         document.body
       )}
 
-      {/* Bottom Sheet para Grid View */}
+      {/* Modal para Grid View */}
       {gridSelectedStudent && createPortal(
-        <div
-          style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            zIndex: 10000, display: 'flex', flexDirection: 'column',
-            justifyContent: 'flex-end',
-            background: 'rgba(0,0,0,0.5)',
-            animation: 'fadeIn 0.2s ease-out',
-          }}
-          onClick={() => setGridSelectedStudent(null)}
-        >
-          <div
-            className="category-card"
-            onClick={e => e.stopPropagation()}
-            style={{
-              margin: '0 0.5rem 0.5rem', padding: '1.25rem', borderRadius: '16px',
-              maxWidth: '400px', alignSelf: 'center', width: '100%',
-              animation: 'slideUp 0.3s ease-out',
-              borderBottom: 'none',
-            }}
-          >
+        <div className="modal-overlay" onClick={() => setGridSelectedStudent(null)}>
+          <div className="modal-content category-card" onClick={e => e.stopPropagation()} style={{
+            width: '380px', maxWidth: '90%', padding: '1.5rem',
+          }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
               {gridSelectedStudent.foto ? (
                 <img src={gridSelectedStudent.foto} alt={gridSelectedStudent.nombre}
