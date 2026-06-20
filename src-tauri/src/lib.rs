@@ -897,25 +897,20 @@ pub fn run() {
                 let _ = window.maximize();
             }
 
-            // Iniciar PocketBase como sidecar
-            #[cfg(debug_assertions)]
+            // Iniciar PocketBase como sidecar (solo desktop)
+            #[cfg(desktop)]
             {
                 println!("🔄 [Sidecar] Iniciando PocketBase...");
                 let pb_dir = app_handle.path().resource_dir().unwrap_or_default().join("binaries");
                 if pb_dir.exists() {
                     use std::process::Command;
                     let pb_path = pb_dir.join(format!("pocketbase{}", std::env::consts::EXE_SUFFIX));
-                    let origins = if cfg!(debug_assertions) {
-                        "http://localhost:1420"
-                    } else {
-                        "tauri://localhost"
-                    };
                     let _ = Command::new(&pb_path)
                         .args([
                             "serve",
                             "--dir", "D:\\PocketBase\\pb_data",
                             "--http=0.0.0.0:8090",
-                            "--origins", origins,
+                            "--origins", "http://localhost:1420,tauri://localhost,http://localhost,https://localhost",
                         ])
                         .spawn()
                         .map_err(|e| println!("❌ [Sidecar] Error iniciando PocketBase: {}", e));

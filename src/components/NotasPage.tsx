@@ -1211,8 +1211,11 @@ export function NotasPage() {
     // Feedback inmediato tras guardado local (SQLite es instantáneo)
     setSaving(false);
     await emit("show-toast", { message: "✅ Notas guardadas localmente", type: "success" });
-      
-      // Sincronización en segundo plano (No bloqueante)
+    
+    // Notificar a otros componentes (ReportesPage, etc.)
+    await emit("notas-updated");
+    
+    // Sincronización en segundo plano (No bloqueante)
       (async () => {
         try {
           console.log("LOG [Sincronización]: Iniciando en segundo plano...");
