@@ -1,14 +1,14 @@
 import { CloudProvider } from './CloudProvider';
-import { SupabaseBackend } from './SupabaseProvider';
+import { PocketBaseBackend } from './PocketBaseProvider';
 
 class CloudFactory {
-  private current: CloudProvider | null = null;
+  private pocketbaseInstance: CloudProvider | null = null;
 
   getProvider(): CloudProvider {
-    if (!this.current) {
-      this.current = new SupabaseBackend();
+    if (!this.pocketbaseInstance) {
+      this.pocketbaseInstance = new PocketBaseBackend();
     }
-    return this.current;
+    return this.pocketbaseInstance;
   }
 }
 

@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '../lib/supabase';
-import { User } from '@supabase/supabase-js';
+import { pb } from '../lib/pocketbase';
 import { emit } from "@tauri-apps/api/event";
 import { cloud } from '../lib/cloud/CloudBridge';
 import "../App.css";
@@ -9,7 +8,7 @@ type AuthMode = 'login' | 'signup' | 'recovery' | 'update-password';
 
 export function Auth() {
   const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState<User | any | null>(null);
+  const [user, setUser] = useState<any | null>(null);
   const currentUserIdRef = useRef<string | null>(null);
   const [mode, setMode] = useState<AuthMode>('login');
   
@@ -73,17 +72,21 @@ export function Auth() {
     const cleanEmail = email.trim();
     const cleanPassword = password.trim();
 
-    if (mode === 'update-password') {
+      if (mode === 'update-password') {
       if (!cleanPassword) return;
       setLoading(true);
       try {
-        const { error } = await supabase.auth.updateUser({ password: cleanPassword });
-        if (error) throw error;
+        const model = pb.authStore.model;
+        if (!model) throw new Error('No hay sesión activa');
+        await pb.collection('users').update(model.id, {
+          password: cleanPassword,
+          passwordConfirm: cleanPassword
+        });
         emit("show-toast", { message: '¡Contraseña actualizada!', type: 'success' });
         setMode('login');
         setPassword('');
       } catch (error: any) {
-        emit("show-toast", { message: error.message, type: 'error' });
+        emit("show-toast", { message: error.message || error.data?.message, type: 'error' });
       } finally { setLoading(false); }
       return;
     }
@@ -96,29 +99,21 @@ export function Auth() {
     setLoading(true);
     try {
       if (mode === 'login') {
-        const { error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password: cleanPassword });
-        if (error) throw error;
+        await pb.collection('users').authWithPassword(cleanEmail, cleanPassword);
       } else if (mode === 'signup') {
-        const { data, error } = await supabase.auth.signUp({ email: cleanEmail, password: cleanPassword });
-        if (error) throw error;
-        if (data.user && data.session === null) {
-          emit("show-toast", { message: '¡Cuenta creada! Confirma tu correo.', type: 'info' });
-        }
+        await pb.collection('users').create({
+          email: cleanEmail,
+          password: cleanPassword,
+          passwordConfirm: cleanPassword,
+        });
+        emit("show-toast", { message: '¡Cuenta creada! Revisa tu correo para verificar.', type: 'success' });
         setMode('login');
       } else if (mode === 'recovery') {
-        const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail);
-
-        if (error) {
-          console.error('Error enviando email de recuperación:', error);
-          emit("show-toast", { message: `Error: ${error.message}`, type: 'error' });
-        } else {
-          emit("show-toast", { message: 'Se ha enviado un enlace de recuperación a tu correo. Revisa tu bandeja de entrada y spam.', type: 'success' });
-        }
-
-
+        await pb.collection('users').requestPasswordReset(cleanEmail);
+        emit("show-toast", { message: 'Se ha enviado un enlace de recuperación a tu correo. Revisa tu bandeja de entrada y spam.', type: 'success' });
       }
     } catch (error: any) {
-      emit("show-toast", { message: error.message, type: 'error' });
+      emit("show-toast", { message: error.message || error.data?.message || 'Error de autenticación', type: 'error' });
     } finally { setLoading(false); }
   };
 
@@ -151,7 +146,7 @@ export function Auth() {
     <div className="auth-container">
       <div style={{ alignSelf: 'flex-end', marginBottom: '0.5rem', padding: '0.2rem 0.6rem', background: 'rgba(0,0,0,0.2)', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.65rem' }}>
         <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: serverStatus === 'online' ? '#22c55e' : serverStatus === 'checking' ? '#eab308' : '#ef4444', boxShadow: serverStatus === 'online' ? '0 0 8px #22c55e' : 'none' }}></div>
-        <span style={{ color: '#94a3b8', fontWeight: 'bold' }}>SUPABASE {serverStatus === 'online' ? 'LISTA' : serverStatus === 'checking' ? 'REVISANDO' : 'DESCONECTADA'}</span>
+        <span style={{ color: '#94a3b8', fontWeight: 'bold' }}>POCKETBASE {serverStatus === 'online' ? 'LISTO' : serverStatus === 'checking' ? 'REVISANDO' : 'DESCONECTADO'}</span>
       </div>
 
       <h3 style={{ marginBottom: '1.5rem', color: '#f8fafc', textAlign: 'center' }}>

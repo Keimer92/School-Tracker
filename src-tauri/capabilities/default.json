@@ -13,6 +13,8 @@
       "allow": [{ "url": "file://*" }, { "url": "https://*" }]
     },
     "dialog:default",
+    "shell:default",
+    "shell:allow-open",
     "fs:default",
     {
       "identifier": "fs:allow-copy-file",

@@ -1,6 +1,5 @@
-// Configuración de nube (Ahora solo Supabase)
-export type ProviderType = 'supabase';
+export type ProviderType = 'pocketbase';
 
 export const getSelectedProvider = (): ProviderType => {
-  return 'supabase';
+  return 'pocketbase';
 };

@@ -11,7 +11,7 @@ import { ReportesPage } from "./components/ReportesPage";
 import { AsistenciaPage } from "./components/AsistenciaPage";
 import { InformePage } from "./components/InformePage";
 import { LoginPage } from "./components/LoginPage";
-import { supabase } from "./lib/supabase";
+import { cloud } from "./lib/cloud/CloudBridge";
 import { syncService } from "./lib/syncService";
 import { realtimeService } from "./lib/realtimeService";
 import { runAutomaticGoogleDriveBackupIfNeeded } from "./components/GoogleDriveBackup";
@@ -157,8 +157,13 @@ useEffect(() => {
   useEffect(() => {
     let lastUserId: string | null = null;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      const currentUser = session?.user ?? null;
+    const provider = cloud.getProvider();
+    let lastEvent: string | null = null;
+
+    const unsubscribe = provider.onAuthStateChange(async (user) => {
+      const currentUser = user;
+      const event = currentUser ? (lastEvent === null ? 'INITIAL_SESSION' : 'SIGNED_IN') : 'SIGNED_OUT';
+      lastEvent = event;
       console.log(`[App] Evento Auth: ${event} | Usuario: ${currentUser?.email || 'ninguno'}`);
 
       if (currentUser && currentUser.id !== lastUserId) {
@@ -168,24 +173,19 @@ useEffect(() => {
         realtimeService.init(currentUser.id);
 
         if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-
-          // Descargar datos de la nube en segundo plano (no bloqueante)
           syncService.pullAll()
             .then(async () => {
               console.log('[Auto-Sync] Descarga completa');
-              // Emitir evento para que las páginas refresquen las asignaturas
               try {
                 await emit('subjects-updated');
               } catch (e) {
                 console.error('Error emitting subjects-updated:', e);
               }
-              
               if (!isInitialLoad) {
                 showToast('✅ Datos actualizados desde la nube', 'success');
               }
             })
             .catch(err => {
-              // Silenciar errores de usuario no logueado (esperado en carga inicial offline)
               if (!err?.message?.includes('estar conectado')) {
                 console.error('[Auto-Sync] Error pullAll:', err);
                 if (!isInitialLoad) {
@@ -194,23 +194,22 @@ useEffect(() => {
               }
             });
         } else if (event === 'SIGNED_OUT') {
-           realtimeService.stop();
+          realtimeService.stop();
         }
-
       } else if (!currentUser) {
         lastUserId = null;
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, []);
 
   // Reintento único 10s después del inicio si el pullAll inicial falló
   useEffect(() => {
     const timer = setTimeout(async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
+        const user = await cloud.getProvider().getUser();
+        if (user) {
           console.log('[App] Pull de recuperación post-inicio...');
           await syncService.pullAll();
           await emit('subjects-updated');

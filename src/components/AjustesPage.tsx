@@ -6,9 +6,9 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { copyFile, writeFile, BaseDirectory } from "@tauri-apps/plugin-fs";
 import * as XLSX from "xlsx";
 import { Auth } from "./Auth";
-import { supabase } from "../lib/supabase";
 import { syncService, syncManager, SyncStatus } from "../lib/syncService";
 import { cloud } from "../lib/cloud/CloudBridge";
+import { reconnect as pbReconnect, getPocketBaseUrl, savePocketBaseUrl } from "../lib/pocketbase";
 import { GoogleDriveBackup } from "./GoogleDriveBackup";
 import "../App.css";
 
@@ -69,6 +69,11 @@ export function AjustesPage() {
   });
   const [syncLogs, setSyncLogs] = useState<string[]>([]);
   const [showSyncLogs, setShowSyncLogs] = useState(false);
+
+  const [pbUrl, setPbUrl] = useState(getPocketBaseUrl);
+  const [pbTesting, setPbTesting] = useState(false);
+  const [pbStatus, setPbStatus] = useState<'idle' | 'online' | 'offline'>('idle');
+  const [pbLatency, setPbLatency] = useState<number | null>(null);
   
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetConfig, setResetConfig] = useState<{
@@ -95,17 +100,16 @@ export function AjustesPage() {
   }, []);
 
   useEffect(() => {
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsSynced(!!session);
+    const provider = cloud.getProvider();
+    const unsubscribe = provider.onAuthStateChange((user) => {
+      setIsSynced(!!user);
     });
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setIsSynced(!!session);
+    provider.getUser().then((user) => {
+      setIsSynced(!!user);
     });
 
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, []);
 
   const getGradeLabel = (id: string) => {
@@ -2035,6 +2039,90 @@ export function AjustesPage() {
 </div>
                     </div>
                   </div>
+                </div>
+
+                {/* SECCIÓN: SERVIDOR POCKETBASE */}
+                <div style={{ marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "1px solid rgba(255,255,255,0.1)" }}>
+                  <h4 style={{ margin: "0 0 0.75rem 0", color: "#e2e8f0", fontSize: "0.9rem" }}>
+                    🌐 Servidor PocketBase
+                  </h4>
+                  <p style={{ color: "#94a3b8", fontSize: "0.8rem", marginBottom: "0.75rem" }}>
+                    Dirección del servidor. En desktop se usa <code>127.0.0.1:8090</code>.
+                    Para conectar desde Android vía Tailscale, ingresa la IP de tu PC.
+                  </p>
+                  <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                    <input
+                      type="text"
+                      value={pbUrl}
+                      onChange={(e) => setPbUrl(e.target.value)}
+                      placeholder="http://127.0.0.1:8090"
+                      style={{
+                        flex: 1,
+                        padding: "0.5rem 0.75rem",
+                        borderRadius: "8px",
+                        border: "1px solid rgba(255,255,255,0.15)",
+                        background: "rgba(0,0,0,0.3)",
+                        color: "#e2e8f0",
+                        fontSize: "0.8rem",
+                        fontFamily: "monospace",
+                      }}
+                    />
+                    <button
+                      onClick={async () => {
+                        setPbTesting(true);
+                        setPbStatus('idle');
+                        setPbLatency(null);
+                        const start = Date.now();
+                        try {
+                          const result = await pbReconnect(pbUrl);
+                          const latency = Date.now() - start;
+                          setPbLatency(latency);
+                          setPbStatus(result.ok ? 'online' : 'offline');
+                          if (result.ok) {
+                            savePocketBaseUrl(pbUrl);
+                          }
+                        } catch {
+                          setPbLatency(Date.now() - start);
+                          setPbStatus('offline');
+                        }
+                        setPbTesting(false);
+                      }}
+                      disabled={pbTesting || !pbUrl}
+                      style={{
+                        padding: "0.5rem 1rem",
+                        borderRadius: "8px",
+                        border: "none",
+                        background: pbTesting ? "#64748b" : "var(--primary-color, #3b82f6)",
+                        color: "#fff",
+                        fontWeight: 600,
+                        fontSize: "0.8rem",
+                        cursor: pbTesting ? "not-allowed" : "pointer",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {pbTesting ? "Probando..." : "Probar"}
+                    </button>
+                  </div>
+                  {pbStatus !== 'idle' && (
+                    <div style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.4rem",
+                      padding: "0.4rem 0.6rem",
+                      borderRadius: "6px",
+                      fontSize: "0.8rem",
+                      background: pbStatus === 'online' ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
+                      color: pbStatus === 'online' ? "#4ade80" : "#f87171",
+                    }}>
+                      <span>{pbStatus === 'online' ? '✅' : '❌'}</span>
+                      <span>
+                        {pbStatus === 'online'
+                          ? `Conectado (${pbLatency}ms)`
+                          : `Sin conexión${pbLatency ? ` (${pbLatency}ms)` : ''}`
+                        }
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

@@ -23,170 +23,89 @@ fn create_folder_and_save_file(folder_path: String, file_path: String, file_data
     Ok(())
 }
 
-fn upload_to_supabase(table: &str, data: Vec<serde_json::Value>, _user_id: &str) -> Result<(), String> {
-    println!(
-        "🔄 [PUSH] Subiendo {} registros a tabla {}",
-        data.len(),
-        table
-    );
-
+fn upload_to_pocketbase(table: &str, data: Vec<serde_json::Value>, auth_token: &str) -> Result<(), String> {
     if data.is_empty() {
-        println!("⚠️ [PUSH] Tabla {} está vacía, omitiendo", table);
         return Ok(());
     }
 
-    // URL de Supabase
-    let supabase_url = "https://[PROYECTO_REMOVIDO]";
-    let supabase_key = "[CLAVE_REMOVIDA_ROTAR]";
+    let base_url = "http://127.0.0.1:8090";
 
-    // Tablas que tienen user_id en Supabase
-    let tables_with_user_id = vec!["ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "estudiante", "asistencia", "nota", "indicador", "criterio"];
-    let has_user_id = tables_with_user_id.contains(&table);
+    for record in data {
+        let record_id = record.get("id").and_then(|v| v.as_str()).unwrap_or("");
 
-    // Ahora usamos UPSERT con resolution=merge-duplicates, no hay necesidad de delete previo
-    println!("🔄 [PUSH] Subiendo {} registros a {}", data.len(), table);
-    
-    // Para cada registro, intentar upsert en Supabase
-for record in data {
-        let url = format!("{}/rest/v1/{}", supabase_url, table);
+        // Intentar update primero (PATCH), si 404 hacer create (POST)
+        if !record_id.is_empty() {
+            let url = format!("{}/api/collections/{}/records/{}", base_url, table, record_id);
+            let json_data = serde_json::to_string(&record)
+                .map_err(|e| format!("Error serializando: {}", e))?;
 
-        // Columnas que existen en cada tabla de Supabase (excluir las que no existen)
-        let columns_to_exclude = match table {
-            "colegio" | "asignatura" | "grado" | "seccion" | "estudiante" | "asistencia" | "nota" | "criterio" | "indicador" => vec!["activo"],
-            _ => vec![],
-        };
-        
-        let exclude_user_id = !has_user_id;
-        
-        // Filtrar columnas que no existen en la tabla y convertir booleanos
-        let mut record_filtered = serde_json::Map::new();
-        if let serde_json::Value::Object(obj) = record {
-            for (key, value) in obj {
-                if columns_to_exclude.contains(&key.as_str()) {
+            let response = ureq::patch(&url)
+                .set("Authorization", &format!("Bearer {}", auth_token))
+                .set("Content-Type", "application/json")
+                .send_string(&json_data);
+
+            match response {
+                Ok(_) => {
+                    println!("✅ [POCKETBASE] Actualizado registro en {}", table);
                     continue;
                 }
-                if exclude_user_id && key == "user_id" {
-                    continue;
+                Err(ureq::Error::Status(404, _)) => {
+                    // No existe, hacer create
                 }
-                // Convertir boolean a numero para PostgreSQL
-                // Convertir strings vacíos a valor por defecto
-                let new_value = match value {
-                    serde_json::Value::Bool(ref b) => {
-                        if *b {
-                            serde_json::Value::Number(serde_json::Number::from(1))
-                        } else {
-                            serde_json::Value::Number(serde_json::Number::from(0))
-                        }
-                    },
-                    serde_json::Value::String(ref s) if s.is_empty() => {
-                        serde_json::Value::String("Sin descripción".to_string())
-                    },
-                    // user_id ya es String, déjalo como está
-                    _ => value.clone(),
-                };
-                record_filtered.insert(key.clone(), new_value);
+                Err(e) => {
+                    return Err(format!("Error actualizando en PocketBase: {:?}", e));
+                }
             }
         }
-        
-        // Convertir el registro a string JSON
-        let json_data = serde_json::to_string(&record_filtered)
-            .map_err(|e| format!("Error serializando registro: {}", e))?;
 
-        println!("🔄 [PUSH] Enviando registro a {}: {}", table, json_data);
+        // Create new record
+        let url = format!("{}/api/collections/{}/records", base_url, table);
+        let json_data = serde_json::to_string(&record)
+            .map_err(|e| format!("Error serializando: {}", e))?;
 
-        // Hacer POST request a Supabase - usar upsert con resolution=merge-duplicates
-        // Especificar el header de conflicto basado en la tabla
-        let on_conflict = match table {
-            "nota" => "estudiante_id,criterio_id,corte_evaluativo_id,asignatura_id,user_id",
-            "estudiante" => "id,user_id",
-            "indicador" => "id,user_id",
-            "criterio" => "id,user_id",
-            "asistencia" => "estudiante_id,fecha,user_id",
-            _ => "id"
-        };
-        
         let response = ureq::post(&url)
-            .set("apikey", supabase_key)
-            .set("Authorization", &format!("Bearer {}", supabase_key))
+            .set("Authorization", &format!("Bearer {}", auth_token))
             .set("Content-Type", "application/json")
-            .set("Prefer", "return=minimal,resolution=merge-duplicates")
-            .set("On-Conflict", on_conflict)
             .send_string(&json_data);
 
         match response {
             Ok(resp) => {
                 let status = resp.status();
                 if status >= 200 && status < 300 {
-                    println!("✅ [PUSH] Registro subido exitosamente a {}", table);
-                } else if status == 409 {
-                    let _error_text = resp.into_string().unwrap_or_else(|_| "Conflicto".to_string());
-                    println!("⚠️ [PUSH] Conflicto 409 en {} (probablemente ya existe), ignorando...", table);
+                    println!("✅ [POCKETBASE] Creado registro en {}", table);
                 } else {
-                    let error_text = resp.into_string().unwrap_or_else(|_| "Error desconocido".to_string());
-                    println!(
-                        "❌ [PUSH] Error HTTP {} al subir a {}: {}",
-                        status, table, error_text
-                    );
-                    // Intentar parsear el error JSON
-                    if let Ok(err_json) = serde_json::from_str::<serde_json::Value>(&error_text) {
-                        if let Some(msg) = err_json.get("message") {
-                            println!("❌ [PUSH] Mensaje de error: {}", msg);
-                        }
-                        if let Some(details) = err_json.get("details") {
-                            println!("❌ [PUSH] Detalles: {}", details);
-                        }
-                    }
-                    return Err(format!(
-                        "Error HTTP {} al subir registro: {}",
-                        status, error_text
-                    ));
+                    let error_text = resp.into_string().unwrap_or_default();
+                    return Err(format!("Error HTTP {} en PocketBase {}: {}", status, table, error_text));
                 }
             }
             Err(e) => {
-                let error_text = format!("Error: {:?}", e);
-                if error_text.contains("409") {
-                    println!("⚠️ [PUSH] Conflicto 409 en {} (ya existe), ignorando...", table);
-                } else {
-                    println!("❌ [PUSH] Error de conexión al subir a {}: {}", table, error_text);
-                    return Err(format!("Error de conexión: {}", error_text));
-                }
+                return Err(format!("Error de conexión a PocketBase: {:?}", e));
             }
         }
     }
 
-println!(
-        "✅ [PUSH] Todos los registros de {} subidos exitosamente",
-        table
-    );
     Ok(())
 }
 
 #[tauri::command]
 fn sync_push_all_to_cloud(state: tauri::State<'_, DbState>, user_id: String) -> Result<(), String> {
-    println!("🔄 [PUSH] Iniciando sincronización en background (async)...");
-    
+    println!("🔄 [PUSH] Iniciando sincronización en background...");
+
     if user_id.is_empty() {
         return Err("Usuario no autenticado".to_string());
     }
 
-    // Obtener la conexión y datos antes de iniciar el thread
+    // PocketBase auth token se obtiene desde el frontend
+    // Por ahora usamos el user_id como referencia
     let tables_data = {
         let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
         get_all_local_data(&mut conn)?
     };
 
-    println!("🔄 [PUSH] Datos obtenidos localmente: {} tablas", tables_data.len());
-
-    // Clonar los datos necesarios para el thread
     let user_id_clone = user_id.clone();
     let tables_clone = tables_data.clone();
 
-    // Ejecutar la sincronización en un hilo separado sin bloquear la UI
     std::thread::spawn(move || {
-        // No podemos usar 'state' aquí porque es de otro thread
-        // Necesitamos crear una nueva conexión para este hilo
-        // Pero por ahora, simplemente ejecutamos la lógica de upload
-        
         let table_order = vec![
             "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
             "indicador", "criterio",
@@ -216,28 +135,26 @@ fn sync_push_all_to_cloud(state: tauri::State<'_, DbState>, user_id: String) -> 
                                 "user_id".to_string(),
                                 serde_json::Value::String(user_id_clone.clone()),
                             );
+                            // Convertir id a String para PocketBase
+                            if let Some(id_val) = obj.get("id") {
+                                if let Some(num) = id_val.as_i64() {
+                                    obj.insert("id".to_string(), serde_json::Value::String(num.to_string()));
+                                }
+                            }
                         }
                     }
                     record
                 })
                 .collect();
 
-            println!(
-                "🔄 [PUSH] Subiendo {} registros a {}",
-                records_with_user_id.len(),
-                table_name
-            );
-
-            if let Err(e) = upload_to_supabase(&table_name, records_with_user_id, &user_id_clone) {
-                println!("❌ [PUSH] Error en {}: {}", table_name, e);
+            if let Err(e) = upload_to_pocketbase(&table_name, records_with_user_id, "") {
+                println!("❌ [POCKETBASE] Error en {}: {}", table_name, e);
             }
         }
 
-        println!("✅ [PUSH] Sincronización en background completada");
+        println!("✅ [PUSH] Sincronización con PocketBase completada");
     });
 
-    // Devolver inmediatamente al frontend
-    println!("🔄 [PUSH] Sincronización iniciada en background, UI libre");
     Ok(())
 }
 
@@ -958,6 +875,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             let app_handle = app.handle().clone();
             let app_dir = app_handle
@@ -977,6 +895,33 @@ pub fn run() {
             #[cfg(desktop)]
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.maximize();
+            }
+
+            // Iniciar PocketBase como sidecar
+            #[cfg(debug_assertions)]
+            {
+                println!("🔄 [Sidecar] Iniciando PocketBase...");
+                let pb_dir = app_handle.path().resource_dir().unwrap_or_default().join("binaries");
+                if pb_dir.exists() {
+                    use std::process::Command;
+                    let pb_path = pb_dir.join("pocketbase");
+                    let origins = if cfg!(debug_assertions) {
+                        "http://localhost:1420"
+                    } else {
+                        "tauri://localhost"
+                    };
+                    let _ = Command::new(&pb_path)
+                        .args([
+                            "--dir", "D:\\PocketBase\\pb_data",
+                            "--http=0.0.0.0:8090",
+                            "--origins", origins,
+                        ])
+                        .spawn()
+                        .map_err(|e| println!("❌ [Sidecar] Error iniciando PocketBase: {}", e));
+                    println!("✅ [Sidecar] PocketBase iniciado");
+                } else {
+                    println!("⚠️ [Sidecar] PocketBase binary no encontrado en {:?}", pb_dir);
+                }
             }
 
             Ok(())
