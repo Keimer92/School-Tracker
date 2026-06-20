@@ -74,6 +74,9 @@ export function AjustesPage() {
   const [pbTesting, setPbTesting] = useState(false);
   const [pbStatus, setPbStatus] = useState<'idle' | 'online' | 'offline'>('idle');
   const [pbLatency, setPbLatency] = useState<number | null>(null);
+  const [syncInterval, setSyncInterval] = useState(() => {
+    return parseInt(localStorage.getItem('periodic_sync_interval_seconds') || '10', 10);
+  });
   
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetConfig, setResetConfig] = useState<{
@@ -2123,6 +2126,36 @@ export function AjustesPage() {
                       </span>
                     </div>
                   )}
+
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.5rem" }}>
+                    <label style={{ color: "#94a3b8", fontSize: "0.8rem", whiteSpace: "nowrap" }}>
+                      Sync periódico:
+                    </label>
+                    <input
+                      type="number"
+                      min={3}
+                      max={300}
+                      value={syncInterval}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10) || 10;
+                        setSyncInterval(v);
+                        localStorage.setItem('periodic_sync_interval_seconds', String(v));
+                        syncService.ensurePeriodicSync();
+                      }}
+                      style={{
+                        width: "60px",
+                        padding: "0.3rem 0.5rem",
+                        borderRadius: "6px",
+                        border: "1px solid rgba(255,255,255,0.15)",
+                        background: "rgba(0,0,0,0.3)",
+                        color: "#e2e8f0",
+                        fontSize: "0.8rem",
+                        fontFamily: "monospace",
+                        textAlign: "center",
+                      }}
+                    />
+                    <span style={{ color: "#94a3b8", fontSize: "0.8rem" }}>segundos</span>
+                  </div>
                 </div>
               </div>
             )}

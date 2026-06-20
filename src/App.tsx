@@ -169,10 +169,11 @@ useEffect(() => {
       if (currentUser && currentUser.id !== lastUserId) {
         const isInitialLoad = lastUserId === null;
         lastUserId = currentUser.id;
-        console.log(`[App] Cambio de usuario o sesión inicial. Iniciando Realtime.`);
+        console.log(`[App] Cambio de usuario o sesión inicial. Iniciando Realtime y Sync periódico.`);
         realtimeService.init(currentUser.id);
 
         if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+          syncService.startPeriodicSync();
           syncService.pullAll()
             .then(async () => {
               console.log('[Auto-Sync] Descarga completa');
@@ -195,9 +196,11 @@ useEffect(() => {
             });
         } else if (event === 'SIGNED_OUT') {
           realtimeService.stop();
+          syncService.stopPeriodicSync();
         }
       } else if (!currentUser) {
         lastUserId = null;
+        syncService.stopPeriodicSync();
       }
     });
 
