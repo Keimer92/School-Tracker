@@ -86,6 +86,7 @@ export function NotasPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const hasUnsavedRef = useRef(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const nextRefreshSilent = useRef(false);
   const [rowVersions, setRowVersions] = useState<Map<number, number>>(new Map());
@@ -831,43 +832,39 @@ export function NotasPage() {
     return reverseQualitativeWeights[average as keyof typeof reverseQualitativeWeights] || 'AI';
   }, []);
 
+  const notifyUnsaved = useCallback(() => {
+    if (!hasUnsavedRef.current) {
+      hasUnsavedRef.current = true;
+      setHasUnsavedChanges(true);
+    }
+  }, []);
+
   // Manejo de notas cualitativas
   const handleNotaChange = useCallback((estudianteId: number, criterioId: number, value: string) => {
-    // Normalizar el valor a mayúsculas
     const normalizedValue = value.toUpperCase();
-    
-    // Permitir edición libre de hasta 2 caracteres alfabéticos para mejor UX
-    // La validación estricta se aplica al calcular el valor numérico
     if (normalizedValue.length > 2) return;
     if (normalizedValue !== '' && !/^[A-Z]*$/.test(normalizedValue)) return;
     
-    // Generar la clave única para la nota
     const key = `${estudianteId}-${criterioId}`;
+    notasCualitativasRef.current.set(key, normalizedValue);
     
-    // Buscar el criterio usando el mapa pre-computado (O(1) en vez de flatMap+find)
     const idx = criterioIndexMap.get(criterioId);
     const criterio = idx !== undefined ? allCriterios[idx] : undefined;
-       
     if (!criterio) return;
     
-    // Calcular el valor numérico solo si es una nota final válida
     const finalNotes = ['AA', 'AS', 'AF', 'AI'];
     let numValue = 0;
     if (finalNotes.includes(normalizedValue)) {
       const percentage = notaMapping[normalizedValue as keyof typeof notaMapping];
       numValue = criterio.puntajeMaximo * percentage;
     } else if (normalizedValue === 'A') {
-      // Si solo es 'A', el valor numérico es 0 hasta que se complete la nota
       numValue = 0;
     }
     
-// Actualizar notas cuantitativas en ref (sin re-render)
     notasCuantitativasRef.current.set(key, Math.round(numValue));
-    
-    // Marcar como hay cambios sin guardar
-    setHasUnsavedChanges(true);
+    notifyUnsaved();
 
-  }, [allCriterios, criterioIndexMap, setHasUnsavedChanges]);
+  }, [allCriterios, criterioIndexMap, notifyUnsaved]);
 
   // Manejar enfoque y desenfoque para historial por celda
   // Fase 1.2: Lazy snapshot — solo crea snapshot si no existe uno activo
@@ -1058,17 +1055,16 @@ export function NotasPage() {
       }
       return;
     }
-      {/* Search input for NotasPage filters */}
-      <div style={{ padding: '0.4rem 0' }}>
-        <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar estudiante por nombre..." isMobile={isMobile} />
-      </div>
-      {/* Lines 1318-1750 omitted */}
+
     switch (e.key) {
       case 'Delete':
       case 'Backspace':
         e.preventDefault();
         const currentCriterio = allCriterios[criterioIndex];
         if (currentCriterio) {
+          const key = `${estudianteId}-${currentCriterio.id}`;
+          notasCualitativasRef.current.set(key, '');
+          e.currentTarget.value = '';
           handleNotaChange(estudianteId, currentCriterio.id, '');
         }
         return;
@@ -1205,7 +1201,7 @@ export function NotasPage() {
     setHistory([]);
     setRedoStack([]);
     
-    // Resetear estado de cambios
+    hasUnsavedRef.current = false;
     setHasUnsavedChanges(false);
 
     // Feedback inmediato tras guardado local (SQLite es instantáneo)
@@ -1352,47 +1348,43 @@ return (
                                   <input
                                     type="text"
                                     defaultValue={currentQualitativeValue}
-onChange={(e) => {
-        // Marcar como hay cambios sin guardar
-        setHasUnsavedChanges(true);
-        
+ onChange={(e) => {
+        notifyUnsaved();
         const rawVal = e.target.value.toUpperCase();
         const val = rawVal.slice(0, 2);
 
-        // Validar primer carácter: solo puede ser A
         const firstChar = val.charAt(0);
         const isValidFirstChar = firstChar === '' || firstChar === 'A';
 
         if (!isValidFirstChar) {
           e.target.value = '';
           notasCualitativasRef.current.set(key, '');
-                                        e.target.style.borderColor = '#ef4444';
-                                        e.target.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
-                                        setTimeout(() => {
-                                          e.target.style.borderColor = '';
-                                          e.target.style.backgroundColor = '';
-                                        }, 1000);
-                                        return;
-                                      }
-                                      
-                                      // Validar segundo carácter: puede ser A, S, F, I
-                                      const secondChar = val.charAt(1);
-                                      const isValidSecondChar = secondChar === '' || ['A', 'S', 'F', 'I'].includes(secondChar);
-                                      
-                                      if (!isValidSecondChar) {
-                                        e.target.value = val.charAt(0);
-                                        notasCualitativasRef.current.set(key, val.charAt(0));
-                                        e.target.style.borderColor = '#ef4444';
-                                        e.target.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
-                                        setTimeout(() => {
-                                          e.target.style.borderColor = '';
-                                          e.target.style.backgroundColor = '';
-                                        }, 1000);
-                                      } else {
-                                        notasCualitativasRef.current.set(key, val);
-                                        e.target.value = val;
-                                      }
-                                    }}
+          e.target.style.borderColor = '#ef4444';
+          e.target.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+          setTimeout(() => {
+            e.target.style.borderColor = '';
+            e.target.style.backgroundColor = '';
+          }, 1000);
+          return;
+        }
+
+        const secondChar = val.charAt(1);
+        const isValidSecondChar = secondChar === '' || ['A', 'S', 'F', 'I'].includes(secondChar);
+
+        if (!isValidSecondChar) {
+          e.target.value = val.charAt(0);
+          notasCualitativasRef.current.set(key, val.charAt(0));
+          e.target.style.borderColor = '#ef4444';
+          e.target.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+          setTimeout(() => {
+            e.target.style.borderColor = '';
+            e.target.style.backgroundColor = '';
+          }, 1000);
+        } else {
+          notasCualitativasRef.current.set(key, val);
+          e.target.value = val;
+        }
+      }}
                                     onKeyDown={(e) => handleKeyDown(e, est.estudianteId, criterioIndex)}
                                     onFocus={(e) => {
                                       handleInputFocus();
