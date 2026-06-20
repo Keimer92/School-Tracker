@@ -480,18 +480,10 @@ useEffect(() => {
         {renderTab("ajustes", <AjustesPage />)}
       </main>
 
-      {/* Toast Notification */}
+      {/* Snackbar inferior */}
       {toast.isOpen && (
         <div className={`toast-notification ${toast.type}`}>
-          <div className="toast-content">
-            <span className="toast-icon">
-              {toast.type === 'success' && '✅'}
-              {toast.type === 'error' && '❌'}
-              {toast.type === 'info' && 'ℹ️'}
-            </span>
-            <span className="toast-message">{toast.message}</span>
-          </div>
-          <div className="toast-progress"></div>
+          {toast.message}
         </div>
       )}
     </div>
