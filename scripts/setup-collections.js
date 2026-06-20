@@ -8,7 +8,7 @@ const collections = [
   {
     name: 'ano_lectivo',
     type: 'base',
-    schema: [
+    fields: [
       { name: 'nombre', type: 'text', required: true, unique: true },
       { name: 'activo', type: 'bool' },
       { name: 'cualitativo', type: 'bool' },
@@ -18,7 +18,7 @@ const collections = [
   {
     name: 'corte_evaluativo',
     type: 'base',
-    schema: [
+    fields: [
       { name: 'nombre', type: 'text', required: true, unique: true },
       { name: 'activo', type: 'bool' },
       { name: 'cualitativo', type: 'bool' },
@@ -28,7 +28,7 @@ const collections = [
   {
     name: 'colegio',
     type: 'base',
-    schema: [
+    fields: [
       { name: 'nombre', type: 'text', required: true, unique: true },
       { name: 'activo', type: 'bool' },
       { name: 'cualitativo', type: 'bool' },
@@ -39,7 +39,7 @@ const collections = [
   {
     name: 'asignatura',
     type: 'base',
-    schema: [
+    fields: [
       { name: 'nombre', type: 'text', required: true, unique: true },
       { name: 'cualitativo', type: 'bool' },
       { name: 'user_id', type: 'text' },
@@ -48,7 +48,7 @@ const collections = [
   {
     name: 'grado',
     type: 'base',
-    schema: [
+    fields: [
       { name: 'nombre', type: 'text', required: true, unique: true },
       { name: 'cualitativo', type: 'bool' },
       { name: 'user_id', type: 'text' },
@@ -57,7 +57,7 @@ const collections = [
   {
     name: 'seccion',
     type: 'base',
-    schema: [
+    fields: [
       { name: 'nombre', type: 'text', required: true, unique: true },
       { name: 'cualitativo', type: 'bool' },
       { name: 'user_id', type: 'text' },
@@ -66,7 +66,7 @@ const collections = [
   {
     name: 'estudiante',
     type: 'base',
-    schema: [
+    fields: [
       { name: 'nombre', type: 'text', required: true },
       { name: 'codigo', type: 'text', required: true, unique: true },
       { name: 'sexo', type: 'text' },
@@ -84,7 +84,7 @@ const collections = [
   {
     name: 'grado_asignatura',
     type: 'base',
-    schema: [
+    fields: [
       { name: 'grado_id', type: 'number', required: true },
       { name: 'asignatura_id', type: 'number', required: true },
       { name: 'user_id', type: 'text' },
@@ -93,7 +93,7 @@ const collections = [
   {
     name: 'colegio_asignatura',
     type: 'base',
-    schema: [
+    fields: [
       { name: 'colegio_id', type: 'number', required: true },
       { name: 'asignatura_id', type: 'number', required: true },
       { name: 'user_id', type: 'text' },
@@ -102,7 +102,7 @@ const collections = [
   {
     name: 'indicador',
     type: 'base',
-    schema: [
+    fields: [
       { name: 'grado_id', type: 'number', required: true },
       { name: 'asignatura_id', type: 'number', required: true },
       { name: 'corte_evaluativo_id', type: 'number', required: true },
@@ -115,7 +115,7 @@ const collections = [
   {
     name: 'criterio',
     type: 'base',
-    schema: [
+    fields: [
       { name: 'indicador_id', type: 'number', required: true },
       { name: 'orden', type: 'number', required: true },
       { name: 'descripcion', type: 'text' },
@@ -126,7 +126,7 @@ const collections = [
   {
     name: 'nota',
     type: 'base',
-    schema: [
+    fields: [
       { name: 'estudiante_id', type: 'number', required: true },
       { name: 'criterio_id', type: 'number', required: true },
       { name: 'valor', type: 'number', required: true },
@@ -138,7 +138,7 @@ const collections = [
   {
     name: 'asistencia',
     type: 'base',
-    schema: [
+    fields: [
       { name: 'estudiante_id', type: 'number', required: true },
       { name: 'fecha', type: 'text', required: true },
       { name: 'estado', type: 'text', required: true },
@@ -149,7 +149,7 @@ const collections = [
   {
     name: 'configuracion_calificacion',
     type: 'base',
-    schema: [
+    fields: [
       { name: 'nombre', type: 'text', required: true },
       { name: 'color', type: 'text', required: true },
       { name: 'minimo', type: 'number', required: true },
@@ -159,7 +159,7 @@ const collections = [
   {
     name: 'colegio_dias_asistencia',
     type: 'base',
-    schema: [
+    fields: [
       { name: 'colegio_id', type: 'number', required: true },
       { name: 'lunes', type: 'bool' },
       { name: 'martes', type: 'bool' },
@@ -192,18 +192,35 @@ async function main() {
   const existingNames = new Set(existingCollections.map((c) => c.name));
   console.log(`Found ${existingCollections.length} existing collections.`);
 
-  // Create missing collections
-  for (const col of collections) {
-    if (existingNames.has(col.name)) {
-      console.log(`  ⏭️  ${col.name} already exists`);
-      continue;
-    }
+  const apiRule = 'user_id = @request.auth.id';
 
-    try {
-      await pb.collections.create(col);
-      console.log(`  ✅ ${col.name} created`);
-    } catch (e) {
-      console.error(`  ❌ Error creating ${col.name}:`, e.message);
+  // Create or update collections with API rules
+  for (const col of collections) {
+    const collectionData = {
+      ...col,
+      listRule: apiRule,
+      viewRule: apiRule,
+      createRule: apiRule,
+      updateRule: apiRule,
+      deleteRule: apiRule,
+    };
+
+    if (existingNames.has(col.name)) {
+      // Update existing collection with API rules
+      try {
+        const existing = existingCollections.find(c => c.name === col.name);
+        await pb.collections.update(existing.id, collectionData);
+        console.log(`  ✅ ${col.name} updated with API rules`);
+      } catch (e) {
+        console.error(`  ❌ Error updating ${col.name}:`, e.message);
+      }
+    } else {
+      try {
+        await pb.collections.create(collectionData);
+        console.log(`  ✅ ${col.name} created`);
+      } catch (e) {
+        console.error(`  ❌ Error creating ${col.name}:`, e.message);
+      }
     }
   }
 

@@ -904,7 +904,7 @@ pub fn run() {
                 let pb_dir = app_handle.path().resource_dir().unwrap_or_default().join("binaries");
                 if pb_dir.exists() {
                     use std::process::Command;
-                    let pb_path = pb_dir.join("pocketbase");
+                    let pb_path = pb_dir.join(format!("pocketbase{}", std::env::consts::EXE_SUFFIX));
                     let origins = if cfg!(debug_assertions) {
                         "http://localhost:1420"
                     } else {
