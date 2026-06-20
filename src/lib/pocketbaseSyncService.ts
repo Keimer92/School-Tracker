@@ -4,8 +4,9 @@ import { emit } from '@tauri-apps/api/event';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'success';
 
-function pbId(id: number | string): string {
-  return String(id).padStart(15, '0');
+function pbId(id: number | string | null | undefined): string {
+  if (id === null || id === undefined) return '';
+  return String(id).toLowerCase().padStart(15, '0');
 }
 
 interface SyncState {
@@ -239,7 +240,7 @@ async function syncAllData(userId: string): Promise<void> {
     for (const gc of gradeConfigs) {
       await skipOnFail(upsertRecord('configuracion_calificacion', {
         id: pbId(gc.id), nombre: gc.nombre, color: gc.color,
-        minimo: gc.minimo, user_id: userId
+        minimo: gc.minimo ?? 0, user_id: userId
       }));
     }
   }
@@ -637,7 +638,7 @@ export const pocketbaseSyncService = {
         id: pbId(config.id),
         nombre: config.nombre,
         color: config.color,
-        minimo: config.minimo,
+        minimo: config.minimo ?? 0,
         user_id: userId
       });
     })(), 'Configuración de Notas');

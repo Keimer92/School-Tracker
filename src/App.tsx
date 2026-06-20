@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, memo, startTransition } from "react";
 import { listen, emit } from "@tauri-apps/api/event";
 import { useIsMobile } from "./hooks/useAndroid";
 import "./App.css";
@@ -15,6 +15,15 @@ import { cloud } from "./lib/cloud/CloudBridge";
 import { syncService } from "./lib/syncService";
 import { realtimeService } from "./lib/realtimeService";
 import { runAutomaticGoogleDriveBackupIfNeeded } from "./components/GoogleDriveBackup";
+
+const MAsistenciaPage = memo(AsistenciaPage);
+const MInformePage = memo(InformePage);
+const MNotasPage = memo(NotasPage);
+const MReportesPage = memo(ReportesPage);
+const MEvaluacionesPage = memo(EvaluacionesPage);
+const MEstudiantesPage = memo(EstudiantesPage);
+const MGlobalesPage = memo(GlobalesPage);
+const MAjustesPage = memo(AjustesPage);
 
 type Tab = "notas" | "reportes" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "informe";
 
@@ -139,8 +148,10 @@ useEffect(() => {
 
   const handleTabChange = (tab: Tab) => {
     console.log('Tab change:', tab, 'isMobile:', isMobile);
-    setActiveTab(tab);
-    setVisitedTabs(prev => new Set(prev).add(tab));
+    startTransition(() => {
+      setActiveTab(tab);
+      setVisitedTabs(prev => new Set(prev).add(tab));
+    });
     if (isMobile) {
       closeDrawer();
     }
@@ -470,14 +481,14 @@ useEffect(() => {
       />
 
       <main className="main-content">
-        {renderTab("asistencia", <AsistenciaPage />)}
-        {renderTab("informe", <InformePage />)}
-        {renderTab("notas", <NotasPage />)}
-        {renderTab("reportes", <ReportesPage />)}
-        {renderTab("evaluaciones", <EvaluacionesPage />)}
-        {renderTab("estudiantes", <EstudiantesPage />)}
-        {renderTab("globales", <GlobalesPage />)}
-        {renderTab("ajustes", <AjustesPage />)}
+        {renderTab("asistencia", <MAsistenciaPage />)}
+        {renderTab("informe", <MInformePage />)}
+        {renderTab("notas", <MNotasPage />)}
+        {renderTab("reportes", <MReportesPage />)}
+        {renderTab("evaluaciones", <MEvaluacionesPage />)}
+        {renderTab("estudiantes", <MEstudiantesPage />)}
+        {renderTab("globales", <MGlobalesPage />)}
+        {renderTab("ajustes", <MAjustesPage />)}
       </main>
 
       {/* Snackbar inferior */}
