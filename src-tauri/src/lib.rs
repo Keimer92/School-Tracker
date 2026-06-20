@@ -912,6 +912,7 @@ pub fn run() {
                     };
                     let _ = Command::new(&pb_path)
                         .args([
+                            "serve",
                             "--dir", "D:\\PocketBase\\pb_data",
                             "--http=0.0.0.0:8090",
                             "--origins", origins,
