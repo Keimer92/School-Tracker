@@ -2,7 +2,7 @@ import SearchInput from './SearchInput';
 import { FilterContainer, FilterGroup, FilterActions } from './FilterContainer';
 import { ConfirmDialog } from './ConfirmDialog';
 
-import React, { useState, useEffect, useRef, useCallback, useMemo, Fragment, memo } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo, Fragment, memo, startTransition } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
 import { syncService } from "../lib/syncService";
@@ -45,7 +45,7 @@ interface NotaEstudiante {
   notas: Record<number, number>;
 }
 
-const MemoRow = memo(({ est, index, renderRow }: { est: NotaEstudiante, index: number, renderRow: (est: NotaEstudiante, index: number) => React.ReactNode }) => {
+const MemoRow = memo(({ est, index, renderRow, version }: { est: NotaEstudiante, index: number, renderRow: (est: NotaEstudiante, index: number) => React.ReactNode, version: number }) => {
   return <>{renderRow(est, index)}</>;
 });
 
@@ -89,7 +89,7 @@ export function NotasPage() {
   const hasUnsavedRef = useRef(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const nextRefreshSilent = useRef(false);
-  const [rowVersions, setRowVersions] = useState<Map<number, number>>(new Map());
+  const [rowVersionTick, setRowVersionTick] = useState(0);
   const [isQualitative, setIsQualitative] = useState(false);
   // editingStudentId eliminado — ahora se usa CSS :focus-within
   const [highlightColor, setHighlightColor] = useState<string>(() => {
@@ -734,13 +734,8 @@ export function NotasPage() {
               }
             }
           });
-          // Forzar recalculo de totales
-          setRowVersions(prev => {
-            const next = new Map(prev);
-            data.forEach(est => {
-              next.set(est.id, (next.get(est.id) || 0) + 1);
-            });
-            return next;
+          startTransition(() => {
+            setRowVersionTick(t => t + 1);
           });
         }, 100);
       }
@@ -889,18 +884,12 @@ export function NotasPage() {
       const newHistory = [...historyRef.current, newSnapshot];
       if (newHistory.length > 50) newHistory.shift();
       historyRef.current = newHistory;
-      
-      // Actualizar estado para la UI
-      setHistory(newHistory);
-      
-      // Limpiar redoStack
       redoStackRef.current = [];
-      setRedoStack([]);
       
-      setRowVersions(prev => {
-        const next = new Map(prev);
-        next.set(estudianteId, (next.get(estudianteId) || 0) + 1);
-        return next;
+      startTransition(() => {
+        setHistory(newHistory);
+        setRedoStack([]);
+        setRowVersionTick(t => t + 1);
       });
     }
     cellSnapshot.current = null;
@@ -927,14 +916,8 @@ export function NotasPage() {
       }
     });
 
-    // Update row versions to recalculate totals
-    setRowVersions(prev => {
-      const next = new Map(prev);
-      targetState.forEach((val, key) => {
-        const estId = parseInt(key.split('-')[0]);
-        next.set(estId, (next.get(estId) || 0) + 1);
-      });
-      return next;
+    startTransition(() => {
+      setRowVersionTick(t => t + 1);
     });
   };
 
@@ -948,19 +931,13 @@ export function NotasPage() {
     // Guardar estado actual en redoStack
     const currentRedoStack = [new Map(notasCualitativasRef.current), ...redoStackRef.current];
     redoStackRef.current = currentRedoStack;
-    setRedoStack(currentRedoStack);
     
     // Actualizar historial
     historyRef.current = newHistory;
-    setHistory(newHistory);
     
-// Actualizar estados
     isUndoRedoAction.current = true;
     updateInputsUI(previousState);
     
-    // Marcar como hay cambios sin guardar después de deshacer
-    setHasUnsavedChanges(true);
-
     // Sincronizar notas cuantitativas inmediatamente para asegurar actualización de UI
     const newNotas = estudiantes.map(est => {
       const studentNotas: Record<number, number> = {};
@@ -983,7 +960,12 @@ export function NotasPage() {
         notas: studentNotas
       };
     });
-    setNotas(newNotas);
+    startTransition(() => {
+      setRedoStack(currentRedoStack);
+      setHistory(newHistory);
+      setHasUnsavedChanges(true);
+      setNotas(newNotas);
+    });
   };
 
   const redo = () => {
@@ -996,19 +978,14 @@ export function NotasPage() {
     // Guardar estado actual en history
     const currentHistory = [...historyRef.current, new Map(notasCualitativasRef.current)];
     historyRef.current = currentHistory;
-    setHistory(currentHistory);
     
     // Actualizar redoStack
     redoStackRef.current = newRedoStack;
-    setRedoStack(newRedoStack);
     
     // Actualizar estados
     isUndoRedoAction.current = true;
     updateInputsUI(nextState);
     
-    // Marcar como hay cambios sin guardar después de rehacer
-    setHasUnsavedChanges(true);
-
     // Sincronizar notas cuantitativas inmediatamente para asegurar actualización de UI
     const newNotas = estudiantes.map(est => {
       const studentNotas: Record<number, number> = {};
@@ -1031,7 +1008,12 @@ export function NotasPage() {
         notas: studentNotas
       };
     });
-    setNotas(newNotas);
+    startTransition(() => {
+      setHistory(currentHistory);
+      setRedoStack(newRedoStack);
+      setHasUnsavedChanges(true);
+      setNotas(newNotas);
+    });
   };
 
   // Manejo de navegación con teclas direccionales (Optimizado O(1) con pre-computados)
@@ -1927,8 +1909,8 @@ return (
               </thead>
               <tbody>
                 {filteredNotas.map((est, index) => (
-  <MemoRow key={est.estudianteId} est={est} index={index} renderRow={renderRow} />
-))}
+                  <MemoRow key={est.estudianteId} est={est} index={index} renderRow={renderRow} version={rowVersionTick} />
+                ))}
               </tbody>
             </table>
           </div>
