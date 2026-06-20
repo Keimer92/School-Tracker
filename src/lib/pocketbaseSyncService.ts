@@ -100,6 +100,12 @@ async function upsertRecord(collection: string, data: any) {
   }
 }
 
+function skipOnFail(promise: Promise<any>): Promise<void> {
+  return promise.catch((e: any) => {
+    console.warn('⏭️ Registro omitido por error:', e?.data?.data ? JSON.stringify(e.data.data) : e.message);
+  });
+}
+
 async function deleteRecord(collection: string, id: any) {
   try {
     await pb.collection(collection).delete(pbId(id));
@@ -521,20 +527,20 @@ export const pocketbaseSyncService = {
           if (item.cualitativo !== undefined) {
             syncItem.cualitativo = item.cualitativo;
           }
-          await upsertRecord(collection, syncItem);
+          await skipOnFail(upsertRecord(collection, syncItem));
         }
       }
 
       const estudiantes = await invoke<any[]>("get_students");
       if (estudiantes && estudiantes.length > 0) {
         for (const e of estudiantes) {
-          await upsertRecord('estudiante', {
+          await skipOnFail(upsertRecord('estudiante', {
             id: pbId(e.id), nombre: e.nombre, codigo: e.codigo,
             sexo: e.sexo, ano_lectivo_id: e.anoLectivoId || null,
             grado_id: e.gradoId || null, seccion_id: e.seccionId || null,
             colegio_id: e.colegioId || null, telefono: e.telefono,
             direccion: e.direccion, email: e.email, user_id: userId
-          });
+          }));
         }
       }
 
@@ -544,9 +550,9 @@ export const pocketbaseSyncService = {
           const subjects = await invoke<any[]>("get_subjects_by_grade", { gradoId: g.id });
           if (subjects) {
             for (const s of subjects) {
-              await upsertRecord('grado_asignatura', {
+              await skipOnFail(upsertRecord('grado_asignatura', {
                 grado_id: g.id, asignatura_id: s.id, user_id: userId
-              });
+              }));
             }
           }
         }
@@ -560,9 +566,9 @@ export const pocketbaseSyncService = {
           const subjects = await invoke<any[]>("get_subjects_by_colegio", { colegioId: c.id });
           if (subjects) {
             for (const s of subjects) {
-              await upsertRecord('colegio_asignatura', {
+              await skipOnFail(upsertRecord('colegio_asignatura', {
                 colegio_id: c.id, asignatura_id: s.id, user_id: userId
-              });
+              }));
             }
           }
         }
@@ -573,53 +579,53 @@ export const pocketbaseSyncService = {
       const indicadores = await invoke<any[]>("get_indicadores_all");
       if (indicadores && indicadores.length > 0) {
         for (const i of indicadores) {
-          await upsertRecord('indicador', {
+          await skipOnFail(upsertRecord('indicador', {
             id: pbId(i.id), grado_id: i.gradoId,
             asignatura_id: i.asignaturaId, corte_evaluativo_id: i.corteEvaluativoId,
             orden: i.orden, descripcion: i.descripcion, activo: i.activo, user_id: userId
-          });
+          }));
         }
       }
 
       const criterios = await invoke<any[]>("get_criterios_all");
       if (criterios && criterios.length > 0) {
         for (const c of criterios) {
-          await upsertRecord('criterio', {
+          await skipOnFail(upsertRecord('criterio', {
             id: pbId(c.id), indicador_id: c.indicadorId,
             orden: c.orden, descripcion: c.descripcion,
             puntaje_maximo: Math.round(c.puntajeMaximo), user_id: userId
-          });
+          }));
         }
       }
 
       const notas = await invoke<any[]>("get_notas_all");
       if (notas && notas.length > 0) {
         for (const n of notas) {
-          await upsertRecord('nota', {
+          await skipOnFail(upsertRecord('nota', {
             estudiante_id: n.estudianteId, criterio_id: n.criterioId,
             valor: n.valor, corte_evaluativo_id: n.corteEvaluativoId,
             asignatura_id: n.asignaturaId, user_id: userId
-          });
+          }));
         }
       }
 
       const asistencia = await invoke<any[]>("get_asistencia_all");
       if (asistencia && asistencia.length > 0) {
         for (const a of asistencia) {
-          await upsertRecord('asistencia', {
+          await skipOnFail(upsertRecord('asistencia', {
             estudiante_id: a.estudianteId, fecha: a.fecha,
             estado: a.estado, observacion: a.observacion, user_id: userId
-          });
+          }));
         }
       }
 
       const gradeConfigs = await invoke<any[]>("get_grade_configs");
       if (gradeConfigs && gradeConfigs.length > 0) {
         for (const gc of gradeConfigs) {
-          await upsertRecord('configuracion_calificacion', {
+          await skipOnFail(upsertRecord('configuracion_calificacion', {
             id: pbId(gc.id), nombre: gc.nombre, color: gc.color,
             minimo: gc.minimo, user_id: userId
-          });
+          }));
         }
       }
 
@@ -627,11 +633,11 @@ export const pocketbaseSyncService = {
         const colegioDias = await invoke<any[]>("get_colegio_dias_asistencia_all");
         if (colegioDias && colegioDias.length > 0) {
           for (const cd of colegioDias) {
-            await upsertRecord('colegio_dias_asistencia', {
+            await skipOnFail(upsertRecord('colegio_dias_asistencia', {
               colegio_id: cd.colegioId, lunes: cd.lunes, martes: cd.martes,
               miercoles: cd.miercoles, jueves: cd.jueves, viernes: cd.viernes,
               sabado: cd.sabado, domingo: cd.domingo, user_id: userId
-            });
+            }));
           }
         }
       } catch (e: any) {
