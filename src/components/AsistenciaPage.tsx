@@ -5,8 +5,6 @@ import { emit, listen } from "@tauri-apps/api/event";
 import { syncService } from "../lib/syncService";
 import { getLocalDateISOString } from "../lib/dateUtils";
 import { ask } from "@tauri-apps/plugin-dialog";
-// import { subscribeToTable, startPolling } from "../lib/supabase";
-// import { forcePullAsistencia } from "../lib/syncService";
 import "../App.css";
 
 interface CategoryItem {
@@ -378,11 +376,10 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
 
             await emit("show-toast", { message: "✅ Asistencia limpiada correctamente", type: "success" });
 
-            // Sincronizar eliminaciones con Supabase en segundo plano
             (async () => {
               try {
                 await syncService.syncPendingDeletions();
-                console.log("LOG [Sincronización]: Eliminaciones de asistencia sincronizadas con Supabase");
+                console.log("Eliminaciones de asistencia sincronizadas");
               } catch (syncError) {
                 console.error("Error en sincronización de eliminaciones:", syncError);
               }

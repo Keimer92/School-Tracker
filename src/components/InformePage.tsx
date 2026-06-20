@@ -5,7 +5,6 @@ import { PageLayout, ScrollableTable } from './PageLayout';
 import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
-import { subscribeToTable, startPolling } from "../lib/supabase";
 import { forcePullAsistencia, forcePullNotas } from "../lib/syncService";
 import { join, tempDir, documentDir } from "@tauri-apps/api/path";
 import { writeFile, mkdir } from "@tauri-apps/plugin-fs";
@@ -281,8 +280,6 @@ export function InformePage() {
       fetchCatalogs();
       setRefreshTrigger(prev => prev + 1);
     });
-
-    // Suscribirse a cambios en tiempo real de Supabase ahora es global en App.tsx vía realtimeService
 
     return () => {
       unlistenAsistencia.then(f => f());

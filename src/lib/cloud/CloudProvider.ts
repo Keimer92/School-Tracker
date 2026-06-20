@@ -4,7 +4,7 @@ export interface CloudUser {
 }
 
 export interface CloudProvider {
-  name: 'supabase' | 'pocketbase';
+  name: 'pocketbase';
   
   getUser(): Promise<CloudUser | null>;
   onAuthStateChange(callback: (user: CloudUser | null) => void): () => void;

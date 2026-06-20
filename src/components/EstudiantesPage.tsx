@@ -518,7 +518,6 @@ useEffect(() => {
         }
       }
 
-      // Sincronizar los nuevos estudiantes con Supabase en lote
       if (newlyImportedStudents.length > 0) {
         try {
           await syncService.syncStudentsBatch(newlyImportedStudents);
@@ -870,7 +869,6 @@ useEffect(() => {
       // 5. Sincronización y refresco de datos en segundo plano
       (async () => {
         try {
-          // Intentar sincronizar con Supabase (esto puede tardar)
           await syncService.deleteStudent(idToDelete);
         } catch (syncError) {
           console.error("Error en sincronización de eliminación (segundo plano):", syncError);

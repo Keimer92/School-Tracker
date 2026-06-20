@@ -419,7 +419,6 @@ function CategoryTabContent({
         cualitativo: !item.cualitativo,
       });
       fetchItems();
-      // Sincronizar con Supabase
       try {
         await syncService.syncGlobal(config.table, {
           id: item.id,
@@ -1271,7 +1270,7 @@ export function GlobalesPage() {
       // Emitir evento para que EvaluacionesPage refresque las asignaturas
       await emit("subjects-updated");
       
-      // Sincronizar con Supabase en segundo plano
+      // Sincronizar en segundo plano
       try {
         await syncService.syncGradeSubjects(selectedGrade.id);
       } catch (e) {
@@ -1306,7 +1305,7 @@ export function GlobalesPage() {
       // Emitir evento para que EvaluacionesPage refresque las asignaturas
       await emit("subjects-updated");
       
-      // Sincronizar con Supabase en segundo plano
+      // Sincronizar en segundo plano
       try {
         await syncService.syncGradeSubjects(selectedGrade.id);
       } catch (e) {

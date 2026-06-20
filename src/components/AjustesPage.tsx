@@ -67,8 +67,7 @@ export function AjustesPage() {
     lastSyncDetails: null,
     message: null,
   });
-  const [syncLogs, setSyncLogs] = useState<string[]>([]);
-  const [showSyncLogs, setShowSyncLogs] = useState(false);
+  const [showServerConfig, setShowServerConfig] = useState(false);
 
   const [pbUrl, setPbUrl] = useState(getPocketBaseUrl);
   const [pbTesting, setPbTesting] = useState(false);
@@ -90,14 +89,6 @@ export function AjustesPage() {
   useEffect(() => {
     const unsubscribe = syncManager.subscribe((state) => {
       setSyncStatus(state);
-      const timestamp = new Date().toLocaleTimeString();
-      if (state.status === "syncing") {
-        setSyncLogs(prev => [...prev, `[${timestamp}] 🔄 ${state.message || 'Sincronizando...'}`]);
-      } else if (state.status === "success") {
-        setSyncLogs(prev => [...prev, `[${timestamp}] ✅ ${state.message || 'Completado'}`]);
-      } else if (state.status === "error") {
-        setSyncLogs(prev => [...prev, `[${timestamp}] ❌ ${state.message || 'Error en sincronización'}`]);
-      }
     });
     return () => unsubscribe();
   }, []);
@@ -671,7 +662,7 @@ export function AjustesPage() {
     { id: "configuracion", label: "General", icon: "⚙️" },
     { id: "apariencia", label: "Diseño", icon: "🎨" },
     { id: "calificaciones", label: "Notas", icon: "⭐" },
-    { id: "sync", label: "Sync", icon: "supabase" },
+    { id: "sync", label: "Sync", icon: "cloud" },
     { id: "google-drive", label: "Drive", icon: "☁️" },
     { id: "almacenamiento", label: "Almacén", icon: "📦" },
     { id: "debugging", label: "Debug", icon: "🐛" },
@@ -803,7 +794,7 @@ export function AjustesPage() {
               className={`ajustes-tab ${activeTab === tab.id ? "active" : ""}`}
               onClick={() => setActiveTab(tab.id)}
             >
-              {tab.icon === "supabase" ? (
+              {tab.icon === "cloud" ? (
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
                   <path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z" stroke="url(#cloudGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                   <defs>
@@ -880,7 +871,7 @@ export function AjustesPage() {
                     background: 'linear-gradient(180deg, var(--primary-color, #3b82f6) 0%, #1d4ed8 100%)',
                     borderRadius: '2px',
                   }} />
-                  {tab.icon === "supabase" ? (
+                  {tab.icon === "cloud" ? (
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
                       <path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z" stroke="url(#cloudGradMenu)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                       <defs>
@@ -1538,9 +1529,9 @@ export function AjustesPage() {
           <div className="category-card">
             <div className="category-header">
               <h3>
-                <span style={{ 
-                  display: 'inline-flex', 
-                  alignItems: 'center', 
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
                   gap: '12px',
                   background: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
                   padding: '0.5rem 1rem',
@@ -1560,602 +1551,318 @@ export function AjustesPage() {
                 </span>
               </h3>
             </div>
+
             <div style={{ padding: isAndroid ? "1rem" : "1.5rem" }}>
               <Auth />
             </div>
-            
+
             {isSynced && (
               <div style={{ padding: isAndroid ? "0 1rem 1rem" : "0 1.5rem 1.5rem" }}>
-                <div
-                  style={{
-                    background: isAndroid ? "transparent" : "linear-gradient(135deg, rgba(34, 197, 94, 0.08) 0%, rgba(34, 197, 94, 0.02) 100%)",
-                    borderRadius: "16px",
-                    border: isAndroid ? "none" : "1px solid rgba(34, 197, 94, 0.15)",
-                    padding: isAndroid ? "0.5rem 0" : "1.5rem",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "1.2rem",
-                  }}
-                >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                        gap: "1rem",
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                        <div style={{
-                          width: "12px",
-                          height: "12px",
-                          borderRadius: "50%",
-                          background: (syncStatus.status as string) === "syncing" ? "#60a5fa" : "#22c55e",
-                          boxShadow: (syncStatus.status as string) === "syncing" ? "0 0 12px #60a5fa" : "0 0 12px #22c55e",
-                          animation: (syncStatus.status as string) === "syncing" ? "pulse 1.5s infinite" : "none"
-                        }}></div>
-                        <span style={{ color: "#f8fafc", fontWeight: "600", fontSize: "1rem" }}>
-                          Estado de Supabase
-                        </span>
-                      </div>
-
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                          background: "rgba(0,0,0,0.3)",
-                          padding: "6px 14px",
-                          borderRadius: "20px",
-                          border: "1px solid rgba(255,255,255,0.1)",
-                        }}
-                      >
-                        {(syncStatus.status as string) === "syncing" ? (
-                          <div style={{
-                            width: "16px",
-                            height: "16px",
-                            border: "2px solid #60a5fa",
-                            borderTopColor: "transparent",
-                            borderRadius: "50%",
-                            animation: "spin 1s linear infinite"
-                          }}></div>
-                        ) : (
-                          <div style={{
-                            width: "8px",
-                            height: "8px",
-                            borderRadius: "50%",
-                            background: (syncStatus.status as string) === "syncing" ? "#60a5fa" : syncStatus.status === "success" ? "#4ade80" : syncStatus.status === "error" ? "#f87171" : "#94a3b8"
-                          }}></div>
-                        )}
-                        <span
-                          style={{
-                            fontSize: "0.8rem",
-                            fontWeight: "bold",
-                            color:
-                              (syncStatus.status as string) === "syncing"
-                                ? "#60a5fa"
-                                : syncStatus.status === "success"
-                                  ? "#4ade80"
-                                  : syncStatus.status === "error"
-                                    ? "#f87171"
-                                    : "#94a3b8",
-                          }}
-                        >
-                          {(syncStatus.status as string) === "syncing"
-                            ? "Sincronizando..."
-                            : syncStatus.status === "success"
-                              ? "Conectado"
-                              : syncStatus.status === "error"
-                                ? "Error"
-                                : "En espera"}
-                        </span>
-                      </div>
-                    </div>
-
-<div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: isAndroid ? "1fr" : "1fr 1fr",
-                      gap: "1.2rem",
-                      alignItems: "start"
-                    }}
-                  >
-                    {/* Columna Izquierda: Estado y Info */}
+                {/* Status Bar */}
+                <div style={{
+                  background: 'linear-gradient(135deg, rgba(59,130,246,0.08) 0%, rgba(96,165,250,0.04) 100%)',
+                  borderRadius: '14px',
+                  border: '1px solid rgba(59,130,246,0.12)',
+                  padding: '1rem 1.25rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '0.75rem',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "1rem"
-                    }}>
-                      {/* Card de Estado de Conexión */}
-                      <div style={{
-                        background: "linear-gradient(135deg, rgba(96, 165, 250, 0.08) 0%, rgba(167, 139, 250, 0.08) 100%)",
-                        borderRadius: "16px",
-                        border: "1px solid rgba(96, 165, 250, 0.15)",
-                        padding: "1.2rem"
-                      }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "1rem" }}>
-                          <div style={{
-                            width: "12px",
-                            height: "12px",
-                            borderRadius: "50%",
-                            background: syncStatus.status === "syncing" ? "#eab308" : (isSynced ? "#22c55e" : "#64748b"),
-                            boxShadow: isSynced ? "0 0 12px rgba(34, 197, 94, 0.5)" : "none",
-                            animation: syncStatus.status === "syncing" ? "pulse 1.5s ease-in-out infinite" : "none"
-                          }}></div>
-                          <span style={{ fontSize: "0.85rem", color: "#f8fafc", fontWeight: "600" }}>
-                            {isSynced ? "Sincronizado" : syncStatus.status === "syncing" ? "Sincronizando..." : "Sin sincronizar"}
-                          </span>
-                        </div>
-                        
-                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.8rem" }}>
-                            <span style={{ color: "#64748b" }}>Última sync</span>
-                            <span style={{ color: "#94a3b8" }}>
-                              {syncStatus.lastSync
-                                ? new Date(syncStatus.lastSync).toLocaleString('es-ES', {
-                                    day: '2-digit',
-                                    month: '2-digit',
-                                    year: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  })
-                                : "Nunca"}
-                            </span>
-                          </div>
-                          {syncStatus.lastSyncDetails && (
-                            <div style={{
-                              fontSize: "0.75rem",
-                              color: "#22c55e",
-                              background: "rgba(34, 197, 94, 0.1)",
-                              padding: "4px 8px",
-                              borderRadius: "6px",
-                              textAlign: "center"
-                            }}>
-                              {syncStatus.lastSyncDetails}
-                            </div>
-                          )}
-                        </div>
+                      width: '10px',
+                      height: '10px',
+                      borderRadius: '50%',
+                      background: syncStatus.status === 'syncing' ? '#eab308' : isSynced ? '#22c55e' : '#64748b',
+                      boxShadow: isSynced ? '0 0 8px rgba(34,197,94,0.4)' : 'none',
+                      animation: syncStatus.status === 'syncing' ? 'pulse 1.5s infinite' : 'none',
+                      flexShrink: 0,
+                    }} />
+                    <div>
+                      <div style={{ color: '#f1f5f9', fontWeight: 600, fontSize: '0.85rem' }}>
+                        {isSynced ? 'Conectado' : syncStatus.status === 'syncing' ? 'Sincronizando...' : 'Desconectado'}
                       </div>
-
-                      {/* Mensaje de estado */}
-                      {syncStatus.message && (
-                        <div style={{
-                          background: "rgba(0,0,0,0.3)",
-                          padding: "12px 14px",
-                          borderRadius: "10px",
-                          borderLeft: `3px solid ${syncStatus.status === "error" ? "#ef4444" : "#3b82f6"}`,
-                          fontSize: "0.8rem",
-                          color: syncStatus.status === "error" ? "#fca5a5" : "#93c5fd"
-                        }}>
-                          {(syncStatus.status as string) === "syncing" && (
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                              <div style={{
-                                width: "12px",
-                                height: "12px",
-                                border: "2px solid #60a5fa",
-                                borderTopColor: "transparent",
-                                borderRadius: "50%",
-                                animation: "spin 1s linear infinite"
-                              }}></div>
-                              <span style={{ fontWeight: "600" }}>Procesando...</span>
-                            </div>
-                          )}
-                          {syncStatus.message}
-                          {syncStatus.status === "error" && (
-                            <div style={{ marginTop: "8px", fontSize: "0.7rem", color: "#f87171" }}>
-                              Verifica tu conexión a internet
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Botón Mostrar User ID */}
-                      <button
-                        onClick={() => showUserIdBox ? setShowUserIdBox(false) : showUserId()}
-                        style={{
-                          padding: "10px 14px",
-                          background: "rgba(139, 92, 246, 0.08)",
-                          border: "1px solid rgba(139, 92, 246, 0.2)",
-                          borderRadius: "10px",
-                          color: "#a78bfa",
-                          fontSize: "0.8rem",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: "8px",
-                        }}
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                          <circle cx="12" cy="7" r="4"/>
-                        </svg>
-                        {showUserIdBox ? 'Ocultar ID' : 'Mostrar User ID'}
-                      </button>
-
-                       {showUserIdBox && (
-                        <div style={{
-                          background: "rgba(139, 92, 246, 0.05)",
-                          border: "1px solid rgba(139, 92, 246, 0.15)",
-                          borderRadius: "8px",
-                          padding: "10px",
-                          display: "flex",
-                          gap: "8px",
-                          alignItems: "center",
-                          flexWrap: "wrap"
-                        }}>
-                          <input
-                            type="text"
-                            value={currentUserId}
-                            readOnly
-                            style={{
-                              flex: "1 1 150px",
-                              padding: "6px 10px",
-                              border: "none",
-                              background: "transparent",
-                              color: "#a78bfa",
-                              fontSize: "0.7rem",
-                              fontFamily: "monospace",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap"
-                            }}
-                          />
-                          <button
-                            onClick={copyUserId}
-                            disabled={currentUserId === 'No conectado'}
-                            style={{
-                              width: isAndroid ? "100%" : "auto",
-                              padding: "6px 10px",
-                              background: "rgba(34, 197, 94, 0.15)",
-                              border: "none",
-                              borderRadius: "4px",
-                              color: "#22c55e",
-                              fontSize: "0.7rem",
-                              cursor: currentUserId === 'No conectado' ? 'not-allowed' : 'pointer',
-                            }}
-                          >
-                            Copiar
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Botón Ver Logs */}
-                      <button
-                        onClick={() => setShowSyncLogs(!showSyncLogs)}
-                        style={{
-                          padding: "10px 14px",
-                          background: "rgba(100,100,100,0.1)",
-                          border: "1px solid rgba(255,255,255,0.08)",
-                          borderRadius: "10px",
-                          color: "#94a3b8",
-                          fontSize: "0.8rem",
-                          cursor: "pointer",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: "8px",
-                        }}
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                          <polyline points="14 2 14 8 20 8"/>
-                          <line x1="16" y1="13" x2="8" y2="13"/>
-                          <line x1="16" y1="17" x2="8" y2="17"/>
-                        </svg>
-                        {showSyncLogs ? "Ocultar Logs" : "Ver Logs de Sync"}
-                      </button>
-
-                      {/* Panel de logs */}
-                      {showSyncLogs && syncLogs.length > 0 && (
-                        <div style={{
-                          background: "rgba(0,0,0,0.4)",
-                          border: "1px solid rgba(255,255,255,0.08)",
-                          borderRadius: "10px",
-                          padding: "10px",
-                          maxHeight: "180px",
-                          overflowY: "auto",
-                          fontSize: "0.7rem",
-                          fontFamily: "monospace"
-                        }}>
-                          {syncLogs.map((log, index) => (
-                            <div key={index} style={{
-                              padding: "3px 0",
-                              color: log.includes("❌") ? "#fca5a5" : log.includes("✅") ? "#86efac" : log.includes("🔄") ? "#93c5fd" : "#94a3b8"
-                            }}>
-                              {log}
-                            </div>
-                          ))}
-                          {syncLogs.length > 0 && (
-                            <button
-                              onClick={() => setSyncLogs([])}
-                              style={{
-                                marginTop: "8px",
-                                padding: "4px 10px",
-                                background: "rgba(239,68,68,0.1)",
-                                border: "none",
-                                borderRadius: "4px",
-                                color: "#ef4444",
-                                fontSize: "0.7rem",
-                                cursor: "pointer"
-                              }}
-                            >
-                              Limpiar logs
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Columna Derecha: Botones de Acción */}
-                    <div style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "1rem"
-                    }}>
-                      <button
-                        onClick={async () => {
-                          const btn = document.getElementById('sync-push-btn');
-                          if (btn) btn.style.opacity = '0.5';
-                          try {
-                            await cloud.getProvider().pushAll();
-                          } finally {
-                            if (btn) btn.style.opacity = '1';
-                          }
-                        }}
-                        disabled={(syncStatus.status as string) === "syncing"}
-                        id="sync-push-btn"
-                        style={{
-                          padding: "1rem",
-                          background: "linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.05) 100%)",
-                          border: "1px solid rgba(34, 197, 94, 0.25)",
-                          borderRadius: "14px",
-                          cursor: "pointer",
-                          transition: "all 0.3s",
-                          opacity: (syncStatus.status as string) === "syncing" ? 0.5 : 1
-                        }}
-                      >
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
-                          <div style={{
-                            width: "48px",
-                            height: "48px",
-                            borderRadius: "12px",
-                            background: "rgba(34, 197, 94, 0.15)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center"
-                          }}>
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                              <polyline points="17 8 12 3 7 8"/>
-                              <line x1="12" y1="3" x2="12" y2="15"/>
-                            </svg>
-                          </div>
-                          <span style={{ color: "#22c55e", fontSize: "0.9rem", fontWeight: "600" }}>Subir a Sync</span>
-                          <span style={{ color: "#64748b", fontSize: "0.7rem" }}>Enviar datos al servidor</span>
-                        </div>
-                      </button>
-
-                      <button
-                        onClick={() => syncService.pullAll()}
-                        disabled={(syncStatus.status as string) === "syncing"}
-                        style={{
-                          padding: "1rem",
-                          background: "linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%)",
-                          border: "1px solid rgba(59, 130, 246, 0.25)",
-                          borderRadius: "14px",
-                          cursor: "pointer",
-                          transition: "all 0.3s",
-                          opacity: (syncStatus.status as string) === "syncing" ? 0.5 : 1
-                        }}
-                      >
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
-                          <div style={{
-                            width: "48px",
-                            height: "48px",
-                            borderRadius: "12px",
-                            background: "rgba(59, 130, 246, 0.15)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center"
-                          }}>
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                              <polyline points="7 10 12 15 17 10"/>
-                              <line x1="12" y1="15" x2="12" y2="3"/>
-                            </svg>
-                          </div>
-                          <span style={{ color: "#60a5fa", fontSize: "0.9rem", fontWeight: "600" }}>Descargar de Sync</span>
-                          <span style={{ color: "#64748b", fontSize: "0.7rem" }}>Traer datos del servidor</span>
-                        </div>
-                      </button>
+                      <div style={{ color: '#64748b', fontSize: '0.7rem', marginTop: '1px' }}>
+                        {syncStatus.lastSync
+                          ? `Última sync: ${new Date(syncStatus.lastSync).toLocaleString('es-ES', {
+                              day: '2-digit', month: '2-digit',
+                              hour: '2-digit', minute: '2-digit'
+                            })}`
+                          : 'Sin sincronizar'}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Card de Info Moderna */}
-                  <div style={{
-                    marginTop: "1.5rem",
-                    padding: "1.5rem",
-                    background: "linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(59, 130, 246, 0.08) 100%)",
-                    borderRadius: "16px",
-                    border: "1px solid rgba(139, 92, 246, 0.12)",
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "1rem" }}>
-                      <div style={{
-                        width: "40px",
-                        height: "40px",
-                        borderRadius: "10px",
-                        background: "rgba(139, 92, 246, 0.15)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center"
-                      }}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <circle cx="12" cy="12" r="10"/>
-                          <line x1="12" y1="16" x2="12" y2="12"/>
-                          <line x1="12" y1="8" x2="12.01" y2="8"/>
-                        </svg>
-                      </div>
-                      <div>
-                        <h4 style={{ margin: 0, fontSize: "1rem", color: "#f8fafc", fontWeight: "600" }}>Sistema de Sincronización</h4>
-                        <p style={{ margin: 0, fontSize: "0.75rem", color: "#64748b" }}>Cómo funciona la sincronización</p>
-                      </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: '6px',
+                      background: 'rgba(0,0,0,0.25)', padding: '4px 10px',
+                      borderRadius: '8px', fontSize: '0.75rem',
+                      color: '#94a3b8',
+                    }}>
+                      <span>⚡</span>
+                      <span>{syncInterval}s</span>
                     </div>
-                    
-                    <div style={{ display: "grid", gridTemplateColumns: isAndroid ? "1fr" : "1fr 1fr", gap: "12px" }}>
-                      <div style={{
-                        padding: "12px",
-                        background: "rgba(0,0,0,0.2)",
-                        borderRadius: "10px"
-                      }}>
-                        <div style={{ fontSize: "1.2rem", marginBottom: "4px" }}>💻</div>
-                        <div style={{ fontSize: "0.8rem", color: "#f8fafc", fontWeight: "600" }}>Local-First</div>
-                        <div style={{ fontSize: "0.7rem", color: "#64748b" }}>Tus datos siempre están seguros en tu PC</div>
-                      </div>
-                      <div style={{
-                        padding: "12px",
-                        background: "rgba(0,0,0,0.2)",
-                        borderRadius: "10px"
-                      }}>
-                        <div style={{ fontSize: "1.2rem", marginBottom: "4px" }}>🔐</div>
-                        <div style={{ fontSize: "0.8rem", color: "#f8fafc", fontWeight: "600" }}>Seguro</div>
-                        <div style={{ fontSize: "0.7rem", color: "#64748b" }}>Solo tú tienes acceso mediante email</div>
-                      </div>
-                      <div style={{
-                        padding: "12px",
-                        background: "rgba(0,0,0,0.2)",
-                        borderRadius: "10px"
-                      }}>
-                        <div style={{ fontSize: "1.2rem", marginBottom: "4px" }}>📴</div>
-                        <div style={{ fontSize: "0.8rem", color: "#f8fafc", fontWeight: "600" }}>Offline</div>
-                        <div style={{ fontSize: "0.7rem", color: "#64748b" }}>Trabaja sin internet y sincroniza después</div>
-                      </div>
-                      <div style={{
-                        padding: "12px",
-                        background: "rgba(0,0,0,0.2)",
-                        borderRadius: "10px"
-                      }}>
-                        <div style={{ fontSize: "1.2rem", marginBottom: "4px" }}>🔄</div>
-                        <div style={{ fontSize: "0.8rem", color: "#f8fafc", fontWeight: "600" }}>UUID</div>
-                        <div style={{ fontSize: "0.7rem", color: "#64748b" }}>Cada cuenta tiene su propio espacio</div>
-</div>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: '6px',
+                      background: 'rgba(0,0,0,0.25)', padding: '4px 10px',
+                      borderRadius: '8px', fontSize: '0.75rem',
+                      color: '#94a3b8', cursor: 'pointer',
+                    }} onClick={() => setShowServerConfig(!showServerConfig)}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                      </svg>
                     </div>
                   </div>
                 </div>
 
-                {/* SECCIÓN: SERVIDOR POCKETBASE */}
-                <div style={{ marginTop: "1.5rem", paddingTop: "1.5rem", borderTop: "1px solid rgba(255,255,255,0.1)" }}>
-                  <h4 style={{ margin: "0 0 0.75rem 0", color: "#e2e8f0", fontSize: "0.9rem" }}>
-                    🌐 Servidor PocketBase
-                  </h4>
-                  <p style={{ color: "#94a3b8", fontSize: "0.8rem", marginBottom: "0.75rem" }}>
-                    Dirección del servidor. En desktop se usa <code>127.0.0.1:8090</code>.
-                    Para conectar desde Android vía Tailscale, ingresa la IP de tu PC.
-                  </p>
-                  <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
-                    <input
-                      type="text"
-                      value={pbUrl}
-                      onChange={(e) => setPbUrl(e.target.value)}
-                      placeholder="http://127.0.0.1:8090"
-                      style={{
-                        flex: 1,
-                        padding: "0.5rem 0.75rem",
-                        borderRadius: "8px",
-                        border: "1px solid rgba(255,255,255,0.15)",
-                        background: "rgba(0,0,0,0.3)",
-                        color: "#e2e8f0",
-                        fontSize: "0.8rem",
-                        fontFamily: "monospace",
-                      }}
-                    />
-                    <button
-                      onClick={async () => {
-                        setPbTesting(true);
-                        setPbStatus('idle');
-                        setPbLatency(null);
-                        const start = Date.now();
-                        try {
-                          const result = await pbReconnect(pbUrl);
-                          const latency = Date.now() - start;
-                          setPbLatency(latency);
-                          setPbStatus(result.ok ? 'online' : 'offline');
-                          if (result.ok) {
-                            savePocketBaseUrl(pbUrl);
-                          }
-                        } catch {
-                          setPbLatency(Date.now() - start);
-                          setPbStatus('offline');
-                        }
-                        setPbTesting(false);
-                      }}
-                      disabled={pbTesting || !pbUrl}
-                      style={{
-                        padding: "0.5rem 1rem",
-                        borderRadius: "8px",
-                        border: "none",
-                        background: pbTesting ? "#64748b" : "var(--primary-color, #3b82f6)",
-                        color: "#fff",
-                        fontWeight: 600,
-                        fontSize: "0.8rem",
-                        cursor: pbTesting ? "not-allowed" : "pointer",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {pbTesting ? "Probando..." : "Probar"}
-                    </button>
+                {/* Sync status message */}
+                {syncStatus.message && (
+                  <div style={{
+                    marginTop: '8px',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    fontSize: '0.75rem',
+                    borderLeft: `3px solid ${syncStatus.status === 'error' ? '#ef4444' : '#3b82f6'}`,
+                    background: 'rgba(0,0,0,0.2)',
+                    color: syncStatus.status === 'error' ? '#fca5a5' : '#93c5fd',
+                  }}>
+                    {syncStatus.status === 'syncing' && (
+                      <span style={{ display: 'inline-block', marginRight: '8px' }}>
+                        <span style={{
+                          display: 'inline-block', width: '10px', height: '10px',
+                          border: '2px solid #60a5fa', borderTopColor: 'transparent',
+                          borderRadius: '50%', animation: 'spin 1s linear infinite',
+                          verticalAlign: 'middle',
+                        }} />
+                      </span>
+                    )}
+                    {syncStatus.message}
                   </div>
-                  {pbStatus !== 'idle' && (
-                    <div style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.4rem",
-                      padding: "0.4rem 0.6rem",
-                      borderRadius: "6px",
-                      fontSize: "0.8rem",
-                      background: pbStatus === 'online' ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
-                      color: pbStatus === 'online' ? "#4ade80" : "#f87171",
-                    }}>
-                      <span>{pbStatus === 'online' ? '✅' : '❌'}</span>
-                      <span>
-                        {pbStatus === 'online'
-                          ? `Conectado (${pbLatency}ms)`
-                          : `Sin conexión${pbLatency ? ` (${pbLatency}ms)` : ''}`
-                        }
+                )}
+
+                {/* Action Buttons */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: isAndroid ? '1fr' : '1fr 1fr',
+                  gap: '0.75rem',
+                  marginTop: '1rem',
+                }}>
+                  <button
+                    onClick={async () => {
+                      const btn = document.getElementById('sync-push-btn');
+                      if (btn) { (btn as HTMLButtonElement).disabled = true; }
+                      try { await cloud.getProvider().pushAll(); } finally {
+                        if (btn) { (btn as HTMLButtonElement).disabled = false; }
+                      }
+                    }}
+                    disabled={syncStatus.status === 'syncing'}
+                    id="sync-push-btn"
+                    style={{
+                      padding: '0.85rem 1rem',
+                      background: 'linear-gradient(135deg, rgba(34,197,94,0.12) 0%, rgba(34,197,94,0.04) 100%)',
+                      border: '1px solid rgba(34,197,94,0.2)',
+                      borderRadius: '12px',
+                      cursor: syncStatus.status === 'syncing' ? 'not-allowed' : 'pointer',
+                      opacity: syncStatus.status === 'syncing' ? 0.5 : 1,
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '10px',
+                    }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="17 8 12 3 7 8"/>
+                      <line x1="12" y1="3" x2="12" y2="15"/>
+                    </svg>
+                    <span style={{ color: '#22c55e', fontWeight: 600, fontSize: '0.85rem' }}>Subir datos</span>
+                  </button>
+
+                  <button
+                    onClick={() => syncService.pullAll()}
+                    disabled={syncStatus.status === 'syncing'}
+                    style={{
+                      padding: '0.85rem 1rem',
+                      background: 'linear-gradient(135deg, rgba(59,130,246,0.12) 0%, rgba(59,130,246,0.04) 100%)',
+                      border: '1px solid rgba(59,130,246,0.2)',
+                      borderRadius: '12px',
+                      cursor: syncStatus.status === 'syncing' ? 'not-allowed' : 'pointer',
+                      opacity: syncStatus.status === 'syncing' ? 0.5 : 1,
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '10px',
+                    }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="7 10 12 15 17 10"/>
+                      <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    <span style={{ color: '#60a5fa', fontWeight: 600, fontSize: '0.85rem' }}>Bajar datos</span>
+                  </button>
+                </div>
+
+                {/* Server Config (collapsible) */}
+                {showServerConfig && (
+                  <div style={{
+                    marginTop: '1rem',
+                    padding: '1rem 1.25rem',
+                    background: 'rgba(0,0,0,0.2)',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.75rem' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round">
+                        <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
+                        <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
+                        <line x1="6" y1="6" x2="6.01" y2="6"/>
+                        <line x1="6" y1="18" x2="6.01" y2="18"/>
+                      </svg>
+                      <span style={{ color: '#cbd5e1', fontSize: '0.85rem', fontWeight: 600 }}>
+                        Configuración del Servidor
                       </span>
                     </div>
-                  )}
 
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.5rem" }}>
-                    <label style={{ color: "#94a3b8", fontSize: "0.8rem", whiteSpace: "nowrap" }}>
-                      Sync periódico:
-                    </label>
-                    <input
-                      type="number"
-                      min={3}
-                      max={300}
-                      value={syncInterval}
-                      onChange={(e) => {
-                        const v = parseInt(e.target.value, 10) || 10;
-                        setSyncInterval(v);
-                        localStorage.setItem('periodic_sync_interval_seconds', String(v));
-                        syncService.ensurePeriodicSync();
-                      }}
-                      style={{
-                        width: "60px",
-                        padding: "0.3rem 0.5rem",
-                        borderRadius: "6px",
-                        border: "1px solid rgba(255,255,255,0.15)",
-                        background: "rgba(0,0,0,0.3)",
-                        color: "#e2e8f0",
-                        fontSize: "0.8rem",
-                        fontFamily: "monospace",
-                        textAlign: "center",
-                      }}
-                    />
-                    <span style={{ color: "#94a3b8", fontSize: "0.8rem" }}>segundos</span>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                      <input
+                        type="text"
+                        value={pbUrl}
+                        onChange={(e) => setPbUrl(e.target.value)}
+                        placeholder="http://127.0.0.1:8090"
+                        style={{
+                          flex: 1,
+                          padding: '0.5rem 0.75rem',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(255,255,255,0.12)',
+                          background: 'rgba(0,0,0,0.3)',
+                          color: '#e2e8f0',
+                          fontSize: '0.8rem',
+                          fontFamily: 'monospace',
+                          outline: 'none',
+                        }}
+                      />
+                      <button
+                        onClick={async () => {
+                          setPbTesting(true);
+                          setPbStatus('idle');
+                          setPbLatency(null);
+                          const start = Date.now();
+                          try {
+                            const result = await pbReconnect(pbUrl);
+                            const latency = Date.now() - start;
+                            setPbLatency(latency);
+                            setPbStatus(result.ok ? 'online' : 'offline');
+                            if (result.ok) savePocketBaseUrl(pbUrl);
+                          } catch {
+                            setPbLatency(Date.now() - start);
+                            setPbStatus('offline');
+                          }
+                          setPbTesting(false);
+                        }}
+                        disabled={pbTesting || !pbUrl}
+                        style={{
+                          padding: '0.5rem 1rem',
+                          borderRadius: '8px',
+                          border: 'none',
+                          background: pbTesting ? '#64748b' : 'var(--primary-color, #3b82f6)',
+                          color: '#fff',
+                          fontWeight: 600,
+                          fontSize: '0.8rem',
+                          cursor: pbTesting ? 'not-allowed' : 'pointer',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {pbTesting ? 'Probando...' : 'Probar'}
+                      </button>
+                    </div>
+
+                    {pbStatus !== 'idle' && (
+                      <div style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        fontSize: '0.75rem',
+                        marginBottom: '0.75rem',
+                        background: pbStatus === 'online' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
+                        color: pbStatus === 'online' ? '#4ade80' : '#f87171',
+                      }}>
+                        <span>{pbStatus === 'online' ? '✅' : '❌'}</span>
+                        <span>
+                          {pbStatus === 'online' ? `Conectado (${pbLatency}ms)` : `Sin conexión${pbLatency ? ` (${pbLatency}ms)` : ''}`}
+                        </span>
+                      </div>
+                    )}
+
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      paddingTop: '0.5rem',
+                      borderTop: '1px solid rgba(255,255,255,0.06)',
+                    }}>
+                      <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Sync periódico:</span>
+                      <input
+                        type="number"
+                        min={3}
+                        max={300}
+                        value={syncInterval}
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value, 10) || 10;
+                          setSyncInterval(v);
+                          localStorage.setItem('periodic_sync_interval_seconds', String(v));
+                          syncService.ensurePeriodicSync();
+                        }}
+                        style={{
+                          width: '56px',
+                          padding: '0.25rem 0.4rem',
+                          borderRadius: '6px',
+                          border: '1px solid rgba(255,255,255,0.12)',
+                          background: 'rgba(0,0,0,0.3)',
+                          color: '#e2e8f0',
+                          fontSize: '0.8rem',
+                          fontFamily: 'monospace',
+                          textAlign: 'center',
+                          outline: 'none',
+                        }}
+                      />
+                      <span style={{ color: '#64748b', fontSize: '0.8rem' }}>segundos</span>
+                    </div>
                   </div>
+                )}
+
+                {/* Info Grid */}
+                <div style={{
+                  marginTop: '1rem',
+                  display: 'grid',
+                  gridTemplateColumns: isAndroid ? '1fr 1fr' : 'repeat(4, 1fr)',
+                  gap: '8px',
+                }}>
+                  {[
+                    { icon: '💻', title: 'Local-First', desc: 'Datos seguros en tu PC' },
+                    { icon: '🔐', title: 'Seguro', desc: 'Solo tú por email' },
+                    { icon: '📴', title: 'Offline', desc: 'Trabaja sin internet' },
+                    { icon: '🔄', title: 'Periódico', desc: `Cada ${syncInterval}s` },
+                  ].map((item) => (
+                    <div key={item.title} style={{
+                      padding: '0.75rem',
+                      background: 'rgba(0,0,0,0.15)',
+                      borderRadius: '10px',
+                      textAlign: 'center',
+                    }}>
+                      <div style={{ fontSize: '1.1rem', marginBottom: '2px' }}>{item.icon}</div>
+                      <div style={{ fontSize: '0.75rem', color: '#f1f5f9', fontWeight: 600 }}>{item.title}</div>
+                      <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '1px' }}>{item.desc}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
@@ -2993,7 +2700,7 @@ export function AjustesPage() {
                   </div>
                   <div style={{ fontWeight: "bold" }}>Cloud Sync</div>
                   <div style={{ fontSize: "0.8rem", color: "#94a3b8" }}>
-                    Supabase Backend
+                    PocketBase Sync
                   </div>
                 </div>
                 <div
@@ -3121,8 +2828,8 @@ export function AjustesPage() {
                       }}
                     >
                       <li>SQLite Local</li>
-                      <li>Supabase Engine</li>
-                      <li>PostgreSQL</li>
+                      <li>PocketBase</li>
+                      <li>SQLite Remoto</li>
                     </ul>
                   </div>
                 </div>
