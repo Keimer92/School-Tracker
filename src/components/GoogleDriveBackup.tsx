@@ -1015,8 +1015,8 @@ export const pruneOldGoogleDriveBackups = async (token: string, folderId: string
         const data = await listResponse.json();
         const files = data.files || [];
         
-        if (files.length > 3) {
-            const filesToDelete = files.slice(3);
+        if (files.length > 1) {
+            const filesToDelete = files.slice(1);
             for (const file of filesToDelete) {
                 await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}`, {
                     method: 'DELETE',
