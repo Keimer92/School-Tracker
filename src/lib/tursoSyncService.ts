@@ -283,24 +283,26 @@ export const tursoSyncService = {
     }
   },
 
-  syncAllSilent: async (): Promise<void> => {
+  syncAllSilent: async (dispatchEvents: boolean = true): Promise<void> => {
     await tursoSyncService.pushAllSilent();
     await tursoSyncService.pullAllSilent();
     syncManager.setState({
       lastSync: now(),
       lastSyncDetails: `Sync completo (${fmtTime()})`,
     });
-    try {
-      await emit("catalog-updated");
-      await emit("student-updated", { timestamp: Date.now() });
-      await emit("notas-updated", { timestamp: Date.now() });
-      await emit("asistencia-updated");
-      await emit("grade-configs-updated");
-      await emit("subjects-updated");
-    } catch (e) {
-      console.warn("Error emitiendo eventos Tauri:", e);
+    if (dispatchEvents) {
+      try {
+        await emit("catalog-updated");
+        await emit("student-updated", { timestamp: Date.now() });
+        await emit("notas-updated", { timestamp: Date.now() });
+        await emit("asistencia-updated");
+        await emit("grade-configs-updated");
+        await emit("subjects-updated");
+      } catch (e) {
+        console.warn("Error emitiendo eventos Tauri:", e);
+      }
+      window.dispatchEvent(new CustomEvent('schooltracker-sync', { detail: { timestamp: Date.now() } }));
     }
-    window.dispatchEvent(new CustomEvent('schooltracker-sync', { detail: { timestamp: Date.now() } }));
   },
 
   startPeriodicSync: () => {
@@ -316,7 +318,7 @@ export const tursoSyncService = {
         return;
       }
       syncManager.setState({ status: 'syncing', message: 'Sync automático...' });
-      await tursoSyncService.syncAllSilent();
+      await tursoSyncService.syncAllSilent(false);
       syncManager.setState({ status: 'idle', message: null });
     }, interval);
   },
