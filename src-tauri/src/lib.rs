@@ -41,7 +41,7 @@ fn get_schema_sql(state: tauri::State<'_, DbState>) -> Result<String, String> {
 
 #[tauri::command]
 fn get_all_local_data_json(state: tauri::State<'_, DbState>) -> Result<String, String> {
-    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
 
     let table_names = [
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
@@ -89,6 +89,7 @@ fn get_all_local_data_json(state: tauri::State<'_, DbState>) -> Result<String, S
     serde_json::to_string(&result).map_err(|e| format!("Error serializando: {}", e))
 }
 
+#[allow(dead_code)]
 fn get_all_local_data(
     conn: &mut rusqlite::Connection,
 ) -> Result<HashMap<String, Vec<serde_json::Value>>, String> {
