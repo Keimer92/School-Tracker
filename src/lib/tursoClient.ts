@@ -3,20 +3,23 @@ import { connect } from "@tursodatabase/serverless";
 const URL_KEY = 'turso_db_url';
 const TOKEN_KEY = 'turso_auth_token';
 
+const DEFAULT_URL: string = import.meta.env.VITE_TURSO_DB_URL || '';
+const DEFAULT_TOKEN: string = import.meta.env.VITE_TURSO_AUTH_TOKEN || '';
+
 let client: ReturnType<typeof connect> | null = null;
 
 export const getTursoUrl = () => {
   if (typeof window !== 'undefined') {
-    return localStorage.getItem(URL_KEY) || '';
+    return localStorage.getItem(URL_KEY) || DEFAULT_URL;
   }
-  return '';
+  return DEFAULT_URL;
 };
 
 export const getTursoToken = () => {
   if (typeof window !== 'undefined') {
-    return localStorage.getItem(TOKEN_KEY) || '';
+    return localStorage.getItem(TOKEN_KEY) || DEFAULT_TOKEN;
   }
-  return '';
+  return DEFAULT_TOKEN;
 };
 
 export const saveTursoCredentials = (url: string, token: string) => {
