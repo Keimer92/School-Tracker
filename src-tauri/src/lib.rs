@@ -915,6 +915,8 @@ pub fn run() {
             get_secciones_by_grado_colegio,
             upsert_pull_data,
             get_colegio_dias_asistencia_all,
+            get_grado_asignatura,
+            get_colegio_asignatura,
             delete_asistencia_batch,
             get_pending_deletions,
             remove_pending_deletion,

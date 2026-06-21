@@ -174,8 +174,8 @@ export const tursoSyncService = {
         nota: { cols: 'estudiante_id,criterio_id,valor,corte_evaluativo_id,asignatura_id', data: await safeGet('get_notas_all'), map: (r) => [r.estudianteId, r.criterioId, r.valor, r.corteEvaluativoId ?? 0, r.asignaturaId ?? 0] },
         asistencia: { cols: 'id,estudiante_id,fecha,estado,observacion', data: await safeGet('get_asistencia_all'), map: (r) => [r.id, r.estudianteId, r.fecha, r.estado, r.observacion ?? null] },
         colegio_dias_asistencia: { cols: 'colegio_id,lunes,martes,miercoles,jueves,viernes,sabado,domingo', data: await safeGet('get_colegio_dias_asistencia_all'), map: (r) => [r.colegioId, r.lunes ? 1 : 0, r.martes ? 1 : 0, r.miercoles ? 1 : 0, r.jueves ? 1 : 0, r.viernes ? 1 : 0, r.sabado ? 1 : 0, r.domingo ? 1 : 0] },
-        grado_asignatura: { cols: 'grado_id,asignatura_id', data: await safeGet('get_grado_asignatura'), map: (r) => [r.gradoId, r.asignaturaId] },
-        colegio_asignatura: { cols: 'colegio_id,asignatura_id', data: await safeGet('get_colegio_asignatura'), map: (r) => [r.colegioId, r.asignaturaId] },
+        grado_asignatura: { cols: 'grado_id,asignatura_id', data: await safeGet('get_grado_asignatura'), map: (r) => [r.grado_id, r.asignatura_id] },
+        colegio_asignatura: { cols: 'colegio_id,asignatura_id', data: await safeGet('get_colegio_asignatura'), map: (r) => [r.colegio_id, r.asignatura_id] },
       };
       const tableOrder = [
         'ano_lectivo', 'corte_evaluativo', 'colegio', 'asignatura', 'grado', 'seccion',

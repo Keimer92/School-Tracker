@@ -3604,3 +3604,41 @@ pub fn get_colegio_dias_asistencia_all(
 
     Ok(configs)
 }
+
+#[tauri::command]
+pub fn get_grado_asignatura(state: tauri::State<'_, DbState>) -> Result<Vec<GradoAsignaturaRecord>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare("SELECT grado_id, asignatura_id FROM grado_asignatura").map_err(|e| e.to_string())?;
+    let items = stmt.query_map([], |row| {
+        Ok(GradoAsignaturaRecord {
+            grado_id: row.get(0)?,
+            asignatura_id: row.get(1)?,
+        })
+    }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+    Ok(items)
+}
+
+#[tauri::command]
+pub fn get_colegio_asignatura(state: tauri::State<'_, DbState>) -> Result<Vec<ColegioAsignaturaRecord>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare("SELECT colegio_id, asignatura_id FROM colegio_asignatura").map_err(|e| e.to_string())?;
+    let items = stmt.query_map([], |row| {
+        Ok(ColegioAsignaturaRecord {
+            colegio_id: row.get(0)?,
+            asignatura_id: row.get(1)?,
+        })
+    }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+    Ok(items)
+}
+
+#[derive(serde::Serialize)]
+pub struct GradoAsignaturaRecord {
+    pub grado_id: i64,
+    pub asignatura_id: i64,
+}
+
+#[derive(serde::Serialize)]
+pub struct ColegioAsignaturaRecord {
+    pub colegio_id: i64,
+    pub asignatura_id: i64,
+}
