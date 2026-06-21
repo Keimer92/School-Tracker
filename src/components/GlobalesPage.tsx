@@ -182,6 +182,7 @@ function CategoryTabContent({
     // Persist order
     try {
       await invoke(config.endpoints.updateOrder, { items: newItems });
+      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
       await emit("catalog-updated");
     } catch (error) {
       console.error("Error updating order:", error);
@@ -230,11 +231,7 @@ function CategoryTabContent({
             nombre: nombre.trim(),
           });
           fetchItems();
-          syncService.syncGlobal(
-            config.table,
-            { id, nombre: nombre.trim(), cualitativo: false },
-            true,
-          );
+          syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
           await emit("show-toast", {
             message: `✅ ${config.title} agregado`,
             type: "success",
@@ -265,15 +262,7 @@ function CategoryTabContent({
             cualitativo: item.cualitativo || false,
           });
           fetchItems();
-          syncService.syncGlobal(
-            config.table,
-            {
-              ...item,
-              nombre: nuevoNombre.trim(),
-              cualitativo: item.cualitativo || false,
-            },
-            false,
-          );
+          syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
           await emit("show-toast", {
             message: `✅ ${config.title} actualizado`,
             type: "success",
@@ -357,21 +346,13 @@ function CategoryTabContent({
       });
 
       // 4. Segundo plano: Sync y Eventos
-      (async () => {
-        try {
-          await syncService.deleteGlobal(config.table, item.id);
-        } catch (e) {
-          console.error("Error sync delete global:", e);
-        }
-
-        try {
-          // Recargar items por si acaso (aunque ya filtramos visualmente)
-          fetchItems();
-          await emit("catalog-updated");
-        } catch (e) {
-          console.error("Error emitting catalog update:", e);
-        }
-      })();
+      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      try {
+        fetchItems();
+        await emit("catalog-updated");
+      } catch (e) {
+        console.error("Error emitting catalog update:", e);
+      }
     } catch (error) {
       console.error("Error deleting category:", error);
       await emit("show-toast", {
@@ -389,15 +370,7 @@ function CategoryTabContent({
       await invoke(config.endpoints.setActive, { id });
       const data: CategoryItem[] = await invoke(config.endpoints.get);
       setItems(data);
-      // Sincronizar el estado activo de todos los items con la nube
-      for (const item of data) {
-        syncService.syncGlobal(config.table, {
-          id: item.id,
-          nombre: item.nombre,
-          activo: item.activo,
-          cualitativo: item.cualitativo,
-        }, false);
-      }
+      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
       await emit("show-toast", {
         message: "✅ Activado correctamente",
         type: "success",
@@ -419,15 +392,7 @@ function CategoryTabContent({
         cualitativo: !item.cualitativo,
       });
       fetchItems();
-      try {
-        await syncService.syncGlobal(config.table, {
-          id: item.id,
-          nombre: item.nombre,
-          cualitativo: !item.cualitativo,
-        }, false);
-      } catch (e) {
-        console.error("Error sync cualitativo:", e);
-      }
+      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
       await emit("catalog-updated");
       await emit("show-toast", {
         message: "✅ Tipo de evaluación actualizado",
@@ -451,17 +416,9 @@ function CategoryTabContent({
             nombre: item.nombre,
             cualitativo: enabled,
           });
-          try {
-            await syncService.syncGlobal(config.table, {
-              id: item.id,
-              nombre: item.nombre,
-              cualitativo: enabled,
-            }, false);
-          } catch (e) {
-            console.error("Error sync cualitativo:", e);
-          }
         }
       }
+      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
       fetchItems();
       await emit("catalog-updated");
       await emit("show-toast", {
@@ -1077,19 +1034,7 @@ export function GlobalesPage() {
         });
       }
 
-      // Sincronización
-      try {
-        await syncService.syncColegioSubjects(
-          selectedColegioForSubjects.id,
-          newAssigned.map((s) => s.id!),
-        );
-      } catch (e) {
-        console.error("Error sync colegio subjects:", e);
-        await emit("show-toast", {
-          message: "💾 Actualizado localmente, pero falló la nube.",
-          type: "warning",
-        });
-      }
+      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
 
       await emit("show-toast", {
         message: "✅ Asignación actualizada",
@@ -1117,27 +1062,13 @@ export function GlobalesPage() {
           colegioId: selectedColegioForSubjects.id,
         });
         setColegioSubjects(allSubjects);
-        // Sync en segundo plano
-        syncService
-          .syncColegioSubjects(
-            selectedColegioForSubjects.id,
-            allSubjects.map((s) => s.id!),
-          )
-          .catch((e) => {
-            console.error("Error sync colegio subjects (bulk):", e);
-          });
       } else {
         await invoke("unassign_all_subjects_from_colegio", {
           colegioId: selectedColegioForSubjects.id,
         });
         setColegioSubjects([]);
-        // Sync en segundo plano
-        syncService
-          .syncColegioSubjects(selectedColegioForSubjects.id, [])
-          .catch((e) => {
-            console.error("Error sync colegio subjects (bulk unassign):", e);
-          });
       }
+      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
       await emit("show-toast", {
         message: "✅ Asignación actualizada",
         type: "success",
@@ -1163,16 +1094,7 @@ export function GlobalesPage() {
       await invoke("save_colegio_dias_asistencia", { config: newConfig });
       setColegioConfig(newConfig);
 
-      // Sincronización
-      try {
-        await syncService.syncColegioDias(newConfig);
-      } catch (e) {
-        console.error("Error sync colegio dias:", e);
-        await emit("show-toast", {
-          message: "💾 Actualizado localmente, pero falló la nube.",
-          type: "warning",
-        });
-      }
+      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
 
       await emit("show-toast", {
         message: "✅ Configuración guardada",
@@ -1205,11 +1127,7 @@ export function GlobalesPage() {
       await invoke("save_colegio_dias_asistencia", { config: newConfig });
       setColegioConfig(newConfig);
 
-      try {
-        await syncService.syncColegioDias(newConfig);
-      } catch (e) {
-        console.error("Error sync colegio dias (bulk):", e);
-      }
+      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
 
       await emit("show-toast", {
         message: `✅ Todos los días ${checked ? "marcados" : "desmarcados"}`,
@@ -1268,14 +1186,8 @@ export function GlobalesPage() {
         type: "success",
       });
       // Emitir evento para que EvaluacionesPage refresque las asignaturas
+      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
       await emit("subjects-updated");
-      
-      // Sincronizar en segundo plano
-      try {
-        await syncService.syncGradeSubjects(selectedGrade.id);
-      } catch (e) {
-        console.error("Error sync grade subjects:", e);
-      }
     } catch (error) {
       await emit("show-toast", {
         message: "❌ Error updating curriculum: " + error,
@@ -1303,14 +1215,8 @@ export function GlobalesPage() {
         type: "success",
       });
       // Emitir evento para que EvaluacionesPage refresque las asignaturas
+      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
       await emit("subjects-updated");
-      
-      // Sincronizar en segundo plano
-      try {
-        await syncService.syncGradeSubjects(selectedGrade.id);
-      } catch (e) {
-        console.error("Error sync grade subjects:", e);
-      }
     } catch (error) {
       await emit("show-toast", {
         message: "❌ Error: " + error,

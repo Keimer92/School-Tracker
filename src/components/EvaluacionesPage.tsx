@@ -187,6 +187,7 @@ export function EvaluacionesPage() {
         activo: !indicador.activo
       });
       setIndicadores(prev => prev.map(i => i.id === indicador.id ? { ...i, activo: !i.activo } : i));
+      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
       await emit("notas-updated", { timestamp: Date.now() });
     } catch (error) {
       await emit("show-toast", { message: "❌ Error al actualizar: " + error, type: "error" });
@@ -204,6 +205,7 @@ export function EvaluacionesPage() {
         descripcion: indicador.descripcion,
         activo: indicador.activo
       });
+      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
       await emit("notas-updated", { timestamp: Date.now(), source: 'EvaluacionesPage-BlurIndicador' });
     } catch (error) {
       console.error("Error saving description", error);
@@ -272,10 +274,8 @@ export function EvaluacionesPage() {
           });
         }
       }
+      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
       await emit("notas-updated", { timestamp: Date.now() });
-      syncService.syncEvaluacionConfig(indicadores).catch(err => {
-        console.error("Error en sincronización background de evaluación:", err);
-      });
       await emit("show-toast", { message: "✅ Configuración guardada localmente (Sincronizando...)", type: "success" });
     } catch (error) {
       await emit("show-toast", { message: "❌ Error al guardar la configuración: " + error, type: "error" });
@@ -289,6 +289,7 @@ export function EvaluacionesPage() {
         descripcion: criterio.descripcion,
         puntajeMaximo: Number(criterio.puntajeMaximo)
       });
+      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
       await emit("notas-updated", { timestamp: Date.now(), source: 'EvaluacionesPage-BlurCriterio' });
     } catch (error) {
       console.error("Error saving criterio", error);

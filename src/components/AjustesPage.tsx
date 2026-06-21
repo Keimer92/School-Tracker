@@ -209,7 +209,7 @@ export function AjustesPage() {
           c.id === id ? { ...c, nombre, color, minimo: validatedMinimo } : c,
         ),
       );
-      syncService.syncGradeConfig({ id, color, minimo: validatedMinimo });
+      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
       await emit("grade-configs-updated");
     } catch (error) {
       console.error("Error updating grade config:", error);

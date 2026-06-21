@@ -376,14 +376,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
 
             await emit("show-toast", { message: "✅ Asistencia limpiada correctamente", type: "success" });
 
-            (async () => {
-              try {
-                await syncService.syncPendingDeletions();
-                console.log("Eliminaciones de asistencia sincronizadas");
-              } catch (syncError) {
-                console.error("Error en sincronización de eliminaciones:", syncError);
-              }
-            })();
+            syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
 
             // Emitir evento para refrescar InformePage
             try {
@@ -414,16 +407,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
       setSaving(false);
       await emit("show-toast", { message: "✅ Asistencia guardada localmente", type: "success" });
 
-      // Background synchronization (Non-blocking)
-      (async () => {
-        try {
-          await syncService.syncAsistenciaBatch(records);
-          console.log("LOG [Sincronización]: Asistencia sincronizada con éxito");
-        } catch (syncError) {
-          console.error("Error en sincronización background:", syncError);
-          // Opcional: avisar que la nube está pendiente, pero de forma discreta
-        }
-      })();
+      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
       
       // Emitir evento para refrescar InformePage si está abierto
       try {

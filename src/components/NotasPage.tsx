@@ -1194,38 +1194,8 @@ export function NotasPage() {
     await emit("notas-updated");
     
     // Sincronización en segundo plano (No bloqueante)
-      (async () => {
-        try {
-          console.log("LOG [Sincronización]: Iniciando en segundo plano...");
-
-          // Sincronizar configuración de evaluación solo una vez por sesión
-          if (!configSyncedRef.current) {
-            await syncService.syncEvaluacionConfig(indicadores);
-            configSyncedRef.current = true;
-          }
-
-          // Preparar todas las notas para sincronización en lote
-          const todasLasNotasParaSync: any[] = [];
-          notasParaGuardar.forEach(notaEst => {
-            notaEst.notas.forEach(n => {
-              todasLasNotasParaSync.push({
-                estudianteId: notaEst.estudianteId,
-                criterioId: n.criterioId,
-                valor: n.valor,
-                corteEvaluativoId: selectedCorte,
-                asignaturaId: selectedAsignatura
-              });
-            });
-          });
-
-          if (todasLasNotasParaSync.length > 0) {
-            await syncService.syncNotasBatch(todasLasNotasParaSync);
-            console.log("LOG [Sincronización]: Notas sincronizadas con éxito");
-          }
-        } catch (syncError) {
-          console.error("LOG [Sincronización]: Error en segundo plano:", syncError);
-        }
-      })();
+      configSyncedRef.current = true;
+      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
 
       // Recargar datos localmente y notificar a otros componentes (sin参数 para mantener filtros actuales)
       // Solo recargar una vez, no emitiremos eventos que puedan causar recargas adicionales

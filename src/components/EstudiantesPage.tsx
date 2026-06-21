@@ -519,15 +519,7 @@ useEffect(() => {
       }
 
       if (newlyImportedStudents.length > 0) {
-        try {
-          await syncService.syncStudentsBatch(newlyImportedStudents);
-        } catch (syncErr) {
-          console.error("Error al sincronizar estudiantes importados:", syncErr);
-          await emit("show-toast", { 
-            message: "⚠️ Estudiantes importados localmente, pero falló la sincronización a la nube.", 
-            type: "warning" 
-          });
-        }
+        syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
       }
 
       // Actualizar filtros para mostrar los estudiantes importados (o los que ya existían)
@@ -768,16 +760,7 @@ useEffect(() => {
         
         await invoke("update_student", { student: studentToSave });
         
-        // Sincronización
-        try {
-          await syncService.syncStudent(studentToSave, false);
-        } catch (err) {
-          console.error("Error en sincronización background (update):", err);
-          await emit("show-toast", { 
-            message: "💾 Actualizado localmente, pero falló la sincronización.", 
-            type: "warning" 
-          });
-        }
+        syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
 
         await emit("student-updated", { timestamp: Date.now() });
         await emit("show-toast", { message: '✅ Estudiante actualizado correctamente', type: 'success' });
@@ -787,16 +770,7 @@ useEffect(() => {
         const newId = await invoke<number>("add_student", { student: newStudentWithFoto });
         const newStudent = { ...newStudentWithFoto, id: newId };
 
-        // Sincronización
-        try {
-          await syncService.syncStudent(newStudent, true);
-        } catch (err) {
-          console.error("Error en sincronización background (add):", err);
-          await emit("show-toast", { 
-            message: "💾 Guardado localmente, pero falló la sincronización.", 
-            type: "warning" 
-          });
-        }
+        syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
 
         await emit("student-updated", { timestamp: Date.now() });
         await emit("show-toast", { message: '✅ Estudiante registrado correctamente', type: 'success' });
@@ -867,20 +841,8 @@ useEffect(() => {
       await emit("student-updated", { timestamp: Date.now() });
 
       // 5. Sincronización y refresco de datos en segundo plano
-      (async () => {
-        try {
-          await syncService.deleteStudent(idToDelete);
-        } catch (syncError) {
-          console.error("Error en sincronización de eliminación (segundo plano):", syncError);
-        }
-
-        try {
-          // Refrescar datos completos por consistencia
-          fetchData(true); // Preserve filters after deletion
-        } catch (eventError) {
-          console.error("Error al refrescar datos post-eliminación:", eventError);
-        }
-      })();
+      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      setTimeout(() => { fetchData(true); }, 200);
 
     } catch (error) {
       console.error("Error deleting student:", error);
