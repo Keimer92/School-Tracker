@@ -1326,7 +1326,7 @@ export function NotasPage() {
                         }}>{est.estudianteNombre}</div>
                       </td>
                       {(() => {
-                        return indicadores.map(ind => (
+                        return indicadores.filter(i => i.activo).map(ind => (
                           <Fragment key={`row-${est.estudianteId}-ind-${ind.id}`}>
                             {ind.criterios.map(crit => {
                               const criterioIndex = criterioIndexMap.get(crit.id) ?? 0;
@@ -2151,7 +2151,7 @@ return (
                     minWidth: '130px',
                     maxWidth: '150px'
                   }}>Estudiante</th>
-                  {indicadores.map(ind => (
+                  {indicadores.filter(i => i.activo).map(ind => (
                     <th key={ind.id} colSpan={ind.criterios.length + 1} style={{ 
                       padding: '0.2rem', 
                       textAlign: 'center', 
@@ -2161,11 +2161,11 @@ return (
                       <div 
                         title={ind.descripcion}
                         style={{ 
-                          background: ind.activo ? 'rgba(100, 108, 255, 0.15)' : 'rgba(100, 116, 139, 0.2)', 
+                          background: 'rgba(100, 108, 255, 0.15)',
                           padding: '0.2rem', 
                           borderRadius: '4px',
-                          border: `1px solid ${ind.activo ? 'rgba(100, 108, 255, 0.4)' : 'rgba(100, 116, 139, 0.4)'}`,
-                          color: ind.activo ? '#93c5fd' : '#94a3b8',
+                          border: '1px solid rgba(100, 108, 255, 0.4)',
+                          color: '#93c5fd',
                           cursor: 'help'
                         }}
                       >
@@ -2194,7 +2194,7 @@ return (
                 <tr style={{ background: '#1e293b' }}>
                   <th style={{ position: 'sticky', left: 0, zIndex: 110, background: '#1e293b', borderBottom: '1px solid rgba(255,255,255,0.1)' }}></th>
                   <th style={{ position: 'sticky', left: '35px', zIndex: 110, background: '#1e293b', borderBottom: '1px solid rgba(255,255,255,0.1)' }}></th>
-                  {indicadores.map(ind => (
+                  {indicadores.filter(i => i.activo).map(ind => (
                     <Fragment key={`sub-${ind.id}`}>
                       {ind.criterios.map(crit => (
                         <th key={crit.id} 
@@ -2217,10 +2217,10 @@ return (
                         textAlign: 'center', 
                         color: '#94a3b8', 
                         fontWeight: 'bold', 
-                        background: ind.activo ? 'rgba(100, 108, 255, 0.08)' : 'rgba(100, 116, 139, 0.15)',
+                        background: 'rgba(100, 108, 255, 0.08)',
                         borderBottom: '1px solid rgba(255,255,255,0.1)'
                       }}>
-                        <div style={{ color: ind.activo ? '#4ade80' : '#64748b', fontSize: '0.65rem' }}>
+                        <div style={{ color: '#4ade80', fontSize: '0.65rem' }}>
                           {isQualitative ? 'Cual.' : 'Tot'}
                         </div>
                       </th>
