@@ -221,32 +221,54 @@ export const tursoSyncService = {
   pullAll: async (): Promise<void> => {
     const client = getClient();
     try {
-      const tables = [
-        'ano_lectivo', 'corte_evaluativo', 'colegio', 'asignatura', 'grado', 'seccion',
-        'grado_asignatura', 'colegio_asignatura', 'indicador', 'criterio',
-        'estudiante', 'configuracion_calificacion', 'colegio_dias_asistencia',
-      ];
-      const pullData: Record<string, any[]> = {};
-      for (const table of tables) {
-        try {
-          const rs = await client.execute(`SELECT * FROM ${table}`);
-          pullData[table] = rs.rows;
-        } catch (e) {
-          console.warn(`[Turso Pull] Tabla ${table} no existe aún:`, e);
-          pullData[table] = [];
-        }
-      }
-      const asistenciaRs = await client.execute('SELECT * FROM asistencia');
-      pullData['asistencia'] = asistenciaRs.rows;
-      const notaRs = await client.execute('SELECT * FROM nota');
-      pullData['nota'] = notaRs.rows;
-      const deleteTables = Object.keys(pullData);
-      await invoke('upsert_pull_data', {
-        data: JSON.stringify({
-          tables: pullData,
-          deleted_tables: deleteTables.map(t => ({ table: t, records: [] })),
-        })
-      });
+      const q = async (sql: string) => { try { const r = await client.execute(sql); return r.rows; } catch { return []; } };
+      const [anoRows, corteRows, coleRows, asiRows, graRows, secRows] = await Promise.all([
+        q('SELECT id,nombre,activo,cualitativo FROM ano_lectivo'),
+        q('SELECT id,nombre,activo,cualitativo FROM corte_evaluativo'),
+        q('SELECT id,nombre,activo,cualitativo FROM colegio'),
+        q('SELECT id,nombre,cualitativo FROM asignatura'),
+        q('SELECT id,nombre,cualitativo FROM grado'),
+        q('SELECT id,nombre,cualitativo FROM seccion'),
+      ]);
+      const toCat = (r: any) => ({ id: r.id, nombre: r.nombre, activo: !!r.activo, cualitativo: !!r.cualitativo });
+      const pullData: Record<string, any> = {
+        anos: anoRows.map(toCat),
+        cortes: corteRows.map(toCat),
+        colegios: coleRows.map(toCat),
+        asignaturas: asiRows.map((r: any) => ({ id: r.id, nombre: r.nombre, cualitativo: !!r.cualitativo })),
+        grados: graRows.map((r: any) => ({ id: r.id, nombre: r.nombre, cualitativo: !!r.cualitativo })),
+        secciones: secRows.map((r: any) => ({ id: r.id, nombre: r.nombre, cualitativo: !!r.cualitativo })),
+        estudiantes: (await q('SELECT id,nombre,codigo,sexo,ano_lectivo_id,grado_id,seccion_id,colegio_id,telefono,direccion,email,foto FROM estudiante')).map((r: any) => ({
+          id: r.id, nombre: r.nombre, codigo: r.codigo, sexo: r.sexo,
+          anoLectivoId: r.ano_lectivo_id, gradoId: r.grado_id, seccionId: r.seccion_id, colegioId: r.colegio_id,
+          telefono: r.telefono ?? null, direccion: r.direccion ?? null, email: r.email ?? null, foto: r.foto ?? null,
+        })),
+        indicadores: (await q('SELECT id,grado_id,asignatura_id,corte_evaluativo_id,orden,descripcion,activo FROM indicador')).map((r: any) => ({
+          id: r.id, gradoId: r.grado_id, asignaturaId: r.asignatura_id, corteEvaluativoId: r.corte_evaluativo_id,
+          orden: r.orden, descripcion: r.descripcion ?? '', activo: !!r.activo, criterios: [],
+        })),
+        criterios: (await q('SELECT id,indicador_id,orden,descripcion,puntaje_maximo FROM criterio')).map((r: any) => ({
+          id: r.id, indicadorId: r.indicador_id, orden: r.orden, descripcion: r.descripcion ?? '', puntajeMaximo: r.puntaje_maximo,
+        })),
+        notas: (await q('SELECT estudiante_id,criterio_id,valor,corte_evaluativo_id,asignatura_id FROM nota')).map((r: any) => ({
+          estudianteId: r.estudiante_id, criterioId: r.criterio_id, valor: r.valor,
+          corteEvaluativoId: r.corte_evaluativo_id, asignaturaId: r.asignatura_id,
+        })),
+        asistencia: (await q('SELECT id,estudiante_id,fecha,estado,observacion FROM asistencia')).map((r: any) => ({
+          id: r.id, estudianteId: r.estudiante_id, fecha: r.fecha, estado: r.estado, observacion: r.observacion ?? null,
+        })),
+        gradeConfigs: (await q('SELECT id,nombre,color,minimo FROM configuracion_calificacion')).map((r: any) => ({
+          id: r.id, nombre: r.nombre, color: r.color, minimo: r.minimo,
+        })),
+        gradoAsignatura: (await q('SELECT grado_id,asignatura_id FROM grado_asignatura')).map((r: any) => [r.grado_id, r.asignatura_id]),
+        colegioAsignatura: (await q('SELECT colegio_id,asignatura_id FROM colegio_asignatura')).map((r: any) => [r.colegio_id, r.asignatura_id]),
+        colegioDiasAsistencia: (await q('SELECT colegio_id,lunes,martes,miercoles,jueves,viernes,sabado,domingo FROM colegio_dias_asistencia')).map((r: any) => ({
+          colegioId: r.colegio_id, lunes: r.lunes ?? 1, martes: r.martes ?? 1, miercoles: r.miercoles ?? 1,
+          jueves: r.jueves ?? 1, viernes: r.viernes ?? 1, sabado: r.sabado ?? 0, domingo: r.domingo ?? 0,
+        })),
+        isPartial: false,
+      };
+      await invoke('upsert_pull_data', { data: pullData });
       syncManager.setState({ lastDownload: now() });
     } catch (e: any) {
       throw new Error(`Error descargando datos: ${e?.message || e}`);
