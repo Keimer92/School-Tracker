@@ -163,7 +163,7 @@ export const tursoSyncService = {
       const tables: Record<string, TableDef> = {
         ano_lectivo: { cols: 'id,nombre,activo,cualitativo', data: await safeGet('get_anos'), map: catMap },
         corte_evaluativo: { cols: 'id,nombre,activo,cualitativo', data: await safeGet('get_cortes'), map: catMap },
-        colegio: { cols: 'id,nombre,activo,cualitativo,orden', data: await safeGet('get_colegios'), map: (r) => [r.id, r.nombre, r.activo ? 1 : 0, r.cualitativo ? 1 : 0, r.orden ?? 0] },
+        colegio: { cols: 'id,nombre,activo,cualitativo,orden', data: await safeGet('get_colegios'), map: (r) => [r.id, r.nombre, r.nombre, r.activo ? 1 : 0, r.cualitativo ? 1 : 0, r.orden ?? 0] },
         asignatura: { cols: 'id,nombre,cualitativo', data: await safeGet('get_asignaturas'), map: (r) => [r.id, r.nombre, r.cualitativo ? 1 : 0] },
         grado: { cols: 'id,nombre,cualitativo', data: await safeGet('get_grados'), map: (r) => [r.id, r.nombre, r.cualitativo ? 1 : 0] },
         seccion: { cols: 'id,nombre,cualitativo', data: await safeGet('get_secciones'), map: (r) => [r.id, r.nombre, r.cualitativo ? 1 : 0] },
@@ -174,6 +174,8 @@ export const tursoSyncService = {
         nota: { cols: 'estudiante_id,criterio_id,valor,corte_evaluativo_id,asignatura_id', data: await safeGet('get_notas_all'), map: (r) => [r.estudianteId, r.criterioId, r.valor, r.corteEvaluativoId ?? 0, r.asignaturaId ?? 0] },
         asistencia: { cols: 'id,estudiante_id,fecha,estado,observacion', data: await safeGet('get_asistencia_all'), map: (r) => [r.id, r.estudianteId, r.fecha, r.estado, r.observacion ?? null] },
         colegio_dias_asistencia: { cols: 'colegio_id,lunes,martes,miercoles,jueves,viernes,sabado,domingo', data: await safeGet('get_colegio_dias_asistencia_all'), map: (r) => [r.colegioId, r.lunes ? 1 : 0, r.martes ? 1 : 0, r.miercoles ? 1 : 0, r.jueves ? 1 : 0, r.viernes ? 1 : 0, r.sabado ? 1 : 0, r.domingo ? 1 : 0] },
+        grado_asignatura: { cols: 'grado_id,asignatura_id', data: await safeGet('get_grado_asignatura'), map: (r) => [r.gradoId, r.asignaturaId] },
+        colegio_asignatura: { cols: 'colegio_id,asignatura_id', data: await safeGet('get_colegio_asignatura'), map: (r) => [r.colegioId, r.asignaturaId] },
       };
       const tableOrder = [
         'ano_lectivo', 'corte_evaluativo', 'colegio', 'asignatura', 'grado', 'seccion',
