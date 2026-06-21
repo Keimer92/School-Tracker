@@ -163,7 +163,7 @@ export const tursoSyncService = {
       const tables: Record<string, TableDef> = {
         ano_lectivo: { cols: 'id,nombre,activo,cualitativo', data: await safeGet('get_anos'), map: catMap },
         corte_evaluativo: { cols: 'id,nombre,activo,cualitativo', data: await safeGet('get_cortes'), map: catMap },
-        colegio: { cols: 'id,nombre,activo,cualitativo,orden', data: await safeGet('get_colegios'), map: (r) => [r.id, r.nombre, r.nombre, r.activo ? 1 : 0, r.cualitativo ? 1 : 0, r.orden ?? 0] },
+        colegio: { cols: 'id,nombre,activo,cualitativo,orden', data: await safeGet('get_colegios'), map: (r) => [r.id, r.nombre, r.activo ? 1 : 0, r.cualitativo ? 1 : 0, r.orden ?? 0] },
         asignatura: { cols: 'id,nombre,cualitativo', data: await safeGet('get_asignaturas'), map: (r) => [r.id, r.nombre, r.cualitativo ? 1 : 0] },
         grado: { cols: 'id,nombre,cualitativo', data: await safeGet('get_grados'), map: (r) => [r.id, r.nombre, r.cualitativo ? 1 : 0] },
         seccion: { cols: 'id,nombre,cualitativo', data: await safeGet('get_secciones'), map: (r) => [r.id, r.nombre, r.cualitativo ? 1 : 0] },
