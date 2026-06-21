@@ -122,14 +122,24 @@ export const tursoSyncService = {
   runSchemaSetup: async (): Promise<{ ok: boolean; error?: string }> => {
     const client = getClient();
     try {
-      const schemaSql = await invoke<string>('get_schema_sql');
-      const statements = schemaSql
-        .split(';')
-        .map(s => s.trim())
-        .filter(s => s.length > 0 && s.toUpperCase().startsWith('CREATE TABLE'))
-        .map(s => s + ';')
-        .map(s => s.replace(/CREATE TABLE\s+/i, 'CREATE TABLE IF NOT EXISTS '));
-      for (const stmt of statements) {
+      const createTables = [
+        `CREATE TABLE IF NOT EXISTS ano_lectivo (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0)`,
+        `CREATE TABLE IF NOT EXISTS corte_evaluativo (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0)`,
+        `CREATE TABLE IF NOT EXISTS colegio (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, orden INTEGER DEFAULT 0)`,
+        `CREATE TABLE IF NOT EXISTS asignatura (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0)`,
+        `CREATE TABLE IF NOT EXISTS grado (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0)`,
+        `CREATE TABLE IF NOT EXISTS seccion (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0)`,
+        `CREATE TABLE IF NOT EXISTS grado_asignatura (grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, PRIMARY KEY (grado_id, asignatura_id))`,
+        `CREATE TABLE IF NOT EXISTS colegio_asignatura (colegio_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, PRIMARY KEY (colegio_id, asignatura_id))`,
+        `CREATE TABLE IF NOT EXISTS indicador (id INTEGER PRIMARY KEY AUTOINCREMENT, grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, corte_evaluativo_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', activo INTEGER DEFAULT 1)`,
+        `CREATE TABLE IF NOT EXISTS criterio (id INTEGER PRIMARY KEY AUTOINCREMENT, indicador_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', puntaje_maximo INTEGER NOT NULL)`,
+        `CREATE TABLE IF NOT EXISTS estudiante (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, codigo TEXT NOT NULL UNIQUE, sexo TEXT NOT NULL, ano_lectivo_id INTEGER NOT NULL, grado_id INTEGER NOT NULL, seccion_id INTEGER NOT NULL, colegio_id INTEGER NOT NULL, telefono TEXT, direccion TEXT, email TEXT, foto TEXT)`,
+        `CREATE TABLE IF NOT EXISTS configuracion_calificacion (id TEXT PRIMARY KEY, nombre TEXT NOT NULL, color TEXT NOT NULL, minimo INTEGER NOT NULL)`,
+        `CREATE TABLE IF NOT EXISTS colegio_dias_asistencia (colegio_id INTEGER PRIMARY KEY, lunes INTEGER DEFAULT 1, martes INTEGER DEFAULT 1, miercoles INTEGER DEFAULT 1, jueves INTEGER DEFAULT 1, viernes INTEGER DEFAULT 1, sabado INTEGER DEFAULT 1, domingo INTEGER DEFAULT 1)`,
+        `CREATE TABLE IF NOT EXISTS asistencia (id INTEGER PRIMARY KEY AUTOINCREMENT, estudiante_id INTEGER NOT NULL, fecha TEXT NOT NULL, estado TEXT NOT NULL, observacion TEXT, UNIQUE(estudiante_id, fecha))`,
+        `CREATE TABLE IF NOT EXISTS nota (estudiante_id INTEGER NOT NULL, criterio_id INTEGER NOT NULL, valor REAL NOT NULL, corte_evaluativo_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, PRIMARY KEY (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id))`,
+      ];
+      for (const stmt of createTables) {
         try {
           await client.execute(stmt);
         } catch (e: any) {
@@ -145,42 +155,51 @@ export const tursoSyncService = {
   pushAll: async (): Promise<void> => {
     const client = getClient();
     try {
-      const allData = await invoke<string>('get_all_local_data_json');
-      const tables: Record<string, any[]> = JSON.parse(allData);
+      async function safeGet<T>(fn: string): Promise<T[]> {
+        try { return await invoke<T[]>(fn); } catch { return []; }
+      }
+      interface TableDef { cols: string; data: any[]; map: (r: any) => any[] }
+      const catMap = (r: any) => [r.id, r.nombre, r.activo ? 1 : 0, r.cualitativo ? 1 : 0];
+      const tables: Record<string, TableDef> = {
+        ano_lectivo: { cols: 'id,nombre,activo,cualitativo', data: await safeGet('get_anos'), map: catMap },
+        corte_evaluativo: { cols: 'id,nombre,activo,cualitativo', data: await safeGet('get_cortes'), map: catMap },
+        colegio: { cols: 'id,nombre,activo,cualitativo,orden', data: await safeGet('get_colegios'), map: (r) => [r.id, r.nombre, r.activo ? 1 : 0, r.cualitativo ? 1 : 0, r.orden ?? 0] },
+        asignatura: { cols: 'id,nombre,cualitativo', data: await safeGet('get_asignaturas'), map: (r) => [r.id, r.nombre, r.cualitativo ? 1 : 0] },
+        grado: { cols: 'id,nombre,cualitativo', data: await safeGet('get_grados'), map: (r) => [r.id, r.nombre, r.cualitativo ? 1 : 0] },
+        seccion: { cols: 'id,nombre,cualitativo', data: await safeGet('get_secciones'), map: (r) => [r.id, r.nombre, r.cualitativo ? 1 : 0] },
+        estudiante: { cols: 'id,nombre,codigo,sexo,ano_lectivo_id,grado_id,seccion_id,colegio_id,telefono,direccion,email,foto', data: await safeGet('get_students'), map: (r) => [r.id, r.nombre, r.codigo, r.sexo, r.anoLectivoId, r.gradoId, r.seccionId, r.colegioId, r.telefono ?? null, r.direccion ?? null, r.email ?? null, r.foto ?? null] },
+        configuracion_calificacion: { cols: 'id,nombre,color,minimo', data: await safeGet('get_grade_configs'), map: (r) => [r.id, r.nombre, r.color, r.minimo] },
+        indicador: { cols: 'id,grado_id,asignatura_id,corte_evaluativo_id,orden,descripcion,activo', data: await safeGet('get_indicadores_all'), map: (r) => [r.id, r.gradoId, r.asignaturaId, r.corteEvaluativoId, r.orden, r.descripcion ?? '', r.activo ? 1 : 0] },
+        criterio: { cols: 'id,indicador_id,orden,descripcion,puntaje_maximo', data: await safeGet('get_criterios_all'), map: (r) => [r.id, r.indicadorId, r.orden, r.descripcion ?? '', r.puntajeMaximo] },
+        nota: { cols: 'estudiante_id,criterio_id,valor,corte_evaluativo_id,asignatura_id', data: await safeGet('get_notas_all'), map: (r) => [r.estudianteId, r.criterioId, r.valor, r.corteEvaluativoId ?? 0, r.asignaturaId ?? 0] },
+        asistencia: { cols: 'id,estudiante_id,fecha,estado,observacion', data: await safeGet('get_asistencia_all'), map: (r) => [r.id, r.estudianteId, r.fecha, r.estado, r.observacion ?? null] },
+        colegio_dias_asistencia: { cols: 'colegio_id,lunes,martes,miercoles,jueves,viernes,sabado,domingo', data: await safeGet('get_colegio_dias_asistencia_all'), map: (r) => [r.colegioId, r.lunes ? 1 : 0, r.martes ? 1 : 0, r.miercoles ? 1 : 0, r.jueves ? 1 : 0, r.viernes ? 1 : 0, r.sabado ? 1 : 0, r.domingo ? 1 : 0] },
+      };
       const tableOrder = [
         'ano_lectivo', 'corte_evaluativo', 'colegio', 'asignatura', 'grado', 'seccion',
-        'grado_asignatura', 'colegio_asignatura', 'indicador', 'criterio',
-        'estudiante', 'configuracion_calificacion', 'colegio_dias_asistencia', 'asistencia', 'nota'
+        'indicador', 'criterio', 'estudiante', 'configuracion_calificacion',
+        'colegio_dias_asistencia', 'asistencia', 'nota',
+        'grado_asignatura', 'colegio_asignatura',
       ];
       for (const tableName of tableOrder) {
-        const records = tables[tableName];
-        if (!records || records.length === 0) continue;
-        const placeholders = records.map(() => {
-          const keys = Object.keys(records[0]);
-          const cols = keys.join(', ');
-          const vals = keys.map(() => '?').join(', ');
-          return { cols, vals };
-        });
-        if (records.length > 0) {
-          const keys = Object.keys(records[0]);
-          const cols = keys.join(', ');
-          const rowsArgs = records.map(r => keys.map(k => r[k]));
-          const batchSql = `INSERT OR REPLACE INTO ${tableName} (${cols}) VALUES ${rowsArgs.map(() => `(${keys.map(() => '?').join(', ')})`).join(', ')}`;
-          const flatArgs: any[] = [];
-          for (const row of records) {
-            for (const k of keys) flatArgs.push(row[k] ?? null);
-          }
-          try {
-            await client.execute(batchSql, flatArgs);
-          } catch (e: any) {
-            console.warn(`[Turso Push] Error en ${tableName}, intentando individual:`, e);
-            for (const record of records) {
-              const indivVals = keys.map(k => record[k] ?? null);
-              try {
-                await client.execute(`INSERT OR REPLACE INTO ${tableName} (${cols}) VALUES (${keys.map(() => '?').join(', ')})`, indivVals);
-              } catch (e2: any) {
-                console.warn(`[Turso Push] Error individual en ${tableName}:`, e2);
-              }
+        const td = tables[tableName];
+        if (!td || !td.data || td.data.length === 0) continue;
+        const { cols, data, map } = td;
+        const flatArgs: any[] = [];
+        for (const row of data) {
+          const vals = map(row);
+          for (const v of vals) flatArgs.push(v);
+        }
+        const rowPlaces = data.map(() => `(${cols.split(',').map(() => '?').join(',')})`).join(',');
+        try {
+          await client.execute(`INSERT OR REPLACE INTO ${tableName} (${cols}) VALUES ${rowPlaces}`, flatArgs);
+        } catch (e: any) {
+          console.warn(`[Turso Push] Error en ${tableName}, intentando individual:`, e);
+          for (const record of data) {
+            try {
+              await client.execute(`INSERT OR REPLACE INTO ${tableName} (${cols}) VALUES (${cols.split(',').map(() => '?').join(',')})`, map(record));
+            } catch (e2: any) {
+              console.warn(`[Turso Push] Error individual en ${tableName}:`, e2);
             }
           }
         }
