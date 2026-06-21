@@ -240,6 +240,7 @@ export function NotasPage() {
 
   // Estado para vista móvil (un estudiante a la vez)
   const [currentStudentIdx, setCurrentStudentIdx] = useState(0);
+  const [showStudentList, setShowStudentList] = useState(false);
 
   useEffect(() => {
     setCurrentStudentIdx(0);
@@ -1781,12 +1782,12 @@ return (
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 minWidth: '40px',
               }}>◀</button>
-            <div style={{ flex: 1, textAlign: 'center', minWidth: 0, padding: '0 0.5rem' }}>
+            <div style={{ flex: 1, textAlign: 'center', minWidth: 0, padding: '0 0.5rem', cursor: 'pointer' }} onClick={() => setShowStudentList(true)}>
               <div style={{ fontWeight: 'bold', fontSize: '0.95rem', color: '#f1f5f9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {filteredNotas[currentStudentIdx]?.estudianteNombre || ''}
               </div>
               <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>
-                {currentStudentIdx + 1} de {filteredNotas.length}
+                {currentStudentIdx + 1} de {filteredNotas.length} — tap para lista
               </div>
             </div>
             <button onClick={goNextStudent} disabled={currentStudentIdx >= filteredNotas.length - 1}
@@ -1817,24 +1818,23 @@ return (
               
               return (
                 <div>
-                  {indicadores.map(ind => {
-                    const indActive = ind.activo;
+                  {indicadores.filter(i => i.activo).map(ind => {
                     return (
                       <div key={ind.id} style={{
                         marginBottom: '0.5rem',
                         borderRadius: '12px',
-                        border: `1px solid ${indActive ? 'rgba(100, 108, 255, 0.25)' : 'rgba(100, 116, 139, 0.2)'}`,
-                        background: indActive ? 'rgba(30, 41, 59, 0.5)' : 'rgba(30, 41, 59, 0.25)',
+                        border: '1px solid rgba(100, 108, 255, 0.25)',
+                        background: 'rgba(30, 41, 59, 0.5)',
                         overflow: 'hidden',
                       }}>
                         {/* Header del indicador */}
                         <div style={{
                           padding: '0.4rem 0.6rem',
-                          background: indActive ? 'rgba(100, 108, 255, 0.1)' : 'rgba(100, 116, 139, 0.1)',
-                          borderBottom: `1px solid ${indActive ? 'rgba(100, 108, 255, 0.15)' : 'rgba(100, 116, 139, 0.1)'}`,
+                          background: 'rgba(100, 108, 255, 0.1)',
+                          borderBottom: '1px solid rgba(100, 108, 255, 0.15)',
                           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                         }}>
-                          <div style={{ color: indActive ? '#93c5fd' : '#94a3b8', fontWeight: 'bold', fontSize: '0.8rem' }}>
+                          <div style={{ color: '#93c5fd', fontWeight: 'bold', fontSize: '0.8rem' }}>
                             Indicador {ind.orden}
                           </div>
                           {(() => {
@@ -1965,6 +1965,115 @@ return (
                 </div>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Lista rápida de estudiantes (Mobile) */}
+      {isMobile && showStudentList && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 99999,
+            display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+          }}
+        >
+          <div
+            onClick={() => setShowStudentList(false)}
+            style={{
+              position: 'absolute', inset: 0,
+              background: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(4px)',
+            }}
+          />
+          <div style={{
+            position: 'relative',
+            background: 'linear-gradient(180deg, rgba(30, 41, 59, 0.98), rgba(15, 23, 42, 0.99))',
+            border: '1px solid rgba(255,255,255,0.08)',
+            borderBottom: 'none',
+            borderRadius: '20px 20px 0 0',
+            width: '100%',
+            maxHeight: '70vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 -10px 40px rgba(0,0,0,0.5)',
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '1rem 1rem 0.5rem',
+              borderBottom: '1px solid rgba(255,255,255,0.06)',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              flexShrink: 0,
+            }}>
+              <div>
+                <div style={{ color: '#f1f5f9', fontWeight: 'bold', fontSize: '1rem' }}>Estudiantes</div>
+                <div style={{ color: '#64748b', fontSize: '0.75rem' }}>{filteredNotas.length} estudiantes</div>
+              </div>
+              <button onClick={() => setShowStudentList(false)}
+                style={{
+                  background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#94a3b8', borderRadius: '10px', padding: '0.3rem 0.7rem',
+                  fontSize: '0.85rem', cursor: 'pointer',
+                }}>✕</button>
+            </div>
+
+            {/* Lista */}
+            <div style={{
+              flex: 1, overflow: 'auto', padding: '0.3rem 0',
+              WebkitOverflowScrolling: 'touch',
+            }}>
+              {filteredNotas.map((est, idx) => {
+                const isCurrent = idx === currentStudentIdx;
+                return (
+                  <div key={est.estudianteId}
+                    onClick={() => { setCurrentStudentIdx(idx); setShowStudentList(false); }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '0.6rem',
+                      padding: '0.7rem 1rem',
+                      background: isCurrent ? 'rgba(100, 108, 255, 0.1)' : 'transparent',
+                      borderBottom: '1px solid rgba(255,255,255,0.03)',
+                      cursor: 'pointer',
+                      transition: 'background 0.1s',
+                    }}
+                  >
+                    <div style={{
+                      width: '28px', height: '28px', borderRadius: '50%',
+                      background: isCurrent ? '#6366f1' : 'rgba(255,255,255,0.06)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontWeight: 'bold', fontSize: '0.75rem', color: isCurrent ? '#fff' : '#94a3b8',
+                      flexShrink: 0,
+                    }}>
+                      {idx + 1}
+                    </div>
+                    <div style={{
+                      flex: 1, fontWeight: isCurrent ? 'bold' : 'normal',
+                      fontSize: '0.85rem', color: isCurrent ? '#e2e8f0' : '#cbd5e1',
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    }}>
+                      {est.estudianteNombre}
+                    </div>
+                    {(() => {
+                      const rawFinal = indicadores.filter(i => i.activo).reduce((sum, ind) => {
+                        return sum + ind.criterios.reduce((s, c) => {
+                          const qv = notasCualitativasRef.current.get(`${est.estudianteId}-${c.id}`);
+                          if (qv && ['AA', 'AS', 'AF', 'AI'].includes(qv)) {
+                            return s + Math.round(c.puntajeMaximo * (notaMapping[qv as keyof typeof notaMapping] || 0));
+                          }
+                          return s;
+                        }, 0);
+                      }, 0);
+                      const maxTotal = indicadores.filter(i => i.activo).reduce((sum, i) => {
+                        return sum + i.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0);
+                      }, 0);
+                      const escFinal = maxTotal > 0 ? (rawFinal / maxTotal) * 100 : 0;
+                      const grade = getGradeFromScore(escFinal)?.id || '';
+                      const color = grade ? getGradeColor(grade) : '#64748b';
+                      return grade ? (
+                        <div style={{ color, fontWeight: 'bold', fontSize: '0.85rem' }}>{grade}</div>
+                      ) : null;
+                    })()}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
