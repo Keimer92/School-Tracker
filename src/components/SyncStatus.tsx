@@ -4,7 +4,6 @@ import { getTursoUrl } from "../lib/tursoClient";
 
 export function SyncStatus() {
   const [state, setState] = useState(syncManager.getState());
-  const [collapsed, setCollapsed] = useState(true);
   const mounted = useRef(false);
 
   useEffect(() => {
@@ -34,54 +33,49 @@ export function SyncStatus() {
   return (
     <div style={{
       borderTop: '1px solid rgba(255,255,255,0.08)',
-      padding: collapsed ? '6px 12px' : '8px 12px',
+      padding: '8px 12px',
       fontSize: '0.7rem',
       color: '#94a3b8',
-      cursor: 'pointer',
       userSelect: 'none',
-      transition: 'padding 0.2s',
-    }} onClick={() => setCollapsed(!collapsed)}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: collapsed ? 0 : 6 }}>
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: 6 }}>
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: statusDot.color, flexShrink: 0 }} />
         <span style={{ flex: 1, fontWeight: 500, color: '#e2e8f0' }}>Sync</span>
-        <span style={{ fontSize: '0.6rem', opacity: 0.6 }}>{collapsed ? '▸' : '▾'}</span>
       </div>
 
-      {!collapsed && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, paddingLeft: 14 }}>
-          {state.lastUpload && (
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <span style={{ fontSize: '0.6rem' }}>↑</span>
-              <span>Subida: {fmt(state.lastUpload)}</span>
-            </div>
-          )}
-          {state.lastDownload && (
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <span style={{ fontSize: '0.6rem' }}>↓</span>
-              <span>Bajada: {fmt(state.lastDownload)}</span>
-            </div>
-          )}
-          {state.lastSync && (
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <span style={{ fontSize: '0.6rem' }}>↻</span>
-              <span>Última: {fmt(state.lastSync)}</span>
-            </div>
-          )}
-          {state.status === 'syncing' && (
-            <div style={{ color: '#fbbf24', fontSize: '0.65rem' }}>
-              ⏳ {state.message || 'Sincronizando...'}
-            </div>
-          )}
-          {state.status === 'error' && (
-            <div style={{ color: '#ef4444', fontSize: '0.65rem', wordBreak: 'break-word' }}>
-              ⚠️ {state.message}
-            </div>
-          )}
-          {!state.lastUpload && !state.lastDownload && (
-            <div style={{ color: '#64748b', fontStyle: 'italic' }}>Sin actividad</div>
-          )}
-        </div>
-      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, paddingLeft: 14 }}>
+        {state.lastUpload && (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <span style={{ fontSize: '0.6rem' }}>↑</span>
+            <span>Subida: {fmt(state.lastUpload)}</span>
+          </div>
+        )}
+        {state.lastDownload && (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <span style={{ fontSize: '0.6rem' }}>↓</span>
+            <span>Bajada: {fmt(state.lastDownload)}</span>
+          </div>
+        )}
+        {state.lastSync && (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <span style={{ fontSize: '0.6rem' }}>↻</span>
+            <span>Última: {fmt(state.lastSync)}</span>
+          </div>
+        )}
+        {state.status === 'syncing' && (
+          <div style={{ color: '#fbbf24', fontSize: '0.65rem' }}>
+            ⏳ {state.message || 'Sincronizando...'}
+          </div>
+        )}
+        {state.status === 'error' && (
+          <div style={{ color: '#ef4444', fontSize: '0.65rem', wordBreak: 'break-word' }}>
+            ⚠️ {state.message}
+          </div>
+        )}
+        {!state.lastUpload && !state.lastDownload && (
+          <div style={{ color: '#64748b', fontStyle: 'italic' }}>Sin actividad</div>
+        )}
+      </div>
     </div>
   );
 }
