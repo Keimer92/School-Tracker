@@ -5,10 +5,8 @@ import { emit } from "@tauri-apps/api/event";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { copyFile, writeFile, BaseDirectory } from "@tauri-apps/plugin-fs";
 import * as XLSX from "xlsx";
-import { Auth } from "./Auth";
 import { syncService, syncManager, SyncStatus } from "../lib/syncService";
-import { cloud } from "../lib/cloud/CloudBridge";
-import { reconnect as pbReconnect, getPocketBaseUrl, savePocketBaseUrl } from "../lib/pocketbase";
+import { getTursoUrl, getTursoToken, saveTursoCredentials, clearTursoCredentials, connectTurso, restoreTursoClient } from "../lib/tursoClient";
 import { GoogleDriveBackup } from "./GoogleDriveBackup";
 import "../App.css";
 
@@ -55,7 +53,7 @@ export function AjustesPage() {
   const [isExportingExcel, setIsExportingExcel] = useState(false);
   const [isExportingByYear, setIsExportingByYear] = useState(false);
 
-  const [isSynced, setIsSynced] = useState(false);
+  const [isSynced, setIsSynced] = useState(!!getTursoUrl());
   const [syncStatus, setSyncStatus] = useState<{
     status: SyncStatus;
     lastSync: string | null;
@@ -69,10 +67,12 @@ export function AjustesPage() {
   });
   const [showServerConfig, setShowServerConfig] = useState(false);
 
-  const [pbUrl, setPbUrl] = useState(getPocketBaseUrl);
-  const [pbTesting, setPbTesting] = useState(false);
-  const [pbStatus, setPbStatus] = useState<'idle' | 'online' | 'offline'>('idle');
-  const [pbLatency, setPbLatency] = useState<number | null>(null);
+  const [tursoUrl, setTursoUrl] = useState(getTursoUrl);
+  const [tursoToken, setTursoToken] = useState(getTursoToken);
+  const [tursoTesting, setTursoTesting] = useState(false);
+  const [tursoStatus, setTursoStatus] = useState<'idle' | 'online' | 'offline'>('idle');
+  const [tursoLatency, setTursoLatency] = useState<number | null>(null);
+  const [tursoError, setTursoError] = useState<string | null>(null);
   const [syncInterval, setSyncInterval] = useState(() => {
     return parseInt(localStorage.getItem('periodic_sync_interval_seconds') || '10', 10);
   });
@@ -94,16 +94,7 @@ export function AjustesPage() {
   }, []);
 
   useEffect(() => {
-    const provider = cloud.getProvider();
-    const unsubscribe = provider.onAuthStateChange((user) => {
-      setIsSynced(!!user);
-    });
-
-    provider.getUser().then((user) => {
-      setIsSynced(!!user);
-    });
-
-    return () => unsubscribe();
+    setIsSynced(!!getTursoUrl());
   }, []);
 
   const getGradeLabel = (id: string) => {
@@ -1552,10 +1543,6 @@ export function AjustesPage() {
               </h3>
             </div>
 
-            <div style={{ padding: isAndroid ? "1rem" : "1.5rem" }}>
-              <Auth />
-            </div>
-
             {isSynced && (
               <div style={{ padding: isAndroid ? "0 1rem 1rem" : "0 1.5rem 1.5rem" }}>
                 {/* Status Bar */}
@@ -1655,7 +1642,7 @@ export function AjustesPage() {
                     onClick={async () => {
                       const btn = document.getElementById('sync-push-btn');
                       if (btn) { (btn as HTMLButtonElement).disabled = true; }
-                      try { await cloud.getProvider().pushAll(); } finally {
+                      try { await syncService.pushAll(); } finally {
                         if (btn) { (btn as HTMLButtonElement).disabled = false; }
                       }
                     }}
@@ -1709,7 +1696,7 @@ export function AjustesPage() {
                   </button>
                 </div>
 
-                {/* Server Config (collapsible) */}
+                {/* Turso Config (collapsible) */}
                 {showServerConfig && (
                   <div style={{
                     marginTop: '1rem',
@@ -1726,18 +1713,18 @@ export function AjustesPage() {
                         <line x1="6" y1="18" x2="6.01" y2="18"/>
                       </svg>
                       <span style={{ color: '#cbd5e1', fontSize: '0.85rem', fontWeight: 600 }}>
-                        Configuración del Servidor
+                        Configuración Turso
                       </span>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.75rem' }}>
                       <input
                         type="text"
-                        value={pbUrl}
-                        onChange={(e) => setPbUrl(e.target.value)}
-                        placeholder="http://127.0.0.1:8090"
+                        value={tursoUrl}
+                        onChange={(e) => setTursoUrl(e.target.value)}
+                        placeholder="libsql://mydb.turso.io"
                         style={{
-                          flex: 1,
+                          width: '100%',
                           padding: '0.5rem 0.75rem',
                           borderRadius: '8px',
                           border: '1px solid rgba(255,255,255,0.12)',
@@ -1746,44 +1733,109 @@ export function AjustesPage() {
                           fontSize: '0.8rem',
                           fontFamily: 'monospace',
                           outline: 'none',
+                          boxSizing: 'border-box',
                         }}
                       />
+                      <input
+                        type="password"
+                        value={tursoToken}
+                        onChange={(e) => setTursoToken(e.target.value)}
+                        placeholder="Token de autenticación"
+                        style={{
+                          width: '100%',
+                          padding: '0.5rem 0.75rem',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(255,255,255,0.12)',
+                          background: 'rgba(0,0,0,0.3)',
+                          color: '#e2e8f0',
+                          fontSize: '0.8rem',
+                          fontFamily: 'monospace',
+                          outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <button
                         onClick={async () => {
-                          setPbTesting(true);
-                          setPbStatus('idle');
-                          setPbLatency(null);
-                          const start = Date.now();
+                          setTursoTesting(true);
+                          setTursoStatus('idle');
+                          setTursoLatency(null);
+                          setTursoError(null);
                           try {
-                            const result = await pbReconnect(pbUrl);
-                            const latency = Date.now() - start;
-                            setPbLatency(latency);
-                            setPbStatus(result.ok ? 'online' : 'offline');
-                            if (result.ok) savePocketBaseUrl(pbUrl);
-                          } catch {
-                            setPbLatency(Date.now() - start);
-                            setPbStatus('offline');
+                            const result = await syncService.testConnection(tursoUrl, tursoToken);
+                            setTursoLatency(result.latency);
+                            if (result.ok) {
+                              setTursoStatus('online');
+                              saveTursoCredentials(tursoUrl, tursoToken);
+                              setIsSynced(true);
+                              syncService.ensurePeriodicSync();
+                            } else {
+                              setTursoStatus('offline');
+                              setTursoError(result.error || 'Conexión fallida');
+                            }
+                          } catch (e: any) {
+                            setTursoStatus('offline');
+                            setTursoError(e?.message || String(e));
                           }
-                          setPbTesting(false);
+                          setTursoTesting(false);
                         }}
-                        disabled={pbTesting || !pbUrl}
+                        disabled={tursoTesting || !tursoUrl || !tursoToken}
                         style={{
+                          flex: 1,
                           padding: '0.5rem 1rem',
                           borderRadius: '8px',
                           border: 'none',
-                          background: pbTesting ? '#64748b' : 'var(--primary-color, #3b82f6)',
+                          background: tursoTesting ? '#64748b' : 'var(--primary-color, #3b82f6)',
                           color: '#fff',
                           fontWeight: 600,
                           fontSize: '0.8rem',
-                          cursor: pbTesting ? 'not-allowed' : 'pointer',
+                          cursor: tursoTesting ? 'not-allowed' : 'pointer',
                           whiteSpace: 'nowrap',
                         }}
                       >
-                        {pbTesting ? 'Probando...' : 'Probar'}
+                        {tursoTesting ? 'Conectando...' : 'Conectar'}
+                      </button>
+                      <button
+                        onClick={async () => {
+                          setTursoTesting(true);
+                          setTursoStatus('idle');
+                          setTursoLatency(null);
+                          setTursoError(null);
+                          try {
+                            const result = await syncService.testConnection(tursoUrl, tursoToken);
+                            setTursoLatency(result.latency);
+                            if (result.ok) {
+                              setTursoStatus('online');
+                            } else {
+                              setTursoStatus('offline');
+                              setTursoError(result.error || 'Conexión fallida');
+                            }
+                          } catch (e: any) {
+                            setTursoStatus('offline');
+                            setTursoError(e?.message || String(e));
+                          }
+                          setTursoTesting(false);
+                        }}
+                        disabled={tursoTesting || !tursoUrl || !tursoToken}
+                        style={{
+                          padding: '0.5rem 1rem',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(255,255,255,0.12)',
+                          background: 'rgba(0,0,0,0.2)',
+                          color: '#94a3b8',
+                          fontWeight: 600,
+                          fontSize: '0.8rem',
+                          cursor: tursoTesting ? 'not-allowed' : 'pointer',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {tursoTesting ? '...' : 'Probar'}
                       </button>
                     </div>
 
-                    {pbStatus !== 'idle' && (
+                    {tursoStatus !== 'idle' && (
                       <div style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -1791,22 +1843,82 @@ export function AjustesPage() {
                         padding: '4px 10px',
                         borderRadius: '6px',
                         fontSize: '0.75rem',
-                        marginBottom: '0.75rem',
-                        background: pbStatus === 'online' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
-                        color: pbStatus === 'online' ? '#4ade80' : '#f87171',
+                        marginTop: '0.5rem',
+                        background: tursoStatus === 'online' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
+                        color: tursoStatus === 'online' ? '#4ade80' : '#f87171',
                       }}>
-                        <span>{pbStatus === 'online' ? '✅' : '❌'}</span>
-                        <span>
-                          {pbStatus === 'online' ? `Conectado (${pbLatency}ms)` : `Sin conexión${pbLatency ? ` (${pbLatency}ms)` : ''}`}
-                        </span>
+                        {tursoStatus === 'online' ? (
+                          <span>✅ Conectado ({tursoLatency}ms)</span>
+                        ) : (
+                          <span>❌ {tursoError || `Sin conexión (${tursoLatency}ms)`}</span>
+                        )}
                       </div>
                     )}
+
+                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const result = await syncService.testConnection(tursoUrl, tursoToken);
+                            if (!result.ok) {
+                              setTursoError(result.error || 'Conexión fallida');
+                              setTursoStatus('offline');
+                              return;
+                            }
+                            const schemaResult = await syncService.runSchemaSetup();
+                            if (!schemaResult.ok) {
+                              setTursoError(schemaResult.error || 'Error creando schema');
+                            } else {
+                              setTursoStatus('online');
+                            }
+                          } catch (e: any) {
+                            setTursoError(e?.message || String(e));
+                          }
+                        }}
+                        disabled={!tursoUrl || !tursoToken}
+                        style={{
+                          padding: '0.4rem 0.75rem',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(255,255,255,0.12)',
+                          background: 'rgba(0,0,0,0.2)',
+                          color: '#94a3b8',
+                          fontWeight: 500,
+                          fontSize: '0.75rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Ejecutar Schema
+                      </button>
+                      <button
+                        onClick={() => {
+                          clearTursoCredentials();
+                          setTursoUrl('');
+                          setTursoToken('');
+                          setTursoStatus('idle');
+                          setIsSynced(false);
+                          syncService.disconnect();
+                        }}
+                        style={{
+                          padding: '0.4rem 0.75rem',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(239,68,68,0.2)',
+                          background: 'rgba(239,68,68,0.08)',
+                          color: '#f87171',
+                          fontWeight: 500,
+                          fontSize: '0.75rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Desconectar
+                      </button>
+                    </div>
 
                     <div style={{
                       display: 'flex',
                       alignItems: 'center',
                       gap: '0.5rem',
-                      paddingTop: '0.5rem',
+                      paddingTop: '0.75rem',
+                      marginTop: '0.75rem',
                       borderTop: '1px solid rgba(255,255,255,0.06)',
                     }}>
                       <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Sync periódico:</span>
@@ -1848,7 +1960,7 @@ export function AjustesPage() {
                 }}>
                   {[
                     { icon: '💻', title: 'Local-First', desc: 'Datos seguros en tu PC' },
-                    { icon: '🔐', title: 'Seguro', desc: 'Solo tú por email' },
+                    { icon: '☁️', title: 'Turso Cloud', desc: 'Siempre disponible' },
                     { icon: '📴', title: 'Offline', desc: 'Trabaja sin internet' },
                     { icon: '🔄', title: 'Periódico', desc: `Cada ${syncInterval}s` },
                   ].map((item) => (
@@ -1863,6 +1975,96 @@ export function AjustesPage() {
                       <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '1px' }}>{item.desc}</div>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {!isSynced && (
+              <div style={{ padding: isAndroid ? '1rem 1rem 2rem' : '1.5rem 1.5rem 2.5rem', textAlign: 'center' }}>
+                <div style={{ color: '#64748b', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+                  Conectá tu base de datos Turso para sincronizar datos entre dispositivos.
+                </div>
+                <div style={{
+                  maxWidth: '400px',
+                  margin: '0 auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.5rem',
+                }}>
+                  <input
+                    type="text"
+                    value={tursoUrl}
+                    onChange={(e) => setTursoUrl(e.target.value)}
+                    placeholder="libsql://mydb.turso.io"
+                    style={{
+                      width: '100%',
+                      padding: '0.6rem 0.75rem',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      background: 'rgba(0,0,0,0.3)',
+                      color: '#e2e8f0',
+                      fontSize: '0.85rem',
+                      fontFamily: 'monospace',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                  <input
+                    type="password"
+                    value={tursoToken}
+                    onChange={(e) => setTursoToken(e.target.value)}
+                    placeholder="Token de autenticación"
+                    style={{
+                      width: '100%',
+                      padding: '0.6rem 0.75rem',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                      background: 'rgba(0,0,0,0.3)',
+                      color: '#e2e8f0',
+                      fontSize: '0.85rem',
+                      fontFamily: 'monospace',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                  <button
+                    onClick={async () => {
+                      setTursoTesting(true);
+                      setTursoError(null);
+                      try {
+                        const result = await syncService.connectAndSetup(tursoUrl, tursoToken);
+                        if (result.ok) {
+                          setIsSynced(true);
+                          setTursoStatus('online');
+                          syncService.ensurePeriodicSync();
+                          syncService.syncAllSilent();
+                        } else {
+                          setTursoError(result.error || 'Error de conexión');
+                        }
+                      } catch (e: any) {
+                        setTursoError(e?.message || String(e));
+                      }
+                      setTursoTesting(false);
+                    }}
+                    disabled={tursoTesting || !tursoUrl || !tursoToken}
+                    style={{
+                      padding: '0.6rem 1rem',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: tursoTesting ? '#64748b' : 'var(--primary-color, #3b82f6)',
+                      color: '#fff',
+                      fontWeight: 600,
+                      fontSize: '0.85rem',
+                      cursor: tursoTesting ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {tursoTesting ? 'Conectando...' : 'Conectar a Turso'}
+                  </button>
+                  {tursoError && (
+                    <div style={{ color: '#f87171', fontSize: '0.75rem', marginTop: '0.5rem' }}>
+                      ❌ {tursoError}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

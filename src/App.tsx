@@ -10,10 +10,10 @@ import { NotasPage } from "./components/NotasPage";
 import { ReportesPage } from "./components/ReportesPage";
 import { AsistenciaPage } from "./components/AsistenciaPage";
 import { InformePage } from "./components/InformePage";
-import { LoginPage } from "./components/LoginPage";
-import { cloud } from "./lib/cloud/CloudBridge";
+import { restoreTursoClient, getTursoClient } from "./lib/tursoClient";
 import { syncService } from "./lib/syncService";
 import { realtimeService } from "./lib/realtimeService";
+import { SyncStatus } from "./components/SyncStatus";
 import { runAutomaticGoogleDriveBackupIfNeeded } from "./components/GoogleDriveBackup";
 
 const MAsistenciaPage = memo(AsistenciaPage);
@@ -164,75 +164,14 @@ useEffect(() => {
     }
   };
 
-  // Sincronización automática: descarga datos de la nube al iniciar sesión o al arrancar con sesión activa
+  // Sincronización automática: restaurar conexión Turso e iniciar sync periódico
   useEffect(() => {
-    let lastUserId: string | null = null;
-
-    const provider = cloud.getProvider();
-    let lastEvent: string | null = null;
-
-    const unsubscribe = provider.onAuthStateChange(async (user) => {
-      const currentUser = user;
-      const event = currentUser ? (lastEvent === null ? 'INITIAL_SESSION' : 'SIGNED_IN') : 'SIGNED_OUT';
-      lastEvent = event;
-      console.log(`[App] Evento Auth: ${event} | Usuario: ${currentUser?.email || 'ninguno'}`);
-
-      if (currentUser && currentUser.id !== lastUserId) {
-        const isInitialLoad = lastUserId === null;
-        lastUserId = currentUser.id;
-        console.log(`[App] Cambio de usuario o sesión inicial. Iniciando Realtime y Sync periódico.`);
-        realtimeService.init(currentUser.id);
-
-        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-          syncService.startPeriodicSync();
-          syncService.pullAll()
-            .then(async () => {
-              console.log('[Auto-Sync] Descarga completa');
-              try {
-                await emit('subjects-updated');
-              } catch (e) {
-                console.error('Error emitting subjects-updated:', e);
-              }
-              if (!isInitialLoad) {
-                showToast('✅ Datos actualizados desde la nube', 'success');
-              }
-            })
-            .catch(err => {
-              if (!err?.message?.includes('estar conectado')) {
-                console.error('[Auto-Sync] Error pullAll:', err);
-                if (!isInitialLoad) {
-                  showToast('⚠️ No se pudo descargar datos de la nube', 'error');
-                }
-              }
-            });
-        } else if (event === 'SIGNED_OUT') {
-          realtimeService.stop();
-          syncService.stopPeriodicSync();
-        }
-      } else if (!currentUser) {
-        lastUserId = null;
-        syncService.stopPeriodicSync();
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  // Reintento único 10s después del inicio si el pullAll inicial falló
-  useEffect(() => {
-    const timer = setTimeout(async () => {
-      try {
-        const user = await cloud.getProvider().getUser();
-        if (user) {
-          console.log('[App] Pull de recuperación post-inicio...');
-          await syncService.pullAll();
-          await emit('subjects-updated');
-        }
-      } catch (e) {
-        console.warn('[App] Pull de recuperación no disponible (offline):', e);
-      }
-    }, 10000);
-    return () => clearTimeout(timer);
+    const client = restoreTursoClient();
+    if (client) {
+      console.log('[App] Turso restaurado desde localStorage. Iniciando sync.');
+      syncService.ensurePeriodicSync();
+      syncService.pullAllSilent();
+    }
   }, []);
 
   // Google Drive Backup Scheduler
@@ -358,10 +297,6 @@ useEffect(() => {
     );
   };
 
-  if (isFirstLaunch) {
-    return <LoginPage onComplete={() => setIsFirstLaunch(false)} />;
-  }
-
   return (
     <div 
       className="app-layout" 
@@ -472,6 +407,9 @@ useEffect(() => {
             <span>⚙️</span>
             <span>Ajustes</span>
           </button>
+        </div>
+        <div style={{ marginTop: 'auto' }}>
+          <SyncStatus />
         </div>
       </nav>
 

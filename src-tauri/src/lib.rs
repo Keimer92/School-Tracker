@@ -23,139 +23,70 @@ fn create_folder_and_save_file(folder_path: String, file_path: String, file_data
     Ok(())
 }
 
-fn upload_to_pocketbase(table: &str, data: Vec<serde_json::Value>, auth_token: &str) -> Result<(), String> {
-    if data.is_empty() {
-        return Ok(());
-    }
+#[tauri::command]
+fn get_schema_sql(state: tauri::State<'_, DbState>) -> Result<String, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND sql IS NOT NULL")
+        .map_err(|e| format!("Error consultando schema: {}", e))?;
 
-    let base_url = "http://127.0.0.1:8090";
+    let schemas: Vec<String> = stmt
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|e| format!("Error ejecutando query schema: {}", e))?
+        .filter_map(|r| r.ok())
+        .collect();
 
-    for record in data {
-        let record_id = record.get("id").and_then(|v| v.as_str()).unwrap_or("");
-
-        // Intentar update primero (PATCH), si 404 hacer create (POST)
-        if !record_id.is_empty() {
-            let url = format!("{}/api/collections/{}/records/{}", base_url, table, record_id);
-            let json_data = serde_json::to_string(&record)
-                .map_err(|e| format!("Error serializando: {}", e))?;
-
-            let response = ureq::patch(&url)
-                .set("Authorization", &format!("Bearer {}", auth_token))
-                .set("Content-Type", "application/json")
-                .send_string(&json_data);
-
-            match response {
-                Ok(_) => {
-                    println!("✅ [POCKETBASE] Actualizado registro en {}", table);
-                    continue;
-                }
-                Err(ureq::Error::Status(404, _)) => {
-                    // No existe, hacer create
-                }
-                Err(e) => {
-                    return Err(format!("Error actualizando en PocketBase: {:?}", e));
-                }
-            }
-        }
-
-        // Create new record
-        let url = format!("{}/api/collections/{}/records", base_url, table);
-        let json_data = serde_json::to_string(&record)
-            .map_err(|e| format!("Error serializando: {}", e))?;
-
-        let response = ureq::post(&url)
-            .set("Authorization", &format!("Bearer {}", auth_token))
-            .set("Content-Type", "application/json")
-            .send_string(&json_data);
-
-        match response {
-            Ok(resp) => {
-                let status = resp.status();
-                if status >= 200 && status < 300 {
-                    println!("✅ [POCKETBASE] Creado registro en {}", table);
-                } else {
-                    let error_text = resp.into_string().unwrap_or_default();
-                    return Err(format!("Error HTTP {} en PocketBase {}: {}", status, table, error_text));
-                }
-            }
-            Err(e) => {
-                return Err(format!("Error de conexión a PocketBase: {:?}", e));
-            }
-        }
-    }
-
-    Ok(())
+    Ok(schemas.join(";\n") + ";")
 }
 
 #[tauri::command]
-fn sync_push_all_to_cloud(state: tauri::State<'_, DbState>, user_id: String) -> Result<(), String> {
-    println!("🔄 [PUSH] Iniciando sincronización en background...");
+fn get_all_local_data_json(state: tauri::State<'_, DbState>) -> Result<String, String> {
+    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
 
-    if user_id.is_empty() {
-        return Err("Usuario no autenticado".to_string());
+    let table_names = [
+        "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
+        "grado_asignatura", "colegio_asignatura", "indicador", "criterio",
+        "estudiante", "configuracion_calificacion", "colegio_dias_asistencia",
+        "asistencia", "nota",
+    ];
+
+    let mut result = serde_json::Map::new();
+
+    for table in &table_names {
+        let query = format!("SELECT * FROM {}", table);
+        let mut stmt = conn.prepare(&query).map_err(|e| format!("Error preparando {}: {}", table, e))?;
+        let column_count = stmt.column_count();
+        let column_names: Vec<String> = (0..column_count)
+            .map(|i| stmt.column_name(i).unwrap_or("").to_string())
+            .collect();
+
+        let rows: Vec<serde_json::Value> = stmt
+            .query_map([], |row| {
+                let mut map = serde_json::Map::new();
+                for (i, col_name) in column_names.iter().enumerate() {
+                    let val = match row.get_ref(i) {
+                        Ok(rusqlite::types::ValueRef::Null) => serde_json::Value::Null,
+                        Ok(rusqlite::types::ValueRef::Integer(n)) => serde_json::json!(n),
+                        Ok(rusqlite::types::ValueRef::Real(f)) => serde_json::json!(f),
+                        Ok(rusqlite::types::ValueRef::Text(t)) => {
+                            let s = String::from_utf8_lossy(t).to_string();
+                            serde_json::Value::String(s)
+                        }
+                        Ok(rusqlite::types::ValueRef::Blob(_)) => serde_json::Value::Null,
+                        Err(_) => serde_json::Value::Null,
+                    };
+                    map.insert(col_name.clone(), val);
+                }
+                Ok(serde_json::Value::Object(map))
+            })
+            .map_err(|e| format!("Error query {}: {}", table, e))?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        result.insert(table.to_string(), serde_json::Value::Array(rows));
     }
 
-    // PocketBase auth token se obtiene desde el frontend
-    // Por ahora usamos el user_id como referencia
-    let tables_data = {
-        let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
-        get_all_local_data(&mut conn)?
-    };
-
-    let user_id_clone = user_id.clone();
-    let tables_clone = tables_data.clone();
-
-    std::thread::spawn(move || {
-        let table_order = vec![
-            "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
-            "indicador", "criterio",
-            "estudiante", "asistencia", "nota"
-        ];
-
-        for table_name in table_order {
-            let records = match tables_clone.get(table_name) {
-                Some(r) => r.clone(),
-                None => continue,
-            };
-
-            let tables_with_user_id = vec![
-                "ano_lectivo", "corte_evaluativo", "colegio", "asignatura",
-                "grado", "seccion",
-                "estudiante", "asistencia", "nota", "indicador", "criterio"
-            ];
-
-            let should_add_user_id = tables_with_user_id.contains(&table_name);
-
-            let records_with_user_id: Vec<serde_json::Value> = records
-                .into_iter()
-                .map(|mut record| {
-                    if should_add_user_id {
-                        if let serde_json::Value::Object(ref mut obj) = record {
-                            obj.insert(
-                                "user_id".to_string(),
-                                serde_json::Value::String(user_id_clone.clone()),
-                            );
-                            // Convertir id a String para PocketBase
-                            if let Some(id_val) = obj.get("id") {
-                                if let Some(num) = id_val.as_i64() {
-                                    obj.insert("id".to_string(), serde_json::Value::String(num.to_string()));
-                                }
-                            }
-                        }
-                    }
-                    record
-                })
-                .collect();
-
-            if let Err(e) = upload_to_pocketbase(&table_name, records_with_user_id, "") {
-                println!("❌ [POCKETBASE] Error en {}: {}", table_name, e);
-            }
-        }
-
-        println!("✅ [PUSH] Sincronización con PocketBase completada");
-    });
-
-    Ok(())
+    serde_json::to_string(&result).map_err(|e| format!("Error serializando: {}", e))
 }
 
 fn get_all_local_data(
@@ -875,7 +806,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_shell::init())
+
         .setup(|app| {
             let app_handle = app.handle().clone();
             let app_dir = app_handle
@@ -895,29 +826,6 @@ pub fn run() {
             #[cfg(desktop)]
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.maximize();
-            }
-
-            // Iniciar PocketBase como sidecar (solo desktop)
-            #[cfg(desktop)]
-            {
-                println!("🔄 [Sidecar] Iniciando PocketBase...");
-                let pb_dir = app_handle.path().resource_dir().unwrap_or_default().join("binaries");
-                if pb_dir.exists() {
-                    use std::process::Command;
-                    let pb_path = pb_dir.join(format!("pocketbase{}", std::env::consts::EXE_SUFFIX));
-                    let _ = Command::new(&pb_path)
-                        .args([
-                            "serve",
-                            "--dir", "D:\\PocketBase\\pb_data",
-                            "--http=0.0.0.0:8090",
-                            "--origins", "http://localhost:1420,tauri://localhost,http://localhost,https://localhost",
-                        ])
-                        .spawn()
-                        .map_err(|e| println!("❌ [Sidecar] Error iniciando PocketBase: {}", e));
-                    println!("✅ [Sidecar] PocketBase iniciado");
-                } else {
-                    println!("⚠️ [Sidecar] PocketBase binary no encontrado en {:?}", pb_dir);
-                }
             }
 
             Ok(())
@@ -1002,7 +910,8 @@ pub fn run() {
             remove_pending_deletion,
             remove_pending_deletion_by_record,
             get_recommended_colegio,
-            sync_push_all_to_cloud,
+            get_schema_sql,
+            get_all_local_data_json,
             // Nuevas funciones para tablas con claves compuestas
             get_pending_deletions_asistencia,
             remove_pending_deletion_asistencia,
