@@ -290,6 +290,12 @@ export const tursoSyncService = {
       lastSync: now(),
       lastSyncDetails: `Sync completo (${fmtTime()})`,
     });
+    emit("catalog-updated").catch(() => {});
+    emit("student-updated", { timestamp: Date.now() }).catch(() => {});
+    emit("notas-updated", { timestamp: Date.now() }).catch(() => {});
+    emit("asistencia-updated").catch(() => {});
+    emit("grade-configs-updated").catch(() => {});
+    emit("subjects-updated").catch(() => {});
   },
 
   startPeriodicSync: () => {

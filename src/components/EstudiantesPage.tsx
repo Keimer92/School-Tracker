@@ -306,15 +306,20 @@ useEffect(() => {
     }
   };
 
-  // Escuchar cambios en catálogos para refrescar los datos
+  // Escuchar cambios en catálogos o estudiantes para refrescar los datos
   useEffect(() => {
-    const unlisten = listen("catalog-updated", () => {
+    const unsubCatalog = listen("catalog-updated", () => {
       console.log("Evento catalog-updated recibido en EstudiantesPage, refrescando...");
-      fetchData(true); // Preserve current filters when catalog updates
+      fetchData(true);
+    });
+    const unsubStudent = listen("student-updated", () => {
+      console.log("Evento student-updated recibido en EstudiantesPage, refrescando...");
+      fetchData(true);
     });
 
     return () => {
-      unlisten.then(f => f());
+      unsubCatalog.then(f => f());
+      unsubStudent.then(f => f());
     };
   }, []);
 

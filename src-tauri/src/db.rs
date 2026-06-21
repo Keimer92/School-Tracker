@@ -3242,6 +3242,9 @@ pub fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) -> Res
     println!("   - asistencia: {}", data.asistencia.len());
 
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+    conn.execute("PRAGMA foreign_keys = OFF", []).map_err(|e| e.to_string())?;
+
+    let result = (|| -> Result<(), String> {
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
     // Función auxiliar para insertar items de categorías
@@ -3340,8 +3343,8 @@ pub fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) -> Res
 
     for gc in &data.grade_configs {
         tx.execute(
-            "INSERT OR REPLACE INTO configuracion_calificacion (id, color, minimo) VALUES (?, ?, ?)",
-            rusqlite::params![gc.id, gc.color, gc.minimo],
+            "INSERT OR REPLACE INTO configuracion_calificacion (id, nombre, color, minimo) VALUES (?, ?, ?, ?)",
+            rusqlite::params![gc.id, gc.nombre, gc.color, gc.minimo],
         ).map_err(|e| e.to_string())?;
     }
 
@@ -3502,6 +3505,9 @@ pub fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) -> Res
     tx.commit().map_err(|e| e.to_string())?;
     println!("✅ [DB] upsert_pull_data completado exitosamente");
     Ok(())
+    })();
+    conn.execute("PRAGMA foreign_keys = ON", []).ok();
+    result
 }
 
 #[tauri::command]
