@@ -419,12 +419,10 @@ export const tursoSyncService = {
   syncGradeSubjects: async (gradoId: number): Promise<void> => {
     await syncManager.wrapSync((async () => {
       const client = getClient();
-      const rs = await invoke<string>('get_all_local_data_json');
-      const allData = JSON.parse(rs);
-      const items = (allData['grado_asignatura'] || []).filter((g: any) => g.grado_id === gradoId);
+      const subjects = await invoke<any[]>('get_subjects_by_grade', { gradoId });
       await client.execute('DELETE FROM grado_asignatura WHERE grado_id = ?', [gradoId]);
-      for (const item of items) {
-        await client.execute('INSERT INTO grado_asignatura (grado_id, asignatura_id) VALUES (?, ?)', [item.grado_id, item.asignatura_id]);
+      for (const sub of subjects) {
+        await client.execute('INSERT INTO grado_asignatura (grado_id, asignatura_id) VALUES (?, ?)', [gradoId, sub.id]);
       }
       syncManager.setState({ lastUpload: now() });
     })(), 'sync grado-asignatura');
@@ -478,12 +476,10 @@ export const tursoSyncService = {
     await syncManager.wrapSync((async () => {
       const client = getClient();
       try {
-        const rs = await invoke<string>('get_all_local_data_json');
-        const data = JSON.parse(rs);
-        const pending = data['pending_deletions'] || [];
+        const pending = await invoke<any[]>('get_pending_deletions');
         for (const item of pending) {
           try {
-            await client.execute(`DELETE FROM ${item.table_name} WHERE id = ?`, [item.record_id]);
+            await client.execute(`DELETE FROM ${item.tabla} WHERE id = ?`, [item.registro_id]);
           } catch {}
         }
       } catch {}
