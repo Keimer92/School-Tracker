@@ -2799,7 +2799,14 @@ pub fn get_db_path(app_handle: tauri::AppHandle) -> Result<String, String> {
         .path()
         .app_data_dir()
         .map_err(|e: tauri::Error| e.to_string())?;
-    let db_path = app_dir.join("school.db");
+    let profile = std::env::var("SCHOOLTRACKER_PROFILE").unwrap_or_default();
+    let db_path = if !profile.is_empty() {
+        let dir = app_dir.join(&profile);
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        dir.join("school.db")
+    } else {
+        app_dir.join("school.db")
+    };
     Ok(db_path.to_string_lossy().to_string())
 }
 

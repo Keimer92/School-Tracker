@@ -703,7 +703,7 @@ async fn gd_create_backup(app_handle: tauri::AppHandle) -> Result<String, String
     use std::fs;
     use chrono::Local;
     
-    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    let app_data_dir = get_profile_app_dir(&app_handle)?;
     let db_path = app_data_dir.join("school.db");
     
     if !db_path.exists() {
@@ -726,7 +726,7 @@ async fn gd_create_backup(app_handle: tauri::AppHandle) -> Result<String, String
 async fn gd_get_backups(app_handle: tauri::AppHandle) -> Result<Vec<serde_json::Value>, String> {
     use std::fs;
     
-    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    let app_data_dir = get_profile_app_dir(&app_handle)?;
     let backups_dir = app_data_dir.join("backups");
     let mut backups = Vec::new();
     
@@ -789,7 +789,7 @@ async fn gd_import_db_from_file(app_handle: tauri::AppHandle, source_path: Strin
         _ => return Err("El archivo debe tener extensión .db".to_string()),
     }
     
-    let app_data_dir = app_handle.path().app_data_dir().map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    let app_data_dir = get_profile_app_dir(&app_handle)?;
     let db_path = app_data_dir.join("school.db");
     
     let backups_dir = app_data_dir.join("backups");
@@ -801,6 +801,21 @@ async fn gd_import_db_from_file(app_handle: tauri::AppHandle, source_path: Strin
     Ok(db_path.to_string_lossy().into_owned())
 }
 
+fn get_profile_app_dir(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    let app_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data dir: {}", e))?;
+    match std::env::var("SCHOOLTRACKER_PROFILE") {
+        Ok(p) if !p.is_empty() => {
+            let dir = app_dir.join(p);
+            std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create profile dir: {}", e))?;
+            Ok(dir)
+        }
+        _ => Ok(app_dir),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -810,13 +825,7 @@ pub fn run() {
 
         .setup(|app| {
             let app_handle = app.handle().clone();
-            let app_dir = app_handle
-                .path()
-                .app_data_dir()
-                .expect("Failed to get app data dir");
-            if !app_dir.exists() {
-                std::fs::create_dir_all(&app_dir).expect("Failed to create app data dir");
-            }
+            let app_dir = get_profile_app_dir(&app_handle).expect("Failed to get profile dir");
             let db_path = app_dir.join("school.db");
             let conn = Connection::open(db_path).expect("Failed to open database");
             db::init_database(&conn).expect("Failed to initialize database");

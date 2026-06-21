@@ -263,8 +263,8 @@ export const tursoSyncService = {
         gradoAsignatura: (await q('SELECT grado_id,asignatura_id FROM grado_asignatura')).map((r: any) => [r.grado_id, r.asignatura_id]),
         colegioAsignatura: (await q('SELECT colegio_id,asignatura_id FROM colegio_asignatura')).map((r: any) => [r.colegio_id, r.asignatura_id]),
         colegioDiasAsistencia: (await q('SELECT colegio_id,lunes,martes,miercoles,jueves,viernes,sabado,domingo FROM colegio_dias_asistencia')).map((r: any) => ({
-          colegioId: r.colegio_id, lunes: r.lunes ?? 1, martes: r.martes ?? 1, miercoles: r.miercoles ?? 1,
-          jueves: r.jueves ?? 1, viernes: r.viernes ?? 1, sabado: r.sabado ?? 0, domingo: r.domingo ?? 0,
+          colegioId: r.colegio_id, lunes: !!r.lunes, martes: !!r.martes, miercoles: !!r.miercoles,
+          jueves: !!r.jueves, viernes: !!r.viernes, sabado: !!r.sabado, domingo: !!r.domingo,
         })),
         isPartial: false,
       };
