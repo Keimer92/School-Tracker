@@ -571,6 +571,11 @@ export function NotasPage() {
         setSelectedAsignatura(sortedAsignaturas[0].id);
       } else {
         setSelectedAsignatura(0);
+        // Mostrar advertencia si el colegio no tiene asignaturas asignadas
+        await emit("show-toast", { 
+          message: `⚠️ El colegio ${colegios.find(c => c.id === selectedColegio)?.nombre} no tiene asignaturas asignadas.`, 
+          type: 'warning' 
+        });
       }
     } catch (error) {
       console.error("Error fetching grados y asignaturas:", error);
