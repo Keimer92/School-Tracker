@@ -215,10 +215,21 @@ export function NotasPage() {
       }, 500);
     });
 
+    const onSync = () => {
+      clearTimeout(notasTimeout);
+      notasTimeout = setTimeout(() => {
+        console.log("🔔 [Sync] Sync completado, refrescando NotasPage...");
+        nextRefreshSilent.current = true;
+        setRefreshTrigger(prev => prev + 1);
+      }, 300);
+    };
+    window.addEventListener('schooltracker-sync', onSync);
+
     return () => {
       unlistenStudent.then(f => f());
       unlistenCatalog.then(f => f());
       unlistenNotas.then(f => f());
+      window.removeEventListener('schooltracker-sync', onSync);
     };
   }, []);
 

@@ -281,10 +281,17 @@ export function InformePage() {
       setRefreshTrigger(prev => prev + 1);
     });
 
+    const onSync = () => {
+      console.log("Sync completado, refrescando InformePage...");
+      setRefreshTrigger(prev => prev + 1);
+    };
+    window.addEventListener('schooltracker-sync', onSync);
+
     return () => {
       unlistenAsistencia.then(f => f());
       unlistenEstudiantes.then(f => f());
       unlistenCatalog.then(f => f());
+      window.removeEventListener('schooltracker-sync', onSync);
     };
   }, [fetchReporte]);
 

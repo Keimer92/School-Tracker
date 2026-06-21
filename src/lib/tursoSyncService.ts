@@ -290,12 +290,17 @@ export const tursoSyncService = {
       lastSync: now(),
       lastSyncDetails: `Sync completo (${fmtTime()})`,
     });
-    emit("catalog-updated").catch(() => {});
-    emit("student-updated", { timestamp: Date.now() }).catch(() => {});
-    emit("notas-updated", { timestamp: Date.now() }).catch(() => {});
-    emit("asistencia-updated").catch(() => {});
-    emit("grade-configs-updated").catch(() => {});
-    emit("subjects-updated").catch(() => {});
+    try {
+      await emit("catalog-updated");
+      await emit("student-updated", { timestamp: Date.now() });
+      await emit("notas-updated", { timestamp: Date.now() });
+      await emit("asistencia-updated");
+      await emit("grade-configs-updated");
+      await emit("subjects-updated");
+    } catch (e) {
+      console.warn("Error emitiendo eventos Tauri:", e);
+    }
+    window.dispatchEvent(new CustomEvent('schooltracker-sync', { detail: { timestamp: Date.now() } }));
   },
 
   startPeriodicSync: () => {

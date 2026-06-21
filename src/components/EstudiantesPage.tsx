@@ -317,9 +317,16 @@ useEffect(() => {
       fetchData(true);
     });
 
+    const onSync = () => {
+      console.log("Sync completado, refrescando EstudiantesPage...");
+      fetchData(true);
+    };
+    window.addEventListener('schooltracker-sync', onSync);
+
     return () => {
       unsubCatalog.then(f => f());
       unsubStudent.then(f => f());
+      window.removeEventListener('schooltracker-sync', onSync);
     };
   }, []);
 

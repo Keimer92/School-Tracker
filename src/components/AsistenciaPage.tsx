@@ -280,11 +280,22 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
       fetchColegioConfig();
     });
 
+    const onSync = () => {
+      clearTimeout(asistenciaTimeout);
+      asistenciaTimeout = setTimeout(() => {
+        console.log("🔔 [Sync] Evento sync completado, refrescando...");
+        nextRefreshSilent.current = true;
+        setRefreshTrigger(prev => prev + 1);
+      }, 300);
+    };
+    window.addEventListener('schooltracker-sync', onSync);
+
     return () => {
       unlistenAsistencia.then(f => f());
       unlistenStudent.then(f => f());
       unlistenCatalog.then(f => f());
       unlistenSubjects.then(f => f());
+      window.removeEventListener('schooltracker-sync', onSync);
     };
   }, [fetchColegioConfig]);
 

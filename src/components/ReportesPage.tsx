@@ -274,6 +274,12 @@ export function ReportesPage() {
       fetchInitialCatalogs();
     }).then(u => unlistenCatalogs = u);
 
+    const onSync = () => {
+      console.log("Sync completado, refrescando ReportesPage...");
+      setRefreshTrigger(prev => prev + 1);
+    };
+    window.addEventListener('schooltracker-sync', onSync);
+
     // CARGAR DATOS DESPUÉS
     fetchInitialCatalogs();
 
@@ -291,6 +297,7 @@ export function ReportesPage() {
       if (unlistenStudents) unlistenStudents();
       if (unlistenCatalogs) unlistenCatalogs();
       window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('schooltracker-sync', onSync);
     };
   }, []);
 

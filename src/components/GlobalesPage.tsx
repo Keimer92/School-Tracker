@@ -197,14 +197,20 @@ function CategoryTabContent({
   useEffect(() => {
     fetchItems();
 
-    // Escuchar cambios en asignaturas desde la nube
     const unlistenSubjects = listen("subjects-updated", async () => {
       console.log("GlobalesPage: Evento 'subjects-updated' recibido, refrescando datos...");
       await fetchItems();
     });
 
+    const onSync = () => {
+      console.log("Sync completado, refrescando GlobalesPage...");
+      fetchItems();
+    };
+    window.addEventListener('schooltracker-sync', onSync);
+
     return () => {
       unlistenSubjects.then(u => u());
+      window.removeEventListener('schooltracker-sync', onSync);
     };
   }, []);
 
