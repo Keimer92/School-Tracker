@@ -238,6 +238,33 @@ export function NotasPage() {
     return notas.filter(n => n.estudianteNombre.toLowerCase().includes(searchTerm.toLowerCase()));
   }, [notas, searchTerm]);
 
+  // Estado para vista móvil (un estudiante a la vez)
+  const [currentStudentIdx, setCurrentStudentIdx] = useState(0);
+
+  useEffect(() => {
+    setCurrentStudentIdx(0);
+  }, [filteredNotas.length]);
+
+  const goPrevStudent = useCallback(() => {
+    setCurrentStudentIdx(prev => Math.max(0, prev - 1));
+  }, []);
+
+  const goNextStudent = useCallback(() => {
+    setCurrentStudentIdx(prev => Math.min(filteredNotas.length - 1, prev + 1));
+  }, [filteredNotas.length]);
+
+  const touchStartX = useRef(0);
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  }, []);
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    const diff = e.changedTouches[0].clientX - touchStartX.current;
+    if (Math.abs(diff) > 50) {
+      if (diff > 0) goPrevStudent();
+      else goNextStudent();
+    }
+  }, [goPrevStudent, goNextStudent]);
+
   // Sistema de Deshacer/Rehacer
   const [history, setHistory] = useState<Map<string, string>[]>([]);
   const [redoStack, setRedoStack] = useState<Map<string, string>[]>([]);
@@ -1725,8 +1752,8 @@ return (
 
       {loading && <div style={{textAlign: 'center', padding: isMobile ? '0.5rem' : '2rem', fontSize: isMobile ? '0.75rem' : '1rem'}}>Cargando datos...</div>}
 
-      {/* Tabla de Notas */}
-      {!loading && estudiantes.length > 0 && (
+      {/* Vista Móvil: Tarjetas por estudiante con botones de nota */}
+      {isMobile && !loading && estudiantes.length > 0 && (
         <div className="category-card" style={{
           flex: 1,
           minHeight: 0,
@@ -1735,26 +1762,243 @@ return (
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
-          padding: isMobile ? '0.3rem' : '0.75rem'
+          padding: '0.3rem'
+        }}>
+          {/* Navegación entre estudiantes */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '0.4rem', marginBottom: '0.3rem',
+            background: 'rgba(15, 23, 42, 0.6)', borderRadius: '12px',
+            border: '1px solid rgba(255,255,255,0.06)',
+            userSelect: 'none',
+          }}>
+            <button onClick={goPrevStudent} disabled={currentStudentIdx === 0}
+              style={{
+                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                color: currentStudentIdx === 0 ? '#475569' : '#e2e8f0',
+                borderRadius: '10px', padding: '0.5rem 0.7rem', fontSize: '1.1rem',
+                cursor: currentStudentIdx === 0 ? 'not-allowed' : 'pointer', opacity: currentStudentIdx === 0 ? 0.4 : 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                minWidth: '40px',
+              }}>◀</button>
+            <div style={{ flex: 1, textAlign: 'center', minWidth: 0, padding: '0 0.5rem' }}>
+              <div style={{ fontWeight: 'bold', fontSize: '0.95rem', color: '#f1f5f9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {filteredNotas[currentStudentIdx]?.estudianteNombre || ''}
+              </div>
+              <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>
+                {currentStudentIdx + 1} de {filteredNotas.length}
+              </div>
+            </div>
+            <button onClick={goNextStudent} disabled={currentStudentIdx >= filteredNotas.length - 1}
+              style={{
+                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                color: currentStudentIdx >= filteredNotas.length - 1 ? '#475569' : '#e2e8f0',
+                borderRadius: '10px', padding: '0.5rem 0.7rem', fontSize: '1.1rem',
+                cursor: currentStudentIdx >= filteredNotas.length - 1 ? 'not-allowed' : 'pointer',
+                opacity: currentStudentIdx >= filteredNotas.length - 1 ? 0.4 : 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                minWidth: '40px',
+              }}>▶</button>
+          </div>
+
+          {/* Tarjeta de notas del estudiante actual */}
+          <div style={{
+            flex: 1, overflow: 'auto',
+            padding: '0 0.15rem',
+            WebkitOverflowScrolling: 'touch',
+          }}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
+            {(() => {
+              const est = filteredNotas[currentStudentIdx];
+              if (!est) return null;
+              const estudianteNotas = notas.find(n => n.estudianteId === est.estudianteId) || { notas: {} };
+              
+              return (
+                <div>
+                  {indicadores.map(ind => {
+                    const indActive = ind.activo;
+                    return (
+                      <div key={ind.id} style={{
+                        marginBottom: '0.5rem',
+                        borderRadius: '12px',
+                        border: `1px solid ${indActive ? 'rgba(100, 108, 255, 0.25)' : 'rgba(100, 116, 139, 0.2)'}`,
+                        background: indActive ? 'rgba(30, 41, 59, 0.5)' : 'rgba(30, 41, 59, 0.25)',
+                        overflow: 'hidden',
+                      }}>
+                        {/* Header del indicador */}
+                        <div style={{
+                          padding: '0.4rem 0.6rem',
+                          background: indActive ? 'rgba(100, 108, 255, 0.1)' : 'rgba(100, 116, 139, 0.1)',
+                          borderBottom: `1px solid ${indActive ? 'rgba(100, 108, 255, 0.15)' : 'rgba(100, 116, 139, 0.1)'}`,
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        }}>
+                          <div style={{ color: indActive ? '#93c5fd' : '#94a3b8', fontWeight: 'bold', fontSize: '0.8rem' }}>
+                            Indicador {ind.orden}
+                          </div>
+                          {(() => {
+                            const totalInd = ind.criterios.reduce((sum, c) => {
+                              const qv = notasCualitativasRef.current.get(`${est.estudianteId}-${c.id}`);
+                              if (qv && ['AA', 'AS', 'AF', 'AI'].includes(qv)) {
+                                return sum + Math.round(c.puntajeMaximo * (notaMapping[qv as keyof typeof notaMapping] || 0));
+                              }
+                              return sum;
+                            }, 0);
+                            const maxInd = ind.criterios.reduce((sum, c) => sum + (c.puntajeMaximo || 0), 0);
+                            const esc = maxInd > 0 ? (totalInd / maxInd) * 100 : 0;
+                            const qualGrade = isQualitative
+                              ? calcularNotaCualitativaFinal(ind.criterios.map(c => notasCualitativasRef.current.get(`${est.estudianteId}-${c.id}`) || ''))
+                              : (getGradeFromScore(esc)?.id || 'AI');
+                            const color = qualGrade ? getGradeColor(qualGrade) : '#94a3b8';
+                            return (
+                              <div style={{ color, fontWeight: 'bold', fontSize: '0.75rem' }}>
+                                {isQualitative ? qualGrade : `${Math.round(totalInd)} (${qualGrade})`}
+                              </div>
+                            );
+                          })()}
+                        </div>
+
+                        {/* Criterios con botones de nota */}
+                        {ind.criterios.map(crit => {
+                          const key = `${est.estudianteId}-${crit.id}`;
+                          const currentVal = notasCualitativasRef.current.get(key) || '';
+                          const grades = ['AA', 'AS', 'AF', 'AI'];
+                          return (
+                            <div key={crit.id} style={{
+                              padding: '0.4rem 0.6rem',
+                              borderBottom: '1px solid rgba(255,255,255,0.04)',
+                              display: 'flex', flexDirection: 'column',
+                            }}>
+                              <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginBottom: '0.3rem', display: 'flex', justifyContent: 'space-between' }}>
+                                <span>Criterio {crit.orden}{crit.descripcion ? ': ' + crit.descripcion : ''}</span>
+                                {!isQualitative && <span style={{ color: '#4ade80' }}>máx {crit.puntajeMaximo}</span>}
+                              </div>
+                              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                {grades.map(grade => {
+                                  const isSelected = currentVal === grade;
+                                  const gradeColor = getGradeColor(grade);
+                                  return (
+                                    <button
+                                      key={grade}
+                                      onClick={() => {
+                                        if (!cellSnapshot.current) {
+                                          cellSnapshot.current = new Map(notasCualitativasRef.current);
+                                        }
+                                        handleNotaChange(est.estudianteId, crit.id, isSelected ? '' : grade);
+                                        const oldVal = cellSnapshot.current.get(key) || '';
+                                        const newVal = isSelected ? '' : grade;
+                                        if (oldVal !== newVal) {
+                                          const snap = new Map(cellSnapshot.current);
+                                          const newHist = [...historyRef.current, snap];
+                                          if (newHist.length > 50) newHist.shift();
+                                          historyRef.current = newHist;
+                                          redoStackRef.current = [];
+                                          startTransition(() => { setHistory(newHist); setRedoStack([]); });
+                                        }
+                                        cellSnapshot.current = null;
+                                        setRowVersionTick(t => t + 1);
+                                      }}
+                                      style={{
+                                        flex: 1, minWidth: '52px',
+                                        padding: '0.5rem 0.3rem',
+                                        borderRadius: '8px',
+                                        border: `2px solid ${gradeColor}`,
+                                        background: isSelected ? gradeColor : 'transparent',
+                                        color: isSelected ? '#fff' : gradeColor,
+                                        fontWeight: 'bold',
+                                        fontSize: '0.8rem',
+                                        cursor: 'pointer',
+                                        textAlign: 'center',
+                                        transition: 'all 0.15s ease',
+                                      }}
+                                    >
+                                      {grade}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+
+                  {/* Nota final */}
+                  <div style={{
+                    marginTop: '0.5rem',
+                    padding: '0.6rem',
+                    borderRadius: '12px',
+                    background: 'rgba(15, 23, 42, 0.6)',
+                    border: '1px solid rgba(34, 197, 94, 0.3)',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  }}>
+                    <div style={{ color: '#94a3b8', fontWeight: 'bold', fontSize: '0.85rem' }}>Nota Final</div>
+                    {(() => {
+                      const rawFinal = indicadores.filter(i => i.activo).reduce((sum, ind) => {
+                        return sum + ind.criterios.reduce((s, c) => {
+                          const qv = notasCualitativasRef.current.get(`${est.estudianteId}-${c.id}`);
+                          if (qv && ['AA', 'AS', 'AF', 'AI'].includes(qv)) {
+                            return s + Math.round(c.puntajeMaximo * (notaMapping[qv as keyof typeof notaMapping] || 0));
+                          }
+                          return s;
+                        }, 0);
+                      }, 0);
+                      const maxTotal = indicadores.filter(i => i.activo).reduce((sum, i) => {
+                        return sum + i.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0);
+                      }, 0);
+                      const escFinal = maxTotal > 0 ? (rawFinal / maxTotal) * 100 : 0;
+                      const qualFinal = isQualitative
+                        ? calcularNotaCualitativaFinal(indicadores.filter(i => i.activo).map(i => {
+                            return calcularNotaCualitativaFinal(i.criterios.map(c => notasCualitativasRef.current.get(`${est.estudianteId}-${c.id}`) || ''));
+                          }))
+                        : (getGradeFromScore(escFinal)?.id || 'AI');
+                      const color = qualFinal ? getGradeColor(qualFinal) : '#94a3b8';
+                      return (
+                        <div style={{ color, fontWeight: 'bold', fontSize: '1.1rem' }}>
+                          {qualFinal}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* Tabla de Notas (Desktop) */}
+      {!isMobile && !loading && estudiantes.length > 0 && (
+        <div className="category-card" style={{
+          flex: 1,
+          minHeight: 0,
+          width: '100%',
+          maxWidth: '100%',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '0.75rem'
         }}>
           <div className="category-header" style={{ 
             display: 'flex', 
             justifyContent: 'space-between', 
             alignItems: 'center',
-            marginBottom: isMobile ? '0.2rem' : '0.5rem',
+            marginBottom: '0.5rem',
             flexShrink: 0,
           }}>
             <h3 style={{ 
               margin: 0, 
-              fontSize: isMobile ? '0.95rem' : '1.2rem',
+              fontSize: '1.2rem',
               display: 'flex',
               alignItems: 'center',
               gap: '0.5rem'
             }}>
-              📝 {isMobile ? '' : 'Estudiantes '}<span style={{ opacity: 0.7, fontSize: '0.8em' }}>({filteredNotas.length})</span>
+              📝 Estudiantes <span style={{ opacity: 0.7, fontSize: '0.8em' }}>({filteredNotas.length})</span>
             </h3>
-            <div style={{ fontSize: isMobile ? '0.7rem' : '0.9rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-              <span>{isMobile ? 'Activos:' : 'Indicadores Activos:'}</span> 
+            <div style={{ fontSize: '0.9rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+              <span>Indicadores Activos:</span> 
               <span style={{ fontWeight: 'bold', color: '#fff' }}>{indicadores.filter(i => i.activo).length}/5</span>
             </div>
           </div>
@@ -1827,7 +2071,7 @@ return (
                     textAlign: 'center', 
                     fontWeight: 'bold', 
                     color: '#4ade80', 
-                    background: '#1e293b', // Fondo sólido (igual que el resto de la cabecera)
+                    background: '#1e293b',
                     borderBottom: '2px solid rgba(34, 197, 94, 0.4)',
                     position: 'sticky',
                     right: 0,
@@ -1878,7 +2122,7 @@ return (
                     textAlign: 'center', 
                     color: '#94a3b8', 
                     fontWeight: 'bold', 
-                    background: '#1e293b', // Fondo sólido
+                    background: '#1e293b',
                     position: 'sticky',
                     right: 0,
                     zIndex: 110,

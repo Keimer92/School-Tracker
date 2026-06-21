@@ -36,7 +36,7 @@ function App() {
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const savedTab = localStorage.getItem('active-tab') as Tab;
     if (appMode === "asistencia") return "asistencia";
-    return savedTab || "notas";
+    return "asistencia";
   });
   
 const [visitedTabs, setVisitedTabs] = useState<Set<Tab>>(() => {
