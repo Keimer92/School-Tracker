@@ -1004,16 +1004,19 @@ export function GlobalesPage() {
   const fetchColegioSubjectsData = async () => {
     if (!selectedColegioForSubjects) return;
     try {
+      console.log(`[DEBUG ColegioSubjects] fetchColegioSubjectsData() para colegio ID=${selectedColegioForSubjects.id} nombre="${selectedColegioForSubjects.nombre}"`);
       const [all, assigned] = await Promise.all([
         invoke<CategoryItem[]>("get_asignaturas"),
         invoke<CategoryItem[]>("get_subjects_by_colegio", {
           colegioId: selectedColegioForSubjects.id,
         }),
       ]);
+      console.log(`[DEBUG ColegioSubjects] get_asignaturas devolvió ${all.length} asignaturas:`, all.map(s => `${s.id}:${s.nombre}`));
+      console.log(`[DEBUG ColegioSubjects] get_subjects_by_colegio para colegio ${selectedColegioForSubjects.id} devolvió ${assigned.length} asignaturas:`, assigned.map(s => `${s.id}:${s.nombre}`));
       setAllSubjects(all);
       setColegioSubjects(assigned);
     } catch (error) {
-      console.error("Error fetching colegio subjects:", error);
+      console.error("[DEBUG ColegioSubjects] Error fetching colegio subjects:", error);
     }
   };
 
@@ -1021,6 +1024,7 @@ export function GlobalesPage() {
     if (!selectedColegioForSubjects || !subject.id) return;
 
     const isAssigned = colegioSubjects.some((s) => s.id === subject.id);
+    console.log(`[DEBUG ColegioSubjects] handleToggleColegioSubject: subject ${subject.id}:${subject.nombre} isAssigned=${isAssigned} para colegio ${selectedColegioForSubjects.id}:${selectedColegioForSubjects.nombre}`);
     const newAssigned = isAssigned
       ? colegioSubjects.filter((s) => s.id !== subject.id)
       : [...colegioSubjects, subject];
@@ -1029,18 +1033,35 @@ export function GlobalesPage() {
       setColegioSubjects(newAssigned); // Optimistic UI
 
       if (isAssigned) {
+        console.log(`[DEBUG ColegioSubjects] Llamando unassign_subject_from_colegio(colegioId=${selectedColegioForSubjects.id}, asignaturaId=${subject.id})`);
         await invoke("unassign_subject_from_colegio", {
           colegioId: selectedColegioForSubjects.id,
           asignaturaId: subject.id,
         });
+        console.log(`[DEBUG ColegioSubjects] unassign_subject_from_colegio COMPLETADO`);
       } else {
+        console.log(`[DEBUG ColegioSubjects] Llamando assign_subject_to_colegio(colegioId=${selectedColegioForSubjects.id}, asignaturaId=${subject.id})`);
         await invoke("assign_subject_to_colegio", {
           colegioId: selectedColegioForSubjects.id,
           asignaturaId: subject.id,
         });
+        console.log(`[DEBUG ColegioSubjects] assign_subject_to_colegio COMPLETADO`);
       }
 
-      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      console.log(`[DEBUG ColegioSubjects] Llamando syncAllSilent...`);
+      const syncStart = Date.now();
+      await syncService.syncAllSilent().catch(err => console.warn("[DEBUG ColegioSubjects] Auto-sync error:", err));
+      console.log(`[DEBUG ColegioSubjects] syncAllSilent COMPLETADO en ${Date.now() - syncStart}ms`);
+
+      // Verificar estado local después del sync
+      try {
+        const afterSync = await invoke<CategoryItem[]>("get_subjects_by_colegio", {
+          colegioId: selectedColegioForSubjects.id,
+        });
+        console.log(`[DEBUG ColegioSubjects] Después de sync, get_subjects_by_colegio devuelve ${afterSync.length} asignaturas:`, afterSync.map(s => `${s.id}:${s.nombre}`));
+      } catch (e) {
+        console.warn("[DEBUG ColegioSubjects] Error verificando post-sync:", e);
+      }
 
       await emit("show-toast", {
         message: "✅ Asignación actualizada",
@@ -1049,7 +1070,7 @@ export function GlobalesPage() {
       // Emitir evento para que otras páginas refresquen las asignaturas
       await emit("subjects-updated");
     } catch (error) {
-      console.error("Error toggling subject:", error);
+      console.error("[DEBUG ColegioSubjects] Error toggling subject:", error);
       await emit("show-toast", {
         message: "❌ Error actualizando asignación: " + error,
         type: "error",
@@ -1062,19 +1083,39 @@ export function GlobalesPage() {
     action: "assign_all" | "unassign_all",
   ) => {
     if (!selectedColegioForSubjects) return;
+    console.log(`[DEBUG ColegioSubjects] handleBulkColegioSubject: action=${action} para colegio ${selectedColegioForSubjects.id}:${selectedColegioForSubjects.nombre}`);
     try {
       if (action === "assign_all") {
+        console.log(`[DEBUG ColegioSubjects] Llamando assign_all_subjects_to_colegio(colegioId=${selectedColegioForSubjects.id})`);
         await invoke("assign_all_subjects_to_colegio", {
           colegioId: selectedColegioForSubjects.id,
         });
+        console.log(`[DEBUG ColegioSubjects] assign_all_subjects_to_colegio COMPLETADO`);
         setColegioSubjects(allSubjects);
       } else {
+        console.log(`[DEBUG ColegioSubjects] Llamando unassign_all_subjects_from_colegio(colegioId=${selectedColegioForSubjects.id})`);
         await invoke("unassign_all_subjects_from_colegio", {
           colegioId: selectedColegioForSubjects.id,
         });
+        console.log(`[DEBUG ColegioSubjects] unassign_all_subjects_from_colegio COMPLETADO`);
         setColegioSubjects([]);
       }
-      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      
+      console.log(`[DEBUG ColegioSubjects] Llamando syncAllSilent...`);
+      const syncStart = Date.now();
+      await syncService.syncAllSilent().catch(err => console.warn("[DEBUG ColegioSubjects] Auto-sync error:", err));
+      console.log(`[DEBUG ColegioSubjects] syncAllSilent COMPLETADO en ${Date.now() - syncStart}ms`);
+
+      // Verificar estado local después del sync
+      try {
+        const afterSync = await invoke<CategoryItem[]>("get_subjects_by_colegio", {
+          colegioId: selectedColegioForSubjects.id,
+        });
+        console.log(`[DEBUG ColegioSubjects] Después de bulk sync, get_subjects_by_colegio devuelve ${afterSync.length} asignaturas:`, afterSync.map(s => `${s.id}:${s.nombre}`));
+      } catch (e) {
+        console.warn("[DEBUG ColegioSubjects] Error verificando post-sync:", e);
+      }
+
       await emit("show-toast", {
         message: "✅ Asignación actualizada",
         type: "success",
@@ -1082,7 +1123,7 @@ export function GlobalesPage() {
       // Emitir evento para que otras páginas refresquen las asignaturas
       await emit("subjects-updated");
     } catch (error) {
-      console.error("Error bulk updating colegio subjects:", error);
+      console.error("[DEBUG ColegioSubjects] Error bulk updating colegio subjects:", error);
       await emit("show-toast", {
         message: "❌ Error: " + error,
         type: "error",

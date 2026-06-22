@@ -1831,6 +1831,7 @@ pub fn get_pending_deletions_colegio_asignatura(
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
 
+    println!("[DEBUG get_pending_deletions_colegio_asignatura] {} pendientes: {:?}", items.len(), items.iter().map(|r| format!("(id={},colegio={},asignatura={})", r.id, r.colegio_id, r.asignatura_id)).collect::<Vec<_>>());
     Ok(items)
 }
 
@@ -2030,6 +2031,7 @@ pub fn get_subjects_by_colegio(
     colegioId: i64,
 ) -> Result<Vec<CategoryItem>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    println!("[DEBUG get_subjects_by_colegio] Buscando asignaturas para colegio_id={}", colegioId);
     let mut stmt = conn
         .prepare(
             "SELECT a.id, a.nombre, a.cualitativo
@@ -2090,11 +2092,14 @@ pub fn assign_subject_to_colegio(
     asignaturaId: i64,
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    println!("[DEBUG assign_subject_to_colegio] Insertando colegio_id={}, asignatura_id={}", colegioId, asignaturaId);
     conn.execute(
         "INSERT OR IGNORE INTO colegio_asignatura (colegio_id, asignatura_id) VALUES (?, ?)",
         [colegioId, asignaturaId],
     )
-    .map(|_| ())
+    .map(|rows| {
+        println!("[DEBUG assign_subject_to_colegio] Filas afectadas: {}", rows);
+    })
     .map_err(|e| e.to_string())
 }
 
@@ -2116,17 +2121,21 @@ pub fn unassign_subject_from_colegio(
 
     if exists {
         // Registrar eliminación pendiente
+        println!("[DEBUG unassign_subject_from_colegio] colegio_id={}, asignatura_id={} -> registrando pending deletion", colegioId, asignaturaId);
         conn.execute(
             "INSERT INTO sync_pending_deletions_colegio_asignatura (colegio_id, asignatura_id) VALUES (?, ?)",
             [colegioId, asignaturaId],
         ).map_err(|e| e.to_string())?;
 
         // Eliminar la relación
+        println!("[DEBUG unassign_subject_from_colegio] colegio_id={}, asignatura_id={} -> eliminando relación local", colegioId, asignaturaId);
         conn.execute(
             "DELETE FROM colegio_asignatura WHERE colegio_id = ? AND asignatura_id = ?",
             [colegioId, asignaturaId],
         )
         .map_err(|e| e.to_string())?;
+    } else {
+        println!("[DEBUG unassign_subject_from_colegio] colegio_id={}, asignatura_id={} -> NO existe, nada que eliminar", colegioId, asignaturaId);
     }
 
     Ok(())
@@ -3280,6 +3289,10 @@ pub fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) -> Res
     println!("   - criterios: {}", data.criterios.len());
     println!("   - notas: {}", data.notas.len());
     println!("   - asistencia: {}", data.asistencia.len());
+    println!("   - grade_configs: {}", data.grade_configs.len());
+    println!("   - grado_asignatura: {}", data.grado_asignatura.len());
+    println!("   - colegio_asignatura: {} entries: {:?}", data.colegio_asignatura.len(), data.colegio_asignatura.iter().map(|(c,a)| format!("({},{})",c,a)).collect::<Vec<_>>());
+    println!("   - colegio_dias_asistencia: {}", data.colegio_dias_asistencia.len());
 
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute("PRAGMA foreign_keys = OFF", []).map_err(|e| e.to_string())?;
@@ -3529,6 +3542,15 @@ pub fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) -> Res
         [],
     );
 
+    // Limpiar todas las pending deletions procesadas (tablas con clave compuesta)
+    let _ = tx.execute("DELETE FROM sync_pending_deletions_asistencia", []);
+    let _ = tx.execute("DELETE FROM sync_pending_deletions_nota", []);
+    let _ = tx.execute("DELETE FROM sync_pending_deletions_grado_asignatura", []);
+    let _ = tx.execute("DELETE FROM sync_pending_deletions_colegio_asignatura", []);
+
+    // Limpiar también pending deletions genéricas (pushAll ya las borró de Turso)
+    let _ = tx.execute("DELETE FROM sync_pending_deletions", []);
+
     // ============================================================================
     // ============================================================================
     // SINCRONIZACIÓN BIDIRECCIONAL - No eliminar registros locales durante pullAll()
@@ -3668,6 +3690,7 @@ pub fn get_colegio_asignatura(state: tauri::State<'_, DbState>) -> Result<Vec<Co
             asignatura_id: row.get(1)?,
         })
     }).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+    println!("[DEBUG get_colegio_asignatura] {} registros: {:?}", items.len(), items.iter().map(|r| format!("({},{})", r.colegio_id, r.asignatura_id)).collect::<Vec<_>>());
     Ok(items)
 }
 

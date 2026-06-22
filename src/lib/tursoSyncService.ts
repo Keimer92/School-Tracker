@@ -185,8 +185,14 @@ export const tursoSyncService = {
       ];
       for (const tableName of tableOrder) {
         const td = tables[tableName];
-        if (!td || !td.data || td.data.length === 0) continue;
+        if (!td || !td.data || td.data.length === 0) {
+          if (tableName === 'colegio_asignatura') console.log(`[Turso Push] colegio_asignatura: sin datos para push (tabla vacía localmente)`);
+          continue;
+        }
         const { cols, data, map } = td;
+        if (tableName === 'colegio_asignatura') {
+          console.log(`[Turso Push] colegio_asignatura: enviando ${data.length} registros:`, data.map((r: any) => `(${r.colegio_id},${r.asignatura_id})`));
+        }
         const flatArgs: any[] = [];
         for (const row of data) {
           const vals = map(row);
@@ -208,53 +214,62 @@ export const tursoSyncService = {
       }
 
       // Process pending deletions to propagate removals to Turso
+      // NOTA: NO limpiamos las pending deletions localmente aquí. Eso lo hace upsert_pull_data
+      // durante pullAll, para evitar race conditions con sync periódico concurrente.
+      console.log('[Turso Push] Procesando pending deletions (DELETE from Turso, sin limpiar local)...');
       try {
         const genericPending = await safeGet<any[]>('get_pending_deletions');
+        console.log(`[Turso Push] Pending deletions genéricas: ${genericPending.length}`, genericPending);
         for (const item of genericPending) {
           try {
+            console.log(`[Turso Push] Eliminando de Turso: ${item.tabla} WHERE id=${item.registroId}`);
             await client.execute(`DELETE FROM ${item.tabla} WHERE id = ?`, [item.registroId]);
-            await invoke('remove_pending_deletion', { id: item.id });
-          } catch {}
+          } catch (e) {
+            console.warn(`[Turso Push] Error procesando pending deletion genérica #${item.id}:`, e);
+          }
         }
       } catch {}
 
       try {
         const caPending = await safeGet<any[]>('get_pending_deletions_colegio_asignatura');
+        console.log(`[Turso Push] Pending deletions colegio_asignatura: ${caPending.length}`, caPending);
         for (const item of caPending) {
           try {
+            console.log(`[Turso Push] Eliminando de Turso colegio_asignatura: colegio_id=${item.colegioId}, asignatura_id=${item.asignaturaId}`);
             await client.execute('DELETE FROM colegio_asignatura WHERE colegio_id = ? AND asignatura_id = ?', [item.colegioId, item.asignaturaId]);
-            await invoke('remove_pending_deletion_colegio_asignatura', { id: item.id });
-          } catch {}
+          } catch (e) {
+            console.warn(`[Turso Push] Error procesando pending deletion colegio_asignatura #${item.id}:`, e);
+          }
         }
       } catch {}
 
       try {
         const gaPending = await safeGet<any[]>('get_pending_deletions_grado_asignatura');
+        console.log(`[Turso Push] Pending deletions grado_asignatura: ${gaPending.length}`, gaPending);
         for (const item of gaPending) {
           try {
             await client.execute('DELETE FROM grado_asignatura WHERE grado_id = ? AND asignatura_id = ?', [item.gradoId, item.asignaturaId]);
-            await invoke('remove_pending_deletion_grado_asignatura', { id: item.id });
           } catch {}
         }
       } catch {}
 
       try {
         const asisPending = await safeGet<any[]>('get_pending_deletions_asistencia');
+        console.log(`[Turso Push] Pending deletions asistencia: ${asisPending.length}`, asisPending);
         for (const item of asisPending) {
           try {
             await client.execute('DELETE FROM asistencia WHERE estudiante_id = ? AND fecha = ?', [item.estudianteId, item.fecha]);
-            await invoke('remove_pending_deletion_asistencia', { id: item.id });
           } catch {}
         }
       } catch {}
 
       try {
         const notaPending = await safeGet<any[]>('get_pending_deletions_nota');
+        console.log(`[Turso Push] Pending deletions nota: ${notaPending.length}`, notaPending);
         for (const item of notaPending) {
           try {
             await client.execute('DELETE FROM nota WHERE estudiante_id = ? AND criterio_id = ? AND corte_evaluativo_id = ? AND asignatura_id = ?',
               [item.estudianteId, item.criterioId, item.corteEvaluativoId, item.asignaturaId]);
-            await invoke('remove_pending_deletion_nota', { id: item.id });
           } catch {}
         }
       } catch {}
@@ -338,25 +353,37 @@ export const tursoSyncService = {
     }
   },
 
+  _syncLock: false,
+
   syncAllSilent: async (dispatchEvents: boolean = true): Promise<void> => {
-    await tursoSyncService.pushAllSilent();
-    await tursoSyncService.pullAllSilent();
-    syncManager.setState({
-      lastSync: now(),
-      lastSyncDetails: `Sync completo (${fmtTime()})`,
-    });
-    if (dispatchEvents) {
-      try {
-        await emit("catalog-updated");
-        await emit("student-updated", { timestamp: Date.now() });
-        await emit("notas-updated", { timestamp: Date.now() });
-        await emit("asistencia-updated");
-        await emit("grade-configs-updated");
-        await emit("subjects-updated");
-      } catch (e) {
-        console.warn("Error emitiendo eventos Tauri:", e);
+    // Evitar concurrencia entre sync manual y periódico
+    if ((tursoSyncService as any)._syncLock) {
+      console.warn('[Turso Sync] Sync ya en progreso, saltando...');
+      return;
+    }
+    (tursoSyncService as any)._syncLock = true;
+    try {
+      await tursoSyncService.pushAllSilent();
+      await tursoSyncService.pullAllSilent();
+      syncManager.setState({
+        lastSync: now(),
+        lastSyncDetails: `Sync completo (${fmtTime()})`,
+      });
+      if (dispatchEvents) {
+        try {
+          await emit("catalog-updated");
+          await emit("student-updated", { timestamp: Date.now() });
+          await emit("notas-updated", { timestamp: Date.now() });
+          await emit("asistencia-updated");
+          await emit("grade-configs-updated");
+          await emit("subjects-updated");
+        } catch (e) {
+          console.warn("Error emitiendo eventos Tauri:", e);
+        }
+        window.dispatchEvent(new CustomEvent('schooltracker-sync', { detail: { timestamp: Date.now() } }));
       }
-      window.dispatchEvent(new CustomEvent('schooltracker-sync', { detail: { timestamp: Date.now() } }));
+    } finally {
+      (tursoSyncService as any)._syncLock = false;
     }
   },
 
