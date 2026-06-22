@@ -218,7 +218,7 @@ export const tursoSyncService = {
       // durante pullAll, para evitar race conditions con sync periódico concurrente.
       console.log('[Turso Push] Procesando pending deletions (DELETE from Turso, sin limpiar local)...');
       try {
-        const genericPending = await safeGet<any[]>('get_pending_deletions');
+        const genericPending = await safeGet<any>('get_pending_deletions');
         console.log(`[Turso Push] Pending deletions genéricas: ${genericPending.length}`, genericPending);
         for (const item of genericPending) {
           try {
@@ -231,7 +231,7 @@ export const tursoSyncService = {
       } catch {}
 
       try {
-        const caPending = await safeGet<any[]>('get_pending_deletions_colegio_asignatura');
+        const caPending = await safeGet<any>('get_pending_deletions_colegio_asignatura');
         console.log(`[Turso Push] Pending deletions colegio_asignatura: ${caPending.length}`, caPending);
         for (const item of caPending) {
           try {
@@ -244,7 +244,7 @@ export const tursoSyncService = {
       } catch {}
 
       try {
-        const gaPending = await safeGet<any[]>('get_pending_deletions_grado_asignatura');
+        const gaPending = await safeGet<any>('get_pending_deletions_grado_asignatura');
         console.log(`[Turso Push] Pending deletions grado_asignatura: ${gaPending.length}`, gaPending);
         for (const item of gaPending) {
           try {
@@ -254,7 +254,7 @@ export const tursoSyncService = {
       } catch {}
 
       try {
-        const asisPending = await safeGet<any[]>('get_pending_deletions_asistencia');
+        const asisPending = await safeGet<any>('get_pending_deletions_asistencia');
         console.log(`[Turso Push] Pending deletions asistencia: ${asisPending.length}`, asisPending);
         for (const item of asisPending) {
           try {
@@ -264,7 +264,7 @@ export const tursoSyncService = {
       } catch {}
 
       try {
-        const notaPending = await safeGet<any[]>('get_pending_deletions_nota');
+        const notaPending = await safeGet<any>('get_pending_deletions_nota');
         console.log(`[Turso Push] Pending deletions nota: ${notaPending.length}`, notaPending);
         for (const item of notaPending) {
           try {
