@@ -78,6 +78,8 @@ commands.allow = [
     "save_file_android",
     "get_colegio_dias_asistencia_all",
     "delete_asistencia_batch",
+    "get_grado_asignatura",
+    "get_colegio_asignatura",
     "get_pending_deletions",
     "remove_pending_deletion",
     "remove_pending_deletion_by_record",
