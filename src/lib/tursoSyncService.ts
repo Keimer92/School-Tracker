@@ -206,6 +206,59 @@ export const tursoSyncService = {
           }
         }
       }
+
+      // Process pending deletions to propagate removals to Turso
+      try {
+        const genericPending = await safeGet<any[]>('get_pending_deletions');
+        for (const item of genericPending) {
+          try {
+            await client.execute(`DELETE FROM ${item.tabla} WHERE id = ?`, [item.registroId]);
+            await invoke('remove_pending_deletion', { id: item.id });
+          } catch {}
+        }
+      } catch {}
+
+      try {
+        const caPending = await safeGet<any[]>('get_pending_deletions_colegio_asignatura');
+        for (const item of caPending) {
+          try {
+            await client.execute('DELETE FROM colegio_asignatura WHERE colegio_id = ? AND asignatura_id = ?', [item.colegioId, item.asignaturaId]);
+            await invoke('remove_pending_deletion_colegio_asignatura', { id: item.id });
+          } catch {}
+        }
+      } catch {}
+
+      try {
+        const gaPending = await safeGet<any[]>('get_pending_deletions_grado_asignatura');
+        for (const item of gaPending) {
+          try {
+            await client.execute('DELETE FROM grado_asignatura WHERE grado_id = ? AND asignatura_id = ?', [item.gradoId, item.asignaturaId]);
+            await invoke('remove_pending_deletion_grado_asignatura', { id: item.id });
+          } catch {}
+        }
+      } catch {}
+
+      try {
+        const asisPending = await safeGet<any[]>('get_pending_deletions_asistencia');
+        for (const item of asisPending) {
+          try {
+            await client.execute('DELETE FROM asistencia WHERE estudiante_id = ? AND fecha = ?', [item.estudianteId, item.fecha]);
+            await invoke('remove_pending_deletion_asistencia', { id: item.id });
+          } catch {}
+        }
+      } catch {}
+
+      try {
+        const notaPending = await safeGet<any[]>('get_pending_deletions_nota');
+        for (const item of notaPending) {
+          try {
+            await client.execute('DELETE FROM nota WHERE estudiante_id = ? AND criterio_id = ? AND corte_evaluativo_id = ? AND asignatura_id = ?',
+              [item.estudianteId, item.criterioId, item.corteEvaluativoId, item.asignaturaId]);
+            await invoke('remove_pending_deletion_nota', { id: item.id });
+          } catch {}
+        }
+      } catch {}
+
       syncManager.setState({ lastUpload: now() });
     } catch (e: any) {
       throw new Error(`Error subiendo datos: ${e?.message || e}`);

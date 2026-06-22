@@ -1998,6 +1998,26 @@ pub fn unassign_all_subjects_from_grade(
     gradoId: i64,
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
+
+    // Registrar todas las relaciones existentes como eliminaciones pendientes
+    let mut stmt = conn
+        .prepare("SELECT asignatura_id FROM grado_asignatura WHERE grado_id = ?")
+        .map_err(|e| e.to_string())?;
+    let asignaturas: Vec<i64> = stmt
+        .query_map([gradoId], |row| row.get(0))
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    drop(stmt);
+
+    for asig_id in asignaturas {
+        conn.execute(
+            "INSERT INTO sync_pending_deletions_grado_asignatura (grado_id, asignatura_id) VALUES (?, ?)",
+            rusqlite::params![gradoId, asig_id],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
     conn.execute("DELETE FROM grado_asignatura WHERE grado_id = ?", [gradoId])
         .map(|_| ())
         .map_err(|e| e.to_string())
@@ -2135,6 +2155,26 @@ pub fn unassign_all_subjects_from_colegio(
     colegioId: i64,
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
+
+    // Registrar todas las relaciones existentes como eliminaciones pendientes
+    let mut stmt = conn
+        .prepare("SELECT asignatura_id FROM colegio_asignatura WHERE colegio_id = ?")
+        .map_err(|e| e.to_string())?;
+    let asignaturas: Vec<i64> = stmt
+        .query_map([colegioId], |row| row.get(0))
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    drop(stmt);
+
+    for asig_id in asignaturas {
+        conn.execute(
+            "INSERT INTO sync_pending_deletions_colegio_asignatura (colegio_id, asignatura_id) VALUES (?, ?)",
+            rusqlite::params![colegioId, asig_id],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
     conn.execute(
         "DELETE FROM colegio_asignatura WHERE colegio_id = ?",
         [colegioId],
