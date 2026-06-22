@@ -1048,6 +1048,14 @@ export function GlobalesPage() {
         console.log(`[DEBUG ColegioSubjects] assign_subject_to_colegio COMPLETADO`);
       }
 
+      // Verificar datos locales ANTES del sync
+      try {
+        const beforeSyncAll = await invoke<any[]>('get_colegio_asignatura');
+        console.log(`[DEBUG ColegioSubjects] ANTES del sync: get_colegio_asignatura = ${beforeSyncAll.length} registros:`, beforeSyncAll.map((r: any) => `(${r.colegio_id},${r.asignatura_id})`));
+      } catch (e) {
+        console.warn("[DEBUG ColegioSubjects] Error leyendo get_colegio_asignatura antes del sync:", e);
+      }
+
       console.log(`[DEBUG ColegioSubjects] Llamando syncAllSilent...`);
       const syncStart = Date.now();
       await syncService.syncAllSilent().catch(err => console.warn("[DEBUG ColegioSubjects] Auto-sync error:", err));
@@ -1101,6 +1109,14 @@ export function GlobalesPage() {
         setColegioSubjects([]);
       }
       
+      // Verificar datos locales ANTES del sync
+      try {
+        const beforeSyncAll = await invoke<any[]>('get_colegio_asignatura');
+        console.log(`[DEBUG ColegioSubjects BULK] ANTES del sync: get_colegio_asignatura = ${beforeSyncAll.length} registros:`, beforeSyncAll.map((r: any) => `(${r.colegio_id},${r.asignatura_id})`));
+      } catch (e) {
+        console.warn("[DEBUG ColegioSubjects BULK] Error leyendo get_colegio_asignatura antes del sync:", e);
+      }
+
       console.log(`[DEBUG ColegioSubjects] Llamando syncAllSilent...`);
       const syncStart = Date.now();
       await syncService.syncAllSilent().catch(err => console.warn("[DEBUG ColegioSubjects] Auto-sync error:", err));

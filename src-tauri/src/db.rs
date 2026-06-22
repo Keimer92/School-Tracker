@@ -1934,6 +1934,11 @@ pub fn assign_subject_to_grade(
     asignaturaId: i64,
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    // Limpiar pending deletion previa para evitar que upsert_pull_data borre el registro recién asignado
+    let _ = conn.execute(
+        "DELETE FROM sync_pending_deletions_grado_asignatura WHERE grado_id = ? AND asignatura_id = ?",
+        [gradoId, asignaturaId],
+    );
     conn.execute(
         "INSERT OR IGNORE INTO grado_asignatura (grado_id, asignatura_id) VALUES (?, ?)",
         [gradoId, asignaturaId],
@@ -2093,6 +2098,17 @@ pub fn assign_subject_to_colegio(
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     println!("[DEBUG assign_subject_to_colegio] Insertando colegio_id={}, asignatura_id={}", colegioId, asignaturaId);
+
+    // IMPORTANTE: si existía una pending-deletion de esta misma relación,
+    // limpiarla para que upsert_pull_data no borre el registro recién asignado.
+    let cleared = conn.execute(
+        "DELETE FROM sync_pending_deletions_colegio_asignatura WHERE colegio_id = ? AND asignatura_id = ?",
+        [colegioId, asignaturaId],
+    ).unwrap_or(0);
+    if cleared > 0 {
+        println!("[DEBUG assign_subject_to_colegio] Limpiada pending deletion previa para colegio={}, asignatura={}", colegioId, asignaturaId);
+    }
+
     conn.execute(
         "INSERT OR IGNORE INTO colegio_asignatura (colegio_id, asignatura_id) VALUES (?, ?)",
         [colegioId, asignaturaId],
