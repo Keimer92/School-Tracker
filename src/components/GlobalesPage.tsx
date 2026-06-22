@@ -1048,28 +1048,8 @@ export function GlobalesPage() {
         console.log(`[DEBUG ColegioSubjects] assign_subject_to_colegio COMPLETADO`);
       }
 
-      // Verificar datos locales ANTES del sync
-      try {
-        const beforeSyncAll = await invoke<any[]>('get_colegio_asignatura');
-        console.log(`[DEBUG ColegioSubjects] ANTES del sync: get_colegio_asignatura = ${beforeSyncAll.length} registros:`, beforeSyncAll.map((r: any) => `(${r.colegio_id},${r.asignatura_id})`));
-      } catch (e) {
-        console.warn("[DEBUG ColegioSubjects] Error leyendo get_colegio_asignatura antes del sync:", e);
-      }
-
       console.log(`[DEBUG ColegioSubjects] Llamando syncAllSilent...`);
-      const syncStart = Date.now();
       await syncService.syncAllSilent().catch(err => console.warn("[DEBUG ColegioSubjects] Auto-sync error:", err));
-      console.log(`[DEBUG ColegioSubjects] syncAllSilent COMPLETADO en ${Date.now() - syncStart}ms`);
-
-      // Verificar estado local después del sync
-      try {
-        const afterSync = await invoke<CategoryItem[]>("get_subjects_by_colegio", {
-          colegioId: selectedColegioForSubjects.id,
-        });
-        console.log(`[DEBUG ColegioSubjects] Después de sync, get_subjects_by_colegio devuelve ${afterSync.length} asignaturas:`, afterSync.map(s => `${s.id}:${s.nombre}`));
-      } catch (e) {
-        console.warn("[DEBUG ColegioSubjects] Error verificando post-sync:", e);
-      }
 
       await emit("show-toast", {
         message: "✅ Asignación actualizada",
@@ -1109,28 +1089,8 @@ export function GlobalesPage() {
         setColegioSubjects([]);
       }
       
-      // Verificar datos locales ANTES del sync
-      try {
-        const beforeSyncAll = await invoke<any[]>('get_colegio_asignatura');
-        console.log(`[DEBUG ColegioSubjects BULK] ANTES del sync: get_colegio_asignatura = ${beforeSyncAll.length} registros:`, beforeSyncAll.map((r: any) => `(${r.colegio_id},${r.asignatura_id})`));
-      } catch (e) {
-        console.warn("[DEBUG ColegioSubjects BULK] Error leyendo get_colegio_asignatura antes del sync:", e);
-      }
-
       console.log(`[DEBUG ColegioSubjects] Llamando syncAllSilent...`);
-      const syncStart = Date.now();
       await syncService.syncAllSilent().catch(err => console.warn("[DEBUG ColegioSubjects] Auto-sync error:", err));
-      console.log(`[DEBUG ColegioSubjects] syncAllSilent COMPLETADO en ${Date.now() - syncStart}ms`);
-
-      // Verificar estado local después del sync
-      try {
-        const afterSync = await invoke<CategoryItem[]>("get_subjects_by_colegio", {
-          colegioId: selectedColegioForSubjects.id,
-        });
-        console.log(`[DEBUG ColegioSubjects] Después de bulk sync, get_subjects_by_colegio devuelve ${afterSync.length} asignaturas:`, afterSync.map(s => `${s.id}:${s.nombre}`));
-      } catch (e) {
-        console.warn("[DEBUG ColegioSubjects] Error verificando post-sync:", e);
-      }
 
       await emit("show-toast", {
         message: "✅ Asignación actualizada",

@@ -156,8 +156,7 @@ export const tursoSyncService = {
     const client = getClient();
     try {
       async function safeGet<T>(fn: string): Promise<T[]> {
-        try { const result = await invoke<T[]>(fn); return result; }
-        catch (e) { console.warn(`[Turso Push safeGet] Error en ${fn}:`, e); return []; }
+        try { return await invoke<T[]>(fn); } catch { return []; }
       }
       interface TableDef { cols: string; data: any[]; map: (r: any) => any[] }
       const catMap = (r: any) => [r.id, r.nombre, r.activo ? 1 : 0, r.cualitativo ? 1 : 0];
@@ -358,12 +357,9 @@ export const tursoSyncService = {
 
   syncAllSilent: async (dispatchEvents: boolean = true): Promise<void> => {
     // Esperar si hay un sync en progreso (en vez de saltar)
-    let waited = false;
     while ((tursoSyncService as any)._syncLock) {
-      if (!waited) { console.warn('[Turso Sync] Sync ya en progreso, esperando...'); waited = true; }
       await new Promise(r => setTimeout(r, 500));
     }
-    if (waited) console.log('[Turso Sync] Lock liberado, ejecutando sync...');
     (tursoSyncService as any)._syncLock = true;
     try {
       await tursoSyncService.pushAllSilent();
