@@ -194,6 +194,10 @@ export function NotasPage() {
     });
 
     const unlistenNotas = listen("notas-updated", () => {
+      if (hasUnsavedRef.current) {
+        console.log("🔔 [Realtime] notas-updated ignorado (hay cambios sin guardar)");
+        return;
+      }
       clearTimeout(notasTimeout);
       notasTimeout = setTimeout(() => {
         console.log("🔔 [Realtime] Evento notas-updated recibido en NotasPage (debounced)");
@@ -216,6 +220,10 @@ export function NotasPage() {
     });
 
     const onSync = () => {
+      if (hasUnsavedRef.current) {
+        console.log("🔔 [Sync] schooltracker-sync ignorado (hay cambios sin guardar)");
+        return;
+      }
       clearTimeout(notasTimeout);
       notasTimeout = setTimeout(() => {
         console.log("🔔 [Sync] Sync completado, refrescando NotasPage...");

@@ -400,6 +400,9 @@ export const tursoSyncService = {
       }
       syncManager.setState({ status: 'syncing', message: 'Sync automático...' });
       await tursoSyncService.syncAllSilent(false);
+      // Solo notificar cambios de notas/asistencia para que las páginas se refresquen
+      try { await emit("notas-updated", { timestamp: Date.now() }); } catch {}
+      try { await emit("asistencia-updated"); } catch {}
       syncManager.setState({ status: 'idle', message: null });
     }, interval);
   },
