@@ -399,7 +399,7 @@ export const tursoSyncService = {
         return;
       }
       syncManager.setState({ status: 'syncing', message: 'Sync automático...' });
-      await tursoSyncService.syncAllSilent();
+      await tursoSyncService.syncAllSilent(false);
       syncManager.setState({ status: 'idle', message: null });
     }, interval);
   },

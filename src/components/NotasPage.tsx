@@ -930,6 +930,8 @@ export function NotasPage() {
       historyRef.current = newHistory;
       redoStackRef.current = [];
       
+      notifyUnsaved();
+
       startTransition(() => {
         setHistory(newHistory);
         setRedoStack([]);
@@ -1624,8 +1626,8 @@ return (
           </FilterGroup>
 
           {/* Buscador y Botones en la misma fila */}
-          <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'flex-end', flex: isMobile ? '1 1 100%' : '0 0 auto' }}>
-            <div style={{ flex: '1', minWidth: '80px' }}>
+          <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'flex-end', flex: isMobile ? '1 1 100%' : '1 1 auto' }}>
+            <div style={{ flex: '1', minWidth: '50px' }}>
               <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar..." isMobile={isMobile} />
             </div>
             <button
