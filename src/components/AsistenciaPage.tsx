@@ -50,6 +50,7 @@ export function AsistenciaPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [saving, setSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const hasUnsavedRef = useRef(false);
   const [pressingStatus, setPressingStatus] = useState<string | null>(null);
   const [showSummaryModal, setShowSummaryModal] = useState<{show: boolean, type: string, stats: any}>({
     show: false,
@@ -85,7 +86,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
       try {
         draftRef.current = JSON.parse(savedDraft);
         if (Object.keys(draftRef.current).length > 0) {
-          setHasUnsavedChanges(true);
+          hasUnsavedRef.current = true; setHasUnsavedChanges(true);
         }
       } catch (e) {
         console.error("Error cargando borrador:", e);
@@ -240,6 +241,10 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
     let catalogTimeout: NodeJS.Timeout;
 
     const unlistenStudent = listen("student-updated", () => {
+      if (hasUnsavedRef.current) {
+        console.log("🔔 [Realtime] student-updated ignorado (hay cambios sin guardar)");
+        return;
+      }
       clearTimeout(studentTimeout);
       studentTimeout = setTimeout(() => {
         console.log("🔔 [Realtime] Evento student-updated recibido en AsistenciaPage (debounced)");
@@ -253,6 +258,10 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
     });
 
     const unlistenAsistencia = listen("asistencia-updated", () => {
+      if (hasUnsavedRef.current) {
+        console.log("🔔 [Realtime] asistencia-updated ignorado (hay cambios sin guardar)");
+        return;
+      }
       clearTimeout(asistenciaTimeout);
       asistenciaTimeout = setTimeout(() => {
         console.log("🔔 [Realtime] Evento asistencia-updated recibido en AsistenciaPage (debounced)");
@@ -262,6 +271,10 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
     });
 
     const unlistenCatalog = listen("catalog-updated", () => {
+      if (hasUnsavedRef.current) {
+        console.log("🔔 [Realtime] catalog-updated ignorado (hay cambios sin guardar)");
+        return;
+      }
       clearTimeout(catalogTimeout);
       catalogTimeout = setTimeout(() => {
         console.log("🔔 [Realtime] Evento catalog-updated recibido en AsistenciaPage (debounced)");
@@ -276,11 +289,16 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
     });
 
     const unlistenSubjects = listen("subjects-updated", () => {
+      if (hasUnsavedRef.current) return;
       console.log("Evento subjects-updated recibido en AsistenciaPage, refrescando...");
       fetchColegioConfig();
     });
 
     const onSync = () => {
+      if (hasUnsavedRef.current) {
+        console.log("🔔 [Sync] schooltracker-sync ignorado (hay cambios sin guardar)");
+        return;
+      }
       clearTimeout(asistenciaTimeout);
       asistenciaTimeout = setTimeout(() => {
         console.log("🔔 [Sync] Evento sync completado, refrescando...");
@@ -382,7 +400,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
             // Limpiar borrador tras eliminar
             draftRef.current = {};
             syncDraftToStorage();
-            setHasUnsavedChanges(false);
+            hasUnsavedRef.current = false; setHasUnsavedChanges(false);
             setSaving(false);
 
             await emit("show-toast", { message: "✅ Asistencia limpiada correctamente", type: "success" });
@@ -414,7 +432,7 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
       syncDraftToStorage();
       
       // Reset unsaved changes and stop loading indicator immediately after local success
-      setHasUnsavedChanges(false);
+      hasUnsavedRef.current = false; setHasUnsavedChanges(false);
       setSaving(false);
       await emit("show-toast", { message: "✅ Asistencia guardada localmente", type: "success" });
 
@@ -597,13 +615,13 @@ const isAndroidMobile = isAndroid || (isMobile && !isWindows);
       if (answer) {
         await saveChanges(estudiantes);
         // After save, we proceed to change filter
-        setHasUnsavedChanges(false);
+        hasUnsavedRef.current = false; setHasUnsavedChanges(false);
         setter(value);
       } else {
         // User chose to discard changes
         draftRef.current = {}; // Limpiamos borrador explícitamente
         syncDraftToStorage();
-        setHasUnsavedChanges(false); 
+        hasUnsavedRef.current = false; setHasUnsavedChanges(false); 
         setter(value);
       }
     } else {
