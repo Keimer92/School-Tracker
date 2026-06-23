@@ -33,7 +33,7 @@ export function FilterContainer({ children, isMobile = false, className = '', st
         style={{
           padding: isMobile ? '0.1rem' : '0.4rem',
           display: 'flex',
-          flexWrap: 'wrap',
+          flexWrap: isMobile ? 'wrap' : 'nowrap',
           gap: isMobile ? '0.2rem' : '0.4rem',
           justifyContent: 'flex-start',
           alignItems: 'flex-end',
@@ -54,7 +54,7 @@ interface FilterGroupProps {
 }
 
 export function FilterGroup({ children, label, isMobile = false, flex }: FilterGroupProps) {
-  const defaultFlex = isMobile ? '1 1 40%' : '0 0 auto';
+  const defaultFlex = isMobile ? '1 1 40%' : '0 1 auto';
   
   return (
     <div 
