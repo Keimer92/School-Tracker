@@ -1627,7 +1627,7 @@ return (
 
           {/* Buscador y Botones en la misma fila */}
           <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'flex-end', flex: isMobile ? '1 1 100%' : '1 1 auto' }}>
-            <div style={{ flex: '1', minWidth: '50px' }}>
+            <div style={{ flex: '0 1 auto' }}>
               <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Buscar..." isMobile={isMobile} />
             </div>
             <button
