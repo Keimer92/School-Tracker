@@ -171,25 +171,38 @@
     } catch (error) { console.error("Error fetching secciones:", error); return []; }
   }
 
-  async function fetchData(preserveFilters = false) {
-    try {
-      const [sData, aData, colData, gData, secData] = await Promise.all([
-        invoke<Student[]>("get_students"),
-        invoke<CategoryItem[]>("get_anos"),
-        invoke<CategoryItem[]>("get_colegios"),
-        invoke<CategoryItem[]>("get_grados"),
-        invoke<CategoryItem[]>("get_secciones"),
-      ]);
-      anos = aData; colegios = colData; students = sData; allGrados = gData; allSecciones = secData;
-      const activeYear = aData.find(a => a.activo) || aData[0];
-      const activeYearId = activeYear?.id ?? 0;
-      const activeColegio = colData.find(c => c.activo) || colData[0];
-      const activeColegioId = activeColegio?.id ?? 0;
-      if (!preserveFilters) filters = { ...filters, anoLectivoId: activeYearId, colegioId: activeColegioId };
-      if (!isEditing) formData = { ...formData, anoLectivoId: formData.anoLectivoId || activeYearId, colegioId: formData.colegioId || activeColegioId };
-      return { students: sData, anos: aData, colegios: colData };
-    } catch (error) { console.error("Error fetching data:", error); return null; }
-  }
+async function fetchData(preserveFilters = false) {
+  try {
+    const [sData, aData, colData, gData, secData] = await Promise.all([
+      invoke<Student[]>("get_students"),
+      invoke<CategoryItem[]>("get_anos"),
+      invoke<CategoryItem[]>("get_colegios"),
+      invoke<CategoryItem[]>("get_grados"),
+      invoke<CategoryItem[]>("get_secciones"),
+    ]);
+    anos = aData; colegios = colData; students = sData; allGrados = gData; allSecciones = secData;
+    const activeYear = aData.find(a => a.activo) || aData[0];
+    const activeYearId = activeYear?.id ?? 0;
+    const activeColegio = colData.find(c => c.activo) || colData[0];
+    const activeColegioId = activeColegio?.id ?? 0;
+    if (!preserveFilters) {
+      filters = { ...filters, anoLectivoId: activeYearId, colegioId: activeColegioId };
+      // Ensure we fetch grados and secciones with the default values
+      if (activeYearId > 0 && activeColegioId > 0) {
+        fetchGrados(activeColegioId, activeYearId).then(loadedGrados => {
+          if (loadedGrados.length > 0) {
+            const firstGradoId = loadedGrados[0].id;
+            filters = { ...filters, gradoId: firstGradoId };
+            // Now fetch secciones with the first grado
+            fetchSecciones(firstGradoId, activeColegioId, activeYearId);
+          }
+        });
+      }
+    }
+    if (!isEditing) formData = { ...formData, anoLectivoId: formData.anoLectivoId || activeYearId, colegioId: formData.colegioId || activeColegioId };
+    return { students: sData, anos: aData, colegios: colData };
+  } catch (error) { console.error("Error fetching data:", error); return null; }
+}
 
   async function handleImportExcel() {
     try {
@@ -298,6 +311,16 @@
   $effect(() => {
     if (filters.gradoId > 0 && filters.colegioId > 0 && filters.anoLectivoId > 0) fetchSecciones(filters.gradoId, filters.colegioId, filters.anoLectivoId);
     else secciones = [];
+  });
+  
+  $effect(() => {
+    if (filters.colegioId > 0 && filters.anoLectivoId > 0) {
+      fetchGrados(filters.colegioId, filters.anoLectivoId).then(loadedGrados => {
+        if (filters.gradoId === 0 && loadedGrados.length > 0) {
+          filters = { ...filters, gradoId: loadedGrados[0].id };
+        }
+      });
+    }
   });
 
   function handleFormChange(e: Event) {
