@@ -92,12 +92,12 @@
     };
   });
 
-  let loadGradosConfig = $effect(() => {
+  $effect(() => {
     if (selectedColegio && selectedAno) { fetchGrados(); fetchColegioConfig(); }
     else { grados = []; selectedGrado = 0; }
   });
 
-  let checkFecha = $effect(() => {
+  $effect(() => {
     if (!selectedFecha || !colegioConfig) { isFechaHabilitada = true; return; }
     const date = new Date(selectedFecha + "T12:00:00");
     const dayNames = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
@@ -106,12 +106,12 @@
     if (!habilitado) estudiantes = [];
   });
 
-  let loadSecciones = $effect(() => {
+  $effect(() => {
     if (selectedGrado && selectedColegio && selectedAno) fetchSecciones();
     else { secciones = []; selectedSeccion = 0; }
   });
 
-  let loadEstudiantes = $effect(() => {
+  $effect(() => {
     if (selectedAno) localStorage.setItem("selectedAno", String(selectedAno));
     if (selectedColegio) localStorage.setItem("selectedColegio", String(selectedColegio));
     if (selectedGrado) localStorage.setItem("selectedGrado", String(selectedGrado));

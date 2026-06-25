@@ -199,17 +199,17 @@
     };
   });
 
-  let loadGradosAsignaturas = $effect(() => {
+  $effect(() => {
     if (selectedColegio > 0 && selectedAno > 0) fetchGradosYAsignaturas();
     else { grados = []; asignaturas = []; selectedGrado = 0; selectedAsignatura = 0; }
   });
 
-  let loadSecciones = $effect(() => {
+  $effect(() => {
     if (selectedGrado > 0 && selectedColegio > 0 && selectedAno > 0) fetchSecciones();
     else { secciones = []; selectedSeccion = 0; }
   });
 
-  let loadReporte = $effect(() => {
+  $effect(() => {
     const lid = ++loadId;
     if (selectedGrado > 0 && selectedSeccion > 0 && (selectedCorte > 0 || specialCorte) && selectedAsignatura > 0) {
       loading = true;

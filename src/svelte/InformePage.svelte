@@ -91,7 +91,7 @@
 
   function onSync() { refreshTrigger++; }
 
-  let calcFechas = $effect(() => {
+  $effect(() => {
     const hoy = new Date();
     const base = new Date(fechaBase + "T12:00:00");
     if (periodo === "diario") {
@@ -116,18 +116,18 @@
     }
   });
 
-  let loadGradosConfig = $effect(() => {
+  $effect(() => {
     if (selectedColegio && selectedAno) {
       fetchGrados();
       fetchColegioConfig(selectedColegio);
     }
   });
 
-  let loadSecciones = $effect(() => {
+  $effect(() => {
     if (selectedGrado && selectedColegio && selectedAno) fetchSecciones();
   });
 
-  let loadReporte = $effect(() => {
+  $effect(() => {
     if (selectedAno) localStorage.setItem("selectedAno", String(selectedAno));
     if (selectedColegio) localStorage.setItem("selectedColegio", String(selectedColegio));
     if (selectedGrado) localStorage.setItem("selectedGrado", String(selectedGrado));

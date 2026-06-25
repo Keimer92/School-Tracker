@@ -767,7 +767,7 @@
                 <option value={col.id}>{col.nombre}</option>
               {/each}
             </select>
-          {/snippet>
+          {/snippet}
         </FilterGroup>
 
         <FilterGroup label="Grado:" {isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>

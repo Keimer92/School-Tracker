@@ -1,30 +1,44 @@
-import { useState, useEffect, useRef, memo, startTransition } from "react";
+import { useState, useEffect, useRef, startTransition } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
 import { useIsMobile } from "./hooks/useAndroid";
 import "./App.css";
-import { GlobalesPage } from "./components/GlobalesPage";
-import { EstudiantesPage } from "./components/EstudiantesPage";
-import { EvaluacionesPage } from "./components/EvaluacionesPage";
-import { AjustesPage } from "./components/AjustesPage";
-import { NotasPage } from "./components/NotasPage";
-import { ReportesPage } from "./components/ReportesPage";
-import { AsistenciaPage } from "./components/AsistenciaPage";
-import { InformePage } from "./components/InformePage";
+// React versions (kept for reference, not used)
+// import { GlobalesPage } from "./components/GlobalesPage";
+// import { EstudiantesPage } from "./components/EstudiantesPage";
+// import { EvaluacionesPage } from "./components/EvaluacionesPage";
+// import { AjustesPage } from "./components/AjustesPage";
+// import { NotasPage } from "./components/NotasPage";
+// import { ReportesPage } from "./components/ReportesPage";
+// import { AsistenciaPage } from "./components/AsistenciaPage";
+// import { InformePage } from "./components/InformePage";
+
+// Svelte 5 wrappers
+import {
+  SvelteAsistenciaPage,
+  SvelteInformePage,
+  SvelteNotasPage,
+  SvelteReportesPage,
+  SvelteEvaluacionesPage,
+  SvelteEstudiantesPage,
+  SvelteGlobalesPage,
+  SvelteAjustesPage,
+} from "./svelte/svelteAdapter";
 import { restoreTursoClient, getTursoClient } from "./lib/tursoClient";
 import { syncService } from "./lib/syncService";
 import { realtimeService } from "./lib/realtimeService";
 import { SyncStatus } from "./components/SyncStatus";
 import { runAutomaticGoogleDriveBackupIfNeeded } from "./components/GoogleDriveBackup";
 
-const MAsistenciaPage = memo(AsistenciaPage);
-const MInformePage = memo(InformePage);
-const MNotasPage = memo(NotasPage);
-const MReportesPage = memo(ReportesPage);
-const MEvaluacionesPage = memo(EvaluacionesPage);
-const MEstudiantesPage = memo(EstudiantesPage);
-const MGlobalesPage = memo(GlobalesPage);
-const MAjustesPage = memo(AjustesPage);
+// React versions (kept for reference, not used)
+// const MAsistenciaPage = memo(AsistenciaPage);
+// const MInformePage = memo(InformePage);
+// const MNotasPage = memo(NotasPage);
+// const MReportesPage = memo(ReportesPage);
+// const MEvaluacionesPage = memo(EvaluacionesPage);
+// const MEstudiantesPage = memo(EstudiantesPage);
+// const MGlobalesPage = memo(GlobalesPage);
+// const MAjustesPage = memo(AjustesPage);
 
 type Tab = "notas" | "reportes" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "informe";
 
@@ -445,14 +459,14 @@ useEffect(() => {
       />
 
       <main className="main-content">
-        {renderTab("asistencia", <MAsistenciaPage />)}
-        {renderTab("informe", <MInformePage />)}
-        {renderTab("notas", <MNotasPage />)}
-        {renderTab("reportes", <MReportesPage />)}
-        {renderTab("evaluaciones", <MEvaluacionesPage />)}
-        {renderTab("estudiantes", <MEstudiantesPage />)}
-        {renderTab("globales", <MGlobalesPage />)}
-        {renderTab("ajustes", <MAjustesPage />)}
+        {renderTab("asistencia", <SvelteAsistenciaPage />)}
+        {renderTab("informe", <SvelteInformePage />)}
+        {renderTab("notas", <SvelteNotasPage />)}
+        {renderTab("reportes", <SvelteReportesPage />)}
+        {renderTab("evaluaciones", <SvelteEvaluacionesPage />)}
+        {renderTab("estudiantes", <SvelteEstudiantesPage />)}
+        {renderTab("globales", <SvelteGlobalesPage />)}
+        {renderTab("ajustes", <SvelteAjustesPage />)}
       </main>
 
       {/* Snackbar inferior */}

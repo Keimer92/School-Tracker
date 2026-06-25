@@ -75,12 +75,12 @@
     };
   });
 
-  let loadConfig = $effect(() => {
+  $effect(() => {
     if (selectedGrado && selectedAsignatura && selectedCorte) { fetchConfig(); }
     else { indicadores = []; }
   });
 
-  let loadSubjects = $effect(() => {
+  $effect(() => {
     if (selectedGrado) {
       const grado = grados.find(g => g.id === selectedGrado);
       isQualitative = grado?.cualitativo || false;
