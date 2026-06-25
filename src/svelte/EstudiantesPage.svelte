@@ -499,15 +499,15 @@ async function fetchData(preserveFilters = false) {
           </select>
         {/snippet}
       </FilterGroup>
-      <FilterGroup label="Sección:" {isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
-        {#snippet children()}
-          <select name="seccionId" onchange={handleFilterChange} value={filters.seccionId} class="filter-select" style="width: 100%; padding: 0.3rem 0.4rem; font-size: 0.75rem; height: 28px;">
-            {#each secciones as s}
-              <option value={s.id}>{s.nombre}</option>
-            {/each}
-          </select>
-        {/snippet}
-      </FilterGroup>
+  <FilterGroup label="Sección:" {isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
+    {#snippet children()}
+    <select name="seccionId" onchange={handleFilterChange} value={filters.seccionId} class="filter-select" style="width: 100%; padding: 0.3rem 0.4rem; font-size: 0.75rem; height: 28px;" key={secciones.length}>
+      {#each secciones as s}
+      <option value={s.id}>{s.nombre}</option>
+      {/each}
+    </select>
+    {/snippet}
+  </FilterGroup>
       <FilterGroup label="Sexo:" {isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
         {#snippet children()}
           <select name="sexo" onchange={handleFilterChange} value={filters.sexo} class="filter-select" style="width: 100%; padding: 0.3rem 0.4rem; font-size: 0.75rem; height: 28px;">
