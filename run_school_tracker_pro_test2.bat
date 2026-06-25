@@ -4,4 +4,4 @@
 set "SCHOOLTRACKER_PROFILE=test2"
 
 : Ejecutar el binario de la aplicación
-"src-tauri\\target\\debug\\school-tracker-pro.exe"
+"src-tauri\target\debug\school-tracker-pro.exe"
