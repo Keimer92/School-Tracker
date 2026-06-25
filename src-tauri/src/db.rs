@@ -365,17 +365,17 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
 
 /// Inserta datos iniciales si las tablas están vacías
 fn seed_default_data(conn: &Connection) -> Result<(), String> {
-    // Verificar si ya hay datos
+    // Verificar si ya hay datos (localmente o de sincronización previa)
     let count: i64 = conn
         .query_row("SELECT COUNT(*) FROM ano_lectivo", [], |row| row.get(0))
         .unwrap_or(0);
 
     if count > 0 {
-        println!("📊 [DB] Datos iniciales ya existen, omitiendo sembrado");
+        println!("📊 [DB] Datos encontrados en base de datos local, omitiendo sembrado de datos por defecto");
         return Ok(());
     }
 
-    println!("🌱 [DB] Sembrando datos iniciales...");
+    println!("🌱 [DB] Base de datos vacía, sembrando datos iniciales...");
 
     // Años lectivos
     conn.execute(
