@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, memo, startTransition } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { listen, emit } from "@tauri-apps/api/event";
 import { useIsMobile } from "./hooks/useAndroid";
 import "./App.css";
@@ -164,13 +165,38 @@ useEffect(() => {
     }
   };
 
-  // Sincronización automática: restaurar conexión Turso e iniciar sync periódico
+  // Inicialización: verificar si hay datos en Turso antes de sembrar defaults
   useEffect(() => {
     const client = restoreTursoClient();
+    
     if (client) {
-      console.log('[App] Turso restaurado desde localStorage. Iniciando sync.');
+      // Turso configurado → verificar si tiene datos antes de decidir
+      console.log('[App] Turso restaurado desde localStorage. Verificando datos en la nube...');
       syncService.ensurePeriodicSync();
-      syncService.pullAllSilent();
+      
+      // Verificar si Turso tiene datos existentes
+      client.execute("SELECT COUNT(*) as count FROM ano_lectivo")
+        .then(result => {
+          const count = result.rows[0]?.count as number || 0;
+          if (count > 0) {
+            // Turso tiene datos → hacer pull (no sembrar defaults)
+            console.log(`[App] Turso tiene ${count} años lectivos. Haciendo pull...`);
+            syncService.pullAllSilent();
+          } else {
+            // Turso está vacío → sembrar defaults localmente
+            console.log('[App] Turso vacío. Sembrando datos por defecto...');
+            invoke('seed_defaults_now');
+          }
+        })
+        .catch(err => {
+          // Error al consultar Turso → sembrar defaults por seguridad
+          console.warn('[App] Error consultando Turso, sembrando defaults:', err);
+          invoke('seed_defaults_now');
+        });
+    } else {
+      // Sin Turso configurado → sembrar datos por defecto localmente
+      console.log('[App] Sin Turso configurado. Sembrando datos por defecto...');
+      invoke('seed_defaults_now');
     }
   }, []);
 

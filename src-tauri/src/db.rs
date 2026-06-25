@@ -285,10 +285,10 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
     )
     .map_err(|e| format!("Error creando tablas de sincronización: {}", e))?;
 
-    // Poblar datos iniciales si están vacíos
-    seed_default_data(conn)?;
-
     // Migraciones para bases de datos existentes (agregar columnas faltantes)
+    // NOTA: Los datos iniciales NO se siembran aquí. Se siembran bajo demanda
+    // desde el frontend después de verificar si Turso tiene datos existentes.
+    // Esto evita crear datos por defecto cuando ya hay datos en la nube.
     migrate_add_columns(conn)?;
 
     println!("✅ [DB] Base de datos inicializada correctamente");
@@ -364,7 +364,7 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
 }
 
 /// Inserta datos iniciales si las tablas están vacías
-fn seed_default_data(conn: &Connection) -> Result<(), String> {
+pub fn seed_default_data(conn: &Connection) -> Result<(), String> {
     // Verificar si ya hay datos (localmente o de sincronización previa)
     let count: i64 = conn
         .query_row("SELECT COUNT(*) FROM ano_lectivo", [], |row| row.get(0))
@@ -666,10 +666,19 @@ pub fn reset_local_database(state: tauri::State<'_, DbState>) -> Result<(), Stri
         .map_err(|e| e.to_string())?;
 
     // Después de limpiar, volvemos a ejecutar las migraciones para asegurar
-    // que los datos iniciales (semillas) se vuelvan a crear inmediatamente
+    // que las tablas se vuelvan a crear
     run_migrations(&conn_guard)?;
 
+    // Sembrar datos iniciales (reset siempre crea defaults)
+    seed_default_data(&conn_guard)?;
+
     Ok(())
+}
+
+#[tauri::command]
+pub fn seed_defaults_now(state: tauri::State<'_, DbState>) -> Result<(), String> {
+    let conn_guard = state.conn.lock().map_err(|e| e.to_string())?;
+    seed_default_data(&conn_guard)
 }
 
 // Macro to generate CRUD commands for each table

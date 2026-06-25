@@ -911,6 +911,7 @@ pub fn run() {
             get_notas_all,
             get_student_impact,
             reset_local_database,
+            seed_defaults_now,
             get_grados_by_colegio,
             get_secciones_by_grado_colegio,
             upsert_pull_data,
