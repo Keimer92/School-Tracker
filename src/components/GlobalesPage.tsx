@@ -524,8 +524,47 @@ function CategoryTabContent({
           </h2>
           {items.length > 0 && (
             <>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', padding: '0.3rem 0.5rem', borderRadius: '6px', background: 'rgba(255,255,255,0.04)', fontSize: '0.75rem', color: '#94a3b8', userSelect: 'none' }}>
-                <input type="checkbox" checked={items.length > 0 && selectedIds.size === items.length} onChange={toggleSelectAll} style={{ cursor: 'pointer' }} />
+              <label
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  cursor: 'pointer',
+                  padding: '0.35rem 0.6rem',
+                  borderRadius: '6px',
+                  background: selectedIds.size > 0 ? 'rgba(59, 130, 246, 0.1)' : 'rgba(255,255,255,0.03)',
+                  border: selectedIds.size > 0 ? '1px solid rgba(59, 130, 246, 0.25)' : '1px solid transparent',
+                  fontSize: '0.75rem',
+                  color: selectedIds.size > 0 ? '#93c5fd' : '#94a3b8',
+                  fontWeight: '600',
+                  transition: 'all 0.15s ease',
+                  userSelect: 'none',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={items.length > 0 && selectedIds.size === items.length}
+                  onChange={toggleSelectAll}
+                  style={{ display: 'none' }}
+                />
+                <span style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '16px',
+                  height: '16px',
+                  borderRadius: '4px',
+                  border: selectedIds.size === items.length ? '2px solid #3b82f6' : '2px solid rgba(255,255,255,0.2)',
+                  background: selectedIds.size === items.length ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                  flexShrink: 0,
+                }}>
+                  {selectedIds.size === items.length && (
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </span>
                 Todo
               </label>
               {selectedIds.size > 0 && (
@@ -665,16 +704,36 @@ function CategoryTabContent({
                 e.currentTarget.style.transform = 'translateX(0)';
               }}
             >
-              {/* Checkbox de selección */}
-              <input
-                type="checkbox"
-                checked={selectedIds.has(item.id)}
-                onChange={() => toggleSelectItem(item.id)}
-                onClick={(e) => e.stopPropagation()}
-                style={{ cursor: 'pointer', accentColor: '#3b82f6' }}
-              />
               {/* Controles */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <label
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '22px',
+                    height: '22px',
+                    borderRadius: '6px',
+                    border: selectedIds.has(item.id) ? '2px solid #3b82f6' : '2px solid rgba(255,255,255,0.15)',
+                    background: selectedIds.has(item.id) ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    flexShrink: 0,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(item.id)}
+                    onChange={() => toggleSelectItem(item.id)}
+                    style={{ display: 'none' }}
+                  />
+                  {selectedIds.has(item.id) && (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </label>
                 {config.endpoints.updateOrder && (
                   <span style={{
                     cursor: 'move',
