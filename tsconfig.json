@@ -12,8 +12,6 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-jsx",
-
     /* Linting */
     "strict": true,
     "noUnusedLocals": false,
@@ -21,13 +19,6 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src"],
-  "exclude": ["src/**/*.supabase.ts", "src/**/*.backup.ts", "src/**/*.old.ts", "src/**/*.svelte"],
-  "svelte": {
-    "compilerOptions": {
-      "compatibility": {
-        "componentApi": 4
-      }
-    }
-  },
+  "exclude": ["src/**/*.supabase.ts", "src/**/*.backup.ts", "src/**/*.old.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

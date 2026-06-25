@@ -153,10 +153,10 @@
     if (!token) return;
     isFetchingFiles = true;
     try {
-      const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=name contains 'schooltracker' and trashed=false&orderBy=createdTime desc&pageSize=20`, { headers: { Authorization: `Bearer ${token}` } });
+      const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=name contains 'schooltracker' and trashed=false&orderBy=createdTime desc&pageSize=20&fields=files(id,name,size,createdTime)`, { headers: { Authorization: `Bearer ${token}` } });
       if (response.ok) {
         const data = await response.json();
-        const files: GoogleDriveFile[] = (data.files || []).map((f: any) => ({ id: f.id, name: f.name, size: f.size || 0, createdTime: f.createdTime, device: '' }));
+        const files: GoogleDriveFile[] = (data.files || []).map((f: any) => ({ id: f.id, name: f.name, size: f.size || 0, createdTime: f.createdTime || f.modifiedTime || '', device: '' }));
         driveFiles = files;
         localStorage.setItem(CACHE_KEY, JSON.stringify(files));
       }
@@ -325,7 +325,7 @@
             <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.65rem 0.75rem; background: rgba(255,255,255,0.03); border-radius: 8px; margin-bottom: 0.4rem; border: 1px solid rgba(255,255,255,0.05);">
               <div style="flex: 1; min-width: 0;">
                 <div style="color: #e2e8f0; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{file.name}</div>
-                <div style="color: #64748b; font-size: 0.7rem;">{new Date(file.createdTime).toLocaleString('es-ES')} • {(file.size / 1024).toFixed(1)} KB</div>
+                <div style="color: #64748b; font-size: 0.7rem;">{file.createdTime ? new Date(file.createdTime).toLocaleString('es-ES') : '—'} • {(file.size / 1024).toFixed(1)} KB</div>
               </div>
               <div style="display: flex; gap: 0.3rem; flex-shrink: 0;">
                 <button onclick={() => requestRestore(file.id, file.name)} disabled={isLoading} style="padding: 0.35rem 0.6rem; border-radius: 6px; border: 1px solid rgba(59,130,246,0.3); background: rgba(59,130,246,0.1); color: #60a5fa; cursor: pointer; font-size: 0.7rem;">Restaurar</button>
