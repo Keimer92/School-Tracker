@@ -186,18 +186,7 @@ async function fetchData(preserveFilters = false) {
     const activeColegio = colData.find(c => c.activo) || colData[0];
     const activeColegioId = activeColegio?.id ?? 0;
     if (!preserveFilters) {
-      filters = { ...filters, anoLectivoId: activeYearId, colegioId: activeColegioId };
-      // Ensure we fetch grados and secciones with the default values
-      if (activeYearId > 0 && activeColegioId > 0) {
-        fetchGrados(activeColegioId, activeYearId).then(loadedGrados => {
-          if (loadedGrados.length > 0) {
-            const firstGradoId = loadedGrados[0].id;
-            filters = { ...filters, gradoId: firstGradoId };
-            // Now fetch secciones with the first grado
-            fetchSecciones(firstGradoId, activeColegioId, activeYearId);
-          }
-        });
-      }
+      filters = { ...filters, anoLectivoId: activeYearId, colegioId: activeColegioId, gradoId: 0, seccionId: 0 };
     }
     if (!isEditing) formData = { ...formData, anoLectivoId: formData.anoLectivoId || activeYearId, colegioId: formData.colegioId || activeColegioId };
     return { students: sData, anos: aData, colegios: colData };
@@ -297,9 +286,8 @@ async function fetchData(preserveFilters = false) {
     filters = newFilters;
   }
 
-  let filtersAndLoad = $derived.by(() => `${filters.colegioId}-${filters.anoLectivoId}`);
   $effect(() => {
-    if (filters.colegioId && filters.anoLectivoId) {
+    if (filters.colegioId > 0 && filters.anoLectivoId > 0) {
       fetchGrados(filters.colegioId, filters.anoLectivoId).then(loadedGrados => {
         if (filters.gradoId === 0 && loadedGrados.length > 0) {
           filters = { ...filters, gradoId: loadedGrados[0].id };
@@ -309,18 +297,13 @@ async function fetchData(preserveFilters = false) {
   });
 
   $effect(() => {
-    if (filters.gradoId > 0 && filters.colegioId > 0 && filters.anoLectivoId > 0) fetchSecciones(filters.gradoId, filters.colegioId, filters.anoLectivoId);
-    else secciones = [];
-  });
-  
-  $effect(() => {
-    if (filters.colegioId > 0 && filters.anoLectivoId > 0) {
-      fetchGrados(filters.colegioId, filters.anoLectivoId).then(loadedGrados => {
-        if (filters.gradoId === 0 && loadedGrados.length > 0) {
-          filters = { ...filters, gradoId: loadedGrados[0].id };
+    if (filters.gradoId > 0 && filters.colegioId > 0 && filters.anoLectivoId > 0) {
+      fetchSecciones(filters.gradoId, filters.colegioId, filters.anoLectivoId).then(loadedSecciones => {
+        if (filters.seccionId === 0 && loadedSecciones.length > 0) {
+          filters = { ...filters, seccionId: loadedSecciones[0].id };
         }
       });
-    }
+    } else secciones = [];
   });
 
   function handleFormChange(e: Event) {
