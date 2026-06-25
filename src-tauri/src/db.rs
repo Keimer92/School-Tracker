@@ -3287,23 +3287,7 @@ pub struct PullData {
 
 #[tauri::command]
 pub fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) -> Result<(), String> {
-    println!("🔄 [DB] upsert_pull_data llamado con datos:");
     let is_partial = data.is_partial.unwrap_or(false);
-    println!("   - años: {}", data.anos.len());
-    println!("   - cortes: {}", data.cortes.len());
-    println!("   - colegios: {}", data.colegios.len());
-    println!("   - asignaturas: {}", data.asignaturas.len());
-    println!("   - grados: {}", data.grados.len());
-    println!("   - secciones: {}", data.secciones.len());
-    println!("   - estudiantes: {}", data.estudiantes.len());
-    println!("   - indicadores: {}", data.indicadores.len());
-    println!("   - criterios: {}", data.criterios.len());
-    println!("   - notas: {}", data.notas.len());
-    println!("   - asistencia: {}", data.asistencia.len());
-    println!("   - grade_configs: {}", data.grade_configs.len());
-    println!("   - grado_asignatura: {}", data.grado_asignatura.len());
-    println!("   - colegio_asignatura: {} entries: {:?}", data.colegio_asignatura.len(), data.colegio_asignatura.iter().map(|(c,a)| format!("({},{})",c,a)).collect::<Vec<_>>());
-    println!("   - colegio_dias_asistencia: {}", data.colegio_dias_asistencia.len());
 
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute("PRAGMA foreign_keys = OFF", []).map_err(|e| e.to_string())?;
