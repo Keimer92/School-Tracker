@@ -29,6 +29,8 @@ import { syncService } from "./lib/syncService";
 import { realtimeService } from "./lib/realtimeService";
 import { SyncStatus } from "./components/SyncStatus";
 import { runAutomaticGoogleDriveBackupIfNeeded } from "./components/GoogleDriveBackup";
+import { SvelteSyncSidebar } from "./svelte/SyncSidebarAdapter.tsx";
+import { SvelteGoogleDriveSidebar } from "./svelte/GoogleDriveSidebarAdapter.tsx";
 
 // React versions (kept for reference, not used)
 // const MAsistenciaPage = memo(AsistenciaPage);
@@ -356,102 +358,105 @@ useEffect(() => {
         </div>
       )}
       {isMobile && drawerOpen && <div className="drawer-backdrop" onClick={closeDrawer} />}
-      <nav 
-        className={`sidebar ${isMobile ? 'drawer' : ''} ${drawerOpen ? 'open' : ''}`} 
-        ref={drawerRef}
-        onClick={(e) => e.stopPropagation()}
-        style={{ pointerEvents: 'auto' }}
-      >
-        <div className="sidebar-header-integrated">
-          <div className="mode-badge">
-            <span className="glow-icon-notas">📚</span>
-            <div className="mode-info">
-              <span className="mode-label">SCHOOL</span>
-              <div className="mode-name-line">
-                <span className="mode-name">TRACKER</span>
-                <span className="mode-pro">PRO</span>
-              </div>
-            </div>
+  <nav
+    className={`sidebar ${isMobile ? 'drawer' : ''} ${drawerOpen ? 'open' : ''}`}
+    ref={drawerRef}
+    onClick={(e) => e.stopPropagation()}
+    style={{ pointerEvents: 'auto' }}
+  >
+    <div className="sidebar-header-integrated">
+      <div className="mode-badge">
+        <span className="glow-icon-notas">📚</span>
+        <div className="mode-info">
+          <span className="mode-label">SCHOOL</span>
+          <div className="mode-name-line">
+            <span className="mode-name">TRACKER</span>
+            <span className="mode-pro">PRO</span>
           </div>
-          {isMobile && (
-            <button className="drawer-close-btn" onClick={closeDrawer}>✕</button>
-          )}
         </div>
-        <div className="sidebar-nav">
-          <div className="sidebar-section-header">ASISTENCIA</div>
-          <button 
-            className={`sidebar-button ${activeTab === "asistencia" ? "active" : ""}`} 
-            onClick={() => handleButtonClick("asistencia")}
-            type="button"
-          >
-            <span>📅</span>
-            <span>Asistencia</span>
-          </button>
-          <button 
-            className={`sidebar-button ${activeTab === "informe" ? "active" : ""}`} 
-            onClick={() => handleButtonClick("informe")}
-            type="button"
-          >
-            <span>📊</span>
-            <span>Informe</span>
-          </button>
+      </div>
+      {isMobile && (
+        <button className="drawer-close-btn" onClick={closeDrawer}>✕</button>
+      )}
+    </div>
+    <div className="sidebar-nav">
+      <div className="sidebar-section-header">ASISTENCIA</div>
+      <button
+        className={`sidebar-button ${activeTab === "asistencia" ? "active" : ""}`}
+        onClick={() => handleButtonClick("asistencia")}
+        type="button"
+      >
+        <span>📅</span>
+        <span>Asistencia</span>
+      </button>
+      <button
+        className={`sidebar-button ${activeTab === "informe" ? "active" : ""}`}
+        onClick={() => handleButtonClick("informe")}
+        type="button"
+      >
+        <span>📊</span>
+        <span>Informe</span>
+      </button>
 
-          <div className="sidebar-section-header">NOTAS</div>
-          <button 
-            className={`sidebar-button ${activeTab === "notas" ? "active" : ""}`} 
-            onClick={() => handleButtonClick("notas")}
-            type="button"
-          >
-            <span>📓</span>
-            <span>Notas</span>
-          </button>
-          <button 
-            className={`sidebar-button ${activeTab === "reportes" ? "active" : ""}`} 
-            onClick={() => handleButtonClick("reportes")}
-            type="button"
-          >
-            <span>📋</span>
-            <span>Reportes</span>
-          </button>
-          <button 
-            className={`sidebar-button ${activeTab === "evaluaciones" ? "active" : ""}`} 
-            onClick={() => handleButtonClick("evaluaciones")}
-            type="button"
-          >
-            <span>📝</span>
-            <span>Evaluaciones</span>
-          </button>
-          <button 
-            className={`sidebar-button ${activeTab === "estudiantes" ? "active" : ""}`} 
-            onClick={() => handleButtonClick("estudiantes")}
-            type="button"
-          >
-            <span>👨‍🎓</span>
-            <span>Estudiantes</span>
-          </button>
+      <div className="sidebar-section-header">NOTAS</div>
+      <button
+        className={`sidebar-button ${activeTab === "notas" ? "active" : ""}`}
+        onClick={() => handleButtonClick("notas")}
+        type="button"
+      >
+        <span>📓</span>
+        <span>Notas</span>
+      </button>
+      <button
+        className={`sidebar-button ${activeTab === "reportes" ? "active" : ""}`}
+        onClick={() => handleButtonClick("reportes")}
+        type="button"
+      >
+        <span>📋</span>
+        <span>Reportes</span>
+      </button>
+      <button
+        className={`sidebar-button ${activeTab === "evaluaciones" ? "active" : ""}`}
+        onClick={() => handleButtonClick("evaluaciones")}
+        type="button"
+      >
+        <span>📝</span>
+        <span>Evaluaciones</span>
+      </button>
+      <button
+        className={`sidebar-button ${activeTab === "estudiantes" ? "active" : ""}`}
+        onClick={() => handleButtonClick("estudiantes")}
+        type="button"
+      >
+        <span>👨‍🎓</span>
+        <span>Estudiantes</span>
+      </button>
 
-          <div className="sidebar-section-header">GENERALES</div>
-          <button 
-            className={`sidebar-button ${activeTab === "globales" ? "active" : ""}`} 
-            onClick={() => handleButtonClick("globales")}
-            type="button"
-          >
-            <span>🌐</span>
-            <span>Globales</span>
-          </button>
-          <button 
-            className={`sidebar-button ${activeTab === "ajustes" ? "active" : ""}`} 
-            onClick={() => handleButtonClick("ajustes")}
-            type="button"
-          >
-            <span>⚙️</span>
-            <span>Ajustes</span>
-          </button>
-        </div>
-        <div style={{ marginTop: 'auto' }}>
-          <SyncStatus />
-        </div>
-      </nav>
+      <div className="sidebar-section-header">GENERALES</div>
+      <button
+        className={`sidebar-button ${activeTab === "globales" ? "active" : ""}`}
+        onClick={() => handleButtonClick("globales")}
+        type="button"
+      >
+        <span>🌐</span>
+        <span>Globales</span>
+      </button>
+      <button
+        className={`sidebar-button ${activeTab === "ajustes" ? "active" : ""}`}
+        onClick={() => handleButtonClick("ajustes")}
+        type="button"
+      >
+        <span>⚙️</span>
+        <span>Ajustes</span>
+      </button>
+    </div>
+    
+    // Sync Component
+    <SvelteSyncSidebar />
+    
+    // Google Drive Component
+    <SvelteGoogleDriveSidebar />
+  </nav>
 
       <div 
         className={`resizer ${isResizing ? "resizing" : ""}`} 
