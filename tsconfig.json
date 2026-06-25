@@ -21,6 +21,13 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src"],
-  "exclude": ["src/**/*.supabase.ts", "src/**/*.backup.ts", "src/**/*.old.ts"],
+  "exclude": ["src/**/*.supabase.ts", "src/**/*.backup.ts", "src/**/*.old.ts", "src/**/*.svelte"],
+  "svelte": {
+    "compilerOptions": {
+      "compatibility": {
+        "componentApi": 4
+      }
+    }
+  },
   "references": [{ "path": "./tsconfig.node.json" }]
 }

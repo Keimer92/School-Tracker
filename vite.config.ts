@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
+import { svelte } from "@sveltejs/vite-plugin-svelte";
 import topLevelAwait from "vite-plugin-top-level-await";
 
 // @ts-expect-error process is a nodejs global
@@ -9,6 +10,7 @@ const host = process.env.TAURI_DEV_HOST || "localhost";
 export default defineConfig(async () => ({
   plugins: [
     react(),
+    svelte(),
     topLevelAwait({
       promiseImportName: i => `page_${i}`,
     }),

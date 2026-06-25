@@ -26,12 +26,14 @@
     "pocketbase": "^0.27.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "svelte": "^5.56.4",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",
     "@babel/preset-env": "^7.29.3",
     "@rollup/plugin-babel": "^7.0.0",
+    "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "@tauri-apps/cli": "^2",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
