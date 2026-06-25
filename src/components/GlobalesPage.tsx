@@ -116,6 +116,8 @@ function CategoryTabContent({
   const [itemToDelete, setItemToDelete] = useState<CategoryItem | null>(null);
   const [deleteMessage, setDeleteMessage] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
 
   const [showPrompt, setShowPrompt] = useState(false);
   const [promptConfig, setPromptConfig] = useState<{
@@ -440,6 +442,52 @@ function CategoryTabContent({
     }
   };
 
+  const toggleSelectAll = () => {
+    if (selectedIds.size === items.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(items.map(i => i.id)));
+    }
+  };
+
+  const toggleSelectItem = (id: number) => {
+    const next = new Set(selectedIds);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelectedIds(next);
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    setShowBatchDeleteConfirm(false);
+    setIsDeleting(true);
+    const ids = Array.from(selectedIds);
+    try {
+      await invoke("delete_category_force_batch", {
+        table: config.table,
+        ids,
+      });
+      setItems((prev) => prev.filter((i) => !selectedIds.has(i.id)));
+      setSelectedIds(new Set());
+      setIsDeleting(false);
+      await emit("show-toast", {
+        message: `✅ ${ids.length} ${config.title.toLowerCase()} eliminados`,
+        type: "success",
+      });
+      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      await emit("catalog-updated");
+    } catch (error) {
+      setIsDeleting(false);
+      await emit("show-toast", {
+        message: "❌ Error al eliminar en lote: " + error,
+        type: "error",
+      });
+    }
+  };
+
   return (
     <div className="category-card" style={{
       background: 'rgba(30, 41, 59, 0.5)',
@@ -449,7 +497,7 @@ function CategoryTabContent({
       marginBottom: '1.5rem',
       boxShadow: '0 4px 24px rgba(0, 0, 0, 0.25)',
     }}>
-      {/* Header con botón Agregar */}
+      {/* Header con selección masiva y botón Agregar */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -474,6 +522,32 @@ function CategoryTabContent({
           }}>
             {config.title}
           </h2>
+          {items.length > 0 && (
+            <>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', padding: '0.3rem 0.5rem', borderRadius: '6px', background: 'rgba(255,255,255,0.04)', fontSize: '0.75rem', color: '#94a3b8', userSelect: 'none' }}>
+                <input type="checkbox" checked={items.length > 0 && selectedIds.size === items.length} onChange={toggleSelectAll} style={{ cursor: 'pointer' }} />
+                Todo
+              </label>
+              {selectedIds.size > 0 && (
+                <button
+                  onClick={() => setShowBatchDeleteConfirm(true)}
+                  disabled={isDeleting}
+                  style={{
+                    padding: '0.35rem 0.75rem',
+                    fontSize: '0.75rem',
+                    borderRadius: '6px',
+                    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                    border: '1px solid rgba(239, 68, 68, 0.4)',
+                    cursor: 'pointer',
+                    fontWeight: '600',
+                    color: '#fca5a5',
+                  }}
+                >
+                  🗑 Eliminar ({selectedIds.size})
+                </button>
+              )}
+            </>
+          )}
           {config.title === "Asignatura" && items.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '1rem', padding: '0.4rem 0.75rem', background: 'rgba(139, 92, 246, 0.15)', borderRadius: '8px', border: '1px solid rgba(139, 92, 246, 0.3)' }}>
               <span style={{ fontSize: '0.75rem', color: '#a78bfa', fontWeight: '600' }}>Todo Cualitativo</span>
@@ -591,6 +665,14 @@ function CategoryTabContent({
                 e.currentTarget.style.transform = 'translateX(0)';
               }}
             >
+              {/* Checkbox de selección */}
+              <input
+                type="checkbox"
+                checked={selectedIds.has(item.id)}
+                onChange={() => toggleSelectItem(item.id)}
+                onClick={(e) => e.stopPropagation()}
+                style={{ cursor: 'pointer', accentColor: '#3b82f6' }}
+              />
               {/* Controles */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 {config.endpoints.updateOrder && (
@@ -829,7 +911,7 @@ function CategoryTabContent({
         )}
       </div>
 
-      {/* Modal de Confirmación de Eliminación */}
+      {/* Modal de Confirmación de Eliminación (Individual) */}
       {showDeleteConfirm &&
         createPortal(
           <div className="modal-overlay">
@@ -875,6 +957,63 @@ function CategoryTabContent({
                   style={{ backgroundColor: "#ef4444" }}
                 >
                   {isDeleting ? "Eliminando..." : "Eliminar Todo"}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {/* Modal de Confirmación de Eliminación Masiva */}
+      {showBatchDeleteConfirm &&
+        createPortal(
+          <div className="modal-overlay">
+            <div
+              className="modal-content category-card"
+              style={{ width: "400px", maxWidth: "90%", padding: "1.5rem" }}
+            >
+              <h3 style={{ marginTop: 0, color: "#f87171" }}>
+                ⚠️ Confirmar Eliminación Masiva
+              </h3>
+              <div
+                style={{
+                  margin: "1.5rem 0",
+                  color: "#e2e8f0",
+                  fontSize: "0.95rem",
+                  lineHeight: "1.5",
+                }}
+              >
+                <p>¿Está seguro de eliminar los siguientes <strong>{selectedIds.size}</strong> {config.title.toLowerCase()}?</p>
+                <ul style={{ maxHeight: '200px', overflowY: 'auto', paddingLeft: '1.25rem', marginTop: '0.75rem', fontSize: '0.85rem', color: '#94a3b8' }}>
+                  {items.filter(i => selectedIds.has(i.id)).map(i => (
+                    <li key={i.id}>{i.nombre}</li>
+                  ))}
+                </ul>
+                <p style={{ color: '#f87171', fontWeight: '600', marginTop: '1rem' }}>
+                  Todos los datos asociados (estudiantes, calificaciones, asistencias) se eliminarán permanentemente. Esta acción no se puede deshacer.
+                </p>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: "1rem",
+                }}
+              >
+                <button
+                  className="cancel"
+                  onClick={() => setShowBatchDeleteConfirm(false)}
+                  disabled={isDeleting}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="primary"
+                  onClick={handleBatchDelete}
+                  disabled={isDeleting}
+                  style={{ backgroundColor: "#ef4444" }}
+                >
+                  {isDeleting ? "Eliminando..." : `Eliminar ${selectedIds.size} elementos`}
                 </button>
               </div>
             </div>

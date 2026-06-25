@@ -1462,6 +1462,252 @@ pub fn delete_category_force(
 }
 
 #[tauri::command]
+pub fn delete_category_force_batch(
+    state: tauri::State<'_, DbState>,
+    table: String,
+    ids: Vec<i64>,
+) -> Result<(), String> {
+    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    for &id in &ids {
+        match table.as_str() {
+            "ano_lectivo" => {
+                let mut stmt = tx.prepare(
+                    "SELECT estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id FROM nota WHERE estudiante_id IN (SELECT id FROM estudiante WHERE ano_lectivo_id = ?)"
+                ).map_err(|e| e.to_string())?;
+                let notas: Vec<(i64, i64, i64, i64)> = stmt
+                    .query_map([id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
+                    .map_err(|e| e.to_string())?
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| e.to_string())?;
+                drop(stmt);
+                for (est_id, crit_id, corte_id, asig_id) in notas {
+                    tx.execute("INSERT INTO sync_pending_deletions_nota (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id) VALUES (?, ?, ?, ?)", rusqlite::params![est_id, crit_id, corte_id, asig_id]).map_err(|e| e.to_string())?;
+                }
+                tx.execute("DELETE FROM nota WHERE estudiante_id IN (SELECT id FROM estudiante WHERE ano_lectivo_id = ?)", [id]).map_err(|e| e.to_string())?;
+
+                let mut stmt = tx.prepare("SELECT estudiante_id, fecha FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE ano_lectivo_id = ?)").map_err(|e| e.to_string())?;
+                let asistencias: Vec<(i64, String)> = stmt
+                    .query_map([id], |row| Ok((row.get(0)?, row.get(1)?)))
+                    .map_err(|e| e.to_string())?
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| e.to_string())?;
+                drop(stmt);
+                for (est_id, fecha) in asistencias {
+                    tx.execute("INSERT INTO sync_pending_deletions_asistencia (estudiante_id, fecha) VALUES (?, ?)", rusqlite::params![est_id, fecha]).map_err(|e| e.to_string())?;
+                }
+                tx.execute("DELETE FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE ano_lectivo_id = ?)", [id]).map_err(|e| e.to_string())?;
+
+                let mut stmt = tx.prepare("SELECT id FROM estudiante WHERE ano_lectivo_id = ?").map_err(|e| e.to_string())?;
+                let estudiantes: Vec<i64> = stmt.query_map([id], |row| row.get(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+                drop(stmt);
+                for est_id in estudiantes {
+                    tx.execute("INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)", rusqlite::params!["estudiante", est_id]).map_err(|e| e.to_string())?;
+                }
+                tx.execute("DELETE FROM estudiante WHERE ano_lectivo_id = ?", [id]).map_err(|e| e.to_string())?;
+            }
+            "corte_evaluativo" => {
+                let mut stmt = tx.prepare("SELECT estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id FROM nota WHERE corte_evaluativo_id = ?").map_err(|e| e.to_string())?;
+                let notas: Vec<(i64, i64, i64, i64)> = stmt
+                    .query_map([id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
+                    .map_err(|e| e.to_string())?
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| e.to_string())?;
+                drop(stmt);
+                for (est_id, crit_id, corte_id, asig_id) in notas {
+                    tx.execute("INSERT INTO sync_pending_deletions_nota (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id) VALUES (?, ?, ?, ?)", rusqlite::params![est_id, crit_id, corte_id, asig_id]).map_err(|e| e.to_string())?;
+                }
+                tx.execute("DELETE FROM nota WHERE corte_evaluativo_id = ?", [id]).map_err(|e| e.to_string())?;
+
+                let mut stmt = tx.prepare("SELECT id FROM indicador WHERE corte_evaluativo_id = ?").map_err(|e| e.to_string())?;
+                let indicadores: Vec<i64> = stmt.query_map([id], |row| row.get(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+                drop(stmt);
+                for ind_id in indicadores {
+                    tx.execute("INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)", rusqlite::params!["indicador", ind_id]).map_err(|e| e.to_string())?;
+                }
+                tx.execute("DELETE FROM indicador WHERE corte_evaluativo_id = ?", [id]).map_err(|e| e.to_string())?;
+            }
+            "colegio" => {
+                let mut stmt = tx.prepare("SELECT estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id FROM nota WHERE estudiante_id IN (SELECT id FROM estudiante WHERE colegio_id = ?)").map_err(|e| e.to_string())?;
+                let notas: Vec<(i64, i64, i64, i64)> = stmt
+                    .query_map([id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
+                    .map_err(|e| e.to_string())?
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| e.to_string())?;
+                drop(stmt);
+                for (est_id, crit_id, corte_id, asig_id) in notas {
+                    tx.execute("INSERT INTO sync_pending_deletions_nota (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id) VALUES (?, ?, ?, ?)", rusqlite::params![est_id, crit_id, corte_id, asig_id]).map_err(|e| e.to_string())?;
+                }
+                tx.execute("DELETE FROM nota WHERE estudiante_id IN (SELECT id FROM estudiante WHERE colegio_id = ?)", [id]).map_err(|e| e.to_string())?;
+
+                let mut stmt = tx.prepare("SELECT estudiante_id, fecha FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE colegio_id = ?)").map_err(|e| e.to_string())?;
+                let asistencias: Vec<(i64, String)> = stmt
+                    .query_map([id], |row| Ok((row.get(0)?, row.get(1)?)))
+                    .map_err(|e| e.to_string())?
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| e.to_string())?;
+                drop(stmt);
+                for (est_id, fecha) in asistencias {
+                    tx.execute("INSERT INTO sync_pending_deletions_asistencia (estudiante_id, fecha) VALUES (?, ?)", rusqlite::params![est_id, fecha]).map_err(|e| e.to_string())?;
+                }
+                tx.execute("DELETE FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE colegio_id = ?)", [id]).map_err(|e| e.to_string())?;
+
+                let mut stmt = tx.prepare("SELECT id FROM estudiante WHERE colegio_id = ?").map_err(|e| e.to_string())?;
+                let estudiantes: Vec<i64> = stmt.query_map([id], |row| row.get(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+                drop(stmt);
+                for est_id in estudiantes {
+                    tx.execute("INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)", rusqlite::params!["estudiante", est_id]).map_err(|e| e.to_string())?;
+                }
+                tx.execute("DELETE FROM estudiante WHERE colegio_id = ?", [id]).map_err(|e| e.to_string())?;
+
+                tx.execute("INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)", rusqlite::params!["colegio_dias_asistencia", id]).map_err(|e| e.to_string())?;
+                tx.execute("DELETE FROM colegio_dias_asistencia WHERE colegio_id = ?", [id]).map_err(|e| e.to_string())?;
+
+                let mut stmt = tx.prepare("SELECT asignatura_id FROM colegio_asignatura WHERE colegio_id = ?").map_err(|e| e.to_string())?;
+                let asignaturas: Vec<i64> = stmt.query_map([id], |row| row.get(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+                drop(stmt);
+                for asig_id in asignaturas {
+                    tx.execute("INSERT INTO sync_pending_deletions_colegio_asignatura (colegio_id, asignatura_id) VALUES (?, ?)", rusqlite::params![id, asig_id]).map_err(|e| e.to_string())?;
+                }
+                tx.execute("DELETE FROM colegio_asignatura WHERE colegio_id = ?", [id]).map_err(|e| e.to_string())?;
+            }
+            "asignatura" => {
+                let mut stmt = tx.prepare("SELECT estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id FROM nota WHERE asignatura_id = ?").map_err(|e| e.to_string())?;
+                let notas: Vec<(i64, i64, i64, i64)> = stmt
+                    .query_map([id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
+                    .map_err(|e| e.to_string())?
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| e.to_string())?;
+                drop(stmt);
+                for (est_id, crit_id, corte_id, asig_id) in notas {
+                    tx.execute("INSERT INTO sync_pending_deletions_nota (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id) VALUES (?, ?, ?, ?)", rusqlite::params![est_id, crit_id, corte_id, asig_id]).map_err(|e| e.to_string())?;
+                }
+                tx.execute("DELETE FROM nota WHERE asignatura_id = ?", [id]).map_err(|e| e.to_string())?;
+
+                let mut stmt = tx.prepare("SELECT id FROM indicador WHERE asignatura_id = ?").map_err(|e| e.to_string())?;
+                let indicadores: Vec<i64> = stmt.query_map([id], |row| row.get(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+                drop(stmt);
+                for ind_id in indicadores {
+                    tx.execute("INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)", rusqlite::params!["indicador", ind_id]).map_err(|e| e.to_string())?;
+                }
+                tx.execute("DELETE FROM indicador WHERE asignatura_id = ?", [id]).map_err(|e| e.to_string())?;
+
+                let mut stmt = tx.prepare("SELECT grado_id FROM grado_asignatura WHERE asignatura_id = ?").map_err(|e| e.to_string())?;
+                let grados: Vec<i64> = stmt.query_map([id], |row| row.get(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+                drop(stmt);
+                for grado_id in grados {
+                    tx.execute("INSERT INTO sync_pending_deletions_grado_asignatura (grado_id, asignatura_id) VALUES (?, ?)", rusqlite::params![grado_id, id]).map_err(|e| e.to_string())?;
+                }
+                tx.execute("DELETE FROM grado_asignatura WHERE asignatura_id = ?", [id]).map_err(|e| e.to_string())?;
+
+                let mut stmt = tx.prepare("SELECT colegio_id FROM colegio_asignatura WHERE asignatura_id = ?").map_err(|e| e.to_string())?;
+                let colegios: Vec<i64> = stmt.query_map([id], |row| row.get(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+                drop(stmt);
+                for colegio_id in colegios {
+                    tx.execute("INSERT INTO sync_pending_deletions_colegio_asignatura (colegio_id, asignatura_id) VALUES (?, ?)", rusqlite::params![colegio_id, id]).map_err(|e| e.to_string())?;
+                }
+                tx.execute("DELETE FROM colegio_asignatura WHERE asignatura_id = ?", [id]).map_err(|e| e.to_string())?;
+            }
+            "grado" => {
+                let mut stmt = tx.prepare("SELECT estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id FROM nota WHERE estudiante_id IN (SELECT id FROM estudiante WHERE grado_id = ?)").map_err(|e| e.to_string())?;
+                let notas: Vec<(i64, i64, i64, i64)> = stmt
+                    .query_map([id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
+                    .map_err(|e| e.to_string())?
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| e.to_string())?;
+                drop(stmt);
+                for (est_id, crit_id, corte_id, asig_id) in notas {
+                    tx.execute("INSERT INTO sync_pending_deletions_nota (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id) VALUES (?, ?, ?, ?)", rusqlite::params![est_id, crit_id, corte_id, asig_id]).map_err(|e| e.to_string())?;
+                }
+                tx.execute("DELETE FROM nota WHERE estudiante_id IN (SELECT id FROM estudiante WHERE grado_id = ?)", [id]).map_err(|e| e.to_string())?;
+
+                let mut stmt = tx.prepare("SELECT estudiante_id, fecha FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE grado_id = ?)").map_err(|e| e.to_string())?;
+                let asistencias: Vec<(i64, String)> = stmt
+                    .query_map([id], |row| Ok((row.get(0)?, row.get(1)?)))
+                    .map_err(|e| e.to_string())?
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| e.to_string())?;
+                drop(stmt);
+                for (est_id, fecha) in asistencias {
+                    tx.execute("INSERT INTO sync_pending_deletions_asistencia (estudiante_id, fecha) VALUES (?, ?)", rusqlite::params![est_id, fecha]).map_err(|e| e.to_string())?;
+                }
+                tx.execute("DELETE FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE grado_id = ?)", [id]).map_err(|e| e.to_string())?;
+
+                let mut stmt = tx.prepare("SELECT id FROM estudiante WHERE grado_id = ?").map_err(|e| e.to_string())?;
+                let estudiantes: Vec<i64> = stmt.query_map([id], |row| row.get(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+                drop(stmt);
+                for est_id in estudiantes {
+                    tx.execute("INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)", rusqlite::params!["estudiante", est_id]).map_err(|e| e.to_string())?;
+                }
+                tx.execute("DELETE FROM estudiante WHERE grado_id = ?", [id]).map_err(|e| e.to_string())?;
+
+                let mut stmt = tx.prepare("SELECT id FROM indicador WHERE grado_id = ?").map_err(|e| e.to_string())?;
+                let indicadores: Vec<i64> = stmt.query_map([id], |row| row.get(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+                drop(stmt);
+                for ind_id in indicadores {
+                    tx.execute("INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)", rusqlite::params!["indicador", ind_id]).map_err(|e| e.to_string())?;
+                }
+                tx.execute("DELETE FROM indicador WHERE grado_id = ?", [id]).map_err(|e| e.to_string())?;
+
+                let mut stmt = tx.prepare("SELECT asignatura_id FROM grado_asignatura WHERE grado_id = ?").map_err(|e| e.to_string())?;
+                let asignaturas: Vec<i64> = stmt.query_map([id], |row| row.get(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+                drop(stmt);
+                for asig_id in asignaturas {
+                    tx.execute("INSERT INTO sync_pending_deletions_grado_asignatura (grado_id, asignatura_id) VALUES (?, ?)", rusqlite::params![id, asig_id]).map_err(|e| e.to_string())?;
+                }
+                tx.execute("DELETE FROM grado_asignatura WHERE grado_id = ?", [id]).map_err(|e| e.to_string())?;
+            }
+            "seccion" => {
+                let mut stmt = tx.prepare("SELECT estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id FROM nota WHERE estudiante_id IN (SELECT id FROM estudiante WHERE seccion_id = ?)").map_err(|e| e.to_string())?;
+                let notas: Vec<(i64, i64, i64, i64)> = stmt
+                    .query_map([id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
+                    .map_err(|e| e.to_string())?
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| e.to_string())?;
+                drop(stmt);
+                for (est_id, crit_id, corte_id, asig_id) in notas {
+                    tx.execute("INSERT INTO sync_pending_deletions_nota (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id) VALUES (?, ?, ?, ?)", rusqlite::params![est_id, crit_id, corte_id, asig_id]).map_err(|e| e.to_string())?;
+                }
+                tx.execute("DELETE FROM nota WHERE estudiante_id IN (SELECT id FROM estudiante WHERE seccion_id = ?)", [id]).map_err(|e| e.to_string())?;
+
+                let mut stmt = tx.prepare("SELECT estudiante_id, fecha FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE seccion_id = ?)").map_err(|e| e.to_string())?;
+                let asistencias: Vec<(i64, String)> = stmt
+                    .query_map([id], |row| Ok((row.get(0)?, row.get(1)?)))
+                    .map_err(|e| e.to_string())?
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| e.to_string())?;
+                drop(stmt);
+                for (est_id, fecha) in asistencias {
+                    tx.execute("INSERT INTO sync_pending_deletions_asistencia (estudiante_id, fecha) VALUES (?, ?)", rusqlite::params![est_id, fecha]).map_err(|e| e.to_string())?;
+                }
+                tx.execute("DELETE FROM asistencia WHERE estudiante_id IN (SELECT id FROM estudiante WHERE seccion_id = ?)", [id]).map_err(|e| e.to_string())?;
+
+                let mut stmt = tx.prepare("SELECT id FROM estudiante WHERE seccion_id = ?").map_err(|e| e.to_string())?;
+                let estudiantes: Vec<i64> = stmt.query_map([id], |row| row.get(0)).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+                drop(stmt);
+                for est_id in estudiantes {
+                    tx.execute("INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)", rusqlite::params!["estudiante", est_id]).map_err(|e| e.to_string())?;
+                }
+                tx.execute("DELETE FROM estudiante WHERE seccion_id = ?", [id]).map_err(|e| e.to_string())?;
+            }
+            _ => return Err("Tabla no reconocida".to_string()),
+        }
+
+        tx.execute(
+            "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)",
+            rusqlite::params![&table, id],
+        )
+        .map_err(|e| e.to_string())?;
+        tx.execute(&format!("DELETE FROM {} WHERE id = ?", table), [id])
+            .map_err(|e| e.to_string())?;
+    }
+
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
 #[allow(non_snake_case)]
 pub fn get_grados_by_colegio(
     state: tauri::State<'_, DbState>,

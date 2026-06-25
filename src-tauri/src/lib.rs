@@ -906,6 +906,7 @@ pub fn run() {
             set_orientation,
             check_category_dependencies,
             delete_category_force,
+            delete_category_force_batch,
             get_indicadores_all,
             get_criterios_all,
             get_notas_all,
