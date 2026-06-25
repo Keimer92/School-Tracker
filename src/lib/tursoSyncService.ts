@@ -376,16 +376,14 @@ export const tursoSyncService = {
       await new Promise(r => setTimeout(r, 500));
     }
     (tursoSyncService as any)._syncLock = true;
-    let pushOk = false;
     try {
-      await tursoSyncService.pushAll();
-      pushOk = true;
-    } catch (e) {
-      console.warn('[Sync All Silent] Push falló, saltando pull para preservar datos locales:', e);
-    }
-    if (pushOk) {
+      try {
+        await tursoSyncService.pushAll();
+      } catch (e) {
+        console.warn('[Sync All Silent] Push falló, saltando pull para preservar datos locales:', e);
+        return;
+      }
       await tursoSyncService.pullAllSilent();
-    }
       syncManager.setState({
         lastSync: now(),
         lastSyncDetails: `Sync completo (${fmtTime()})`,
