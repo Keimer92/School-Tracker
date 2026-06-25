@@ -160,10 +160,10 @@
       const dbPath = await invoke<string>("get_db_path");
       const fileName = `schooltracker_backup_${settings.deviceName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.sqlite`;
       backupProgress = 'uploading';
-      // Read file and upload
-      const fileContent = await invoke<number[]>("read_db_file", {});
-      const byteArray = new Uint8Array(fileContent);
-      const blob = new Blob([byteArray], { type: 'application/octet-stream' });
+                // Read file and upload  
+                const fileContentBase64 = await invoke<string>("gd_read_file_base64", { path: dbPath });  
+                const byteArray = Uint8Array.from(atob(fileContentBase64), c => c.charCodeAt(0));  
+                const blob = new Blob([byteArray], { type: 'application/octet-stream' });
       progressBytes = { loaded: 0, total: byteArray.length };
       const metadata = { name: fileName, mimeType: 'application/octet-stream' };
       const form = new FormData();
