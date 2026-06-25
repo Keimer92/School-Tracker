@@ -678,22 +678,34 @@ useEffect(() => {
     });
   };
 
-  // Efectos para carga en cascada en el modal
-  useEffect(() => {
-    console.log("Modal Effect (Grados):", { isModalOpen, colegioId: formData.colegioId, anoId: formData.anoLectivoId });
+// Efectos para cargar todos los grados y secciones disponibles en el modal
+useEffect(() => {
     if (isModalOpen) {
-      fetchGrados(formData.colegioId, formData.anoLectivoId, true);
+        console.log("Loading all available grados for modal...");
+        // Fetch all grades from database, ignoring school and year filters
+        invoke<CategoryItem[]>("get_grados")
+            .then(data => setModalGrados(data))
+            .catch(error => {
+                console.error("Error fetching all grados:", error);
+                setModalGrados([]);
+            });
     }
-  }, [isModalOpen, formData.colegioId, formData.anoLectivoId]);
+}, [isModalOpen]);
 
-  useEffect(() => {
-    console.log("Modal Effect (Secciones):", { isModalOpen, gradoId: formData.gradoId, colegioId: formData.colegioId, anoId: formData.anoLectivoId });
+useEffect(() => {
     if (isModalOpen) {
-      fetchSecciones(formData.gradoId, formData.colegioId, formData.anoLectivoId, true);
+        console.log("Loading all available secciones for modal...");
+        // Fetch all sections from database, ignoring school, year and grade filters
+        invoke<CategoryItem[]>("get_secciones")
+            .then(data => setModalSecciones(data))
+            .catch(error => {
+                console.error("Error fetching all secciones:", error);
+                setModalSecciones([]);
+            });
     } else {
-      setModalSecciones([]);
+        setModalSecciones([]);
     }
-  }, [isModalOpen, formData.gradoId, formData.colegioId, formData.anoLectivoId]);
+}, [isModalOpen]);
 
   // Efectos para auto-seleccionar el primer elemento en el modal al cargar/cambiar
   useEffect(() => {
