@@ -52,7 +52,7 @@
   let isMobile = $state(false);
   let isAndroid = $state(false);
   let printHtml: string | null = $state(null);
-  let loadId = $state(0);
+  let loadId = 0;
 
   let isQualitative = $derived.by(() => {
     const grado = grados.find(g => g.id === selectedGrado);

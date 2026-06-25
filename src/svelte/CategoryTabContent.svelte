@@ -273,12 +273,12 @@
                 <span class="slider round"></span>
               </label>
             {/if}
-            {(config.title === "Grado" || config.title === "Asignatura") && (
+            {#if config.title === "Grado" || config.title === "Asignatura"}
               <label class="switch" title={item.cualitativo ? "Cambiar a Cuantitativo" : "Cambiar a Cualitativo"}>
                 <input type="checkbox" checked={item.cualitativo || false} onchange={() => handleToggleCualitativo(item)} />
                 <span class="slider round" style="background-color: {item.cualitativo ? '#8b5cf6' : undefined};"></span>
               </label>
-            )}
+            {/if}
           </div>
           <span style="flex: 1; color: {item.cualitativo ? '#a78bfa' : (item.activo ? '#4ade80' : '#e2e8f0')}; font-weight: {(item.activo || item.cualitativo) ? '700' : '500'}; font-size: 0.95rem; letter-spacing: 0.01em;">
             {item.nombre}

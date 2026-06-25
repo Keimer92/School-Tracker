@@ -212,25 +212,6 @@
 </script>
 
 <div class="page-container" style="display: block;">
-  <style>{`
-    .ajustes-ribbon-container { position: sticky; top: 0; z-index: 1000; background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255, 255, 255, 0.1); margin: 0 -1rem 1.5rem -1rem; overflow-x: auto; scrollbar-width: none; }
-    .ajustes-ribbon-container::-webkit-scrollbar { display: none; }
-    .ajustes-ribbon { display: flex; padding: 0.5rem; gap: 0.4rem; min-width: max-content; }
-    .ajustes-tab { padding: 0.6rem 1.2rem; border-radius: 8px; border: none; background: transparent; color: #94a3b8; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: flex; align-items: center; gap: 0.5rem; }
-    .ajustes-tab.active { color: white; background: rgba(var(--primary-rgb, 59, 130, 246), 0.2); box-shadow: 0 0 10px rgba(var(--primary-rgb, 59, 130, 246), 0.1); border-bottom: 2px solid var(--primary-color, #3b82f6); }
-    .ajustes-tab:hover:not(.active) { background: rgba(255, 255, 255, 0.05); color: #e2e8f0; }
-    .sync-dot-mini { width: 6px; height: 6px; background: #4ade80; border-radius: 50%; box-shadow: 0 0 5px #4ade80; flex-shrink: 0; }
-    .tab-label { display: inline-block; transition: all 0.3s ease; }
-    @media (max-width: 1024px) {
-      .ajustes-ribbon-container { margin: 0 -1rem 1.5rem -1rem !important; overflow: hidden !important; border-radius: 0 !important; }
-      .ajustes-ribbon { display: flex !important; justify-content: space-around !important; padding: 0.5rem !important; gap: 4px !important; min-width: 0 !important; width: 100% !important; }
-      .ajustes-tab { padding: 0.6rem 0.5rem !important; flex: 0 1 auto !important; justify-content: center !important; border-radius: 12px !important; gap: 0 !important; transition: all 0.2s ease-in-out !important; position: relative !important; }
-      .ajustes-tab .tab-label { display: none !important; }
-      .ajustes-tab.active { flex: 1 1 auto !important; background: rgba(var(--primary-rgb, 59, 130, 246), 0.15) !important; border-bottom: 2px solid var(--primary-color, #3b82f6) !important; gap: 0.4rem !important; padding: 0.6rem 1rem !important; }
-      .ajustes-tab.active .tab-label { display: inline-block !important; font-size: 0.85rem !important; white-space: nowrap !important; }
-      .sync-dot-mini { position: absolute !important; top: 6px; right: 6px; width: 8px !important; height: 8px !important; }
-    }
-  `}</style>
 
   {#if !isAndroid}
     <div class="ajustes-ribbon-container">
@@ -684,3 +665,23 @@
     </div>
   {/if}
 </div>
+
+<style>
+  .ajustes-ribbon-container { position: sticky; top: 0; z-index: 1000; background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255, 255, 255, 0.1); margin: 0 -1rem 1.5rem -1rem; overflow-x: auto; scrollbar-width: none; }
+  :global(.ajustes-ribbon-container::-webkit-scrollbar) { display: none; }
+  :global(.ajustes-ribbon) { display: flex; padding: 0.5rem; gap: 0.4rem; min-width: max-content; }
+  :global(.ajustes-tab) { padding: 0.6rem 1.2rem; border-radius: 8px; border: none; background: transparent; color: #94a3b8; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: flex; align-items: center; gap: 0.5rem; }
+  :global(.ajustes-tab.active) { color: white; background: rgba(var(--primary-rgb, 59, 130, 246), 0.2); box-shadow: 0 0 10px rgba(var(--primary-rgb, 59, 130, 246), 0.1); border-bottom: 2px solid var(--primary-color, #3b82f6); }
+  :global(.ajustes-tab:hover:not(.active)) { background: rgba(255, 255, 255, 0.05); color: #e2e8f0; }
+  :global(.sync-dot-mini) { width: 6px; height: 6px; background: #4ade80; border-radius: 50%; box-shadow: 0 0 5px #4ade80; flex-shrink: 0; }
+  :global(.tab-label) { display: inline-block; transition: all 0.3s ease; }
+  @media (max-width: 1024px) {
+    :global(.ajustes-ribbon-container) { margin: 0 -1rem 1.5rem -1rem !important; overflow: hidden !important; border-radius: 0 !important; }
+    :global(.ajustes-ribbon) { display: flex !important; justify-content: space-around !important; padding: 0.5rem !important; gap: 4px !important; min-width: 0 !important; width: 100% !important; }
+    :global(.ajustes-tab) { padding: 0.6rem 0.5rem !important; flex: 0 1 auto !important; justify-content: center !important; border-radius: 12px !important; gap: 0 !important; transition: all 0.2s ease-in-out !important; position: relative !important; }
+    :global(.ajustes-tab .tab-label) { display: none !important; }
+    :global(.ajustes-tab.active) { flex: 1 1 auto !important; background: rgba(var(--primary-rgb, 59, 130, 246), 0.15) !important; border-bottom: 2px solid var(--primary-color, #3b82f6) !important; gap: 0.4rem !important; padding: 0.6rem 1rem !important; }
+    :global(.ajustes-tab.active .tab-label) { display: inline-block !important; font-size: 0.85rem !important; white-space: nowrap !important; }
+    :global(.sync-dot-mini) { position: absolute !important; top: 6px; right: 6px; width: 8px !important; height: 8px !important; }
+  }
+</style>
