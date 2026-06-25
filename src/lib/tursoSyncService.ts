@@ -155,7 +155,6 @@ export const tursoSyncService = {
   pushAll: async (): Promise<void> => {
     if (!navigator.onLine) {
       syncManager.setState({ status: 'offline', message: 'Sin conexión' });
-      console.log('[Turso Push] Sin conexión, saltando push');
       return;
     }
     const client = getClient();
@@ -191,13 +190,9 @@ export const tursoSyncService = {
       for (const tableName of tableOrder) {
         const td = tables[tableName];
         if (!td || !td.data || td.data.length === 0) {
-          if (tableName === 'colegio_asignatura') console.log(`[Turso Push] colegio_asignatura: sin datos para push (tabla vacía localmente)`);
           continue;
         }
         const { cols, data, map } = td;
-        if (tableName === 'colegio_asignatura') {
-          console.log(`[Turso Push] colegio_asignatura: enviando ${data.length} registros:`, data.map((r: any) => `(${r.colegio_id},${r.asignatura_id})`));
-        }
         const flatArgs: any[] = [];
         for (const row of data) {
           const vals = map(row);
@@ -449,14 +444,12 @@ export const tursoSyncService = {
 
     // 1. Reconexión: cuando el navegador detecta que volvimos online
     window.addEventListener('online', () => {
-      console.log('[Sync] Navegador detectó conexión → syncing...');
       tursoSyncService.syncAllSilent().catch(() => {});
     });
 
     // 2. App resume: detectar cuando el usuario vuelve a la app (Home → app)
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible' && navigator.onLine) {
-        console.log('[Sync] App visible con conexión → syncing...');
         tursoSyncService.syncAllSilent().catch(() => {});
       }
     });
@@ -465,7 +458,6 @@ export const tursoSyncService = {
     try {
       listen('tauri://focus', () => {
         if (navigator.onLine) {
-          console.log('[Sync] Ventana enfocada con conexión → syncing...');
           tursoSyncService.syncAllSilent().catch(() => {});
         }
       }).catch(() => {});
@@ -474,7 +466,6 @@ export const tursoSyncService = {
     // 4. Android native connectivity event
     window.addEventListener('connectivity-android', ((e: CustomEvent) => {
       if (e.detail?.online) {
-        console.log('[Sync] Android detectó conexión → syncing...');
         tursoSyncService.syncAllSilent().catch(() => {});
       }
     }) as EventListener);
