@@ -158,7 +158,7 @@
     backupProgress = 'backing_up';
     try {
       const dbPath = await invoke<string>("get_db_path");
-      const fileName = `schooltracker_backup_${settings.deviceName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.sqlite`;
+                const fileName = `schooltracker_backup_${settings.deviceName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.db`;
       backupProgress = 'uploading';
                 // Read file and upload  
                 const fileContentBase64 = await invoke<string>("gd_read_file_base64", { path: dbPath });  
