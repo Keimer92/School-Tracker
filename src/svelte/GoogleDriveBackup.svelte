@@ -207,7 +207,9 @@
         const blob = await response.blob();
         const arrayBuffer = await blob.arrayBuffer();
         const uint8Array = new Uint8Array(arrayBuffer);
-        await invoke("write_db_file", { data: Array.from(uint8Array) });
+        const base64 = btoa(String.fromCharCode(...uint8Array));
+        const dbPath = await invoke<string>("get_db_path");
+        await invoke("gd_write_file_base64", { path: dbPath, contentBase64: base64 });
         emit("show-toast", { message: "✅ Base de datos restaurada desde Google Drive. Reinicia la app.", type: "success" });
       } else { throw new Error(`Download failed: ${response.statusText}`); }
     } catch (e) {
