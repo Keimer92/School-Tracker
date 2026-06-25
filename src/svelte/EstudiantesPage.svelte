@@ -296,7 +296,7 @@
   });
 
   $effect(() => {
-    if (filters.gradoId && filters.colegioId && filters.anoLectivoId) fetchSecciones(filters.gradoId, filters.colegioId, filters.anoLectivoId);
+    if (filters.gradoId > 0 && filters.colegioId > 0 && filters.anoLectivoId > 0) fetchSecciones(filters.gradoId, filters.colegioId, filters.anoLectivoId);
     else secciones = [];
   });
 
