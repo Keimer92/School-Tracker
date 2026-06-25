@@ -1,6 +1,11 @@
 package com.keimer.schooltrackerpro
 
 import android.content.Intent
+import android.content.IntentFilter
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.os.Bundle
 import android.os.Environment
 import android.print.PrintAttributes
@@ -17,6 +22,7 @@ import java.io.File
 
 class MainActivity : TauriActivity() {
   private var webView: WebView? = null
+  private var connectivityCallback: ConnectivityManager.NetworkCallback? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
@@ -28,11 +34,51 @@ class MainActivity : TauriActivity() {
       WindowInsetsCompat.CONSUMED
     }
 
+    registerConnectivityListener()
     handleIntent(intent)
   }
 
   override fun onWebViewCreate(webView: WebView) {
     this.webView = webView
+  }
+
+  override fun onDestroy() {
+    super.onDestroy()
+    connectivityCallback?.let {
+      val cm = getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+      cm.unregisterNetworkCallback(it)
+    }
+  }
+
+  private fun registerConnectivityListener() {
+    val cm = getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+
+    connectivityCallback = object : ConnectivityManager.NetworkCallback() {
+      override fun onAvailable(network: Network) {
+        android.util.Log.i("Connectivity", "Red disponible")
+        webView?.post {
+          webView?.evaluateJavascript(
+            "window.dispatchEvent(new CustomEvent('connectivity-android', { detail: { online: true } }))",
+            null
+          )
+        }
+      }
+
+      override fun onLost(network: Network) {
+        android.util.Log.i("Connectivity", "Red perdida")
+        webView?.post {
+          webView?.evaluateJavascript(
+            "window.dispatchEvent(new CustomEvent('connectivity-android', { detail: { online: false } }))",
+            null
+          )
+        }
+      }
+    }
+
+    val request = NetworkRequest.Builder()
+      .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+      .build()
+    cm.registerNetworkCallback(request, connectivityCallback!!)
   }
 
   override fun onNewIntent(intent: Intent) {

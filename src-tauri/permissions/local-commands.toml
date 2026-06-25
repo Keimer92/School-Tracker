@@ -94,6 +94,7 @@ commands.allow = [
     "get_pending_deletions_colegio_asignatura",
     "remove_pending_deletion_colegio_asignatura",
     "get_all_subjects",
+    "check_turso_connectivity",
     "gd_read_file_base64",
     "gd_write_file_base64",
     "gd_open_url_browser",

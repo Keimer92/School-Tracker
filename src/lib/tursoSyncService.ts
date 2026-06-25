@@ -1,8 +1,8 @@
 import { getTursoClient, connectTurso, restoreTursoClient } from './tursoClient';
 import { invoke } from '@tauri-apps/api/core';
-import { emit } from '@tauri-apps/api/event';
+import { emit, listen } from '@tauri-apps/api/event';
 
-export type SyncStatus = 'idle' | 'syncing' | 'error' | 'success';
+export type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'offline';
 
 interface SyncState {
   status: SyncStatus;
@@ -153,6 +153,11 @@ export const tursoSyncService = {
   },
 
   pushAll: async (): Promise<void> => {
+    if (!navigator.onLine) {
+      syncManager.setState({ status: 'offline', message: 'Sin conexión' });
+      console.log('[Turso Push] Sin conexión, saltando push');
+      return;
+    }
     const client = getClient();
     try {
       async function safeGet<T>(fn: string): Promise<T[]> {
@@ -289,6 +294,11 @@ export const tursoSyncService = {
   },
 
   pullAll: async (): Promise<void> => {
+    if (!navigator.onLine) {
+      syncManager.setState({ status: 'offline', message: 'Sin conexión' });
+      console.log('[Turso Pull] Sin conexión, saltando pull');
+      return;
+    }
     const client = getClient();
     try {
       const q = async (sql: string) => { try { const r = await client.execute(sql); return r.rows; } catch { return []; } };
@@ -419,6 +429,45 @@ export const tursoSyncService = {
     if (c && !(tursoSyncService as any)._periodicTimer) {
       tursoSyncService.startPeriodicSync();
     }
+    tursoSyncService.initConnectivityListeners();
+  },
+
+  _connectivityInitialized: false,
+  initConnectivityListeners: () => {
+    if ((tursoSyncService as any)._connectivityInitialized) return;
+    (tursoSyncService as any)._connectivityInitialized = true;
+
+    // 1. Reconexión: cuando el navegador detecta que volvimos online
+    window.addEventListener('online', () => {
+      console.log('[Sync] Navegador detectó conexión → syncing...');
+      tursoSyncService.syncAllSilent().catch(() => {});
+    });
+
+    // 2. App resume: detectar cuando el usuario vuelve a la app (Home → app)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && navigator.onLine) {
+        console.log('[Sync] App visible con conexión → syncing...');
+        tursoSyncService.syncAllSilent().catch(() => {});
+      }
+    });
+
+    // 3. Tauri focus event (desktop)
+    try {
+      listen('tauri://focus', () => {
+        if (navigator.onLine) {
+          console.log('[Sync] Ventana enfocada con conexión → syncing...');
+          tursoSyncService.syncAllSilent().catch(() => {});
+        }
+      }).catch(() => {});
+    } catch {}
+
+    // 4. Android native connectivity event
+    window.addEventListener('connectivity-android', ((e: CustomEvent) => {
+      if (e.detail?.online) {
+        console.log('[Sync] Android detectó conexión → syncing...');
+        tursoSyncService.syncAllSilent().catch(() => {});
+      }
+    }) as EventListener);
   },
 
   isPeriodicSyncRunning: () => {

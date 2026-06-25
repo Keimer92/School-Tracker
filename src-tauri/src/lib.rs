@@ -937,6 +937,7 @@ pub fn run() {
             print_pdf,
             share_pdf,
             save_file_android,
+            check_turso_connectivity,
             gd_read_file_base64,
             gd_write_file_base64,
             gd_open_url_browser,
