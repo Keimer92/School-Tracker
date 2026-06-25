@@ -1700,6 +1700,21 @@ pub fn remove_pending_deletion_by_record(
     .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub fn clear_synced_deletions(state: tauri::State<'_, DbState>, ids: Vec<i64>) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    if ids.is_empty() {
+        return Ok(());
+    }
+    let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+    let sql = format!("DELETE FROM sync_pending_deletions WHERE id IN ({})", placeholders);
+    let params: Vec<rusqlite::types::Value> = ids.iter().map(|id| rusqlite::types::Value::Integer(*id)).collect();
+    let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p as &dyn rusqlite::types::ToSql).collect();
+    conn.execute(&sql, param_refs.as_slice())
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 // ============================================================================
 // Funciones para manejar eliminaciones de tablas con claves compuestas
 // ============================================================================
@@ -3537,14 +3552,9 @@ pub fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) -> Res
         [],
     );
 
-    // Limpiar todas las pending deletions procesadas (tablas con clave compuesta)
-    let _ = tx.execute("DELETE FROM sync_pending_deletions_asistencia", []);
-    let _ = tx.execute("DELETE FROM sync_pending_deletions_nota", []);
-    let _ = tx.execute("DELETE FROM sync_pending_deletions_grado_asignatura", []);
-    let _ = tx.execute("DELETE FROM sync_pending_deletions_colegio_asignatura", []);
-
-    // Limpiar también pending deletions genéricas (pushAll ya las borró de Turso)
-    let _ = tx.execute("DELETE FROM sync_pending_deletions", []);
+    // NOTA: Las pending deletions NO se limpian aquí.
+    // pushAll() las envía a Turso y luego las elimina localmente.
+    // Esto evita que se pierdan si pushAll falla (se reintentan en el próximo sync).
 
     // ============================================================================
     // ============================================================================

@@ -922,6 +922,7 @@ pub fn run() {
             get_pending_deletions,
             remove_pending_deletion,
             remove_pending_deletion_by_record,
+            clear_synced_deletions,
             get_recommended_colegio,
             get_schema_sql,
             get_all_local_data_json,

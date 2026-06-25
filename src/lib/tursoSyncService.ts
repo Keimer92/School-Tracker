@@ -219,62 +219,67 @@ export const tursoSyncService = {
       }
 
       // Process pending deletions to propagate removals to Turso
-      // NOTA: NO limpiamos las pending deletions localmente aquí. Eso lo hace upsert_pull_data
-      // durante pullAll, para evitar race conditions con sync periódico concurrente.
-      console.log('[Turso Push] Procesando pending deletions (DELETE from Turso, sin limpiar local)...');
+      // Limpiamos localmente SOLO las que se enviaron exitosamente a Turso.
+      // Las que fallan se reintentan en el próximo sync.
       try {
         const genericPending = await safeGet<any>('get_pending_deletions');
-        console.log(`[Turso Push] Pending deletions genéricas: ${genericPending.length}`, genericPending);
+        const successfulGenericIds: number[] = [];
         for (const item of genericPending) {
           try {
-            console.log(`[Turso Push] Eliminando de Turso: ${item.tabla} WHERE id=${item.registroId}`);
             await client.execute(`DELETE FROM ${item.tabla} WHERE id = ?`, [item.registroId]);
+            successfulGenericIds.push(item.id);
           } catch (e) {
-            console.warn(`[Turso Push] Error procesando pending deletion genérica #${item.id}:`, e);
+            console.warn(`[Turso Push] Error eliminando de Turso: ${item.tabla} id=${item.registroId}:`, e);
           }
+        }
+        if (successfulGenericIds.length > 0) {
+          await invoke('clear_synced_deletions', { ids: successfulGenericIds });
         }
       } catch {}
 
+      const clearOne = async (cmd: string, id: number) => {
+        try { await invoke(cmd, { id }); } catch {}
+      };
+
       try {
         const caPending = await safeGet<any>('get_pending_deletions_colegio_asignatura');
-        console.log(`[Turso Push] Pending deletions colegio_asignatura: ${caPending.length}`, caPending);
         for (const item of caPending) {
           try {
-            console.log(`[Turso Push] Eliminando de Turso colegio_asignatura: colegio_id=${item.colegioId}, asignatura_id=${item.asignaturaId}`);
             await client.execute('DELETE FROM colegio_asignatura WHERE colegio_id = ? AND asignatura_id = ?', [item.colegioId, item.asignaturaId]);
+            await clearOne('remove_pending_deletion_colegio_asignatura', item.id);
           } catch (e) {
-            console.warn(`[Turso Push] Error procesando pending deletion colegio_asignatura #${item.id}:`, e);
+            console.warn(`[Turso Push] Error eliminando colegio_asignatura colegio=${item.colegioId},asignatura=${item.asignaturaId}:`, e);
           }
         }
       } catch {}
 
       try {
         const gaPending = await safeGet<any>('get_pending_deletions_grado_asignatura');
-        console.log(`[Turso Push] Pending deletions grado_asignatura: ${gaPending.length}`, gaPending);
         for (const item of gaPending) {
           try {
             await client.execute('DELETE FROM grado_asignatura WHERE grado_id = ? AND asignatura_id = ?', [item.gradoId, item.asignaturaId]);
+            await clearOne('remove_pending_deletion_grado_asignatura', item.id);
           } catch {}
         }
       } catch {}
 
       try {
         const asisPending = await safeGet<any>('get_pending_deletions_asistencia');
-        console.log(`[Turso Push] Pending deletions asistencia: ${asisPending.length}`, asisPending);
         for (const item of asisPending) {
           try {
             await client.execute('DELETE FROM asistencia WHERE estudiante_id = ? AND fecha = ?', [item.estudianteId, item.fecha]);
+            await clearOne('remove_pending_deletion_asistencia', item.id);
           } catch {}
         }
       } catch {}
 
       try {
         const notaPending = await safeGet<any>('get_pending_deletions_nota');
-        console.log(`[Turso Push] Pending deletions nota: ${notaPending.length}`, notaPending);
         for (const item of notaPending) {
           try {
             await client.execute('DELETE FROM nota WHERE estudiante_id = ? AND criterio_id = ? AND corte_evaluativo_id = ? AND asignatura_id = ?',
               [item.estudianteId, item.criterioId, item.corteEvaluativoId, item.asignaturaId]);
+            await clearOne('remove_pending_deletion_nota', item.id);
           } catch {}
         }
       } catch {}
@@ -371,9 +376,16 @@ export const tursoSyncService = {
       await new Promise(r => setTimeout(r, 500));
     }
     (tursoSyncService as any)._syncLock = true;
+    let pushOk = false;
     try {
-      await tursoSyncService.pushAllSilent();
+      await tursoSyncService.pushAll();
+      pushOk = true;
+    } catch (e) {
+      console.warn('[Sync All Silent] Push falló, saltando pull para preservar datos locales:', e);
+    }
+    if (pushOk) {
       await tursoSyncService.pullAllSilent();
+    }
       syncManager.setState({
         lastSync: now(),
         lastSyncDetails: `Sync completo (${fmtTime()})`,
