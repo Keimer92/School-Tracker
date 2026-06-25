@@ -27,10 +27,8 @@ import {
 import { restoreTursoClient, getTursoClient } from "./lib/tursoClient";
 import { syncService } from "./lib/syncService";
 import { realtimeService } from "./lib/realtimeService";
-import { SyncStatus } from "./components/SyncStatus";
 import { runAutomaticGoogleDriveBackupIfNeeded } from "./components/GoogleDriveBackup";
-import { SvelteSyncSidebar } from "./svelte/SyncSidebarAdapter.tsx";
-import { SvelteGoogleDriveSidebar } from "./svelte/GoogleDriveSidebarAdapter.tsx";
+import { SvelteCloudPage } from "./svelte/CloudPageAdapter.tsx";
 
 // React versions (kept for reference, not used)
 // const MAsistenciaPage = memo(AsistenciaPage);
@@ -42,7 +40,7 @@ import { SvelteGoogleDriveSidebar } from "./svelte/GoogleDriveSidebarAdapter.tsx
 // const MGlobalesPage = memo(GlobalesPage);
 // const MAjustesPage = memo(AjustesPage);
 
-type Tab = "notas" | "reportes" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "informe";
+type Tab = "notas" | "reportes" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "informe" | "cloud";
 
 function App() {
   const [appMode] = useState<string>("unified");
@@ -59,7 +57,7 @@ function App() {
 const [visitedTabs, setVisitedTabs] = useState<Set<Tab>>(() => {
   const saved = localStorage.getItem('visited-tabs');
   // Siempre incluir todas las tabs por defecto para que se muestren en Android
-  const defaultTabs: Tab[] = ["notas", "reportes", "estudiantes", "evaluaciones", "globales", "ajustes", "asistencia", "informe"];
+  const defaultTabs: Tab[] = ["notas", "reportes", "estudiantes", "evaluaciones", "globales", "ajustes", "asistencia", "informe", "cloud"];
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
@@ -442,6 +440,14 @@ useEffect(() => {
         <span>Globales</span>
       </button>
       <button
+        className={`sidebar-button ${activeTab === "cloud" ? "active" : ""}`}
+        onClick={() => handleButtonClick("cloud")}
+        type="button"
+      >
+        <span>☁️</span>
+        <span>Nube</span>
+      </button>
+      <button
         className={`sidebar-button ${activeTab === "ajustes" ? "active" : ""}`}
         onClick={() => handleButtonClick("ajustes")}
         type="button"
@@ -450,12 +456,6 @@ useEffect(() => {
         <span>Ajustes</span>
       </button>
     </div>
-    
-    // Sync Component
-    <SvelteSyncSidebar />
-    
-    // Google Drive Component
-    <SvelteGoogleDriveSidebar />
   </nav>
 
       <div 
@@ -471,6 +471,7 @@ useEffect(() => {
         {renderTab("evaluaciones", <SvelteEvaluacionesPage />)}
         {renderTab("estudiantes", <SvelteEstudiantesPage />)}
         {renderTab("globales", <SvelteGlobalesPage />)}
+        {renderTab("cloud", <SvelteCloudPage />)}
         {renderTab("ajustes", <SvelteAjustesPage />)}
       </main>
 

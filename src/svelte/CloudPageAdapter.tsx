@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, memo } from "react";
 import { mount, unmount } from "svelte";
-import SyncSidebar from "./SyncSidebar.svelte";
+import CloudPage from "./CloudPage.svelte";
 
 function useSvelteComponent(Component: any) {
   const ref = useRef<HTMLDivElement>(null);
@@ -21,7 +21,7 @@ function useSvelteComponent(Component: any) {
   return ref;
 }
 
-export const SvelteSyncSidebar = memo(function SvelteSyncSidebar() {
-  const ref = useSvelteComponent(SyncSidebar);
+export const SvelteCloudPage = memo(function SvelteCloudPage() {
+  const ref = useSvelteComponent(CloudPage);
   return <div ref={ref} style={{ width: "100%", height: "100%" }} />;
 });
