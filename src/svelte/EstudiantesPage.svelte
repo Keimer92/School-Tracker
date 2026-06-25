@@ -77,6 +77,9 @@
   let deleteMessage = $state("");
   let studentToDeleteId: number | null = $state(null);
   let showBatchDeleteConfirm = $state(false);
+  let selectedIds = $state<Set<number>>(new Set());
+  let selectMode = $state(false);
+  let isDeletingSelected = $state(false);
 
   let filters = $state({ anoLectivoId: 0, colegioId: 0, gradoId: 0, seccionId: 0, sexo: "" });
 
@@ -433,6 +436,41 @@ async function fetchData(preserveFilters = false) {
     } finally { isDeleting = false; }
   }
 
+  function toggleSelect(id: number) {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    selectedIds = next;
+  }
+
+  function selectAllFiltered() {
+    selectedIds = new Set(filteredStudents.map(s => s.id!));
+    selectMode = true;
+  }
+
+  function clearSelection() {
+    selectedIds = new Set();
+    selectMode = false;
+  }
+
+  async function deleteSelected() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    isDeletingSelected = true;
+    const count = ids.length;
+    try {
+      await invoke("delete_student_batch", { ids });
+      students = students.filter(s => !ids.includes(s.id!));
+      selectedIds = new Set();
+      selectMode = false;
+      await emit("show-toast", { message: `✅ ${count} estudiantes eliminados correctamente`, type: "success" });
+      await emit("student-updated", { timestamp: Date.now() });
+      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      setTimeout(() => { fetchData(true); }, 200);
+    } catch (error) {
+      await emit("show-toast", { message: "❌ Error al eliminar: " + error, type: "error" });
+    } finally { isDeletingSelected = false; }
+  }
+
   $effect(() => { localStorage.setItem('estudiantes-view-mode', viewMode); });
 
   onMount(() => {
@@ -589,9 +627,21 @@ async function fetchData(preserveFilters = false) {
 
   {#if filteredStudents.length > 0}
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; margin-top: 0.2rem; flex-wrap: wrap; gap: 0.4rem;">
-      <button onclick={() => showBatchDeleteConfirm = true} disabled={isDeleting} style="padding: 0.4rem 1rem; font-size: 0.8rem; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.15); color: #fca5a5; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.4rem; transition: all 0.2s;">
-        🗑 Eliminar filtrados ({filteredStudents.length})
-      </button>
+      <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
+        {#if selectedIds.size > 0}
+          <button onclick={deleteSelected} disabled={isDeletingSelected} style="padding: 0.4rem 1rem; font-size: 0.8rem; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.15); color: #fca5a5; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+            🗑 Eliminar ({selectedIds.size})
+          </button>
+          <button onclick={clearSelection} style="padding: 0.3rem 0.7rem; font-size: 0.75rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer;">Deseleccionar</button>
+        {:else}
+          <button onclick={selectAllFiltered} style="padding: 0.4rem 0.8rem; font-size: 0.75rem; border-radius: 8px; border: 1px solid rgba(100, 116, 139, 0.3); background: rgba(100, 116, 139, 0.1); color: #94a3b8; cursor: pointer; display: flex; align-items: center; gap: 0.3rem;">
+            ☐ Seleccionar
+          </button>
+          <button onclick={() => showBatchDeleteConfirm = true} disabled={isDeleting} style="padding: 0.4rem 0.8rem; font-size: 0.75rem; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.1); color: #fca5a5; cursor: pointer; display: flex; align-items: center; gap: 0.3rem;">
+            🗑 Todos ({filteredStudents.length})
+          </button>
+        {/if}
+      </div>
       <div style="display: flex; gap: 2px; background: rgba(255,255,255,0.04); border-radius: 10px; padding: 3px; border: 1px solid rgba(255,255,255,0.06);">
         {#each ['grid', 'list', 'card'] as mode}
           <button onclick={() => viewMode = mode}
@@ -620,9 +670,10 @@ async function fetchData(preserveFilters = false) {
     {:else if viewMode === 'card'}
       <div style="display: grid; grid-template-columns: {isMobile ? '1fr' : 'repeat(auto-fill, minmax(320px, 1fr))'}; gap: {isMobile ? '0.5rem' : '0.75rem'}; padding: {isMobile ? '0 0.25rem' : '0'}; align-content: flex-start;">
         {#each filteredStudents as st, index}
-          <div class="category-card" style="margin: 0; padding: 0.6rem 0.8rem;">
+          <div class="category-card" style="margin: 0; padding: 0.6rem 0.8rem; border: {selectedIds.has(st.id!) ? '1.5px solid #ef4444' : '1px solid rgba(255,255,255,0.05)'};">
             <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
               <div style="display: flex; align-items: center; gap: 0.6rem; flex: 1; min-width: 0;">
+                <div onclick={(e) => { e.stopPropagation(); toggleSelect(st.id!); }} style="cursor: pointer; width: 20px; height: 20px; border-radius: 4px; border: 2px solid {selectedIds.has(st.id!) ? '#ef4444' : 'rgba(255,255,255,0.2)'}; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.2)' : 'transparent'}; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">{selectedIds.has(st.id!) ? '✓' : ''}</div>
                 {#if st.foto}
                   <img src={st.foto} alt={st.nombre} style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(56, 189, 248, 0.3); flex-shrink: 0;" />
                 {:else}
@@ -642,7 +693,8 @@ async function fetchData(preserveFilters = false) {
     {:else if viewMode === 'list'}
       <div style="display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05);">
         {#each filteredStudents as st, index}
-          <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-bottom: {index < filteredStudents.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none'}; background: {index % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent'}; transition: background 0.15s;">
+          <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-bottom: {index < filteredStudents.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none'}; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.08)' : index % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent'}; transition: background 0.15s;">
+            <div onclick={(e) => { e.stopPropagation(); toggleSelect(st.id!); }} style="cursor: pointer; width: 18px; height: 18px; border-radius: 3px; border: 2px solid {selectedIds.has(st.id!) ? '#ef4444' : 'rgba(255,255,255,0.2)'}; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.2)' : 'transparent'}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.6rem; color: #ef4444;">{selectedIds.has(st.id!) ? '✓' : ''}</div>
             {#if st.foto}
               <img src={st.foto} alt={st.nombre} style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(56, 189, 248, 0.2); flex-shrink: 0;" />
             {:else}
@@ -660,8 +712,9 @@ async function fetchData(preserveFilters = false) {
     {:else}
       <div style="display: grid; grid-template-columns: {isMobile ? 'repeat(4, 1fr)' : 'repeat(6, 1fr)'}; gap: {isMobile ? '0.6rem' : '0.8rem'}; padding: 0.25rem 0;">
         {#each filteredStudents as st, index}
-          <div onclick={() => gridSelectedStudent = st}
-            style="display: flex; flex-direction: column; align-items: center; gap: 0.25rem; cursor: pointer; padding: 0.6rem 0.4rem; border-radius: 12px; transition: background 0.2s; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04);">
+          <div onclick={() => { if (!selectedIds.has(st.id!)) gridSelectedStudent = st; }}
+            style="display: flex; flex-direction: column; align-items: center; gap: 0.25rem; cursor: pointer; padding: 0.6rem 0.4rem; border-radius: 12px; transition: background 0.2s; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.02)'}; border: 1px solid {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.04)'};">
+            <div onclick={(e) => { e.stopPropagation(); toggleSelect(st.id!); }} style="cursor: pointer; width: 22px; height: 22px; border-radius: 4px; border: 2px solid {selectedIds.has(st.id!) ? '#ef4444' : 'rgba(255,255,255,0.2)'}; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.2)' : 'transparent'}; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; color: #ef4444; margin-bottom: 2px;">{selectedIds.has(st.id!) ? '✓' : ''}</div>
             <div style="position: relative; display: inline-flex;">
               {#if st.foto}
                 <img src={st.foto} alt={st.nombre} style="width: {isMobile ? '52px' : '64px'}; height: {isMobile ? '52px' : '64px'}; border-radius: 50%; object-fit: cover; border: 2px solid rgba(56, 189, 248, 0.25); box-shadow: 0 2px 8px rgba(0,0,0,0.3);" />
