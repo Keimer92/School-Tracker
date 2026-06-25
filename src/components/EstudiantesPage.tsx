@@ -813,6 +813,7 @@ useEffect(() => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteMessage, setDeleteMessage] = useState("");
   const [studentToDeleteId, setStudentToDeleteId] = useState<number | null>(null);
+  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
 
   const handleDelete = async (id: number) => {
     try {
@@ -873,6 +874,32 @@ useEffect(() => {
       await emit("show-toast", { message: "❌ Error al eliminar: " + error, type: 'error' });
       setIsDeleting(false);
       // Mantenemos el modal abierto si falló la eliminación local
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    const ids = filteredStudents.map(s => s.id!);
+    if (ids.length === 0) return;
+    setShowBatchDeleteConfirm(false);
+    setIsDeleting(true);
+    try {
+      await invoke("delete_student_batch", { ids });
+      setStudents(prev => prev.filter(s => !ids.includes(s.id!)));
+      setFilteredStudents([]);
+      setIsDeleting(false);
+      await emit("show-toast", {
+        message: `✅ ${ids.length} estudiantes eliminados correctamente`,
+        type: "success",
+      });
+      await emit("student-updated", { timestamp: Date.now() });
+      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      setTimeout(() => { fetchData(true); }, 200);
+    } catch (error) {
+      setIsDeleting(false);
+      await emit("show-toast", {
+        message: "❌ Error al eliminar en lote: " + error,
+        type: "error",
+      });
     }
   };
 
@@ -1292,12 +1319,32 @@ useEffect(() => {
         </div>
       )}
 
-      {/* View Toggle */}
+      {/* View Toggle & Batch Delete */}
       {filteredStudents.length > 0 && (
         <div style={{
-          display: 'flex', justifyContent: isMobile ? 'center' : 'flex-end',
-          marginBottom: '0.5rem', marginTop: '0.2rem'
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          marginBottom: '0.5rem', marginTop: '0.2rem', flexWrap: 'wrap', gap: '0.4rem'
         }}>
+          <button
+            onClick={() => setShowBatchDeleteConfirm(true)}
+            disabled={isDeleting}
+            style={{
+              padding: '0.4rem 1rem',
+              fontSize: '0.8rem',
+              borderRadius: '8px',
+              border: '1px solid rgba(239, 68, 68, 0.4)',
+              background: 'rgba(239, 68, 68, 0.15)',
+              color: '#fca5a5',
+              fontWeight: '600',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              transition: 'all 0.2s',
+            }}
+          >
+            🗑 Eliminar filtrados ({filteredStudents.length})
+          </button>
           <div style={{
             display: 'flex', gap: '2px',
             background: 'rgba(255,255,255,0.04)',
@@ -1696,6 +1743,40 @@ useEffect(() => {
                 style={{ backgroundColor: '#ef4444' }}
               >
                 {isDeleting ? "Eliminando..." : "Eliminar Todo"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal de Confirmación de Eliminación Masiva */}
+      {showBatchDeleteConfirm && createPortal(
+        <div className="modal-overlay">
+          <div className="modal-content category-card" style={{ width: '450px', maxWidth: '90%', padding: '1.5rem' }}>
+            <h3 style={{ marginTop: 0, color: '#f87171' }}>⚠️ Confirmar Eliminación Masiva</h3>
+            <div style={{ margin: '1.5rem 0', color: '#e2e8f0', fontSize: '0.95rem', lineHeight: '1.5' }}>
+              <p>¿Está seguro de eliminar los <strong>{filteredStudents.length}</strong> estudiantes filtrados?</p>
+              <div style={{
+                maxHeight: '180px', overflowY: 'auto', padding: '0.5rem', marginTop: '0.75rem',
+                background: 'rgba(0,0,0,0.2)', borderRadius: '8px', fontSize: '0.85rem',
+              }}>
+                {filteredStudents.map(s => (
+                  <div key={s.id} style={{ padding: '0.25rem 0.5rem', color: '#94a3b8', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    {s.nombre} <span style={{ color: '#64748b' }}>({s.codigo})</span>
+                  </div>
+                ))}
+              </div>
+              <p style={{ color: '#f87171', fontWeight: '600', marginTop: '1rem' }}>
+                Las calificaciones y asistencias de estos estudiantes también se eliminarán. Esta acción no se puede deshacer.
+              </p>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+              <button className="cancel" onClick={() => setShowBatchDeleteConfirm(false)} disabled={isDeleting}>
+                Cancelar
+              </button>
+              <button className="primary" onClick={handleBatchDelete} disabled={isDeleting} style={{ backgroundColor: '#ef4444' }}>
+                {isDeleting ? "Eliminando..." : `Eliminar ${filteredStudents.length} estudiantes`}
               </button>
             </div>
           </div>

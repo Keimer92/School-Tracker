@@ -874,6 +874,7 @@ pub fn run() {
             add_student,
             update_student,
             delete_student,
+            delete_student_batch,
             get_subjects_by_grade,
             assign_subject_to_grade,
             unassign_subject_from_grade,

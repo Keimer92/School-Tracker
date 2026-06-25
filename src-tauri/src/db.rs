@@ -2138,6 +2138,23 @@ pub fn delete_student(state: tauri::State<'_, DbState>, id: i64) -> Result<(), S
     Ok(())
 }
 
+#[tauri::command]
+pub fn delete_student_batch(state: tauri::State<'_, DbState>, ids: Vec<i64>) -> Result<(), String> {
+    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    for &id in &ids {
+        tx.execute("DELETE FROM estudiante WHERE id = ?", [id])
+            .map_err(|e| e.to_string())?;
+        tx.execute(
+            "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)",
+            rusqlite::params!["estudiante", id],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 // Curriculum (Grade-Subject) Commands
 #[tauri::command]
 #[allow(non_snake_case)]

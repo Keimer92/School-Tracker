@@ -116,6 +116,7 @@ function CategoryTabContent({
   const [itemToDelete, setItemToDelete] = useState<CategoryItem | null>(null);
   const [deleteMessage, setDeleteMessage] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [hasDependency, setHasDependency] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
 
@@ -298,27 +299,30 @@ function CategoryTabContent({
         },
       );
 
-      let message = `¿Está seguro de eliminar "${item.nombre}"?`;
+      const hasDeps = check.hasStudents || check.hasNotes || check.hasAttendance || check.hasGrades;
       const warnings: string[] = [];
 
+      if (check.hasGrades)
+        warnings.push(`- Asignaciones al currículo y grados`);
       if (check.hasStudents)
         warnings.push(`- ${check.studentCount} Estudiantes registrados`);
       if (check.hasNotes)
         warnings.push(`- ${check.noteCount} Calificaciones registradas`);
       if (check.hasAttendance)
         warnings.push(`- ${check.attendanceCount} Registros de asistencia`);
-      if (check.hasGrades)
-        warnings.push(`- Asignaciones al currículo y grados`);
 
-      if (warnings.length > 0) {
-        message =
-          `⚠️ ¡ATENCIÓN! "${item.nombre}" tiene datos asociados que se ELIMINARÁN permanentemente:\n\n` +
+      if (hasDeps) {
+        setDeleteMessage(
+          `❌ No se puede eliminar "${item.nombre}" porque tiene datos asociados:\n\n` +
           warnings.join("\n") +
-          `\n\nEsta acción no se puede deshacer. ¿Realmente desea ELIMINAR TODO?`;
+          `\n\nDebe eliminar los estudiantes asociados desde la página de Estudiantes primero.` +
+          `\n\nAl eliminar un estudiante, sus calificaciones y asistencias se eliminarán automáticamente.`
+        );
+      } else {
+        setDeleteMessage(`¿Está seguro de eliminar "${item.nombre}"?`);
       }
-
+      setHasDependency(hasDeps);
       setItemToDelete(item);
-      setDeleteMessage(message);
       setShowDeleteConfirm(true);
     } catch (error) {
       console.error("Error en handleDelete:", error);
@@ -1007,16 +1011,18 @@ function CategoryTabContent({
                   }}
                   disabled={isDeleting}
                 >
-                  Cancelar
+                  {hasDependency ? "Entendido" : "Cancelar"}
                 </button>
-                <button
-                  className="primary"
-                  onClick={confirmDelete}
-                  disabled={isDeleting}
-                  style={{ backgroundColor: "#ef4444" }}
-                >
-                  {isDeleting ? "Eliminando..." : "Eliminar Todo"}
-                </button>
+                {!hasDependency && (
+                  <button
+                    className="primary"
+                    onClick={confirmDelete}
+                    disabled={isDeleting}
+                    style={{ backgroundColor: "#ef4444" }}
+                  >
+                    {isDeleting ? "Eliminando..." : "Eliminar"}
+                  </button>
+                )}
               </div>
             </div>
           </div>,
