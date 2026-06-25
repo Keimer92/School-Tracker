@@ -203,11 +203,11 @@
       <button class="sidebar-button {activeTab === 'globales' ? 'active' : ''}" onclick={() => handleTabChange('globales')} type="button">
         <span>🌐</span><span>Globales</span>
       </button>
-      <button class="sidebar-button {activeTab === 'cloud' ? 'active' : ''}" onclick={() => handleTabChange('cloud')} type="button">
-        <span>☁️</span><span>Nube</span>
-      </button>
       <button class="sidebar-button {activeTab === 'ajustes' ? 'active' : ''}" onclick={() => handleTabChange('ajustes')} type="button">
         <span>⚙️</span><span>Ajustes</span>
+      </button>
+      <button class="sidebar-button {activeTab === 'cloud' ? 'active' : ''}" onclick={() => handleTabChange('cloud')} type="button">
+        <span>☁️</span><span>Nube</span>
       </button>
     </div>
   </nav>
