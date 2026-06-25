@@ -676,14 +676,15 @@
                   </button>
                 </div>
                 <div style="display:flex;gap:0.4rem">
-                  {#each ['P', 'A', 'J'] as tipo}
-                    {@const colors: Record<string, { bg: string; border: string; text: string }> = { P: { bg: 'rgba(16, 185, 129, 0.2)', border: '#10b981', text: '#10b981' }, A: { bg: 'rgba(239, 68, 68, 0.2)', border: '#ef4444', text: '#ef4444' }, J: { bg: 'rgba(245, 158, 11, 0.2)', border: '#f59e0b', text: '#f59e0b' }}}
-                    {@const c = colors[tipo]}
-                    {@const active = estado === tipo}
-                    <div style="flex:1;height:36px;font-size:0.85rem;display:flex;align-items:center;justify-content:center;border-radius:8px;font-weight:bold;background:{active ? c.bg : 'rgba(255,255,255,0.05)'};border:{active ? `1px solid ${c.border}` : '1px solid rgba(255,255,255,0.1)'};color:{active ? c.text : '#94a3b8'}">
-                      {tipo}
-                    </div>
-                  {/each}
+              {#each ['P', 'A', 'J'] as tipo}
+                {@const colors: Record<string, { bg: string; border: string; text: string }> = { P: { bg: 'rgba(16, 185, 129, 0.2)', border: '#10b981', text: '#10b981' }, A: { bg: 'rgba(239, 68, 68, 0.2)', border: '#ef4444', text: '#ef4444' }, J: { bg: 'rgba(245, 158, 11, 0.2)', border: '#f59e0b', text: '#f59e0b' }}}
+                {@const c = colors[tipo]}
+                {@const active = estado === tipo}
+                <label style="flex:0 0 auto;height:36px;font-size:0.85rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:bold;background:{active ? c.bg : 'rgba(255,255,255,0.05)'};border:{active ? `1px solid ${c.border}` : '1px solid rgba(255,255,255,0.1)'};color:{active ? c.text : '#94a3b8'};transition:all 0.2s ease">
+                  <input type="radio" name={`asist-${item.id}`} checked={estado === tipo} onchange={() => { /* No action needed in report view */ }} style="display:none" />
+                  {tipo}
+                </label>
+              {/each}
                 </div>
               </div>
             {/each}
@@ -711,11 +712,14 @@
                     <div style="font-size:0.7rem;opacity:0.6;margin-left:22px">{item.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                   </td>
                   <td>
-                    <div class="asistencia-options" style="pointer-events:{isAndroid ? 'none' : 'auto'};opacity:{isAndroid ? 0.8 : 1}">
-                      {#each ['P', 'A', 'J'] as tipo}
-                        <div class="asistencia-opt" class:active={estado === tipo} class:p={tipo === 'P'} class:a={tipo === 'A'} class:j={tipo === 'J'}><span>{tipo}</span></div>
-                      {/each}
-                    </div>
+              <div class="asistencia-options" style="display:flex;pointer-events:{isAndroid ? 'none' : 'auto'};opacity:{isAndroid ? 0.8 : 1}">  
+                {#each ['P', 'A', 'J'] as tipo}
+                  <label class="asistencia-opt" class:active={estado === tipo} class:p={tipo === 'P'} class:a={tipo === 'A'} class:j={tipo === 'J'} style="display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:8px;font-weight:bold;transition:all 0.2s ease;flex:0 0 auto">
+                    <input type="radio" name={`asist-${item.id}`} checked={estado === tipo} onchange={() => { /* No action needed in report view */ }} style="display:none" />
+                    <span>{tipo}</span>
+                  </label>
+                {/each}
+              </div>
                   </td>
                   <td style="text-align:center;padding:0.2rem">
                     {#if getObservacionEnFecha(item, fechaInicio)}
