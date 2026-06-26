@@ -13,7 +13,13 @@ function fmtTime() {
 }
 
 function pbId(id: number | string): string {
-  return String(id).padStart(15, '0');
+  return String(id).toLowerCase().padStart(15, '0');
+}
+
+function unpad(id: string): number | string {
+  const stripped = String(id).replace(/^0+/, '');
+  const num = Number(stripped);
+  return !isNaN(num) ? num : stripped.toUpperCase();
 }
 
 async function safeInvoke<T>(fn: string): Promise<T[]> {
@@ -64,16 +70,17 @@ async function ensureCollectionsExist() {
 }
 
 async function upsertRecord(collection: string, data: any) {
-  if (data.id) data.id = pbId(data.id);
+  const recordId = data.id ? pbId(data.id) : undefined;
+  const { id, ...dataWithoutId } = data;
   try {
-    if (data.id && String(data.id).length >= 15) {
-      await pb.collection(collection).update(String(data.id), data);
+    if (recordId) {
+      await pb.collection(collection).update(recordId, dataWithoutId);
     } else {
       await pb.collection(collection).create(data);
     }
   } catch (e: any) {
-    if (e?.status === 404) {
-      await pb.collection(collection).create(data);
+    if (e?.status === 404 && recordId) {
+      await pb.collection(collection).create({ ...dataWithoutId, id: recordId });
     } else {
       let fullMsg = `${collection}: `;
       try {
@@ -254,7 +261,7 @@ export const pocketbaseSyncService = {
       const gradeConfigs = await safeInvoke<any>('get_grade_configs');
       for (const gc of gradeConfigs) {
         await upsertWithLog('configuracion_calificacion', {
-          id: String(gc.id), nombre: gc.nombre, color: gc.color, minimo: gc.minimo, user_id: userId,
+          id: pbId(gc.id), nombre: gc.nombre, color: gc.color, minimo: gc.minimo, user_id: userId,
         });
       }
 
@@ -301,7 +308,7 @@ export const pocketbaseSyncService = {
       throw new Error('Debes estar autenticado en PocketBase como admin');
     }
 
-    function unpad(id: string): number { return parseInt(id, 10); }
+    // unpad is defined at module level above
 
     try {
       const collections = [
@@ -350,7 +357,7 @@ export const pocketbaseSyncService = {
           estado: a.estado, observacion: a.observacion ?? null,
         })),
         gradeConfigs: (allData['configuracion_calificacion'] || []).map((gc: any) => ({
-          id: gc.id, nombre: gc.nombre, color: gc.color, minimo: gc.minimo,
+          id: unpad(gc.id), nombre: gc.nombre, color: gc.color, minimo: gc.minimo,
         })),
         gradoAsignatura: (allData['grado_asignatura'] || []).map((ga: any) => [Number(ga.grado_id), Number(ga.asignatura_id)]),
         colegioAsignatura: (allData['colegio_asignatura'] || []).map((ca: any) => [Number(ca.colegio_id), Number(ca.asignatura_id)]),
@@ -491,7 +498,7 @@ export const pocketbaseSyncService = {
       const userId = await pocketbaseSyncService.getUserId();
       if (!userId) return;
       await upsertRecord('configuracion_calificacion', {
-        id: String(config.id), nombre: config.nombre,
+        id: pbId(config.id), nombre: config.nombre,
         color: config.color, minimo: config.minimo, user_id: userId,
       });
     })(), 'config grade');
@@ -502,7 +509,7 @@ export const pocketbaseSyncService = {
       const userId = await pocketbaseSyncService.getUserId();
       if (!userId) return;
       const syncItem: any = { ...data, user_id: userId };
-      if (data.id) syncItem.id = String(data.id);
+      if (data.id) syncItem.id = pbId(data.id);
       await upsertRecord(table, syncItem);
     })(), `${getTableName(table)} ${isNew ? 'nuevo' : 'actualizado'}: ${data.nombre}`);
   },
@@ -521,7 +528,7 @@ export const pocketbaseSyncService = {
       if (!userId) return;
       await pocketbaseSyncService.ensureStudentsDependencies([student], userId);
       await upsertRecord('estudiante', {
-        id: String(student.id), nombre: student.nombre, codigo: student.codigo,
+        id: pbId(student.id), nombre: student.nombre, codigo: student.codigo,
         sexo: student.sexo, ano_lectivo_id: student.anoLectivoId || null,
         grado_id: student.gradoId || null, seccion_id: student.seccionId || null,
         colegio_id: student.colegioId || null, telefono: student.telefono || null,
@@ -539,7 +546,7 @@ export const pocketbaseSyncService = {
       await pocketbaseSyncService.ensureStudentsDependencies(students, userId);
       for (const student of students) {
         await upsertRecord('estudiante', {
-          id: String(student.id), nombre: student.nombre, codigo: student.codigo,
+          id: pbId(student.id), nombre: student.nombre, codigo: student.codigo,
           sexo: student.sexo, ano_lectivo_id: student.anoLectivoId || null,
           grado_id: student.gradoId || null, seccion_id: student.seccionId || null,
           colegio_id: student.colegioId || null, telefono: student.telefono || null,
@@ -576,7 +583,7 @@ export const pocketbaseSyncService = {
         const allLocal = await safeInvoke<any>(localCmd);
         for (const item of allLocal) {
           if (missingIds.includes(Number(item.id))) {
-            const syncItem: any = { id: String(item.id), nombre: item.nombre, user_id: userId };
+            const syncItem: any = { id: pbId(item.id), nombre: item.nombre, user_id: userId };
             if (item.activo !== undefined && ['ano_lectivo', 'corte_evaluativo'].includes(collection)) syncItem.activo = item.activo;
             if (item.cualitativo !== undefined) syncItem.cualitativo = item.cualitativo;
             await upsertRecord(collection, syncItem);
@@ -645,14 +652,14 @@ try { subjects = await invoke<any[]>('get_subjects_by_grade', { gradoId }); } ca
       if (!userId) return;
       for (const ind of indicadores) {
         await upsertRecord('indicador', {
-          id: String(ind.id), grado_id: ind.gradoId, asignatura_id: ind.asignaturaId,
+          id: pbId(ind.id), grado_id: ind.gradoId, asignatura_id: ind.asignaturaId,
           corte_evaluativo_id: ind.corteEvaluativoId, orden: ind.orden,
           descripcion: ind.descripcion, activo: ind.activo, user_id: userId,
         });
         if (ind.criterios && ind.criterios.length > 0) {
           for (const crit of ind.criterios) {
             await upsertRecord('criterio', {
-              id: String(crit.id), indicador_id: crit.indicadorId, orden: crit.orden,
+              id: pbId(crit.id), indicador_id: crit.indicadorId, orden: crit.orden,
               descripcion: crit.descripcion, puntaje_maximo: Math.round(crit.puntajeMaximo), user_id: userId,
             });
           }
@@ -728,6 +735,5 @@ try { subjects = await invoke<any[]>('get_subjects_by_grade', { gradoId }); } ca
 
   disconnect: () => {
     pocketbaseSyncService.stopPeriodicSync();
-    logoutAdmin();
   },
 };

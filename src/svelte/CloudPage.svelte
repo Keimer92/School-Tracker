@@ -24,8 +24,9 @@
   let tursoError: string | null = $state(null);
 
   // PocketBase state
+  const PB_EMAIL_KEY = 'pocketbase_last_email';
   let pbUrl = $state(getPocketBaseUrl());
-  let pbEmail = $state('');
+  let pbEmail = $state(localStorage.getItem(PB_EMAIL_KEY) || '');
   let pbPassword = $state('');
   let pbTesting = $state(false);
   let pbStatus: 'idle' | 'online' | 'offline' = $state('idle');
@@ -106,6 +107,7 @@
       if (!healthResult.ok) { pbError = healthResult.error || 'No se pudo conectar al servidor'; pbTesting = false; return; }
       const authResult = await pocketbaseSyncService.authenticateAdmin(pbEmail, pbPassword);
       if (authResult.ok) {
+        localStorage.setItem(PB_EMAIL_KEY, pbEmail);
         isSynced = true; pbStatus = 'online'; pbAuthStep = 'connected';
         syncService.ensurePeriodicSync(); syncService.syncAllSilent();
       } else {
@@ -127,6 +129,7 @@
 
   function handleDisconnectPB() {
     logoutAdmin(); pbUrl = getPocketBaseUrl(); pbEmail = ''; pbPassword = '';
+    localStorage.removeItem(PB_EMAIL_KEY);
     pbStatus = 'idle'; pbAuthStep = 'credentials'; isSynced = false;
     try { pocketbaseSyncService.disconnect(); } catch {}
   }
