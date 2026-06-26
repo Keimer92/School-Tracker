@@ -36,22 +36,22 @@
 </script>
 
 <div class="cloud-page">
-  <div style="display:flex;justify-content:center;margin-bottom:1.5rem">
-  <div class="cloud-tabs">
-    <button class="cloud-tab" class:active={activeCloudTab === 'sync'} onclick={() => activeCloudTab = 'sync'}>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z"/></svg>
-      <span>Sync</span>
-      {#if isSynced}<span class="cloud-tab-dot"></span>{/if}
-    </button>
-    <button class="cloud-tab" class:active={activeCloudTab === 'drive'} onclick={() => activeCloudTab = 'drive'}>
-      <span>☁️</span>
-      <span>Drive</span>
-    </button>
+  <div class="cloud-tabs-wrapper">
+    <div class="cloud-tabs">
+      <button class="cloud-tab" class:active={activeCloudTab === 'sync'} onclick={() => activeCloudTab = 'sync'}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z"/></svg>
+        <span>Sync</span>
+        {#if isSynced}<span class="cloud-tab-dot"></span>{/if}
+      </button>
+      <button class="cloud-tab" class:active={activeCloudTab === 'drive'} onclick={() => activeCloudTab = 'drive'}>
+        <span>☁️</span>
+        <span>Drive</span>
+      </button>
+    </div>
   </div>
-</div>
 
-  {#if activeCloudTab === 'sync'}
-    <div class="cloud-card">
+  <div class="cloud-panels">
+    <div class="cloud-card" class:visible={activeCloudTab === 'sync'}>
       <div class="cloud-card-header">
         <h3><span style="display: inline-flex; align-items: center; gap: 10px; background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%); padding: 0.5rem 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z" stroke="url(#cloudGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="cloudGrad" x1="6" y1="8" x2="19" y2="18" gradientUnits="userSpaceOnUse"><stop stop-color="var(--primary-color)"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs></svg>
@@ -146,8 +146,8 @@
         </div>
       {/if}
     </div>
-  {:else}
-    <div class="cloud-card">
+
+    <div class="cloud-card" class:visible={activeCloudTab === 'drive'}>
       <div class="cloud-card-header">
         <h3>☁️ Respaldo en Google Drive</h3>
       </div>
@@ -155,17 +155,29 @@
         <GoogleDriveBackup />
       </div>
     </div>
-  {/if}
+  </div>
 </div>
 
 <style>
-  .cloud-page { max-width: 700px; margin: 0 auto; width: 100%; }
+  .cloud-page { max-width: 900px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; }
+  .cloud-tabs-wrapper { display: flex; justify-content: center; margin-bottom: 1.5rem; }
   .cloud-tabs { display: inline-flex; padding: 0.4rem; gap: 0.3rem; background: var(--bg-elevated); border-radius: 14px; border: 1px solid var(--border); }
   .cloud-tab { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 1rem; border-radius: 10px; border: none; background: transparent; color: var(--text-muted); cursor: pointer; font-family: inherit; font-size: 0.85rem; font-weight: 600; transition: all 0.2s ease; white-space: nowrap; }
   .cloud-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
   .cloud-tab.active { background: var(--bg-active); color: var(--text-bright); box-shadow: 0 0 8px rgba(var(--primary-rgb), 0.08); }
   .cloud-tab-dot { width: 6px; height: 6px; background: #4ade80; border-radius: 50%; box-shadow: 0 0 5px #4ade80; }
-  .cloud-card { background: rgba(30, 41, 59, 0.5); backdrop-filter: blur(12px); border-radius: 20px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden; }
+  .cloud-panels { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+  .cloud-card { background: var(--card-bg); backdrop-filter: blur(12px); border-radius: 20px; border: 1px solid var(--card-border); overflow: hidden; }
   .cloud-card-header { padding: 1.25rem 1.5rem 0; }
-  .cloud-card-header h3 { margin: 0; color: #f1f5f9; font-size: 1.1rem; font-weight: 700; }
+  .cloud-card-header h3 { margin: 0; color: var(--text-primary); font-size: 1.1rem; font-weight: 700; }
+  @media (min-width: 1024px) {
+    .cloud-page { max-width: none; height: 100%; }
+    .cloud-tabs-wrapper { display: none; }
+    .cloud-panels { grid-template-columns: 1fr 1fr; flex: 1; align-content: stretch; }
+    .cloud-card { height: 100%; display: flex; flex-direction: column; }
+    .cloud-card > *:last-child { flex: 1; }
+  }
+  @media (max-width: 1023px) {
+    .cloud-card:not(.visible) { display: none; }
+  }
 </style>
