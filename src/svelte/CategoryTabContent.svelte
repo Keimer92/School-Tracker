@@ -212,16 +212,16 @@
 </script>
 
 <div class="category-card" style="background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);">
-  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid rgba(59, 130, 246, 0.3);">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid rgba(var(--primary-rgb), 0.3);">
     <div style="display: flex; align-items: center; gap: 0.75rem;">
-      <div style="width: 4px; height: 28px; background: linear-gradient(180deg, #3b82f6, #1d4ed8); border-radius: 2px;"></div>
+      <div style="width: 4px; height: 28px; background: linear-gradient(180deg, var(--primary-color), var(--primary-hover)); border-radius: 2px;"></div>
       <h2 style="margin: 0; font-size: 1.35rem; color: #f1f5f9; font-weight: 700; letter-spacing: -0.02em;">{config.title}</h2>
       {#if items.length > 0}
-        <label onclick={(e) => e.stopPropagation()} style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; padding: 0.35rem 0.6rem; border-radius: 6px; background: {selectedIds.size > 0 ? 'rgba(59, 130, 246, 0.1)' : 'rgba(255,255,255,0.03)'}; border: {selectedIds.size > 0 ? '1px solid rgba(59, 130, 246, 0.25)' : '1px solid transparent'}; font-size: 0.75rem; color: {selectedIds.size > 0 ? '#93c5fd' : '#94a3b8'}; font-weight: 600; user-select: none;">
+        <label onclick={(e) => e.stopPropagation()} style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; padding: 0.35rem 0.6rem; border-radius: 6px; background: {selectedIds.size > 0 ? 'rgba(var(--primary-rgb), 0.1)' : 'rgba(255,255,255,0.03)'}; border: {selectedIds.size > 0 ? '1px solid rgba(var(--primary-rgb), 0.25)' : '1px solid transparent'}; font-size: 0.75rem; color: {selectedIds.size > 0 ? 'var(--text-secondary)' : '#94a3b8'}; font-weight: 600; user-select: none;">
           <input type="checkbox" checked={items.length > 0 && selectedIds.size === items.length} onchange={toggleSelectAll} style="display: none;" />
-          <span style="display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 4px; border: {selectedIds.size === items.length ? '2px solid #3b82f6' : '2px solid rgba(255,255,255,0.2)'}; background: {selectedIds.size === items.length ? 'rgba(59, 130, 246, 0.2)' : 'transparent'}; flex-shrink: 0;">
+          <span style="display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 4px; border: {selectedIds.size === items.length ? '2px solid var(--primary-color)' : '2px solid rgba(255,255,255,0.2)'}; background: {selectedIds.size === items.length ? 'rgba(var(--primary-rgb), 0.2)' : 'transparent'}; flex-shrink: 0;">
             {#if selectedIds.size === items.length}
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
             {/if}
           </span>
           Todo
@@ -240,7 +240,7 @@
         </div>
       {/if}
     </div>
-    <button onclick={handleAdd} style="padding: 0.65rem 1.25rem; font-size: 0.85rem; border-radius: 10px; background: #3b82f6; border: none; cursor: pointer; font-weight: 600; color: white; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);">
+    <button onclick={handleAdd} style="padding: 0.65rem 1.25rem; font-size: 0.85rem; border-radius: 10px; background: var(--primary-color); border: none; cursor: pointer; font-weight: 600; color: white; box-shadow: 0 2px 8px rgba(var(--primary-rgb), 0.4);">
       <span style="margin-right: 0.5rem;">+</span> Agregar {config.title}
     </button>
   </div>
@@ -250,22 +250,22 @@
       <div style="padding: 3rem 2rem; text-align: center; color: #64748b; background: rgba(255,255,255,0.02); border-radius: 12px; border: 2px dashed rgba(255,255,255,0.08);">
         <div style="font-size: 2.5rem; margin-bottom: 1rem;">📭</div>
         <p style="margin: 0; font-size: 1rem; color: #94a3b8; font-weight: 500;">No hay {config.title.toLowerCase()}s registrados</p>
-        <p style="margin: 0.75rem 0 0 0; font-size: 0.85rem; color: #64748b;">Haz clic en "<strong style="color: #3b82f6;">+ Agregar</strong>" para crear uno nuevo</p>
+        <p style="margin: 0.75rem 0 0 0; font-size: 0.85rem; color: #64748b;">Haz clic en "<strong style="color: var(--primary-color);">+ Agregar</strong>" para crear uno nuevo</p>
       </div>
     {:else}
       {#each items as item (item.id)}
         <div ondragstart={(e) => handleDragStart(e, item)} ondragover={handleDragOver} ondrop={(e) => handleDrop(e, item)}
           draggable={!!config.endpoints.updateOrder}
-          style="display: flex; align-items: center; gap: 12px; padding: 1rem 1.25rem; background: rgba(51, 65, 85, 0.4); border-radius: 10px; border: {draggedItem?.id === item.id ? '2px dashed #3b82f6' : '1px solid rgba(255,255,255,0.06)'}; opacity: {draggedItem?.id === item.id ? 0.5 : 1}; cursor: {config.endpoints.updateOrder ? 'move' : 'default'}; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
+          style="display: flex; align-items: center; gap: 12px; padding: 1rem 1.25rem; background: rgba(51, 65, 85, 0.4); border-radius: 10px; border: {draggedItem?.id === item.id ? '2px dashed var(--primary-color)' : '1px solid rgba(255,255,255,0.06)'}; opacity: {draggedItem?.id === item.id ? 0.5 : 1}; cursor: {config.endpoints.updateOrder ? 'move' : 'default'}; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
           <div style="display: flex; align-items: center; gap: 8px;">
-            <label onclick={(e) => e.stopPropagation()} style="display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; border: {selectedIds.has(item.id) ? '2px solid #3b82f6' : '2px solid rgba(255,255,255,0.15)'}; background: {selectedIds.has(item.id) ? 'rgba(59, 130, 246, 0.2)' : 'transparent'}; cursor: pointer; flex-shrink: 0;">
+            <label onclick={(e) => e.stopPropagation()} style="display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; border: {selectedIds.has(item.id) ? '2px solid var(--primary-color)' : '2px solid rgba(255,255,255,0.15)'}; background: {selectedIds.has(item.id) ? 'rgba(var(--primary-rgb), 0.2)' : 'transparent'}; cursor: pointer; flex-shrink: 0;">
               <input type="checkbox" checked={selectedIds.has(item.id)} onchange={() => toggleSelectItem(item.id)} style="display: none;" />
               {#if selectedIds.has(item.id)}
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
               {/if}
             </label>
             {#if config.endpoints.updateOrder}
-              <span style="cursor: move; color: #475569; font-size: 1.2rem; user-select: none; padding: 0.25rem;">⋮⋮</span>
+              <span style="cursor: move; color: var(--text-muted); font-size: 1.2rem; user-select: none; padding: 0.25rem;">⋮⋮</span>
             {/if}
             {#if config.endpoints.setActive}
               <label class="switch" title="Activar">
@@ -291,7 +291,7 @@
           </span>
           <div style="display: flex; gap: 0.4rem;">
             {#if config.title === "Grado" && onConfigClick}
-              <button onclick={() => onConfigClick(item)} title="Configurar Materias" style="background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 0.5rem 0.65rem; cursor: pointer; font-size: 1.1rem;">🛠️</button>
+              <button onclick={() => onConfigClick(item)} title="Configurar Materias" style="background: rgba(var(--primary-rgb), 0.15); border: 1px solid rgba(var(--primary-rgb), 0.3); border-radius: 8px; padding: 0.5rem 0.65rem; cursor: pointer; font-size: 1.1rem;">🛠️</button>
             {/if}
             {#if config.title === "Colegio" && onConfigClick}
               <button onclick={() => onConfigClick(item)} title="Configurar Días de Asistencia" style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 0.5rem 0.65rem; cursor: pointer; font-size: 1.1rem;">📅</button>
@@ -299,7 +299,7 @@
             {#if config.title === "Colegio" && onSubjectsClick}
               <button onclick={() => onSubjectsClick(item)} title="Configurar Asignaturas" style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 0.5rem 0.65rem; cursor: pointer; font-size: 1.1rem;">📚</button>
             {/if}
-            <button onclick={() => handleEdit(item)} title="Editar" style="background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 8px; padding: 0.5rem 0.65rem; cursor: pointer; font-size: 1.1rem;">✎</button>
+            <button onclick={() => handleEdit(item)} title="Editar" style="background: rgba(var(--primary-rgb), 0.15); border: 1px solid rgba(var(--primary-rgb), 0.3); border-radius: 8px; padding: 0.5rem 0.65rem; cursor: pointer; font-size: 1.1rem;">✎</button>
             <button onclick={() => handleDelete(item)} title="Eliminar" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 0.5rem 0.65rem; cursor: pointer; font-size: 1.1rem;">🗑</button>
           </div>
         </div>
@@ -361,7 +361,7 @@
       </div>
       <div style="display: flex; justify-content: flex-end; gap: 1rem;">
         <button onclick={() => showPrompt = false} style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-weight: 600;">Cancelar</button>
-        <button onclick={() => { if (promptOnConfirm) promptOnConfirm(promptValue); showPrompt = false; }} style="padding: 0.5rem 1.25rem; font-size: 0.85rem; border-radius: 8px; border: none; background: linear-gradient(135deg, #2563eb, #3b82f6); color: white; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);">Guardar</button>
+        <button onclick={() => { if (promptOnConfirm) promptOnConfirm(promptValue); showPrompt = false; }} style="padding: 0.5rem 1.25rem; font-size: 0.85rem; border-radius: 8px; border: none; background: linear-gradient(135deg, var(--primary-hover), var(--primary-color)); color: white; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(var(--primary-rgb), 0.4);">Guardar</button>
       </div>
     </div>
   </div>

@@ -472,7 +472,7 @@
       autoTable(doc, {
         startY: yPos + 5, margin: { top: margins.top, bottom: margins.bottom, left: margins.left, right: margins.right },
         head: [tableHeaders], body: tableRows, theme: 'grid',
-        headStyles: { fillColor: [59, 130, 246], textColor: 255, fontStyle: 'bold' },
+        headStyles: { fillColor: [107, 114, 128], textColor: 255, fontStyle: 'bold' },
         styles: { fontSize: 8, cellPadding: 2 },
         columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 15, halign: 'center' } },
         didParseCell: (data: any) => {
@@ -548,9 +548,9 @@
         body{font-family:Arial,sans-serif;padding:20px}h2{margin:0 0 10px 0;text-align:center}
         .info{margin-bottom:15px;font-size:12px;display:grid;grid-template-columns:1fr 1fr;gap:5px}
         table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid #ddd;padding:6px;text-align:center}
-        th{background-color:#3b82f6;color:white}tr:nth-child(even){background-color:#f9f9f9}td:first-child{text-align:left}
+        th{background-color:var(--primary-color);color:white}tr:nth-child(even){background-color:#f9f9f9}td:first-child{text-align:left}
         @media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-        th{background-color:#3b82f6!important}tr:nth-child(even){background-color:#f9f9f9!important}}
+        th{background-color:var(--primary-color)!important}tr:nth-child(even){background-color:#f9f9f9!important}}
       </style></head><body>
         <h2>Reporte de Calificaciones</h2>
         <div class="info">
@@ -595,7 +595,7 @@
     @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
     .table-row-hover:hover{background-color:rgba(255,255,255,0.04)!important}
     .filter-select{width:100%;background:rgba(15,23,42,0.8);border:1px solid rgba(255,255,255,0.1);color:white;padding:0.6rem;border-radius:8px;outline:none;cursor:pointer}
-    .filter-select:focus{border-color:#3b82f6}
+    .filter-select:focus{border-color:var(--primary-color)}
     .notas-table-container::-webkit-scrollbar{width:6px}
     .notas-table-container::-webkit-scrollbar-track{background:rgba(255,255,255,0.05);border-radius:3px}
     .notas-table-container::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.2);border-radius:3px}
@@ -628,8 +628,8 @@
           </div>
           <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
             <div style="display:flex;background:rgba(255,255,255,0.05);border-radius:10px;padding:2px;border:1px solid rgba(255,255,255,0.1)">
-              <button onclick={() => activeSlide = 'tabla'} style="padding:0.2rem 0.6rem;border-radius:8px;border:none;background:{activeSlide === 'tabla' ? '#3b82f6' : 'transparent'};color:{activeSlide === 'tabla' ? 'white' : '#94a3b8'};font-size:0.7rem;font-weight:bold;cursor:pointer">Tabla</button>
-              <button onclick={() => activeSlide = 'estadisticas'} style="padding:0.2rem 0.6rem;border-radius:8px;border:none;background:{activeSlide === 'estadisticas' ? '#3b82f6' : 'transparent'};color:{activeSlide === 'estadisticas' ? 'white' : '#94a3b8'};font-size:0.7rem;font-weight:bold;cursor:pointer">Stats</button>
+              <button onclick={() => activeSlide = 'tabla'} style="padding:0.2rem 0.6rem;border-radius:8px;border:none;background:{activeSlide === 'tabla' ? 'var(--primary-color)' : 'transparent'};color:{activeSlide === 'tabla' ? 'white' : '#94a3b8'};font-size:0.7rem;font-weight:bold;cursor:pointer">Tabla</button>
+              <button onclick={() => activeSlide = 'estadisticas'} style="padding:0.2rem 0.6rem;border-radius:8px;border:none;background:{activeSlide === 'estadisticas' ? 'var(--primary-color)' : 'transparent'};color:{activeSlide === 'estadisticas' ? 'white' : '#94a3b8'};font-size:0.7rem;font-weight:bold;cursor:pointer">Stats</button>
             </div>
           </div>
         </div>
@@ -641,7 +641,7 @@
                 <span style="font-size:16px;font-weight:600;color:#1e293b">Vista Previa de Impresión</span>
                 <div style="display:flex;gap:10px">
                   <button onclick={() => { const iframe = document.querySelector('iframe'); if (iframe?.contentWindow) iframe.contentWindow.print(); }}
-                    style="padding:8px 16px;background-color:#3b82f6;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:500">🖨️ Imprimir</button>
+                    style="padding:8px 16px;background-color:var(--primary-color);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:500">🖨️ Imprimir</button>
                   <button onclick={() => printHtml = null} style="padding:8px 16px;background-color:#64748b;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:500">Cerrar</button>
                 </div>
               </div>
@@ -724,7 +724,7 @@
     <div style="position:relative;flex:1;min-height:400px;display:flex;flex-direction:column;overflow:hidden">
       {#if loading}
         <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:5rem">
-          <div class="loading-spinner" style="width:50px;height:50px;border:4px solid rgba(59,130,246,0.1);border-top:4px solid #3b82f6;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:1rem"></div>
+          <div class="loading-spinner" style="width:50px;height:50px;border:4px solid rgba(var(--primary-rgb),0.1);border-top:4px solid var(--primary-color);border-radius:50%;animation:spin 1s linear infinite;margin-bottom:1rem"></div>
           <p style="color:#94a3b8;font-weight:500">Generando reporte...</p>
         </div>
       {:else if filteredReporte.length === 0}
@@ -745,17 +745,17 @@
               <table style="width:100%;min-width:max-content;border-collapse:separate;border-spacing:0">
                 <thead style="position:sticky;top:0;z-index:100">
                   <tr>
-                    <th style="padding:1rem;text-align:left;background-color:#1e293b;border-bottom:2px solid rgba(255,255,255,0.1);color:#93c5fd;position:sticky;left:0;z-index:110">Estudiante</th>
+                    <th style="padding:1rem;text-align:left;background-color:#1e293b;border-bottom:2px solid rgba(255,255,255,0.1);color:var(--text-secondary);position:sticky;left:0;z-index:110">Estudiante</th>
                     <th style="padding:1rem;text-align:center;background-color:rgba(255,255,255,0.05);border-bottom:2px solid rgba(255,255,255,0.1);color:#94a3b8">Sexo</th>
                     {#if !specialCorte}
                       {#each configIndicadores as ind}
-                        <th title={ind.descripcion} style="padding:1rem;text-align:center;background-color:rgba(255,255,255,0.05);border-bottom:2px solid rgba(255,255,255,0.1);color:{ind.activo ? '#93c5fd' : '#64748b'};font-size:0.85rem;cursor:help">
+                        <th title={ind.descripcion} style="padding:1rem;text-align:center;background-color:rgba(255,255,255,0.05);border-bottom:2px solid rgba(255,255,255,0.1);color:{ind.activo ? 'var(--text-secondary)' : '#64748b'};font-size:0.85rem;cursor:help">
                           Ind. {ind.orden}
                           {#if !ind.activo}<div style="font-size:0.7rem;color:#ef4444">(Inactivo)</div>{/if}
                         </th>
                       {/each}
                     {/if}
-                    <th style="padding:1rem;text-align:center;background-color:rgba(59,130,246,0.1);border-bottom:2px solid rgba(59,130,246,0.3);color:#60a5fa;font-weight:bold">Nota Final</th>
+                    <th style="padding:1rem;text-align:center;background-color:rgba(var(--primary-rgb),0.1);border-bottom:2px solid rgba(var(--primary-rgb),0.3);color:var(--text-secondary);font-weight:bold">Nota Final</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -780,7 +780,7 @@
                           </td>
                         {/each}
                       {/if}
-                      <td style="padding:0.85rem 1rem;text-align:center;border-bottom:1px solid rgba(255,255,255,0.05);font-weight:bold;color:{(estudiante.notaFinalCualitativa === "-" || !estudiante.notaFinalCualitativa) ? '#64748b' : getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa, totalPuntajeMaximoConfig)};background-color:rgba(59,130,246,0.05)">
+                      <td style="padding:0.85rem 1rem;text-align:center;border-bottom:1px solid rgba(255,255,255,0.05);font-weight:bold;color:{(estudiante.notaFinalCualitativa === "-" || !estudiante.notaFinalCualitativa) ? '#64748b' : getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa, totalPuntajeMaximoConfig)};background-color:rgba(var(--primary-rgb),0.05)">
                         {#if isQualitative}
                           <span style="color:{(estudiante.notaFinalCualitativa === "-" || !estudiante.notaFinalCualitativa) ? '#64748b' : getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa, totalPuntajeMaximoConfig)}">
                             {(!estudiante.notaFinalCualitativa || estudiante.notaFinalCualitativa === "-") ? "-" : estudiante.notaFinalCualitativa}
@@ -816,11 +816,11 @@
               </div>
             </div>
             <div class="category-card" style="padding:0.8rem;grid-column:1 / -1;margin-top:0.5rem">
-              <h4 style="margin:0 0 0.8rem 0;color:#93c5fd;display:flex;align-items:center;gap:0.5rem;font-size:0.9rem">ℹ️ Detalle de Indicadores</h4>
+              <h4 style="margin:0 0 0.8rem 0;color:var(--text-secondary);display:flex;align-items:center;gap:0.5rem;font-size:0.9rem">ℹ️ Detalle de Indicadores</h4>
               <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.5rem;font-size:0.8rem">
                 {#each configIndicadores.filter(i => i.activo) as ind}
                   <div style="padding:0.5rem;background:rgba(255,255,255,0.02);border-radius:6px;border:1px solid rgba(255,255,255,0.05)">
-                    <strong style="color:#60a5fa">Ind. {ind.orden}:</strong> {ind.descripcion || "Sin descripción"}
+                    <strong style="color:var(--text-secondary)">Ind. {ind.orden}:</strong> {ind.descripcion || "Sin descripción"}
                   </div>
                 {/each}
                 {#if configIndicadores.filter(i => i.activo).length === 0}

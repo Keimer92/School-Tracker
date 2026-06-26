@@ -30,11 +30,18 @@
   // Theme state: "claro" | "oscuro" | "sistema"
   let themeMode = $state(localStorage.getItem("app-theme") || "sistema");
 
+  const oldThemeMap: Record<string, string> = {
+    mint: "oscuro", carmesi: "oscuro", amarillo: "oscuro",
+    rosado: "oscuro", azul: "oscuro", oscuro: "oscuro",
+    claro: "claro",
+  };
+
   function resolveTheme(mode: string): string {
-    if (mode === "sistema") {
+    const normalized = oldThemeMap[mode] || mode;
+    if (normalized === "sistema") {
       return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
     }
-    return mode === "claro" ? "light" : "dark";
+    return normalized === "claro" ? "light" : "dark";
   }
 
   function applyTheme(mode: string) {

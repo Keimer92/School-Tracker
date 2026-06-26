@@ -542,7 +542,7 @@ async function fetchData(preserveFilters = false) {
         <div style="flex: 1; min-width: 80px;">
           <SearchInput value={searchTerm} onChange={(v) => searchTerm = v} placeholder="Nombre o código..." {isMobile} />
         </div>
-        <button class="primary" onclick={openAddModal} style="height: 28px; display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.8rem; font-size: 0.75rem; border-radius: 10px; border: none; background: linear-gradient(135deg, #2563eb, #3b82f6); color: white; font-weight: bold; cursor: pointer; flex-shrink: 0; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);">
+        <button class="primary" onclick={openAddModal} style="height: 28px; display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.8rem; font-size: 0.75rem; border-radius: 10px; border: none; background: linear-gradient(135deg, var(--primary-hover), var(--primary-color)); color: white; font-weight: bold; cursor: pointer; flex-shrink: 0; box-shadow: 0 4px 14px rgba(var(--primary-rgb), 0.4);">
           <span style="font-size: 1.1rem;">👨‍🎓</span>
           {#if !isMobile}<span>Nuevo</span>{/if}
         </button>
@@ -580,12 +580,12 @@ async function fetchData(preserveFilters = false) {
     <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.8); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 2rem;">
       <div class="category-card" style="max-width: 800px; width: 100%; max-height: 90vh; overflow-y: auto; position: relative; padding: 2rem;">
         <button onclick={() => showImportHelp = false} style="position: absolute; top: 1rem; right: 1rem; background: transparent; border: none; color: #94a3b8; font-size: 1.5rem; cursor: pointer;">×</button>
-        <h2 style="margin-bottom: 1.5rem; color: #3b82f6;">Guía de Importación Excel</h2>
+        <h2 style="margin-bottom: 1.5rem; color: var(--primary-color);">Guía de Importación Excel</h2>
         <p style="margin-bottom: 1rem; color: #cbd5e1;">El sistema es inteligente y detectará automáticamente las columnas. Cada hoja del Excel se procesará como un colegio separado (el nombre de la hoja será el nombre del colegio por defecto).</p>
         <div style="overflow-x: auto; margin-bottom: 1.5rem;">
           <table style="width: 100%; border-collapse: collapse; background: rgba(0,0,0,0.2); border-radius: 8px; overflow: hidden;">
             <thead>
-              <tr style="background: rgba(59, 130, 246, 0.2);">
+              <tr style="background: rgba(var(--primary-rgb), 0.2);">
                 <th style="padding: 0.75rem; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1);">Nombre</th>
                 <th style="padding: 0.75rem; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1);">Año</th>
                 <th style="padding: 0.75rem; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1);">Colegio</th>
@@ -615,8 +615,8 @@ async function fetchData(preserveFilters = false) {
             <li style="margin-bottom: 0.5rem;"><strong>Duplicados:</strong> Se ignoran estudiantes que ya existan.</li>
           </ul>
         </div>
-        <div style="margin-top: 1.5rem; padding: 1rem; background: rgba(59, 130, 246, 0.1); border-radius: 8px; border: 1px solid rgba(59, 130, 246, 0.2);">
-          <p style="color: #93c5fd; font-size: 0.85rem; margin: 0;"><strong>💡 Consejo:</strong> Si tienes un Excel con estudiantes de diferentes colegios, organízalos en hojas separadas. Cada hoja se importará como un colegio distinto.</p>
+        <div style="margin-top: 1.5rem; padding: 1rem; background: rgba(var(--primary-rgb), 0.1); border-radius: 8px; border: 1px solid rgba(var(--primary-rgb), 0.2);">
+          <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;"><strong>💡 Consejo:</strong> Si tienes un Excel con estudiantes de diferentes colegios, organízalos en hojas separadas. Cada hoja se importará como un colegio distinto.</p>
         </div>
         <div style="margin-top: 2rem; text-align: center;">
           <button class="primary" onclick={() => showImportHelp = false}>Entendido</button>
@@ -814,7 +814,7 @@ async function fetchData(preserveFilters = false) {
           </div>
           <div style="grid-column: span 2; display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.75rem;">
             <button type="button" onclick={() => isModalOpen = false} style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-weight: 600;">Cancelar</button>
-            <button type="submit" style="padding: 0.5rem 1.25rem; font-size: 0.85rem; border-radius: 8px; border: none; background: linear-gradient(135deg, #2563eb, #3b82f6); color: white; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);">Guardar</button>
+            <button type="submit" style="padding: 0.5rem 1.25rem; font-size: 0.85rem; border-radius: 8px; border: none; background: linear-gradient(135deg, var(--primary-hover), var(--primary-color)); color: white; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(var(--primary-rgb), 0.4);">Guardar</button>
           </div>
         </form>
       </div>
@@ -887,7 +887,7 @@ async function fetchData(preserveFilters = false) {
           </span>
         </div>
         <div style="display: flex; gap: 0.5rem;">
-          <button onclick={() => { openEditModal(gridSelectedStudent); gridSelectedStudent = null; }} style="flex: 1; justify-content: center; padding: 0.6rem; font-size: 0.85rem; border-radius: 8px; border: none; background: linear-gradient(135deg, #2563eb, #3b82f6); color: white; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);">✏️ Editar</button>
+          <button onclick={() => { openEditModal(gridSelectedStudent); gridSelectedStudent = null; }} style="flex: 1; justify-content: center; padding: 0.6rem; font-size: 0.85rem; border-radius: 8px; border: none; background: linear-gradient(135deg, var(--primary-hover), var(--primary-color)); color: white; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(var(--primary-rgb), 0.4);">✏️ Editar</button>
           <button onclick={() => { handleDelete(gridSelectedStudent.id!); gridSelectedStudent = null; }} style="flex: 1; justify-content: center; padding: 0.6rem; font-size: 0.85rem; border-radius: 8px; border: 1px solid rgba(239,68,68,0.4); background: rgba(239,68,68,0.15); color: #fca5a5; font-weight: 600; cursor: pointer;">🗑 Eliminar</button>
         </div>
       </div>

@@ -46,6 +46,7 @@ html, body {
   --primary-color: #6b7280;
   --primary-hover: #4b5563;
   --primary-light: rgba(107, 114, 128, 0.2);
+  --primary-rgb: 107, 114, 128;
 
   --bg-primary: #0a0e14;
   --bg-secondary: #14181f;
@@ -91,6 +92,7 @@ html, body {
   --primary-color: #6b7280;
   --primary-hover: #4b5563;
   --primary-light: rgba(107, 114, 128, 0.12);
+  --primary-rgb: 107, 114, 128;
 
   --bg-primary: #f3f4f6;
   --bg-secondary: #ffffff;

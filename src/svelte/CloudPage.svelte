@@ -52,13 +52,13 @@
     <div class="cloud-card">
       <div class="cloud-card-header">
         <h3><span style="display: inline-flex; align-items: center; gap: 10px; background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%); padding: 0.5rem 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z" stroke="url(#cloudGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="cloudGrad" x1="6" y1="8" x2="19" y2="18" gradientUnits="userSpaceOnUse"><stop stop-color="#60A5FA"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs></svg>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z" stroke="url(#cloudGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="cloudGrad" x1="6" y1="8" x2="19" y2="18" gradientUnits="userSpaceOnUse"><stop stop-color="var(--primary-color)"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs></svg>
           Sincronización en la Nube</span></h3>
       </div>
 
       {#if isSynced}
         <div style="padding: 0 1.5rem 1.5rem;">
-          <div style="background: linear-gradient(135deg, rgba(59,130,246,0.08) 0%, rgba(96,165,250,0.04) 100%); border-radius: 14px; border: 1px solid rgba(59,130,246,0.12); padding: 1rem 1.25rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
+          <div style="background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.08) 0%, rgba(var(--primary-rgb), 0.04) 100%); border-radius: 14px; border: 1px solid rgba(var(--primary-rgb), 0.12); padding: 1rem 1.25rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
             <div style="display: flex; align-items: center; gap: 12px;">
               <div style="width: 10px; height: 10px; border-radius: 50%; background: {syncStatus.status === 'syncing' ? '#eab308' : isSynced ? '#22c55e' : '#64748b'}; box-shadow: {isSynced ? '0 0 8px rgba(34,197,94,0.4)' : 'none'}; flex-shrink: 0;"></div>
               <div>
@@ -75,7 +75,7 @@
           </div>
 
           {#if syncStatus.message}
-            <div style="margin-top: 8px; padding: 8px 12px; border-radius: 8px; font-size: 0.75rem; border-left: 3px solid {syncStatus.status === 'error' ? '#ef4444' : '#3b82f6'}; background: rgba(0,0,0,0.2); color: {syncStatus.status === 'error' ? '#fca5a5' : '#93c5fd'};">
+            <div style="margin-top: 8px; padding: 8px 12px; border-radius: 8px; font-size: 0.75rem; border-left: 3px solid {syncStatus.status === 'error' ? '#ef4444' : 'var(--primary-color)'}; background: rgba(0,0,0,0.2); color: {syncStatus.status === 'error' ? '#fca5a5' : 'var(--text-secondary)'};">
               {syncStatus.message}
             </div>
           {/if}
@@ -85,9 +85,9 @@
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               <span style="color: #22c55e; font-weight: 600; font-size: 0.85rem;">Subir datos</span>
             </button>
-            <button onclick={() => syncService.pullAll()} disabled={syncStatus.status === 'syncing'} style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(59,130,246,0.12) 0%, rgba(59,130,246,0.04) 100%); border: 1px solid rgba(59,130,246,0.2); border-radius: 12px; cursor: pointer; opacity: {syncStatus.status === 'syncing' ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px;">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              <span style="color: #60a5fa; font-weight: 600; font-size: 0.85rem;">Bajar datos</span>
+            <button onclick={() => syncService.pullAll()} disabled={syncStatus.status === 'syncing'} style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.12) 0%, rgba(var(--primary-rgb), 0.04) 100%); border: 1px solid rgba(var(--primary-rgb), 0.2); border-radius: 12px; cursor: pointer; opacity: {syncStatus.status === 'syncing' ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span style="color: var(--primary-color); font-weight: 600; font-size: 0.85rem;">Bajar datos</span>
             </button>
           </div>
 
@@ -102,7 +102,7 @@
                 <input type="password" bind:value={tursoToken} placeholder="Token de autenticación" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
               </div>
               <div style="display: flex; gap: 0.5rem;">
-                <button onclick={handleConnectTurso} disabled={tursoTesting || !tursoUrl || !tursoToken} style="flex: 1; padding: 0.5rem 1rem; border-radius: 8px; border: none; background: {tursoTesting ? '#64748b' : '#3b82f6'}; color: #fff; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">{tursoTesting ? 'Conectando...' : 'Conectar'}</button>
+                <button onclick={handleConnectTurso} disabled={tursoTesting || !tursoUrl || !tursoToken} style="flex: 1; padding: 0.5rem 1rem; border-radius: 8px; border: none; background: {tursoTesting ? '#64748b' : 'var(--primary-color)'}; color: #fff; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">{tursoTesting ? 'Conectando...' : 'Conectar'}</button>
                 <button onclick={async () => { tursoTesting = true; tursoStatus = 'idle'; tursoLatency = null; tursoError = null; try { const result = await syncService.testConnection(tursoUrl, tursoToken); tursoLatency = result.latency; tursoStatus = result.ok ? 'online' : 'offline'; if (!result.ok) tursoError = result.error || 'Conexión fallida'; } catch (e: any) { tursoStatus = 'offline'; tursoError = e?.message || String(e); } tursoTesting = false; }} disabled={tursoTesting || !tursoUrl || !tursoToken} style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.2); color: #94a3b8; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">{tursoTesting ? '...' : 'Probar'}</button>
               </div>
               {#if tursoStatus !== 'idle'}
@@ -138,7 +138,7 @@
           <div style="max-width: 400px; margin: 0 auto; display: flex; flex-direction: column; gap: 0.5rem;">
             <input type="text" bind:value={tursoUrl} placeholder="libsql://mydb.turso.io" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.85rem; font-family: monospace; outline: none; box-sizing: border-box;" />
             <input type="password" bind:value={tursoToken} placeholder="Token de autenticación" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.85rem; font-family: monospace; outline: none; box-sizing: border-box;" />
-            <button onclick={handleConnectTurso} disabled={tursoTesting || !tursoUrl || !tursoToken} style="padding: 0.6rem 1rem; border-radius: 8px; border: none; background: {tursoTesting ? '#64748b' : '#3b82f6'}; color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer;">{tursoTesting ? 'Conectando...' : 'Conectar a Turso'}</button>
+            <button onclick={handleConnectTurso} disabled={tursoTesting || !tursoUrl || !tursoToken} style="padding: 0.6rem 1rem; border-radius: 8px; border: none; background: {tursoTesting ? '#64748b' : 'var(--primary-color)'}; color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer;">{tursoTesting ? 'Conectando...' : 'Conectar a Turso'}</button>
             {#if tursoError}<div style="color: #f87171; font-size: 0.75rem; margin-top: 0.5rem;">❌ {tursoError}</div>{/if}
           </div>
         </div>

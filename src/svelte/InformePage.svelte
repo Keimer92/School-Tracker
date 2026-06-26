@@ -457,7 +457,7 @@
     .summary-value{font-size:1.1rem;font-weight:700;color:#fff;line-height:1}
     .gender-labels{display:flex;gap:0.4rem;margin-top:4px;font-size:0.6rem;font-weight:600}
     .gender-f{color:#f472b6}.gender-m{color:#60a5fa}
-    .summary-card.students{border-left:3px solid #3b82f6}
+    .summary-card.students{border-left:3px solid var(--primary-color)}
     .summary-card.p{border-left:3px solid #10b981}
     .summary-card.a{border-left:3px solid #ef4444}
     .summary-card.j{border-left:3px solid #f59e0b}
@@ -784,7 +784,7 @@
   {#if showSummaryModal.show}
     <div class="modal-overlay" onclick={() => showSummaryModal = { ...showSummaryModal, show: false }}>
       <div class="modal-content category-card" style="width:300px;max-width:85%;padding:1.2rem;text-align:center" onclick={(e) => e.stopPropagation()}>
-        <h3 style="margin-top:0;color:#60a5fa;font-size:1.2rem;margin-bottom:1rem">📊 {showSummaryModal.type}</h3>
+        <h3 style="margin-top:0;color:var(--primary-color);font-size:1.2rem;margin-bottom:1rem">📊 {showSummaryModal.type}</h3>
         <div style="display:flex;flex-direction:column;gap:0.8rem">
           <div style="background:rgba(255,255,255,0.05);padding:0.8rem;border-radius:10px;display:flex;justify-content:space-between;align-items:center">
             <span style="color:#94a3b8">Total:</span>

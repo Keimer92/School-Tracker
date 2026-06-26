@@ -273,7 +273,7 @@
         {#if settings.googleUserProfilePic && !imgError}
           <img src={settings.googleUserProfilePic} alt="Profile" style="width: 40px; height: 40px; border-radius: 50%;" onerror={() => imgError = true} />
         {:else}
-          <div style="width: 40px; height: 40px; border-radius: 50%; background: #3b82f6; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: white;">{settings.googleUserName?.charAt(0) || 'G'}</div>
+          <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--primary-color); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: white;">{settings.googleUserName?.charAt(0) || 'G'}</div>
         {/if}
         <div style="flex: 1;">
           <div style="color: #e2e8f0; font-weight: 600;">{settings.googleUserName || 'Usuario de Google'}</div>
@@ -330,7 +330,7 @@
                 <div style="color: #64748b; font-size: 0.7rem;">{file.createdTime ? new Date(file.createdTime).toLocaleString('es-ES') : '—'} • {(file.size / 1024).toFixed(1)} KB</div>
               </div>
               <div style="display: flex; gap: 0.3rem; flex-shrink: 0;">
-                <button onclick={() => requestRestore(file.id, file.name)} disabled={isLoading} style="padding: 0.35rem 0.6rem; border-radius: 6px; border: 1px solid rgba(59,130,246,0.3); background: rgba(59,130,246,0.1); color: #60a5fa; cursor: pointer; font-size: 0.7rem;">Restaurar</button>
+                <button onclick={() => requestRestore(file.id, file.name)} disabled={isLoading} style="padding: 0.35rem 0.6rem; border-radius: 6px; border: 1px solid rgba(var(--primary-rgb),0.3); background: rgba(var(--primary-rgb),0.1); color: var(--primary-color); cursor: pointer; font-size: 0.7rem;">Restaurar</button>
                 <button onclick={() => requestDelete(file.id, file.name)} style="padding: 0.35rem 0.6rem; border-radius: 6px; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); color: #f87171; cursor: pointer; font-size: 0.7rem;">🗑</button>
               </div>
             </div>

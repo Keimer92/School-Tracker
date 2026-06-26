@@ -883,9 +883,9 @@
             {@const est = filteredNotas[currentStudentIdx]}
             <div>
               {#each activeIndicadores as ind}
-                <div style="margin-bottom: 0.5rem; border-radius: 12px; border: 1px solid rgba(100, 108, 255, 0.25); background: rgba(30, 41, 59, 0.5); overflow: hidden;">
-                  <div style="padding: 0.4rem 0.6rem; background: rgba(100, 108, 255, 0.1); border-bottom: 1px solid rgba(100, 108, 255, 0.15); display: flex; justify-content: space-between; align-items: center;">
-                    <div style="color: #93c5fd; font-weight: bold; font-size: 0.8rem;">Indicador {ind.orden}</div>
+                    <div style="margin-bottom: 0.5rem; border-radius: 12px; border: 1px solid rgba(var(--primary-rgb), 0.25); background: rgba(30, 41, 59, 0.5); overflow: hidden;">
+                  <div style="padding: 0.4rem 0.6rem; background: rgba(var(--primary-rgb), 0.1); border-bottom: 1px solid rgba(var(--primary-rgb), 0.15); display: flex; justify-content: space-between; align-items: center;">
+                    <div style="color: var(--text-secondary); font-weight: bold; font-size: 0.8rem;">Indicador {ind.orden}</div>
                     <div style="color: {(() => {
                       const totalInd = ind.criterios.reduce((sum, c) => {
                         const qv = notasCualitativas[`${est.estudianteId}-${c.id}`];
@@ -996,7 +996,7 @@
             {#each filteredNotas as est, idx}
               {@const isCurrent = idx === currentStudentIdx}
               <div onclick={() => { currentStudentIdx = idx; showStudentList = false; }}
-                style="display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 1rem; background: {isCurrent ? 'rgba(100, 108, 255, 0.1)' : 'transparent'}; border-bottom: 1px solid rgba(255,255,255,0.03); cursor: pointer; transition: background 0.1s;">
+                style="display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 1rem; background: {isCurrent ? 'rgba(var(--primary-rgb), 0.1)' : 'transparent'}; border-bottom: 1px solid rgba(255,255,255,0.03); cursor: pointer; transition: background 0.1s;">
                 <div style="width: 28px; height: 28px; border-radius: 50%; background: {isCurrent ? '#6366f1' : 'rgba(255,255,255,0.06)'}; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.75rem; color: {isCurrent ? '#fff' : '#94a3b8'}; flex-shrink: 0;">{idx + 1}</div>
                 <div style="flex: 1; font-weight: {isCurrent ? 'bold' : 'normal'}; font-size: 0.85rem; color: {isCurrent ? '#e2e8f0' : '#cbd5e1'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{est.estudianteNombre}</div>
                 {(() => {
@@ -1040,7 +1040,7 @@
                 <th style="padding: 0.3rem; text-align: left; font-weight: bold; color: #94a3b8; position: sticky; left: 35px; z-index: 110; background: #1e293b; border-bottom: 2px solid rgba(255,255,255,0.1); min-width: 130px; max-width: 150px;">Estudiante</th>
                 {#each activeIndicadores as ind}
                   <th colspan={ind.criterios.length + 1} style="padding: 0.2rem; text-align: center; font-weight: bold; border-bottom: 2px solid rgba(255,255,255,0.1);">
-                    <div title={ind.descripcion} style="background: rgba(100, 108, 255, 0.15); padding: 0.2rem; border-radius: 4px; border: 1px solid rgba(100, 108, 255, 0.4); color: #93c5fd; cursor: help;">
+                    <div title={ind.descripcion} style="background: rgba(var(--primary-rgb), 0.15); padding: 0.2rem; border-radius: 4px; border: 1px solid rgba(var(--primary-rgb), 0.4); color: var(--text-secondary); cursor: help;">
                       <div style="font-weight: bold; font-size: 0.7rem;">Ind. {ind.orden}</div>
                     </div>
                   </th>
@@ -1060,7 +1060,7 @@
                       {#if !isQualitative}<div style="font-size: 0.55rem; color: #4ade80;">{crit.puntajeMaximo}</div>{/if}
                     </th>
                   {/each}
-                  <th style="padding: 0.2rem; text-align: center; color: #94a3b8; font-weight: bold; background: rgba(100, 108, 255, 0.08); border-bottom: 1px solid rgba(255,255,255,0.1);">
+                  <th style="padding: 0.2rem; text-align: center; color: #94a3b8; font-weight: bold; background: rgba(var(--primary-rgb), 0.08); border-bottom: 1px solid rgba(255,255,255,0.1);">
                     <div style="color: #4ade80; font-size: 0.65rem;">{isQualitative ? 'Cual.' : 'Tot'}</div>
                   </th>
                 {/each}
@@ -1136,7 +1136,7 @@
                         />
                       </td>
                     {/each}
-                    <td style="padding: 0.2rem; text-align: center; font-weight: bold; background: {ind.activo ? 'rgba(100, 108, 255, 0.05)' : 'rgba(100, 116, 139, 0.08)'}; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                    <td style="padding: 0.2rem; text-align: center; font-weight: bold; background: {ind.activo ? 'rgba(var(--primary-rgb), 0.05)' : 'rgba(100, 116, 139, 0.08)'}; border-bottom: 1px solid rgba(255,255,255,0.05);">
                       {#each [ind] as indicador}
                         {@const totalIndicador = indicador.criterios.reduce((sum, c) => {
                           const qualValue = notasCualitativas[`${est.estudianteId}-${c.id}`];
@@ -1236,8 +1236,8 @@
 
             <!-- Option: Por estudiante -->
             <div onclick={() => { deleteMode = 'student'; deleteStudentId = 0; }}
-              style="display: flex; align-items: flex-start; gap: 0.75rem; cursor: pointer; padding: 0.85rem 1rem; border-radius: 12px; background: {deleteMode === 'student' ? 'rgba(59, 130, 246, 0.08)' : 'transparent'}; border: {deleteMode === 'student' ? '1.5px solid rgba(59, 130, 246, 0.4)' : '1.5px solid rgba(255,255,255,0.06)'};">
-              <div style="width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; margin-top: 1px; border: {deleteMode === 'student' ? '6px solid #3b82f6' : '2px solid rgba(255,255,255,0.2)'}; background: {deleteMode === 'student' ? '#3b82f6' : 'transparent'};"></div>
+              style="display: flex; align-items: flex-start; gap: 0.75rem; cursor: pointer; padding: 0.85rem 1rem; border-radius: 12px; background: {deleteMode === 'student' ? 'rgba(var(--primary-rgb), 0.08)' : 'transparent'}; border: {deleteMode === 'student' ? '1.5px solid rgba(var(--primary-rgb), 0.4)' : '1.5px solid rgba(255,255,255,0.06)'};">
+              <div style="width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; margin-top: 1px; border: {deleteMode === 'student' ? '6px solid var(--primary-color)' : '2px solid rgba(255,255,255,0.2)'}; background: {deleteMode === 'student' ? 'var(--primary-color)' : 'transparent'};"></div>
               <div style="flex: 1;">
                 <div style="color: #f1f5f9; font-weight: 600; font-size: 0.9rem;">Por estudiante</div>
                 <div style="color: #64748b; font-size: 0.75rem; margin-top: 2px;">Elimina todas las notas de un estudiante específico</div>

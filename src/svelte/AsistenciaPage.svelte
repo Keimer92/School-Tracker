@@ -297,11 +297,11 @@
     .summary-value{font-size:1.1rem;font-weight:700;color:#fff;line-height:1}
     .gender-labels{display:flex;gap:0.4rem;margin-top:4px;font-size:0.6rem;font-weight:600}
     .gender-f{color:#f472b6}.gender-m{color:#60a5fa}
-    .summary-card.students{border-left:3px solid #3b82f6}.summary-card.p{border-left:3px solid #10b981}
+    .summary-card.students{border-left:3px solid var(--primary-color)}.summary-card.p{border-left:3px solid #10b981}
     .summary-card.a{border-left:3px solid #ef4444}.summary-card.j{border-left:3px solid #f59e0b}
     .summary-card.pressing{transform:scale(0.95);background:rgba(255,255,255,0.1)}
     .pressing-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10000;backdrop-filter:blur(3px);pointer-events:none}
-    .mass-marking-spinner{width:60px;height:60px;border:5px solid rgba(255,255,255,0.1);border-left-color:#3b82f6;border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:1rem;box-shadow:0 0 15px rgba(59,130,246,0.5)}
+    .mass-marking-spinner{width:60px;height:60px;border:5px solid rgba(255,255,255,0.1);border-left-color:var(--primary-color);border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:1rem;box-shadow:0 0 15px rgba(var(--primary-rgb), 0.5)}
     @keyframes spin{to{transform:rotate(360deg)}}
     @media(max-width:600px){.asistencia-summary{grid-template-columns:repeat(2,1fr)}}
     .asistencia-opt{width:26px!important;height:26px!important;font-size:0.7rem!important;min-width:26px!important;flex-shrink:0!important}
@@ -352,7 +352,7 @@
             <SearchInput bind:value={searchTerm} onChange={(v: string) => searchTerm = v} placeholder="Buscar..." {isMobile} />
           </div>
           <button onclick={handleManualSave} disabled={!hasUnsavedChanges || saving}
-            style="padding:0.4rem 0.8rem;font-size:{isAndroidMobile ? '0.75rem' : '0.9rem'};height:{isAndroidMobile ? '28px' : '42px'};background-color:{hasUnsavedChanges && !saving ? '#3b82f6' : (saving ? '#059669' : 'rgba(148,163,184,0.5)')};color:#fff;border:none;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:600;cursor:{hasUnsavedChanges && !saving ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{hasUnsavedChanges && !saving ? '0 4px 14px rgba(59,130,246,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{hasUnsavedChanges || saving ? 1 : 0.7}">
+            style="padding:0.4rem 0.8rem;font-size:{isAndroidMobile ? '0.75rem' : '0.9rem'};height:{isAndroidMobile ? '28px' : '42px'};background-color:{hasUnsavedChanges && !saving ? 'var(--primary-color)' : (saving ? '#059669' : 'rgba(148,163,184,0.5)')};color:#fff;border:none;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:600;cursor:{hasUnsavedChanges && !saving ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{hasUnsavedChanges && !saving ? '0 4px 14px rgba(var(--primary-rgb), 0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{hasUnsavedChanges || saving ? 1 : 0.7}">
             {#if saving}<span class="saving-dot"></span><span>{isAndroidMobile ? '' : 'Guardando'}</span>{:else}<span>💾</span><span>{isAndroidMobile ? '' : 'Guardar'}</span>{/if}
           </button>
           <button onclick={limpiarAsistencia} disabled={estudiantes.length === 0}
@@ -523,7 +523,7 @@
   {#if showSummaryModal.show}
     <div class="modal-overlay" onclick={() => showSummaryModal = { ...showSummaryModal, show: false }}>
       <div class="modal-content category-card" style="width:300px;max-width:85%;padding:1.2rem;text-align:center" onclick={(e) => e.stopPropagation()}>
-        <h3 style="margin-top:0;color:#60a5fa;font-size:1.2rem;margin-bottom:1rem">📊 {showSummaryModal.type}</h3>
+        <h3 style="margin-top:0;color:var(--primary-color);font-size:1.2rem;margin-bottom:1rem">📊 {showSummaryModal.type}</h3>
         <div style="display:flex;flex-direction:column;gap:0.8rem">
           <div style="background:rgba(255,255,255,0.05);padding:0.8rem;border-radius:10px;display:flex;justify-content:space-between;align-items:center">
             <span style="color:#94a3b8">Total:</span><span style="font-size:1.3rem;font-weight:bold;color:#fff">{showSummaryModal.stats?.total}</span>

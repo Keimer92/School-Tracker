@@ -12,7 +12,7 @@
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
 
   function getThemeColor(color: string): string {
-    return { claro: "#f1f5f9", oscuro: "#0f172a", sistema: "#3b82f6" }[color] || "#0f172a";
+    return { claro: "#f1f5f9", oscuro: "#0f172a", sistema: "var(--primary-color)" }[color] || "#0f172a";
   }
   function getThemeName(color: string): string {
     return { claro: "Claro", oscuro: "Oscuro", sistema: "Según sistema" }[color] || "Oscuro";
@@ -230,7 +230,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
         {#each TABS as tab (tab.id)}
           <button class="ajustes-tab" class:active={activeTab === tab.id} onclick={() => activeTab = tab.id}>
             {#if tab.icon === "cloud"}
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="flex-shrink: 0;"><path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z" stroke="url(#cloudGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="cloudGrad" x1="6" y1="8" x2="19" y2="18" gradientUnits="userSpaceOnUse"><stop stop-color="#60A5FA"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="flex-shrink: 0;"><path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z" stroke="url(#cloudGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="cloudGrad" x1="6" y1="8" x2="19" y2="18" gradientUnits="userSpaceOnUse"><stop stop-color="var(--primary-color)"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs></svg>
             {:else}
               <span style="font-size: 1.1rem;">{tab.icon}</span>
             {/if}
@@ -249,9 +249,9 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
         {#each TABS as tab (tab.id)}
           <button onclick={() => activeTab = tab.id} style="display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; background: rgba(51, 65, 85, 0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; cursor: pointer; width: 100%;">
             <div style="display: flex; align-items: center; gap: 1rem;">
-              <div style="width: 4px; height: 40px; background: linear-gradient(180deg, var(--primary-color, #3b82f6) 0%, #1d4ed8 100%); border-radius: 2px;"></div>
+              <div style="width: 4px; height: 40px; background: linear-gradient(180deg, var(--primary-color) 0%, var(--primary-hover) 100%); border-radius: 2px;"></div>
               {#if tab.icon === "cloud"}
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="flex-shrink: 0;"><path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z" stroke="url(#cloudGradMenu)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="cloudGradMenu" x1="6" y1="8" x2="19" y2="18" gradientUnits="userSpaceOnUse"><stop stop-color="#60A5FA"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs></svg>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style="flex-shrink: 0;"><path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z" stroke="url(#cloudGradMenu)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="cloudGradMenu" x1="6" y1="8" x2="19" y2="18" gradientUnits="userSpaceOnUse"><stop stop-color="var(--primary-color)"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs></svg>
               {:else}<span style="font-size: 1.25rem;">{tab.icon}</span>{/if}
               <span style="font-size: 1rem; font-weight: 600; color: #e2e8f0; text-align: left;">{tab.label}</span>
             </div>
@@ -404,12 +404,12 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
         {#if activeTab === "sync"}
           <div class="category-card">
             <div class="category-header">
-              <h3><span style="display: inline-flex; align-items: center; gap: 12px; background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%); padding: 0.5rem 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z" stroke="url(#cloudGrad2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="cloudGrad2" x1="6" y1="8" x2="19" y2="18" gradientUnits="userSpaceOnUse"><stop stop-color="#60A5FA"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs></svg>Sincronización en la Nube</span></h3>
+              <h3><span style="display: inline-flex; align-items: center; gap: 12px; background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%); padding: 0.5rem 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);"><svg width="28" height="28" viewBox="0 0 24 24" fill="none"><path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z" stroke="url(#cloudGrad2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="cloudGrad2" x1="6" y1="8" x2="19" y2="18" gradientUnits="userSpaceOnUse"><stop stop-color="var(--primary-color)"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs></svg>Sincronización en la Nube</span></h3>
             </div>
 
             {#if isSynced}
               <div style="padding: 0 1.5rem 1.5rem;">
-                <div style="background: linear-gradient(135deg, rgba(59,130,246,0.08) 0%, rgba(96,165,250,0.04) 100%); border-radius: 14px; border: 1px solid rgba(59,130,246,0.12); padding: 1rem 1.25rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
+                <div style="background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.08) 0%, rgba(var(--primary-rgb), 0.04) 100%); border-radius: 14px; border: 1px solid rgba(var(--primary-rgb), 0.12); padding: 1rem 1.25rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
                   <div style="display: flex; align-items: center; gap: 12px;">
                     <div style="width: 10px; height: 10px; border-radius: 50%; background: {syncStatus.status === 'syncing' ? '#eab308' : isSynced ? '#22c55e' : '#64748b'}; box-shadow: {isSynced ? '0 0 8px rgba(34,197,94,0.4)' : 'none'}; flex-shrink: 0;"></div>
                     <div>
@@ -424,7 +424,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                 </div>
 
                 {#if syncStatus.message}
-                  <div style="margin-top: 8px; padding: 8px 12px; border-radius: 8px; font-size: 0.75rem; border-left: 3px solid {syncStatus.status === 'error' ? '#ef4444' : '#3b82f6'}; background: rgba(0,0,0,0.2); color: {syncStatus.status === 'error' ? '#fca5a5' : '#93c5fd'};">
+                  <div style="margin-top: 8px; padding: 8px 12px; border-radius: 8px; font-size: 0.75rem; border-left: 3px solid {syncStatus.status === 'error' ? '#ef4444' : 'var(--primary-color)'}; background: rgba(0,0,0,0.2); color: {syncStatus.status === 'error' ? '#fca5a5' : 'var(--text-muted)'};">
                     {syncStatus.message}
                   </div>
                 {/if}
@@ -434,9 +434,9 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                     <span style="color: #22c55e; font-weight: 600; font-size: 0.85rem;">Subir datos</span>
                   </button>
-                  <button onclick={() => syncService.pullAll()} disabled={syncStatus.status === 'syncing'} style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(59,130,246,0.12) 0%, rgba(59,130,246,0.04) 100%); border: 1px solid rgba(59,130,246,0.2); border-radius: 12px; cursor: pointer; opacity: {syncStatus.status === 'syncing' ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px;">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    <span style="color: #60a5fa; font-weight: 600; font-size: 0.85rem;">Bajar datos</span>
+                  <button onclick={() => syncService.pullAll()} disabled={syncStatus.status === 'syncing'} style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.12) 0%, rgba(var(--primary-rgb), 0.04) 100%); border: 1px solid rgba(var(--primary-rgb), 0.2); border-radius: 12px; cursor: pointer; opacity: {syncStatus.status === 'syncing' ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <span style="color: var(--primary-color); font-weight: 600; font-size: 0.85rem;">Bajar datos</span>
                   </button>
                 </div>
 
@@ -448,7 +448,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                       <input type="password" bind:value={tursoToken} placeholder="Token de autenticación" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
                     </div>
                     <div style="display: flex; gap: 0.5rem;">
-                      <button onclick={handleConnectTurso} disabled={tursoTesting || !tursoUrl || !tursoToken} style="flex: 1; padding: 0.5rem 1rem; border-radius: 8px; border: none; background: {tursoTesting ? '#64748b' : 'var(--primary-color, #3b82f6)'}; color: #fff; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">{tursoTesting ? 'Conectando...' : 'Conectar'}</button>
+                      <button onclick={handleConnectTurso} disabled={tursoTesting || !tursoUrl || !tursoToken} style="flex: 1; padding: 0.5rem 1rem; border-radius: 8px; border: none; background: {tursoTesting ? '#64748b' : 'var(--primary-color)'}; color: #fff; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">{tursoTesting ? 'Conectando...' : 'Conectar'}</button>
                       <button onclick={async () => { tursoTesting = true; tursoStatus = 'idle'; tursoLatency = null; tursoError = null; try { const result = await syncService.testConnection(tursoUrl, tursoToken); tursoLatency = result.latency; tursoStatus = result.ok ? 'online' : 'offline'; if (!result.ok) tursoError = result.error || 'Conexión fallida'; } catch (e: any) { tursoStatus = 'offline'; tursoError = e?.message || String(e); } tursoTesting = false; }} disabled={tursoTesting || !tursoUrl || !tursoToken} style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.2); color: #94a3b8; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">{tursoTesting ? '...' : 'Probar'}</button>
                     </div>
                     {#if tursoStatus !== 'idle'}
@@ -484,7 +484,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                 <div style="max-width: 400px; margin: 0 auto; display: flex; flex-direction: column; gap: 0.5rem;">
                   <input type="text" bind:value={tursoUrl} placeholder="libsql://mydb.turso.io" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.85rem; font-family: monospace; outline: none; box-sizing: border-box;" />
                   <input type="password" bind:value={tursoToken} placeholder="Token de autenticación" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.85rem; font-family: monospace; outline: none; box-sizing: border-box;" />
-                  <button onclick={handleConnectTurso} disabled={tursoTesting || !tursoUrl || !tursoToken} style="padding: 0.6rem 1rem; border-radius: 8px; border: none; background: {tursoTesting ? '#64748b' : 'var(--primary-color, #3b82f6)'}; color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer;">{tursoTesting ? 'Conectando...' : 'Conectar a Turso'}</button>
+                  <button onclick={handleConnectTurso} disabled={tursoTesting || !tursoUrl || !tursoToken} style="padding: 0.6rem 1rem; border-radius: 8px; border: none; background: {tursoTesting ? '#64748b' : 'var(--primary-color)'}; color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer;">{tursoTesting ? 'Conectando...' : 'Conectar a Turso'}</button>
                   {#if tursoError}<div style="color: #f87171; font-size: 0.75rem; margin-top: 0.5rem;">❌ {tursoError}</div>{/if}
                 </div>
               </div>
@@ -533,7 +533,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                 </div>
 
                 <div style="margin-top: 1rem; padding-top: 1.5rem; border-top: 1px dashed rgba(255,255,255,0.15);">
-                  <h5 style="margin: 0 0 1rem 0; color: #60a5fa; font-size: 0.95rem; font-weight: 600;">📁 Exportar Todos los Estudiantes por Año Lectivo</h5>
+                  <h5 style="margin: 0 0 1rem 0; color: var(--primary-color); font-size: 0.95rem; font-weight: 600;">📁 Exportar Todos los Estudiantes por Año Lectivo</h5>
                   <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1rem;">Exporta todos los estudiantes de todos los colegios para un año lectivo específico.</p>
                   <div style="display: flex; flex-direction: column; gap: 1rem;">
                     <div style="display: flex; flex-direction: column; gap: 0.5rem;">
@@ -543,7 +543,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                         {#each anos as a (a.id)}<option value={a.id}>{a.nombre}</option>{/each}
                       </select>
                     </div>
-                    <button onclick={handleExportStudentsByYear} disabled={isExportingByYear || !selectedAno} style="padding: 1rem; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); border: none; color: white; border-radius: 12px; cursor: pointer; font-size: 1rem; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 0.8rem; opacity: {(isExportingByYear || !selectedAno) ? 0.6 : 1};">
+                    <button onclick={handleExportStudentsByYear} disabled={isExportingByYear || !selectedAno} style="padding: 1rem; background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%); border: none; color: white; border-radius: 12px; cursor: pointer; font-size: 1rem; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 0.8rem; opacity: {(isExportingByYear || !selectedAno) ? 0.6 : 1};">
                       {#if isExportingByYear}
                         <div style="width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.2); border-top: 2px solid white; border-radius: 50%; animation: spin 1s linear infinite;"></div> Generando Excel...
                       {:else}<span style="font-size: 1.2rem;">📋</span> Exportar Todos los Estudiantes ({anos.find(a => a.id === selectedAno)?.nombre || "Año"}){/if}
@@ -551,8 +551,8 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                   </div>
                 </div>
 
-                <div style="margin-top: 2rem; padding: 1.5rem; background: rgba(59, 130, 246, 0.05); border-radius: 12px; border: 1px solid rgba(59, 130, 246, 0.2);">
-                  <h5 style="margin: 0 0 0.5rem 0; color: #60a5fa;">💡 Consejos Pro</h5>
+                <div style="margin-top: 2rem; padding: 1.5rem; background: rgba(var(--primary-rgb), 0.05); border-radius: 12px; border: 1px solid rgba(var(--primary-rgb), 0.2);">
+                  <h5 style="margin: 0 0 0.5rem 0; color: var(--primary-color);">💡 Consejos Pro</h5>
                   <ul style="color: #94a3b8; font-size: 0.85rem; padding-left: 1.2rem; margin: 0; line-height: 1.6;">
                     <li><strong style="color: #e2e8f0;">Exportar por Colegio:</strong> Genera un Excel con una sola hoja conteniendo los estudiantes de un colegio específico.</li>
                     <li><strong style="color: #e2e8f0;">Exportar por Año Lectivo:</strong> Genera un Excel con múltiples hojas, una por cada colegio.</li>
@@ -684,7 +684,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   :global(.ajustes-ribbon-container::-webkit-scrollbar) { display: none; }
   :global(.ajustes-ribbon) { display: flex; padding: 0.5rem; gap: 0.4rem; min-width: max-content; }
   :global(.ajustes-tab) { padding: 0.6rem 1.2rem; border-radius: 8px; border: none; background: transparent; color: #94a3b8; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: flex; align-items: center; gap: 0.5rem; }
-  :global(.ajustes-tab.active) { color: white; background: rgba(var(--primary-rgb, 59, 130, 246), 0.2); box-shadow: 0 0 10px rgba(var(--primary-rgb, 59, 130, 246), 0.1); border-bottom: 2px solid var(--primary-color, #3b82f6); }
+  :global(.ajustes-tab.active) { color: white; background: rgba(var(--primary-rgb), 0.2); box-shadow: 0 0 10px rgba(var(--primary-rgb), 0.1); border-bottom: 2px solid var(--primary-color); }
   :global(.ajustes-tab:hover:not(.active)) { background: rgba(255, 255, 255, 0.05); color: #e2e8f0; }
   :global(.sync-dot-mini) { width: 6px; height: 6px; background: #4ade80; border-radius: 50%; box-shadow: 0 0 5px #4ade80; flex-shrink: 0; }
   :global(.tab-label) { display: inline-block; transition: all 0.3s ease; }
@@ -693,7 +693,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     :global(.ajustes-ribbon) { display: flex !important; justify-content: space-around !important; padding: 0.5rem !important; gap: 4px !important; min-width: 0 !important; width: 100% !important; }
     :global(.ajustes-tab) { padding: 0.6rem 0.5rem !important; flex: 0 1 auto !important; justify-content: center !important; border-radius: 12px !important; gap: 0 !important; transition: all 0.2s ease-in-out !important; position: relative !important; }
     :global(.ajustes-tab .tab-label) { display: none !important; }
-    :global(.ajustes-tab.active) { flex: 1 1 auto !important; background: rgba(var(--primary-rgb, 59, 130, 246), 0.15) !important; border-bottom: 2px solid var(--primary-color, #3b82f6) !important; gap: 0.4rem !important; padding: 0.6rem 1rem !important; }
+    :global(.ajustes-tab.active) { flex: 1 1 auto !important; background: rgba(var(--primary-rgb), 0.15) !important; border-bottom: 2px solid var(--primary-color) !important; gap: 0.4rem !important; padding: 0.6rem 1rem !important; }
     :global(.ajustes-tab.active .tab-label) { display: inline-block !important; font-size: 0.85rem !important; white-space: nowrap !important; }
     :global(.sync-dot-mini) { position: absolute !important; top: 6px; right: 6px; width: 8px !important; height: 8px !important; }
   }

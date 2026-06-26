@@ -168,7 +168,7 @@
             <button onclick={() => selectedCategory = cat}
               style="display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; background: rgba(51, 65, 85, 0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; cursor: pointer; transition: all 0.2s ease; width: 100%;">
               <div style="display: flex; align-items: center; gap: 1rem;">
-                <div style="width: 4px; height: 40px; background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%); border-radius: 2px;"></div>
+                <div style="width: 4px; height: 40px; background: linear-gradient(180deg, var(--primary-color) 0%, var(--primary-hover) 100%); border-radius: 2px;"></div>
                 <span style="font-size: 1rem; font-weight: 600; color: #e2e8f0; text-align: left;">{cat.title}</span>
               </div>
               <span style="font-size: 1.25rem; color: #64748b;">→</span>
@@ -200,7 +200,7 @@
       <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
         {#each CATEGORIES as cat (cat.title)}
           <button onclick={() => selectedTab = cat.title}
-            style="padding: 0.6rem 1.25rem; font-size: 0.85rem; font-weight: 600; border-radius: 8px; border: {selectedTab === cat.title ? '1px solid rgba(59, 130, 246, 0.5)' : '1px solid transparent'}; background: {selectedTab === cat.title ? 'rgba(37, 99, 235, 0.2)' : 'rgba(255,255,255,0.03)'}; color: {selectedTab === cat.title ? '#60a5fa' : '#94a3b8'}; cursor: pointer; white-space: nowrap;">
+            style="padding: 0.6rem 1.25rem; font-size: 0.85rem; font-weight: 600; border-radius: 8px; border: {selectedTab === cat.title ? '1px solid rgba(var(--primary-rgb), 0.5)' : '1px solid transparent'}; background: {selectedTab === cat.title ? 'rgba(var(--primary-rgb), 0.2)' : 'rgba(255,255,255,0.03)'}; color: {selectedTab === cat.title ? 'var(--primary-color)' : '#94a3b8'}; cursor: pointer; white-space: nowrap;">
             {cat.title}
           </button>
         {/each}
