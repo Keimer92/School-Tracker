@@ -42,7 +42,7 @@ export const authenticateAdmin = async (email: string, password: string) => {
 };
 
 export const isAdminAuthenticated = () => {
-  return pb.authStore.isValid && pb.authStore.isAdmin;
+  return pb.authStore.isValid && (pb.authStore.record?.collectionName === '_superusers');
 };
 
 export const logoutAdmin = () => {

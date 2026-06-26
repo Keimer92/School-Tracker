@@ -65,7 +65,18 @@ async function upsertRecord(collection: string, data: any) {
     if (e?.status === 404) {
       await pb.collection(collection).create(data);
     } else {
-      throw e;
+      const topMsg = e?.response?.message || e?.message || String(e);
+      let fieldErrors = '';
+      try {
+        if (e?.data && typeof e.data === 'object') {
+          fieldErrors = Object.entries(e.data)
+            .map(([field, err]: any) => `${field}: ${err?.message || JSON.stringify(err)}`)
+            .join('; ');
+        }
+      } catch {}
+      const errMsg = `${collection}: ${topMsg}${fieldErrors ? ` (${fieldErrors})` : ''}`;
+      console.error('[PB] upsertRecord error:', errMsg, JSON.stringify(data).slice(0, 300));
+      throw new Error(errMsg);
     }
   }
 }
@@ -362,8 +373,9 @@ export const pocketbaseSyncService = {
     try {
       try {
         await pocketbaseSyncService.pushAll();
-      } catch (e) {
-        console.warn('[PB Sync All Silent] Push falló, saltando pull:', e);
+      } catch (e: any) {
+        console.warn('[PB Sync All Silent] Push falló:', e);
+        syncManager.setState({ status: 'error', message: `Error en sync: ${e?.message || e}` });
         return;
       }
       await pocketbaseSyncService.pullAllSilent();
