@@ -242,7 +242,7 @@
       <div style="display: {activeTab === 'cloud' ? 'block' : 'none'}; width: 100%; height: 100%;"><CloudPage /></div>
     {/if}
     {#if visitedTabs.has('ajustes')}
-      <div style="display: {activeTab === 'ajustes' ? 'block' : 'none'}; width: 100%; height: 100%;"><AjustesPage /></div>
+      <div style="display: {activeTab === 'ajustes' ? 'block' : 'none'}; width: 100%; height: 100%;"><AjustesPage {themeMode} {setThemeMode} /></div>
     {/if}
   </main>
 

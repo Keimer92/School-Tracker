@@ -306,7 +306,6 @@ body {
 
 .custom-table th {
   background: var(--bg-secondary);
-  background: rgba(30, 41, 59, 0.8);
   color: var(--text-secondary);
   font-weight: 700;
   font-size: 0.75rem;
@@ -356,7 +355,7 @@ body {
   left: 0;
   right: 0;
   height: 120px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
+  background: linear-gradient(180deg, var(--bg-hover) 0%, transparent 100%);
   pointer-events: none;
 }
 
@@ -384,7 +383,7 @@ body {
   justify-content: space-between;
   padding: 0.5rem 0.75rem;
   margin-bottom: 1rem;
-  background: linear-gradient(135deg, var(--bg-hover) 0%, rgba(255, 255, 255, 0.02) 100%);
+  background: linear-gradient(135deg, var(--bg-hover) 0%, var(--bg-hover) 100%);
   border: 1px solid var(--border);
   border-radius: 16px;
   cursor: pointer;
@@ -402,7 +401,7 @@ body {
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
 }
 
 .sidebar-header-integrated:hover {
@@ -954,7 +953,7 @@ label,
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-hover);
   border: 1px solid rgba(255, 255, 255, 0.1);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1024,24 +1023,24 @@ label,
 }
 
 .obs-toggle-btn.has-obs {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.8), rgba(147, 51, 234, 0.8));
-  border-color: rgba(96, 165, 250, 0.4);
+  background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.8), rgba(var(--primary-rgb), 0.6));
+  border-color: rgba(var(--primary-rgb), 0.4);
   color: white;
-  box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 0 10px rgba(var(--primary-rgb), 0.4);
 }
 
 .obs-toggle-btn.active {
-  background: linear-gradient(135deg, #3b82f6, #9333ea);
+  background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
   border-color: transparent;
   color: white;
   transform: scale(1.1);
-  box-shadow: 0 0 15px rgba(147, 51, 234, 0.5);
+  box-shadow: 0 0 15px rgba(var(--primary-rgb), 0.5);
 }
 
 /* Contenedor de observación expandido */
 .obs-container-mobile {
-  background: rgba(15, 23, 42, 0.95);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  background: var(--card-bg);
+  border: 1px solid rgba(var(--primary-rgb), 0.3);
   border-radius: 12px;
   padding: 0.8rem;
   display: flex;
@@ -1053,10 +1052,10 @@ label,
 .asistencia-obs-mobile {
   width: 100%;
   min-height: 80px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-hover);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  color: white;
+  color: var(--text-primary);
   padding: 0.6rem;
   font-size: 0.9rem;
   resize: vertical;
@@ -1364,7 +1363,7 @@ input {
   padding: 0.6rem 1rem;
   border: none;
   background: transparent;
-  color: white;
+  color: var(--text-primary);
   outline: none;
   font-size: 0.95rem;
 }
@@ -1440,7 +1439,7 @@ button.cancel:hover {
 
 .auth-input:focus {
   border-color: var(--input-focus-border);
-  background: rgba(15, 23, 42, 0.9);
+  background: var(--input-bg);
   box-shadow: 0 0 0 3px var(--primary-light);
 }
 
@@ -1559,7 +1558,7 @@ button.cancel:hover {
 
 .auth-help-section {
   margin-top: 2rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid var(--border-light);
   padding-top: 1.5rem;
   width: 100%;
   text-align: center;
@@ -1586,9 +1585,9 @@ button.cancel:hover {
   width: 100%;
   padding: 10px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(15, 23, 42, 0.6);
-  color: white;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--text-primary);
   font-size: 0.8rem;
   outline: none;
 }
@@ -1622,9 +1621,9 @@ button.cancel:hover {
 }
 
 .auth-retry-button {
-  background: #450a0a;
+  background: rgba(239, 68, 68, 0.2);
   border: 1px solid #ef4444;
-  color: white;
+  color: #f87171;
   padding: 6px 12px;
   border-radius: 6px;
   cursor: pointer;
@@ -1638,7 +1637,7 @@ button.cancel:hover {
 }
 
 .item-list::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--scrollbar-thumb);
   border-radius: 10px;
 }
 
@@ -1647,7 +1646,7 @@ button.cancel:hover {
   justify-content: space-between;
   align-items: center;
   padding: 0.8rem 1rem;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-hover);
   border-radius: 12px;
   border: 1px solid transparent;
   transition: all 0.2s;
@@ -1655,8 +1654,8 @@ button.cancel:hover {
 }
 
 .item-row:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.05);
+  background: var(--bg-active);
+  border-color: var(--border-hover);
 }
 
 @keyframes fadeIn {
@@ -1737,7 +1736,7 @@ button.cancel:hover {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--modal-overlay);
   backdrop-filter: blur(5px);
   -webkit-backdrop-filter: blur(5px);
   display: flex;
@@ -1748,13 +1747,13 @@ button.cancel:hover {
 
 .modal-content {
   animation: slideUp 0.3s ease-out;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
 }
 
 .filter-select {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--input-bg);
+  border: 1px solid var(--border);
   color: var(--text-primary);
   padding: 0.6rem 1rem;
   border-radius: 8px;
@@ -1796,9 +1795,9 @@ button.cancel:hover {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: var(--bg-active);
   transition: 0.4s;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border);
 }
 
 .slider:before {
@@ -1850,13 +1849,13 @@ input:checked + .slider:before {
 
 @keyframes continuous-pulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.05);
+    box-shadow: 0 0 0 0 var(--border-light);
   }
   50% {
-    box-shadow: 0 0 10px 2px rgba(255, 255, 255, 0.15);
+    box-shadow: 0 0 10px 2px var(--border);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.05);
+    box-shadow: 0 0 0 0 var(--border-light);
   }
 }
 
@@ -1874,7 +1873,7 @@ input:checked + .slider:before {
 }
 
 .notas-row:nth-child(odd) {
-  --row-bg: #161e2f;
+  --row-bg: var(--table-row-odd);
 }
 
 .notas-row .sticky-cell {
@@ -1965,9 +1964,9 @@ input:checked + .slider:before {
   gap: 0.4rem;
   margin-bottom: 1rem;
   padding: 0.4rem;
-  background: rgba(30, 41, 59, 0.4);
+  background: var(--bg-elevated);
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-light);
   flex-wrap: wrap;
 }
 
@@ -1988,7 +1987,7 @@ input:checked + .slider:before {
 }
 
 .ev-view-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--bg-active);
   color: var(--text-primary);
 }
 
@@ -2014,9 +2013,9 @@ input:checked + .slider:before {
 .ev-score-summary {
   padding: 0.75rem 1rem;
   margin-bottom: 1rem;
-  background: rgba(30, 41, 59, 0.4);
+  background: var(--bg-elevated);
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-light);
 }
 
 .ev-score-text {
@@ -2031,7 +2030,7 @@ input:checked + .slider:before {
 
 .ev-score-bar {
   height: 6px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--bg-active);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -2072,7 +2071,7 @@ input:checked + .slider:before {
 .ev-empty {
   text-align: center;
   padding: 4rem 2rem;
-  border: 2px dashed rgba(255, 255, 255, 0.08);
+  border: 2px dashed var(--border-light);
   border-radius: 16px;
   margin: 0;
 }
@@ -2105,7 +2104,7 @@ input:checked + .slider:before {
   gap: 0.5rem;
   align-items: center;
   padding: 0.5rem 0.65rem;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--bg-hover);
   border-radius: 8px;
   margin-bottom: 0.3rem;
   border: 1px solid transparent;
@@ -2113,8 +2112,8 @@ input:checked + .slider:before {
 }
 
 .criterio-row:hover {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.06);
+  background: var(--bg-active);
+  border-color: var(--border-light);
 }
 
 .criterio-label {
@@ -2126,8 +2125,8 @@ input:checked + .slider:before {
 
 .criterio-input {
   flex: 1 1 120px;
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--input-bg);
+  border: 1px solid var(--border-light);
   color: var(--text-primary);
   padding: 0.35rem 0.5rem;
   border-radius: 6px;
@@ -2140,7 +2139,7 @@ input:checked + .slider:before {
 
 .criterio-input:focus {
   border-color: var(--primary-color);
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--input-bg);
 }
 
 .criterio-score {
@@ -2161,13 +2160,13 @@ input:checked + .slider:before {
   font-weight: 700;
   outline: none;
   transition: all 0.2s;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--input-bg);
   border: 1px solid #4ade80;
   color: #4ade80;
 }
 
 .criterio-puntaje:disabled {
-  background: rgba(0, 0, 0, 0.1);
+  background: var(--input-bg);
   border-color: var(--text-muted);
   color: var(--text-muted);
 }
@@ -2213,7 +2212,7 @@ input:checked + .slider:before {
 .indicador-desc-input {
   background: transparent;
   border: none;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 1px solid var(--border);
   color: var(--text-primary);
   flex: 1;
   padding: 0.3rem 0.4rem;
@@ -2270,9 +2269,9 @@ input:checked + .slider:before {
 }
 
 .indicador-card {
-  background: rgba(30, 41, 59, 0.45);
+  background: var(--card-bg);
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-light);
   overflow: hidden;
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -2338,9 +2337,9 @@ input:checked + .slider:before {
 }
 
 .accordion-item {
-  background: rgba(30, 41, 59, 0.4);
+  background: var(--card-bg);
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-light);
   overflow: hidden;
   transition: border-color 0.2s;
 }
@@ -2355,7 +2354,7 @@ input:checked + .slider:before {
 }
 
 .accordion-item.expanded {
-  border-color: rgba(255, 255, 255, 0.1);
+  border-color: var(--border);
 }
 
 .accordion-header {
@@ -2370,7 +2369,7 @@ input:checked + .slider:before {
 }
 
 .accordion-header:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-hover);
 }
 
 .accordion-header-left {
@@ -2439,13 +2438,13 @@ input:checked + .slider:before {
   padding: 0.6rem 0.75rem;
   border-radius: 10px;
   border: 1px solid transparent;
-  background: rgba(30, 41, 59, 0.3);
+  background: var(--card-bg);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .split-item:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--bg-active);
 }
 
 .split-item.selected {
@@ -2469,10 +2468,10 @@ input:checked + .slider:before {
 }
 
 .split-detail {
-  background: rgba(30, 41, 59, 0.4);
+  background: var(--card-bg);
   border-radius: 12px;
   padding: 1.25rem;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-light);
 }
 
 .split-detail-header {
@@ -2494,7 +2493,7 @@ input:checked + .slider:before {
   width: 100%;
   background: transparent;
   border: none;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 1px solid var(--border);
   color: var(--text-primary);
   padding: 0.4rem 0.3rem;
   margin-bottom: 1rem;
@@ -2518,9 +2517,9 @@ input:checked + .slider:before {
    VIEW MODE D — Refined
    ============================================================ */
 .refined-card {
-  background: rgba(30, 41, 59, 0.4);
+  background: var(--card-bg);
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-light);
   overflow: hidden;
   transition: all 0.25s ease;
 }
@@ -2567,8 +2566,8 @@ input:checked + .slider:before {
 
 .refined-desc-input {
   width: 100%;
-  background: rgba(0, 0, 0, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--input-bg);
+  border: 1px solid var(--border-light);
   color: var(--text-primary);
   padding: 0.4rem 0.6rem;
   border-radius: 8px;
@@ -2580,7 +2579,7 @@ input:checked + .slider:before {
 
 .refined-desc-input:focus {
   border-color: var(--primary-color);
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--input-bg);
 }
 
 .refined-desc-input::placeholder {
@@ -2596,11 +2595,11 @@ input:checked + .slider:before {
 }
 
 .refined-body .criterio-row {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--bg-hover);
 }
 
 .refined-body .criterio-row:nth-child(even) {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--bg-active);
 }
 
 /* ============================================================

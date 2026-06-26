@@ -50,15 +50,10 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   let resetConfig = $state<{ title: string; message: string; onConfirm: () => Promise<void>; isDanger?: boolean; } | null>(null);
   let isProcessingReset = $state(false);
 
-  let themeSetting = $state(localStorage.getItem("app-theme") || "sistema");
+  let { themeMode = "sistema", setThemeMode = () => {} } = $props();
 
   function handleThemeChange(mode: string) {
-    themeSetting = mode;
-    localStorage.setItem("app-theme", mode);
-    const resolved = mode === "sistema"
-      ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
-      : mode === "claro" ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", resolved);
+    setThemeMode(mode);
   }
   $effect(() => { localStorage.setItem("student-highlight-color", highlightColor); });
 
@@ -309,9 +304,9 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                 <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.5rem;">Elige entre tema claro, oscuro o deja que el sistema decida según tu configuración.</p>
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem;">
 {#each ["claro", "oscuro", "sistema"] as mode}
-  <button onclick={() => handleThemeChange(mode)} style="padding: 1rem; border: 2px solid {themeSetting === mode ? 'var(--primary-color)' : 'var(--border)'}; border-radius: 14px; background: {themeSetting === mode ? 'var(--primary-light)' : 'transparent'}; color: {themeSetting === mode ? 'var(--primary-color)' : 'var(--text-secondary)'}; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; transition: all 0.2s;">
+  <button onclick={() => handleThemeChange(mode)} style="padding: 1rem; border: 2px solid {themeMode === mode ? 'var(--primary-color)' : 'var(--border)'}; border-radius: 14px; background: {themeMode === mode ? 'var(--primary-light)' : 'transparent'}; color: {themeMode === mode ? 'var(--primary-color)' : 'var(--text-secondary)'}; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; transition: all 0.2s;">
     <span style="font-size: 1.5rem;">{mode === 'claro' ? '☀️' : mode === 'oscuro' ? '🌙' : '💻'}</span>
-    <span style="font-size: 0.9rem; font-weight: {themeSetting === mode ? 'bold' : 'normal'};">{getThemeName(mode)}</span>
+    <span style="font-size: 0.9rem; font-weight: {themeMode === mode ? 'bold' : 'normal'};">{getThemeName(mode)}</span>
     <span style="font-size: 0.7rem; color: var(--text-muted); text-align: center;">{getThemeLabel(mode)}</span>
   </button>
 {/each}
@@ -320,8 +315,8 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
               <div style="background: var(--bg-hover); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border);">
                 <h4 style="margin: 0 0 1rem 0; color: var(--text-primary);">Vista Previa</h4>
                 <div style="display: flex; gap: 1rem; align-items: center;">
-                  <div style="width: 32px; height: 32px; border-radius: 8px; background-color: {getThemeColor(themeSetting)}; border: 2px solid var(--border);"></div>
-                  <span style="color: var(--text-primary); font-weight: bold;">Tema actual: {getThemeName(themeSetting)}</span>
+                  <div style="width: 32px; height: 32px; border-radius: 8px; background-color: {getThemeColor(themeMode)}; border: 2px solid var(--border);"></div>
+                  <span style="color: var(--text-primary); font-weight: bold;">Tema actual: {getThemeName(themeMode)}</span>
                 </div>
               </div>
             </div>

@@ -93,7 +93,7 @@
   let sortedGradeConfigs = $derived.by(() => {
     const defaultConfigs = [
       { id: 'AA', color: '#22c55e', minimo: 90 },
-      { id: 'AS', color: '#3b82f6', minimo: 70 },
+      { id: 'AS', color: '#6b7280', minimo: 70 },
       { id: 'AF', color: '#eab308', minimo: 50 },
       { id: 'AI', color: '#ef4444', minimo: 0 },
     ];
@@ -125,7 +125,7 @@
       const config = getGradeConfig(upperValue);
       if (config) return config.color;
       if (upperValue === 'AA') return '#22c55e';
-      if (upperValue === 'AS') return '#3b82f6';
+      if (upperValue === 'AS') return '#6b7280';
       if (upperValue === 'AF') return '#eab308';
       if (upperValue === 'AI') return '#ef4444';
       return '#94a3b8';
