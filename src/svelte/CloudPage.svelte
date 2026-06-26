@@ -31,6 +31,8 @@
   let pbLatency: number | null = $state(null);
   let pbError: string | null = $state(null);
   let pbAuthStep = $state<'credentials' | 'connected'>('credentials');
+  let pbServerStarting = $state(false);
+  let pbServerMessage = $state<string | null>(null);
 
   let activeCloudTab: 'sync' | 'drive' = $state('sync');
 
@@ -126,6 +128,17 @@
     logoutAdmin(); pbUrl = getPocketBaseUrl(); pbEmail = ''; pbPassword = '';
     pbStatus = 'idle'; pbAuthStep = 'credentials'; isSynced = false;
     try { pocketbaseSyncService.disconnect(); } catch {}
+  }
+
+  async function handleStartPBServer() {
+    pbServerStarting = true; pbServerMessage = null;
+    try {
+      const msg = await invoke<string>('start_pocketbase_server');
+      pbServerMessage = msg;
+    } catch (e: any) {
+      pbServerMessage = `Error: ${e?.message || e}`;
+    }
+    pbServerStarting = false;
   }
 </script>
 
@@ -248,12 +261,18 @@
                     <input type="password" bind:value={pbPassword} placeholder="Contraseña de admin" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
                   {/if}
                 </div>
-                <div style="display: flex; gap: 0.5rem;">
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                  <button onclick={handleStartPBServer} disabled={pbServerStarting} style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid rgba(var(--primary-rgb), 0.3); background: rgba(var(--primary-rgb), 0.1); color: var(--text-bright); font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">{pbServerStarting ? 'Iniciando...' : '▶ Iniciar Servidor'}</button>
                   {#if pbAuthStep === 'credentials'}
                     <button onclick={handleConnectPB} disabled={pbTesting || !pbUrl || !pbEmail || !pbPassword} style="flex: 1; padding: 0.5rem 1rem; border-radius: 8px; border: none; background: {pbTesting ? '#64748b' : 'var(--primary-color)'}; color: #fff; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">{pbTesting ? 'Conectando...' : 'Conectar'}</button>
                   {/if}
                   <button onclick={handleTestPB} disabled={pbTesting || !pbUrl} style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.2); color: #94a3b8; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">{pbTesting ? '...' : 'Probar'}</button>
                 </div>
+                {#if pbServerMessage}
+                  <div style="margin-top: 0.5rem; padding: 6px 10px; border-radius: 6px; font-size: 0.75rem; background: {pbServerMessage.startsWith('Error') ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)'}; color: {pbServerMessage.startsWith('Error') ? '#f87171' : '#4ade80'};">
+                    {pbServerMessage}
+                  </div>
+                {/if}
                 {#if pbStatus !== 'idle'}
                   <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; margin-top: 0.5rem; background: {pbStatus === 'online' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)'}; color: {pbStatus === 'online' ? '#4ade80' : '#f87171'};">
                     {pbStatus === 'online' ? `✅ Conectado (${pbLatency}ms)` : `❌ ${pbError || `Sin conexión`}`}
@@ -298,7 +317,13 @@
               <input type="text" bind:value={pbUrl} placeholder="http://127.0.0.1:8090" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.85rem; font-family: monospace; outline: none; box-sizing: border-box;" />
               <input type="email" bind:value={pbEmail} placeholder="admin@schooltracker.com" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.85rem; font-family: monospace; outline: none; box-sizing: border-box;" />
               <input type="password" bind:value={pbPassword} placeholder="Contraseña de admin" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.85rem; font-family: monospace; outline: none; box-sizing: border-box;" />
+              <button onclick={handleStartPBServer} disabled={pbServerStarting} style="padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid rgba(var(--primary-rgb), 0.3); background: rgba(var(--primary-rgb), 0.1); color: var(--text-bright); font-weight: 600; font-size: 0.85rem; cursor: pointer;">{pbServerStarting ? 'Iniciando...' : '▶ Iniciar Servidor'}</button>
               <button onclick={handleConnectPB} disabled={pbTesting || !pbUrl || !pbEmail || !pbPassword} style="padding: 0.6rem 1rem; border-radius: 8px; border: none; background: {pbTesting ? '#64748b' : 'var(--primary-color)'}; color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer;">{pbTesting ? 'Conectando...' : 'Conectar a PocketBase'}</button>
+              {#if pbServerMessage}
+                <div style="padding: 6px 10px; border-radius: 6px; font-size: 0.75rem; background: {pbServerMessage.startsWith('Error') ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)'}; color: {pbServerMessage.startsWith('Error') ? '#f87171' : '#4ade80'};">
+                  {pbServerMessage}
+                </div>
+              {/if}
               {#if pbError}<div style="color: #f87171; font-size: 0.75rem; margin-top: 0.5rem;">❌ {pbError}</div>{/if}
             {/if}
           </div>

@@ -816,6 +816,90 @@ fn get_profile_app_dir(app_handle: &tauri::AppHandle) -> Result<std::path::PathB
     }
 }
 
+fn buscar_pocketbase_binary(app_handle: &tauri::AppHandle) -> Option<std::path::PathBuf> {
+    let binary_name = if cfg!(target_os = "windows") { "pocketbase.exe" } else { "pocketbase" };
+
+    let dirs = [
+        app_handle.path().resource_dir().ok().map(|d| d.join("binaries")),
+        std::env::current_dir().ok().map(|d| d.join("binaries")),
+        Some(std::path::PathBuf::from("binaries")),
+    ];
+
+    for dir in dirs.iter().flatten() {
+        if !dir.exists() { continue; }
+        // Try exact match first (for non-triple-named binaries)
+        let exact = dir.join(binary_name);
+        if exact.exists() { return Some(exact); }
+        // Try triple-suffixed (Tauri sidecar convention: pocketbase-x86_64-pc-windows-msvc.exe)
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name.starts_with("pocketbase") && name.ends_with(if cfg!(target_os = "windows") { ".exe" } else { "" }) {
+                    return Some(entry.path());
+                }
+            }
+        }
+    }
+    None
+}
+
+static PB_STARTED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+
+fn iniciar_pocketbase(app_handle: &tauri::AppHandle, app_dir: &std::path::Path) {
+    if PB_STARTED.get().is_some() { return; }
+    if let Some(pb_path) = buscar_pocketbase_binary(app_handle) {
+        let pb_data_dir = app_dir.join("pb_data");
+        if !pb_data_dir.exists() {
+            let _ = std::fs::create_dir_all(&pb_data_dir);
+        }
+        println!("🔄 [Sidecar] Iniciando PocketBase desde {:?}...", pb_path);
+        match std::process::Command::new(&pb_path)
+            .args([
+                "--dir", &pb_data_dir.to_string_lossy(),
+                "--http=127.0.0.1:8090",
+            ])
+            .spawn()
+        {
+            Ok(_) => {
+                println!("✅ [Sidecar] PocketBase iniciado");
+                let _ = PB_STARTED.set(true);
+            }
+            Err(e) => println!("❌ [Sidecar] Error iniciando PocketBase: {}", e),
+        }
+    } else {
+        println!("⚠️ [Sidecar] PocketBase binary no encontrado");
+    }
+}
+
+#[tauri::command]
+async fn start_pocketbase_server(app_handle: tauri::AppHandle) -> Result<String, String> {
+    let app_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    if PB_STARTED.get().is_some() {
+        return Ok("PocketBase ya está iniciado".to_string());
+    }
+    if let Some(pb_path) = buscar_pocketbase_binary(&app_handle) {
+        let pb_data_dir = app_dir.join("pb_data");
+        if !pb_data_dir.exists() {
+            std::fs::create_dir_all(&pb_data_dir).map_err(|e| e.to_string())?;
+        }
+        match std::process::Command::new(&pb_path)
+            .args([
+                "--dir", &pb_data_dir.to_string_lossy(),
+                "--http=127.0.0.1:8090",
+            ])
+            .spawn()
+        {
+            Ok(_) => {
+                let _ = PB_STARTED.set(true);
+                Ok("PocketBase iniciado correctamente".to_string())
+            }
+            Err(e) => Err(format!("Error iniciando PocketBase: {}", e)),
+        }
+    } else {
+        Err("Binary de PocketBase no encontrado".to_string())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -839,43 +923,7 @@ pub fn run() {
             }
 
             // Iniciar PocketBase como sidecar
-            #[cfg(debug_assertions)]
-            {
-                let pb_binary_name = if cfg!(target_os = "windows") {
-                    "pocketbase.exe"
-                } else {
-                    "pocketbase"
-                };
-                let pb_path = app_handle.path().resource_dir()
-                    .unwrap_or_default()
-                    .join("binaries")
-                    .join(pb_binary_name);
-
-                let alt_path = std::env::current_dir()
-                    .unwrap_or_default()
-                    .join("binaries")
-                    .join(pb_binary_name);
-
-                let final_pb_path = if pb_path.exists() { pb_path.clone() } else { alt_path.clone() };
-
-                if final_pb_path.exists() {
-                    let pb_data_dir = app_dir.join("pb_data");
-                    if !pb_data_dir.exists() {
-                        let _ = std::fs::create_dir_all(&pb_data_dir);
-                    }
-                    println!("🔄 [Sidecar] Iniciando PocketBase desde {:?}...", final_pb_path);
-                    let _ = std::process::Command::new(&final_pb_path)
-                        .args([
-                            "--dir", &pb_data_dir.to_string_lossy(),
-                            "--http=127.0.0.1:8090",
-                        ])
-                        .spawn()
-                        .map_err(|e| println!("❌ [Sidecar] Error iniciando PocketBase: {}", e));
-                    println!("✅ [Sidecar] PocketBase iniciado");
-                } else {
-                    println!("⚠️ [Sidecar] PocketBase binary no encontrado en {:?} ni {:?}", pb_path, alt_path);
-                }
-            }
+            iniciar_pocketbase(&app_handle, &app_dir);
 
             Ok(())
         })
@@ -989,6 +1037,7 @@ pub fn run() {
             gd_get_backups,
             gd_delete_backup,
             gd_import_db_from_file,
+            start_pocketbase_server,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
