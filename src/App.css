@@ -300,6 +300,7 @@ body {
   padding: 0.6rem 0.5rem;
   text-align: center;
   border-bottom: 1px solid var(--border-light);
+}
 
 .custom-table th {
   background: var(--bg-secondary);
@@ -1301,7 +1302,7 @@ h1 {
 }
 
 .category-card {
-  background: rgba(30, 41, 59, 0.5);
+  background: var(--card-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-radius: 20px;
@@ -1309,7 +1310,7 @@ h1 {
   box-shadow:
     0 10px 25px -5px rgba(0, 0, 0, 0.3),
     0 8px 10px -6px rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--card-border);
   transition:
     transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
     box-shadow 0.3s ease;
@@ -1318,7 +1319,7 @@ h1 {
 .category-card:hover {
   transform: translateY(-5px);
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
-  border-color: rgba(96, 165, 250, 0.2);
+  border-color: var(--card-hover-border);
 }
 
 .sticky-filters {
@@ -1342,18 +1343,18 @@ h1 {
 }
 
 .input-container {
-  background: rgba(15, 23, 42, 0.6);
+  background: var(--input-bg);
   padding: 0.4rem;
   border-radius: 12px;
   display: flex;
   gap: 0.5rem;
   margin-bottom: 1.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--input-border);
   transition: border-color 0.2s;
 }
 
 .input-container:focus-within {
-  border-color: #3b82f6;
+  border-color: var(--input-focus-border);
 }
 
 input {
@@ -1407,9 +1408,9 @@ button.cancel:hover {
   flex-direction: column;
   align-items: center;
   padding: 1.5rem;
-  background: rgba(15, 23, 42, 0.8);
+  background: var(--bg-elevated);
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border);
   width: 100%;
   max-width: 400px;
   margin: 0 auto;
@@ -1427,25 +1428,25 @@ button.cancel:hover {
   width: 100%;
   padding: 12px 16px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(15, 23, 42, 0.6);
-  color: white;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--text-primary);
   font-size: 0.95rem;
   outline: none;
   transition: all 0.2s ease;
 }
 
 .auth-input:focus {
-  border-color: #3b82f6;
+  border-color: var(--input-focus-border);
   background: rgba(15, 23, 42, 0.9);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 3px var(--primary-light);
 }
 
 .auth-submit-button {
   width: 100%;
   padding: 12px;
   border-radius: 10px;
-  background: #3b82f6;
+  background: var(--primary-color);
   color: white;
   border: none;
   cursor: pointer;
@@ -1457,7 +1458,7 @@ button.cancel:hover {
 }
 
 .auth-submit-button:hover:not(:disabled) {
-  background: #2563eb;
+  background: var(--primary-hover);
   transform: translateY(-1px);
 }
 
@@ -1468,7 +1469,7 @@ button.cancel:hover {
 
 .auth-divider {
   margin: 1.5rem 0;
-  color: #475569;
+  color: var(--text-muted);
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -1509,7 +1510,7 @@ button.cancel:hover {
 .link-button {
   background: none;
   border: none;
-  color: #38bdf8;
+  color: var(--primary-color);
   cursor: pointer;
   font-weight: 600;
   padding: 4px 8px;
@@ -1518,7 +1519,7 @@ button.cancel:hover {
 }
 
 .link-button:hover {
-  background: rgba(56, 189, 248, 0.1);
+  background: var(--primary-light);
 }
 
 .link-button.secondary {
@@ -1565,7 +1566,7 @@ button.cancel:hover {
 .help-toggle {
   background: none;
   border: none;
-  color: #475569;
+  color: var(--text-muted);
   font-size: 0.75rem;
   cursor: pointer;
   text-decoration: underline;
@@ -1763,8 +1764,8 @@ button.cancel:hover {
 }
 
 .filter-select:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
 }
 
 .filter-select option {

@@ -27,6 +27,31 @@
   let toast: { message: string; type: string; isOpen: boolean } = $state({ message: "", type: "info", isOpen: false });
   let unlisten: (() => void)[] = [];
 
+  // Theme state: "claro" | "oscuro" | "sistema"
+  let themeMode = $state(localStorage.getItem("app-theme") || "sistema");
+
+  function resolveTheme(mode: string): string {
+    if (mode === "sistema") {
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    return mode === "claro" ? "light" : "dark";
+  }
+
+  function applyTheme(mode: string) {
+    const resolved = resolveTheme(mode);
+    document.documentElement.setAttribute("data-theme", resolved);
+    localStorage.setItem("app-theme", mode);
+  }
+
+  function setThemeMode(mode: string) {
+    themeMode = mode;
+    applyTheme(mode);
+  }
+
+  $effect(() => {
+    applyTheme(themeMode);
+  });
+
   function checkMobile() {
     isMobile = window.innerWidth <= 768 || /Android/i.test(navigator.userAgent);
   }
@@ -86,8 +111,19 @@
     if (w) sidebarWidth = parseInt(w);
     const visits = localStorage.getItem("visited-tabs");
     if (visits) { try { visitedTabs = new Set(JSON.parse(visits)); } catch {} }
-    const savedTheme = localStorage.getItem("app-theme") || "mint";
-    document.documentElement.setAttribute("data-theme", savedTheme);
+    const savedMode = localStorage.getItem("app-theme") || "sistema";
+    themeMode = savedMode;
+    applyTheme(savedMode);
+
+    // Listen for system theme changes
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const systemHandler = () => {
+      if (themeMode === "sistema") {
+        applyTheme("sistema");
+      }
+    };
+    mediaQuery.addEventListener("change", systemHandler);
+    unlisten.push(() => mediaQuery.removeEventListener("change", systemHandler));
 
     // Safe areas
     if (isMobile) {
@@ -161,6 +197,8 @@
       {activeTab}
       {drawerOpen}
       {isMobile}
+      {themeMode}
+      setThemeMode={setThemeMode}
       onTabChange={handleTabChange}
       toggleDrawer={toggleDrawer}
       on:closeDrawer={closeDrawer}

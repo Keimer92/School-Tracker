@@ -11,12 +11,15 @@
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
 
-function getThemeColor(color: string): string {
-  return { mint: "#10b981", carmesi: "#ef4444", amarillo: "#eab308", rosado: "#ec4899", azul: "#3b82f6", oscuro: "#1e40af" }[color] || "#10b981";
-}
-function getThemeName(color: string): string {
-  return { mint: "Mint", carmesi: "Carmesí", amarillo: "Amarillo", rosado: "Rosado", azul: "Azul", oscuro: "Oscuro" }[color] || "Mint";
-}
+  function getThemeColor(color: string): string {
+    return { claro: "#f1f5f9", oscuro: "#0f172a", sistema: "#3b82f6" }[color] || "#0f172a";
+  }
+  function getThemeName(color: string): string {
+    return { claro: "Claro", oscuro: "Oscuro", sistema: "Según sistema" }[color] || "Oscuro";
+  }
+  function getThemeLabel(color: string): string {
+    return { claro: "☀️ Tema Claro — Fondos claros, texto oscuro", oscuro: "🌙 Tema Oscuro — Fondos oscuros, texto claro", sistema: "💻 Según sistema — Usa la configuración de tu dispositivo" }[color] || "";
+  }
 
 const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff200","#22b14c","#00a2e8","#3f48cc","#a349a4","#ffffff","#c3c3c3","#b97a57","#ffaec9","#ffc90e","#efe4b0","#b5e61d","#99d9ea","#7092be","#c8bfe7","#C00000","#FF0000","#FFC000","#FFFF00","#92D050","#00B050","#00B0F0","#0070C0","#002060","#7030A0"];
 
@@ -34,7 +37,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   const isAndroid = /Android/i.test(navigator.userAgent);
 
   let activeTab: typeof TABS[number]["id"] | null = $state(isAndroid ? null : "configuracion");
-  let theme = $state(localStorage.getItem("app-theme") || "mint");
   let dbPath = $state("");
   let gradeConfigs = $state<{ id: string; nombre: string; color: string; minimo: number }[]>([]);
   let highlightColor = $state(localStorage.getItem("student-highlight-color") || "#4ade80");
@@ -61,7 +63,16 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   let resetConfig = $state<{ title: string; message: string; onConfirm: () => Promise<void>; isDanger?: boolean; } | null>(null);
   let isProcessingReset = $state(false);
 
-  $effect(() => { document.documentElement.setAttribute("data-theme", theme); localStorage.setItem("app-theme", theme); });
+  let themeSetting = $state(localStorage.getItem("app-theme") || "sistema");
+
+  function handleThemeChange(mode: string) {
+    themeSetting = mode;
+    localStorage.setItem("app-theme", mode);
+    const resolved = mode === "sistema"
+      ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+      : mode === "claro" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", resolved);
+  }
   $effect(() => { localStorage.setItem("student-highlight-color", highlightColor); });
 
   function getGradeLabel(id: string): string {
@@ -326,21 +337,23 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
             <div class="category-header"><h3>🎨 Apariencia</h3></div>
             <div style="padding: 2rem;">
               <div style="margin-bottom: 2rem;">
-                <h4 style="margin: 0 0 1rem 0; color: #e2e8f0;">Tema del Sistema</h4>
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 1rem;">  
-{#each ["mint", "carmesi", "amarillo", "rosado", "azul", "oscuro"] as color}
-  <button onclick={() => theme = color} style="padding: 1rem; border: 2px solid rgba(255,255,255,0.2); border-radius: 12px; background: {theme === color ? 'rgba(255,255,255,0.1)' : 'transparent'}; color: {theme === color ? 'white' : '#94a3b8'}; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
-    <div style="width: 24px; height: 24px; border-radius: 50%; background-color: {getThemeColor(color)}; border: 2px solid rgba(255,255,255,0.3);"></div>
-    <span style="font-size: 0.9rem; font-weight: {theme === color ? 'bold' : 'normal'};">{getThemeName(color)}</span>
+                <h4 style="margin: 0 0 1rem 0; color: var(--text-primary);">Tema del Sistema</h4>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.5rem;">Elige entre tema claro, oscuro o deja que el sistema decida según tu configuración.</p>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem;">
+{#each ["claro", "oscuro", "sistema"] as mode}
+  <button onclick={() => handleThemeChange(mode)} style="padding: 1rem; border: 2px solid {themeSetting === mode ? 'var(--primary-color)' : 'var(--border)'}; border-radius: 14px; background: {themeSetting === mode ? 'var(--primary-light)' : 'transparent'}; color: {themeSetting === mode ? 'var(--primary-color)' : 'var(--text-secondary)'}; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; transition: all 0.2s;">
+    <span style="font-size: 1.5rem;">{mode === 'claro' ? '☀️' : mode === 'oscuro' ? '🌙' : '💻'}</span>
+    <span style="font-size: 0.9rem; font-weight: {themeSetting === mode ? 'bold' : 'normal'};">{getThemeName(mode)}</span>
+    <span style="font-size: 0.7rem; color: var(--text-muted); text-align: center;">{getThemeLabel(mode)}</span>
   </button>
 {/each}
 </div>
               </div>
-              <div style="background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
-                <h4 style="margin: 0 0 1rem 0; color: #e2e8f0;">Vista Previa</h4>
+              <div style="background: var(--bg-hover); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border);">
+                <h4 style="margin: 0 0 1rem 0; color: var(--text-primary);">Vista Previa</h4>
                 <div style="display: flex; gap: 1rem; align-items: center;">
-                  <div style="width: 32px; height: 32px; border-radius: 8px; background-color: {getThemeColor(theme)}; border: 2px solid rgba(255,255,255,0.3);"></div>
-                  <span style="color: #e2e8f0; font-weight: bold;">Tema actual: {getThemeName(theme)}</span>
+                  <div style="width: 32px; height: 32px; border-radius: 8px; background-color: {getThemeColor(themeSetting)}; border: 2px solid var(--border);"></div>
+                  <span style="color: var(--text-primary); font-weight: bold;">Tema actual: {getThemeName(themeSetting)}</span>
                 </div>
               </div>
             </div>

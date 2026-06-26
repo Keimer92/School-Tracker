@@ -7,6 +7,14 @@
   export let onTabChange: (tab: Tab) => void;
   export let toggleDrawer: () => void;
   export let onDrawerClose: () => void;
+  export let themeMode: string;
+  export let setThemeMode: (mode: string) => void;
+
+  const themeOptions = [
+    { id: "claro", label: "Claro", icon: "☀️" },
+    { id: "oscuro", label: "Oscuro", icon: "🌙" },
+    { id: "sistema", label: "Sistema", icon: "💻" },
+  ] as const;
 </script>
 
 <nav
@@ -63,4 +71,54 @@
       <span>☁️</span><span>Nube</span>
     </button>
   </div>
+
+  <div class="sidebar-section-header" style="margin-top: auto; padding-top: 12px;">APARIENCIA</div>
+  <div class="theme-selector">
+    {#each themeOptions as opt}
+      <button
+        class="theme-btn"
+        class:active={themeMode === opt.id}
+        onclick={() => setThemeMode(opt.id)}
+        type="button"
+        title={opt.label}
+      >
+        <span>{opt.icon}</span>
+      </button>
+    {/each}
+  </div>
 </nav>
+
+<style>
+  .theme-selector {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    background: var(--bg-hover);
+    border-radius: 12px;
+    border: 1px solid var(--border-light);
+    margin-top: 4px;
+  }
+
+  .theme-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 4px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.9rem;
+  }
+
+  .theme-btn:hover {
+    background: var(--bg-active);
+  }
+
+  .theme-btn.active {
+    background: var(--primary-light);
+    border-color: var(--primary-color);
+  }
+</style>
