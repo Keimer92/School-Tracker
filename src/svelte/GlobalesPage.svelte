@@ -196,11 +196,10 @@
       </div>
     {/if}
   {:else}
-    <div class="category-card" style="margin-bottom: 1rem; padding: 0.75rem; background: rgba(26, 26, 26, 0.95); backdrop-filter: blur(10px); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);">
-      <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+    <div style="display:flex;justify-content:center;margin-bottom:1.5rem">
+      <div class="globales-tabs">
         {#each CATEGORIES as cat (cat.title)}
-          <button onclick={() => selectedTab = cat.title}
-            style="padding: 0.6rem 1.25rem; font-size: 0.85rem; font-weight: 600; border-radius: 8px; border: {selectedTab === cat.title ? '1px solid rgba(var(--primary-rgb), 0.5)' : '1px solid transparent'}; background: {selectedTab === cat.title ? 'rgba(var(--primary-rgb), 0.2)' : 'rgba(255,255,255,0.03)'}; color: {selectedTab === cat.title ? 'var(--primary-color)' : '#94a3b8'}; cursor: pointer; white-space: nowrap;">
+          <button class="globales-tab" class:active={selectedTab === cat.title} onclick={() => selectedTab = cat.title}>
             {cat.title}
           </button>
         {/each}
@@ -304,3 +303,10 @@
     </div>
   {/if}
 </div>
+
+<style>
+  .globales-tabs { display: inline-flex; padding: 0.4rem; gap: 0.3rem; background: var(--bg-elevated); border-radius: 14px; border: 1px solid var(--border); }
+  .globales-tab { padding: 0.5rem 1rem; border-radius: 10px; border: none; background: transparent; color: var(--text-muted); font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.2s ease; font-size: 0.85rem; }
+  .globales-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .globales-tab.active { background: var(--bg-active); color: var(--text-bright); box-shadow: 0 0 8px rgba(var(--primary-rgb), 0.08); }
+</style>

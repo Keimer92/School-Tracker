@@ -245,13 +245,15 @@
       </FilterActions>
     </FilterContainer>
 
-    <div class="ev-view-toggle">
-      {#each VIEW_MODES as { key, label, icon }}
-        <button class="ev-view-btn" class:active={viewMode === key} onclick={() => handleViewModeChange(key)} title={label}>
-          <span class="ev-view-icon">{icon}</span>
-          {#if !isMobile}<span class="ev-view-label">{label}</span>{/if}
-        </button>
-      {/each}
+    <div style="display:flex;justify-content:center;margin-bottom:0.75rem">
+      <div class="ev-view-toggle">
+        {#each VIEW_MODES as { key, label, icon }}
+          <button class="ev-view-btn" class:active={viewMode === key} onclick={() => handleViewModeChange(key)} title={label}>
+            <span class="ev-view-icon">{icon}</span>
+            {#if !isMobile}<span class="ev-view-label">{label}</span>{/if}
+          </button>
+        {/each}
+      </div>
     </div>
 
     {#if loading}
@@ -502,19 +504,22 @@
 
 <style>
   :global(.ev-view-toggle) {
-    display: flex; gap: 4px; margin-bottom: 0.75rem; flex-wrap: wrap;
+    display: inline-flex; padding: 0.4rem; gap: 0.3rem;
+    background: var(--bg-elevated); border-radius: 14px;
+    border: 1px solid var(--border);
   }
   :global(.ev-view-btn) {
-    display: flex; align-items: center; gap: 4px;
-    padding: 4px 10px; font-size: 0.75rem; border-radius: 6px;
-    border: 1px solid transparent; background: transparent;
-    color: #64748b; cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; gap: 0.3rem;
+    padding: 0.4rem 0.8rem; font-size: 0.8rem; border-radius: 10px;
+    border: none; background: transparent;
+    color: var(--text-muted); cursor: pointer; font-weight: 600;
+    transition: all 0.2s ease; white-space: nowrap;
   }
   :global(.ev-view-btn:hover) {
-    background: rgba(255,255,255,0.05); color: #e2e8f0;
+    background: var(--bg-hover); color: var(--text-primary);
   }
   :global(.ev-view-btn.active) {
-    background: rgba(56, 189, 248, 0.15); border-color: rgba(56, 189, 248, 0.3);
-    color: #38bdf8; font-weight: 600;
+    background: var(--bg-active); color: var(--text-bright);
+    box-shadow: 0 0 8px rgba(var(--primary-rgb), 0.08);
   }
 </style>

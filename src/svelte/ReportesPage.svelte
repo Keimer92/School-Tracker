@@ -593,6 +593,10 @@
     .statistics-slide-container.active{display:block}
     @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
     @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+    .reportes-tabs { display: inline-flex; padding: 2px; gap: 2px; background: var(--bg-elevated); border-radius: 10px; border: 1px solid var(--border); }
+    .reportes-tab { padding: 0.2rem 0.6rem; border-radius: 8px; border: none; background: transparent; color: var(--text-muted); font-size: 0.7rem; font-weight: 700; cursor: pointer; transition: all 0.2s ease; }
+    .reportes-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .reportes-tab.active { background: var(--bg-active); color: var(--text-bright); }
     .table-row-hover:hover{background-color:rgba(255,255,255,0.04)!important}
     .filter-select{width:100%;background:rgba(15,23,42,0.8);border:1px solid rgba(255,255,255,0.1);color:white;padding:0.6rem;border-radius:8px;outline:none;cursor:pointer}
     .filter-select:focus{border-color:var(--primary-color)}
@@ -627,9 +631,9 @@
             <p style="margin:0;color:#94a3b8;font-size:0.75rem" class="hide-mobile">Rendimiento</p>
           </div>
           <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
-            <div style="display:flex;background:rgba(255,255,255,0.05);border-radius:10px;padding:2px;border:1px solid rgba(255,255,255,0.1)">
-              <button onclick={() => activeSlide = 'tabla'} style="padding:0.2rem 0.6rem;border-radius:8px;border:none;background:{activeSlide === 'tabla' ? 'var(--primary-color)' : 'transparent'};color:{activeSlide === 'tabla' ? 'white' : '#94a3b8'};font-size:0.7rem;font-weight:bold;cursor:pointer">Tabla</button>
-              <button onclick={() => activeSlide = 'estadisticas'} style="padding:0.2rem 0.6rem;border-radius:8px;border:none;background:{activeSlide === 'estadisticas' ? 'var(--primary-color)' : 'transparent'};color:{activeSlide === 'estadisticas' ? 'white' : '#94a3b8'};font-size:0.7rem;font-weight:bold;cursor:pointer">Stats</button>
+            <div class="reportes-tabs">
+              <button class="reportes-tab" class:active={activeSlide === 'tabla'} onclick={() => activeSlide = 'tabla'}>Tabla</button>
+              <button class="reportes-tab" class:active={activeSlide === 'estadisticas'} onclick={() => activeSlide = 'estadisticas'}>Stats</button>
             </div>
           </div>
         </div>

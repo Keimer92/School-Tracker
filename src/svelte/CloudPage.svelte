@@ -36,9 +36,10 @@
 </script>
 
 <div class="cloud-page">
+  <div style="display:flex;justify-content:center;margin-bottom:1.5rem">
   <div class="cloud-tabs">
     <button class="cloud-tab" class:active={activeCloudTab === 'sync'} onclick={() => activeCloudTab = 'sync'}>
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z"/></svg>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z"/></svg>
       <span>Sync</span>
       {#if isSynced}<span class="cloud-tab-dot"></span>{/if}
     </button>
@@ -47,6 +48,7 @@
       <span>Drive</span>
     </button>
   </div>
+</div>
 
   {#if activeCloudTab === 'sync'}
     <div class="cloud-card">
@@ -158,10 +160,10 @@
 
 <style>
   .cloud-page { max-width: 700px; margin: 0 auto; width: 100%; }
-  .cloud-tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; padding: 0.4rem; background: rgba(30, 41, 59, 0.4); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); }
-  .cloud-tab { display: flex; align-items: center; gap: 8px; padding: 0.6rem 1.2rem; border-radius: 8px; border: 1px solid transparent; background: transparent; color: #94a3b8; cursor: pointer; font-family: inherit; font-size: 0.85rem; font-weight: 500; transition: all 0.2s ease; position: relative; }
-  .cloud-tab:hover { background: rgba(255,255,255,0.06); color: #e2e8f0; }
-  .cloud-tab.active { background: var(--primary-light, rgba(16,185,129,0.2)); border-color: var(--primary-color, #10b981); color: var(--primary-color, #10b981); font-weight: 600; }
+  .cloud-tabs { display: inline-flex; padding: 0.4rem; gap: 0.3rem; background: var(--bg-elevated); border-radius: 14px; border: 1px solid var(--border); }
+  .cloud-tab { display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 1rem; border-radius: 10px; border: none; background: transparent; color: var(--text-muted); cursor: pointer; font-family: inherit; font-size: 0.85rem; font-weight: 600; transition: all 0.2s ease; white-space: nowrap; }
+  .cloud-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
+  .cloud-tab.active { background: var(--bg-active); color: var(--text-bright); box-shadow: 0 0 8px rgba(var(--primary-rgb), 0.08); }
   .cloud-tab-dot { width: 6px; height: 6px; background: #4ade80; border-radius: 50%; box-shadow: 0 0 5px #4ade80; }
   .cloud-card { background: rgba(30, 41, 59, 0.5); backdrop-filter: blur(12px); border-radius: 20px; border: 1px solid rgba(255,255,255,0.05); overflow: hidden; }
   .cloud-card-header { padding: 1.25rem 1.5rem 0; }
