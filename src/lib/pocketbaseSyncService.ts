@@ -28,83 +28,85 @@ async function safeInvoke<T>(fn: string): Promise<T[]> {
 
 async function ensureCollectionsExist() {
   const requiredCollections = [
-    { name: 'ano_lectivo', schema: [{ name: 'nombre', type: 'text', required: true }, { name: 'activo', type: 'bool' }, { name: 'cualitativo', type: 'bool' }, { name: 'user_id', type: 'text' }] },
-    { name: 'corte_evaluativo', schema: [{ name: 'nombre', type: 'text', required: true }, { name: 'activo', type: 'bool' }, { name: 'cualitativo', type: 'bool' }, { name: 'user_id', type: 'text' }] },
-    { name: 'colegio', schema: [{ name: 'nombre', type: 'text', required: true }, { name: 'activo', type: 'bool' }, { name: 'cualitativo', type: 'bool' }, { name: 'orden', type: 'number' }, { name: 'user_id', type: 'text' }] },
-    { name: 'asignatura', schema: [{ name: 'nombre', type: 'text', required: true }, { name: 'cualitativo', type: 'bool' }, { name: 'user_id', type: 'text' }] },
-    { name: 'grado', schema: [{ name: 'nombre', type: 'text', required: true }, { name: 'cualitativo', type: 'bool' }, { name: 'user_id', type: 'text' }] },
-    { name: 'seccion', schema: [{ name: 'nombre', type: 'text', required: true }, { name: 'cualitativo', type: 'bool' }, { name: 'user_id', type: 'text' }] },
-    { name: 'estudiante', schema: [{ name: 'nombre', type: 'text', required: true }, { name: 'codigo', type: 'text', required: true }, { name: 'sexo', type: 'text' }, { name: 'ano_lectivo_id', type: 'number' }, { name: 'grado_id', type: 'number' }, { name: 'seccion_id', type: 'number' }, { name: 'colegio_id', type: 'number' }, { name: 'telefono', type: 'text' }, { name: 'direccion', type: 'text' }, { name: 'email', type: 'text' }, { name: 'foto', type: 'text' }, { name: 'user_id', type: 'text' }] },
-    { name: 'grado_asignatura', schema: [{ name: 'grado_id', type: 'number', required: true }, { name: 'asignatura_id', type: 'number', required: true }, { name: 'user_id', type: 'text' }] },
-    { name: 'colegio_asignatura', schema: [{ name: 'colegio_id', type: 'number', required: true }, { name: 'asignatura_id', type: 'number', required: true }, { name: 'user_id', type: 'text' }] },
-    { name: 'indicador', schema: [{ name: 'grado_id', type: 'number', required: true }, { name: 'asignatura_id', type: 'number', required: true }, { name: 'corte_evaluativo_id', type: 'number', required: true }, { name: 'orden', type: 'number', required: true }, { name: 'descripcion', type: 'text' }, { name: 'activo', type: 'bool' }, { name: 'user_id', type: 'text' }] },
-    { name: 'criterio', schema: [{ name: 'indicador_id', type: 'number', required: true }, { name: 'orden', type: 'number', required: true }, { name: 'descripcion', type: 'text' }, { name: 'puntaje_maximo', type: 'number', required: true }, { name: 'user_id', type: 'text' }] },
-    { name: 'nota', schema: [{ name: 'estudiante_id', type: 'number', required: true }, { name: 'criterio_id', type: 'number', required: true }, { name: 'valor', type: 'number', required: true }, { name: 'corte_evaluativo_id', type: 'number', required: true }, { name: 'asignatura_id', type: 'number', required: true }, { name: 'user_id', type: 'text' }] },
-    { name: 'asistencia', schema: [{ name: 'estudiante_id', type: 'number', required: true }, { name: 'fecha', type: 'text', required: true }, { name: 'estado', type: 'text', required: true }, { name: 'observacion', type: 'text' }, { name: 'user_id', type: 'text' }] },
-    { name: 'configuracion_calificacion', schema: [{ name: 'nombre', type: 'text', required: true }, { name: 'color', type: 'text', required: true }, { name: 'minimo', type: 'number', required: true }, { name: 'user_id', type: 'text' }] },
-    { name: 'colegio_dias_asistencia', schema: [{ name: 'colegio_id', type: 'number', required: true }, { name: 'lunes', type: 'bool' }, { name: 'martes', type: 'bool' }, { name: 'miercoles', type: 'bool' }, { name: 'jueves', type: 'bool' }, { name: 'viernes', type: 'bool' }, { name: 'sabado', type: 'bool' }, { name: 'domingo', type: 'bool' }, { name: 'user_id', type: 'text' }] },
+    { name: 'ano_lectivo', schema: [{ id: 'f1', name: 'nombre', type: 'text', required: true }, { id: 'f2', name: 'activo', type: 'bool' }, { id: 'f3', name: 'cualitativo', type: 'bool' }, { id: 'f4', name: 'user_id', type: 'text' }] },
+    { name: 'corte_evaluativo', schema: [{ id: 'f1', name: 'nombre', type: 'text', required: true }, { id: 'f2', name: 'activo', type: 'bool' }, { id: 'f3', name: 'cualitativo', type: 'bool' }, { id: 'f4', name: 'user_id', type: 'text' }] },
+    { name: 'colegio', schema: [{ id: 'f1', name: 'nombre', type: 'text', required: true }, { id: 'f2', name: 'activo', type: 'bool' }, { id: 'f3', name: 'cualitativo', type: 'bool' }, { id: 'f4', name: 'orden', type: 'number' }, { id: 'f5', name: 'user_id', type: 'text' }] },
+    { name: 'asignatura', schema: [{ id: 'f1', name: 'nombre', type: 'text', required: true }, { id: 'f2', name: 'cualitativo', type: 'bool' }, { id: 'f3', name: 'user_id', type: 'text' }] },
+    { name: 'grado', schema: [{ id: 'f1', name: 'nombre', type: 'text', required: true }, { id: 'f2', name: 'cualitativo', type: 'bool' }, { id: 'f3', name: 'user_id', type: 'text' }] },
+    { name: 'seccion', schema: [{ id: 'f1', name: 'nombre', type: 'text', required: true }, { id: 'f2', name: 'cualitativo', type: 'bool' }, { id: 'f3', name: 'user_id', type: 'text' }] },
+    { name: 'estudiante', schema: [{ id: 'f1', name: 'nombre', type: 'text', required: true }, { id: 'f2', name: 'codigo', type: 'text', required: true }, { id: 'f3', name: 'sexo', type: 'text' }, { id: 'f4', name: 'ano_lectivo_id', type: 'number' }, { id: 'f5', name: 'grado_id', type: 'number' }, { id: 'f6', name: 'seccion_id', type: 'number' }, { id: 'f7', name: 'colegio_id', type: 'number' }, { id: 'f8', name: 'telefono', type: 'text' }, { id: 'f9', name: 'direccion', type: 'text' }, { id: 'f10', name: 'email', type: 'text' }, { id: 'f11', name: 'foto', type: 'text' }, { id: 'f12', name: 'user_id', type: 'text' }] },
+    { name: 'grado_asignatura', schema: [{ id: 'f1', name: 'grado_id', type: 'number', required: true }, { id: 'f2', name: 'asignatura_id', type: 'number', required: true }, { id: 'f3', name: 'user_id', type: 'text' }] },
+    { name: 'colegio_asignatura', schema: [{ id: 'f1', name: 'colegio_id', type: 'number', required: true }, { id: 'f2', name: 'asignatura_id', type: 'number', required: true }, { id: 'f3', name: 'user_id', type: 'text' }] },
+    { name: 'indicador', schema: [{ id: 'f1', name: 'grado_id', type: 'number', required: true }, { id: 'f2', name: 'asignatura_id', type: 'number', required: true }, { id: 'f3', name: 'corte_evaluativo_id', type: 'number', required: true }, { id: 'f4', name: 'orden', type: 'number', required: true }, { id: 'f5', name: 'descripcion', type: 'text' }, { id: 'f6', name: 'activo', type: 'bool' }, { id: 'f7', name: 'user_id', type: 'text' }] },
+    { name: 'criterio', schema: [{ id: 'f1', name: 'indicador_id', type: 'number', required: true }, { id: 'f2', name: 'orden', type: 'number', required: true }, { id: 'f3', name: 'descripcion', type: 'text' }, { id: 'f4', name: 'puntaje_maximo', type: 'number', required: true }, { id: 'f5', name: 'user_id', type: 'text' }] },
+    { name: 'nota', schema: [{ id: 'f1', name: 'estudiante_id', type: 'number', required: true }, { id: 'f2', name: 'criterio_id', type: 'number', required: true }, { id: 'f3', name: 'valor', type: 'number', required: true }, { id: 'f4', name: 'corte_evaluativo_id', type: 'number', required: true }, { id: 'f5', name: 'asignatura_id', type: 'number', required: true }, { id: 'f6', name: 'user_id', type: 'text' }] },
+    { name: 'asistencia', schema: [{ id: 'f1', name: 'estudiante_id', type: 'number', required: true }, { id: 'f2', name: 'fecha', type: 'text', required: true }, { id: 'f3', name: 'estado', type: 'text', required: true }, { id: 'f4', name: 'observacion', type: 'text' }, { id: 'f5', name: 'user_id', type: 'text' }] },
+    { name: 'configuracion_calificacion', schema: [{ id: 'f1', name: 'nombre', type: 'text', required: true }, { id: 'f2', name: 'color', type: 'text', required: true }, { id: 'f3', name: 'minimo', type: 'number', required: true }, { id: 'f4', name: 'user_id', type: 'text' }] },
+    { name: 'colegio_dias_asistencia', schema: [{ id: 'f1', name: 'colegio_id', type: 'number', required: true }, { id: 'f2', name: 'lunes', type: 'bool' }, { id: 'f3', name: 'martes', type: 'bool' }, { id: 'f4', name: 'miercoles', type: 'bool' }, { id: 'f5', name: 'jueves', type: 'bool' }, { id: 'f6', name: 'viernes', type: 'bool' }, { id: 'f7', name: 'sabado', type: 'bool' }, { id: 'f8', name: 'domingo', type: 'bool' }, { id: 'f9', name: 'user_id', type: 'text' }] },
   ];
 
-  const expectedSchemas = new Map(requiredCollections.map(c => [c.name, new Set(c.schema.map((f: any) => f.name))]));
-
   try {
-    const existing = await pb.collections.getFullList();
-    const existingMap = new Map(existing.map(c => [c.name, c]));
+    const existingResp = await pbApi('GET', '/api/collections?page=1&perPage=100&skipTotal=1');
+    const existing: any[] = existingResp?.items || [];
+    const existingMap = new Map(existing.map((c: any) => [c.name, c]));
 
     for (const col of requiredCollections) {
       const existingCol = existingMap.get(col.name);
       if (!existingCol) {
-        await pb.collections.create({ name: col.name, type: 'base', schema: col.schema });
+        await pbApi('POST', '/api/collections', { name: col.name, type: 'base', schema: col.schema });
         console.log(`[PB] Colección "${col.name}" creada`);
       } else {
         const existingFieldNames = new Set((existingCol.schema || []).map((f: any) => f.name));
-        const expectedFields = expectedSchemas.get(col.name)!;
-        const isCorrect = expectedFields.size === existingFieldNames.size &&
-          [...expectedFields].every(f => existingFieldNames.has(f));
+        const expectedNames = new Set(col.schema.map((f: any) => f.name));
+        const isCorrect = expectedNames.size === existingFieldNames.size &&
+          [...expectedNames].every(f => existingFieldNames.has(f));
 
         if (!isCorrect) {
-          try {
-            await pb.collections.delete(existingCol.id);
-            await pb.collections.create({ name: col.name, type: 'base', schema: col.schema });
-            console.log(`[PB] Colección "${col.name}" recreada con schema correcto`);
-          } catch (e2: any) {
-            console.warn(`[PB] Error recreando "${col.name}":`, e2?.message);
-          }
+          await pbApi('DELETE', `/api/collections/${existingCol.id}`);
+          await pbApi('POST', '/api/collections', { name: col.name, type: 'base', schema: col.schema });
+          console.log(`[PB] Colección "${col.name}" RECREADA`);
         }
       }
     }
   } catch (e: any) {
-    console.warn('[PB] Error verificando/creando colecciones:', e?.message || e);
+    console.warn('[PB] Error gestionando colecciones:', e?.message || e);
   }
+}
+
+async function pbApi(method: string, path: string, body?: any) {
+  const baseUrl = getPocketBaseUrl();
+  const token = pb.authStore.token;
+  const res = await fetch(`${baseUrl}${path}`, {
+    method,
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 204) return null;
+  const text = await res.text().catch(() => '');
+  if (!res.ok) {
+    const err: any = new Error(`${method} ${path}: ${res.status} ${text.slice(0, 300)}`);
+    err.status = res.status;
+    err.response = (() => { try { return JSON.parse(text); } catch { return { message: text }; } })();
+    throw err;
+  }
+  try { return JSON.parse(text); } catch { return text; }
 }
 
 async function upsertRecord(collection: string, data: any) {
   const recordId = data.id ? pbId(data.id) : undefined;
   const { id, ...dataWithoutId } = data;
   try {
-    if (recordId) {
-      await pb.collection(collection).update(recordId, dataWithoutId);
-    } else {
-      await pb.collection(collection).create(data);
-    }
-  } catch (e: any) {
-    if (e?.status === 404 && recordId) {
-      await pb.collection(collection).create({ ...dataWithoutId, id: recordId });
-    } else {
-      let fullMsg = `${collection}: `;
+    await pbApi('POST', `/api/collections/${collection}/records`,
+      recordId ? { ...dataWithoutId, id: recordId } : data);
+  } catch (createErr: any) {
+    if ((createErr?.status === 400 || createErr?.status === 409) && recordId) {
       try {
-        const resp = e?.response || {};
-        fullMsg += resp?.message || e?.message || String(e);
-        if (resp?.data) {
-          const fields = Object.entries(resp.data)
-            .map(([f, v]: any) => `${f}=${v?.message || JSON.stringify(v)}`)
-            .join(', ');
-          if (fields) fullMsg += ` | campos: ${fields}`;
-        }
-      } catch {
-        fullMsg += String(e);
+        await pbApi('PATCH', `/api/collections/${collection}/records/${recordId}`, dataWithoutId);
+      } catch (updateErr: any) {
+        throw new Error(`${collection}: ${updateErr?.message || String(updateErr)}`.slice(0, 500));
       }
-      throw new Error(fullMsg.slice(0, 500));
+    } else {
+      throw new Error(`${collection}: ${createErr?.message || String(createErr)}`.slice(0, 500));
     }
   }
 }
