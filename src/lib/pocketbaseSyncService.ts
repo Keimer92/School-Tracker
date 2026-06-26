@@ -65,18 +65,20 @@ async function upsertRecord(collection: string, data: any) {
     if (e?.status === 404) {
       await pb.collection(collection).create(data);
     } else {
-      const topMsg = e?.response?.message || e?.message || String(e);
-      let fieldErrors = '';
+      let fullMsg = `${collection}: `;
       try {
-        if (e?.data && typeof e.data === 'object') {
-          fieldErrors = Object.entries(e.data)
-            .map(([field, err]: any) => `${field}: ${err?.message || JSON.stringify(err)}`)
-            .join('; ');
+        const resp = e?.response || {};
+        fullMsg += resp?.message || e?.message || String(e);
+        if (resp?.data) {
+          const fields = Object.entries(resp.data)
+            .map(([f, v]: any) => `${f}=${v?.message || JSON.stringify(v)}`)
+            .join(', ');
+          if (fields) fullMsg += ` | campos: ${fields}`;
         }
-      } catch {}
-      const errMsg = `${collection}: ${topMsg}${fieldErrors ? ` (${fieldErrors})` : ''}`;
-      console.error('[PB] upsertRecord error:', errMsg, JSON.stringify(data).slice(0, 300));
-      throw new Error(errMsg);
+      } catch {
+        fullMsg += String(e);
+      }
+      throw new Error(fullMsg.slice(0, 500));
     }
   }
 }

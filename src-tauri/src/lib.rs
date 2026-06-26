@@ -886,6 +886,7 @@ pub fn iniciar_pocketbase(app_handle: &tauri::AppHandle, app_dir: &std::path::Pa
         println!("🔄 [Sidecar] Iniciando PocketBase desde {:?}...", pb_path);
         match std::process::Command::new(&pb_path)
             .arg("serve")
+            .arg("--dev")
             .args([
                 "--dir", &pb_data_dir.to_string_lossy(),
                 "--http=127.0.0.1:8090",
