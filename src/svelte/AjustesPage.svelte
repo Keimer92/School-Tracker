@@ -11,14 +11,14 @@
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
 
-  function getThemeColor(color: string): string {
-    return { mint: "#10b981", carmesi: "#ef4444", amarillo: "#eab308", rosado: "#ec4899", azul: "#3b82f6" }[color] || "#10b981";
-  }
-  function getThemeName(color: string): string {
-    return { mint: "Mint", carmesi: "Carmesí", amarillo: "Amarillo", rosado: "Rosado", azul: "Azul" }[color] || "Mint";
-  }
+function getThemeColor(color: string): string {
+  return { mint: "#10b981", carmesi: "#ef4444", amarillo: "#eab308", rosado: "#ec4899", azul: "#3b82f6", oscuro: "#1e40af" }[color] || "#10b981";
+}
+function getThemeName(color: string): string {
+  return { mint: "Mint", carmesi: "Carmesí", amarillo: "Amarillo", rosado: "Rosado", azul: "Azul", oscuro: "Oscuro" }[color] || "Mint";
+}
 
-  const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff200","#22b14c","#00a2e8","#3f48cc","#a349a4","#ffffff","#c3c3c3","#b97a57","#ffaec9","#ffc90e","#efe4b0","#b5e61d","#99d9ea","#7092be","#c8bfe7","#C00000","#FF0000","#FFC000","#FFFF00","#92D050","#00B050","#00B0F0","#0070C0","#002060","#7030A0"];
+const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff200","#22b14c","#00a2e8","#3f48cc","#a349a4","#ffffff","#c3c3c3","#b97a57","#ffaec9","#ffc90e","#efe4b0","#b5e61d","#99d9ea","#7092be","#c8bfe7","#C00000","#FF0000","#FFC000","#FFFF00","#92D050","#00B050","#00B0F0","#0070C0","#002060","#7030A0"];
 
   const TABS = [
     { id: "configuracion", label: "General", icon: "⚙️" },
@@ -327,14 +327,14 @@
             <div style="padding: 2rem;">
               <div style="margin-bottom: 2rem;">
                 <h4 style="margin: 0 0 1rem 0; color: #e2e8f0;">Tema del Sistema</h4>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 1rem;">
-                  {#each ["mint", "carmesi", "amarillo", "rosado", "azul"] as color}
-                    <button onclick={() => theme = color} style="padding: 1rem; border: 2px solid rgba(255,255,255,0.2); border-radius: 12px; background: {theme === color ? 'rgba(255,255,255,0.1)' : 'transparent'}; color: {theme === color ? 'white' : '#94a3b8'}; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
-                      <div style="width: 24px; height: 24px; border-radius: 50%; background-color: {getThemeColor(color)}; border: 2px solid rgba(255,255,255,0.3);"></div>
-                      <span style="font-size: 0.9rem; font-weight: {theme === color ? 'bold' : 'normal'};">{getThemeName(color)}</span>
-                    </button>
-                  {/each}
-                </div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 1rem;">  
+{#each ["mint", "carmesi", "amarillo", "rosado", "azul", "oscuro"] as color}
+  <button onclick={() => theme = color} style="padding: 1rem; border: 2px solid rgba(255,255,255,0.2); border-radius: 12px; background: {theme === color ? 'rgba(255,255,255,0.1)' : 'transparent'}; color: {theme === color ? 'white' : '#94a3b8'}; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+    <div style="width: 24px; height: 24px; border-radius: 50%; background-color: {getThemeColor(color)}; border: 2px solid rgba(255,255,255,0.3);"></div>
+    <span style="font-size: 0.9rem; font-weight: {theme === color ? 'bold' : 'normal'};">{getThemeName(color)}</span>
+  </button>
+{/each}
+</div>
               </div>
               <div style="background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
                 <h4 style="margin: 0 0 1rem 0; color: #e2e8f0;">Vista Previa</h4>

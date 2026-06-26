@@ -74,6 +74,12 @@ html, body {
   --primary-light: rgba(59, 130, 246, 0.2);
 }
 
+:root[data-theme="oscuro"] {
+  --primary-color: #1e40af; /* Deep indigo blue */
+  --primary-hover: #1e3a8a; /* Darker indigo */
+  --primary-light: rgba(30, 64, 175, 0.2);
+}
+
 /* Aplicar tema al botón principal */
 button.primary {
   background: linear-gradient(
