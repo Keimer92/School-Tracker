@@ -12,6 +12,10 @@ function fmtTime() {
   return new Date().toLocaleTimeString();
 }
 
+function pbId(id: number | string): string {
+  return String(id).padStart(15, '0');
+}
+
 async function safeInvoke<T>(fn: string): Promise<T[]> {
   try { return await invoke<T[]>(fn); } catch (e) { console.warn(`[PB] safeInvoke ${fn} falló:`, e); return []; }
 }
@@ -37,16 +41,21 @@ async function ensureCollectionsExist() {
 
   try {
     const existing = await pb.collections.getFullList();
-    const existingNames = new Set(existing.map(c => c.name));
+    const existingMap = new Map(existing.map(c => [c.name, c]));
 
     for (const col of requiredCollections) {
-      if (!existingNames.has(col.name)) {
-        await pb.collections.create({
-          name: col.name,
-          type: 'base',
-          schema: col.schema,
-        });
+      const existingCol = existingMap.get(col.name);
+      if (!existingCol) {
+        await pb.collections.create({ name: col.name, type: 'base', schema: col.schema });
         console.log(`[PB] Colección "${col.name}" creada`);
+      } else {
+        const existingFieldNames = new Set((existingCol.schema || []).map((f: any) => f.name));
+        const missingFields = col.schema.filter((f: any) => !existingFieldNames.has(f.name));
+        if (missingFields.length > 0) {
+          const updatedSchema = [...(existingCol.schema || []), ...missingFields];
+          await pb.collections.update(existingCol.id, { schema: updatedSchema });
+          console.log(`[PB] Colección "${col.name}" actualizada: +${missingFields.map(f => f.name).join(', ')}`);
+        }
       }
     }
   } catch (e: any) {
@@ -55,8 +64,9 @@ async function ensureCollectionsExist() {
 }
 
 async function upsertRecord(collection: string, data: any) {
+  if (data.id) data.id = pbId(data.id);
   try {
-    if (data.id) {
+    if (data.id && String(data.id).length >= 15) {
       await pb.collection(collection).update(String(data.id), data);
     } else {
       await pb.collection(collection).create(data);
@@ -85,7 +95,7 @@ async function upsertRecord(collection: string, data: any) {
 
 async function deleteRecord(collection: string, id: any) {
   try {
-    await pb.collection(collection).delete(String(id));
+    await pb.collection(collection).delete(pbId(id));
   } catch (e: any) {
     if (e?.status !== 404) throw e;
   }
@@ -179,14 +189,14 @@ export const pocketbaseSyncService = {
     try {
       await ensureCollectionsExist();
 
-      const catMap = (r: any) => ({ id: String(r.id), nombre: r.nombre, activo: r.activo ?? false, cualitativo: r.cualitativo ?? false, user_id: userId });
+      const catMap = (r: any) => ({ id: pbId(r.id), nombre: r.nombre, activo: r.activo ?? false, cualitativo: r.cualitativo ?? false, user_id: userId });
       const baseCollections = [
         { name: 'ano_lectivo', cmd: 'get_anos', map: catMap },
         { name: 'corte_evaluativo', cmd: 'get_cortes', map: catMap },
-        { name: 'colegio', cmd: 'get_colegios', map: (r: any) => ({ id: String(r.id), nombre: r.nombre, activo: r.activo ?? false, cualitativo: r.cualitativo ?? false, orden: r.orden ?? 0, user_id: userId }) },
-        { name: 'asignatura', cmd: 'get_asignaturas', map: (r: any) => ({ id: String(r.id), nombre: r.nombre, cualitativo: r.cualitativo ?? false, user_id: userId }) },
-        { name: 'grado', cmd: 'get_grados', map: (r: any) => ({ id: String(r.id), nombre: r.nombre, cualitativo: r.cualitativo ?? false, user_id: userId }) },
-        { name: 'seccion', cmd: 'get_secciones', map: (r: any) => ({ id: String(r.id), nombre: r.nombre, cualitativo: r.cualitativo ?? false, user_id: userId }) },
+        { name: 'colegio', cmd: 'get_colegios', map: (r: any) => ({ id: pbId(r.id), nombre: r.nombre, activo: r.activo ?? false, cualitativo: r.cualitativo ?? false, orden: r.orden ?? 0, user_id: userId }) },
+        { name: 'asignatura', cmd: 'get_asignaturas', map: (r: any) => ({ id: pbId(r.id), nombre: r.nombre, cualitativo: r.cualitativo ?? false, user_id: userId }) },
+        { name: 'grado', cmd: 'get_grados', map: (r: any) => ({ id: pbId(r.id), nombre: r.nombre, cualitativo: r.cualitativo ?? false, user_id: userId }) },
+        { name: 'seccion', cmd: 'get_secciones', map: (r: any) => ({ id: pbId(r.id), nombre: r.nombre, cualitativo: r.cualitativo ?? false, user_id: userId }) },
       ];
 
       for (const col of baseCollections) {
@@ -199,7 +209,7 @@ export const pocketbaseSyncService = {
       const estudiantes = await safeInvoke<any>('get_students');
       for (const e of estudiantes) {
         await upsertWithLog('estudiante', {
-          id: String(e.id), nombre: e.nombre, codigo: e.codigo, sexo: e.sexo,
+          id: pbId(e.id), nombre: e.nombre, codigo: e.codigo, sexo: e.sexo,
           ano_lectivo_id: e.anoLectivoId ?? null, grado_id: e.gradoId ?? null,
           seccion_id: e.seccionId ?? null, colegio_id: e.colegioId ?? null,
           telefono: e.telefono ?? null, direccion: e.direccion ?? null,
@@ -210,7 +220,7 @@ export const pocketbaseSyncService = {
       const indicadores = await safeInvoke<any>('get_indicadores_all');
       for (const i of indicadores) {
         await upsertWithLog('indicador', {
-          id: String(i.id), grado_id: i.gradoId, asignatura_id: i.asignaturaId,
+          id: pbId(i.id), grado_id: i.gradoId, asignatura_id: i.asignaturaId,
           corte_evaluativo_id: i.corteEvaluativoId, orden: i.orden,
           descripcion: i.descripcion ?? '', activo: i.activo ?? true, user_id: userId,
         });
@@ -219,7 +229,7 @@ export const pocketbaseSyncService = {
       const criterios = await safeInvoke<any>('get_criterios_all');
       for (const c of criterios) {
         await upsertWithLog('criterio', {
-          id: String(c.id), indicador_id: c.indicadorId, orden: c.orden,
+          id: pbId(c.id), indicador_id: c.indicadorId, orden: c.orden,
           descripcion: c.descripcion ?? '', puntaje_maximo: Math.round(c.puntajeMaximo), user_id: userId,
         });
       }
@@ -291,6 +301,8 @@ export const pocketbaseSyncService = {
       throw new Error('Debes estar autenticado en PocketBase como admin');
     }
 
+    function unpad(id: string): number { return parseInt(id, 10); }
+
     try {
       const collections = [
         'ano_lectivo', 'corte_evaluativo', 'colegio', 'asignatura', 'grado', 'seccion',
@@ -308,24 +320,24 @@ export const pocketbaseSyncService = {
       }
 
       const pullData: any = {
-        anos: (allData['ano_lectivo'] || []).map((a: any) => ({ id: Number(a.id), nombre: a.nombre, activo: a.activo, cualitativo: a.cualitativo })),
-        cortes: (allData['corte_evaluativo'] || []).map((c: any) => ({ id: Number(c.id), nombre: c.nombre, activo: c.activo, cualitativo: c.cualitativo })),
-        colegios: (allData['colegio'] || []).map((c: any) => ({ id: Number(c.id), nombre: c.nombre, activo: c.activo, cualitativo: c.cualitativo, orden: c.orden ?? 0 })),
-        asignaturas: (allData['asignatura'] || []).map((a: any) => ({ id: Number(a.id), nombre: a.nombre, cualitativo: a.cualitativo })),
-        grados: (allData['grado'] || []).map((g: any) => ({ id: Number(g.id), nombre: g.nombre, cualitativo: g.cualitativo })),
-        secciones: (allData['seccion'] || []).map((s: any) => ({ id: Number(s.id), nombre: s.nombre, cualitativo: s.cualitativo })),
+        anos: (allData['ano_lectivo'] || []).map((a: any) => ({ id: unpad(a.id), nombre: a.nombre, activo: a.activo, cualitativo: a.cualitativo })),
+        cortes: (allData['corte_evaluativo'] || []).map((c: any) => ({ id: unpad(c.id), nombre: c.nombre, activo: c.activo, cualitativo: c.cualitativo })),
+        colegios: (allData['colegio'] || []).map((c: any) => ({ id: unpad(c.id), nombre: c.nombre, activo: c.activo, cualitativo: c.cualitativo, orden: c.orden ?? 0 })),
+        asignaturas: (allData['asignatura'] || []).map((a: any) => ({ id: unpad(a.id), nombre: a.nombre, cualitativo: a.cualitativo })),
+        grados: (allData['grado'] || []).map((g: any) => ({ id: unpad(g.id), nombre: g.nombre, cualitativo: g.cualitativo })),
+        secciones: (allData['seccion'] || []).map((s: any) => ({ id: unpad(s.id), nombre: s.nombre, cualitativo: s.cualitativo })),
         estudiantes: (allData['estudiante'] || []).map((e: any) => ({
-          id: Number(e.id), nombre: e.nombre, codigo: e.codigo, sexo: e.sexo,
+          id: unpad(e.id), nombre: e.nombre, codigo: e.codigo, sexo: e.sexo,
           anoLectivoId: e.ano_lectivo_id, gradoId: e.grado_id, seccionId: e.seccion_id,
           colegioId: e.colegio_id, telefono: e.telefono, direccion: e.direccion, email: e.email, foto: e.foto ?? null,
         })),
         indicadores: (allData['indicador'] || []).map((i: any) => ({
-          id: Number(i.id), gradoId: i.grado_id, asignaturaId: i.asignatura_id,
+          id: unpad(i.id), gradoId: i.grado_id, asignaturaId: i.asignatura_id,
           corteEvaluativoId: i.corte_evaluativo_id, orden: i.orden,
           descripcion: i.descripcion, activo: i.activo, criterios: [],
         })),
         criterios: (allData['criterio'] || []).map((c: any) => ({
-          id: Number(c.id), indicadorId: c.indicador_id, orden: c.orden,
+          id: unpad(c.id), indicadorId: c.indicador_id, orden: c.orden,
           descripcion: c.descripcion, puntajeMaximo: c.puntaje_maximo,
         })),
         notas: (allData['nota'] || []).map((n: any) => ({
@@ -334,7 +346,7 @@ export const pocketbaseSyncService = {
           asignaturaId: Number(n.asignatura_id),
         })),
         asistencia: (allData['asistencia'] || []).map((a: any) => ({
-          id: Number(a.id), estudianteId: Number(a.estudiante_id), fecha: a.fecha,
+          id: unpad(a.id), estudianteId: Number(a.estudiante_id), fecha: a.fecha,
           estado: a.estado, observacion: a.observacion ?? null,
         })),
         gradeConfigs: (allData['configuracion_calificacion'] || []).map((gc: any) => ({

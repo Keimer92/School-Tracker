@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { openUrl } from "@tauri-apps/plugin-opener";
   import { emit } from "@tauri-apps/api/event";
   import { syncService, syncManager, type SyncStatus, type SyncProviderType, getActiveProvider, setActiveProvider } from "../lib/syncService";
   import { getTursoUrl, getTursoToken, saveTursoCredentials, clearTursoCredentials } from "../lib/tursoClient";
@@ -288,7 +289,8 @@
                     {pbStatus === 'online' ? `✅ Conectado (${pbLatency}ms)` : `❌ ${pbError || `Sin conexión`}`}
                   </div>
                 {/if}
-                <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+                <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap;">
+                  <button onclick={() => openUrl(`${pbUrl}/_/`)} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(var(--primary-rgb), 0.2); background: rgba(var(--primary-rgb), 0.08); color: var(--text-secondary); font-weight: 500; font-size: 0.75rem; cursor: pointer;">🔐 Admin Dashboard</button>
                   {#if pbAuthStep === 'connected'}
                     <button onclick={handleDisconnectPB} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(239,68,68,0.2); background: rgba(239,68,68,0.08); color: #f87171; font-weight: 500; font-size: 0.75rem; cursor: pointer;">Desconectar</button>
                   {/if}
@@ -328,6 +330,7 @@
               <input type="email" bind:value={pbEmail} placeholder="admin@schooltracker.com" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.85rem; font-family: monospace; outline: none; box-sizing: border-box;" />
               <input type="password" bind:value={pbPassword} placeholder="Contraseña de admin" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.85rem; font-family: monospace; outline: none; box-sizing: border-box;" />
               <button onclick={handleCheckPBServer} disabled={pbServerChecking} style="padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid rgba(var(--primary-rgb), 0.3); background: rgba(var(--primary-rgb), 0.1); color: var(--text-bright); font-weight: 600; font-size: 0.85rem; cursor: pointer;">{pbServerChecking ? 'Verificando...' : '🔍 Verificar Servidor'}</button>
+              <button onclick={() => openUrl(`${pbUrl}/_/`)} style="padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid rgba(var(--primary-rgb), 0.2); background: rgba(var(--primary-rgb), 0.08); color: var(--text-secondary); font-weight: 600; font-size: 0.85rem; cursor: pointer;">🔐 Admin Dashboard</button>
               <button onclick={handleConnectPB} disabled={pbTesting || !pbUrl || !pbEmail || !pbPassword} style="padding: 0.6rem 1rem; border-radius: 8px; border: none; background: {pbTesting ? '#64748b' : 'var(--primary-color)'}; color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer;">{pbTesting ? 'Conectando...' : 'Conectar a PocketBase'}</button>
               {#if pbServerMessage}
                 <div style="padding: 6px 10px; border-radius: 6px; font-size: 0.75rem; background: {pbServerMessage.startsWith('Error') ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)'}; color: {pbServerMessage.startsWith('Error') ? '#f87171' : '#4ade80'};">
