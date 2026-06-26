@@ -838,6 +838,45 @@ pub fn run() {
                 let _ = window.maximize();
             }
 
+            // Iniciar PocketBase como sidecar
+            #[cfg(debug_assertions)]
+            {
+                let pb_binary_name = if cfg!(target_os = "windows") {
+                    "pocketbase.exe"
+                } else {
+                    "pocketbase"
+                };
+                let pb_path = app_handle.path().resource_dir()
+                    .unwrap_or_default()
+                    .join("binaries")
+                    .join(pb_binary_name);
+
+                let alt_path = std::env::current_dir()
+                    .unwrap_or_default()
+                    .join("binaries")
+                    .join(pb_binary_name);
+
+                let final_pb_path = if pb_path.exists() { pb_path.clone() } else { alt_path.clone() };
+
+                if final_pb_path.exists() {
+                    let pb_data_dir = app_dir.join("pb_data");
+                    if !pb_data_dir.exists() {
+                        let _ = std::fs::create_dir_all(&pb_data_dir);
+                    }
+                    println!("🔄 [Sidecar] Iniciando PocketBase desde {:?}...", final_pb_path);
+                    let _ = std::process::Command::new(&final_pb_path)
+                        .args([
+                            "--dir", &pb_data_dir.to_string_lossy(),
+                            "--http=127.0.0.1:8090",
+                        ])
+                        .spawn()
+                        .map_err(|e| println!("❌ [Sidecar] Error iniciando PocketBase: {}", e));
+                    println!("✅ [Sidecar] PocketBase iniciado");
+                } else {
+                    println!("⚠️ [Sidecar] PocketBase binary no encontrado en {:?} ni {:?}", pb_path, alt_path);
+                }
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

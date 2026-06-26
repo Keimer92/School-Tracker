@@ -2,28 +2,63 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { emit } from "@tauri-apps/api/event";
-  import { syncService, syncManager, type SyncStatus } from "../lib/syncService";
+  import { syncService, syncManager, type SyncStatus, type SyncProviderType, getActiveProvider, setActiveProvider } from "../lib/syncService";
   import { getTursoUrl, getTursoToken, saveTursoCredentials, clearTursoCredentials } from "../lib/tursoClient";
+  import { getPocketBaseUrl, savePocketBaseUrl, isAdminAuthenticated, logoutAdmin } from "../lib/pocketbaseClient";
+  import { pocketbaseSyncService } from "../lib/pocketbaseSyncService";
   import GoogleDriveBackup from "./GoogleDriveBackup.svelte";
 
-  let isSynced = $state(!!getTursoUrl());
+  let syncProvider = $state<SyncProviderType>(getActiveProvider());
+  let isSynced = $state(false);
   let syncStatus = $state<{ status: SyncStatus; lastSync: string | null; lastSyncDetails: string | null; message: string | null; }>({ status: "idle", lastSync: null, lastSyncDetails: null, message: null });
   let showServerConfig = $state(false);
+  let syncInterval = $state(parseInt(localStorage.getItem('periodic_sync_interval_seconds') || '10', 10));
+
+  // Turso state
   let tursoUrl = $state(getTursoUrl());
   let tursoToken = $state(getTursoToken());
   let tursoTesting = $state(false);
   let tursoStatus: 'idle' | 'online' | 'offline' = $state('idle');
   let tursoLatency: number | null = $state(null);
   let tursoError: string | null = $state(null);
-  let syncInterval = $state(parseInt(localStorage.getItem('periodic_sync_interval_seconds') || '10', 10));
+
+  // PocketBase state
+  let pbUrl = $state(getPocketBaseUrl());
+  let pbEmail = $state('');
+  let pbPassword = $state('');
+  let pbTesting = $state(false);
+  let pbStatus: 'idle' | 'online' | 'offline' = $state('idle');
+  let pbLatency: number | null = $state(null);
+  let pbError: string | null = $state(null);
+  let pbAuthStep = $state<'credentials' | 'connected'>('credentials');
 
   let activeCloudTab: 'sync' | 'drive' = $state('sync');
 
   onMount(() => {
     const unsub = syncManager.subscribe((state) => { syncStatus = state; });
+    if (syncProvider === 'turso') {
+      isSynced = !!getTursoUrl();
+    } else {
+      isSynced = isAdminAuthenticated();
+      if (isSynced) pbAuthStep = 'connected';
+    }
     return () => unsub();
   });
 
+  function handleProviderChange(p: SyncProviderType) {
+    if (p === syncProvider) return;
+    setActiveProvider(p);
+    syncProvider = p;
+    showServerConfig = false;
+    if (p === 'turso') {
+      isSynced = !!getTursoUrl();
+    } else {
+      isSynced = isAdminAuthenticated();
+      pbAuthStep = isSynced ? 'connected' : 'credentials';
+    }
+  }
+
+  // Turso handlers
   async function handleConnectTurso() {
     tursoTesting = true; tursoError = null;
     try {
@@ -32,6 +67,65 @@
       else tursoError = result.error || 'Error de conexión';
     } catch (e: any) { tursoError = e?.message || String(e); }
     tursoTesting = false;
+  }
+
+  async function handleTestTurso() {
+    tursoTesting = true; tursoStatus = 'idle'; tursoLatency = null; tursoError = null;
+    try {
+      const result = await syncService.testConnection(tursoUrl, tursoToken);
+      tursoLatency = result.latency; tursoStatus = result.ok ? 'online' : 'offline';
+      if (!result.ok) tursoError = result.error || 'Conexión fallida';
+    } catch (e: any) { tursoStatus = 'offline'; tursoError = e?.message || String(e); }
+    tursoTesting = false;
+  }
+
+  async function handleSchemaSetup() {
+    try {
+      const result = await syncService.testConnection(tursoUrl, tursoToken);
+      if (!result.ok) { tursoError = result.error || 'Conexión fallida'; tursoStatus = 'offline'; return; }
+      const sr = await syncService.runSchemaSetup();
+      if (!sr.ok) tursoError = sr.error || 'Error creando schema';
+      else tursoStatus = 'online';
+    } catch (e: any) { tursoError = e?.message || String(e); }
+  }
+
+  function handleDisconnectTurso() {
+    clearTursoCredentials(); tursoUrl = ''; tursoToken = ''; tursoStatus = 'idle'; isSynced = false;
+    try { syncService.disconnect(); } catch {}
+  }
+
+  // PocketBase handlers
+  async function handleConnectPB() {
+    pbTesting = true; pbError = null;
+    try {
+      savePocketBaseUrl(pbUrl);
+      const healthResult = await pocketbaseSyncService.testConnection(pbUrl);
+      if (!healthResult.ok) { pbError = healthResult.error || 'No se pudo conectar al servidor'; pbTesting = false; return; }
+      const authResult = await pocketbaseSyncService.authenticateAdmin(pbEmail, pbPassword);
+      if (authResult.ok) {
+        isSynced = true; pbStatus = 'online'; pbAuthStep = 'connected';
+        syncService.ensurePeriodicSync(); syncService.syncAllSilent();
+      } else {
+        pbError = authResult.error || 'Error de autenticación';
+      }
+    } catch (e: any) { pbError = e?.message || String(e); }
+    pbTesting = false;
+  }
+
+  async function handleTestPB() {
+    pbTesting = true; pbStatus = 'idle'; pbLatency = null; pbError = null;
+    try {
+      const result = await pocketbaseSyncService.testConnection(pbUrl);
+      pbLatency = result.latency; pbStatus = result.ok ? 'online' : 'offline';
+      if (!result.ok) pbError = result.error || 'Conexión fallida';
+    } catch (e: any) { pbStatus = 'offline'; pbError = e?.message || String(e); }
+    pbTesting = false;
+  }
+
+  function handleDisconnectPB() {
+    logoutAdmin(); pbUrl = getPocketBaseUrl(); pbEmail = ''; pbPassword = '';
+    pbStatus = 'idle'; pbAuthStep = 'credentials'; isSynced = false;
+    try { pocketbaseSyncService.disconnect(); } catch {}
   }
 </script>
 
@@ -58,6 +152,22 @@
           Sincronización en la Nube</span></h3>
       </div>
 
+      <!-- Provider selector pill -->
+      <div style="display: flex; justify-content: center; margin: 0.75rem 1.5rem 0;">
+        <div style="display: inline-flex; padding: 0.3rem; gap: 0.2rem; background: var(--bg-elevated); border-radius: 12px; border: 1px solid var(--border);">
+          <button onclick={() => handleProviderChange('turso')}
+            style="display: flex; align-items: center; gap: 6px; padding: 0.4rem 1rem; border-radius: 9px; border: none; background: {syncProvider === 'turso' ? 'var(--bg-active)' : 'transparent'}; color: {syncProvider === 'turso' ? 'var(--text-bright)' : 'var(--text-muted)'}; cursor: pointer; font-family: inherit; font-size: 0.8rem; font-weight: 600; transition: all 0.2s;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z"/></svg>
+            Turso
+          </button>
+          <button onclick={() => handleProviderChange('pocketbase')}
+            style="display: flex; align-items: center; gap: 6px; padding: 0.4rem 1rem; border-radius: 9px; border: none; background: {syncProvider === 'pocketbase' ? 'var(--bg-active)' : 'transparent'}; color: {syncProvider === 'pocketbase' ? 'var(--text-bright)' : 'var(--text-muted)'}; cursor: pointer; font-family: inherit; font-size: 0.8rem; font-weight: 600; transition: all 0.2s;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+            PocketBase
+          </button>
+        </div>
+      </div>
+
       {#if isSynced}
         <div style="padding: 0 1.5rem 1.5rem;">
           <div style="background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.08) 0%, rgba(var(--primary-rgb), 0.04) 100%); border-radius: 14px; border: 1px solid rgba(var(--primary-rgb), 0.12); padding: 1rem 1.25rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
@@ -70,7 +180,7 @@
             </div>
             <div style="display: flex; align-items: center; gap: 8px;">
               <div style="display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.25); padding: 4px 10px; border-radius: 8px; font-size: 0.75rem; color: #94a3b8;"><span>⚡</span><span>{syncInterval}s</span></div>
-              <div style="display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.25); padding: 4px 10px; border-radius: 8px; font-size: 0.75rem; color: #94a3b8; cursor: pointer;" onclick={() => showServerConfig = !showServerConfig}>
+              <div style="display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,0.25); padding: 4px 10px; border-radius: 8px; font-size: 0.75rem; color: #94a3b8; cursor: pointer;" onclick={() => showServerConfig = !showServerConfig} role="button" tabindex="0" onkeydown={(e) => { if (e.key === 'Enter') showServerConfig = !showServerConfig; }}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
               </div>
             </div>
@@ -94,38 +204,77 @@
           </div>
 
           {#if showServerConfig}
-            <div style="margin-top: 1rem; padding: 1rem 1.25rem; background: rgba(0,0,0,0.2); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
-              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 0.75rem;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
-                <span style="color: #cbd5e1; font-size: 0.85rem; font-weight: 600;">Configuración Turso</span>
-              </div>
-              <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.75rem;">
-                <input type="text" bind:value={tursoUrl} placeholder="libsql://mydb.turso.io" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
-                <input type="password" bind:value={tursoToken} placeholder="Token de autenticación" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
-              </div>
-              <div style="display: flex; gap: 0.5rem;">
-                <button onclick={handleConnectTurso} disabled={tursoTesting || !tursoUrl || !tursoToken} style="flex: 1; padding: 0.5rem 1rem; border-radius: 8px; border: none; background: {tursoTesting ? '#64748b' : 'var(--primary-color)'}; color: #fff; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">{tursoTesting ? 'Conectando...' : 'Conectar'}</button>
-                <button onclick={async () => { tursoTesting = true; tursoStatus = 'idle'; tursoLatency = null; tursoError = null; try { const result = await syncService.testConnection(tursoUrl, tursoToken); tursoLatency = result.latency; tursoStatus = result.ok ? 'online' : 'offline'; if (!result.ok) tursoError = result.error || 'Conexión fallida'; } catch (e: any) { tursoStatus = 'offline'; tursoError = e?.message || String(e); } tursoTesting = false; }} disabled={tursoTesting || !tursoUrl || !tursoToken} style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.2); color: #94a3b8; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">{tursoTesting ? '...' : 'Probar'}</button>
-              </div>
-              {#if tursoStatus !== 'idle'}
-                <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; margin-top: 0.5rem; background: {tursoStatus === 'online' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)'}; color: {tursoStatus === 'online' ? '#4ade80' : '#f87171'};">
-                  {tursoStatus === 'online' ? `✅ Conectado (${tursoLatency}ms)` : `❌ ${tursoError || `Sin conexión`}`}
+            <!-- Config section - differs by provider -->
+            {#if syncProvider === 'turso'}
+              <div style="margin-top: 1rem; padding: 1rem 1.25rem; background: rgba(0,0,0,0.2); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 0.75rem;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+                  <span style="color: #cbd5e1; font-size: 0.85rem; font-weight: 600;">Configuración Turso</span>
                 </div>
-              {/if}
-              <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
-                <button onclick={async () => { try { const result = await syncService.testConnection(tursoUrl, tursoToken); if (!result.ok) { tursoError = result.error || 'Conexión fallida'; tursoStatus = 'offline'; return; } const sr = await syncService.runSchemaSetup(); if (!sr.ok) tursoError = sr.error || 'Error creando schema'; else tursoStatus = 'online'; } catch (e: any) { tursoError = e?.message || String(e); } }} disabled={!tursoUrl || !tursoToken} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.2); color: #94a3b8; font-weight: 500; font-size: 0.75rem; cursor: pointer;">Ejecutar Schema</button>
-                <button onclick={() => { clearTursoCredentials(); tursoUrl = ''; tursoToken = ''; tursoStatus = 'idle'; isSynced = false; syncService.disconnect(); }} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(239,68,68,0.2); background: rgba(239,68,68,0.08); color: #f87171; font-weight: 500; font-size: 0.75rem; cursor: pointer;">Desconectar</button>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.75rem;">
+                  <input type="text" bind:value={tursoUrl} placeholder="libsql://mydb.turso.io" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
+                  <input type="password" bind:value={tursoToken} placeholder="Token de autenticación" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                  <button onclick={handleConnectTurso} disabled={tursoTesting || !tursoUrl || !tursoToken} style="flex: 1; padding: 0.5rem 1rem; border-radius: 8px; border: none; background: {tursoTesting ? '#64748b' : 'var(--primary-color)'}; color: #fff; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">{tursoTesting ? 'Conectando...' : 'Conectar'}</button>
+                  <button onclick={handleTestTurso} disabled={tursoTesting || !tursoUrl || !tursoToken} style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.2); color: #94a3b8; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">{tursoTesting ? '...' : 'Probar'}</button>
+                </div>
+                {#if tursoStatus !== 'idle'}
+                  <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; margin-top: 0.5rem; background: {tursoStatus === 'online' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)'}; color: {tursoStatus === 'online' ? '#4ade80' : '#f87171'};">
+                    {tursoStatus === 'online' ? `✅ Conectado (${tursoLatency}ms)` : `❌ ${tursoError || `Sin conexión`}`}
+                  </div>
+                {/if}
+                <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+                  <button onclick={handleSchemaSetup} disabled={!tursoUrl || !tursoToken} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.2); color: #94a3b8; font-weight: 500; font-size: 0.75rem; cursor: pointer;">Ejecutar Schema</button>
+                  <button onclick={handleDisconnectTurso} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(239,68,68,0.2); background: rgba(239,68,68,0.08); color: #f87171; font-weight: 500; font-size: 0.75rem; cursor: pointer;">Desconectar</button>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem; padding-top: 0.75rem; margin-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.06);">
+                  <span style="color: #94a3b8; font-size: 0.8rem;">Sync periódico:</span>
+                  <input type="number" min={3} max={300} bind:value={syncInterval} oninput={() => { localStorage.setItem('periodic_sync_interval_seconds', String(syncInterval)); syncService.ensurePeriodicSync(); }} style="width: 56px; padding: 0.25rem 0.4rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; text-align: center; outline: none;" />
+                  <span style="color: #64748b; font-size: 0.8rem;">segundos</span>
+                </div>
               </div>
-              <div style="display: flex; align-items: center; gap: 0.5rem; padding-top: 0.75rem; margin-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.06);">
-                <span style="color: #94a3b8; font-size: 0.8rem;">Sync periódico:</span>
-                <input type="number" min={3} max={300} bind:value={syncInterval} oninput={() => { localStorage.setItem('periodic_sync_interval_seconds', String(syncInterval)); syncService.ensurePeriodicSync(); }} style="width: 56px; padding: 0.25rem 0.4rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; text-align: center; outline: none;" />
-                <span style="color: #64748b; font-size: 0.8rem;">segundos</span>
+            {:else}
+              <!-- PocketBase config -->
+              <div style="margin-top: 1rem; padding: 1rem 1.25rem; background: rgba(0,0,0,0.2); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 0.75rem;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                  <span style="color: #cbd5e1; font-size: 0.85rem; font-weight: 600;">Configuración PocketBase</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.75rem;">
+                  <input type="text" bind:value={pbUrl} placeholder="http://127.0.0.1:8090" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
+                  {#if pbAuthStep === 'credentials'}
+                    <input type="email" bind:value={pbEmail} placeholder="admin@schooltracker.com" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
+                    <input type="password" bind:value={pbPassword} placeholder="Contraseña de admin" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
+                  {/if}
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                  {#if pbAuthStep === 'credentials'}
+                    <button onclick={handleConnectPB} disabled={pbTesting || !pbUrl || !pbEmail || !pbPassword} style="flex: 1; padding: 0.5rem 1rem; border-radius: 8px; border: none; background: {pbTesting ? '#64748b' : 'var(--primary-color)'}; color: #fff; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">{pbTesting ? 'Conectando...' : 'Conectar'}</button>
+                  {/if}
+                  <button onclick={handleTestPB} disabled={pbTesting || !pbUrl} style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.2); color: #94a3b8; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">{pbTesting ? '...' : 'Probar'}</button>
+                </div>
+                {#if pbStatus !== 'idle'}
+                  <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; margin-top: 0.5rem; background: {pbStatus === 'online' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)'}; color: {pbStatus === 'online' ? '#4ade80' : '#f87171'};">
+                    {pbStatus === 'online' ? `✅ Conectado (${pbLatency}ms)` : `❌ ${pbError || `Sin conexión`}`}
+                  </div>
+                {/if}
+                <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+                  {#if pbAuthStep === 'connected'}
+                    <button onclick={handleDisconnectPB} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(239,68,68,0.2); background: rgba(239,68,68,0.08); color: #f87171; font-weight: 500; font-size: 0.75rem; cursor: pointer;">Desconectar</button>
+                  {/if}
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem; padding-top: 0.75rem; margin-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.06);">
+                  <span style="color: #94a3b8; font-size: 0.8rem;">Sync periódico:</span>
+                  <input type="number" min={3} max={300} bind:value={syncInterval} oninput={() => { localStorage.setItem('periodic_sync_interval_seconds', String(syncInterval)); syncService.ensurePeriodicSync(); }} style="width: 56px; padding: 0.25rem 0.4rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; text-align: center; outline: none;" />
+                  <span style="color: #64748b; font-size: 0.8rem;">segundos</span>
+                </div>
               </div>
-            </div>
+            {/if}
           {/if}
 
           <div style="margin-top: 1rem; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
-            {#each [{ icon: '💻', title: 'Local-First', desc: 'Datos seguros en tu PC' }, { icon: '☁️', title: 'Turso Cloud', desc: 'Siempre disponible' }, { icon: '📴', title: 'Offline', desc: 'Trabaja sin internet' }, { icon: '🔄', title: 'Periódico', desc: `Cada ${syncInterval}s` }] as item}
+            {#each [{ icon: '💻', title: 'Local-First', desc: 'Datos seguros en tu PC' }, { icon: '☁️', title: syncProvider === 'turso' ? 'Turso Cloud' : 'PocketBase', desc: 'Siempre disponible' }, { icon: '📴', title: 'Offline', desc: 'Trabaja sin internet' }, { icon: '🔄', title: 'Periódico', desc: `Cada ${syncInterval}s` }] as item}
               <div style="padding: 0.75rem; background: rgba(0,0,0,0.15); border-radius: 10px; text-align: center;">
                 <div style="font-size: 1.1rem; margin-bottom: 2px;">{item.icon}</div>
                 <div style="font-size: 0.75rem; color: #f1f5f9; font-weight: 600;">{item.title}</div>
@@ -136,12 +285,22 @@
         </div>
       {:else}
         <div style="padding: 1.5rem 1.5rem 2.5rem; text-align: center;">
-          <div style="color: #64748b; font-size: 0.9rem; margin-bottom: 1.5rem;">Conectá tu base de datos Turso para sincronizar datos entre dispositivos.</div>
+          <div style="color: #64748b; font-size: 0.9rem; margin-bottom: 1.5rem;">
+            {syncProvider === 'turso' ? 'Conectá tu base de datos Turso para sincronizar datos entre dispositivos.' : 'Conectá tu servidor PocketBase local para sincronizar datos.'}
+          </div>
           <div style="max-width: 400px; margin: 0 auto; display: flex; flex-direction: column; gap: 0.5rem;">
-            <input type="text" bind:value={tursoUrl} placeholder="libsql://mydb.turso.io" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.85rem; font-family: monospace; outline: none; box-sizing: border-box;" />
-            <input type="password" bind:value={tursoToken} placeholder="Token de autenticación" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.85rem; font-family: monospace; outline: none; box-sizing: border-box;" />
-            <button onclick={handleConnectTurso} disabled={tursoTesting || !tursoUrl || !tursoToken} style="padding: 0.6rem 1rem; border-radius: 8px; border: none; background: {tursoTesting ? '#64748b' : 'var(--primary-color)'}; color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer;">{tursoTesting ? 'Conectando...' : 'Conectar a Turso'}</button>
-            {#if tursoError}<div style="color: #f87171; font-size: 0.75rem; margin-top: 0.5rem;">❌ {tursoError}</div>{/if}
+            {#if syncProvider === 'turso'}
+              <input type="text" bind:value={tursoUrl} placeholder="libsql://mydb.turso.io" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.85rem; font-family: monospace; outline: none; box-sizing: border-box;" />
+              <input type="password" bind:value={tursoToken} placeholder="Token de autenticación" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.85rem; font-family: monospace; outline: none; box-sizing: border-box;" />
+              <button onclick={handleConnectTurso} disabled={tursoTesting || !tursoUrl || !tursoToken} style="padding: 0.6rem 1rem; border-radius: 8px; border: none; background: {tursoTesting ? '#64748b' : 'var(--primary-color)'}; color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer;">{tursoTesting ? 'Conectando...' : 'Conectar a Turso'}</button>
+              {#if tursoError}<div style="color: #f87171; font-size: 0.75rem; margin-top: 0.5rem;">❌ {tursoError}</div>{/if}
+            {:else}
+              <input type="text" bind:value={pbUrl} placeholder="http://127.0.0.1:8090" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.85rem; font-family: monospace; outline: none; box-sizing: border-box;" />
+              <input type="email" bind:value={pbEmail} placeholder="admin@schooltracker.com" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.85rem; font-family: monospace; outline: none; box-sizing: border-box;" />
+              <input type="password" bind:value={pbPassword} placeholder="Contraseña de admin" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.85rem; font-family: monospace; outline: none; box-sizing: border-box;" />
+              <button onclick={handleConnectPB} disabled={pbTesting || !pbUrl || !pbEmail || !pbPassword} style="padding: 0.6rem 1rem; border-radius: 8px; border: none; background: {pbTesting ? '#64748b' : 'var(--primary-color)'}; color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer;">{pbTesting ? 'Conectando...' : 'Conectar a PocketBase'}</button>
+              {#if pbError}<div style="color: #f87171; font-size: 0.75rem; margin-top: 0.5rem;">❌ {pbError}</div>{/if}
+            {/if}
           </div>
         </div>
       {/if}
