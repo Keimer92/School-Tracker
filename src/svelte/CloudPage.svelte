@@ -132,20 +132,11 @@
 
   async function handleCheckPBServer() {
     pbServerChecking = true; pbServerMessage = null;
-    try {
-      const pbStarted = await invoke<boolean>('get_pocketbase_status');
-      if (pbStarted) {
-        pbServerMessage = 'PocketBase iniciado automáticamente ✅';
-      } else {
-        const healthOk = await checkPocketBaseHealth();
-        if (healthOk) {
-          pbServerMessage = 'PocketBase ya está corriendo ✅';
-        } else {
-          pbServerMessage = 'PocketBase no está corriendo. Reiniciá la app para que se inicie automáticamente, o ejecutalo manualmente.';
-        }
-      }
-    } catch (e: any) {
-      pbServerMessage = `No se pudo verificar el estado. Reiniciá la app.`;
+    const healthOk = await checkPocketBaseHealth();
+    if (healthOk) {
+      pbServerMessage = 'PocketBase está corriendo ✅ Podés conectarte con tu superusuario.';
+    } else {
+      pbServerMessage = 'PocketBase no responde. Si la app se inició hace poco, esperá unos segundos y probá de nuevo. Si persiste, reiniciá la app con ctrl+C y volvé a ejecutar npm run tauri dev.';
     }
     pbServerChecking = false;
   }

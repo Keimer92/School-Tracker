@@ -13,7 +13,45 @@ function fmtTime() {
 }
 
 async function safeInvoke<T>(fn: string): Promise<T[]> {
-  try { return await invoke<T[]>(fn); } catch { return []; }
+  try { return await invoke<T[]>(fn); } catch (e) { console.warn(`[PB] safeInvoke ${fn} falló:`, e); return []; }
+}
+
+async function ensureCollectionsExist() {
+  const requiredCollections = [
+    { name: 'ano_lectivo', schema: [{ name: 'nombre', type: 'text', required: true }, { name: 'activo', type: 'bool' }, { name: 'cualitativo', type: 'bool' }, { name: 'user_id', type: 'text' }] },
+    { name: 'corte_evaluativo', schema: [{ name: 'nombre', type: 'text', required: true }, { name: 'activo', type: 'bool' }, { name: 'cualitativo', type: 'bool' }, { name: 'user_id', type: 'text' }] },
+    { name: 'colegio', schema: [{ name: 'nombre', type: 'text', required: true }, { name: 'activo', type: 'bool' }, { name: 'cualitativo', type: 'bool' }, { name: 'orden', type: 'number' }, { name: 'user_id', type: 'text' }] },
+    { name: 'asignatura', schema: [{ name: 'nombre', type: 'text', required: true }, { name: 'cualitativo', type: 'bool' }, { name: 'user_id', type: 'text' }] },
+    { name: 'grado', schema: [{ name: 'nombre', type: 'text', required: true }, { name: 'cualitativo', type: 'bool' }, { name: 'user_id', type: 'text' }] },
+    { name: 'seccion', schema: [{ name: 'nombre', type: 'text', required: true }, { name: 'cualitativo', type: 'bool' }, { name: 'user_id', type: 'text' }] },
+    { name: 'estudiante', schema: [{ name: 'nombre', type: 'text', required: true }, { name: 'codigo', type: 'text', required: true }, { name: 'sexo', type: 'text' }, { name: 'ano_lectivo_id', type: 'number' }, { name: 'grado_id', type: 'number' }, { name: 'seccion_id', type: 'number' }, { name: 'colegio_id', type: 'number' }, { name: 'telefono', type: 'text' }, { name: 'direccion', type: 'text' }, { name: 'email', type: 'text' }, { name: 'foto', type: 'text' }, { name: 'user_id', type: 'text' }] },
+    { name: 'grado_asignatura', schema: [{ name: 'grado_id', type: 'number', required: true }, { name: 'asignatura_id', type: 'number', required: true }, { name: 'user_id', type: 'text' }] },
+    { name: 'colegio_asignatura', schema: [{ name: 'colegio_id', type: 'number', required: true }, { name: 'asignatura_id', type: 'number', required: true }, { name: 'user_id', type: 'text' }] },
+    { name: 'indicador', schema: [{ name: 'grado_id', type: 'number', required: true }, { name: 'asignatura_id', type: 'number', required: true }, { name: 'corte_evaluativo_id', type: 'number', required: true }, { name: 'orden', type: 'number', required: true }, { name: 'descripcion', type: 'text' }, { name: 'activo', type: 'bool' }, { name: 'user_id', type: 'text' }] },
+    { name: 'criterio', schema: [{ name: 'indicador_id', type: 'number', required: true }, { name: 'orden', type: 'number', required: true }, { name: 'descripcion', type: 'text' }, { name: 'puntaje_maximo', type: 'number', required: true }, { name: 'user_id', type: 'text' }] },
+    { name: 'nota', schema: [{ name: 'estudiante_id', type: 'number', required: true }, { name: 'criterio_id', type: 'number', required: true }, { name: 'valor', type: 'number', required: true }, { name: 'corte_evaluativo_id', type: 'number', required: true }, { name: 'asignatura_id', type: 'number', required: true }, { name: 'user_id', type: 'text' }] },
+    { name: 'asistencia', schema: [{ name: 'estudiante_id', type: 'number', required: true }, { name: 'fecha', type: 'text', required: true }, { name: 'estado', type: 'text', required: true }, { name: 'observacion', type: 'text' }, { name: 'user_id', type: 'text' }] },
+    { name: 'configuracion_calificacion', schema: [{ name: 'nombre', type: 'text', required: true }, { name: 'color', type: 'text', required: true }, { name: 'minimo', type: 'number', required: true }, { name: 'user_id', type: 'text' }] },
+    { name: 'colegio_dias_asistencia', schema: [{ name: 'colegio_id', type: 'number', required: true }, { name: 'lunes', type: 'bool' }, { name: 'martes', type: 'bool' }, { name: 'miercoles', type: 'bool' }, { name: 'jueves', type: 'bool' }, { name: 'viernes', type: 'bool' }, { name: 'sabado', type: 'bool' }, { name: 'domingo', type: 'bool' }, { name: 'user_id', type: 'text' }] },
+  ];
+
+  try {
+    const existing = await pb.collections.getFullList();
+    const existingNames = new Set(existing.map(c => c.name));
+
+    for (const col of requiredCollections) {
+      if (!existingNames.has(col.name)) {
+        await pb.collections.create({
+          name: col.name,
+          type: 'base',
+          schema: col.schema,
+        });
+        console.log(`[PB] Colección "${col.name}" creada`);
+      }
+    }
+  } catch (e: any) {
+    console.warn('[PB] Error verificando/creando colecciones:', e?.message || e);
+  }
 }
 
 async function upsertRecord(collection: string, data: any) {
@@ -66,10 +104,10 @@ export const pocketbaseSyncService = {
     const baseUrl = url || getPocketBaseUrl();
     try {
       const start = performance.now();
-      const testPb = new PocketBase(baseUrl);
-      await testPb.health.check();
+      const testPb = url ? new PocketBase(url) : pb;
+      const health = await testPb.health.check();
       const latency = Math.round(performance.now() - start);
-      return { ok: true, latency };
+      return { ok: health.code === 200, latency };
     } catch (e: any) {
       return { ok: false, latency: 0, error: e?.message || String(e) };
     }
@@ -92,6 +130,7 @@ export const pocketbaseSyncService = {
   authenticateAdmin: async (email: string, password: string): Promise<{ ok: boolean; error?: string }> => {
     try {
       await authenticateAdmin(email, password);
+      await ensureCollectionsExist();
       return { ok: true };
     } catch (e: any) {
       return { ok: false, error: e?.message || String(e) };
@@ -112,124 +151,110 @@ export const pocketbaseSyncService = {
       throw new Error('Debes estar autenticado en PocketBase como admin');
     }
 
+    const errors: string[] = [];
+
+    async function upsertWithLog(collection: string, data: any) {
+      try {
+        await upsertRecord(collection, data);
+      } catch (e: any) {
+        const msg = `${collection}: ${e?.message || e}`.slice(0, 200);
+        errors.push(msg);
+        console.warn(`[PB Push] Error en ${msg}`);
+      }
+    }
+
     try {
-      const collections: Array<{ name: string; cmd: string; map: (r: any) => any }> = [
-        { name: 'ano_lectivo', cmd: 'get_anos', map: (r) => ({ id: String(r.id), nombre: r.nombre, activo: r.activo ?? false, cualitativo: r.cualitativo ?? false, user_id: userId }) },
-        { name: 'corte_evaluativo', cmd: 'get_cortes', map: (r) => ({ id: String(r.id), nombre: r.nombre, activo: r.activo ?? false, cualitativo: r.cualitativo ?? false, user_id: userId }) },
-        { name: 'colegio', cmd: 'get_colegios', map: (r) => ({ id: String(r.id), nombre: r.nombre, activo: r.activo ?? false, cualitativo: r.cualitativo ?? false, orden: r.orden ?? 0, user_id: userId }) },
-        { name: 'asignatura', cmd: 'get_asignaturas', map: (r) => ({ id: String(r.id), nombre: r.nombre, cualitativo: r.cualitativo ?? false, user_id: userId }) },
-        { name: 'grado', cmd: 'get_grados', map: (r) => ({ id: String(r.id), nombre: r.nombre, cualitativo: r.cualitativo ?? false, user_id: userId }) },
-        { name: 'seccion', cmd: 'get_secciones', map: (r) => ({ id: String(r.id), nombre: r.nombre, cualitativo: r.cualitativo ?? false, user_id: userId }) },
+      await ensureCollectionsExist();
+
+      const catMap = (r: any) => ({ id: String(r.id), nombre: r.nombre, activo: r.activo ?? false, cualitativo: r.cualitativo ?? false, user_id: userId });
+      const baseCollections = [
+        { name: 'ano_lectivo', cmd: 'get_anos', map: catMap },
+        { name: 'corte_evaluativo', cmd: 'get_cortes', map: catMap },
+        { name: 'colegio', cmd: 'get_colegios', map: (r: any) => ({ id: String(r.id), nombre: r.nombre, activo: r.activo ?? false, cualitativo: r.cualitativo ?? false, orden: r.orden ?? 0, user_id: userId }) },
+        { name: 'asignatura', cmd: 'get_asignaturas', map: (r: any) => ({ id: String(r.id), nombre: r.nombre, cualitativo: r.cualitativo ?? false, user_id: userId }) },
+        { name: 'grado', cmd: 'get_grados', map: (r: any) => ({ id: String(r.id), nombre: r.nombre, cualitativo: r.cualitativo ?? false, user_id: userId }) },
+        { name: 'seccion', cmd: 'get_secciones', map: (r: any) => ({ id: String(r.id), nombre: r.nombre, cualitativo: r.cualitativo ?? false, user_id: userId }) },
       ];
 
-      for (const col of collections) {
+      for (const col of baseCollections) {
         const data = await safeInvoke<any>(col.cmd);
         for (const item of data) {
-          try {
-            await upsertRecord(col.name, col.map(item));
-          } catch (e: any) {
-            console.warn(`[PB Push] Error en ${col.name}:`, e?.message || e);
-          }
+          await upsertWithLog(col.name, col.map(item));
         }
       }
 
       const estudiantes = await safeInvoke<any>('get_students');
       for (const e of estudiantes) {
-        try {
-          await upsertRecord('estudiante', {
-            id: String(e.id), nombre: e.nombre, codigo: e.codigo, sexo: e.sexo,
-            ano_lectivo_id: e.anoLectivoId ?? null, grado_id: e.gradoId ?? null,
-            seccion_id: e.seccionId ?? null, colegio_id: e.colegioId ?? null,
-            telefono: e.telefono ?? null, direccion: e.direccion ?? null,
-            email: e.email ?? null, foto: e.foto ?? null, user_id: userId,
-          });
-        } catch {}
+        await upsertWithLog('estudiante', {
+          id: String(e.id), nombre: e.nombre, codigo: e.codigo, sexo: e.sexo,
+          ano_lectivo_id: e.anoLectivoId ?? null, grado_id: e.gradoId ?? null,
+          seccion_id: e.seccionId ?? null, colegio_id: e.colegioId ?? null,
+          telefono: e.telefono ?? null, direccion: e.direccion ?? null,
+          email: e.email ?? null, foto: e.foto ?? null, user_id: userId,
+        });
       }
 
       const indicadores = await safeInvoke<any>('get_indicadores_all');
       for (const i of indicadores) {
-        try {
-          await upsertRecord('indicador', {
-            id: String(i.id), grado_id: i.gradoId, asignatura_id: i.asignaturaId,
-            corte_evaluativo_id: i.corteEvaluativoId, orden: i.orden,
-            descripcion: i.descripcion ?? '', activo: i.activo ?? true, user_id: userId,
-          });
-        } catch {}
+        await upsertWithLog('indicador', {
+          id: String(i.id), grado_id: i.gradoId, asignatura_id: i.asignaturaId,
+          corte_evaluativo_id: i.corteEvaluativoId, orden: i.orden,
+          descripcion: i.descripcion ?? '', activo: i.activo ?? true, user_id: userId,
+        });
       }
 
       const criterios = await safeInvoke<any>('get_criterios_all');
       for (const c of criterios) {
-        try {
-          await upsertRecord('criterio', {
-            id: String(c.id), indicador_id: c.indicadorId, orden: c.orden,
-            descripcion: c.descripcion ?? '', puntaje_maximo: Math.round(c.puntajeMaximo), user_id: userId,
-          });
-        } catch {}
+        await upsertWithLog('criterio', {
+          id: String(c.id), indicador_id: c.indicadorId, orden: c.orden,
+          descripcion: c.descripcion ?? '', puntaje_maximo: Math.round(c.puntajeMaximo), user_id: userId,
+        });
       }
 
       const notas = await safeInvoke<any>('get_notas_all');
       for (const n of notas) {
-        try {
-          await upsertRecord('nota', {
-            estudiante_id: n.estudianteId, criterio_id: n.criterioId,
-            valor: n.valor, corte_evaluativo_id: n.corteEvaluativoId ?? 0,
-            asignatura_id: n.asignaturaId ?? 0, user_id: userId,
-          });
-        } catch {}
+        await upsertWithLog('nota', {
+          estudiante_id: n.estudianteId, criterio_id: n.criterioId,
+          valor: n.valor, corte_evaluativo_id: n.corteEvaluativoId ?? 0,
+          asignatura_id: n.asignaturaId ?? 0, user_id: userId,
+        });
       }
 
       const asistencia = await safeInvoke<any>('get_asistencia_all');
       for (const a of asistencia) {
-        try {
-          await upsertRecord('asistencia', {
-            estudiante_id: a.estudianteId, fecha: a.fecha,
-            estado: a.estado, observacion: a.observacion ?? null, user_id: userId,
-          });
-        } catch {}
+        await upsertWithLog('asistencia', {
+          estudiante_id: a.estudianteId, fecha: a.fecha,
+          estado: a.estado, observacion: a.observacion ?? null, user_id: userId,
+        });
       }
 
       const gradeConfigs = await safeInvoke<any>('get_grade_configs');
       for (const gc of gradeConfigs) {
-        try {
-          await upsertRecord('configuracion_calificacion', {
-            id: String(gc.id), nombre: gc.nombre,
-            color: gc.color, minimo: gc.minimo, user_id: userId,
-          });
-        } catch {}
+        await upsertWithLog('configuracion_calificacion', {
+          id: String(gc.id), nombre: gc.nombre, color: gc.color, minimo: gc.minimo, user_id: userId,
+        });
       }
 
-      try {
-        const gradoAsigs = await safeInvoke<any>('get_grado_asignatura');
-        for (const ga of gradoAsigs) {
-          try {
-            await upsertRecord('grado_asignatura', { grado_id: ga.grado_id, asignatura_id: ga.asignatura_id, user_id: userId });
-          } catch {}
-        }
-      } catch {}
+      for (const ga of await safeInvoke<any>('get_grado_asignatura')) {
+        await upsertWithLog('grado_asignatura', { grado_id: ga.grado_id, asignatura_id: ga.asignatura_id, user_id: userId });
+      }
 
-      try {
-        const coleAsigs = await safeInvoke<any>('get_colegio_asignatura');
-        for (const ca of coleAsigs) {
-          try {
-            await upsertRecord('colegio_asignatura', { colegio_id: ca.colegio_id, asignatura_id: ca.asignatura_id, user_id: userId });
-          } catch {}
-        }
-      } catch {}
+      for (const ca of await safeInvoke<any>('get_colegio_asignatura')) {
+        await upsertWithLog('colegio_asignatura', { colegio_id: ca.colegio_id, asignatura_id: ca.asignatura_id, user_id: userId });
+      }
 
-      try {
-        const dias = await safeInvoke<any>('get_colegio_dias_asistencia_all');
-        for (const d of dias) {
-          try {
-            await upsertRecord('colegio_dias_asistencia', {
-              colegio_id: d.colegioId, lunes: !!d.lunes, martes: !!d.martes,
-              miercoles: !!d.miercoles, jueves: !!d.jueves, viernes: !!d.viernes,
-              sabado: !!d.sabado, domingo: !!d.domingo, user_id: userId,
-            });
-          } catch {}
-        }
-      } catch {}
+      for (const d of await safeInvoke<any>('get_colegio_dias_asistencia_all')) {
+        await upsertWithLog('colegio_dias_asistencia', {
+          colegio_id: d.colegioId, lunes: !!d.lunes, martes: !!d.martes,
+          miercoles: !!d.miercoles, jueves: !!d.jueves, viernes: !!d.viernes,
+          sabado: !!d.sabado, domingo: !!d.domingo, user_id: userId,
+        });
+      }
 
       syncManager.setState({ lastUpload: now() });
+      if (errors.length > 0) {
+        syncManager.setState({ status: 'error', message: `Sincronización con errores (${errors.length}): ${errors.slice(0, 3).join(', ')}${errors.length > 3 ? `... (+${errors.length - 3})` : ''}` });
+      }
     } catch (e: any) {
       throw new Error(`Error subiendo datos a PocketBase: ${e?.message || e}`);
     }
