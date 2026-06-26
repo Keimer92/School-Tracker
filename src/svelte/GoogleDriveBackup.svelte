@@ -35,7 +35,6 @@
   let confirmTitle = $state("");
   let confirmMessage = $state("");
   let confirmVariant: 'danger' | 'warning' | 'info' = $state('danger');
-  let confirmAction: (() => void) | null = $state(null);
   let restoreFileId: string | null = $state(null);
 
   $effect(() => { if (settings.googleUserProfilePic) imgError = false; });
@@ -223,23 +222,24 @@
     confirmMessage = `¿Estás seguro de querer restaurar "${fileName}"?\n\nSe sobrescribirá la base de datos actual.\nEsta acción no se puede deshacer.`;
     confirmVariant = 'danger';
     restoreFileId = fileId;
-    confirmAction = () => { if (restoreFileId) restoreFromDrive(restoreFileId); };
     showConfirm = true;
+  }
+
+  async function executeDelete(fileId: string) {
+    const token = await refreshAccessToken();
+    if (!token) return;
+    try {
+      await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      driveFiles = driveFiles.filter(f => f.id !== fileId);
+      emit("show-toast", { message: "✅ Respaldo eliminado", type: "success" });
+    } catch (e) { emit("show-toast", { message: "❌ Error al eliminar: " + e, type: "error" }); }
   }
 
   function requestDelete(fileId: string, fileName: string) {
     confirmTitle = "🗑️ Eliminar Respaldo";
     confirmMessage = `¿Eliminar "${fileName}" de Google Drive?`;
     confirmVariant = 'warning';
-    confirmAction = async () => {
-      const token = await refreshAccessToken();
-      if (!token) return;
-      try {
-        await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-        driveFiles = driveFiles.filter(f => f.id !== fileId);
-        emit("show-toast", { message: "✅ Respaldo eliminado", type: "success" });
-      } catch (e) { emit("show-toast", { message: "❌ Error al eliminar: " + e, type: "error" }); }
-    };
+    restoreFileId = fileId;
     showConfirm = true;
   }
 
@@ -347,7 +347,7 @@
         <div style="white-space: pre-wrap; margin: 1.5rem 0; color: #e2e8f0; font-size: 0.9rem; line-height: 1.5;">{confirmMessage}</div>
         <div style="display: flex; justify-content: flex-end; gap: 1rem;">
           <button onclick={() => showConfirm = false} style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-weight: 600; font-size: 0.85rem;">Cancelar</button>
-          <button onclick={() => { if (confirmAction) confirmAction(); showConfirm = false; }} disabled={isLoading} style="padding: 0.5rem 1.25rem; border-radius: 8px; border: none; background: {confirmVariant === 'danger' ? '#ef4444' : '#eab308'}; color: white; font-weight: 700; cursor: pointer; font-size: 0.85rem;">{isLoading ? 'Procesando...' : 'Confirmar'}</button>
+          <button onclick={async () => { if (restoreFileId) { isLoading = true; if (confirmVariant === 'warning') await executeDelete(restoreFileId); else await restoreFromDrive(restoreFileId); isLoading = false; } showConfirm = false; }} disabled={isLoading} style="padding: 0.5rem 1.25rem; border-radius: 8px; border: none; background: {confirmVariant === 'danger' ? '#ef4444' : '#eab308'}; color: white; font-weight: 700; cursor: pointer; font-size: 0.85rem;">{isLoading ? 'Procesando...' : 'Confirmar'}</button>
         </div>
       </div>
     </div>
