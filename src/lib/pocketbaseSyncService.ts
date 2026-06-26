@@ -45,6 +45,8 @@ async function ensureCollectionsExist() {
     { name: 'colegio_dias_asistencia', schema: [{ name: 'colegio_id', type: 'number', required: true }, { name: 'lunes', type: 'bool' }, { name: 'martes', type: 'bool' }, { name: 'miercoles', type: 'bool' }, { name: 'jueves', type: 'bool' }, { name: 'viernes', type: 'bool' }, { name: 'sabado', type: 'bool' }, { name: 'domingo', type: 'bool' }, { name: 'user_id', type: 'text' }] },
   ];
 
+  const expectedSchemas = new Map(requiredCollections.map(c => [c.name, new Set(c.schema.map((f: any) => f.name))]));
+
   try {
     const existing = await pb.collections.getFullList();
     const existingMap = new Map(existing.map(c => [c.name, c]));
@@ -56,11 +58,18 @@ async function ensureCollectionsExist() {
         console.log(`[PB] Colección "${col.name}" creada`);
       } else {
         const existingFieldNames = new Set((existingCol.schema || []).map((f: any) => f.name));
-        const missingFields = col.schema.filter((f: any) => !existingFieldNames.has(f.name));
-        if (missingFields.length > 0) {
-          const updatedSchema = [...(existingCol.schema || []), ...missingFields];
-          await pb.collections.update(existingCol.id, { schema: updatedSchema });
-          console.log(`[PB] Colección "${col.name}" actualizada: +${missingFields.map(f => f.name).join(', ')}`);
+        const expectedFields = expectedSchemas.get(col.name)!;
+        const isCorrect = expectedFields.size === existingFieldNames.size &&
+          [...expectedFields].every(f => existingFieldNames.has(f));
+
+        if (!isCorrect) {
+          try {
+            await pb.collections.delete(existingCol.id);
+            await pb.collections.create({ name: col.name, type: 'base', schema: col.schema });
+            console.log(`[PB] Colección "${col.name}" recreada con schema correcto`);
+          } catch (e2: any) {
+            console.warn(`[PB] Error recreando "${col.name}":`, e2?.message);
+          }
         }
       }
     }
