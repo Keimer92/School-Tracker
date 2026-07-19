@@ -77,6 +77,7 @@
   let deleteMessage = $state("");
   let studentToDeleteId: number | null = $state(null);
   let showBatchDeleteConfirm = $state(false);
+  let showDeleteSelectedConfirm = $state(false);
   let selectedIds = $state<Set<number>>(new Set());
   let selectMode = $state(false);
   let isDeletingSelected = $state(false);
@@ -484,7 +485,7 @@ async function fetchData(preserveFilters = false) {
   async function deleteSelected() {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
-    isDeletingSelected = true;
+    showDeleteSelectedConfirm = false; isDeletingSelected = true;
     const count = ids.length;
     try {
       await invoke("delete_student_batch", { ids });
@@ -659,7 +660,7 @@ async function fetchData(preserveFilters = false) {
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; margin-top: 0.2rem; flex-wrap: wrap; gap: 0.4rem;">
       <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
         {#if selectedIds.size > 0}
-          <button onclick={deleteSelected} disabled={isDeletingSelected} style="padding: 0.4rem 1rem; font-size: 0.8rem; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.15); color: #fca5a5; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
+          <button onclick={() => showDeleteSelectedConfirm = true} disabled={isDeletingSelected} style="padding: 0.4rem 1rem; font-size: 0.8rem; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.15); color: #fca5a5; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
             🗑 Eliminar ({selectedIds.size})
           </button>
           <button onclick={clearSelection} style="padding: 0.3rem 0.7rem; font-size: 0.75rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer;">Deseleccionar</button>
@@ -884,6 +885,28 @@ async function fetchData(preserveFilters = false) {
         <div style="display: flex; justify-content: flex-end; gap: 1rem;">
           <button onclick={() => showBatchDeleteConfirm = false} disabled={isDeleting} style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-weight: 600;">Cancelar</button>
           <button onclick={handleBatchDelete} disabled={isDeleting} style="padding: 0.5rem 1.25rem; font-size: 0.85rem; border-radius: 8px; border: none; background: #ef4444; color: white; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(239,68,68,0.4);">{isDeleting ? "Eliminando..." : `Eliminar ${filteredStudents.length} estudiantes`}</button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Delete Selected Confirm Modal -->
+  {#if showDeleteSelectedConfirm}
+    <div class="modal-overlay" style="position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);">
+      <div class="modal-content category-card" style="width: 450px; max-width: 90%; padding: 1.5rem; position: relative; background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98)); border: 1px solid rgba(239,68,68,0.25); border-radius: 20px; box-shadow: 0 25px 60px -12px rgba(0,0,0,0.6);">
+        <h3 style="margin-top: 0; color: #f87171;">⚠️ Confirmar Eliminación</h3>
+        <div style="margin: 1.5rem 0; color: #e2e8f0; font-size: 0.95rem; line-height: 1.5;">
+          <p>¿Está seguro de eliminar los <strong>{selectedIds.size}</strong> estudiantes seleccionados?</p>
+          <div style="max-height: 180px; overflow-y: auto; padding: 0.5rem; margin-top: 0.75rem; background: rgba(0,0,0,0.2); border-radius: 8px; font-size: 0.85rem;">
+            {#each students.filter(s => selectedIds.has(s.id!)) as s}
+              <div style="padding: 0.25rem 0.5rem; color: #94a3b8; border-bottom: 1px solid rgba(255,255,255,0.04);">{s.nombre} <span style="color: #64748b;">({s.codigo})</span></div>
+            {/each}
+          </div>
+          <p style="color: #f87171; font-weight: 600; margin-top: 1rem;">Las calificaciones y asistencias también se eliminarán. Esta acción no se puede deshacer.</p>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+          <button onclick={() => showDeleteSelectedConfirm = false} disabled={isDeletingSelected} style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-weight: 600;">Cancelar</button>
+          <button onclick={deleteSelected} disabled={isDeletingSelected} style="padding: 0.5rem 1.25rem; font-size: 0.85rem; border-radius: 8px; border: none; background: #ef4444; color: white; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(239,68,68,0.4);">{isDeletingSelected ? "Eliminando..." : `Eliminar ${selectedIds.size} estudiantes`}</button>
         </div>
       </div>
     </div>
