@@ -526,7 +526,7 @@ async function fetchData(preserveFilters = false) {
         {#snippet children()}
           <select name="anoLectivoId" onchange={handleFilterChange} value={filters.anoLectivoId} class="filter-select" style="width: 100%; padding: 0.3rem 0.4rem; font-size: 0.75rem; height: 28px;">
             {#each anos as a}
-              <option value={a.id}>{a.nombre} {a.activo && "✓ (Activo)"}</option>
+              <option value={a.id}>{a.nombre}{#if a.activo} ✓ (Activo){/if}</option>
             {/each}
           </select>
         {/snippet}
@@ -535,7 +535,7 @@ async function fetchData(preserveFilters = false) {
         {#snippet children()}
           <select name="colegioId" onchange={handleFilterChange} value={filters.colegioId} class="filter-select" style="width: 100%; padding: 0.3rem 0.4rem; font-size: 0.75rem; height: 28px;">
             {#each colegios as c}
-              <option value={c.id}>{c.nombre} {c.activo && "✓ (Activo)"}</option>
+              <option value={c.id}>{c.nombre}{#if c.activo} ✓ (Activo){/if}</option>
             {/each}
           </select>
         {/snippet}
@@ -812,7 +812,7 @@ async function fetchData(preserveFilters = false) {
             <label style="display: block; margin-bottom: 0.3rem; font-size: 0.7rem; color: #94a3b8; font-weight: 600;">Año Lectivo</label>
             <select name="anoLectivoId" value={formData.anoLectivoId} onchange={handleFormChange} style="width: 100%; padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,23,42,0.6); color: #e2e8f0; font-size: 0.9rem; outline: none; box-sizing: border-box;">
               {#each anos as opt}
-                <option value={opt.id}>{opt.nombre} {opt.activo && "(Activo)"}</option>
+                <option value={opt.id}>{opt.nombre}{#if opt.activo} (Activo){/if}</option>
               {/each}
             </select>
           </div>
