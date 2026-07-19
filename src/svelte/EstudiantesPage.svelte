@@ -293,6 +293,7 @@ async function fetchData(preserveFilters = false) {
     a.href = url; a.download = 'plantilla_importacion_estudiantes.xlsx';
     document.body.appendChild(a); a.click();
     document.body.removeChild(a); URL.revokeObjectURL(url);
+    emit("show-toast", { message: "✅ Plantilla descargada: plantilla_importacion_estudiantes.xlsx", type: "success" });
   }
 
   function handleFilterChange(e: Event) {
