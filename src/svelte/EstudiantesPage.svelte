@@ -223,7 +223,7 @@ async function fetchData(preserveFilters = false) {
       const refreshGrados = async () => { const g = await invoke<CategoryItem[]>("get_grados"); grados = g; currentGrados = g; return g; };
       const refreshSecciones = async () => { const s = await invoke<CategoryItem[]>("get_secciones"); secciones = s; currentSecciones = s; return s; };
       const resolveId = async (val: any, items: CategoryItem[], addCmd: string, refreshFn: () => Promise<CategoryItem[]>, type: string, filterId: number) => {
-        if (val === undefined || val === null || val === "") return filterId;
+        if (val === undefined || val === null || val === "" || typeof val === 'boolean') return filterId;
         const numericVal = Number(val);
         if (!isNaN(numericVal) && numericVal > 0) { const found = items.find(item => Number(item.id) === numericVal); if (found) return numericVal; }
         return await findOrCreateItem(String(val), items, addCmd, refreshFn, type);
@@ -238,7 +238,7 @@ async function fetchData(preserveFilters = false) {
             const rawAno = row["Año Lectivo"] || row.Año || row.Ano || row.Periodo || row.ano || row.año || row["AÑO LECTIVO"] || row["AÑO"];
             const rawColegio = row.Colegio || row.Escuela || row.Centro || row.colegio || row["COLEGIO"] || row["CENTRO"] || row["ESCUELA"] || sheetName;
             const rawGrado = row.Grado || row.Nivel || row.grado || row["GRADO"] || row["NIVEL"];
-            const rawSeccion = row.Seccion || row.Grupo || row.Aula || row.seccion || row["SECCION"] || row["GRUPO"] || row["AULA"];
+            const rawSeccion = row.Seccion || row["Sección"] || row.Grupo || row.Aula || row.seccion || row["SECCION"] || row["SECCIÓN"] || row["GRUPO"] || row["AULA"];
             const anoId = await resolveId(rawAno, currentAnos, "add_ano", refreshAnos, 'ano', filters.anoLectivoId);
             const colegioId = await resolveId(rawColegio, currentColegios, "add_colegio", refreshColegios, 'colegio', filters.colegioId);
             const gradoId = await resolveId(rawGrado, currentGrados, "add_grado", refreshGrados, 'grado', filters.gradoId);
