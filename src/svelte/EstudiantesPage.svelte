@@ -279,6 +279,22 @@ async function fetchData(preserveFilters = false) {
     } finally { isImporting = false; }
   }
 
+  function handleDownloadTemplate() {
+    const wb = XLSX.utils.book_new();
+    const headers = ['Nombre', 'Código', 'Sexo', 'Año Lectivo', 'Colegio', 'Grado', 'Sección', 'Teléfono', 'Dirección', 'Email'];
+    const sampleRow = ['Juan Pérez', '0001', 'M', '2026', 'San José', '1ro', 'A', '04141234567', 'Calle Principal', 'juan@email.com'];
+    const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
+    ws['!cols'] = headers.map(() => ({ wch: 20 }));
+    XLSX.utils.book_append_sheet(wb, ws, 'Estudiantes');
+    const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([out], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'plantilla_importacion_estudiantes.xlsx';
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+  }
+
   function handleFilterChange(e: Event) {
     const target = e.target as HTMLSelectElement;
     const { name, value } = target;
@@ -550,6 +566,7 @@ async function fetchData(preserveFilters = false) {
           <span style="font-size: 1.1rem;">{isImporting ? "⌛" : "📗"}</span>
           {#if !isMobile}<span>{isImporting ? "Importando..." : "Excel"}</span>{/if}
         </button>
+        <button onclick={handleDownloadTemplate} style="height: 28px; padding: 0.3rem 0.6rem; display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; border-radius: 10px; border: 1px solid rgba(168,85,247,0.3); background: rgba(168,85,247,0.1); color: #c084fc; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0;" title="Descargar plantilla Excel">📋 {#if !isMobile}<span>Plantilla</span>{/if}</button>
         <button onclick={() => showImportHelp = true} style="height: 28px; width: 28px; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.1); color: #94a3b8; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.1); cursor: pointer; font-size: 1.1rem; font-weight: bold; flex-shrink: 0;" title="Ayuda de importación">?</button>
       </div>
     {/snippet}
