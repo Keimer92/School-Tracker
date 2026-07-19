@@ -350,9 +350,9 @@
       anos = anosData;
       cortes = cortesData;
       colegios = colegiosData;
-      selectedAno = activeAno;
-      selectedCorte = activeCorte;
-      selectedColegio = activeColegio;
+      if (!selectedAno) selectedAno = activeAno;
+      if (!selectedCorte) selectedCorte = activeCorte;
+      if (!selectedColegio) selectedColegio = activeColegio;
     } catch (error) { console.error("Error fetching catalogs:", error); }
   }
 
@@ -675,6 +675,7 @@
     let catalogTimeout: ReturnType<typeof setTimeout>;
 
     const u1 = listen("student-updated", () => {
+      if (hasUnsavedRef) return;
       clearTimeout(studentTimeout);
       studentTimeout = setTimeout(() => { nextRefreshSilent = true; refreshTrigger++; }, 500);
     });
@@ -1112,6 +1113,7 @@
                               notasCualitativas[key] = val;
                               (e.target as HTMLInputElement).value = val;
                             }
+                            rowVersionTick++;
                           }}
                           onkeydown={(e) => handleKeyDown(e, est.estudianteId, criterioIndex)}
                           onfocus={(e) => {
