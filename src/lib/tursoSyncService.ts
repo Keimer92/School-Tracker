@@ -1,6 +1,7 @@
 import { getTursoClient, connectTurso, restoreTursoClient } from './tursoClient';
 import { invoke } from '@tauri-apps/api/core';
 import { emit, listen } from '@tauri-apps/api/event';
+import { markDirty, markAllDirty, markClean, markAllClean, isDirty, getDirtyTables, hasDirtyTables } from './dirtyTracker';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'offline';
 
@@ -112,6 +113,7 @@ export const tursoSyncService = {
         connectTurso('', '');
         return { ok: false, error: test.error || 'Conexión fallida' };
       }
+      markAllDirty();
       return { ok: true };
     } catch (e: any) {
       connectTurso('', '');
@@ -152,7 +154,7 @@ export const tursoSyncService = {
     }
   },
 
-  pushAll: async (): Promise<void> => {
+  pushAll: async (force: boolean = false): Promise<void> => {
     if (!navigator.onLine) {
       syncManager.setState({ status: 'offline', message: 'Sin conexión' });
       return;
@@ -187,11 +189,47 @@ export const tursoSyncService = {
         'colegio_dias_asistencia', 'asistencia', 'nota',
         'grado_asignatura', 'colegio_asignatura',
       ];
+
+      // --- INCREMENTAL: determine which tables actually changed ---
+      const snapshotKey = 'turso_push_snapshot';
+      const snapshotStr = localStorage.getItem(snapshotKey);
+      const snapshot: Record<string, number> = snapshotStr ? JSON.parse(snapshotStr) : {};
+      const newSnapshot: Record<string, number> = {};
+      const tablesToPush = new Set<string>();
+
       for (const tableName of tableOrder) {
         const td = tables[tableName];
-        if (!td || !td.data || td.data.length === 0) {
-          continue;
+        const count = td?.data?.length || 0;
+        newSnapshot[tableName] = count;
+        if (force || count !== (snapshot[tableName] ?? 0) || isDirty(tableName)) {
+          tablesToPush.add(tableName);
         }
+      }
+
+      // Check for pending deletions (needed even if no tables changed)
+      const hasPending = await (async (): Promise<boolean> => {
+        try {
+          for (const fn of ['get_pending_deletions', 'get_pending_deletions_colegio_asignatura',
+            'get_pending_deletions_grado_asignatura', 'get_pending_deletions_asistencia',
+            'get_pending_deletions_nota']) {
+            const rows: any[] = await safeGet(fn);
+            if (rows.length > 0) return true;
+          }
+        } catch {}
+        return false;
+      })();
+
+      if (tablesToPush.size === 0 && !hasPending) {
+        // Nothing changed – skip entirely
+        localStorage.setItem(snapshotKey, JSON.stringify(newSnapshot));
+        return;
+      }
+
+      // Push only changed / dirty tables
+      for (const tableName of tableOrder) {
+        if (!tablesToPush.has(tableName)) continue;
+        const td = tables[tableName];
+        if (!td || !td.data || td.data.length === 0) continue;
         const { cols, data, map } = td;
         const flatArgs: any[] = [];
         for (const row of data) {
@@ -279,15 +317,30 @@ export const tursoSyncService = {
         }
       } catch {}
 
+      // Save snapshot and clear dirty flags after successful push
+      localStorage.setItem(snapshotKey, JSON.stringify(newSnapshot));
+      markAllClean();
       syncManager.setState({ lastUpload: now() });
     } catch (e: any) {
       throw new Error(`Error subiendo datos: ${e?.message || e}`);
     }
   },
 
-  pushAllSilent: async (): Promise<void> => {
+  forcePushAll: async (): Promise<void> => {
+    await tursoSyncService.pushAll(true);
+  },
+
+  forcePushAllSilent: async (): Promise<void> => {
     try {
-      await tursoSyncService.pushAll();
+      await tursoSyncService.pushAll(true);
+    } catch (e) {
+      console.warn('[Turso Force Push Silent] Error:', e);
+    }
+  },
+
+  pushAllSilent: async (force: boolean = false): Promise<void> => {
+    try {
+      await tursoSyncService.pushAll(force);
     } catch (e) {
       console.warn('[Turso Push Silent] Error:', e);
     }
@@ -365,7 +418,7 @@ export const tursoSyncService = {
 
   _syncLock: false,
 
-  syncAllSilent: async (dispatchEvents: boolean = true): Promise<void> => {
+  syncAllSilent: async (dispatchEvents: boolean = true, force: boolean = false): Promise<void> => {
     // Esperar si hay un sync en progreso (en vez de saltar)
     while ((tursoSyncService as any)._syncLock) {
       await new Promise(r => setTimeout(r, 500));
@@ -373,7 +426,7 @@ export const tursoSyncService = {
     (tursoSyncService as any)._syncLock = true;
     try {
       try {
-        await tursoSyncService.pushAll();
+        await tursoSyncService.pushAll(force);
       } catch (e) {
         console.warn('[Sync All Silent] Push falló, saltando pull para preservar datos locales:', e);
         return;
@@ -403,7 +456,7 @@ export const tursoSyncService = {
 
   startPeriodicSync: () => {
     const intervalStr = localStorage.getItem('periodic_sync_interval_seconds');
-    const interval = Math.max(3, Math.min(300, parseInt(intervalStr || '10') || 10)) * 1000;
+    const interval = Math.max(30, Math.min(300, parseInt(intervalStr || '60') || 60)) * 1000;
     const client = getTursoClient();
     if (!client) return;
     if ((tursoSyncService as any)._periodicTimer) clearInterval((tursoSyncService as any)._periodicTimer);
@@ -486,43 +539,52 @@ export const tursoSyncService = {
   },
 
   syncGradeConfig: async (config: any): Promise<void> => {
+    markDirty('configuracion_calificacion');
     await syncManager.wrapSync((async () => {
       const client = getClient();
       const { id, color, minimo } = config;
       await client.execute('INSERT OR REPLACE INTO configuracion_calificacion (id, color, minimo) VALUES (?, ?, ?)', [id, color ?? null, minimo ?? null]);
+      markClean('configuracion_calificacion');
     })(), 'config grade');
   },
 
   syncGlobal: async (table: string, data: any, isNew?: boolean): Promise<void> => {
+    markDirty(table);
     await syncManager.wrapSync((async () => {
       const client = getClient();
       const keys = Object.keys(data);
       const cols = keys.join(', ');
       const vals = keys.map(() => '?').join(', ');
       await client.execute(`INSERT OR REPLACE INTO ${table} (${cols}) VALUES (${vals})`, keys.map(k => data[k] ?? null));
+      markClean(table);
       syncManager.setState({ lastUpload: now() });
     })(), `sync ${table}`);
   },
 
   deleteGlobal: async (table: string, id: number): Promise<void> => {
+    markDirty(table);
     await syncManager.wrapSync((async () => {
       const client = getClient();
       await client.execute(`DELETE FROM ${table} WHERE id = ?`, [id]);
+      markClean(table);
     })(), `delete ${table}`);
   },
 
   syncStudent: async (student: any, isNew?: boolean): Promise<void> => {
+    markDirty('estudiante');
     await syncManager.wrapSync((async () => {
       const client = getClient();
       const keys = Object.keys(student);
       const cols = keys.join(', ');
       const vals = keys.map(() => '?').join(', ');
       await client.execute(`INSERT OR REPLACE INTO estudiante (${cols}) VALUES (${vals})`, keys.map(k => student[k] ?? null));
+      markClean('estudiante');
       syncManager.setState({ lastUpload: now() });
     })(), 'sync estudiante');
   },
 
   syncStudentsBatch: async (students: any[]): Promise<void> => {
+    markDirty('estudiante');
     await syncManager.wrapSync((async () => {
       if (students.length === 0) return;
       const client = getClient();
@@ -531,39 +593,47 @@ export const tursoSyncService = {
       for (const student of students) {
         await client.execute(`INSERT OR REPLACE INTO estudiante (${cols}) VALUES (${keys.map(() => '?').join(', ')})`, keys.map(k => student[k] ?? null));
       }
+      markClean('estudiante');
       syncManager.setState({ lastUpload: now() });
     })(), 'sync estudiantes batch');
   },
 
   deleteStudent: async (id: number): Promise<void> => {
+    markDirty('estudiante');
     await syncManager.wrapSync((async () => {
       const client = getClient();
       await client.execute('DELETE FROM estudiante WHERE id = ?', [id]);
+      markClean('estudiante');
     })(), 'delete estudiante');
   },
 
   syncColegioSubjects: async (colegioId: number, subjectIds: number[]): Promise<void> => {
+    markDirty('colegio_asignatura');
     await syncManager.wrapSync((async () => {
       const client = getClient();
       await client.execute('DELETE FROM colegio_asignatura WHERE colegio_id = ?', [colegioId]);
       for (const asignaturaId of subjectIds) {
         await client.execute('INSERT INTO colegio_asignatura (colegio_id, asignatura_id) VALUES (?, ?)', [colegioId, asignaturaId]);
       }
+      markClean('colegio_asignatura');
       syncManager.setState({ lastUpload: now() });
     })(), 'sync colegio-asignatura');
   },
 
   syncColegioDias: async (config: any): Promise<void> => {
+    markDirty('colegio_dias_asistencia');
     await syncManager.wrapSync((async () => {
       const client = getClient();
       const { colegio_id, lunes, martes, miercoles, jueves, viernes, sabado, domingo } = config;
       await client.execute('INSERT OR REPLACE INTO colegio_dias_asistencia (colegio_id, lunes, martes, miercoles, jueves, viernes, sabado, domingo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [colegio_id, lunes ? 1 : 0, martes ? 1 : 0, miercoles ? 1 : 0, jueves ? 1 : 0, viernes ? 1 : 0, sabado ? 1 : 0, domingo ? 1 : 0]);
+      markClean('colegio_dias_asistencia');
       syncManager.setState({ lastUpload: now() });
     })(), 'sync colegio-dias');
   },
 
   syncGradeSubjects: async (gradoId: number): Promise<void> => {
+    markDirty('grado_asignatura');
     await syncManager.wrapSync((async () => {
       const client = getClient();
       const subjects = await invoke<any[]>('get_subjects_by_grade', { gradoId });
@@ -571,11 +641,14 @@ export const tursoSyncService = {
       for (const sub of subjects) {
         await client.execute('INSERT INTO grado_asignatura (grado_id, asignatura_id) VALUES (?, ?)', [gradoId, sub.id]);
       }
+      markClean('grado_asignatura');
       syncManager.setState({ lastUpload: now() });
     })(), 'sync grado-asignatura');
   },
 
   syncEvaluacionConfig: async (indicadores: any[]): Promise<void> => {
+    markDirty('indicador');
+    markDirty('criterio');
     await syncManager.wrapSync((async () => {
       const client = getClient();
       for (const ind of indicadores) {
@@ -589,11 +662,14 @@ export const tursoSyncService = {
           }
         }
       }
+      markClean('indicador');
+      markClean('criterio');
       syncManager.setState({ lastUpload: now() });
     })(), 'sync evaluacion config');
   },
 
   syncNotasBatch: async (notas: any[]): Promise<void> => {
+    markDirty('nota');
     await syncManager.wrapSync((async () => {
       if (notas.length === 0) return;
       const client = getClient();
@@ -602,11 +678,13 @@ export const tursoSyncService = {
       for (const nota of notas) {
         await client.execute(`INSERT OR REPLACE INTO nota (${cols}) VALUES (${keys.map(() => '?').join(', ')})`, keys.map(k => nota[k] ?? null));
       }
+      markClean('nota');
       syncManager.setState({ lastUpload: now() });
     })(), 'sync notas batch');
   },
 
   syncAsistenciaBatch: async (records: any[]): Promise<void> => {
+    markDirty('asistencia');
     await syncManager.wrapSync((async () => {
       if (records.length === 0) return;
       const client = getClient();
@@ -615,6 +693,7 @@ export const tursoSyncService = {
       for (const record of records) {
         await client.execute(`INSERT OR REPLACE INTO asistencia (${cols}) VALUES (${keys.map(() => '?').join(', ')})`, keys.map(k => record[k] ?? null));
       }
+      markClean('asistencia');
       syncManager.setState({ lastUpload: now() });
     })(), 'sync asistencia batch');
   },
@@ -634,6 +713,7 @@ export const tursoSyncService = {
   },
 
   wipeRemoteData: async (): Promise<void> => {
+    markAllDirty();
     await syncManager.wrapSync((async () => {
       const client = getClient();
       const tables = [
@@ -645,6 +725,7 @@ export const tursoSyncService = {
       for (const table of tables) {
         try { await client.execute(`DELETE FROM ${table}`); } catch {}
       }
+      markAllClean();
       syncManager.setState({ lastUpload: now() });
     })(), 'wipe remote data');
   },

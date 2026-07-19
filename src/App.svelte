@@ -5,6 +5,7 @@
   import { restoreTursoClient } from "./lib/tursoClient";
   import { syncService } from "./lib/syncService";
   import { runAutomaticGoogleDriveBackupIfNeeded } from "./lib/googleDriveBackupService";
+  import { markAllDirty } from "./lib/dirtyTracker";
   import AsistenciaPage from "./svelte/AsistenciaPage.svelte";
   import InformePage from "./svelte/InformePage.svelte";
   import NotasPage from "./svelte/NotasPage.svelte";
@@ -154,6 +155,7 @@
     // Turso init
     const client = restoreTursoClient();
     if (client) {
+      markAllDirty();
       syncService.ensurePeriodicSync();
       client.execute("SELECT COUNT(*) as count FROM ano_lectivo")
         .then((result: any) => {

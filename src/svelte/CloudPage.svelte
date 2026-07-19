@@ -13,7 +13,7 @@
   let isSynced = $state(false);
   let syncStatus = $state<{ status: SyncStatus; lastSync: string | null; lastSyncDetails: string | null; message: string | null; }>({ status: "idle", lastSync: null, lastSyncDetails: null, message: null });
   let showServerConfig = $state(false);
-  let syncInterval = $state(parseInt(localStorage.getItem('periodic_sync_interval_seconds') || '10', 10));
+  let syncInterval = $state(parseInt(localStorage.getItem('periodic_sync_interval_seconds') || '60', 10));
 
   // Turso state
   let tursoUrl = $state(getTursoUrl());
@@ -219,9 +219,9 @@
           {/if}
 
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-top: 1rem;">
-            <button onclick={async () => { try { await syncService.pushAll(); } catch (e) {} }} disabled={syncStatus.status === 'syncing'} style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(34,197,94,0.12) 0%, rgba(34,197,94,0.04) 100%); border: 1px solid rgba(34,197,94,0.2); border-radius: 12px; cursor: pointer; opacity: {syncStatus.status === 'syncing' ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px;">
+            <button onclick={async () => { try { await syncService.forcePushAll(); } catch (e) {} }} disabled={syncStatus.status === 'syncing'} style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(34,197,94,0.12) 0%, rgba(34,197,94,0.04) 100%); border: 1px solid rgba(34,197,94,0.2); border-radius: 12px; cursor: pointer; opacity: {syncStatus.status === 'syncing' ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px;">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              <span style="color: #22c55e; font-weight: 600; font-size: 0.85rem;">Subir datos</span>
+              <span style="color: #22c55e; font-weight: 600; font-size: 0.85rem;">Subir todo</span>
             </button>
             <button onclick={() => syncService.pullAll()} disabled={syncStatus.status === 'syncing'} style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.12) 0%, rgba(var(--primary-rgb), 0.04) 100%); border: 1px solid rgba(var(--primary-rgb), 0.2); border-radius: 12px; cursor: pointer; opacity: {syncStatus.status === 'syncing' ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px;">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -367,7 +367,7 @@
   .cloud-tab.active { background: var(--bg-active); color: var(--text-bright); box-shadow: 0 0 8px rgba(var(--primary-rgb), 0.08); }
   .cloud-tab-dot { width: 6px; height: 6px; background: #4ade80; border-radius: 50%; box-shadow: 0 0 5px #4ade80; }
   .cloud-panels { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
-  .cloud-card { background: var(--card-bg); backdrop-filter: blur(12px); border-radius: 20px; border: 1px solid var(--card-border); overflow: hidden; }
+  .cloud-card { background: var(--card-bg); border-radius: 20px; border: 1px solid var(--card-border); overflow: hidden; }
   .cloud-card-header { padding: 1.25rem 1.5rem 0; }
   .cloud-card-header h3 { margin: 0; color: var(--text-primary); font-size: 1.1rem; font-weight: 700; }
   @media (min-width: 1024px) {

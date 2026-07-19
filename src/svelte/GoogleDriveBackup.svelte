@@ -47,6 +47,9 @@
         settings = { ...settings, ...parsed, clientId: parsed.clientId || DEFAULT_CLIENT_ID, backupInterval: parsed.backupInterval || 12, deviceName: parsed.deviceName || 'PC Principal' };
       } catch (e) { console.error('Failed to parse Google Drive settings:', e); }
     }
+    if (settings.accessToken) {
+      fetchDriveFiles();
+    }
   });
 
   function saveSettings(newSettings: GoogleDriveSettings) {
@@ -163,13 +166,31 @@
     finally { isFetchingFiles = false; }
   }
 
+  function devicePrefix() {
+    return `schooltracker_backup_${settings.deviceName.replace(/\s+/g, '_')}`;
+  }
+
+  async function deleteOldDeviceBackups(token: string): Promise<void> {
+    try {
+      const q = `name contains '${devicePrefix()}' and trashed=false`;
+      const resp = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const oldFiles: { id: string; name: string }[] = data.files || [];
+      for (const f of oldFiles) {
+        await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      }
+    } catch (e) { console.warn('GD_BACKUP: Error limpiando backups viejos:', e); }
+  }
+
   async function performBackup() {
     const token = await refreshAccessToken();
     if (!token) { emit("show-toast", { message: "❌ No hay sesión activa en Google Drive", type: "error" }); return; }
     backupProgress = 'backing_up';
     try {
+      await deleteOldDeviceBackups(token);
       const dbPath = await invoke<string>("get_db_path");
-                const fileName = `schooltracker_backup_${settings.deviceName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.db`;
+                const fileName = `${devicePrefix()}_${new Date().toISOString().split('T')[0]}.db`;
       backupProgress = 'uploading';
                 // Read file and upload  
                 const fileContentBase64 = await invoke<string>("gd_read_file_base64", { path: dbPath });  
