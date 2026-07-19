@@ -279,21 +279,33 @@ async function fetchData(preserveFilters = false) {
     } finally { isImporting = false; }
   }
 
-  function handleDownloadTemplate() {
+  async function handleDownloadTemplate() {
     const wb = XLSX.utils.book_new();
-    const headers = ['Nombre', 'Código', 'Sexo', 'Año Lectivo', 'Colegio', 'Grado', 'Sección', 'Teléfono', 'Dirección', 'Email'];
-    const sampleRow = ['Juan Pérez', '0001', 'M', '2026', 'San José', '1ro', 'A', '04141234567', 'Calle Principal', 'juan@email.com'];
+    const headers = ['Nombre', 'Sexo', 'Año Lectivo', 'Colegio', 'Grado', 'Sección', 'Teléfono', 'Dirección', 'Email'];
+    const sampleRow = ['Juan Pérez', 'M', '2026', 'San José', '1ro', 'A', '04141234567', 'Calle Principal', 'juan@email.com'];
     const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
     ws['!cols'] = headers.map(() => ({ wch: 20 }));
     XLSX.utils.book_append_sheet(wb, ws, 'Estudiantes');
     const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([out], { type: 'application/octet-stream' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'plantilla_importacion_estudiantes.xlsx';
-    document.body.appendChild(a); a.click();
-    document.body.removeChild(a); URL.revokeObjectURL(url);
-    emit("show-toast", { message: "✅ Plantilla descargada: plantilla_importacion_estudiantes.xlsx", type: "success" });
+    try {
+      const { save } = await import("@tauri-apps/plugin-dialog");
+      const { writeFile } = await import("@tauri-apps/plugin-fs");
+      const { openUrl } = await import("@tauri-apps/plugin-opener");
+      const path = await save({ filters: [{ name: "Excel", extensions: ["xlsx"] }], defaultPath: "plantilla_importacion_estudiantes.xlsx" });
+      if (path) {
+        await writeFile(path, out);
+        emit("show-toast", { message: `✅ Plantilla guardada en ${path}`, type: "success" });
+        openUrl(path);
+      }
+    } catch {
+      const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'plantilla_importacion_estudiantes.xlsx';
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
+      emit("show-toast", { message: "✅ Plantilla descargada: plantilla_importacion_estudiantes.xlsx", type: "success" });
+    }
   }
 
   function handleFilterChange(e: Event) {
