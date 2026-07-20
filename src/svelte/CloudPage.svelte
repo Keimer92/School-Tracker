@@ -5,6 +5,8 @@
   import { getSupabaseClient, hasSupabaseConfig, saveSupabaseConfig, clearSupabaseConfig } from "../lib/supabase";
   import GoogleDriveBackup from "./GoogleDriveBackup.svelte";
 
+  let { activeTab = "cloud" } = $props();
+
   let syncProvider = $state<SyncProviderType>(getActiveProvider());
   let isSynced = $state(false);
   let syncStatus = $state<{ status: SyncStatus; lastSync: string | null; lastSyncDetails: string | null; message: string | null; }>({ status: "idle", lastSync: null, lastSyncDetails: null, message: null });
@@ -18,14 +20,23 @@
   let tursoLatency: number | null = $state(null);
   let tursoError: string | null = $state(null);
 
-  let sbUrl = $state(localStorage.getItem('supabase_url') || '');
-  let sbAnonKey = $state(localStorage.getItem('supabase_anon_key') || '');
+  let sbUrl = $state(localStorage.getItem('supabase_url') || import.meta.env.VITE_SUPABASE_URL || '');
+  let sbAnonKey = $state(localStorage.getItem('supabase_anon_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || '');
   let sbTesting = $state(false);
   let sbStatus: 'idle' | 'online' | 'offline' = $state('idle');
   let sbLatency: number | null = $state(null);
   let sbError: string | null = $state(null);
   let sbEmail = $state('');
   let sbPassword = $state('');
+
+  $effect(() => {
+    if (activeTab === 'cloud') {
+      tursoUrl = getTursoUrl();
+      tursoToken = getTursoToken();
+      sbUrl = localStorage.getItem('supabase_url') || import.meta.env.VITE_SUPABASE_URL || '';
+      sbAnonKey = localStorage.getItem('supabase_anon_key') || import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+    }
+  });
 
   function providerBadgeLabel(): string {
     return syncProvider === 'turso' ? 'Turso' : 'Supabase';
@@ -56,7 +67,7 @@
       }
       sbSessionUser = null;
       sbStatus = 'idle';
-      isSynced = hasSupabaseConfig();
+      isSynced = false;
     } else {
       sbSessionUser = null;
       sbStatus = 'idle';
@@ -119,14 +130,19 @@
   }
 
   async function handleConnectSupabase() {
+    console.log('[CloudPage] handleConnectSupabase called', { sbUrl: !!sbUrl, sbAnonKey: !!sbAnonKey, sbEmail, sbPassword: sbPassword ? '***' : '' });
     sbTesting = true; sbError = null;
     try {
-      saveSupabaseConfig(sbUrl, sbAnonKey);
+      if (sbUrl && sbAnonKey) saveSupabaseConfig(sbUrl, sbAnonKey);
       const client = getSupabaseClient();
+      console.log('[CloudPage] getSupabaseClient returned', { client: !!client });
       if (!client) { sbError = 'No se pudo crear el cliente Supabase'; sbTesting = false; return; }
       const { data, error } = await client.auth.signInWithPassword({ email: sbEmail, password: sbPassword });
+      console.log('[CloudPage] signInWithPassword result', { error: error?.message, hasUser: !!data?.user });
       if (error) {
+        console.log('[CloudPage] attempting signUp instead');
         const { data: signUpData, error: signUpError } = await client.auth.signUp({ email: sbEmail, password: sbPassword });
+        console.log('[CloudPage] signUp result', { error: signUpError?.message, hasUser: !!signUpData?.user });
         if (signUpError) { sbError = signUpError.message; sbTesting = false; return; }
         sbSessionUser = signUpData.user?.email || signUpData.user?.id || 'Registrado';
       } else {
@@ -137,7 +153,7 @@
       syncService.ensurePeriodicSync();
       await syncService.runSchemaSetup();
       await syncService.syncAllSilent();
-    } catch (e: any) { sbError = e?.message || String(e); }
+    } catch (e: any) { console.log('[CloudPage] handleConnectSupabase catch', e); sbError = e?.message || String(e); }
     sbTesting = false;
   }
 

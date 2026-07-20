@@ -253,7 +253,7 @@
       <div style="display: {activeTab === 'globales' ? 'block' : 'none'}; width: 100%; height: 100%;"><GlobalesPage /></div>
     {/if}
     {#if visitedTabs.has('cloud')}
-      <div style="display: {activeTab === 'cloud' ? 'block' : 'none'}; width: 100%; height: 100%;"><CloudPage /></div>
+      <div style="display: {activeTab === 'cloud' ? 'block' : 'none'}; width: 100%; height: 100%;"><CloudPage activeTab={activeTab} /></div>
     {/if}
     {#if visitedTabs.has('ajustes')}
       <div style="display: {activeTab === 'ajustes' ? 'block' : 'none'}; width: 100%; height: 100%;"><AjustesPage {themeMode} {setThemeMode} /></div>
