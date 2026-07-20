@@ -168,26 +168,80 @@
     return Math.round((rawTotal / maxTotal) * 100);
   }
 
-  function distribuirNotas() {
-    if (activeIndicadores.length === 0 || filteredNotas.length === 0) return;
-    const indWeights: { weight: number; c1: Criterio; c2: Criterio; c3: Criterio }[] = [];
+  function calcularPctPreview(estudianteId: number, targetStr: string | undefined): number {
+    if (!targetStr || targetStr.trim() === '') return calcularPctActual(estudianteId);
+    const targetPct = parseFloat(targetStr);
+    if (isNaN(targetPct) || targetPct < 0) return calcularPctActual(estudianteId);
+    if (activeIndicadores.length === 0) return 0;
+    const indInfos: { weight: number; c1: Criterio; c2: Criterio; c3: Criterio }[] = [];
     let maxTotal = 0;
-    let fixedAA = 0;
-    let maxModifiable = 0;
     for (const ind of activeIndicadores) {
       const c1 = ind.criterios[0];
       const c2 = ind.criterios[1];
       const c3 = ind.criterios[2];
       if (!c1 || !c2 || !c3) continue;
-      const w = c1.puntajeMaximo + c2.puntajeMaximo;
-      maxTotal += w + c3.puntajeMaximo;
-      fixedAA += c3.puntajeMaximo;
-      maxModifiable += w;
-      indWeights.push({ weight: w, c1, c2, c3 });
+      const w = c1.puntajeMaximo + c2.puntajeMaximo + c3.puntajeMaximo;
+      maxTotal += w;
+      indInfos.push({ weight: w, c1, c2, c3 });
     }
-    if (maxModifiable === 0) return;
+    if (maxTotal === 0) return 0;
     const grades = ['AA', 'AS', 'AF', 'AI'];
-    const gradesScore = (c: Criterio, g: string) => Math.round(c.puntajeMaximo * (notaMapping[g] || 0));
+    const gs = (c: Criterio, g: string) => Math.round(c.puntajeMaximo * (notaMapping[g] || 0));
+    const valCombos: [string, string, string][] = [];
+    for (const g3 of grades) {
+      const g3Idx = grades.indexOf(g3);
+      for (const g1 of grades.slice(g3Idx)) {
+        for (const g2 of grades.slice(g3Idx)) {
+          valCombos.push([g1, g2, g3]);
+        }
+      }
+    }
+    const targetRaw = Math.round((Math.min(targetPct, 100) / 100) * maxTotal);
+    let predictedTotal = 0;
+    let runningError = 0;
+    for (const ii of indInfos) {
+      const { c1, c2, c3 } = ii;
+      const indTarget = (ii.weight / maxTotal) * targetRaw + runningError;
+      let bestCombo: [string, string, string] | null = null;
+      let bestDiff = Infinity;
+      for (const [g1, g2, g3] of valCombos) {
+        const diff = Math.abs(gs(c1, g1) + gs(c2, g2) + gs(c3, g3) - indTarget);
+        if (diff < bestDiff) { bestDiff = diff; bestCombo = [g1, g2, g3]; }
+      }
+      if (!bestCombo) continue;
+      const [chosen1, chosen2, chosen3] = bestCombo;
+      const actualTotal = gs(c1, chosen1) + gs(c2, chosen2) + gs(c3, chosen3);
+      predictedTotal += actualTotal;
+      runningError += indTarget - actualTotal;
+    }
+    return Math.round((predictedTotal / maxTotal) * 100);
+  }
+
+  function distribuirNotas() {
+    if (activeIndicadores.length === 0 || filteredNotas.length === 0) return;
+    const indInfos: { weight: number; c1: Criterio; c2: Criterio; c3: Criterio }[] = [];
+    let maxTotal = 0;
+    for (const ind of activeIndicadores) {
+      const c1 = ind.criterios[0];
+      const c2 = ind.criterios[1];
+      const c3 = ind.criterios[2];
+      if (!c1 || !c2 || !c3) continue;
+      const w = c1.puntajeMaximo + c2.puntajeMaximo + c3.puntajeMaximo;
+      maxTotal += w;
+      indInfos.push({ weight: w, c1, c2, c3 });
+    }
+    if (maxTotal === 0) return;
+    const grades = ['AA', 'AS', 'AF', 'AI'];
+    const gs = (c: Criterio, g: string) => Math.round(c.puntajeMaximo * (notaMapping[g] || 0));
+    const valCombos: [string, string, string][] = [];
+    for (const g3 of grades) {
+      const g3Idx = grades.indexOf(g3);
+      for (const g1 of grades.slice(g3Idx)) {
+        for (const g2 of grades.slice(g3Idx)) {
+          valCombos.push([g1, g2, g3]);
+        }
+      }
+    }
     let updatedCount = 0;
     let errorMessages: string[] = [];
     for (const estNota of filteredNotas) {
@@ -195,40 +249,32 @@
       if (!targetStr || targetStr.trim() === '') continue;
       const targetPct = parseFloat(targetStr);
       if (isNaN(targetPct) || targetPct < 0) continue;
-      const clampedPct = Math.min(targetPct, 100);
-      const targetRaw = Math.round((clampedPct / 100) * maxTotal);
-      if (targetRaw < fixedAA) {
-        const minPct = Math.round((fixedAA / maxTotal) * 100);
-        errorMessages.push(`"${estNota.estudianteNombre}": mínimo ${minPct}%`);
-        continue;
-      }
-      const remainingTarget = Math.min(targetRaw - fixedAA, maxModifiable);
+      const targetRaw = Math.round((Math.min(targetPct, 100) / 100) * maxTotal);
       let runningError = 0;
-      for (const iw of indWeights) {
-        const { c1, c2, c3 } = iw;
-        const indTarget = (iw.weight / maxModifiable) * remainingTarget + runningError;
-        let bestCombo: [string, string] | null = null;
+      for (const ii of indInfos) {
+        const { c1, c2, c3 } = ii;
+        const indTarget = (ii.weight / maxTotal) * targetRaw + runningError;
+        let bestCombo: [string, string, string] | null = null;
         let bestDiff = Infinity;
-        for (const g1 of grades) {
-          for (const g2 of grades) {
-            const diff = Math.abs(gradesScore(c1, g1) + gradesScore(c2, g2) - indTarget);
-            if (diff < bestDiff) { bestDiff = diff; bestCombo = [g1, g2]; }
-          }
+        for (const [g1, g2, g3] of valCombos) {
+          const diff = Math.abs(gs(c1, g1) + gs(c2, g2) + gs(c3, g3) - indTarget);
+          if (diff < bestDiff) { bestDiff = diff; bestCombo = [g1, g2, g3]; }
         }
         if (!bestCombo) continue;
-        const [chosen1, chosen2] = bestCombo;
-        const actualTotal = gradesScore(c1, chosen1) + gradesScore(c2, chosen2);
+        const [chosen1, chosen2, chosen3] = bestCombo;
+        const actualTotal = gs(c1, chosen1) + gs(c2, chosen2) + gs(c3, chosen3);
         runningError += indTarget - actualTotal;
-        const key1 = `${estNota.estudianteId}-${c1.id}`;
-        const key2 = `${estNota.estudianteId}-${c2.id}`;
-        const key3 = `${estNota.estudianteId}-${c3.id}`;
-        if (distribuirOverwrite || !notasCualitativas[key3]) notasCualitativas[key3] = 'AA';
+        const k1 = `${estNota.estudianteId}-${c1.id}`;
+        const k2 = `${estNota.estudianteId}-${c2.id}`;
+        const k3 = `${estNota.estudianteId}-${c3.id}`;
         if (distribuirOverwrite) {
-          notasCualitativas[key1] = chosen1;
-          notasCualitativas[key2] = chosen2;
+          notasCualitativas[k1] = chosen1;
+          notasCualitativas[k2] = chosen2;
+          notasCualitativas[k3] = chosen3;
         } else {
-          if (!notasCualitativas[key1]) notasCualitativas[key1] = chosen1;
-          if (!notasCualitativas[key2]) notasCualitativas[key2] = chosen2;
+          if (!notasCualitativas[k1]) notasCualitativas[k1] = chosen1;
+          if (!notasCualitativas[k2]) notasCualitativas[k2] = chosen2;
+          if (!notasCualitativas[k3]) notasCualitativas[k3] = chosen3;
         }
       }
       updatedCount++;
@@ -1333,7 +1379,7 @@
             <div style="width: 44px; height: 44px; border-radius: 14px; background: rgba(139, 92, 246, 0.12); border: 1px solid rgba(139, 92, 246, 0.2); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0;">✨</div>
             <div>
               <h3 style="margin: 0; color: #f1f5f9; font-size: 1.15rem; font-weight: 700;">Distribuir notas automáticamente</h3>
-              <p style="margin: 0.2rem 0 0; color: #94a3b8; font-size: 0.75rem;">El último criterio (C3) de cada indicador se fijará en <strong style="color: #22c55e;">AA</strong>. Los criterios C1 y C2 se calcularán para alcanzar el total deseado.</p>
+              <p style="margin: 0.2rem 0 0; color: #94a3b8; font-size: 0.75rem;">C3 tendrá la nota más alta de los 3 criterios. El sistema calculará C1, C2 y C3 para alcanzar el total deseado.</p>
             </div>
           </div>
           <div style="display: flex; align-items: center; gap: 0.5rem; margin: 0.5rem 0 0.75rem;">
@@ -1351,6 +1397,7 @@
                   <th style="text-align: left; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">#</th>
                   <th style="text-align: left; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Estudiante</th>
                   <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Actual %</th>
+                  <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #a78bfa; font-weight: 600; border-bottom: 1px solid rgba(139,92,246,0.15);">→ Resultante</th>
                   <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Nuevo total (0-100)</th>
                 </tr>
               </thead>
@@ -1360,6 +1407,7 @@
                     <td style="padding: 0.3rem 0.6rem; color: #64748b; text-align: left;">{idx + 1}</td>
                     <td style="padding: 0.3rem 0.6rem; color: #e2e8f0; font-weight: 500;">{est.estudianteNombre}</td>
                     <td style="padding: 0.3rem 0.6rem; text-align: center; color: #94a3b8;">{calcularPctActual(est.estudianteId)}%</td>
+                    <td style="padding: 0.3rem 0.6rem; text-align: center; color: #a78bfa; font-weight: 600;">{calcularPctPreview(est.estudianteId, distribuirTargets[est.estudianteId])}%</td>
                     <td style="padding: 0.15rem 0.3rem; text-align: center;">
                       <input type="number" min="0" max="100" value={distribuirTargets[est.estudianteId] ?? ''}
                         use:regDistInput={est.estudianteId}
