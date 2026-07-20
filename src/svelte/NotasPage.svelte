@@ -57,8 +57,7 @@
   let rowVersionTick = $state(0);
   let refreshTrigger = $state(0);
 
-  // Non-reactive refs (for performance)
-  let notasCualitativas: Record<string, string> = {};
+  let notasCualitativas: Record<string, string> = $state({});
   let notasCuantitativas: Record<string, number> = {};
   let inputsRef = new Map<string, HTMLInputElement>();
   let cellSnapshot: Record<string, string> | null = null;
@@ -432,12 +431,21 @@
         const key = `${n.estudianteId}-${n.criterioId}`;
         const criterio = indToUse.flatMap(ind => ind.criterios).find(c => c.id === n.criterioId);
         if (criterio) {
-          const ratio = n.valor / criterio.puntajeMaximo;
-          let qualValue = "";
-          if (ratio >= 0.90) qualValue = "AA";
-          else if (ratio >= 0.70) qualValue = "AS";
-          else if (ratio >= 0.50) qualValue = "AF";
-          else if (ratio >= 0.30) qualValue = "AI";
+          const candidates = [
+            { grade: 'AA', saved: Math.round(criterio.puntajeMaximo * 1.0) },
+            { grade: 'AS', saved: Math.round(criterio.puntajeMaximo * 0.85) },
+            { grade: 'AF', saved: Math.round(criterio.puntajeMaximo * 0.65) },
+            { grade: 'AI', saved: Math.round(criterio.puntajeMaximo * 0.20) },
+          ];
+          const match = candidates.find(c => c.saved === n.valor);
+          let qualValue = match ? match.grade : "";
+          if (!qualValue) {
+            const ratio = n.valor / criterio.puntajeMaximo;
+            if (ratio >= 0.90) qualValue = "AA";
+            else if (ratio >= 0.70) qualValue = "AS";
+            else if (ratio >= 0.50) qualValue = "AF";
+            else if (ratio >= 0.30) qualValue = "AI";
+          }
           if (qualValue) notasMap[key] = qualValue;
         }
         if (cuantitativasMap[n.estudianteId]) cuantitativasMap[n.estudianteId][n.criterioId] = n.valor;
@@ -638,7 +646,7 @@
   });
 
   $effect(() => {
-    if (refreshTrigger > 0 && selectedAno > 0 && selectedCorte > 0 && selectedColegio > 0 && selectedAsignatura > 0 && selectedGrado > 0 && selectedSeccion > 0) {
+    if (refreshTrigger > 0 && !hasUnsavedRef && selectedAno > 0 && selectedCorte > 0 && selectedColegio > 0 && selectedAsignatura > 0 && selectedGrado > 0 && selectedSeccion > 0) {
       fetchEstudiantes();
     }
   });

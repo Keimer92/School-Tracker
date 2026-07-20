@@ -10,7 +10,7 @@ const STORAGE_KEY = 'sync_provider';
 
 function loadProvider(): SyncProviderType {
   if (typeof localStorage === 'undefined') return 'turso';
-  return (localStorage.getItem(STORAGE_KEY) as SyncProviderType) || 'pocketbase';
+  return (localStorage.getItem(STORAGE_KEY) as SyncProviderType) || 'turso';
 }
 
 let _activeProvider: SyncProviderType = loadProvider();

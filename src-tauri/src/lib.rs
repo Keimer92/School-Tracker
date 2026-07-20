@@ -931,9 +931,7 @@ pub fn run() {
                 let _ = window.maximize();
             }
 
-            // Iniciar PocketBase como sidecar
-            iniciar_pocketbase(&app_handle, &app_dir);
-
+            // PocketBase desactivado — solo Turso
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -1046,7 +1044,6 @@ pub fn run() {
             gd_get_backups,
             gd_delete_backup,
             gd_import_db_from_file,
-            get_pocketbase_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

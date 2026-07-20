@@ -178,21 +178,7 @@
           Sincronización en la Nube</span></h3>
       </div>
 
-      <!-- Provider selector pill -->
-      <div style="display: flex; justify-content: center; margin: 0.75rem 1.5rem 0;">
-        <div style="display: inline-flex; padding: 0.3rem; gap: 0.2rem; background: var(--bg-elevated); border-radius: 12px; border: 1px solid var(--border);">
-          <button onclick={() => handleProviderChange('turso')}
-            style="display: flex; align-items: center; gap: 6px; padding: 0.4rem 1rem; border-radius: 9px; border: none; background: {syncProvider === 'turso' ? 'var(--bg-active)' : 'transparent'}; color: {syncProvider === 'turso' ? 'var(--text-bright)' : 'var(--text-muted)'}; cursor: pointer; font-family: inherit; font-size: 0.8rem; font-weight: 600; transition: all 0.2s;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z"/></svg>
-            Turso
-          </button>
-          <button onclick={() => handleProviderChange('pocketbase')}
-            style="display: flex; align-items: center; gap: 6px; padding: 0.4rem 1rem; border-radius: 9px; border: none; background: {syncProvider === 'pocketbase' ? 'var(--bg-active)' : 'transparent'}; color: {syncProvider === 'pocketbase' ? 'var(--text-bright)' : 'var(--text-muted)'}; cursor: pointer; font-family: inherit; font-size: 0.8rem; font-weight: 600; transition: all 0.2s;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-            PocketBase
-          </button>
-        </div>
-      </div>
+      <!-- Provider: Turso only -->
 
       {#if isSynced}
         <div style="padding: 0 1.5rem 1.5rem;">
