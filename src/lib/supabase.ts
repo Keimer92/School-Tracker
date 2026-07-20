@@ -7,6 +7,7 @@ const DEFAULT_URL: string = import.meta.env.VITE_SUPABASE_URL || '';
 const DEFAULT_ANON: string = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 let _client: SupabaseClient | null = null;
+let _currentConfig = { url: '', anonKey: '' };
 
 function getConfig() {
   if (typeof window !== 'undefined') {
@@ -40,11 +41,16 @@ export function hasSupabaseConfig(): boolean {
 function ensureClient(): SupabaseClient | null {
   const { url, anonKey } = getConfig();
   if (!url || !anonKey) return null;
-  if (!_client) {
-    _client = createClient(url, anonKey, {
-      auth: { persistSession: true, storageKey: 'sb-schooltracker-auth' },
-    });
+  if (_client && _currentConfig.url === url && _currentConfig.anonKey === anonKey) {
+    return _client;
   }
+  if (_client) {
+    _client = null;
+  }
+  _currentConfig = { url, anonKey };
+  _client = createClient(url, anonKey, {
+    auth: { persistSession: true, storageKey: 'sb-schooltracker-auth' },
+  });
   return _client;
 }
 
@@ -53,7 +59,10 @@ export function getSupabaseClient(): SupabaseClient | null {
 }
 
 export function destroyClient() {
-  _client = null;
+  if (_client) {
+    _client = null;
+  }
+  _currentConfig = { url: '', anonKey: '' };
 }
 
 export const supabase = new Proxy({} as SupabaseClient, {
