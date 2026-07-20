@@ -814,8 +814,18 @@ export const syncService = {
    * Sincronización Inicial Completa
    * Sincroniza todos los datos en el orden correcto para respetar las Foreign Keys
    */
+  _schemaEnsured: false,
+
   syncAll: async () => {
     syncManager.wrapSync((async () => {
+      if (!syncService._schemaEnsured) {
+        const schemaResult = await syncService.ensureSchema();
+        if (!schemaResult.ok) {
+          console.warn('[Supabase] Error asegurando schema, se continuará de todas formas:', schemaResult.error);
+        }
+        syncService._schemaEnsured = true;
+      }
+
       const userId = await syncService.getUserId();
       if (!userId) throw new Error("Debes estar conectado para sincronizar");
 
@@ -1078,6 +1088,13 @@ export const syncService = {
   pullAll: async () => {
     console.log(`[Sync] pullAll llamado desde frontend`);
     return syncManager.wrapSync((async () => {
+      if (!syncService._schemaEnsured) {
+        const schemaResult = await syncService.ensureSchema();
+        if (!schemaResult.ok) {
+          console.warn('[Supabase] Error asegurando schema, se continuará de todas formas:', schemaResult.error);
+        }
+        syncService._schemaEnsured = true;
+      }
       console.log(`[Sync] Iniciando wrapSync`);
       const userId = await syncService.getUserId();
       console.log(`[Sync] User ID obtenido:`, userId);
@@ -1465,40 +1482,29 @@ export const syncService = {
     }
   },
 
-  runSchemaSetup: async (): Promise<{ ok: boolean; error?: string }> => {
-    const client = getSupabaseClient();
-    if (!client) return { ok: false, error: 'Supabase no configurado' };
+  ensureSchema: async (): Promise<{ ok: boolean; error?: string }> => {
     try {
-      const createTablesSqls = [
-        `CREATE TABLE IF NOT EXISTS ano_lectivo (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, user_id TEXT)`,
-        `CREATE TABLE IF NOT EXISTS corte_evaluativo (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, user_id TEXT)`,
-        `CREATE TABLE IF NOT EXISTS colegio (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, orden INTEGER DEFAULT 0, user_id TEXT)`,
-        `CREATE TABLE IF NOT EXISTS asignatura (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0)`,
-        `CREATE TABLE IF NOT EXISTS grado (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0)`,
-        `CREATE TABLE IF NOT EXISTS seccion (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0)`,
-        `CREATE TABLE IF NOT EXISTS estudiante (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, codigo TEXT NOT NULL, sexo TEXT NOT NULL, ano_lectivo_id INTEGER NOT NULL, grado_id INTEGER NOT NULL, seccion_id INTEGER NOT NULL, colegio_id INTEGER NOT NULL, telefono TEXT, direccion TEXT, email TEXT, foto TEXT, user_id TEXT)`,
-        `CREATE TABLE IF NOT EXISTS configuracion_calificacion (id TEXT PRIMARY KEY, nombre TEXT NOT NULL, color TEXT NOT NULL, minimo INTEGER NOT NULL)`,
-        `CREATE TABLE IF NOT EXISTS grado_asignatura (grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, PRIMARY KEY (grado_id, asignatura_id))`,
-        `CREATE TABLE IF NOT EXISTS colegio_asignatura (colegio_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, PRIMARY KEY (colegio_id, asignatura_id))`,
-        `CREATE TABLE IF NOT EXISTS indicador (id INTEGER PRIMARY KEY AUTOINCREMENT, grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, corte_evaluativo_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', activo INTEGER DEFAULT 1, user_id TEXT)`,
-        `CREATE TABLE IF NOT EXISTS criterio (id INTEGER PRIMARY KEY AUTOINCREMENT, indicador_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', puntaje_maximo INTEGER NOT NULL)`,
-        `CREATE TABLE IF NOT EXISTS colegio_dias_asistencia (colegio_id INTEGER PRIMARY KEY, lunes INTEGER DEFAULT 1, martes INTEGER DEFAULT 1, miercoles INTEGER DEFAULT 1, jueves INTEGER DEFAULT 1, viernes INTEGER DEFAULT 1, sabado INTEGER DEFAULT 1, domingo INTEGER DEFAULT 1)`,
-        `CREATE TABLE IF NOT EXISTS asistencia (id INTEGER PRIMARY KEY AUTOINCREMENT, estudiante_id INTEGER NOT NULL, fecha TEXT NOT NULL, estado TEXT NOT NULL, observacion TEXT, user_id TEXT, UNIQUE(estudiante_id, fecha))`,
-        `CREATE TABLE IF NOT EXISTS nota (estudiante_id INTEGER NOT NULL, criterio_id INTEGER NOT NULL, valor REAL NOT NULL, corte_evaluativo_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, user_id TEXT, PRIMARY KEY (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id))`,
-      ];
-      for (const sql of createTablesSqls) {
-        const { error } = await client.rpc('exec_sql', { query: sql });
-        if (error) {
-          // Try direct SQL via REST as fallback
-          try {
-            await client.from('_sql_exec').insert({ query: sql }).single();
-          } catch {}
-        }
+      const client = getSupabaseClient();
+      if (!client) {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || localStorage.getItem('supabase_url');
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || localStorage.getItem('supabase_anon_key');
+        if (!supabaseUrl || !supabaseAnonKey) return { ok: false, error: 'Supabase no configurado' };
+        const { error: fnError } = await fetch(`${supabaseUrl}/functions/v1/ensure_schema`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseAnonKey}` },
+        }).then(r => r.json());
+        if (fnError) return { ok: false, error: fnError };
+        return { ok: true };
       }
+      const { error: fnError } = await client.functions.invoke('ensure_schema', { method: 'POST' });
+      if (fnError) return { ok: false, error: fnError.message || String(fnError) };
       return { ok: true };
     } catch (e: any) {
       return { ok: false, error: e?.message || String(e) };
     }
+  },
+  runSchemaSetup: async (): Promise<{ ok: boolean; error?: string }> => {
+    return await syncService.ensureSchema();
   },
 
   pushAllSilent: async (force: boolean = false): Promise<void> => {
