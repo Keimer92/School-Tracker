@@ -548,9 +548,9 @@
       }).join('');
 
       printHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-        body{font-family:Arial,sans-serif;padding:20px}h2{margin:0 0 10px 0;text-align:center}
+        body{font-family:Arial,sans-serif;padding:20px;color:#000}h2{margin:0 0 10px 0;text-align:center}
         .info{margin-bottom:15px;font-size:12px;display:grid;grid-template-columns:1fr 1fr;gap:5px}
-        table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid #ddd;padding:6px;text-align:center}
+        table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid #ddd;padding:6px;text-align:center;color:#000}
         th{background-color:#6b7280;color:white}tr:nth-child(even){background-color:#f9f9f9}td:first-child{text-align:left}
         @media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
         th{background-color:#6b7280!important}tr:nth-child(even){background-color:#f9f9f9!important}}
