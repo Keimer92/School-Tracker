@@ -111,7 +111,19 @@
     document.body.style.setProperty("--system-top", `${topInset}px`);
   }
 
+  function handleKeyDown(e: KeyboardEvent) {
+    if (e.key === 'F5' || (e.ctrlKey && e.key === 'r') || (e.metaKey && e.key === 'r')) {
+      e.preventDefault();
+      window.location.reload();
+    }
+    if (e.key === 'F12') {
+      e.preventDefault();
+    }
+  }
+
   onMount(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    onDestroy(() => window.removeEventListener('keydown', handleKeyDown));
     checkMobile();
     const saved = localStorage.getItem("active-tab") as Tab | null;
     if (saved) activeTab = saved;
