@@ -39,11 +39,19 @@ export const getSupabaseConnStrings = (): string[] | null => {
   const direct = `postgresql://postgres:${pw}@db.${projectRef}.supabase.co:5432/postgres?sslmode=require`;
 
   const poolerRegions = [
+    // AWS
     'aws-0-us-east-1', 'aws-0-us-east-2', 'aws-0-us-west-1', 'aws-0-us-west-2',
-    'aws-0-ca-central-1', 'aws-0-eu-west-1', 'aws-0-eu-west-2', 'aws-0-eu-west-3',
-    'aws-0-eu-central-1', 'aws-0-eu-north-1', 'aws-0-ap-south-1',
-    'aws-0-ap-southeast-1', 'aws-0-ap-southeast-2', 'aws-0-ap-northeast-1',
-    'aws-0-ap-northeast-2', 'aws-0-sa-east-1', 'aws-0-af-south-1',
+    'aws-0-ca-central-1', 'aws-0-ca-west-1', 'aws-0-eu-west-1', 'aws-0-eu-west-2',
+    'aws-0-eu-west-3', 'aws-0-eu-central-1', 'aws-0-eu-central-2', 'aws-0-eu-north-1',
+    'aws-0-ap-south-1', 'aws-0-ap-southeast-1', 'aws-0-ap-southeast-2',
+    'aws-0-ap-northeast-1', 'aws-0-ap-northeast-2', 'aws-0-ap-northeast-3',
+    'aws-0-sa-east-1', 'aws-0-me-central-1', 'aws-0-il-central-1', 'aws-0-af-south-1',
+    // GCP
+    'gcp-us-central1', 'gcp-us-east1', 'gcp-us-east4', 'gcp-us-west1', 'gcp-us-west2',
+    'gcp-europe-west1', 'gcp-europe-west2', 'gcp-europe-west3', 'gcp-europe-west4',
+    'gcp-europe-north1', 'gcp-asia-southeast1', 'gcp-asia-southeast2', 'gcp-asia-northeast1',
+    'gcp-asia-northeast2', 'gcp-asia-northeast3', 'gcp-asia-south1', 'gcp-australia-southeast1',
+    'gcp-southamerica-east1',
   ];
   const poolers = poolerRegions.map(
     (r) => `postgresql://postgres.${projectRef}:${pw}@${r}.pooler.supabase.com:6543/postgres?sslmode=require`
