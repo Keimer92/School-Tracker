@@ -59,19 +59,8 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
   let tursoUrl = $state(getTursoUrl());
   let tursoToken = $state(getTursoToken());
-  let tursoTesting = $state(false);
-  let tursoStatus: 'idle' | 'online' | 'offline' = $state('idle');
-  let tursoLatency: number | null = $state(null);
-  let tursoError: string | null = $state(null);
-
   let sbUrl = $state(localStorage.getItem('supabase_url') || '');
   let sbAnonKey = $state(localStorage.getItem('supabase_anon_key') || '');
-  let sbTesting = $state(false);
-  let sbStatus: 'idle' | 'online' | 'offline' = $state('idle');
-  let sbLatency: number | null = $state(null);
-  let sbError: string | null = $state(null);
-  let sbEmail = $state('');
-  let sbPassword = $state('');
 
   let syncInterval = $state(parseInt(localStorage.getItem('periodic_sync_interval_seconds') || '60', 10));
 
@@ -88,108 +77,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     syncProvider = p;
     if (p === 'supabase') checkSupabaseSession();
     else supabaseSessionUser = null;
-  }
-
-  async function handleConnectTurso() {
-    tursoTesting = true; tursoError = null;
-    try {
-      const result = await syncService.connectAndSetup(tursoUrl, tursoToken);
-      if (result.ok) { tursoStatus = 'online'; syncService.ensurePeriodicSync(); syncService.syncAllSilent(); }
-      else tursoError = result.error || 'Error de conexión';
-    } catch (e: any) { tursoError = e?.message || String(e); }
-    tursoTesting = false;
-  }
-
-  async function handleTestTurso() {
-    tursoTesting = true; tursoStatus = 'idle'; tursoLatency = null; tursoError = null;
-    try {
-      const result = await syncService.testConnection(tursoUrl, tursoToken);
-      tursoLatency = result.latency; tursoStatus = result.ok ? 'online' : 'offline';
-      if (!result.ok) tursoError = result.error || 'Conexión fallida';
-    } catch (e: any) { tursoStatus = 'offline'; tursoError = e?.message || String(e); }
-    tursoTesting = false;
-  }
-
-  async function handleTursoSchemaSetup() {
-    try {
-      const result = await syncService.testConnection(tursoUrl, tursoToken);
-      if (!result.ok) { tursoError = result.error || 'Conexión fallida'; tursoStatus = 'offline'; return; }
-      const sr = await syncService.runSchemaSetup();
-      if (!sr.ok) tursoError = sr.error || 'Error creando schema';
-      else tursoStatus = 'online';
-    } catch (e: any) { tursoError = e?.message || String(e); }
-  }
-
-  function handleDisconnectTurso() {
-    clearTursoCredentials(); tursoUrl = ''; tursoToken = ''; tursoStatus = 'idle';
-    try { syncService.disconnect(); } catch {}
-  }
-
-  async function handleTestSupabase() {
-    sbTesting = true; sbStatus = 'idle'; sbLatency = null; sbError = null;
-    try {
-      saveSupabaseConfig(sbUrl, sbAnonKey);
-      const result = await syncService.testConnection(sbUrl, sbAnonKey);
-      sbLatency = result.latency; sbStatus = result.ok ? 'online' : 'offline';
-      if (!result.ok) sbError = result.error || 'Conexión fallida';
-      else {
-        const client = getSupabaseClient();
-        if (client) {
-          const { data: { session } } = await client.auth.getSession();
-          supabaseSessionUser = session?.user?.email || null;
-        }
-      }
-    } catch (e: any) { sbStatus = 'offline'; sbError = e?.message || String(e); }
-    sbTesting = false;
-  }
-
-  async function handleConnectSupabase() {
-    sbTesting = true; sbError = null;
-    try {
-      saveSupabaseConfig(sbUrl, sbAnonKey);
-      const client = getSupabaseClient();
-      if (!client) { sbError = 'No se pudo crear el cliente Supabase'; sbTesting = false; return; }
-      const { data, error } = await client.auth.signInWithPassword({ email: sbEmail, password: sbPassword });
-      if (error) {
-        const { data: signUpData, error: signUpError } = await client.auth.signUp({ email: sbEmail, password: sbPassword });
-        if (signUpError) { sbError = signUpError.message; sbTesting = false; return; }
-        supabaseSessionUser = signUpData.user?.email || signUpData.user?.id || 'Registrado';
-      } else {
-        supabaseSessionUser = data.user?.email || data.user?.id || 'Conectado';
-      }
-      sbStatus = 'online';
-      syncService.ensurePeriodicSync();
-      await syncService.runSchemaSetup();
-      await syncService.syncAllSilent();
-    } catch (e: any) { sbError = e?.message || String(e); }
-    sbTesting = false;
-  }
-
-  function handleDisconnectSupabase() {
-    clearSupabaseConfig();
-    sbUrl = ''; sbAnonKey = ''; sbEmail = ''; sbPassword = '';
-    sbStatus = 'idle'; supabaseSessionUser = null;
-    try { syncService.disconnect(); } catch {}
-  }
-
-  async function handleSupabaseLogout() {
-    try { const client = getSupabaseClient(); if (client) await client.auth.signOut(); } catch {}
-    handleDisconnectSupabase();
-  }
-
-  async function handleSupabaseSchemaSetup() {
-    try {
-      const result = await syncService.testConnection(sbUrl, sbAnonKey);
-      if (!result.ok) { sbError = result.error || 'Conexión fallida'; sbStatus = 'offline'; return; }
-      const sr = await syncService.runSchemaSetup();
-      if (!sr.ok) sbError = sr.error || 'Error creando schema';
-      else sbStatus = 'online';
-    } catch (e: any) { sbError = e?.message || String(e); }
-  }
-
-  function handleDisconnectProvider() {
-    if (syncProvider === 'turso') handleDisconnectTurso();
-    else handleDisconnectSupabase();
   }
 
   function handleThemeChange(mode: string) {
@@ -562,58 +449,18 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
               {#if syncProvider === 'turso'}
                 <div style="margin-top: 1rem; background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
-                  <h4 style="margin: 0 0 1rem 0; color: #e2e8f0;">Conexión Turso</h4>
-                  <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.75rem;">
-                    <input type="text" bind:value={tursoUrl} placeholder="libsql://mydb.turso.io" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
-                    <input type="password" bind:value={tursoToken} placeholder="Token de autenticación" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
-                  </div>
-                  <div style="display: flex; gap: 0.5rem;">
-                    <button onclick={handleConnectTurso} disabled={tursoTesting || !tursoUrl || !tursoToken} style="flex: 1; padding: 0.5rem 1rem; border-radius: 8px; border: none; background: {tursoTesting ? '#64748b' : 'var(--primary-color)'}; color: #fff; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">{tursoTesting ? 'Conectando...' : 'Conectar'}</button>
-                    <button onclick={handleTestTurso} disabled={tursoTesting || !tursoUrl || !tursoToken} style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.2); color: #94a3b8; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">{tursoTesting ? '...' : 'Probar'}</button>
-                  </div>
-                  {#if tursoStatus !== 'idle'}
-                    <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; margin-top: 0.5rem; background: {tursoStatus === 'online' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)'}; color: {tursoStatus === 'online' ? '#4ade80' : '#f87171'};">
-                      {tursoStatus === 'online' ? `✅ Conectado (${tursoLatency}ms)` : `❌ ${tursoError || 'Sin conexión'}`}
-                    </div>
-                  {/if}
-                  <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
-                    <button onclick={handleTursoSchemaSetup} disabled={!tursoUrl || !tursoToken} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.2); color: #94a3b8; font-weight: 500; font-size: 0.75rem; cursor: pointer;">Ejecutar Schema</button>
-                    <button onclick={handleDisconnectTurso} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(239,68,68,0.2); background: rgba(239,68,68,0.08); color: #f87171; font-weight: 500; font-size: 0.75rem; cursor: pointer;">Desconectar</button>
+                  <h4 style="margin: 0 0 1rem 0; color: #e2e8f0;">URL y Token Turso</h4>
+                  <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <input type="text" bind:value={tursoUrl} oninput={() => saveTursoCredentials(tursoUrl, tursoToken)} placeholder="libsql://mydb.turso.io" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
+                    <input type="password" bind:value={tursoToken} oninput={() => saveTursoCredentials(tursoUrl, tursoToken)} placeholder="Token de autenticación" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
                   </div>
                 </div>
               {:else}
                 <div style="margin-top: 1rem; background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
-                  <h4 style="margin: 0 0 1rem 0; color: #e2e8f0;">Conexión Supabase</h4>
-                  <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.75rem;">
-                    <input type="text" bind:value={sbUrl} placeholder="https://xyz.supabase.co" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
-                    <input type="password" bind:value={sbAnonKey} placeholder="Anon Key (pública)" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
-                    {#if !supabaseSessionUser}
-                      <div style="margin-top: 0.25rem; padding: 0.75rem; background: rgba(0,0,0,0.15); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
-                        <div style="color: #94a3b8; font-size: 0.75rem; margin-bottom: 0.5rem;">Inicia sesión o regístrate para sincronizar:</div>
-                        <input type="email" bind:value={sbEmail} placeholder="correo@ejemplo.com" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; outline: none; box-sizing: border-box; margin-bottom: 0.4rem;" />
-                        <input type="password" bind:value={sbPassword} placeholder="Contraseña" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; outline: none; box-sizing: border-box;" />
-                      </div>
-                    {/if}
-                  </div>
-                  <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                    {#if !supabaseSessionUser}
-                      <button onclick={handleConnectSupabase} disabled={sbTesting || !sbUrl || !sbAnonKey || !sbEmail || !sbPassword} style="flex: 1; padding: 0.5rem 1rem; border-radius: 8px; border: none; background: {sbTesting ? '#64748b' : 'var(--primary-color)'}; color: #fff; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap; min-width: 120px;">{sbTesting ? 'Conectando...' : 'Iniciar Sesión'}</button>
-                    {:else}
-                      <button onclick={async () => { await syncService.syncAllSilent(); }} disabled={false} style="flex: 1; padding: 0.5rem 1rem; border-radius: 8px; border: none; background: var(--primary-color); color: #fff; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">Sincronizar ahora</button>
-                    {/if}
-                    <button onclick={handleTestSupabase} disabled={sbTesting || !sbUrl || !sbAnonKey} style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.2); color: #94a3b8; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">{sbTesting ? '...' : 'Probar'}</button>
-                  </div>
-                  {#if sbStatus !== 'idle'}
-                    <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; margin-top: 0.5rem; background: {sbStatus === 'online' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)'}; color: {sbStatus === 'online' ? '#4ade80' : '#f87171'};">
-                      {sbStatus === 'online' ? `✅ Conectado (${sbLatency}ms)` : `❌ ${sbError || 'Sin conexión'}`}
-                    </div>
-                  {/if}
-                  <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap;">
-                    <button onclick={handleSupabaseSchemaSetup} disabled={!sbUrl || !sbAnonKey} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.2); color: #94a3b8; font-weight: 500; font-size: 0.75rem; cursor: pointer;">Ejecutar Schema</button>
-                    {#if supabaseSessionUser}
-                      <button onclick={handleSupabaseLogout} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(239,68,68,0.2); background: rgba(239,68,68,0.08); color: #f87171; font-weight: 500; font-size: 0.75rem; cursor: pointer;">Cerrar Sesión</button>
-                    {/if}
-                    <button onclick={handleDisconnectSupabase} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(239,68,68,0.2); background: rgba(239,68,68,0.08); color: #f87171; font-weight: 500; font-size: 0.75rem; cursor: pointer;">Desconectar</button>
+                  <h4 style="margin: 0 0 1rem 0; color: #e2e8f0;">URL y Anon Key Supabase</h4>
+                  <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <input type="text" bind:value={sbUrl} oninput={() => saveSupabaseConfig(sbUrl, sbAnonKey)} placeholder="https://xyz.supabase.co" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
+                    <input type="password" bind:value={sbAnonKey} oninput={() => saveSupabaseConfig(sbUrl, sbAnonKey)} placeholder="Anon Key (pública)" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
                   </div>
                 </div>
               {/if}
