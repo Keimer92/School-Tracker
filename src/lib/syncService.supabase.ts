@@ -1484,22 +1484,34 @@ export const syncService = {
 
   ensureSchema: async (): Promise<{ ok: boolean; error?: string }> => {
     try {
-      const client = getSupabaseClient();
-      if (!client) {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || localStorage.getItem('supabase_url');
-        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || localStorage.getItem('supabase_anon_key');
-        if (!supabaseUrl || !supabaseAnonKey) return { ok: false, error: 'Supabase no configurado' };
-        const { error: fnError } = await fetch(`${supabaseUrl}/functions/v1/ensure_schema`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseAnonKey}` },
-        }).then(r => r.json());
-        if (fnError) return { ok: false, error: fnError };
-        return { ok: true };
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || localStorage.getItem('supabase_url');
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || localStorage.getItem('supabase_anon_key');
+      if (!supabaseUrl || !supabaseAnonKey) return { ok: false, error: 'Supabase no configurado' };
+
+      const functionUrl = supabaseUrl.replace(/\/+$/, '') + '/functions/v1/ensure_schema';
+      console.log('[Supabase] Calling ensure_schema edge function at', functionUrl);
+
+      const response = await fetch(functionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('[Supabase] ensure_schema HTTP error:', response.status, text);
+        return { ok: false, error: `HTTP ${response.status}: ${text}` };
       }
-      const { error: fnError } = await client.functions.invoke('ensure_schema', { method: 'POST' });
-      if (fnError) return { ok: false, error: fnError.message || String(fnError) };
+
+      const result = await response.json();
+      console.log('[Supabase] ensure_schema result:', result);
+
+      if (result.error) return { ok: false, error: result.error };
       return { ok: true };
     } catch (e: any) {
+      console.error('[Supabase] ensure_schema exception:', e);
       return { ok: false, error: e?.message || String(e) };
     }
   },
