@@ -85,7 +85,11 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   }
 
   onMount(() => {
-    const unsubProvider = onProviderChange(() => { syncProvider = getActiveProvider(); });
+    const unsubProvider = onProviderChange(async () => {
+      syncProvider = getActiveProvider();
+      if (syncProvider === 'supabase') await checkSupabaseSession();
+      else supabaseSessionUser = null;
+    });
     onDestroy(() => unsubProvider());
     invoke<{ id: string; nombre: string; color: string; minimo: number }[]>("get_grade_configs").then(d => gradeConfigs = d).catch(e => console.error("Error fetching grade configs:", e));
     invoke<string>("get_db_path").then(p => dbPath = p).catch(e => console.error("Error fetching db path:", e));

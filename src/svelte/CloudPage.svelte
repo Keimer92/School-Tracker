@@ -42,15 +42,8 @@
 
   let activeCloudTab: 'sync' | 'drive' = $state('sync');
 
-  function refreshFromProvider() {
+  async function refreshFromProvider() {
     syncProvider = getActiveProvider();
-    isSynced = syncProvider === 'turso' ? !!getTursoUrl() : !!hasSupabaseConfig();
-  }
-
-  onMount(async () => {
-    const unsubSync = syncManager.subscribe((state) => { syncStatus = state; });
-    const unsubProvider = onProviderChange(refreshFromProvider);
-    refreshFromProvider();
     if (syncProvider === 'supabase') {
       const client = getSupabaseClient();
       if (client) {
@@ -60,9 +53,23 @@
           sbStatus = 'online';
           isSynced = true;
           syncService.ensurePeriodicSync();
+          return;
         }
       }
+      sbSessionUser = null;
+      sbStatus = 'idle';
+      isSynced = hasSupabaseConfig();
+    } else {
+      sbSessionUser = null;
+      sbStatus = 'idle';
+      isSynced = !!getTursoUrl();
     }
+  }
+
+  onMount(async () => {
+    const unsubSync = syncManager.subscribe((state) => { syncStatus = state; });
+    const unsubProvider = onProviderChange(refreshFromProvider);
+    await refreshFromProvider();
     return () => { unsubSync(); unsubProvider(); };
   });
 
