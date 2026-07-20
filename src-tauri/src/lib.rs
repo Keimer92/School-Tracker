@@ -816,99 +816,6 @@ fn get_profile_app_dir(app_handle: &tauri::AppHandle) -> Result<std::path::PathB
     }
 }
 
-fn buscar_pocketbase_binary(app_handle: &tauri::AppHandle) -> Option<std::path::PathBuf> {
-    let binary_suffix = if cfg!(target_os = "windows") { ".exe" } else { "" };
-
-    // Collect all possible directories to search
-    let mut dirs: Vec<std::path::PathBuf> = Vec::new();
-
-    // 1. resource_dir/binaries (Tauri v2 dev: src-tauri/binaries)
-    if let Ok(d) = app_handle.path().resource_dir() {
-        dirs.push(d.join("binaries"));
-    }
-
-    // 2. CARGO_MANIFEST_DIR/binaries (compile-time known for dev)
-    if let Ok(d) = std::env::var("CARGO_MANIFEST_DIR") {
-        dirs.push(std::path::PathBuf::from(d).join("binaries"));
-    }
-
-    // 3. current_dir/binaries
-    if let Ok(d) = std::env::current_dir() {
-        dirs.push(d.join("binaries"));
-    }
-
-    // 4. current_dir/src-tauri/binaries
-    if let Ok(d) = std::env::current_dir() {
-        dirs.push(d.join("src-tauri").join("binaries"));
-    }
-
-    // 5. Plain "binaries" relative path
-    dirs.push(std::path::PathBuf::from("binaries"));
-
-    // 6. Exe parent dir/binaries (for production)
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(parent) = exe.parent() {
-            dirs.push(parent.join("binaries"));
-        }
-    }
-
-    for dir in &dirs {
-        if !dir.exists() {
-            continue;
-        }
-        if let Ok(entries) = std::fs::read_dir(dir) {
-            for entry in entries.flatten() {
-                let name = entry.file_name().to_string_lossy().to_string();
-                if name.starts_with("pocketbase") && name.ends_with(binary_suffix) {
-                    println!("✅ [Sidecar] PocketBase binary encontrado: {:?}", entry.path());
-                    return Some(entry.path());
-                }
-            }
-        }
-    }
-
-    eprintln!("⚠️ [Sidecar] PocketBase binary no encontrado en ninguno de estos directorios:");
-    for dir in &dirs {
-        eprintln!("    - {:?} (exists: {})", dir, dir.exists());
-    }
-    None
-}
-
-static PB_STARTED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
-
-pub fn iniciar_pocketbase(app_handle: &tauri::AppHandle, app_dir: &std::path::Path) {
-    if PB_STARTED.get().is_some() { return; }
-    if let Some(pb_path) = buscar_pocketbase_binary(app_handle) {
-        let pb_data_dir = app_dir.join("pb_data");
-        if !pb_data_dir.exists() {
-            let _ = std::fs::create_dir_all(&pb_data_dir);
-        }
-        println!("🔄 [Sidecar] Iniciando PocketBase desde {:?}...", pb_path);
-        match std::process::Command::new(&pb_path)
-            .arg("serve")
-            .arg("--dev")
-            .args([
-                "--dir", &pb_data_dir.to_string_lossy(),
-                "--http=127.0.0.1:8090",
-            ])
-            .spawn()
-        {
-            Ok(child) => {
-                println!("✅ [Sidecar] PocketBase iniciado (PID: {})", child.id());
-                let _ = PB_STARTED.set(true);
-            }
-            Err(e) => println!("❌ [Sidecar] Error iniciando PocketBase: {}", e),
-        }
-    } else {
-        println!("⚠️ [Sidecar] PocketBase binary no encontrado");
-    }
-}
-
-#[tauri::command]
-fn get_pocketbase_status() -> Result<bool, String> {
-    Ok(PB_STARTED.get().is_some())
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -931,7 +838,6 @@ pub fn run() {
                 let _ = window.maximize();
             }
 
-            // PocketBase desactivado — solo Turso
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

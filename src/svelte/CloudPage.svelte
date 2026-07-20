@@ -4,9 +4,7 @@
   import { openUrl } from "@tauri-apps/plugin-opener";
   import { emit } from "@tauri-apps/api/event";
   import { syncService, syncManager, type SyncStatus, type SyncProviderType, getActiveProvider, setActiveProvider } from "../lib/syncService";
-  import { getTursoUrl, getTursoToken, saveTursoCredentials, clearTursoCredentials } from "../lib/tursoClient";
-  import { getPocketBaseUrl, savePocketBaseUrl, isAdminAuthenticated, logoutAdmin } from "../lib/pocketbaseClient";
-  import { pocketbaseSyncService } from "../lib/pocketbaseSyncService";
+  import { getTursoUrl, getTursoToken, clearTursoCredentials } from "../lib/tursoClient";
   import GoogleDriveBackup from "./GoogleDriveBackup.svelte";
 
   let syncProvider = $state<SyncProviderType>(getActiveProvider());
@@ -23,29 +21,11 @@
   let tursoLatency: number | null = $state(null);
   let tursoError: string | null = $state(null);
 
-  // PocketBase state
-  const PB_EMAIL_KEY = 'pocketbase_last_email';
-  let pbUrl = $state(getPocketBaseUrl());
-  let pbEmail = $state(localStorage.getItem(PB_EMAIL_KEY) || '');
-  let pbPassword = $state('');
-  let pbTesting = $state(false);
-  let pbStatus: 'idle' | 'online' | 'offline' = $state('idle');
-  let pbLatency: number | null = $state(null);
-  let pbError: string | null = $state(null);
-  let pbAuthStep = $state<'credentials' | 'connected'>('credentials');
-  let pbServerChecking = $state(false);
-  let pbServerMessage = $state<string | null>(null);
-
   let activeCloudTab: 'sync' | 'drive' = $state('sync');
 
   onMount(() => {
     const unsub = syncManager.subscribe((state) => { syncStatus = state; });
-    if (syncProvider === 'turso') {
-      isSynced = !!getTursoUrl();
-    } else {
-      isSynced = isAdminAuthenticated();
-      if (isSynced) pbAuthStep = 'connected';
-    }
+    isSynced = !!getTursoUrl();
     return () => unsub();
   });
 
@@ -54,12 +34,7 @@
     setActiveProvider(p);
     syncProvider = p;
     showServerConfig = false;
-    if (p === 'turso') {
-      isSynced = !!getTursoUrl();
-    } else {
-      isSynced = isAdminAuthenticated();
-      pbAuthStep = isSynced ? 'connected' : 'credentials';
-    }
+    isSynced = !!getTursoUrl();
   }
 
   // Turso handlers
@@ -98,60 +73,9 @@
     try { syncService.disconnect(); } catch {}
   }
 
-  // PocketBase handlers
-  async function handleConnectPB() {
-    pbTesting = true; pbError = null;
-    try {
-      savePocketBaseUrl(pbUrl);
-      const healthResult = await pocketbaseSyncService.testConnection(pbUrl);
-      if (!healthResult.ok) { pbError = healthResult.error || 'No se pudo conectar al servidor'; pbTesting = false; return; }
-      const authResult = await pocketbaseSyncService.authenticateAdmin(pbEmail, pbPassword);
-      if (authResult.ok) {
-        localStorage.setItem(PB_EMAIL_KEY, pbEmail);
-        isSynced = true; pbStatus = 'online'; pbAuthStep = 'connected';
-        syncService.ensurePeriodicSync(); syncService.syncAllSilent();
-      } else {
-        pbError = authResult.error || 'Error de autenticación';
-      }
-    } catch (e: any) { pbError = e?.message || String(e); }
-    pbTesting = false;
-  }
-
-  async function handleTestPB() {
-    pbTesting = true; pbStatus = 'idle'; pbLatency = null; pbError = null;
-    try {
-      const result = await pocketbaseSyncService.testConnection(pbUrl);
-      pbLatency = result.latency; pbStatus = result.ok ? 'online' : 'offline';
-      if (!result.ok) pbError = result.error || 'Conexión fallida';
-    } catch (e: any) { pbStatus = 'offline'; pbError = e?.message || String(e); }
-    pbTesting = false;
-  }
-
-  function handleDisconnectPB() {
-    logoutAdmin(); pbUrl = getPocketBaseUrl(); pbEmail = ''; pbPassword = '';
-    localStorage.removeItem(PB_EMAIL_KEY);
-    pbStatus = 'idle'; pbAuthStep = 'credentials'; isSynced = false;
-    try { pocketbaseSyncService.disconnect(); } catch {}
-  }
-
-  async function handleCheckPBServer() {
-    pbServerChecking = true; pbServerMessage = null;
-    const healthOk = await checkPocketBaseHealth();
-    if (healthOk) {
-      pbServerMessage = 'PocketBase está corriendo ✅ Podés conectarte con tu superusuario.';
-    } else {
-      pbServerMessage = 'PocketBase no responde. Si la app se inició hace poco, esperá unos segundos y probá de nuevo. Si persiste, reiniciá la app con ctrl+C y volvé a ejecutar npm run tauri dev.';
-    }
-    pbServerChecking = false;
-  }
-
-  async function checkPocketBaseHealth(): Promise<boolean> {
-    try {
-      const res = await fetch(`${pbUrl}/api/health`, { method: 'GET', signal: AbortSignal.timeout(3000) });
-      return res.ok;
-    } catch {
-      return false;
-    }
+  function handleDisconnectProvider() {
+    clearTursoCredentials(); tursoUrl = ''; tursoToken = ''; tursoStatus = 'idle'; isSynced = false;
+    try { syncService.disconnect(); } catch {}
   }
 </script>
 
@@ -238,51 +162,7 @@
                 {/if}
                 <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
                   <button onclick={handleSchemaSetup} disabled={!tursoUrl || !tursoToken} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.2); color: #94a3b8; font-weight: 500; font-size: 0.75rem; cursor: pointer;">Ejecutar Schema</button>
-                  <button onclick={handleDisconnectTurso} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(239,68,68,0.2); background: rgba(239,68,68,0.08); color: #f87171; font-weight: 500; font-size: 0.75rem; cursor: pointer;">Desconectar</button>
-                </div>
-                <div style="display: flex; align-items: center; gap: 0.5rem; padding-top: 0.75rem; margin-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.06);">
-                  <span style="color: #94a3b8; font-size: 0.8rem;">Sync periódico:</span>
-                  <input type="number" min={3} max={300} bind:value={syncInterval} oninput={() => { localStorage.setItem('periodic_sync_interval_seconds', String(syncInterval)); syncService.ensurePeriodicSync(); }} style="width: 56px; padding: 0.25rem 0.4rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; text-align: center; outline: none;" />
-                  <span style="color: #64748b; font-size: 0.8rem;">segundos</span>
-                </div>
-              </div>
-            {:else}
-              <!-- PocketBase config -->
-              <div style="margin-top: 1rem; padding: 1rem 1.25rem; background: rgba(0,0,0,0.2); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 0.75rem;">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-                  <span style="color: #cbd5e1; font-size: 0.85rem; font-weight: 600;">Configuración PocketBase</span>
-                </div>
-                <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.75rem;">
-                  <input type="text" bind:value={pbUrl} placeholder="http://127.0.0.1:8090" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
-                  {#if pbAuthStep === 'credentials'}
-                    <input type="email" bind:value={pbEmail} placeholder="admin@schooltracker.com" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
-                    <input type="password" bind:value={pbPassword} placeholder="Contraseña de admin" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
-                  {/if}
-                </div>
-                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                  <button onclick={handleCheckPBServer} disabled={pbServerChecking} style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid rgba(var(--primary-rgb), 0.3); background: rgba(var(--primary-rgb), 0.1); color: var(--text-bright); font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">{pbServerChecking ? 'Verificando...' : '🔍 Verificar Servidor'}</button>
-                  {#if pbAuthStep === 'credentials'}
-                    <button onclick={handleConnectPB} disabled={pbTesting || !pbUrl || !pbEmail || !pbPassword} style="flex: 1; padding: 0.5rem 1rem; border-radius: 8px; border: none; background: {pbTesting ? '#64748b' : 'var(--primary-color)'}; color: #fff; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">{pbTesting ? 'Conectando...' : 'Conectar'}</button>
-                  {/if}
-                  <button onclick={handleTestPB} disabled={pbTesting || !pbUrl} style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.2); color: #94a3b8; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">{pbTesting ? '...' : 'Probar'}</button>
-                </div>
-                {#if pbServerMessage}
-                  {@const isError = pbServerMessage.includes('no') || pbServerMessage.includes('No') || pbServerMessage.includes('Reiniciá')}
-                  <div style="margin-top: 0.5rem; padding: 8px 10px; border-radius: 6px; font-size: 0.75rem; background: {isError ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)'}; color: {isError ? '#f87171' : '#4ade80'}; line-height: 1.4;">
-                    {pbServerMessage}
-                  </div>
-                {/if}
-                {#if pbStatus !== 'idle'}
-                  <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; margin-top: 0.5rem; background: {pbStatus === 'online' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)'}; color: {pbStatus === 'online' ? '#4ade80' : '#f87171'};">
-                    {pbStatus === 'online' ? `✅ Conectado (${pbLatency}ms)` : `❌ ${pbError || `Sin conexión`}`}
-                  </div>
-                {/if}
-                <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap;">
-                  <button onclick={() => openUrl(`${pbUrl}/_/`)} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(var(--primary-rgb), 0.2); background: rgba(var(--primary-rgb), 0.08); color: var(--text-secondary); font-weight: 500; font-size: 0.75rem; cursor: pointer;">🔐 Admin Dashboard</button>
-                  {#if pbAuthStep === 'connected'}
-                    <button onclick={handleDisconnectPB} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(239,68,68,0.2); background: rgba(239,68,68,0.08); color: #f87171; font-weight: 500; font-size: 0.75rem; cursor: pointer;">Desconectar</button>
-                  {/if}
+                  <button onclick={handleDisconnectProvider} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(239,68,68,0.2); background: rgba(239,68,68,0.08); color: #f87171; font-weight: 500; font-size: 0.75rem; cursor: pointer;">Desconectar</button>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.5rem; padding-top: 0.75rem; margin-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.06);">
                   <span style="color: #94a3b8; font-size: 0.8rem;">Sync periódico:</span>
@@ -294,7 +174,7 @@
           {/if}
 
           <div style="margin-top: 1rem; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
-            {#each [{ icon: '💻', title: 'Local-First', desc: 'Datos seguros en tu PC' }, { icon: '☁️', title: syncProvider === 'turso' ? 'Turso Cloud' : 'PocketBase', desc: 'Siempre disponible' }, { icon: '📴', title: 'Offline', desc: 'Trabaja sin internet' }, { icon: '🔄', title: 'Periódico', desc: `Cada ${syncInterval}s` }] as item}
+            {#each [{ icon: '💻', title: 'Local-First', desc: 'Datos seguros en tu PC' }, { icon: '☁️', title: 'Supabase / Turso', desc: 'Siempre disponible' }, { icon: '📴', title: 'Offline', desc: 'Trabaja sin internet' }, { icon: '🔄', title: 'Periódico', desc: `Cada ${syncInterval}s` }] as item}
               <div style="padding: 0.75rem; background: rgba(0,0,0,0.15); border-radius: 10px; text-align: center;">
                 <div style="font-size: 1.1rem; margin-bottom: 2px;">{item.icon}</div>
                 <div style="font-size: 0.75rem; color: #f1f5f9; font-weight: 600;">{item.title}</div>
@@ -306,7 +186,7 @@
       {:else}
         <div style="padding: 1.5rem 1.5rem 2.5rem; text-align: center;">
           <div style="color: #64748b; font-size: 0.9rem; margin-bottom: 1.5rem;">
-            {syncProvider === 'turso' ? 'Conectá tu base de datos Turso para sincronizar datos entre dispositivos.' : 'Conectá tu servidor PocketBase local para sincronizar datos.'}
+            Conectá tu base de datos Turso o tu configuración de Supabase para sincronizar datos entre dispositivos.
           </div>
           <div style="max-width: 400px; margin: 0 auto; display: flex; flex-direction: column; gap: 0.5rem;">
             {#if syncProvider === 'turso'}
@@ -314,19 +194,6 @@
               <input type="password" bind:value={tursoToken} placeholder="Token de autenticación" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.85rem; font-family: monospace; outline: none; box-sizing: border-box;" />
               <button onclick={handleConnectTurso} disabled={tursoTesting || !tursoUrl || !tursoToken} style="padding: 0.6rem 1rem; border-radius: 8px; border: none; background: {tursoTesting ? '#64748b' : 'var(--primary-color)'}; color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer;">{tursoTesting ? 'Conectando...' : 'Conectar a Turso'}</button>
               {#if tursoError}<div style="color: #f87171; font-size: 0.75rem; margin-top: 0.5rem;">❌ {tursoError}</div>{/if}
-            {:else}
-              <input type="text" bind:value={pbUrl} placeholder="http://127.0.0.1:8090" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.85rem; font-family: monospace; outline: none; box-sizing: border-box;" />
-              <input type="email" bind:value={pbEmail} placeholder="admin@schooltracker.com" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.85rem; font-family: monospace; outline: none; box-sizing: border-box;" />
-              <input type="password" bind:value={pbPassword} placeholder="Contraseña de admin" style="width: 100%; padding: 0.6rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.85rem; font-family: monospace; outline: none; box-sizing: border-box;" />
-              <button onclick={handleCheckPBServer} disabled={pbServerChecking} style="padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid rgba(var(--primary-rgb), 0.3); background: rgba(var(--primary-rgb), 0.1); color: var(--text-bright); font-weight: 600; font-size: 0.85rem; cursor: pointer;">{pbServerChecking ? 'Verificando...' : '🔍 Verificar Servidor'}</button>
-              <button onclick={() => openUrl(`${pbUrl}/_/`)} style="padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid rgba(var(--primary-rgb), 0.2); background: rgba(var(--primary-rgb), 0.08); color: var(--text-secondary); font-weight: 600; font-size: 0.85rem; cursor: pointer;">🔐 Admin Dashboard</button>
-              <button onclick={handleConnectPB} disabled={pbTesting || !pbUrl || !pbEmail || !pbPassword} style="padding: 0.6rem 1rem; border-radius: 8px; border: none; background: {pbTesting ? '#64748b' : 'var(--primary-color)'}; color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer;">{pbTesting ? 'Conectando...' : 'Conectar a PocketBase'}</button>
-              {#if pbServerMessage}
-                <div style="padding: 6px 10px; border-radius: 6px; font-size: 0.75rem; background: {pbServerMessage.startsWith('Error') ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)'}; color: {pbServerMessage.startsWith('Error') ? '#f87171' : '#4ade80'};">
-                  {pbServerMessage}
-                </div>
-              {/if}
-              {#if pbError}<div style="color: #f87171; font-size: 0.75rem; margin-top: 0.5rem;">❌ {pbError}</div>{/if}
             {/if}
           </div>
         </div>

@@ -110,7 +110,6 @@ commands.allow = [
     "seed_defaults_now",
     "get_schema_sql",
     "get_all_local_data_json",
-    "get_pocketbase_status",
     "create_folder_and_save_file"
 ]
 

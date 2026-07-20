@@ -493,7 +493,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                 <div style="display: inline-block; margin-top: 0.5rem; padding: 0.2rem 0.8rem; background: rgba(255,255,255,0.05); border-radius: 20px; font-size: 0.8rem; color: var(--primary-color); border: 1px solid var(--primary-color);">v1.2.0 - Android & Cloud Edition</div>
               </div>
               <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; text-align: center;">
-                {#each [{ icon: "📱", title: "Mobile First", desc: "Interfaz optimizada" }, { icon: "☁️", title: "Cloud Sync", desc: "PocketBase Sync" }, { icon: "🎨", title: "Personalizable", desc: "Temas dinámicos" }, { icon: "🛡️", title: "Seguridad", desc: "Local Storage" }] as card}
+                {#each [{ icon: "📱", title: "Mobile First", desc: "Interfaz optimizada" }, { icon: "☁️", title: "Cloud Sync", desc: "Supabase / Turso" }, { icon: "🎨", title: "Personalizable", desc: "Temas dinámicos" }, { icon: "🛡️", title: "Seguridad", desc: "Local Storage" }] as card}
                   <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
                     <div style="font-size: 2rem; margin-bottom: 0.5rem;">{card.icon}</div>
                     <div style="font-weight: bold;">{card.title}</div>
@@ -515,7 +515,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                 <h4 style="margin: 0 0 1rem 0; color: #e2e8f0;">Tecnologías de Vanguardia</h4>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
                   <div><div style="font-weight: bold; color: var(--primary-color); margin-bottom: 0.5rem;">Core System</div><ul style="color: #94a3b8; font-size: 0.8rem; padding-left: 1.2rem;"><li>Tauri v2 (Rust)</li><li>React 19</li><li>TypeScript</li></ul></div>
-                  <div><div style="font-weight: bold; color: #a855f7; margin-bottom: 0.5rem;">Data & Cloud</div><ul style="color: #94a3b8; font-size: 0.8rem; padding-left: 1.2rem;"><li>SQLite Local</li><li>PocketBase</li><li>SQLite Remoto</li></ul></div>
+                  <div><div style="font-weight: bold; color: #a855f7; margin-bottom: 0.5rem;">Data & Cloud</div><ul style="color: #94a3b8; font-size: 0.8rem; padding-left: 1.2rem;"><li>SQLite Local</li><li>Supabase / Turso</li><li>SQLite Remoto</li></ul></div>
                 </div>
               </div>
               <div style="text-align: center; color: #64748b; font-size: 0.9rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">Desarrollado con ❤️ por Keimer - v1.2.0</div>

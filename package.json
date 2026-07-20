@@ -23,7 +23,6 @@
     "core-js": "^3.49.0",
     "jspdf": "^4.1.0",
     "jspdf-autotable": "^5.0.7",
-    "pocketbase": "^0.27.0",
     "svelte": "^5.56.4",
     "xlsx": "^0.18.5"
   },

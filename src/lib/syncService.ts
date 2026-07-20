@@ -1,10 +1,9 @@
 import { tursoSyncService } from './tursoSyncService';
-import { pocketbaseSyncService } from './pocketbaseSyncService';
 
 export type { SyncStatus } from './tursoSyncService';
 export { syncManager } from './tursoSyncService';
 
-export type SyncProviderType = 'turso' | 'pocketbase';
+export type SyncProviderType = 'turso';
 
 const STORAGE_KEY = 'sync_provider';
 
@@ -16,7 +15,7 @@ function loadProvider(): SyncProviderType {
 let _activeProvider: SyncProviderType = loadProvider();
 
 function getService() {
-  return _activeProvider === 'turso' ? tursoSyncService : pocketbaseSyncService;
+  return tursoSyncService;
 }
 
 export function getActiveProvider(): SyncProviderType {
