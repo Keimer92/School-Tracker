@@ -1,11 +1,8 @@
-// Comando para ejecutar SQL directo en Postgres de Supabase (crear tablas automáticamente)
-// Prueba múltiples connection strings: directo (db.<ref>.supabase.co:5432) y luego
-// el connection pooler por región (aws-0-<region>.pooler.supabase.com:6543 /
-// gcp-<region>.pooler.supabase.com:6543).
-use futures::future::select_ok;
+// Comando para ejecutar SQL directo en Postgres de Supabase (crear tablas automáticamente).
+// En este flujo solo intentamos la configuración provista por el usuario; si falla,
+// devolvemos el error real en vez de probar poolers que suelen provocar errores
+// de tenant/user y confundir el diagnóstico.
 use sqlx::postgres::PgPoolOptions;
-use std::future::Future;
-use std::pin::Pin;
 use std::time::Duration;
 use tokio::time::timeout;
 
@@ -21,41 +18,19 @@ async fn try_connect(cs: &str, sql: &str) -> Result<String, String> {
         .map_err(|e| format!("Error ejecutando SQL: {}", e))
 }
 
-type BoxedFuture = Pin<Box<dyn Future<Output = Result<String, String>> + Send>>;
-
 #[tauri::command]
 pub async fn supabase_execute_sql(connection_strings: Vec<String>, sql: String) -> Result<String, String> {
-    // Probar el primero (generalmente el directo) de forma secuencial rápida
-    let mut direct_err: Option<String> = None;
     if let Some(first) = connection_strings.first() {
         match try_connect(first, &sql).await {
             Ok(ok) => return Ok(ok),
-            Err(e) => direct_err = Some(e),
+            Err(e) => {
+                return Err(format!(
+                    "No se pudo conectar a Postgres con la configuración proporcionada: {}",
+                    e
+                ));
+            }
         }
     }
 
-    // Si el directo falla, intentar los poolers en paralelo y quedarnos con el primero que conecte
-    let pooler_attempts: Vec<BoxedFuture> = connection_strings
-        .iter()
-        .skip(1)
-        .map(|cs| {
-            let cs = cs.clone();
-            let sql = sql.clone();
-            Box::pin(async move { try_connect(&cs, &sql).await }) as BoxedFuture
-        })
-        .collect();
-
-    if pooler_attempts.is_empty() {
-        return Err(direct_err.unwrap_or_else(|| {
-            "No se pudo conectar a Postgres (sin password/configuración de BD).".to_string()
-        }));
-    }
-
-    match select_ok(pooler_attempts).await {
-        Ok((result, _rest)) => Ok(result),
-        Err(err) => Err(format!(
-            "No se pudo conectar a Postgres con ninguna configuración: {}",
-            err
-        )),
-    }
+    Err("No se pudo conectar a Postgres (sin password/configuración de BD).".to_string())
 }

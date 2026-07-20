@@ -28,7 +28,7 @@ const withSupabaseSchemaRecovery = async <T,>(
       await new Promise((resolve) => globalThis.setTimeout(resolve, 400 * (attempt + 1)));
       const schemaResult = await syncService.ensureSchema();
       if (!schemaResult.ok) {
-        console.warn('[Supabase] Reintento de schema fallido:', schemaResult.error);
+        throw new Error(schemaResult.error || 'No se pudo preparar el schema de Supabase.');
       }
     }
   }
@@ -39,6 +39,11 @@ const withSupabaseSchemaRecovery = async <T,>(
 const isTableUnavailableError = (error: unknown) => {
   const message = getSupabaseErrorMessage(error);
   return isMissingTableError(error) || /404|not found|relation .* does not exist/i.test(message);
+};
+
+const getSchemaBootstrapError = (reason?: string) => {
+  const detail = reason ? `\n\nDetalle: ${reason}` : '';
+  return `No se pudo preparar el schema de Supabase. El proyecto remoto no expone las tablas esperadas o la conexión de Postgres no está disponible.${detail}\n\nAcciones recomendadas:\n1. Verifica que el proyecto de Supabase correcto esté activo.\n2. Crea el schema manualmente en el SQL Editor de Supabase.\n3. Si usas conexión directa, pega un connection string completo de Postgres en Ajustes → Nube.`;
 };
 
 /**
@@ -73,10 +78,21 @@ export const getSupabaseConnStrings = (): string[] | null => {
   const projectRef = match[1];
   const pw = encodeURIComponent(raw);
   const direct = `postgresql://postgres:${pw}@db.${projectRef}.supabase.co:5432/postgres?sslmode=require`;
+  const poolerUsernames = [`postgres.${projectRef}`, 'postgres'];
+  const poolerHosts = [
+    'aws-0-eu-west-1.pooler.supabase.com:6543',
+    'aws-0-us-east-1.pooler.supabase.com:6543',
+    'aws-0-us-west-1.pooler.supabase.com:6543',
+    'aws-0-ap-southeast-1.pooler.supabase.com:6543',
+    'gcp-0-europe-west1.pooler.supabase.com:6543',
+    'gcp-0-us-central1.pooler.supabase.com:6543',
+  ];
 
-  // Evitamos los poolers por defecto porque en este entorno generan errores
-  // como "tenant/user ... not found" y no son necesarios para el flujo actual.
-  return [direct];
+  const poolers = poolerUsernames.flatMap((username) =>
+    poolerHosts.map((host) => `postgresql://${username}:${pw}@${host}/postgres?sslmode=require`)
+  );
+
+  return [direct, ...poolers];
 };
 
 /**
@@ -900,9 +916,10 @@ export const syncService = {
       if (!syncService._schemaEnsured) {
         const schemaResult = await syncService.ensureSchema();
         if (!schemaResult.ok) {
-          console.warn('[Supabase] Error asegurando schema, se continuará de todas formas:', schemaResult.error);
+          syncService._schemaEnsured = false;
+          throw new Error(schemaResult.error || 'No se pudo preparar el schema remoto de Supabase.');
         }
-        syncService._schemaEnsured = schemaResult.ok;
+        syncService._schemaEnsured = true;
       }
 
       const userId = await syncService.getUserId();
@@ -1170,9 +1187,10 @@ export const syncService = {
       if (!syncService._schemaEnsured) {
         const schemaResult = await syncService.ensureSchema();
         if (!schemaResult.ok) {
-          console.warn('[Supabase] Error asegurando schema, se continuará de todas formas:', schemaResult.error);
+          syncService._schemaEnsured = false;
+          throw new Error(schemaResult.error || 'No se pudo preparar el schema remoto de Supabase.');
         }
-        syncService._schemaEnsured = schemaResult.ok;
+        syncService._schemaEnsured = true;
       }
       console.log(`[Sync] Iniciando wrapSync`);
       const userId = await syncService.getUserId();
@@ -1583,30 +1601,23 @@ export const syncService = {
 
       const runSqlStatements = async (sqlStatements: string[], critical: boolean = true) => {
         const connStrings = getSupabaseConnStrings();
-        if (connStrings && connStrings.length > 0) {
-          for (const sql of sqlStatements) {
-            try {
-              await invoke('supabase_execute_sql', { connectionStrings: connStrings, sql });
-            } catch (error) {
-              if (critical) {
-                console.warn('[Supabase] Falló la ejecución SQL crítica:', error);
-                return false;
-              }
-              console.info('[Supabase] Ajuste SQL omitido porque la conexión directa no está disponible.');
-              return true;
-            }
+        if (!connStrings || connStrings.length === 0) {
+          if (!critical) {
+            return true;
           }
-          return true;
-        }
-
-        if (!critical) {
-          return true;
+          throw new Error('No hay una conexión de Postgres válida configurada para crear el schema. Pega un connection string completo en Ajustes → Nube o crea el schema manualmente en el SQL Editor.');
         }
 
         for (const sql of sqlStatements) {
-          const { error } = await client.rpc('exec_sql', { query: sql });
-          if (error) {
-            return false;
+          try {
+            await invoke('supabase_execute_sql', { connectionStrings: connStrings, sql });
+          } catch (error) {
+            const detail = getSupabaseErrorMessage(error);
+            if (critical) {
+              throw new Error(detail);
+            }
+            console.info('[Supabase] Ajuste SQL omitido porque la conexión directa no está disponible:', detail);
+            return true;
           }
         }
         return true;
@@ -1639,15 +1650,16 @@ export const syncService = {
           `CREATE TABLE IF NOT EXISTS sync_batch (id SERIAL PRIMARY KEY, table_name TEXT NOT NULL, action TEXT NOT NULL, data TEXT NOT NULL, user_id TEXT, created_at TEXT DEFAULT now()::text)`,
         ];
 
-        console.log('[Supabase] Creando schema vía SQL directo o RPC...');
-        const schemaCreated = await runSqlStatements(createTablesSqls);
-        if (!schemaCreated) {
+        console.log('[Supabase] Creando schema vía SQL directo...');
+        try {
+          await runSqlStatements(createTablesSqls);
+          console.log('[Supabase] Schema creado exitosamente');
+        } catch (error) {
           return {
             ok: false,
-            error: `No se pudo crear el schema automáticamente. Ingresa tu "Database Password" de Supabase en Ajustes → Nube (sección Supabase). Si preferís configurarlo en el servidor, creá la función exec_sql en el SQL Editor de Supabase:\n\nCREATE OR REPLACE FUNCTION exec_sql(query text)\nRETURNS void AS $$\nBEGIN\n  EXECUTE query;\nEND;\n$$ LANGUAGE plpgsql SECURITY DEFINER;`,
+            error: getSchemaBootstrapError(getSupabaseErrorMessage(error)),
           };
         }
-        console.log('[Supabase] Schema creado exitosamente');
       } else {
         console.log('[Supabase] Tablas existentes, aplicando ajustes idempotentes...');
       }
@@ -1667,7 +1679,7 @@ export const syncService = {
       if (!tablesExist) {
         return {
           ok: false,
-          error: 'No se pudo verificar la disponibilidad del schema en Supabase. Reintenta después de unos segundos.',
+          error: getSchemaBootstrapError('Las tablas esperadas siguen sin estar disponibles en PostgREST.'),
         };
       }
 
@@ -1683,7 +1695,11 @@ export const syncService = {
         'ALTER TABLE colegio_dias_asistencia ADD COLUMN IF NOT EXISTS user_id TEXT;',
         ...allTables.map((t) => `ALTER TABLE ${t} DISABLE ROW LEVEL SECURITY;`),
       ];
-      await runSqlStatements(fixSqls, false);
+      try {
+        await runSqlStatements(fixSqls, false);
+      } catch (error) {
+        console.warn('[Supabase] Ajustes idempotentes omitidos:', getSupabaseErrorMessage(error));
+      }
 
       return { ok: true };
     } catch (e: any) {
