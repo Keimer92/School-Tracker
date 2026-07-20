@@ -1,125 +1,15 @@
-import { supabase } from './supabase';
+import { supabase, saveSupabaseConfig, clearSupabaseConfig, getSupabaseClient, destroyClient } from './supabase';
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
+import { syncManager } from './tursoSyncService';
+
+export type { SyncStatus } from './tursoSyncService';
 
 /**
  * Servicio de sincronización (Local <-> Supabase)
  * Estrategia: "Local-First". Los cambios se hacen en SQLite primero
  * y luego se intentan replicar en la nube (Supabase).
  */
-
-export type SyncStatus = 'idle' | 'syncing' | 'error' | 'success';
-
-interface SyncState {
-  status: SyncStatus;
-  lastSync: string | null;
-  lastSyncDetails: string | null;
-  message: string | null;
-}
-
-type SyncListener = (state: SyncState) => void;
-
-class SyncManager {
-  private state: SyncState = {
-    status: 'idle',
-    lastSync: localStorage.getItem('last_sync_time'),
-    lastSyncDetails: localStorage.getItem('last_sync_details'),
-    message: null
-  };
-  private listeners: SyncListener[] = [];
-
-  subscribe(listener: SyncListener) {
-    this.listeners.push(listener);
-    listener(this.state);
-    return () => {
-      this.listeners = this.listeners.filter(l => l !== listener);
-    };
-  }
-
-  private setState(newState: Partial<SyncState>) {
-    this.state = { ...this.state, ...newState };
-    if (newState.lastSync) {
-      localStorage.setItem('last_sync_time', newState.lastSync);
-    }
-    if (newState.lastSyncDetails) {
-      localStorage.setItem('last_sync_details', newState.lastSyncDetails);
-    }
-    this.listeners.forEach(l => l(this.state));
-  }
-
-  getState() {
-    return this.state;
-  }
-
-  async wrapSync(promise: Promise<any>, description: string) {
-    this.setState({ status: 'syncing', message: `Sincronizando ${description}...` });
-    try {
-      await promise;
-      this.setState({ 
-        status: 'success', 
-        lastSync: new Date().toISOString(),
-        lastSyncDetails: description,
-        message: `Sincronización de ${description} exitosa`
-      });
-
-      // Notificar a la UI que hubo cambios importantes
-      await emit("catalog-updated");
-
-      // Volver a idle después de 3 segundos
-      setTimeout(() => {
-        if (this.state.status === 'success') {
-          this.setState({ status: 'idle', message: null });
-        }
-      }, 3000);
-    } catch (error: any) {
-      // Mejorar la extracción del mensaje de error de Supabase u otros objetos
-      let errorMessage = 'Error desconocido';
-      
-      console.error(`DETALLE DE ERROR en sincronización (${description}):`, error);
-      
-      // Intentar extraer información más detallada si es un error de Supabase/PostgREST
-      if (error && typeof error === 'object') {
-        console.error("Error Object keys:", Object.keys(error));
-        console.error("Error Message:", error.message);
-        console.error("Error Details:", error.details);
-        console.error("Error Hint:", error.hint);
-        console.error("Error Code:", error.code);
-      }
-
-      if (error && typeof error === 'object') {
-        // Manejar errores de Supabase que a veces vienen anidados o como objetos de error estándar
-        const supabaseError = error as any;
-        errorMessage = supabaseError.message || supabaseError.details || supabaseError.hint || (error.toString && error.toString() !== '[object Object]' ? error.toString() : JSON.stringify(error));
-        
-        // Si hay información de respuesta HTTP (ej: 400), incluirla
-        if (supabaseError.status) {
-          errorMessage = `(HTTP ${supabaseError.status}) ${errorMessage}`;
-        }
-
-        // Si sigue siendo vacío o [object Object], forzar una representación legible
-        if (errorMessage === '{}' || errorMessage === '[object Object]') {
-          try {
-            errorMessage = JSON.stringify(error, Object.getOwnPropertyNames(error));
-          } catch (e) {
-            errorMessage = 'Error estructural no serializable';
-          }
-        }
-      } else if (typeof error === 'string') {
-        errorMessage = error;
-      }
-
-      this.setState({ 
-        status: 'error', 
-        message: `Error sincronizando ${description}: ${errorMessage}` 
-      });
-
-      // Re-lanzar el error para que los componentes UI puedan capturarlo y mostrar feedback
-      throw error;
-    }
-  }
-}
-
-export const syncManager = new SyncManager();
 
 export const syncService = {
   /**
@@ -1450,7 +1340,182 @@ export const syncService = {
         }
       }
     })(), 'limpieza de la nube');
-  }
+  },
+
+  // ========================
+  // Interface methods (compat con TursoSyncService)
+  // ========================
+
+  _syncLock: false,
+  _periodicTimer: null as ReturnType<typeof setInterval> | null,
+  _connectivityInitialized: false,
+
+  testConnection: async (url?: string, anonKey?: string): Promise<{ ok: boolean; latency: number; error?: string }> => {
+    if (url && anonKey) {
+      saveSupabaseConfig(url, anonKey);
+    }
+    const client = getSupabaseClient();
+    if (!client) {
+      return { ok: false, latency: 0, error: 'No hay configuración de Supabase' };
+    }
+    try {
+      const start = performance.now();
+      const { data, error } = await client.auth.getUser();
+      const latency = Math.round(performance.now() - start);
+      if (error) {
+        // Maybe the config is wrong
+        return { ok: false, latency, error: error.message };
+      }
+      return { ok: !!data.user, latency };
+    } catch (e: any) {
+      return { ok: false, latency: 0, error: e?.message || String(e) };
+    }
+  },
+
+  connectAndSetup: async (url: string, anonKey: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      saveSupabaseConfig(url, anonKey);
+      destroyClient();
+      const test = await (syncService as any).testConnection(url, anonKey);
+      if (!test.ok) {
+        clearSupabaseConfig();
+        return { ok: false, error: test.error || 'Error de conexión' };
+      }
+      return { ok: true };
+    } catch (e: any) {
+      clearSupabaseConfig();
+      return { ok: false, error: e?.message || String(e) };
+    }
+  },
+
+  disconnect: () => {
+    syncService.stopPeriodicSync();
+    clearSupabaseConfig();
+    destroyClient();
+    syncManager.setState({ status: 'idle', lastSync: null, message: null });
+  },
+
+  ensurePeriodicSync: () => {
+    const client = getSupabaseClient();
+    if (client && !(syncService as any)._periodicTimer) {
+      syncService.startPeriodicSync();
+    }
+  },
+
+  startPeriodicSync: () => {
+    const intervalStr = localStorage.getItem('periodic_sync_interval_seconds');
+    const interval = Math.max(30, Math.min(300, parseInt(intervalStr || '60') || 60)) * 1000;
+    const client = getSupabaseClient();
+    if (!client) return;
+    if ((syncService as any)._periodicTimer) clearInterval((syncService as any)._periodicTimer);
+    (syncService as any)._periodicTimer = setInterval(async () => {
+      const c = getSupabaseClient();
+      if (!c) {
+        syncService.stopPeriodicSync();
+        return;
+      }
+      syncManager.setState({ status: 'syncing', message: 'Sync automático...' });
+      await syncService.syncAllSilent(false);
+      try { await emit("notas-updated", { timestamp: Date.now() }); } catch {}
+      try { await emit("asistencia-updated"); } catch {}
+      syncManager.setState({ status: 'idle', message: null });
+    }, interval);
+  },
+
+  stopPeriodicSync: () => {
+    if ((syncService as any)._periodicTimer) {
+      clearInterval((syncService as any)._periodicTimer);
+      (syncService as any)._periodicTimer = null;
+    }
+  },
+
+  forcePushAll: async (): Promise<void> => {
+    await syncService.syncAll();
+  },
+
+  syncAllSilent: async (dispatchEvents: boolean = true): Promise<void> => {
+    while ((syncService as any)._syncLock) {
+      await new Promise(r => setTimeout(r, 500));
+    }
+    (syncService as any)._syncLock = true;
+    try {
+      await syncService.syncAll();
+      await syncService.pullAll();
+      syncManager.setState({
+        lastSync: new Date().toISOString(),
+        lastSyncDetails: `Sync completo (${new Date().toLocaleTimeString()})`,
+      });
+      if (dispatchEvents) {
+        try {
+          await emit("catalog-updated");
+          await emit("student-updated", { timestamp: Date.now() });
+          await emit("notas-updated", { timestamp: Date.now() });
+          await emit("asistencia-updated");
+          await emit("grade-configs-updated");
+          await emit("subjects-updated");
+        } catch (e) {
+          console.warn("Error emitiendo eventos Tauri:", e);
+        }
+        window.dispatchEvent(new CustomEvent('schooltracker-sync', { detail: { timestamp: Date.now() } }));
+      }
+    } catch (e) {
+      console.warn('[Supabase SyncAllSilent] Error:', e);
+    } finally {
+      (syncService as any)._syncLock = false;
+    }
+  },
+
+  runSchemaSetup: async (): Promise<{ ok: boolean; error?: string }> => {
+    const client = getSupabaseClient();
+    if (!client) return { ok: false, error: 'Supabase no configurado' };
+    try {
+      const createTablesSqls = [
+        `CREATE TABLE IF NOT EXISTS ano_lectivo (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, user_id TEXT)`,
+        `CREATE TABLE IF NOT EXISTS corte_evaluativo (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, user_id TEXT)`,
+        `CREATE TABLE IF NOT EXISTS colegio (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, orden INTEGER DEFAULT 0, user_id TEXT)`,
+        `CREATE TABLE IF NOT EXISTS asignatura (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0)`,
+        `CREATE TABLE IF NOT EXISTS grado (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0)`,
+        `CREATE TABLE IF NOT EXISTS seccion (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0)`,
+        `CREATE TABLE IF NOT EXISTS estudiante (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, codigo TEXT NOT NULL, sexo TEXT NOT NULL, ano_lectivo_id INTEGER NOT NULL, grado_id INTEGER NOT NULL, seccion_id INTEGER NOT NULL, colegio_id INTEGER NOT NULL, telefono TEXT, direccion TEXT, email TEXT, foto TEXT, user_id TEXT)`,
+        `CREATE TABLE IF NOT EXISTS configuracion_calificacion (id TEXT PRIMARY KEY, nombre TEXT NOT NULL, color TEXT NOT NULL, minimo INTEGER NOT NULL)`,
+        `CREATE TABLE IF NOT EXISTS grado_asignatura (grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, PRIMARY KEY (grado_id, asignatura_id))`,
+        `CREATE TABLE IF NOT EXISTS colegio_asignatura (colegio_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, PRIMARY KEY (colegio_id, asignatura_id))`,
+        `CREATE TABLE IF NOT EXISTS indicador (id INTEGER PRIMARY KEY AUTOINCREMENT, grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, corte_evaluativo_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', activo INTEGER DEFAULT 1, user_id TEXT)`,
+        `CREATE TABLE IF NOT EXISTS criterio (id INTEGER PRIMARY KEY AUTOINCREMENT, indicador_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', puntaje_maximo INTEGER NOT NULL)`,
+        `CREATE TABLE IF NOT EXISTS colegio_dias_asistencia (colegio_id INTEGER PRIMARY KEY, lunes INTEGER DEFAULT 1, martes INTEGER DEFAULT 1, miercoles INTEGER DEFAULT 1, jueves INTEGER DEFAULT 1, viernes INTEGER DEFAULT 1, sabado INTEGER DEFAULT 1, domingo INTEGER DEFAULT 1)`,
+        `CREATE TABLE IF NOT EXISTS asistencia (id INTEGER PRIMARY KEY AUTOINCREMENT, estudiante_id INTEGER NOT NULL, fecha TEXT NOT NULL, estado TEXT NOT NULL, observacion TEXT, user_id TEXT, UNIQUE(estudiante_id, fecha))`,
+        `CREATE TABLE IF NOT EXISTS nota (estudiante_id INTEGER NOT NULL, criterio_id INTEGER NOT NULL, valor REAL NOT NULL, corte_evaluativo_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, user_id TEXT, PRIMARY KEY (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id))`,
+      ];
+      for (const sql of createTablesSqls) {
+        const { error } = await client.rpc('exec_sql', { query: sql });
+        if (error) {
+          // Try direct SQL via REST as fallback
+          try {
+            await client.from('_sql_exec').insert({ query: sql }).single();
+          } catch {}
+        }
+      }
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, error: e?.message || String(e) };
+    }
+  },
+
+  pushAllSilent: async (force: boolean = false): Promise<void> => {
+    try {
+      await syncService.syncAll();
+    } catch (e) {
+      console.warn('[Supabase Push Silent] Error:', e);
+    }
+  },
+
+  pullAllSilent: async (): Promise<void> => {
+    try {
+      await syncService.pullAll();
+    } catch (e) {
+      console.warn('[Supabase Pull Silent] Error:', e);
+    }
+  },
 };
 
 // Force pull - traer datos de Supabase y actualizar SQLite local

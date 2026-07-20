@@ -1,9 +1,10 @@
 import { tursoSyncService } from './tursoSyncService';
+import { syncService as supabaseSyncService } from './syncService.supabase';
 
 export type { SyncStatus } from './tursoSyncService';
 export { syncManager } from './tursoSyncService';
 
-export type SyncProviderType = 'turso';
+export type SyncProviderType = 'turso' | 'supabase';
 
 const STORAGE_KEY = 'sync_provider';
 
@@ -15,7 +16,7 @@ function loadProvider(): SyncProviderType {
 let _activeProvider: SyncProviderType = loadProvider();
 
 function getService() {
-  return tursoSyncService;
+  return _activeProvider === 'turso' ? tursoSyncService : supabaseSyncService;
 }
 
 export function getActiveProvider(): SyncProviderType {
