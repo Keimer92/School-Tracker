@@ -520,7 +520,7 @@
       await writeFile(fullPath, new Uint8Array(pdfData));
       const fPath = fullPath.replace(/\\/g, '/');
       if (isAndroid) { try { await invoke('share_pdf', { path: fPath }); } catch {} }
-      else { await openUrl("file:///" + fp.replace(/\\/g, "/")); }
+      else { await openUrl("file:///" + fPath); }
       await emit("show-toast", { message: "✅ PDF guardado en Documents/SchoolTrackerPro", type: 'success' });
     } catch (error) {
       console.error("Error al generar PDF:", error);
@@ -551,9 +551,9 @@
         body{font-family:Arial,sans-serif;padding:20px}h2{margin:0 0 10px 0;text-align:center}
         .info{margin-bottom:15px;font-size:12px;display:grid;grid-template-columns:1fr 1fr;gap:5px}
         table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid #ddd;padding:6px;text-align:center}
-        th{background-color:var(--primary-color);color:white}tr:nth-child(even){background-color:#f9f9f9}td:first-child{text-align:left}
+        th{background-color:#6b7280;color:white}tr:nth-child(even){background-color:#f9f9f9}td:first-child{text-align:left}
         @media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-        th{background-color:var(--primary-color)!important}tr:nth-child(even){background-color:#f9f9f9!important}}
+        th{background-color:#6b7280!important}tr:nth-child(even){background-color:#f9f9f9!important}}
       </style></head><body>
         <h2>Reporte de Calificaciones</h2>
         <div class="info">
@@ -708,17 +708,10 @@
               {#each asignaturas as a}<option value={a.id}>{a.nombre}</option>{/each}
             </select>
           </FilterGroup>
-          <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '0 0 auto'}">
+          <div style="display:flex;gap:0.3rem;align-items:center;flex:{isMobile ? '1 1 100%' : '0 0 auto'}">
             <div style="flex:1;min-width:80px">
               <SearchInput bind:value={searchTerm} onChange={(v: string) => searchTerm = v} placeholder="Buscar..." {isMobile} />
             </div>
-            <label style="display:flex;align-items:center;gap:6px;font-size:0.72rem;color:#94a3b8;cursor:pointer;flex-shrink:0;white-space:nowrap;user-select:none;padding:0.2rem 0.4rem;border-radius:8px;border:1px solid {exportModoSimple ? 'rgba(139,92,246,0.3)' : 'rgba(255,255,255,0.06)'};background:{exportModoSimple ? 'rgba(139,92,246,0.08)' : 'transparent'};transition:all 0.2s ease">
-              <div style="position:relative;width:32px;height:18px;background:{exportModoSimple ? '#8b5cf6' : 'rgba(255,255,255,0.15)'};border-radius:10px;transition:all 0.25s ease;box-shadow:{exportModoSimple ? '0 0 8px rgba(139,92,246,0.4)' : 'inset 0 1px 3px rgba(0,0,0,0.3)'}">
-                <div style="position:absolute;top:2px;left:{exportModoSimple ? '16px' : '2px'};width:14px;height:14px;border-radius:50%;background:white;transition:all 0.25s ease;box-shadow:0 1px 3px rgba(0,0,0,0.3)"></div>
-                <input type="checkbox" bind:checked={exportModoSimple} style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;margin:0" />
-              </div>
-              <span style="font-weight:{exportModoSimple ? '600' : '400'};color:{exportModoSimple ? '#c4b5fd' : '#94a3b8'};transition:all 0.2s ease">Solo nota final</span>
-            </label>
             {#if !isAndroid}
               <button class="secondary" onclick={handlePrintWithIframe} disabled={estudiantes.length === 0 || loading}
                 style="padding:0.3rem 0.6rem;font-size:0.75rem;height:28px;background-color:#10b981;display:flex;align-items:center;justify-content:center;flex-shrink:0"
@@ -730,6 +723,13 @@
               style="padding:0.3rem 0.6rem;font-size:0.75rem;height:28px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
               PDF
             </button>
+            <label style="display:flex;align-items:center;gap:7px;font-size:0.75rem;color:#94a3b8;cursor:pointer;flex-shrink:0;white-space:nowrap;user-select:none;padding:0 0.5rem;border-radius:8px;height:28px;box-sizing:border-box;border:1px solid {exportModoSimple ? 'rgba(139,92,246,0.3)' : 'rgba(255,255,255,0.06)'};background:{exportModoSimple ? 'rgba(139,92,246,0.08)' : 'transparent'};transition:all 0.2s ease">
+              <div style="position:relative;width:40px;height:22px;background:{exportModoSimple ? '#8b5cf6' : 'rgba(255,255,255,0.15)'};border-radius:12px;transition:all 0.25s ease;box-shadow:{exportModoSimple ? '0 0 8px rgba(139,92,246,0.4)' : 'inset 0 1px 3px rgba(0,0,0,0.3)'}">
+                <div style="position:absolute;top:2px;left:{exportModoSimple ? '20px' : '2px'};width:18px;height:18px;border-radius:50%;background:white;transition:all 0.25s ease;box-shadow:0 1px 3px rgba(0,0,0,0.3)"></div>
+                <input type="checkbox" bind:checked={exportModoSimple} style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;margin:0" />
+              </div>
+              <span style="font-weight:{exportModoSimple ? '600' : '400'};color:{exportModoSimple ? '#c4b5fd' : '#94a3b8'};transition:all 0.2s ease">Solo nota final</span>
+            </label>
           </div>
         </FilterContainer>
       </div>
