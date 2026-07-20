@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { emit } from "@tauri-apps/api/event";
   import { open, save } from "@tauri-apps/plugin-dialog";
   import { copyFile, writeFile, BaseDirectory } from "@tauri-apps/plugin-fs";
   import * as XLSX from "xlsx";
-  import { syncService, getActiveProvider, setActiveProvider, type SyncProviderType } from "../lib/syncService";
+  import { syncService, getActiveProvider, setActiveProvider, onProviderChange, type SyncProviderType } from "../lib/syncService";
   import { getTursoUrl, getTursoToken } from "../lib/tursoClient";
   import { getSupabaseClient, hasSupabaseConfig } from "../lib/supabase";
 
@@ -85,6 +85,8 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   }
 
   onMount(() => {
+    const unsubProvider = onProviderChange(() => { syncProvider = getActiveProvider(); });
+    onDestroy(() => unsubProvider());
     invoke<{ id: string; nombre: string; color: string; minimo: number }[]>("get_grade_configs").then(d => gradeConfigs = d).catch(e => console.error("Error fetching grade configs:", e));
     invoke<string>("get_db_path").then(p => dbPath = p).catch(e => console.error("Error fetching db path:", e));
     Promise.all([invoke<CategoryItem[]>("get_anos"), invoke<CategoryItem[]>("get_colegios")]).then(([aData, cData]) => {

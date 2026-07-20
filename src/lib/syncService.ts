@@ -14,6 +14,7 @@ function loadProvider(): SyncProviderType {
 }
 
 let _activeProvider: SyncProviderType = loadProvider();
+const _providerListeners: Set<() => void> = new Set();
 
 function getService() {
   return _activeProvider === 'turso' ? tursoSyncService : supabaseSyncService;
@@ -23,6 +24,11 @@ export function getActiveProvider(): SyncProviderType {
   return _activeProvider;
 }
 
+export function onProviderChange(cb: () => void) {
+  _providerListeners.add(cb);
+  return () => _providerListeners.delete(cb);
+}
+
 export function setActiveProvider(p: SyncProviderType) {
   if (p === _activeProvider) return;
   try { getService().stopPeriodicSync?.(); } catch {}
@@ -30,6 +36,7 @@ export function setActiveProvider(p: SyncProviderType) {
   if (typeof localStorage !== 'undefined') {
     localStorage.setItem(STORAGE_KEY, p);
   }
+  _providerListeners.forEach(cb => cb());
 }
 
 export const syncService = new Proxy({} as typeof tursoSyncService, {

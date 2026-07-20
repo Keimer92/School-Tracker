@@ -3,7 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { openUrl } from "@tauri-apps/plugin-opener";
   import { emit } from "@tauri-apps/api/event";
-  import { syncService, syncManager, type SyncStatus, type SyncProviderType, getActiveProvider } from "../lib/syncService";
+  import { syncService, syncManager, type SyncStatus, type SyncProviderType, getActiveProvider, onProviderChange } from "../lib/syncService";
   import { getTursoUrl, getTursoToken, clearTursoCredentials } from "../lib/tursoClient";
   import { saveSupabaseConfig, clearSupabaseConfig, getSupabaseClient, hasSupabaseConfig } from "../lib/supabase";
   import GoogleDriveBackup from "./GoogleDriveBackup.svelte";
@@ -42,10 +42,15 @@
 
   let activeCloudTab: 'sync' | 'drive' = $state('sync');
 
-  onMount(async () => {
-    const unsub = syncManager.subscribe((state) => { syncStatus = state; });
+  function refreshFromProvider() {
     syncProvider = getActiveProvider();
     isSynced = syncProvider === 'turso' ? !!getTursoUrl() : !!hasSupabaseConfig();
+  }
+
+  onMount(async () => {
+    const unsubSync = syncManager.subscribe((state) => { syncStatus = state; });
+    const unsubProvider = onProviderChange(refreshFromProvider);
+    refreshFromProvider();
     if (syncProvider === 'supabase') {
       const client = getSupabaseClient();
       if (client) {
@@ -58,7 +63,7 @@
         }
       }
     }
-    return () => unsub();
+    return () => { unsubSync(); unsubProvider(); };
   });
 
   // ======== Turso handlers ========
