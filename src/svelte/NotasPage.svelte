@@ -50,6 +50,12 @@
   let showDistribuirModal = $state(false);
   let distribuirTargets: Record<number, string> = $state({});
   let distribuirOverwrite = $state(true);
+  let distribuirInputs = new Map<number, HTMLInputElement>();
+
+  function regDistInput(node: HTMLInputElement, id: number) {
+    distribuirInputs.set(id, node);
+    return { destroy() { distribuirInputs.delete(id); } };
+  }
 
   let isMobile = $state(false);
   let currentStudentIdx = $state(0);
@@ -164,14 +170,24 @@
 
   function distribuirNotas() {
     if (activeIndicadores.length === 0 || filteredNotas.length === 0) return;
-    const maxTotal = activeIndicadores.reduce((sum, ind) => sum + ind.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0), 0);
-    const fixedAA = activeIndicadores.reduce((sum, ind) => {
+    const indWeights: { weight: number; c1: Criterio; c2: Criterio; c3: Criterio }[] = [];
+    let maxTotal = 0;
+    let fixedAA = 0;
+    let maxModifiable = 0;
+    for (const ind of activeIndicadores) {
+      const c1 = ind.criterios[0];
+      const c2 = ind.criterios[1];
       const c3 = ind.criterios[2];
-      return sum + (c3?.puntajeMaximo || 0);
-    }, 0);
-    const maxModifiable = activeIndicadores.reduce((sum, ind) =>
-      sum + (ind.criterios[0]?.puntajeMaximo || 0) + (ind.criterios[1]?.puntajeMaximo || 0), 0);
-    const grades = ['AA', 'AS', 'AF', 'AI'] as const;
+      if (!c1 || !c2 || !c3) continue;
+      const w = c1.puntajeMaximo + c2.puntajeMaximo;
+      maxTotal += w + c3.puntajeMaximo;
+      fixedAA += c3.puntajeMaximo;
+      maxModifiable += w;
+      indWeights.push({ weight: w, c1, c2, c3 });
+    }
+    if (maxModifiable === 0) return;
+    const grades = ['AA', 'AS', 'AF', 'AI'];
+    const gradesScore = (c: Criterio, g: string) => Math.round(c.puntajeMaximo * (notaMapping[g] || 0));
     let updatedCount = 0;
     let errorMessages: string[] = [];
     for (const estNota of filteredNotas) {
@@ -183,85 +199,36 @@
       const targetRaw = Math.round((clampedPct / 100) * maxTotal);
       if (targetRaw < fixedAA) {
         const minPct = Math.round((fixedAA / maxTotal) * 100);
-        errorMessages.push(`"${estNota.estudianteNombre}": mínimo ${minPct}% (solo C3 fijos en AA)`);
+        errorMessages.push(`"${estNota.estudianteNombre}": mínimo ${minPct}%`);
         continue;
       }
       const remainingTarget = Math.min(targetRaw - fixedAA, maxModifiable);
-      for (const ind of activeIndicadores) {
-        const c1 = ind.criterios[0];
-        const c2 = ind.criterios[1];
-        const c3 = ind.criterios[2];
-        if (!c1 || !c2 || !c3) continue;
-        const key3 = `${estNota.estudianteId}-${c3.id}`;
-        if (!distribuirOverwrite && notasCualitativas[key3]) {
-        } else {
-          notasCualitativas[key3] = 'AA';
+      let runningError = 0;
+      for (const iw of indWeights) {
+        const { c1, c2, c3 } = iw;
+        const indTarget = (iw.weight / maxModifiable) * remainingTarget + runningError;
+        let bestCombo: [string, string] | null = null;
+        let bestDiff = Infinity;
+        for (const g1 of grades) {
+          for (const g2 of grades) {
+            const diff = Math.abs(gradesScore(c1, g1) + gradesScore(c2, g2) - indTarget);
+            if (diff < bestDiff) { bestDiff = diff; bestCombo = [g1, g2]; }
+          }
         }
-        const indMax = c1.puntajeMaximo + c2.puntajeMaximo + c3.puntajeMaximo;
-        const remainingRatio = maxModifiable > 0 ? remainingTarget / maxModifiable : 0;
-        const c1Base = remainingRatio * c1.puntajeMaximo;
-        const c2Base = remainingRatio * c2.puntajeMaximo;
-        if (isQualitative) {
-          const validCombos: [string, string][] = [];
-          for (const g1 of grades) {
-            for (const g2 of grades) {
-              const s1 = Math.round(c1.puntajeMaximo * (notaMapping[g1] || 0));
-              const s2 = Math.round(c2.puntajeMaximo * (notaMapping[g2] || 0));
-              if (s1 + s2 === Math.round(c1Base + c2Base)) validCombos.push([g1, g2]);
-            }
-          }
-          let chosen1: string, chosen2: string;
-          if (validCombos.length > 0) {
-            const pick = validCombos[Math.floor(Math.random() * validCombos.length)];
-            chosen1 = pick[0]; chosen2 = pick[1];
-          } else {
-            const gradesByDist = [...grades].sort((a, b) => {
-              const distA = Math.abs(Math.round(c1.puntajeMaximo * notaMapping[a]) - c1Base);
-              const distB = Math.abs(Math.round(c1.puntajeMaximo * notaMapping[b]) - c1Base);
-              return distA - distB;
-            });
-            chosen1 = gradesByDist[0];
-            const usedC1 = Math.round(c1.puntajeMaximo * notaMapping[chosen1]);
-            const remainingC2 = Math.round(c1Base + c2Base) - usedC1;
-            const gradesByDistC2 = [...grades].sort((a, b) => {
-              const distA = Math.abs(Math.round(c2.puntajeMaximo * notaMapping[a]) - remainingC2);
-              const distB = Math.abs(Math.round(c2.puntajeMaximo * notaMapping[b]) - remainingC2);
-              return distA - distB;
-            });
-            chosen2 = gradesByDistC2[0];
-          }
-          const key1 = `${estNota.estudianteId}-${c1.id}`;
-          const key2 = `${estNota.estudianteId}-${c2.id}`;
-          if (!distribuirOverwrite) {
-            if (!notasCualitativas[key1]) notasCualitativas[key1] = chosen1;
-            if (!notasCualitativas[key2]) notasCualitativas[key2] = chosen2;
-          } else {
-            notasCualitativas[key1] = chosen1;
-            notasCualitativas[key2] = chosen2;
-          }
+        if (!bestCombo) continue;
+        const [chosen1, chosen2] = bestCombo;
+        const actualTotal = gradesScore(c1, chosen1) + gradesScore(c2, chosen2);
+        runningError += indTarget - actualTotal;
+        const key1 = `${estNota.estudianteId}-${c1.id}`;
+        const key2 = `${estNota.estudianteId}-${c2.id}`;
+        const key3 = `${estNota.estudianteId}-${c3.id}`;
+        if (distribuirOverwrite || !notasCualitativas[key3]) notasCualitativas[key3] = 'AA';
+        if (distribuirOverwrite) {
+          notasCualitativas[key1] = chosen1;
+          notasCualitativas[key2] = chosen2;
         } else {
-          let raw1 = Math.round(c1Base);
-          let raw2 = Math.round(c2Base);
-          let diff = Math.round(c1Base + c2Base) - (raw1 + raw2);
-          if (diff !== 0 && raw2 + diff >= 0 && raw2 + diff <= c2.puntajeMaximo) raw2 += diff;
-          else if (diff !== 0) raw1 += diff;
-          if (raw1 < 0) raw1 = 0;
-          if (raw2 < 0) raw2 = 0;
-          if (raw1 > c1.puntajeMaximo) raw1 = c1.puntajeMaximo;
-          if (raw2 > c2.puntajeMaximo) raw2 = c2.puntajeMaximo;
-          const pct1 = c1.puntajeMaximo > 0 ? (raw1 / c1.puntajeMaximo) * 100 : 0;
-          const pct2 = c2.puntajeMaximo > 0 ? (raw2 / c2.puntajeMaximo) * 100 : 0;
-          const key1 = `${estNota.estudianteId}-${c1.id}`;
-          const key2 = `${estNota.estudianteId}-${c2.id}`;
-          const grade1 = getGradeFromScore(pct1).id || 'AI';
-          const grade2 = getGradeFromScore(pct2).id || 'AI';
-          if (!distribuirOverwrite) {
-            if (!notasCualitativas[key1]) notasCualitativas[key1] = grade1;
-            if (!notasCualitativas[key2]) notasCualitativas[key2] = grade2;
-          } else {
-            notasCualitativas[key1] = grade1;
-            notasCualitativas[key2] = grade2;
-          }
+          if (!notasCualitativas[key1]) notasCualitativas[key1] = chosen1;
+          if (!notasCualitativas[key2]) notasCualitativas[key2] = chosen2;
         }
       }
       updatedCount++;
@@ -1394,7 +1361,10 @@
                     <td style="padding: 0.3rem 0.6rem; color: #e2e8f0; font-weight: 500;">{est.estudianteNombre}</td>
                     <td style="padding: 0.3rem 0.6rem; text-align: center; color: #94a3b8;">{calcularPctActual(est.estudianteId)}%</td>
                     <td style="padding: 0.15rem 0.3rem; text-align: center;">
-                      <input type="number" min="0" max="100" value={distribuirTargets[est.estudianteId] ?? ''} oninput={(e) => { const v = (e.target as HTMLInputElement).value; distribuirTargets[est.estudianteId] = v; distribuirTargets = distribuirTargets; }}
+                      <input type="number" min="0" max="100" value={distribuirTargets[est.estudianteId] ?? ''}
+                        use:regDistInput={est.estudianteId}
+                        oninput={(e) => { const v = (e.target as HTMLInputElement).value; distribuirTargets[est.estudianteId] = v; distribuirTargets = distribuirTargets; }}
+                        onkeydown={(e) => { if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); const dir = e.key === 'ArrowUp' ? -1 : 1; const next = filteredNotas[idx + dir]; if (next) distribuirInputs.get(next.estudianteId)?.focus(); } }}
                         style="width: 65px; padding: 0.25rem 0.4rem; border-radius: 6px; border: 1px solid rgba(139, 92, 246, 0.3); background: rgba(15,23,42,0.6); color: #e2e8f0; font-size: 0.8rem; text-align: center; outline: none;" />
                     </td>
                   </tr>
