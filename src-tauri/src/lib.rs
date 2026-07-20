@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
 #[tauri::command]
-fn create_folder_and_save_file(folder_path: String, file_path: String, file_data: Vec<u8>) -> Result<(), String> {
+async fn create_folder_and_save_file(folder_path: String, file_path: String, file_data: Vec<u8>) -> Result<(), String> {
     use std::fs;
     use std::path::Path;
     
@@ -24,7 +24,7 @@ fn create_folder_and_save_file(folder_path: String, file_path: String, file_data
 }
 
 #[tauri::command]
-fn get_schema_sql(state: tauri::State<'_, DbState>) -> Result<String, String> {
+async fn get_schema_sql(state: tauri::State<'_, DbState>) -> Result<String, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare("SELECT sql FROM sqlite_master WHERE type='table' AND sql IS NOT NULL")
@@ -40,7 +40,7 @@ fn get_schema_sql(state: tauri::State<'_, DbState>) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn get_all_local_data_json(state: tauri::State<'_, DbState>) -> Result<String, String> {
+async fn get_all_local_data_json(state: tauri::State<'_, DbState>) -> Result<String, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
 
     let table_names = [
@@ -340,7 +340,7 @@ fn get_all_local_data(
 }
 
 #[tauri::command]
-fn set_orientation(_app_handle: tauri::AppHandle, _orientation: String) -> Result<(), String> {
+async fn set_orientation(_app_handle: tauri::AppHandle, _orientation: String) -> Result<(), String> {
     #[cfg(target_os = "android")]
     {
         use jni::objects::JValue;
@@ -371,7 +371,7 @@ fn set_orientation(_app_handle: tauri::AppHandle, _orientation: String) -> Resul
 }
 
 #[tauri::command]
-fn print_pdf(_app_handle: tauri::AppHandle, _path: String) -> Result<(), String> {
+async fn print_pdf(_app_handle: tauri::AppHandle, _path: String) -> Result<(), String> {
     #[cfg(target_os = "android")]
     {
         use jni::objects::JValue;
@@ -402,7 +402,7 @@ fn print_pdf(_app_handle: tauri::AppHandle, _path: String) -> Result<(), String>
 }
 
 #[tauri::command]
-fn share_pdf(_app_handle: tauri::AppHandle, _path: String) -> Result<(), String> {
+async fn share_pdf(_app_handle: tauri::AppHandle, _path: String) -> Result<(), String> {
     #[cfg(target_os = "android")]
     {
         use jni::objects::JValue;
@@ -433,7 +433,7 @@ fn share_pdf(_app_handle: tauri::AppHandle, _path: String) -> Result<(), String>
 }
 
 #[tauri::command]
-fn save_file_android(
+async fn save_file_android(
     _app_handle: tauri::AppHandle,
     _path: String,
     _mime: String,
@@ -957,7 +957,7 @@ pub fn run() {
 
 #[tauri::command]
 #[allow(non_snake_case)]
-fn delete_notas(
+async fn delete_notas(
     state: tauri::State<'_, DbState>,
     corteEvaluativoId: i64,
     asignaturaId: i64,

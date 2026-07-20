@@ -589,7 +589,7 @@ pub struct PendingDeletionColegioAsignatura {
 }
 
 #[tauri::command]
-pub fn get_student_impact(
+pub async fn get_student_impact(
     state: tauri::State<'_, DbState>,
     student_id: i64,
 ) -> Result<StudentImpact, String> {
@@ -618,7 +618,7 @@ pub fn get_student_impact(
 }
 
 #[tauri::command]
-pub fn reset_local_database(state: tauri::State<'_, DbState>) -> Result<(), String> {
+pub async fn reset_local_database(state: tauri::State<'_, DbState>) -> Result<(), String> {
     let conn_guard = state.conn.lock().map_err(|e| e.to_string())?;
 
     // Lista de tablas a vaciar en orden para respetar llaves foráneas
@@ -676,7 +676,7 @@ pub fn reset_local_database(state: tauri::State<'_, DbState>) -> Result<(), Stri
 }
 
 #[tauri::command]
-pub fn seed_defaults_now(state: tauri::State<'_, DbState>) -> Result<(), String> {
+pub async fn seed_defaults_now(state: tauri::State<'_, DbState>) -> Result<(), String> {
     let conn_guard = state.conn.lock().map_err(|e| e.to_string())?;
     seed_default_data(&conn_guard)
 }
@@ -685,7 +685,7 @@ pub fn seed_defaults_now(state: tauri::State<'_, DbState>) -> Result<(), String>
 macro_rules! create_crud_commands {
     ($table:ident, $get_all:ident, $add:ident, $update:ident, $delete:ident) => {
         #[tauri::command]
-        pub fn $get_all(state: tauri::State<'_, DbState>) -> Result<Vec<CategoryItem>, String> {
+        pub async fn $get_all(state: tauri::State<'_, DbState>) -> Result<Vec<CategoryItem>, String> {
             let conn = state.conn.lock().map_err(|e| e.to_string())?;
             let mut stmt = conn
                 .prepare(concat!(
@@ -711,7 +711,7 @@ macro_rules! create_crud_commands {
         }
 
         #[tauri::command]
-        pub fn $add(state: tauri::State<'_, DbState>, nombre: String) -> Result<i64, String> {
+        pub async fn $add(state: tauri::State<'_, DbState>, nombre: String) -> Result<i64, String> {
             let conn = state.conn.lock().map_err(|e| e.to_string())?;
             conn.execute(
                 concat!(
@@ -727,7 +727,7 @@ macro_rules! create_crud_commands {
         }
 
         #[tauri::command]
-        pub fn $update(
+        pub async fn $update(
             state: tauri::State<'_, DbState>,
             id: i64,
             nombre: String,
@@ -747,7 +747,7 @@ macro_rules! create_crud_commands {
         }
 
         #[tauri::command]
-        pub fn $delete(state: tauri::State<'_, DbState>, id: i64) -> Result<(), String> {
+        pub async fn $delete(state: tauri::State<'_, DbState>, id: i64) -> Result<(), String> {
             let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
             let tx = conn.transaction().map_err(|e| e.to_string())?;
 
@@ -773,7 +773,7 @@ macro_rules! create_crud_commands {
 macro_rules! create_crud_commands_active {
     ($table:ident, $get_all:ident, $add:ident, $update:ident, $delete:ident, $set_active:ident) => {
         #[tauri::command]
-        pub fn $get_all(state: tauri::State<'_, DbState>) -> Result<Vec<CategoryItem>, String> {
+        pub async fn $get_all(state: tauri::State<'_, DbState>) -> Result<Vec<CategoryItem>, String> {
             let conn = state.conn.lock().map_err(|e| e.to_string())?;
             // Check if column exists or handle simpler: Just select. If migration ran, it exists.
             let mut stmt = conn
@@ -800,7 +800,7 @@ macro_rules! create_crud_commands_active {
         }
 
         #[tauri::command]
-        pub fn $add(state: tauri::State<'_, DbState>, nombre: String) -> Result<i64, String> {
+        pub async fn $add(state: tauri::State<'_, DbState>, nombre: String) -> Result<i64, String> {
             let conn = state.conn.lock().map_err(|e| e.to_string())?;
             conn.execute(
                 concat!(
@@ -816,7 +816,7 @@ macro_rules! create_crud_commands_active {
         }
 
         #[tauri::command]
-        pub fn $update(
+        pub async fn $update(
             state: tauri::State<'_, DbState>,
             id: i64,
             nombre: String,
@@ -836,7 +836,7 @@ macro_rules! create_crud_commands_active {
         }
 
         #[tauri::command]
-        pub fn $delete(state: tauri::State<'_, DbState>, id: i64) -> Result<(), String> {
+        pub async fn $delete(state: tauri::State<'_, DbState>, id: i64) -> Result<(), String> {
             let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
             let tx = conn.transaction().map_err(|e| e.to_string())?;
 
@@ -857,7 +857,7 @@ macro_rules! create_crud_commands_active {
         }
 
         #[tauri::command]
-        pub fn $set_active(state: tauri::State<'_, DbState>, id: i64) -> Result<(), String> {
+        pub async fn $set_active(state: tauri::State<'_, DbState>, id: i64) -> Result<(), String> {
             let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
             let tx = conn.transaction().map_err(|e| e.to_string())?;
 
@@ -898,7 +898,7 @@ pub struct DeleteCheckResponse {
 }
 
 #[tauri::command]
-pub fn check_category_dependencies(
+pub async fn check_category_dependencies(
     state: tauri::State<'_, DbState>,
     table: String,
     id: i64,
@@ -1005,7 +1005,7 @@ pub fn check_category_dependencies(
 }
 
 #[tauri::command]
-pub fn delete_category_force(
+pub async fn delete_category_force(
     state: tauri::State<'_, DbState>,
     table: String,
     id: i64,
@@ -1462,7 +1462,7 @@ pub fn delete_category_force(
 }
 
 #[tauri::command]
-pub fn delete_category_force_batch(
+pub async fn delete_category_force_batch(
     state: tauri::State<'_, DbState>,
     table: String,
     ids: Vec<i64>,
@@ -1709,7 +1709,7 @@ pub fn delete_category_force_batch(
 
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn get_grados_by_colegio(
+pub async fn get_grados_by_colegio(
     state: tauri::State<'_, DbState>,
     colegioId: i64,
     _anoLectivoId: i64,
@@ -1743,7 +1743,7 @@ pub fn get_grados_by_colegio(
 
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn get_secciones_by_grado_colegio(
+pub async fn get_secciones_by_grado_colegio(
     state: tauri::State<'_, DbState>,
     gradoId: i64,
     colegioId: i64,
@@ -1778,7 +1778,7 @@ pub fn get_secciones_by_grado_colegio(
 
 // Student CRUD Commands
 #[tauri::command]
-pub fn get_students(state: tauri::State<'_, DbState>) -> Result<Vec<Student>, String> {
+pub async fn get_students(state: tauri::State<'_, DbState>) -> Result<Vec<Student>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare("SELECT id, nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, colegio_id, telefono, direccion, email, foto FROM estudiante")
@@ -1809,7 +1809,7 @@ pub fn get_students(state: tauri::State<'_, DbState>) -> Result<Vec<Student>, St
 }
 
 #[tauri::command]
-pub fn add_student(state: tauri::State<'_, DbState>, student: Student) -> Result<i64, String> {
+pub async fn add_student(state: tauri::State<'_, DbState>, student: Student) -> Result<i64, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
         "INSERT INTO estudiante (nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, colegio_id, telefono, direccion, email, foto) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -1833,7 +1833,7 @@ pub fn add_student(state: tauri::State<'_, DbState>, student: Student) -> Result
 }
 
 #[tauri::command]
-pub fn update_student(state: tauri::State<'_, DbState>, student: Student) -> Result<(), String> {
+pub async fn update_student(state: tauri::State<'_, DbState>, student: Student) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
         "UPDATE estudiante SET nombre = ?, codigo = ?, sexo = ?, ano_lectivo_id = ?, grado_id = ?, seccion_id = ?, colegio_id = ?, telefono = ?, direccion = ?, email = ?, foto = ? WHERE id = ?",
@@ -1857,7 +1857,7 @@ pub fn update_student(state: tauri::State<'_, DbState>, student: Student) -> Res
 }
 
 #[tauri::command]
-pub fn get_recommended_colegio(state: tauri::State<'_, DbState>) -> Result<i64, String> {
+pub async fn get_recommended_colegio(state: tauri::State<'_, DbState>) -> Result<i64, String> {
     use chrono::{Datelike, Local};
     let now = Local::now();
     let weekday = now.weekday();
@@ -1900,7 +1900,7 @@ pub struct PendingDeletion {
 }
 
 #[tauri::command]
-pub fn get_pending_deletions(
+pub async fn get_pending_deletions(
     state: tauri::State<'_, DbState>,
 ) -> Result<Vec<PendingDeletion>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
@@ -1924,7 +1924,7 @@ pub fn get_pending_deletions(
 }
 
 #[tauri::command]
-pub fn remove_pending_deletion(state: tauri::State<'_, DbState>, id: i64) -> Result<(), String> {
+pub async fn remove_pending_deletion(state: tauri::State<'_, DbState>, id: i64) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute("DELETE FROM sync_pending_deletions WHERE id = ?", [id])
         .map(|_| ())
@@ -1932,7 +1932,7 @@ pub fn remove_pending_deletion(state: tauri::State<'_, DbState>, id: i64) -> Res
 }
 
 #[tauri::command]
-pub fn remove_pending_deletion_by_record(
+pub async fn remove_pending_deletion_by_record(
     state: tauri::State<'_, DbState>,
     tabla: String,
     id: i64,
@@ -1947,7 +1947,7 @@ pub fn remove_pending_deletion_by_record(
 }
 
 #[tauri::command]
-pub fn clear_synced_deletions(state: tauri::State<'_, DbState>, ids: Vec<i64>) -> Result<(), String> {
+pub async fn clear_synced_deletions(state: tauri::State<'_, DbState>, ids: Vec<i64>) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     if ids.is_empty() {
         return Ok(());
@@ -1966,7 +1966,7 @@ pub fn clear_synced_deletions(state: tauri::State<'_, DbState>, ids: Vec<i64>) -
 // ============================================================================
 
 #[tauri::command]
-pub fn get_pending_deletions_asistencia(
+pub async fn get_pending_deletions_asistencia(
     state: tauri::State<'_, DbState>,
 ) -> Result<Vec<PendingDeletionAsistencia>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
@@ -1990,7 +1990,7 @@ pub fn get_pending_deletions_asistencia(
 }
 
 #[tauri::command]
-pub fn remove_pending_deletion_asistencia(
+pub async fn remove_pending_deletion_asistencia(
     state: tauri::State<'_, DbState>,
     id: i64,
 ) -> Result<(), String> {
@@ -2004,7 +2004,7 @@ pub fn remove_pending_deletion_asistencia(
 }
 
 #[tauri::command]
-pub fn get_pending_deletions_nota(
+pub async fn get_pending_deletions_nota(
     state: tauri::State<'_, DbState>,
 ) -> Result<Vec<PendingDeletionNota>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
@@ -2030,7 +2030,7 @@ pub fn get_pending_deletions_nota(
 }
 
 #[tauri::command]
-pub fn remove_pending_deletion_nota(
+pub async fn remove_pending_deletion_nota(
     state: tauri::State<'_, DbState>,
     id: i64,
 ) -> Result<(), String> {
@@ -2041,7 +2041,7 @@ pub fn remove_pending_deletion_nota(
 }
 
 #[tauri::command]
-pub fn get_pending_deletions_grado_asignatura(
+pub async fn get_pending_deletions_grado_asignatura(
     state: tauri::State<'_, DbState>,
 ) -> Result<Vec<PendingDeletionGradoAsignatura>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
@@ -2065,7 +2065,7 @@ pub fn get_pending_deletions_grado_asignatura(
 }
 
 #[tauri::command]
-pub fn remove_pending_deletion_grado_asignatura(
+pub async fn remove_pending_deletion_grado_asignatura(
     state: tauri::State<'_, DbState>,
     id: i64,
 ) -> Result<(), String> {
@@ -2079,7 +2079,7 @@ pub fn remove_pending_deletion_grado_asignatura(
 }
 
 #[tauri::command]
-pub fn get_pending_deletions_colegio_asignatura(
+pub async fn get_pending_deletions_colegio_asignatura(
     state: tauri::State<'_, DbState>,
 ) -> Result<Vec<PendingDeletionColegioAsignatura>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
@@ -2105,7 +2105,7 @@ pub fn get_pending_deletions_colegio_asignatura(
 }
 
 #[tauri::command]
-pub fn remove_pending_deletion_colegio_asignatura(
+pub async fn remove_pending_deletion_colegio_asignatura(
     state: tauri::State<'_, DbState>,
     id: i64,
 ) -> Result<(), String> {
@@ -2119,7 +2119,7 @@ pub fn remove_pending_deletion_colegio_asignatura(
 }
 
 #[tauri::command]
-pub fn delete_student(state: tauri::State<'_, DbState>, id: i64) -> Result<(), String> {
+pub async fn delete_student(state: tauri::State<'_, DbState>, id: i64) -> Result<(), String> {
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
@@ -2139,7 +2139,7 @@ pub fn delete_student(state: tauri::State<'_, DbState>, id: i64) -> Result<(), S
 }
 
 #[tauri::command]
-pub fn delete_student_batch(state: tauri::State<'_, DbState>, ids: Vec<i64>) -> Result<(), String> {
+pub async fn delete_student_batch(state: tauri::State<'_, DbState>, ids: Vec<i64>) -> Result<(), String> {
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
     let tx = conn.transaction().map_err(|e| e.to_string())?;
     for &id in &ids {
@@ -2158,7 +2158,7 @@ pub fn delete_student_batch(state: tauri::State<'_, DbState>, ids: Vec<i64>) -> 
 // Curriculum (Grade-Subject) Commands
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn get_subjects_by_grade(
+pub async fn get_subjects_by_grade(
     state: tauri::State<'_, DbState>,
     gradoId: i64,
 ) -> Result<Vec<CategoryItem>, String> {
@@ -2214,7 +2214,7 @@ pub fn get_subjects_by_grade(
 
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn assign_subject_to_grade(
+pub async fn assign_subject_to_grade(
     state: tauri::State<'_, DbState>,
     gradoId: i64,
     asignaturaId: i64,
@@ -2235,7 +2235,7 @@ pub fn assign_subject_to_grade(
 
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn unassign_subject_from_grade(
+pub async fn unassign_subject_from_grade(
     state: tauri::State<'_, DbState>,
     gradoId: i64,
     asignaturaId: i64,
@@ -2269,7 +2269,7 @@ pub fn unassign_subject_from_grade(
 
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn assign_all_subjects_to_grade(
+pub async fn assign_all_subjects_to_grade(
     state: tauri::State<'_, DbState>,
     gradoId: i64,
 ) -> Result<(), String> {
@@ -2285,7 +2285,7 @@ pub fn assign_all_subjects_to_grade(
 
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn unassign_all_subjects_from_grade(
+pub async fn unassign_all_subjects_from_grade(
     state: tauri::State<'_, DbState>,
     gradoId: i64,
 ) -> Result<(), String> {
@@ -2317,7 +2317,7 @@ pub fn unassign_all_subjects_from_grade(
 
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn get_subjects_by_colegio(
+pub async fn get_subjects_by_colegio(
     state: tauri::State<'_, DbState>,
     colegioId: i64,
 ) -> Result<Vec<CategoryItem>, String> {
@@ -2350,7 +2350,7 @@ pub fn get_subjects_by_colegio(
 
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn get_all_subjects(
+pub async fn get_all_subjects(
     state: tauri::State<'_, DbState>,
 ) -> Result<Vec<CategoryItem>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
@@ -2376,7 +2376,7 @@ pub fn get_all_subjects(
 
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn assign_subject_to_colegio(
+pub async fn assign_subject_to_colegio(
     state: tauri::State<'_, DbState>,
     colegioId: i64,
     asignaturaId: i64,
@@ -2398,7 +2398,7 @@ pub fn assign_subject_to_colegio(
 
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn unassign_subject_from_colegio(
+pub async fn unassign_subject_from_colegio(
     state: tauri::State<'_, DbState>,
     colegioId: i64,
     asignaturaId: i64,
@@ -2432,7 +2432,7 @@ pub fn unassign_subject_from_colegio(
 
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn assign_all_subjects_to_colegio(
+pub async fn assign_all_subjects_to_colegio(
     state: tauri::State<'_, DbState>,
     colegioId: i64,
 ) -> Result<(), String> {
@@ -2448,7 +2448,7 @@ pub fn assign_all_subjects_to_colegio(
 
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn unassign_all_subjects_from_colegio(
+pub async fn unassign_all_subjects_from_colegio(
     state: tauri::State<'_, DbState>,
     colegioId: i64,
 ) -> Result<(), String> {
@@ -2500,7 +2500,7 @@ create_crud_commands_active!(
 );
 // Colegio CRUD Commands (Manual implementation for Order support)
 #[tauri::command]
-pub fn get_colegios(state: tauri::State<'_, DbState>) -> Result<Vec<CategoryItem>, String> {
+pub async fn get_colegios(state: tauri::State<'_, DbState>) -> Result<Vec<CategoryItem>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare(
@@ -2525,7 +2525,7 @@ pub fn get_colegios(state: tauri::State<'_, DbState>) -> Result<Vec<CategoryItem
 }
 
 #[tauri::command]
-pub fn add_colegio(state: tauri::State<'_, DbState>, nombre: String) -> Result<i64, String> {
+pub async fn add_colegio(state: tauri::State<'_, DbState>, nombre: String) -> Result<i64, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
 
     // Get max order
@@ -2545,7 +2545,7 @@ pub fn add_colegio(state: tauri::State<'_, DbState>, nombre: String) -> Result<i
 }
 
 #[tauri::command]
-pub fn update_colegio(
+pub async fn update_colegio(
     state: tauri::State<'_, DbState>,
     id: i64,
     nombre: String,
@@ -2561,7 +2561,7 @@ pub fn update_colegio(
 }
 
 #[tauri::command]
-pub fn delete_colegio(state: tauri::State<'_, DbState>, id: i64) -> Result<(), String> {
+pub async fn delete_colegio(state: tauri::State<'_, DbState>, id: i64) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute("DELETE FROM colegio WHERE id = ?", [id])
         .map(|_| ())
@@ -2569,7 +2569,7 @@ pub fn delete_colegio(state: tauri::State<'_, DbState>, id: i64) -> Result<(), S
 }
 
 #[tauri::command]
-pub fn set_active_colegio(state: tauri::State<'_, DbState>, id: i64) -> Result<(), String> {
+pub async fn set_active_colegio(state: tauri::State<'_, DbState>, id: i64) -> Result<(), String> {
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
@@ -2586,7 +2586,7 @@ pub fn set_active_colegio(state: tauri::State<'_, DbState>, id: i64) -> Result<(
 }
 
 #[tauri::command]
-pub fn update_colegio_order(
+pub async fn update_colegio_order(
     state: tauri::State<'_, DbState>,
     items: Vec<CategoryItem>,
 ) -> Result<(), String> {
@@ -2625,7 +2625,7 @@ create_crud_commands!(
 // Evaluations Commands
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn get_evaluation_config(
+pub async fn get_evaluation_config(
     state: tauri::State<'_, DbState>,
     gradoId: i64,
     asignaturaId: i64,
@@ -2778,7 +2778,7 @@ pub fn get_evaluation_config(
 }
 
 #[tauri::command]
-pub fn update_indicador(
+pub async fn update_indicador(
     state: tauri::State<'_, DbState>,
     id: i64,
     descripcion: String,
@@ -2795,7 +2795,7 @@ pub fn update_indicador(
 
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn update_criterio(
+pub async fn update_criterio(
     state: tauri::State<'_, DbState>,
     id: i64,
     descripcion: String,
@@ -2827,7 +2827,7 @@ pub struct EstudianteNota {
 
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn get_estudiantes_by_filters(
+pub async fn get_estudiantes_by_filters(
     state: tauri::State<'_, DbState>,
     gradoId: i64,
     seccionId: i64,
@@ -2866,7 +2866,7 @@ pub fn get_estudiantes_by_filters(
 
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn save_notas_estudiantes(
+pub async fn save_notas_estudiantes(
     state: tauri::State<'_, DbState>,
     notas: Vec<NotaEstudianteRequest>,
     corteId: i64,
@@ -2898,7 +2898,7 @@ pub fn save_notas_estudiantes(
 
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn get_colegio_dias_asistencia(
+pub async fn get_colegio_dias_asistencia(
     state: tauri::State<'_, DbState>,
     colegioId: i64,
 ) -> Result<ColegioDiasAsistencia, String> {
@@ -2944,7 +2944,7 @@ pub fn get_colegio_dias_asistencia(
 }
 
 #[tauri::command]
-pub fn save_colegio_dias_asistencia(
+pub async fn save_colegio_dias_asistencia(
     state: tauri::State<'_, DbState>,
     config: ColegioDiasAsistencia,
 ) -> Result<(), String> {
@@ -3055,7 +3055,7 @@ pub struct AsistenciaReporteItem {
 }
 
 #[tauri::command]
-pub fn get_grade_configs(state: tauri::State<'_, DbState>) -> Result<Vec<GradeConfig>, String> {
+pub async fn get_grade_configs(state: tauri::State<'_, DbState>) -> Result<Vec<GradeConfig>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare("SELECT id, nombre, color, minimo FROM configuracion_calificacion")
@@ -3078,7 +3078,7 @@ pub fn get_grade_configs(state: tauri::State<'_, DbState>) -> Result<Vec<GradeCo
 }
 
 #[tauri::command]
-pub fn update_grade_config(
+pub async fn update_grade_config(
     state: tauri::State<'_, DbState>,
     id: String,
     nombre: String,
@@ -3096,7 +3096,7 @@ pub fn update_grade_config(
 
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn get_notas_by_filters(
+pub async fn get_notas_by_filters(
     state: tauri::State<'_, DbState>,
     gradoId: i64,
     seccionId: i64,
@@ -3132,7 +3132,7 @@ pub fn get_notas_by_filters(
 }
 
 #[tauri::command]
-pub fn get_db_path(app_handle: tauri::AppHandle) -> Result<String, String> {
+pub async fn get_db_path(app_handle: tauri::AppHandle) -> Result<String, String> {
     let app_dir = app_handle
         .path()
         .app_data_dir()
@@ -3150,7 +3150,7 @@ pub fn get_db_path(app_handle: tauri::AppHandle) -> Result<String, String> {
 
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn get_asistencia_estudiantes(
+pub async fn get_asistencia_estudiantes(
     state: tauri::State<'_, DbState>,
     fecha: String,
     _anoLectivoId: i64,
@@ -3205,7 +3205,7 @@ let mut query = String::from(
 
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn get_asistencia_rango(
+pub async fn get_asistencia_rango(
     state: tauri::State<'_, DbState>,
     fechaInicio: String,
     fechaFin: String,
@@ -3290,7 +3290,7 @@ pub fn get_asistencia_rango(
 }
 
 #[tauri::command]
-pub fn save_asistencia(
+pub async fn save_asistencia(
     state: tauri::State<'_, DbState>,
     records: Vec<AsistenciaRecord>,
 ) -> Result<(), String> {
@@ -3329,7 +3329,7 @@ pub struct AsistenciaCloudRecord {
 }
 
 #[tauri::command]
-pub fn upsert_asistencia_from_cloud(
+pub async fn upsert_asistencia_from_cloud(
     state: tauri::State<'_, DbState>,
     records: Vec<AsistenciaCloudRecord>,
 ) -> Result<(), String> {
@@ -3374,7 +3374,7 @@ pub struct NotaCloudRecord {
 }
 
 #[tauri::command]
-pub fn upsert_notas_from_cloud(
+pub async fn upsert_notas_from_cloud(
     state: tauri::State<'_, DbState>,
     notas: Vec<NotaCloudRecord>,
 ) -> Result<(), String> {
@@ -3403,7 +3403,7 @@ pub fn upsert_notas_from_cloud(
 }
 
 #[tauri::command]
-pub fn delete_asistencia_batch(
+pub async fn delete_asistencia_batch(
     state: tauri::State<'_, DbState>,
     estudiante_ids: Vec<i64>,
     fecha: String,
@@ -3442,7 +3442,7 @@ pub fn delete_asistencia_batch(
 }
 
 #[tauri::command]
-pub fn get_indicadores_all(state: tauri::State<'_, DbState>) -> Result<Vec<Indicador>, String> {
+pub async fn get_indicadores_all(state: tauri::State<'_, DbState>) -> Result<Vec<Indicador>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare("SELECT id, grado_id, asignatura_id, corte_evaluativo_id, orden, descripcion, activo FROM indicador")
@@ -3469,7 +3469,7 @@ pub fn get_indicadores_all(state: tauri::State<'_, DbState>) -> Result<Vec<Indic
 }
 
 #[tauri::command]
-pub fn get_criterios_all(state: tauri::State<'_, DbState>) -> Result<Vec<Criterio>, String> {
+pub async fn get_criterios_all(state: tauri::State<'_, DbState>) -> Result<Vec<Criterio>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare("SELECT id, indicador_id, orden, descripcion, puntaje_maximo FROM criterio")
@@ -3493,7 +3493,7 @@ pub fn get_criterios_all(state: tauri::State<'_, DbState>) -> Result<Vec<Criteri
 }
 
 #[tauri::command]
-pub fn get_notas_all(state: tauri::State<'_, DbState>) -> Result<Vec<NotaResponse>, String> {
+pub async fn get_notas_all(state: tauri::State<'_, DbState>) -> Result<Vec<NotaResponse>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
         .prepare("SELECT estudiante_id, criterio_id, valor, corte_evaluativo_id, asignatura_id FROM nota")
@@ -3517,7 +3517,7 @@ pub fn get_notas_all(state: tauri::State<'_, DbState>) -> Result<Vec<NotaRespons
 }
 
 #[tauri::command]
-pub fn get_asistencia_all(
+pub async fn get_asistencia_all(
     state: tauri::State<'_, DbState>,
 ) -> Result<Vec<AsistenciaRecord>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
@@ -3564,7 +3564,7 @@ pub struct PullData {
 }
 
 #[tauri::command]
-pub fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) -> Result<(), String> {
+pub async fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) -> Result<(), String> {
     let is_partial = data.is_partial.unwrap_or(false);
 
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
@@ -3840,7 +3840,7 @@ pub fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) -> Res
 }
 
 #[tauri::command]
-pub fn delete_record_local(
+pub async fn delete_record_local(
     state: tauri::State<'_, DbState>,
     table: String,
     id: serde_json::Value,
@@ -3905,7 +3905,7 @@ pub fn delete_record_local(
 }
 
 #[tauri::command]
-pub fn get_colegio_dias_asistencia_all(
+pub async fn get_colegio_dias_asistencia_all(
 
     state: tauri::State<'_, DbState>,
 ) -> Result<Vec<ColegioDiasAsistencia>, String> {
@@ -3935,7 +3935,7 @@ pub fn get_colegio_dias_asistencia_all(
 }
 
 #[tauri::command]
-pub fn get_grado_asignatura(state: tauri::State<'_, DbState>) -> Result<Vec<GradoAsignaturaRecord>, String> {
+pub async fn get_grado_asignatura(state: tauri::State<'_, DbState>) -> Result<Vec<GradoAsignaturaRecord>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn.prepare("SELECT grado_id, asignatura_id FROM grado_asignatura").map_err(|e| e.to_string())?;
     let items = stmt.query_map([], |row| {
@@ -3948,7 +3948,7 @@ pub fn get_grado_asignatura(state: tauri::State<'_, DbState>) -> Result<Vec<Grad
 }
 
 #[tauri::command]
-pub fn get_colegio_asignatura(state: tauri::State<'_, DbState>) -> Result<Vec<ColegioAsignaturaRecord>, String> {
+pub async fn get_colegio_asignatura(state: tauri::State<'_, DbState>) -> Result<Vec<ColegioAsignaturaRecord>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn.prepare("SELECT colegio_id, asignatura_id FROM colegio_asignatura").map_err(|e| e.to_string())?;
     let items = stmt.query_map([], |row| {
@@ -3973,7 +3973,7 @@ pub struct ColegioAsignaturaRecord {
 }
 
 #[tauri::command]
-pub fn check_turso_connectivity(tursoUrl: String) -> Result<bool, String> {
+pub async fn check_turso_connectivity(tursoUrl: String) -> Result<bool, String> {
     // Timeout corto: 5 segundos para no bloquear
     let agent = ureq::AgentBuilder::new()
         .timeout_connect(std::time::Duration::from_secs(5))
