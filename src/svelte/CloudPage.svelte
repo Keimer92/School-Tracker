@@ -230,6 +230,13 @@
         </div>
       </div>
 
+      {#if (syncProvider === 'supabase' && (sbError || (syncStatus.status === 'error' && syncStatus.message))) || (syncProvider === 'turso' && (tursoError || (syncStatus.status === 'error' && syncStatus.message)))}
+        <div style="margin: 1rem 1.5rem 0; padding: 0.9rem 1rem; border-radius: 12px; border: 1px solid rgba(248,113,113,0.25); background: rgba(239,68,68,0.12); color: #fecaca; font-size: 0.8rem; line-height: 1.45;">
+          <div style="font-weight: 700; margin-bottom: 0.25rem;">⚠️ Error de sincronización</div>
+          <div>{syncProvider === 'supabase' ? (sbError || syncStatus.message) : (tursoError || syncStatus.message)}</div>
+        </div>
+      {/if}
+
       {#if isSynced}
         <div style="padding: 0 1.5rem 1.5rem;">
           <div style="background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.08) 0%, rgba(var(--primary-rgb), 0.04) 100%); border-radius: 14px; border: 1px solid rgba(var(--primary-rgb), 0.12); padding: 1rem 1.25rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem;">
