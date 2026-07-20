@@ -18,7 +18,8 @@ const withSupabaseSchemaRecovery = async <T,>(
       return await operation();
     } catch (error) {
       lastError = error;
-      const isMissing = isMissingTableError(error) || tables.some((table) => getSupabaseErrorMessage(error).includes(table));
+      const message = getSupabaseErrorMessage(error);
+      const isMissing = isMissingTableError(error) || tables.some((table) => message.includes(table));
       if (!isMissing || attempt >= 2) {
         throw error;
       }
@@ -33,6 +34,11 @@ const withSupabaseSchemaRecovery = async <T,>(
   }
 
   throw lastError;
+};
+
+const isTableUnavailableError = (error: unknown) => {
+  const message = getSupabaseErrorMessage(error);
+  return isMissingTableError(error) || /404|not found|relation .* does not exist/i.test(message);
 };
 
 /**
@@ -55,7 +61,7 @@ export const getSupabaseConnStrings = (): string[] | null => {
 
   if (!raw) return null;
 
-  // Si el usuario pegó el connection string completo, usarlo directamente
+  // Si el usuario pegó el connection string completo, usarlo directamente.
   if (/^postgres(ql)?:\/\//.test(raw.trim())) {
     return [raw.trim()];
   }
@@ -63,31 +69,14 @@ export const getSupabaseConnStrings = (): string[] | null => {
   if (!url) return null;
   const match = url.match(/https?:\/\/([^.]+)\.supabase\.(co|in)/);
   if (!match) return null;
+
   const projectRef = match[1];
   const pw = encodeURIComponent(raw);
-
   const direct = `postgresql://postgres:${pw}@db.${projectRef}.supabase.co:5432/postgres?sslmode=require`;
 
-  const poolerRegions = [
-    // AWS
-    'aws-0-us-east-1', 'aws-0-us-east-2', 'aws-0-us-west-1', 'aws-0-us-west-2',
-    'aws-0-ca-central-1', 'aws-0-ca-west-1', 'aws-0-eu-west-1', 'aws-0-eu-west-2',
-    'aws-0-eu-west-3', 'aws-0-eu-central-1', 'aws-0-eu-central-2', 'aws-0-eu-north-1',
-    'aws-0-ap-south-1', 'aws-0-ap-southeast-1', 'aws-0-ap-southeast-2',
-    'aws-0-ap-northeast-1', 'aws-0-ap-northeast-2', 'aws-0-ap-northeast-3',
-    'aws-0-sa-east-1', 'aws-0-me-central-1', 'aws-0-il-central-1', 'aws-0-af-south-1',
-    // GCP
-    'gcp-us-central1', 'gcp-us-east1', 'gcp-us-east4', 'gcp-us-west1', 'gcp-us-west2',
-    'gcp-europe-west1', 'gcp-europe-west2', 'gcp-europe-west3', 'gcp-europe-west4',
-    'gcp-europe-north1', 'gcp-asia-southeast1', 'gcp-asia-southeast2', 'gcp-asia-northeast1',
-    'gcp-asia-northeast2', 'gcp-asia-northeast3', 'gcp-asia-south1', 'gcp-australia-southeast1',
-    'gcp-southamerica-east1',
-  ];
-  const poolers = poolerRegions.map(
-    (r) => `postgresql://postgres.${projectRef}:${pw}@${r}.pooler.supabase.com:6543/postgres?sslmode=require`
-  );
-
-  return [direct, ...poolers];
+  // Evitamos los poolers por defecto porque en este entorno generan errores
+  // como "tenant/user ... not found" y no son necesarios para el flujo actual.
+  return [direct];
 };
 
 /**
@@ -193,6 +182,11 @@ export const syncService = {
 
       for (const item of pending) {
         try {
+          if (item.tabla === 'sync_deletions' || item.tabla === 'sync_batch') {
+            await invoke("remove_pending_deletion", { id: item.id });
+            continue;
+          }
+
           let query = supabase.from(item.tabla).delete();
 
           // Tablas sin columna 'id' — usar su clave real
@@ -204,8 +198,9 @@ export const syncService = {
 
           const { error } = await query;
 
-          // Si el error es null (éxito) o PGRST116 (ya no existe), limpiamos el pendiente local
-          if (!error || error.code === 'PGRST116') {
+          // Si el error es null (éxito), PGRST116 (ya no existe) o 404 de tabla ausente,
+          // limpiamos el pendiente local para no quedar bloqueados.
+          if (!error || error.code === 'PGRST116' || isTableUnavailableError(error)) {
             await invoke("remove_pending_deletion", { id: item.id });
           } else {
             console.error(`[syncService] Error sincronizando eliminación pendiente de ${item.tabla}:${item.registroId} ->`, error?.message || error?.code || error);
@@ -1586,12 +1581,25 @@ export const syncService = {
         return !error;
       };
 
-      const runSqlStatements = async (sqlStatements: string[]) => {
+      const runSqlStatements = async (sqlStatements: string[], critical: boolean = true) => {
         const connStrings = getSupabaseConnStrings();
         if (connStrings && connStrings.length > 0) {
           for (const sql of sqlStatements) {
-            await invoke('supabase_execute_sql', { connectionStrings: connStrings, sql });
+            try {
+              await invoke('supabase_execute_sql', { connectionStrings: connStrings, sql });
+            } catch (error) {
+              if (critical) {
+                console.warn('[Supabase] Falló la ejecución SQL crítica:', error);
+                return false;
+              }
+              console.info('[Supabase] Ajuste SQL omitido porque la conexión directa no está disponible.');
+              return true;
+            }
           }
+          return true;
+        }
+
+        if (!critical) {
           return true;
         }
 
@@ -1675,24 +1683,7 @@ export const syncService = {
         'ALTER TABLE colegio_dias_asistencia ADD COLUMN IF NOT EXISTS user_id TEXT;',
         ...allTables.map((t) => `ALTER TABLE ${t} DISABLE ROW LEVEL SECURITY;`),
       ];
-      const connStrings = getSupabaseConnStrings();
-      if (connStrings && connStrings.length > 0) {
-        for (const sql of fixSqls) {
-          try {
-            await invoke('supabase_execute_sql', { connectionStrings: connStrings, sql });
-          } catch (e) {
-            console.warn('[Supabase] Ajuste no crítico falló:', e);
-          }
-        }
-      } else {
-        for (const sql of fixSqls) {
-          try {
-            await client.rpc('exec_sql', { query: sql });
-          } catch (e) {
-            console.warn('[Supabase] Ajuste RPC no crítico falló:', e);
-          }
-        }
-      }
+      await runSqlStatements(fixSqls, false);
 
       return { ok: true };
     } catch (e: any) {
