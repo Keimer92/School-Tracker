@@ -1,6 +1,8 @@
 mod db;
+mod supabase_sql;
 
 use db::*;
+use supabase_sql::*;
 use rusqlite::Connection;
 use rusqlite::params;
 use rusqlite::types::ToSql;
@@ -942,6 +944,7 @@ pub fn run() {
             share_pdf,
             save_file_android,
             check_turso_connectivity,
+            supabase_execute_sql,
             gd_read_file_base64,
             gd_write_file_base64,
             gd_open_url_browser,
