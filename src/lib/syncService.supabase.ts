@@ -6,6 +6,30 @@ import { syncManager } from './tursoSyncService';
 export type { SyncStatus } from './tursoSyncService';
 
 /**
+ * Construye el connection string de Postgres a partir de la URL del proyecto
+ * y el password de base de datos (VITE_SUPABASE_DB_PASSWORD en .env o localStorage).
+ * Formato: postgresql://postgres:<pw>@db.<ref>.supabase.co:5432/postgres?sslmode=require
+ */
+export const buildSupabaseConnString = (): string | null => {
+  const url =
+    (typeof localStorage !== 'undefined' && localStorage.getItem('sbUrl')) ||
+    import.meta.env.VITE_SUPABASE_URL ||
+    '';
+  const password =
+    (typeof localStorage !== 'undefined' && localStorage.getItem('sbDbPassword')) ||
+    import.meta.env.VITE_SUPABASE_DB_PASSWORD ||
+    '';
+
+  if (!url || !password) return null;
+
+  const match = url.match(/https?:\/\/([^.]+)\.supabase\.(co|in)/);
+  if (!match) return null;
+  const projectRef = match[1];
+
+  return `postgresql://postgres:${encodeURIComponent(password)}@db.${projectRef}.supabase.co:5432/postgres?sslmode=require`;
+};
+
+/**
  * Servicio de sincronización (Local <-> Supabase)
  * Estrategia: "Local-First". Los cambios se hacen en SQLite primero
  * y luego se intentan replicar en la nube (Supabase).
@@ -1494,35 +1518,58 @@ export const syncService = {
         return { ok: true };
       }
 
-      console.log('[Supabase] Schema not found, attempting to create via exec_sql RPC');
+      console.log('[Supabase] Schema not found, attempting to create...');
+
+      // Postgres-compatible DDL (SERIAL en vez de AUTOINCREMENT, now() en vez de datetime('now'))
       const createTablesSqls = [
-        `CREATE TABLE IF NOT EXISTS ano_lectivo (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, user_id TEXT)`,
-        `CREATE TABLE IF NOT EXISTS corte_evaluativo (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, user_id TEXT)`,
-        `CREATE TABLE IF NOT EXISTS colegio (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, orden INTEGER DEFAULT 0, user_id TEXT)`,
-        `CREATE TABLE IF NOT EXISTS asignatura (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0)`,
-        `CREATE TABLE IF NOT EXISTS grado (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0)`,
-        `CREATE TABLE IF NOT EXISTS seccion (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0)`,
-        `CREATE TABLE IF NOT EXISTS estudiante (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, codigo TEXT NOT NULL, sexo TEXT NOT NULL, ano_lectivo_id INTEGER NOT NULL, grado_id INTEGER NOT NULL, seccion_id INTEGER NOT NULL, colegio_id INTEGER NOT NULL, telefono TEXT, direccion TEXT, email TEXT, foto TEXT, user_id TEXT)`,
+        `CREATE TABLE IF NOT EXISTS ano_lectivo (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, user_id TEXT)`,
+        `CREATE TABLE IF NOT EXISTS corte_evaluativo (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, user_id TEXT)`,
+        `CREATE TABLE IF NOT EXISTS colegio (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, orden INTEGER DEFAULT 0, user_id TEXT)`,
+        `CREATE TABLE IF NOT EXISTS asignatura (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0)`,
+        `CREATE TABLE IF NOT EXISTS grado (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0)`,
+        `CREATE TABLE IF NOT EXISTS seccion (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0)`,
+        `CREATE TABLE IF NOT EXISTS estudiante (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL, codigo TEXT NOT NULL, sexo TEXT NOT NULL, ano_lectivo_id INTEGER NOT NULL, grado_id INTEGER NOT NULL, seccion_id INTEGER NOT NULL, colegio_id INTEGER NOT NULL, telefono TEXT, direccion TEXT, email TEXT, foto TEXT, user_id TEXT)`,
         `CREATE TABLE IF NOT EXISTS configuracion_calificacion (id TEXT PRIMARY KEY, nombre TEXT NOT NULL, color TEXT NOT NULL, minimo INTEGER NOT NULL)`,
         `CREATE TABLE IF NOT EXISTS grado_asignatura (grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, PRIMARY KEY (grado_id, asignatura_id))`,
         `CREATE TABLE IF NOT EXISTS colegio_asignatura (colegio_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, PRIMARY KEY (colegio_id, asignatura_id))`,
-        `CREATE TABLE IF NOT EXISTS indicador (id INTEGER PRIMARY KEY AUTOINCREMENT, grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, corte_evaluativo_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', activo INTEGER DEFAULT 1, user_id TEXT)`,
-        `CREATE TABLE IF NOT EXISTS criterio (id INTEGER PRIMARY KEY AUTOINCREMENT, indicador_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', puntaje_maximo INTEGER NOT NULL)`,
+        `CREATE TABLE IF NOT EXISTS indicador (id SERIAL PRIMARY KEY, grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, corte_evaluativo_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', activo INTEGER DEFAULT 1, user_id TEXT)`,
+        `CREATE TABLE IF NOT EXISTS criterio (id SERIAL PRIMARY KEY, indicador_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', puntaje_maximo INTEGER NOT NULL)`,
         `CREATE TABLE IF NOT EXISTS colegio_dias_asistencia (colegio_id INTEGER PRIMARY KEY, lunes INTEGER DEFAULT 1, martes INTEGER DEFAULT 1, miercoles INTEGER DEFAULT 1, jueves INTEGER DEFAULT 1, viernes INTEGER DEFAULT 1, sabado INTEGER DEFAULT 1, domingo INTEGER DEFAULT 1)`,
-        `CREATE TABLE IF NOT EXISTS asistencia (id INTEGER PRIMARY KEY AUTOINCREMENT, estudiante_id INTEGER NOT NULL, fecha TEXT NOT NULL, estado TEXT NOT NULL, observacion TEXT, user_id TEXT, UNIQUE(estudiante_id, fecha))`,
-        `CREATE TABLE IF NOT EXISTS nota (estudiante_id INTEGER NOT NULL, criterio_id INTEGER NOT NULL, valor REAL NOT NULL, corte_evaluativo_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, user_id TEXT, PRIMARY KEY (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id))`,
-        `CREATE TABLE IF NOT EXISTS sync_deletions (id INTEGER PRIMARY KEY AUTOINCREMENT, table_name TEXT NOT NULL, record_id INTEGER NOT NULL, deleted_at TEXT DEFAULT (datetime('now')), user_id TEXT)`,
-        `CREATE TABLE IF NOT EXISTS sync_batch (id INTEGER PRIMARY KEY AUTOINCREMENT, table_name TEXT NOT NULL, action TEXT NOT NULL, data TEXT NOT NULL, user_id TEXT, created_at TEXT DEFAULT (datetime('now')))`,
+        `CREATE TABLE IF NOT EXISTS asistencia (id SERIAL PRIMARY KEY, estudiante_id INTEGER NOT NULL, fecha TEXT NOT NULL, estado TEXT NOT NULL, observacion TEXT, user_id TEXT, UNIQUE(estudiante_id, fecha))`,
+        `CREATE TABLE IF NOT EXISTS nota (estudiante_id INTEGER NOT NULL, criterio_id INTEGER NOT NULL, valor DOUBLE PRECISION NOT NULL, corte_evaluativo_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, user_id TEXT, PRIMARY KEY (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id))`,
+        `CREATE TABLE IF NOT EXISTS sync_deletions (id SERIAL PRIMARY KEY, table_name TEXT NOT NULL, record_id INTEGER NOT NULL, deleted_at TEXT DEFAULT now()::text, user_id TEXT)`,
+        `CREATE TABLE IF NOT EXISTS sync_batch (id SERIAL PRIMARY KEY, table_name TEXT NOT NULL, action TEXT NOT NULL, data TEXT NOT NULL, user_id TEXT, created_at TEXT DEFAULT now()::text)`,
       ];
 
+      // Opción 1 (preferida y automática): conexión directa a Postgres vía Rust (requiere VITE_SUPABASE_DB_PASSWORD)
+      const connString = buildSupabaseConnString();
+      if (connString) {
+        console.log('[Supabase] Creando schema vía conexión directa a Postgres...');
+        try {
+          for (const sql of createTablesSqls) {
+            await invoke('supabase_execute_sql', { connectionString: connString, sql });
+          }
+          console.log('[Supabase] Schema creado exitosamente (Postgres directo)');
+          return { ok: true };
+        } catch (e: any) {
+          console.warn('[Supabase] Conexión directa a Postgres falló, probando RPC:', e);
+          // continúa al fallback RPC
+        }
+      }
+
+      // Opción 2 (fallback): función RPC exec_sql
+      console.log('[Supabase] Creando schema vía RPC exec_sql...');
       for (const sql of createTablesSqls) {
         const { error: rpcError } = await client.rpc('exec_sql', { query: sql });
         if (rpcError) {
-          console.warn('[Supabase] RPC exec_sql failed, trying direct query:', rpcError.message);
-          return { ok: false, error: `La función exec_sql no existe en tu proyecto Supabase. Creala en el SQL Editor:\n\nCREATE OR REPLACE FUNCTION exec_sql(query text)\nRETURNS void AS $$\nBEGIN\n  EXECUTE query;\nEND;\n$$ LANGUAGE plpgsql SECURITY DEFINER;\n\nLuego presioná "Ejecutar Schema" en CloudPage.` };
+          console.warn('[Supabase] RPC exec_sql falló:', rpcError.message);
+          return {
+            ok: false,
+            error: `No se pudo crear el schema automáticamente. Configurá VITE_SUPABASE_DB_PASSWORD en el archivo .env de la app, o creá la función exec_sql en el SQL Editor de Supabase:\n\nCREATE OR REPLACE FUNCTION exec_sql(query text)\nRETURNS void AS $$\nBEGIN\n  EXECUTE query;\nEND;\n$$ LANGUAGE plpgsql SECURITY DEFINER;`,
+          };
         }
       }
-      console.log('[Supabase] Schema created successfully');
+      console.log('[Supabase] Schema creado exitosamente (RPC)');
       return { ok: true };
     } catch (e: any) {
       console.error('[Supabase] ensureSchema exception:', e);

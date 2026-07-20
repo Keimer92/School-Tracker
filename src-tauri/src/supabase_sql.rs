@@ -2,7 +2,7 @@
 use sqlx::postgres::PgPoolOptions;
 
 #[tauri::command]
-async fn supabase_execute_sql(connection_string: String, sql: String) -> Result<String, String> {
+pub async fn supabase_execute_sql(connection_string: String, sql: String) -> Result<String, String> {
     let pool = PgPoolOptions::new()
         .max_connections(1)
         .connect(&connection_string)
