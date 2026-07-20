@@ -47,6 +47,10 @@
   let showDeleteConfirm = $state(false);
   let deleting = $state(false);
 
+  let showDistribuirModal = $state(false);
+  let distribuirTargets: Record<number, string> = $state({});
+  let distribuirOverwrite = $state(true);
+
   let isMobile = $state(false);
   let currentStudentIdx = $state(0);
   let showStudentList = $state(false);
@@ -145,6 +149,133 @@
   function calcularTotalFinal(estudianteNotas: Record<number, number>): number {
     if (isQualitative) return 0;
     return indicadores.filter(i => i.activo).reduce((sum, ind) => sum + calcularTotalIndicador(estudianteNotas, ind), 0);
+  }
+
+  function calcularPctActual(estudianteId: number): number {
+    const maxTotal = activeIndicadores.reduce((sum, ind) => sum + ind.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0), 0);
+    if (maxTotal === 0) return 0;
+    const rawTotal = activeIndicadores.reduce((sum, ind) => sum + ind.criterios.reduce((s, c) => {
+      const qv = notasCualitativas[`${estudianteId}-${c.id}`];
+      if (qv && ['AA', 'AS', 'AF', 'AI'].includes(qv)) return s + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
+      return s;
+    }, 0), 0);
+    return Math.round((rawTotal / maxTotal) * 100);
+  }
+
+  function distribuirNotas() {
+    if (activeIndicadores.length === 0 || filteredNotas.length === 0) return;
+    const maxTotal = activeIndicadores.reduce((sum, ind) => sum + ind.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0), 0);
+    const fixedAA = activeIndicadores.reduce((sum, ind) => {
+      const c3 = ind.criterios[2];
+      return sum + (c3?.puntajeMaximo || 0);
+    }, 0);
+    const maxModifiable = activeIndicadores.reduce((sum, ind) =>
+      sum + (ind.criterios[0]?.puntajeMaximo || 0) + (ind.criterios[1]?.puntajeMaximo || 0), 0);
+    const grades = ['AA', 'AS', 'AF', 'AI'] as const;
+    let updatedCount = 0;
+    let errorMessages: string[] = [];
+    for (const estNota of filteredNotas) {
+      const targetStr = distribuirTargets[estNota.estudianteId];
+      if (!targetStr || targetStr.trim() === '') continue;
+      const targetPct = parseFloat(targetStr);
+      if (isNaN(targetPct) || targetPct < 0) continue;
+      const clampedPct = Math.min(targetPct, 100);
+      const targetRaw = Math.round((clampedPct / 100) * maxTotal);
+      if (targetRaw < fixedAA) {
+        const minPct = Math.round((fixedAA / maxTotal) * 100);
+        errorMessages.push(`"${estNota.estudianteNombre}": mínimo ${minPct}% (solo C3 fijos en AA)`);
+        continue;
+      }
+      const remainingTarget = Math.min(targetRaw - fixedAA, maxModifiable);
+      for (const ind of activeIndicadores) {
+        const c1 = ind.criterios[0];
+        const c2 = ind.criterios[1];
+        const c3 = ind.criterios[2];
+        if (!c1 || !c2 || !c3) continue;
+        const key3 = `${estNota.estudianteId}-${c3.id}`;
+        if (!distribuirOverwrite && notasCualitativas[key3]) {
+        } else {
+          notasCualitativas[key3] = 'AA';
+        }
+        const indMax = c1.puntajeMaximo + c2.puntajeMaximo + c3.puntajeMaximo;
+        const remainingRatio = maxModifiable > 0 ? remainingTarget / maxModifiable : 0;
+        const c1Base = remainingRatio * c1.puntajeMaximo;
+        const c2Base = remainingRatio * c2.puntajeMaximo;
+        if (isQualitative) {
+          const validCombos: [string, string][] = [];
+          for (const g1 of grades) {
+            for (const g2 of grades) {
+              const s1 = Math.round(c1.puntajeMaximo * (notaMapping[g1] || 0));
+              const s2 = Math.round(c2.puntajeMaximo * (notaMapping[g2] || 0));
+              if (s1 + s2 === Math.round(c1Base + c2Base)) validCombos.push([g1, g2]);
+            }
+          }
+          let chosen1: string, chosen2: string;
+          if (validCombos.length > 0) {
+            const pick = validCombos[Math.floor(Math.random() * validCombos.length)];
+            chosen1 = pick[0]; chosen2 = pick[1];
+          } else {
+            const gradesByDist = [...grades].sort((a, b) => {
+              const distA = Math.abs(Math.round(c1.puntajeMaximo * notaMapping[a]) - c1Base);
+              const distB = Math.abs(Math.round(c1.puntajeMaximo * notaMapping[b]) - c1Base);
+              return distA - distB;
+            });
+            chosen1 = gradesByDist[0];
+            const usedC1 = Math.round(c1.puntajeMaximo * notaMapping[chosen1]);
+            const remainingC2 = Math.round(c1Base + c2Base) - usedC1;
+            const gradesByDistC2 = [...grades].sort((a, b) => {
+              const distA = Math.abs(Math.round(c2.puntajeMaximo * notaMapping[a]) - remainingC2);
+              const distB = Math.abs(Math.round(c2.puntajeMaximo * notaMapping[b]) - remainingC2);
+              return distA - distB;
+            });
+            chosen2 = gradesByDistC2[0];
+          }
+          const key1 = `${estNota.estudianteId}-${c1.id}`;
+          const key2 = `${estNota.estudianteId}-${c2.id}`;
+          if (!distribuirOverwrite) {
+            if (!notasCualitativas[key1]) notasCualitativas[key1] = chosen1;
+            if (!notasCualitativas[key2]) notasCualitativas[key2] = chosen2;
+          } else {
+            notasCualitativas[key1] = chosen1;
+            notasCualitativas[key2] = chosen2;
+          }
+        } else {
+          let raw1 = Math.round(c1Base);
+          let raw2 = Math.round(c2Base);
+          let diff = Math.round(c1Base + c2Base) - (raw1 + raw2);
+          if (diff !== 0 && raw2 + diff >= 0 && raw2 + diff <= c2.puntajeMaximo) raw2 += diff;
+          else if (diff !== 0) raw1 += diff;
+          if (raw1 < 0) raw1 = 0;
+          if (raw2 < 0) raw2 = 0;
+          if (raw1 > c1.puntajeMaximo) raw1 = c1.puntajeMaximo;
+          if (raw2 > c2.puntajeMaximo) raw2 = c2.puntajeMaximo;
+          const pct1 = c1.puntajeMaximo > 0 ? (raw1 / c1.puntajeMaximo) * 100 : 0;
+          const pct2 = c2.puntajeMaximo > 0 ? (raw2 / c2.puntajeMaximo) * 100 : 0;
+          const key1 = `${estNota.estudianteId}-${c1.id}`;
+          const key2 = `${estNota.estudianteId}-${c2.id}`;
+          const grade1 = getGradeFromScore(pct1).id || 'AI';
+          const grade2 = getGradeFromScore(pct2).id || 'AI';
+          if (!distribuirOverwrite) {
+            if (!notasCualitativas[key1]) notasCualitativas[key1] = grade1;
+            if (!notasCualitativas[key2]) notasCualitativas[key2] = grade2;
+          } else {
+            notasCualitativas[key1] = grade1;
+            notasCualitativas[key2] = grade2;
+          }
+        }
+      }
+      updatedCount++;
+    }
+    if (updatedCount > 0) {
+      hasUnsavedChanges = true;
+      hasUnsavedRef = true;
+      emit("show-toast", { message: `✅ Notas distribuidas para ${updatedCount} estudiante(s)`, type: 'success' });
+    }
+    if (errorMessages.length > 0) {
+      emit("show-toast", { message: errorMessages.join(' | '), type: 'warning' });
+    }
+    showDistribuirModal = false;
+    distribuirTargets = {};
   }
 
   function calcularNotaCualitativaFinal(notasQual: string[]): string {
@@ -845,6 +976,12 @@
             <span>↪️</span>
             {#if !isMobile}<span>Rehacer</span>{/if}
           </button>
+          <button onclick={() => { distribuirTargets = {}; distribuirOverwrite = true; showDistribuirModal = true; }} disabled={activeIndicadores.length === 0 || filteredNotas.length === 0} class="btn-modern btn-distribuir"
+            title="Distribuir notas automáticamente"
+            style="padding: {isMobile ? '0.2rem 0.4rem' : '0.6rem 1.2rem'}; font-size: {isMobile ? '0.7rem' : '0.9rem'}; height: {isMobile ? '24px' : '42px'}; background-color: {activeIndicadores.length > 0 && filteredNotas.length > 0 ? '#8b5cf6' : 'rgba(148, 163, 184, 0.5)'}; color: #fff; border: none; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 4px; font-weight: 600; cursor: {activeIndicadores.length > 0 && filteredNotas.length > 0 ? 'pointer' : 'not-allowed'}; transition: all 0.3s ease; box-shadow: {activeIndicadores.length > 0 && filteredNotas.length > 0 ? '0 4px 14px rgba(139, 92, 246, 0.4)' : 'none'}; flex-shrink: 0; white-space: nowrap; opacity: {activeIndicadores.length > 0 && filteredNotas.length > 0 ? 1 : 0.7};">
+            <span>✨</span>
+            {#if !isMobile}<span>Distribuir</span>{/if}
+          </button>
           <button onclick={handleGuardarNotas} disabled={!hasUnsavedChanges || saving || estudiantes.length === 0} class="btn-modern btn-save-notes"
             title="Guardar Notas (Ctrl+G)"
             style="padding: {isMobile ? '0.2rem 0.4rem' : '0.6rem 1.2rem'}; font-size: {isMobile ? '0.7rem' : '0.9rem'}; height: {isMobile ? '24px' : '42px'}; background-color: {!hasUnsavedChanges ? 'rgba(148, 163, 184, 0.5)' : (saving ? '#059669' : '#10b981')}; color: #fff; border: none; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 4px; font-weight: 600; cursor: {(!hasUnsavedChanges || saving || estudiantes.length === 0) ? 'not-allowed' : 'pointer'}; transition: all 0.3s ease; box-shadow: {hasUnsavedChanges && !saving && estudiantes.length > 0 ? '0 4px 14px rgba(16, 185, 129, 0.4)' : 'none'}; flex-shrink: 0; white-space: nowrap; opacity: {(hasUnsavedChanges && !saving && estudiantes.length > 0) ? 1 : 0.7};">
@@ -1218,6 +1355,63 @@
           </p>
         </div>
       {/if}
+    {/if}
+
+    <!-- Distribuir Modal -->
+    {#if showDistribuirModal}
+      <div style="position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; padding: 1rem;">
+        <div onclick={() => showDistribuirModal = false} style="position: absolute; inset: 0; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(4px);"></div>
+        <div style="position: relative; background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98)); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 20px; padding: 1.5rem; max-width: 640px; width: 100%; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.6);">
+          <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+            <div style="width: 44px; height: 44px; border-radius: 14px; background: rgba(139, 92, 246, 0.12); border: 1px solid rgba(139, 92, 246, 0.2); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0;">✨</div>
+            <div>
+              <h3 style="margin: 0; color: #f1f5f9; font-size: 1.15rem; font-weight: 700;">Distribuir notas automáticamente</h3>
+              <p style="margin: 0.2rem 0 0; color: #94a3b8; font-size: 0.75rem;">El último criterio (C3) de cada indicador se fijará en <strong style="color: #22c55e;">AA</strong>. Los criterios C1 y C2 se calcularán para alcanzar el total deseado.</p>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 0.5rem; margin: 0.5rem 0 0.75rem;">
+            <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-size: 0.8rem; color: #cbd5e1;">
+              <input type="checkbox" checked={distribuirOverwrite} onchange={() => distribuirOverwrite = !distribuirOverwrite} style="accent-color: #8b5cf6;" />
+              Sobrescribir notas existentes
+            </label>
+            <span style="color: #64748b; font-size: 0.75rem;">|</span>
+            <span style="color: {distribuirOverwrite ? '#64748b' : '#22c55e'}; font-size: 0.75rem;">{distribuirOverwrite ? 'Se reemplazarán todas las notas' : 'Solo se llenarán criterios vacíos'}</span>
+          </div>
+          <div style="overflow: auto; flex: 1; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.78rem;">
+              <thead>
+                <tr style="position: sticky; top: 0; z-index: 1;">
+                  <th style="text-align: left; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">#</th>
+                  <th style="text-align: left; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Estudiante</th>
+                  <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Actual %</th>
+                  <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Nuevo total (0-100)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each filteredNotas as est, idx}
+                  <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                    <td style="padding: 0.3rem 0.6rem; color: #64748b; text-align: left;">{idx + 1}</td>
+                    <td style="padding: 0.3rem 0.6rem; color: #e2e8f0; font-weight: 500;">{est.estudianteNombre}</td>
+                    <td style="padding: 0.3rem 0.6rem; text-align: center; color: #94a3b8;">{calcularPctActual(est.estudianteId)}%</td>
+                    <td style="padding: 0.15rem 0.3rem; text-align: center;">
+                      <input type="number" min="0" max="100" value={distribuirTargets[est.estudianteId] ?? ''} oninput={(e) => { const v = (e.target as HTMLInputElement).value; distribuirTargets[est.estudianteId] = v; distribuirTargets = distribuirTargets; }}
+                        style="width: 65px; padding: 0.25rem 0.4rem; border-radius: 6px; border: 1px solid rgba(139, 92, 246, 0.3); background: rgba(15,23,42,0.6); color: #e2e8f0; font-size: 0.8rem; text-align: center; outline: none;" />
+                    </td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+          <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.06);">
+            <button onclick={() => showDistribuirModal = false}
+              style="padding: 0.5rem 1rem; border-radius: 10px; background: transparent; border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; font-weight: 600; font-size: 0.82rem; cursor: pointer;">Cancelar</button>
+            <button onclick={distribuirNotas}
+              style="padding: 0.5rem 1.2rem; border-radius: 10px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; color: white; font-weight: 700; font-size: 0.82rem; cursor: pointer; box-shadow: 0 4px 14px rgba(139, 92, 246, 0.35);">
+              ✨ Calcular y aplicar
+            </button>
+          </div>
+        </div>
+      </div>
     {/if}
 
     <!-- Delete Modal -->
