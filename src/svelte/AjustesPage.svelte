@@ -7,7 +7,7 @@
   import * as XLSX from "xlsx";
   import { syncService, getActiveProvider, setActiveProvider, onProviderChange, type SyncProviderType } from "../lib/syncService";
   import { getTursoUrl, getTursoToken, saveTursoCredentials, clearTursoCredentials } from "../lib/tursoClient";
-  import { getSupabaseClient, hasSupabaseConfig, saveSupabaseConfig, clearSupabaseConfig } from "../lib/supabase";
+  import { getSupabaseClient, hasSupabaseConfig, saveSupabaseConfig, clearSupabaseConfig, saveSupabaseDbPassword } from "../lib/supabase";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
 
@@ -61,6 +61,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   let tursoToken = $state(getTursoToken());
   let sbUrl = $state(localStorage.getItem('supabase_url') || '');
   let sbAnonKey = $state(localStorage.getItem('supabase_anon_key') || '');
+  let sbDbPassword = $state(localStorage.getItem('sbDbPassword') || '');
 
   let syncInterval = $state(parseInt(localStorage.getItem('periodic_sync_interval_seconds') || '60', 10));
 
@@ -461,6 +462,8 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                   <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                     <input type="text" bind:value={sbUrl} oninput={() => saveSupabaseConfig(sbUrl, sbAnonKey)} placeholder="https://xyz.supabase.co" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
                     <input type="password" bind:value={sbAnonKey} oninput={() => saveSupabaseConfig(sbUrl, sbAnonKey)} placeholder="Anon Key (pública)" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
+                    <input type="password" bind:value={sbDbPassword} oninput={() => saveSupabaseDbPassword(sbDbPassword)} placeholder="Database Password (o postgresql://... completo)" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none; box-sizing: border-box;" />
+                    <p style="margin: 0.25rem 0 0 0; color: #64748b; font-size: 0.7rem; line-height: 1.4;">Copialo de Supabase → Settings → Database. Solo se usa para crear las tablas automáticamente (sin SQL manual).</p>
                   </div>
                 </div>
               {/if}

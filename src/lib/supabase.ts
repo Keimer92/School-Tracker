@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const URL_KEY = 'supabase_url';
 const ANON_KEY = 'supabase_anon_key';
+const DB_PW_KEY = 'sbDbPassword';
 
 const DEFAULT_URL: string = import.meta.env.VITE_SUPABASE_URL || '';
 const DEFAULT_ANON: string = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -31,6 +32,19 @@ export function clearSupabaseConfig() {
     localStorage.removeItem(URL_KEY);
     localStorage.removeItem(ANON_KEY);
   }
+}
+
+export function saveSupabaseDbPassword(pw: string) {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(DB_PW_KEY, pw);
+  }
+}
+
+export function getSupabaseDbPassword(): string {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem(DB_PW_KEY) || '';
+  }
+  return '';
 }
 
 export function hasSupabaseConfig(): boolean {

@@ -6,27 +6,50 @@ import { syncManager } from './tursoSyncService';
 export type { SyncStatus } from './tursoSyncService';
 
 /**
- * Construye el connection string de Postgres a partir de la URL del proyecto
- * y el password de base de datos (VITE_SUPABASE_DB_PASSWORD en .env o localStorage).
- * Formato: postgresql://postgres:<pw>@db.<ref>.supabase.co:5432/postgres?sslmode=require
+ * Construye la LISTA de connection strings de Postgres a probar, en orden:
+ *   1. El valor tal cual si el usuario pegó el connection string completo.
+ *   2. Conexión directa: postgresql://postgres:<pw>@db.<ref>.supabase.co:5432/postgres
+ *   3. Connection pooler por región: postgresql://postgres.<ref>:<pw>@<region>.pooler.supabase.com:6543/postgres
+ * Devuelve null si no hay password configurado.
  */
-export const buildSupabaseConnString = (): string | null => {
+export const getSupabaseConnStrings = (): string[] | null => {
   const url =
-    (typeof localStorage !== 'undefined' && localStorage.getItem('sbUrl')) ||
+    (typeof localStorage !== 'undefined' &&
+      (localStorage.getItem('supabase_url') || localStorage.getItem('sbUrl'))) ||
     import.meta.env.VITE_SUPABASE_URL ||
     '';
-  const password =
+  const raw =
     (typeof localStorage !== 'undefined' && localStorage.getItem('sbDbPassword')) ||
     import.meta.env.VITE_SUPABASE_DB_PASSWORD ||
     '';
 
-  if (!url || !password) return null;
+  if (!raw) return null;
 
+  // Si el usuario pegó el connection string completo, usarlo directamente
+  if (/^postgres(ql)?:\/\//.test(raw.trim())) {
+    return [raw.trim()];
+  }
+
+  if (!url) return null;
   const match = url.match(/https?:\/\/([^.]+)\.supabase\.(co|in)/);
   if (!match) return null;
   const projectRef = match[1];
+  const pw = encodeURIComponent(raw);
 
-  return `postgresql://postgres:${encodeURIComponent(password)}@db.${projectRef}.supabase.co:5432/postgres?sslmode=require`;
+  const direct = `postgresql://postgres:${pw}@db.${projectRef}.supabase.co:5432/postgres?sslmode=require`;
+
+  const poolerRegions = [
+    'aws-0-us-east-1', 'aws-0-us-east-2', 'aws-0-us-west-1', 'aws-0-us-west-2',
+    'aws-0-ca-central-1', 'aws-0-eu-west-1', 'aws-0-eu-west-2', 'aws-0-eu-west-3',
+    'aws-0-eu-central-1', 'aws-0-eu-north-1', 'aws-0-ap-south-1',
+    'aws-0-ap-southeast-1', 'aws-0-ap-southeast-2', 'aws-0-ap-northeast-1',
+    'aws-0-ap-northeast-2', 'aws-0-sa-east-1', 'aws-0-af-south-1',
+  ];
+  const poolers = poolerRegions.map(
+    (r) => `postgresql://postgres.${projectRef}:${pw}@${r}.pooler.supabase.com:6543/postgres?sslmode=require`
+  );
+
+  return [direct, ...poolers];
 };
 
 /**
@@ -847,7 +870,7 @@ export const syncService = {
         if (!schemaResult.ok) {
           console.warn('[Supabase] Error asegurando schema, se continuará de todas formas:', schemaResult.error);
         }
-        syncService._schemaEnsured = true;
+        syncService._schemaEnsured = schemaResult.ok;
       }
 
       const userId = await syncService.getUserId();
@@ -1117,7 +1140,7 @@ export const syncService = {
         if (!schemaResult.ok) {
           console.warn('[Supabase] Error asegurando schema, se continuará de todas formas:', schemaResult.error);
         }
-        syncService._schemaEnsured = true;
+        syncService._schemaEnsured = schemaResult.ok;
       }
       console.log(`[Sync] Iniciando wrapSync`);
       const userId = await syncService.getUserId();
@@ -1541,13 +1564,13 @@ export const syncService = {
         `CREATE TABLE IF NOT EXISTS sync_batch (id SERIAL PRIMARY KEY, table_name TEXT NOT NULL, action TEXT NOT NULL, data TEXT NOT NULL, user_id TEXT, created_at TEXT DEFAULT now()::text)`,
       ];
 
-      // Opción 1 (preferida y automática): conexión directa a Postgres vía Rust (requiere VITE_SUPABASE_DB_PASSWORD)
-      const connString = buildSupabaseConnString();
-      if (connString) {
+      // Opción 1 (preferida y automática): conexión directa a Postgres vía Rust (requiere DB password)
+      const connStrings = getSupabaseConnStrings();
+      if (connStrings && connStrings.length > 0) {
         console.log('[Supabase] Creando schema vía conexión directa a Postgres...');
         try {
           for (const sql of createTablesSqls) {
-            await invoke('supabase_execute_sql', { connectionString: connString, sql });
+            await invoke('supabase_execute_sql', { connectionStrings: connStrings, sql });
           }
           console.log('[Supabase] Schema creado exitosamente (Postgres directo)');
           return { ok: true };
@@ -1565,7 +1588,7 @@ export const syncService = {
           console.warn('[Supabase] RPC exec_sql falló:', rpcError.message);
           return {
             ok: false,
-            error: `No se pudo crear el schema automáticamente. Configurá VITE_SUPABASE_DB_PASSWORD en el archivo .env de la app, o creá la función exec_sql en el SQL Editor de Supabase:\n\nCREATE OR REPLACE FUNCTION exec_sql(query text)\nRETURNS void AS $$\nBEGIN\n  EXECUTE query;\nEND;\n$$ LANGUAGE plpgsql SECURITY DEFINER;`,
+            error: `No se pudo crear el schema automáticamente. Ingresa tu "Database Password" de Supabase en Ajustes → Nube (sección Supabase). Si preferís configurarlo en el servidor, creá la función exec_sql en el SQL Editor de Supabase:\n\nCREATE OR REPLACE FUNCTION exec_sql(query text)\nRETURNS void AS $$\nBEGIN\n  EXECUTE query;\nEND;\n$$ LANGUAGE plpgsql SECURITY DEFINER;`,
           };
         }
       }

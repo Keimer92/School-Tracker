@@ -151,7 +151,10 @@
       sbStatus = 'online';
       isSynced = true;
       syncService.ensurePeriodicSync();
-      await syncService.runSchemaSetup();
+      const sr = await syncService.runSchemaSetup();
+      if (!sr.ok) {
+        sbError = sr.error || 'No se pudo preparar la base de datos remota en Supabase.';
+      }
       await syncService.syncAllSilent();
     } catch (e: any) { console.log('[CloudPage] handleConnectSupabase catch', e); sbError = e?.message || String(e); }
     sbTesting = false;
