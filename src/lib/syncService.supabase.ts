@@ -92,8 +92,17 @@ export const syncService = {
    * Obtener el ID del usuario actual
    */
   getUserId: async () => {
-    const { data: userData } = await supabase.auth.getUser();
-    return userData.user?.id || null;
+    // La app usa anon key sin autenticación de usuario. Usamos un ID de dispositivo
+    // estable (persistido en localStorage) para etiquetar los registros en la nube.
+    if (typeof localStorage === 'undefined') return 'local-device';
+    let id = localStorage.getItem('sb_device_user_id') ?? '';
+    if (!id) {
+      id = (typeof crypto !== 'undefined' && (crypto as any).randomUUID)
+        ? (crypto as any).randomUUID()
+        : `dev-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem('sb_device_user_id', id);
+    }
+    return id;
   },
 
   /**
@@ -130,14 +139,10 @@ export const syncService = {
 
   deleteGlobal: async (table: string, id: number) => {
     syncManager.wrapSync((async () => {
-      const userId = await syncService.getUserId();
-      if (!userId) return;
-
       const { error } = await supabase
         .from(table)
         .delete()
-        .eq('id', id)
-        .eq('user_id', userId);
+        .eq('id', id);
 
       if (error) throw error;
       
@@ -150,9 +155,6 @@ export const syncService = {
    * Procesa las eliminaciones que quedaron pendientes por falta de conexión
    */
   syncPendingDeletions: async () => {
-    const userId = await syncService.getUserId();
-    if (!userId) return;
-
     try {
       const pending = await invoke<any[]>("get_pending_deletions");
       if (pending.length === 0) return;
@@ -161,10 +163,7 @@ export const syncService = {
 
       for (const item of pending) {
         try {
-          let query = supabase
-            .from(item.tabla)
-            .delete()
-            .eq('user_id', userId);
+          let query = supabase.from(item.tabla).delete();
 
           // Tablas sin columna 'id' — usar su clave real
           if (item.tabla === 'colegio_dias_asistencia') {
@@ -179,7 +178,7 @@ export const syncService = {
           if (!error || error.code === 'PGRST116') {
             await invoke("remove_pending_deletion", { id: item.id });
           } else {
-            console.error(`[syncService] Error sincronizando eliminación pendiente de ${item.tabla}:${item.registroId}`, error);
+            console.error(`[syncService] Error sincronizando eliminación pendiente de ${item.tabla}:${item.registroId} ->`, error?.message || error?.code || error);
           }
         } catch (err) {
           console.error(`[syncService] Fallo crítico en eliminación pendiente de ${item.tabla}:${item.registroId}:`, err);
@@ -921,8 +920,8 @@ export const syncService = {
 
         const { error } = await supabase.from(table).upsert(batchData, { onConflict: 'id' });
         if (error) {
-          console.error(`Error en tabla base ${table}:`, error);
-          throw new Error(`Error en ${syncService.getTableName(table)}: ${error.message}`);
+          console.error(`Error en tabla base ${table}:`, error?.message || error?.code || error);
+          throw new Error(`Error en ${syncService.getTableName(table)}: ${error?.message || error?.code || error}`);
         }
       }
 
@@ -1542,65 +1541,108 @@ export const syncService = {
       const client = getSupabaseClient();
       if (!client) return { ok: false, error: 'Supabase no configurado' };
 
-      // Check if tables already exist by querying ano_lectivo
-      const { error: checkError } = await client.from('ano_lectivo').select('id', { count: 'exact', head: true }).limit(0);
-      if (!checkError) {
-        console.log('[Supabase] Schema already exists, skipping creation');
-        return { ok: true };
-      }
-
-      console.log('[Supabase] Schema not found, attempting to create...');
-
-      // Postgres-compatible DDL (SERIAL en vez de AUTOINCREMENT, now() en vez de datetime('now'))
-      const createTablesSqls = [
-        `CREATE TABLE IF NOT EXISTS ano_lectivo (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, user_id TEXT)`,
-        `CREATE TABLE IF NOT EXISTS corte_evaluativo (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, user_id TEXT)`,
-        `CREATE TABLE IF NOT EXISTS colegio (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, orden INTEGER DEFAULT 0, user_id TEXT)`,
-        `CREATE TABLE IF NOT EXISTS asignatura (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0)`,
-        `CREATE TABLE IF NOT EXISTS grado (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0)`,
-        `CREATE TABLE IF NOT EXISTS seccion (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0)`,
-        `CREATE TABLE IF NOT EXISTS estudiante (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL, codigo TEXT NOT NULL, sexo TEXT NOT NULL, ano_lectivo_id INTEGER NOT NULL, grado_id INTEGER NOT NULL, seccion_id INTEGER NOT NULL, colegio_id INTEGER NOT NULL, telefono TEXT, direccion TEXT, email TEXT, foto TEXT, user_id TEXT)`,
-        `CREATE TABLE IF NOT EXISTS configuracion_calificacion (id TEXT PRIMARY KEY, nombre TEXT NOT NULL, color TEXT NOT NULL, minimo INTEGER NOT NULL)`,
-        `CREATE TABLE IF NOT EXISTS grado_asignatura (grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, PRIMARY KEY (grado_id, asignatura_id))`,
-        `CREATE TABLE IF NOT EXISTS colegio_asignatura (colegio_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, PRIMARY KEY (colegio_id, asignatura_id))`,
-        `CREATE TABLE IF NOT EXISTS indicador (id SERIAL PRIMARY KEY, grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, corte_evaluativo_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', activo INTEGER DEFAULT 1, user_id TEXT)`,
-        `CREATE TABLE IF NOT EXISTS criterio (id SERIAL PRIMARY KEY, indicador_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', puntaje_maximo INTEGER NOT NULL)`,
-        `CREATE TABLE IF NOT EXISTS colegio_dias_asistencia (colegio_id INTEGER PRIMARY KEY, lunes INTEGER DEFAULT 1, martes INTEGER DEFAULT 1, miercoles INTEGER DEFAULT 1, jueves INTEGER DEFAULT 1, viernes INTEGER DEFAULT 1, sabado INTEGER DEFAULT 1, domingo INTEGER DEFAULT 1)`,
-        `CREATE TABLE IF NOT EXISTS asistencia (id SERIAL PRIMARY KEY, estudiante_id INTEGER NOT NULL, fecha TEXT NOT NULL, estado TEXT NOT NULL, observacion TEXT, user_id TEXT, UNIQUE(estudiante_id, fecha))`,
-        `CREATE TABLE IF NOT EXISTS nota (estudiante_id INTEGER NOT NULL, criterio_id INTEGER NOT NULL, valor DOUBLE PRECISION NOT NULL, corte_evaluativo_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, user_id TEXT, PRIMARY KEY (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id))`,
-        `CREATE TABLE IF NOT EXISTS sync_deletions (id SERIAL PRIMARY KEY, table_name TEXT NOT NULL, record_id INTEGER NOT NULL, deleted_at TEXT DEFAULT now()::text, user_id TEXT)`,
-        `CREATE TABLE IF NOT EXISTS sync_batch (id SERIAL PRIMARY KEY, table_name TEXT NOT NULL, action TEXT NOT NULL, data TEXT NOT NULL, user_id TEXT, created_at TEXT DEFAULT now()::text)`,
+      const allTables = [
+        'ano_lectivo', 'corte_evaluativo', 'colegio', 'asignatura', 'grado', 'seccion',
+        'estudiante', 'configuracion_calificacion', 'grado_asignatura', 'colegio_asignatura',
+        'indicador', 'criterio', 'colegio_dias_asistencia', 'asistencia', 'nota',
+        'sync_deletions', 'sync_batch',
       ];
 
-      // Opción 1 (preferida y automática): conexión directa a Postgres vía Rust (requiere DB password)
+      // Check if tables already exist by querying ano_lectivo
+      const { error: checkError } = await client.from('ano_lectivo').select('id', { count: 'exact', head: true }).limit(0);
+      const tablesExist = !checkError;
+
+      if (!tablesExist) {
+        console.log('[Supabase] Schema not found, attempting to create...');
+
+        // Postgres-compatible DDL (SERIAL en vez de AUTOINCREMENT, now() en vez de datetime('now'))
+        const createTablesSqls = [
+          `CREATE TABLE IF NOT EXISTS ano_lectivo (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, user_id TEXT)`,
+          `CREATE TABLE IF NOT EXISTS corte_evaluativo (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, user_id TEXT)`,
+          `CREATE TABLE IF NOT EXISTS colegio (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, orden INTEGER DEFAULT 0, user_id TEXT)`,
+          `CREATE TABLE IF NOT EXISTS asignatura (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0, user_id TEXT)`,
+          `CREATE TABLE IF NOT EXISTS grado (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0, user_id TEXT)`,
+          `CREATE TABLE IF NOT EXISTS seccion (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0, user_id TEXT)`,
+          `CREATE TABLE IF NOT EXISTS estudiante (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL, codigo TEXT NOT NULL, sexo TEXT NOT NULL, ano_lectivo_id INTEGER NOT NULL, grado_id INTEGER NOT NULL, seccion_id INTEGER NOT NULL, colegio_id INTEGER NOT NULL, telefono TEXT, direccion TEXT, email TEXT, foto TEXT, user_id TEXT)`,
+          `CREATE TABLE IF NOT EXISTS configuracion_calificacion (id TEXT PRIMARY KEY, nombre TEXT NOT NULL, color TEXT NOT NULL, minimo INTEGER NOT NULL)`,
+          `CREATE TABLE IF NOT EXISTS grado_asignatura (grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, PRIMARY KEY (grado_id, asignatura_id))`,
+          `CREATE TABLE IF NOT EXISTS colegio_asignatura (colegio_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, PRIMARY KEY (colegio_id, asignatura_id))`,
+          `CREATE TABLE IF NOT EXISTS indicador (id SERIAL PRIMARY KEY, grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, corte_evaluativo_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', activo INTEGER DEFAULT 1, user_id TEXT)`,
+          `CREATE TABLE IF NOT EXISTS criterio (id SERIAL PRIMARY KEY, indicador_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', puntaje_maximo INTEGER NOT NULL)`,
+          `CREATE TABLE IF NOT EXISTS colegio_dias_asistencia (colegio_id INTEGER PRIMARY KEY, lunes INTEGER DEFAULT 1, martes INTEGER DEFAULT 1, miercoles INTEGER DEFAULT 1, jueves INTEGER DEFAULT 1, viernes INTEGER DEFAULT 1, sabado INTEGER DEFAULT 1, domingo INTEGER DEFAULT 1)`,
+          `CREATE TABLE IF NOT EXISTS asistencia (id SERIAL PRIMARY KEY, estudiante_id INTEGER NOT NULL, fecha TEXT NOT NULL, estado TEXT NOT NULL, observacion TEXT, user_id TEXT, UNIQUE(estudiante_id, fecha))`,
+          `CREATE TABLE IF NOT EXISTS nota (estudiante_id INTEGER NOT NULL, criterio_id INTEGER NOT NULL, valor DOUBLE PRECISION NOT NULL, corte_evaluativo_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, user_id TEXT, PRIMARY KEY (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id))`,
+          `CREATE TABLE IF NOT EXISTS sync_deletions (id SERIAL PRIMARY KEY, table_name TEXT NOT NULL, record_id INTEGER NOT NULL, deleted_at TEXT DEFAULT now()::text, user_id TEXT)`,
+          `CREATE TABLE IF NOT EXISTS sync_batch (id SERIAL PRIMARY KEY, table_name TEXT NOT NULL, action TEXT NOT NULL, data TEXT NOT NULL, user_id TEXT, created_at TEXT DEFAULT now()::text)`,
+        ];
+
+        // Opción 1 (preferida y automática): conexión directa a Postgres vía Rust (requiere DB password)
+        const connStrings = getSupabaseConnStrings();
+        if (connStrings && connStrings.length > 0) {
+          console.log('[Supabase] Creando schema vía conexión directa a Postgres...');
+          try {
+            for (const sql of createTablesSqls) {
+              await invoke('supabase_execute_sql', { connectionStrings: connStrings, sql });
+            }
+            console.log('[Supabase] Schema creado exitosamente (Postgres directo)');
+          } catch (e: any) {
+            console.warn('[Supabase] Conexión directa a Postgres falló, probando RPC:', e);
+            // continúa al fallback RPC
+            for (const sql of createTablesSqls) {
+              const { error: rpcError } = await client.rpc('exec_sql', { query: sql });
+              if (rpcError) {
+                return {
+                  ok: false,
+                  error: `No se pudo crear el schema automáticamente. Ingresa tu "Database Password" de Supabase en Ajustes → Nube (sección Supabase). Si preferís configurarlo en el servidor, creá la función exec_sql en el SQL Editor de Supabase:\n\nCREATE OR REPLACE FUNCTION exec_sql(query text)\nRETURNS void AS $$\nBEGIN\n  EXECUTE query;\nEND;\n$$ LANGUAGE plpgsql SECURITY DEFINER;`,
+                };
+              }
+            }
+          }
+        } else {
+          // Opción 2 (fallback): función RPC exec_sql
+          console.log('[Supabase] Creando schema vía RPC exec_sql...');
+          for (const sql of createTablesSqls) {
+            const { error: rpcError } = await client.rpc('exec_sql', { query: sql });
+            if (rpcError) {
+              return {
+                ok: false,
+                error: `No se pudo crear el schema automáticamente. Ingresa tu "Database Password" de Supabase en Ajustes → Nube (sección Supabase). Si preferís configurarlo en el servidor, creá la función exec_sql en el SQL Editor de Supabase:\n\nCREATE OR REPLACE FUNCTION exec_sql(query text)\nRETURNS void AS $$\nBEGIN\n  EXECUTE query;\nEND;\n$$ LANGUAGE plpgsql SECURITY DEFINER;`,
+              };
+            }
+          }
+        }
+        console.log('[Supabase] Schema creado exitosamente');
+      } else {
+        console.log('[Supabase] Tablas existentes, aplicando ajustes idempotentes...');
+      }
+
+      // Ajustes idempotentes: asegurar columna user_id en tablas que no la tienen
+      // y DESACTIVAR RLS (la app usa anon key sin auth, por lo que RLS bloquea todo DML).
+      const fixSqls = [
+        'ALTER TABLE grado ADD COLUMN IF NOT EXISTS user_id TEXT;',
+        'ALTER TABLE seccion ADD COLUMN IF NOT EXISTS user_id TEXT;',
+        'ALTER TABLE asignatura ADD COLUMN IF NOT EXISTS user_id TEXT;',
+        ...allTables.map((t) => `ALTER TABLE ${t} DISABLE ROW LEVEL SECURITY;`),
+      ];
       const connStrings = getSupabaseConnStrings();
       if (connStrings && connStrings.length > 0) {
-        console.log('[Supabase] Creando schema vía conexión directa a Postgres...');
-        try {
-          for (const sql of createTablesSqls) {
+        for (const sql of fixSqls) {
+          try {
             await invoke('supabase_execute_sql', { connectionStrings: connStrings, sql });
+          } catch (e) {
+            console.warn('[Supabase] Ajuste no crítico falló:', e);
           }
-          console.log('[Supabase] Schema creado exitosamente (Postgres directo)');
-          return { ok: true };
-        } catch (e: any) {
-          console.warn('[Supabase] Conexión directa a Postgres falló, probando RPC:', e);
-          // continúa al fallback RPC
+        }
+      } else {
+        for (const sql of fixSqls) {
+          try {
+            await client.rpc('exec_sql', { query: sql });
+          } catch (e) {
+            console.warn('[Supabase] Ajuste RPC no crítico falló:', e);
+          }
         }
       }
 
-      // Opción 2 (fallback): función RPC exec_sql
-      console.log('[Supabase] Creando schema vía RPC exec_sql...');
-      for (const sql of createTablesSqls) {
-        const { error: rpcError } = await client.rpc('exec_sql', { query: sql });
-        if (rpcError) {
-          console.warn('[Supabase] RPC exec_sql falló:', rpcError.message);
-          return {
-            ok: false,
-            error: `No se pudo crear el schema automáticamente. Ingresa tu "Database Password" de Supabase en Ajustes → Nube (sección Supabase). Si preferís configurarlo en el servidor, creá la función exec_sql en el SQL Editor de Supabase:\n\nCREATE OR REPLACE FUNCTION exec_sql(query text)\nRETURNS void AS $$\nBEGIN\n  EXECUTE query;\nEND;\n$$ LANGUAGE plpgsql SECURITY DEFINER;`,
-          };
-        }
-      }
-      console.log('[Supabase] Schema creado exitosamente (RPC)');
       return { ok: true };
     } catch (e: any) {
       console.error('[Supabase] ensureSchema exception:', e);
