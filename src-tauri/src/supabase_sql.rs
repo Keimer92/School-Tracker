@@ -25,9 +25,11 @@ type BoxedFuture = Pin<Box<dyn Future<Output = Result<String, String>> + Send>>;
 #[tauri::command]
 pub async fn supabase_execute_sql(connection_strings: Vec<String>, sql: String) -> Result<String, String> {
     // Probar el primero (generalmente el directo) de forma secuencial rápida
+    let mut direct_err: Option<String> = None;
     if let Some(first) = connection_strings.first() {
-        if let Ok(ok) = try_connect(first, &sql).await {
-            return Ok(ok);
+        match try_connect(first, &sql).await {
+            Ok(ok) => return Ok(ok),
+            Err(e) => direct_err = Some(e),
         }
     }
 
@@ -43,7 +45,9 @@ pub async fn supabase_execute_sql(connection_strings: Vec<String>, sql: String) 
         .collect();
 
     if pooler_attempts.is_empty() {
-        return Err("No se pudo conectar a Postgres (sin password/configuración de BD).".to_string());
+        return Err(direct_err.unwrap_or_else(|| {
+            "No se pudo conectar a Postgres (sin password/configuración de BD).".to_string()
+        }));
     }
 
     match select_ok(pooler_attempts).await {
@@ -54,3 +58,63 @@ pub async fn supabase_execute_sql(connection_strings: Vec<String>, sql: String) 
         )),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pct_encode(s: &str) -> String {
+        let mut out = String::new();
+        for c in s.chars() {
+            match c {
+                '@' => out.push_str("%40"),
+                ':' => out.push_str("%3A"),
+                '/' => out.push_str("%2F"),
+                '%' => out.push_str("%25"),
+                '?' => out.push_str("%3F"),
+                '#' => out.push_str("%23"),
+                _ => out.push(c),
+            }
+        }
+        out
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn verify_supabase_connectivity_and_ddl() {
+        let url = std::env::var("VITE_SUPABASE_URL").expect("VITE_SUPABASE_URL");
+        let pw = std::env::var("VITE_SUPABASE_DB_PASSWORD").expect("VITE_SUPABASE_DB_PASSWORD");
+        let cleaned = url
+            .trim_start_matches("https://")
+            .trim_start_matches("http://");
+        let ref_part = cleaned.split(".supabase").next().unwrap_or("");
+        let enc = pct_encode(&pw);
+        let direct = format!(
+            "postgresql://postgres:{}@db.{}.supabase.co:5432/postgres?sslmode=require",
+            enc, ref_part
+        );
+        let regions = [
+            "aws-0-us-east-1", "aws-0-us-east-2", "aws-0-us-west-1", "aws-0-us-west-2",
+            "aws-0-ca-central-1", "aws-0-eu-west-1", "aws-0-eu-west-2", "aws-0-eu-west-3",
+            "aws-0-eu-central-1", "aws-0-eu-north-1", "aws-0-ap-south-1",
+            "aws-0-ap-southeast-1", "aws-0-ap-southeast-2", "aws-0-ap-northeast-1",
+            "aws-0-ap-northeast-2", "aws-0-sa-east-1", "aws-0-af-south-1",
+        ];
+        let mut conn_strings = vec![direct];
+        for r in regions {
+            conn_strings.push(format!(
+                "postgresql://postgres.{}:{}@{}.pooler.supabase.com:6543/postgres?sslmode=require",
+                ref_part, enc, r
+            ));
+        }
+
+        let r = supabase_execute_sql(
+            conn_strings,
+            "CREATE TABLE IF NOT EXISTS _st_verify (id SERIAL PRIMARY KEY); DROP TABLE IF EXISTS _st_verify;".to_string(),
+        )
+        .await;
+        println!("RESULT: {:?}", r);
+        assert!(r.is_ok(), "Conexión/DDL falló: {:?}", r);
+    }
+}
+
