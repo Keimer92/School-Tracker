@@ -583,6 +583,7 @@
     nextRefreshSilent = false;
     const indToUse = currentIndicadores || indicadores;
     const { corte, asignatura, grado, seccion, sexo } = filtersRef;
+    notasCuantitativas = {};
     try {
       const [dataRaw, notasGuardadas] = preFetchedData
         ? [preFetchedData.estudiantes, preFetchedData.notas]
@@ -650,16 +651,19 @@
   // Save
   async function handleGuardarNotas() {
     if (notas.length === 0) { await emit("show-toast", { message: "⚠️ No hay estudiantes para guardar notas", type: 'info' }); return; }
+    const saveCorteId = selectedCorte;
+    const saveAsignaturaId = selectedAsignatura;
     const notasActualizadas = notas.map(notaEst => {
       const updatedNotas: Record<number, number> = { ...notaEst.notas };
       indicadores.forEach(ind => { ind.criterios.forEach(crit => {
         const key = `${notaEst.estudianteId}-${crit.id}`;
-        const refValue = notasCuantitativas[key];
-        if (refValue !== undefined) updatedNotas[crit.id] = refValue;
         const qualValue = notasCualitativas[key];
         if (qualValue && ['AA', 'AS', 'AF', 'AI'].includes(qualValue)) {
           const percentage = notaMapping[qualValue];
           updatedNotas[crit.id] = Math.round(crit.puntajeMaximo * percentage);
+        } else {
+          const refValue = notasCuantitativas[key];
+          if (refValue !== undefined) updatedNotas[crit.id] = refValue;
         }
       }); });
       return { ...notaEst, notas: updatedNotas };
@@ -686,7 +690,7 @@
         estudianteId: notaEst.estudianteId,
         notas: Object.entries(notaEst.notas).map(([criterioId, valor]) => ({ criterioId: parseInt(criterioId), valor }))
       }));
-      await invoke("save_notas_estudiantes", { notas: notasParaGuardar, corteId: selectedCorte, asignaturaId: selectedAsignatura });
+      await invoke("save_notas_estudiantes", { notas: notasParaGuardar, corteId: saveCorteId, asignaturaId: saveAsignaturaId });
       history = [];
       redoStack = [];
       hasUnsavedRef = false;
@@ -707,9 +711,11 @@
   async function handleDeleteNotas() {
     try {
       deleting = true;
+      const delCorteId = selectedCorte;
+      const delAsignaturaId = selectedAsignatura;
       await invoke<number>("delete_notas", {
-        corteEvaluativoId: selectedCorte,
-        asignaturaId: selectedAsignatura,
+        corteEvaluativoId: delCorteId,
+        asignaturaId: delAsignaturaId,
         estudianteId: deleteMode === 'student' ? deleteStudentId : 0,
         criterioId: deleteMode === 'indicator' ? deleteIndicatorId : 0,
       });
