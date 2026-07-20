@@ -1586,6 +1586,24 @@ export const syncService = {
         return !error;
       };
 
+      const runSqlStatements = async (sqlStatements: string[]) => {
+        const connStrings = getSupabaseConnStrings();
+        if (connStrings && connStrings.length > 0) {
+          for (const sql of sqlStatements) {
+            await invoke('supabase_execute_sql', { connectionStrings: connStrings, sql });
+          }
+          return true;
+        }
+
+        for (const sql of sqlStatements) {
+          const { error } = await client.rpc('exec_sql', { query: sql });
+          if (error) {
+            return false;
+          }
+        }
+        return true;
+      };
+
       // Check if tables already exist by querying ano_lectivo
       let tablesExist = await probeTable('ano_lectivo');
 
@@ -1613,40 +1631,13 @@ export const syncService = {
           `CREATE TABLE IF NOT EXISTS sync_batch (id SERIAL PRIMARY KEY, table_name TEXT NOT NULL, action TEXT NOT NULL, data TEXT NOT NULL, user_id TEXT, created_at TEXT DEFAULT now()::text)`,
         ];
 
-        // Opción 1 (preferida y automática): conexión directa a Postgres vía Rust (requiere DB password)
-        const connStrings = getSupabaseConnStrings();
-        if (connStrings && connStrings.length > 0) {
-          console.log('[Supabase] Creando schema vía conexión directa a Postgres...');
-          try {
-            for (const sql of createTablesSqls) {
-              await invoke('supabase_execute_sql', { connectionStrings: connStrings, sql });
-            }
-            console.log('[Supabase] Schema creado exitosamente (Postgres directo)');
-          } catch (e: any) {
-            console.warn('[Supabase] Conexión directa a Postgres falló, probando RPC:', e);
-            // continúa al fallback RPC
-            for (const sql of createTablesSqls) {
-              const { error: rpcError } = await client.rpc('exec_sql', { query: sql });
-              if (rpcError) {
-                return {
-                  ok: false,
-                  error: `No se pudo crear el schema automáticamente. Ingresa tu "Database Password" de Supabase en Ajustes → Nube (sección Supabase). Si preferís configurarlo en el servidor, creá la función exec_sql en el SQL Editor de Supabase:\n\nCREATE OR REPLACE FUNCTION exec_sql(query text)\nRETURNS void AS $$\nBEGIN\n  EXECUTE query;\nEND;\n$$ LANGUAGE plpgsql SECURITY DEFINER;`,
-                };
-              }
-            }
-          }
-        } else {
-          // Opción 2 (fallback): función RPC exec_sql
-          console.log('[Supabase] Creando schema vía RPC exec_sql...');
-          for (const sql of createTablesSqls) {
-            const { error: rpcError } = await client.rpc('exec_sql', { query: sql });
-            if (rpcError) {
-              return {
-                ok: false,
-                error: `No se pudo crear el schema automáticamente. Ingresa tu "Database Password" de Supabase en Ajustes → Nube (sección Supabase). Si preferís configurarlo en el servidor, creá la función exec_sql en el SQL Editor de Supabase:\n\nCREATE OR REPLACE FUNCTION exec_sql(query text)\nRETURNS void AS $$\nBEGIN\n  EXECUTE query;\nEND;\n$$ LANGUAGE plpgsql SECURITY DEFINER;`,
-              };
-            }
-          }
+        console.log('[Supabase] Creando schema vía SQL directo o RPC...');
+        const schemaCreated = await runSqlStatements(createTablesSqls);
+        if (!schemaCreated) {
+          return {
+            ok: false,
+            error: `No se pudo crear el schema automáticamente. Ingresa tu "Database Password" de Supabase en Ajustes → Nube (sección Supabase). Si preferís configurarlo en el servidor, creá la función exec_sql en el SQL Editor de Supabase:\n\nCREATE OR REPLACE FUNCTION exec_sql(query text)\nRETURNS void AS $$\nBEGIN\n  EXECUTE query;\nEND;\n$$ LANGUAGE plpgsql SECURITY DEFINER;`,
+          };
         }
         console.log('[Supabase] Schema creado exitosamente');
       } else {

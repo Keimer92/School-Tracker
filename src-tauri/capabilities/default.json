@@ -40,6 +40,7 @@
     "fs:allow-appdata-write-recursive",
     "fs:allow-appdata-read-recursive",
     "allow-local-commands",
+    "allow-supabase-execute-sql",
     "core:webview:allow-create-webview",
     "core:window:allow-create",
     "core:window:allow-close",
