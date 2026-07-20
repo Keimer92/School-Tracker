@@ -2,8 +2,38 @@ import { supabase, saveSupabaseConfig, clearSupabaseConfig, getSupabaseClient, d
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
 import { syncManager } from './tursoSyncService';
+import { getSupabaseErrorMessage, isMissingTableError } from './supabaseSchema';
 
 export type { SyncStatus } from './tursoSyncService';
+
+const withSupabaseSchemaRecovery = async <T,>(
+  operation: () => Promise<T>,
+  context: string,
+  tables: string[] = []
+): Promise<T> => {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      const isMissing = isMissingTableError(error) || tables.some((table) => getSupabaseErrorMessage(error).includes(table));
+      if (!isMissing || attempt >= 2) {
+        throw error;
+      }
+
+      console.warn(`[Supabase] ${context} falló por tabla/schema no disponible; reintentando en ${400 * (attempt + 1)}ms...`, error);
+      await new Promise((resolve) => globalThis.setTimeout(resolve, 400 * (attempt + 1)));
+      const schemaResult = await syncService.ensureSchema();
+      if (!schemaResult.ok) {
+        console.warn('[Supabase] Reintento de schema fallido:', schemaResult.error);
+      }
+    }
+  }
+
+  throw lastError;
+};
 
 /**
  * Construye la LISTA de connection strings de Postgres a probar, en orden:
@@ -1170,20 +1200,23 @@ export const syncService = {
 
       console.log(`[Sync] Consultando tablas con user_id: ${userId}`);
 
-      const results = await Promise.all(
-        tables.map(table => {
-          console.log(`[Sync] Consultando ${table}...`);
-          return supabase.from(table).select('*').eq('user_id', userId);
-        })
-      );
+      const results = await withSupabaseSchemaRecovery(async () => {
+        const queryResults = await Promise.all(
+          tables.map(table => {
+            console.log(`[Sync] Consultando ${table}...`);
+            return supabase.from(table).select('*').eq('user_id', userId);
+          })
+        );
 
-      // Verificar errores en cada consulta
-      const errors = results.filter(r => r.error).map(r => r.error);
-      if (errors.length > 0) {
-        const errorDetails = errors.map(e => e?.message).join(', ');
-        console.error('[Sync] Errores en consultas:', errors);
-        throw new Error(`Error descargando datos: ${errorDetails}`);
-      }
+        const errors = queryResults.filter(r => r.error).map(r => r.error);
+        if (errors.length > 0) {
+          const errorDetails = errors.map(e => e?.message).join(', ');
+          console.error('[Sync] Errores en consultas:', errors);
+          throw new Error(`Error descargando datos: ${errorDetails}`);
+        }
+
+        return queryResults;
+      }, 'descarga de datos desde Supabase', tables);
 
       const [
         anos, cortes, colegios, asignaturas, grados, secciones,
@@ -1548,9 +1581,13 @@ export const syncService = {
         'sync_deletions', 'sync_batch',
       ];
 
+      const probeTable = async (tableName: string) => {
+        const { error } = await client.from(tableName).select('id', { count: 'exact', head: true }).limit(0);
+        return !error;
+      };
+
       // Check if tables already exist by querying ano_lectivo
-      const { error: checkError } = await client.from('ano_lectivo').select('id', { count: 'exact', head: true }).limit(0);
-      const tablesExist = !checkError;
+      let tablesExist = await probeTable('ano_lectivo');
 
       if (!tablesExist) {
         console.log('[Supabase] Schema not found, attempting to create...');
@@ -1565,11 +1602,11 @@ export const syncService = {
           `CREATE TABLE IF NOT EXISTS seccion (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0, user_id TEXT)`,
           `CREATE TABLE IF NOT EXISTS estudiante (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL, codigo TEXT NOT NULL, sexo TEXT NOT NULL, ano_lectivo_id INTEGER NOT NULL, grado_id INTEGER NOT NULL, seccion_id INTEGER NOT NULL, colegio_id INTEGER NOT NULL, telefono TEXT, direccion TEXT, email TEXT, foto TEXT, user_id TEXT)`,
           `CREATE TABLE IF NOT EXISTS configuracion_calificacion (id TEXT PRIMARY KEY, nombre TEXT NOT NULL, color TEXT NOT NULL, minimo INTEGER NOT NULL)`,
-          `CREATE TABLE IF NOT EXISTS grado_asignatura (grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, PRIMARY KEY (grado_id, asignatura_id))`,
-          `CREATE TABLE IF NOT EXISTS colegio_asignatura (colegio_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, PRIMARY KEY (colegio_id, asignatura_id))`,
+          `CREATE TABLE IF NOT EXISTS grado_asignatura (grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, user_id TEXT, PRIMARY KEY (grado_id, asignatura_id))`,
+          `CREATE TABLE IF NOT EXISTS colegio_asignatura (colegio_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, user_id TEXT, PRIMARY KEY (colegio_id, asignatura_id))`,
           `CREATE TABLE IF NOT EXISTS indicador (id SERIAL PRIMARY KEY, grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, corte_evaluativo_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', activo INTEGER DEFAULT 1, user_id TEXT)`,
-          `CREATE TABLE IF NOT EXISTS criterio (id SERIAL PRIMARY KEY, indicador_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', puntaje_maximo INTEGER NOT NULL)`,
-          `CREATE TABLE IF NOT EXISTS colegio_dias_asistencia (colegio_id INTEGER PRIMARY KEY, lunes INTEGER DEFAULT 1, martes INTEGER DEFAULT 1, miercoles INTEGER DEFAULT 1, jueves INTEGER DEFAULT 1, viernes INTEGER DEFAULT 1, sabado INTEGER DEFAULT 1, domingo INTEGER DEFAULT 1)`,
+          `CREATE TABLE IF NOT EXISTS criterio (id SERIAL PRIMARY KEY, indicador_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', puntaje_maximo INTEGER NOT NULL, user_id TEXT)`,
+          `CREATE TABLE IF NOT EXISTS colegio_dias_asistencia (colegio_id INTEGER PRIMARY KEY, lunes INTEGER DEFAULT 1, martes INTEGER DEFAULT 1, miercoles INTEGER DEFAULT 1, jueves INTEGER DEFAULT 1, viernes INTEGER DEFAULT 1, sabado INTEGER DEFAULT 1, domingo INTEGER DEFAULT 1, user_id TEXT)`,
           `CREATE TABLE IF NOT EXISTS asistencia (id SERIAL PRIMARY KEY, estudiante_id INTEGER NOT NULL, fecha TEXT NOT NULL, estado TEXT NOT NULL, observacion TEXT, user_id TEXT, UNIQUE(estudiante_id, fecha))`,
           `CREATE TABLE IF NOT EXISTS nota (estudiante_id INTEGER NOT NULL, criterio_id INTEGER NOT NULL, valor DOUBLE PRECISION NOT NULL, corte_evaluativo_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, user_id TEXT, PRIMARY KEY (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id))`,
           `CREATE TABLE IF NOT EXISTS sync_deletions (id SERIAL PRIMARY KEY, table_name TEXT NOT NULL, record_id INTEGER NOT NULL, deleted_at TEXT DEFAULT now()::text, user_id TEXT)`,
@@ -1616,12 +1653,35 @@ export const syncService = {
         console.log('[Supabase] Tablas existentes, aplicando ajustes idempotentes...');
       }
 
+      // Verificar que todas las tablas estén visibles en PostgREST tras la creación/ajuste.
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const verification = await Promise.all(allTables.map((table) => probeTable(table)));
+        if (verification.every(Boolean)) {
+          tablesExist = true;
+          break;
+        }
+        if (attempt < 2) {
+          await new Promise((resolve) => globalThis.setTimeout(resolve, 500 * (attempt + 1)));
+        }
+      }
+
+      if (!tablesExist) {
+        return {
+          ok: false,
+          error: 'No se pudo verificar la disponibilidad del schema en Supabase. Reintenta después de unos segundos.',
+        };
+      }
+
       // Ajustes idempotentes: asegurar columna user_id en tablas que no la tienen
       // y DESACTIVAR RLS (la app usa anon key sin auth, por lo que RLS bloquea todo DML).
       const fixSqls = [
         'ALTER TABLE grado ADD COLUMN IF NOT EXISTS user_id TEXT;',
         'ALTER TABLE seccion ADD COLUMN IF NOT EXISTS user_id TEXT;',
         'ALTER TABLE asignatura ADD COLUMN IF NOT EXISTS user_id TEXT;',
+        'ALTER TABLE criterio ADD COLUMN IF NOT EXISTS user_id TEXT;',
+        'ALTER TABLE grado_asignatura ADD COLUMN IF NOT EXISTS user_id TEXT;',
+        'ALTER TABLE colegio_asignatura ADD COLUMN IF NOT EXISTS user_id TEXT;',
+        'ALTER TABLE colegio_dias_asistencia ADD COLUMN IF NOT EXISTS user_id TEXT;',
         ...allTables.map((t) => `ALTER TABLE ${t} DISABLE ROW LEVEL SECURITY;`),
       ];
       const connStrings = getSupabaseConnStrings();
