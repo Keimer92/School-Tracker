@@ -52,6 +52,7 @@
   let isMobile = $state(false);
   let isAndroid = $state(false);
   let printHtml: string | null = $state(null);
+  let exportModoSimple = $state(false);
   let loadId = 0;
 
   let isQualitative = $derived.by(() => {
@@ -456,16 +457,17 @@
         yPos += 6;
       });
 
-      const tableHeaders = ["Estudiante", "Sexo", ...(specialCorte ? [] : configIndicadores.map(ind => `Ind. ${ind.orden}`)), "Nota Final"];
+      const mostrarIndicadores = !specialCorte && !exportModoSimple;
+      const tableHeaders = ["Estudiante", "Sexo", ...(mostrarIndicadores ? configIndicadores.map(ind => `Ind. ${ind.orden}`) : []), "Nota Final"];
       const tableRows = estudiantes.map(est => [
         est.nombre, est.sexo,
-        ...(specialCorte ? [] : configIndicadores.map(ind => {
+        ...(mostrarIndicadores ? configIndicadores.map(ind => {
           const nota = est.notasIndicadores[ind.id] || 0;
           const label = est.notasCualitativasIndicadores[ind.id] || "";
           if (label === "-" || label === "") return "-";
           if (isQualitative) return label;
           return `${nota}${label ? ` ${label}` : ''}`;
-        })),
+        }) : []),
         (est.notaFinalCualitativa === "-" || !est.notaFinalCualitativa) ? "-" : (isQualitative ? (est.notaFinalCualitativa || '-') : `${est.notaFinal}${est.notaFinalCualitativa ? ` ${est.notaFinalCualitativa}` : ''}`)
       ]);
 
@@ -481,7 +483,7 @@
             let colorHex = "";
             if (data.column.index === tableHeaders.length - 1) {
               colorHex = est.notaFinalCualitativa === "-" ? "#64748b" : getNoteColor(est.notaFinal, est.notaFinalCualitativa, totalPuntajeMaximoConfig);
-            } else {
+            } else if (mostrarIndicadores) {
               const indicator = configIndicadores[data.column.index - 2];
               if (!indicator.activo) { colorHex = "#64748b"; } else {
                 const label = est.notasCualitativasIndicadores[indicator.id] || (isQualitative ? 'AI' : '');
@@ -531,14 +533,15 @@
     try {
       await emit("show-toast", { message: "✅ Preparando reporte...", type: 'success' });
       const names = selectedNames; const date = new Date().toLocaleDateString();
-      const headers = ["Estudiante", "Sexo", ...(specialCorte ? [] : configIndicadores.map(ind => `Ind. ${ind.orden}`)), "Nota Final"];
+      const mostrarIndicadores = !specialCorte && !exportModoSimple;
+      const headers = ["Estudiante", "Sexo", ...(mostrarIndicadores ? configIndicadores.map(ind => `Ind. ${ind.orden}`) : []), "Nota Final"];
       const rows = estudiantes.map(est => {
         const cells = [est.nombre, est.sexo,
-          ...(specialCorte ? [] : configIndicadores.map(ind => {
+          ...(mostrarIndicadores ? configIndicadores.map(ind => {
             const nota = est.notasIndicadores[ind.id] || 0; const label = est.notasCualitativasIndicadores[ind.id] || "";
             if (label === "-" || label === "") return "-";
             return isQualitative ? label : `${nota}${label ? ` ${label}` : ''}`;
-          })),
+          }) : []),
           (est.notaFinalCualitativa === "-" || !est.notaFinalCualitativa) ? "-" : (isQualitative ? (est.notaFinalCualitativa || '-') : `${est.notaFinal}${est.notaFinalCualitativa ? ` ${est.notaFinalCualitativa}` : ''}`)
         ];
         return `<tr>${cells.map(c => `<td>${c}</td>`).join('')}</tr>`;
@@ -709,6 +712,13 @@
             <div style="flex:1;min-width:80px">
               <SearchInput bind:value={searchTerm} onChange={(v: string) => searchTerm = v} placeholder="Buscar..." {isMobile} />
             </div>
+            <label style="display:flex;align-items:center;gap:6px;font-size:0.72rem;color:#94a3b8;cursor:pointer;flex-shrink:0;white-space:nowrap;user-select:none;padding:0.2rem 0.4rem;border-radius:8px;border:1px solid {exportModoSimple ? 'rgba(139,92,246,0.3)' : 'rgba(255,255,255,0.06)'};background:{exportModoSimple ? 'rgba(139,92,246,0.08)' : 'transparent'};transition:all 0.2s ease">
+              <div style="position:relative;width:32px;height:18px;background:{exportModoSimple ? '#8b5cf6' : 'rgba(255,255,255,0.15)'};border-radius:10px;transition:all 0.25s ease;box-shadow:{exportModoSimple ? '0 0 8px rgba(139,92,246,0.4)' : 'inset 0 1px 3px rgba(0,0,0,0.3)'}">
+                <div style="position:absolute;top:2px;left:{exportModoSimple ? '16px' : '2px'};width:14px;height:14px;border-radius:50%;background:white;transition:all 0.25s ease;box-shadow:0 1px 3px rgba(0,0,0,0.3)"></div>
+                <input type="checkbox" bind:checked={exportModoSimple} style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;margin:0" />
+              </div>
+              <span style="font-weight:{exportModoSimple ? '600' : '400'};color:{exportModoSimple ? '#c4b5fd' : '#94a3b8'};transition:all 0.2s ease">Solo nota final</span>
+            </label>
             {#if !isAndroid}
               <button class="secondary" onclick={handlePrintWithIframe} disabled={estudiantes.length === 0 || loading}
                 style="padding:0.3rem 0.6rem;font-size:0.75rem;height:28px;background-color:#10b981;display:flex;align-items:center;justify-content:center;flex-shrink:0"
