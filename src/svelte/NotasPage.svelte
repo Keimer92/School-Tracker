@@ -116,6 +116,20 @@
   const reverseQualitativeWeights: Record<number, string> = { 4: 'AA', 3: 'AS', 2: 'AF', 1: 'AI' };
 
   // Helpers
+  function getMidPctForGrade(grade: string): number {
+    const sortedConfigs = [...(gradeConfigs.length > 0 ? gradeConfigs : [
+      { id: 'AA', nombre: 'AA', color: '#22c55e', minimo: 90 },
+      { id: 'AS', nombre: 'AS', color: '#6b7280', minimo: 70 },
+      { id: 'AF', nombre: 'AF', color: '#eab308', minimo: 50 },
+      { id: 'AI', nombre: 'AI', color: '#ef4444', minimo: 0 },
+    ])].sort((a, b) => a.minimo - b.minimo);
+    const idx = sortedConfigs.findIndex(c => c.id === grade);
+    if (idx === -1) return 50;
+    const min = sortedConfigs[idx].minimo;
+    const nextMin = idx < sortedConfigs.length - 1 ? sortedConfigs[idx + 1].minimo : 101;
+    return Math.round((min + (nextMin - 1)) / 2);
+  }
+
   function getGradeFromScore(score: number) {
     const config = sortedGradeConfigs.find(c => score >= c.minimo);
     return config || { id: 'AI', color: '#ef4444', minimo: 0 };
@@ -170,8 +184,13 @@
 
   function calcularPctPreview(estudianteId: number, targetStr: string | undefined): number {
     if (!targetStr || targetStr.trim() === '') return calcularPctActual(estudianteId);
-    const targetPct = parseFloat(targetStr);
-    if (isNaN(targetPct) || targetPct < 0) return calcularPctActual(estudianteId);
+    let targetPct: number;
+    if (isQualitative && ['AA', 'AS', 'AF', 'AI'].includes(targetStr.trim().toUpperCase())) {
+      targetPct = getMidPctForGrade(targetStr.trim().toUpperCase());
+    } else {
+      targetPct = parseFloat(targetStr);
+      if (isNaN(targetPct) || targetPct < 0) return calcularPctActual(estudianteId);
+    }
     if (activeIndicadores.length === 0) return 0;
     const indInfos: { weight: number; c1: Criterio; c2: Criterio; c3: Criterio }[] = [];
     let maxTotal = 0;
@@ -247,8 +266,13 @@
     for (const estNota of filteredNotas) {
       const targetStr = distribuirTargets[estNota.estudianteId];
       if (!targetStr || targetStr.trim() === '') continue;
-      const targetPct = parseFloat(targetStr);
-      if (isNaN(targetPct) || targetPct < 0) continue;
+      let targetPct: number;
+      if (isQualitative && ['AA', 'AS', 'AF', 'AI'].includes(targetStr.trim().toUpperCase())) {
+        targetPct = getMidPctForGrade(targetStr.trim().toUpperCase());
+      } else {
+        targetPct = parseFloat(targetStr);
+        if (isNaN(targetPct) || targetPct < 0) continue;
+      }
       const targetRaw = Math.round((Math.min(targetPct, 100) / 100) * maxTotal);
       let runningError = 0;
       for (const ii of indInfos) {
@@ -1379,7 +1403,7 @@
             <div style="width: 44px; height: 44px; border-radius: 14px; background: rgba(139, 92, 246, 0.12); border: 1px solid rgba(139, 92, 246, 0.2); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0;">✨</div>
             <div>
               <h3 style="margin: 0; color: #f1f5f9; font-size: 1.15rem; font-weight: 700;">Distribuir notas automáticamente</h3>
-              <p style="margin: 0.2rem 0 0; color: #94a3b8; font-size: 0.75rem;">C3 tendrá la nota más alta de los 3 criterios. El sistema calculará C1, C2 y C3 para alcanzar el total deseado.</p>
+              <p style="margin: 0.2rem 0 0; color: #94a3b8; font-size: 0.75rem;">C3 tendrá la nota más alta de los 3 criterios. {isQualitative ? 'Seleccione AA, AS, AF o AI como nota objetivo. El sistema usará el punto medio del rango.' : 'Ingrese el porcentaje total deseado (0-100) y el sistema calculará C1, C2 y C3.'}</p>
             </div>
           </div>
           <div style="display: flex; align-items: center; gap: 0.5rem; margin: 0.5rem 0 0.75rem;">
@@ -1396,9 +1420,9 @@
                 <tr style="position: sticky; top: 0; z-index: 1;">
                   <th style="text-align: left; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">#</th>
                   <th style="text-align: left; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Estudiante</th>
-                  <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Actual %</th>
+                  <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Actual</th>
                   <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #a78bfa; font-weight: 600; border-bottom: 1px solid rgba(139,92,246,0.15);">→ Resultante</th>
-                  <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Nuevo total (0-100)</th>
+                  <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">{isQualitative ? 'Nota objetivo' : 'Nuevo total (0-100)'}</th>
                 </tr>
               </thead>
               <tbody>
@@ -1406,14 +1430,51 @@
                   <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
                     <td style="padding: 0.3rem 0.6rem; color: #64748b; text-align: left;">{idx + 1}</td>
                     <td style="padding: 0.3rem 0.6rem; color: #e2e8f0; font-weight: 500;">{est.estudianteNombre}</td>
-                    <td style="padding: 0.3rem 0.6rem; text-align: center; color: #94a3b8;">{calcularPctActual(est.estudianteId)}%</td>
-                    <td style="padding: 0.3rem 0.6rem; text-align: center; color: #a78bfa; font-weight: 600;">{calcularPctPreview(est.estudianteId, distribuirTargets[est.estudianteId])}%</td>
+                    <td style="padding: 0.3rem 0.6rem; text-align: center; color: #94a3b8;">
+                      {#if isQualitative}
+                        {@const pctActual = calcularPctActual(est.estudianteId)}
+                        {@const gradeActual = getGradeFromScore(pctActual)?.id || ''}
+                        <span style="color: {getGradeColor(gradeActual)}">{gradeActual}</span>
+                        <span style="font-size:0.7rem;color:#64748b"> ({pctActual}%)</span>
+                      {:else}
+                        {calcularPctActual(est.estudianteId)}%
+                      {/if}
+                    </td>
+                    <td style="padding: 0.3rem 0.6rem; text-align: center; color: #a78bfa; font-weight: 600;">
+                      {#if isQualitative && distribuirTargets[est.estudianteId] && ['AA','AS','AF','AI'].includes(distribuirTargets[est.estudianteId]!.trim().toUpperCase())}
+                        {@const pctPrev = calcularPctPreview(est.estudianteId, distribuirTargets[est.estudianteId])}
+                        {@const gradePrev = getGradeFromScore(pctPrev)?.id || ''}
+                        <span style="color: {getGradeColor(gradePrev)}">{gradePrev}</span>
+                        <span style="font-size:0.7rem;color:#64748b"> ({pctPrev}%)</span>
+                      {:else}
+                        {calcularPctPreview(est.estudianteId, distribuirTargets[est.estudianteId])}%
+                      {/if}
+                    </td>
                     <td style="padding: 0.15rem 0.3rem; text-align: center;">
-                      <input type="number" min="0" max="100" value={distribuirTargets[est.estudianteId] ?? ''}
-                        use:regDistInput={est.estudianteId}
-                        oninput={(e) => { const v = (e.target as HTMLInputElement).value; distribuirTargets[est.estudianteId] = v; distribuirTargets = distribuirTargets; }}
-                        onkeydown={(e) => { if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); const dir = e.key === 'ArrowUp' ? -1 : 1; const next = filteredNotas[idx + dir]; if (next) distribuirInputs.get(next.estudianteId)?.focus(); } }}
-                        style="width: 65px; padding: 0.25rem 0.4rem; border-radius: 6px; border: 1px solid rgba(139, 92, 246, 0.3); background: rgba(15,23,42,0.6); color: #e2e8f0; font-size: 0.8rem; text-align: center; outline: none;" />
+                      {#if isQualitative}
+                        <div style="display:flex;gap:3px;justify-content:center;flex-wrap:nowrap">
+                          {#each ['AA', 'AS', 'AF', 'AI'] as grade}
+                            {@const isSelected = distribuirTargets[est.estudianteId]?.trim().toUpperCase() === grade}
+                            {@const gradeColor = getGradeColor(grade)}
+                            <button
+                              onclick={() => {
+                                distribuirTargets[est.estudianteId] = isSelected ? '' : grade;
+                                distribuirTargets = distribuirTargets;
+                              }}
+                              style="width:36px;padding:0.2rem 0;border-radius:6px;border:2px solid {gradeColor};background:{isSelected ? gradeColor : 'transparent'};color:{isSelected ? '#fff' : gradeColor};font-weight:bold;font-size:0.72rem;cursor:pointer;text-align:center;transition:all 0.15s ease;"
+                            >{grade}</button>
+                          {/each}
+                        </div>
+                        {#if distribuirTargets[est.estudianteId] && ['AA','AS','AF','AI'].includes(distribuirTargets[est.estudianteId]!.trim().toUpperCase())}
+                          <div style="font-size:0.62rem;color:#64748b;margin-top:2px;text-align:center">→ meta {getMidPctForGrade(distribuirTargets[est.estudianteId]!.trim().toUpperCase())}%</div>
+                        {/if}
+                      {:else}
+                        <input type="number" min="0" max="100" value={distribuirTargets[est.estudianteId] ?? ''}
+                          use:regDistInput={est.estudianteId}
+                          oninput={(e) => { const v = (e.target as HTMLInputElement).value; distribuirTargets[est.estudianteId] = v; distribuirTargets = distribuirTargets; }}
+                          onkeydown={(e) => { if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); const dir = e.key === 'ArrowUp' ? -1 : 1; const next = filteredNotas[idx + dir]; if (next) distribuirInputs.get(next.estudianteId)?.focus(); } }}
+                          style="width:65px;padding:0.25rem 0.4rem;border-radius:6px;border:1px solid rgba(139,92,246,0.3);background:rgba(15,23,42,0.6);color:#e2e8f0;font-size:0.8rem;text-align:center;outline:none;" />
+                      {/if}
                     </td>
                   </tr>
                 {/each}
