@@ -3,7 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { openUrl } from "@tauri-apps/plugin-opener";
   import { emit } from "@tauri-apps/api/event";
-  import { syncService, syncManager, type SyncStatus, type SyncProviderType, getActiveProvider, setActiveProvider } from "../lib/syncService";
+  import { syncService, syncManager, type SyncStatus, type SyncProviderType, getActiveProvider } from "../lib/syncService";
   import { getTursoUrl, getTursoToken, clearTursoCredentials } from "../lib/tursoClient";
   import { saveSupabaseConfig, clearSupabaseConfig, getSupabaseClient, hasSupabaseConfig } from "../lib/supabase";
   import GoogleDriveBackup from "./GoogleDriveBackup.svelte";
@@ -13,6 +13,13 @@
   let syncStatus = $state<{ status: SyncStatus; lastSync: string | null; lastSyncDetails: string | null; message: string | null; }>({ status: "idle", lastSync: null, lastSyncDetails: null, message: null });
   let showServerConfig = $state(false);
   let syncInterval = $state(parseInt(localStorage.getItem('periodic_sync_interval_seconds') || '60', 10));
+
+  function providerBadgeLabel(): string {
+    return syncProvider === 'turso' ? 'Turso' : 'Supabase';
+  }
+  function providerBadgeIcon(): string {
+    return syncProvider === 'turso' ? '🗄️' : '🔲';
+  }
 
   // Turso state
   let tursoUrl = $state(getTursoUrl());
@@ -37,9 +44,8 @@
 
   onMount(async () => {
     const unsub = syncManager.subscribe((state) => { syncStatus = state; });
-    isSynced = !!getTursoUrl() || !!hasSupabaseConfig();
-
-    // Check for existing Supabase session
+    syncProvider = getActiveProvider();
+    isSynced = syncProvider === 'turso' ? !!getTursoUrl() : !!hasSupabaseConfig();
     if (syncProvider === 'supabase') {
       const client = getSupabaseClient();
       if (client) {
@@ -47,21 +53,13 @@
         if (session?.user) {
           sbSessionUser = session.user.email || session.user.id;
           sbStatus = 'online';
+          isSynced = true;
+          syncService.ensurePeriodicSync();
         }
       }
     }
-
     return () => unsub();
   });
-
-  function handleProviderChange(p: SyncProviderType) {
-    if (p === syncProvider) return;
-    try { syncService.disconnect?.(); } catch {}
-    setActiveProvider(p);
-    syncProvider = p;
-    showServerConfig = false;
-    isSynced = p === 'turso' ? !!getTursoUrl() : !!hasSupabaseConfig();
-  }
 
   // ======== Turso handlers ========
 
@@ -206,17 +204,13 @@
           Sincronización en la Nube</span></h3>
       </div>
 
-      <!-- Provider Selector -->
+      <!-- Provider Badge -->
       <div style="padding: 0 1.5rem;">
-        <div style="display: flex; gap: 1rem; background: rgba(0,0,0,0.15); border-radius: 14px; padding: 0.6rem; border: 1px solid rgba(255,255,255,0.06);">
-          <button onclick={() => handleProviderChange('turso')} style="flex: 1; padding: 0.75rem 0.5rem; border-radius: 10px; border: none; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; background: {syncProvider === 'turso' ? 'linear-gradient(135deg, rgba(var(--primary-rgb), 0.2) 0%, rgba(var(--primary-rgb), 0.08) 100%)' : 'transparent'}; color: {syncProvider === 'turso' ? 'var(--text-bright)' : '#94a3b8'}; font-weight: 600; font-size: 0.85rem; border: {syncProvider === 'turso' ? '1px solid rgba(var(--primary-rgb), 0.25)' : '1px solid transparent'};">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-            Turso
-          </button>
-          <button onclick={() => handleProviderChange('supabase')} style="flex: 1; padding: 0.75rem 0.5rem; border-radius: 10px; border: none; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; background: {syncProvider === 'supabase' ? 'linear-gradient(135deg, rgba(var(--primary-rgb), 0.2) 0%, rgba(var(--primary-rgb), 0.08) 100%)' : 'transparent'}; color: {syncProvider === 'supabase' ? 'var(--text-bright)' : '#94a3b8'}; font-weight: 600; font-size: 0.85rem; border: {syncProvider === 'supabase' ? '1px solid rgba(var(--primary-rgb), 0.25)' : '1px solid transparent'};">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 2h16a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M8 2v20M16 2v20M2 8h20M2 16h20"/></svg>
-            Supabase
-          </button>
+        <div style="display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 1rem; background: rgba(0,0,0,0.15); border-radius: 10px; border: 1px solid rgba(255,255,255,0.06);">
+          <span style="font-size: 1rem;">{providerBadgeIcon()}</span>
+          <span style="color: #94a3b8; font-size: 0.8rem;">Proveedor activo:</span>
+          <span style="color: #f1f5f9; font-weight: 700; font-size: 0.85rem;">{providerBadgeLabel()}</span>
+          <span style="margin-left: auto; font-size: 0.7rem; color: #64748b;">Ajustes → Nube</span>
         </div>
       </div>
 

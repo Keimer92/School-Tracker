@@ -25,7 +25,7 @@ export function getActiveProvider(): SyncProviderType {
 
 export function setActiveProvider(p: SyncProviderType) {
   if (p === _activeProvider) return;
-  try { getService().disconnect?.(); } catch {}
+  try { getService().stopPeriodicSync?.(); } catch {}
   _activeProvider = p;
   if (typeof localStorage !== 'undefined') {
     localStorage.setItem(STORAGE_KEY, p);

@@ -5,7 +5,9 @@
   import { open, save } from "@tauri-apps/plugin-dialog";
   import { copyFile, writeFile, BaseDirectory } from "@tauri-apps/plugin-fs";
   import * as XLSX from "xlsx";
-  import { syncService } from "../lib/syncService";
+  import { syncService, getActiveProvider, setActiveProvider, type SyncProviderType } from "../lib/syncService";
+  import { getTursoUrl, getTursoToken } from "../lib/tursoClient";
+  import { getSupabaseClient, hasSupabaseConfig } from "../lib/supabase";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
 
@@ -25,7 +27,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     { id: "configuracion", label: "General", icon: "⚙️" },
     { id: "apariencia", label: "Diseño", icon: "🎨" },
     { id: "calificaciones", label: "Notas", icon: "⭐" },
-
+    { id: "sync", label: "Nube", icon: "☁️" },
     { id: "almacenamiento", label: "Almacén", icon: "📦" },
     { id: "debugging", label: "Debug", icon: "🐛" },
     { id: "acercaDe", label: "Info", icon: "📖" },
@@ -51,6 +53,24 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   let isProcessingReset = $state(false);
 
   let { themeMode = "sistema", setThemeMode = () => {} } = $props();
+
+  let syncProvider = $state<SyncProviderType>(getActiveProvider());
+  let supabaseSessionUser = $state<string | null>(null);
+
+  async function checkSupabaseSession() {
+    const client = getSupabaseClient();
+    if (!client) { supabaseSessionUser = null; return; }
+    const { data: { session } } = await client.auth.getSession();
+    supabaseSessionUser = session?.user?.email || session?.user?.id || null;
+  }
+
+  function handleSyncProviderChange(p: SyncProviderType) {
+    if (p === syncProvider) return;
+    setActiveProvider(p);
+    syncProvider = p;
+    if (p === 'supabase') checkSupabaseSession();
+    else supabaseSessionUser = null;
+  }
 
   function handleThemeChange(mode: string) {
     setThemeMode(mode);
@@ -358,6 +378,65 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                     </div>
                   {/each}
                 </div>
+              </div>
+            </div>
+          </div>
+        {/if}
+
+        <!-- NUBE / SYNC -->
+        {#if activeTab === "sync"}
+          <div class="category-card">
+            <div class="category-header"><h3>☁️ Sincronización en la Nube</h3></div>
+            <div style="padding: 2rem;">
+              <div style="margin-bottom: 2rem;">
+                <h4 style="margin: 0 0 1rem 0; color: #e2e8f0;">Proveedor de Sincronización</h4>
+                <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 1.5rem;">Elige qué servicio usar para sincronizar tus datos. Solo un proveedor puede estar activo a la vez.</p>
+                <div style="display: flex; gap: 1rem; background: rgba(0,0,0,0.15); border-radius: 14px; padding: 0.6rem; border: 1px solid rgba(255,255,255,0.06);">
+                  <button onclick={() => handleSyncProviderChange('turso')} style="flex: 1; padding: 0.85rem 0.5rem; border-radius: 10px; border: none; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; background: {syncProvider === 'turso' ? 'linear-gradient(135deg, rgba(var(--primary-rgb), 0.2) 0%, rgba(var(--primary-rgb), 0.08) 100%)' : 'transparent'}; color: {syncProvider === 'turso' ? 'var(--text-bright)' : '#94a3b8'}; font-weight: 600; font-size: 0.85rem; border: {syncProvider === 'turso' ? '1px solid rgba(var(--primary-rgb), 0.25)' : '1px solid transparent'};">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                    Turso
+                  </button>
+                  <button onclick={() => handleSyncProviderChange('supabase')} style="flex: 1; padding: 0.85rem 0.5rem; border-radius: 10px; border: none; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s; background: {syncProvider === 'supabase' ? 'linear-gradient(135deg, rgba(var(--primary-rgb), 0.2) 0%, rgba(var(--primary-rgb), 0.08) 100%)' : 'transparent'}; color: {syncProvider === 'supabase' ? 'var(--text-bright)' : '#94a3b8'}; font-weight: 600; font-size: 0.85rem; border: {syncProvider === 'supabase' ? '1px solid rgba(var(--primary-rgb), 0.25)' : '1px solid transparent'};">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 2h16a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M8 2v20M16 2v20M2 8h20M2 16h20"/></svg>
+                    Supabase
+                  </button>
+                </div>
+              </div>
+
+              <div style="background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+                <h4 style="margin: 0 0 1rem 0; color: #e2e8f0;">Estado</h4>
+                {#if syncProvider === 'turso'}
+                  <div style="display: flex; align-items: center; gap: 12px; padding: 0.75rem 1rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                    <div>
+                      <div style="color: #f1f5f9; font-weight: 600; font-size: 0.9rem;">Turso</div>
+                      <div style="color: #94a3b8; font-size: 0.75rem; margin-top: 2px;">
+                        {getTursoUrl() ? '✅ Configurado' : '❌ No configurado'}
+                      </div>
+                    </div>
+                  </div>
+                {:else}
+                  <div style="display: flex; align-items: center; gap: 12px; padding: 0.75rem 1rem; background: rgba(0,0,0,0.2); border-radius: 8px;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 2h16a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M8 2v20M16 2v20M2 8h20M2 16h20"/></svg>
+                    <div>
+                      <div style="color: #f1f5f9; font-weight: 600; font-size: 0.9rem;">Supabase</div>
+                      <div style="color: #94a3b8; font-size: 0.75rem; margin-top: 2px;">
+                        {#if supabaseSessionUser}
+                          ✅ Conectado como {supabaseSessionUser}
+                        {:else if hasSupabaseConfig()}
+                          ⏳ Configurado, sin sesión
+                        {:else}
+                          ❌ No configurado
+                        {/if}
+                      </div>
+                    </div>
+                  </div>
+                {/if}
+              </div>
+
+              <div style="margin-top: 1rem; padding: 0.75rem 1rem; border-radius: 8px; background: rgba(100,108,255,0.08); border: 1px solid rgba(100,108,255,0.15); display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 1rem;">💡</span>
+                <span style="font-size: 0.8rem; color: #c7d2fe;">Para configurar la conexión y sincronizar datos, ve a la sección <strong style="color: #e0e7ff;">Cloud & Sync</strong> en el menú lateral.</span>
               </div>
             </div>
           </div>
