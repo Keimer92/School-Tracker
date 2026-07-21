@@ -27,7 +27,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   const TABS = [
     { id: "configuracion", label: "General", icon: "⚙️" },
     { id: "apariencia", label: "Diseño", icon: "🎨" },
-    { id: "calificaciones", label: "Notas", icon: "⭐" },
     { id: "sync", label: "Nube", icon: "☁️" },
     { id: "almacenamiento", label: "Almacén", icon: "📦" },
     { id: "debugging", label: "Debug", icon: "🐛" },
@@ -85,13 +84,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     setThemeMode(mode);
   }
   $effect(() => { localStorage.setItem("student-highlight-color", highlightColor); });
-
-  function getGradeLabel(id: string): string {
-    return { 'AA': 'Aprendizaje Avanzado', 'AS': 'Aprendizaje Satisfactorio', 'AF': 'Aprendizaje Fundamental', 'AI': 'Aprendizaje Inicial' }[id] || id;
-  }
-  function getGradeDisplayName(id: string): string {
-    const label = getGradeLabel(id); return label !== id ? `${id}: ${label}` : id;
-  }
 
   onMount(() => {
     const unsubProvider = onProviderChange(async () => {
@@ -352,46 +344,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                 <div style="display: flex; gap: 1rem; align-items: center;">
                   <div style="width: 32px; height: 32px; border-radius: 8px; background-color: {getThemeColor(themeMode)}; border: 2px solid var(--border);"></div>
                   <span style="color: var(--text-primary); font-weight: bold;">Tema actual: {getThemeName(themeMode)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        {/if}
-
-        <!-- CALIFICACIONES -->
-        {#if activeTab === "calificaciones"}
-          <div class="category-card">
-            <div class="category-header"><h3>⭐ Configuración de Calificaciones</h3></div>
-            <div style="padding: 2rem;">
-              <div style="margin-bottom: 2rem;">
-                <h4 style="margin: 0 0 1rem 0; color: #e2e8f0;">Colores de Notas Cualitativas</h4>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 1rem;">
-                  {#each gradeConfigs as grade (grade.id)}
-                    <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; gap: 0.8rem;">
-                      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
-                        <span style="font-size: 1.5rem; font-weight: bold; color: {grade.color}; min-width: 40px;">{grade.id}: {grade.nombre}</span>
-                        <div style="display: flex; align-items: center; gap: 0.8rem; flex: 1 1 auto; justify-content: flex-end; flex-wrap: wrap;">
-                          {#if grade.id !== "AI"}
-                            <div style="display: flex; flex-direction: column; gap: 0.2rem; align-items: flex-start;">
-                              <label style="font-size: 0.7rem; color: #94a3b8;">Mínimo pts</label>
-                              <input type="number" value={grade.minimo} oninput={(e) => handleUpdateGradeConfig(grade.id, grade.nombre, grade.color, parseInt((e.target as HTMLInputElement).value) || 0)} style="width: 55px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; color: white; padding: 0.3rem; font-size: 0.85rem; text-align: center;" />
-                            </div>
-                          {/if}
-                          <div style="display: flex; flex-direction: column; gap: 0.2rem;">
-                            <label style="font-size: 0.7rem; color: #94a3b8;">Color</label>
-                            <div style="width: 80px; height: 35px; border-radius: 8px; background: {grade.color}; border: 2px solid rgba(255,255,255,0.2); cursor: pointer; position: relative; overflow: hidden;" onclick={() => document.getElementById(`color-input-${grade.id}`)?.click()}>
-                              <input id="color-input-{grade.id}" type="color" value={grade.color} oninput={(e) => handleUpdateGradeConfig(grade.id, grade.nombre, (e.target as HTMLInputElement).value, grade.minimo)} style="position: absolute; top: -10px; left: -10px; width: 200%; height: 200%; opacity: 0; cursor: pointer;" />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 0.2rem; justify-content: center;">
-                        {#each PRESET_COLORS as preset}
-                          <button onclick={() => handleUpdateGradeConfig(grade.id, grade.nombre, preset, grade.minimo)} style="width: 18px; height: 18px; background-color: {preset}; border: {grade.color.toLowerCase() === preset.toLowerCase() ? '2px solid white' : '1px solid rgba(255,255,255,0.2)'}; border-radius: 4px; cursor: pointer; padding: 0;"></button>
-                        {/each}
-                      </div>
-                    </div>
-                  {/each}
                 </div>
               </div>
             </div>
