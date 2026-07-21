@@ -78,11 +78,11 @@ src-tauri/gen/               generado (ignorar; no editar a mano)
      luego corre "fixes" idempotentes: `ALTER TABLE grado/seccion/asignatura ADD COLUMN IF NOT EXISTS user_id`
      y `ALTER TABLE <todas> DISABLE ROW LEVEL SECURITY` (la app usa anon key → RLS debe estar
      desactivado para permitir DML).
-   - La creación de tablas usa conexión **directa a Postgres** vía Rust
-     (`supabase_execute_sql`) con fallback a **connection pooler** por región
-     (AWS + GCP) construido en `getSupabaseConnStrings()`. Requiere la **DB password**
-     (campo en Ajustes → Nube, o `VITE_SUPABASE_DB_PASSWORD`). Si se pega un
-     `postgresql://...` completo, se usa directo.
+   - La creación de tablas intenta en orden: (1) conexión **directa a Postgres** vía Rust
+      (`supabase_execute_sql`) con fallback a **connection pooler** por región,
+      (2) **RPC `exec_sql`** vía PostgREST (requiere crear la función `exec_sql` una vez
+      en SQL Editor), (3) devuelve el script DDL para pegar manualmente.
+      Requiere la **DB password** para la opción (1); para (2) solo anon key.
 4. **Turso (proveedor por defecto)**: cliente libSQL (`tursoClient.ts`), credenciales en
    `localStorage` o `.env` (`VITE_TURSO_DB_URL`/`VITE_TURSO_AUTH_TOKEN`).
 5. **Pending deletions**: los borrados locales se registran en tablas
@@ -158,25 +158,54 @@ src-tauri/gen/               generado (ignorar; no editar a mano)
 
 ## Setup de Supabase (para usuarios nuevos)
 
-Si es la primera vez que usas Supabase como proveedor de sync, debes crear las tablas
-manualmente en el **SQL Editor** de tu proyecto de Supabase. La app intenta crearlas
-automáticamente vía conexión directa a Postgres, pero esto puede fallar si tu red no
-resuelve el host IPv6 de Supabase o si no configuraste la DB password.
+Hay dos formas de configurar Supabase. La **opción A (recomendada)** requiere un solo
+paso manual y luego la app crea/migra todo automáticamente. La **opción B** es el método
+manual completo.
 
-### Paso a paso
+---
+
+### Opción A: Crear función `exec_sql` (recomendada)
+
+Con solo crear la función `exec_sql` una vez en SQL Editor, la app puede crear y migrar
+todas las tablas automáticamente usando solo la anon key (sin DB password).
 
 1. Ve a [Supabase Dashboard](https://supabase.com) → tu proyecto → **SQL Editor**.
 2. Crea una **New query**.
-3. Pega el script completo de abajo y ejecútalo (botón ▶️ Run).
-4. Ve a **Authentication** → **Providers** y asegúrate de que al menos un proveedor esté
-   habilitado (la app usa anon key, no requiere login de usuario).
-5. En tu app, ve a **Ajustes → Nube**, selecciona **Supabase**, y pega:
-   - **URL**: `https://<tu-project-ref>.supabase.co`
-   - **Anon Key**: la encuentras en Settings → API → anon public
-   - **DB Password** (opcional): si quieres que la app pueda crear/migrar tablas
-     automáticamente, pega aquí la contraseña de la BD (Settings → Database → Reset password).
+3. Pega esto y ejecútalo (▶️ Run):
 
-### Script DDL completo (SQL Editor)
+```sql
+CREATE OR REPLACE FUNCTION exec_sql(sql text)
+RETURNS void AS $$
+BEGIN
+  EXECUTE sql;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+4. En tu app, ve a **Ajustes → Nube**, selecciona **Supabase**, y pega:
+   - **URL**: `https://<tu-project-ref>.supabase.co`
+   - **Anon Key**: Settings → API → anon public
+   - **DB Password** (opcional, solo si quieres conexión directa alternativa)
+
+5. En la app, presiona **Sincronizar**. Si faltan tablas, la app las creará automáticamente
+   vía `supabase.rpc('exec_sql', ...)`.
+
+> **Importante**: Si ya ejecutaste el script DDL manual antes, la app detecta que las tablas
+> existen y omite la creación. La función `exec_sql` solo se necesita para proyectos nuevos
+> o cuando haya que agregar columnas automáticamente.
+
+---
+
+### Opción B: Crear tablas manualmente (script DDL completo)
+
+Si prefieres crear todo manualmente o no puedes crear la función `exec_sql`:
+
+1. Ve a **SQL Editor** → **New query**.
+2. Pega el script completo de abajo y ejecútalo.
+3. En la app, configura URL + Anon Key igual que en la opción A.
+4. Sincroniza.
+
+#### Script DDL completo
 
 ```sql
 CREATE TABLE IF NOT EXISTS ano_lectivo (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, user_id TEXT);
@@ -226,11 +255,17 @@ ALTER TABLE sync_batch DISABLE ROW LEVEL SECURITY;
 > los `CREATE TABLE IF NOT EXISTS` y `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`
 > son seguros de re-ejecutar (idempotentes).
 
-## Notas de estado reciente (contexto)
+---
+
+### Notas de estado reciente (contexto)
 - El proyecto Supabase de ejemplo es `qtbmvoutxdiarcbxrest` (GCP). El host directo
   `db.<ref>.supabase.co` es IPv6-only, y los poolers regionales pueden no resolver
-  en todas las redes. Por eso se recomienda la creación manual de tablas vía SQL Editor.
-- `ensureSchema` primero verifica las tablas vía PostgREST; si existen, solo corre los
-  fixes (ALTER TABLE + DISABLE RLS) como best-effort. Si no existen, intenta crearlas
-  vía SQL directo, y si eso falla, devuelve el script DDL para que el usuario lo pegue
-  en el SQL Editor de Supabase.
+  en todas las redes. Por eso se recomienda la creación de `exec_sql` o el script DDL
+  manual vía SQL Editor.
+- `ensureSchema` intenta crear tablas en este orden:
+  1. **Conexión directa Postgres** vía Rust (`supabase_execute_sql`) con pooler fallback.
+     Requiere DB password. Puede fallar si IPv6 no está disponible o el pooler no reconoce
+     el tenant.
+  2. **RPC `exec_sql`** vía PostgREST (solo anon key). Requiere que la función exista en
+     el proyecto. Es el método recomendado porque solo necesita la URL y anon key.
+  3. Si ambos fallan, devuelve el script DDL completo para pegar manualmente en SQL Editor.

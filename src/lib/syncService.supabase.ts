@@ -1628,7 +1628,7 @@ export const syncService = {
       // Probar tablas vía PostgREST (el cliente JS, no SQL directo).
       // El usuario debe haber creado las tablas manualmente en Supabase SQL Editor.
       const probeTablePostgrest = async (tableName: string) => {
-        const { error } = await client.from(tableName).select('id', { count: 'exact', head: true }).limit(0);
+        const { error } = await client.from(tableName).select('*', { count: 'exact', head: true });
         return !error;
       };
 
@@ -1719,12 +1719,32 @@ ALTER TABLE sync_batch DISABLE ROW LEVEL SECURITY;`;
         await runSqlStatements(createTablesSqls);
         console.log('[Supabase] Schema creado vía SQL directo.');
         await runSqlStatements(["NOTIFY pgrst, 'reload schema';"], false);
-      } catch (error) {
-        // 3. SQL directo falló — devolver error con el script para que el usuario lo pegue
-        return {
-          ok: false,
-          error: `${getSchemaBootstrapError(getSupabaseErrorMessage(error))}\n\n-----\nCopia y pega este script en Supabase Dashboard → SQL Editor:\n\n${DDL_SCRIPT}`,
-        };
+      } catch (directError) {
+        // 3. SQL directo falló — intentar via RPC exec_sql
+        console.log('[Supabase] SQL directo falló. Intentando vía RPC exec_sql...');
+        try {
+          for (const sql of createTablesSqls) {
+            const { error: rpcError } = await client.rpc('exec_sql', { sql });
+            if (rpcError && !rpcError.message?.includes('already exists')) throw rpcError;
+          }
+          console.log('[Supabase] Schema creado vía RPC exec_sql.');
+          await client.rpc('exec_sql', { sql: "NOTIFY pgrst, 'reload schema';" });
+        } catch (rpcError: any) {
+          const rpcMsg = getSupabaseErrorMessage(rpcError);
+          const isMissingRpc = /function.*exec_sql.*does not exist/i.test(rpcMsg);
+          if (isMissingRpc) {
+            // 4. RPC no existe — pedir al usuario crear la función una vez
+            return {
+              ok: false,
+              error: `${getSchemaBootstrapError(rpcMsg)}\n\nPara habilitar la creación automática de tablas, pega esto en Supabase Dashboard → SQL Editor UNA SOLA VEZ:\n\nCREATE OR REPLACE FUNCTION exec_sql(sql text)\nRETURNS void AS $$\nBEGIN\n  EXECUTE sql;\nEND;\n$$ LANGUAGE plpgsql SECURITY DEFINER;\n\nDespués vuelve a intentar sincronizar.\n\nSi prefieres crear las tablas manualmente, usa este script:\n\n${DDL_SCRIPT}`,
+            };
+          }
+          // 5. RPC también falló — devolver error con el script
+          return {
+            ok: false,
+            error: `${getSchemaBootstrapError(rpcMsg)}\n\n-----\nCopia y pega este script en Supabase Dashboard → SQL Editor:\n\n${DDL_SCRIPT}`,
+          };
+        }
       }
 
       // 4. Esperar que PostgREST reconozca las tablas (creadas vía SQL directo)

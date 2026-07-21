@@ -96,16 +96,6 @@
     tursoTesting = false;
   }
 
-  async function handleSchemaSetup() {
-    try {
-      const result = await syncService.testConnection(tursoUrl, tursoToken);
-      if (!result.ok) { tursoError = result.error || 'Conexión fallida'; tursoStatus = 'offline'; return; }
-      const sr = await syncService.runSchemaSetup();
-      if (!sr.ok) tursoError = sr.error || 'Error creando schema';
-      else tursoStatus = 'online';
-    } catch (e: any) { tursoError = e?.message || String(e); }
-  }
-
   function handleDisconnectTurso() {
     clearTursoCredentials(); tursoUrl = ''; tursoToken = ''; tursoStatus = 'idle'; isSynced = false;
     try { syncService.disconnect(); } catch {}
@@ -170,16 +160,6 @@
   async function handleSupabaseLogout() {
     try { const client = getSupabaseClient(); if (client) await client.auth.signOut(); } catch {}
     handleDisconnectSupabase();
-  }
-
-  async function handleSupabaseSchemaSetup() {
-    try {
-      const result = await syncService.testConnection(sbUrl, sbAnonKey);
-      if (!result.ok) { sbError = result.error || 'Conexión fallida'; sbStatus = 'offline'; return; }
-      const sr = await syncService.runSchemaSetup();
-      if (!sr.ok) sbError = sr.error || 'Error creando schema';
-      else sbStatus = 'online';
-    } catch (e: any) { sbError = e?.message || String(e); }
   }
 
   function handleDisconnectProvider() {
@@ -294,7 +274,6 @@
                 </div>
               {/if}
               <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
-                <button onclick={handleSchemaSetup} disabled={!tursoUrl || !tursoToken} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.2); color: #94a3b8; font-weight: 500; font-size: 0.75rem; cursor: pointer;">Ejecutar Schema</button>
                 <button onclick={handleDisconnectTurso} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(239,68,68,0.2); background: rgba(239,68,68,0.08); color: #f87171; font-weight: 500; font-size: 0.75rem; cursor: pointer;">Desconectar</button>
               </div>
             </div>
@@ -329,7 +308,6 @@
               {/if}
 
               <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap;">
-                <button onclick={handleSupabaseSchemaSetup} disabled={!sbUrl || !sbAnonKey} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.2); color: #94a3b8; font-weight: 500; font-size: 0.75rem; cursor: pointer;">Ejecutar Schema</button>
                 {#if sbSessionUser}
                   <button onclick={handleSupabaseLogout} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(239,68,68,0.2); background: rgba(239,68,68,0.08); color: #f87171; font-weight: 500; font-size: 0.75rem; cursor: pointer;">Cerrar Sesión</button>
                 {/if}
