@@ -54,6 +54,8 @@
   let isAndroid = $state(false);
   let printHtml: string | null = $state(null);
   let exportModoSimple = $state(false);
+  let exportandoMasivo = $state(false);
+  let progresoMasivo = $state('');
   let loadId = 0;
 
   let isQualitative = $derived.by(() => {
@@ -534,18 +536,215 @@
       doc.text(`Promedio Grupal: ${promedioText}`, doc.internal.pageSize.getWidth() / 2 + 15, finalY);
 
       const pdfData = doc.output('arraybuffer');
-      const fileName = `Reporte_${names.grado}_${names.seccion}_${names.asignatura}_${new Date().toISOString().split('T')[0]}.pdf`.replace(/\s+/g, '_');
-      const docsPath = await documentDir(); const folderName = "SchoolTrackerPro";
-      const sep = isAndroid ? '/' : '\\'; const fp = docsPath + sep + folderName; const fullPath = fp + sep + fileName;
+      const sanitize = (s: string) => s.replace(/[<>:"/\\|?*]/g, '_');
+      const fileName = `Notas ${sanitize(names.colegio)} ${sanitize(names.grado)} - Seccion ${sanitize(names.seccion)}.pdf`;
+      const docsPath = await documentDir(); const folderName = "School Tracker";
+      const subfolder = `${sanitize(names.ano)} - ${sanitize(names.corte)} - ${sanitize(names.asignatura)}`;
+      const sep = isAndroid ? '/' : '\\';
+      const fp = docsPath + sep + folderName + sep + subfolder;
+      const fullPath = fp + sep + fileName;
       await mkdir(fp, { recursive: true }).catch(e => console.log("mkdir:", e));
       await writeFile(fullPath, new Uint8Array(pdfData));
       const fPath = fullPath.replace(/\\/g, '/');
       if (isAndroid) { try { await invoke('share_pdf', { path: fPath }); } catch {} }
       else { await openUrl("file:///" + fPath); }
-      await emit("show-toast", { message: "✅ PDF guardado en Documents/SchoolTrackerPro", type: 'success' });
+      await emit("show-toast", { message: "✅ PDF guardado en Documents/School Tracker/" + subfolder, type: 'success' });
     } catch (error) {
       console.error("Error al generar PDF:", error);
       await emit("show-toast", { message: "❌ Error al generar el PDF: " + (error instanceof Error ? error.message : String(error)), type: 'error' });
+    }
+  }
+
+  async function exportToPDFMasivo() {
+    if (!selectedColegio || !selectedAno || !selectedAsignatura) {
+      await emit("show-toast", { message: "⚠️ Seleccione colegio, año y asignatura para exportación masiva", type: 'warning' });
+      return;
+    }
+    let cortesIds: number[] = [];
+    if (specialCorte === "1S") {
+      const c1 = cortes.find(c => c.nombre.toLowerCase().includes("1er"))?.id;
+      const c2 = cortes.find(c => c.nombre.toLowerCase().includes("2do"))?.id;
+      if (c1) cortesIds.push(c1); if (c2) cortesIds.push(c2);
+    } else if (specialCorte === "2S") {
+      const c3 = cortes.find(c => c.nombre.toLowerCase().includes("3er"))?.id;
+      const c4 = cortes.find(c => c.nombre.toLowerCase().includes("4to"))?.id;
+      if (c3) cortesIds.push(c3); if (c4) cortesIds.push(c4);
+    } else if (specialCorte === "NF") { cortesIds = cortes.map(c => c.id); }
+    else { cortesIds = [selectedCorte]; }
+    if (cortesIds.length === 0 || (cortesIds.length === 1 && cortesIds[0] === 0)) {
+      await emit("show-toast", { message: "⚠️ Seleccione un corte evaluativo", type: 'warning' });
+      return;
+    }
+
+    try {
+      exportandoMasivo = true;
+      progresoMasivo = 'Preparando...';
+      const names = selectedNames;
+      const sanitize = (s: string) => s.replace(/[<>:"/\\|?*]/g, '_');
+      const docsPath = await documentDir();
+      const folderName = "School Tracker";
+      const subfolder = `${sanitize(names.ano)} - ${sanitize(names.corte)} - ${sanitize(names.asignatura)}`;
+      const sep = isAndroid ? '/' : '\\';
+      const baseDir = docsPath + sep + folderName + sep + subfolder;
+      await mkdir(baseDir, { recursive: true });
+
+      const gradosList: CategoryItem[] = await invoke("get_grados_by_colegio", { colegioId: selectedColegio, anoLectivoId: selectedAno });
+      if (!gradosList || gradosList.length === 0) {
+        await emit("show-toast", { message: "⚠️ No se encontraron grados para este colegio", type: 'warning' });
+        exportandoMasivo = false;
+        return;
+      }
+
+      const pairs: { gradoId: number; gradoNombre: string; seccionId: number; seccionNombre: string }[] = [];
+      for (const grado of gradosList) {
+        const seccionesList: CategoryItem[] = await invoke("get_secciones_by_grado_colegio", { gradoId: grado.id, colegioId: selectedColegio, anoLectivoId: selectedAno });
+        for (const sec of seccionesList) {
+          pairs.push({ gradoId: grado.id!, gradoNombre: grado.nombre, seccionId: sec.id!, seccionNombre: sec.nombre });
+        }
+      }
+
+      if (pairs.length === 0) {
+        await emit("show-toast", { message: "⚠️ No se encontraron secciones con estudiantes", type: 'warning' });
+        exportandoMasivo = false;
+        return;
+      }
+
+      let processed = 0;
+      for (const pair of pairs) {
+        processed++;
+        progresoMasivo = `${processed}/${pairs.length} - ${pair.gradoNombre} Seccion ${pair.seccionNombre}`;
+
+        const listaEstudiantes: any[] = await invoke("get_estudiantes_by_filters", { gradoId: pair.gradoId, seccionId: pair.seccionId });
+        if (!listaEstudiantes || listaEstudiantes.length === 0) continue;
+
+        const notasResults = await Promise.all(cortesIds.map(cId =>
+          invoke<any[]>("get_notas_by_filters", { gradoId: pair.gradoId, seccionId: pair.seccionId, corteId: cId, asignaturaId: selectedAsignatura })
+        ));
+
+        const notasGlobales: Record<number, Record<number, Record<number, number>>> = {};
+        notasResults.forEach((notasCorte, idx) => {
+          const cId = cortesIds[idx];
+          notasGlobales[cId] = {};
+          notasCorte.forEach((n: any) => {
+            if (!notasGlobales[cId][n.estudianteId]) notasGlobales[cId][n.estudianteId] = {};
+            notasGlobales[cId][n.estudianteId][n.criterioId] = n.valor;
+          });
+        });
+
+        const indicadoresArrays = await Promise.all(cortesIds.map(cId =>
+          invoke<any[]>("get_evaluation_config", { gradoId: pair.gradoId, asignaturaId: selectedAsignatura, corteEvaluativoId: cId })
+        ));
+        const indicadores: any[] = [];
+        const seenInd = new Set<number>();
+        for (const arr of indicadoresArrays) {
+          for (const ind of arr) {
+            if (!seenInd.has(ind.id)) { seenInd.add(ind.id); indicadores.push(ind); }
+          }
+        }
+
+        const esCualitativo = gradosList.find(g => g.id === pair.gradoId)?.cualitativo || false;
+
+        const reporteData = listaEstudiantes.map((est: any) => {
+          let totalSuma = 0, totalMaximo = 0, haIngresado = false;
+          const labelsCualitativos: string[] = [];
+          cortesIds.forEach(cId => {
+            const notasCriterios = notasGlobales[cId]?.[est.id] || {};
+            indicadores.forEach((ind: any) => {
+              (ind.criterios || []).forEach((crit: any) => {
+                const valor = notasCriterios[crit.id];
+                if (valor !== undefined) {
+                  totalSuma += valor; haIngresado = true; totalMaximo += crit.puntajeMaximo || 0;
+                  if (esCualitativo) {
+                    const ratio = valor / (crit.puntajeMaximo || 1);
+                    let qv = "AI";
+                    if (ratio >= 0.90) qv = "AA"; else if (ratio >= 0.70) qv = "AS"; else if (ratio >= 0.50) qv = "AF";
+                    labelsCualitativos.push(qv);
+                  }
+                }
+              });
+            });
+          });
+          let notaFinal = -1, notaFinalQual = "-";
+          if (haIngresado) {
+            const pct = (totalSuma / (totalMaximo || 1)) * 100;
+            notaFinal = esCualitativo ? pct : Math.round(totalSuma);
+            notaFinalQual = esCualitativo ? calcularNotaCualitativaFinal(labelsCualitativos) : getQualitativeLabel(pct);
+          }
+          return { ...est, notaFinal, notaFinalQual };
+        });
+
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+        const date = new Date().toLocaleDateString();
+        const margins = { top: 10, bottom: 10, left: 10, right: 10 };
+        doc.setFont("helvetica", "bold"); doc.setFontSize(16);
+        doc.text(`Notas ${names.colegio}`, doc.internal.pageSize.getWidth() / 2, 15, { align: "center" });
+        doc.setFontSize(10); doc.setTextColor(0);
+        const filterInfo = [
+          ["Grado:", pair.gradoNombre, "Sección:", pair.seccionNombre],
+          ["Asignatura:", names.asignatura, "Corte:", names.corte],
+          ["Año Lectivo:", names.ano, "Fecha:", date],
+        ];
+        let yPos = 25;
+        filterInfo.forEach(row => {
+          doc.setFont("helvetica", "bold"); doc.text(row[0], margins.left + 10, yPos);
+          doc.setFont("helvetica", "normal"); doc.text(row[1], margins.left + 35, yPos);
+          doc.setFont("helvetica", "bold"); doc.text(row[2], doc.internal.pageSize.getWidth() / 2 + 5, yPos);
+          doc.setFont("helvetica", "normal"); doc.text(row[3], doc.internal.pageSize.getWidth() / 2 + 30, yPos);
+          yPos += 6;
+        });
+
+        const tableHeaders = ["Estudiante", "Sexo", "Nota Final"];
+        const tableRows = reporteData.map((est: any) => [
+          est.nombre, est.sexo,
+          (!est.notaFinalQual || est.notaFinalQual === "-") ? "-"
+            : esCualitativo ? est.notaFinalQual
+              : `${Math.round(est.notaFinal)}${est.notaFinalQual ? ` (${est.notaFinalQual})` : ''}`
+        ]);
+
+        autoTable(doc, {
+          startY: yPos + 5, margin: { top: margins.top, bottom: margins.bottom, left: margins.left, right: margins.right },
+          head: [tableHeaders], body: tableRows, theme: 'grid',
+          headStyles: { fillColor: [107, 114, 128], textColor: 255, fontStyle: 'bold' },
+          styles: { fontSize: 8, cellPadding: 2 },
+          columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 15, halign: 'center' } },
+          didParseCell: (data: any) => {
+            if (data.section === 'body' && data.column.index === 2) {
+              const est = reporteData[data.row.index];
+              const colorHex = (!est.notaFinalQual || est.notaFinalQual === "-") ? "#64748b"
+                : getNoteColor(est.notaFinal, est.notaFinalQual, totalPuntajeMaximoConfig);
+              const [r, g, b] = hexToRgb(colorHex);
+              data.cell.styles.textColor = [r, g, b];
+              data.cell.styles.fontStyle = 'bold';
+            }
+          }
+        });
+
+        const finalY = (doc as any).lastAutoTable.finalY + 10;
+        const conNotas = reporteData.filter((e: any) => e.notaFinal >= 0);
+        let promedioText = "-";
+        if (conNotas.length > 0) {
+          if (esCualitativo) { promedioText = calcularNotaCualitativaFinal(conNotas.map((e: any) => e.notaFinalQual || 'AI')); }
+          else {
+            const prom = conNotas.reduce((s: number, e: any) => s + e.notaFinal, 0) / conNotas.length;
+            promedioText = `${Math.round(prom)}${getQualitativeLabel(prom) ? ` (${getQualitativeLabel(prom)})` : ''}`;
+          }
+        }
+        doc.setFontSize(11); doc.text(`Total Estudiantes: ${reporteData.length}`, margins.left + 10, finalY);
+        doc.text(`Promedio Grupal: ${promedioText}`, doc.internal.pageSize.getWidth() / 2 + 15, finalY);
+
+        const pdfData = doc.output('arraybuffer');
+        const fileName = `Notas ${sanitize(names.colegio)} ${sanitize(pair.gradoNombre)} - Seccion ${sanitize(pair.seccionNombre)}.pdf`;
+        const fullPath = baseDir + sep + fileName;
+        await writeFile(fullPath, new Uint8Array(pdfData));
+      }
+
+      exportandoMasivo = false;
+      await emit("show-toast", { message: `✅ ${processed} PDFs generados en Documents/School Tracker/${subfolder}`, type: 'success' });
+      if (!isAndroid) { try { await openUrl("file:///" + baseDir.replace(/\\/g, '/')); } catch {} }
+    } catch (error) {
+      console.error("Error en exportación masiva:", error);
+      exportandoMasivo = false;
+      await emit("show-toast", { message: "❌ Error en exportación masiva: " + (error instanceof Error ? error.message : String(error)), type: 'error' });
     }
   }
 
@@ -751,6 +950,10 @@
               </div>
               <span style="font-weight:{exportModoSimple ? '600' : '400'};color:{exportModoSimple ? '#c4b5fd' : '#94a3b8'};transition:all 0.2s ease">Solo nota final</span>
             </label>
+            <button class="secondary" onclick={exportToPDFMasivo} disabled={exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura}
+              style="padding:0.3rem 0.6rem;font-size:0.75rem;height:28px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background-color:#6366f1">
+              {exportandoMasivo ? progresoMasivo : '📚 Exportar Todo'}
+            </button>
           </div>
         </FilterContainer>
       </div>
