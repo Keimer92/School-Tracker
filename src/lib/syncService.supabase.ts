@@ -1118,7 +1118,6 @@ export const syncService = {
           id: gc.id,
           color: gc.color,
           minimo: gc.minimo,
-          user_id: userId
         }));
 
         const { error } = await supabase.from('configuracion_calificacion').upsert(batchConfigs, { 
