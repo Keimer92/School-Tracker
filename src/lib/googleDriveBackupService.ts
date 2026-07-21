@@ -18,10 +18,10 @@ interface GoogleDriveSettings {
   googleUserProfilePic: string | null;
 }
 
-const pruneOldGoogleDriveBackups = async (token: string, folderId: string, currentFileName: string) => {
+const pruneOldGoogleDriveBackups = async (token: string, currentFileName: string) => {
   try {
     const listResponse = await fetch(
-      `https://www.googleapis.com/drive/v3/files?q=%27${folderId}%27%20in%20parents%20and%20trashed%3Dfalse&fields=files(id,name,createdTime)&orderBy=createdTime%20desc`,
+      `https://www.googleapis.com/drive/v3/files?q=name contains 'SchoolTracker_Backup' and trashed=false&orderBy=createdTime desc`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     const data = await listResponse.json();
@@ -84,34 +84,13 @@ export const runAutomaticGoogleDriveBackupIfNeeded = async () => {
     const localBackupPath = await invoke<string>('gd_create_backup');
     const dbBase64 = await invoke<string>('gd_read_file_base64', { path: localBackupPath });
 
-    const searchResponse = await fetch(
-      `https://www.googleapis.com/drive/v3/files?q=name%3D%27SchoolTracker%20Backups%27%20and%20mimeType%3D%27application%2Fvnd.google-apps.folder%27%20and%20trashed%3Dfalse`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    const searchData = await searchResponse.json();
-    let folderId: string;
-
-    if (searchData.files && searchData.files.length > 0) {
-      folderId = searchData.files[0].id;
-    } else {
-      const createResponse = await fetch('https://www.googleapis.com/drive/v3/files', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'SchoolTracker Backups', mimeType: 'application/vnd.google-apps.folder' }),
-      });
-      const folder = await createResponse.json();
-      folderId = folder.id;
-    }
-
     const timestampStr = new Date().toISOString();
     const cleanDate = timestampStr.split('T')[0];
     const deviceName = settings.deviceName.replace(/\s+/g, '_');
-
     const fileName = `SchoolTracker_Backup_${deviceName}_${cleanDate}.db`;
 
     const metadata = {
       name: fileName,
-      parents: [folderId],
       description: JSON.stringify({ device: settings.deviceName, timestamp: timestampStr, type: 'schooltracker_backup' })
     };
 
@@ -137,7 +116,7 @@ export const runAutomaticGoogleDriveBackupIfNeeded = async () => {
     });
 
     try { await invoke('gd_delete_backup', { path: localBackupPath }); } catch (_) {}
-    await pruneOldGoogleDriveBackups(token, folderId, fileName);
+    await pruneOldGoogleDriveBackups(token, fileName);
 
     const updated = { ...settings, lastBackupTime: timestampStr };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
