@@ -299,8 +299,29 @@
       else { cortesIds = [selectedCorte]; }
       if (cortesIds.length === 0) throw new Error("No se pudieron determinar los cortes evaluativos.");
 
-      const indicadores = await invoke<Indicador[]>("get_evaluation_config", { gradoId: selectedGrado, asignaturaId: selectedAsignatura, corteEvaluativoId: cortesIds[0] });
+      const indicadoresArrays = await Promise.all(cortesIds.map(cId =>
+        invoke<Indicador[]>("get_evaluation_config", { gradoId: selectedGrado, asignaturaId: selectedAsignatura, corteEvaluativoId: cId })
+      ));
       if (lid !== loadId) return;
+
+      const mergedMap = new Map<number, { ind: Indicador; criteriaMap: Map<number, Criterio> }>();
+      for (const arr of indicadoresArrays) {
+        for (const ind of arr) {
+          if (!mergedMap.has(ind.id)) {
+            mergedMap.set(ind.id, { ind: { ...ind, criterios: [] }, criteriaMap: new Map() });
+          }
+          const entry = mergedMap.get(ind.id)!;
+          for (const crit of ind.criterios) {
+            if (!entry.criteriaMap.has(crit.id)) {
+              entry.criteriaMap.set(crit.id, crit);
+            }
+          }
+        }
+      }
+      const indicadores: Indicador[] = Array.from(mergedMap.values()).map(entry => ({
+        ...entry.ind,
+        criterios: Array.from(entry.criteriaMap.values())
+      }));
 
       const activos = indicadores.filter(ind => ind.activo);
       if (activos.length === 0 && indicadores.length > 0) {
