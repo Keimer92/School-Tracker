@@ -74,6 +74,7 @@
   let cellSnapshot: Record<string, string> | null = null;
   let hasUnsavedRef = false;
   let nextRefreshSilent = false;
+  let justSavedRef = false;
   let loadId = 0;
   let touchStartX = 0;
   let isUndoRedoAction = false;
@@ -697,6 +698,8 @@
       hasUnsavedRef = false;
       hasUnsavedChanges = false;
       saving = false;
+      justSavedRef = true;
+      setTimeout(() => { justSavedRef = false; }, 3000);
       await emit("show-toast", { message: "✅ Notas guardadas localmente", type: "success" });
       onDataChange('nota');
       setTimeout(() => fetchEstudiantes(undefined, true), 200);
@@ -858,22 +861,21 @@
     let catalogTimeout: ReturnType<typeof setTimeout>;
 
     const u1 = listen("student-updated", () => {
-      if (hasUnsavedRef) return;
+      if (hasUnsavedRef || justSavedRef) return;
       clearTimeout(studentTimeout);
       studentTimeout = setTimeout(() => { nextRefreshSilent = true; refreshTrigger++; }, 500);
     });
 
     const u2 = listen("notas-updated", () => {
-      if (hasUnsavedRef) return;
+      if (hasUnsavedRef || justSavedRef) return;
       clearTimeout(notasTimeout);
       notasTimeout = setTimeout(() => { nextRefreshSilent = true; refreshTrigger++; }, 500);
     });
 
     const u3 = listen("catalog-updated", () => {
+      if (justSavedRef) return;
       clearTimeout(catalogTimeout);
       catalogTimeout = setTimeout(() => {
-        fetchCatalogs();
-        if (selectedColegio && selectedAno) fetchGradosYAsignaturas();
         nextRefreshSilent = true;
         refreshTrigger++;
       }, 500);
@@ -888,7 +890,7 @@
     });
 
     const onSync = () => {
-      if (hasUnsavedRef) return;
+      if (hasUnsavedRef || justSavedRef) return;
       clearTimeout(notasTimeout);
       notasTimeout = setTimeout(() => { nextRefreshSilent = true; refreshTrigger++; }, 300);
     };
