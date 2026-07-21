@@ -114,6 +114,9 @@ src-tauri/gen/               generado (ignorar; no editar a mano)
   `#[cfg(target_os = "android")]`; en desktop devuelven `Err`/`Ok(())` según caso.
 - **Build**: `npm run build` = `tsc && vite build` (es estricto: `strict: true`, pero
   `noUnusedLocals/Parameters` están en `false`). Vite build tiene `minify: false`.
+- **Pooler hostname Supabase**: El formato correcto NO es `${ref}.pooler.supabase.com`
+  (no existe para proyectos recientes). Usar `aws-<region>.pooler.supabase.com` con
+  usuario `postgres.<projectRef>`. Ver `getSupabaseConnStrings` en `syncService.supabase.ts`.
 
 ## Comandos
 - `npm run dev` — servidor Vite (frontend) en http://localhost:1420 (usado por Tauri dev).

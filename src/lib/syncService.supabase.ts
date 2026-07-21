@@ -77,11 +77,19 @@ export const getSupabaseConnStrings = (): string[] | null => {
 
   const projectRef = match[1];
   const pw = encodeURIComponent(raw);
-  // Pooler unificado por project-ref (funciona con IPv4)
-  const pooler = `postgresql://postgres.${projectRef}:${pw}@${projectRef}.pooler.supabase.com:6543/postgres?sslmode=require`;
-  // Conexión directa (IPv6-only en algunos hosts)
+  // Pooler regions IPv4 (formato correcto: aws-<region>.pooler.supabase.com)
+  const poolerRegions = [
+    'aws-0-us-east-1',
+    'aws-0-us-west-1',
+    'aws-0-eu-west-1',
+    'aws-0-us-east-2',
+  ];
+  const poolers = poolerRegions.map(
+    (r) => `postgresql://postgres.${projectRef}:${pw}@${r}.pooler.supabase.com:6543/postgres?sslmode=require`
+  );
+  // Conexión directa (IPv6-only en algunos hosts; fallback)
   const direct = `postgresql://postgres:${pw}@db.${projectRef}.supabase.co:5432/postgres?sslmode=require`;
-  return [pooler, direct];
+  return [...poolers, direct];
 };
 
 /**
