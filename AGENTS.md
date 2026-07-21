@@ -154,7 +154,29 @@ src-tauri/gen/               generado (ignorar; no editar a mano)
   `get_all_local_data_json` (lib.rs) y a los maps de tablas base en `syncService.supabase.ts`,
   y decidir su estrategia de pending deletions.
 - **Cambiar proveedor de sync por defecto**: `setActiveProvider()` / clave `sync_provider` en
-  localStorage (`syncService.ts`).
+   localStorage (`syncService.ts`).
+
+## Estilo UI (Apple-style Glassmorphism)
+Toda la interfaz debe seguir un diseño **glassmorphism minimalista tipo Apple**:
+
+- **Cards/containers**: `background: rgba(255,255,255,0.02)`, `backdrop-filter: blur(20px)`,
+  `border: 1px solid rgba(255,255,255,0.06)`, `border-radius: 16-18px`.
+- **Elementos listados** (rows, items): `background: rgba(255,255,255,0.02)`,
+  `backdrop-filter: blur(10px)`, `border: 1px solid rgba(255,255,255,0.06)`,
+  `border-radius: 12px`. Hover: `borderColor` → color acento, `background` ligeramente más claro.
+- **Botones primarios**: `background: linear-gradient(135deg, ...)` con `box-shadow` suave,
+  efecto `translateY(-1px)` en hover y `translateY(1px)` en mousedown.
+- **Botones de acción secundarios** (editar, eliminar, configurar): fondo semitransparente
+  `rgba(color, 0.1)`, `border: 1px solid rgba(color, 0.2)`, hover: `rgba(color, 0.2)`.
+- **Modales**: overlay con `backdrop-filter: blur(8px)`, contenido con
+  `background: rgba(20,24,31,0.85)`, `backdrop-filter: blur(24px)`,
+  `border-radius: 20px`, `box-shadow: 0 25px 60px -12px rgba(0,0,0,0.6)`.
+- **Inputs**: `background: rgba(255,255,255,0.06)`, `border: 1px solid rgba(255,255,255,0.1)`,
+  `border-radius: 8px`, focus: `borderColor` → color acento.
+- **Etiquetas/labels**: mayúsculas, `letter-spacing: 0.5px`, color `#64748b`, tamaño `0.65rem`.
+- **Barras de acento**: líneas verticales de 3-4px con el color temático (`border-radius: 2px`).
+- **Transiciones**: `transition: all 0.2s ease` en elementos interactivos.
+- **Sin sombras fuertes** ni bordes gruesos; priorizar sutileza y claridad visual.
 
 ## Setup de Supabase (para usuarios nuevos)
 
