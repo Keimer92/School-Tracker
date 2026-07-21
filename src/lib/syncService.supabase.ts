@@ -1664,25 +1664,6 @@ export const syncService = {
         console.log('[Supabase] Tablas existentes, aplicando ajustes idempotentes...');
       }
 
-      // Verificar que todas las tablas estén visibles en PostgREST tras la creación/ajuste.
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        const verification = await Promise.all(allTables.map((table) => probeTable(table)));
-        if (verification.every(Boolean)) {
-          tablesExist = true;
-          break;
-        }
-        if (attempt < 2) {
-          await new Promise((resolve) => globalThis.setTimeout(resolve, 500 * (attempt + 1)));
-        }
-      }
-
-      if (!tablesExist) {
-        return {
-          ok: false,
-          error: getSchemaBootstrapError('Las tablas esperadas siguen sin estar disponibles en PostgREST.'),
-        };
-      }
-
       // Ajustes idempotentes: asegurar columna user_id en tablas que no la tienen
       // y DESACTIVAR RLS (la app usa anon key sin auth, por lo que RLS bloquea todo DML).
       const fixSqls = [
@@ -1699,6 +1680,32 @@ export const syncService = {
         await runSqlStatements(fixSqls, false);
       } catch (error) {
         console.warn('[Supabase] Ajustes idempotentes omitidos:', getSupabaseErrorMessage(error));
+      }
+
+      // Forzar recarga del cache de esquema de PostgREST después de las modificaciones DDL.
+      // Sin esto, PostgREST sigue viendo el esquema viejo y rechaza queries con
+      // "Could not find the table '...' in the schema cache".
+      await runSqlStatements(["NOTIFY pgrst, 'reload schema';"], false)
+        .then(() => console.log('[Supabase] Cache de PostgREST recargado'))
+        .catch(() => {});
+
+      // Verificar que todas las tablas estén visibles en PostgREST tras la creación/ajuste.
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const verification = await Promise.all(allTables.map((table) => probeTable(table)));
+        if (verification.every(Boolean)) {
+          tablesExist = true;
+          break;
+        }
+        if (attempt < 4) {
+          await new Promise((resolve) => globalThis.setTimeout(resolve, 1000));
+        }
+      }
+
+      if (!tablesExist) {
+        return {
+          ok: false,
+          error: getSchemaBootstrapError('Las tablas esperadas siguen sin estar disponibles en PostgREST.'),
+        };
       }
 
       return { ok: true };
