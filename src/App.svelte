@@ -22,7 +22,7 @@
   let isMobile = $state(false);
   let activeTab = $state<Tab>("asistencia");
   let visitedTabs = $state<Set<Tab>>(new Set(["notas", "reportes", "estudiantes", "evaluaciones", "globales", "ajustes", "asistencia", "informe", "cloud"]));
-  let sidebarWidth = $state(260);
+  let sidebarWidth = $state(Math.min(Math.max(220, Math.floor(window.innerWidth * 0.16)), 260));
   let drawerOpen = $state(false);
   let isResizing = $state(false);
   let toast: { message: string; type: string; isOpen: boolean } = $state({ message: "", type: "info", isOpen: false });
