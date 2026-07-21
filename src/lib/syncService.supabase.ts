@@ -927,12 +927,10 @@ export const syncService = {
     ];
     console.group('[Diagnóstico Supabase]');
     for (const table of allTables) {
-      const { data, error } = await client.from(table).select('id', { count: 'exact', head: true }).limit(0);
+      const { count: exact, error } = await client.from(table).select('*', { count: 'exact', head: true });
       if (error) {
         console.warn(`  ❌ ${table}: NO DISPONIBLE (${error.code || error.message})`);
       } else {
-        const count = data?.length ?? 0;
-        const { count: exact } = await client.from(table).select('*', { count: 'exact', head: true }).limit(0);
         console.log(`  ✅ ${table}: ${exact ?? '?'} registros`);
       }
     }
@@ -1179,13 +1177,13 @@ export const syncService = {
         if (colegioDias && colegioDias.length > 0) {
           const batchDias = colegioDias.map(cd => ({
             colegio_id: cd.colegioId,
-            lunes: cd.lunes,
-            martes: cd.martes,
-            miercoles: cd.miercoles,
-            jueves: cd.jueves,
-            viernes: cd.viernes,
-            sabado: cd.sabado,
-            domingo: cd.domingo,
+            lunes: Number(cd.lunes),
+            martes: Number(cd.martes),
+            miercoles: Number(cd.miercoles),
+            jueves: Number(cd.jueves),
+            viernes: Number(cd.viernes),
+            sabado: Number(cd.sabado),
+            domingo: Number(cd.domingo),
             user_id: userId
           }));
 
