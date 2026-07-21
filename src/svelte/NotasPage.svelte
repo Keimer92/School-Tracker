@@ -1427,6 +1427,9 @@
                   <th style="text-align: left; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">#</th>
                   <th style="text-align: left; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Estudiante</th>
                   <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Actual</th>
+                  {#if isQualitative}
+                    <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Meta</th>
+                  {/if}
                   <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #a78bfa; font-weight: 600; border-bottom: 1px solid rgba(139,92,246,0.15);">→ Resultante</th>
                   <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">{isQualitative ? 'Nota objetivo' : 'Nuevo total (0-100)'}</th>
                 </tr>
@@ -1446,6 +1449,15 @@
                         {calcularPctActual(est.estudianteId)}%
                       {/if}
                     </td>
+                    {#if isQualitative}
+                      <td style="padding: 0.3rem 0.6rem; text-align: center; color: #94a3b8; font-weight: 600;">
+                        {#if distribuirTargets[est.estudianteId] && ['AA','AS','AF','AI'].includes(distribuirTargets[est.estudianteId]!.trim().toUpperCase())}
+                          {getMidPctForGrade(distribuirTargets[est.estudianteId]!.trim().toUpperCase())}%
+                        {:else}
+                          -
+                        {/if}
+                      </td>
+                    {/if}
                     <td style="padding: 0.3rem 0.6rem; text-align: center; color: #a78bfa; font-weight: 600;">
                       {#if isQualitative && distribuirTargets[est.estudianteId] && ['AA','AS','AF','AI'].includes(distribuirTargets[est.estudianteId]!.trim().toUpperCase())}
                         {@const pctPrev = calcularPctPreview(est.estudianteId, distribuirTargets[est.estudianteId])}
@@ -1471,9 +1483,6 @@
                             >{grade}</button>
                           {/each}
                         </div>
-                        {#if distribuirTargets[est.estudianteId] && ['AA','AS','AF','AI'].includes(distribuirTargets[est.estudianteId]!.trim().toUpperCase())}
-                          <div style="font-size:0.62rem;color:#64748b;margin-top:2px;text-align:center">→ meta {getMidPctForGrade(distribuirTargets[est.estudianteId]!.trim().toUpperCase())}%</div>
-                        {/if}
                       {:else}
                         <input type="number" min="0" max="100" value={distribuirTargets[est.estudianteId] ?? ''}
                           use:regDistInput={est.estudianteId}
