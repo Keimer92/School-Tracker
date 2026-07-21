@@ -290,6 +290,7 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
     // desde el frontend después de verificar si Turso tiene datos existentes.
     // Esto evita crear datos por defecto cuando ya hay datos en la nube.
     migrate_add_columns(conn)?;
+    deduplicate_criteria(conn)?;
 
     println!("✅ [DB] Base de datos inicializada correctamente");
     Ok(())
@@ -358,6 +359,34 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
             [],
         )
         .map_err(|e| format!("Error agregando columna activo a colegio: {}", e))?;
+    }
+
+    Ok(())
+}
+
+/// Elimina criterios duplicados (mantiene solo los primeros 3 por indicador)
+fn deduplicate_criteria(conn: &Connection) -> Result<(), String> {
+    let mut stmt = conn
+        .prepare("SELECT id FROM indicador WHERE (SELECT COUNT(*) FROM criterio WHERE indicador_id = indicador.id) > 3")
+        .map_err(|e| format!("Error buscando indicadores con criterios duplicados: {}", e))?;
+
+    let indicador_ids: Vec<i64> = stmt
+        .query_map([], |row| row.get::<_, i64>(0))
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    for id in &indicador_ids {
+        // Mantener solo los 3 criterios con orden más bajo
+        conn.execute(
+            "DELETE FROM criterio WHERE indicador_id = ? AND id NOT IN (SELECT id FROM criterio WHERE indicador_id = ? ORDER BY orden LIMIT 3)",
+            rusqlite::params![id, id],
+        )
+        .map_err(|e| format!("Error eliminando criterios duplicados para indicador {}: {}", id, e))?;
+    }
+
+    if !indicador_ids.is_empty() {
+        println!("🧹 [DB] Eliminados criterios duplicados para {} indicador(es)", indicador_ids.len());
     }
 
     Ok(())
@@ -2744,7 +2773,8 @@ pub async fn get_evaluation_config(
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
 
-        // Si no hay criterios, crearlos por defecto
+        // Self-heal: if criteria are empty (shouldn't happen), create defaults
+        // If more than 3 (duplicates), keep only first 3 by orden and delete extras
         if criterios.is_empty() {
             let scores = [7, 7, 6];
             for (j, score) in scores.iter().enumerate() {
@@ -2754,7 +2784,6 @@ pub async fn get_evaluation_config(
                 )
                 .map_err(|e| e.to_string())?;
             }
-            // Recargar criterios
             let criterios_recargados = c_stmt
                 .query_map([ind.id], |row| {
                     Ok(Criterio {
@@ -2769,6 +2798,17 @@ pub async fn get_evaluation_config(
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|e| e.to_string())?;
             ind.criterios = criterios_recargados;
+        } else if criterios.len() > 3 {
+            let mut sorted = criterios;
+            sorted.sort_by_key(|c| c.orden);
+            let (keep, extra) = sorted.split_at(3);
+            for dup in extra {
+                if let Some(did) = dup.id {
+                    conn.execute("DELETE FROM criterio WHERE id = ?", [did])
+                        .map_err(|e| e.to_string())?;
+                }
+            }
+            ind.criterios = keep.to_vec();
         } else {
             ind.criterios = criterios;
         }
