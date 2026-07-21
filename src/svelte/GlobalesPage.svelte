@@ -245,19 +245,19 @@
                 <div style="position:relative;background:rgba(255,255,255,0.03);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:14px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;">
                   <div style="position:absolute;top:0;left:0;width:3px;height:100%;background:{grade.color};border-radius:0 2px 2px 0;"></div>
                   <div style="padding:1rem 1rem 0.85rem 1.25rem;display:flex;flex-direction:column;gap:0.75rem;">
-                    <div style="display:flex;align-items:center;gap:0.6rem;">
-                      <div style="width:10px;height:10px;border-radius:50%;background:{grade.color};box-shadow:0 0 6px {grade.color}66;"></div>
+                    <div style="display:flex;align-items:center;gap:0.4rem;">
+                      <div style="width:10px;height:10px;border-radius:50%;background:{grade.color};box-shadow:0 0 6px {grade.color}66;flex-shrink:0;"></div>
                       <input value={grade.id}
                         onfocus={(e) => { e.currentTarget.dataset.old = grade.id; e.currentTarget.style.borderColor = grade.color; }}
                         oninput={(e) => { const v = e.currentTarget.value; gradeConfigs = gradeConfigs.map(g => g.id === grade.id ? { ...g, id: v } : g); }}
                         onblur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; const old = e.currentTarget.dataset.old || grade.id; if (e.currentTarget.value !== old) handleUpdateGradeConfig(e.currentTarget.value, grade.nombre, grade.color, grade.minimo, old); }}
                         onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-                        style="width:36px;padding:0.2rem 0.3rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:5px;color:#f1f5f9;font-size:1rem;font-weight:700;text-align:center;outline:none;transition:border 0.2s" />
+                        style="width:28px;padding:0.15rem 0.15rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:#f1f5f9;font-size:0.9rem;font-weight:700;text-align:center;outline:none;transition:border 0.2s;flex-shrink:0;" />
                       <input value={grade.nombre}
                         oninput={(e) => { const v = e.currentTarget.value; gradeConfigs = gradeConfigs.map(g => g.id === grade.id ? { ...g, nombre: v } : g); }}
                         onblur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; if (e.currentTarget.value !== grade.nombre) handleUpdateGradeConfig(grade.id, e.currentTarget.value, grade.color, grade.minimo, grade.id); }}
                         onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-                        style="flex:1;min-width:0;padding:0.2rem 0.35rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:5px;color:#94a3b8;font-size:0.75rem;outline:none;transition:border 0.2s"
+                        style="flex:1;min-width:40px;padding:0.2rem 0.35rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:5px;color:#94a3b8;font-size:0.75rem;outline:none;transition:border 0.2s;width:auto;"
                         onfocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'} />
                     </div>
                     <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
@@ -317,24 +317,20 @@
                   onmouseleave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.boxShadow = 'none'; }}>
                   <div style="position:absolute;top:0;left:0;width:4px;height:100%;background:{grade.color};border-radius:0 2px 2px 0;"></div>
                   <div style="padding:1.25rem 1.25rem 1rem 1.5rem;display:flex;flex-direction:column;gap:1rem;">
-                    <div style="display:flex;align-items:center;justify-content:space-between;">
-                      <div style="display:flex;align-items:center;gap:0.75rem;">
-                        <div style="width:12px;height:12px;border-radius:50%;background:{grade.color};box-shadow:0 0 8px {grade.color}66;"></div>
-                        <div style="display:flex;align-items:center;gap:0.5rem;">
-                          <input value={grade.id}
-                            onfocus={(e) => { e.currentTarget.dataset.old = grade.id; e.currentTarget.style.borderColor = grade.color; }}
-                            oninput={(e) => { const v = e.currentTarget.value; gradeConfigs = gradeConfigs.map(g => g.id === grade.id ? { ...g, id: v } : g); }}
-                            onblur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; const old = e.currentTarget.dataset.old || grade.id; if (e.currentTarget.value !== old) handleUpdateGradeConfig(e.currentTarget.value, grade.nombre, grade.color, grade.minimo, old); }}
-                            onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-                            style="width:42px;padding:0.25rem 0.35rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#f1f5f9;font-size:1.1rem;font-weight:700;text-align:center;outline:none;letter-spacing:-0.3px;transition:border 0.2s" />
-                          <input value={grade.nombre}
-                            oninput={(e) => { const v = e.currentTarget.value; gradeConfigs = gradeConfigs.map(g => g.id === grade.id ? { ...g, nombre: v } : g); }}
-                            onblur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; if (e.currentTarget.value !== grade.nombre) handleUpdateGradeConfig(grade.id, e.currentTarget.value, grade.color, grade.minimo, grade.id); }}
-                            onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-                            style="flex:1;min-width:60px;padding:0.25rem 0.4rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#94a3b8;font-size:0.8rem;font-weight:400;outline:none;transition:border 0.2s"
-                            onfocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'} />
-                        </div>
-                      </div>
+                    <div style="display:flex;align-items:center;gap:0.5rem;">
+                      <div style="width:12px;height:12px;border-radius:50%;background:{grade.color};box-shadow:0 0 8px {grade.color}66;flex-shrink:0;"></div>
+                      <input value={grade.id}
+                        onfocus={(e) => { e.currentTarget.dataset.old = grade.id; e.currentTarget.style.borderColor = grade.color; }}
+                        oninput={(e) => { const v = e.currentTarget.value; gradeConfigs = gradeConfigs.map(g => g.id === grade.id ? { ...g, id: v } : g); }}
+                        onblur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; const old = e.currentTarget.dataset.old || grade.id; if (e.currentTarget.value !== old) handleUpdateGradeConfig(e.currentTarget.value, grade.nombre, grade.color, grade.minimo, old); }}
+                        onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                        style="width:32px;padding:0.2rem 0.2rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:5px;color:#f1f5f9;font-size:1rem;font-weight:700;text-align:center;outline:none;letter-spacing:-0.3px;transition:border 0.2s;flex-shrink:0;" />
+                      <input value={grade.nombre}
+                        oninput={(e) => { const v = e.currentTarget.value; gradeConfigs = gradeConfigs.map(g => g.id === grade.id ? { ...g, nombre: v } : g); }}
+                        onblur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; if (e.currentTarget.value !== grade.nombre) handleUpdateGradeConfig(grade.id, e.currentTarget.value, grade.color, grade.minimo, grade.id); }}
+                        onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                        style="flex:1;min-width:40px;padding:0.25rem 0.4rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#94a3b8;font-size:0.8rem;font-weight:400;outline:none;transition:border 0.2s;width:auto;"
+                        onfocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'} />
                     </div>
                     <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
                       {#if grade.id !== "AI"}
