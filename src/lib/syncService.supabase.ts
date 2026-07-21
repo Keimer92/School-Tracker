@@ -1250,7 +1250,7 @@ export const syncService = {
         anos, cortes, colegios, asignaturas, grados, secciones,
         estudiantes, indicadores, criterios, notas, asistencia,
         gradeConfigs, gradoAsignatura, colegioAsignatura, colegioDiasAsistencia
-      ] = results.map(r => r.data);
+      ] = results.map(r => r.data as any[]);
 
       console.log('[Sync] Datos obtenidos de Supabase:', {
         anos: anos?.length || 0,
