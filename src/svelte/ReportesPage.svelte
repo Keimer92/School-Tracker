@@ -185,7 +185,7 @@
     });
     const unsubNotas = listen("notas-updated", () => refreshTrigger++);
     const unsubStudents = listen("student-updated", () => refreshTrigger++);
-    const unsubCatalogs = listen("catalog-updated", () => fetchInitialCatalogs());
+    const unsubCatalogs = listen("catalog-updated", () => refreshTrigger++);
 
     fetchInitialCatalogs();
 
@@ -211,6 +211,7 @@
   });
 
   $effect(() => {
+    if (refreshTrigger > 0) refreshTrigger = 0;
     const lid = ++loadId;
     if (selectedGrado > 0 && selectedSeccion > 0 && (selectedCorte > 0 || specialCorte) && selectedAsignatura > 0) {
       loading = true;

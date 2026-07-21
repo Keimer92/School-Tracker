@@ -76,7 +76,7 @@
 
     const unsub1 = listen("asistencia-updated", () => fetchReporte());
     const unsub2 = listen("student-updated", () => fetchReporte());
-    const unsub3 = listen("catalog-updated", () => { fetchCatalogs(); refreshTrigger++; });
+    const unsub3 = listen("catalog-updated", () => refreshTrigger++);
 
     fetchCatalogs();
 
