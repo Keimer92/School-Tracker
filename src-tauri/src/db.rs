@@ -4014,12 +4014,12 @@ pub struct ColegioAsignaturaRecord {
 }
 
 #[tauri::command]
-pub async fn check_turso_connectivity(tursoUrl: String) -> Result<bool, String> {
+pub async fn check_turso_connectivity(turso_url: String) -> Result<bool, String> {
     // Timeout corto: 5 segundos para no bloquear
     let agent = ureq::AgentBuilder::new()
         .timeout_connect(std::time::Duration::from_secs(5))
         .build();
-    match agent.head(&tursoUrl).call() {
+    match agent.head(&turso_url).call() {
         Ok(_) => Ok(true),
         Err(e) => {
             println!("[check_turso_connectivity] Error: {}", e);

@@ -27,12 +27,7 @@
       "requireLiteralLeadingDot": false
     },
     "deep-link": {
-      "desktop": {
-        "schemes": ["schooltrackerpro"]
-      },
-      "mobile": {
-        "schemes": ["schooltrackerpro"]
-      }
+      "schemes": ["schooltrackerpro"]
     }
   },
   "bundle": {
