@@ -41,6 +41,16 @@ const isTableUnavailableError = (error: unknown) => {
   return isMissingTableError(error) || /404|not found|relation .* does not exist/i.test(message);
 };
 
+const logPgError = (context: string, error: unknown) => {
+  const e = error as Record<string, unknown>;
+  console.error(`[Supabase] ${context}:`, {
+    code: String(e?.code ?? 'N/A'),
+    message: String(e?.message ?? 'N/A'),
+    details: String(e?.details ?? 'N/A'),
+    hint: String(e?.hint ?? 'N/A'),
+  });
+};
+
 const getSchemaBootstrapError = (reason?: string) => {
   const detail = reason ? `\n\nDetalle: ${reason}` : '';
   return `No se pudo preparar el schema de Supabase. El proyecto remoto no expone las tablas esperadas o la conexión de Postgres no está disponible.${detail}\n\nAcciones recomendadas:\n1. Verifica que el proyecto de Supabase correcto esté activo.\n2. Crea el schema manualmente en el SQL Editor de Supabase.\n3. Si usas conexión directa, pega un connection string completo de Postgres en Ajustes → Nube.`;
@@ -263,8 +273,8 @@ export const syncService = {
             id: item.id,
             nombre: item.nombre,
             user_id: userId,
-            ...(table === 'ano_lectivo' || table === 'corte_evaluativo' || table === 'indicador' ? { activo: item.activo } : {}),
-            ...(item.cualitativo !== undefined ? { cualitativo: item.cualitativo } : {})
+            ...(table === 'ano_lectivo' || table === 'corte_evaluativo' || table === 'indicador' ? { activo: Number(item.activo) } : {}),
+            ...(item.cualitativo !== undefined ? { cualitativo: Number(item.cualitativo) } : {})
           }));
           
           const { error: upsertError } = await supabase.from(table).upsert(batchData, { onConflict: 'id' });
@@ -344,7 +354,7 @@ export const syncService = {
           sabado: config.sabado,
           domingo: config.domingo,
           user_id: userId
-        }, { onConflict: 'colegio_id,user_id' });
+        }, { onConflict: 'colegio_id' });
 
       if (error) throw error;
     })(), `Días de asistencia actualizados`);
@@ -453,7 +463,7 @@ export const syncService = {
           corte_evaluativo_id: indicador.corteEvaluativoId,
           orden: indicador.orden,
           descripcion: indicador.descripcion,
-          activo: indicador.activo,
+          activo: Number(indicador.activo),
           user_id: userId
         }, { onConflict: 'id' });
 
@@ -506,8 +516,8 @@ export const syncService = {
                 id: grado.id,
                 nombre: grado.nombre,
                 user_id: userId,
-                ...(grado.cualitativo !== undefined ? { cualitativo: grado.cualitativo } : {})
-              }, { onConflict: 'nombre,user_id' });
+                ...(grado.cualitativo !== undefined ? { cualitativo: Number(grado.cualitativo) } : {})
+              }, { onConflict: 'id' });
             }
           } catch (e) {
             console.warn(`No se pudo sincronizar el grado ${gradoId}:`, e);
@@ -526,7 +536,7 @@ export const syncService = {
                 id: asignatura.id,
                 nombre: asignatura.nombre,
                 user_id: userId,
-                ...(asignatura.cualitativo !== undefined ? { cualitativo: asignatura.cualitativo } : {})
+                ...(asignatura.cualitativo !== undefined ? { cualitativo: Number(asignatura.cualitativo) } : {})
               }, { onConflict: 'id' });
             }
           } catch (e) {
@@ -545,7 +555,7 @@ export const syncService = {
               await supabase.from('corte_evaluativo').upsert({
                 id: corte.id,
                 nombre: corte.nombre,
-                activo: corte.activo,
+                activo: Number(corte.activo),
                 user_id: userId
               }, { onConflict: 'id' });
             }
@@ -566,7 +576,7 @@ export const syncService = {
             corte_evaluativo_id: ind.corteEvaluativoId,
             orden: ind.orden,
             descripcion: ind.descripcion,
-            activo: ind.activo,
+            activo: Number(ind.activo),
             user_id: userId
           }, { onConflict: 'id' });
 
@@ -663,7 +673,7 @@ export const syncService = {
       const { error } = await supabase
         .from('nota')
         .upsert(syncData, { 
-          onConflict: 'estudiante_id,criterio_id,corte_evaluativo_id,asignatura_id,user_id',
+          onConflict: 'estudiante_id,criterio_id,corte_evaluativo_id,asignatura_id',
           ignoreDuplicates: false 
         });
 
@@ -746,7 +756,7 @@ export const syncService = {
       const { error } = await supabase
         .from('nota')
         .upsert(batchData, { 
-          onConflict: 'estudiante_id,criterio_id,corte_evaluativo_id,asignatura_id,user_id' 
+          onConflict: 'estudiante_id,criterio_id,corte_evaluativo_id,asignatura_id' 
         });
 
       if (error) throw error;
@@ -802,7 +812,7 @@ export const syncService = {
           estado: asistencia.estado,
           observacion: asistencia.observacion,
           user_id: userId
-        }, { onConflict: 'estudiante_id,fecha,user_id' }); // Esta se mantiene por su UNIQUE compuesto
+        }, { onConflict: 'estudiante_id,fecha' }); // Esta se mantiene por su UNIQUE compuesto
 
       if (error) throw error;
     })(), details || 'Asistencia actualizada');
@@ -875,7 +885,7 @@ export const syncService = {
 
       const { error } = await supabase
         .from('asistencia')
-        .upsert(batchAsistencia, { onConflict: 'estudiante_id,fecha,user_id' });
+        .upsert(batchAsistencia, { onConflict: 'estudiante_id,fecha' });
 
       if (error) throw error;
     })(), `${records.length} Registros de asistencia`);
@@ -907,6 +917,28 @@ export const syncService = {
    */
   _schemaEnsured: false,
 
+  diagnoseRemote: async () => {
+    const client = getSupabaseClient();
+    if (!client) { console.warn('[Diagnóstico] Supabase no configurado'); return; }
+    const allTables = [
+      'ano_lectivo','corte_evaluativo','colegio','asignatura','grado','seccion',
+      'estudiante','configuracion_calificacion','grado_asignatura','colegio_asignatura',
+      'indicador','criterio','colegio_dias_asistencia','asistencia','nota',
+    ];
+    console.group('[Diagnóstico Supabase]');
+    for (const table of allTables) {
+      const { data, error } = await client.from(table).select('id', { count: 'exact', head: true }).limit(0);
+      if (error) {
+        console.warn(`  ❌ ${table}: NO DISPONIBLE (${error.code || error.message})`);
+      } else {
+        const count = data?.length ?? 0;
+        const { count: exact } = await client.from(table).select('*', { count: 'exact', head: true }).limit(0);
+        console.log(`  ✅ ${table}: ${exact ?? '?'} registros`);
+      }
+    }
+    console.groupEnd();
+  },
+
   syncAll: async () => {
     syncManager.wrapSync((async () => {
       if (!syncService._schemaEnsured) {
@@ -920,6 +952,9 @@ export const syncService = {
 
       const userId = await syncService.getUserId();
       if (!userId) throw new Error("Debes estar conectado para sincronizar");
+
+      // Diagnóstico: mostrar estado del schema remoto antes de sincronizar
+      await syncService.diagnoseRemote();
 
       // 0. Procesar eliminaciones pendientes antes de sincronizar subidas
       await syncService.syncPendingDeletions();
@@ -958,8 +993,8 @@ export const syncService = {
 
         const { error } = await supabase.from(table).upsert(batchData, { onConflict: 'id' });
         if (error) {
-          console.error(`Error en tabla base ${table}:`, error?.message || error?.code || error);
-          throw new Error(`Error en ${syncService.getTableName(table)}: ${error?.message || error?.code || error}`);
+          logPgError(`Error en tabla base ${table}:`, error);
+          throw new Error(`Error en ${syncService.getTableName(table)}: ${getSupabaseErrorMessage(error)}`);
         }
       }
 
@@ -983,8 +1018,8 @@ export const syncService = {
 
         const { error } = await supabase.from('estudiante').upsert(batchEstudiantes, { onConflict: 'id' });
         if (error) {
-          console.error("Error en estudiantes:", error);
-          throw new Error(`Error en Estudiantes: ${error.message}`);
+          logPgError('Error en estudiantes:', error);
+          throw new Error(`Error en Estudiantes: ${getSupabaseErrorMessage(error)}`);
         }
       }
 
@@ -1005,12 +1040,12 @@ export const syncService = {
         
         if (allRelations.length > 0) {
           const { error } = await supabase.from('grado_asignatura').upsert(allRelations, { 
-            onConflict: 'grado_id,asignatura_id,user_id' 
+            onConflict: 'grado_id,asignatura_id' 
           });
-          if (error) console.warn("Error sincronizando grado_asignatura:", error);
+          if (error) logPgError('Error sincronizando grado_asignatura:', error);
         }
       } catch (e) {
-        console.warn("No se pudo sincronizar grado_asignatura:", e);
+        logPgError('No se pudo sincronizar grado_asignatura:', e);
       }
 
       // 2.6 Sincronizar Relación Colegio-Asignatura
@@ -1030,12 +1065,12 @@ export const syncService = {
         
         if (allRelations.length > 0) {
           const { error } = await supabase.from('colegio_asignatura').upsert(allRelations, { 
-            onConflict: 'colegio_id,asignatura_id,user_id' 
+            onConflict: 'colegio_id,asignatura_id' 
           });
-          if (error) console.warn("Error sincronizando colegio_asignatura:", error);
+          if (error) logPgError('Error sincronizando colegio_asignatura:', error);
         }
       } catch (e) {
-        console.warn("No se pudo sincronizar colegio_asignatura:", e);
+        logPgError('No se pudo sincronizar colegio_asignatura:', e);
       }
 
       // 3. Sincronizar Indicadores (Dependen de grado, asignatura, corte)
@@ -1054,8 +1089,8 @@ export const syncService = {
 
         const { error } = await supabase.from('indicador').upsert(batchIndicadores, { onConflict: 'id' });
         if (error) {
-          console.error("Error en indicadores:", error);
-          throw new Error(`Error en Indicadores: ${error.message}`);
+          logPgError('Error en indicadores:', error);
+          throw new Error(`Error en Indicadores: ${getSupabaseErrorMessage(error)}`);
         }
       }
 
@@ -1073,8 +1108,8 @@ export const syncService = {
 
         const { error } = await supabase.from('criterio').upsert(batchCriterios, { onConflict: 'id' });
         if (error) {
-          console.error("Error en criterios:", error);
-          throw new Error(`Error en Criterios: ${error.message}`);
+          logPgError('Error en criterios:', error);
+          throw new Error(`Error en Criterios: ${getSupabaseErrorMessage(error)}`);
         }
       }
 
@@ -1091,11 +1126,11 @@ export const syncService = {
         }));
 
         const { error } = await supabase.from('nota').upsert(batchNotas, { 
-          onConflict: 'estudiante_id,criterio_id,corte_evaluativo_id,asignatura_id,user_id' 
+          onConflict: 'estudiante_id,criterio_id,corte_evaluativo_id,asignatura_id' 
         });
         if (error) {
-          console.error("Error en notas:", error);
-          throw new Error(`Error en Notas: ${error.message}`);
+          logPgError('Error en notas:', error);
+          throw new Error(`Error en Notas: ${getSupabaseErrorMessage(error)}`);
         }
       }
 
@@ -1111,11 +1146,11 @@ export const syncService = {
         }));
 
         const { error } = await supabase.from('asistencia').upsert(batchAsistencia, { 
-          onConflict: 'estudiante_id,fecha,user_id' 
+          onConflict: 'estudiante_id,fecha' 
         });
         if (error) {
-          console.error("Error en asistencia:", error);
-          throw new Error(`Error en Asistencia: ${error.message}`);
+          logPgError('Error en asistencia:', error);
+          throw new Error(`Error en Asistencia: ${getSupabaseErrorMessage(error)}`);
         }
       }
 
@@ -1132,8 +1167,8 @@ export const syncService = {
           onConflict: 'id' 
         });
         if (error) {
-          console.error("Error en configuracion_calificacion:", error);
-          throw new Error(`Error en Configuración de Notas: ${error.message}`);
+          logPgError('Error en configuracion_calificacion:', error);
+          throw new Error(`Error en Configuración de Notas: ${getSupabaseErrorMessage(error)}`);
         }
       }
 
@@ -1154,11 +1189,11 @@ export const syncService = {
           }));
 
           const { error } = await supabase.from('colegio_dias_asistencia').upsert(batchDias, { 
-            onConflict: 'colegio_id,user_id' 
+            onConflict: 'colegio_id' 
           });
           if (error) {
-            console.error("Error en colegio_dias_asistencia:", error);
-            throw new Error(`Error en Días de Asistencia: ${error.message}`);
+            logPgError('Error en colegio_dias_asistencia:', error);
+            throw new Error(`Error en Días de Asistencia: ${getSupabaseErrorMessage(error)}`);
           }
         }
       } catch (e: any) {
@@ -1280,7 +1315,7 @@ export const syncService = {
             corteEvaluativoId: i.corte_evaluativo_id,
             orden: i.orden,
             descripcion: i.descripcion,
-            activo: i.activo,
+          activo: Number(i.activo),
             criterios: []
           })),
           criterios: (criterios || []).map(c => ({
@@ -1351,7 +1386,7 @@ export const syncService = {
         const { error } = await supabase
           .from('colegio_asignatura')
           .upsert(insertData, {
-            onConflict: 'colegio_id,asignatura_id,user_id'
+            onConflict: 'colegio_id,asignatura_id'
           });
 
         if (error) throw error;
@@ -1392,7 +1427,7 @@ export const syncService = {
         const { error } = await supabase
           .from('grado_asignatura')
           .upsert(insertData, {
-            onConflict: 'grado_id,asignatura_id,user_id'
+            onConflict: 'grado_id,asignatura_id'
           });
 
         if (error) throw error;
