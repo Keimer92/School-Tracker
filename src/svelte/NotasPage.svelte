@@ -74,7 +74,6 @@
   let cellSnapshot: Record<string, string> | null = null;
   let hasUnsavedRef = false;
   let nextRefreshSilent = false;
-  let justSavedRef = false;
   let loadId = 0;
   let touchStartX = 0;
   let isUndoRedoAction = false;
@@ -533,7 +532,7 @@
       ]);
       grados = gradosData;
       const firstGradoId = gradosData.length > 0 ? gradosData[0].id : 0;
-      if (gradosData.length > 0) { if (!selectedGrado) selectedGrado = firstGradoId; } else selectedGrado = 0;
+      if (gradosData.length > 0) selectedGrado = firstGradoId; else selectedGrado = 0;
       let filteredAsignaturas = asignaturasData;
       if (firstGradoId > 0) {
         try {
@@ -543,7 +542,7 @@
       }
       const sortedAsignaturas = [...filteredAsignaturas].sort((a, b) => a.nombre.localeCompare(b.nombre));
       asignaturas = sortedAsignaturas;
-      if (sortedAsignaturas.length > 0) { if (!selectedAsignatura) selectedAsignatura = sortedAsignaturas[0].id; }
+      if (sortedAsignaturas.length > 0) selectedAsignatura = sortedAsignaturas[0].id;
       else {
         selectedAsignatura = 0;
         await emit("show-toast", { message: `⚠️ El colegio ${colegios.find(c => c.id === selectedColegio)?.nombre} no tiene asignaturas asignadas.`, type: 'warning' });
@@ -698,8 +697,6 @@
       hasUnsavedRef = false;
       hasUnsavedChanges = false;
       saving = false;
-      justSavedRef = true;
-      setTimeout(() => { justSavedRef = false; }, 3000);
       await emit("show-toast", { message: "✅ Notas guardadas localmente", type: "success" });
       onDataChange('nota');
       setTimeout(() => fetchEstudiantes(undefined, true), 200);
@@ -825,7 +822,8 @@
 
   $effect(() => {
     if (refreshTrigger > 0 && !hasUnsavedRef && selectedAno > 0 && selectedCorte > 0 && selectedColegio > 0 && selectedAsignatura > 0 && selectedGrado > 0 && selectedSeccion > 0) {
-      fetchEstudiantes();
+      refreshTrigger = 0;
+      fetchEstudiantes(undefined, true);
     }
   });
 
@@ -861,19 +859,18 @@
     let catalogTimeout: ReturnType<typeof setTimeout>;
 
     const u1 = listen("student-updated", () => {
-      if (hasUnsavedRef || justSavedRef) return;
+      if (hasUnsavedRef) return;
       clearTimeout(studentTimeout);
       studentTimeout = setTimeout(() => { nextRefreshSilent = true; refreshTrigger++; }, 500);
     });
 
     const u2 = listen("notas-updated", () => {
-      if (hasUnsavedRef || justSavedRef) return;
+      if (hasUnsavedRef) return;
       clearTimeout(notasTimeout);
       notasTimeout = setTimeout(() => { nextRefreshSilent = true; refreshTrigger++; }, 500);
     });
 
     const u3 = listen("catalog-updated", () => {
-      if (justSavedRef) return;
       clearTimeout(catalogTimeout);
       catalogTimeout = setTimeout(() => {
         nextRefreshSilent = true;
@@ -890,7 +887,7 @@
     });
 
     const onSync = () => {
-      if (hasUnsavedRef || justSavedRef) return;
+      if (hasUnsavedRef) return;
       clearTimeout(notasTimeout);
       notasTimeout = setTimeout(() => { nextRefreshSilent = true; refreshTrigger++; }, 300);
     };
