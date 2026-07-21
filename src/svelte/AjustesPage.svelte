@@ -26,7 +26,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
   const TABS = [
     { id: "configuracion", label: "General", icon: "⚙️" },
-    { id: "apariencia", label: "Diseño", icon: "🎨" },
     { id: "sync", label: "Nube", icon: "☁️" },
     { id: "almacenamiento", label: "Almacén", icon: "📦" },
     { id: "debugging", label: "Debug", icon: "🐛" },
@@ -39,7 +38,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   let dbPath = $state("");
   let gradeConfigs = $state<{ id: string; nombre: string; color: string; minimo: number }[]>([]);
   let highlightColor = $state(localStorage.getItem("student-highlight-color") || "#4ade80");
-  let orientation = $state(localStorage.getItem("app-orientation") || "any");
   let currentUserId = $state("");
   let showUserIdBox = $state(false);
   let anos: CategoryItem[] = $state([]);
@@ -115,18 +113,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   }
 
   function handleUpdateHighlightColor(color: string) { highlightColor = color; emit("highlight-color-updated", color); }
-
-  async function handleUpdateOrientation(newOrientation: string) {
-    orientation = newOrientation; localStorage.setItem("app-orientation", newOrientation);
-    if (isAndroid) {
-      try {
-        const lockType = newOrientation === "portrait" ? "portrait-primary" : newOrientation === "landscape" ? "landscape-primary" : "any";
-        if (lockType === "any") (screen.orientation as any).unlock?.();
-        else await (screen.orientation as any).lock?.(lockType).catch(() => {});
-        const { invoke: inv } = await import("@tauri-apps/api/core"); await inv("set_orientation", { orientation: newOrientation });
-      } catch (e) { console.error("Error al cambiar orientación:", e); }
-    }
-  }
 
   async function handleExportDB() {
     try {
@@ -295,55 +281,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                     <div style="padding: 0.4rem 0.8rem; border-radius: 4px; background: {highlightColor}1a; border-left: 4px solid {highlightColor}; color: {highlightColor}; font-weight: bold; font-size: 0.85rem;">Juan Pérez García</div>
                     <div style="color: #64748b; font-size: 0.8rem;">← Ejemplo de estudiante resaltado</div>
                   </div>
-                </div>
-              </div>
-              <div style="margin-bottom: 2rem;">
-                <h4 style="margin: 0 0 1rem 0; color: #e2e8f0;">📱 Orientación del Dispositivo</h4>
-                <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 1.5rem;">Define la orientación predeterminada de la aplicación (solo aplicable en Android).</p>
-                <div style="background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
-                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.8rem;">
-                    {#each [{ id: "any", label: "🔄 Automático", icon: "📱" }, { id: "portrait", label: "📱 Vertical", icon: "↕️" }, { id: "landscape", label: "🌅 Horizontal", icon: "↔️" }] as opt}
-                      <button onclick={() => handleUpdateOrientation(opt.id)} style="padding: 1rem; border: {orientation === opt.id ? '2px solid #646cff' : '1px solid rgba(255,255,255,0.1)'}; border-radius: 10px; background: {orientation === opt.id ? 'rgba(100, 108, 255, 0.1)' : 'rgba(255,255,255,0.03)'}; color: {orientation === opt.id ? 'white' : '#94a3b8'}; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
-                        <span style="font-size: 1.2rem;">{opt.icon}</span>
-                        <span style="font-size: 0.85rem; font-weight: {orientation === opt.id ? 'bold' : 'normal'};">{opt.label}</span>
-                      </button>
-                    {/each}
-                  </div>
-                  {#if !isAndroid}
-                    <div style="margin-top: 1rem; padding: 0.6rem; border-radius: 6px; background: rgba(234, 179, 8, 0.1); border: 1px solid rgba(234, 179, 8, 0.2); display: flex; align-items: center; gap: 0.5rem;">
-                      <span style="font-size: 0.9rem;">⚠️</span>
-                      <p style="margin: 0; font-size: 0.75rem; color: #eab308;">Esta opción no tiene efecto en Windows. Se aplicará cuando uses la app en Android.</p>
-                    </div>
-                  {/if}
-                </div>
-              </div>
-            </div>
-          </div>
-        {/if}
-
-        <!-- APARIENCIA -->
-        {#if activeTab === "apariencia"}
-          <div class="category-card">
-            <div class="category-header"><h3>🎨 Apariencia</h3></div>
-            <div style="padding: 2rem;">
-              <div style="margin-bottom: 2rem;">
-                <h4 style="margin: 0 0 1rem 0; color: var(--text-primary);">Tema del Sistema</h4>
-                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.5rem;">Elige entre tema claro, oscuro o deja que el sistema decida según tu configuración.</p>
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem;">
-{#each ["claro", "oscuro", "sistema"] as mode}
-  <button onclick={() => handleThemeChange(mode)} style="padding: 1rem; border: 2px solid {themeMode === mode ? 'var(--primary-color)' : 'var(--border)'}; border-radius: 14px; background: {themeMode === mode ? 'var(--primary-light)' : 'transparent'}; color: {themeMode === mode ? 'var(--primary-color)' : 'var(--text-secondary)'}; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; transition: all 0.2s;">
-    <span style="font-size: 1.5rem;">{mode === 'claro' ? '☀️' : mode === 'oscuro' ? '🌙' : '💻'}</span>
-    <span style="font-size: 0.9rem; font-weight: {themeMode === mode ? 'bold' : 'normal'};">{getThemeName(mode)}</span>
-    <span style="font-size: 0.7rem; color: var(--text-muted); text-align: center;">{getThemeLabel(mode)}</span>
-  </button>
-{/each}
-</div>
-              </div>
-              <div style="background: var(--bg-hover); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--border);">
-                <h4 style="margin: 0 0 1rem 0; color: var(--text-primary);">Vista Previa</h4>
-                <div style="display: flex; gap: 1rem; align-items: center;">
-                  <div style="width: 32px; height: 32px; border-radius: 8px; background-color: {getThemeColor(themeMode)}; border: 2px solid var(--border);"></div>
-                  <span style="color: var(--text-primary); font-weight: bold;">Tema actual: {getThemeName(themeMode)}</span>
                 </div>
               </div>
             </div>
