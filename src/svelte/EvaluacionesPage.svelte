@@ -396,12 +396,12 @@
               <div id="indicador-{ind.id}" class="accordion-item" class:active={ind.activo} class:inactive={!ind.activo} class:expanded>
                 <div class="accordion-header" onclick={() => { const next = new Set(accordionOpen); if (next.has(ind.id)) next.delete(ind.id); else next.add(ind.id); accordionOpen = next; }}>
                   <div class="accordion-header-left">
-                    <label class="switch">
-                      <input type="checkbox" checked={ind.activo} disabled={!ind.activo && activeCount >= 5} onchange={(e) => { e.stopPropagation(); handleToggleIndicador(ind); }} />
-                      <span class="slider round"></span>
-                    </label>
-                    <div class="indicador-badge" class:active={ind.activo} class:inactive={!ind.activo}>{ind.orden}</div>
-                    <span>{ind.descripcion || `Indicador ${ind.orden}`}</span>
+<label class="switch">
+                        <input type="checkbox" checked={ind.activo} onclick={(e) => { e.stopPropagation(); handleToggleClick(e, ind); }} onchange={(e) => { e.stopPropagation(); handleToggleIndicador(ind); }} />
+                        <span class="slider round"></span>
+                      </label>
+                      <div class="indicador-badge" class:active={ind.activo} class:inactive={!ind.activo}>{ind.orden}</div>
+                      <span>{ind.descripcion || `Indicador ${ind.orden}`}</span>
                   </div>
                   <div class="accordion-header-right">
                     {#if !ind.activo}
@@ -423,7 +423,7 @@
                 <div id="indicador-{ind.id}" class="split-item" class:active={ind.activo} class:inactive={!ind.activo} class:selected={expandedIndicador === ind.id} onclick={() => expandedIndicador = ind.id}>
                   <div class="split-item-row">
                     <label class="switch">
-                      <input type="checkbox" checked={ind.activo} disabled={!ind.activo && activeCount >= 5} onchange={(e) => { e.stopPropagation(); handleToggleIndicador(ind); }} />
+                      <input type="checkbox" checked={ind.activo} onclick={(e) => { e.stopPropagation(); handleToggleClick(e, ind); }} onchange={(e) => { e.stopPropagation(); handleToggleIndicador(ind); }} />
                       <span class="slider round"></span>
                     </label>
                     <div class="indicador-badge" class:active={ind.activo} class:inactive={!ind.activo}>{ind.orden}</div>
@@ -442,10 +442,10 @@
                 <div class="split-detail-header">
                   <h3>Indicador {selected.orden}</h3>
                   <div style="display: flex; align-items: center; gap: 0.75rem;">
-                    <label class="switch">
-                      <input type="checkbox" checked={selected.activo} disabled={!selected.activo && activeCount >= 5} onchange={() => handleToggleIndicador(selected)} />
-                      <span class="slider round"></span>
-                    </label>
+<label class="switch">
+                        <input type="checkbox" checked={selected.activo} onclick={(e) => handleToggleClick(e, selected)} onchange={() => handleToggleIndicador(selected)} />
+                        <span class="slider round"></span>
+                      </label>
                     {#if !selected.activo}
                       <span class="status-tag inactive">Inactivo</span>
                     {:else}
