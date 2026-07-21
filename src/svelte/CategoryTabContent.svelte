@@ -212,28 +212,29 @@
   });
 </script>
 
-<div class="category-card" style="background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);">
-  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid rgba(var(--primary-rgb), 0.3);">
-    <div style="display: flex; align-items: center; gap: 0.75rem;">
+<div class="category-card" style="position:relative;background:rgba(255,255,255,0.02);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.06);border-radius:18px;padding:1.5rem;margin-bottom:1.5rem;overflow:hidden;transition:all 0.25s ease;">
+  <div style="position:absolute;top:0;left:0;width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(var(--primary-rgb),0.3),transparent);"></div>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.06);">
+    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
       <div style="width: 4px; height: 28px; background: linear-gradient(180deg, var(--primary-color), var(--primary-hover)); border-radius: 2px;"></div>
-      <h2 style="margin: 0; font-size: 1.35rem; color: #f1f5f9; font-weight: 700; letter-spacing: -0.02em;">{config.title}</h2>
+      <h2 style="margin: 0; font-size: 1.25rem; color: #f1f5f9; font-weight: 700; letter-spacing: -0.02em;">{config.title}</h2>
       {#if items.length > 0}
-        <label onclick={(e) => e.stopPropagation()} style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; padding: 0.35rem 0.6rem; border-radius: 6px; background: {selectedIds.size > 0 ? 'rgba(var(--primary-rgb), 0.1)' : 'rgba(255,255,255,0.03)'}; border: {selectedIds.size > 0 ? '1px solid rgba(var(--primary-rgb), 0.25)' : '1px solid transparent'}; font-size: 0.75rem; color: {selectedIds.size > 0 ? 'var(--text-secondary)' : '#94a3b8'}; font-weight: 600; user-select: none;">
+        <label onclick={(e) => e.stopPropagation()} style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer; padding: 0.3rem 0.5rem; border-radius: 6px; background: {selectedIds.size > 0 ? 'rgba(var(--primary-rgb), 0.08)' : 'rgba(255,255,255,0.03)'}; border: {selectedIds.size > 0 ? '1px solid rgba(var(--primary-rgb), 0.2)' : '1px solid transparent'}; font-size: 0.7rem; color: {selectedIds.size > 0 ? 'var(--text-secondary)' : '#94a3b8'}; font-weight: 600; user-select: none;transition:all 0.2s">
           <input type="checkbox" checked={items.length > 0 && selectedIds.size === items.length} onchange={toggleSelectAll} style="display: none;" />
-          <span style="display: flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 4px; border: {selectedIds.size === items.length ? '2px solid var(--primary-color)' : '2px solid rgba(255,255,255,0.2)'}; background: {selectedIds.size === items.length ? 'rgba(var(--primary-rgb), 0.2)' : 'transparent'}; flex-shrink: 0;">
+          <span style="display: flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 4px; border: {selectedIds.size === items.length ? '2px solid var(--primary-color)' : '2px solid rgba(255,255,255,0.15)'}; background: {selectedIds.size === items.length ? 'rgba(var(--primary-rgb), 0.2)' : 'transparent'}; flex-shrink: 0;">
             {#if selectedIds.size === items.length}
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
             {/if}
           </span>
           Todo
         </label>
         {#if selectedIds.size > 0}
-          <button onclick={() => showBatchDeleteConfirm = true} disabled={isDeleting} style="padding: 0.35rem 0.75rem; font-size: 0.75rem; border-radius: 6px; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); cursor: pointer; font-weight: 600; color: #fca5a5;">🗑 Eliminar ({selectedIds.size})</button>
+          <button onclick={() => showBatchDeleteConfirm = true} disabled={isDeleting} style="padding:0.3rem 0.6rem;font-size:0.7rem;border-radius:6px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);cursor:pointer;font-weight:600;color:#fca5a5;transition:all 0.2s;">🗑 {selectedIds.size}</button>
         {/if}
       {/if}
       {#if config.title === "Asignatura" && items.length > 0}
-        <div style="display: flex; align-items: center; gap: 0.5rem; margin-left: 1rem; padding: 0.4rem 0.75rem; background: rgba(139, 92, 246, 0.15); border-radius: 8px; border: 1px solid rgba(139, 92, 246, 0.3);">
-          <span style="font-size: 0.75rem; color: #a78bfa; font-weight: 600;">Todo Cualitativo</span>
+        <div style="display: flex; align-items: center; gap: 0.4rem; margin-left: 0.5rem; padding: 0.3rem 0.6rem; background: rgba(139, 92, 246, 0.1); border-radius: 6px; border: 1px solid rgba(139, 92, 246, 0.2);">
+          <span style="font-size: 0.7rem; color: #a78bfa; font-weight: 600;">Cualitativo</span>
           <label class="switch" title={globalCualitativo ? "Desactivar todo" : "Activar todo"}>
             <input type="checkbox" checked={globalCualitativo === true} onchange={(e) => { const checked = (e.target as HTMLInputElement).checked; globalCualitativo = checked ? true : false; handleGlobalCualitativo(checked); }} />
             <span class="slider round" style="background-color: {globalCualitativo ? '#8b5cf6' : undefined};"></span>
@@ -241,14 +242,18 @@
         </div>
       {/if}
     </div>
-    <button onclick={handleAdd} style="padding: 0.65rem 1.25rem; font-size: 0.85rem; border-radius: 10px; background: var(--primary-color); border: none; cursor: pointer; font-weight: 600; color: white; box-shadow: 0 2px 8px rgba(var(--primary-rgb), 0.4);">
-      <span style="margin-right: 0.5rem;">+</span> Agregar {config.title}
+    <button onclick={handleAdd} style="padding:0.55rem 1.1rem;font-size:0.8rem;border-radius:10px;background:linear-gradient(135deg,var(--primary-color),var(--primary-hover));border:none;cursor:pointer;font-weight:600;color:white;box-shadow:0 2px 10px rgba(var(--primary-rgb),0.3);transition:all 0.2s;letter-spacing:0.2px"
+      onmouseenter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+      onmouseleave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+      onmousedown={(e) => e.currentTarget.style.transform = 'translateY(1px)'}
+      onmouseup={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}>
+      <span style="margin-right:0.4rem;font-size:1rem;">+</span> Agregar {config.title}
     </button>
   </div>
 
-  <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+  <div style="display: flex; flex-direction: column; gap: 0.65rem;">
     {#if items.length === 0}
-      <div style="padding: 3rem 2rem; text-align: center; color: #64748b; background: rgba(255,255,255,0.02); border-radius: 12px; border: 2px dashed rgba(255,255,255,0.08);">
+      <div style="padding:3rem 2rem;text-align:center;background:rgba(255,255,255,0.02);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:14px;border:1px dashed rgba(255,255,255,0.08);">
         <div style="font-size: 2.5rem; margin-bottom: 1rem;">📭</div>
         <p style="margin: 0; font-size: 1rem; color: #94a3b8; font-weight: 500;">No hay {config.title.toLowerCase()}s registrados</p>
         <p style="margin: 0.75rem 0 0 0; font-size: 0.85rem; color: #64748b;">Haz clic en "<strong style="color: var(--primary-color);">+ Agregar</strong>" para crear uno nuevo</p>
@@ -257,16 +262,18 @@
       {#each items as item (item.id)}
         <div ondragstart={(e) => handleDragStart(e, item)} ondragover={handleDragOver} ondrop={(e) => handleDrop(e, item)}
           draggable={!!config.endpoints.updateOrder}
-          style="display: flex; align-items: center; gap: 12px; padding: 1rem 1.25rem; background: rgba(51, 65, 85, 0.4); border-radius: 10px; border: {draggedItem?.id === item.id ? '2px dashed var(--primary-color)' : '1px solid rgba(255,255,255,0.06)'}; opacity: {draggedItem?.id === item.id ? 0.5 : 1}; cursor: {config.endpoints.updateOrder ? 'move' : 'default'}; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <label onclick={(e) => e.stopPropagation()} style="display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; border: {selectedIds.has(item.id) ? '2px solid var(--primary-color)' : '2px solid rgba(255,255,255,0.15)'}; background: {selectedIds.has(item.id) ? 'rgba(var(--primary-rgb), 0.2)' : 'transparent'}; cursor: pointer; flex-shrink: 0;">
+          style="position:relative;background:rgba(255,255,255,0.02);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:12px;border:1px solid rgba(255,255,255,0.06);padding:0.85rem 1rem;display:flex;align-items:center;gap:10px;opacity:{draggedItem?.id === item.id ? 0.4 : 1};cursor:{config.endpoints.updateOrder ? 'grab' : 'default'};transition:all 0.2s ease;box-shadow:0 1px 4px rgba(0,0,0,0.1);"
+          onmouseenter={(e) => { if (draggedItem?.id !== item.id) { e.currentTarget.style.borderColor = 'rgba(var(--primary-rgb), 0.25)'; e.currentTarget.style.background = 'rgba(var(--primary-rgb), 0.04)'; }}}
+          onmouseleave={(e) => { if (draggedItem?.id !== item.id) { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'; e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}}>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <label onclick={(e) => e.stopPropagation()} style="display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 5px; border: {selectedIds.has(item.id) ? '2px solid var(--primary-color)' : '2px solid rgba(255,255,255,0.12)'}; background: {selectedIds.has(item.id) ? 'rgba(var(--primary-rgb), 0.15)' : 'transparent'}; cursor: pointer; flex-shrink: 0;transition:all 0.15s;">
               <input type="checkbox" checked={selectedIds.has(item.id)} onchange={() => toggleSelectItem(item.id)} style="display: none;" />
               {#if selectedIds.has(item.id)}
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
               {/if}
             </label>
             {#if config.endpoints.updateOrder}
-              <span style="cursor: move; color: var(--text-muted); font-size: 1.2rem; user-select: none; padding: 0.25rem;">⋮⋮</span>
+              <span style="cursor:grab;color:var(--text-muted);font-size:1rem;user-select:none;padding:0.15rem;opacity:0.5;">⋮⋮</span>
             {/if}
             {#if config.endpoints.setActive}
               <label class="switch" title="Activar">
@@ -281,27 +288,27 @@
               </label>
             {/if}
           </div>
-          <span style="flex: 1; color: {item.cualitativo ? '#a78bfa' : (item.activo ? '#4ade80' : '#e2e8f0')}; font-weight: {(item.activo || item.cualitativo) ? '700' : '500'}; font-size: 0.95rem; letter-spacing: 0.01em;">
+          <span style="flex: 1; color: {item.cualitativo ? '#a78bfa' : (item.activo ? '#4ade80' : '#e2e8f0')}; font-weight: {(item.activo || item.cualitativo) ? '700' : '500'}; font-size: 0.9rem; letter-spacing: 0.01em;">
             {item.nombre}
             {#if item.activo}
-              <span style="margin-left: 0.75rem; font-size: 0.7rem; color: #4ade80; font-weight: 700; text-transform: uppercase; background: rgba(74, 222, 128, 0.15); padding: 0.2rem 0.5rem; border-radius: 4px; letter-spacing: 0.05em;">✓ Activo</span>
+              <span style="margin-left: 0.5rem; font-size: 0.65rem; color: #4ade80; font-weight: 700; text-transform: uppercase; background: rgba(74, 222, 128, 0.12); padding: 0.15rem 0.4rem; border-radius: 4px; letter-spacing: 0.04em;">✓ Activo</span>
             {/if}
             {#if item.cualitativo}
-              <span style="margin-left: 0.75rem; font-size: 0.7rem; color: #a78bfa; font-weight: 700; background: rgba(167, 139, 250, 0.15); padding: 0.2rem 0.5rem; border-radius: 4px; letter-spacing: 0.05em;">♢ Cualitativo</span>
+              <span style="margin-left: 0.5rem; font-size: 0.65rem; color: #a78bfa; font-weight: 700; background: rgba(167, 139, 250, 0.12); padding: 0.15rem 0.4rem; border-radius: 4px; letter-spacing: 0.04em;">♢ Cualitativo</span>
             {/if}
           </span>
-          <div style="display: flex; gap: 0.4rem;">
+          <div style="display: flex; gap: 0.35rem;">
             {#if config.title === "Grado" && onConfigClick}
-              <button onclick={() => onConfigClick(item)} title="Configurar Materias" style="background: rgba(var(--primary-rgb), 0.15); border: 1px solid rgba(var(--primary-rgb), 0.3); border-radius: 8px; padding: 0.5rem 0.65rem; cursor: pointer; font-size: 1.1rem;">🛠️</button>
+              <button onclick={() => onConfigClick(item)} title="Configurar Materias" style="background:rgba(var(--primary-rgb),0.1);border:1px solid rgba(var(--primary-rgb),0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.1)'}>🛠️</button>
             {/if}
             {#if config.title === "Colegio" && onConfigClick}
-              <button onclick={() => onConfigClick(item)} title="Configurar Días de Asistencia" style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 0.5rem 0.65rem; cursor: pointer; font-size: 1.1rem;">📅</button>
+              <button onclick={() => onConfigClick(item)} title="Configurar Días de Asistencia" style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(16,185,129,0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(16,185,129,0.1)'}>📅</button>
             {/if}
             {#if config.title === "Colegio" && onSubjectsClick}
-              <button onclick={() => onSubjectsClick(item)} title="Configurar Asignaturas" style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px; padding: 0.5rem 0.65rem; cursor: pointer; font-size: 1.1rem;">📚</button>
+              <button onclick={() => onSubjectsClick(item)} title="Configurar Asignaturas" style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(245,158,11,0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(245,158,11,0.1)'}>📚</button>
             {/if}
-            <button onclick={() => handleEdit(item)} title="Editar" style="background: rgba(var(--primary-rgb), 0.15); border: 1px solid rgba(var(--primary-rgb), 0.3); border-radius: 8px; padding: 0.5rem 0.65rem; cursor: pointer; font-size: 1.1rem;">✎</button>
-            <button onclick={() => handleDelete(item)} title="Eliminar" style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 8px; padding: 0.5rem 0.65rem; cursor: pointer; font-size: 1.1rem;">🗑</button>
+            <button onclick={() => handleEdit(item)} title="Editar" style="background:rgba(var(--primary-rgb),0.1);border:1px solid rgba(var(--primary-rgb),0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.1)'}>✎</button>
+            <button onclick={() => handleDelete(item)} title="Eliminar" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}>🗑</button>
           </div>
         </div>
       {/each}
@@ -311,16 +318,17 @@
 
 <!-- Delete Confirm Modal (Individual) -->
 {#if showDeleteConfirm}
-  <div class="modal-overlay" style="position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);">
-    <div class="modal-content category-card" style="width: 400px; max-width: 90%; padding: 1.5rem; position: relative; background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98)); border: 1px solid rgba(239,68,68,0.25); border-radius: 20px; box-shadow: 0 25px 60px -12px rgba(0,0,0,0.6);">
-      <h3 style="margin-top: 0; color: #f87171;">⚠️ Confirmar Eliminación</h3>
-      <div style="white-space: pre-wrap; margin: 1.5rem 0; color: #e2e8f0; font-size: 0.95rem; line-height: 1.5;">
+  <div class="modal-overlay" style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);">
+    <div style="width:400px;max-width:90%;padding:1.5rem;background:rgba(20,24,31,0.85);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(239,68,68,0.25);border-radius:20px;box-shadow:0 25px 60px -12px rgba(0,0,0,0.6);">
+      <div style="width:40px;height:40px;border-radius:12px;background:rgba(239,68,68,0.15);display:flex;align-items:center;justify-content:center;font-size:1.2rem;margin-bottom:1rem;">⚠️</div>
+      <h3 style="margin:0 0 0.5rem;color:#f1f5f9;font-size:1.05rem;font-weight:700;">Confirmar Eliminación</h3>
+      <div style="white-space:pre-wrap;margin:1rem 0 1.5rem;color:#94a3b8;font-size:0.9rem;line-height:1.6;">
         {deleteMessage}
       </div>
-      <div style="display: flex; justify-content: flex-end; gap: 1rem;">
-        <button onclick={() => { showDeleteConfirm = false; itemToDelete = null; }} disabled={isDeleting} style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-weight: 600;">{hasDependency ? "Entendido" : "Cancelar"}</button>
+      <div style="display:flex;justify-content:flex-end;gap:0.75rem;">
+        <button onclick={() => { showDeleteConfirm = false; itemToDelete = null; }} disabled={isDeleting} style="padding:0.5rem 1rem;font-size:0.8rem;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);color:#94a3b8;cursor:pointer;font-weight:600;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}>{hasDependency ? "Entendido" : "Cancelar"}</button>
         {#if !hasDependency}
-          <button onclick={confirmDelete} disabled={isDeleting} style="padding: 0.5rem 1.25rem; font-size: 0.85rem; border-radius: 8px; border: none; background: #ef4444; color: white; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(239,68,68,0.4);">{isDeleting ? "Eliminando..." : "Eliminar"}</button>
+          <button onclick={confirmDelete} disabled={isDeleting} style="padding:0.5rem 1.25rem;font-size:0.8rem;border-radius:8px;border:none;background:linear-gradient(135deg,#dc2626,#ef4444);color:white;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(239,68,68,0.3);transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'} onmouseleave={(e) => e.currentTarget.style.transform = 'translateY(0)'}>{isDeleting ? "Eliminando..." : "Eliminar"}</button>
         {/if}
       </div>
     </div>
@@ -329,21 +337,22 @@
 
 <!-- Batch Delete Modal -->
 {#if showBatchDeleteConfirm}
-  <div class="modal-overlay" style="position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);">
-    <div class="modal-content category-card" style="width: 400px; max-width: 90%; padding: 1.5rem; position: relative; background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98)); border: 1px solid rgba(239,68,68,0.25); border-radius: 20px; box-shadow: 0 25px 60px -12px rgba(0,0,0,0.6);">
-      <h3 style="margin-top: 0; color: #f87171;">⚠️ Confirmar Eliminación Masiva</h3>
-      <div style="margin: 1.5rem 0; color: #e2e8f0; font-size: 0.95rem; line-height: 1.5;">
-        <p>¿Está seguro de eliminar los siguientes <strong>{selectedIds.size}</strong> {config.title.toLowerCase()}?</p>
-        <ul style="max-height: 200px; overflow-y: auto; padding-left: 1.25rem; margin-top: 0.75rem; font-size: 0.85rem; color: #94a3b8;">
+  <div class="modal-overlay" style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);">
+    <div style="width:400px;max-width:90%;padding:1.5rem;background:rgba(20,24,31,0.85);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(239,68,68,0.25);border-radius:20px;box-shadow:0 25px 60px -12px rgba(0,0,0,0.6);">
+      <div style="width:40px;height:40px;border-radius:12px;background:rgba(239,68,68,0.15);display:flex;align-items:center;justify-content:center;font-size:1.2rem;margin-bottom:1rem;">⚠️</div>
+      <h3 style="margin:0 0 0.5rem;color:#f1f5f9;font-size:1.05rem;font-weight:700;">Confirmar Eliminación Masiva</h3>
+      <div style="margin:1rem 0 1.5rem;color:#94a3b8;font-size:0.9rem;line-height:1.6;">
+        <p style="margin:0 0 0.75rem;">¿Está seguro de eliminar los siguientes <strong style="color:#f1f5f9;">{selectedIds.size}</strong> {config.title.toLowerCase()}?</p>
+        <ul style="max-height:180px;overflow-y:auto;padding-left:1.25rem;margin:0.5rem 0;font-size:0.85rem;color:#94a3b8;">
           {#each items.filter(i => selectedIds.has(i.id)) as i}
-            <li>{i.nombre}</li>
+            <li style="padding:0.15rem 0;">{i.nombre}</li>
           {/each}
         </ul>
-        <p style="color: #f87171; font-weight: 600; margin-top: 1rem;">Todos los datos asociados (estudiantes, calificaciones, asistencias) se eliminarán permanentemente. Esta acción no se puede deshacer.</p>
+        <p style="color:#f87171;font-weight:600;margin:1rem 0 0;font-size:0.85rem;">Todos los datos asociados se eliminarán permanentemente. Esta acción no se puede deshacer.</p>
       </div>
-      <div style="display: flex; justify-content: flex-end; gap: 1rem;">
-        <button onclick={() => showBatchDeleteConfirm = false} disabled={isDeleting} style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-weight: 600;">Cancelar</button>
-        <button onclick={handleBatchDelete} disabled={isDeleting} style="padding: 0.5rem 1.25rem; font-size: 0.85rem; border-radius: 8px; border: none; background: #ef4444; color: white; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(239,68,68,0.4);">{isDeleting ? "Eliminando..." : `Eliminar ${selectedIds.size} elementos`}</button>
+      <div style="display:flex;justify-content:flex-end;gap:0.75rem;">
+        <button onclick={() => showBatchDeleteConfirm = false} disabled={isDeleting} style="padding:0.5rem 1rem;font-size:0.8rem;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);color:#94a3b8;cursor:pointer;font-weight:600;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}>Cancelar</button>
+        <button onclick={handleBatchDelete} disabled={isDeleting} style="padding:0.5rem 1.25rem;font-size:0.8rem;border-radius:8px;border:none;background:linear-gradient(135deg,#dc2626,#ef4444);color:white;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(239,68,68,0.3);transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'} onmouseleave={(e) => e.currentTarget.style.transform = 'translateY(0)'}>{isDeleting ? "Eliminando..." : `Eliminar ${selectedIds.size} elementos`}</button>
       </div>
     </div>
   </div>
@@ -351,18 +360,20 @@
 
 <!-- Prompt Modal (Add/Edit) -->
 {#if showPrompt}
-  <div class="modal-overlay" style="position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);">
-    <div class="modal-content category-card" style="width: 400px; max-width: 90%; padding: 1.5rem; position: relative; background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98)); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; box-shadow: 0 25px 60px -12px rgba(0,0,0,0.6);">
-      <h3 style="margin-top: 0; color: #f1f5f9; font-size: 1.1rem;">{promptTitle}</h3>
-      <div style="margin: 1.5rem 0;">
-        <label style="display: block; margin-bottom: 0.5rem; font-size: 0.8rem; color: #94a3b8; font-weight: 600;">{promptLabel}</label>
+  <div class="modal-overlay" style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);">
+    <div style="width:400px;max-width:90%;padding:1.5rem;background:rgba(20,24,31,0.85);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.08);border-radius:20px;box-shadow:0 25px 60px -12px rgba(0,0,0,0.6);">
+      <h3 style="margin:0 0 0.25rem;color:#f1f5f9;font-size:1.05rem;font-weight:700;">{promptTitle}</h3>
+      <div style="margin:1.25rem 0 1.5rem;">
+        <label style="display:block;margin-bottom:0.4rem;font-size:0.75rem;color:#94a3b8;font-weight:600;">{promptLabel}</label>
         <input type="text" bind:value={promptValue} bind:this={promptInput}
           onkeydown={(e) => { if (e.key === "Enter" && promptOnConfirm) { promptOnConfirm(promptValue); showPrompt = false; } }}
-          style="width: 100%; margin-top: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,23,42,0.6); color: #e2e8f0; font-size: 0.9rem; outline: none; box-sizing: border-box;" />
+          style="width:100%;padding:0.55rem 0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:rgba(15,23,42,0.5);color:#e2e8f0;font-size:0.9rem;outline:none;box-sizing:border-box;transition:border 0.2s;"
+          onfocus={(e) => e.currentTarget.style.borderColor = 'var(--primary-color)'}
+          onblur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'} />
       </div>
-      <div style="display: flex; justify-content: flex-end; gap: 1rem;">
-        <button onclick={() => showPrompt = false} style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-weight: 600;">Cancelar</button>
-        <button onclick={() => { if (promptOnConfirm) promptOnConfirm(promptValue); showPrompt = false; }} style="padding: 0.5rem 1.25rem; font-size: 0.85rem; border-radius: 8px; border: none; background: linear-gradient(135deg, var(--primary-hover), var(--primary-color)); color: white; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(var(--primary-rgb), 0.4);">Guardar</button>
+      <div style="display:flex;justify-content:flex-end;gap:0.75rem;">
+        <button onclick={() => showPrompt = false} style="padding:0.5rem 1rem;font-size:0.8rem;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);color:#94a3b8;cursor:pointer;font-weight:600;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}>Cancelar</button>
+        <button onclick={() => { if (promptOnConfirm) promptOnConfirm(promptValue); showPrompt = false; }} style="padding:0.5rem 1.25rem;font-size:0.8rem;border-radius:8px;border:none;background:linear-gradient(135deg,var(--primary-hover),var(--primary-color));color:white;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(var(--primary-rgb),0.3);transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'} onmouseleave={(e) => e.currentTarget.style.transform = 'translateY(0)'}>Guardar</button>
       </div>
     </div>
   </div>
