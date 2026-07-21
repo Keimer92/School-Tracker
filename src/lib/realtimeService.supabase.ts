@@ -139,12 +139,12 @@ async function applyChangeToLocal(table: string, record: any) {
   };
 
   // Mapeo de campos según lo que espera Rust en PullData
-  if (table === 'ano_lectivo') pullData.anos.push({ id: record.id, nombre: record.nombre, activo: record.activo, cualitativo: record.cualitativo });
-  else if (table === 'corte_evaluativo') pullData.cortes.push({ id: record.id, nombre: record.nombre, activo: record.activo, cualitativo: record.cualitativo });
-  else if (table === 'colegio') pullData.colegios.push({ id: record.id, nombre: record.nombre, activo: record.activo, cualitativo: record.cualitativo });
-  else if (table === 'asignatura') pullData.asignaturas.push({ id: record.id, nombre: record.nombre, cualitativo: record.cualitativo });
-  else if (table === 'grado') pullData.grados.push({ id: record.id, nombre: record.nombre, cualitativo: record.cualitativo });
-  else if (table === 'seccion') pullData.secciones.push({ id: record.id, nombre: record.nombre, cualitativo: record.cualitativo });
+  if (table === 'ano_lectivo') pullData.anos.push({ id: record.id, nombre: record.nombre, activo: Boolean(record.activo), cualitativo: Boolean(record.cualitativo) });
+  else if (table === 'corte_evaluativo') pullData.cortes.push({ id: record.id, nombre: record.nombre, activo: Boolean(record.activo), cualitativo: Boolean(record.cualitativo) });
+  else if (table === 'colegio') pullData.colegios.push({ id: record.id, nombre: record.nombre, activo: Boolean(record.activo), cualitativo: Boolean(record.cualitativo) });
+  else if (table === 'asignatura') pullData.asignaturas.push({ id: record.id, nombre: record.nombre, cualitativo: Boolean(record.cualitativo) });
+  else if (table === 'grado') pullData.grados.push({ id: record.id, nombre: record.nombre, cualitativo: Boolean(record.cualitativo) });
+  else if (table === 'seccion') pullData.secciones.push({ id: record.id, nombre: record.nombre, cualitativo: Boolean(record.cualitativo) });
   else if (table === 'estudiante') pullData.estudiantes.push({
     id: record.id,
     nombre: record.nombre,
@@ -165,7 +165,7 @@ async function applyChangeToLocal(table: string, record: any) {
     corteEvaluativoId: record.corte_evaluativo_id,
     orden: record.orden,
     descripcion: record.descripcion,
-    activo: record.activo,
+    activo: Boolean(record.activo),
     criterios: []
   });
   else if (table === 'criterio') pullData.criterios.push({
@@ -182,13 +182,13 @@ async function applyChangeToLocal(table: string, record: any) {
   });
   else if (table === 'colegio_dias_asistencia') pullData.colegioDiasAsistencia.push({
     colegioId: record.colegio_id,
-    lunes: record.lunes,
-    martes: record.martes,
-    miercoles: record.miercoles,
-    jueves: record.jueves,
-    viernes: record.viernes,
-    sabado: record.sabado,
-    domingo: record.domingo
+    lunes: Boolean(record.lunes),
+    martes: Boolean(record.martes),
+    miercoles: Boolean(record.miercoles),
+    jueves: Boolean(record.jueves),
+    viernes: Boolean(record.viernes),
+    sabado: Boolean(record.sabado),
+    domingo: Boolean(record.domingo)
   });
 
   // Usar el comando existente de Rust para upsert

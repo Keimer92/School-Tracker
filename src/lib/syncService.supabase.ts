@@ -1083,7 +1083,7 @@ export const syncService = {
           corte_evaluativo_id: i.corteEvaluativoId,
           orden: i.orden,
           descripcion: i.descripcion,
-          activo: i.activo,
+          activo: Number(i.activo),
           user_id: userId
         }));
 
@@ -1159,6 +1159,7 @@ export const syncService = {
       if (gradeConfigs && gradeConfigs.length > 0) {
         const batchConfigs = gradeConfigs.map(gc => ({
           id: gc.id,
+          nombre: gc.nombre,
           color: gc.color,
           minimo: gc.minimo,
         }));
@@ -1289,12 +1290,12 @@ export const syncService = {
 
       // 2. Mapear datos al formato esperado por Rust
       pullData = {
-          anos: (anos || []).map(a => ({ id: a.id, nombre: a.nombre, activo: a.activo, cualitativo: a.cualitativo })),
-          cortes: (cortes || []).map(c => ({ id: c.id, nombre: c.nombre, activo: c.activo, cualitativo: c.cualitativo })),
-          colegios: (colegios || []).map(c => ({ id: c.id, nombre: c.nombre, activo: c.activo, cualitativo: c.cualitativo })),
-          asignaturas: (asignaturas || []).map(a => ({ id: a.id, nombre: a.nombre, cualitativo: a.cualitativo })),
-          grados: (grados || []).map(g => ({ id: g.id, nombre: g.nombre, cualitativo: g.cualitativo })),
-          secciones: (secciones || []).map(s => ({ id: s.id, nombre: s.nombre, cualitativo: s.cualitativo })),
+          anos: (anos || []).map(a => ({ id: a.id, nombre: a.nombre, activo: Boolean(a.activo), cualitativo: Boolean(a.cualitativo) })),
+          cortes: (cortes || []).map(c => ({ id: c.id, nombre: c.nombre, activo: Boolean(c.activo), cualitativo: Boolean(c.cualitativo) })),
+          colegios: (colegios || []).map(c => ({ id: c.id, nombre: c.nombre, activo: Boolean(c.activo), cualitativo: Boolean(c.cualitativo) })),
+          asignaturas: (asignaturas || []).map(a => ({ id: a.id, nombre: a.nombre, cualitativo: Boolean(a.cualitativo) })),
+          grados: (grados || []).map(g => ({ id: g.id, nombre: g.nombre, cualitativo: Boolean(g.cualitativo) })),
+          secciones: (secciones || []).map(s => ({ id: s.id, nombre: s.nombre, cualitativo: Boolean(s.cualitativo) })),
           estudiantes: (estudiantes || []).map(e => ({
             id: e.id,
             nombre: e.nombre,
@@ -1315,7 +1316,7 @@ export const syncService = {
             corteEvaluativoId: i.corte_evaluativo_id,
             orden: i.orden,
             descripcion: i.descripcion,
-          activo: Number(i.activo),
+          activo: Boolean(i.activo),
             criterios: []
           })),
           criterios: (criterios || []).map(c => ({
@@ -1347,13 +1348,13 @@ export const syncService = {
           colegioAsignatura: (colegioAsignatura || []).map(ca => [ca.colegio_id, ca.asignatura_id]),
           colegioDiasAsistencia: (colegioDiasAsistencia || []).map(cda => ({
             colegioId: cda.colegio_id,
-            lunes: cda.lunes,
-            martes: cda.martes,
-            miercoles: cda.miercoles,
-            jueves: cda.jueves,
-            viernes: cda.viernes,
-            sabado: cda.sabado,
-            domingo: cda.domingo
+            lunes: Boolean(cda.lunes),
+            martes: Boolean(cda.martes),
+            miercoles: Boolean(cda.miercoles),
+            jueves: Boolean(cda.jueves),
+            viernes: Boolean(cda.viernes),
+            sabado: Boolean(cda.sabado),
+            domingo: Boolean(cda.domingo)
           }))
         };
 

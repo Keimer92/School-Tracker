@@ -117,6 +117,22 @@ src-tauri/gen/               generado (ignorar; no editar a mano)
 - **Pooler hostname Supabase**: El formato correcto NO es `${ref}.pooler.supabase.com`
   (no existe para proyectos recientes). Usar `aws-<region>.pooler.supabase.com` con
   usuario `postgres.<projectRef>`. Ver `getSupabaseConnStrings` en `syncService.supabase.ts`.
+- **onConflict sin user_id**: Las PK/UNIQUE de las tablas en Supabase NO incluyen
+  `user_id`. Todos los `onConflict` en `upsert()` deben usar solo la PK real, sin
+  `user_id`. Ej: `onConflict: 'estudiante_id,criterio_id,corte_evaluativo_id,asignatura_id'`
+  (no incluir `user_id` al final). Si se incluye, PostgREST lanza `42P10`.
+- **activo/cualitativo como INTEGER**: En Postgres son columnas `INTEGER`, pero desde
+  Svelte/JS pueden llegar como booleano `true/false`. Siempre envolver con `Number()`
+  antes de enviar en upsert: `activo: Number(item.activo)`. Si no, Postgres lanza
+  `22P02 invalid input syntax for type integer: "true"`.
+- **configuracion_calificacion**: Es la única tabla que NO tiene columna `user_id`.
+  Por lo tanto, en `pullAll` no se filtra por `user_id`, y en los upserts de `syncGradeConfig`
+  y `syncAll` no se incluye `user_id` en el payload.
+- **Diagnóstico remoto (`diagnoseRemote`)**: Función que recorre las 15 tablas vía
+  PostgREST y muestra ✅/❌ con conteo de registros. Se llama al inicio de `syncAll`.
+- **Error logging (`logPgError`)**: Helper que imprime `code`, `message`, `details`,
+  `hint` del error de PostgREST. Usar en todos los catch/error handlers en vez de
+  `console.error("msg:", error)`.
 
 ## Comandos
 - `npm run dev` — servidor Vite (frontend) en http://localhost:1420 (usado por Tauri dev).
