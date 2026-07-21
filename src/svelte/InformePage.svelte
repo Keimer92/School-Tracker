@@ -53,6 +53,7 @@
   let colegioConfig: ColegioDiasAsistencia | null = $state(null);
   let loading = $state(false);
   let refreshTrigger = $state(0);
+  let silentRefresh = $state(false);
   let fetching = $state(false);
   let refreshQueued = $state(false);
 
@@ -74,8 +75,8 @@
     window.addEventListener('resize', checkMobile);
     window.addEventListener('schooltracker-sync', onSync);
 
-    const unsub1 = listen("asistencia-updated", () => fetchReporte());
-    const unsub2 = listen("student-updated", () => fetchReporte());
+    const unsub1 = listen("asistencia-updated", () => { silentRefresh = true; fetchReporte(); });
+    const unsub2 = listen("student-updated", () => { silentRefresh = true; fetchReporte(); });
     const unsub3 = listen("catalog-updated", () => refreshTrigger++);
 
     fetchCatalogs();
@@ -89,7 +90,7 @@
     };
   });
 
-  function onSync() { refreshTrigger++; }
+  function onSync() { silentRefresh = true; refreshTrigger++; }
 
   $effect(() => {
     const hoy = new Date();
@@ -194,7 +195,8 @@
     if (fetching) { refreshQueued = true; return; }
     if (!selectedAno || !selectedColegio || !selectedGrado || !selectedSeccion || !fechaInicio || !fechaFin) return;
     fetching = true;
-    loading = true;
+    if (!silentRefresh) loading = true;
+    silentRefresh = false;
     try {
       reporte = await invoke<AsistenciaReporteItem[]>("get_asistencia_rango", {
         fechaInicio, fechaFin, anoLectivoId: Number(selectedAno), colegioId: Number(selectedColegio), gradoId: Number(selectedGrado), seccionId: Number(selectedSeccion),
