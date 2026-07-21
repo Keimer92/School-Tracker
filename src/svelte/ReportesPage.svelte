@@ -49,7 +49,7 @@
   let loading = $state(false);
   let refreshTrigger = $state(0);
   let silentRefresh = $state(false);
-  let activeSlide = $state<'tabla' | 'estadisticas'>('tabla');
+  let activeSlide = $state<'tabla' | 'estadisticas'>('estadisticas');
   let isMobile = $state(false);
   let isAndroid = $state(false);
   let printHtml: string | null = $state(null);
@@ -849,19 +849,17 @@
                 {promedioGrupalLabel}
               </div>
             </div>
-            <div class="category-card" style="padding:0.8rem;grid-column:1 / -1;margin-top:0.5rem">
-              <h4 style="margin:0 0 0.8rem 0;color:var(--text-secondary);display:flex;align-items:center;gap:0.5rem;font-size:0.9rem">ℹ️ Detalle de Indicadores</h4>
-              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0.5rem;font-size:0.8rem">
-                {#each configIndicadores.filter(i => i.activo) as ind}
-                  <div style="padding:0.5rem;background:rgba(255,255,255,0.02);border-radius:6px;border:1px solid rgba(255,255,255,0.05)">
-                    <strong style="color:var(--text-secondary)">Ind. {ind.orden}:</strong> {ind.descripcion || "Sin descripción"}
-                  </div>
-                {/each}
-                {#if configIndicadores.filter(i => i.activo).length === 0}
-                  <p style="color:#64748b;font-style:italic">No hay indicadores activos configurados.</p>
-                {/if}
+            {#each configIndicadores.filter(i => i.activo) as ind}
+              <div class="summary-card" style="border-left:3px solid var(--primary-color)">
+                <span class="summary-label">Ind. {ind.orden}</span>
+                <span class="summary-value" style="font-size:0.7rem;color:var(--text-secondary);font-weight:400;line-height:1.2;word-break:break-word">{ind.descripcion || "Sin descripción"}</span>
               </div>
-            </div>
+            {/each}
+            {#if configIndicadores.filter(i => i.activo).length === 0}
+              <div class="summary-card" style="grid-column:1/-1">
+                <span class="summary-label" style="color:#64748b;font-style:italic">No hay indicadores activos configurados.</span>
+              </div>
+            {/if}
           </div>
         </div>
       {/if}
