@@ -23,6 +23,7 @@
   ];
 
   const TAB_NAMES = ["Notas", ...CATEGORIES.map(c => c.title)];
+  const TAB_ICONS: Record<string, string> = { Notas: "⭐", "Año Lectivo": "📅", "Corte Evaluativo": "✂️", Colegio: "🏫", Asignatura: "📚", Grado: "📊", Sección: "👥" };
 
   let gradeConfigs: GradeConfig[] = $state([]);
   let isMobile = $state(false);
@@ -189,7 +190,8 @@
             style="display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; background: rgba(51, 65, 85, 0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; cursor: pointer; transition: all 0.2s ease; width: 100%;">
             <div style="display: flex; align-items: center; gap: 1rem;">
               <div style="width: 4px; height: 40px; background: linear-gradient(180deg, var(--primary-color) 0%, var(--primary-hover) 100%); border-radius: 2px;"></div>
-              <span style="font-size: 1rem; font-weight: 600; color: #e2e8f0; text-align: left;">⭐ Notas</span>
+                <span style="font-size: 1.1rem; flex-shrink:0">{TAB_ICONS["Notas"]}</span>
+                <span style="font-size: 1rem; font-weight: 600; color: #e2e8f0; text-align: left;">Notas</span>
             </div>
             <span style="font-size: 1.25rem; color: #64748b;">→</span>
           </button>
@@ -198,6 +200,7 @@
               style="display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; background: rgba(51, 65, 85, 0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; cursor: pointer; transition: all 0.2s ease; width: 100%;">
               <div style="display: flex; align-items: center; gap: 1rem;">
                 <div style="width: 4px; height: 40px; background: linear-gradient(180deg, var(--primary-color) 0%, var(--primary-hover) 100%); border-radius: 2px;"></div>
+                <span style="font-size: 1.1rem; flex-shrink:0">{TAB_ICONS[cat.title]}</span>
                 <span style="font-size: 1rem; font-weight: 600; color: #e2e8f0; text-align: left;">{cat.title}</span>
               </div>
               <span style="font-size: 1.25rem; color: #64748b;">→</span>
@@ -271,7 +274,8 @@
       <div class="globales-tabs">
         {#each TAB_NAMES as tabName}
           <button class="globales-tab" class:active={selectedTab === tabName} onclick={() => selectedTab = tabName}>
-            {tabName}
+            <span style="font-size:1.1rem">{TAB_ICONS[tabName]}</span>
+            <span>{tabName}</span>
           </button>
         {/each}
       </div>
