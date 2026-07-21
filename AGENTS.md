@@ -180,6 +180,65 @@ Toda la interfaz debe seguir un diseño **glassmorphism minimalista tipo Apple**
 
 ## Setup de Supabase (para usuarios nuevos)
 
+## Esquema de Base de Datos y Datos Iniciales
+
+### Inicialización
+
+La BD se crea en `app_data_dir/school.db` al arrancar la app vía `init_database()` en `lib.rs:setup`. Es **idempotente** (`CREATE TABLE IF NOT EXISTS`). Los datos iniciales **no** se siembran aquí; se siembran bajo demanda desde el frontend después de verificar si la nube (Turso) tiene datos existentes (evita duplicar defaults cuando ya hay datos remotos).
+
+### Tablas creadas en `init_database` (`src-tauri/src/db.rs:61`)
+
+| Tabla | PK | Columnas clave | Notas |
+|-------|----|----------------|-------|
+| `ano_lectivo` | `id` (INTEGER PK AUTOINCREMENT) | `nombre TEXT UNIQUE`, `activo INTEGER DEFAULT 0`, `cualitativo INTEGER DEFAULT 0` | |
+| `corte_evaluativo` | `id` | `nombre TEXT UNIQUE`, `activo INTEGER`, `cualitativo INTEGER` | |
+| `colegio` | `id` | `nombre TEXT UNIQUE`, `activo INTEGER`, `cualitativo INTEGER`, `orden INTEGER` | |
+| `asignatura` | `id` | `nombre TEXT UNIQUE`, `cualitativo INTEGER` | |
+| `grado` | `id` | `nombre TEXT UNIQUE`, `cualitativo INTEGER` | |
+| `seccion` | `id` | `nombre TEXT UNIQUE`, `cualitativo INTEGER` | |
+| `estudiante` | `id` | `nombre TEXT`, `codigo TEXT UNIQUE`, `sexo TEXT CHECK(M\|F)`, `ano_lectivo_id`, `grado_id`, `seccion_id`, `colegio_id`, `telefono`, `direccion`, `email`, `foto` | FKs a las tablas de catálogo |
+| `grado_asignatura` | `(grado_id, asignatura_id)` | | FK CASCADE |
+| `colegio_asignatura` | `(colegio_id, asignatura_id)` | | FK CASCADE |
+| `indicador` | `id` | `grado_id`, `asignatura_id`, `corte_evaluativo_id`, `orden`, `descripcion TEXT DEFAULT ''`, `activo INTEGER DEFAULT 1` | |
+| `criterio` | `id` | `indicador_id`, `orden`, `descripcion TEXT DEFAULT ''`, `puntaje_maximo INTEGER` | FK CASCADE sobre indicador |
+| `asistencia` | `id` | `estudiante_id`, `fecha TEXT`, `estado TEXT CHECK(P\|A\|J)`, `observacion TEXT` | `UNIQUE(estudiante_id, fecha)` |
+| `colegio_dias_asistencia` | `colegio_id` | `lunes..domingo INTEGER DEFAULT 1` | |
+| `nota` | `(estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id)` | `valor REAL` | PK compuesta |
+| `configuracion_calificacion` | `id` (TEXT PK) | `nombre TEXT`, `color TEXT`, `minimo INTEGER` | |
+| `sync_pending_deletions` | `id` | `tabla TEXT`, `registro_id INTEGER`, `fecha_intento TIMESTAMP DEFAULT CURRENT_TIMESTAMP` | |
+| `sync_pending_deletions_asistencia` | `id` | `estudiante_id`, `fecha TEXT`, `fecha_intento` | |
+| `sync_pending_deletions_nota` | `id` | `estudiante_id`, `criterio_id`, `corte_evaluativo_id`, `asignatura_id`, `fecha_intento` | |
+| `sync_pending_deletions_grado_asignatura` | `id` | `grado_id`, `asignatura_id`, `fecha_intento` | |
+| `sync_pending_deletions_colegio_asignatura` | `id` | `colegio_id`, `asignatura_id`, `fecha_intento` | |
+
+### Datos semilla (`seed_default_data` en `db.rs:396`)
+
+Solo se siembran si `SELECT COUNT(*) FROM ano_lectivo` es 0 (BD vacía).
+
+| Tabla | Datos insertados |
+|-------|-----------------|
+| `ano_lectivo` | `2026`, `2027`, `2028` |
+| `corte_evaluativo` | `1er corte evaluativo`, `2do corte evaluativo`, `3er corte evaluativo`, `4to corte evaluativo` |
+| `colegio` | `Candelario Sotelo` (orden 1), `Manuel Ignacio Pereira Quintana` (orden 2) |
+| `asignatura` | Cuantitativas: `Ingles`, `Matematicas`, `Fisica`, `Biologia`, `Ciencias Naturales`, `Ciencias Sociales`. Cualitativas: `TAC`, `AEP`, `Convivencia & Civismo`, `Creciendo en Valores`, `Derecho & Dignidad de la Mujer`, `Educación Física` |
+| `grado` | `1er grado` a `11mo grado`. 1er y 2do grado son cualitativos (`cualitativo=1`). |
+| `seccion` | `A`, `B`, `C`, `D` |
+| `grado_asignatura` | Todas las asignaturas × todos los grados (CROSS JOIN) |
+| `colegio_asignatura` | Todas las asignaturas × todos los colegios (CROSS JOIN) |
+| `configuracion_calificacion` | `AA` (#22c55e, min 90), `AS` (#3b82f6, min 70), `AF` (#eab308, min 50), `AI` (#ef4444, min 0) |
+
+### Migraciones (columnas agregadas post-creación)
+
+En `migrate_add_columns` (`db.rs:299`):
+- `configuracion_calificacion.minimo INTEGER DEFAULT 0` (si no existe)
+- `configuracion_calificacion.nombre TEXT DEFAULT ''` (si no existe) + backfill nombres para ids viejos (`destacado`→`AA` etc.)
+- `colegio.activo INTEGER DEFAULT 0` (si no existe)
+
+### Flujo de llamada
+
+1. `lib.rs:setup` → `init_database()` (crea tablas + migraciones)
+2. Frontend (`App.svelte` `onMount`): si no hay cliente Turso, llama `invoke("seed_defaults_now")` → `seed_default_data()`. Si hay Turso, verifica si hay datos remotos y decide si sembrar.
+
 Hay dos formas de configurar Supabase. La **opción A (recomendada)** requiere un solo
 paso manual y luego la app crea/migra todo automáticamente. La **opción B** es el método
 manual completo.
