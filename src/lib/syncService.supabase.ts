@@ -146,11 +146,11 @@ export const syncService = {
 
       if (data.activo !== undefined && data.activo !== null) {
         if (['ano_lectivo', 'corte_evaluativo', 'indicador'].includes(table)) {
-          syncItem.activo = data.activo;
+          syncItem.activo = Number(data.activo);
         }
       }
       if (data.cualitativo !== undefined && data.cualitativo !== null) {
-        syncItem.cualitativo = data.cualitativo;
+        syncItem.cualitativo = Number(data.cualitativo);
       }
 
       const { error } = await supabase
@@ -939,11 +939,11 @@ export const syncService = {
 
           if (item.activo !== undefined && item.activo !== null) {
             if (['ano_lectivo', 'corte_evaluativo', 'indicador'].includes(table)) {
-              syncItem.activo = item.activo;
+              syncItem.activo = Number(item.activo);
             }
           }
           if (item.cualitativo !== undefined && item.cualitativo !== null) {
-            syncItem.cualitativo = item.cualitativo;
+            syncItem.cualitativo = Number(item.cualitativo);
           }
           return syncItem;
         });
