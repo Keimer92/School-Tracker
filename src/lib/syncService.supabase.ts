@@ -1214,10 +1214,25 @@ export const syncService = {
       console.log(`[Sync] Consultando tablas con user_id: ${userId}`);
 
       const results = await withSupabaseSchemaRecovery(async () => {
+        const connStrings = getSupabaseConnStrings();
+        if (!connStrings || connStrings.length === 0) {
+          throw new Error('No hay una conexión de Postgres configurada. Pega un connection string en Ajustes → Nube.');
+        }
+
         const queryResults = await Promise.all(
-          tables.map(table => {
+          tables.map(async (table) => {
             console.log(`[Sync] Consultando ${table}...`);
-            return supabase.from(table).select('*').eq('user_id', userId);
+            try {
+              const jsonStr = await invoke<string>('supabase_select_json', {
+                connectionStrings: connStrings,
+                sql: `SELECT * FROM ${table} WHERE user_id = '${userId}'`,
+              });
+              const data = JSON.parse(jsonStr);
+              return { data, error: null as any };
+            } catch (err: any) {
+              console.error(`[Sync] Error consultando ${table}:`, err);
+              return { data: null, error: { message: err?.toString() || 'Error desconocido' } };
+            }
           })
         );
 
@@ -1595,8 +1610,17 @@ export const syncService = {
       ];
 
       const probeTable = async (tableName: string) => {
-        const { error } = await client.from(tableName).select('id', { count: 'exact', head: true }).limit(0);
-        return !error;
+        const cs = getSupabaseConnStrings();
+        if (!cs || cs.length === 0) return false;
+        try {
+          await invoke('supabase_select_json', {
+            connectionStrings: cs,
+            sql: `SELECT 1 FROM ${tableName} LIMIT 1`,
+          });
+          return true;
+        } catch {
+          return false;
+        }
       };
 
       const runSqlStatements = async (sqlStatements: string[], critical: boolean = true) => {

@@ -945,6 +945,7 @@ pub fn run() {
             save_file_android,
             check_turso_connectivity,
             supabase_execute_sql,
+            supabase_select_json,
             gd_read_file_base64,
             gd_write_file_base64,
             gd_open_url_browser,
