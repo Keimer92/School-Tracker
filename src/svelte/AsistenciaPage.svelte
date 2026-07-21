@@ -353,9 +353,6 @@
           </select>
         </FilterGroup>
         <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isAndroidMobile ? '1 1 100%' : '0 0 auto'}">
-          <div style="flex:1;min-width:80px">
-            <SearchInput bind:value={searchTerm} onChange={(v: string) => searchTerm = v} placeholder="Buscar..." {isMobile} />
-          </div>
           <button onclick={handleManualSave} disabled={!hasUnsavedChanges || saving}
             style="height:42px;padding:0 1.25rem;font-size:0.85rem;background-color:{hasUnsavedChanges && !saving ? 'var(--primary-color)' : (saving ? '#059669' : 'rgba(148,163,184,0.5)')};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:{hasUnsavedChanges && !saving ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{hasUnsavedChanges && !saving ? '0 4px 14px rgba(var(--primary-rgb), 0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{hasUnsavedChanges || saving ? 1 : 0.7}">
             {#if saving}<span class="saving-dot"></span><span>{isAndroidMobile ? '' : 'Guardando'}</span>{:else}<span>💾</span><span>{isAndroidMobile ? '' : 'Guardar'}</span>{/if}
@@ -374,6 +371,9 @@
             <button onclick={() => marcarTodos('J')} disabled={estudiantes.length === 0}
               style="padding:0.4rem 0.7rem;font-size:0.8rem;height:38px;background:{estudiantes.length > 0 ? 'rgba(245,158,11,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {estudiantes.length > 0 ? 'rgba(245,158,11,0.3)' : 'transparent'};color:#f59e0b;border-radius:8px;cursor:{estudiantes.length > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{estudiantes.length > 0 ? 1 : 0.5}"
               title="Marcar todos como Justificado">J</button>
+          </div>
+          <div style="flex:1;min-width:100px">
+            <SearchInput bind:value={searchTerm} onChange={(v: string) => searchTerm = v} placeholder="Buscar..." {isMobile} height="42px" />
           </div>
         </div>
       </FilterContainer>

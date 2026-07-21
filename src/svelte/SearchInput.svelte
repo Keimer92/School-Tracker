@@ -1,18 +1,20 @@
 <script lang="ts">
-  let { value, onChange, placeholder = 'Buscar...', isMobile = false }: {
+  let { value, onChange, placeholder = 'Buscar...', isMobile = false, height }: {
     value: string;
     onChange: (v: string) => void;
     placeholder?: string;
     isMobile?: boolean;
+    height?: string;
   } = $props();
 
   let focused = $state(false);
   let expanded = $derived(focused || value.length > 0);
+  let inputHeight = $derived(height || (isMobile ? '34px' : '30px'));
 </script>
 
 <div
   class="search-container"
-  style="width: {isMobile ? '100%' : expanded ? '260px' : '80px'}; max-width: 40vw; margin-right: 0; position: relative; transition: width 0.2s ease;"
+  style="width: {isMobile ? '100%' : expanded ? '260px' : '80px'}; max-width: 40vw; margin-right: 0; position: relative; transition: width 0.2s ease; height: {inputHeight};"
 >
   <span
     style="position: absolute; left: 6px; top: 50%; transform: translateY(-50%); pointer-events: none; font-size: 0.9rem; opacity: {expanded ? 0.6 : 1};"
@@ -25,7 +27,7 @@
     onfocus={() => focused = true}
     onblur={() => focused = false}
     oninput={(e) => onChange((e.target as HTMLInputElement).value)}
-    style="width: 100%; padding: {expanded ? '0.35rem 2rem 0.35rem 2rem' : '0.35rem 0.3rem 0.35rem 1.6rem'}; font-size: {isMobile ? '0.9rem' : '0.85rem'}; height: {isMobile ? '34px' : '30px'}; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: white; box-shadow: inset 0 1px 0 rgba(255,255,255,0.02); cursor: {expanded ? 'text' : 'pointer'}; transition: padding 0.2s ease;"
+    style="width: 100%; padding: {expanded ? '0.35rem 2rem 0.35rem 2rem' : '0.35rem 0.3rem 0.35rem 1.6rem'}; font-size: {isMobile ? '0.9rem' : '0.85rem'}; height: {inputHeight}; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: white; box-shadow: inset 0 1px 0 rgba(255,255,255,0.02); cursor: {expanded ? 'text' : 'pointer'}; transition: padding 0.2s ease; box-sizing: border-box;"
   />
   {#if value}
     <button
