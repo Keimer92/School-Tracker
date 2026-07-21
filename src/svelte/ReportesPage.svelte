@@ -323,15 +323,12 @@
         criterios: Array.from(entry.criteriaMap.values())
       }));
 
-      const activos = indicadores.filter(ind => ind.activo);
-      if (activos.length === 0 && indicadores.length > 0) {
-        await emit("show-toast", { message: "ℹ️ Mostrando todos los indicadores (algunos pueden estar inactivos).", type: "info" });
-      } else if (indicadores.length === 0) {
+      if (indicadores.length === 0) {
         configIndicadores = []; estudiantes = [];
         await emit("show-toast", { message: "⚠️ No hay indicadores configurados.", type: "warning" });
         return;
       }
-      configIndicadores = indicadores;
+      configIndicadores = indicadores.filter(ind => ind.activo);
 
       const results = await Promise.all([
         invoke<any[]>("get_estudiantes_by_filters", { gradoId: selectedGrado, seccionId: selectedSeccion }),
@@ -785,9 +782,8 @@
                     <th style="padding:1rem;text-align:center;background-color:rgba(255,255,255,0.05);border-bottom:2px solid rgba(255,255,255,0.1);color:#94a3b8">Sexo</th>
                     {#if !specialCorte}
                       {#each configIndicadores as ind}
-                        <th title={ind.descripcion} style="padding:1rem;text-align:center;background-color:rgba(255,255,255,0.05);border-bottom:2px solid rgba(255,255,255,0.1);color:{ind.activo ? 'var(--text-secondary)' : '#64748b'};font-size:0.85rem;cursor:help">
+                        <th title={ind.descripcion} style="padding:1rem;text-align:center;background-color:rgba(255,255,255,0.05);border-bottom:2px solid rgba(255,255,255,0.1);color:var(--text-secondary);font-size:0.85rem;cursor:help">
                           Ind. {ind.orden}
-                          {#if !ind.activo}<div style="font-size:0.7rem;color:#ef4444">(Inactivo)</div>{/if}
                         </th>
                       {/each}
                     {/if}
@@ -807,11 +803,11 @@
                           {@const label = estudiante.notasCualitativasIndicadores[ind.id] || (isQualitative ? '' : '')}
                           {@const isMissing = label === "-" || label === ""}
                           {@const noteColor = isMissing ? '#64748b' : getNoteColor(isQualitative ? 0 : nota, label, getIndicatorMaxScore(ind.id))}
-                          <td style="padding:0.85rem 1rem;text-align:center;border-bottom:1px solid rgba(255,255,255,0.05);color:{ind.activo ? noteColor : '#64748b'};opacity:{ind.activo ? 1 : 0.6}">
+                          <td style="padding:0.85rem 1rem;text-align:center;border-bottom:1px solid rgba(255,255,255,0.05);color:{noteColor}">
                             {#if isQualitative}
                               <span style="font-weight:{isMissing ? 'normal' : 'bold'};color:{noteColor}">{isMissing ? "-" : label}</span>
                             {:else}
-                              <span style="font-weight:{(ind.activo && !isMissing) ? 'bold' : 'normal'};color:{ind.activo ? noteColor : '#64748b'}">{isMissing ? "-" : `${Math.round(nota)}${label ? ` ${label}` : ''}`}</span>
+                              <span style="font-weight:{isMissing ? 'normal' : 'bold'};color:{noteColor}">{isMissing ? "-" : `${Math.round(nota)}${label ? ` ${label}` : ''}`}</span>
                             {/if}
                           </td>
                         {/each}
