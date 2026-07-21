@@ -53,7 +53,6 @@
   let isMobile = $state(false);
   let isAndroid = $state(false);
   let printHtml: string | null = $state(null);
-  let exportModoSimple = $state(false);
   let exportandoMasivo = $state(false);
   let progresoMasivo = $state('');
   let loadId = 0;
@@ -480,7 +479,7 @@
         yPos += 6;
       });
 
-      const mostrarIndicadores = !specialCorte && !exportModoSimple;
+      const mostrarIndicadores = !specialCorte && !false;
       const tableHeaders = ["Estudiante", "Sexo", ...(mostrarIndicadores ? configIndicadores.map(ind => `Ind. ${ind.orden}`) : []), "Nota Final"];
       const tableRows = estudiantes.map(est => [
         est.nombre, est.sexo,
@@ -545,9 +544,9 @@
       const fullPath = fp + sep + fileName;
       await mkdir(fp, { recursive: true }).catch(e => console.log("mkdir:", e));
       await writeFile(fullPath, new Uint8Array(pdfData));
-      const fPath = fullPath.replace(/\\/g, '/');
-      if (isAndroid) { try { await invoke('share_pdf', { path: fPath }); } catch {} }
-      else { await openUrl("file:///" + fPath); }
+      const folderPath = fp.replace(/\\/g, '/');
+      if (isAndroid) { try { await invoke('share_pdf', { path: fullPath.replace(/\\/g, '/') }); } catch {} }
+      else { try { await openUrl("file:///" + folderPath); } catch {} }
       await emit("show-toast", { message: "✅ PDF guardado en Documents/School Tracker/" + subfolder, type: 'success' });
     } catch (error) {
       console.error("Error al generar PDF:", error);
@@ -753,7 +752,7 @@
     try {
       await emit("show-toast", { message: "✅ Preparando reporte...", type: 'success' });
       const names = selectedNames; const date = new Date().toLocaleDateString();
-      const mostrarIndicadores = !specialCorte && !exportModoSimple;
+      const mostrarIndicadores = !specialCorte && !false;
       const headers = ["Estudiante", "Sexo", ...(mostrarIndicadores ? configIndicadores.map(ind => `Ind. ${ind.orden}`) : []), "Nota Final"];
       const rows = estudiantes.map(est => {
         const cells = [est.nombre, est.sexo,
@@ -943,12 +942,12 @@
               style="padding:0.3rem 0.6rem;font-size:0.75rem;height:28px;display:flex;align-items:center;justify-content:center;flex-shrink:0">
               PDF
             </button>
-            <label style="display:flex;align-items:center;gap:7px;font-size:0.75rem;color:#94a3b8;cursor:pointer;flex-shrink:0;white-space:nowrap;user-select:none;padding:0 0.5rem;border-radius:8px;height:28px;box-sizing:border-box;border:1px solid {exportModoSimple ? 'rgba(139,92,246,0.3)' : 'rgba(255,255,255,0.06)'};background:{exportModoSimple ? 'rgba(139,92,246,0.08)' : 'transparent'};transition:all 0.2s ease">
-              <div style="position:relative;width:40px;height:22px;background:{exportModoSimple ? '#8b5cf6' : 'rgba(255,255,255,0.15)'};border-radius:12px;transition:all 0.25s ease;box-shadow:{exportModoSimple ? '0 0 8px rgba(139,92,246,0.4)' : 'inset 0 1px 3px rgba(0,0,0,0.3)'}">
-                <div style="position:absolute;top:2px;left:{exportModoSimple ? '20px' : '2px'};width:18px;height:18px;border-radius:50%;background:white;transition:all 0.25s ease;box-shadow:0 1px 3px rgba(0,0,0,0.3)"></div>
-                <input type="checkbox" bind:checked={exportModoSimple} style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;margin:0" />
+            <label style="display:flex;align-items:center;gap:7px;font-size:0.75rem;color:#94a3b8;cursor:pointer;flex-shrink:0;white-space:nowrap;user-select:none;padding:0 0.5rem;border-radius:8px;height:28px;box-sizing:border-box;border:1px solid {false ? 'rgba(139,92,246,0.3)' : 'rgba(255,255,255,0.06)'};background:{false ? 'rgba(139,92,246,0.08)' : 'transparent'};transition:all 0.2s ease">
+              <div style="position:relative;width:40px;height:22px;background:{false ? '#8b5cf6' : 'rgba(255,255,255,0.15)'};border-radius:12px;transition:all 0.25s ease;box-shadow:{false ? '0 0 8px rgba(139,92,246,0.4)' : 'inset 0 1px 3px rgba(0,0,0,0.3)'}">
+                <div style="position:absolute;top:2px;left:{false ? '20px' : '2px'};width:18px;height:18px;border-radius:50%;background:white;transition:all 0.25s ease;box-shadow:0 1px 3px rgba(0,0,0,0.3)"></div>
+                <input type="checkbox" bind:checked={false} style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;margin:0" />
               </div>
-              <span style="font-weight:{exportModoSimple ? '600' : '400'};color:{exportModoSimple ? '#c4b5fd' : '#94a3b8'};transition:all 0.2s ease">Solo nota final</span>
+              <span style="font-weight:{false ? '600' : '400'};color:{false ? '#c4b5fd' : '#94a3b8'};transition:all 0.2s ease">Solo nota final</span>
             </label>
             <button class="secondary" onclick={exportToPDFMasivo} disabled={exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura}
               style="padding:0.3rem 0.6rem;font-size:0.75rem;height:28px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background-color:#6366f1">
