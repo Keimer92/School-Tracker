@@ -48,6 +48,7 @@
   let configIndicadores: Indicador[] = $state([]);
   let loading = $state(false);
   let refreshTrigger = $state(0);
+  let silentRefresh = $state(false);
   let activeSlide = $state<'tabla' | 'estadisticas'>('tabla');
   let isMobile = $state(false);
   let isAndroid = $state(false);
@@ -173,7 +174,7 @@
     const checkMobile = () => { isMobile = window.innerWidth <= 768; isAndroid = /Android/i.test(navigator.userAgent); };
     checkMobile();
     window.addEventListener('resize', checkMobile);
-    window.addEventListener('schooltracker-sync', () => refreshTrigger++);
+    window.addEventListener('schooltracker-sync', () => { silentRefresh = true; refreshTrigger++; });
     window.addEventListener('keydown', (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
         activeSlide = activeSlide === 'tabla' ? 'estadisticas' : 'tabla';
@@ -183,9 +184,9 @@
     const unsubGradeConfigs = listen("grade-configs-updated", async () => {
       try { gradeConfigs = await invoke<GradeConfig[]>("get_grade_configs"); } catch (e) { console.error("Error refreshing grade configs:", e); }
     });
-    const unsubNotas = listen("notas-updated", () => refreshTrigger++);
-    const unsubStudents = listen("student-updated", () => refreshTrigger++);
-    const unsubCatalogs = listen("catalog-updated", () => refreshTrigger++);
+    const unsubNotas = listen("notas-updated", () => { silentRefresh = true; refreshTrigger++; });
+    const unsubStudents = listen("student-updated", () => { silentRefresh = true; refreshTrigger++; });
+    const unsubCatalogs = listen("catalog-updated", () => { silentRefresh = true; refreshTrigger++; });
 
     fetchInitialCatalogs();
 
@@ -214,9 +215,10 @@
     if (refreshTrigger > 0) refreshTrigger = 0;
     const lid = ++loadId;
     if (selectedGrado > 0 && selectedSeccion > 0 && (selectedCorte > 0 || specialCorte) && selectedAsignatura > 0) {
-      loading = true;
+      if (!silentRefresh) loading = true;
+      silentRefresh = false;
       fetchReporte(lid).finally(() => { if (loadId === lid) loading = false; });
-    } else { estudiantes = []; configIndicadores = []; loading = false; }
+    } else { estudiantes = []; configIndicadores = []; loading = false; silentRefresh = false; }
   });
 
   async function fetchInitialCatalogs() {
