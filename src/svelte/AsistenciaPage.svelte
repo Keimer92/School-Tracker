@@ -225,9 +225,11 @@
   }
 
   function handleEstadoChange(estudianteId: number, estado: string) {
-    draft[estudianteId] = { ...draft[estudianteId], estado };
+    const current = estudiantes.find(est => est.id === estudianteId)?.estado;
+    const newEstado = current === estado ? null : estado;
+    draft[estudianteId] = { ...draft[estudianteId], estado: newEstado };
     syncDraftToStorage();
-    estudiantes = estudiantes.map(est => est.id === estudianteId ? { ...est, estado } : est);
+    estudiantes = estudiantes.map(est => est.id === estudianteId ? { ...est, estado: newEstado } : est);
     hasUnsavedChanges = true;
   }
 
@@ -255,6 +257,8 @@
   }
 
   function handleManualSave() { saveChanges(estudiantes); }
+
+  function limpiarAsistencia() { showClearConfirm = true; }
 
   function handleCardClick(type: string, stats: { total: number; m: number; f: number }) {
     showSummaryModal = { show: true, type, stats };
@@ -360,6 +364,17 @@
             style="padding:0.4rem 0.8rem;font-size:{isAndroidMobile ? '0.75rem' : '0.9rem'};height:{isAndroidMobile ? '28px' : '42px'};background-color:{estudiantes.length > 0 ? '#ef4444' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:600;cursor:{estudiantes.length > 0 ? 'pointer' : 'not-allowed'};transition:all 0.3s ease;box-shadow:{estudiantes.length > 0 ? '0 4px 14px rgba(239,68,68,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{estudiantes.length > 0 ? 1 : 0.7}">
             <span>🧹</span><span>{isAndroidMobile ? '' : 'Limpiar'}</span>
           </button>
+          <div style="display:flex;gap:2px;align-items:stretch;flex-shrink:0">
+            <button onclick={() => marcarTodos('P')} disabled={estudiantes.length === 0}
+              style="padding:0.3rem 0.5rem;font-size:0.75rem;height:{isAndroidMobile ? '28px' : '42px'};background:{estudiantes.length > 0 ? 'rgba(16,185,129,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {estudiantes.length > 0 ? 'rgba(16,185,129,0.3)' : 'transparent'};color:#10b981;border-radius:8px;cursor:{estudiantes.length > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{estudiantes.length > 0 ? 1 : 0.5}"
+              title="Marcar todos como Presente">P</button>
+            <button onclick={() => marcarTodos('A')} disabled={estudiantes.length === 0}
+              style="padding:0.3rem 0.5rem;font-size:0.75rem;height:{isAndroidMobile ? '28px' : '42px'};background:{estudiantes.length > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {estudiantes.length > 0 ? 'rgba(239,68,68,0.3)' : 'transparent'};color:#ef4444;border-radius:8px;cursor:{estudiantes.length > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{estudiantes.length > 0 ? 1 : 0.5}"
+              title="Marcar todos como Ausente">A</button>
+            <button onclick={() => marcarTodos('J')} disabled={estudiantes.length === 0}
+              style="padding:0.3rem 0.5rem;font-size:0.75rem;height:{isAndroidMobile ? '28px' : '42px'};background:{estudiantes.length > 0 ? 'rgba(245,158,11,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {estudiantes.length > 0 ? 'rgba(245,158,11,0.3)' : 'transparent'};color:#f59e0b;border-radius:8px;cursor:{estudiantes.length > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{estudiantes.length > 0 ? 1 : 0.5}"
+              title="Marcar todos como Justificado">J</button>
+          </div>
         </div>
       </FilterContainer>
     {/snippet}
@@ -458,13 +473,13 @@
                   onclick={() => toggleObs(est)} title="Observaciones" style="width:30px;height:30px;min-width:30px;font-size:0.9rem;flex-shrink:0">{est.observacion ? '📝' : '💬'}</button>
               </div>
               <div style="display:flex;gap:0.4rem">
-                <label style="flex:1;height:36px;font-size:0.85rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:bold;background:{est.estado === 'P' ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.05)'};border:{est.estado === 'P' ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.1)'};color:{est.estado === 'P' ? '#10b981' : '#94a3b8'}">
+                <label onclick={() => handleEstadoChange(est.id, 'P')} style="flex:1;height:36px;font-size:0.85rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:bold;background:{est.estado === 'P' ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.05)'};border:{est.estado === 'P' ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.1)'};color:{est.estado === 'P' ? '#10b981' : '#94a3b8'}">
                   <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'P'} onchange={() => handleEstadoChange(est.id, 'P')} style="display:none" /><span>P</span>
                 </label>
-                <label style="flex:1;height:36px;font-size:0.85rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:bold;background:{est.estado === 'A' ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.05)'};border:{est.estado === 'A' ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.1)'};color:{est.estado === 'A' ? '#ef4444' : '#94a3b8'}">
+                <label onclick={() => handleEstadoChange(est.id, 'A')} style="flex:1;height:36px;font-size:0.85rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:bold;background:{est.estado === 'A' ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.05)'};border:{est.estado === 'A' ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.1)'};color:{est.estado === 'A' ? '#ef4444' : '#94a3b8'}">
                   <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'A'} onchange={() => handleEstadoChange(est.id, 'A')} style="display:none" /><span>A</span>
                 </label>
-                <label style="flex:1;height:36px;font-size:0.85rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:bold;background:{est.estado === 'J' ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.05)'};border:{est.estado === 'J' ? '1px solid #f59e0b' : '1px solid rgba(255,255,255,0.1)'};color:{est.estado === 'J' ? '#f59e0b' : '#94a3b8'}">
+                <label onclick={() => handleEstadoChange(est.id, 'J')} style="flex:1;height:36px;font-size:0.85rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:bold;background:{est.estado === 'J' ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.05)'};border:{est.estado === 'J' ? '1px solid #f59e0b' : '1px solid rgba(255,255,255,0.1)'};color:{est.estado === 'J' ? '#f59e0b' : '#94a3b8'}">
                   <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'J'} onchange={() => handleEstadoChange(est.id, 'J')} style="display:none" /><span>J</span>
                 </label>
               </div>
@@ -498,13 +513,16 @@
                 </td>
                 <td>
                   <div class="asistencia-options-mobile" style="display:flex;gap:2px">
-                    <label class="asistencia-opt" class:active={est.estado === 'P'} class:p={est.estado === 'P'} style="display:flex;align-items:center;justify-content:center">
+                    <label class="asistencia-opt" class:active={est.estado === 'P'} class:p={est.estado === 'P'} style="display:flex;align-items:center;justify-content:center"
+                      onclick={() => handleEstadoChange(est.id, 'P')}>
                       <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'P'} onchange={() => handleEstadoChange(est.id, 'P')} style="display:none" /><span>P</span>
                     </label>
-                    <label class="asistencia-opt" class:active={est.estado === 'A'} class:a={est.estado === 'A'} style="display:flex;align-items:center;justify-content:center">
+                    <label class="asistencia-opt" class:active={est.estado === 'A'} class:a={est.estado === 'A'} style="display:flex;align-items:center;justify-content:center"
+                      onclick={() => handleEstadoChange(est.id, 'A')}>
                       <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'A'} onchange={() => handleEstadoChange(est.id, 'A')} style="display:none" /><span>A</span>
                     </label>
-                    <label class="asistencia-opt" class:active={est.estado === 'J'} class:j={est.estado === 'J'} style="display:flex;align-items:center;justify-content:center">
+                    <label class="asistencia-opt" class:active={est.estado === 'J'} class:j={est.estado === 'J'} style="display:flex;align-items:center;justify-content:center"
+                      onclick={() => handleEstadoChange(est.id, 'J')}>
                       <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'J'} onchange={() => handleEstadoChange(est.id, 'J')} style="display:none" /><span>J</span>
                     </label>
                   </div>
