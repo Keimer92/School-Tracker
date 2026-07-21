@@ -532,7 +532,7 @@
       ]);
       grados = gradosData;
       const firstGradoId = gradosData.length > 0 ? gradosData[0].id : 0;
-      if (gradosData.length > 0) selectedGrado = firstGradoId; else selectedGrado = 0;
+      if (gradosData.length > 0) { if (!selectedGrado) selectedGrado = firstGradoId; } else selectedGrado = 0;
       let filteredAsignaturas = asignaturasData;
       if (firstGradoId > 0) {
         try {
@@ -542,7 +542,7 @@
       }
       const sortedAsignaturas = [...filteredAsignaturas].sort((a, b) => a.nombre.localeCompare(b.nombre));
       asignaturas = sortedAsignaturas;
-      if (sortedAsignaturas.length > 0) selectedAsignatura = sortedAsignaturas[0].id;
+      if (sortedAsignaturas.length > 0) { if (!selectedAsignatura) selectedAsignatura = sortedAsignaturas[0].id; }
       else {
         selectedAsignatura = 0;
         await emit("show-toast", { message: `⚠️ El colegio ${colegios.find(c => c.id === selectedColegio)?.nombre} no tiene asignaturas asignadas.`, type: 'warning' });
@@ -698,7 +698,6 @@
       hasUnsavedChanges = false;
       saving = false;
       await emit("show-toast", { message: "✅ Notas guardadas localmente", type: "success" });
-      await emit("notas-updated");
       onDataChange('nota');
       setTimeout(() => fetchEstudiantes(undefined, true), 200);
     } catch (error) {
