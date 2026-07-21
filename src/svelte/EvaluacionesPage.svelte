@@ -14,9 +14,9 @@
   type ViewMode = "modern-cards" | "accordion" | "split-panel";
 
   const VIEW_MODES: { key: ViewMode; label: string; icon: string }[] = [
+    { key: "split-panel", label: "Panel", icon: "⛶" },
     { key: "modern-cards", label: "Moderno", icon: "🎴" },
     { key: "accordion", label: "Acordeón", icon: "📋" },
-    { key: "split-panel", label: "Panel", icon: "⛶" },
   ];
 
   let grados: CategoryItem[] = $state([]);
@@ -224,14 +224,16 @@
   <div class="category-grid" style="display: block;">
     <FilterContainer {isMobile}>
       <FilterGroup label="Grado:" {isMobile}>
-        <select class="filter-select" bind:value={selectedGrado} aria-label="Seleccionar grado">
+        <select class="filter-select" bind:value={selectedGrado} aria-label="Seleccionar grado"
+          style="width:100%;min-width:120px">
           {#each grados as g}
             <option value={g.id}>{g.nombre}</option>
           {/each}
         </select>
       </FilterGroup>
       <FilterGroup label="Asignatura:" {isMobile}>
-        <select class="filter-select" bind:value={selectedAsignatura} disabled={asignaturas.length === 0} aria-label="Seleccionar asignatura">
+        <select class="filter-select" bind:value={selectedAsignatura} disabled={asignaturas.length === 0} aria-label="Seleccionar asignatura"
+          style="width:100%;min-width:150px">
           {#if asignaturas.length === 0}
             <option value="0">Sin asignaturas</option>
           {/if}
@@ -241,7 +243,8 @@
         </select>
       </FilterGroup>
       <FilterGroup label="Corte:" {isMobile}>
-        <select class="filter-select" bind:value={selectedCorte} aria-label="Seleccionar corte evaluativo">
+        <select class="filter-select" bind:value={selectedCorte} aria-label="Seleccionar corte evaluativo"
+          style="width:100%;min-width:180px">
           {#each cortes as c}
             <option value={c.id}>{c.nombre}</option>
           {/each}
@@ -482,6 +485,12 @@
 </div>
 
 <style>
+  :global(.sticky-filters) {
+    overflow: visible !important;
+  }
+  :global(.filters-row) {
+    overflow: visible !important;
+  }
   :global(.ev-view-toggle) {
     display: inline-flex; padding: 0.4rem; gap: 0.3rem;
     background: var(--bg-elevated); border-radius: 14px;
