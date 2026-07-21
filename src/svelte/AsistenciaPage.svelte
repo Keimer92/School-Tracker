@@ -319,35 +319,35 @@
       <FilterContainer {isMobile} style="padding:{isAndroidMobile ? '0.5rem' : '0.4rem'}">
         <FilterGroup label="Fecha:" {isMobile}>
           <input type="date" lang="es-ES" class="filter-select" class:invalid-date={!isFechaHabilitada}
-            style="padding:{isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem'};font-size:{isAndroidMobile ? '0.9rem' : '0.75rem'};height:{isAndroidMobile ? '36px' : '28px'};border:{!isFechaHabilitada ? '1px solid #ef4444' : ''};color:{!isFechaHabilitada ? '#ef4444' : 'inherit'};width:100%;background:rgba(255,255,255,0.05)"
+            style="width:100%;border:{!isFechaHabilitada ? '1px solid #ef4444' : ''};color:{!isFechaHabilitada ? '#ef4444' : 'inherit'}"
             bind:value={selectedFecha} onclick={(e) => (e.target as HTMLInputElement).showPicker()} />
         </FilterGroup>
         <FilterGroup label="Año:" {isMobile}>
-          <select class="filter-select" style="padding:{isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem'};font-size:{isAndroidMobile ? '0.9rem' : '0.75rem'};height:{isAndroidMobile ? '36px' : '28px'};width:100%"
+          <select class="filter-select" style="width:100%"
             value={selectedAno} onchange={(e) => handleFilterChange((v: number) => selectedAno = v, Number((e.target as HTMLSelectElement).value))}>
             {#each anos as a}<option value={a.id}>{a.nombre}</option>{/each}
           </select>
         </FilterGroup>
         <FilterGroup label="Colegio:" {isMobile}>
-          <select class="filter-select" style="padding:{isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem'};font-size:{isAndroidMobile ? '0.9rem' : '0.75rem'};height:{isAndroidMobile ? '36px' : '28px'};width:100%"
+          <select class="filter-select" style="width:100%"
             value={selectedColegio} onchange={(e) => handleFilterChange((v: number) => selectedColegio = v, Number((e.target as HTMLSelectElement).value))}>
             {#each colegios as c}<option value={c.id}>{c.nombre}</option>{/each}
           </select>
         </FilterGroup>
         <FilterGroup label="Grado:" {isMobile}>
-          <select class="filter-select" style="padding:{isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem'};font-size:{isAndroidMobile ? '0.9rem' : '0.75rem'};height:{isAndroidMobile ? '36px' : '28px'};width:100%"
+          <select class="filter-select" style="width:100%"
             value={selectedGrado} onchange={(e) => handleFilterChange((v: number) => selectedGrado = v, Number((e.target as HTMLSelectElement).value))}>
             {#each grados as g}<option value={g.id}>{g.nombre}</option>{/each}
           </select>
         </FilterGroup>
         <FilterGroup label="Sección:" {isMobile}>
-          <select class="filter-select" style="padding:{isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem'};font-size:{isAndroidMobile ? '0.9rem' : '0.75rem'};height:{isAndroidMobile ? '36px' : '28px'};width:100%"
+          <select class="filter-select" style="width:100%"
             value={selectedSeccion} onchange={(e) => handleFilterChange((v: number) => selectedSeccion = v, Number((e.target as HTMLSelectElement).value))}>
             {#each secciones as s}<option value={s.id}>{s.nombre}</option>{/each}
           </select>
         </FilterGroup>
         <FilterGroup label="Sexo:" {isMobile}>
-          <select class="filter-select" style="padding:{isAndroidMobile ? '0.5rem' : '0.3rem 0.4rem'};font-size:{isAndroidMobile ? '0.9rem' : '0.75rem'};height:{isAndroidMobile ? '36px' : '28px'};width:100%"
+          <select class="filter-select" style="width:100%"
             value={selectedSexo} onchange={(e) => handleFilterChange((v: string) => selectedSexo = v, (e.target as HTMLSelectElement).value)}>
             <option value="">Todos</option><option value="M">Masculino</option><option value="F">Femenino</option>
           </select>
@@ -357,22 +357,22 @@
             <SearchInput bind:value={searchTerm} onChange={(v: string) => searchTerm = v} placeholder="Buscar..." {isMobile} />
           </div>
           <button onclick={handleManualSave} disabled={!hasUnsavedChanges || saving}
-            style="padding:0.2rem 0.5rem;font-size:{isAndroidMobile ? '0.75rem' : '0.75rem'};height:28px;background-color:{hasUnsavedChanges && !saving ? 'var(--primary-color)' : (saving ? '#059669' : 'rgba(148,163,184,0.5)')};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:3px;font-weight:600;cursor:{hasUnsavedChanges && !saving ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{hasUnsavedChanges && !saving ? '0 4px 14px rgba(var(--primary-rgb), 0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{hasUnsavedChanges || saving ? 1 : 0.7}">
+            style="height:42px;padding:0 1.25rem;font-size:0.85rem;background-color:{hasUnsavedChanges && !saving ? 'var(--primary-color)' : (saving ? '#059669' : 'rgba(148,163,184,0.5)')};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:{hasUnsavedChanges && !saving ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{hasUnsavedChanges && !saving ? '0 4px 14px rgba(var(--primary-rgb), 0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{hasUnsavedChanges || saving ? 1 : 0.7}">
             {#if saving}<span class="saving-dot"></span><span>{isAndroidMobile ? '' : 'Guardando'}</span>{:else}<span>💾</span><span>{isAndroidMobile ? '' : 'Guardar'}</span>{/if}
           </button>
           <button onclick={limpiarAsistencia} disabled={estudiantes.length === 0}
-            style="padding:0.2rem 0.5rem;font-size:{isAndroidMobile ? '0.75rem' : '0.75rem'};height:28px;background-color:{estudiantes.length > 0 ? '#ef4444' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:3px;font-weight:600;cursor:{estudiantes.length > 0 ? 'pointer' : 'not-allowed'};transition:all 0.3s ease;box-shadow:{estudiantes.length > 0 ? '0 4px 14px rgba(239,68,68,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{estudiantes.length > 0 ? 1 : 0.7}">
+            style="height:42px;padding:0 1.25rem;font-size:0.85rem;background-color:{estudiantes.length > 0 ? '#ef4444' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:{estudiantes.length > 0 ? 'pointer' : 'not-allowed'};transition:all 0.3s ease;box-shadow:{estudiantes.length > 0 ? '0 4px 14px rgba(239,68,68,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{estudiantes.length > 0 ? 1 : 0.7}">
             <span>🧹</span><span>{isAndroidMobile ? '' : 'Limpiar'}</span>
           </button>
           <div style="display:flex;gap:2px;align-items:stretch;flex-shrink:0">
             <button onclick={() => marcarTodos('P')} disabled={estudiantes.length === 0}
-              style="padding:0.15rem 0.4rem;font-size:0.65rem;height:28px;background:{estudiantes.length > 0 ? 'rgba(16,185,129,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {estudiantes.length > 0 ? 'rgba(16,185,129,0.3)' : 'transparent'};color:#10b981;border-radius:6px;cursor:{estudiantes.length > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{estudiantes.length > 0 ? 1 : 0.5}"
+              style="padding:0.4rem 0.7rem;font-size:0.8rem;height:38px;background:{estudiantes.length > 0 ? 'rgba(16,185,129,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {estudiantes.length > 0 ? 'rgba(16,185,129,0.3)' : 'transparent'};color:#10b981;border-radius:8px;cursor:{estudiantes.length > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{estudiantes.length > 0 ? 1 : 0.5}"
               title="Marcar todos como Presente">P</button>
             <button onclick={() => marcarTodos('A')} disabled={estudiantes.length === 0}
-              style="padding:0.15rem 0.4rem;font-size:0.65rem;height:28px;background:{estudiantes.length > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {estudiantes.length > 0 ? 'rgba(239,68,68,0.3)' : 'transparent'};color:#ef4444;border-radius:6px;cursor:{estudiantes.length > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{estudiantes.length > 0 ? 1 : 0.5}"
+              style="padding:0.4rem 0.7rem;font-size:0.8rem;height:38px;background:{estudiantes.length > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {estudiantes.length > 0 ? 'rgba(239,68,68,0.3)' : 'transparent'};color:#ef4444;border-radius:8px;cursor:{estudiantes.length > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{estudiantes.length > 0 ? 1 : 0.5}"
               title="Marcar todos como Ausente">A</button>
             <button onclick={() => marcarTodos('J')} disabled={estudiantes.length === 0}
-              style="padding:0.15rem 0.4rem;font-size:0.65rem;height:28px;background:{estudiantes.length > 0 ? 'rgba(245,158,11,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {estudiantes.length > 0 ? 'rgba(245,158,11,0.3)' : 'transparent'};color:#f59e0b;border-radius:6px;cursor:{estudiantes.length > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{estudiantes.length > 0 ? 1 : 0.5}"
+              style="padding:0.4rem 0.7rem;font-size:0.8rem;height:38px;background:{estudiantes.length > 0 ? 'rgba(245,158,11,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {estudiantes.length > 0 ? 'rgba(245,158,11,0.3)' : 'transparent'};color:#f59e0b;border-radius:8px;cursor:{estudiantes.length > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{estudiantes.length > 0 ? 1 : 0.5}"
               title="Marcar todos como Justificado">J</button>
           </div>
         </div>
