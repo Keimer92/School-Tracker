@@ -188,9 +188,10 @@
     if (!token) { emit("show-toast", { message: "❌ No hay sesión activa en Google Drive", type: "error" }); return; }
     backupProgress = 'backing_up';
     try {
-      await deleteOldDeviceBackups(token);
       const dbPath = await invoke<string>("get_db_path");
-                const fileName = `${devicePrefix()}_${new Date().toISOString().split('T')[0]}.db`;
+      const cleanDate = new Date().toISOString().split('T')[0];
+      const deviceName = settings.deviceName.replace(/\s+/g, '_');
+      const fileName = `SchoolTracker_Backup_${deviceName}_${cleanDate}.db`;
       backupProgress = 'uploading';
                 // Read file and upload  
                 const fileContentBase64 = await invoke<string>("gd_read_file_base64", { path: dbPath });  
@@ -203,11 +204,20 @@
       form.append('file', blob);
       const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form });
       if (response.ok) {
+        const uploadedFile = await response.json();
         const now = new Date().toISOString();
         saveSettings({ ...settings, lastBackupTime: now, backupEnabled: true });
         backupProgress = 'done';
         emit("show-toast", { message: "✅ Respaldo subido a Google Drive", type: "success" });
         setTimeout(() => { backupProgress = 'idle'; }, 2000);
+        try {
+          const searchResp = await fetch(`https://www.googleapis.com/drive/v3/files?q=name contains 'SchoolTracker_Backup_${deviceName}' and trashed=false&orderBy=createdTime desc`, { headers: { Authorization: `Bearer ${token}` } });
+          const searchData = await searchResp.json();
+          const oldFiles = (searchData.files || []).filter((f: any) => f.id !== uploadedFile.id);
+          for (const f of oldFiles) {
+            await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+          }
+        } catch (e) { console.warn('GD_BACKUP: Error limpiando backups viejos:', e); }
         fetchDriveFiles();
       } else { throw new Error(`Upload failed: ${response.statusText}`); }
     } catch (e) {

@@ -17,7 +17,7 @@ interface GoogleDriveSettings {
   googleUserProfilePic: string | null;
 }
 
-const pruneOldGoogleDriveBackups = async (token: string, folderId: string) => {
+const pruneOldGoogleDriveBackups = async (token: string, folderId: string, currentFileName: string) => {
   try {
     const listResponse = await fetch(
       `https://www.googleapis.com/drive/v3/files?q=%27${folderId}%27%20in%20parents%20and%20trashed%3Dfalse&fields=files(id,name,createdTime)&orderBy=createdTime%20desc`,
@@ -25,14 +25,12 @@ const pruneOldGoogleDriveBackups = async (token: string, folderId: string) => {
     );
     const data = await listResponse.json();
     const files = data.files || [];
-    if (files.length > 1) {
-      const filesToDelete = files.slice(1);
-      for (const file of filesToDelete) {
-        await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}`, {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${token}` }
-        });
-      }
+    const toDelete = files.filter((f: any) => f.name !== currentFileName);
+    for (const file of toDelete) {
+      await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
     }
   } catch (e) {
     console.error('GD_BACKUP: Error during old backups pruning:', e);
@@ -104,10 +102,12 @@ export const runAutomaticGoogleDriveBackupIfNeeded = async () => {
 
     const timestampStr = new Date().toISOString();
     const cleanDate = timestampStr.split('T')[0];
-    const cleanTime = timestampStr.split('T')[1].slice(0, 8).replace(/:/g, '-');
+    const deviceName = settings.deviceName.replace(/\s+/g, '_');
+
+    const fileName = `SchoolTracker_Backup_${deviceName}_${cleanDate}.db`;
 
     const metadata = {
-      name: `SchoolTracker_Backup_${settings.deviceName.replace(/\s+/g, '_')}_${cleanDate}_${cleanTime}.db`,
+      name: fileName,
       parents: [folderId],
       description: JSON.stringify({ device: settings.deviceName, timestamp: timestampStr, type: 'schooltracker_backup' })
     };
@@ -134,7 +134,7 @@ export const runAutomaticGoogleDriveBackupIfNeeded = async () => {
     });
 
     try { await invoke('gd_delete_backup', { path: localBackupPath }); } catch (_) {}
-    await pruneOldGoogleDriveBackups(token, folderId);
+    await pruneOldGoogleDriveBackups(token, folderId, fileName);
 
     const updated = { ...settings, lastBackupTime: timestampStr };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
