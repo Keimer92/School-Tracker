@@ -3,6 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { emit, listen } from "@tauri-apps/api/event";
   import { syncService } from "../lib/syncService";
+  import { onDataChange } from "../lib/autoSync";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
   import FilterActions from "./FilterActions.svelte";
@@ -138,7 +139,7 @@
     try {
       await invoke("update_indicador", { id: indicador.id, descripcion: indicador.descripcion, activo: !indicador.activo });
       indicadores = indicadores.map(i => i.id === indicador.id ? { ...i, activo: !i.activo } : i);
-      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      onDataChange('indicador');
       await emit("notas-updated", { timestamp: Date.now() });
     } catch (error) {
       await emit("show-toast", { message: "❌ Error al actualizar: " + error, type: "error" });
@@ -152,7 +153,7 @@
   async function handleBlurIndicador(indicador: Indicador) {
     try {
       await invoke("update_indicador", { id: indicador.id, descripcion: indicador.descripcion, activo: indicador.activo });
-      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      onDataChange('indicador');
       await emit("notas-updated", { timestamp: Date.now() });
     } catch (error) {
       console.error("Error saving description", error);
@@ -170,7 +171,7 @@
   async function handleBlurCriterio(criterio: Criterio) {
     try {
       await invoke("update_criterio", { id: criterio.id, descripcion: criterio.descripcion, puntajeMaximo: Number(criterio.puntajeMaximo) });
-      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      onDataChange('indicador');
       await emit("notas-updated", { timestamp: Date.now() });
     } catch (error) {
       console.error("Error saving criterio", error);
@@ -202,7 +203,7 @@
           await invoke("update_criterio", { id: crit.id, descripcion: crit.descripcion, puntajeMaximo: Number(crit.puntajeMaximo) });
         }
       }
-      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      onDataChange('indicador');
       await emit("notas-updated", { timestamp: Date.now() });
       await emit("show-toast", { message: "✅ Configuración guardada", type: "success" });
     } catch (error) {

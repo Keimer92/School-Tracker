@@ -6,6 +6,7 @@
   import { copyFile, writeFile, BaseDirectory } from "@tauri-apps/plugin-fs";
   import * as XLSX from "xlsx";
   import { syncService, getActiveProvider, setActiveProvider, onProviderChange, type SyncProviderType } from "../lib/syncService";
+  import { onDataChange } from "../lib/autoSync";
   import { getTursoUrl, getTursoToken, saveTursoCredentials, clearTursoCredentials } from "../lib/tursoClient";
   import { getSupabaseClient, hasSupabaseConfig, saveSupabaseConfig, clearSupabaseConfig, saveSupabaseDbPassword } from "../lib/supabase";
 
@@ -113,7 +114,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     try {
       await invoke("update_grade_config", { id, nombre, color, minimo: v });
       gradeConfigs = gradeConfigs.map(c => c.id === id ? { ...c, nombre, color, minimo: v } : c);
-      syncService.syncAllSilent().catch(e => console.warn("Auto-sync:", e));
+      onDataChange('configuracion_calificacion');
       await emit("grade-configs-updated");
     } catch (error) {
       console.error("Error updating grade config:", error);

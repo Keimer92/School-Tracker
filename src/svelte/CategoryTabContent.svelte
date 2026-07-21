@@ -3,6 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { emit, listen } from "@tauri-apps/api/event";
   import { syncService } from "../lib/syncService";
+  import { onDataChange } from "../lib/autoSync";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
   interface CategoryConfig { title: string; table: string; endpoints: { get: string; add: string; update: string; delete: string; setActive?: string; updateOrder?: string; }; }
@@ -57,7 +58,7 @@
     draggedItem = null;
     try {
       await invoke(config.endpoints.updateOrder, { items: newItems });
-      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      onDataChange(config.table);
       await emit("catalog-updated");
     } catch (error) {
       console.error("Error updating order:", error);
@@ -76,7 +77,7 @@
       try {
         await invoke(config.endpoints.add, { nombre: nombre.trim() });
         fetchItems();
-        syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+        onDataChange(config.table);
         await emit("show-toast", { message: `✅ ${config.title} agregado`, type: "success" });
         await emit("catalog-updated");
       } catch (error) { await emit("show-toast", { message: "❌ Error: " + error, type: "error" }); }
@@ -89,7 +90,7 @@
       try {
         await invoke(config.endpoints.update, { id: item.id, nombre: nuevoNombre.trim(), cualitativo: item.cualitativo || false });
         fetchItems();
-        syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+        onDataChange(config.table);
         await emit("show-toast", { message: `✅ ${config.title} actualizado`, type: "success" });
         await emit("catalog-updated");
       } catch (error) { await emit("show-toast", { message: "❌ Error: " + error, type: "error" }); }
@@ -125,7 +126,7 @@
       items = items.filter(i => i.id !== item.id);
       showDeleteConfirm = false; itemToDelete = null;
       await emit("show-toast", { message: `✅ ${config.title} eliminado`, type: "success" });
-      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      onDataChange(config.table);
       try { fetchItems(); await emit("catalog-updated"); } catch (e) { console.error("Error emitting catalog update:", e); }
     } catch (error) {
       console.error("Error deleting category:", error);
@@ -139,7 +140,7 @@
       await invoke(config.endpoints.setActive, { id });
       const data: CategoryItem[] = await invoke(config.endpoints.get);
       items = data;
-      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      onDataChange(config.table);
       await emit("show-toast", { message: "✅ Activado correctamente", type: "success" });
       await emit("catalog-updated");
     } catch (error) { await emit("show-toast", { message: "❌ Error al activar: " + error, type: "error" }); }
@@ -149,7 +150,7 @@
     try {
       await invoke(config.endpoints.update, { id: item.id, nombre: item.nombre, cualitativo: !item.cualitativo });
       fetchItems();
-      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      onDataChange(config.table);
       await emit("catalog-updated");
       await emit("show-toast", { message: "✅ Tipo de evaluación actualizado", type: "success" });
     } catch (error) { await emit("show-toast", { message: "❌ Error al cambiar tipo: " + error, type: "error" }); }
@@ -163,7 +164,7 @@
           await invoke(config.endpoints.update, { id: item.id, nombre: item.nombre, cualitativo: enabled });
         }
       }
-      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      onDataChange(config.table);
       fetchItems();
       await emit("catalog-updated");
       await emit("show-toast", { message: enabled ? "✅ Todas las asignaturas ahora son cualitativas" : "✅ Todas las asignaturas ahora son cuantitativas", type: "success" });
@@ -193,7 +194,7 @@
       items = items.filter(i => !selectedIds.has(i.id));
       selectedIds = new Set();
       await emit("show-toast", { message: `✅ ${ids.length} ${config.title.toLowerCase()} eliminados`, type: "success" });
-      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      onDataChange(config.table);
       await emit("catalog-updated");
     } catch (error) {
       await emit("show-toast", { message: "❌ Error al eliminar en lote: " + error, type: "error" });

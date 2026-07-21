@@ -3,6 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { emit, listen } from "@tauri-apps/api/event";
   import { syncService } from "../lib/syncService";
+  import { onDataChange } from "../lib/autoSync";
   import { getLocalDateISOString } from "../lib/dateUtils";
   import { ask } from "@tauri-apps/plugin-dialog";
   import FilterContainer from "./FilterContainer.svelte";
@@ -201,7 +202,7 @@
             await invoke("delete_asistencia_batch", { estudianteIds: updated.map(est => est.id), fecha: selectedFecha });
             draft = {}; syncDraftToStorage(); hasUnsavedChanges = false; saving = false;
             await emit("show-toast", { message: "✅ Asistencia limpiada correctamente", type: "success" });
-            syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+            onDataChange('asistencia');
             await emit("asistencia-updated");
           } catch (error) {
             console.error("Error al limpiar asistencia:", error);
@@ -214,7 +215,7 @@
       await invoke("save_asistencia", { records });
       draft = {}; syncDraftToStorage(); hasUnsavedChanges = false; saving = false;
       await emit("show-toast", { message: "✅ Asistencia guardada localmente", type: "success" });
-      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      onDataChange('asistencia');
       await emit("asistencia-updated");
     } catch (error) {
       console.error("Error saving attendance:", error);

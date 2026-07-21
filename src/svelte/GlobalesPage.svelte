@@ -3,6 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { emit, listen } from "@tauri-apps/api/event";
   import { syncService } from "../lib/syncService";
+  import { onDataChange } from "../lib/autoSync";
   import CategoryTabContent from "./CategoryTabContent.svelte";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
@@ -55,7 +56,7 @@
     try {
       if (isAssigned) await invoke("unassign_subject_from_colegio", { colegioId: selectedColegioForSubjects.id, asignaturaId: subject.id });
       else await invoke("assign_subject_to_colegio", { colegioId: selectedColegioForSubjects.id, asignaturaId: subject.id });
-      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      onDataChange('colegio_asignatura');
       await emit("show-toast", { message: "✅ Asignación actualizada", type: "success" });
       await emit("subjects-updated");
     } catch (error) {
@@ -74,7 +75,7 @@
         await invoke("unassign_all_subjects_from_colegio", { colegioId: selectedColegioForSubjects.id });
         colegioSubjects = [];
       }
-      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      onDataChange('colegio_asignatura');
       await emit("show-toast", { message: "✅ Asignación actualizada", type: "success" });
       await emit("subjects-updated");
     } catch (error) { await emit("show-toast", { message: "❌ Error: " + error, type: "error" }); }
@@ -86,7 +87,7 @@
     try {
       await invoke("save_colegio_dias_asistencia", { config: newConfig });
       colegioConfig = newConfig;
-      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      onDataChange('colegio_dias_asistencia');
       await emit("show-toast", { message: "✅ Configuración guardada", type: "success" });
       await emit("catalog-updated");
     } catch (error) { await emit("show-toast", { message: "❌ Error guardando configuración: " + error, type: "error" }); }
@@ -98,7 +99,7 @@
     try {
       await invoke("save_colegio_dias_asistencia", { config: newConfig });
       colegioConfig = newConfig;
-      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      onDataChange('colegio_dias_asistencia');
       await emit("show-toast", { message: `✅ Todos los días ${checked ? "marcados" : "desmarcados"}`, type: "success" });
       await emit("catalog-updated");
     } catch (error) { await emit("show-toast", { message: "❌ Error en actualización masiva: " + error, type: "error" }); }
@@ -124,7 +125,7 @@
       if (isAssigned) assignedSubjects = assignedSubjects.filter((id) => id !== subjectId);
       else assignedSubjects = [...assignedSubjects, subjectId];
       await emit("show-toast", { message: "✅ Currículo actualizado", type: "success" });
-      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      onDataChange('grado_asignatura');
       await emit("subjects-updated");
     } catch (error) { await emit("show-toast", { message: "❌ Error updating curriculum: " + error, type: "error" }); }
   }
@@ -140,7 +141,7 @@
         assignedSubjects = [];
       }
       await emit("show-toast", { message: "✅ Currículo actualizado", type: "success" });
-      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      onDataChange('grado_asignatura');
       await emit("subjects-updated");
     } catch (error) { await emit("show-toast", { message: "❌ Error: " + error, type: "error" }); }
   }

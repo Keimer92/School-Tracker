@@ -3,6 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { emit, listen } from "@tauri-apps/api/event";
   import { syncService } from "../lib/syncService";
+  import { onDataChange } from "../lib/autoSync";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
   import SearchInput from "./SearchInput.svelte";
@@ -698,7 +699,7 @@
       saving = false;
       await emit("show-toast", { message: "✅ Notas guardadas localmente", type: "success" });
       await emit("notas-updated");
-      syncService.syncAllSilent().catch(err => console.warn("Auto-sync:", err));
+      onDataChange('nota');
       setTimeout(() => fetchEstudiantes(undefined, true), 200);
     } catch (error) {
       console.error("Error saving notes:", error);
@@ -726,6 +727,7 @@
       redoStack = [];
       hasUnsavedChanges = false;
       hasUnsavedRef = false;
+      onDataChange('nota');
       setTimeout(() => fetchEstudiantes(undefined, true), 200);
     } catch (error) {
       console.error("Error deleting notas:", error);
