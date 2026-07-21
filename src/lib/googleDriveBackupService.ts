@@ -7,6 +7,7 @@ interface GoogleDriveSettings {
   clientId: string;
   backupEnabled: boolean;
   backupInterval: number;
+  backupIntervalUnit: string;
   lastBackupTime: string | null;
   accessToken: string | null;
   refreshToken: string | null;
@@ -47,7 +48,9 @@ export const runAutomaticGoogleDriveBackupIfNeeded = async () => {
     if (settings.lastBackupTime) {
       const lastBackup = new Date(settings.lastBackupTime).getTime();
       const now = Date.now();
-      const intervalMs = settings.backupInterval * 60 * 60 * 1000;
+      const unit = settings.backupIntervalUnit || 'minutes';
+      const multiplier = unit === 'minutes' ? 60 : unit === 'hours' ? 3600 : 86400;
+      const intervalMs = settings.backupInterval * multiplier * 1000;
       if (now - lastBackup < intervalMs) return;
     }
 

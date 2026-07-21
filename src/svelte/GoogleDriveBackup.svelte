@@ -12,14 +12,14 @@
   const CACHE_KEY = 'schooltracker-google-drive-backups-cache';
 
   interface GoogleDriveSettings {
-    clientId: string; backupEnabled: boolean; backupInterval: number; lastBackupTime: string | null;
+    clientId: string; backupEnabled: boolean; backupInterval: number; backupIntervalUnit: 'minutes' | 'hours' | 'days'; lastBackupTime: string | null;
     accessToken: string | null; refreshToken: string | null; tokenExpiry: number | null;
     deviceName: string; googleUserEmail: string | null; googleUserName: string | null; googleUserProfilePic: string | null;
   }
   interface GoogleDriveFile { id: string; name: string; size: number; createdTime: string; device: string; }
 
   let settings: GoogleDriveSettings = $state({
-    clientId: DEFAULT_CLIENT_ID, backupEnabled: false, backupInterval: 12, lastBackupTime: null,
+    clientId: DEFAULT_CLIENT_ID, backupEnabled: false, backupInterval: 20, backupIntervalUnit: 'minutes', lastBackupTime: null,
     accessToken: null, refreshToken: null, tokenExpiry: null, deviceName: 'PC Principal',
     googleUserEmail: null, googleUserName: null, googleUserProfilePic: null,
   });
@@ -44,7 +44,7 @@
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
-        settings = { ...settings, ...parsed, clientId: parsed.clientId || DEFAULT_CLIENT_ID, backupInterval: parsed.backupInterval || 12, deviceName: parsed.deviceName || 'PC Principal' };
+        settings = { ...settings, ...parsed, clientId: parsed.clientId || DEFAULT_CLIENT_ID, backupInterval: parsed.backupInterval || 20, backupIntervalUnit: parsed.backupIntervalUnit || 'minutes', deviceName: parsed.deviceName || 'PC Principal' };
       } catch (e) { console.error('Failed to parse Google Drive settings:', e); }
     }
     if (settings.accessToken) {
@@ -338,9 +338,13 @@
         </div>
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
           <span style="color: #e2e8f0; font-size: 0.85rem;">Intervalo de respaldo</span>
-          <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <input type="number" bind:value={settings.backupInterval} min={1} max={168} oninput={() => { saveSettings(settings); }} style="padding: 0.4rem 0.6rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; width: 56px; text-align: center;" />
-            <span style="color: #64748b; font-size: 0.75rem;">horas</span>
+          <div style="display: flex; align-items: center; gap: 0.4rem;">
+            <input type="number" bind:value={settings.backupInterval} min={1} max={settings.backupIntervalUnit === 'minutes' ? 180 : settings.backupIntervalUnit === 'hours' ? 168 : 30} oninput={() => { saveSettings(settings); }} style="padding: 0.4rem 0.5rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; width: 52px; text-align: center;" />
+            <select bind:value={settings.backupIntervalUnit} onchange={() => { saveSettings(settings); }} style="padding: 0.4rem 0.4rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.75rem; outline: none; cursor: pointer;">
+              <option value="minutes">minutos</option>
+              <option value="hours">horas</option>
+              <option value="days">días</option>
+            </select>
           </div>
         </div>
       </div>
