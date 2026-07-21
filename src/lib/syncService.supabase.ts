@@ -77,22 +77,11 @@ export const getSupabaseConnStrings = (): string[] | null => {
 
   const projectRef = match[1];
   const pw = encodeURIComponent(raw);
+  // Pooler unificado por project-ref (funciona con IPv4)
+  const pooler = `postgresql://postgres.${projectRef}:${pw}@${projectRef}.pooler.supabase.com:6543/postgres?sslmode=require`;
+  // Conexión directa (IPv6-only en algunos hosts)
   const direct = `postgresql://postgres:${pw}@db.${projectRef}.supabase.co:5432/postgres?sslmode=require`;
-  const poolerUsernames = [`postgres.${projectRef}`, 'postgres'];
-  const poolerHosts = [
-    'aws-0-eu-west-1.pooler.supabase.com:6543',
-    'aws-0-us-east-1.pooler.supabase.com:6543',
-    'aws-0-us-west-1.pooler.supabase.com:6543',
-    'aws-0-ap-southeast-1.pooler.supabase.com:6543',
-    'gcp-0-europe-west1.pooler.supabase.com:6543',
-    'gcp-0-us-central1.pooler.supabase.com:6543',
-  ];
-
-  const poolers = poolerUsernames.flatMap((username) =>
-    poolerHosts.map((host) => `postgresql://${username}:${pw}@${host}/postgres?sslmode=require`)
-  );
-
-  return [direct, ...poolers];
+  return [pooler, direct];
 };
 
 /**
@@ -898,7 +887,6 @@ export const syncService = {
           id: config.id,
           color: config.color,
           minimo: config.minimo,
-          user_id: userId
         }, { onConflict: 'id' });
 
       if (error) throw error;
@@ -1214,25 +1202,12 @@ export const syncService = {
       console.log(`[Sync] Consultando tablas con user_id: ${userId}`);
 
       const results = await withSupabaseSchemaRecovery(async () => {
-        const connStrings = getSupabaseConnStrings();
-        if (!connStrings || connStrings.length === 0) {
-          throw new Error('No hay una conexión de Postgres configurada. Pega un connection string en Ajustes → Nube.');
-        }
-
         const queryResults = await Promise.all(
-          tables.map(async (table) => {
+          tables.map(table => {
             console.log(`[Sync] Consultando ${table}...`);
-            try {
-              const jsonStr = await invoke<string>('supabase_select_json', {
-                connectionStrings: connStrings,
-                sql: `SELECT * FROM ${table} WHERE user_id = '${userId}'`,
-              });
-              const data = JSON.parse(jsonStr);
-              return { data, error: null as any };
-            } catch (err: any) {
-              console.error(`[Sync] Error consultando ${table}:`, err);
-              return { data: null, error: { message: err?.toString() || 'Error desconocido' } };
-            }
+            let q = supabase.from(table).select('*');
+            if (table !== 'configuracion_calificacion') q = q.eq('user_id', userId);
+            return q;
           })
         );
 
@@ -1250,7 +1225,7 @@ export const syncService = {
         anos, cortes, colegios, asignaturas, grados, secciones,
         estudiantes, indicadores, criterios, notas, asistencia,
         gradeConfigs, gradoAsignatura, colegioAsignatura, colegioDiasAsistencia
-      ] = results.map(r => r.data as any[]);
+      ] = results.map(r => r.data);
 
       console.log('[Sync] Datos obtenidos de Supabase:', {
         anos: anos?.length || 0,
@@ -1609,130 +1584,119 @@ export const syncService = {
         'sync_deletions', 'sync_batch',
       ];
 
-      const probeTable = async (tableName: string) => {
-        const cs = getSupabaseConnStrings();
-        if (!cs || cs.length === 0) return false;
-        try {
-          await invoke('supabase_select_json', {
-            connectionStrings: cs,
-            sql: `SELECT 1 FROM ${tableName} LIMIT 1`,
-          });
-          return true;
-        } catch {
-          return false;
-        }
+      // Probar tablas vía PostgREST (el cliente JS, no SQL directo).
+      // El usuario debe haber creado las tablas manualmente en Supabase SQL Editor.
+      const probeTablePostgrest = async (tableName: string) => {
+        const { error } = await client.from(tableName).select('id', { count: 'exact', head: true }).limit(0);
+        return !error;
       };
 
       const runSqlStatements = async (sqlStatements: string[], critical: boolean = true) => {
         const connStrings = getSupabaseConnStrings();
         if (!connStrings || connStrings.length === 0) {
-          if (!critical) {
-            return true;
-          }
-          throw new Error('No hay una conexión de Postgres válida configurada para crear el schema. Pega un connection string completo en Ajustes → Nube o crea el schema manualmente en el SQL Editor.');
+          if (!critical) return true;
+          throw new Error('No hay conexión de Postgres configurada.');
         }
-
         for (const sql of sqlStatements) {
           try {
             await invoke('supabase_execute_sql', { connectionStrings: connStrings, sql });
           } catch (error) {
-            const detail = getSupabaseErrorMessage(error);
-            if (critical) {
-              throw new Error(detail);
-            }
-            console.info('[Supabase] Ajuste SQL omitido porque la conexión directa no está disponible:', detail);
+            if (critical) throw new Error(getSupabaseErrorMessage(error));
+            console.info('[Supabase] Ajuste SQL omitido:', getSupabaseErrorMessage(error));
             return true;
           }
         }
         return true;
       };
 
-      // Check if tables already exist by querying ano_lectivo
-      let tablesExist = await probeTable('ano_lectivo');
+      const DDL_SCRIPT = `CREATE TABLE IF NOT EXISTS ano_lectivo (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, user_id TEXT);
+CREATE TABLE IF NOT EXISTS corte_evaluativo (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, user_id TEXT);
+CREATE TABLE IF NOT EXISTS colegio (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, orden INTEGER DEFAULT 0, user_id TEXT);
+CREATE TABLE IF NOT EXISTS asignatura (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0, user_id TEXT);
+CREATE TABLE IF NOT EXISTS grado (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0, user_id TEXT);
+CREATE TABLE IF NOT EXISTS seccion (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0, user_id TEXT);
+CREATE TABLE IF NOT EXISTS estudiante (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL, codigo TEXT NOT NULL, sexo TEXT NOT NULL, ano_lectivo_id INTEGER NOT NULL, grado_id INTEGER NOT NULL, seccion_id INTEGER NOT NULL, colegio_id INTEGER NOT NULL, telefono TEXT, direccion TEXT, email TEXT, foto TEXT, user_id TEXT);
+CREATE TABLE IF NOT EXISTS configuracion_calificacion (id TEXT PRIMARY KEY, nombre TEXT NOT NULL, color TEXT NOT NULL, minimo INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS grado_asignatura (grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, user_id TEXT, PRIMARY KEY (grado_id, asignatura_id));
+CREATE TABLE IF NOT EXISTS colegio_asignatura (colegio_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, user_id TEXT, PRIMARY KEY (colegio_id, asignatura_id));
+CREATE TABLE IF NOT EXISTS indicador (id SERIAL PRIMARY KEY, grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, corte_evaluativo_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', activo INTEGER DEFAULT 1, user_id TEXT);
+CREATE TABLE IF NOT EXISTS criterio (id SERIAL PRIMARY KEY, indicador_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', puntaje_maximo INTEGER NOT NULL, user_id TEXT);
+CREATE TABLE IF NOT EXISTS colegio_dias_asistencia (colegio_id INTEGER PRIMARY KEY, lunes INTEGER DEFAULT 1, martes INTEGER DEFAULT 1, miercoles INTEGER DEFAULT 1, jueves INTEGER DEFAULT 1, viernes INTEGER DEFAULT 1, sabado INTEGER DEFAULT 1, domingo INTEGER DEFAULT 1, user_id TEXT);
+CREATE TABLE IF NOT EXISTS asistencia (id SERIAL PRIMARY KEY, estudiante_id INTEGER NOT NULL, fecha TEXT NOT NULL, estado TEXT NOT NULL, observacion TEXT, user_id TEXT, UNIQUE(estudiante_id, fecha));
+CREATE TABLE IF NOT EXISTS nota (estudiante_id INTEGER NOT NULL, criterio_id INTEGER NOT NULL, valor DOUBLE PRECISION NOT NULL, corte_evaluativo_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, user_id TEXT, PRIMARY KEY (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id));
+CREATE TABLE IF NOT EXISTS sync_deletions (id SERIAL PRIMARY KEY, table_name TEXT NOT NULL, record_id INTEGER NOT NULL, deleted_at TEXT DEFAULT now()::text, user_id TEXT);
+CREATE TABLE IF NOT EXISTS sync_batch (id SERIAL PRIMARY KEY, table_name TEXT NOT NULL, action TEXT NOT NULL, data TEXT NOT NULL, user_id TEXT, created_at TEXT DEFAULT now()::text);
+ALTER TABLE grado ADD COLUMN IF NOT EXISTS user_id TEXT;
+ALTER TABLE seccion ADD COLUMN IF NOT EXISTS user_id TEXT;
+ALTER TABLE asignatura ADD COLUMN IF NOT EXISTS user_id TEXT;
+ALTER TABLE criterio ADD COLUMN IF NOT EXISTS user_id TEXT;
+ALTER TABLE grado_asignatura ADD COLUMN IF NOT EXISTS user_id TEXT;
+ALTER TABLE colegio_asignatura ADD COLUMN IF NOT EXISTS user_id TEXT;
+ALTER TABLE colegio_dias_asistencia ADD COLUMN IF NOT EXISTS user_id TEXT;
+ALTER TABLE ano_lectivo DISABLE ROW LEVEL SECURITY;
+ALTER TABLE corte_evaluativo DISABLE ROW LEVEL SECURITY;
+ALTER TABLE colegio DISABLE ROW LEVEL SECURITY;
+ALTER TABLE asignatura DISABLE ROW LEVEL SECURITY;
+ALTER TABLE grado DISABLE ROW LEVEL SECURITY;
+ALTER TABLE seccion DISABLE ROW LEVEL SECURITY;
+ALTER TABLE estudiante DISABLE ROW LEVEL SECURITY;
+ALTER TABLE configuracion_calificacion DISABLE ROW LEVEL SECURITY;
+ALTER TABLE grado_asignatura DISABLE ROW LEVEL SECURITY;
+ALTER TABLE colegio_asignatura DISABLE ROW LEVEL SECURITY;
+ALTER TABLE indicador DISABLE ROW LEVEL SECURITY;
+ALTER TABLE criterio DISABLE ROW LEVEL SECURITY;
+ALTER TABLE colegio_dias_asistencia DISABLE ROW LEVEL SECURITY;
+ALTER TABLE asistencia DISABLE ROW LEVEL SECURITY;
+ALTER TABLE nota DISABLE ROW LEVEL SECURITY;
+ALTER TABLE sync_deletions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE sync_batch DISABLE ROW LEVEL SECURITY;`;
 
-      if (!tablesExist) {
-        console.log('[Supabase] Schema not found, attempting to create...');
+      // 1. Ver si las tablas existen vía PostgREST
+      const tablesExist = await probeTablePostgrest('ano_lectivo');
 
-        // Postgres-compatible DDL (SERIAL en vez de AUTOINCREMENT, now() en vez de datetime('now'))
-        const createTablesSqls = [
-          `CREATE TABLE IF NOT EXISTS ano_lectivo (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, user_id TEXT)`,
-          `CREATE TABLE IF NOT EXISTS corte_evaluativo (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, user_id TEXT)`,
-          `CREATE TABLE IF NOT EXISTS colegio (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, orden INTEGER DEFAULT 0, user_id TEXT)`,
-          `CREATE TABLE IF NOT EXISTS asignatura (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0, user_id TEXT)`,
-          `CREATE TABLE IF NOT EXISTS grado (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0, user_id TEXT)`,
-          `CREATE TABLE IF NOT EXISTS seccion (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0, user_id TEXT)`,
-          `CREATE TABLE IF NOT EXISTS estudiante (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL, codigo TEXT NOT NULL, sexo TEXT NOT NULL, ano_lectivo_id INTEGER NOT NULL, grado_id INTEGER NOT NULL, seccion_id INTEGER NOT NULL, colegio_id INTEGER NOT NULL, telefono TEXT, direccion TEXT, email TEXT, foto TEXT, user_id TEXT)`,
-          `CREATE TABLE IF NOT EXISTS configuracion_calificacion (id TEXT PRIMARY KEY, nombre TEXT NOT NULL, color TEXT NOT NULL, minimo INTEGER NOT NULL)`,
-          `CREATE TABLE IF NOT EXISTS grado_asignatura (grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, user_id TEXT, PRIMARY KEY (grado_id, asignatura_id))`,
-          `CREATE TABLE IF NOT EXISTS colegio_asignatura (colegio_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, user_id TEXT, PRIMARY KEY (colegio_id, asignatura_id))`,
-          `CREATE TABLE IF NOT EXISTS indicador (id SERIAL PRIMARY KEY, grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, corte_evaluativo_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', activo INTEGER DEFAULT 1, user_id TEXT)`,
-          `CREATE TABLE IF NOT EXISTS criterio (id SERIAL PRIMARY KEY, indicador_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', puntaje_maximo INTEGER NOT NULL, user_id TEXT)`,
-          `CREATE TABLE IF NOT EXISTS colegio_dias_asistencia (colegio_id INTEGER PRIMARY KEY, lunes INTEGER DEFAULT 1, martes INTEGER DEFAULT 1, miercoles INTEGER DEFAULT 1, jueves INTEGER DEFAULT 1, viernes INTEGER DEFAULT 1, sabado INTEGER DEFAULT 1, domingo INTEGER DEFAULT 1, user_id TEXT)`,
-          `CREATE TABLE IF NOT EXISTS asistencia (id SERIAL PRIMARY KEY, estudiante_id INTEGER NOT NULL, fecha TEXT NOT NULL, estado TEXT NOT NULL, observacion TEXT, user_id TEXT, UNIQUE(estudiante_id, fecha))`,
-          `CREATE TABLE IF NOT EXISTS nota (estudiante_id INTEGER NOT NULL, criterio_id INTEGER NOT NULL, valor DOUBLE PRECISION NOT NULL, corte_evaluativo_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, user_id TEXT, PRIMARY KEY (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id))`,
-          `CREATE TABLE IF NOT EXISTS sync_deletions (id SERIAL PRIMARY KEY, table_name TEXT NOT NULL, record_id INTEGER NOT NULL, deleted_at TEXT DEFAULT now()::text, user_id TEXT)`,
-          `CREATE TABLE IF NOT EXISTS sync_batch (id SERIAL PRIMARY KEY, table_name TEXT NOT NULL, action TEXT NOT NULL, data TEXT NOT NULL, user_id TEXT, created_at TEXT DEFAULT now()::text)`,
+      if (tablesExist) {
+        console.log('[Supabase] Tablas existentes visibles en PostgREST. Ejecutando fixes best-effort...');
+        // Si la conexión directa está disponible, aplicar idempotent fixes.
+        const fixSqls = [
+          'ALTER TABLE grado ADD COLUMN IF NOT EXISTS user_id TEXT;',
+          'ALTER TABLE seccion ADD COLUMN IF NOT EXISTS user_id TEXT;',
+          'ALTER TABLE asignatura ADD COLUMN IF NOT EXISTS user_id TEXT;',
+          'ALTER TABLE criterio ADD COLUMN IF NOT EXISTS user_id TEXT;',
+          'ALTER TABLE grado_asignatura ADD COLUMN IF NOT EXISTS user_id TEXT;',
+          'ALTER TABLE colegio_asignatura ADD COLUMN IF NOT EXISTS user_id TEXT;',
+          'ALTER TABLE colegio_dias_asistencia ADD COLUMN IF NOT EXISTS user_id TEXT;',
+          ...allTables.map((t) => `ALTER TABLE ${t} DISABLE ROW LEVEL SECURITY;`),
         ];
-
-        console.log('[Supabase] Creando schema vía SQL directo...');
-        try {
-          await runSqlStatements(createTablesSqls);
-          console.log('[Supabase] Schema creado exitosamente');
-        } catch (error) {
-          return {
-            ok: false,
-            error: getSchemaBootstrapError(getSupabaseErrorMessage(error)),
-          };
-        }
-      } else {
-        console.log('[Supabase] Tablas existentes, aplicando ajustes idempotentes...');
-      }
-
-      // Ajustes idempotentes: asegurar columna user_id en tablas que no la tienen
-      // y DESACTIVAR RLS (la app usa anon key sin auth, por lo que RLS bloquea todo DML).
-      const fixSqls = [
-        'ALTER TABLE grado ADD COLUMN IF NOT EXISTS user_id TEXT;',
-        'ALTER TABLE seccion ADD COLUMN IF NOT EXISTS user_id TEXT;',
-        'ALTER TABLE asignatura ADD COLUMN IF NOT EXISTS user_id TEXT;',
-        'ALTER TABLE criterio ADD COLUMN IF NOT EXISTS user_id TEXT;',
-        'ALTER TABLE grado_asignatura ADD COLUMN IF NOT EXISTS user_id TEXT;',
-        'ALTER TABLE colegio_asignatura ADD COLUMN IF NOT EXISTS user_id TEXT;',
-        'ALTER TABLE colegio_dias_asistencia ADD COLUMN IF NOT EXISTS user_id TEXT;',
-        ...allTables.map((t) => `ALTER TABLE ${t} DISABLE ROW LEVEL SECURITY;`),
-      ];
-      try {
         await runSqlStatements(fixSqls, false);
+        return { ok: true };
+      }
+
+      // 2. Tablas no existen — intentar crearlas vía SQL directo
+      console.log('[Supabase] Tablas no encontradas. Intentando crear vía SQL directo...');
+      const createTablesSqls = DDL_SCRIPT.split(';').filter(s => s.trim()).map(s => s.trim() + ';');
+      try {
+        await runSqlStatements(createTablesSqls);
+        console.log('[Supabase] Schema creado vía SQL directo.');
+        await runSqlStatements(["NOTIFY pgrst, 'reload schema';"], false);
       } catch (error) {
-        console.warn('[Supabase] Ajustes idempotentes omitidos:', getSupabaseErrorMessage(error));
-      }
-
-      // Forzar recarga del cache de esquema de PostgREST después de las modificaciones DDL.
-      // Sin esto, PostgREST sigue viendo el esquema viejo y rechaza queries con
-      // "Could not find the table '...' in the schema cache".
-      await runSqlStatements(["NOTIFY pgrst, 'reload schema';"], false)
-        .then(() => console.log('[Supabase] Cache de PostgREST recargado'))
-        .catch(() => {});
-
-      // Verificar que todas las tablas estén visibles en PostgREST tras la creación/ajuste.
-      for (let attempt = 0; attempt < 5; attempt += 1) {
-        const verification = await Promise.all(allTables.map((table) => probeTable(table)));
-        if (verification.every(Boolean)) {
-          tablesExist = true;
-          break;
-        }
-        if (attempt < 4) {
-          await new Promise((resolve) => globalThis.setTimeout(resolve, 1000));
-        }
-      }
-
-      if (!tablesExist) {
+        // 3. SQL directo falló — devolver error con el script para que el usuario lo pegue
         return {
           ok: false,
-          error: getSchemaBootstrapError('Las tablas esperadas siguen sin estar disponibles en PostgREST.'),
+          error: `${getSchemaBootstrapError(getSupabaseErrorMessage(error))}\n\n-----\nCopia y pega este script en Supabase Dashboard → SQL Editor:\n\n${DDL_SCRIPT}`,
         };
       }
 
-      return { ok: true };
+      // 4. Esperar que PostgREST reconozca las tablas (creadas vía SQL directo)
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const ok = await probeTablePostgrest('ano_lectivo');
+        if (ok) return { ok: true };
+        await new Promise((resolve) => globalThis.setTimeout(resolve, 1500));
+      }
+
+      return {
+        ok: false,
+        error: getSchemaBootstrapError('Las tablas se crearon en Postgres pero PostgREST no las ve. Espera unos segundos y vuelve a intentar, o reinicia tu proyecto de Supabase.'),
+      };
     } catch (e: any) {
       console.error('[Supabase] ensureSchema exception:', e);
       return { ok: false, error: e?.message || String(e) };
