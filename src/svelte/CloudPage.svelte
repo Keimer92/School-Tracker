@@ -349,7 +349,7 @@
               </div>
               {#if tursoStatus !== 'idle'}
                 <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; margin-top: 0.5rem; background: {tursoStatus === 'online' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)'}; color: {tursoStatus === 'online' ? '#4ade80' : '#f87171'};">
-                  {tursoStatus === 'online' ? `✅ Conectado (${tursoLatency}ms)` : `❌ ${tursoError || 'Sin conexión'}`}
+                  {tursoStatus === 'online' ? '✅ Conectado' : `❌ ${tursoError || 'Sin conexión'}`}
                 </div>
               {/if}
               <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
@@ -396,15 +396,16 @@
 
               {#if sbStatus !== 'idle'}
                 <div style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; margin-top: 0.5rem; background: {sbStatus === 'online' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)'}; color: {sbStatus === 'online' ? '#4ade80' : '#f87171'};">
-                  {sbStatus === 'online' ? `✅ Conectado (${sbLatency}ms)` : `❌ ${sbError || 'Sin conexión'}`}
+                  {sbStatus === 'online' ? '✅ Conectado' : `❌ ${sbError || 'Sin conexión'}`}
                 </div>
               {/if}
 
               <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap;">
                 {#if sbSessionUser}
                   <button onclick={handleSupabaseLogout} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(239,68,68,0.2); background: rgba(239,68,68,0.08); color: #f87171; font-weight: 500; font-size: 0.75rem; cursor: pointer;">Cerrar Sesión</button>
+                {:else}
+                  <button onclick={handleDisconnectProvider} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(239,68,68,0.2); background: rgba(239,68,68,0.08); color: #f87171; font-weight: 500; font-size: 0.75rem; cursor: pointer;">Desconectar</button>
                 {/if}
-                <button onclick={handleDisconnectProvider} style="padding: 0.4rem 0.75rem; border-radius: 8px; border: 1px solid rgba(239,68,68,0.2); background: rgba(239,68,68,0.08); color: #f87171; font-weight: 500; font-size: 0.75rem; cursor: pointer;">Desconectar</button>
               </div>
             </div>
           {/if}
