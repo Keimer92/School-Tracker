@@ -28,6 +28,14 @@
   let sbError: string | null = $state(null);
   let sbEmail = $state('');
   let sbPassword = $state('');
+  let sbConfirmPassword = $state('');
+  let authMode: 'register' | 'login' = $state('register');
+  let showForgotModal = $state(false);
+  let sbResetEmail = $state('');
+  let resetSent = $state(false);
+  let showResetPassword = $state(false);
+  let newPassword = $state('');
+  let newPasswordConfirm = $state('');
 
   $effect(() => {
     if (activeTab === 'cloud') {
@@ -120,24 +128,21 @@
   }
 
   async function handleConnectSupabase() {
-    console.log('[CloudPage] handleConnectSupabase called', { sbUrl: !!sbUrl, sbAnonKey: !!sbAnonKey, sbEmail, sbPassword: sbPassword ? '***' : '' });
     sbTesting = true; sbError = null;
     try {
       if (sbUrl && sbAnonKey) saveSupabaseConfig(sbUrl, sbAnonKey);
       const client = getSupabaseClient();
-      console.log('[CloudPage] getSupabaseClient returned', { client: !!client });
       if (!client) { sbError = 'No se pudo crear el cliente Supabase'; sbTesting = false; return; }
       const { data, error } = await client.auth.signInWithPassword({ email: sbEmail, password: sbPassword });
-      console.log('[CloudPage] signInWithPassword result', { error: error?.message, hasUser: !!data?.user });
       if (error) {
-        console.log('[CloudPage] attempting signUp instead');
-        const { data: signUpData, error: signUpError } = await client.auth.signUp({ email: sbEmail, password: sbPassword });
-        console.log('[CloudPage] signUp result', { error: signUpError?.message, hasUser: !!signUpData?.user });
-        if (signUpError) { sbError = signUpError.message; sbTesting = false; return; }
-        sbSessionUser = signUpData.user?.email || signUpData.user?.id || 'Registrado';
-      } else {
-        sbSessionUser = data.user?.email || data.user?.id || 'Conectado';
+        if (error.message?.toLowerCase().includes('invalid login credentials')) {
+          sbError = '❌ Correo o contraseña incorrectos';
+        } else {
+          sbError = error.message;
+        }
+        sbTesting = false; return;
       }
+      sbSessionUser = data.user?.email || data.user?.id || 'Conectado';
       sbStatus = 'online';
       isSynced = true;
       syncService.ensurePeriodicSync();
@@ -146,7 +151,60 @@
         sbError = sr.error || 'No se pudo preparar la base de datos remota en Supabase.';
       }
       await syncService.syncAllSilent();
-    } catch (e: any) { console.log('[CloudPage] handleConnectSupabase catch', e); sbError = e?.message || String(e); }
+    } catch (e: any) { sbError = e?.message || String(e); }
+    sbTesting = false;
+  }
+
+  async function handleSignUp() {
+    if (sbPassword !== sbConfirmPassword) { sbError = '❌ Las contraseñas no coinciden'; return; }
+    sbTesting = true; sbError = null;
+    try {
+      if (sbUrl && sbAnonKey) saveSupabaseConfig(sbUrl, sbAnonKey);
+      const client = getSupabaseClient();
+      if (!client) { sbError = 'No se pudo crear el cliente Supabase'; sbTesting = false; return; }
+      const { data, error } = await client.auth.signUp({ email: sbEmail, password: sbPassword });
+      if (error) {
+        if (error.message?.toLowerCase().includes('already registered') || error.message?.toLowerCase().includes('duplicate')) {
+          sbError = '❌ Ya existe una cuenta con este correo';
+        } else { sbError = error.message; }
+        sbTesting = false; return;
+      }
+      sbSessionUser = data.user?.email || data.user?.id || 'Registrado';
+      sbStatus = 'online';
+      isSynced = true;
+      syncService.ensurePeriodicSync();
+      const sr = await syncService.runSchemaSetup();
+      if (!sr.ok) sbError = sr.error || 'No se pudo preparar la base de datos remota.';
+      await syncService.syncAllSilent();
+    } catch (e: any) { sbError = e?.message || String(e); }
+    sbTesting = false;
+  }
+
+  async function handleResetPassword() {
+    sbTesting = true; resetSent = false;
+    try {
+      const client = getSupabaseClient();
+      if (!client) { sbTesting = false; return; }
+      const { error } = await client.auth.resetPasswordForEmail(sbResetEmail, { redirectTo: 'schooltrackerpro://reset-password' });
+      if (error) { sbTesting = false; return; }
+      resetSent = true;
+    } catch {}
+    sbTesting = false;
+  }
+
+  async function handleSetNewPassword() {
+    if (newPassword !== newPasswordConfirm) { sbError = '❌ Las contraseñas no coinciden'; return; }
+    if (newPassword.length < 6) { sbError = '❌ La contraseña debe tener al menos 6 caracteres'; return; }
+    sbTesting = true; sbError = null;
+    try {
+      const client = getSupabaseClient();
+      if (!client) { sbError = 'No se pudo conectar'; sbTesting = false; return; }
+      const { error } = await client.auth.updateUser({ password: newPassword });
+      if (error) { sbError = error.message; sbTesting = false; return; }
+      showResetPassword = false;
+      newPassword = ''; newPasswordConfirm = '';
+      await emit("show-toast", { message: "✅ Contraseña actualizada correctamente", type: "success" });
+    } catch (e: any) { sbError = e?.message || String(e); }
     sbTesting = false;
   }
 
@@ -171,6 +229,27 @@
     const unsubSync = syncManager.subscribe((state) => { syncStatus = state; });
     const unsubProvider = onProviderChange(refreshFromProvider);
     await refreshFromProvider();
+    try {
+      const { onOpenUrl } = await import("@tauri-apps/plugin-deep-link");
+      onOpenUrl((urls: string[]) => {
+        for (const url of urls) {
+          if (url.includes('reset-password') || url.includes('type=recovery')) {
+            const hash = url.split('#')[1] || '';
+            const params = new URLSearchParams(hash.replace(/&/g, '&').split('&').filter(p => p.includes('=')).join('&'));
+            const accessToken = params.get('access_token') || hash.split('&').find(p => p.startsWith('access_token='))?.split('=')[1];
+            const refreshToken = params.get('refresh_token') || '';
+            if (accessToken) {
+              const client = getSupabaseClient();
+              if (client) {
+                client.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }).then(() => {
+                  showResetPassword = true;
+                });
+              }
+            }
+          }
+        }
+      });
+    } catch (e) { console.log('Deep link plugin not available on this platform'); }
     return () => { unsubSync(); unsubProvider(); };
   });
 
@@ -286,15 +365,29 @@
 
               {#if !sbSessionUser}
                 <div style="margin-top: 0.25rem; padding: 0.75rem; background: rgba(0,0,0,0.15); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
-                  <div style="color: #94a3b8; font-size: 0.75rem; margin-bottom: 0.5rem;">Inicia sesión o regístrate para sincronizar:</div>
-                  <input type="email" bind:value={sbEmail} placeholder="correo@ejemplo.com" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; outline: none; box-sizing: border-box; margin-bottom: 0.4rem;" />
-                  <input type="password" bind:value={sbPassword} placeholder="Contraseña" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; outline: none; box-sizing: border-box;" />
+                  <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;background:rgba(0,0,0,0.2);border-radius:8px;padding:0.2rem;border:1px solid rgba(255,255,255,0.06);">
+                    <button onclick={() => authMode = 'register'} style="flex:1;padding:0.35rem 0.5rem;border-radius:6px;border:none;cursor:pointer;font-size:0.75rem;font-weight:600;transition:all 0.2s;background:{authMode === 'register' ? 'var(--primary-color)' : 'transparent'};color:{authMode === 'register' ? '#fff' : '#94a3b8'};">📝 Crear Cuenta</button>
+                    <button onclick={() => authMode = 'login'} style="flex:1;padding:0.35rem 0.5rem;border-radius:6px;border:none;cursor:pointer;font-size:0.75rem;font-weight:600;transition:all 0.2s;background:{authMode === 'login' ? 'var(--primary-color)' : 'transparent'};color:{authMode === 'login' ? '#fff' : '#94a3b8'};">🔑 Iniciar Sesión</button>
+                  </div>
+                  {#if authMode === 'register'}
+                    <input type="email" bind:value={sbEmail} placeholder="correo@ejemplo.com" style="width:100%;padding:0.5rem 0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.3);color:#e2e8f0;font-size:0.8rem;outline:none;box-sizing:border-box;margin-bottom:0.4rem;" />
+                    <input type="password" bind:value={sbPassword} placeholder="Contraseña" style="width:100%;padding:0.5rem 0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.3);color:#e2e8f0;font-size:0.8rem;outline:none;box-sizing:border-box;margin-bottom:0.4rem;" />
+                    <input type="password" bind:value={sbConfirmPassword} placeholder="Confirmar contraseña" style="width:100%;padding:0.5rem 0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.3);color:#e2e8f0;font-size:0.8rem;outline:none;box-sizing:border-box;" />
+                  {:else}
+                    <input type="email" bind:value={sbEmail} placeholder="correo@ejemplo.com" style="width:100%;padding:0.5rem 0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.3);color:#e2e8f0;font-size:0.8rem;outline:none;box-sizing:border-box;margin-bottom:0.4rem;" />
+                    <input type="password" bind:value={sbPassword} placeholder="Contraseña" style="width:100%;padding:0.5rem 0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.3);color:#e2e8f0;font-size:0.8rem;outline:none;box-sizing:border-box;" />
+                    <button onclick={() => showForgotModal = true} style="background:none;border:none;color:#64748b;font-size:0.7rem;cursor:pointer;padding:0.3rem 0 0;text-decoration:underline;display:block;width:100%;text-align:right;">¿Olvidaste tu contraseña?</button>
+                  {/if}
                 </div>
               {/if}
 
               <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem;">
                 {#if !sbSessionUser}
-                  <button onclick={handleConnectSupabase} disabled={sbTesting || !sbUrl || !sbAnonKey || !sbEmail || !sbPassword} style="flex: 1; padding: 0.5rem 1rem; border-radius: 8px; border: none; background: {sbTesting ? '#64748b' : 'var(--primary-color)'}; color: #fff; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap; min-width: 120px;">{sbTesting ? 'Conectando...' : 'Iniciar Sesión'}</button>
+                  {#if authMode === 'register'}
+                    <button onclick={handleSignUp} disabled={sbTesting || !sbUrl || !sbAnonKey || !sbEmail || !sbPassword || !sbConfirmPassword} style="flex:1;padding:0.5rem 1rem;border-radius:8px;border:none;background:{sbTesting ? '#64748b' : 'var(--primary-color)'};color:#fff;font-weight:600;font-size:0.8rem;cursor:pointer;white-space:nowrap;min-width:120px;">{sbTesting ? 'Conectando...' : '📝 Crear Cuenta'}</button>
+                  {:else}
+                    <button onclick={handleConnectSupabase} disabled={sbTesting || !sbUrl || !sbAnonKey || !sbEmail || !sbPassword} style="flex:1;padding:0.5rem 1rem;border-radius:8px;border:none;background:{sbTesting ? '#64748b' : 'var(--primary-color)'};color:#fff;font-weight:600;font-size:0.8rem;cursor:pointer;white-space:nowrap;min-width:120px;">{sbTesting ? 'Conectando...' : '🔑 Iniciar Sesión'}</button>
+                  {/if}
                 {:else}
                   <button onclick={async () => { await syncService.syncAllSilent(); }} disabled={syncStatus.status === 'syncing'} style="flex: 1; padding: 0.5rem 1rem; border-radius: 8px; border: none; background: var(--primary-color); color: #fff; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">Sincronizar ahora</button>
                 {/if}
@@ -353,14 +446,28 @@
               </div>
               {#if !sbSessionUser}
                 <div style="padding: 0.75rem; background: rgba(0,0,0,0.15); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 0.75rem;">
-                  <div style="color: #94a3b8; font-size: 0.75rem; margin-bottom: 0.5rem;">Inicia sesión o regístrate:</div>
-                  <input type="email" bind:value={sbEmail} placeholder="correo@ejemplo.com" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; outline: none; box-sizing: border-box; margin-bottom: 0.4rem;" />
-                  <input type="password" bind:value={sbPassword} placeholder="Contraseña" style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; outline: none; box-sizing: border-box;" />
+                  <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;background:rgba(0,0,0,0.2);border-radius:8px;padding:0.2rem;border:1px solid rgba(255,255,255,0.06);">
+                    <button onclick={() => authMode = 'register'} style="flex:1;padding:0.35rem 0.5rem;border-radius:6px;border:none;cursor:pointer;font-size:0.75rem;font-weight:600;transition:all 0.2s;background:{authMode === 'register' ? 'var(--primary-color)' : 'transparent'};color:{authMode === 'register' ? '#fff' : '#94a3b8'};">📝 Crear Cuenta</button>
+                    <button onclick={() => authMode = 'login'} style="flex:1;padding:0.35rem 0.5rem;border-radius:6px;border:none;cursor:pointer;font-size:0.75rem;font-weight:600;transition:all 0.2s;background:{authMode === 'login' ? 'var(--primary-color)' : 'transparent'};color:{authMode === 'login' ? '#fff' : '#94a3b8'};">🔑 Iniciar Sesión</button>
+                  </div>
+                  {#if authMode === 'register'}
+                    <input type="email" bind:value={sbEmail} placeholder="correo@ejemplo.com" style="width:100%;padding:0.5rem 0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.3);color:#e2e8f0;font-size:0.8rem;outline:none;box-sizing:border-box;margin-bottom:0.4rem;" />
+                    <input type="password" bind:value={sbPassword} placeholder="Contraseña" style="width:100%;padding:0.5rem 0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.3);color:#e2e8f0;font-size:0.8rem;outline:none;box-sizing:border-box;margin-bottom:0.4rem;" />
+                    <input type="password" bind:value={sbConfirmPassword} placeholder="Confirmar contraseña" style="width:100%;padding:0.5rem 0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.3);color:#e2e8f0;font-size:0.8rem;outline:none;box-sizing:border-box;" />
+                  {:else}
+                    <input type="email" bind:value={sbEmail} placeholder="correo@ejemplo.com" style="width:100%;padding:0.5rem 0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.3);color:#e2e8f0;font-size:0.8rem;outline:none;box-sizing:border-box;margin-bottom:0.4rem;" />
+                    <input type="password" bind:value={sbPassword} placeholder="Contraseña" style="width:100%;padding:0.5rem 0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.3);color:#e2e8f0;font-size:0.8rem;outline:none;box-sizing:border-box;" />
+                    <button onclick={() => showForgotModal = true} style="background:none;border:none;color:#64748b;font-size:0.7rem;cursor:pointer;padding:0.3rem 0 0;text-decoration:underline;display:block;width:100%;text-align:right;">¿Olvidaste tu contraseña?</button>
+                  {/if}
                 </div>
               {/if}
               <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                 {#if !sbSessionUser}
-                  <button onclick={handleConnectSupabase} disabled={sbTesting || !sbUrl || !sbAnonKey || !sbEmail || !sbPassword} style="flex: 1; padding: 0.5rem 1rem; border-radius: 8px; border: none; background: {sbTesting ? '#64748b' : 'var(--primary-color)'}; color: #fff; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">{sbTesting ? 'Conectando...' : 'Iniciar Sesión'}</button>
+                  {#if authMode === 'register'}
+                    <button onclick={handleSignUp} disabled={sbTesting || !sbUrl || !sbAnonKey || !sbEmail || !sbPassword || !sbConfirmPassword} style="flex:1;padding:0.5rem 1rem;border-radius:8px;border:none;background:{sbTesting ? '#64748b' : 'var(--primary-color)'};color:#fff;font-weight:600;font-size:0.8rem;cursor:pointer;white-space:nowrap;">{sbTesting ? 'Conectando...' : '📝 Crear Cuenta'}</button>
+                  {:else}
+                    <button onclick={handleConnectSupabase} disabled={sbTesting || !sbUrl || !sbAnonKey || !sbEmail || !sbPassword} style="flex:1;padding:0.5rem 1rem;border-radius:8px;border:none;background:{sbTesting ? '#64748b' : 'var(--primary-color)'};color:#fff;font-weight:600;font-size:0.8rem;cursor:pointer;white-space:nowrap;">{sbTesting ? 'Conectando...' : '🔑 Iniciar Sesión'}</button>
+                  {/if}
                 {/if}
                 <button onclick={handleTestSupabase} disabled={sbTesting || !sbUrl || !sbAnonKey} style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.2); color: #94a3b8; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;">{sbTesting ? '...' : 'Probar'}</button>
                 <button onclick={handleDisconnectSupabase} style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid rgba(239,68,68,0.2); background: rgba(239,68,68,0.08); color: #f87171; font-weight: 500; font-size: 0.75rem; cursor: pointer;">Olvidar</button>
@@ -388,6 +495,72 @@
     </div>
   </div>
 </div>
+
+<!-- Forgot Password Modal -->
+{#if showForgotModal}
+  <div style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);"
+    onclick={() => { showForgotModal = false; resetSent = false; sbResetEmail = ''; }}>
+    <div style="width:380px;max-width:90%;padding:1.5rem;background:rgba(20,24,31,0.85);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.08);border-radius:20px;box-shadow:0 25px 60px -12px rgba(0,0,0,0.6);"
+      onclick={(e) => e.stopPropagation()}>
+      <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;">
+        <div style="width:40px;height:40px;border-radius:12px;background:rgba(var(--primary-rgb),0.15);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">🔐</div>
+        <h3 style="margin:0;color:#f1f5f9;font-size:1.05rem;font-weight:700;">Recuperar Contraseña</h3>
+      </div>
+      {#if resetSent}
+        <div style="padding:1rem;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:10px;color:#4ade80;font-size:0.85rem;margin-bottom:1rem;">✅ Revisa tu correo para restablecer la contraseña</div>
+      {:else}
+        <p style="color:#94a3b8;font-size:0.8rem;margin:0 0 1rem;">Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña.</p>
+        <input type="email" bind:value={sbResetEmail} placeholder="correo@ejemplo.com"
+          style="width:100%;padding:0.55rem 0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(15,23,42,0.5);color:#e2e8f0;font-size:0.85rem;outline:none;box-sizing:border-box;transition:border 0.2s;margin-bottom:1rem;"
+          onfocus={(e) => e.currentTarget.style.borderColor = 'var(--primary-color)'}
+          onblur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
+          onkeydown={(e) => { if (e.key === 'Enter') handleResetPassword(); }} />
+      {/if}
+      <div style="display:flex;justify-content:flex-end;gap:0.75rem;">
+        {#if resetSent}
+          <button onclick={() => { showForgotModal = false; resetSent = false; sbResetEmail = ''; }}
+            style="padding:0.5rem 1rem;font-size:0.8rem;border-radius:8px;border:none;background:var(--primary-color);color:#fff;font-weight:600;cursor:pointer;">Cerrar</button>
+        {:else}
+          <button onclick={() => { showForgotModal = false; resetSent = false; sbResetEmail = ''; }}
+            style="padding:0.5rem 1rem;font-size:0.8rem;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);color:#94a3b8;cursor:pointer;font-weight:600;">Cancelar</button>
+          <button onclick={handleResetPassword} disabled={!sbResetEmail || sbTesting}
+            style="padding:0.5rem 1.25rem;font-size:0.8rem;border-radius:8px;border:none;background:linear-gradient(135deg,var(--primary-hover),var(--primary-color));color:white;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(var(--primary-rgb),0.3);">{sbTesting ? 'Enviando...' : 'Enviar enlace'}</button>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Reset Password Form (after deep link) -->
+{#if showResetPassword}
+  <div style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);">
+    <div style="width:380px;max-width:90%;padding:1.5rem;background:rgba(20,24,31,0.85);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.08);border-radius:20px;box-shadow:0 25px 60px -12px rgba(0,0,0,0.6);">
+      <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;">
+        <div style="width:40px;height:40px;border-radius:12px;background:rgba(var(--primary-rgb),0.15);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">🔑</div>
+        <h3 style="margin:0;color:#f1f5f9;font-size:1.05rem;font-weight:700;">Restablecer Contraseña</h3>
+      </div>
+      <p style="color:#94a3b8;font-size:0.8rem;margin:0 0 1rem;">Ingresa tu nueva contraseña.</p>
+      <input type="password" bind:value={newPassword} placeholder="Nueva contraseña"
+        style="width:100%;padding:0.55rem 0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(15,23,42,0.5);color:#e2e8f0;font-size:0.85rem;outline:none;box-sizing:border-box;margin-bottom:0.4rem;transition:border 0.2s;"
+        onfocus={(e) => e.currentTarget.style.borderColor = 'var(--primary-color)'}
+        onblur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'} />
+      <input type="password" bind:value={newPasswordConfirm} placeholder="Confirmar nueva contraseña"
+        style="width:100%;padding:0.55rem 0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(15,23,42,0.5);color:#e2e8f0;font-size:0.85rem;outline:none;box-sizing:border-box;margin-bottom:1rem;transition:border 0.2s;"
+        onfocus={(e) => e.currentTarget.style.borderColor = 'var(--primary-color)'}
+        onblur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'}
+        onkeydown={(e) => { if (e.key === 'Enter') handleSetNewPassword(); }} />
+      {#if sbError}
+        <div style="padding:0.5rem 0.75rem;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:8px;color:#fca5a5;font-size:0.8rem;margin-bottom:1rem;">{sbError}</div>
+      {/if}
+      <div style="display:flex;justify-content:flex-end;gap:0.75rem;">
+        <button onclick={() => { showResetPassword = false; newPassword = ''; newPasswordConfirm = ''; sbError = null; }}
+          style="padding:0.5rem 1rem;font-size:0.8rem;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);color:#94a3b8;cursor:pointer;font-weight:600;">Cancelar</button>
+        <button onclick={handleSetNewPassword} disabled={!newPassword || !newPasswordConfirm || sbTesting}
+          style="padding:0.5rem 1.25rem;font-size:0.8rem;border-radius:8px;border:none;background:linear-gradient(135deg,var(--primary-hover),var(--primary-color));color:white;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(var(--primary-rgb),0.3);">{sbTesting ? 'Guardando...' : 'Guardar nueva contraseña'}</button>
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .cloud-page { max-width: 900px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; }
