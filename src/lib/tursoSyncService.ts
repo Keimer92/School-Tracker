@@ -542,8 +542,8 @@ export const tursoSyncService = {
     markDirty('configuracion_calificacion');
     await syncManager.wrapSync((async () => {
       const client = getClient();
-      const { id, color, minimo } = config;
-      await client.execute('INSERT OR REPLACE INTO configuracion_calificacion (id, color, minimo) VALUES (?, ?, ?)', [id, color ?? null, minimo ?? null]);
+      const { id, nombre, color, minimo } = config;
+      await client.execute('INSERT OR REPLACE INTO configuracion_calificacion (id, nombre, color, minimo) VALUES (?, ?, ?, ?)', [id, nombre, color, minimo ?? null]);
       markClean('configuracion_calificacion');
     })(), 'config grade');
   },

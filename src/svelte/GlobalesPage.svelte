@@ -158,11 +158,13 @@
   $effect(() => { if (selectedColegio) fetchColegioConfig(); });
   $effect(() => { if (selectedColegioForSubjects) fetchColegioSubjectsData(); });
 
-  async function handleUpdateGradeConfig(id: string, nombre: string, color: string, minimo: number) {
+  async function handleUpdateGradeConfig(id: string, nombre: string, color: string, minimo: number, oldId?: string) {
     let v = minimo; if (id !== "AI") { if (v < 0) v = 0; if (v > 100) v = 100; } else v = 0;
+    const old = oldId || id;
     try {
-      await invoke("update_grade_config", { id, nombre, color, minimo: v });
-      gradeConfigs = gradeConfigs.map(c => c.id === id ? { ...c, nombre, color, minimo: v } : c);
+      await invoke("update_grade_config", { id, nombre, color, minimo: v, old_id: old });
+      gradeConfigs = gradeConfigs.map(c => c.id === old ? { ...c, id, nombre, color, minimo: v } : c);
+      gradeConfigs = gradeConfigs.sort((a, b) => GRADE_ORDER.indexOf(a.id) - GRADE_ORDER.indexOf(b.id));
       onDataChange('configuracion_calificacion');
       await emit("grade-configs-updated");
     } catch (error) {
@@ -245,14 +247,24 @@
                   <div style="padding:1rem 1rem 0.85rem 1.25rem;display:flex;flex-direction:column;gap:0.75rem;">
                     <div style="display:flex;align-items:center;gap:0.6rem;">
                       <div style="width:10px;height:10px;border-radius:50%;background:{grade.color};box-shadow:0 0 6px {grade.color}66;"></div>
-                      <span style="font-size:1rem;font-weight:700;color:#f1f5f9">{grade.id}</span>
-                      <span style="font-size:0.75rem;color:#94a3b8">{grade.nombre}</span>
+                      <input value={grade.id}
+                        onfocus={(e) => { e.currentTarget.dataset.old = grade.id; e.currentTarget.style.borderColor = grade.color; }}
+                        oninput={(e) => { const v = e.currentTarget.value; gradeConfigs = gradeConfigs.map(g => g.id === grade.id ? { ...g, id: v } : g); }}
+                        onblur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; const old = e.currentTarget.dataset.old || grade.id; if (e.currentTarget.value !== old) handleUpdateGradeConfig(e.currentTarget.value, grade.nombre, grade.color, grade.minimo, old); }}
+                        onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                        style="width:36px;padding:0.2rem 0.3rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:5px;color:#f1f5f9;font-size:1rem;font-weight:700;text-align:center;outline:none;transition:border 0.2s" />
+                      <input value={grade.nombre}
+                        oninput={(e) => { const v = e.currentTarget.value; gradeConfigs = gradeConfigs.map(g => g.id === grade.id ? { ...g, nombre: v } : g); }}
+                        onblur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; if (e.currentTarget.value !== grade.nombre) handleUpdateGradeConfig(grade.id, e.currentTarget.value, grade.color, grade.minimo, grade.id); }}
+                        onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                        style="flex:1;min-width:0;padding:0.2rem 0.35rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:5px;color:#94a3b8;font-size:0.75rem;outline:none;transition:border 0.2s"
+                        onfocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'} />
                     </div>
                     <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
                       {#if grade.id !== "AI"}
                         <div style="display:flex;flex-direction:column;gap:0.2rem;">
                           <span style="font-size:0.6rem;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">Mínimo</span>
-                          <input type="number" value={grade.minimo} oninput={(e) => handleUpdateGradeConfig(grade.id, grade.nombre, grade.color, parseInt((e.target as HTMLInputElement).value) || 0)}
+                          <input type="number" value={grade.minimo} oninput={(e) => handleUpdateGradeConfig(grade.id, grade.nombre, grade.color, parseInt((e.target as HTMLInputElement).value) || 0, grade.id)}
                             style="width:48px;padding:0.3rem 0.35rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:7px;color:#e2e8f0;font-size:0.8rem;font-weight:600;text-align:center;outline:none;" />
                         </div>
                       {/if}
@@ -261,7 +273,7 @@
                         <div style="display:flex;align-items:center;gap:0.4rem;">
                           <div style="position:relative;width:60px;height:28px;border-radius:7px;background:{grade.color};border:1px solid rgba(255,255,255,0.15);cursor:pointer;overflow:hidden;flex-shrink:0;"
                             onclick={() => document.getElementById(`color-input-m-${grade.id}`)?.click()}>
-                            <input id="color-input-m-{grade.id}" type="color" value={grade.color} oninput={(e) => handleUpdateGradeConfig(grade.id, grade.nombre, (e.target as HTMLInputElement).value, grade.minimo)} style="position:absolute;top:-12px;left:-12px;width:200%;height:200%;opacity:0;cursor:pointer;" />
+                            <input id="color-input-m-{grade.id}" type="color" value={grade.color} oninput={(e) => handleUpdateGradeConfig(grade.id, grade.nombre, (e.target as HTMLInputElement).value, grade.minimo, grade.id)} style="position:absolute;top:-12px;left:-12px;width:200%;height:200%;opacity:0;cursor:pointer;" />
                           </div>
                           <span style="font-family:monospace;font-size:0.65rem;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{grade.color.toUpperCase()}</span>
                         </div>
@@ -269,7 +281,7 @@
                     </div>
                     <div style="display:flex;flex-wrap:wrap;gap:3px;padding-top:0.25rem;border-top:1px solid rgba(255,255,255,0.04);">
                       {#each PRESET_COLORS as preset}
-                        <button onclick={() => handleUpdateGradeConfig(grade.id, grade.nombre, preset, grade.minimo)}
+                        <button onclick={() => handleUpdateGradeConfig(grade.id, grade.nombre, preset, grade.minimo, grade.id)}
                           style="width:14px;height:14px;border-radius:3px;background:{preset};border:{grade.color.toLowerCase() === preset.toLowerCase() ? '2px solid white' : '1px solid rgba(255,255,255,0.12)'};cursor:pointer;padding:0;"></button>
                       {/each}
                     </div>
@@ -308,9 +320,19 @@
                     <div style="display:flex;align-items:center;justify-content:space-between;">
                       <div style="display:flex;align-items:center;gap:0.75rem;">
                         <div style="width:12px;height:12px;border-radius:50%;background:{grade.color};box-shadow:0 0 8px {grade.color}66;"></div>
-                        <div>
-                          <span style="font-size:1.1rem;font-weight:700;color:#f1f5f9;letter-spacing:-0.3px">{grade.id}</span>
-                          <span style="font-size:0.8rem;color:#94a3b8;margin-left:0.5rem;font-weight:400">{grade.nombre}</span>
+                        <div style="display:flex;align-items:center;gap:0.5rem;">
+                          <input value={grade.id}
+                            onfocus={(e) => { e.currentTarget.dataset.old = grade.id; e.currentTarget.style.borderColor = grade.color; }}
+                            oninput={(e) => { const v = e.currentTarget.value; gradeConfigs = gradeConfigs.map(g => g.id === grade.id ? { ...g, id: v } : g); }}
+                            onblur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; const old = e.currentTarget.dataset.old || grade.id; if (e.currentTarget.value !== old) handleUpdateGradeConfig(e.currentTarget.value, grade.nombre, grade.color, grade.minimo, old); }}
+                            onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                            style="width:42px;padding:0.25rem 0.35rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#f1f5f9;font-size:1.1rem;font-weight:700;text-align:center;outline:none;letter-spacing:-0.3px;transition:border 0.2s" />
+                          <input value={grade.nombre}
+                            oninput={(e) => { const v = e.currentTarget.value; gradeConfigs = gradeConfigs.map(g => g.id === grade.id ? { ...g, nombre: v } : g); }}
+                            onblur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; if (e.currentTarget.value !== grade.nombre) handleUpdateGradeConfig(grade.id, e.currentTarget.value, grade.color, grade.minimo, grade.id); }}
+                            onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                            style="flex:1;min-width:60px;padding:0.25rem 0.4rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#94a3b8;font-size:0.8rem;font-weight:400;outline:none;transition:border 0.2s"
+                            onfocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'} />
                         </div>
                       </div>
                     </div>
@@ -318,7 +340,7 @@
                       {#if grade.id !== "AI"}
                         <div style="display:flex;flex-direction:column;gap:0.25rem;flex:0 0 auto;">
                           <span style="font-size:0.65rem;color:#64748b;font-weight:500;text-transform:uppercase;letter-spacing:0.5px">Mínimo</span>
-                          <input type="number" value={grade.minimo} oninput={(e) => handleUpdateGradeConfig(grade.id, grade.nombre, grade.color, parseInt((e.target as HTMLInputElement).value) || 0)}
+                          <input type="number" value={grade.minimo} oninput={(e) => handleUpdateGradeConfig(grade.id, grade.nombre, grade.color, parseInt((e.target as HTMLInputElement).value) || 0, grade.id)}
                             style="width:52px;padding:0.35rem 0.4rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#e2e8f0;font-size:0.85rem;font-weight:600;text-align:center;outline:none;transition:border 0.2s"
                             onfocus={(e) => e.currentTarget.style.borderColor = grade.color}
                             onblur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'} />
@@ -331,7 +353,7 @@
                             onclick={() => document.getElementById(`color-input-${grade.id}`)?.click()}
                             onmouseenter={(e) => e.currentTarget.style.boxShadow = `0 0 12px ${grade.color}44`}
                             onmouseleave={(e) => e.currentTarget.style.boxShadow = 'none'}>
-                            <input id="color-input-{grade.id}" type="color" value={grade.color} oninput={(e) => handleUpdateGradeConfig(grade.id, grade.nombre, (e.target as HTMLInputElement).value, grade.minimo)} style="position:absolute;top:-12px;left:-12px;width:200%;height:200%;opacity:0;cursor:pointer;" />
+                            <input id="color-input-{grade.id}" type="color" value={grade.color} oninput={(e) => handleUpdateGradeConfig(grade.id, grade.nombre, (e.target as HTMLInputElement).value, grade.minimo, grade.id)} style="position:absolute;top:-12px;left:-12px;width:200%;height:200%;opacity:0;cursor:pointer;" />
                           </div>
                           <span style="font-family:monospace;font-size:0.7rem;color:#64748b;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{grade.color.toUpperCase()}</span>
                         </div>
@@ -339,7 +361,7 @@
                     </div>
                     <div style="display:flex;flex-wrap:wrap;gap:4px;padding-top:0.25rem;border-top:1px solid rgba(255,255,255,0.04);">
                       {#each PRESET_COLORS as preset}
-                        <button onclick={() => handleUpdateGradeConfig(grade.id, grade.nombre, preset, grade.minimo)}
+                        <button onclick={() => handleUpdateGradeConfig(grade.id, grade.nombre, preset, grade.minimo, grade.id)}
                           style="width:16px;height:16px;border-radius:4px;background:{preset};border:{grade.color.toLowerCase() === preset.toLowerCase() ? '2px solid white' : '1px solid rgba(255,255,255,0.12)'};cursor:pointer;padding:0;transition:all 0.15s ease;transform:{grade.color.toLowerCase() === preset.toLowerCase() ? 'scale(1.2)' : 'scale(1)'};"
                           onmouseenter={(e) => e.currentTarget.style.transform = 'scale(1.3)'}
                           onmouseleave={(e) => e.currentTarget.style.transform = grade.color.toLowerCase() === preset.toLowerCase() ? 'scale(1.2)' : 'scale(1)'}></button>

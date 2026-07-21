@@ -3124,11 +3124,12 @@ pub async fn update_grade_config(
     nombre: String,
     color: String,
     minimo: i32,
+    old_id: String,
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
-        "UPDATE configuracion_calificacion SET nombre = ?, color = ?, minimo = ? WHERE id = ?",
-        rusqlite::params![nombre, color, minimo, id],
+        "UPDATE configuracion_calificacion SET id = ?, nombre = ?, color = ?, minimo = ? WHERE id = ?",
+        rusqlite::params![id, nombre, color, minimo, old_id],
     )
     .map(|_| ())
     .map_err(|e| e.to_string())
