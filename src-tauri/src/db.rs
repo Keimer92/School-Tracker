@@ -3094,6 +3094,24 @@ pub struct AsistenciaReporteItem {
     pub observaciones: Vec<String>, // "YYYY-MM-DD:OBSERVACION"
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AsistenciaEstudianteDia {
+    pub fecha: String,
+    pub estado: Option<String>,
+    pub observacion: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct AsistenciaEstudianteMulti {
+    pub id: i64,
+    pub nombre: String,
+    pub codigo: String,
+    pub sexo: String,
+    pub dias: Vec<AsistenciaEstudianteDia>,
+}
+
 #[tauri::command]
 pub async fn get_grade_configs(state: tauri::State<'_, DbState>) -> Result<Vec<GradeConfig>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
@@ -3240,6 +3258,92 @@ let mut query = String::from(
     for row in rows {
         result.push(row.map_err(|e| e.to_string())?);
     }
+
+    Ok(result)
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+pub async fn get_asistencia_estudiantes_rango(
+    state: tauri::State<'_, DbState>,
+    fechaInicio: String,
+    fechaFin: String,
+    gradoId: i64,
+    seccionId: i64,
+    sexo: Option<String>,
+) -> Result<Vec<AsistenciaEstudianteMulti>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+
+    let mut sql = String::from(
+        "SELECT e.id, e.nombre, e.codigo, e.sexo FROM estudiante e
+         WHERE e.grado_id = ? AND e.seccion_id = ?"
+    );
+    let mut params: Vec<Box<dyn rusqlite::ToSql>> = vec![Box::new(gradoId), Box::new(seccionId)];
+
+    if let Some(ref s) = sexo {
+        if !s.is_empty() {
+            sql.push_str(" AND e.sexo = ?");
+            params.push(Box::new(s.clone()));
+        }
+    }
+    sql.push_str(" ORDER BY e.nombre");
+
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+    let estudiantes: Vec<(i64, String, String, String)> = stmt
+        .query_map(rusqlite::params_from_iter(params), |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    if estudiantes.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let ids: Vec<i64> = estudiantes.iter().map(|e| e.0).collect();
+    let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+    let asistencia_sql = format!(
+        "SELECT estudiante_id, fecha, estado, COALESCE(observacion, '') FROM asistencia
+         WHERE estudiante_id IN ({}) AND fecha >= ? AND fecha <= ?
+         ORDER BY estudiante_id, fecha",
+        placeholders
+    );
+
+    let mut asistencia_params: Vec<Box<dyn rusqlite::ToSql>> =
+        ids.iter().map(|id| Box::new(*id) as Box<dyn rusqlite::ToSql>).collect();
+    asistencia_params.push(Box::new(fechaInicio));
+    asistencia_params.push(Box::new(fechaFin));
+
+    let mut asistencia_stmt = conn.prepare(&asistencia_sql).map_err(|e| e.to_string())?;
+    let asistencia_rows: Vec<(i64, String, String, String)> = asistencia_stmt
+        .query_map(rusqlite::params_from_iter(asistencia_params), |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    use std::collections::HashMap;
+    let mut asistencia_map: HashMap<i64, Vec<AsistenciaEstudianteDia>> = HashMap::new();
+    for (est_id, fecha, estado, obs) in asistencia_rows {
+        asistencia_map.entry(est_id).or_default().push(AsistenciaEstudianteDia {
+            fecha,
+            estado: Some(estado),
+            observacion: if obs.is_empty() { None } else { Some(obs) },
+        });
+    }
+
+    let result = estudiantes
+        .into_iter()
+        .map(|(id, nombre, codigo, sexo)| AsistenciaEstudianteMulti {
+            id,
+            nombre,
+            codigo,
+            sexo,
+            dias: asistencia_map.remove(&id).unwrap_or_default(),
+        })
+        .collect();
 
     Ok(result)
 }
@@ -3476,6 +3580,44 @@ pub async fn delete_asistencia_batch(
             )
             .map_err(|e| e.to_string())?;
         }
+    }
+
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_asistencia_rango(
+    state: tauri::State<'_, DbState>,
+    estudiante_ids: Vec<i64>,
+    fecha_inicio: String,
+    fecha_fin: String,
+) -> Result<(), String> {
+    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    for id in estudiante_ids {
+        let mut stmt = tx
+            .prepare("SELECT fecha FROM asistencia WHERE estudiante_id = ? AND fecha >= ? AND fecha <= ?")
+            .map_err(|e| e.to_string())?;
+        let fechas: Vec<String> = stmt
+            .query_map(rusqlite::params![id, &fecha_inicio, &fecha_fin], |row| row.get(0))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        drop(stmt);
+
+        for fecha in &fechas {
+            tx.execute(
+                "INSERT INTO sync_pending_deletions_asistencia (estudiante_id, fecha) VALUES (?, ?)",
+                rusqlite::params![id, fecha],
+            ).map_err(|e| e.to_string())?;
+        }
+
+        tx.execute(
+            "DELETE FROM asistencia WHERE estudiante_id = ? AND fecha >= ? AND fecha <= ?",
+            rusqlite::params![id, &fecha_inicio, &fecha_fin],
+        ).map_err(|e| e.to_string())?;
     }
 
     tx.commit().map_err(|e| e.to_string())?;
