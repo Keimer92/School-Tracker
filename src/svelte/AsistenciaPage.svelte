@@ -662,8 +662,6 @@
               <option value="">Todos</option><option value="M">Masculino</option><option value="F">Femenino</option>
             </select>
           </FilterGroup>
-        </div>
-        <div style="display:flex;gap:0.3rem;align-items:flex-end;flex-wrap:wrap;margin-top:0.3rem">
           <button onclick={handleManualSave} disabled={!hasUnsavedChanges || saving}
             style="height:42px;padding:0 1.25rem;font-size:0.85rem;background-color:{hasUnsavedChanges && !saving ? 'var(--primary-color)' : (saving ? '#059669' : 'rgba(148,163,184,0.5)')};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:{hasUnsavedChanges && !saving ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{hasUnsavedChanges && !saving ? '0 4px 14px rgba(var(--primary-rgb), 0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{hasUnsavedChanges || saving ? 1 : 0.7}">
             {#if saving}<span class="saving-dot"></span><span>{isAndroidMobile ? '' : 'Guardando'}</span>{:else}<span>💾</span><span>{isAndroidMobile ? '' : 'Guardar'}</span>{/if}
