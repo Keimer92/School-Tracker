@@ -747,6 +747,73 @@
     }
   }
 
+  let showClipboardMenu = $state(false);
+
+  function toggleClipboardMenu(e: MouseEvent) {
+    e.stopPropagation();
+    showClipboardMenu = !showClipboardMenu;
+  }
+
+  function closeClipboardMenu() {
+    showClipboardMenu = false;
+  }
+
+  function getNotaFinalValue(est: EstudianteReporte): string {
+    if (!est.notaFinalCualitativa || est.notaFinalCualitativa === '-') return '-';
+    if (isQualitative) return est.notaFinalCualitativa;
+    return String(Math.round(est.notaFinal));
+  }
+
+  async function copyFullTable() {
+    if (filteredReporte.length === 0) return;
+    const headers = ['Estudiante', 'Sexo'];
+    if (!specialCorte) {
+      configIndicadores.forEach(ind => headers.push(`Ind. ${ind.orden}`));
+    }
+    headers.push('Nota Final');
+    const rows = filteredReporte.map(est => {
+      const cells = [est.nombre, est.sexo];
+      if (!specialCorte) {
+        configIndicadores.forEach(ind => {
+          const nota = est.notasIndicadores[ind.id] || 0;
+          const label = est.notasCualitativasIndicadores[ind.id] || '';
+          if (label === '-' || label === '') cells.push('-');
+          else cells.push(isQualitative ? label : String(Math.round(nota)));
+        });
+      }
+      cells.push(getNotaFinalValue(est));
+      return cells.join('\t');
+    });
+    const tsv = [headers.join('\t'), ...rows].join('\n');
+    try {
+      await navigator.clipboard.writeText(tsv);
+      await emit('show-toast', { message: `✅ ${filteredReporte.length} registros copiados. Pega en Excel (Ctrl+V).`, type: 'success' });
+    } catch (e) {
+      await emit('show-toast', { message: `❌ Error al copiar: ${e}`, type: 'error' });
+    }
+    showClipboardMenu = false;
+  }
+
+  async function copyFinalGradesOnly() {
+    if (filteredReporte.length === 0) return;
+    const values = filteredReporte.map(getNotaFinalValue).join('\n');
+    try {
+      await navigator.clipboard.writeText(values);
+      await emit('show-toast', { message: `✅ ${filteredReporte.length} notas copiadas. Pega en Excel (Ctrl+V).`, type: 'success' });
+    } catch (e) {
+      await emit('show-toast', { message: `❌ Error al copiar: ${e}`, type: 'error' });
+    }
+    showClipboardMenu = false;
+  }
+
+  $effect(() => {
+    if (showClipboardMenu) {
+      const handler = () => { showClipboardMenu = false; };
+      const timer = setTimeout(() => window.addEventListener('click', handler), 0);
+      return () => { clearTimeout(timer); window.removeEventListener('click', handler); };
+    }
+  });
+
   async function handlePrintWithIframe() {
     if (estudiantes.length === 0) { await emit("show-toast", { message: "⚠️ No hay datos para imprimir", type: 'warning' }); return; }
     try {
@@ -945,6 +1012,32 @@
               style="height:42px;padding:0 1.25rem;font-size:0.85rem;background-color:#6366f1;color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(99,102,241,0.4);flex-shrink:0;white-space:nowrap;opacity:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura ? 0.7 : 1}">
               {exportandoMasivo ? progresoMasivo : '📚 Exportar Todo'}
             </button>
+            <div style="position:relative;flex-shrink:0">
+              <button onclick={toggleClipboardMenu} disabled={filteredReporte.length === 0 || loading}
+                style="height:42px;padding:0 1.25rem;font-size:0.85rem;background:linear-gradient(135deg,#a855f7,#9333ea);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:{filteredReporte.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(168,85,247,0.4);flex-shrink:0;white-space:nowrap;opacity:{filteredReporte.length === 0 || loading ? 0.7 : 1}"
+                title="Copiar al portapapeles">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                Copiar
+              </button>
+              {#if showClipboardMenu}
+                <div onclick={(e) => e.stopPropagation()} style="position:absolute;top:calc(100% + 4px);right:0;min-width:240px;background:rgba(20,24,31,0.85);backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.1);border-radius:12px;box-shadow:0 25px 60px -12px rgba(0,0,0,0.6);padding:0.4rem;z-index:200;overflow:hidden;animation:fadeIn 0.15s ease-out">
+                  <button onclick={copyFullTable}
+                    style="display:flex;align-items:center;gap:8px;width:100%;padding:0.65rem 0.75rem;font-size:0.8rem;background:transparent;color:#e2e8f0;border:none;border-radius:8px;cursor:pointer;transition:all 0.15s ease;white-space:nowrap"
+                    onmouseenter={(e) => e.currentTarget.style.backgroundColor = 'rgba(168,85,247,0.15)'}
+                    onmouseleave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                    Estudiantes + Nota Final
+                  </button>
+                  <button onclick={copyFinalGradesOnly}
+                    style="display:flex;align-items:center;gap:8px;width:100%;padding:0.65rem 0.75rem;font-size:0.8rem;background:transparent;color:#e2e8f0;border:none;border-radius:8px;cursor:pointer;transition:all 0.15s ease;white-space:nowrap"
+                    onmouseenter={(e) => e.currentTarget.style.backgroundColor = 'rgba(168,85,247,0.15)'}
+                    onmouseleave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                    Solo Nota Final
+                  </button>
+                </div>
+              {/if}
+            </div>
             <div style="flex:1;min-width:100px">
               <SearchInput bind:value={searchTerm} onChange={(v: string) => searchTerm = v} placeholder="Buscar..." {isMobile} height="42px" />
             </div>
