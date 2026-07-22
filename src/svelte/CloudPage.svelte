@@ -181,14 +181,26 @@
   }
 
   async function handleResetPassword() {
-    sbTesting = true; resetSent = false;
+    sbTesting = true; sbError = null; resetSent = false;
     try {
       const client = getSupabaseClient();
-      if (!client) { sbTesting = false; return; }
+      if (!client) { sbError = 'No se pudo conectar con Supabase'; sbTesting = false; return; }
       const { error } = await client.auth.resetPasswordForEmail(sbResetEmail, { redirectTo: 'schooltrackerpro://reset-password' });
-      if (error) { sbTesting = false; return; }
+      if (error) {
+        if (error.message?.toLowerCase().includes('rate limit') || error.message?.toLowerCase().includes('60 seconds')) {
+          sbError = '⏳ Solo puedes solicitar un correo de recuperación cada 60 segundos. Intenta de nuevo más tarde.';
+        } else if (error.message?.toLowerCase().includes('email not found') || error.message?.toLowerCase().includes('user not found')) {
+          sbError = '❌ No existe una cuenta con este correo electrónico.';
+        } else {
+          sbError = '❌ ' + error.message;
+        }
+        sbTesting = false; return;
+      }
       resetSent = true;
-    } catch {}
+      sbError = null;
+    } catch (e: any) {
+      sbError = '❌ Error inesperado: ' + (e?.message || String(e));
+    }
     sbTesting = false;
   }
 
@@ -366,8 +378,8 @@
               {#if !sbSessionUser}
                 <div style="margin-top: 0.25rem; padding: 0.75rem; background: rgba(0,0,0,0.15); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
                   <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;background:rgba(0,0,0,0.2);border-radius:8px;padding:0.2rem;border:1px solid rgba(255,255,255,0.06);">
-                    <button onclick={() => authMode = 'register'} style="flex:1;padding:0.35rem 0.5rem;border-radius:6px;border:none;cursor:pointer;font-size:0.75rem;font-weight:600;transition:all 0.2s;background:{authMode === 'register' ? 'var(--primary-color)' : 'transparent'};color:{authMode === 'register' ? '#fff' : '#94a3b8'};">📝 Crear Cuenta</button>
-                    <button onclick={() => authMode = 'login'} style="flex:1;padding:0.35rem 0.5rem;border-radius:6px;border:none;cursor:pointer;font-size:0.75rem;font-weight:600;transition:all 0.2s;background:{authMode === 'login' ? 'var(--primary-color)' : 'transparent'};color:{authMode === 'login' ? '#fff' : '#94a3b8'};">🔑 Iniciar Sesión</button>
+                    <button onclick={() => { authMode = 'register'; sbError = null; }} style="flex:1;padding:0.35rem 0.5rem;border-radius:6px;border:none;cursor:pointer;font-size:0.75rem;font-weight:600;transition:all 0.2s;background:{authMode === 'register' ? 'var(--primary-color)' : 'transparent'};color:{authMode === 'register' ? '#fff' : '#94a3b8'};">📝 Crear Cuenta</button>
+                    <button onclick={() => { authMode = 'login'; sbError = null; }} style="flex:1;padding:0.35rem 0.5rem;border-radius:6px;border:none;cursor:pointer;font-size:0.75rem;font-weight:600;transition:all 0.2s;background:{authMode === 'login' ? 'var(--primary-color)' : 'transparent'};color:{authMode === 'login' ? '#fff' : '#94a3b8'};">🔑 Iniciar Sesión</button>
                   </div>
                   {#if authMode === 'register'}
                     <input type="email" bind:value={sbEmail} placeholder="correo@ejemplo.com" style="width:100%;padding:0.5rem 0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.3);color:#e2e8f0;font-size:0.8rem;outline:none;box-sizing:border-box;margin-bottom:0.4rem;" />
@@ -376,7 +388,7 @@
                   {:else}
                     <input type="email" bind:value={sbEmail} placeholder="correo@ejemplo.com" style="width:100%;padding:0.5rem 0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.3);color:#e2e8f0;font-size:0.8rem;outline:none;box-sizing:border-box;margin-bottom:0.4rem;" />
                     <input type="password" bind:value={sbPassword} placeholder="Contraseña" style="width:100%;padding:0.5rem 0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.3);color:#e2e8f0;font-size:0.8rem;outline:none;box-sizing:border-box;" />
-                    <button onclick={() => showForgotModal = true} style="background:none;border:none;color:#64748b;font-size:0.7rem;cursor:pointer;padding:0.3rem 0 0;text-decoration:underline;display:block;width:100%;text-align:right;">¿Olvidaste tu contraseña?</button>
+                    <button onclick={() => { showForgotModal = true; sbError = null; resetSent = false; }} style="background:none;border:none;color:#64748b;font-size:0.7rem;cursor:pointer;padding:0.3rem 0 0;text-decoration:underline;display:block;width:100%;text-align:right;">¿Olvidaste tu contraseña?</button>
                   {/if}
                 </div>
               {/if}
@@ -448,8 +460,8 @@
               {#if !sbSessionUser}
                 <div style="padding: 0.75rem; background: rgba(0,0,0,0.15); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); margin-bottom: 0.75rem;">
                   <div style="display:flex;gap:0.4rem;margin-bottom:0.6rem;background:rgba(0,0,0,0.2);border-radius:8px;padding:0.2rem;border:1px solid rgba(255,255,255,0.06);">
-                    <button onclick={() => authMode = 'register'} style="flex:1;padding:0.35rem 0.5rem;border-radius:6px;border:none;cursor:pointer;font-size:0.75rem;font-weight:600;transition:all 0.2s;background:{authMode === 'register' ? 'var(--primary-color)' : 'transparent'};color:{authMode === 'register' ? '#fff' : '#94a3b8'};">📝 Crear Cuenta</button>
-                    <button onclick={() => authMode = 'login'} style="flex:1;padding:0.35rem 0.5rem;border-radius:6px;border:none;cursor:pointer;font-size:0.75rem;font-weight:600;transition:all 0.2s;background:{authMode === 'login' ? 'var(--primary-color)' : 'transparent'};color:{authMode === 'login' ? '#fff' : '#94a3b8'};">🔑 Iniciar Sesión</button>
+                    <button onclick={() => { authMode = 'register'; sbError = null; }} style="flex:1;padding:0.35rem 0.5rem;border-radius:6px;border:none;cursor:pointer;font-size:0.75rem;font-weight:600;transition:all 0.2s;background:{authMode === 'register' ? 'var(--primary-color)' : 'transparent'};color:{authMode === 'register' ? '#fff' : '#94a3b8'};">📝 Crear Cuenta</button>
+                    <button onclick={() => { authMode = 'login'; sbError = null; }} style="flex:1;padding:0.35rem 0.5rem;border-radius:6px;border:none;cursor:pointer;font-size:0.75rem;font-weight:600;transition:all 0.2s;background:{authMode === 'login' ? 'var(--primary-color)' : 'transparent'};color:{authMode === 'login' ? '#fff' : '#94a3b8'};">🔑 Iniciar Sesión</button>
                   </div>
                   {#if authMode === 'register'}
                     <input type="email" bind:value={sbEmail} placeholder="correo@ejemplo.com" style="width:100%;padding:0.5rem 0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.3);color:#e2e8f0;font-size:0.8rem;outline:none;box-sizing:border-box;margin-bottom:0.4rem;" />
@@ -458,7 +470,7 @@
                   {:else}
                     <input type="email" bind:value={sbEmail} placeholder="correo@ejemplo.com" style="width:100%;padding:0.5rem 0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.3);color:#e2e8f0;font-size:0.8rem;outline:none;box-sizing:border-box;margin-bottom:0.4rem;" />
                     <input type="password" bind:value={sbPassword} placeholder="Contraseña" style="width:100%;padding:0.5rem 0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.3);color:#e2e8f0;font-size:0.8rem;outline:none;box-sizing:border-box;" />
-                    <button onclick={() => showForgotModal = true} style="background:none;border:none;color:#64748b;font-size:0.7rem;cursor:pointer;padding:0.3rem 0 0;text-decoration:underline;display:block;width:100%;text-align:right;">¿Olvidaste tu contraseña?</button>
+                    <button onclick={() => { showForgotModal = true; sbError = null; resetSent = false; }} style="background:none;border:none;color:#64748b;font-size:0.7rem;cursor:pointer;padding:0.3rem 0 0;text-decoration:underline;display:block;width:100%;text-align:right;">¿Olvidaste tu contraseña?</button>
                   {/if}
                 </div>
               {/if}
@@ -500,7 +512,7 @@
 <!-- Forgot Password Modal -->
 {#if showForgotModal}
   <div style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);"
-    onclick={() => { showForgotModal = false; resetSent = false; sbResetEmail = ''; }}>
+    onclick={() => { showForgotModal = false; resetSent = false; sbResetEmail = ''; sbError = null; }}>
     <div style="width:380px;max-width:90%;padding:1.5rem;background:rgba(20,24,31,0.85);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.08);border-radius:20px;box-shadow:0 25px 60px -12px rgba(0,0,0,0.6);"
       onclick={(e) => e.stopPropagation()}>
       <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;">
@@ -511,6 +523,9 @@
         <div style="padding:1rem;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);border-radius:10px;color:#4ade80;font-size:0.85rem;margin-bottom:1rem;">✅ Revisa tu correo para restablecer la contraseña</div>
       {:else}
         <p style="color:#94a3b8;font-size:0.8rem;margin:0 0 1rem;">Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña.</p>
+        {#if sbError}
+          <div style="padding:0.5rem 0.75rem;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:8px;color:#fca5a5;font-size:0.8rem;margin-bottom:1rem;">{sbError}</div>
+        {/if}
         <input type="email" bind:value={sbResetEmail} placeholder="correo@ejemplo.com"
           style="width:100%;padding:0.55rem 0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(15,23,42,0.5);color:#e2e8f0;font-size:0.85rem;outline:none;box-sizing:border-box;transition:border 0.2s;margin-bottom:1rem;"
           onfocus={(e) => e.currentTarget.style.borderColor = 'var(--primary-color)'}
@@ -519,10 +534,10 @@
       {/if}
       <div style="display:flex;justify-content:flex-end;gap:0.75rem;">
         {#if resetSent}
-          <button onclick={() => { showForgotModal = false; resetSent = false; sbResetEmail = ''; }}
+          <button onclick={() => { showForgotModal = false; resetSent = false; sbResetEmail = ''; sbError = null; }}
             style="padding:0.5rem 1rem;font-size:0.8rem;border-radius:8px;border:none;background:var(--primary-color);color:#fff;font-weight:600;cursor:pointer;">Cerrar</button>
         {:else}
-          <button onclick={() => { showForgotModal = false; resetSent = false; sbResetEmail = ''; }}
+          <button onclick={() => { showForgotModal = false; resetSent = false; sbResetEmail = ''; sbError = null; }}
             style="padding:0.5rem 1rem;font-size:0.8rem;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);color:#94a3b8;cursor:pointer;font-weight:600;">Cancelar</button>
           <button onclick={handleResetPassword} disabled={!sbResetEmail || sbTesting}
             style="padding:0.5rem 1.25rem;font-size:0.8rem;border-radius:8px;border:none;background:linear-gradient(135deg,var(--primary-hover),var(--primary-color));color:white;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(var(--primary-rgb),0.3);">{sbTesting ? 'Enviando...' : 'Enviar enlace'}</button>
