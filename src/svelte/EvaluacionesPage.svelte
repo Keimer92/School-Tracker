@@ -32,7 +32,6 @@
   let viewMode = $state<ViewMode>("split-panel");
   let expandedIndicador = $state<number | null>(null);
   let accordionOpen = $state<Set<number>>(new Set());
-  let limitError = $state('');
 
   let filteredActiveIndicadores = $derived(indicadores.filter(i => i.activo));
   let activeCount = $derived(filteredActiveIndicadores.length);
@@ -135,15 +134,11 @@
   function handleToggleClick(e: Event, indicador: Indicador) {
     if (!indicador.activo && activeCount >= 5) {
       e.preventDefault();
-      limitError = '❌ Límite alcanzado: solo pueden haber 5 indicadores activos. Desactive uno antes de activar otro.';
-      emit("show-toast", { message: limitError, type: "error" });
-    } else {
-      limitError = '';
+      emit("show-toast", { message: "❌ Límite alcanzado: solo pueden haber 5 indicadores activos. Desactive uno antes de activar otro.", type: "error" });
     }
   }
 
   async function handleToggleIndicador(indicador: Indicador) {
-    limitError = '';
     try {
       await invoke("update_indicador", { id: indicador.id, descripcion: indicador.descripcion, activo: !indicador.activo });
       indicadores = indicadores.map(i => i.id === indicador.id ? { ...i, activo: !i.activo } : i);
@@ -300,14 +295,6 @@
           </div>
         {/if}
       </div>
-
-      {#if limitError}
-        <div onclick={() => limitError = ''} style="padding:0.6rem 0.8rem;margin-bottom:0.75rem;border-radius:10px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#fca5a5;font-size:0.82rem;font-weight:500;display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
-          <span style="font-size:1.1rem">⚠️</span>
-          <span style="flex:1">{limitError}</span>
-          <span style="font-size:0.7rem;color:rgba(255,255,255,0.3)">✕</span>
-        </div>
-      {/if}
 
       {#if viewMode === "modern-cards"}
         <div class="ev-cards-container">
