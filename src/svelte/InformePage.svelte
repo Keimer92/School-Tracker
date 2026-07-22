@@ -344,13 +344,29 @@
     if (reporteFiltrado.length === 0) { await emit("show-toast", { message: "⚠️ No hay datos para imprimir", type: 'warning' }); return; }
     try {
       await emit("show-toast", { message: "✅ Preparando reporte...", type: 'success' });
-      const headers = ["Estudiante", "Sexo", "Estado", "Observación"];
-      const rows = reporteFiltrado.map(est => {
-        const estado = getEstadoEnFecha(est, fechaInicio);
-        const obs = getObservacionEnFecha(est, fechaInicio);
-        const estadoClass = estado === 'P' ? 'estado-P' : estado === 'A' ? 'estado-A' : estado === 'J' ? 'estado-J' : '';
-        return `<tr><td>${est.nombre}</td><td>${est.sexo}</td><td class="${estadoClass}">${estado === '-' ? '' : estado}</td><td>${obs}</td></tr>`;
-      }).join('');
+      let headers: string[], rows: string;
+      if (periodo === "diario") {
+        headers = ["Estudiante", "Sexo", "Estado", "Observación"];
+        rows = reporteFiltrado.map(est => {
+          const estado = getEstadoEnFecha(est, fechaInicio);
+          const obs = getObservacionEnFecha(est, fechaInicio);
+          const estadoClass = estado === 'P' ? 'estado-P' : estado === 'A' ? 'estado-A' : estado === 'J' ? 'estado-J' : '';
+          return `<tr><td>${est.nombre}</td><td>${est.sexo}</td><td class="${estadoClass}">${estado === '-' ? '' : estado}</td><td>${obs}</td></tr>`;
+        }).join('');
+      } else {
+        const fechasCols = getFechasUnicas();
+        headers = ["Estudiante", "Sexo", ...fechasCols.map(f => f.split('-').slice(1).reverse().join('/')), "P", "A", "J"];
+        rows = reporteFiltrado.map(est => {
+          const p = est.fechas.filter(f => f.endsWith(':P')).length;
+          const a = est.fechas.filter(f => f.endsWith(':A')).length;
+          const j = est.fechas.filter(f => f.endsWith(':J')).length;
+          return `<tr><td>${est.nombre}</td><td>${est.sexo}</td>${fechasCols.map(f => {
+            const estado = getEstadoEnFecha(est, f);
+            const cls = estado === 'P' ? 'estado-P' : estado === 'A' ? 'estado-A' : estado === 'J' ? 'estado-J' : '';
+            return `<td class="${cls}">${estado}</td>`;
+          }).join('')}<td class="estado-P">${p}</td><td class="estado-A">${a}</td><td class="estado-J">${j}</td></tr>`;
+        }).join('');
+      }
       printHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
         body{font-family:Arial,sans-serif;padding:20px}h2{margin:0 0 10px 0}.info{margin-bottom:15px;font-size:12px}
         table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid #ddd;padding:6px;text-align:center}
@@ -552,13 +568,9 @@
         <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '0 0 auto'}">
           {#if !isAndroid}
             <button onclick={handlePrintWithIframe} disabled={reporteFiltrado.length === 0 || loading}
-              style="height:42px;padding:0 1.25rem;font-size:0.85rem;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;flex-shrink:0;gap:8px;border:none;border-radius:8px;color:white;font-weight:700;cursor:pointer;transition:all 0.2s ease;box-shadow:0 2px 8px rgba(16,185,129,0.3);letter-spacing:0.3px;white-space:nowrap;transition:all 0.15s"
-              onmouseenter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
-              onmouseleave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-              onmousedown={(e) => e.currentTarget.style.transform = 'translateY(1px)'}
-              onmouseup={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+              style="height:42px;padding:0 1.25rem;font-size:0.85rem;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;flex-shrink:0;gap:6px;border:none;border-radius:8px;color:#fff;font-weight:700;cursor:{reporteFiltrado.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(16,185,129,0.4);letter-spacing:0.3px;white-space:nowrap;opacity:{reporteFiltrado.length === 0 || loading ? 0.7 : 1}"
               title={isMobile ? "Compartir reporte" : "Imprimir reporte"}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
               Imprimir
             </button>
           {/if}
