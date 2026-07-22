@@ -604,7 +604,7 @@
   <PageLayout>
     {#snippet filters()}
       <FilterContainer {isMobile} style="padding:{isAndroidMobile ? '0.5rem' : '0.4rem'}">
-        <div style="display:flex;flex-wrap:wrap;gap:0.4rem;width:100%">
+        <div style="display:flex;flex-wrap:wrap;gap:0.4rem;width:100%;align-items:flex-end">
           <FilterGroup label="Período:" {isMobile}>
             <select class="filter-select" bind:value={periodo} style="width:100%">
               <option value="diario">Diario</option>
@@ -672,13 +672,13 @@
           </button>
           <div style="display:flex;gap:2px;align-items:stretch;flex-shrink:0">
             <button onclick={() => marcarTodos('P')} disabled={getActiveStudentCount() === 0}
-              style="padding:0.4rem 0.7rem;font-size:0.8rem;height:38px;background:{getActiveStudentCount() > 0 ? 'rgba(16,185,129,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {getActiveStudentCount() > 0 ? 'rgba(16,185,129,0.3)' : 'transparent'};color:#10b981;border-radius:8px;cursor:{getActiveStudentCount() > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{getActiveStudentCount() > 0 ? 1 : 0.5}"
+              style="padding:0.4rem 0.7rem;font-size:0.8rem;height:42px;background:{getActiveStudentCount() > 0 ? 'rgba(16,185,129,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {getActiveStudentCount() > 0 ? 'rgba(16,185,129,0.3)' : 'transparent'};color:#10b981;border-radius:8px;cursor:{getActiveStudentCount() > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{getActiveStudentCount() > 0 ? 1 : 0.5}"
               title="Marcar todos como Presente">P</button>
             <button onclick={() => marcarTodos('A')} disabled={getActiveStudentCount() === 0}
-              style="padding:0.4rem 0.7rem;font-size:0.8rem;height:38px;background:{getActiveStudentCount() > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {getActiveStudentCount() > 0 ? 'rgba(239,68,68,0.3)' : 'transparent'};color:#ef4444;border-radius:8px;cursor:{getActiveStudentCount() > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{getActiveStudentCount() > 0 ? 1 : 0.5}"
+              style="padding:0.4rem 0.7rem;font-size:0.8rem;height:42px;background:{getActiveStudentCount() > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {getActiveStudentCount() > 0 ? 'rgba(239,68,68,0.3)' : 'transparent'};color:#ef4444;border-radius:8px;cursor:{getActiveStudentCount() > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{getActiveStudentCount() > 0 ? 1 : 0.5}"
               title="Marcar todos como Ausente">A</button>
             <button onclick={() => marcarTodos('J')} disabled={getActiveStudentCount() === 0}
-              style="padding:0.4rem 0.7rem;font-size:0.8rem;height:38px;background:{getActiveStudentCount() > 0 ? 'rgba(245,158,11,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {getActiveStudentCount() > 0 ? 'rgba(245,158,11,0.3)' : 'transparent'};color:#f59e0b;border-radius:8px;cursor:{getActiveStudentCount() > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{getActiveStudentCount() > 0 ? 1 : 0.5}"
+              style="padding:0.4rem 0.7rem;font-size:0.8rem;height:42px;background:{getActiveStudentCount() > 0 ? 'rgba(245,158,11,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {getActiveStudentCount() > 0 ? 'rgba(245,158,11,0.3)' : 'transparent'};color:#f59e0b;border-radius:8px;cursor:{getActiveStudentCount() > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{getActiveStudentCount() > 0 ? 1 : 0.5}"
               title="Marcar todos como Justificado">J</button>
           </div>
           <div style="flex:1;min-width:100px">
