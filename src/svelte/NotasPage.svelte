@@ -73,6 +73,7 @@
   let inputsRef = new Map<string, HTMLInputElement>();
   let cellSnapshot: Record<string, string> | null = null;
   let hasUnsavedRef = false;
+  let pendingRefreshOnSave = $state(false);
   let nextRefreshSilent = false;
   let loadId = 0;
   let touchStartX = 0;
@@ -718,6 +719,7 @@
       redoStack = [];
       hasUnsavedRef = false;
       hasUnsavedChanges = false;
+      if (pendingRefreshOnSave) { pendingRefreshOnSave = false; nextRefreshSilent = true; refreshTrigger++; }
       saving = false;
       await emit("show-toast", { message: "✅ Notas guardadas localmente", type: "success" });
       onDataChange('nota');
@@ -748,6 +750,7 @@
       redoStack = [];
       hasUnsavedChanges = false;
       hasUnsavedRef = false;
+      if (pendingRefreshOnSave) { pendingRefreshOnSave = false; nextRefreshSilent = true; refreshTrigger++; }
       onDataChange('nota');
       setTimeout(() => fetchEstudiantes(undefined, true), 200);
     } catch (error) {
@@ -881,18 +884,19 @@
     let catalogTimeout: ReturnType<typeof setTimeout>;
 
     const u1 = listen("student-updated", () => {
-      if (hasUnsavedRef) return;
+      if (hasUnsavedRef) { pendingRefreshOnSave = true; return; }
       clearTimeout(studentTimeout);
       studentTimeout = setTimeout(() => { nextRefreshSilent = true; refreshTrigger++; }, 500);
     });
 
     const u2 = listen("notas-updated", () => {
-      if (hasUnsavedRef) return;
+      if (hasUnsavedRef) { pendingRefreshOnSave = true; return; }
       clearTimeout(notasTimeout);
       notasTimeout = setTimeout(() => { nextRefreshSilent = true; refreshTrigger++; }, 500);
     });
 
     const u3 = listen("catalog-updated", () => {
+      if (hasUnsavedRef) { pendingRefreshOnSave = true; return; }
       clearTimeout(catalogTimeout);
       catalogTimeout = setTimeout(() => {
         nextRefreshSilent = true;

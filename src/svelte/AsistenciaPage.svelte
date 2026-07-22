@@ -34,6 +34,7 @@
   let loading = $state(false);
   let saving = $state(false);
   let hasUnsavedChanges = $state(false);
+  let pendingRefreshOnSave = $state(false);
   let pressingStatus: string | null = $state(null);
   let showSummaryModal = $state<{ show: boolean; type: string; stats: { total: number; m: number; f: number } | null }>({ show: false, type: "", stats: null });
   let selectedStudentDetail: EstudianteAsistencia | null = $state(null);
@@ -82,7 +83,7 @@
 
     let at: ReturnType<typeof setTimeout>;
     const u1 = listen("asistencia-updated", () => { if (hasUnsavedChanges) return; clearTimeout(at); at = setTimeout(() => refreshingSilent = true, 500); });
-    const u2 = listen("student-updated", () => { if (hasUnsavedChanges) return; clearTimeout(at); at = setTimeout(() => { refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); }, 500); });
+    const u2 = listen("student-updated", () => { if (hasUnsavedChanges) { pendingRefreshOnSave = true; return; } clearTimeout(at); at = setTimeout(() => { refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); }, 500); });
     const u3 = listen("catalog-updated", () => { if (hasUnsavedChanges) return; clearTimeout(at); at = setTimeout(() => { fetchCatalogs(); fetchColegioConfig(); if (selectedColegio && selectedAno) fetchGrados(); refreshingSilent = true; }, 500); });
     const u4 = listen("subjects-updated", () => { if (hasUnsavedChanges) return; fetchColegioConfig(); });
     fetchCatalogs();
@@ -201,6 +202,7 @@
           try {
             await invoke("delete_asistencia_batch", { estudianteIds: updated.map(est => est.id), fecha: selectedFecha });
             draft = {}; syncDraftToStorage(); hasUnsavedChanges = false; saving = false;
+            if (pendingRefreshOnSave) { pendingRefreshOnSave = false; refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); }
             await emit("show-toast", { message: "✅ Asistencia limpiada correctamente", type: "success" });
             onDataChange('asistencia');
             await emit("asistencia-updated");
@@ -214,6 +216,7 @@
       }
       await invoke("save_asistencia", { records });
       draft = {}; syncDraftToStorage(); hasUnsavedChanges = false; saving = false;
+      if (pendingRefreshOnSave) { pendingRefreshOnSave = false; refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); }
       await emit("show-toast", { message: "✅ Asistencia guardada localmente", type: "success" });
       onDataChange('asistencia');
       await emit("asistencia-updated");
@@ -274,7 +277,7 @@
       const answer = await ask('Tienes cambios sin guardar. ¿Deseas guardarlos antes de continuar?', { title: 'Cambios sin guardar', kind: 'warning', okLabel: 'Guardar', cancelLabel: 'Descartar' });
       if (answer) {
         await saveChanges(estudiantes); hasUnsavedChanges = false; setter(value);
-      } else { draft = {}; syncDraftToStorage(); hasUnsavedChanges = false; setter(value); }
+      } else { draft = {}; syncDraftToStorage(); hasUnsavedChanges = false; if (pendingRefreshOnSave) { pendingRefreshOnSave = false; refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); } setter(value); }
     } else { setter(value); }
   }
 

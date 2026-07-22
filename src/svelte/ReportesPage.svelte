@@ -213,13 +213,16 @@
   });
 
   $effect(() => {
-    if (refreshTrigger > 0) refreshTrigger = 0;
-    const lid = ++loadId;
     if (selectedGrado > 0 && selectedSeccion > 0 && (selectedCorte > 0 || specialCorte) && selectedAsignatura > 0) {
+      if (refreshTrigger > 0) refreshTrigger = 0;
+      const lid = ++loadId;
       if (!silentRefresh) loading = true;
       silentRefresh = false;
       fetchReporte(lid).finally(() => { if (loadId === lid) loading = false; });
-    } else { estudiantes = []; configIndicadores = []; loading = false; silentRefresh = false; }
+    } else {
+      refreshTrigger = 0;
+      estudiantes = []; configIndicadores = []; loading = false; silentRefresh = false;
+    }
   });
 
   async function fetchInitialCatalogs() {

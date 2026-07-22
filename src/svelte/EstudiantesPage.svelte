@@ -114,6 +114,21 @@
 
   let stats = $derived({ total: filteredStudents.length, f: filteredStudents.filter(s => s.sexo === 'F').length, m: filteredStudents.filter(s => s.sexo === 'M').length });
 
+  const lowerCaseParticles = new Set([
+    "de", "del", "y", "e", "la", "las", "los", "el", "en", "con",
+    "por", "para", "a", "un", "una", "su", "lo", "no", "o", "ni",
+    "que", "es", "se", "le", "da", "do", "das", "dos", "van", "von",
+    "san", "santa", "don", "doña", "di"
+  ]);
+
+  function toTitleCase(str: string): string {
+    return str.trim().split(/\s+/).map((word, i) => {
+      const lower = word.toLowerCase();
+      if (i > 0 && lowerCaseParticles.has(lower)) return lower;
+      return lower.charAt(0).toLocaleUpperCase("es") + lower.slice(1);
+    }).join(" ");
+  }
+
   function normalizeString(str: string) {
     return str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
   }
@@ -256,7 +271,7 @@ async function fetchData(preserveFilters = false) {
             const rawSexo = (row.Sexo || row.sexo || row.Genero || row.genero || row["SEXO"] || row["Género"] || "M").toString().toUpperCase();
             const sexo = rawSexo.startsWith("F") || rawSexo === "MUJER" || rawSexo === "FEMENINO" ? "F" : "M";
             const newStudent: Student = {
-              nombre: String(nombre).trim(), codigo: String(codigo).trim(), sexo, anoLectivoId: Number(anoId), gradoId: Number(gradoId), seccionId: Number(seccionId), colegioId: Number(colegioId),
+              nombre: toTitleCase(String(nombre)), codigo: String(codigo).trim(), sexo, anoLectivoId: Number(anoId), gradoId: Number(gradoId), seccionId: Number(seccionId), colegioId: Number(colegioId),
               telefono: String(row.Telefono || row.telefono || row["TELEFONO"] || row["Teléfono"] || "").trim(),
               direccion: String(row.Direccion || row.direccion || row["DIRECCION"] || row["Dirección"] || "").trim(),
               email: String(row.Email || row.email || row["EMAIL"] || "").trim(),
@@ -378,7 +393,7 @@ async function fetchData(preserveFilters = false) {
 
   function openEditModal(student: Student) {
     isEditing = true;
-    formData = { ...student };
+    formData = { ...student, nombre: toTitleCase(student.nombre) };
     photoPreview = student.foto || null;
     isModalOpen = true;
   }
@@ -386,7 +401,7 @@ async function fetchData(preserveFilters = false) {
   async function handleSubmit(e: Event) {
     e.preventDefault();
     try {
-      let studentToSave = { ...formData };
+      let studentToSave = { ...formData, nombre: toTitleCase(formData.nombre) };
       if (!studentToSave.codigo.trim()) {
         const numericCodes = students.map(s => parseInt(s.codigo)).filter(code => !isNaN(code));
         const nextCode = numericCodes.length > 0 ? Math.max(...numericCodes) + 1 : 1;
