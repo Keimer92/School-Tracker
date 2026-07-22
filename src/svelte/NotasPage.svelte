@@ -88,6 +88,11 @@
     return (grado?.cualitativo === true) || (asignatura?.cualitativo === true);
   });
 
+  let allowedQualitativeGrades = $derived(isQualitative
+    ? ['AA', 'AS', 'AF']
+    : ['AA', 'AS', 'AF', 'AI']
+  );
+
   let allCriterios = $derived(indicadores.flatMap(ind => ind.criterios));
   let criterioIndexMap = $derived(new Map(allCriterios.map((c, i) => [c.id, i])));
   let totalColumns = $derived(allCriterios.length);
@@ -133,7 +138,9 @@
 
   function getGradeFromScore(score: number) {
     const config = sortedGradeConfigs.find(c => score >= c.minimo);
-    return config || { id: 'AI', color: '#ef4444', minimo: 0 };
+    if (config) return config;
+    if (isQualitative) return { id: 'AF', color: '#eab308', minimo: 0 };
+    return { id: 'AI', color: '#ef4444', minimo: 0 };
   }
 
   function getGradeConfig(gradeValue: string) {
@@ -267,13 +274,28 @@
     for (const estNota of filteredNotas) {
       const targetStr = distribuirTargets[estNota.estudianteId];
       if (!targetStr || targetStr.trim() === '') continue;
-      let targetPct: number;
       if (isQualitative && ['AA', 'AS', 'AF', 'AI'].includes(targetStr.trim().toUpperCase())) {
-        targetPct = getMidPctForGrade(targetStr.trim().toUpperCase());
-      } else {
-        targetPct = parseFloat(targetStr);
-        if (isNaN(targetPct) || targetPct < 0) continue;
+        const grade = targetStr.trim().toUpperCase();
+        for (const ii of indInfos) {
+          const { c1, c2, c3 } = ii;
+          const k1 = `${estNota.estudianteId}-${c1.id}`;
+          const k2 = `${estNota.estudianteId}-${c2.id}`;
+          const k3 = `${estNota.estudianteId}-${c3.id}`;
+          if (distribuirOverwrite) {
+            notasCualitativas[k1] = grade;
+            notasCualitativas[k2] = grade;
+            notasCualitativas[k3] = 'AA';
+          } else {
+            if (!notasCualitativas[k1]) notasCualitativas[k1] = grade;
+            if (!notasCualitativas[k2]) notasCualitativas[k2] = grade;
+            if (!notasCualitativas[k3]) notasCualitativas[k3] = 'AA';
+          }
+        }
+        updatedCount++;
+        continue;
       }
+      const targetPct = parseFloat(targetStr);
+      if (isNaN(targetPct) || targetPct < 0) continue;
       const targetRaw = Math.round((Math.min(targetPct, 100) / 100) * maxTotal);
       let runningError = 0;
       for (const ii of indInfos) {
@@ -1078,7 +1100,7 @@
                         {#if !isQualitative}<span style="color: #4ade80;">máx {crit.puntajeMaximo}</span>{/if}
                       </div>
                       <div style="display: flex; gap: 4px; flex-wrap: wrap;">
-                        {#each ['AA', 'AS', 'AF', 'AI'] as grade}
+                        {#each allowedQualitativeGrades as grade}
                           {@const currentKey = `${est.estudianteId}-${crit.id}`}
                           {@const currentVal = notasCualitativas[currentKey] || ''}
                           {@const isSelected = currentVal === grade}
@@ -1381,7 +1403,7 @@
             <div style="width: 44px; height: 44px; border-radius: 14px; background: rgba(139, 92, 246, 0.12); border: 1px solid rgba(139, 92, 246, 0.2); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0;">✨</div>
             <div>
               <h3 style="margin: 0; color: #f1f5f9; font-size: 1.15rem; font-weight: 700;">Distribuir notas automáticamente</h3>
-              <p style="margin: 0.2rem 0 0; color: #94a3b8; font-size: 0.75rem;">C3 tendrá la nota más alta de los 3 criterios. {isQualitative ? 'Seleccione AA, AS, AF o AI como nota objetivo. El sistema usará el punto medio del rango.' : 'Ingrese el porcentaje total deseado (0-100) y el sistema calculará C1, C2 y C3.'}</p>
+               <p style="margin: 0.2rem 0 0; color: #94a3b8; font-size: 0.75rem;">{isQualitative ? 'C1 y C2 = nota objetivo, C3 = AA. Solo AA, AS, AF disponibles.' : 'Ingrese el porcentaje total deseado (0-100). C1/2/3 se calculan automáticamente.'}</p>
             </div>
           </div>
           <div style="display: flex; align-items: center; gap: 0.5rem; margin: 0.5rem 0 0.75rem;">
@@ -1443,8 +1465,8 @@
                     <td style="padding: 0.15rem 0.3rem; text-align: center;">
                       {#if isQualitative}
                         <div style="display:flex;gap:3px;justify-content:center;flex-wrap:nowrap">
-                          {#each ['AA', 'AS', 'AF', 'AI'] as grade}
-                            {@const isSelected = distribuirTargets[est.estudianteId]?.trim().toUpperCase() === grade}
+                           {#each allowedQualitativeGrades as grade}
+                             {@const isSelected = distribuirTargets[est.estudianteId]?.trim().toUpperCase() === grade}
                             {@const gradeColor = getGradeColor(grade)}
                             <button
                               onclick={() => {
