@@ -577,9 +577,6 @@
     .asistencia-opt{width:26px!important;height:26px!important;font-size:0.7rem!important;min-width:26px!important;flex-shrink:0!important}
     .obs-toggle-btn{width:28px!important;height:28px!important;min-width:28px!important;font-size:0.8rem!important}
     .custom-table thead th{position:sticky;top:0;z-index:10;background:#1e293b!important}
-    .periodo-toggle{display:flex;gap:2px;background:rgba(255,255,255,0.05);border-radius:8px;padding:2px;flex-shrink:0}
-    .periodo-btn{padding:0.3rem 0.6rem;font-size:0.7rem;border:none;border-radius:6px;cursor:pointer;font-weight:600;transition:all 0.15s;background:transparent;color:#94a3b8;text-transform:uppercase;letter-spacing:0.3px}
-    .periodo-btn.active{background:rgba(var(--primary-rgb),0.2);color:var(--primary-color)}
     .dia-cell{display:flex;gap:1px;align-items:center;justify-content:center}
     .dia-cell .dia-opt{width:18px!important;height:22px!important;font-size:0.6rem!important;min-width:18px!important;padding:0!important;border-radius:3px!important;display:flex;align-items:center;justify-content:center;border:1px solid transparent;cursor:pointer;font-weight:700;transition:all 0.1s;background:rgba(255,255,255,0.05);color:#64748b}
     .dia-cell .dia-opt.active-p{background:rgba(16,185,129,0.2);border-color:#10b981;color:#10b981}
@@ -608,11 +605,13 @@
     {#snippet filters()}
       <FilterContainer {isMobile} style="padding:{isAndroidMobile ? '0.5rem' : '0.4rem'}">
         <div style="display:flex;flex-wrap:wrap;gap:0.4rem;width:100%">
-          <div class="periodo-toggle">
-            <button class="periodo-btn" class:active={periodo === 'diario'} onclick={() => periodo = 'diario'}>Diario</button>
-            <button class="periodo-btn" class:active={periodo === 'semanal'} onclick={() => periodo = 'semanal'}>Semanal</button>
-            <button class="periodo-btn" class:active={periodo === 'mensual'} onclick={() => periodo = 'mensual'}>Mensual</button>
-          </div>
+          <FilterGroup label="Período:" {isMobile}>
+            <select class="filter-select" bind:value={periodo} style="width:100%">
+              <option value="diario">Diario</option>
+              <option value="semanal">Semanal</option>
+              <option value="mensual">Mensual</option>
+            </select>
+          </FilterGroup>
           {#if periodo === "mensual"}
             <FilterGroup label="Mes:" {isMobile}>
               <select class="filter-select" style="width:100%;min-width:100px"
