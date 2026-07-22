@@ -85,9 +85,9 @@ export const runAutomaticGoogleDriveBackupIfNeeded = async () => {
     const dbBase64 = await invoke<string>('gd_read_file_base64', { path: localBackupPath });
 
     const timestampStr = new Date().toISOString();
-    const cleanDate = timestampStr.split('T')[0];
+    const cleanTimestamp = timestampStr.replace(/[:.]/g, '-').split('.')[0];
     const deviceName = settings.deviceName.replace(/\s+/g, '_');
-    const fileName = `SchoolTracker_Backup_${deviceName}_${cleanDate}.db`;
+    const fileName = `SchoolTracker_Backup_${deviceName}_${cleanTimestamp}.db`;
 
     const metadata = {
       name: fileName,
