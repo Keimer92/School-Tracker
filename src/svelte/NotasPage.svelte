@@ -916,132 +916,104 @@
 <div class="page-container" style="height: 100%; min-height: 0;">
   <div class="category-grid" style="display: block;">
     <FilterContainer {isMobile}>
-      {#snippet children()}
-        <FilterGroup label="Año Lectivo:" {isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
-          {#snippet children()}
-            <select class="filter-select" style="padding: {isMobile ? '0.2rem 0.3rem' : '0.3rem 0.4rem'}; font-size: {isMobile ? '0.7rem' : '0.75rem'}; height: {isMobile ? '24px' : '28px'}; width: 100%;"
-              bind:value={selectedAno}
-            >
-              {#each anos as a}
-                <option value={a.id}>{a.nombre}</option>
-              {/each}
-            </select>
-          {/snippet}
-        </FilterGroup>
+      <FilterGroup label="Año Lectivo:" {isMobile}>
+        <select class="filter-select" style="width:100%" bind:value={selectedAno}>
+          {#each anos as a}
+            <option value={a.id}>{a.nombre}</option>
+          {/each}
+        </select>
+      </FilterGroup>
 
-        <FilterGroup label="Corte:" {isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
-          {#snippet children()}
-            <select class="filter-select" style="padding: {isMobile ? '0.2rem 0.3rem' : '0.3rem 0.4rem'}; font-size: {isMobile ? '0.7rem' : '0.75rem'}; height: {isMobile ? '24px' : '28px'}; width: 100%;"
-              bind:value={selectedCorte}
-            >
-              {#each cortes as c}
-                <option value={c.id}>{c.nombre}</option>
-              {/each}
-            </select>
-          {/snippet}
-        </FilterGroup>
+      <FilterGroup label="Corte:" {isMobile}>
+        <select class="filter-select" style="width:100%" bind:value={selectedCorte}>
+          {#each cortes as c}
+            <option value={c.id}>{c.nombre}</option>
+          {/each}
+        </select>
+      </FilterGroup>
 
-        <FilterGroup label="Colegio:" {isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
-          {#snippet children()}
-            <select class="filter-select" style="padding: {isMobile ? '0.2rem 0.3rem' : '0.3rem 0.4rem'}; font-size: {isMobile ? '0.7rem' : '0.75rem'}; height: {isMobile ? '24px' : '28px'}; width: 100%;"
-              bind:value={selectedColegio}
-            >
-              {#each colegios as col}
-                <option value={col.id}>{col.nombre}</option>
-              {/each}
-            </select>
-          {/snippet}
-        </FilterGroup>
+      <FilterGroup label="Colegio:" {isMobile}>
+        <select class="filter-select" style="width:100%" bind:value={selectedColegio}>
+          {#each colegios as col}
+            <option value={col.id}>{col.nombre}</option>
+          {/each}
+        </select>
+      </FilterGroup>
 
-        <FilterGroup label="Grado:" {isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
-          {#snippet children()}
-            <select class="filter-select" style="padding: {isMobile ? '0.2rem 0.3rem' : '0.3rem 0.4rem'}; font-size: {isMobile ? '0.7rem' : '0.75rem'}; height: {isMobile ? '24px' : '28px'}; width: 100%;"
-              value={selectedGrado}
-              onchange={(e) => { selectedGrado = Number(e.target.value); localStorage.setItem('notas-last-grado', String(selectedGrado)); }}
-            >
-              {#each grados as g}
-                <option value={g.id}>{g.nombre}</option>
-              {/each}
-            </select>
-          {/snippet}
-        </FilterGroup>
+      <FilterGroup label="Grado:" {isMobile}>
+        <select class="filter-select" style="width:100%"
+          value={selectedGrado}
+          onchange={(e) => { selectedGrado = Number(e.target.value); localStorage.setItem('notas-last-grado', String(selectedGrado)); }}>
+          {#each grados as g}
+            <option value={g.id}>{g.nombre}</option>
+          {/each}
+        </select>
+      </FilterGroup>
 
-        <FilterGroup label="Sección:" {isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
-          {#snippet children()}
-            <select class="filter-select" style="padding: {isMobile ? '0.2rem 0.3rem' : '0.3rem 0.4rem'}; font-size: {isMobile ? '0.7rem' : '0.75rem'}; height: {isMobile ? '24px' : '28px'}; width: 100%;"
-              bind:value={selectedSeccion}
-            >
-              {#each secciones as s}
-                <option value={s.id}>{s.nombre}</option>
-              {/each}
-            </select>
-          {/snippet}
-        </FilterGroup>
+      <FilterGroup label="Sección:" {isMobile}>
+        <select class="filter-select" style="width:100%" bind:value={selectedSeccion}>
+          {#each secciones as s}
+            <option value={s.id}>{s.nombre}</option>
+          {/each}
+        </select>
+      </FilterGroup>
 
-        <FilterGroup label="Sexo:" {isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
-          {#snippet children()}
-            <select class="filter-select" style="padding: {isMobile ? '0.2rem 0.3rem' : '0.3rem 0.4rem'}; font-size: {isMobile ? '0.7rem' : '0.75rem'}; height: {isMobile ? '24px' : '28px'}; width: 100%;"
-              bind:value={selectedSexo}
-            >
-              <option value="">Todos</option>
-              <option value="M">Masculino</option>
-              <option value="F">Femenino</option>
-            </select>
-          {/snippet}
-        </FilterGroup>
+      <FilterGroup label="Sexo:" {isMobile}>
+        <select class="filter-select" style="width:100%" bind:value={selectedSexo}>
+          <option value="">Todos</option>
+          <option value="M">Masculino</option>
+          <option value="F">Femenino</option>
+        </select>
+      </FilterGroup>
 
-        <FilterGroup label="Asignatura:" {isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
-          {#snippet children()}
-            <select class="filter-select" style="padding: {isMobile ? '0.2rem 0.3rem' : '0.3rem 0.4rem'}; font-size: {isMobile ? '0.7rem' : '0.75rem'}; height: {isMobile ? '24px' : '28px'}; width: 100%;"
-              value={selectedAsignatura}
-              onchange={(e) => { selectedAsignatura = Number(e.target.value); localStorage.setItem('notas-last-asignatura', String(selectedAsignatura)); }}
-            >
-              {#each asignaturas as a}
-                <option value={a.id}>{a.nombre}</option>
-              {/each}
-            </select>
-          {/snippet}
-        </FilterGroup>
+      <FilterGroup label="Asignatura:" {isMobile}>
+        <select class="filter-select" style="width:100%"
+          value={selectedAsignatura}
+          onchange={(e) => { selectedAsignatura = Number(e.target.value); localStorage.setItem('notas-last-asignatura', String(selectedAsignatura)); }}>
+          {#each asignaturas as a}
+            <option value={a.id}>{a.nombre}</option>
+          {/each}
+        </select>
+      </FilterGroup>
 
-        <div style="display: flex; gap: 0.3rem; align-items: flex-end; flex: {isMobile ? '1 1 100%' : '1 1 auto'};">
-          <div style="flex: 0 1 auto;">
-            <SearchInput value={searchTerm} onChange={(v) => searchTerm = v} placeholder="Buscar..." {isMobile} />
+        <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '1 1 auto'}">
+          <div style="flex:1;min-width:100px">
+            <SearchInput value={searchTerm} onChange={(v) => searchTerm = v} placeholder="Buscar..." {isMobile} height="42px" />
           </div>
-          <button onclick={undo} disabled={history.length === 0} class="btn-modern btn-undo"
-            title="Deshacer (Ctrl+Z)"
-            style="padding: {isMobile ? '0.2rem 0.4rem' : '0.6rem 1.2rem'}; font-size: {isMobile ? '0.7rem' : '0.9rem'}; height: {isMobile ? '24px' : '42px'}; background-color: {history.length > 0 ? '#f59e0b' : 'rgba(148, 163, 184, 0.5)'}; color: #fff; border: none; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 4px; font-weight: 600; cursor: {history.length > 0 ? 'pointer' : 'not-allowed'}; transition: all 0.3s ease; box-shadow: {history.length > 0 ? '0 4px 14px rgba(245, 158, 11, 0.4)' : 'none'}; flex-shrink: 0; white-space: nowrap; opacity: {history.length > 0 ? 1 : 0.7};">
+          <button onclick={undo} disabled={history.length === 0}
+            style="height:42px;padding:0 1rem;font-size:0.85rem;background-color:{history.length > 0 ? '#f59e0b' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:{history.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{history.length > 0 ? '0 4px 14px rgba(245,158,11,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{history.length > 0 ? 1 : 0.7}"
+            title="Deshacer (Ctrl+Z)">
             <span>↩️</span>
             {#if !isMobile}<span>Deshacer</span>{/if}
           </button>
-          <button onclick={redo} disabled={redoStack.length === 0} class="btn-modern btn-redo"
-            title="Rehacer (Ctrl+Y)"
-            style="padding: {isMobile ? '0.2rem 0.4rem' : '0.6rem 1.2rem'}; font-size: {isMobile ? '0.7rem' : '0.9rem'}; height: {isMobile ? '24px' : '42px'}; background-color: {redoStack.length > 0 ? '#f59e0b' : 'rgba(148, 163, 184, 0.5)'}; color: #fff; border: none; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 4px; font-weight: 600; cursor: {redoStack.length > 0 ? 'pointer' : 'not-allowed'}; transition: all 0.3s ease; box-shadow: {redoStack.length > 0 ? '0 4px 14px rgba(245, 158, 11, 0.4)' : 'none'}; flex-shrink: 0; white-space: nowrap; opacity: {redoStack.length > 0 ? 1 : 0.7};">
+          <button onclick={redo} disabled={redoStack.length === 0}
+            style="height:42px;padding:0 1rem;font-size:0.85rem;background-color:{redoStack.length > 0 ? '#f59e0b' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:{redoStack.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{redoStack.length > 0 ? '0 4px 14px rgba(245,158,11,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{redoStack.length > 0 ? 1 : 0.7}"
+            title="Rehacer (Ctrl+Y)">
             <span>↪️</span>
             {#if !isMobile}<span>Rehacer</span>{/if}
           </button>
-          <button onclick={() => { distribuirTargets = {}; distribuirOverwrite = true; showDistribuirModal = true; }} disabled={activeIndicadores.length === 0 || filteredNotas.length === 0} class="btn-modern btn-distribuir"
-            title="Distribuir notas automáticamente"
-            style="padding: {isMobile ? '0.2rem 0.4rem' : '0.6rem 1.2rem'}; font-size: {isMobile ? '0.7rem' : '0.9rem'}; height: {isMobile ? '24px' : '42px'}; background-color: {activeIndicadores.length > 0 && filteredNotas.length > 0 ? '#8b5cf6' : 'rgba(148, 163, 184, 0.5)'}; color: #fff; border: none; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 4px; font-weight: 600; cursor: {activeIndicadores.length > 0 && filteredNotas.length > 0 ? 'pointer' : 'not-allowed'}; transition: all 0.3s ease; box-shadow: {activeIndicadores.length > 0 && filteredNotas.length > 0 ? '0 4px 14px rgba(139, 92, 246, 0.4)' : 'none'}; flex-shrink: 0; white-space: nowrap; opacity: {activeIndicadores.length > 0 && filteredNotas.length > 0 ? 1 : 0.7};">
+          <button onclick={() => { distribuirTargets = {}; distribuirOverwrite = true; showDistribuirModal = true; }} disabled={activeIndicadores.length === 0 || filteredNotas.length === 0}
+            style="height:42px;padding:0 1rem;font-size:0.85rem;background-color:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? '#8b5cf6' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? '0 4px 14px rgba(139,92,246,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? 1 : 0.7}"
+            title="Distribuir notas automáticamente">
             <span>✨</span>
             {#if !isMobile}<span>Distribuir</span>{/if}
           </button>
-          <button onclick={handleGuardarNotas} disabled={!hasUnsavedChanges || saving || estudiantes.length === 0} class="btn-modern btn-save-notes"
-            title="Guardar Notas (Ctrl+G)"
-            style="padding: {isMobile ? '0.2rem 0.4rem' : '0.6rem 1.2rem'}; font-size: {isMobile ? '0.7rem' : '0.9rem'}; height: {isMobile ? '24px' : '42px'}; background-color: {!hasUnsavedChanges ? 'rgba(148, 163, 184, 0.5)' : (saving ? '#059669' : '#10b981')}; color: #fff; border: none; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 4px; font-weight: 600; cursor: {(!hasUnsavedChanges || saving || estudiantes.length === 0) ? 'not-allowed' : 'pointer'}; transition: all 0.3s ease; box-shadow: {hasUnsavedChanges && !saving && estudiantes.length > 0 ? '0 4px 14px rgba(16, 185, 129, 0.4)' : 'none'}; flex-shrink: 0; white-space: nowrap; opacity: {(hasUnsavedChanges && !saving && estudiantes.length > 0) ? 1 : 0.7};">
+          <button onclick={handleGuardarNotas} disabled={!hasUnsavedChanges || saving || estudiantes.length === 0}
+            style="height:42px;padding:0 1rem;font-size:0.85rem;background-color:{!hasUnsavedChanges ? 'rgba(148,163,184,0.5)' : (saving ? '#059669' : '#10b981')};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:{(!hasUnsavedChanges || saving || estudiantes.length === 0) ? 'default' : 'pointer'};transition:all 0.3s ease;box-shadow:{hasUnsavedChanges && !saving && estudiantes.length > 0 ? '0 4px 14px rgba(16,185,129,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{(hasUnsavedChanges && !saving && estudiantes.length > 0) ? 1 : 0.7}"
+            title="Guardar Notas (Ctrl+G)">
             <span>{saving ? '⏳' : '💾'}</span>
             {#if !isMobile}<span>{saving ? 'Guardando...' : (hasUnsavedChanges ? 'Guardar' : 'Sin cambios')}</span>{/if}
           </button>
           <button onclick={() => {
             if (!selectedCorte || !selectedAsignatura) { emit("show-toast", { message: "⚠️ Seleccione un corte y asignatura primero", type: "warning" }); return; }
             deleteMode = 'all'; deleteStudentId = 0; deleteIndicatorId = 0; showDeleteModal = true;
-          }} disabled={estudiantes.length === 0} class="btn-modern btn-delete-notes"
-            title="Eliminar notas"
-            style="padding: {isMobile ? '0.2rem 0.4rem' : '0.6rem 1.2rem'}; font-size: {isMobile ? '0.7rem' : '0.9rem'}; height: {isMobile ? '24px' : '42px'}; background-color: {estudiantes.length > 0 ? '#ef4444' : 'rgba(148, 163, 184, 0.5)'}; color: #fff; border: none; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 4px; font-weight: 600; cursor: {estudiantes.length > 0 ? 'pointer' : 'not-allowed'}; transition: all 0.3s ease; box-shadow: {estudiantes.length > 0 ? '0 4px 14px rgba(239, 68, 68, 0.4)' : 'none'}; flex-shrink: 0; white-space: nowrap; opacity: {estudiantes.length > 0 ? 1 : 0.7};">
+          }} disabled={estudiantes.length === 0}
+            style="height:42px;padding:0 1rem;font-size:0.85rem;background-color:{estudiantes.length > 0 ? '#ef4444' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:{estudiantes.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{estudiantes.length > 0 ? '0 4px 14px rgba(239,68,68,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{estudiantes.length > 0 ? 1 : 0.7}"
+            title="Eliminar notas">
             <span>🗑️</span>
             {#if !isMobile}<span>Eliminar</span>{/if}
           </button>
         </div>
-      {/snippet}
     </FilterContainer>
 
     {#if loading}

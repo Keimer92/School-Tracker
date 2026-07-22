@@ -220,7 +220,7 @@
     <FilterContainer {isMobile}>
       <FilterGroup label="Grado:" {isMobile}>
         <select class="filter-select" bind:value={selectedGrado} aria-label="Seleccionar grado"
-          style="width:100%;min-width:120px">
+          style="width:100%">
           {#each grados as g}
             <option value={g.id}>{g.nombre}</option>
           {/each}
@@ -228,7 +228,7 @@
       </FilterGroup>
       <FilterGroup label="Asignatura:" {isMobile}>
         <select class="filter-select" bind:value={selectedAsignatura} disabled={asignaturas.length === 0} aria-label="Seleccionar asignatura"
-          style="width:100%;min-width:150px">
+          style="width:100%">
           {#if asignaturas.length === 0}
             <option value="0">Sin asignaturas</option>
           {/if}
@@ -239,7 +239,7 @@
       </FilterGroup>
       <FilterGroup label="Corte:" {isMobile}>
         <select class="filter-select" bind:value={selectedCorte} aria-label="Seleccionar corte evaluativo"
-          style="width:100%;min-width:180px">
+          style="width:100%">
           {#each cortes as c}
             <option value={c.id}>{c.nombre}</option>
           {/each}

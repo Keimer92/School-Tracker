@@ -523,68 +523,62 @@ async function fetchData(preserveFilters = false) {
 
 <div class="page-container" id="estudiantes-page" style="height: 100%; min-height: 0;">
   <FilterContainer {isMobile}>
-    {#snippet children()}
-      <FilterGroup label="Año Lectivo:" {isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
-        {#snippet children()}
-          <select name="anoLectivoId" onchange={handleFilterChange} value={filters.anoLectivoId} class="filter-select" style="width: 100%; padding: 0.3rem 0.4rem; font-size: 0.75rem; height: 28px;">
+      <FilterGroup label="Año Lectivo:" {isMobile}>
+          <select name="anoLectivoId" onchange={handleFilterChange} value={filters.anoLectivoId} class="filter-select" style="width:100%">
             {#each anos as a}
               <option value={a.id}>{a.nombre}{#if a.activo} ✓ (Activo){/if}</option>
             {/each}
           </select>
-        {/snippet}
       </FilterGroup>
-      <FilterGroup label="Colegio:" {isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
-        {#snippet children()}
-          <select name="colegioId" onchange={handleFilterChange} value={filters.colegioId} class="filter-select" style="width: 100%; padding: 0.3rem 0.4rem; font-size: 0.75rem; height: 28px;">
+      <FilterGroup label="Colegio:" {isMobile}>
+          <select name="colegioId" onchange={handleFilterChange} value={filters.colegioId} class="filter-select" style="width:100%">
             {#each colegios as c}
               <option value={c.id}>{c.nombre}{#if c.activo} ✓ (Activo){/if}</option>
             {/each}
           </select>
-        {/snippet}
       </FilterGroup>
-      <FilterGroup label="Grado:" {isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
-        {#snippet children()}
-          <select name="gradoId" onchange={handleFilterChange} value={filters.gradoId} class="filter-select" style="width: 100%; padding: 0.3rem 0.4rem; font-size: 0.75rem; height: 28px;">
+      <FilterGroup label="Grado:" {isMobile}>
+          <select name="gradoId" onchange={handleFilterChange} value={filters.gradoId} class="filter-select" style="width:100%">
             {#each grados as g}
               <option value={g.id}>{g.nombre}</option>
             {/each}
           </select>
-        {/snippet}
       </FilterGroup>
-  <FilterGroup label="Sección:" {isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
-    {#snippet children()}
-    <select name="seccionId" onchange={handleFilterChange} value={filters.seccionId} class="filter-select" style="width: 100%; padding: 0.3rem 0.4rem; font-size: 0.75rem; height: 28px;" key={secciones.length}>
+  <FilterGroup label="Sección:" {isMobile}>
+    <select name="seccionId" onchange={handleFilterChange} value={filters.seccionId} class="filter-select" style="width:100%" key={secciones.length}>
       {#each secciones as s}
       <option value={s.id}>{s.nombre}</option>
       {/each}
     </select>
-    {/snippet}
   </FilterGroup>
-      <FilterGroup label="Sexo:" {isMobile} flex={isMobile ? '1 1 calc(33.33% - 0.4rem)' : '0 0 auto'}>
-        {#snippet children()}
-          <select name="sexo" onchange={handleFilterChange} value={filters.sexo} class="filter-select" style="width: 100%; padding: 0.3rem 0.4rem; font-size: 0.75rem; height: 28px;">
+      <FilterGroup label="Sexo:" {isMobile}>
+          <select name="sexo" onchange={handleFilterChange} value={filters.sexo} class="filter-select" style="width:100%">
             <option value="">Todos</option>
             <option value="M">Masculino</option>
             <option value="F">Femenino</option>
           </select>
-        {/snippet}
       </FilterGroup>
-      <div style="display: flex; gap: 0.3rem; align-items: flex-end; flex: {isMobile ? '1 1 100%' : '0 0 auto'};">
-        <div style="flex: 1; min-width: 80px;">
-          <SearchInput value={searchTerm} onChange={(v) => searchTerm = v} placeholder="Nombre o código..." {isMobile} />
+      <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '0 0 auto'}">
+        <div style="flex:1;min-width:100px">
+          <SearchInput value={searchTerm} onChange={(v) => searchTerm = v} placeholder="Nombre o código..." {isMobile} height="42px" />
         </div>
-        <button class="primary" onclick={openAddModal} style="height: 28px; display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0.8rem; font-size: 0.75rem; border-radius: 10px; border: none; background: linear-gradient(135deg, var(--primary-hover), var(--primary-color)); color: white; font-weight: bold; cursor: pointer; flex-shrink: 0; box-shadow: 0 4px 14px rgba(var(--primary-rgb), 0.4);">
-          <span style="font-size: 1.1rem;">👨‍🎓</span>
+        <button onclick={openAddModal}
+          style="height:42px;padding:0 1.25rem;font-size:0.85rem;background:linear-gradient(135deg,var(--primary-hover),var(--primary-color));color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:pointer;transition:all 0.2s ease;box-shadow:0 4px 14px rgba(var(--primary-rgb),0.4);flex-shrink:0;white-space:nowrap">
+          <span style="font-size:1.1rem">👨‍🎓</span>
           {#if !isMobile}<span>Nuevo</span>{/if}
         </button>
-        <button class="primary" onclick={handleImportExcel} disabled={isImporting} style="height: 28px; padding: 0.3rem 0.8rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; border-radius: 10px; border: none; background: linear-gradient(135deg, #059669, #10b981); color: white; font-weight: bold; white-space: nowrap; flex-shrink: 0; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);">
-          <span style="font-size: 1.1rem;">{isImporting ? "⌛" : "📗"}</span>
+        <button onclick={handleImportExcel} disabled={isImporting}
+          style="height:42px;padding:0 1.25rem;font-size:0.85rem;background:linear-gradient(135deg,#059669,#10b981);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:{isImporting ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(5,150,105,0.4);flex-shrink:0;white-space:nowrap;opacity:{isImporting ? 0.7 : 1}">
+          <span style="font-size:1.1rem">{isImporting ? "⌛" : "📗"}</span>
           {#if !isMobile}<span>{isImporting ? "Importando..." : "Excel"}</span>{/if}
         </button>
-        <button onclick={handleDownloadTemplate} style="height: 28px; padding: 0.3rem 0.6rem; display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; border-radius: 10px; border: 1px solid rgba(168,85,247,0.3); background: rgba(168,85,247,0.1); color: #c084fc; font-weight: 600; cursor: pointer; white-space: nowrap; flex-shrink: 0;" title="Descargar plantilla Excel">📋 {#if !isMobile}<span>Plantilla</span>{/if}</button>
-        <button onclick={() => showImportHelp = true} style="height: 28px; width: 28px; display: flex; align-items: center; justify-content: center; background: rgba(255, 255, 255, 0.1); color: #94a3b8; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.1); cursor: pointer; font-size: 1.1rem; font-weight: bold; flex-shrink: 0;" title="Ayuda de importación">?</button>
+        <button onclick={handleDownloadTemplate}
+          style="height:42px;padding:0 1.25rem;font-size:0.85rem;border:1px solid rgba(168,85,247,0.3);background:rgba(168,85,247,0.1);color:#c084fc;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:pointer;transition:all 0.2s ease;flex-shrink:0;white-space:nowrap"
+          title="Descargar plantilla Excel">📋 {#if !isMobile}<span>Plantilla</span>{/if}</button>
+        <button onclick={() => showImportHelp = true}
+          style="height:42px;width:42px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.1);color:#94a3b8;border-radius:8px;border:1px solid rgba(255,255,255,0.1);cursor:pointer;font-size:1.1rem;font-weight:700;flex-shrink:0;transition:all 0.2s ease"
+          title="Ayuda de importación">?</button>
       </div>
-    {/snippet}
   </FilterContainer>
 
   {#if filteredStudents.length > 0}
