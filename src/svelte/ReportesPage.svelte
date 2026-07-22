@@ -141,6 +141,22 @@
     return config ? config.color : '#f87171';
   }
 
+  function valorToQualitativo(valor: number, puntajeMaximo: number): string {
+    const candidates = [
+      { grade: 'AA' as const, saved: Math.round(puntajeMaximo * notaMapping.AA) },
+      { grade: 'AS' as const, saved: Math.round(puntajeMaximo * notaMapping.AS) },
+      { grade: 'AF' as const, saved: Math.round(puntajeMaximo * notaMapping.AF) },
+      { grade: 'AI' as const, saved: Math.round(puntajeMaximo * notaMapping.AI) },
+    ];
+    const match = candidates.find(c => c.saved === Math.round(valor));
+    if (match) return match.grade;
+    const ratio = valor / (puntajeMaximo || 1);
+    if (ratio >= 0.90) return 'AA';
+    if (ratio >= 0.70) return 'AS';
+    if (ratio >= 0.50) return 'AF';
+    return 'AI';
+  }
+
   function getIndicatorMaxScore(indicatorId: number) {
     const indicator = configIndicadores.find(ind => ind.id === indicatorId);
     return indicator ? indicator.criterios.reduce((sum, crit) => sum + (crit.puntajeMaximo || 0), 0) : 0;
@@ -369,12 +385,7 @@
                 if (valor !== undefined) {
                   totalCorte += valor; haIngresado = true; totalMaximoCorte += crit.puntajeMaximo;
                   if (isQualitative) {
-                    const ratio = valor / (crit.puntajeMaximo || 1);
-                    let qualValue = "AI";
-                    if (ratio >= 0.90) qualValue = "AA";
-                    else if (ratio >= 0.70) qualValue = "AS";
-                    else if (ratio >= 0.50) qualValue = "AF";
-                    labelsCualitativosCorte.push(qualValue);
+                    labelsCualitativosCorte.push(valorToQualitativo(valor, crit.puntajeMaximo));
                   }
                 }
               });
@@ -426,10 +437,7 @@
               if (valor !== undefined) {
                 totalIndicador += valor; totalMaximo += crit.puntajeMaximo; countCriterios++;
                 if (isQualitative) {
-                  const ratio = valor / (crit.puntajeMaximo || 1);
-                  let qv = "AI";
-                  if (ratio >= 0.90) qv = "AA"; else if (ratio >= 0.70) qv = "AS"; else if (ratio >= 0.50) qv = "AF";
-                  labelsInd.push(qv);
+                  labelsInd.push(valorToQualitativo(valor, crit.puntajeMaximo));
                 }
               }
             });
@@ -465,7 +473,7 @@
       const names = selectedNames;
       const date = new Date().toLocaleDateString();
       const margins = { top: 10, bottom: 10, left: 10, right: 10 };
-      doc.setFont("helvetica", "bold"); doc.setFontSize(18); doc.text("Reporte de Calificaciones", doc.internal.pageSize.getWidth() / 2, 15, { align: "center" });
+      doc.setFont("helvetica", "bold"); doc.setFontSize(18); doc.text("Reporte de Notas", doc.internal.pageSize.getWidth() / 2, 15, { align: "center" });
       doc.setFontSize(10); doc.setTextColor(0);
       const filterInfo = [
         ["Colegio:", names.colegio, "Año Lectivo:", names.ano],
@@ -657,10 +665,7 @@
                 if (valor !== undefined) {
                   totalSuma += valor; haIngresado = true; totalMaximo += crit.puntajeMaximo || 0;
                   if (esCualitativo) {
-                    const ratio = valor / (crit.puntajeMaximo || 1);
-                    let qv = "AI";
-                    if (ratio >= 0.90) qv = "AA"; else if (ratio >= 0.70) qv = "AS"; else if (ratio >= 0.50) qv = "AF";
-                    labelsCualitativos.push(qv);
+                    labelsCualitativos.push(valorToQualitativo(valor, crit.puntajeMaximo || 0));
                   }
                 }
               });
