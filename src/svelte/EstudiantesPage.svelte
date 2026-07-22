@@ -799,7 +799,7 @@ async function fetchData(preserveFilters = false) {
           <input type="file" accept="image/*" capture="environment" onchange={handleFileChange} style="display: none;" bind:this={fileInputEl} />
 
           <div class="input-container" style="grid-column: span 2; margin-bottom: 0;">
-            <input name="nombre" placeholder="Nombre completo" value={formData.nombre} oninput={handleFormChange} required style="width: 100%; padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,23,42,0.6); color: #e2e8f0; font-size: 0.9rem; outline: none; box-sizing: border-box;" />
+            <input name="nombre" placeholder="Nombre completo" value={formData.nombre} oninput={(e) => { const t = e.target as HTMLInputElement; const start = t.selectionStart; t.value = toTitleCase(t.value); formData = { ...formData, nombre: t.value }; t.setSelectionRange?.(start, start); }} required style="width: 100%; padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,23,42,0.6); color: #e2e8f0; font-size: 0.9rem; outline: none; box-sizing: border-box;" />
           </div>
           <div class="input-container" style="margin-bottom: 0;">
             <input name="codigo" placeholder="Código" value={formData.codigo} oninput={handleFormChange} style="width: 100%; padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,23,42,0.6); color: #e2e8f0; font-size: 0.9rem; outline: none; box-sizing: border-box;" />
