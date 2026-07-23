@@ -1235,22 +1235,7 @@ export const syncService = {
       // 0. Procesar eliminaciones pendientes antes de descargar datos
       await syncService.syncPendingDeletions();
 
-      console.log(`[Sync] Iniciando descarga de datos desde Supabase para user: ${userId}`);
-
-      // Descubrir todos los user_id existentes en la nube para soporte multi-dispositivo
-      let allUserIds: string[] = [userId];
-      try {
-        const { data: existingIds } = await supabase
-          .from('colegio')
-          .select('user_id');
-        if (existingIds && existingIds.length > 0) {
-          const remoteIds = [...new Set(existingIds.map(r => r.user_id).filter(Boolean))] as string[];
-          remoteIds.forEach(uid => { if (!allUserIds.includes(uid)) allUserIds.push(uid); });
-          console.log(`[Sync] user_ids descubiertos en Supabase:`, allUserIds);
-        }
-      } catch (e) {
-        console.warn('[Sync] No se pudieron descubrir user_ids remotos, usando solo el local:', e);
-      }
+      console.log(`[Sync] Iniciando descarga de datos desde Supabase (sin filtro user_id)`);
 
       let pullData: any;
 
@@ -1261,15 +1246,13 @@ export const syncService = {
         'configuracion_calificacion', 'grado_asignatura', 'colegio_asignatura', 'colegio_dias_asistencia'
       ];
 
-      console.log(`[Sync] Consultando tablas con user_ids:`, allUserIds);
+      console.log(`[Sync] Consultando tablas (sin filtro user_id)`);
 
       const results = await withSupabaseSchemaRecovery(async () => {
         const queryResults = await Promise.all(
           tables.map(table => {
             console.log(`[Sync] Consultando ${table}...`);
-            let q = supabase.from(table).select('*');
-            if (table !== 'configuracion_calificacion') q = q.in('user_id', allUserIds);
-            return q;
+            return supabase.from(table).select('*');
           })
         );
 
@@ -1380,9 +1363,38 @@ export const syncService = {
         };
 
       // 3. Enviar a Rust para upsert masivo en SQLite
-      console.log(`[Sync] Enviando datos a upsert_pull_data...`);
-      await invoke('upsert_pull_data', { data: pullData });
-      console.log(`[Sync] upsert_pull_data completado`);
+      console.log(`[Sync] 🚀 Enviando a upsert_pull_data:`, {
+        anos: pullData.anos?.length || 0,
+        cortes: pullData.cortes?.length || 0,
+        colegios: pullData.colegios?.length || 0,
+        asignaturas: pullData.asignaturas?.length || 0,
+        grados: pullData.grados?.length || 0,
+        secciones: pullData.secciones?.length || 0,
+        estudiantes: pullData.estudiantes?.length || 0,
+        indicadores: pullData.indicadores?.length || 0,
+        criterios: pullData.criterios?.length || 0,
+        notas: pullData.notas?.length || 0,
+        asistencia: pullData.asistencia?.length || 0,
+        gradeConfigs: pullData.gradeConfigs?.length || 0,
+        gradoAsignatura: pullData.gradoAsignatura?.length || 0,
+        colegioAsignatura: pullData.colegioAsignatura?.length || 0,
+        colegioDiasAsistencia: pullData.colegioDiasAsistencia?.length || 0,
+      });
+      try {
+        await invoke('upsert_pull_data', { data: pullData });
+        console.log(`[Sync] ✅ upsert_pull_data completado sin errores`);
+      } catch (e) {
+        console.error(`[Sync] ❌ upsert_pull_data falló:`, e);
+        throw e;
+      }
+      // Notificar a la UI que los datos cambiaron
+      try { await emit("catalog-updated"); } catch {}
+      try { await emit("student-updated", { timestamp: Date.now() }); } catch {}
+      try { await emit("notas-updated", { timestamp: Date.now() }); } catch {}
+      try { await emit("asistencia-updated"); } catch {}
+      try { await emit("grade-configs-updated"); } catch {}
+      try { await emit("subjects-updated"); } catch {}
+      console.log(`[Sync] 📢 Eventos de actualización emitidos`);
       return pullData;
     })(), 'datos desde la nube');
   },

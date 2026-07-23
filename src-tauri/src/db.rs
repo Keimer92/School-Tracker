@@ -3798,6 +3798,13 @@ pub struct PullData {
 pub async fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) -> Result<(), String> {
     let is_partial = data.is_partial.unwrap_or(false);
 
+    println!("[upsert_pull_data] Recibidos: anos={}, cortes={}, colegios={}, asignaturas={}, grados={}, secciones={}, estudiantes={}, indicadores={}, criterios={}, notas={}, asistencia={}, gradeConfigs={}, gradoAsignatura={}, colegioAsignatura={}, colegioDias={}",
+        data.anos.len(), data.cortes.len(), data.colegios.len(), data.asignaturas.len(),
+        data.grados.len(), data.secciones.len(), data.estudiantes.len(), data.indicadores.len(),
+        data.criterios.len(), data.notas.len(), data.asistencia.len(), data.grade_configs.len(),
+        data.grado_asignatura.len(), data.colegio_asignatura.len(), data.colegio_dias_asistencia.len()
+    );
+
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute("PRAGMA foreign_keys = OFF", []).map_err(|e| e.to_string())?;
 
@@ -4064,9 +4071,15 @@ pub async fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) 
     // usa la opción "Limpiar Nube" en Ajustes > Debugging > Reiniciar DB Local
 
     tx.commit().map_err(|e| e.to_string())?;
+    println!("[upsert_pull_data] ✅ Transacción completada exitosamente");
     Ok(())
     })();
     conn.execute("PRAGMA foreign_keys = ON", []).ok();
+    if result.is_ok() {
+        println!("[upsert_pull_data] 🎉 Función completada exitosamente");
+    } else {
+        println!("[upsert_pull_data] ❌ Función completada con error: {:?}", result);
+    }
     result
 }
 
