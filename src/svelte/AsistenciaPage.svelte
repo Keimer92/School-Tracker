@@ -581,19 +581,19 @@
 
 <div class="page-container" style="height:100%;min-height:0">
   <style>
-    .asistencia-summary{display:grid;grid-template-columns:repeat(5,1fr);gap:0.75rem;margin:0.5rem 0;padding:0 0.4rem;width:100%;max-width:100%}
-    .summary-card{background:rgba(255,255,255,0.02);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:0.65rem 0.5rem;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:72px;transition:all 0.25s cubic-bezier(0.4,0,0.2,1);user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;position:relative;overflow:hidden;cursor:pointer}
+    .asistencia-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0.5rem;margin:0.5rem 0;padding:0 0.4rem;width:100%;max-width:100%}
+    .summary-card{background:rgba(255,255,255,0.02);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:0.45rem 0.3rem;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:56px;min-width:0;transition:all 0.25s cubic-bezier(0.4,0,0.2,1);user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;position:relative;overflow:hidden;cursor:pointer}
     .summary-card:hover{transform:translateY(-2px);border-color:rgba(255,255,255,0.12);background:rgba(255,255,255,0.04)}
     .summary-card.pressing{transform:scale(0.96);background:rgba(255,255,255,0.08)}
-    .card-accent{position:absolute;top:0;left:0;right:0;height:3px;border-radius:16px 16px 0 0}
-    .card-icon{font-size:1.2rem;margin-bottom:2px}
-    .card-value{font-size:1.3rem;font-weight:700;color:#fff;line-height:1.2}
-    .card-value.small{font-size:1.1rem}
-    .card-label{font-size:0.6rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;font-weight:600}
-    .card-gender{display:flex;gap:0.5rem;margin-top:3px;font-size:0.6rem;font-weight:600}
+    .card-accent{position:absolute;top:0;left:0;right:0;height:3px;border-radius:14px 14px 0 0}
+    .card-icon{font-size:1rem;margin-bottom:1px}
+    .card-value{font-size:1.1rem;font-weight:700;color:#fff;line-height:1.2}
+    .card-value.small{font-size:0.95rem}
+    .card-label{font-size:0.55rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;font-weight:600}
+    .card-gender{display:flex;gap:0.35rem;margin-top:2px;font-size:0.55rem;font-weight:600}
     .gender-f{color:#f472b6}.gender-m{color:#60a5fa}
-    .pct-value{font-size:1.4rem;font-weight:800;line-height:1}
-    .progress-bar-bg{width:100%;max-width:72px;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;margin-top:5px;overflow:hidden}
+    .pct-value{font-size:1.15rem;font-weight:800;line-height:1}
+    .progress-bar-bg{width:100%;max-width:48px;height:3px;background:rgba(255,255,255,0.1);border-radius:2px;margin-top:3px;overflow:hidden}
     .progress-bar-fill{height:100%;border-radius:2px;transition:width 0.6s ease}
     @media(max-width:600px){.asistencia-summary{grid-template-columns:repeat(2,1fr)}}
     .asistencia-opt{width:38px!important;height:38px!important;font-size:0.85rem!important;min-width:38px!important;flex-shrink:0!important;border-radius:10px!important;border:1px solid rgba(255,255,255,0.08)!important;background:rgba(255,255,255,0.03)!important;transition:all 0.15s cubic-bezier(0.4,0,0.2,1)!important;cursor:pointer!important}
