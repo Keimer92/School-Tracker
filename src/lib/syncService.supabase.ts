@@ -1237,6 +1237,21 @@ export const syncService = {
 
       console.log(`[Sync] Iniciando descarga de datos desde Supabase para user: ${userId}`);
 
+      // Descubrir todos los user_id existentes en la nube para soporte multi-dispositivo
+      let allUserIds: string[] = [userId];
+      try {
+        const { data: existingIds } = await supabase
+          .from('colegio')
+          .select('user_id');
+        if (existingIds && existingIds.length > 0) {
+          const remoteIds = [...new Set(existingIds.map(r => r.user_id).filter(Boolean))] as string[];
+          remoteIds.forEach(uid => { if (!allUserIds.includes(uid)) allUserIds.push(uid); });
+          console.log(`[Sync] user_ids descubiertos en Supabase:`, allUserIds);
+        }
+      } catch (e) {
+        console.warn('[Sync] No se pudieron descubrir user_ids remotos, usando solo el local:', e);
+      }
+
       let pullData: any;
 
       // Usar Supabase
@@ -1246,14 +1261,14 @@ export const syncService = {
         'configuracion_calificacion', 'grado_asignatura', 'colegio_asignatura', 'colegio_dias_asistencia'
       ];
 
-      console.log(`[Sync] Consultando tablas con user_id: ${userId}`);
+      console.log(`[Sync] Consultando tablas con user_ids:`, allUserIds);
 
       const results = await withSupabaseSchemaRecovery(async () => {
         const queryResults = await Promise.all(
           tables.map(table => {
             console.log(`[Sync] Consultando ${table}...`);
             let q = supabase.from(table).select('*');
-            if (table !== 'configuracion_calificacion') q = q.eq('user_id', userId);
+            if (table !== 'configuracion_calificacion') q = q.in('user_id', allUserIds);
             return q;
           })
         );
@@ -1311,7 +1326,8 @@ export const syncService = {
             colegioId: e.colegio_id,
             telefono: e.telefono,
             direccion: e.direccion,
-            email: e.email
+            email: e.email,
+            foto: e.foto
           })),
           indicadores: (indicadores || []).map(i => ({
             id: i.id,
@@ -1345,6 +1361,7 @@ export const syncService = {
           })),
           gradeConfigs: (gradeConfigs || []).map(gc => ({
             id: gc.id,
+            nombre: gc.nombre,
             color: gc.color,
             minimo: gc.minimo
           })),
