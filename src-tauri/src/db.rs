@@ -3296,7 +3296,7 @@ pub async fn get_monthly_attendance_pct(
     ).map_err(|e| e.to_string())?;
 
     let rows = stmt.query_map(
-        params![mes_pattern, gradoId, seccionId],
+        rusqlite::params![mes_pattern, gradoId, seccionId],
         |row| Ok(MonthlyPctItem {
             estudiante_id: row.get(0)?,
             pct: row.get(1)?,
