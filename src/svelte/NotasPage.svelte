@@ -813,24 +813,26 @@
     else { secciones = []; selectedSeccion = 0; }
   });
 
-  let loadTrigger = $derived.by(() => {
-    if (selectedAno > 0 && selectedCorte > 0 && selectedColegio > 0 && selectedAsignatura > 0 && selectedGrado > 0 && selectedSeccion > 0) {
-      return `${selectedAno}-${selectedCorte}-${selectedColegio}-${selectedAsignatura}-${selectedGrado}-${selectedSeccion}-${selectedSexo}`;
-    }
-    return '';
-  });
-
   $effect(() => {
-    const trigger = loadTrigger;
-    if (!trigger) { estudiantes = []; notas = []; return; }
+    const ano = selectedAno;
+    const corte = selectedCorte;
+    const colegio = selectedColegio;
+    const asignatura = selectedAsignatura;
+    const grado = selectedGrado;
+    const seccion = selectedSeccion;
+    if (!(ano > 0 && corte > 0 && colegio > 0 && asignatura > 0 && grado > 0 && seccion > 0)) {
+      estudiantes = [];
+      notas = [];
+      return;
+    }
     const currentLoadId = ++loadId;
     const doLoad = async () => {
       loading = true;
       try {
         const [currentIndicadores, estudiantesData, notasData] = await Promise.all([
           fetchConfiguracionEvaluacion(true),
-          invoke<Estudiante[]>("get_estudiantes_by_filters", { gradoId: selectedGrado, seccionId: selectedSeccion }),
-          invoke<{ estudianteId: number; criterioId: number; valor: number }[]>("get_notas_by_filters", { gradoId: selectedGrado, seccionId: selectedSeccion, corteId: selectedCorte, asignaturaId: selectedAsignatura })
+          invoke<Estudiante[]>("get_estudiantes_by_filters", { gradoId: grado, seccionId: seccion }),
+          invoke<{ estudianteId: number; criterioId: number; valor: number }[]>("get_notas_by_filters", { gradoId: grado, seccionId: seccion, corteId: corte, asignaturaId: asignatura })
         ]);
         if (currentLoadId !== loadId) return;
         await fetchEstudiantes(currentIndicadores, true, { estudiantes: estudiantesData, notas: notasData });
