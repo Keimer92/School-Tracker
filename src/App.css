@@ -473,6 +473,7 @@ body {
     min-width: 180px !important;
     height: 100vh !important;
     transform: translateX(-100%);
+    will-change: transform;
     transition: transform 0.3s ease;
     z-index: 1000;
     padding-top: 56px;
@@ -492,7 +493,6 @@ body {
   }
 
   .drawer-backdrop {
-    display: block;
     position: fixed;
     top: 0;
     left: 0;
@@ -501,9 +501,15 @@ body {
     background: var(--modal-overlay);
     z-index: 999;
     opacity: 1;
-    transition: opacity 0.3s ease;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
     touch-action: none;
     pointer-events: auto;
+    visibility: visible;
+  }
+  .drawer-backdrop.closed {
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
   }
 
   .sidebar-button {
@@ -789,6 +795,7 @@ body {
     max-width: 320px;
     height: 100vh;
     transform: translateX(-100%);
+    will-change: transform;
     transition: transform 0.3s ease;
     z-index: 9999 !important;
     padding: calc(60px + var(--sat, env(safe-area-inset-top, 0px))) 0 calc(20px + var(--sab, env(safe-area-inset-bottom, 0px))) 0 !important;
@@ -824,7 +831,6 @@ body {
   }
 
   .drawer-backdrop {
-    display: block;
     position: fixed !important;
     top: 0;
     left: 0;
@@ -832,6 +838,15 @@ body {
     bottom: 0;
     background: var(--modal-overlay) !important;
     z-index: 999 !important;
+    opacity: 1;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+    pointer-events: auto;
+    visibility: visible;
+  }
+  .drawer-backdrop.closed {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
   }
 
   .sidebar-button {
