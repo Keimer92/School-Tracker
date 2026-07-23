@@ -13,7 +13,7 @@
   import ScrollableTable from "./ScrollableTable.svelte";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
-  interface EstudianteAsistencia { id: number; nombre: string; sexo: string; estado: string | null; observacion: string | null; }
+  interface EstudianteAsistencia { id: number; nombre: string; codigo: string; sexo: string; estado: string | null; observacion: string | null; }
   interface DiaEstado { estado: string | null; observacion: string | null; }
 
   let anos: CategoryItem[] = $state([]);
@@ -66,6 +66,8 @@
   let totalEstudiantes = $derived(estudiantes.length);
   let totalM = $derived(estudiantes.filter(e => e.sexo === 'M').length);
   let totalF = $derived(estudiantes.filter(e => e.sexo === 'F').length);
+  let asistenciaPct = $derived(totalEstudiantes > 0 ? Math.round(statsP.total / totalEstudiantes * 100) : 0);
+  let totalPosibleMulti = $derived(estudiantesMulti.length * fechasPeriodo.length);
 
   function getStats(estado: string | null) {
     const filtered = estudiantes.filter(e => e.estado === estado);
@@ -561,44 +563,44 @@
 
 <div class="page-container" style="height:100%;min-height:0">
   <style>
-    .asistencia-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:0.5rem;margin-top:0.5rem}
-    .summary-card{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:0.5rem;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:60px;transition:all 0.2s ease;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
-    .summary-label{font-size:0.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.025em;margin-bottom:2px;display:block!important}
-    .summary-value{font-size:1.1rem;font-weight:700;color:#fff;line-height:1}
-    .gender-labels{display:flex;gap:0.4rem;margin-top:4px;font-size:0.6rem;font-weight:600}
+    .asistencia-summary{display:grid;grid-template-columns:repeat(5,1fr);gap:0.75rem;margin:0.5rem 0;padding:0 0.4rem;width:100%;max-width:100%}
+    .summary-card{background:rgba(255,255,255,0.02);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:0.65rem 0.5rem;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:72px;transition:all 0.25s cubic-bezier(0.4,0,0.2,1);user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;position:relative;overflow:hidden;cursor:pointer}
+    .summary-card:hover{transform:translateY(-2px);border-color:rgba(255,255,255,0.12);background:rgba(255,255,255,0.04)}
+    .summary-card.pressing{transform:scale(0.96);background:rgba(255,255,255,0.08)}
+    .card-accent{position:absolute;top:0;left:0;right:0;height:3px;border-radius:16px 16px 0 0}
+    .card-icon{font-size:1.2rem;margin-bottom:2px}
+    .card-value{font-size:1.3rem;font-weight:700;color:#fff;line-height:1.2}
+    .card-value.small{font-size:1.1rem}
+    .card-label{font-size:0.6rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em;font-weight:600}
+    .card-gender{display:flex;gap:0.5rem;margin-top:3px;font-size:0.6rem;font-weight:600}
     .gender-f{color:#f472b6}.gender-m{color:#60a5fa}
-    .summary-card.students{border-left:3px solid var(--primary-color)}.summary-card.p{border-left:3px solid #10b981}
-    .summary-card.a{border-left:3px solid #ef4444}.summary-card.j{border-left:3px solid #f59e0b}
-    .summary-card.pressing{transform:scale(0.95);background:rgba(255,255,255,0.1)}
-    .pressing-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10000;backdrop-filter:blur(3px);pointer-events:none}
-    .mass-marking-spinner{width:60px;height:60px;border:5px solid rgba(255,255,255,0.1);border-left-color:var(--primary-color);border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:1rem;box-shadow:0 0 15px rgba(var(--primary-rgb), 0.5)}
-    @keyframes spin{to{transform:rotate(360deg)}}
+    .pct-value{font-size:1.4rem;font-weight:800;line-height:1}
+    .progress-bar-bg{width:100%;max-width:72px;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;margin-top:5px;overflow:hidden}
+    .progress-bar-fill{height:100%;border-radius:2px;transition:width 0.6s ease}
     @media(max-width:600px){.asistencia-summary{grid-template-columns:repeat(2,1fr)}}
-    .asistencia-opt{width:26px!important;height:26px!important;font-size:0.7rem!important;min-width:26px!important;flex-shrink:0!important}
-    .obs-toggle-btn{width:28px!important;height:28px!important;min-width:28px!important;font-size:0.8rem!important}
+    .asistencia-opt{width:38px!important;height:38px!important;font-size:0.85rem!important;min-width:38px!important;flex-shrink:0!important;border-radius:10px!important;border:1px solid rgba(255,255,255,0.08)!important;background:rgba(255,255,255,0.03)!important;transition:all 0.15s cubic-bezier(0.4,0,0.2,1)!important;cursor:pointer!important}
+    .asistencia-opt.p{background:rgba(16,185,129,0.15)!important;border-color:#10b981!important;color:#10b981!important}
+    .asistencia-opt.a{background:rgba(239,68,68,0.15)!important;border-color:#ef4444!important;color:#ef4444!important}
+    .asistencia-opt.j{background:rgba(245,158,11,0.15)!important;border-color:#f59e0b!important;color:#f59e0b!important}
+    .asistencia-opt:active{transform:scale(0.92)}
+    .obs-toggle-btn{width:34px!important;height:34px!important;min-width:34px!important;font-size:0.9rem!important;border-radius:8px!important}
     .custom-table thead th{position:sticky;top:0;z-index:10;background:#1e293b!important}
-    .dia-cell{display:flex;gap:1px;align-items:center;justify-content:center}
-    .dia-cell .dia-opt{width:18px!important;height:22px!important;font-size:0.6rem!important;min-width:18px!important;padding:0!important;border-radius:3px!important;display:flex;align-items:center;justify-content:center;border:1px solid transparent;cursor:pointer;font-weight:700;transition:all 0.1s;background:rgba(255,255,255,0.05);color:#64748b}
-    .dia-cell .dia-opt.active-p{background:rgba(16,185,129,0.2);border-color:#10b981;color:#10b981}
-    .dia-cell .dia-opt.active-a{background:rgba(239,68,68,0.2);border-color:#ef4444;color:#ef4444}
-    .dia-cell .dia-opt.active-j{background:rgba(245,158,11,0.2);border-color:#f59e0b;color:#f59e0b}
-    .ciclo-cell{width:28px;height:28px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;cursor:pointer;transition:all 0.15s;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:#64748b;margin:0 auto}
+    .ciclo-cell{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;cursor:pointer;transition:all 0.15s ease;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:#64748b;margin:0 auto}
+    .ciclo-cell:hover{border-color:rgba(255,255,255,0.2);background:rgba(255,255,255,0.06)}
+    .ciclo-cell:active{transform:scale(0.92)}
     .ciclo-cell.estado-p{background:rgba(16,185,129,0.15);border-color:#10b981;color:#10b981}
     .ciclo-cell.estado-a{background:rgba(239,68,68,0.15);border-color:#ef4444;color:#ef4444}
     .ciclo-cell.estado-j{background:rgba(245,158,11,0.15);border-color:#f59e0b;color:#f59e0b}
-    .semanal-card-days{display:flex;gap:0.3rem;overflow-x:auto;padding-bottom:0.2rem}
-    .semanal-day-chip{display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;min-width:48px}
-    .semanal-day-label{font-size:0.55rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.2px;white-space:nowrap}
-    .semanal-day-btns{display:flex;gap:1px}
-    .semanal-day-btns button{width:20px;height:20px;font-size:0.55rem;font-weight:700;border:none;border-radius:3px;cursor:pointer;transition:all 0.1s;background:rgba(255,255,255,0.05);color:#64748b;display:flex;align-items:center;justify-content:center;padding:0}
-    .semanal-day-btns button.active-p{background:rgba(16,185,129,0.2);color:#10b981}
-    .semanal-day-btns button.active-a{background:rgba(239,68,68,0.2);color:#ef4444}
-    .semanal-day-btns button.active-j{background:rgba(245,158,11,0.2);color:#f59e0b}
     .mensual-chip-row{display:flex;gap:2px;overflow-x:auto;padding-bottom:0.2rem}
-    .mensual-chip{width:24px;height:24px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:0.6rem;font-weight:700;cursor:pointer;flex-shrink:0;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:#64748b;transition:all 0.1s}
+    .mensual-chip{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:700;cursor:pointer;flex-shrink:0;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:#64748b;transition:all 0.15s ease}
+    .mensual-chip:hover{border-color:rgba(255,255,255,0.2);background:rgba(255,255,255,0.06)}
+    .mensual-chip:active{transform:scale(0.9)}
     .mensual-chip.estado-p{background:rgba(16,185,129,0.15);border-color:#10b981;color:#10b981}
     .mensual-chip.estado-a{background:rgba(239,68,68,0.15);border-color:#ef4444;color:#ef4444}
     .mensual-chip.estado-j{background:rgba(245,158,11,0.15);border-color:#f59e0b;color:#f59e0b}
+    .pressing-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10000;backdrop-filter:blur(3px);pointer-events:none}
+    .mass-marking-spinner{width:60px;height:60px;border:5px solid rgba(255,255,255,0.1);border-left-color:var(--primary-color);border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:1rem;box-shadow:0 0 15px rgba(var(--primary-rgb), 0.5)}
+    @keyframes spin{to{transform:rotate(360deg)}}
   </style>
 
   <PageLayout>
@@ -719,39 +721,50 @@
       {/if}
 
       {#if !isAndroidMobile && filteredEstudiantes.length > 0}
-        <div class="asistencia-summary" style="margin:0.5rem 0;padding:0 0.4rem;width:100%;max-width:100%">
-          <div class="summary-card students" onclick={() => handleCardClick('Total', { total: totalEstudiantes, m: totalM, f: totalF })}>
-            <div style="display:flex;align-items:center;justify-content:center;gap:6px;font-weight:bold;font-size:0.95rem">
-              <span><span style="color:#06b6d4">E</span>: {totalEstudiantes}</span>
-              <span class="gender-m">M: {totalM}</span><span class="gender-f">F: {totalF}</span>
-            </div>
+        <div class="asistencia-summary">
+          <div class="summary-card" onclick={() => handleCardClick('Total', { total: totalEstudiantes, m: totalM, f: totalF })}>
+            <div class="card-accent" style="background:#06b6d4"></div>
+            <span class="card-icon">📋</span>
+            <span class="card-value">{totalEstudiantes}</span>
+            <span class="card-label">Total</span>
+            <div class="card-gender"><span class="gender-m">M:{totalM}</span><span class="gender-f">F:{totalF}</span></div>
           </div>
-          <div class="summary-card p" class:pressing={pressingStatus === 'P'} onclick={() => handleCardClick('Presentes', statsP)}
+          <div class="summary-card" class:pressing={pressingStatus === 'P'} onclick={() => handleCardClick('Presentes', statsP)}
             onmousedown={() => handleLongPressStart('P')} onmouseup={handleLongPressEnd} onmouseleave={handleLongPressEnd}
             ontouchstart={(e) => { e.preventDefault(); handleLongPressStart('P'); }} ontouchend={handleLongPressEnd} oncontextmenu={(e) => e.preventDefault()}
-            style="cursor:pointer;user-select:none" title="Mantén presionado para marcar todos como Presente">
-            <div style="display:flex;align-items:center;justify-content:center;gap:6px;font-weight:bold;font-size:0.95rem">
-              <span><span style="color:#10b981">P</span>: {statsP.total}</span>
-              <span class="gender-m">M: {statsP.m}</span><span class="gender-f">F: {statsP.f}</span>
-            </div>
+            title="Mantén presionado para marcar todos como Presente">
+            <div class="card-accent" style="background:#10b981"></div>
+            <span class="card-icon">✅</span>
+            <span class="card-value">{statsP.total}</span>
+            <span class="card-label">Presentes</span>
+            <div class="card-gender"><span class="gender-m">M:{statsP.m}</span><span class="gender-f">F:{statsP.f}</span></div>
           </div>
-          <div class="summary-card a" class:pressing={pressingStatus === 'A'} onclick={() => handleCardClick('Ausentes', statsA)}
+          <div class="summary-card" class:pressing={pressingStatus === 'A'} onclick={() => handleCardClick('Ausentes', statsA)}
             onmousedown={() => handleLongPressStart('A')} onmouseup={handleLongPressEnd} onmouseleave={handleLongPressEnd}
             ontouchstart={(e) => { e.preventDefault(); handleLongPressStart('A'); }} ontouchend={handleLongPressEnd} oncontextmenu={(e) => e.preventDefault()}
-            style="cursor:pointer;user-select:none" title="Mantén presionado para marcar todos como Ausente">
-            <div style="display:flex;align-items:center;justify-content:center;gap:6px;font-weight:bold;font-size:0.95rem">
-              <span><span style="color:#ef4444">A</span>: {statsA.total}</span>
-              <span class="gender-m">M: {statsA.m}</span><span class="gender-f">F: {statsA.f}</span>
-            </div>
+            title="Mantén presionado para marcar todos como Ausente">
+            <div class="card-accent" style="background:#ef4444"></div>
+            <span class="card-icon">❌</span>
+            <span class="card-value">{statsA.total}</span>
+            <span class="card-label">Ausentes</span>
+            <div class="card-gender"><span class="gender-m">M:{statsA.m}</span><span class="gender-f">F:{statsA.f}</span></div>
           </div>
-          <div class="summary-card j" class:pressing={pressingStatus === 'J'} onclick={() => handleCardClick('Justificados', statsJ)}
+          <div class="summary-card" class:pressing={pressingStatus === 'J'} onclick={() => handleCardClick('Justificados', statsJ)}
             onmousedown={() => handleLongPressStart('J')} onmouseup={handleLongPressEnd} onmouseleave={handleLongPressEnd}
             ontouchstart={(e) => { e.preventDefault(); handleLongPressStart('J'); }} ontouchend={handleLongPressEnd} oncontextmenu={(e) => e.preventDefault()}
-            style="cursor:pointer;user-select:none" title="Mantén presionado para marcar todos como Justificado">
-            <div style="display:flex;align-items:center;justify-content:center;gap:6px;font-weight:bold;font-size:0.95rem">
-              <span><span style="color:#f59e0b">J</span>: {statsJ.total}</span>
-              <span class="gender-m">M: {statsJ.m}</span><span class="gender-f">F: {statsJ.f}</span>
-            </div>
+            title="Mantén presionado para marcar todos como Justificado">
+            <div class="card-accent" style="background:#f59e0b"></div>
+            <span class="card-icon">⚠️</span>
+            <span class="card-value">{statsJ.total}</span>
+            <span class="card-label">Justificados</span>
+            <div class="card-gender"><span class="gender-m">M:{statsJ.m}</span><span class="gender-f">F:{statsJ.f}</span></div>
+          </div>
+          <div class="summary-card" onclick={() => handleCardClick('Asistencia', { total: asistenciaPct, m: 0, f: 0 })}>
+            <div class="card-accent" style="background:#8b5cf6"></div>
+            <span class="card-icon">📊</span>
+            <span class="pct-value" style="color:{asistenciaPct >= 90 ? '#10b981' : asistenciaPct >= 70 ? '#f59e0b' : '#ef4444'}">{asistenciaPct}%</span>
+            <span class="card-label">Asistencia</span>
+            <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:{asistenciaPct}%;background:{asistenciaPct >= 90 ? '#10b981' : asistenciaPct >= 70 ? '#f59e0b' : '#ef4444'}"></div></div>
           </div>
         </div>
       {/if}
@@ -807,31 +820,33 @@
             <thead><tr>
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
               <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10">Estudiante</th>
-              <th style="width:100px;position:sticky;top:0;background:#1e293b;z-index:10">Asistencia</th>
-              <th style="width:65px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10">Obs</th>
+              <th style="width:110px;text-align:left;position:sticky;top:0;background:#1e293b;z-index:10">Código</th>
+              <th style="width:160px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10">Asistencia</th>
+              <th style="width:55px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10">Obs</th>
             </tr></thead>
             <tbody>
               {#each filteredEstudiantes as est, index}
                 <tr>
                   <td><span class="student-number-badge">{index + 1}</span></td>
-                  <td style="text-align:left;overflow:hidden">
-                    <div style="font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:6px;width:100%" onclick={() => selectedStudentDetail = est}>
+                  <td style="text-align:left">
+                    <div style="font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:8px" onclick={() => selectedStudentDetail = est}>
                       <span style="font-size:1.1rem;flex-shrink:0">{est.sexo === 'F' ? '👩' : '👨'}</span>
-                      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{est.nombre}</span>
+                      <span style="white-space:nowrap">{est.nombre}</span>
                     </div>
-                    <div style="font-size:0.7rem;opacity:0.6;margin-left:22px">{est.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
+                    <div style="font-size:0.7rem;opacity:0.6;margin-left:30px">{est.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                   </td>
-                  <td>
-                    <div class="asistencia-options-mobile" style="display:flex;gap:2px">
-                      <label class="asistencia-opt" class:active={est.estado === 'P'} class:p={est.estado === 'P'} style="display:flex;align-items:center;justify-content:center"
+                  <td style="text-align:left;color:#94a3b8;font-size:0.85rem">{est.codigo || '-'}</td>
+                  <td style="text-align:center">
+                    <div style="display:flex;gap:5px;justify-content:center">
+                      <label class="asistencia-opt" class:p={est.estado === 'P'} style="display:flex;align-items:center;justify-content:center"
                         onclick={() => handleEstadoChange(est.id, 'P')}>
                         <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'P'} onchange={() => handleEstadoChange(est.id, 'P')} style="display:none" /><span>P</span>
                       </label>
-                      <label class="asistencia-opt" class:active={est.estado === 'A'} class:a={est.estado === 'A'} style="display:flex;align-items:center;justify-content:center"
+                      <label class="asistencia-opt" class:a={est.estado === 'A'} style="display:flex;align-items:center;justify-content:center"
                         onclick={() => handleEstadoChange(est.id, 'A')}>
                         <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'A'} onchange={() => handleEstadoChange(est.id, 'A')} style="display:none" /><span>A</span>
                       </label>
-                      <label class="asistencia-opt" class:active={est.estado === 'J'} class:j={est.estado === 'J'} style="display:flex;align-items:center;justify-content:center"
+                      <label class="asistencia-opt" class:j={est.estado === 'J'} style="display:flex;align-items:center;justify-content:center"
                         onclick={() => handleEstadoChange(est.id, 'J')}>
                         <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'J'} onchange={() => handleEstadoChange(est.id, 'J')} style="display:none" /><span>J</span>
                       </label>
@@ -871,23 +886,35 @@
       {/if}
 
       {#if !isAndroidMobile && filteredEstudiantesMulti.length > 0}
-        <div class="asistencia-summary" style="margin:0.5rem 0;padding:0 0.4rem;width:100%;max-width:100%">
-          <div class="summary-card students" onclick={() => handleCardClick('Total', { total: filteredEstudiantesMulti.length, m: filteredEstudiantesMulti.filter(e => e.sexo === 'M').length, f: filteredEstudiantesMulti.filter(e => e.sexo === 'F').length })}>
-            <div style="display:flex;align-items:center;justify-content:center;gap:6px;font-weight:bold;font-size:0.95rem">
-              <span><span style="color:#06b6d4">E</span>: {filteredEstudiantesMulti.length}</span>
-              <span class="gender-m">M: {filteredEstudiantesMulti.filter(e => e.sexo === 'M').length}</span><span class="gender-f">F: {filteredEstudiantesMulti.filter(e => e.sexo === 'F').length}</span>
-            </div>
+        {@const totalMM = filteredEstudiantesMulti.filter(e => e.sexo === 'M').length}
+        {@const totalFM = filteredEstudiantesMulti.filter(e => e.sexo === 'F').length}
+        {@const pctMulti = totalPosibleMulti > 0 ? Math.round(getMultiStats('P').total / totalPosibleMulti * 100) : 0}
+        <div class="asistencia-summary">
+          <div class="summary-card" onclick={() => handleCardClick('Total', { total: filteredEstudiantesMulti.length, m: totalMM, f: totalFM })}>
+            <div class="card-accent" style="background:#06b6d4"></div>
+            <span class="card-icon">📋</span>
+            <span class="card-value">{filteredEstudiantesMulti.length}</span>
+            <span class="card-label">Estudiantes</span>
+            <div class="card-gender"><span class="gender-m">M:{totalMM}</span><span class="gender-f">F:{totalFM}</span></div>
           </div>
           {#each ['P', 'A', 'J'] as estado}
             {@const st = getMultiStats(estado)}
-            <div class="summary-card {estado.toLowerCase()}" onclick={() => handleCardClick(estado === 'P' ? 'Presentes' : estado === 'A' ? 'Ausentes' : 'Justificados', st)}
+            <div class="summary-card" onclick={() => handleCardClick(estado === 'P' ? 'Presentes' : estado === 'A' ? 'Ausentes' : 'Justificados', st)}
               style="cursor:pointer;user-select:none">
-              <div style="display:flex;align-items:center;justify-content:center;gap:6px;font-weight:bold;font-size:0.95rem">
-                <span><span style="color:{estado === 'P' ? '#10b981' : estado === 'A' ? '#ef4444' : '#f59e0b'}">{estado}</span>: {st.total}</span>
-                <span class="gender-m">M: {st.m}</span><span class="gender-f">F: {st.f}</span>
-              </div>
+              <div class="card-accent" style="background:{estado === 'P' ? '#10b981' : estado === 'A' ? '#ef4444' : '#f59e0b'}"></div>
+              <span class="card-icon">{estado === 'P' ? '✅' : estado === 'A' ? '❌' : '⚠️'}</span>
+              <span class="card-value">{st.total}</span>
+              <span class="card-label">{estado === 'P' ? 'Presentes' : estado === 'A' ? 'Ausentes' : 'Justificados'}</span>
+              <div class="card-gender"><span class="gender-m">M:{st.m}</span><span class="gender-f">F:{st.f}</span></div>
             </div>
           {/each}
+          <div class="summary-card" onclick={() => handleCardClick('Asistencia', { total: pctMulti, m: 0, f: 0 })}>
+            <div class="card-accent" style="background:#8b5cf6"></div>
+            <span class="card-icon">📊</span>
+            <span class="pct-value" style="color:{pctMulti >= 90 ? '#10b981' : pctMulti >= 70 ? '#f59e0b' : '#ef4444'}">{pctMulti}%</span>
+            <span class="card-label">Asistencia</span>
+            <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:{pctMulti}%;background:{pctMulti >= 90 ? '#10b981' : pctMulti >= 70 ? '#f59e0b' : '#ef4444'}"></div></div>
+          </div>
         </div>
       {/if}
 
@@ -964,38 +991,31 @@
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
               <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10">Estudiante</th>
               {#each fechasPeriodo as fecha}
-                <th style="min-width:65px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10">
+                <th style="min-width:52px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;font-size:0.7rem;font-weight:600;padding:0.25rem">
                   {new Date(fecha + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }).replace('.','').replace(',','')}
                 </th>
               {/each}
-              <th style="width:40px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10">Obs</th>
             </tr></thead>
             <tbody>
               {#each filteredEstudiantesMulti as est, index}
                 <tr>
                   <td><span class="student-number-badge">{index + 1}</span></td>
-                  <td style="text-align:left;overflow:hidden;max-width:120px">
-                    <span style="font-weight:bold;font-size:0.85rem;cursor:pointer" onclick={() => selectedStudentDetail = est as any}>{est.nombre}</span>
+                  <td style="text-align:left">
+                    <span style="font-weight:bold;font-size:0.85rem;cursor:pointer;white-space:nowrap" onclick={() => selectedStudentDetail = est as any}>{est.nombre}</span>
                     <div style="font-size:0.65rem;opacity:0.6">{est.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                   </td>
                   {#each fechasPeriodo as fecha}
                     {@const d = est.dias[fecha]}
                     {@const draftD = draftMulti[est.id]?.[fecha]}
                     {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
-                    <td style="text-align:center;padding:0.2rem">
-                      <div class="dia-cell">
-                        <button class="dia-opt" class:active-p={effectiveEstado === 'P'} onclick={() => handleEstadoChangeMulti(est.id, fecha, 'P')}>P</button>
-                        <button class="dia-opt" class:active-a={effectiveEstado === 'A'} onclick={() => handleEstadoChangeMulti(est.id, fecha, 'A')}>A</button>
-                        <button class="dia-opt" class:active-j={effectiveEstado === 'J'} onclick={() => handleEstadoChangeMulti(est.id, fecha, 'J')}>J</button>
+                    <td style="text-align:center;padding:0.15rem">
+                      <div class="ciclo-cell" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
+                        onclick={() => cicloEstado(est.id, fecha)}
+                        title={effectiveEstado === 'P' ? 'Presente' : effectiveEstado === 'A' ? 'Ausente' : effectiveEstado === 'J' ? 'Justificado' : 'Sin marcar'}>
+                        {effectiveEstado || '-'}
                       </div>
                     </td>
                   {/each}
-                  <td style="text-align:center;padding:0.2rem">
-                    <button class="obs-toggle-btn" class:has-obs={!!getObsMulti(est.id, fechasPeriodo[0])}
-                      onclick={() => {}}
-                      style="width:24px;height:24px;min-width:24px;font-size:0.7rem;padding:0;border-radius:4px"
-                      title="Observaciones">💬</button>
-                  </td>
                 </tr>
               {/each}
             </tbody>
@@ -1006,7 +1026,7 @@
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
               <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10">Estudiante</th>
               {#each fechasPeriodo as fecha}
-                <th style="width:28px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;font-size:0.65rem;font-weight:600;padding:0.15rem">
+                <th style="width:32px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;font-size:0.65rem;font-weight:600;padding:0.2rem 0.1rem">
                   {new Date(fecha + "T12:00:00").getDate()}
                 </th>
               {/each}
@@ -1015,17 +1035,19 @@
               {#each filteredEstudiantesMulti as est, index}
                 <tr>
                   <td><span class="student-number-badge">{index + 1}</span></td>
-                  <td style="text-align:left;overflow:hidden;max-width:100px">
-                    <span style="font-weight:bold;font-size:0.8rem;cursor:pointer" onclick={() => selectedStudentDetail = est as any}>{est.nombre.split(' ')[0]}</span>
+                  <td style="text-align:left">
+                    <span style="font-weight:bold;font-size:0.85rem;cursor:pointer;white-space:nowrap" onclick={() => selectedStudentDetail = est as any}>{est.nombre.split(' ')[0]}</span>
+                    <div style="font-size:0.65rem;opacity:0.6">{est.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                   </td>
                   {#each fechasPeriodo as fecha}
                     {@const d = est.dias[fecha]}
                     {@const draftD = draftMulti[est.id]?.[fecha]}
                     {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
-                    <td style="text-align:center;padding:0.1rem">
+                    <td style="text-align:center;padding:0.15rem">
                       <div class="ciclo-cell" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
-                        onclick={() => cicloEstado(est.id, fecha)}>
-                        {effectiveEstado || '-'}
+                        onclick={() => cicloEstado(est.id, fecha)}
+                        title={new Date(fecha + "T12:00:00").toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) + ': ' + (effectiveEstado === 'P' ? 'Presente' : effectiveEstado === 'A' ? 'Ausente' : effectiveEstado === 'J' ? 'Justificado' : 'Sin marcar')}>
+                        {new Date(fecha + "T12:00:00").getDate()}
                       </div>
                     </td>
                   {/each}
