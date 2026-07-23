@@ -581,7 +581,6 @@
 
 <div class="page-container" style="height:100%;min-height:0">
   <style>
-    .asistencia-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0.4rem;margin:0.5rem 0;padding:0;width:100%;max-width:100%}
     .summary-card{background:rgba(255,255,255,0.02);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:0.5rem 0.25rem;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:60px;min-width:0;transition:all 0.25s cubic-bezier(0.4,0,0.2,1);user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;position:relative;overflow:hidden;cursor:pointer}
     .summary-card:hover{transform:translateY(-2px);border-color:rgba(255,255,255,0.12);background:rgba(255,255,255,0.04)}
     .summary-card.pressing{transform:scale(0.96);background:rgba(255,255,255,0.08)}
@@ -595,7 +594,7 @@
     .pct-value{font-size:1.1rem;font-weight:800;line-height:1}
     .progress-bar-bg{width:100%;max-width:44px;height:3px;background:rgba(255,255,255,0.1);border-radius:2px;margin-top:3px;overflow:hidden}
     .progress-bar-fill{height:100%;border-radius:2px;transition:width 0.6s ease}
-    @media(max-width:600px){.asistencia-summary{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:600px){.asist-summary-grid-mob{grid-template-columns:repeat(2,1fr)}}
     .asistencia-opt{width:38px!important;height:38px!important;font-size:0.85rem!important;min-width:38px!important;flex-shrink:0!important;border-radius:10px!important;border:1px solid rgba(255,255,255,0.08)!important;background:rgba(255,255,255,0.03)!important;transition:all 0.15s cubic-bezier(0.4,0,0.2,1)!important;cursor:pointer!important}
     .asistencia-opt.p{background:rgba(16,185,129,0.15)!important;border-color:#10b981!important;color:#10b981!important}
     .asistencia-opt.a{background:rgba(239,68,68,0.15)!important;border-color:#ef4444!important;color:#ef4444!important}
@@ -754,7 +753,7 @@
       {/if}
 
       {#if !isAndroidMobile && filteredEstudiantes.length > 0}
-        <div class="asistencia-summary">
+        <div class="asist-summary-grid-mob" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0.4rem;margin:0.5rem 0;padding:0;width:100%;max-width:100%">
           <div class="summary-card" onclick={() => handleCardClick('Total', { total: totalEstudiantes, m: totalM, f: totalF })}>
             <div class="card-accent" style="background:#06b6d4"></div>
             <span class="card-icon">📋</span>
@@ -923,7 +922,7 @@
         {@const totalMM = filteredEstudiantesMulti.filter(e => e.sexo === 'M').length}
         {@const totalFM = filteredEstudiantesMulti.filter(e => e.sexo === 'F').length}
         {@const pctMulti = totalPosibleMulti > 0 ? Math.round(getMultiStats('P').total / totalPosibleMulti * 100) : 0}
-        <div class="asistencia-summary">
+        <div class="asist-summary-grid-mob" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0.4rem;margin:0.5rem 0;padding:0;width:100%;max-width:100%">
           <div class="summary-card" onclick={() => handleCardClick('Total', { total: filteredEstudiantesMulti.length, m: totalMM, f: totalFM })}>
             <div class="card-accent" style="background:#06b6d4"></div>
             <span class="card-icon">📋</span>
