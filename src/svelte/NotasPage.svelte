@@ -583,6 +583,7 @@
         const stillExists = data.some(s => s.id === selectedSeccion);
         if (!stillExists) selectedSeccion = data[0].id;
       } else selectedSeccion = 0;
+      loadNotas(selectedAno, selectedCorte, selectedColegio, selectedAsignatura, selectedGrado, selectedSeccion);
     } catch (error) { console.error("Error fetching secciones:", error); }
   }
 
@@ -813,6 +814,27 @@
     else { secciones = []; selectedSeccion = 0; }
   });
 
+  async function loadNotas(ano: number, corte: number, colegio: number, asignatura: number, grado: number, seccion: number) {
+    if (!(ano > 0 && corte > 0 && colegio > 0 && asignatura > 0 && grado > 0 && seccion > 0)) return;
+    const currentLoadId = ++loadId;
+    loading = true;
+    try {
+      const [currentIndicadores, estudiantesData, notasData] = await Promise.all([
+        fetchConfiguracionEvaluacion(true),
+        invoke<Estudiante[]>("get_estudiantes_by_filters", { gradoId: grado, seccionId: seccion }),
+        invoke<{ estudianteId: number; criterioId: number; valor: number }[]>("get_notas_by_filters", { gradoId: grado, seccionId: seccion, corteId: corte, asignaturaId: asignatura })
+      ]);
+      if (currentLoadId !== loadId) return;
+      await fetchEstudiantes(currentIndicadores, true, { estudiantes: estudiantesData, notas: notasData });
+      if (currentLoadId !== loadId) return;
+      history = [];
+      redoStack = [];
+    } catch (error) {
+      console.error("Error loading data:", error);
+      if (currentLoadId === loadId) await emit("show-toast", { message: "❌ Error al cargar datos: " + error, type: 'error' });
+    } finally { if (currentLoadId === loadId) loading = false; }
+  }
+
   $effect(() => {
     const ano = selectedAno;
     const corte = selectedCorte;
@@ -820,31 +842,12 @@
     const asignatura = selectedAsignatura;
     const grado = selectedGrado;
     const seccion = selectedSeccion;
-    if (!(ano > 0 && corte > 0 && colegio > 0 && asignatura > 0 && grado > 0 && seccion > 0)) {
+    if (ano > 0 && corte > 0 && colegio > 0 && asignatura > 0 && grado > 0 && seccion > 0) {
+      loadNotas(ano, corte, colegio, asignatura, grado, seccion);
+    } else {
       estudiantes = [];
       notas = [];
-      return;
     }
-    const currentLoadId = ++loadId;
-    const doLoad = async () => {
-      loading = true;
-      try {
-        const [currentIndicadores, estudiantesData, notasData] = await Promise.all([
-          fetchConfiguracionEvaluacion(true),
-          invoke<Estudiante[]>("get_estudiantes_by_filters", { gradoId: grado, seccionId: seccion }),
-          invoke<{ estudianteId: number; criterioId: number; valor: number }[]>("get_notas_by_filters", { gradoId: grado, seccionId: seccion, corteId: corte, asignaturaId: asignatura })
-        ]);
-        if (currentLoadId !== loadId) return;
-        await fetchEstudiantes(currentIndicadores, true, { estudiantes: estudiantesData, notas: notasData });
-        if (currentLoadId !== loadId) return;
-        history = [];
-        redoStack = [];
-      } catch (error) {
-        console.error("Error loading data:", error);
-        if (currentLoadId === loadId) await emit("show-toast", { message: "❌ Error al cargar datos: " + error, type: 'error' });
-      } finally { if (currentLoadId === loadId) loading = false; }
-    };
-    doLoad();
   });
 
   $effect(() => {
