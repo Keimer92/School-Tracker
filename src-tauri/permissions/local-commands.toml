@@ -114,6 +114,7 @@ commands.allow = [
     "get_all_local_data_json",
     "create_folder_and_save_file",
     "supabase_execute_sql",
-    "get_dashboard_stats"
+    "get_dashboard_stats",
+    "get_monthly_attendance_pct"
 ]
 

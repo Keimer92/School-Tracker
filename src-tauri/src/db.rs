@@ -3086,6 +3086,13 @@ pub struct AsistenciaEstudiante {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct MonthlyPctItem {
+    pub estudiante_id: i64,
+    pub pct: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct AsistenciaReporteItem {
     pub id: i64,
     pub nombre: String,
@@ -3259,6 +3266,47 @@ let mut query = String::from(
         result.push(row.map_err(|e| e.to_string())?);
     }
 
+    Ok(result)
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+pub async fn get_monthly_attendance_pct(
+    state: tauri::State<'_, DbState>,
+    gradoId: i64,
+    seccionId: i64,
+    fecha: String,
+) -> Result<Vec<MonthlyPctItem>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    if fecha.len() < 7 {
+        return Err("Fecha inválida".to_string());
+    }
+    let mes = &fecha[..7];
+    let mes_pattern = format!("{}%", mes);
+    let mut stmt = conn.prepare(
+        "SELECT e.id,
+           CASE WHEN COUNT(a.id) > 0
+             THEN ROUND(CAST(SUM(CASE WHEN a.estado = 'P' THEN 1 ELSE 0 END) AS REAL) / COUNT(a.id) * 100, 1)
+             ELSE 0.0 END as pct
+         FROM estudiante e
+         LEFT JOIN asistencia a ON e.id = a.estudiante_id AND a.fecha LIKE ?
+         WHERE e.grado_id = ? AND e.seccion_id = ?
+         GROUP BY e.id
+         ORDER BY e.nombre"
+    ).map_err(|e| e.to_string())?;
+
+    let rows = stmt.query_map(
+        params![mes_pattern, gradoId, seccionId],
+        |row| Ok(MonthlyPctItem {
+            estudiante_id: row.get(0)?,
+            pct: row.get(1)?,
+        })
+    ).map_err(|e| e.to_string())?;
+
+    let mut result = Vec::new();
+    for row in rows {
+        result.push(row.map_err(|e| e.to_string())?);
+    }
     Ok(result)
 }
 

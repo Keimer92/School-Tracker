@@ -43,6 +43,7 @@
   let expandedObs: Record<number, boolean> = $state({});
   let obsModalStudent: EstudianteAsistencia | null = $state(null);
   let refreshingSilent = $state(false);
+  let monthlyPcts = $state<Record<number, number>>({});
 
   let isMobile = $state(false);
   let isAndroid = $state(/Android/i.test(navigator.userAgent));
@@ -264,10 +265,27 @@
         if (d) return { ...est, estado: d.estado !== undefined ? d.estado : est.estado, observacion: d.observacion !== undefined ? d.observacion : est.observacion };
         return est;
       });
+      fetchMonthlyPct();
     } catch (error) {
       console.error("Error fetching students:", error);
       await emit("show-toast", { message: "❌ Error al cargar estudiantes: " + error, type: "error" });
     } finally { loading = false; }
+  }
+
+  async function fetchMonthlyPct() {
+    if (!selectedGrado || !selectedSeccion) return;
+    try {
+      const data = await invoke<Array<{ estudianteId: number; pct: number }>>("get_monthly_attendance_pct", {
+        gradoId: selectedGrado, seccionId: selectedSeccion, fecha: selectedFecha,
+      });
+      const map: Record<number, number> = {};
+      for (const item of data) {
+        map[item.estudianteId] = item.pct;
+      }
+      monthlyPcts = map;
+    } catch (error) {
+      console.error("Error fetching monthly pct:", error);
+    }
   }
 
   async function fetchEstudiantesMulti() {
@@ -598,6 +616,14 @@
     .mensual-chip.estado-p{background:rgba(16,185,129,0.15);border-color:#10b981;color:#10b981}
     .mensual-chip.estado-a{background:rgba(239,68,68,0.15);border-color:#ef4444;color:#ef4444}
     .mensual-chip.estado-j{background:rgba(245,158,11,0.15);border-color:#f59e0b;color:#f59e0b}
+    .asistencia-btn{padding:0.3rem 0.75rem;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:#94a3b8;white-space:nowrap;transition:all 0.15s cubic-bezier(0.4,0,0.2,1)}
+    .asistencia-btn:active{transform:scale(0.95)}
+    .asistencia-btn.p{background:rgba(16,185,129,0.15);border-color:#10b981;color:#10b981}
+    .asistencia-btn.a{background:rgba(239,68,68,0.15);border-color:#ef4444;color:#ef4444}
+    .asistencia-btn.j{background:rgba(245,158,11,0.15);border-color:#f59e0b;color:#f59e0b}
+    .pct-indicator{font-size:0.85rem;font-weight:700;white-space:nowrap}
+    .obs-inline{width:100%;padding:0.3rem 0.5rem;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.3);color:#fff;font-size:0.75rem;outline:none;box-sizing:border-box;transition:border-color 0.2s}
+    .obs-inline:focus{border-color:var(--primary-color)}
     .pressing-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10000;backdrop-filter:blur(3px);pointer-events:none}
     .mass-marking-spinner{width:60px;height:60px;border:5px solid rgba(255,255,255,0.1);border-left-color:var(--primary-color);border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:1rem;box-shadow:0 0 15px rgba(var(--primary-rgb), 0.5)}
     @keyframes spin{to{transform:rotate(360deg)}}
@@ -792,40 +818,35 @@
                   <span style="font-size:0.7rem;color:#64748b;font-weight:bold;min-width:20px">{index + 1}</span>
                   <span style="font-size:1rem;flex-shrink:0">{est.sexo === 'F' ? '👩' : '👨'}</span>
                   <span style="flex:1;font-weight:bold;font-size:0.85rem;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick={() => selectedStudentDetail = est}>{est.nombre}</span>
-                  <button class="obs-toggle-btn" class:has-obs={!!est.observacion} class:active={!!expandedObs[est.id]}
-                    onclick={() => toggleObs(est)} title="Observaciones" style="width:30px;height:30px;min-width:30px;font-size:0.9rem;flex-shrink:0">{est.observacion ? '📝' : '💬'}</button>
                 </div>
-                <div style="display:flex;gap:0.4rem">
-                  <label onclick={() => handleEstadoChange(est.id, 'P')} style="flex:1;height:36px;font-size:0.85rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:bold;background:{est.estado === 'P' ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.05)'};border:{est.estado === 'P' ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.1)'};color:{est.estado === 'P' ? '#10b981' : '#94a3b8'}">
-                    <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'P'} onchange={() => handleEstadoChange(est.id, 'P')} style="display:none" /><span>P</span>
+                <div style="display:flex;gap:0.4rem;margin-bottom:0.3rem">
+                  <label onclick={() => handleEstadoChange(est.id, 'P')} style="flex:1;height:36px;font-size:0.78rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:700;background:{est.estado === 'P' ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.05)'};border:{est.estado === 'P' ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.1)'};color:{est.estado === 'P' ? '#10b981' : '#94a3b8'}">
+                    <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'P'} onchange={() => handleEstadoChange(est.id, 'P')} style="display:none" /><span>Presente</span>
                   </label>
-                  <label onclick={() => handleEstadoChange(est.id, 'A')} style="flex:1;height:36px;font-size:0.85rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:bold;background:{est.estado === 'A' ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.05)'};border:{est.estado === 'A' ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.1)'};color:{est.estado === 'A' ? '#ef4444' : '#94a3b8'}">
-                    <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'A'} onchange={() => handleEstadoChange(est.id, 'A')} style="display:none" /><span>A</span>
+                  <label onclick={() => handleEstadoChange(est.id, 'A')} style="flex:1;height:36px;font-size:0.78rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:700;background:{est.estado === 'A' ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.05)'};border:{est.estado === 'A' ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.1)'};color:{est.estado === 'A' ? '#ef4444' : '#94a3b8'}">
+                    <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'A'} onchange={() => handleEstadoChange(est.id, 'A')} style="display:none" /><span>Ausente</span>
                   </label>
-                  <label onclick={() => handleEstadoChange(est.id, 'J')} style="flex:1;height:36px;font-size:0.85rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:bold;background:{est.estado === 'J' ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.05)'};border:{est.estado === 'J' ? '1px solid #f59e0b' : '1px solid rgba(255,255,255,0.1)'};color:{est.estado === 'J' ? '#f59e0b' : '#94a3b8'}">
-                    <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'J'} onchange={() => handleEstadoChange(est.id, 'J')} style="display:none" /><span>J</span>
+                  <label onclick={() => handleEstadoChange(est.id, 'J')} style="flex:1;height:36px;font-size:0.78rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:700;background:{est.estado === 'J' ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.05)'};border:{est.estado === 'J' ? '1px solid #f59e0b' : '1px solid rgba(255,255,255,0.1)'};color:{est.estado === 'J' ? '#f59e0b' : '#94a3b8'}">
+                    <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'J'} onchange={() => handleEstadoChange(est.id, 'J')} style="display:none" /><span>Justificado</span>
                   </label>
                 </div>
-                {#if expandedObs[est.id]}
-                  <div style="margin-top:0.4rem">
-                    <input type="text" placeholder="Observación..." value={est.observacion || ''} oninput={(e) => handleObservacionChange(est.id, (e.target as HTMLInputElement).value)}
-                      style="width:100%;padding:0.4rem 0.6rem;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(0,0,0,0.3);color:#fff;font-size:0.8rem;outline:none;box-sizing:border-box" />
-                  </div>
-                {/if}
+                <input type="text" placeholder="Observación..." value={est.observacion || ''} oninput={(e) => handleObservacionChange(est.id, (e.target as HTMLInputElement).value)}
+                  style="width:100%;padding:0.35rem 0.6rem;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.3);color:#fff;font-size:0.78rem;outline:none;box-sizing:border-box" />
               </div>
             {/each}
           </div>
         {:else}
-          <table class="custom-table" style="width:100%;margin:0;overflow:visible">
+          <table class="custom-table" style="width:100%;margin:0;overflow:visible;table-layout:fixed">
             <thead><tr>
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
               <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10">Estudiante</th>
-              <th style="width:110px;text-align:left;position:sticky;top:0;background:#1e293b;z-index:10">Código</th>
-              <th style="width:160px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10">Asistencia</th>
-              <th style="width:55px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10">Obs</th>
+              <th style="width:310px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10">Asistencia</th>
+              <th style="width:140px;text-align:left;position:sticky;top:0;background:#1e293b;z-index:10">Observación</th>
+              <th style="width:60px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10">% Mes</th>
             </tr></thead>
             <tbody>
               {#each filteredEstudiantes as est, index}
+                {@const pct = monthlyPcts[est.id] ?? -1}
                 <tr>
                   <td><span class="student-number-badge">{index + 1}</span></td>
                   <td style="text-align:left">
@@ -835,26 +856,32 @@
                     </div>
                     <div style="font-size:0.7rem;opacity:0.6;margin-left:30px">{est.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                   </td>
-                  <td style="text-align:left;color:#94a3b8;font-size:0.85rem">{est.codigo || '-'}</td>
                   <td style="text-align:center">
-                    <div style="display:flex;gap:5px;justify-content:center">
-                      <label class="asistencia-opt" class:p={est.estado === 'P'} style="display:flex;align-items:center;justify-content:center"
+                    <div style="display:flex;gap:6px;justify-content:center">
+                      <label class="asistencia-btn" class:p={est.estado === 'P'}
                         onclick={() => handleEstadoChange(est.id, 'P')}>
-                        <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'P'} onchange={() => handleEstadoChange(est.id, 'P')} style="display:none" /><span>P</span>
+                        <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'P'} onchange={() => handleEstadoChange(est.id, 'P')} style="display:none" />Presente
                       </label>
-                      <label class="asistencia-opt" class:a={est.estado === 'A'} style="display:flex;align-items:center;justify-content:center"
+                      <label class="asistencia-btn" class:a={est.estado === 'A'}
                         onclick={() => handleEstadoChange(est.id, 'A')}>
-                        <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'A'} onchange={() => handleEstadoChange(est.id, 'A')} style="display:none" /><span>A</span>
+                        <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'A'} onchange={() => handleEstadoChange(est.id, 'A')} style="display:none" />Ausente
                       </label>
-                      <label class="asistencia-opt" class:j={est.estado === 'J'} style="display:flex;align-items:center;justify-content:center"
+                      <label class="asistencia-btn" class:j={est.estado === 'J'}
                         onclick={() => handleEstadoChange(est.id, 'J')}>
-                        <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'J'} onchange={() => handleEstadoChange(est.id, 'J')} style="display:none" /><span>J</span>
+                        <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'J'} onchange={() => handleEstadoChange(est.id, 'J')} style="display:none" />Justificado
                       </label>
                     </div>
                   </td>
-                  <td style="text-align:center;padding:0.2rem">
-                    <button class="obs-toggle-btn" class:has-obs={!!est.observacion} class:active={!!expandedObs[est.id]}
-                      onclick={() => toggleObs(est)} title="Observaciones">{est.observacion ? '📝' : '💬'}</button>
+                  <td style="text-align:left;padding:0.1rem">
+                    <input type="text" placeholder="Obs..." class="obs-inline"
+                      value={est.observacion || ''} oninput={(e) => handleObservacionChange(est.id, (e.target as HTMLInputElement).value)} />
+                  </td>
+                  <td style="text-align:center;padding:0.1rem">
+                    {#if pct >= 0}
+                      <span class="pct-indicator" style="color:{pct >= 90 ? '#10b981' : pct >= 70 ? '#f59e0b' : '#ef4444'}">{pct}%</span>
+                    {:else}
+                      <span class="pct-indicator" style="color:#64748b">—</span>
+                    {/if}
                   </td>
                 </tr>
               {/each}
