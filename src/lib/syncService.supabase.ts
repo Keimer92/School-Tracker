@@ -991,6 +991,24 @@ export const syncService = {
 
         const { error } = await supabase.from(table).upsert(batchData, { onConflict: 'id' });
         if (error) {
+          const pgError = error as unknown as Record<string, unknown>;
+          if (String(pgError?.code) === '23505') {
+            console.warn(`[Supabase] 23505 en ${table}, remapeando IDs por nombre y reintentando...`);
+            const { data: existing } = await supabase.from(table).select('id,nombre');
+            if (existing && existing.length > 0) {
+              const nombreToId = new Map(existing.map(r => [String(r.nombre), Number(r.id)]));
+              const remapped = batchData.map(item => ({
+                ...item,
+                id: nombreToId.has(String(item.nombre)) ? nombreToId.get(String(item.nombre))! : item.id,
+              }));
+              const { error: retryError } = await supabase.from(table).upsert(remapped, { onConflict: 'id' });
+              if (retryError) {
+                logPgError(`Error en tabla base ${table} (tras remapeo):`, retryError);
+                throw new Error(`Error en ${syncService.getTableName(table)}: ${getSupabaseErrorMessage(retryError)}`);
+              }
+              continue;
+            }
+          }
           logPgError(`Error en tabla base ${table}:`, error);
           throw new Error(`Error en ${syncService.getTableName(table)}: ${getSupabaseErrorMessage(error)}`);
         }

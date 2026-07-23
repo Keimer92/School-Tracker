@@ -635,34 +635,34 @@
     {/if}
 
     {#if !isMobile && reporteFiltrado.length > 0}
-      <div class="asistencia-summary" style="margin:0.5rem 0;padding:0 0.4rem;width:100%;max-width:100%">
-        <div class="summary-card students" onclick={() => handleCardClick('Total', statsTotal)} style="cursor:pointer">
-          <div style="display:flex;align-items:center;justify-content:center;gap:6px;font-weight:bold;font-size:0.95rem">
-            <span><span style="color:#06b6d4">E</span>: {statsTotal.total}</span>
-            <span class="gender-m">M: {statsTotal.m}</span>
-            <span class="gender-f">F: {statsTotal.f}</span>
-          </div>
+      <div class="ireport-grid" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0.4rem;margin:0.5rem 0;padding:0;width:100%;max-width:100%">
+        <div class="summary-card" onclick={() => handleCardClick('Total', statsTotal)}>
+          <div class="card-accent" style="background:#06b6d4"></div>
+          <span class="card-icon">📋</span>
+          <span class="card-value">{statsTotal.total}</span>
+          <span class="card-label">Total</span>
+          <div class="card-gender"><span class="gender-m">M:{statsTotal.m}</span><span class="gender-f">F:{statsTotal.f}</span></div>
         </div>
-        <div class="summary-card p" onclick={() => handleCardClick('Presentes', statsP)} style="cursor:pointer">
-          <div style="display:flex;align-items:center;justify-content:center;gap:6px;font-weight:bold;font-size:0.95rem">
-            <span><span style="color:#10b981">P</span>: {statsP.total}</span>
-            <span class="gender-m">M: {statsP.m}</span>
-            <span class="gender-f">F: {statsP.f}</span>
-          </div>
+        <div class="summary-card" onclick={() => handleCardClick('Presentes', statsP)}>
+          <div class="card-accent" style="background:#10b981"></div>
+          <span class="card-icon">✅</span>
+          <span class="card-value">{statsP.total}</span>
+          <span class="card-label">Presentes</span>
+          <div class="card-gender"><span class="gender-m">M:{statsP.m}</span><span class="gender-f">F:{statsP.f}</span></div>
         </div>
-        <div class="summary-card a" onclick={() => handleCardClick('Ausentes', statsA)} style="cursor:pointer">
-          <div style="display:flex;align-items:center;justify-content:center;gap:6px;font-weight:bold;font-size:0.95rem">
-            <span><span style="color:#ef4444">A</span>: {statsA.total}</span>
-            <span class="gender-m">M: {statsA.m}</span>
-            <span class="gender-f">F: {statsA.f}</span>
-          </div>
+        <div class="summary-card" onclick={() => handleCardClick('Ausentes', statsA)}>
+          <div class="card-accent" style="background:#ef4444"></div>
+          <span class="card-icon">❌</span>
+          <span class="card-value">{statsA.total}</span>
+          <span class="card-label">Ausentes</span>
+          <div class="card-gender"><span class="gender-m">M:{statsA.m}</span><span class="gender-f">F:{statsA.f}</span></div>
         </div>
-        <div class="summary-card j" onclick={() => handleCardClick('Justificados', statsJ)} style="cursor:pointer">
-          <div style="display:flex;align-items:center;justify-content:center;gap:6px;font-weight:bold;font-size:0.95rem">
-            <span><span style="color:#f59e0b">J</span>: {statsJ.total}</span>
-            <span class="gender-m">M: {statsJ.m}</span>
-            <span class="gender-f">F: {statsJ.f}</span>
-          </div>
+        <div class="summary-card" onclick={() => handleCardClick('Justificados', statsJ)}>
+          <div class="card-accent" style="background:#f59e0b"></div>
+          <span class="card-icon">⚠️</span>
+          <span class="card-value">{statsJ.total}</span>
+          <span class="card-label">Justificados</span>
+          <div class="card-gender"><span class="gender-m">M:{statsJ.m}</span><span class="gender-f">F:{statsJ.f}</span></div>
         </div>
       </div>
     {/if}
