@@ -204,12 +204,10 @@
   style="grid-template-columns: {isMobile ? '0px 0px 1fr' : sidebarWidth + 'px 4px 1fr'}; padding-bottom: {isMobile ? 'env(safe-area-inset-bottom, 0px)' : '0'};"
 >
   {#if isMobile}
-    <div class="mobile-header">
-      {#if !drawerOpen}
-        <button class="mobile-menu-btn" onclick={toggleDrawer}><span>☰</span></button>
-      {/if}
-      <span class="mobile-title">School Tracker</span>
-    </div>
+      <div class="mobile-header">
+        <button class="mobile-menu-btn {drawerOpen ? 'hidden' : ''}" onclick={toggleDrawer}><span>☰</span></button>
+        <span class="mobile-title">School Tracker</span>
+      </div>
   {/if}
   <div class="drawer-backdrop {drawerOpen ? '' : 'closed'}" onclick={closeDrawer}></div>
 

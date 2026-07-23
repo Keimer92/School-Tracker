@@ -1252,7 +1252,7 @@ export const syncService = {
         const queryResults = await Promise.all(
           tables.map(table => {
             console.log(`[Sync] Consultando ${table}...`);
-            return supabase.from(table).select('*');
+            return supabase.from(table).select('*', { count: 'exact' }).limit(100000);
           })
         );
 
