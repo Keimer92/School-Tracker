@@ -957,6 +957,7 @@ pub fn run() {
             gd_get_backups,
             gd_delete_backup,
             gd_import_db_from_file,
+            get_dashboard_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

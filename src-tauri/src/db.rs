@@ -4155,6 +4155,132 @@ pub struct ColegioAsignaturaRecord {
     pub asignatura_id: i64,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DashboardStats {
+    pub total_estudiantes: i64,
+    pub total_notas: i64,
+    pub total_asistencias: i64,
+    pub total_grados: i64,
+    pub total_colegios: i64,
+    pub total_secciones: i64,
+    pub total_asignaturas: i64,
+    pub ano_activo: String,
+    pub colegio_activo: String,
+    pub estudiantes_hoy: i64,
+    pub presentes_hoy: i64,
+    pub ausentes_hoy: i64,
+    pub justificados_hoy: i64,
+    pub estudiantes_por_grado: Vec<GradoCount>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GradoCount {
+    pub grado: String,
+    pub count: i64,
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+pub async fn get_dashboard_stats(
+    state: tauri::State<'_, DbState>,
+    fechaHoy: String,
+) -> Result<DashboardStats, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+
+    let total_estudiantes: i64 = conn
+        .query_row("SELECT COUNT(*) FROM estudiante", [], |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+
+    let total_notas: i64 = conn
+        .query_row("SELECT COUNT(*) FROM nota", [], |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+
+    let total_asistencias: i64 = conn
+        .query_row("SELECT COUNT(*) FROM asistencia", [], |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+
+    let total_grados: i64 = conn
+        .query_row("SELECT COUNT(*) FROM grado", [], |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+
+    let total_colegios: i64 = conn
+        .query_row("SELECT COUNT(*) FROM colegio", [], |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+
+    let total_secciones: i64 = conn
+        .query_row("SELECT COUNT(*) FROM seccion", [], |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+
+    let total_asignaturas: i64 = conn
+        .query_row("SELECT COUNT(*) FROM asignatura", [], |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+
+    let ano_activo: String = conn
+        .query_row(
+            "SELECT COALESCE(nombre, '') FROM ano_lectivo WHERE activo = 1 LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or_default();
+
+    let colegio_activo: String = conn
+        .query_row(
+            "SELECT COALESCE(nombre, '') FROM colegio WHERE activo = 1 LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or_default();
+
+    // Attendance counts for today
+    let mut stmt = conn
+        .prepare("SELECT COUNT(*) FROM asistencia WHERE fecha = ?1")
+        .map_err(|e| e.to_string())?;
+    let estudiantes_hoy: i64 = stmt
+        .query_row([&fechaHoy], |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+
+    let mut stmt = conn
+        .prepare("SELECT COALESCE(SUM(CASE WHEN estado = 'P' THEN 1 ELSE 0 END), 0), COALESCE(SUM(CASE WHEN estado = 'A' THEN 1 ELSE 0 END), 0), COALESCE(SUM(CASE WHEN estado = 'J' THEN 1 ELSE 0 END), 0) FROM asistencia WHERE fecha = ?1")
+        .map_err(|e| e.to_string())?;
+    let (presentes_hoy, ausentes_hoy, justificados_hoy): (i64, i64, i64) = stmt
+        .query_row([&fechaHoy], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+        .map_err(|e| e.to_string())?;
+
+    // Students per grade
+    let mut stmt = conn
+        .prepare("SELECT g.nombre, COUNT(e.id) FROM estudiante e JOIN grado g ON e.grado_id = g.id GROUP BY e.grado_id ORDER BY g.nombre")
+        .map_err(|e| e.to_string())?;
+    let estudiantes_por_grado: Vec<GradoCount> = stmt
+        .query_map([], |row| {
+            Ok(GradoCount {
+                grado: row.get(0)?,
+                count: row.get(1)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(DashboardStats {
+        total_estudiantes,
+        total_notas,
+        total_asistencias,
+        total_grados,
+        total_colegios,
+        total_secciones,
+        total_asignaturas,
+        ano_activo,
+        colegio_activo,
+        estudiantes_hoy,
+        presentes_hoy,
+        ausentes_hoy,
+        justificados_hoy,
+        estudiantes_por_grado,
+    })
+}
+
 #[tauri::command]
 pub async fn check_turso_connectivity(turso_url: String) -> Result<bool, String> {
     // Timeout corto: 5 segundos para no bloquear

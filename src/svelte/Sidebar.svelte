@@ -1,5 +1,5 @@
 <script lang="ts">
-  export type Tab = "notas" | "reportes" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "informe" | "cloud";
+  export type Tab = "dashboard" | "notas" | "reportes" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "informe" | "cloud";
 
   export let activeTab: Tab;
   export let drawerOpen: boolean;
@@ -38,6 +38,11 @@
     {/if}
   </div>
   <div class="sidebar-nav">
+    <div class="sidebar-section-header">INICIO</div>
+    <button class="sidebar-button {activeTab === 'dashboard' ? 'active' : ''}" onclick={() => onTabChange('dashboard')} type="button">
+      <span>🏠</span><span>Inicio</span>
+    </button>
+
     <div class="sidebar-section-header">ASISTENCIA</div>
     <button class="sidebar-button {activeTab === 'asistencia' ? 'active' : ''}" onclick={() => onTabChange('asistencia')} type="button">
       <span>📅</span><span>Asistencia</span>

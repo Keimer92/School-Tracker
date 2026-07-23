@@ -15,13 +15,14 @@
   import GlobalesPage from "./svelte/GlobalesPage.svelte";
   import AjustesPage from "./svelte/AjustesPage.svelte";
   import CloudPage from "./svelte/CloudPage.svelte";
+  import DashboardPage from "./svelte/DashboardPage.svelte";
   import Sidebar from "./svelte/Sidebar.svelte";
 
-  type Tab = "notas" | "reportes" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "informe" | "cloud";
+  type Tab = "dashboard" | "notas" | "reportes" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "informe" | "cloud";
 
   let isMobile = $state(false);
-  let activeTab = $state<Tab>("asistencia");
-  let visitedTabs = $state<Set<Tab>>(new Set(["notas", "reportes", "estudiantes", "evaluaciones", "globales", "ajustes", "asistencia", "informe", "cloud"]));
+  let activeTab = $state<Tab>("dashboard");
+  let visitedTabs = $state<Set<Tab>>(new Set(["dashboard", "notas", "reportes", "estudiantes", "evaluaciones", "globales", "ajustes", "asistencia", "informe", "cloud"]));
   let sidebarWidth = $state(Math.min(Math.max(220, Math.floor(window.innerWidth * 0.16)), 260));
   let drawerOpen = $state(false);
   let isResizing = $state(false);
@@ -231,6 +232,9 @@
     ></div>
 
   <main class="main-content">
+    {#if visitedTabs.has('dashboard')}
+      <div style="display: {activeTab === 'dashboard' ? 'block' : 'none'}; width: 100%; height: 100%;"><DashboardPage onNavigate={handleTabChange} /></div>
+    {/if}
     {#if visitedTabs.has('asistencia')}
       <div style="display: {activeTab === 'asistencia' ? 'block' : 'none'}; width: 100%; height: 100%;"><AsistenciaPage /></div>
     {/if}
