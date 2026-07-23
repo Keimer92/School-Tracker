@@ -624,6 +624,13 @@
     .pct-indicator{font-size:0.85rem;font-weight:700;white-space:nowrap}
     .obs-inline{width:100%;padding:0.3rem 0.5rem;border-radius:6px;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.3);color:#fff;font-size:0.75rem;outline:none;box-sizing:border-box;transition:border-color 0.2s}
     .obs-inline:focus{border-color:var(--primary-color)}
+    .semanal-status{display:inline-block;padding:0.25rem 0.4rem;border-radius:6px;font-size:0.7rem;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:#94a3b8;transition:all 0.15s ease;white-space:nowrap;text-align:center;user-select:none;width:100%;box-sizing:border-box}
+    .semanal-status:active{transform:scale(0.95)}
+    .semanal-status.estado-p{background:rgba(16,185,129,0.15);border-color:#10b981;color:#10b981}
+    .semanal-status.estado-a{background:rgba(239,68,68,0.15);border-color:#ef4444;color:#ef4444}
+    .semanal-status.estado-j{background:rgba(245,158,11,0.15);border-color:#f59e0b;color:#f59e0b}
+    .semanal-obs{width:100%;padding:0.2rem 0.35rem;border-radius:4px;border:1px solid rgba(255,255,255,0.06);background:rgba(0,0,0,0.2);color:#fff;font-size:0.6rem;outline:none;box-sizing:border-box;margin-top:2px;transition:border-color 0.2s}
+    .semanal-obs:focus{border-color:var(--primary-color)}
     .pressing-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10000;backdrop-filter:blur(3px);pointer-events:none}
     .mass-marking-spinner{width:60px;height:60px;border:5px solid rgba(255,255,255,0.1);border-left-color:var(--primary-color);border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:1rem;box-shadow:0 0 15px rgba(var(--primary-rgb), 0.5)}
     @keyframes spin{to{transform:rotate(360deg)}}
@@ -969,19 +976,21 @@
                   <span style="font-size:1rem;flex-shrink:0">{est.sexo === 'F' ? '👩' : '👨'}</span>
                   <span style="flex:1;font-weight:bold;font-size:0.85rem;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{est.nombre}</span>
                 </div>
-                <div class="semanal-card-days">
+                <div style="display:flex;gap:0.4rem;overflow-x:auto;padding-bottom:0.2rem">
                   {#each fechasPeriodo as fecha}
                     {@const dayName = new Date(fecha + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short' }).replace('.','')}
                     {@const d = est.dias[fecha]}
                     {@const draftD = draftMulti[est.id]?.[fecha]}
                     {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
-                    <div class="semanal-day-chip">
-                      <span class="semanal-day-label">{dayName}</span>
-                      <div class="semanal-day-btns">
-                        <button class:active-p={effectiveEstado === 'P'} onclick={() => handleEstadoChangeMulti(est.id, fecha, 'P')}>P</button>
-                        <button class:active-a={effectiveEstado === 'A'} onclick={() => handleEstadoChangeMulti(est.id, fecha, 'A')}>A</button>
-                        <button class:active-j={effectiveEstado === 'J'} onclick={() => handleEstadoChangeMulti(est.id, fecha, 'J')}>J</button>
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;min-width:68px">
+                      <span style="font-size:0.55rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.2px;white-space:nowrap">{dayName}</span>
+                      <div class="semanal-status" style="font-size:0.6rem;padding:0.15rem 0.3rem" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
+                        onclick={() => cicloEstado(est.id, fecha)}>
+                        {effectiveEstado === 'P' ? 'Pres' : effectiveEstado === 'A' ? 'Aus' : effectiveEstado === 'J' ? 'Just' : '—'}
                       </div>
+                      <input type="text" placeholder="..." class="semanal-obs" style="width:100%;padding:0.1rem 0.25rem;font-size:0.5rem"
+                        value={getObsMulti(est.id, fecha)}
+                        oninput={(e) => handleObservacionChangeMulti(est.id, fecha, (e.target as HTMLInputElement).value)} />
                     </div>
                   {/each}
                 </div>
@@ -1018,7 +1027,7 @@
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
               <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10">Estudiante</th>
               {#each fechasPeriodo as fecha}
-                <th style="min-width:52px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;font-size:0.7rem;font-weight:600;padding:0.25rem">
+                <th style="min-width:105px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;font-size:0.7rem;font-weight:600;padding:0.3rem 0.15rem">
                   {new Date(fecha + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }).replace('.','').replace(',','')}
                 </th>
               {/each}
@@ -1035,12 +1044,15 @@
                     {@const d = est.dias[fecha]}
                     {@const draftD = draftMulti[est.id]?.[fecha]}
                     {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
-                    <td style="text-align:center;padding:0.15rem">
-                      <div class="ciclo-cell" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
+                    <td style="text-align:center;padding:0.15rem;min-width:105px">
+                      <div class="semanal-status" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
                         onclick={() => cicloEstado(est.id, fecha)}
                         title={effectiveEstado === 'P' ? 'Presente' : effectiveEstado === 'A' ? 'Ausente' : effectiveEstado === 'J' ? 'Justificado' : 'Sin marcar'}>
-                        {effectiveEstado || '-'}
+                        {effectiveEstado === 'P' ? 'Presente' : effectiveEstado === 'A' ? 'Ausente' : effectiveEstado === 'J' ? 'Justificado' : '—'}
                       </div>
+                      <input type="text" placeholder="Obs..." class="semanal-obs"
+                        value={getObsMulti(est.id, fecha)}
+                        oninput={(e) => handleObservacionChangeMulti(est.id, fecha, (e.target as HTMLInputElement).value)} />
                     </td>
                   {/each}
                 </tr>
