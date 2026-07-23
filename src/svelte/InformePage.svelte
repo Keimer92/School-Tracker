@@ -469,17 +469,16 @@
 
 <div class="page-container" style="height: 100%; min-height: 0;">
   <style>
-    .asistencia-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:0.5rem;margin-top:0.5rem}
-    .summary-card{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:0.5rem;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:60px;transition:all 0.2s ease;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
-    .summary-label{font-size:0.65rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.025em;margin-bottom:2px;display:block!important}
-    .summary-value{font-size:1.1rem;font-weight:700;color:#fff;line-height:1}
-    .gender-labels{display:flex;gap:0.4rem;margin-top:4px;font-size:0.6rem;font-weight:600}
+    .summary-card{background:rgba(255,255,255,0.02);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:0.5rem 0.25rem;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:60px;min-width:0;transition:all 0.25s cubic-bezier(0.4,0,0.2,1);user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;position:relative;overflow:hidden;cursor:pointer}
+    .summary-card:hover{transform:translateY(-2px);border-color:rgba(255,255,255,0.12);background:rgba(255,255,255,0.04)}
+    .card-accent{position:absolute;top:0;left:0;right:0;height:3px;border-radius:12px 12px 0 0}
+    .card-icon{font-size:1rem;margin-bottom:2px;line-height:1}
+    .card-value{font-size:1.05rem;font-weight:700;color:#fff;line-height:1.2}
+    .card-value.small{font-size:0.9rem}
+    .card-label{font-size:0.5rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;font-weight:600}
+    .card-gender{display:flex;gap:0.3rem;margin-top:2px;font-size:0.5rem;font-weight:600}
     .gender-f{color:#f472b6}.gender-m{color:#60a5fa}
-    .summary-card.students{border-left:3px solid var(--primary-color)}
-    .summary-card.p{border-left:3px solid #10b981}
-    .summary-card.a{border-left:3px solid #ef4444}
-    .summary-card.j{border-left:3px solid #f59e0b}
-    @media(max-width:600px){.asistencia-summary{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:600px){.ireport-grid{grid-template-columns:repeat(2,1fr)}}
     .asistencia-opt{width:28px!important;height:28px!important;font-size:0.75rem!important;min-width:28px!important;flex-shrink:0!important}
     .asistencia-options{gap:3px!important}
     @media(max-width:480px){.asistencia-opt{width:24px!important;height:24px!important;font-size:0.65rem!important;min-width:24px!important}
