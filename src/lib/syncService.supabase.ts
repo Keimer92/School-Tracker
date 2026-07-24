@@ -1194,12 +1194,39 @@ export const syncService = {
           multiplicador: m.multiplicador,
         }));
 
-        const { error } = await supabase.from('multiplicador_calificacion').upsert(batchMultiplicadores, { 
-          onConflict: 'id' 
-        });
-        if (error) {
-          logPgError('Error en multiplicador_calificacion:', error);
-          throw new Error(`Error en Multiplicadores: ${getSupabaseErrorMessage(error)}`);
+        // Forzar refresco de schema cache de PostgREST antes de upsert
+        try {
+          const connStrings = getSupabaseConnStrings();
+          if (connStrings && connStrings.length > 0) {
+            await invoke('supabase_execute_sql', { connectionStrings: connStrings, sql: "NOTIFY pgrst, 'reload schema';" }).catch(() => {});
+          }
+        } catch (_e) { /* ignorar */ }
+        try { const connStrings = getSupabaseConnStrings(); if (connStrings && connStrings.length > 0) { await invoke('supabase_execute_sql', { connectionStrings: connStrings, sql: "NOTIFY pgrst, 'reload schema';" }).catch(() => {}); } } catch (_e) { /* ignorar */ }
+        supabase.rpc('exec_sql', { sql: "NOTIFY pgrst, 'reload schema';" }).then(() => {}, () => {});
+        // Esperar que el cache se actualice
+        await new Promise((resolve) => globalThis.setTimeout(resolve, 1000));
+
+        // Verificar que la tabla es accesible antes de upsert
+        const probeBefore = await supabase.from('multiplicador_calificacion').select('*', { count: 'exact', head: true });
+        console.log(`[Multiplicador] Probe antes de upsert:`, probeBefore.error ? `❌ ${probeBefore.error.code}` : `✅ accesible`);
+
+        let multiplicadorError: any;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const { error } = await supabase.from('multiplicador_calificacion').upsert(batchMultiplicadores, { 
+            onConflict: 'id' 
+          });
+          if (!error) { multiplicadorError = null; break; }
+          multiplicadorError = error;
+          logPgError(`Error en multiplicador_calificacion (intento ${attempt + 1}):`, error);
+          // Reintentar con schema refresh
+          supabase.rpc('exec_sql', { sql: "NOTIFY pgrst, 'reload schema';" }).then(() => {}, () => {});
+          await new Promise((resolve) => globalThis.setTimeout(resolve, 1500));
+          // Verificar si la tabla es accesible ahora
+          const probeRetry = await supabase.from('multiplicador_calificacion').select('*', { count: 'exact', head: true });
+          console.log(`[Multiplicador] Probe después de reintento ${attempt + 1}:`, probeRetry.error ? `❌ ${probeRetry.error.code}` : `✅ accesible`);
+        }
+        if (multiplicadorError) {
+          throw new Error(`Error en Multiplicadores: ${getSupabaseErrorMessage(multiplicadorError)}`);
         }
       }
 
