@@ -308,7 +308,9 @@
               <button onclick={() => onSubjectsClick(item)} title="Configurar Asignaturas" style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(245,158,11,0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(245,158,11,0.1)'}>📚</button>
             {/if}
             <button onclick={() => handleEdit(item)} title="Editar" style="background:rgba(var(--primary-rgb),0.1);border:1px solid rgba(var(--primary-rgb),0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.1)'}>✎</button>
-            <button onclick={() => handleDelete(item)} title="Eliminar" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}>🗑</button>
+            {#if config.title !== "Corte Evaluativo"}
+              <button onclick={() => handleDelete(item)} title="Eliminar" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}>🗑</button>
+            {/if}
           </div>
         </div>
       {/each}
