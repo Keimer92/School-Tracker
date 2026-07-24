@@ -947,7 +947,7 @@ export const syncService = {
   },
 
   syncAll: async () => {
-    syncManager.wrapSync((async () => {
+    await syncManager.wrapSync((async () => {
       if (!syncService._schemaEnsured) {
         const schemaResult = await syncService.ensureSchema();
         if (!schemaResult.ok) {
