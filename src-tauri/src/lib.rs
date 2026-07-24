@@ -959,6 +959,11 @@ pub fn run() {
             gd_import_db_from_file,
             get_dashboard_stats,
             get_monthly_attendance_pct,
+            get_seed_options,
+            seed_selected_data,
+            is_app_initialized,
+            set_app_initialized,
+            factory_reset,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

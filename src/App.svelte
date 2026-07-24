@@ -17,9 +17,11 @@
   import CloudPage from "./svelte/CloudPage.svelte";
   import DashboardPage from "./svelte/DashboardPage.svelte";
   import Sidebar from "./svelte/Sidebar.svelte";
+  import WelcomePage from "./svelte/WelcomePage.svelte";
 
   type Tab = "dashboard" | "notas" | "reportes" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "informe" | "cloud";
 
+  let initialized = $state(false);
   let isMobile = $state(false);
   let activeTab = $state<Tab>("dashboard");
   let visitedTabs = $state<Set<Tab>>(new Set(["dashboard", "notas", "reportes", "estudiantes", "evaluaciones", "globales", "ajustes", "asistencia", "informe", "cloud"]));
@@ -122,69 +124,89 @@
     }
   }
 
-  onMount(() => {
+  onMount(async () => {
     window.addEventListener('keydown', handleKeyDown);
     onDestroy(() => window.removeEventListener('keydown', handleKeyDown));
     checkMobile();
-    const saved = localStorage.getItem("active-tab") as Tab | null;
-    if (saved) activeTab = saved;
-    const w = localStorage.getItem("sidebar-width");
-    if (w) sidebarWidth = parseInt(w);
-    const visits = localStorage.getItem("visited-tabs");
-    if (visits) { try { visitedTabs = new Set(JSON.parse(visits)); } catch {} }
-    const savedMode = localStorage.getItem("app-theme") || "sistema";
-    themeMode = savedMode;
-    applyTheme(savedMode);
 
-    // Listen for system theme changes
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    const systemHandler = () => {
-      if (themeMode === "sistema") {
-        applyTheme("sistema");
-      }
-    };
-    mediaQuery.addEventListener("change", systemHandler);
-    unlisten.push(() => mediaQuery.removeEventListener("change", systemHandler));
+    // Check if app has been initialized (welcomed)
+    const init = await invoke('is_app_initialized');
+    initialized = init;
 
-    // Safe areas
-    if (isMobile) {
-      applySafeAreas();
-      if (window.visualViewport) {
-        window.visualViewport.addEventListener("resize", applySafeAreas);
-        window.addEventListener("resize", applySafeAreas);
+    if (init) {
+      // Existing init logic only runs if already initialized
+      const saved = localStorage.getItem("active-tab") as Tab | null;
+      if (saved) activeTab = saved;
+      const w = localStorage.getItem("sidebar-width");
+      if (w) sidebarWidth = parseInt(w);
+      const visits = localStorage.getItem("visited-tabs");
+      if (visits) { try { visitedTabs = new Set(JSON.parse(visits)); } catch {} }
+      const savedMode = localStorage.getItem("app-theme") || "sistema";
+      themeMode = savedMode;
+      applyTheme(savedMode);
+
+      // Listen for system theme changes
+      const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+      const systemHandler = () => {
+        if (themeMode === "sistema") {
+          applyTheme("sistema");
+        }
+      };
+      mediaQuery.addEventListener("change", systemHandler);
+      unlisten.push(() => mediaQuery.removeEventListener("change", systemHandler));
+
+      // Safe areas
+      if (isMobile) {
+        applySafeAreas();
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener("resize", applySafeAreas);
+          window.addEventListener("resize", applySafeAreas);
+        }
       }
+
+      // Window resize for mobile detection
+      window.addEventListener("resize", checkMobile);
+      window.addEventListener("mousemove", onResize);
+      window.addEventListener("mouseup", stopResize);
+
+      // Toast listener
+      listen("show-toast", (event: any) => {
+        showToast(event.payload.message, event.payload.type);
+      }).then(u => unlisten.push(u));
+
+      // Turso init
+      const client = restoreTursoClient();
+      if (client) {
+        markAllDirty();
+        syncService.ensurePeriodicSync();
+        client.execute("SELECT COUNT(*) as count FROM ano_lectivo")
+          .then((result: any) => {
+            const count = result.rows[0]?.count as number || 0;
+            if (count > 0) syncService.pullAllSilent();
+            else invoke("seed_defaults_now");
+          })
+          .catch(() => invoke("seed_defaults_now"));
+      } else {
+        invoke("seed_defaults_now");
+      }
+
+      // Google Drive scheduler
+      setTimeout(() => runAutomaticGoogleDriveBackupIfNeeded(), 10000);
+      const interval = setInterval(() => runAutomaticGoogleDriveBackupIfNeeded(), 300000);
+      unlisten.push(() => clearInterval(interval));
     }
 
-    // Window resize for mobile detection
-    window.addEventListener("resize", checkMobile);
-    window.addEventListener("mousemove", onResize);
-    window.addEventListener("mouseup", stopResize);
-
-    // Toast listener
-    listen("show-toast", (event: any) => {
-      showToast(event.payload.message, event.payload.type);
-    }).then(u => unlisten.push(u));
-
-    // Turso init
-    const client = restoreTursoClient();
-    if (client) {
-      markAllDirty();
-      syncService.ensurePeriodicSync();
-      client.execute("SELECT COUNT(*) as count FROM ano_lectivo")
-        .then((result: any) => {
-          const count = result.rows[0]?.count as number || 0;
-          if (count > 0) syncService.pullAllSilent();
-          else invoke("seed_defaults_now");
-        })
-        .catch(() => invoke("seed_defaults_now"));
-    } else {
-      invoke("seed_defaults_now");
-    }
-
-    // Google Drive scheduler
-    setTimeout(() => runAutomaticGoogleDriveBackupIfNeeded(), 10000);
-    const interval = setInterval(() => runAutomaticGoogleDriveBackupIfNeeded(), 300000);
-    unlisten.push(() => clearInterval(interval));
+    // Listen for welcome complete event (from WelcomePage)
+    const welcomeListener = listen('welcome-complete', async () => {
+      initialized = true;
+      // Set up sync after initialization
+      const client = restoreTursoClient();
+      if (client) {
+        markAllDirty();
+        syncService.ensurePeriodicSync();
+      }
+    });
+    welcomeListener.then(u => unlisten.push(u));
   });
 
   onDestroy(() => {
@@ -199,6 +221,7 @@
   });
 </script>
 
+{#if initialized}
 <div
   class="app-layout"
   style="grid-template-columns: {isMobile ? '0px 0px 1fr' : sidebarWidth + 'px 4px 1fr'}; padding-bottom: {isMobile ? 'env(safe-area-inset-bottom, 0px)' : '0'};"
@@ -266,3 +289,6 @@
     <div class="toast-notification {toast.type}">{toast.message}</div>
   {/if}
 </div>
+{:else}
+  <WelcomePage />
+{/if}

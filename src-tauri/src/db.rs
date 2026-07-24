@@ -103,6 +103,10 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             nombre TEXT NOT NULL UNIQUE,
             cualitativo INTEGER DEFAULT 0
         );
+        CREATE TABLE IF NOT EXISTS app_meta (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
         "#,
     )
     .map_err(|e| format!("Error creando tablas de categorías: {}", e))?;
@@ -4355,4 +4359,268 @@ pub async fn check_turso_connectivity(turso_url: String) -> Result<bool, String>
             Ok(false)
         }
     }
+}
+
+// ============================================================================
+// Estructuras para el wizard de inicialización
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SeedOptionItem {
+    pub nombre: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SeedOptionCualitativo {
+    pub nombre: String,
+    pub cualitativo: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SeedOptionConOrden {
+    pub nombre: String,
+    pub orden: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SeedOptions {
+    pub anos: Vec<SeedOptionItem>,
+    pub colegios: Vec<SeedOptionConOrden>,
+    pub grados: Vec<SeedOptionCualitativo>,
+    pub secciones: Vec<SeedOptionItem>,
+    pub asignaturas: Vec<SeedOptionCualitativo>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SeedSelections {
+    pub anos: Vec<String>,
+    pub colegios: Vec<String>,
+    pub grados: Vec<String>,
+    pub secciones: Vec<String>,
+    pub asignaturas: Vec<String>,
+}
+
+#[tauri::command]
+pub async fn get_seed_options() -> Result<SeedOptions, String> {
+    Ok(SeedOptions {
+        anos: vec![
+            SeedOptionItem { nombre: "2026".into() },
+            SeedOptionItem { nombre: "2027".into() },
+            SeedOptionItem { nombre: "2028".into() },
+        ],
+        colegios: vec![
+            SeedOptionConOrden { nombre: "Candelario Sotelo".into(), orden: 1 },
+            SeedOptionConOrden { nombre: "Manuel Ignacio Pereira Quintana".into(), orden: 2 },
+        ],
+        grados: vec![
+            SeedOptionCualitativo { nombre: "1er grado".into(), cualitativo: true },
+            SeedOptionCualitativo { nombre: "2do grado".into(), cualitativo: true },
+            SeedOptionCualitativo { nombre: "3er grado".into(), cualitativo: false },
+            SeedOptionCualitativo { nombre: "4to grado".into(), cualitativo: false },
+            SeedOptionCualitativo { nombre: "5to grado".into(), cualitativo: false },
+            SeedOptionCualitativo { nombre: "6to grado".into(), cualitativo: false },
+            SeedOptionCualitativo { nombre: "7mo grado".into(), cualitativo: false },
+            SeedOptionCualitativo { nombre: "8vo grado".into(), cualitativo: false },
+            SeedOptionCualitativo { nombre: "9no grado".into(), cualitativo: false },
+            SeedOptionCualitativo { nombre: "10mo grado".into(), cualitativo: false },
+            SeedOptionCualitativo { nombre: "11mo grado".into(), cualitativo: false },
+        ],
+        secciones: vec![
+            SeedOptionItem { nombre: "A".into() },
+            SeedOptionItem { nombre: "B".into() },
+            SeedOptionItem { nombre: "C".into() },
+            SeedOptionItem { nombre: "D".into() },
+        ],
+        asignaturas: vec![
+            SeedOptionCualitativo { nombre: "Ingles".into(), cualitativo: false },
+            SeedOptionCualitativo { nombre: "Matematicas".into(), cualitativo: false },
+            SeedOptionCualitativo { nombre: "Fisica".into(), cualitativo: false },
+            SeedOptionCualitativo { nombre: "Biologia".into(), cualitativo: false },
+            SeedOptionCualitativo { nombre: "Ciencias Naturales".into(), cualitativo: false },
+            SeedOptionCualitativo { nombre: "Ciencias Sociales".into(), cualitativo: false },
+            SeedOptionCualitativo { nombre: "TAC".into(), cualitativo: true },
+            SeedOptionCualitativo { nombre: "AEP".into(), cualitativo: true },
+            SeedOptionCualitativo { nombre: "Convivencia & Civismo".into(), cualitativo: true },
+            SeedOptionCualitativo { nombre: "Creciendo en Valores".into(), cualitativo: true },
+            SeedOptionCualitativo { nombre: "Derecho & Dignidad de la Mujer".into(), cualitativo: true },
+            SeedOptionCualitativo { nombre: "Educación Física".into(), cualitativo: true },
+        ],
+    })
+}
+
+#[tauri::command]
+pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: SeedSelections) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+
+    conn.execute("PRAGMA foreign_keys = OFF", []).map_err(|e| e.to_string())?;
+
+    // 1. Años lectivos seleccionados
+    for nombre in &selections.anos {
+        conn.execute(
+            "INSERT OR IGNORE INTO ano_lectivo (nombre) VALUES (?)",
+            [nombre],
+        ).map_err(|e| e.to_string())?;
+    }
+
+    // 2. Cortes evaluativos (siempre todos)
+    for nombre in &["1er corte evaluativo", "2do corte evaluativo", "3er corte evaluativo", "4to corte evaluativo"] {
+        conn.execute(
+            "INSERT OR IGNORE INTO corte_evaluativo (nombre) VALUES (?)",
+            [nombre],
+        ).map_err(|e| e.to_string())?;
+    }
+
+    // 3. Colegios seleccionados
+    for nombre in &selections.colegios {
+        let orden = if nombre == "Candelario Sotelo" { 1 } else { 2 };
+        conn.execute(
+            "INSERT OR IGNORE INTO colegio (nombre, orden) VALUES (?, ?)",
+            rusqlite::params![nombre, orden],
+        ).map_err(|e| e.to_string())?;
+    }
+
+    // 4. Asignaturas seleccionadas
+    for nombre in &selections.asignaturas {
+        let cualitativo = matches!(nombre.as_str(), "TAC" | "AEP" | "Convivencia & Civismo" | "Creciendo en Valores" | "Derecho & Dignidad de la Mujer" | "Educación Física");
+        conn.execute(
+            "INSERT OR IGNORE INTO asignatura (nombre, cualitativo) VALUES (?, ?)",
+            rusqlite::params![nombre, if cualitativo { 1 } else { 0 }],
+        ).map_err(|e| e.to_string())?;
+    }
+
+    // 5. Grados seleccionados
+    for nombre in &selections.grados {
+        let cualitativo = matches!(nombre.as_str(), "1er grado" | "2do grado");
+        conn.execute(
+            "INSERT OR IGNORE INTO grado (nombre, cualitativo) VALUES (?, ?)",
+            rusqlite::params![nombre, if cualitativo { 1 } else { 0 }],
+        ).map_err(|e| e.to_string())?;
+    }
+
+    // 6. Secciones seleccionadas
+    for nombre in &selections.secciones {
+        conn.execute(
+            "INSERT OR IGNORE INTO seccion (nombre) VALUES (?)",
+            [nombre],
+        ).map_err(|e| e.to_string())?;
+    }
+
+    // 7. Producto cartesiano grado × asignatura (solo para grados y asignaturas seleccionados)
+    if !selections.grados.is_empty() && !selections.asignaturas.is_empty() {
+        let placeholders_g = selections.grados.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let placeholders_a = selections.asignaturas.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let sql = format!(
+            "INSERT OR IGNORE INTO grado_asignatura (grado_id, asignatura_id)
+             SELECT g.id, a.id FROM grado g
+             CROSS JOIN asignatura a
+             WHERE g.nombre IN ({}) AND a.nombre IN ({})",
+            placeholders_g, placeholders_a
+        );
+        let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+        for n in &selections.grados { params.push(Box::new(n.clone())); }
+        for n in &selections.asignaturas { params.push(Box::new(n.clone())); }
+        let params_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+        conn.execute(&sql, params_refs.as_slice()).map_err(|e| e.to_string())?;
+    }
+
+    // 8. Producto cartesiano colegio × asignatura
+    if !selections.colegios.is_empty() && !selections.asignaturas.is_empty() {
+        let placeholders_c = selections.colegios.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let placeholders_a = selections.asignaturas.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let sql = format!(
+            "INSERT OR IGNORE INTO colegio_asignatura (colegio_id, asignatura_id)
+             SELECT c.id, a.id FROM colegio c
+             CROSS JOIN asignatura a
+             WHERE c.nombre IN ({}) AND a.nombre IN ({})",
+            placeholders_c, placeholders_a
+        );
+        let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+        for n in &selections.colegios { params.push(Box::new(n.clone())); }
+        for n in &selections.asignaturas { params.push(Box::new(n.clone())); }
+        let params_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+        conn.execute(&sql, params_refs.as_slice()).map_err(|e| e.to_string())?;
+    }
+
+    // 9. Configuración de calificaciones (siempre)
+    let configs = vec![
+        ("AA", "Aprendizaje Avanzado", "#22c55e", 90),
+        ("AS", "Aprendizaje Satisfactorio", "#3b82f6", 70),
+        ("AF", "Aprendizaje Fundamental", "#eab308", 50),
+        ("AI", "Aprendizaje Inicial", "#ef4444", 0),
+    ];
+    for (id, nombre, color, minimo) in configs {
+        conn.execute(
+            "INSERT OR IGNORE INTO configuracion_calificacion (id, nombre, color, minimo) VALUES (?, ?, ?, ?)",
+            rusqlite::params![id, nombre, color, minimo],
+        ).map_err(|e| e.to_string())?;
+    }
+
+    conn.execute("PRAGMA foreign_keys = ON", []).map_err(|e| e.to_string())?;
+
+    println!("✅ [DB] Datos seleccionados insertados correctamente");
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn is_app_initialized(state: tauri::State<'_, DbState>) -> Result<bool, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let result: Result<String, _> = conn.query_row(
+        "SELECT value FROM app_meta WHERE key = 'initialized'",
+        [],
+        |row| row.get(0),
+    );
+    match result {
+        Ok(v) => Ok(v == "true"),
+        Err(_) => Ok(false),
+    }
+}
+
+#[tauri::command]
+pub async fn set_app_initialized(state: tauri::State<'_, DbState>) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT OR REPLACE INTO app_meta (key, value) VALUES ('initialized', 'true')",
+        [],
+    ).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn factory_reset(state: tauri::State<'_, DbState>) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+
+    let tables = [
+        "asistencia", "nota", "criterio", "indicador",
+        "grado_asignatura", "colegio_asignatura", "estudiante",
+        "seccion", "grado", "asignatura", "colegio_dias_asistencia",
+        "colegio", "corte_evaluativo", "ano_lectivo",
+        "configuracion_calificacion",
+        "sync_pending_deletions", "sync_pending_deletions_asistencia",
+        "sync_pending_deletions_nota", "sync_pending_deletions_grado_asignatura",
+        "sync_pending_deletions_colegio_asignatura",
+    ];
+
+    conn.execute("PRAGMA foreign_keys = OFF", []).map_err(|e| e.to_string())?;
+
+    for table in tables.iter() {
+        conn.execute(&format!("DROP TABLE IF EXISTS {}", table), []).map_err(|e| e.to_string())?;
+    }
+
+    // Recrear tablas vacías
+    drop(conn);
+    let conn2 = state.conn.lock().map_err(|e| e.to_string())?;
+    init_database(&conn2)?;
+
+    // Limpiar flag de inicialización
+    conn2.execute("DELETE FROM app_meta WHERE key = 'initialized'", []).map_err(|e| e.to_string())?;
+
+    conn2.execute("PRAGMA foreign_keys = ON", []).map_err(|e| e.to_string())?;
+
+    println!("✅ [DB] Factory reset completado");
+    Ok(())
 }
