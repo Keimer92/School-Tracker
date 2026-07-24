@@ -137,6 +137,7 @@ export const tursoSyncService = {
         `CREATE TABLE IF NOT EXISTS criterio (id INTEGER PRIMARY KEY AUTOINCREMENT, indicador_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', puntaje_maximo INTEGER NOT NULL)`,
         `CREATE TABLE IF NOT EXISTS estudiante (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, codigo TEXT NOT NULL UNIQUE, sexo TEXT NOT NULL, ano_lectivo_id INTEGER NOT NULL, grado_id INTEGER NOT NULL, seccion_id INTEGER NOT NULL, colegio_id INTEGER NOT NULL, telefono TEXT, direccion TEXT, email TEXT, foto TEXT)`,
         `CREATE TABLE IF NOT EXISTS configuracion_calificacion (id TEXT PRIMARY KEY, nombre TEXT NOT NULL, color TEXT NOT NULL, minimo INTEGER NOT NULL)`,
+        `CREATE TABLE IF NOT EXISTS multiplicador_calificacion (id TEXT PRIMARY KEY, multiplicador REAL NOT NULL DEFAULT 1.0)`,
         `CREATE TABLE IF NOT EXISTS colegio_dias_asistencia (colegio_id INTEGER PRIMARY KEY, lunes INTEGER DEFAULT 1, martes INTEGER DEFAULT 1, miercoles INTEGER DEFAULT 1, jueves INTEGER DEFAULT 1, viernes INTEGER DEFAULT 1, sabado INTEGER DEFAULT 1, domingo INTEGER DEFAULT 1)`,
         `CREATE TABLE IF NOT EXISTS asistencia (id INTEGER PRIMARY KEY AUTOINCREMENT, estudiante_id INTEGER NOT NULL, fecha TEXT NOT NULL, estado TEXT NOT NULL, observacion TEXT, UNIQUE(estudiante_id, fecha))`,
         `CREATE TABLE IF NOT EXISTS nota (estudiante_id INTEGER NOT NULL, criterio_id INTEGER NOT NULL, valor REAL NOT NULL, corte_evaluativo_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, PRIMARY KEY (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id))`,
@@ -175,6 +176,7 @@ export const tursoSyncService = {
         seccion: { cols: 'id,nombre,cualitativo', data: await safeGet('get_secciones'), map: (r) => [r.id, r.nombre, r.cualitativo ? 1 : 0] },
         estudiante: { cols: 'id,nombre,codigo,sexo,ano_lectivo_id,grado_id,seccion_id,colegio_id,telefono,direccion,email,foto', data: await safeGet('get_students'), map: (r) => [r.id, r.nombre, r.codigo, r.sexo, r.anoLectivoId, r.gradoId, r.seccionId, r.colegioId, r.telefono ?? null, r.direccion ?? null, r.email ?? null, r.foto ?? null] },
         configuracion_calificacion: { cols: 'id,nombre,color,minimo', data: await safeGet('get_grade_configs'), map: (r) => [r.id, r.nombre, r.color, r.minimo] },
+        multiplicador_calificacion: { cols: 'id,multiplicador', data: await safeGet('get_multiplicadores'), map: (r) => [r.id, r.multiplicador] },
         indicador: { cols: 'id,grado_id,asignatura_id,corte_evaluativo_id,orden,descripcion,activo', data: await safeGet('get_indicadores_all'), map: (r) => [r.id, r.gradoId, r.asignaturaId, r.corteEvaluativoId, r.orden, r.descripcion ?? '', r.activo ? 1 : 0] },
         criterio: { cols: 'id,indicador_id,orden,descripcion,puntaje_maximo', data: await safeGet('get_criterios_all'), map: (r) => [r.id, r.indicadorId, r.orden, r.descripcion ?? '', r.puntajeMaximo] },
         nota: { cols: 'estudiante_id,criterio_id,valor,corte_evaluativo_id,asignatura_id', data: await safeGet('get_notas_all'), map: (r) => [r.estudianteId, r.criterioId, r.valor, r.corteEvaluativoId ?? 0, r.asignaturaId ?? 0] },
@@ -186,6 +188,7 @@ export const tursoSyncService = {
       const tableOrder = [
         'ano_lectivo', 'corte_evaluativo', 'colegio', 'asignatura', 'grado', 'seccion',
         'indicador', 'criterio', 'estudiante', 'configuracion_calificacion',
+        'multiplicador_calificacion',
         'colegio_dias_asistencia', 'asistencia', 'nota',
         'grado_asignatura', 'colegio_asignatura',
       ];
@@ -392,6 +395,9 @@ export const tursoSyncService = {
         })),
         gradeConfigs: (await q('SELECT id,nombre,color,minimo FROM configuracion_calificacion')).map((r: any) => ({
           id: r.id, nombre: r.nombre, color: r.color, minimo: r.minimo,
+        })),
+        multiplicadores: (await q('SELECT id,multiplicador FROM multiplicador_calificacion')).map((r: any) => ({
+          id: r.id, multiplicador: r.multiplicador,
         })),
         gradoAsignatura: (await q('SELECT grado_id,asignatura_id FROM grado_asignatura')).map((r: any) => [r.grado_id, r.asignatura_id]),
         colegioAsignatura: (await q('SELECT colegio_id,asignatura_id FROM colegio_asignatura')).map((r: any) => [r.colegio_id, r.asignatura_id]),

@@ -4,6 +4,7 @@ const ALL_TABLES = [
   'ano_lectivo', 'corte_evaluativo', 'colegio', 'asignatura', 'grado',
   'seccion', 'grado_asignatura', 'colegio_asignatura', 'indicador',
   'criterio', 'estudiante', 'configuracion_calificacion',
+  'multiplicador_calificacion',
   'colegio_dias_asistencia', 'asistencia', 'nota',
 ];
 

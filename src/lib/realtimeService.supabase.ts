@@ -32,6 +32,7 @@ export const realtimeService = {
       'nota', 
       'asistencia',
       'configuracion_calificacion',
+      'multiplicador_calificacion',
       'colegio_dias_asistencia'
     ];
 
@@ -134,7 +135,7 @@ async function applyChangeToLocal(table: string, record: any) {
   const pullData: any = {
     anos: [], cortes: [], colegios: [], asignaturas: [], grados: [], secciones: [],
     estudiantes: [], indicadores: [], criterios: [], notas: [], asistencia: [],
-    gradeConfigs: [], gradoAsignatura: [], colegioAsignatura: [], colegioDiasAsistencia: [],
+    gradeConfigs: [], multiplicadores: [], gradoAsignatura: [], colegioAsignatura: [], colegioDiasAsistencia: [],
     isPartial: true
   };
 
@@ -179,6 +180,10 @@ async function applyChangeToLocal(table: string, record: any) {
     id: record.id,
     color: record.color,
     minimo: record.minimo
+  });
+  else if (table === 'multiplicador_calificacion') pullData.multiplicadores.push({
+    id: record.id,
+    multiplicador: record.multiplicador,
   });
   else if (table === 'colegio_dias_asistencia') pullData.colegioDiasAsistencia.push({
     colegioId: record.colegio_id,

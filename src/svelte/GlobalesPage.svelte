@@ -10,6 +10,7 @@
   interface CategoryConfig { title: string; table: string; endpoints: { get: string; add: string; update: string; delete: string; setActive?: string; updateOrder?: string; }; }
   interface ColegioDiasAsistencia { colegioId: number; lunes: boolean; martes: boolean; miercoles: boolean; jueves: boolean; viernes: boolean; sabado: boolean; domingo: boolean; }
   interface GradeConfig { id: string; nombre: string; color: string; minimo: number; }
+  interface MultiplicadorItem { id: string; multiplicador: number; }
 
   const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff200","#22b14c","#00a2e8","#3f48cc","#a349a4","#ffffff","#c3c3c3","#b97a57","#ffaec9","#ffc90e","#efe4b0","#b5e61d","#99d9ea","#7092be","#c8bfe7","#C00000","#FF0000","#FFC000","#FFFF00","#92D050","#00B050","#00B0F0","#0070C0","#002060","#7030A0"];
 
@@ -27,6 +28,7 @@
   const TAB_ICONS: Record<string, string> = { Notas: "⭐", "Año Lectivo": "📅", "Corte Evaluativo": "✂️", Colegio: "🏫", Asignatura: "📚", Grado: "📊", Sección: "👥" };
 
   let gradeConfigs: GradeConfig[] = $state([]);
+  let multiplicadores: MultiplicadorItem[] = $state([]);
   let isMobile = $state(false);
   let selectedTab = $state(TAB_NAMES[1]);
   let selectedCategory: CategoryConfig | null = $state(null);
@@ -173,12 +175,27 @@
     }
   }
 
+  async function handleUpdateMultiplicador(id: string, multiplicador: number) {
+    const clamped = Math.max(0, Math.min(1, multiplicador));
+    try {
+      await invoke("update_multiplicador", { id, multiplicador: clamped });
+      multiplicadores = multiplicadores.map(m => m.id === id ? { ...m, multiplicador: clamped } : m);
+      onDataChange('multiplicador_calificacion');
+      await emit("grade-configs-updated");
+      await emit("show-toast", { message: `✅ Multiplicador ${id} actualizado`, type: "success" });
+    } catch (error) {
+      console.error("Error updating multiplicador:", error);
+      await emit("show-toast", { message: "❌ Error al actualizar el multiplicador: " + error, type: "error" });
+    }
+  }
+
   onMount(() => {
     const mql = window.matchMedia("(max-width: 768px)");
     isMobile = mql.matches;
     const handler = (e: MediaQueryListEvent) => { isMobile = e.matches; };
     mql.addEventListener("change", handler);
     invoke<GradeConfig[]>("get_grade_configs").then(d => { gradeConfigs = d.sort((a, b) => GRADE_ORDER.indexOf(a.id) - GRADE_ORDER.indexOf(b.id)); }).catch(e => console.error("Error fetching grade configs:", e));
+    invoke<MultiplicadorItem[]>("get_multiplicadores").then(d => { multiplicadores = d; }).catch(e => console.error("Error fetching multiplicadores:", e));
     return () => mql.removeEventListener("change", handler);
   });
 </script>
@@ -291,6 +308,33 @@
             </div>
           </div>
         </div>
+        <!-- Multiplicadores de Criterios (Mobile) -->
+        <div class="category-card" style="margin-top: 1rem;">
+          <div class="category-header"><h3>📊 Multiplicadores de Criterios</h3></div>
+          <div style="padding: 1.25rem;">
+            <p style="margin:0 0 1rem 0;color:#94a3b8;font-size:0.8rem;">Factor de ponderación para cada calificación cualitativa por criterio.</p>
+            <div style="display: grid; grid-template-columns: 1fr; gap: 0.85rem;">
+              {#each multiplicadores as m (m.id)}
+                {@const gc = gradeConfigs.find(g => g.id === m.id)}
+                <div style="position:relative;background:rgba(255,255,255,0.03);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:14px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;">
+                  <div style="position:absolute;top:0;left:0;width:3px;height:100%;background:{gc?.color || '#6b7280'};border-radius:0 2px 2px 0;"></div>
+                  <div style="padding:1rem 1rem 0.85rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+                    <div style="width:10px;height:10px;border-radius:50%;background:{gc?.color || '#6b7280'};box-shadow:0 0 6px {gc?.color || '#6b7280'}66;flex-shrink:0;"></div>
+                    <div style="display:flex;flex-direction:column;gap:0.2rem;flex:1;min-width:0;">
+                      <span style="font-size:0.8rem;font-weight:700;color:#f1f5f9;">{m.id}</span>
+                      <span style="font-size:0.6rem;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Ponderación por criterio</span>
+                    </div>
+                    <input type="number" value={m.multiplicador} step="0.01" min="0" max="1"
+                      oninput={(e) => { const v = parseFloat((e.target as HTMLInputElement).value) || 0; multiplicadores = multiplicadores.map(x => x.id === m.id ? { ...x, multiplicador: Math.max(0, Math.min(1, v)) } : x); }}
+                      onblur={(e) => { const v = parseFloat((e.target as HTMLInputElement).value) || 0; if (v !== m.multiplicador) handleUpdateMultiplicador(m.id, v); }}
+                      onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                      style="width:64px;padding:0.3rem 0.35rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:7px;color:#e2e8f0;font-size:0.85rem;font-weight:600;text-align:center;outline:none;flex-shrink:0;" />
+                  </div>
+                </div>
+              {/each}
+            </div>
+          </div>
+        </div>
       </div>
     {/if}
   {:else}
@@ -363,6 +407,36 @@
                           onmouseleave={(e) => e.currentTarget.style.transform = grade.color.toLowerCase() === preset.toLowerCase() ? 'scale(1.2)' : 'scale(1)'}></button>
                       {/each}
                     </div>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          </div>
+        </div>
+        <!-- Multiplicadores de Criterios (Desktop) -->
+        <div class="category-card" style="margin-top: 1.5rem;">
+          <div class="category-header"><h3>📊 Multiplicadores de Criterios</h3></div>
+          <div style="padding: 1.5rem 2rem;">
+            <p style="margin:0 0 1.5rem 0;color:#94a3b8;font-size:0.85rem;">Define el factor de ponderación que cada calificación cualitativa aplica por criterio.</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 1rem;">
+              {#each multiplicadores as m (m.id)}
+                {@const gc = gradeConfigs.find(g => g.id === m.id)}
+                <div style="position:relative;background:rgba(255,255,255,0.03);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:16px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;transition:all 0.25s ease"
+                  onmouseenter={(e) => { e.currentTarget.style.borderColor = (gc?.color || '#6b7280') + '44'; e.currentTarget.style.boxShadow = `0 8px 32px ${gc?.color || '#6b7280'}22`; }}
+                  onmouseleave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.boxShadow = 'none'; }}>
+                  <div style="position:absolute;top:0;left:0;width:4px;height:100%;background:{gc?.color || '#6b7280'};border-radius:0 2px 2px 0;"></div>
+                  <div style="padding:1.25rem 1.25rem 1rem 1.5rem;display:flex;align-items:center;gap:1rem;">
+                    <div style="width:12px;height:12px;border-radius:50%;background:{gc?.color || '#6b7280'};box-shadow:0 0 8px {gc?.color || '#6b7280'}66;flex-shrink:0;"></div>
+                    <div style="display:flex;flex-direction:column;gap:0.25rem;flex:1;min-width:0;">
+                      <span style="font-size:1rem;font-weight:700;color:#f1f5f9;">{m.id}</span>
+                      <span style="font-size:0.65rem;color:#64748b;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;">Ponderación por criterio</span>
+                    </div>
+                    <input type="number" value={m.multiplicador} step="0.01" min="0" max="1"
+                      oninput={(e) => { const v = parseFloat((e.target as HTMLInputElement).value) || 0; multiplicadores = multiplicadores.map(x => x.id === m.id ? { ...x, multiplicador: Math.max(0, Math.min(1, v)) } : x); }}
+                      onblur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; const v = parseFloat((e.target as HTMLInputElement).value) || 0; if (v !== m.multiplicador) handleUpdateMultiplicador(m.id, v); }}
+                      onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                      style="width:72px;padding:0.35rem 0.4rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#e2e8f0;font-size:0.95rem;font-weight:600;text-align:center;outline:none;transition:border 0.2s;flex-shrink:0;"
+                      onfocus={(e) => e.currentTarget.style.borderColor = gc?.color || '#6b7280'} />
                   </div>
                 </div>
               {/each}

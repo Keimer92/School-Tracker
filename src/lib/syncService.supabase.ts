@@ -931,7 +931,7 @@ export const syncService = {
     if (!client) { console.warn('[Diagnóstico] Supabase no configurado'); return; }
     const allTables = [
       'ano_lectivo','corte_evaluativo','colegio','asignatura','grado','seccion',
-      'estudiante','configuracion_calificacion','grado_asignatura','colegio_asignatura',
+      'estudiante','configuracion_calificacion','multiplicador_calificacion','grado_asignatura','colegio_asignatura',
       'indicador','criterio','colegio_dias_asistencia','asistencia','nota',
     ];
     console.group('[Diagnóstico Supabase]');
@@ -1186,6 +1186,23 @@ export const syncService = {
         }
       }
 
+      // 7b. Multiplicadores de Criterios
+      const multiplicadores = await invoke<any[]>("get_multiplicadores");
+      if (multiplicadores && multiplicadores.length > 0) {
+        const batchMultiplicadores = multiplicadores.map(m => ({
+          id: m.id,
+          multiplicador: m.multiplicador,
+        }));
+
+        const { error } = await supabase.from('multiplicador_calificacion').upsert(batchMultiplicadores, { 
+          onConflict: 'id' 
+        });
+        if (error) {
+          logPgError('Error en multiplicador_calificacion:', error);
+          throw new Error(`Error en Multiplicadores: ${getSupabaseErrorMessage(error)}`);
+        }
+      }
+
       // 8. Días de Asistencia por Colegio
       try {
         const colegioDias = await invoke<any[]>("get_colegio_dias_asistencia_all");
@@ -1252,7 +1269,8 @@ export const syncService = {
       const tables = [
         'ano_lectivo', 'corte_evaluativo', 'colegio', 'asignatura', 'grado', 'seccion',
         'estudiante', 'indicador', 'criterio', 'nota', 'asistencia',
-        'configuracion_calificacion', 'grado_asignatura', 'colegio_asignatura', 'colegio_dias_asistencia'
+        'configuracion_calificacion', 'multiplicador_calificacion',
+        'grado_asignatura', 'colegio_asignatura', 'colegio_dias_asistencia'
       ];
 
       console.log(`[Sync] Consultando tablas (sin filtro user_id)`);
@@ -1278,7 +1296,8 @@ export const syncService = {
       const [
         anos, cortes, colegios, asignaturas, grados, secciones,
         estudiantes, indicadores, criterios, notas, asistencia,
-        gradeConfigs, gradoAsignatura, colegioAsignatura, colegioDiasAsistencia
+        gradeConfigs, multiplicadores,
+        gradoAsignatura, colegioAsignatura, colegioDiasAsistencia
       ] = results.map(r => r.data);
 
       console.log('[Sync] Datos obtenidos de Supabase:', {
@@ -1294,6 +1313,7 @@ export const syncService = {
         notas: notas?.length || 0,
         asistencia: asistencia?.length || 0,
         gradeConfigs: gradeConfigs?.length || 0,
+        multiplicadores: multiplicadores?.length || 0,
         gradoAsignatura: gradoAsignatura?.length || 0,
         colegioAsignatura: colegioAsignatura?.length || 0,
         colegioDiasAsistencia: colegioDiasAsistencia?.length || 0
@@ -1357,6 +1377,10 @@ export const syncService = {
             color: gc.color,
             minimo: gc.minimo
           })),
+          multiplicadores: (multiplicadores || []).map(m => ({
+            id: m.id,
+            multiplicador: m.multiplicador,
+          })),
           gradoAsignatura: (gradoAsignatura || []).map(ga => [ga.grado_id, ga.asignatura_id]),
           colegioAsignatura: (colegioAsignatura || []).map(ca => [ca.colegio_id, ca.asignatura_id]),
           colegioDiasAsistencia: (colegioDiasAsistencia || []).map(cda => ({
@@ -1385,6 +1409,7 @@ export const syncService = {
         notas: pullData.notas?.length || 0,
         asistencia: pullData.asistencia?.length || 0,
         gradeConfigs: pullData.gradeConfigs?.length || 0,
+        multiplicadores: pullData.multiplicadores?.length || 0,
         gradoAsignatura: pullData.gradoAsignatura?.length || 0,
         colegioAsignatura: pullData.colegioAsignatura?.length || 0,
         colegioDiasAsistencia: pullData.colegioDiasAsistencia?.length || 0,
@@ -1511,7 +1536,8 @@ export const syncService = {
         'colegio',
         'corte_evaluativo',
         'ano_lectivo',
-        'configuracion_calificacion'
+        'configuracion_calificacion',
+        'multiplicador_calificacion',
       ];
 
       // Borrar datos de cada tabla para el usuario actual
@@ -1664,7 +1690,8 @@ export const syncService = {
 
       const allTables = [
         'ano_lectivo', 'corte_evaluativo', 'colegio', 'asignatura', 'grado', 'seccion',
-        'estudiante', 'configuracion_calificacion', 'grado_asignatura', 'colegio_asignatura',
+        'estudiante', 'configuracion_calificacion', 'multiplicador_calificacion',
+        'grado_asignatura', 'colegio_asignatura',
         'indicador', 'criterio', 'colegio_dias_asistencia', 'asistencia', 'nota',
         'sync_deletions', 'sync_batch',
       ];
@@ -1702,6 +1729,7 @@ CREATE TABLE IF NOT EXISTS grado (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UN
 CREATE TABLE IF NOT EXISTS seccion (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0, user_id TEXT);
 CREATE TABLE IF NOT EXISTS estudiante (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL, codigo TEXT NOT NULL, sexo TEXT NOT NULL, ano_lectivo_id INTEGER NOT NULL, grado_id INTEGER NOT NULL, seccion_id INTEGER NOT NULL, colegio_id INTEGER NOT NULL, telefono TEXT, direccion TEXT, email TEXT, foto TEXT, user_id TEXT);
 CREATE TABLE IF NOT EXISTS configuracion_calificacion (id TEXT PRIMARY KEY, nombre TEXT NOT NULL, color TEXT NOT NULL, minimo INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS multiplicador_calificacion (id TEXT PRIMARY KEY, multiplicador REAL NOT NULL DEFAULT 1.0);
 CREATE TABLE IF NOT EXISTS grado_asignatura (grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, user_id TEXT, PRIMARY KEY (grado_id, asignatura_id));
 CREATE TABLE IF NOT EXISTS colegio_asignatura (colegio_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, user_id TEXT, PRIMARY KEY (colegio_id, asignatura_id));
 CREATE TABLE IF NOT EXISTS indicador (id SERIAL PRIMARY KEY, grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, corte_evaluativo_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', activo INTEGER DEFAULT 1, user_id TEXT);
@@ -1726,6 +1754,7 @@ ALTER TABLE grado DISABLE ROW LEVEL SECURITY;
 ALTER TABLE seccion DISABLE ROW LEVEL SECURITY;
 ALTER TABLE estudiante DISABLE ROW LEVEL SECURITY;
 ALTER TABLE configuracion_calificacion DISABLE ROW LEVEL SECURITY;
+ALTER TABLE multiplicador_calificacion DISABLE ROW LEVEL SECURITY;
 ALTER TABLE grado_asignatura DISABLE ROW LEVEL SECURITY;
 ALTER TABLE colegio_asignatura DISABLE ROW LEVEL SECURITY;
 ALTER TABLE indicador DISABLE ROW LEVEL SECURITY;

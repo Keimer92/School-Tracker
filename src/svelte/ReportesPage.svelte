@@ -63,7 +63,12 @@
     return (grado?.cualitativo || false) || (asignatura?.cualitativo || false);
   });
 
-  const notaMapping: Record<string, number> = { AA: 1.0, AS: 0.85, AF: 0.65, AI: 0.40 };
+  let multiplicadores: { id: string; multiplicador: number }[] = $state([]);
+  let notaMapping = $derived.by(() => {
+    const map: Record<string, number> = {};
+    for (const m of multiplicadores) map[m.id] = m.multiplicador;
+    return map;
+  });
   const qualitativeWeights: Record<string, number> = { AA: 4, AS: 3, AF: 2, AI: 1 };
   const reverseQualitativeWeights: Record<number, string> = { 4: 'AA', 3: 'AS', 2: 'AF', 1: 'AI' };
 
@@ -200,6 +205,7 @@
 
     const unsubGradeConfigs = listen("grade-configs-updated", async () => {
       try { gradeConfigs = await invoke<GradeConfig[]>("get_grade_configs"); } catch (e) { console.error("Error refreshing grade configs:", e); }
+      try { multiplicadores = await invoke<{ id: string; multiplicador: number }[]>("get_multiplicadores"); } catch (e) { console.error("Error refreshing multiplicadores:", e); }
     });
     const unsubNotas = listen("notas-updated", () => { silentRefresh = true; refreshTrigger++; });
     const unsubStudents = listen("student-updated", () => { silentRefresh = true; refreshTrigger++; });
@@ -256,6 +262,7 @@
       cortes = cortesData;
       colegios = colegiosData;
       gradeConfigs = configsData;
+      try { multiplicadores = await invoke<{ id: string; multiplicador: number }[]>("get_multiplicadores"); } catch (e) { console.error("Error fetching multiplicadores:", e); }
       selectedAno = activeAno;
       selectedCorte = activeCorte;
       selectedColegio = activeColegio;

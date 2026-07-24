@@ -35,6 +35,7 @@
   let estudiantes: Estudiante[] = $state([]);
   let notas: NotaEstudiante[] = $state([]);
   let gradeConfigs: { id: string; nombre: string; color: string; minimo: number }[] = $state([]);
+  let multiplicadores: { id: string; multiplicador: number }[] = $state([]);
 
   let loading = $state(false);
   let saving = $state(false);
@@ -118,7 +119,11 @@
   });
 
   // Constants
-  const notaMapping: Record<string, number> = { AA: 1.0, AS: 0.85, AF: 0.65, AI: 0.40 };
+  let notaMapping = $derived.by(() => {
+    const map: Record<string, number> = {};
+    for (const m of multiplicadores) map[m.id] = m.multiplicador;
+    return map;
+  });
   const qualitativeWeights: Record<string, number> = { AA: 4, AS: 3, AF: 2, AI: 1 };
   const reverseQualitativeWeights: Record<number, string> = { 4: 'AA', 3: 'AS', 2: 'AF', 1: 'AI' };
 
@@ -528,6 +533,13 @@
     } catch (error) { console.error("[fetchGradeConfigs] Error:", error); }
   }
 
+  async function fetchMultiplicadores() {
+    try {
+      const data = await invoke<{ id: string; multiplicador: number }[]>("get_multiplicadores");
+      multiplicadores = data;
+    } catch (error) { console.error("[fetchMultiplicadores] Error:", error); }
+  }
+
   async function fetchCatalogs() {
     try {
       const [anosData, cortesData, colegiosData] = await Promise.all([
@@ -629,7 +641,7 @@
             { grade: 'AA', saved: Math.round(criterio.puntajeMaximo * 1.0) },
             { grade: 'AS', saved: Math.round(criterio.puntajeMaximo * 0.85) },
             { grade: 'AF', saved: Math.round(criterio.puntajeMaximo * 0.65) },
-            { grade: 'AI', saved: Math.round(criterio.puntajeMaximo * 0.20) },
+            { grade: 'AI', saved: Math.round(criterio.puntajeMaximo * (notaMapping.AI || 0.40)) },
           ];
           const match = candidates.find(c => c.saved === n.valor);
           let qualValue = match ? match.grade : "";
@@ -859,6 +871,7 @@
 
   onMount(() => {
     fetchGradeConfigs();
+    fetchMultiplicadores();
     fetchCatalogs();
 
     const checkMobile = () => { isMobile = window.innerWidth <= 768; };

@@ -272,6 +272,11 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             fecha_intento TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
+        CREATE TABLE IF NOT EXISTS multiplicador_calificacion (
+            id TEXT PRIMARY KEY,
+            multiplicador REAL NOT NULL DEFAULT 1.0
+        );
+
         CREATE TABLE IF NOT EXISTS sync_pending_deletions_grado_asignatura (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             grado_id INTEGER NOT NULL,
@@ -565,6 +570,20 @@ pub fn seed_default_data(conn: &Connection) -> Result<(), String> {
             }
             println!("✅ [DB] Datos iniciales de calificaciones sembrados");
         }
+    }
+
+    // Multiplicadores de criterios
+    let multiplicadores = vec![
+        ("AA", 1.0),
+        ("AS", 0.85),
+        ("AF", 0.65),
+        ("AI", 0.40),
+    ];
+    for (id, mult) in multiplicadores {
+        conn.execute(
+            "INSERT OR IGNORE INTO multiplicador_calificacion (id, multiplicador) VALUES (?, ?)",
+            rusqlite::params![id, mult],
+        ).ok();
     }
 
     println!("✅ [DB] Datos iniciales sembrados correctamente");
@@ -3069,6 +3088,13 @@ pub struct GradeConfig {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct MultiplicadorItem {
+    pub id: String,
+    pub multiplicador: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct AsistenciaRecord {
     pub id: Option<i64>,
     pub estudiante_id: i64,
@@ -3159,6 +3185,40 @@ pub async fn update_grade_config(
     conn.execute(
         "UPDATE configuracion_calificacion SET id = ?, nombre = ?, color = ?, minimo = ? WHERE id = ?",
         rusqlite::params![id, nombre, color, minimo, old_id],
+    )
+    .map(|_| ())
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_multiplicadores(state: tauri::State<'_, DbState>) -> Result<Vec<MultiplicadorItem>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare("SELECT id, multiplicador FROM multiplicador_calificacion")
+        .map_err(|e| e.to_string())?;
+    let items = stmt
+        .query_map([], |row| {
+            Ok(MultiplicadorItem {
+                id: row.get(0)?,
+                multiplicador: row.get(1)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    Ok(items)
+}
+
+#[tauri::command]
+pub async fn update_multiplicador(
+    state: tauri::State<'_, DbState>,
+    id: String,
+    multiplicador: f64,
+) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT OR REPLACE INTO multiplicador_calificacion (id, multiplicador) VALUES (?, ?)",
+        rusqlite::params![id, multiplicador],
     )
     .map(|_| ())
     .map_err(|e| e.to_string())
@@ -3792,6 +3852,7 @@ pub struct PullData {
     pub notas: Vec<NotaResponse>,
     pub asistencia: Vec<AsistenciaRecord>,
     pub grade_configs: Vec<GradeConfig>,
+    pub multiplicadores: Vec<MultiplicadorItem>,
     pub grado_asignatura: Vec<(i64, i64)>,
     pub colegio_asignatura: Vec<(i64, i64)>,
     pub colegio_dias_asistencia: Vec<ColegioDiasAsistencia>,
@@ -3802,10 +3863,11 @@ pub struct PullData {
 pub async fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) -> Result<(), String> {
     let is_partial = data.is_partial.unwrap_or(false);
 
-    println!("[upsert_pull_data] Recibidos: anos={}, cortes={}, colegios={}, asignaturas={}, grados={}, secciones={}, estudiantes={}, indicadores={}, criterios={}, notas={}, asistencia={}, gradeConfigs={}, gradoAsignatura={}, colegioAsignatura={}, colegioDias={}",
+    println!("[upsert_pull_data] Recibidos: anos={}, cortes={}, colegios={}, asignaturas={}, grados={}, secciones={}, estudiantes={}, indicadores={}, criterios={}, notas={}, asistencia={}, gradeConfigs={}, multiplicadores={}, gradoAsignatura={}, colegioAsignatura={}, colegioDias={}",
         data.anos.len(), data.cortes.len(), data.colegios.len(), data.asignaturas.len(),
         data.grados.len(), data.secciones.len(), data.estudiantes.len(), data.indicadores.len(),
         data.criterios.len(), data.notas.len(), data.asistencia.len(), data.grade_configs.len(),
+        data.multiplicadores.len(),
         data.grado_asignatura.len(), data.colegio_asignatura.len(), data.colegio_dias_asistencia.len()
     );
 
@@ -3913,6 +3975,13 @@ pub async fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) 
         tx.execute(
             "INSERT OR REPLACE INTO configuracion_calificacion (id, nombre, color, minimo) VALUES (?, ?, ?, ?)",
             rusqlite::params![gc.id, gc.nombre, gc.color, gc.minimo],
+        ).map_err(|e| e.to_string())?;
+    }
+
+    for m in &data.multiplicadores {
+        tx.execute(
+            "INSERT OR REPLACE INTO multiplicador_calificacion (id, multiplicador) VALUES (?, ?)",
+            rusqlite::params![m.id, m.multiplicador],
         ).map_err(|e| e.to_string())?;
     }
 
@@ -4560,6 +4629,20 @@ pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: Se
         ).map_err(|e| e.to_string())?;
     }
 
+    // 10. Multiplicadores de criterios (siempre)
+    let multiplicadores = vec![
+        ("AA", 1.0),
+        ("AS", 0.85),
+        ("AF", 0.65),
+        ("AI", 0.40),
+    ];
+    for (id, mult) in multiplicadores {
+        conn.execute(
+            "INSERT OR IGNORE INTO multiplicador_calificacion (id, multiplicador) VALUES (?, ?)",
+            rusqlite::params![id, mult],
+        ).map_err(|e| e.to_string())?;
+    }
+
     conn.execute("PRAGMA foreign_keys = ON", []).map_err(|e| e.to_string())?;
 
     println!("✅ [DB] Datos seleccionados insertados correctamente");
@@ -4617,6 +4700,7 @@ pub async fn factory_reset(state: tauri::State<'_, DbState>) -> Result<(), Strin
         "seccion", "grado", "asignatura", "colegio_dias_asistencia",
         "colegio", "corte_evaluativo", "ano_lectivo",
         "configuracion_calificacion",
+        "multiplicador_calificacion",
         "sync_pending_deletions", "sync_pending_deletions_asistencia",
         "sync_pending_deletions_nota", "sync_pending_deletions_grado_asignatura",
         "sync_pending_deletions_colegio_asignatura",

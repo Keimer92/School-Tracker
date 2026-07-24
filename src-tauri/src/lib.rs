@@ -48,7 +48,7 @@ async fn get_all_local_data_json(state: tauri::State<'_, DbState>) -> Result<Str
     let table_names = [
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
         "grado_asignatura", "colegio_asignatura", "indicador", "criterio",
-        "estudiante", "configuracion_calificacion", "colegio_dias_asistencia",
+        "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia",
         "asistencia", "nota",
     ];
 
@@ -899,6 +899,8 @@ pub fn run() {
             get_db_path,
             get_grade_configs,
             update_grade_config,
+            get_multiplicadores,
+            update_multiplicador,
             get_asistencia_estudiantes,
             get_asistencia_estudiantes_rango,
             save_asistencia,

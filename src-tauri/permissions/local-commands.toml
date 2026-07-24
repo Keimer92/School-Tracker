@@ -120,6 +120,8 @@ commands.allow = [
     "seed_selected_data",
     "is_app_initialized",
     "set_app_initialized",
-    "factory_reset"
+    "factory_reset",
+    "get_multiplicadores",
+    "update_multiplicador"
 ]
 
