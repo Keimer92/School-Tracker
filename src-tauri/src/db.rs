@@ -4569,15 +4569,32 @@ pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: Se
 #[tauri::command]
 pub async fn is_app_initialized(state: tauri::State<'_, DbState>) -> Result<bool, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    let result: Result<String, _> = conn.query_row(
+    // Verificar flag en app_meta
+    let flag: Result<String, _> = conn.query_row(
         "SELECT value FROM app_meta WHERE key = 'initialized'",
         [],
         |row| row.get(0),
     );
-    match result {
-        Ok(v) => Ok(v == "true"),
-        Err(_) => Ok(false),
+    if let Ok(v) = flag {
+        if v == "true" {
+            return Ok(true);
+        }
     }
+    // Fallback: verificar si hay datos reales en tablas principales
+    let count: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM ano_lectivo",
+        [],
+        |row| row.get(0),
+    ).map_err(|e| e.to_string())?;
+    if count > 0 {
+        // Auto-marcar como inicializado
+        conn.execute(
+            "INSERT OR REPLACE INTO app_meta (key, value) VALUES ('initialized', 'true')",
+            [],
+        ).ok();
+        return Ok(true);
+    }
+    Ok(false)
 }
 
 #[tauri::command]

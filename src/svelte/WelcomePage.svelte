@@ -20,6 +20,36 @@
   let authMode: 'register' | 'login' = $state('register');
   let sbSessionUser: string | null = $state(null);
 
+  let rememberedAccounts = $state<{email: string; url: string; lastUsed: string}[]>([]);
+
+  function loadRememberedAccounts() {
+    try {
+      const raw = localStorage.getItem('sb_remembered_accounts');
+      rememberedAccounts = raw ? JSON.parse(raw) : [];
+    } catch { rememberedAccounts = []; }
+  }
+  function saveRememberedAccount(email: string, url: string) {
+    let list = [...rememberedAccounts];
+    list = list.filter(a => a.email !== email);
+    list.unshift({ email, url, lastUsed: new Date().toISOString() });
+    if (list.length > 5) list = list.slice(0, 5);
+    rememberedAccounts = list;
+    localStorage.setItem('sb_remembered_accounts', JSON.stringify(list));
+  }
+  function selectAccount(acc: {email: string; url: string}) {
+    cloudUrl = acc.url;
+    sbEmail = acc.email;
+    sbPassword = '';
+    errorMsg = '';
+  }
+  function forgetAccount(email: string) {
+    let list = rememberedAccounts.filter(a => a.email !== email);
+    rememberedAccounts = list;
+    localStorage.setItem('sb_remembered_accounts', JSON.stringify(list));
+  }
+
+  loadRememberedAccounts();
+
   let selectedAnos = $state<Set<string>>(new Set());
   let selectedColegios = $state<Set<string>>(new Set());
   let selectedGrados = $state<Set<string>>(new Set());
@@ -144,6 +174,7 @@
         if (error) { errorMsg = error.message; loading = false; return; }
         sbSessionUser = data.user?.email || data.user?.id || 'Conectado';
       }
+      saveRememberedAccount(sbEmail, cloudUrl);
       const sr = await syncService.runSchemaSetup();
       if (!sr.ok) { errorMsg = sr.error || 'Error preparando la base de datos remota'; loading = false; return; }
       await syncService.syncAll();
@@ -275,6 +306,23 @@
             <label>Anon Key</label>
             <input bind:value={cloudKey} placeholder="eyJhbGciOiJIUzI1NiIs..." />
           </div>
+          {#if rememberedAccounts.length > 0}
+            <div style="margin-top:0.25rem;">
+              <div style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.3rem;">Cuentas guardadas</div>
+              <div style="display:flex;flex-wrap:wrap;gap:0.3rem;">
+                {#each rememberedAccounts as acc}
+                  <button onclick={() => selectAccount(acc)} style="display:flex;align-items:center;gap:0.3rem;padding:0.3rem 0.6rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;cursor:pointer;font-size:0.75rem;color:#cbd5e1;transition:all 0.2s;font-family:inherit;"
+                    title="Click para usar • {acc.email}">
+                    <span style="font-size:0.85rem;">👤</span>
+                    <span>{acc.email}</span>
+                    <span onclick={(e) => { e.stopPropagation(); forgetAccount(acc.email); }} style="margin-left:0.2rem;color:#64748b;font-size:0.7rem;cursor:pointer;padding:0 0.15rem;border-radius:4px;"
+                      onmouseover={(e) => e.currentTarget.style.color = '#ef4444'}
+                      onmouseout={(e) => e.currentTarget.style.color = '#64748b'}>✕</span>
+                  </button>
+                {/each}
+              </div>
+            </div>
+          {/if}
           <div style="display:flex;gap:0.4rem;margin-top:0.25rem;background:rgba(255,255,255,0.04);padding:0.25rem;border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
             <button onclick={() => { authMode = 'register'; errorMsg = ''; }} style="flex:1;padding:0.4rem 0.5rem;border-radius:7px;border:none;cursor:pointer;font-size:0.8rem;font-weight:600;background:{authMode === 'register' ? 'var(--primary-color)' : 'transparent'};color:{authMode === 'register' ? '#fff' : '#94a3b8'};transition:all 0.2s;">Crear Cuenta</button>
             <button onclick={() => { authMode = 'login'; errorMsg = ''; }} style="flex:1;padding:0.4rem 0.5rem;border-radius:7px;border:none;cursor:pointer;font-size:0.8rem;font-weight:600;background:{authMode === 'login' ? 'var(--primary-color)' : 'transparent'};color:{authMode === 'login' ? '#fff' : '#94a3b8'};transition:all 0.2s;">Iniciar Sesión</button>
