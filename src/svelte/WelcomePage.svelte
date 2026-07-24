@@ -1,8 +1,8 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { emit } from "@tauri-apps/api/event";
-  import { syncService } from "../lib/syncService";
-  import { setActiveProvider } from "../lib/syncService";
+  import { syncService, setActiveProvider } from "../lib/syncService";
+  import { getSupabaseClient, saveSupabaseConfig } from "../lib/supabase";
 
   let view: 'landing' | 'cloud' | 'wizard' = $state('landing');
   let step = $state(1);
@@ -13,6 +13,12 @@
   let provider: 'supabase' | 'turso' = $state('supabase');
   let cloudUrl = $state('');
   let cloudKey = $state('');
+
+  let sbEmail = $state('');
+  let sbPassword = $state('');
+  let sbConfirmPassword = $state('');
+  let authMode: 'register' | 'login' = $state('register');
+  let sbSessionUser: string | null = $state(null);
 
   let selectedAnos = $state<Set<string>>(new Set());
   let selectedColegios = $state<Set<string>>(new Set());
@@ -118,19 +124,55 @@
     return '';
   }
 
-  async function handleCloudSync() {
-    if (!cloudUrl || !cloudKey) { errorMsg = 'Completa todos los campos'; return; }
+  async function handleSupabaseAuth() {
+    if (!cloudUrl || !cloudKey) { errorMsg = 'Completa URL y Anon Key'; return; }
+    if (!sbEmail || !sbPassword) { errorMsg = 'Completa email y contraseña'; return; }
+    if (authMode === 'register' && sbPassword !== sbConfirmPassword) { errorMsg = 'Las contraseñas no coinciden'; return; }
     loading = true;
     errorMsg = '';
     try {
-      if (provider === 'supabase') {
-        localStorage.setItem('supabase_url', cloudUrl);
-        localStorage.setItem('supabase_anon_key', cloudKey);
+      saveSupabaseConfig(cloudUrl, cloudKey);
+      setActiveProvider('supabase');
+      const client = getSupabaseClient();
+      if (!client) { errorMsg = 'No se pudo crear el cliente Supabase'; loading = false; return; }
+      if (authMode === 'register') {
+        const { data, error } = await client.auth.signUp({ email: sbEmail, password: sbPassword });
+        if (error) { errorMsg = error.message; loading = false; return; }
+        sbSessionUser = data.user?.email || data.user?.id || 'Registrado';
       } else {
-        localStorage.setItem('turso_url', cloudUrl);
-        localStorage.setItem('turso_auth_token', cloudKey);
+        const { data, error } = await client.auth.signInWithPassword({ email: sbEmail, password: sbPassword });
+        if (error) { errorMsg = error.message; loading = false; return; }
+        sbSessionUser = data.user?.email || data.user?.id || 'Conectado';
       }
-      setActiveProvider(provider);
+      const sr = await syncService.runSchemaSetup();
+      if (!sr.ok) { errorMsg = sr.error || 'Error preparando la base de datos remota'; loading = false; return; }
+      await syncService.syncAll();
+      const hasData = await invoke('is_app_initialized');
+      if (hasData) {
+        await invoke('set_app_initialized');
+        emit('welcome-complete');
+      } else {
+        errorMsg = 'La nube está vacía. Se usarán los datos por defecto.';
+        setTimeout(() => { loading = false; goToWizard(); }, 1500);
+      }
+    } catch (e: any) {
+      errorMsg = 'Error: ' + (e?.message || e);
+    }
+    loading = false;
+  }
+
+  async function handleCloudSync() {
+    if (!cloudUrl || !cloudKey) { errorMsg = 'Completa todos los campos'; return; }
+    if (provider === 'supabase') {
+      await handleSupabaseAuth();
+      return;
+    }
+    loading = true;
+    errorMsg = '';
+    try {
+      localStorage.setItem('turso_url', cloudUrl);
+      localStorage.setItem('turso_auth_token', cloudKey);
+      setActiveProvider('turso');
       await syncService.syncAll();
       const hasData = await invoke('is_app_initialized');
       if (hasData) {
@@ -221,8 +263,8 @@
       </div>
       <div class="welcome-form">
         <div class="provider-tabs">
-          <button class="provider-tab" class:active={provider === 'supabase'} onclick={() => provider = 'supabase'}>Supabase</button>
-          <button class="provider-tab" class:active={provider === 'turso'} onclick={() => provider = 'turso'}>Turso</button>
+          <button class="provider-tab" class:active={provider === 'supabase'} onclick={() => { provider = 'supabase'; errorMsg = ''; }}>Supabase</button>
+          <button class="provider-tab" class:active={provider === 'turso'} onclick={() => { provider = 'turso'; errorMsg = ''; }}>Turso</button>
         </div>
         {#if provider === 'supabase'}
           <div class="field">
@@ -233,6 +275,24 @@
             <label>Anon Key</label>
             <input bind:value={cloudKey} placeholder="eyJhbGciOiJIUzI1NiIs..." />
           </div>
+          <div style="display:flex;gap:0.4rem;margin-top:0.25rem;background:rgba(255,255,255,0.04);padding:0.25rem;border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
+            <button onclick={() => { authMode = 'register'; errorMsg = ''; }} style="flex:1;padding:0.4rem 0.5rem;border-radius:7px;border:none;cursor:pointer;font-size:0.8rem;font-weight:600;background:{authMode === 'register' ? 'var(--primary-color)' : 'transparent'};color:{authMode === 'register' ? '#fff' : '#94a3b8'};transition:all 0.2s;">Crear Cuenta</button>
+            <button onclick={() => { authMode = 'login'; errorMsg = ''; }} style="flex:1;padding:0.4rem 0.5rem;border-radius:7px;border:none;cursor:pointer;font-size:0.8rem;font-weight:600;background:{authMode === 'login' ? 'var(--primary-color)' : 'transparent'};color:{authMode === 'login' ? '#fff' : '#94a3b8'};transition:all 0.2s;">Iniciar Sesión</button>
+          </div>
+          <div class="field">
+            <label>Correo electrónico</label>
+            <input type="email" bind:value={sbEmail} placeholder="correo@ejemplo.com" />
+          </div>
+          <div class="field">
+            <label>Contraseña</label>
+            <input type="password" bind:value={sbPassword} placeholder="••••••••" />
+          </div>
+          {#if authMode === 'register'}
+            <div class="field">
+              <label>Confirmar contraseña</label>
+              <input type="password" bind:value={sbConfirmPassword} placeholder="••••••••" />
+            </div>
+          {/if}
         {:else}
           <div class="field">
             <label>URL de la base de datos</label>
@@ -247,7 +307,7 @@
           <div class="welcome-error">{errorMsg}</div>
         {/if}
         <button class="welcome-btn-primary" onclick={handleCloudSync} disabled={loading}>
-          {loading ? 'Conectando...' : 'Probar conexión y descargar'}
+          {loading ? 'Conectando...' : provider === 'supabase' ? (authMode === 'register' ? 'Crear Cuenta y Sincronizar' : 'Iniciar Sesión y Sincronizar') : 'Conectar y descargar'}
         </button>
       </div>
     </div>

@@ -134,8 +134,17 @@ export const syncService = {
    * Obtener el ID del usuario actual
    */
   getUserId: async () => {
-    // La app usa anon key sin autenticación de usuario. Usamos un ID de dispositivo
-    // estable (persistido en localStorage) para etiquetar los registros en la nube.
+    // Primero intentar obtener el usuario autenticado de Supabase Auth
+    try {
+      const client = getSupabaseClient();
+      if (client) {
+        const { data: { user } } = await client.auth.getUser();
+        if (user?.id) return user.id;
+      }
+    } catch (e) {
+      // Ignorar errores, fallback a device UUID
+    }
+    // Fallback: device UUID para compatibilidad hacia atrás
     if (typeof localStorage === 'undefined') return 'local-device';
     let id = localStorage.getItem('sb_device_user_id') ?? '';
     if (!id) {
