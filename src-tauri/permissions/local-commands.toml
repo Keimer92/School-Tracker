@@ -115,6 +115,11 @@ commands.allow = [
     "create_folder_and_save_file",
     "supabase_execute_sql",
     "get_dashboard_stats",
-    "get_monthly_attendance_pct"
+    "get_monthly_attendance_pct",
+    "get_seed_options",
+    "seed_selected_data",
+    "is_app_initialized",
+    "set_app_initialized",
+    "factory_reset"
 ]
 
