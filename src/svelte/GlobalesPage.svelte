@@ -296,12 +296,12 @@
                       <input value={grade.id}
                         onfocus={(e) => { e.currentTarget.dataset.old = grade.id; e.currentTarget.style.borderColor = grade.color; }}
                         oninput={(e) => { const v = e.currentTarget.value; gradeConfigs = gradeConfigs.map(g => g.id === grade.id ? { ...g, id: v } : g); }}
-                        onblur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; const old = e.currentTarget.dataset.old || grade.id; if (e.currentTarget.value !== old) handleUpdateGradeConfig(e.currentTarget.value, grade.nombre, grade.color, grade.minimo, old); }}
+                        onblur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; const old = e.currentTarget.dataset.old || grade.id; if (e.currentTarget.value !== old) updateGradeConfig(e.currentTarget.value, grade.nombre, grade.color, grade.minimo, old); }}
                         onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                         style="width:28px;padding:0.15rem 0.15rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:4px;color:#f1f5f9;font-size:0.9rem;font-weight:700;text-align:center;outline:none;transition:border 0.2s;flex-shrink:0;" />
                       <input value={grade.nombre}
                         oninput={(e) => { const v = e.currentTarget.value; gradeConfigs = gradeConfigs.map(g => g.id === grade.id ? { ...g, nombre: v } : g); }}
-                        onblur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; if (e.currentTarget.value !== grade.nombre) handleUpdateGradeConfig(grade.id, e.currentTarget.value, grade.color, grade.minimo, grade.id); }}
+                        onblur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; if (e.currentTarget.value !== grade.nombre) updateGradeConfig(grade.id, e.currentTarget.value, grade.color, grade.minimo, grade.id); }}
                         onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                         style="flex:1;min-width:40px;padding:0.2rem 0.35rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:5px;color:#94a3b8;font-size:0.75rem;outline:none;transition:border 0.2s;width:auto;"
                         onfocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'} />
@@ -310,7 +310,7 @@
                       {#if grade.id !== "AI"}
                         <div style="display:flex;flex-direction:column;gap:0.2rem;">
                           <span style="font-size:0.6rem;color:#64748b;text-transform:uppercase;letter-spacing:0.5px">Mínimo</span>
-                          <input type="number" value={grade.minimo} oninput={(e) => handleUpdateGradeConfig(grade.id, grade.nombre, grade.color, parseInt((e.target as HTMLInputElement).value) || 0, grade.id)}
+                          <input type="number" value={grade.minimo} oninput={(e) => updateGradeConfig(grade.id, grade.nombre, grade.color, parseInt((e.target as HTMLInputElement).value) || 0, grade.id)}
                             style="width:48px;padding:0.3rem 0.35rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:7px;color:#e2e8f0;font-size:0.8rem;font-weight:600;text-align:center;outline:none;" />
                         </div>
                       {/if}
@@ -319,7 +319,7 @@
                         <div style="display:flex;align-items:center;gap:0.4rem;">
                           <div style="position:relative;width:60px;height:28px;border-radius:7px;background:{grade.color};border:1px solid rgba(255,255,255,0.15);cursor:pointer;overflow:hidden;flex-shrink:0;"
                             onclick={() => document.getElementById(`color-input-m-${grade.id}`)?.click()}>
-                            <input id="color-input-m-{grade.id}" type="color" value={grade.color} oninput={(e) => handleUpdateGradeConfig(grade.id, grade.nombre, (e.target as HTMLInputElement).value, grade.minimo, grade.id)} style="position:absolute;top:-12px;left:-12px;width:200%;height:200%;opacity:0;cursor:pointer;" />
+                            <input id="color-input-m-{grade.id}" type="color" value={grade.color} oninput={(e) => updateGradeConfig(grade.id, grade.nombre, (e.target as HTMLInputElement).value, grade.minimo, grade.id)} style="position:absolute;top:-12px;left:-12px;width:200%;height:200%;opacity:0;cursor:pointer;" />
                           </div>
                           <span style="font-family:monospace;font-size:0.65rem;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{grade.color.toUpperCase()}</span>
                         </div>
@@ -327,7 +327,7 @@
                     </div>
                     <div style="display:flex;flex-wrap:wrap;gap:3px;padding-top:0.25rem;border-top:1px solid rgba(255,255,255,0.04);">
                       {#each PRESET_COLORS as preset}
-                        <button onclick={() => handleUpdateGradeConfig(grade.id, grade.nombre, preset, grade.minimo, grade.id)}
+                        <button onclick={() => updateGradeConfig(grade.id, grade.nombre, preset, grade.minimo, grade.id)}
                           style="width:14px;height:14px;border-radius:3px;background:{preset};border:{grade.color.toLowerCase() === preset.toLowerCase() ? '2px solid white' : '1px solid rgba(255,255,255,0.12)'};cursor:pointer;padding:0;"></button>
                       {/each}
                     </div>
@@ -360,8 +360,6 @@
                       </div>
                       <input type="number" value={m.multiplicador} step="0.01" min="0" max="1"
                         oninput={(e) => { const v = parseFloat((e.target as HTMLInputElement).value) || 0; multiplicadores = multiplicadores.map(x => x.id === m.id ? { ...x, multiplicador: Math.max(0, Math.min(1, v)) } : x); }}
-                        onblur={(e) => { const v = parseFloat((e.target as HTMLInputElement).value) || 0; if (v !== m.multiplicador) handleUpdateMultiplicador(m.id, v); }}
-                        onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                         style="width:64px;padding:0.3rem 0.35rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:7px;color:#e2e8f0;font-size:0.85rem;font-weight:600;text-align:center;outline:none;flex-shrink:0;" />
                     </div>
                   </div>
@@ -370,6 +368,18 @@
             </div>
           </div>
         </div>
+      </div>
+    {/if}
+    <!-- Mobile Save Button -->
+    {#if hasUnsavedChanges}
+      <div style="position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);z-index:100;">
+        <button onclick={handleSaveChanges} disabled={saving}
+          style="padding:0.75rem 2rem;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;border-radius:12px;color:white;font-size:0.95rem;font-weight:700;cursor:pointer;box-shadow:0 8px 30px rgba(34,197,94,0.4);transition:all 0.2s ease;display:flex;align-items:center;gap:0.5rem;{saving ? 'opacity:0.6;cursor:not-allowed;' : ''}"
+          onmouseenter={(e) => { if (!saving) e.currentTarget.style.transform = 'translateY(-2px)'; }}
+          onmouseleave={(e) => { if (!saving) e.currentTarget.style.transform = 'translateY(0)'; }}
+          onmousedown={(e) => { if (!saving) e.currentTarget.style.transform = 'translateY(1px)'; }}>
+          {saving ? '⏳ Guardando...' : '💾 Guardar cambios'}
+        </button>
       </div>
     {/if}
   {:else}
@@ -401,12 +411,12 @@
                       <input value={grade.id}
                         onfocus={(e) => { e.currentTarget.dataset.old = grade.id; e.currentTarget.style.borderColor = grade.color; }}
                         oninput={(e) => { const v = e.currentTarget.value; gradeConfigs = gradeConfigs.map(g => g.id === grade.id ? { ...g, id: v } : g); }}
-                        onblur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; const old = e.currentTarget.dataset.old || grade.id; if (e.currentTarget.value !== old) handleUpdateGradeConfig(e.currentTarget.value, grade.nombre, grade.color, grade.minimo, old); }}
+                        onblur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; const old = e.currentTarget.dataset.old || grade.id; if (e.currentTarget.value !== old) updateGradeConfig(e.currentTarget.value, grade.nombre, grade.color, grade.minimo, old); }}
                         onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                         style="width:32px;padding:0.2rem 0.2rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:5px;color:#f1f5f9;font-size:1rem;font-weight:700;text-align:center;outline:none;letter-spacing:-0.3px;transition:border 0.2s;flex-shrink:0;" />
                       <input value={grade.nombre}
                         oninput={(e) => { const v = e.currentTarget.value; gradeConfigs = gradeConfigs.map(g => g.id === grade.id ? { ...g, nombre: v } : g); }}
-                        onblur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; if (e.currentTarget.value !== grade.nombre) handleUpdateGradeConfig(grade.id, e.currentTarget.value, grade.color, grade.minimo, grade.id); }}
+                        onblur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; if (e.currentTarget.value !== grade.nombre) updateGradeConfig(grade.id, e.currentTarget.value, grade.color, grade.minimo, grade.id); }}
                         onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                         style="flex:1;min-width:40px;padding:0.25rem 0.4rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#94a3b8;font-size:0.8rem;font-weight:400;outline:none;transition:border 0.2s;width:auto;"
                         onfocus={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.25)'} />
@@ -415,7 +425,7 @@
                       {#if grade.id !== "AI"}
                         <div style="display:flex;flex-direction:column;gap:0.25rem;flex:0 0 auto;">
                           <span style="font-size:0.65rem;color:#64748b;font-weight:500;text-transform:uppercase;letter-spacing:0.5px">Mínimo</span>
-                          <input type="number" value={grade.minimo} oninput={(e) => handleUpdateGradeConfig(grade.id, grade.nombre, grade.color, parseInt((e.target as HTMLInputElement).value) || 0, grade.id)}
+                          <input type="number" value={grade.minimo} oninput={(e) => updateGradeConfig(grade.id, grade.nombre, grade.color, parseInt((e.target as HTMLInputElement).value) || 0, grade.id)}
                             style="width:52px;padding:0.35rem 0.4rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#e2e8f0;font-size:0.85rem;font-weight:600;text-align:center;outline:none;transition:border 0.2s"
                             onfocus={(e) => e.currentTarget.style.borderColor = grade.color}
                             onblur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'} />
@@ -428,7 +438,7 @@
                             onclick={() => document.getElementById(`color-input-${grade.id}`)?.click()}
                             onmouseenter={(e) => e.currentTarget.style.boxShadow = `0 0 12px ${grade.color}44`}
                             onmouseleave={(e) => e.currentTarget.style.boxShadow = 'none'}>
-                            <input id="color-input-{grade.id}" type="color" value={grade.color} oninput={(e) => handleUpdateGradeConfig(grade.id, grade.nombre, (e.target as HTMLInputElement).value, grade.minimo, grade.id)} style="position:absolute;top:-12px;left:-12px;width:200%;height:200%;opacity:0;cursor:pointer;" />
+                            <input id="color-input-{grade.id}" type="color" value={grade.color} oninput={(e) => updateGradeConfig(grade.id, grade.nombre, (e.target as HTMLInputElement).value, grade.minimo, grade.id)} style="position:absolute;top:-12px;left:-12px;width:200%;height:200%;opacity:0;cursor:pointer;" />
                           </div>
                           <span style="font-family:monospace;font-size:0.7rem;color:#64748b;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{grade.color.toUpperCase()}</span>
                         </div>
@@ -436,7 +446,7 @@
                     </div>
                     <div style="display:flex;flex-wrap:wrap;gap:4px;padding-top:0.25rem;border-top:1px solid rgba(255,255,255,0.04);">
                       {#each PRESET_COLORS as preset}
-                        <button onclick={() => handleUpdateGradeConfig(grade.id, grade.nombre, preset, grade.minimo, grade.id)}
+                        <button onclick={() => updateGradeConfig(grade.id, grade.nombre, preset, grade.minimo, grade.id)}
                           style="width:16px;height:16px;border-radius:4px;background:{preset};border:{grade.color.toLowerCase() === preset.toLowerCase() ? '2px solid white' : '1px solid rgba(255,255,255,0.12)'};cursor:pointer;padding:0;transition:all 0.15s ease;transform:{grade.color.toLowerCase() === preset.toLowerCase() ? 'scale(1.2)' : 'scale(1)'};"
                           onmouseenter={(e) => e.currentTarget.style.transform = 'scale(1.3)'}
                           onmouseleave={(e) => e.currentTarget.style.transform = grade.color.toLowerCase() === preset.toLowerCase() ? 'scale(1.2)' : 'scale(1)'}></button>
@@ -473,10 +483,7 @@
                       </div>
                       <input type="number" value={m.multiplicador} step="0.01" min="0" max="1"
                         oninput={(e) => { const v = parseFloat((e.target as HTMLInputElement).value) || 0; multiplicadores = multiplicadores.map(x => x.id === m.id ? { ...x, multiplicador: Math.max(0, Math.min(1, v)) } : x); }}
-                        onblur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; const v = parseFloat((e.target as HTMLInputElement).value) || 0; if (v !== m.multiplicador) handleUpdateMultiplicador(m.id, v); }}
-                        onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-                        style="width:72px;padding:0.35rem 0.4rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#e2e8f0;font-size:0.95rem;font-weight:600;text-align:center;outline:none;transition:border 0.2s;flex-shrink:0;"
-                        onfocus={(e) => e.currentTarget.style.borderColor = gc?.color || '#6b7280'} />
+                        style="width:72px;padding:0.35rem 0.4rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#e2e8f0;font-size:0.95rem;font-weight:600;text-align:center;outline:none;transition:border 0.2s;flex-shrink:0;" />
                     </div>
                   </div>
                 {/each}
@@ -499,6 +506,18 @@
         {/each}
       {/if}
     </div>
+    <!-- Desktop Save Button -->
+    {#if hasUnsavedChanges}
+      <div style="display:flex;justify-content:center;margin-top:1.5rem;">
+        <button onclick={handleSaveChanges} disabled={saving}
+          style="padding:0.85rem 2.5rem;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;border-radius:14px;color:white;font-size:1rem;font-weight:700;cursor:pointer;box-shadow:0 8px 30px rgba(34,197,94,0.35);transition:all 0.2s ease;display:flex;align-items:center;gap:0.5rem;{saving ? 'opacity:0.6;cursor:not-allowed;' : ''}"
+          onmouseenter={(e) => { if (!saving) e.currentTarget.style.transform = 'translateY(-2px)'; }}
+          onmouseleave={(e) => { if (!saving) e.currentTarget.style.transform = 'translateY(0)'; }}
+          onmousedown={(e) => { if (!saving) e.currentTarget.style.transform = 'translateY(1px)'; }}>
+          {saving ? '⏳ Guardando...' : '💾 Guardar cambios'}
+        </button>
+      </div>
+    {/if}
   {/if}
 
   <!-- Grade Curriculum Modal -->
