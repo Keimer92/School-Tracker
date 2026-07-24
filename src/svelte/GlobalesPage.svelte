@@ -29,7 +29,20 @@
 
   let gradeConfigs: GradeConfig[] = $state([]);
   let multiplicadores: MultiplicadorItem[] = $state([]);
+  let originalGradeConfigs: string = $state('');
+  let originalMultiplicadores: string = $state('');
+  let saving = $state(false);
   let isMobile = $state(false);
+
+  let hasUnsavedChanges = $derived(
+    originalGradeConfigs !== JSON.stringify(gradeConfigs) ||
+    originalMultiplicadores !== JSON.stringify(multiplicadores)
+  );
+
+  function captureOriginals() {
+    originalGradeConfigs = JSON.stringify(gradeConfigs);
+    originalMultiplicadores = JSON.stringify(multiplicadores);
+  }
   let selectedTab = $state(TAB_NAMES[1]);
   let selectedCategory: CategoryConfig | null = $state(null);
   let selectedGrade: CategoryItem | null = $state(null);
@@ -160,32 +173,48 @@
   $effect(() => { if (selectedColegio) fetchColegioConfig(); });
   $effect(() => { if (selectedColegioForSubjects) fetchColegioSubjectsData(); });
 
-  async function handleUpdateGradeConfig(id: string, nombre: string, color: string, minimo: number, oldId?: string) {
+  function updateGradeConfig(id: string, nombre: string, color: string, minimo: number, oldId?: string) {
     let v = minimo; if (id !== "AI") { if (v < 0) v = 0; if (v > 100) v = 100; } else v = 0;
     const old = oldId || id;
-    try {
-      await invoke("update_grade_config", { id, nombre, color, minimo: v, oldId: old });
-      gradeConfigs = gradeConfigs.map(c => c.id === old ? { ...c, id, nombre, color, minimo: v } : c);
-      gradeConfigs = gradeConfigs.sort((a, b) => GRADE_ORDER.indexOf(a.id) - GRADE_ORDER.indexOf(b.id));
-      onDataChange('configuracion_calificacion');
-      await emit("grade-configs-updated");
-    } catch (error) {
-      console.error("Error updating grade config:", error);
-      await emit("show-toast", { message: "❌ Error al actualizar la configuración: " + error, type: "error" });
-    }
+    gradeConfigs = gradeConfigs.map(c => c.id === old ? { ...c, id, nombre, color, minimo: v } : c);
+    gradeConfigs = gradeConfigs.sort((a, b) => GRADE_ORDER.indexOf(a.id) - GRADE_ORDER.indexOf(b.id));
   }
 
-  async function handleUpdateMultiplicador(id: string, multiplicador: number) {
+  function updateMultiplicador(id: string, multiplicador: number) {
     const clamped = Math.max(0, Math.min(1, multiplicador));
+    multiplicadores = multiplicadores.map(m => m.id === id ? { ...m, multiplicador: clamped } : m);
+  }
+
+  async function handleSaveChanges() {
+    saving = true;
     try {
-      await invoke("update_multiplicador", { id, multiplicador: clamped });
-      multiplicadores = multiplicadores.map(m => m.id === id ? { ...m, multiplicador: clamped } : m);
-      onDataChange('multiplicador_calificacion');
+      // Guardar grade configs modificados
+      const curr = JSON.stringify(gradeConfigs);
+      if (originalGradeConfigs !== curr) {
+        for (const gc of gradeConfigs) {
+          const old = gradeConfigs.find(c => c.id === gc.id);
+          await invoke("update_grade_config", {
+            id: gc.id, nombre: gc.nombre, color: gc.color, minimo: gc.minimo, oldId: gc.id
+          });
+        }
+        onDataChange('configuracion_calificacion');
+      }
+      // Guardar multiplicadores modificados
+      const currMult = JSON.stringify(multiplicadores);
+      if (originalMultiplicadores !== currMult) {
+        for (const m of multiplicadores) {
+          await invoke("update_multiplicador", { id: m.id, multiplicador: m.multiplicador });
+        }
+        onDataChange('multiplicador_calificacion');
+      }
+      captureOriginals();
       await emit("grade-configs-updated");
-      await emit("show-toast", { message: `✅ Multiplicador ${id} actualizado`, type: "success" });
+      await emit("show-toast", { message: "✅ Cambios guardados correctamente", type: "success" });
     } catch (error) {
-      console.error("Error updating multiplicador:", error);
-      await emit("show-toast", { message: "❌ Error al actualizar el multiplicador: " + error, type: "error" });
+      console.error("Error saving changes:", error);
+      await emit("show-toast", { message: "❌ Error al guardar: " + error, type: "error" });
+    } finally {
+      saving = false;
     }
   }
 
@@ -194,8 +223,8 @@
     isMobile = mql.matches;
     const handler = (e: MediaQueryListEvent) => { isMobile = e.matches; };
     mql.addEventListener("change", handler);
-    invoke<GradeConfig[]>("get_grade_configs").then(d => { gradeConfigs = d.sort((a, b) => GRADE_ORDER.indexOf(a.id) - GRADE_ORDER.indexOf(b.id)); }).catch(e => console.error("Error fetching grade configs:", e));
-    invoke<MultiplicadorItem[]>("get_multiplicadores").then(d => { multiplicadores = d; }).catch(e => console.error("Error fetching multiplicadores:", e));
+    invoke<GradeConfig[]>("get_grade_configs").then(d => { gradeConfigs = d.sort((a, b) => GRADE_ORDER.indexOf(a.id) - GRADE_ORDER.indexOf(b.id)); captureOriginals(); }).catch(e => console.error("Error fetching grade configs:", e));
+    invoke<MultiplicadorItem[]>("get_multiplicadores").then(d => { multiplicadores = d; captureOriginals(); }).catch(e => console.error("Error fetching multiplicadores:", e));
     return () => mql.removeEventListener("change", handler);
   });
 </script>
