@@ -1442,17 +1442,16 @@
                   <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
                     <td style="padding: 0.3rem 0.6rem; color: #64748b; text-align: left;">{idx + 1}</td>
                     <td style="padding: 0.3rem 0.6rem; color: #e2e8f0; font-weight: 500;">{est.estudianteNombre}</td>
-                    <td style="padding: 0.3rem 0.6rem; text-align: center;">
+                    <td style="padding: 0.3rem 0.6rem; text-align: center; white-space: nowrap;">
                       {#if isQualitative}
                         {@const pctActual = calcularPctActual(est.estudianteId)}
                         {@const gradeActual = getGradeFromScore(pctActual)?.id || ''}
                         <span style="color: {gradeActual ? getGradeColor(gradeActual) : '#94a3b8'}; font-weight: 600;">{gradeActual}</span>
-                        <span style="font-size:0.7rem;color:#64748b"> ({pctActual}%)</span>
+                        <span style="font-size:0.7rem;color:#64748b;margin-left:2px;">({pctActual}%)</span>
                       {:else}
                         {@const pctActual = calcularPctActual(est.estudianteId)}
                         {@const gradeActual = getGradeFromScore(pctActual)?.id || ''}
                         <span style="color: {gradeActual ? getGradeColor(gradeActual) : '#94a3b8'}; font-weight: 600;">{pctActual}%</span>
-                        <span style="font-size:0.7rem;color:#64748b"> ({pctActual}%)</span>
                       {/if}
                     </td>
                     {#if isQualitative}
@@ -1464,17 +1463,16 @@
                         {/if}
                       </td>
                     {/if}
-                    <td style="padding: 0.3rem 0.6rem; text-align: center; font-weight: 600;">
+                    <td style="padding: 0.3rem 0.6rem; text-align: center; font-weight: 600; white-space: nowrap;">
                       {#if isQualitative && distribuirTargets[est.estudianteId] && ['AA','AS','AF','AI'].includes(distribuirTargets[est.estudianteId]!.trim().toUpperCase())}
                         {@const pctPrev = calcularPctPreview(est.estudianteId, distribuirTargets[est.estudianteId])}
                         {@const gradePrev = getGradeFromScore(pctPrev)?.id || ''}
                         <span style="color: {gradePrev ? getGradeColor(gradePrev) : '#a78bfa'}">{gradePrev}</span>
-                        <span style="font-size:0.7rem;color:#64748b"> ({pctPrev}%)</span>
+                        <span style="font-size:0.7rem;color:#64748b;margin-left:2px;">({pctPrev}%)</span>
                       {:else}
                         {@const pctPrev = calcularPctPreview(est.estudianteId, distribuirTargets[est.estudianteId])}
                         {@const gradePrev = getGradeFromScore(pctPrev)?.id || ''}
                         <span style="color: {gradePrev ? getGradeColor(gradePrev) : '#a78bfa'}">{pctPrev}%</span>
-                        <span style="font-size:0.7rem;color:#64748b"> ({pctPrev}%)</span>
                       {/if}
                     </td>
                     <td style="padding: 0.15rem 0.3rem; text-align: center;">
@@ -1510,7 +1508,7 @@
               style="padding: 0.5rem 1rem; border-radius: 10px; background: transparent; border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; font-weight: 600; font-size: 0.82rem; cursor: pointer;">Cancelar</button>
             <button onclick={distribuirNotas}
               style="padding: 0.5rem 1.2rem; border-radius: 10px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; color: white; font-weight: 700; font-size: 0.82rem; cursor: pointer; box-shadow: 0 4px 14px rgba(139, 92, 246, 0.35);">
-              ✨ Calcular y aplicar
+              ✨ Aplicar
             </button>
           </div>
         </div>
