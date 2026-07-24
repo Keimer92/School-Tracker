@@ -314,24 +314,30 @@
           <div style="padding: 1.25rem;">
             <p style="margin:0 0 1rem 0;color:#94a3b8;font-size:0.8rem;">Factor de ponderación para cada calificación cualitativa por criterio.</p>
             <div style="display: grid; grid-template-columns: 1fr; gap: 0.85rem;">
-              {#each multiplicadores as m (m.id)}
-                {@const gc = gradeConfigs.find(g => g.id === m.id)}
-                <div style="position:relative;background:rgba(255,255,255,0.03);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:14px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;">
-                  <div style="position:absolute;top:0;left:0;width:3px;height:100%;background:{gc?.color || '#6b7280'};border-radius:0 2px 2px 0;"></div>
-                  <div style="padding:1rem 1rem 0.85rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-                    <div style="width:10px;height:10px;border-radius:50%;background:{gc?.color || '#6b7280'};box-shadow:0 0 6px {gc?.color || '#6b7280'}66;flex-shrink:0;"></div>
-                    <div style="display:flex;flex-direction:column;gap:0.2rem;flex:1;min-width:0;">
-                      <span style="font-size:0.8rem;font-weight:700;color:#f1f5f9;">{m.id}</span>
-                      <span style="font-size:0.6rem;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Ponderación por criterio</span>
-                    </div>
-                    <input type="number" value={m.multiplicador} step="0.01" min="0" max="1"
-                      oninput={(e) => { const v = parseFloat((e.target as HTMLInputElement).value) || 0; multiplicadores = multiplicadores.map(x => x.id === m.id ? { ...x, multiplicador: Math.max(0, Math.min(1, v)) } : x); }}
-                      onblur={(e) => { const v = parseFloat((e.target as HTMLInputElement).value) || 0; if (v !== m.multiplicador) handleUpdateMultiplicador(m.id, v); }}
-                      onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-                      style="width:64px;padding:0.3rem 0.35rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:7px;color:#e2e8f0;font-size:0.85rem;font-weight:600;text-align:center;outline:none;flex-shrink:0;" />
-                  </div>
+              {#if multiplicadores.length === 0}
+                <div style="text-align:center;padding:1.5rem;color:#64748b;font-size:0.8rem;">
+                  Cargando multiplicadores...
                 </div>
-              {/each}
+              {:else}
+                {#each multiplicadores as m (m.id)}
+                  {@const gc = gradeConfigs.find(g => g.id === m.id)}
+                  <div style="position:relative;background:rgba(255,255,255,0.03);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:14px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;">
+                    <div style="position:absolute;top:0;left:0;width:3px;height:100%;background:{gc?.color || '#6b7280'};border-radius:0 2px 2px 0;"></div>
+                    <div style="padding:1rem 1rem 0.85rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+                      <div style="width:10px;height:10px;border-radius:50%;background:{gc?.color || '#6b7280'};box-shadow:0 0 6px {gc?.color || '#6b7280'}66;flex-shrink:0;"></div>
+                      <div style="display:flex;flex-direction:column;gap:0.2rem;flex:1;min-width:0;">
+                        <span style="font-size:0.8rem;font-weight:700;color:#f1f5f9;">{gc?.nombre || m.id}</span>
+                        <span style="font-size:0.6rem;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">{m.id} · Ponderación por criterio</span>
+                      </div>
+                      <input type="number" value={m.multiplicador} step="0.01" min="0" max="1"
+                        oninput={(e) => { const v = parseFloat((e.target as HTMLInputElement).value) || 0; multiplicadores = multiplicadores.map(x => x.id === m.id ? { ...x, multiplicador: Math.max(0, Math.min(1, v)) } : x); }}
+                        onblur={(e) => { const v = parseFloat((e.target as HTMLInputElement).value) || 0; if (v !== m.multiplicador) handleUpdateMultiplicador(m.id, v); }}
+                        onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                        style="width:64px;padding:0.3rem 0.35rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:7px;color:#e2e8f0;font-size:0.85rem;font-weight:600;text-align:center;outline:none;flex-shrink:0;" />
+                    </div>
+                  </div>
+                {/each}
+              {/if}
             </div>
           </div>
         </div>
@@ -419,27 +425,33 @@
           <div style="padding: 1.5rem 2rem;">
             <p style="margin:0 0 1.5rem 0;color:#94a3b8;font-size:0.85rem;">Define el factor de ponderación que cada calificación cualitativa aplica por criterio.</p>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 1rem;">
-              {#each multiplicadores as m (m.id)}
-                {@const gc = gradeConfigs.find(g => g.id === m.id)}
-                <div style="position:relative;background:rgba(255,255,255,0.03);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:16px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;transition:all 0.25s ease"
-                  onmouseenter={(e) => { e.currentTarget.style.borderColor = (gc?.color || '#6b7280') + '44'; e.currentTarget.style.boxShadow = `0 8px 32px ${gc?.color || '#6b7280'}22`; }}
-                  onmouseleave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.boxShadow = 'none'; }}>
-                  <div style="position:absolute;top:0;left:0;width:4px;height:100%;background:{gc?.color || '#6b7280'};border-radius:0 2px 2px 0;"></div>
-                  <div style="padding:1.25rem 1.25rem 1rem 1.5rem;display:flex;align-items:center;gap:1rem;">
-                    <div style="width:12px;height:12px;border-radius:50%;background:{gc?.color || '#6b7280'};box-shadow:0 0 8px {gc?.color || '#6b7280'}66;flex-shrink:0;"></div>
-                    <div style="display:flex;flex-direction:column;gap:0.25rem;flex:1;min-width:0;">
-                      <span style="font-size:1rem;font-weight:700;color:#f1f5f9;">{m.id}</span>
-                      <span style="font-size:0.65rem;color:#64748b;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;">Ponderación por criterio</span>
-                    </div>
-                    <input type="number" value={m.multiplicador} step="0.01" min="0" max="1"
-                      oninput={(e) => { const v = parseFloat((e.target as HTMLInputElement).value) || 0; multiplicadores = multiplicadores.map(x => x.id === m.id ? { ...x, multiplicador: Math.max(0, Math.min(1, v)) } : x); }}
-                      onblur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; const v = parseFloat((e.target as HTMLInputElement).value) || 0; if (v !== m.multiplicador) handleUpdateMultiplicador(m.id, v); }}
-                      onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-                      style="width:72px;padding:0.35rem 0.4rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#e2e8f0;font-size:0.95rem;font-weight:600;text-align:center;outline:none;transition:border 0.2s;flex-shrink:0;"
-                      onfocus={(e) => e.currentTarget.style.borderColor = gc?.color || '#6b7280'} />
-                  </div>
+              {#if multiplicadores.length === 0}
+                <div style="grid-column:1/-1;text-align:center;padding:1.5rem;color:#64748b;font-size:0.85rem;">
+                  Cargando multiplicadores...
                 </div>
-              {/each}
+              {:else}
+                {#each multiplicadores as m (m.id)}
+                  {@const gc = gradeConfigs.find(g => g.id === m.id)}
+                  <div style="position:relative;background:rgba(255,255,255,0.03);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:16px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;transition:all 0.25s ease"
+                    onmouseenter={(e) => { e.currentTarget.style.borderColor = (gc?.color || '#6b7280') + '44'; e.currentTarget.style.boxShadow = `0 8px 32px ${gc?.color || '#6b7280'}22`; }}
+                    onmouseleave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.boxShadow = 'none'; }}>
+                    <div style="position:absolute;top:0;left:0;width:4px;height:100%;background:{gc?.color || '#6b7280'};border-radius:0 2px 2px 0;"></div>
+                    <div style="padding:1.25rem 1.25rem 1rem 1.5rem;display:flex;align-items:center;gap:1rem;">
+                      <div style="width:12px;height:12px;border-radius:50%;background:{gc?.color || '#6b7280'};box-shadow:0 0 8px {gc?.color || '#6b7280'}66;flex-shrink:0;"></div>
+                      <div style="display:flex;flex-direction:column;gap:0.25rem;flex:1;min-width:0;">
+                        <span style="font-size:1rem;font-weight:700;color:#f1f5f9;">{gc?.nombre || m.id}</span>
+                        <span style="font-size:0.65rem;color:#64748b;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;">{m.id} · Ponderación por criterio</span>
+                      </div>
+                      <input type="number" value={m.multiplicador} step="0.01" min="0" max="1"
+                        oninput={(e) => { const v = parseFloat((e.target as HTMLInputElement).value) || 0; multiplicadores = multiplicadores.map(x => x.id === m.id ? { ...x, multiplicador: Math.max(0, Math.min(1, v)) } : x); }}
+                        onblur={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; const v = parseFloat((e.target as HTMLInputElement).value) || 0; if (v !== m.multiplicador) handleUpdateMultiplicador(m.id, v); }}
+                        onkeydown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                        style="width:72px;padding:0.35rem 0.4rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#e2e8f0;font-size:0.95rem;font-weight:600;text-align:center;outline:none;transition:border 0.2s;flex-shrink:0;"
+                        onfocus={(e) => e.currentTarget.style.borderColor = gc?.color || '#6b7280'} />
+                    </div>
+                  </div>
+                {/each}
+              {/if}
             </div>
           </div>
         </div>
