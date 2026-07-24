@@ -370,6 +370,31 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
         .map_err(|e| format!("Error agregando columna activo a colegio: {}", e))?;
     }
 
+    // Sembrar multiplicadores por defecto si la tabla está vacía
+    let has_multiplicadores: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM multiplicador_calificacion",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(0) > 0;
+
+    if !has_multiplicadores {
+        let defaults = vec![
+            ("AA", 1.0),
+            ("AS", 0.85),
+            ("AF", 0.65),
+            ("AI", 0.40),
+        ];
+        for (id, mult) in defaults {
+            conn.execute(
+                "INSERT OR IGNORE INTO multiplicador_calificacion (id, multiplicador) VALUES (?, ?)",
+                rusqlite::params![id, mult],
+            ).ok();
+        }
+        println!("✅ [DB] Multiplicadores de criterios sembrados (migración)");
+    }
+
     Ok(())
 }
 
