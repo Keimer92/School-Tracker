@@ -58,7 +58,7 @@ async function main() {
   };
 
   try {
-    execSync(`npx tauri android dev --config "${tempConfigPath}"`, {
+    execSync(`npx tauri android dev --config "${tempConfigPath}" --no-dev-server-wait`, {
       cwd: root,
       stdio: "inherit",
       env,
