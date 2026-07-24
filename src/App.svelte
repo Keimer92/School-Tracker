@@ -209,7 +209,9 @@
         <span class="mobile-title">School Tracker</span>
       </div>
   {/if}
-  <div class="drawer-backdrop {drawerOpen ? '' : 'closed'}" onclick={closeDrawer}></div>
+  {#if isMobile}
+    <div class="drawer-backdrop {drawerOpen ? '' : 'closed'}" onclick={closeDrawer}></div>
+  {/if}
 
     <Sidebar
       {activeTab}
