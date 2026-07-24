@@ -2,6 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { emit } from "@tauri-apps/api/event";
   import { syncService } from "../lib/syncService";
+  import { setActiveProvider } from "../lib/syncService";
 
   let view: 'landing' | 'cloud' | 'wizard' = $state('landing');
   let step = $state(1);
@@ -129,7 +130,7 @@
         localStorage.setItem('turso_url', cloudUrl);
         localStorage.setItem('turso_auth_token', cloudKey);
       }
-      syncService.setActiveProvider(provider);
+      setActiveProvider(provider);
       await syncService.syncAll();
       const hasData = await invoke('is_app_initialized');
       if (hasData) {
