@@ -1782,6 +1782,38 @@ ALTER TABLE sync_batch DISABLE ROW LEVEL SECURITY;`;
           ...allTables.map((t) => `ALTER TABLE ${t} DISABLE ROW LEVEL SECURITY;`),
         ];
         await runSqlStatements(fixSqls, false);
+        // Crear tablas nuevas que aún no existan en el schema (ej. multiplicador_calificacion)
+        let createdAny = false;
+        for (const table of allTables) {
+          const exists = await probeTablePostgrest(table);
+          if (!exists) {
+            console.log(`[Supabase] Tabla '${table}' no existe — creando...`);
+            const createSql = DDL_SCRIPT.split(';').filter(s => s.trim() && s.toLowerCase().includes(`create table ${table}`));
+            if (createSql.length > 0) {
+              // Intentar vía directa (critical=false para no bloquear)
+              let created = false;
+              try { await runSqlStatements(createSql, false); created = true; } catch (_e) { /* ignorar */ }
+              if (!created) {
+                // Fallback a RPC exec_sql
+                try {
+                  const { error: rpcError } = await client.rpc('exec_sql', { sql: createSql.join(';') });
+                  if (!rpcError) created = true;
+                } catch (_e2) { /* ignorar */ }
+              }
+              if (created) { createdAny = true; console.log(`[Supabase] Tabla '${table}' creada.`); }
+            }
+          }
+        }
+        // Refrescar schema cache de PostgREST si se creó alguna tabla
+        if (createdAny) {
+          try { await runSqlStatements(["NOTIFY pgrst, 'reload schema';"], false); } catch (_e) { /* ignorar */ }
+          try { await client.rpc('exec_sql', { sql: "NOTIFY pgrst, 'reload schema';" }); } catch (_e) { /* ignorar */ }
+          for (let attempt = 0; attempt < 5; attempt++) {
+            const allOk = (await Promise.all(allTables.map(t => probeTablePostgrest(t)))).every(Boolean);
+            if (allOk) break;
+            await new Promise((resolve) => globalThis.setTimeout(resolve, 1500));
+          }
+        }
         return { ok: true };
       }
 
