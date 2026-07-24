@@ -162,7 +162,7 @@
     let v = minimo; if (id !== "AI") { if (v < 0) v = 0; if (v > 100) v = 100; } else v = 0;
     const old = oldId || id;
     try {
-      await invoke("update_grade_config", { id, nombre, color, minimo: v, old_id: old });
+      await invoke("update_grade_config", { id, nombre, color, minimo: v, oldId: old });
       gradeConfigs = gradeConfigs.map(c => c.id === old ? { ...c, id, nombre, color, minimo: v } : c);
       gradeConfigs = gradeConfigs.sort((a, b) => GRADE_ORDER.indexOf(a.id) - GRADE_ORDER.indexOf(b.id));
       onDataChange('configuracion_calificacion');
