@@ -150,6 +150,17 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     } }; showResetConfirm = true;
   }
 
+  async function handleFactoryReset() {
+    if (!confirm('¿Estás SEGURO? Se borrarán TODOS los datos locales y la app se reiniciará desde cero.\n\nEsta acción no se puede deshacer.')) return;
+    try {
+      await invoke('factory_reset');
+      await emit('show-toast', { message: '✅ Datos restablecidos. La app se recargará.', type: 'success' });
+      setTimeout(() => location.reload(), 1500);
+    } catch (error) {
+      await emit('show-toast', { message: '❌ Error: ' + error, type: 'error' });
+    }
+  }
+
   async function showUserId() { currentUserId = await syncService.getUserId() || 'No conectado'; showUserIdBox = true; }
   async function copyUserId() { if (currentUserId && currentUserId !== 'No conectado') { await navigator.clipboard.writeText(currentUserId); emit("show-toast", { message: "User ID copiado al portapapeles", type: "success" }); } }
   async function handleSelectFolder() {
@@ -475,6 +486,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
                   <button onclick={handleResetLocalDB} style="padding: 0.6rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600;">🗑️ Reiniciar DB Local</button>
                   <button onclick={handleResetRemoteDB} style="padding: 0.6rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="margin-right: 6px; vertical-align: middle;"><path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z" stroke="#f87171" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Limpiar Nube</button>
+                  <button onclick={handleFactoryReset} style="padding: 0.6rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600;">🔄 Restablecer valores de fábrica</button>
                 </div>
               </div>
               <div style="background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); margin-top: 1.5rem;">
