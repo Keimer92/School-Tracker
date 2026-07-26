@@ -1194,39 +1194,38 @@ export const syncService = {
           multiplicador: m.multiplicador,
         }));
 
-        // Forzar refresco de schema cache de PostgREST antes de upsert
-        try {
+        // Intentar upsert vía PostgREST
+        const { error: pgError } = await supabase.from('multiplicador_calificacion').upsert(batchMultiplicadores, { 
+          onConflict: 'id' 
+        });
+        if (!pgError) {
+          console.log(`[Multiplicador] Upsert exitoso vía PostgREST`);
+        } else {
+          logPgError('Error en multiplicador_calificacion (vía PostgREST):', pgError);
+          // Fallback: SQL directo (bypass PostgREST schema cache)
+          const escapeSql = (s: string) => `'${s.replace(/'/g, "''")}'`;
+          const values = batchMultiplicadores.map(m => `(${escapeSql(m.id)}, ${m.multiplicador})`).join(',');
+          const sql = `INSERT INTO multiplicador_calificacion (id, multiplicador) VALUES ${values} ON CONFLICT (id) DO UPDATE SET multiplicador = EXCLUDED.multiplicador;`;
           const connStrings = getSupabaseConnStrings();
+          let sqlOk = false;
           if (connStrings && connStrings.length > 0) {
-            await invoke('supabase_execute_sql', { connectionStrings: connStrings, sql: "NOTIFY pgrst, 'reload schema';" }).catch(() => {});
+            try {
+              await invoke('supabase_execute_sql', { connectionStrings: connStrings, sql });
+              console.log(`[Multiplicador] Upsert exitoso vía SQL directo`);
+              sqlOk = true;
+            } catch (_directError) { /* intentar RPC */ }
           }
-        } catch (_e) { /* ignorar */ }
-        try { const connStrings = getSupabaseConnStrings(); if (connStrings && connStrings.length > 0) { await invoke('supabase_execute_sql', { connectionStrings: connStrings, sql: "NOTIFY pgrst, 'reload schema';" }).catch(() => {}); } } catch (_e) { /* ignorar */ }
-        supabase.rpc('exec_sql', { sql: "NOTIFY pgrst, 'reload schema';" }).then(() => {}, () => {});
-        // Esperar que el cache se actualice
-        await new Promise((resolve) => globalThis.setTimeout(resolve, 1000));
-
-        // Verificar que la tabla es accesible antes de upsert
-        const probeBefore = await supabase.from('multiplicador_calificacion').select('*', { count: 'exact', head: true });
-        console.log(`[Multiplicador] Probe antes de upsert:`, probeBefore.error ? `❌ ${probeBefore.error.code}` : `✅ accesible`);
-
-        let multiplicadorError: any;
-        for (let attempt = 0; attempt < 3; attempt++) {
-          const { error } = await supabase.from('multiplicador_calificacion').upsert(batchMultiplicadores, { 
-            onConflict: 'id' 
-          });
-          if (!error) { multiplicadorError = null; break; }
-          multiplicadorError = error;
-          logPgError(`Error en multiplicador_calificacion (intento ${attempt + 1}):`, error);
-          // Reintentar con schema refresh
-          supabase.rpc('exec_sql', { sql: "NOTIFY pgrst, 'reload schema';" }).then(() => {}, () => {});
-          await new Promise((resolve) => globalThis.setTimeout(resolve, 1500));
-          // Verificar si la tabla es accesible ahora
-          const probeRetry = await supabase.from('multiplicador_calificacion').select('*', { count: 'exact', head: true });
-          console.log(`[Multiplicador] Probe después de reintento ${attempt + 1}:`, probeRetry.error ? `❌ ${probeRetry.error.code}` : `✅ accesible`);
-        }
-        if (multiplicadorError) {
-          throw new Error(`Error en Multiplicadores: ${getSupabaseErrorMessage(multiplicadorError)}`);
+          if (!sqlOk) {
+            // Fallback a RPC exec_sql
+            try {
+              const { error: rpcError } = await supabase.rpc('exec_sql', { sql });
+              if (rpcError) throw rpcError;
+              console.log(`[Multiplicador] Upsert exitoso vía RPC exec_sql`);
+              sqlOk = true;
+            } catch (rpcError) {
+              throw new Error(`Error en Multiplicadores: ${getSupabaseErrorMessage(rpcError || pgError)}`);
+            }
+          }
         }
       }
 
