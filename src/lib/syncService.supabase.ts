@@ -1818,7 +1818,10 @@ ALTER TABLE sync_batch DISABLE ROW LEVEL SECURITY;`;
               // Intentar vía directa (critical=false para no bloquear)
               try { await runSqlStatements(createSql, false); } catch (_e) { /* ignorar */ }
               // Fallback a RPC exec_sql
-              try { await client.rpc('exec_sql', { sql: createSql.join(';') }); } catch (_e2) { /* ignorar */ }
+              try {
+                const { error: rpcErr } = await client.rpc('exec_sql', { sql: createSql.join(';') });
+                if (rpcErr) console.warn(`[Supabase] RPC exec_sql falló para '${table}':`, rpcErr);
+              } catch (_e2) { /* ignorar */ }
             }
           }
         }
@@ -1835,7 +1838,7 @@ ALTER TABLE sync_batch DISABLE ROW LEVEL SECURITY;`;
         const missingTables: string[] = [];
         for (const table of allTables) {
           const { error } = await client.from(table).select('id', { count: 'estimated', head: false }).limit(1);
-          if (error && /PGRST205|not found|relation .* does not exist/i.test(String(error.message || error.code))) {
+          if (error && /PGRST205|could not find|not found|relation .* does not exist/i.test(String(error.message || error.code))) {
             missingTables.push(table);
           }
         }
