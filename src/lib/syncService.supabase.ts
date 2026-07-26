@@ -1725,8 +1725,11 @@ export const syncService = {
       // Probar tablas vía PostgREST (el cliente JS, no SQL directo).
       // El usuario debe haber creado las tablas manualmente en Supabase SQL Editor.
       const probeTablePostgrest = async (tableName: string) => {
-        const { error } = await client.from(tableName).select('*', { count: 'exact', head: true });
-        return !error;
+        const { error } = await client.from(tableName).select('*', { count: 'estimated', head: false }).limit(1);
+        if (!error) return true;
+        // Si el error es de tabla faltante, devolver false
+        if (/PGRST205|could not find|not found|relation .* does not exist/i.test(String(error.message || error.code))) return false;
+        return true; // asumir que existe si el error no es de tabla faltante
       };
 
       const runSqlStatements = async (sqlStatements: string[], critical: boolean = true) => {
@@ -1837,7 +1840,7 @@ ALTER TABLE sync_batch DISABLE ROW LEVEL SECURITY;`;
         // Verificar que las tablas realmente existen (probe con limit 1, no head)
         const missingTables: string[] = [];
         for (const table of allTables) {
-          const { error } = await client.from(table).select('id', { count: 'estimated', head: false }).limit(1);
+          const { error } = await client.from(table).select('*', { count: 'estimated', head: false }).limit(1);
           if (error && /PGRST205|could not find|not found|relation .* does not exist/i.test(String(error.message || error.code))) {
             missingTables.push(table);
           }
