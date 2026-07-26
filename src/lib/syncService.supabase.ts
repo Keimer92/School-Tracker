@@ -1831,6 +1831,26 @@ ALTER TABLE sync_batch DISABLE ROW LEVEL SECURITY;`;
           if (allOk) break;
           await new Promise((resolve) => globalThis.setTimeout(resolve, 1500));
         }
+        // Verificar que las tablas realmente existen (probe con limit 1, no head)
+        const missingTables: string[] = [];
+        for (const table of allTables) {
+          const { error } = await client.from(table).select('id', { count: 'estimated', head: false }).limit(1);
+          if (error && /PGRST205|not found|relation .* does not exist/i.test(String(error.message || error.code))) {
+            missingTables.push(table);
+          }
+        }
+        if (missingTables.length > 0) {
+          const ddlParts = missingTables.map(t => {
+            const stmt = DDL_SCRIPT.split(';').filter(s => s.trim() && new RegExp(`create table ${t}\\b`, 'i').test(s));
+            return stmt.length > 0 ? stmt[0].trim() + ';' : null;
+          }).filter(Boolean);
+          const alterRls = missingTables.map(t => `ALTER TABLE ${t} DISABLE ROW LEVEL SECURITY;`).join('\n');
+          const manualSql = ddlParts.join('\n') + '\n' + alterRls;
+          return {
+            ok: false,
+            error: `No se pudieron crear las tablas: ${missingTables.join(', ')}. En Android no es posible la conexión directa a Postgres (IPv6) ni el pooler reconoce tu proyecto.\n\nPara solucionarlo, pega esto en Supabase Dashboard → SQL Editor:\n\n${manualSql}\n\nDespués vuelve a sincronizar.`
+          };
+        }
         return { ok: true };
       }
 
