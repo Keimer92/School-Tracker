@@ -479,7 +479,11 @@
     .card-gender{display:flex;gap:0.3rem;margin-top:2px;font-size:0.5rem;font-weight:600}
     .gender-f{color:#f472b6}.gender-m{color:#60a5fa}
     @media(max-width:600px){.ireport-grid{grid-template-columns:repeat(2,1fr)}}
-    .asistencia-opt{width:28px!important;height:28px!important;font-size:0.75rem!important;min-width:28px!important;flex-shrink:0!important}
+    .asistencia-opt{width:28px!important;height:28px!important;font-size:0.75rem!important;min-width:28px!important;flex-shrink:0!important;border-radius:10px!important;border:1px solid rgba(255,255,255,0.08)!important;background:rgba(255,255,255,0.03)!important;transition:all 0.15s cubic-bezier(0.4,0,0.2,1)!important;cursor:pointer!important;display:flex!important;align-items:center!important;justify-content:center!important;font-weight:bold!important}
+    .asistencia-opt.p{background:rgba(16,185,129,0.15)!important;border-color:#10b981!important;color:#10b981!important}
+    .asistencia-opt.a{background:rgba(239,68,68,0.15)!important;border-color:#ef4444!important;color:#ef4444!important}
+    .asistencia-opt.j{background:rgba(245,158,11,0.15)!important;border-color:#f59e0b!important;color:#f59e0b!important}
+    .asistencia-opt:active{transform:scale(0.92)}
     .asistencia-options{gap:3px!important}
     @media(max-width:480px){.asistencia-opt{width:24px!important;height:24px!important;font-size:0.65rem!important;min-width:24px!important}
     .obs-toggle-btn{width:26px!important;height:26px!important;min-width:26px!important;font-size:0.7rem!important}}
@@ -698,14 +702,12 @@
                     {obs ? '📝' : '💬'}
                   </button>
                 </div>
-                <div style="display:flex;gap:0.4rem">
+                <div style="display:flex;gap:0.2rem">
               {#each ['P', 'A', 'J'] as tipo}
-                {@const colors: Record<string, { bg: string; border: string; text: string }> = { P: { bg: 'rgba(16, 185, 129, 0.2)', border: '#10b981', text: '#10b981' }, A: { bg: 'rgba(239, 68, 68, 0.2)', border: '#ef4444', text: '#ef4444' }, J: { bg: 'rgba(245, 158, 11, 0.2)', border: '#f59e0b', text: '#f59e0b' }}}
-                {@const c = colors[tipo]}
                 {@const active = estado === tipo}
-                <label style="flex:0 0 auto;height:36px;font-size:0.85rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:bold;background:{active ? c.bg : 'rgba(255,255,255,0.05)'};border:{active ? `1px solid ${c.border}` : '1px solid rgba(255,255,255,0.1)'};color:{active ? c.text : '#94a3b8'};transition:all 0.2s ease">
-                  <input type="radio" name={`asist-${item.id}`} checked={estado === tipo} onchange={() => { /* No action needed in report view */ }} style="display:none" />
-                  {tipo}
+                <label class="asistencia-opt" class:active class:p={tipo === 'P'} class:a={tipo === 'A'} class:j={tipo === 'J'}>
+                  <input type="radio" name={`asist-${item.id}`} checked={estado === tipo} onchange={() => {}} style="display:none" />
+                  <span>{tipo}</span>
                 </label>
               {/each}
                 </div>
