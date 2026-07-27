@@ -638,9 +638,9 @@
         const criterio = indToUse.flatMap(ind => ind.criterios).find(c => c.id === n.criterioId);
         if (criterio) {
           const candidates = [
-            { grade: 'AA', saved: Math.round(criterio.puntajeMaximo * 1.0) },
-            { grade: 'AS', saved: Math.round(criterio.puntajeMaximo * 0.85) },
-            { grade: 'AF', saved: Math.round(criterio.puntajeMaximo * 0.65) },
+            { grade: 'AA', saved: Math.round(criterio.puntajeMaximo * (notaMapping.AA || 1.0)) },
+            { grade: 'AS', saved: Math.round(criterio.puntajeMaximo * (notaMapping.AS || 0.85)) },
+            { grade: 'AF', saved: Math.round(criterio.puntajeMaximo * (notaMapping.AF || 0.65)) },
             { grade: 'AI', saved: Math.round(criterio.puntajeMaximo * (notaMapping.AI || 0.40)) },
           ];
           const match = candidates.find(c => c.saved === n.valor);
