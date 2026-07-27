@@ -826,13 +826,13 @@
                   <span style="flex:1;font-weight:bold;font-size:0.85rem;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick={() => selectedStudentDetail = est}>{est.nombre}</span>
                 </div>
                 <div style="display:flex;gap:0.4rem;margin-bottom:0.3rem">
-                  <label onclick={() => handleEstadoChange(est.id, 'P')} style="flex:1;height:36px;font-size:0.78rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:700;background:{est.estado === 'P' ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.05)'};border:{est.estado === 'P' ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.1)'};color:{est.estado === 'P' ? '#10b981' : '#94a3b8'}">
+                  <label style="flex:1;height:36px;font-size:0.78rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:700;background:{est.estado === 'P' ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.05)'};border:{est.estado === 'P' ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.1)'};color:{est.estado === 'P' ? '#10b981' : '#94a3b8'}">
                     <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'P'} onchange={() => handleEstadoChange(est.id, 'P')} style="display:none" /><span>Presente</span>
                   </label>
-                  <label onclick={() => handleEstadoChange(est.id, 'A')} style="flex:1;height:36px;font-size:0.78rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:700;background:{est.estado === 'A' ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.05)'};border:{est.estado === 'A' ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.1)'};color:{est.estado === 'A' ? '#ef4444' : '#94a3b8'}">
+                  <label style="flex:1;height:36px;font-size:0.78rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:700;background:{est.estado === 'A' ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.05)'};border:{est.estado === 'A' ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.1)'};color:{est.estado === 'A' ? '#ef4444' : '#94a3b8'}">
                     <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'A'} onchange={() => handleEstadoChange(est.id, 'A')} style="display:none" /><span>Ausente</span>
                   </label>
-                  <label onclick={() => handleEstadoChange(est.id, 'J')} style="flex:1;height:36px;font-size:0.78rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:700;background:{est.estado === 'J' ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.05)'};border:{est.estado === 'J' ? '1px solid #f59e0b' : '1px solid rgba(255,255,255,0.1)'};color:{est.estado === 'J' ? '#f59e0b' : '#94a3b8'}">
+                  <label style="flex:1;height:36px;font-size:0.78rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:700;background:{est.estado === 'J' ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.05)'};border:{est.estado === 'J' ? '1px solid #f59e0b' : '1px solid rgba(255,255,255,0.1)'};color:{est.estado === 'J' ? '#f59e0b' : '#94a3b8'}">
                     <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'J'} onchange={() => handleEstadoChange(est.id, 'J')} style="display:none" /><span>Justificado</span>
                   </label>
                 </div>
@@ -864,16 +864,13 @@
                   </td>
                   <td style="text-align:center">
                     <div style="display:flex;gap:6px;justify-content:center">
-                      <label class="asistencia-btn" class:p={est.estado === 'P'}
-                        onclick={() => handleEstadoChange(est.id, 'P')}>
+                      <label class="asistencia-btn" class:p={est.estado === 'P'}>
                         <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'P'} onchange={() => handleEstadoChange(est.id, 'P')} style="display:none" />Presente
                       </label>
-                      <label class="asistencia-btn" class:a={est.estado === 'A'}
-                        onclick={() => handleEstadoChange(est.id, 'A')}>
+                      <label class="asistencia-btn" class:a={est.estado === 'A'}>
                         <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'A'} onchange={() => handleEstadoChange(est.id, 'A')} style="display:none" />Ausente
                       </label>
-                      <label class="asistencia-btn" class:j={est.estado === 'J'}
-                        onclick={() => handleEstadoChange(est.id, 'J')}>
+                      <label class="asistencia-btn" class:j={est.estado === 'J'}>
                         <input type="radio" name={`asist-${est.id}`} checked={est.estado === 'J'} onchange={() => handleEstadoChange(est.id, 'J')} style="display:none" />Justificado
                       </label>
                     </div>
