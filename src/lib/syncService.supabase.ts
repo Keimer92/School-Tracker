@@ -1306,24 +1306,40 @@ export const syncService = {
 
       console.log(`[Sync] Consultando tablas (sin filtro user_id)`);
 
-      const results = await withSupabaseSchemaRecovery(async () => {
-        // Nota: NO usamos count:'exact'/'estimated' porque tablas con PK compuesta
-        // (nota, grado_asignatura, colegio_asignatura, colegio_dias_asistencia)
-        // no tienen columna 'id' y PostgREST puede truncar o fallar con count.
-        // El limit(100000) es suficiente para evitar el max-rows por defecto.
-        const queryResults = await Promise.all(
-          tables.map(table => {
-            console.log(`[Sync] Consultando ${table}...`);
-            return supabase.from(table).select('*').limit(100000);
-          })
-        );
-
-        const errors = queryResults.filter(r => r.error).map(r => r.error);
-        if (errors.length > 0) {
-          const errorDetails = errors.map(e => e?.message).join(', ');
-          console.error('[Sync] Errores en consultas:', errors);
-          throw new Error(`Error descargando datos: ${errorDetails}`);
+      // Helper: obtiene TODAS las filas de una tabla, paginando de a PAGE_SIZE
+      // porque PostgREST tiene max-rows=1000 por defecto en Supabase.
+      const PAGE_SIZE = 1000;
+      async function fetchAllRows(table: string): Promise<any[]> {
+        console.log(`[Sync] Consultando ${table}...`);
+        let allRows: any[] = [];
+        let from = 0;
+        let hasMore = true;
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from(table)
+            .select('*')
+            .range(from, from + PAGE_SIZE - 1);
+          if (error) {
+            console.error(`[Sync] Error en ${table} (page ${from}-${from + PAGE_SIZE - 1}):`, error);
+            throw error;
+          }
+          if (data && data.length > 0) {
+            allRows = allRows.concat(data);
+            from += PAGE_SIZE;
+            if (data.length < PAGE_SIZE) hasMore = false;
+          } else {
+            hasMore = false;
+          }
         }
+        console.log(`[Sync] ${table}: ${allRows.length} registros (${Math.ceil(allRows.length / PAGE_SIZE)} página(s))`);
+        return allRows;
+      }
+
+      const results = await withSupabaseSchemaRecovery(async () => {
+        // Fetch pequeñas tablas en paralelo, y las grandes (nota, asistencia, etc.) paginadas
+        const queryResults = await Promise.all(
+          tables.map(table => fetchAllRows(table))
+        );
 
         return queryResults;
       }, 'descarga de datos desde Supabase', tables);
@@ -1333,7 +1349,7 @@ export const syncService = {
         estudiantes, indicadores, criterios, notas, asistencia,
         gradeConfigs, multiplicadores,
         gradoAsignatura, colegioAsignatura, colegioDiasAsistencia
-      ] = results.map(r => r.data);
+      ] = results;
 
       console.log('[Sync] Datos obtenidos de Supabase:', {
         anos: anos?.length || 0,
