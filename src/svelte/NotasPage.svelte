@@ -1200,23 +1200,22 @@
           <div style="flex: 1; overflow: auto; padding: 0.3rem 0; -webkit-overflow-scrolling: touch;">
             {#each filteredNotas as est, idx}
               {@const isCurrent = idx === currentStudentIdx}
+              {@const rawFinal = activeIndicadores.reduce((sum, ind) => sum + ind.criterios.reduce((s, c) => {
+                const qv = notasCualitativas[`${est.estudianteId}-${c.id}`];
+                if (qv && ['AA','AS','AF','AI'].includes(qv)) return s + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
+                return s;
+              }, 0), 0)}
+              {@const maxTotal = activeIndicadores.reduce((sum, i) => sum + i.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0), 0)}
+              {@const escFinal = maxTotal > 0 ? (rawFinal / maxTotal) * 100 : 0}
+              {@const grade = getGradeFromScore(escFinal)?.id || ''}
+              {@const color = grade ? getGradeColor(grade) : '#64748b'}
               <div onclick={() => { currentStudentIdx = idx; showStudentList = false; }}
                 style="display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 1rem; background: {isCurrent ? 'rgba(var(--primary-rgb), 0.1)' : 'transparent'}; border-bottom: 1px solid rgba(255,255,255,0.03); cursor: pointer; transition: background 0.1s;">
                 <div style="width: 28px; height: 28px; border-radius: 50%; background: {isCurrent ? '#6366f1' : 'rgba(255,255,255,0.06)'}; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.75rem; color: {isCurrent ? '#fff' : '#94a3b8'}; flex-shrink: 0;">{idx + 1}</div>
                 <div style="flex: 1; font-weight: {isCurrent ? 'bold' : 'normal'}; font-size: 0.85rem; color: {isCurrent ? '#e2e8f0' : '#cbd5e1'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{est.estudianteNombre}</div>
-                {(() => {
-                  const rawFinal = activeIndicadores.reduce((sum, ind) => sum + ind.criterios.reduce((s, c) => {
-                    const qv = notasCualitativas[`${est.estudianteId}-${c.id}`];
-                    if (qv && ['AA','AS','AF','AI'].includes(qv)) return s + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
-                    return s;
-                  }, 0), 0);
-                  const maxTotal = activeIndicadores.reduce((sum, i) => sum + i.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0), 0);
-                  const escFinal = maxTotal > 0 ? (rawFinal / maxTotal) * 100 : 0;
-                  const grade = getGradeFromScore(escFinal)?.id || '';
-                  const color = grade ? getGradeColor(grade) : '#64748b';
-                  if (grade) return `<div style="color: ${color}; font-weight: bold; font-size: 0.85rem;">${grade}</div>`;
-                  return '';
-                })()}
+                {#if grade}
+                  <div style="color: {color}; font-weight: bold; font-size: 0.85rem;">{grade}</div>
+                {/if}
               </div>
             {/each}
           </div>
