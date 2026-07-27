@@ -479,14 +479,12 @@
     .card-gender{display:flex;gap:0.3rem;margin-top:2px;font-size:0.5rem;font-weight:600}
     .gender-f{color:#f472b6}.gender-m{color:#60a5fa}
     @media(max-width:600px){.ireport-grid{grid-template-columns:repeat(2,1fr)}}
-    .asistencia-opt{width:28px!important;height:28px!important;font-size:0.75rem!important;min-width:28px!important;flex-shrink:0!important;border-radius:10px!important;border:1px solid rgba(255,255,255,0.08)!important;background:rgba(255,255,255,0.03)!important;transition:all 0.15s cubic-bezier(0.4,0,0.2,1)!important;cursor:pointer!important;display:flex!important;align-items:center!important;justify-content:center!important;font-weight:bold!important}
-    .asistencia-opt.p{background:rgba(16,185,129,0.15)!important;border-color:#10b981!important;color:#10b981!important}
-    .asistencia-opt.a{background:rgba(239,68,68,0.15)!important;border-color:#ef4444!important;color:#ef4444!important}
-    .asistencia-opt.j{background:rgba(245,158,11,0.15)!important;border-color:#f59e0b!important;color:#f59e0b!important}
-    .asistencia-opt:active{transform:scale(0.92)}
-    .asistencia-options{gap:3px!important}
-    @media(max-width:480px){.asistencia-opt{width:24px!important;height:24px!important;font-size:0.65rem!important;min-width:24px!important}
-    .obs-toggle-btn{width:26px!important;height:26px!important;min-width:26px!important;font-size:0.7rem!important}}
+    .asistencia-btn{padding:0.3rem 0.75rem;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:#94a3b8;white-space:nowrap;transition:all 0.15s cubic-bezier(0.4,0,0.2,1)}
+    .asistencia-btn:active{transform:scale(0.95)}
+    .asistencia-btn.p{background:rgba(16,185,129,0.15)!important;border-color:#10b981!important;color:#10b981!important}
+    .asistencia-btn.a{background:rgba(239,68,68,0.15)!important;border-color:#ef4444!important;color:#ef4444!important}
+    .asistencia-btn.j{background:rgba(245,158,11,0.15)!important;border-color:#f59e0b!important;color:#f59e0b!important}
+    @media(max-width:480px){.obs-toggle-btn{width:26px!important;height:26px!important;min-width:26px!important;font-size:0.7rem!important}}
     .table-container::-webkit-scrollbar{width:6px}
     .table-container::-webkit-scrollbar-track{background:rgba(255,255,255,0.05);border-radius:3px}
     .table-container::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.2);border-radius:3px}
@@ -702,14 +700,16 @@
                     {obs ? '📝' : '💬'}
                   </button>
                 </div>
-                <div style="display:flex;gap:0.2rem">
-              {#each ['P', 'A', 'J'] as tipo}
-                {@const active = estado === tipo}
-                <label class="asistencia-opt" class:active class:p={tipo === 'P'} class:a={tipo === 'A'} class:j={tipo === 'J'}>
-                  <input type="radio" name={`asist-${item.id}`} checked={estado === tipo} onchange={() => {}} style="display:none" />
-                  <span>{tipo}</span>
-                </label>
-              {/each}
+                <div style="display:flex;gap:0.4rem;margin-bottom:0.3rem">
+                  <label style="flex:1;height:36px;font-size:0.78rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:700;background:{estado === 'P' ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.05)'};border:{estado === 'P' ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.1)'};color:{estado === 'P' ? '#10b981' : '#94a3b8'}">
+                    <input type="radio" name={`asist-${item.id}`} checked={estado === 'P'} onchange={() => {}} style="display:none" /><span>Presente</span>
+                  </label>
+                  <label style="flex:1;height:36px;font-size:0.78rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:700;background:{estado === 'A' ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.05)'};border:{estado === 'A' ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.1)'};color:{estado === 'A' ? '#ef4444' : '#94a3b8'}">
+                    <input type="radio" name={`asist-${item.id}`} checked={estado === 'A'} onchange={() => {}} style="display:none" /><span>Ausente</span>
+                  </label>
+                  <label style="flex:1;height:36px;font-size:0.78rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:700;background:{estado === 'J' ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.05)'};border:{estado === 'J' ? '1px solid #f59e0b' : '1px solid rgba(255,255,255,0.1)'};color:{estado === 'J' ? '#f59e0b' : '#94a3b8'}">
+                    <input type="radio" name={`asist-${item.id}`} checked={estado === 'J'} onchange={() => {}} style="display:none" /><span>Justificado</span>
+                  </label>
                 </div>
               </div>
             {/each}
@@ -737,13 +737,16 @@
                     <div style="font-size:0.7rem;opacity:0.6;margin-left:22px">{item.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                   </td>
                   <td>
-              <div class="asistencia-options" style="display:flex;pointer-events:{isAndroid ? 'none' : 'auto'};opacity:{isAndroid ? 0.8 : 1}">  
-                {#each ['P', 'A', 'J'] as tipo}
-                  <label class="asistencia-opt" class:active={estado === tipo} class:p={tipo === 'P'} class:a={tipo === 'A'} class:j={tipo === 'J'} style="display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:8px;font-weight:bold;transition:all 0.2s ease;flex:0 0 auto">
-                    <input type="radio" name={`asist-${item.id}`} checked={estado === tipo} onchange={() => { /* No action needed in report view */ }} style="display:none" />
-                    <span>{tipo}</span>
+              <div style="display:flex;gap:6px;justify-content:center">
+                  <label class="asistencia-btn" class:p={estado === 'P'}>
+                    <input type="radio" name={`asist-${item.id}`} checked={estado === 'P'} onchange={() => {}} style="display:none" />Presente
                   </label>
-                {/each}
+                  <label class="asistencia-btn" class:a={estado === 'A'}>
+                    <input type="radio" name={`asist-${item.id}`} checked={estado === 'A'} onchange={() => {}} style="display:none" />Ausente
+                  </label>
+                  <label class="asistencia-btn" class:j={estado === 'J'}>
+                    <input type="radio" name={`asist-${item.id}`} checked={estado === 'J'} onchange={() => {}} style="display:none" />Justificado
+                  </label>
               </div>
                   </td>
                   <td style="text-align:center;padding:0.2rem">
