@@ -1821,10 +1821,16 @@ ALTER TABLE sync_batch DISABLE ROW LEVEL SECURITY;`;
               // Intentar vía directa (critical=false para no bloquear)
               try { await runSqlStatements(createSql, false); } catch (_e) { /* ignorar */ }
               // Fallback a RPC exec_sql
+              const rpcSql = createSql.join(';');
+              console.log(`[Supabase] Enviando RPC exec_sql para '${table}':`, rpcSql.substring(0, 100));
               try {
-                const { error: rpcErr } = await client.rpc('exec_sql', { sql: createSql.join(';') });
-                if (rpcErr) console.warn(`[Supabase] RPC exec_sql falló para '${table}':`, rpcErr);
-              } catch (_e2) { /* ignorar */ }
+                const rpcResponse = await client.rpc('exec_sql', { sql: rpcSql });
+                if (rpcResponse.error) {
+                  console.warn(`[Supabase] RPC exec_sql falló para '${table}':`, rpcResponse.error);
+                } else {
+                  console.log(`[Supabase] RPC exec_sql EXITOSO para '${table}'`);
+                }
+              } catch (_e2) { console.warn(`[Supabase] RPC exec_sql exception para '${table}':`, _e2); }
             }
           }
         }
@@ -1841,8 +1847,13 @@ ALTER TABLE sync_batch DISABLE ROW LEVEL SECURITY;`;
         const missingTables: string[] = [];
         for (const table of allTables) {
           const { error } = await client.from(table).select('*', { count: 'estimated', head: false }).limit(1);
-          if (error && /PGRST205|could not find|not found|relation .* does not exist/i.test(String(error.message || error.code))) {
-            missingTables.push(table);
+          if (error) {
+            console.log(`[Verify] ${table}: error=${error.code} msg="${error.message?.substring(0, 80)}"`);
+            if (/PGRST205|could not find|not found|relation .* does not exist/i.test(String(error.message || error.code))) {
+              missingTables.push(table);
+            }
+          } else {
+            console.log(`[Verify] ${table}: ✅ OK`);
           }
         }
         if (missingTables.length > 0) {
