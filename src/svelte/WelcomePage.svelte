@@ -221,6 +221,7 @@
       const sr = await syncService.runSchemaSetup();
       if (!sr.ok) { errorMsg = sr.error || 'Error preparando la base de datos remota'; loading = false; return; }
       await syncService.syncAll();
+      await syncService.pullAll();
       const hasData = await invoke('is_app_initialized');
       if (hasData) {
         await invoke('set_app_initialized');
@@ -248,6 +249,7 @@
       localStorage.setItem('turso_auth_token', cloudKey);
       setActiveProvider('turso');
       await syncService.syncAll();
+      await syncService.pullAll();
       const hasData = await invoke('is_app_initialized');
       if (hasData) {
         await invoke('set_app_initialized');
