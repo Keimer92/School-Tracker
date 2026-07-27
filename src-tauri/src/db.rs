@@ -3976,7 +3976,7 @@ pub async fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) 
     for n in &data.notas {
         tx.execute(
             "INSERT OR REPLACE INTO nota (estudiante_id, criterio_id, valor, corte_evaluativo_id, asignatura_id) VALUES (?, ?, ?, ?, ?)",
-            rusqlite::params![n.estudiante_id, n.criterio_id, n.valor, n.corte_evaluativo_id, n.asignatura_id],
+            rusqlite::params![n.estudiante_id, n.criterio_id, n.valor, n.corte_evaluativo_id.unwrap_or(0), n.asignatura_id.unwrap_or(0)],
         ).map_err(|e| e.to_string())?;
     }
 

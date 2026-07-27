@@ -1307,10 +1307,14 @@ export const syncService = {
       console.log(`[Sync] Consultando tablas (sin filtro user_id)`);
 
       const results = await withSupabaseSchemaRecovery(async () => {
+        // Nota: NO usamos count:'exact'/'estimated' porque tablas con PK compuesta
+        // (nota, grado_asignatura, colegio_asignatura, colegio_dias_asistencia)
+        // no tienen columna 'id' y PostgREST puede truncar o fallar con count.
+        // El limit(100000) es suficiente para evitar el max-rows por defecto.
         const queryResults = await Promise.all(
           tables.map(table => {
             console.log(`[Sync] Consultando ${table}...`);
-            return supabase.from(table).select('*', { count: 'exact' }).limit(100000);
+            return supabase.from(table).select('*').limit(100000);
           })
         );
 
