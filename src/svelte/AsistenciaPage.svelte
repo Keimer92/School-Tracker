@@ -147,12 +147,22 @@
     const checkMobile = () => { isMobile = window.innerWidth <= 768; };
     checkMobile();
     window.addEventListener('resize', checkMobile);
-    window.addEventListener('schooltracker-sync', () => { if (hasUnsavedChanges) return; clearTimeout(at); at = setTimeout(() => refreshingSilent = true, 300); });
+    function triggerRefresh() {
+      if (selectedAno && selectedColegio && selectedGrado && selectedSeccion) {
+        if (periodo === "diario") {
+          if (selectedFecha && isFechaHabilitada) fetchEstudiantes();
+        } else {
+          fetchEstudiantesMulti();
+        }
+      }
+    }
+
+    window.addEventListener('schooltracker-sync', () => { if (hasUnsavedChanges) return; clearTimeout(at); at = setTimeout(() => { refreshingSilent = true; triggerRefresh(); }, 300); });
 
     let at: ReturnType<typeof setTimeout>;
-    const u1 = listen("asistencia-updated", () => { if (hasUnsavedChanges) return; clearTimeout(at); at = setTimeout(() => refreshingSilent = true, 500); });
-    const u2 = listen("student-updated", () => { if (hasUnsavedChanges) { pendingRefreshOnSave = true; return; } clearTimeout(at); at = setTimeout(() => { refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); }, 500); });
-    const u3 = listen("catalog-updated", () => { if (hasUnsavedChanges) return; clearTimeout(at); at = setTimeout(() => { fetchCatalogs(); fetchColegioConfig(); if (selectedColegio && selectedAno) fetchGrados(); refreshingSilent = true; }, 500); });
+    const u1 = listen("asistencia-updated", () => { if (hasUnsavedChanges) return; clearTimeout(at); at = setTimeout(() => { refreshingSilent = true; triggerRefresh(); }, 500); });
+    const u2 = listen("student-updated", () => { if (hasUnsavedChanges) { pendingRefreshOnSave = true; return; } clearTimeout(at); at = setTimeout(() => { refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); triggerRefresh(); }, 500); });
+    const u3 = listen("catalog-updated", () => { if (hasUnsavedChanges) return; clearTimeout(at); at = setTimeout(() => { fetchCatalogs(); fetchColegioConfig(); if (selectedColegio && selectedAno) fetchGrados(); refreshingSilent = true; triggerRefresh(); }, 500); });
     const u4 = listen("subjects-updated", () => { if (hasUnsavedChanges) return; fetchColegioConfig(); });
     fetchCatalogs();
     return () => {
