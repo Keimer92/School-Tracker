@@ -484,6 +484,19 @@
     .asistencia-btn.p{background:rgba(16,185,129,0.15)!important;border-color:#10b981!important;color:#10b981!important}
     .asistencia-btn.a{background:rgba(239,68,68,0.15)!important;border-color:#ef4444!important;color:#ef4444!important}
     .asistencia-btn.j{background:rgba(245,158,11,0.15)!important;border-color:#f59e0b!important;color:#f59e0b!important}
+    .semanal-status{display:inline-block;padding:0.25rem 0.4rem;border-radius:6px;font-size:0.7rem;font-weight:700;cursor:default;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:#94a3b8;transition:all 0.15s ease;white-space:nowrap;text-align:center;user-select:none;width:100%;box-sizing:border-box}
+    .semanal-status.estado-p{background:rgba(16,185,129,0.15);border-color:#10b981;color:#10b981}
+    .semanal-status.estado-a{background:rgba(239,68,68,0.15);border-color:#ef4444;color:#ef4444}
+    .semanal-status.estado-j{background:rgba(245,158,11,0.15);border-color:#f59e0b;color:#f59e0b}
+    .ciclo-cell{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;cursor:default;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:#64748b;margin:0 auto}
+    .ciclo-cell.estado-p{background:rgba(16,185,129,0.15);border-color:#10b981;color:#10b981}
+    .ciclo-cell.estado-a{background:rgba(239,68,68,0.15);border-color:#ef4444;color:#ef4444}
+    .ciclo-cell.estado-j{background:rgba(245,158,11,0.15);border-color:#f59e0b;color:#f59e0b}
+    .mensual-chip-row{display:flex;gap:2px;overflow-x:auto;padding-bottom:0.2rem}
+    .mensual-chip{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:700;flex-shrink:0;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:#64748b;transition:all 0.15s ease}
+    .mensual-chip.estado-p{background:rgba(16,185,129,0.15);border-color:#10b981;color:#10b981}
+    .mensual-chip.estado-a{background:rgba(239,68,68,0.15);border-color:#ef4444;color:#ef4444}
+    .mensual-chip.estado-j{background:rgba(245,158,11,0.15);border-color:#f59e0b;color:#f59e0b}
     @media(max-width:480px){.obs-toggle-btn{width:26px!important;height:26px!important;min-width:26px!important;font-size:0.7rem!important}}
     .table-container::-webkit-scrollbar{width:6px}
     .table-container::-webkit-scrollbar-track{background:rgba(255,255,255,0.05);border-radius:3px}
@@ -761,6 +774,42 @@
             </tbody>
           </table>
         {/if}
+      {:else if isAndroidMobile}
+        <div style="display:flex;flex-direction:column;gap:0.5rem;padding:0.4rem 0">
+          {#each reporteFiltrado as item, index}
+            <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:0.5rem 0.6rem">
+              <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.4rem">
+                <span style="font-size:0.7rem;color:#64748b;font-weight:bold;min-width:20px">{index + 1}</span>
+                <span style="font-size:1rem;flex-shrink:0">{item.sexo === 'F' ? '👩' : '👨'}</span>
+                <span style="flex:1;font-weight:bold;font-size:0.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{item.nombre}</span>
+              </div>
+              {#if periodo === 'semanal'}
+                <div style="display:flex;gap:0.4rem;overflow-x:auto;padding-bottom:0.2rem">
+                  {#each fechasColumnas as fecha}
+                    {@const est = getEstadoEnFecha(item, fecha)}
+                    {@const dayName = new Date(fecha + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short' }).replace('.','')}
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;min-width:68px">
+                      <span style="font-size:0.55rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.2px;white-space:nowrap">{dayName}</span>
+                      <div class="semanal-status" class:estado-p={est === 'P'} class:estado-a={est === 'A'} class:estado-j={est === 'J'}>
+                        {est === 'P' ? 'Pres' : est === 'A' ? 'Aus' : est === 'J' ? 'Just' : '—'}
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+              {:else}
+                <div class="mensual-chip-row">
+                  {#each fechasColumnas as fecha}
+                    {@const est = getEstadoEnFecha(item, fecha)}
+                    <div class="mensual-chip" class:estado-p={est === 'P'} class:estado-a={est === 'A'} class:estado-j={est === 'J'}
+                      title={new Date(fecha + "T12:00:00").toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}>
+                      {new Date(fecha + "T12:00:00").getDate()}
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {/each}
+        </div>
       {:else}
         <table class="custom-table" style="width:100%;margin:0;overflow:visible">
           <thead>
@@ -794,8 +843,8 @@
                 </td>
                 {#each fechasColumnas as f}
                   {@const est = getEstadoEnFecha(item, f)}
-                  <td style="color:{getEstadoColor(est)};font-weight:bold;font-size:0.8rem">
-                    <span style="display:inline-block;width:24px;height:24px;line-height:24px;border-radius:4px;background-color:{getEstadoColor(est)};color:{est === '-' ? 'rgba(255,255,255,0.2)' : 'white'};font-size:0.8rem;font-weight:bold">{est}</span>
+                  <td>
+                    <div class="ciclo-cell" class:estado-p={est === 'P'} class:estado-a={est === 'A'} class:estado-j={est === 'J'}>{est}</div>
                   </td>
                 {/each}
                 <td style="color:#4caf50;font-weight:bold">{p}</td>
