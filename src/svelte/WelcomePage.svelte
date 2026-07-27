@@ -220,7 +220,6 @@
       saveRememberedAccount(sbEmail, cloudUrl);
       const sr = await syncService.runSchemaSetup();
       if (!sr.ok) { errorMsg = sr.error || 'Error preparando la base de datos remota'; loading = false; return; }
-      await syncService.syncAll();
       await syncService.pullAll();
       const hasData = await invoke('is_app_initialized');
       if (hasData) {
@@ -248,7 +247,6 @@
       localStorage.setItem('turso_url', cloudUrl);
       localStorage.setItem('turso_auth_token', cloudKey);
       setActiveProvider('turso');
-      await syncService.syncAll();
       await syncService.pullAll();
       const hasData = await invoke('is_app_initialized');
       if (hasData) {
