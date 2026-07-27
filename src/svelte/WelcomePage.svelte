@@ -17,8 +17,13 @@
   let sbEmail = $state('');
   let sbPassword = $state('');
   let sbConfirmPassword = $state('');
-  let authMode: 'register' | 'login' = $state('register');
+  let authMode: 'login' | 'register' = $state('login');
   let sbSessionUser: string | null = $state(null);
+  let showSbPassword = $state(false);
+  let showSbConfirmPassword = $state(false);
+
+  let envLoaded = $state(false);
+  let showManualInput = $state(false);
 
   let rememberedAccounts = $state<{email: string; url: string; lastUsed: string}[]>([]);
 
@@ -65,12 +70,50 @@
     { title: 'Resumen', icon: '✅', key: 'resumen' },
   ];
 
-  function goToCloud() {
+  let envDefaults: { supabase: { url: string; key: string }; turso: { url: string; token: string } } = $state({
+    supabase: { url: '', key: '' },
+    turso: { url: '', token: '' }
+  });
+
+  function loadEnvDefaults() {
     if (typeof import.meta !== 'undefined') {
-      const envUrl = (import.meta as any).env?.VITE_SUPABASE_URL;
-      const envKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY;
-      if (envUrl) cloudUrl = envUrl;
-      if (envKey) cloudKey = envKey;
+      const env = (import.meta as any).env;
+      envDefaults = {
+        supabase: { url: env?.VITE_SUPABASE_URL || '', key: env?.VITE_SUPABASE_ANON_KEY || '' },
+        turso: { url: env?.VITE_TURSO_DB_URL || '', token: env?.VITE_TURSO_AUTH_TOKEN || '' }
+      };
+    }
+  }
+  loadEnvDefaults();
+
+  function resetToEnvDefaults() {
+    const defs = envDefaults;
+    if (provider === 'supabase') {
+      cloudUrl = defs.supabase.url;
+      cloudKey = defs.supabase.key;
+    } else {
+      cloudUrl = defs.turso.url;
+      cloudKey = defs.turso.token;
+    }
+    showManualInput = false;
+    errorMsg = '';
+  }
+
+  function goToCloud() {
+    const defs = envDefaults;
+    const sbHasEnv = !!(defs.supabase.url && defs.supabase.key);
+    const tursoHasEnv = !!(defs.turso.url && defs.turso.token);
+    envLoaded = sbHasEnv || tursoHasEnv;
+    if (provider === 'supabase' && sbHasEnv) {
+      cloudUrl = defs.supabase.url;
+      cloudKey = defs.supabase.key;
+      showManualInput = false;
+    } else if (provider === 'turso' && tursoHasEnv) {
+      cloudUrl = defs.turso.url;
+      cloudKey = defs.turso.token;
+      showManualInput = false;
+    } else {
+      showManualInput = true;
     }
     view = 'cloud';
   }
@@ -294,18 +337,29 @@
       </div>
       <div class="welcome-form">
         <div class="provider-tabs">
-          <button class="provider-tab" class:active={provider === 'supabase'} onclick={() => { provider = 'supabase'; errorMsg = ''; }}>Supabase</button>
-          <button class="provider-tab" class:active={provider === 'turso'} onclick={() => { provider = 'turso'; errorMsg = ''; }}>Turso</button>
+          <button class="provider-tab" class:active={provider === 'supabase'} onclick={() => { provider = 'supabase'; errorMsg = ''; if (envDefaults.supabase.url && !showManualInput) { cloudUrl = envDefaults.supabase.url; cloudKey = envDefaults.supabase.key; } }}>Supabase</button>
+          <button class="provider-tab" class:active={provider === 'turso'} onclick={() => { provider = 'turso'; errorMsg = ''; if (envDefaults.turso.url && !showManualInput) { cloudUrl = envDefaults.turso.url; cloudKey = envDefaults.turso.token; } }}>Turso</button>
         </div>
         {#if provider === 'supabase'}
-          <div class="field">
-            <label>URL del proyecto</label>
-            <input bind:value={cloudUrl} placeholder="https://xxxxx.supabase.co" />
-          </div>
-          <div class="field">
-            <label>Anon Key</label>
-            <input bind:value={cloudKey} placeholder="eyJhbGciOiJIUzI1NiIs..." />
-          </div>
+          {#if envLoaded && !showManualInput}
+            <div class="env-badge">
+              <span class="env-badge-icon">✅</span>
+              <span>Usando configuración predeterminada del entorno</span>
+              <button class="env-badge-btn" onclick={() => { showManualInput = true; }}>Usar otros datos →</button>
+            </div>
+          {:else}
+            <div class="field">
+              <label>URL del proyecto</label>
+              <input bind:value={cloudUrl} placeholder="https://xxxxx.supabase.co" />
+            </div>
+            <div class="field">
+              <label>Anon Key</label>
+              <input bind:value={cloudKey} placeholder="eyJhbGciOiJIUzI1NiIs..." />
+            </div>
+            {#if envLoaded}
+              <button class="env-reset-btn" onclick={resetToEnvDefaults}>↩ Volver a configuración predeterminada</button>
+            {/if}
+          {/if}
           {#if rememberedAccounts.length > 0}
             <div style="margin-top:0.25rem;">
               <div style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.3rem;">Cuentas guardadas</div>
@@ -324,8 +378,8 @@
             </div>
           {/if}
           <div style="display:flex;gap:0.4rem;margin-top:0.25rem;background:rgba(255,255,255,0.04);padding:0.25rem;border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
-            <button onclick={() => { authMode = 'register'; errorMsg = ''; }} style="flex:1;padding:0.4rem 0.5rem;border-radius:7px;border:none;cursor:pointer;font-size:0.8rem;font-weight:600;background:{authMode === 'register' ? 'var(--primary-color)' : 'transparent'};color:{authMode === 'register' ? '#fff' : '#94a3b8'};transition:all 0.2s;">Crear Cuenta</button>
             <button onclick={() => { authMode = 'login'; errorMsg = ''; }} style="flex:1;padding:0.4rem 0.5rem;border-radius:7px;border:none;cursor:pointer;font-size:0.8rem;font-weight:600;background:{authMode === 'login' ? 'var(--primary-color)' : 'transparent'};color:{authMode === 'login' ? '#fff' : '#94a3b8'};transition:all 0.2s;">Iniciar Sesión</button>
+            <button onclick={() => { authMode = 'register'; errorMsg = ''; }} style="flex:1;padding:0.4rem 0.5rem;border-radius:7px;border:none;cursor:pointer;font-size:0.8rem;font-weight:600;background:{authMode === 'register' ? 'var(--primary-color)' : 'transparent'};color:{authMode === 'register' ? '#fff' : '#94a3b8'};transition:all 0.2s;">Crear Cuenta</button>
           </div>
           <div class="field">
             <label>Correo electrónico</label>
@@ -333,23 +387,52 @@
           </div>
           <div class="field">
             <label>Contraseña</label>
-            <input type="password" bind:value={sbPassword} placeholder="••••••••" />
+            <div class="password-wrapper">
+              <input type={showSbPassword ? 'text' : 'password'} bind:value={sbPassword} placeholder="••••••••" />
+              <button class="password-toggle" onclick={() => showSbPassword = !showSbPassword} tabindex="-1" type="button">
+                {#if showSbPassword}
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                {:else}
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                {/if}
+              </button>
+            </div>
           </div>
           {#if authMode === 'register'}
             <div class="field">
               <label>Confirmar contraseña</label>
-              <input type="password" bind:value={sbConfirmPassword} placeholder="••••••••" />
+              <div class="password-wrapper">
+                <input type={showSbConfirmPassword ? 'text' : 'password'} bind:value={sbConfirmPassword} placeholder="••••••••" />
+                <button class="password-toggle" onclick={() => showSbConfirmPassword = !showSbConfirmPassword} tabindex="-1" type="button">
+                  {#if showSbConfirmPassword}
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  {:else}
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  {/if}
+                </button>
+              </div>
             </div>
           {/if}
         {:else}
-          <div class="field">
-            <label>URL de la base de datos</label>
-            <input bind:value={cloudUrl} placeholder="libsql://xxxxx.turso.io" />
-          </div>
-          <div class="field">
-            <label>Auth Token</label>
-            <input bind:value={cloudKey} placeholder="tu token de acceso" />
-          </div>
+          {#if envLoaded && !showManualInput}
+            <div class="env-badge">
+              <span class="env-badge-icon">✅</span>
+              <span>Usando configuración predeterminada del entorno</span>
+              <button class="env-badge-btn" onclick={() => { showManualInput = true; }}>Usar otros datos →</button>
+            </div>
+          {:else}
+            <div class="field">
+              <label>URL de la base de datos</label>
+              <input bind:value={cloudUrl} placeholder="libsql://xxxxx.turso.io" />
+            </div>
+            <div class="field">
+              <label>Auth Token</label>
+              <input bind:value={cloudKey} placeholder="tu token de acceso" />
+            </div>
+            {#if envLoaded}
+              <button class="env-reset-btn" onclick={resetToEnvDefaults}>↩ Volver a configuración predeterminada</button>
+            {/if}
+          {/if}
         {/if}
         {#if errorMsg}
           <div class="welcome-error">{errorMsg}</div>
@@ -595,6 +678,38 @@
   }
   .field input:focus { border-color: var(--primary-color, #3b82f6); }
   .field input::placeholder { color: #475569; }
+  .password-wrapper {
+    display: flex;
+    align-items: center;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    transition: border 0.2s ease;
+  }
+  .password-wrapper:focus-within { border-color: var(--primary-color, #3b82f6); }
+  .password-wrapper input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    padding: 0.65rem 0 0.65rem 0.85rem;
+    color: #e2e8f0;
+    font-size: 0.85rem;
+  }
+  .password-wrapper input::placeholder { color: #475569; }
+  .password-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: #64748b;
+    cursor: pointer;
+    padding: 0.4rem 0.65rem;
+    transition: color 0.2s;
+    font-family: inherit;
+  }
+  .password-toggle:hover { color: #94a3b8; }
   .welcome-btn-primary {
     padding: 0.75rem;
     background: linear-gradient(135deg, var(--primary-color, #3b82f6), var(--primary-hover, #2563eb));
@@ -617,6 +732,45 @@
     background: rgba(239,68,68,0.1);
     border-radius: 8px;
   }
+  .env-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem 0.85rem;
+    background: rgba(34,197,94,0.08);
+    border: 1px solid rgba(34,197,94,0.2);
+    border-radius: 10px;
+    font-size: 0.8rem;
+    color: #86efac;
+    flex-wrap: wrap;
+  }
+  .env-badge-icon { font-size: 1rem; }
+  .env-badge-btn {
+    margin-left: auto;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    padding: 0.25rem 0.6rem;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 0.7rem;
+    transition: all 0.2s;
+    font-family: inherit;
+  }
+  .env-badge-btn:hover { background: rgba(255,255,255,0.1); color: #e2e8f0; }
+  .env-reset-btn {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    padding: 0.35rem 0.7rem;
+    color: #64748b;
+    cursor: pointer;
+    font-size: 0.7rem;
+    transition: all 0.2s;
+    font-family: inherit;
+    align-self: flex-start;
+  }
+  .env-reset-btn:hover { background: rgba(255,255,255,0.08); color: #94a3b8; }
 
   /* Wizard */
   .wizard-progress {
