@@ -966,6 +966,8 @@ pub fn run() {
             is_app_initialized,
             set_app_initialized,
             factory_reset,
+            get_notas_count,
+            get_notas_count_all,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -3973,12 +3973,18 @@ pub async fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) 
         ).map_err(|e| e.to_string())?;
     }
 
+    let mut nota_count = 0usize;
     for n in &data.notas {
         tx.execute(
             "INSERT OR REPLACE INTO nota (estudiante_id, criterio_id, valor, corte_evaluativo_id, asignatura_id) VALUES (?, ?, ?, ?, ?)",
             rusqlite::params![n.estudiante_id, n.criterio_id, n.valor, n.corte_evaluativo_id.unwrap_or(0), n.asignatura_id.unwrap_or(0)],
         ).map_err(|e| e.to_string())?;
+        nota_count += 1;
+        if nota_count % 500 == 0 {
+            println!("[upsert_pull_data] notas insertadas: {}/{}", nota_count, data.notas.len());
+        }
     }
+    println!("[upsert_pull_data] Total notas insertadas: {}/{}", nota_count, data.notas.len());
 
     for a in &data.asistencia {
         // En SQLite la asistencia tiene un ID autoincremental, pero en sync usamos (estudiante_id, fecha) como clave.
@@ -4174,11 +4180,46 @@ pub async fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) 
     })();
     conn.execute("PRAGMA foreign_keys = ON", []).ok();
     if result.is_ok() {
+        // Verificar que las notas se insertaron correctamente
+        let check_count: Result<i64, _> = conn.query_row("SELECT COUNT(*) FROM nota", [], |row| row.get(0));
+        match check_count {
+            Ok(c) => println!("[upsert_pull_data] 🎉 Notas en SQLite después del sync: {}", c),
+            Err(e) => println!("[upsert_pull_data] ⚠️ Error verificando conteo de notas: {}", e),
+        }
         println!("[upsert_pull_data] 🎉 Función completada exitosamente");
     } else {
         println!("[upsert_pull_data] ❌ Función completada con error: {:?}", result);
     }
     result
+}
+
+/// Diagnóstico: muestra el conteo de notas en SQLite filtrado por grado/sección/corte/asignatura
+#[tauri::command]
+pub async fn get_notas_count(
+    state: tauri::State<'_, DbState>,
+    gradoId: i64,
+    seccionId: i64,
+    corteId: i64,
+    asignaturaId: i64,
+) -> Result<i64, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let count: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM nota n INNER JOIN estudiante e ON n.estudiante_id = e.id WHERE e.grado_id = ? AND e.seccion_id = ? AND n.corte_evaluativo_id = ? AND n.asignatura_id = ?",
+        rusqlite::params![gradoId, seccionId, corteId, asignaturaId],
+        |row| row.get(0),
+    ).map_err(|e| e.to_string())?;
+    println!("[diagnose] notas en SQLite (grado={}, seccion={}, corte={}, asig={}): {}", gradoId, seccionId, corteId, asignaturaId, count);
+    Ok(count)
+}
+
+/// Diagnóstico: muestra cantidad total de notas en SQLite
+#[tauri::command]
+pub async fn get_notas_count_all(state: tauri::State<'_, DbState>) -> Result<i64, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let count: i64 = conn.query_row("SELECT COUNT(*) FROM nota", [], |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+    println!("[diagnose] Total notas en SQLite: {}", count);
+    Ok(count)
 }
 
 #[tauri::command]

@@ -1449,9 +1449,19 @@ export const syncService = {
         colegioAsignatura: pullData.colegioAsignatura?.length || 0,
         colegioDiasAsistencia: pullData.colegioDiasAsistencia?.length || 0,
       });
+      // Diagnostic: log payload size (Android puede tener límites de IPC)
+      const payloadJson = JSON.stringify(pullData);
+      console.log(`[Sync] 📦 Payload upsert_pull_data: ~${(payloadJson.length / 1024).toFixed(1)}KB, notas=${pullData.notas?.length || 0}`);
       try {
         await invoke('upsert_pull_data', { data: pullData });
         console.log(`[Sync] ✅ upsert_pull_data completado sin errores`);
+        // Diagnostic: verificar cuántas notas quedaron realmente en SQLite
+        try {
+          const total = await invoke<number>('get_notas_count_all');
+          console.log(`[Sync] 🔍 Verificación post-sync: Total notas en SQLite = ${total}`);
+        } catch (e2) {
+          console.warn(`[Sync] ⚠️ No se pudo verificar conteo de notas:`, e2);
+        }
       } catch (e) {
         console.error(`[Sync] ❌ upsert_pull_data falló:`, e);
         throw e;
@@ -1712,7 +1722,12 @@ export const syncService = {
         window.dispatchEvent(new CustomEvent('schooltracker-sync', { detail: { timestamp: Date.now() } }));
       }
     } catch (e) {
-      console.warn('[Supabase SyncAllSilent] Error:', e);
+      console.error('[Supabase SyncAllSilent] ❌ Error capturado en syncAllSilent:', e);
+      // Diagnostic: verificar estado de notas en SQLite después del error
+      try {
+        const total = await invoke<number>('get_notas_count_all');
+        console.error(`[Supabase SyncAllSilent] 🔍 Notas en SQLite tras error: ${total}`);
+      } catch {}
     } finally {
       (syncService as any)._syncLock = false;
     }
