@@ -1216,10 +1216,15 @@ export const syncService = {
             } catch (_directError) { /* intentar RPC */ }
           }
           if (!sqlOk) {
-            // Fallback a RPC exec_sql
+            // Fallback a RPC exec_sql: primero crear la tabla si no existe, luego insertar
+            const createSql = `CREATE TABLE IF NOT EXISTS multiplicador_calificacion (id TEXT PRIMARY KEY, multiplicador REAL NOT NULL DEFAULT 1.0);`;
             try {
-              const { error: rpcError } = await supabase.rpc('exec_sql', { sql });
-              if (rpcError) throw rpcError;
+              const { error: ce } = await supabase.rpc('exec_sql', { sql: createSql });
+              if (ce) throw ce;
+              console.log(`[Multiplicador] Tabla creada vía RPC exec_sql`);
+              // Ahora insertar/actualizar
+              const { error: ie } = await supabase.rpc('exec_sql', { sql });
+              if (ie) throw ie;
               console.log(`[Multiplicador] Upsert exitoso vía RPC exec_sql`);
               sqlOk = true;
             } catch (rpcError) {
@@ -1725,11 +1730,10 @@ export const syncService = {
       // Probar tablas vía PostgREST (el cliente JS, no SQL directo).
       // El usuario debe haber creado las tablas manualmente en Supabase SQL Editor.
       const probeTablePostgrest = async (tableName: string) => {
-        const { error } = await client.from(tableName).select('*', { count: 'estimated', head: false }).limit(1);
+        const { error } = await client.from(tableName).select('*', { head: false }).limit(1);
         if (!error) return true;
-        // Si el error es de tabla faltante, devolver false
         if (/PGRST205|could not find|not found|relation .* does not exist/i.test(String(error.message || error.code))) return false;
-        return true; // asumir que existe si el error no es de tabla faltante
+        return true;
       };
 
       const runSqlStatements = async (sqlStatements: string[], critical: boolean = true) => {
@@ -1823,51 +1827,42 @@ ALTER TABLE sync_batch DISABLE ROW LEVEL SECURITY;`;
               // Fallback a RPC exec_sql
               const rpcSql = createSql.join(';');
               console.log(`[Supabase] Enviando RPC exec_sql para '${table}':`, rpcSql.substring(0, 100));
+              let rpcOk = false;
+              // Intentar con client.rpc (raw)
               try {
-                const rpcResponse = await client.rpc('exec_sql', { sql: rpcSql });
-                if (rpcResponse.error) {
-                  console.warn(`[Supabase] RPC exec_sql falló para '${table}':`, rpcResponse.error);
+                const rpcRes = await client.rpc('exec_sql', { sql: rpcSql });
+                if (rpcRes.error) {
+                  console.warn(`[Supabase] client.rpc exec_sql falló:`, rpcRes.error);
                 } else {
-                  console.log(`[Supabase] RPC exec_sql EXITOSO para '${table}'`);
+                  rpcOk = true;
+                  console.log(`[Supabase] client.rpc exec_sql EXITOSO`);
                 }
-              } catch (_e2) { console.warn(`[Supabase] RPC exec_sql exception para '${table}':`, _e2); }
+              } catch (_e) {
+                console.warn(`[Supabase] client.rpc exec_sql exception:`, _e);
+              }
+              // Fallback con supabase.rpc (proxy)
+              if (!rpcOk) {
+                try {
+                  const rpcRes = await supabase.rpc('exec_sql', { sql: rpcSql });
+                  if (rpcRes.error) {
+                    console.warn(`[Supabase] supabase.rpc exec_sql falló:`, rpcRes.error);
+                  } else {
+                    rpcOk = true;
+                    console.log(`[Supabase] supabase.rpc exec_sql EXITOSO`);
+                  }
+                } catch (_e) {
+                  console.warn(`[Supabase] supabase.rpc exec_sql exception:`, _e);
+                }
+              }
+              if (!rpcOk) {
+                console.error(`[Supabase] NO se pudo crear la tabla '${table}' por RPC`);
+              }
             }
           }
         }
         // Refrescar schema cache de PostgREST (inofensivo si no se creó nada)
         try { await runSqlStatements(["NOTIFY pgrst, 'reload schema';"], false); } catch (_e) { /* ignorar */ }
         try { await client.rpc('exec_sql', { sql: "NOTIFY pgrst, 'reload schema';" }); } catch (_e) { /* ignorar */ }
-        // Esperar que PostgREST reconozca todas las tablas
-        for (let attempt = 0; attempt < 5; attempt++) {
-          const allOk = (await Promise.all(allTables.map(t => probeTablePostgrest(t)))).every(Boolean);
-          if (allOk) break;
-          await new Promise((resolve) => globalThis.setTimeout(resolve, 1500));
-        }
-        // Verificar que las tablas realmente existen (probe con limit 1, no head)
-        const missingTables: string[] = [];
-        for (const table of allTables) {
-          const { error } = await client.from(table).select('*', { count: 'estimated', head: false }).limit(1);
-          if (error) {
-            console.log(`[Verify] ${table}: error=${error.code} msg="${error.message?.substring(0, 80)}"`);
-            if (/PGRST205|could not find|not found|relation .* does not exist/i.test(String(error.message || error.code))) {
-              missingTables.push(table);
-            }
-          } else {
-            console.log(`[Verify] ${table}: ✅ OK`);
-          }
-        }
-        if (missingTables.length > 0) {
-          const ddlParts = missingTables.map(t => {
-            const stmt = DDL_SCRIPT.split(';').filter(s => s.trim() && new RegExp(`create table ${t}\\b`, 'i').test(s));
-            return stmt.length > 0 ? stmt[0].trim() + ';' : null;
-          }).filter(Boolean);
-          const alterRls = missingTables.map(t => `ALTER TABLE ${t} DISABLE ROW LEVEL SECURITY;`).join('\n');
-          const manualSql = ddlParts.join('\n') + '\n' + alterRls;
-          return {
-            ok: false,
-            error: `No se pudieron crear las tablas: ${missingTables.join(', ')}. En Android no es posible la conexión directa a Postgres (IPv6) ni el pooler reconoce tu proyecto.\n\nPara solucionarlo, pega esto en Supabase Dashboard → SQL Editor:\n\n${manualSql}\n\nDespués vuelve a sincronizar.`
-          };
-        }
         return { ok: true };
       }
 

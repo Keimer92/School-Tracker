@@ -133,6 +133,23 @@ src-tauri/gen/               generado (ignorar; no editar a mano)
 - **Error logging (`logPgError`)**: Helper que imprime `code`, `message`, `details`,
   `hint` del error de PostgREST. Usar en todos los catch/error handlers en vez de
   `console.error("msg:", error)`.
+- **`head: true` no es fiable para detectar tablas**: PostgREST responde 200 al HEAD
+  aunque la tabla no exista. Siempre usar `select('*', { head: false }).limit(1)` para
+  `probeTablePostgrest`. El `head: true` solo es seguro en `diagnoseRemote` (uso informativo).
+- **`count: 'estimated'` con tablas sin `id`**: Las tablas `grado_asignatura`,
+  `colegio_asignatura`, `nota`, `colegio_dias_asistencia` no tienen columna `id`. Usar
+  `count: 'estimated'` en ellas causa error `42703` en el dashboard de Supabase. En su
+  lugar, omitir `count` en probes de verificación.
+- **Nuevas tablas agregadas post-despliegue**: PostgREST no las reconoce para escritura
+  (PGRST205) aunque el probe las muestre como accesibles. La solución es:
+  1. En `ensureSchema` (branch `tablesExist`): intentar creación pero **no bloquear** si falla
+  2. En `pushAllSilent` para esa tabla: intentar PostgREST upsert → fallback a RPC `exec_sql`
+     con `CREATE TABLE IF NOT EXISTS` antes del `INSERT ... ON CONFLICT`
+  3. Ver `multiplicador_calificacion` como ejemplo del patrón
+- **`client.rpc` vs `supabase.rpc`**: Ambos llaman al mismo cliente real pero el Proxy
+  (`supabase`) tiene edge cases con cadenas de métodos. Si `client.rpc` falla, probar
+  `supabase.rpc` como fallback. Ambos devuelven `{ data, error }` — no lanzan excepción
+  en errores de API.
 
 ## Comandos
 - `npm run dev` — servidor Vite (frontend) en http://localhost:1420 (usado por Tauri dev).
@@ -178,6 +195,156 @@ Toda la interfaz debe seguir un diseño **glassmorphism minimalista tipo Apple**
 - **Transiciones**: `transition: all 0.2s ease` en elementos interactivos.
 - **Sin sombras fuertes** ni bordes gruesos; priorizar sutileza y claridad visual.
 
+## Flujo de sincronización con Supabase (detalle interno)
+
+### Visión general
+
+La sincronización es **Local-First**: los cambios se escriben primero en SQLite (Rust),
+luego se suben a Supabase. El archivo clave es `src/lib/syncService.supabase.ts`.
+
+```
+Frontend (Svelte)
+   ↓ invoke('comando_rust')
+SQLite (local, fuente de verdad)
+   ↓ syncService.supabase.syncAll() / pullAll()
+Supabase (Postgres / PostgREST)
+```
+
+Hay dos operaciones principales:
+- **`syncAll`** (subida): `ensureSchema()` → `syncPendingDeletions()` → push tabla por tabla
+- **`pullAll`** (descarga): `ensureSchema()` → `syncPendingDeletions()` → query 15 tablas → `upsert_pull_data` (Rust)
+
+### ensureSchema (preparación del schema remoto)
+
+`ensureSchema` se ejecuta al inicio de cada sync si `_schemaEnsured === false`.
+Su propósito es verificar/crear las tablas en Supabase.
+
+**Flujo exacto** (`syncService.supabase.ts:1712`):
+
+```
+1. Obtener cliente Supabase (anon key)
+2. Definir allTables = [ano_lectivo, corte_evaluativo, ..., multiplicador_calificacion, ...]
+3. Definir probeTablePostgrest(tabla):
+     → client.from(tabla).select('*', { head: false }).limit(1)
+     → Si error contiene PGRST205 / "could not find" → false (no existe)
+     → Si no error → true (existe)
+   ⚠️ NO usar head: true (PostgREST responde 200 aunque la tabla no exista)
+   ⚠️ NO usar count: 'estimated' (falla en tablas sin columna id)
+4. Probar ano_lectivo → si EXISTE:
+   a. Ejecutar fixes idempotentes (ALTER TABLE / DISABLE RLS) vía SQL directo
+      (best-effort, los errores se ignoran)
+   b. Recorrer allTables, crear las que falten:
+      - Intentar SQL directo vía Rust (supabase_execute_sql) → falla en Android
+      - Fallback: RPC exec_sql (client.rpc y supabase.rpc) → requiere función en proyecto
+      - Si ambos fallan: log advertencia, continuar (NO bloquear)
+   c. NOTIFY pgrst, 'reload schema' (directo + RPC)
+   d. Retornar { ok: true } (no bloquear por tablas faltantes)
+5. Si ano_lectivo NO existe:
+   a. Intentar crear TODO el schema vía SQL directo (Rust)
+   b. Si falla → intentar vía RPC exec_sql (cada CREATE TABLE uno por uno)
+   c. Si RPC falla con "function not found" → devolver error con instrucciones
+   d. Esperar que PostgREST reconozca las tablas (hasta 5 intentos)
+```
+
+### pushAllSilent (subida de datos)
+
+`pushAllSilent` llama a `syncAll()` que sube datos tabla por tabla en orden
+de dependencias. Cada tabla sigue el patrón:
+```
+invoke("get_datos") → mapear a columnas Postgres → supabase.from().upsert()
+```
+
+**Caso especial: `multiplicador_calificacion`**
+Esta tabla tuvo un bug histórico: PostgREST arroja `PGRST205` al hacer upsert
+("Could not find the table in the schema cache") aunque el probe `head: false`
+muestre la tabla como accesible. Es un bug del schema cache de PostgREST para
+tablas agregadas después del cache inicial.
+
+**Solución implementada** (`syncService.supabase.ts:1189`):
+```
+1. Intentar supabase.from('multiplicador_calificacion').upsert() vía PostgREST
+2. Si falla → fallback a SQL directo vía Rust (supabase_execute_sql)
+3. Si falla → fallback a RPC exec_sql:
+   a. CREATE TABLE IF NOT EXISTS multiplicador_calificacion (...)
+   b. INSERT ... ON CONFLICT (id) DO UPDATE SET ...
+```
+
+Este patrón de **CREATE TABLE + upsert por RPC** debe usarse para cualquier
+tabla nueva que se agregue al schema después del despliegue inicial, para
+evitar el bug `PGRST205`.
+
+### pullAll (descarga de datos)
+
+`pullAll` descarga datos de Supabase y los inserta en SQLite local.
+
+**Flujo**:
+```
+1. ensureSchema() (schema remoto listo)
+2. syncPendingDeletions() (propagar borrados pendientes primero)
+3. Consultar las 15 tablas en paralelo vía PostgREST:
+     Promise.all(tablas.map(t => supabase.from(t).select('*')))
+4. Si alguna tabla falla con PGRST205:
+     → withSupabaseSchemaRecovery reintenta hasta 3 veces
+     → Entre intentos: llama ensureSchema() y espera 400-800-1200ms
+5. Resultados → invoke("upsert_pull_data", { data }) (Rust)
+6. Emitir eventos de actualización
+```
+
+**withSupabaseSchemaRecovery** (`syncService.supabase.ts:9`):
+Wrapper que captura errores de tabla faltante y reintenta. Usado exclusivamente
+en `pullAll`. No usado en `pushAllSilent` (el push maneja las tablas una por una
+con su propia lógica de fallback).
+
+### Diagnóstico remoto
+
+`diagnoseRemote()` recorre las 15 tablas con `head: true` y muestra ✅/❌.
+Se ejecuta al inicio de `syncAll()`.
+
+⚠️ `head: true` es útil aquí SOLO para diagnóstico porque muestra la tabla
+como "accesible" incluso si PostgREST tiene un cache desactualizado. Para
+lógica de creación/detección usar siempre `head: false` con `limit(1)`.
+
+### proveedor Supabase: Cliente (supabase.ts)
+
+El archivo `src/lib/supabase.ts` exporta dos formas de acceder al cliente:
+
+- **`getSupabaseClient()`**: Devuelve el cliente raw (`SupabaseClient`) o null.
+  Usar en contextos donde se necesita el objeto cliente real.
+- **`supabase`** (Proxy): Proxy que delega al cliente real. Intercepta todos los
+  accesos a propiedades. Usar en la mayoría del código de sync.
+  - Ventaja: no requiere null-check (devuelve noop si no hay configuración)
+  - Desventaja: el Proxy puede tener comportamientos inesperados en cadenas
+    complejas (`.from().upsert().then()`)
+
+**Regla**: En `ensureSchema` usar `client` (raw) para consistencia. En `syncAll`/`pushAllSilent`
+usar `supabase` (Proxy) para simplicidad. Si uno falla, probar el otro.
+
+## Errores conocidos de Supabase y soluciones
+
+### PGRST205 — "Could not find the table in the schema cache"
+- **Causa**: PostgREST cache no reconoce la tabla (especialmente tablas agregadas después del cache inicial)
+- **Probe head:true** reporta ✅ pero upsert falla con PGRST205
+- **Solución**: Usar RPC `exec_sql` para operaciones DDL y DML directamente, bypassando PostgREST
+
+### Pooler no reconoce el tenant
+- **Error**: `tenant/user postgres.{ref} not found`
+- **Causa**: El pooler regional no tiene el proyecto registrado, o el proyecto usa un formato de conexión diferente
+- **Solución**: Usar RPC `exec_sql` (no necesita pooler)
+
+### Conexión directa IPv6 (Android)
+- **Error**: `Network is unreachable` / `No such host is known`
+- **Causa**: `db.{ref}.supabase.co` es IPv6-only; Android no tiene IPv6 en muchas redes
+- **Solución**: RPC `exec_sql` es la única opción que funciona en Android
+
+### `count: 'estimated'` falla en tablas sin columna `id`
+- **Error**: `column {tabla}.id does not exist` (código 42703 en dashboard Supabase)
+- **Tablas afectadas**: `grado_asignatura`, `colegio_asignatura`, `nota`, `colegio_dias_asistencia`
+- **Solución**: No usar `count: 'estimated'` en probes. Usar `select('*', { head: false }).limit(1)`
+
+### RPC exec_sql no lanza excepción en error
+- **Causa**: `@supabase/supabase-js` devuelve errores en `{ error }` del objeto resuelto, no como excepción
+- **Solución**: Siempre destructurar `const { error } = await client.rpc(...)` y verificar
+
 ## Setup de Supabase (para usuarios nuevos)
 
 ## Esquema de Base de Datos y Datos Iniciales
@@ -197,6 +364,8 @@ La BD se crea en `app_data_dir/school.db` al arrancar la app vía `init_database
 | `grado` | `id` | `nombre TEXT UNIQUE`, `cualitativo INTEGER` | |
 | `seccion` | `id` | `nombre TEXT UNIQUE`, `cualitativo INTEGER` | |
 | `estudiante` | `id` | `nombre TEXT`, `codigo TEXT UNIQUE`, `sexo TEXT CHECK(M\|F)`, `ano_lectivo_id`, `grado_id`, `seccion_id`, `colegio_id`, `telefono`, `direccion`, `email`, `foto` | FKs a las tablas de catálogo |
+| `configuracion_calificacion` | `id` (TEXT PK) | `nombre TEXT`, `color TEXT`, `minimo INTEGER` | |
+| `multiplicador_calificacion` | `id` (TEXT PK) | `multiplicador REAL NOT NULL DEFAULT 1.0` | |
 | `grado_asignatura` | `(grado_id, asignatura_id)` | | FK CASCADE |
 | `colegio_asignatura` | `(colegio_id, asignatura_id)` | | FK CASCADE |
 | `indicador` | `id` | `grado_id`, `asignatura_id`, `corte_evaluativo_id`, `orden`, `descripcion TEXT DEFAULT ''`, `activo INTEGER DEFAULT 1` | |
@@ -226,6 +395,7 @@ Solo se siembran si `SELECT COUNT(*) FROM ano_lectivo` es 0 (BD vacía).
 | `grado_asignatura` | Todas las asignaturas × todos los grados (CROSS JOIN) |
 | `colegio_asignatura` | Todas las asignaturas × todos los colegios (CROSS JOIN) |
 | `configuracion_calificacion` | `AA` (#22c55e, min 90), `AS` (#3b82f6, min 70), `AF` (#eab308, min 50), `AI` (#ef4444, min 0) |
+| `multiplicador_calificacion` | `AA` (1.0), `AS` (0.85), `AF` (0.65), `AI` (0.40) — mismo `id` que `configuracion_calificacion` |
 
 ### Migraciones (columnas agregadas post-creación)
 
@@ -233,6 +403,7 @@ En `migrate_add_columns` (`db.rs:299`):
 - `configuracion_calificacion.minimo INTEGER DEFAULT 0` (si no existe)
 - `configuracion_calificacion.nombre TEXT DEFAULT ''` (si no existe) + backfill nombres para ids viejos (`destacado`→`AA` etc.)
 - `colegio.activo INTEGER DEFAULT 0` (si no existe)
+- `multiplicador_calificacion` relleno con valores por defecto (AA=1.0, AS=0.85, AF=0.65, AI=0.40) si la tabla está vacía (siembra retroactiva para bases existentes)
 
 ### Flujo de llamada
 
@@ -297,6 +468,7 @@ CREATE TABLE IF NOT EXISTS grado (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UN
 CREATE TABLE IF NOT EXISTS seccion (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL UNIQUE, cualitativo INTEGER DEFAULT 0, user_id TEXT);
 CREATE TABLE IF NOT EXISTS estudiante (id SERIAL PRIMARY KEY, nombre TEXT NOT NULL, codigo TEXT NOT NULL, sexo TEXT NOT NULL, ano_lectivo_id INTEGER NOT NULL, grado_id INTEGER NOT NULL, seccion_id INTEGER NOT NULL, colegio_id INTEGER NOT NULL, telefono TEXT, direccion TEXT, email TEXT, foto TEXT, user_id TEXT);
 CREATE TABLE IF NOT EXISTS configuracion_calificacion (id TEXT PRIMARY KEY, nombre TEXT NOT NULL, color TEXT NOT NULL, minimo INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS multiplicador_calificacion (id TEXT PRIMARY KEY, multiplicador REAL NOT NULL DEFAULT 1.0);
 CREATE TABLE IF NOT EXISTS grado_asignatura (grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, user_id TEXT, PRIMARY KEY (grado_id, asignatura_id));
 CREATE TABLE IF NOT EXISTS colegio_asignatura (colegio_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, user_id TEXT, PRIMARY KEY (colegio_id, asignatura_id));
 CREATE TABLE IF NOT EXISTS indicador (id SERIAL PRIMARY KEY, grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, corte_evaluativo_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', activo INTEGER DEFAULT 1, user_id TEXT);
@@ -321,6 +493,7 @@ ALTER TABLE grado DISABLE ROW LEVEL SECURITY;
 ALTER TABLE seccion DISABLE ROW LEVEL SECURITY;
 ALTER TABLE estudiante DISABLE ROW LEVEL SECURITY;
 ALTER TABLE configuracion_calificacion DISABLE ROW LEVEL SECURITY;
+ALTER TABLE multiplicador_calificacion DISABLE ROW LEVEL SECURITY;
 ALTER TABLE grado_asignatura DISABLE ROW LEVEL SECURITY;
 ALTER TABLE colegio_asignatura DISABLE ROW LEVEL SECURITY;
 ALTER TABLE indicador DISABLE ROW LEVEL SECURITY;
