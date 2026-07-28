@@ -850,7 +850,11 @@
   });
 
   async function loadNotas(ano: number, corte: number, colegio: number, asignatura: number, grado: number, seccion: number) {
-    if (!(ano > 0 && corte > 0 && colegio > 0 && asignatura > 0 && grado > 0 && seccion > 0)) return;
+    if (!(ano > 0 && corte > 0 && colegio > 0 && asignatura > 0 && grado > 0 && seccion > 0)) {
+      console.log(`[NotasPage] loadNotas SKIPPED: ano=${ano} corte=${corte} colegio=${colegio} asignatura=${asignatura} grado=${grado} seccion=${seccion}`);
+      return;
+    }
+    console.log(`[NotasPage] loadNotas CALLED: ano=${ano} corte=${corte} colegio=${colegio} asignatura=${asignatura} grado=${grado} seccion=${seccion}`);
     const currentLoadId = ++loadId;
     loading = true;
     try {
@@ -879,9 +883,6 @@
     const seccion = selectedSeccion;
     if (ano > 0 && corte > 0 && colegio > 0 && asignatura > 0 && grado > 0 && seccion > 0 && catalogsReady) {
       loadNotas(ano, corte, colegio, asignatura, grado, seccion);
-    } else if (catalogsReady && (ano <= 0 || corte <= 0 || colegio <= 0 || asignatura <= 0 || grado <= 0 || seccion <= 0)) {
-      estudiantes = [];
-      notas = [];
     }
   });
 
@@ -900,6 +901,15 @@
     const checkMobile = () => { isMobile = window.innerWidth <= 768; };
     checkMobile();
     window.addEventListener('resize', checkMobile);
+
+    // Safety: force load if catalogs chain didn't trigger it
+    const forceLoadTimer = setTimeout(() => {
+      if (selectedAno > 0 && selectedCorte > 0 && selectedColegio > 0 && selectedAsignatura > 0 && selectedGrado > 0 && selectedSeccion > 0 && estudiantes.length === 0) {
+        console.log('[NotasPage] Force-loading notas (fallback timer)');
+        nextRefreshSilent = true;
+        refreshTrigger++;
+      }
+    }, 2000);
 
     const lockOrientation = async () => {
       try {
@@ -961,6 +971,7 @@
     window.addEventListener('schooltracker-sync', onSync);
 
     return () => {
+      clearTimeout(forceLoadTimer);
       window.removeEventListener('resize', checkMobile);
       window.removeEventListener('keydown', handleKeyDownGlobal);
       window.removeEventListener('schooltracker-sync', onSync);
