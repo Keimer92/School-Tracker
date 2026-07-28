@@ -77,7 +77,6 @@
   let pendingRefreshOnSave = $state(false);
   let nextRefreshSilent = false;
   let loadId = 0;
-  let catalogsReady = $state(false);
   let touchStartX = 0;
   let isUndoRedoAction = false;
 
@@ -606,9 +605,9 @@
         const stillExists = data.some(s => s.id === selectedSeccion);
         if (!stillExists) selectedSeccion = data[0].id;
       } else selectedSeccion = 0;
-      catalogsReady = true;
-      loadNotas(selectedAno, selectedCorte, selectedColegio, selectedAsignatura, selectedGrado, selectedSeccion);
-    } catch (error) { console.error("Error fetching secciones:", error); catalogsReady = true; }
+      filtersRef = { ano: selectedAno, corte: selectedCorte, colegio: selectedColegio, asignatura: selectedAsignatura, grado: selectedGrado, seccion: selectedSeccion, sexo: selectedSexo };
+      await loadNotas(selectedAno, selectedCorte, selectedColegio, selectedAsignatura, selectedGrado, selectedSeccion);
+    } catch (error) { console.error("Error fetching secciones:", error); }
   }
 
   async function fetchConfiguracionEvaluacion(silent = false): Promise<Indicador[]> {
@@ -833,19 +832,18 @@
       selectedAsignatura = 0;
       estudiantes = [];
       notas = [];
-      catalogsReady = false;
       fetchGradosYAsignaturas();
     } else {
+      if (!selectedColegio || !selectedAno) console.trace('[DIV] Effect 826 else clearing');
       grados = [];
       asignaturas = [];
       selectedGrado = 0;
       selectedAsignatura = 0;
-      catalogsReady = false;
     }
   });
 
   $effect(() => {
-    if (selectedGrado && selectedColegio && selectedAno) { catalogsReady = false; fetchSecciones(); }
+    if (selectedGrado && selectedColegio && selectedAno) { fetchSecciones(); }
     else { secciones = []; selectedSeccion = 0; }
   });
 
@@ -881,7 +879,8 @@
     const asignatura = selectedAsignatura;
     const grado = selectedGrado;
     const seccion = selectedSeccion;
-    if (ano > 0 && corte > 0 && colegio > 0 && asignatura > 0 && grado > 0 && seccion > 0 && catalogsReady) {
+    if (ano > 0 && corte > 0 && colegio > 0 && asignatura > 0 && grado > 0 && seccion > 0) {
+      console.trace('[DIV] loadNotas triggered by effect');
       loadNotas(ano, corte, colegio, asignatura, grado, seccion);
     }
   });
