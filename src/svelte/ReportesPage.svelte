@@ -49,7 +49,7 @@
   let loading = $state(false);
   let refreshTrigger = $state(0);
   let silentRefresh = $state(false);
-  let activeSlide = $state<'tabla' | 'estadisticas'>('estadisticas');
+  let activeSlide = $state<'tabla' | 'estadisticas'>(typeof window !== 'undefined' && window.innerWidth <= 768 ? 'tabla' : 'estadisticas');
   let isMobile = $state(false);
   let isAndroid = $state(false);
   let printHtml: string | null = $state(null);
