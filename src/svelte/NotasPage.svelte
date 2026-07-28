@@ -220,13 +220,11 @@
     if (maxTotal === 0) return 0;
     const grades = ['AA', 'AS', 'AF', 'AI'];
     const gs = (c: Criterio, g: string) => Math.round(c.puntajeMaximo * (notaMapping[g] || 0));
-    const valCombos: [string, string, string][] = [];
-    for (const g3 of grades) {
-      const g3Idx = grades.indexOf(g3);
-      for (const g1 of grades.slice(g3Idx)) {
-        for (const g2 of grades.slice(g3Idx)) {
-          valCombos.push([g1, g2, g3]);
-        }
+    // c3 siempre es AA. Solo buscar mejor (c1, c2)
+    const valCombos: [string, string][] = [];
+    for (const g1 of grades) {
+      for (const g2 of grades) {
+        valCombos.push([g1, g2]);
       }
     }
     const targetRaw = Math.round((Math.min(targetPct, 100) / 100) * maxTotal);
@@ -234,16 +232,18 @@
     let runningError = 0;
     for (const ii of indInfos) {
       const { c1, c2, c3 } = ii;
+      const c3Fixed = Math.round(c3.puntajeMaximo * (notaMapping.AA || 1.0));
       const indTarget = (ii.weight / maxTotal) * targetRaw + runningError;
-      let bestCombo: [string, string, string] | null = null;
+      const targetC12 = indTarget - c3Fixed;
+      let bestCombo: [string, string] | null = null;
       let bestDiff = Infinity;
-      for (const [g1, g2, g3] of valCombos) {
-        const diff = Math.abs(gs(c1, g1) + gs(c2, g2) + gs(c3, g3) - indTarget);
-        if (diff < bestDiff) { bestDiff = diff; bestCombo = [g1, g2, g3]; }
+      for (const [g1, g2] of valCombos) {
+        const diff = Math.abs(gs(c1, g1) + gs(c2, g2) - targetC12);
+        if (diff < bestDiff) { bestDiff = diff; bestCombo = [g1, g2]; }
       }
       if (!bestCombo) continue;
-      const [chosen1, chosen2, chosen3] = bestCombo;
-      const actualTotal = gs(c1, chosen1) + gs(c2, chosen2) + gs(c3, chosen3);
+      const [chosen1, chosen2] = bestCombo;
+      const actualTotal = gs(c1, chosen1) + gs(c2, chosen2) + c3Fixed;
       predictedTotal += actualTotal;
       runningError += indTarget - actualTotal;
     }
@@ -266,13 +266,11 @@
     if (maxTotal === 0) return;
     const grades = ['AA', 'AS', 'AF', 'AI'];
     const gs = (c: Criterio, g: string) => Math.round(c.puntajeMaximo * (notaMapping[g] || 0));
-    const valCombos: [string, string, string][] = [];
-    for (const g3 of grades) {
-      const g3Idx = grades.indexOf(g3);
-      for (const g1 of grades.slice(g3Idx)) {
-        for (const g2 of grades.slice(g3Idx)) {
-          valCombos.push([g1, g2, g3]);
-        }
+    // c3 siempre AA. Buscar mejor (c1, c2)
+    const valCombos: [string, string][] = [];
+    for (const g1 of grades) {
+      for (const g2 of grades) {
+        valCombos.push([g1, g2]);
       }
     }
     let updatedCount = 0;
@@ -306,16 +304,18 @@
       let runningError = 0;
       for (const ii of indInfos) {
         const { c1, c2, c3 } = ii;
+        const c3Fixed = Math.round(c3.puntajeMaximo * (notaMapping.AA || 1.0));
         const indTarget = (ii.weight / maxTotal) * targetRaw + runningError;
-        let bestCombo: [string, string, string] | null = null;
+        const targetC12 = indTarget - c3Fixed;
+        let bestCombo: [string, string] | null = null;
         let bestDiff = Infinity;
-        for (const [g1, g2, g3] of valCombos) {
-          const diff = Math.abs(gs(c1, g1) + gs(c2, g2) + gs(c3, g3) - indTarget);
-          if (diff < bestDiff) { bestDiff = diff; bestCombo = [g1, g2, g3]; }
+        for (const [g1, g2] of valCombos) {
+          const diff = Math.abs(gs(c1, g1) + gs(c2, g2) - targetC12);
+          if (diff < bestDiff) { bestDiff = diff; bestCombo = [g1, g2]; }
         }
         if (!bestCombo) continue;
-        const [chosen1, chosen2, chosen3] = bestCombo;
-        const actualTotal = gs(c1, chosen1) + gs(c2, chosen2) + gs(c3, chosen3);
+        const [chosen1, chosen2] = bestCombo;
+        const actualTotal = gs(c1, chosen1) + gs(c2, chosen2) + c3Fixed;
         runningError += indTarget - actualTotal;
         const k1 = `${estNota.estudianteId}-${c1.id}`;
         const k2 = `${estNota.estudianteId}-${c2.id}`;
@@ -323,11 +323,11 @@
         if (distribuirOverwrite) {
           notasCualitativas[k1] = chosen1;
           notasCualitativas[k2] = chosen2;
-          notasCualitativas[k3] = chosen3;
+          notasCualitativas[k3] = 'AA';
         } else {
           if (!notasCualitativas[k1]) notasCualitativas[k1] = chosen1;
           if (!notasCualitativas[k2]) notasCualitativas[k2] = chosen2;
-          if (!notasCualitativas[k3]) notasCualitativas[k3] = chosen3;
+          if (!notasCualitativas[k3]) notasCualitativas[k3] = 'AA';
         }
       }
       updatedCount++;

@@ -49,6 +49,7 @@
   let isAndroid = $state(/Android/i.test(navigator.userAgent));
   let isWindows = $state(/Windows/i.test(navigator.userAgent));
   let isAndroidMobile = $derived(isAndroid || (isMobile && !isWindows));
+  let pageVisible = $state(true);
 
   let draft: Record<number, { estado: string | null; observacion: string | null }> = {};
   let longPressTimer: ReturnType<typeof setTimeout> | null = null;
@@ -61,7 +62,10 @@
   let draftMulti: Record<number, Record<string, DiaEstado>> = $state({});
   let mesSeleccionado = $state(new Date().getMonth() + 1);
   let anoSeleccionado = $state(new Date().getFullYear());
-  let mesesOptions = $derived(Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: new Date(2000, i, 1).toLocaleDateString('es-ES', { month: 'long' }) })));
+  let mesesOptions = $derived(Array.from({ length: 12 }, (_, i) => {
+    const raw = new Date(2000, i, 1).toLocaleDateString('es-ES', { month: 'long' });
+    return { value: i + 1, label: raw.charAt(0).toUpperCase() + raw.slice(1) };
+  }));
   let anosOptions = $derived(anos.length > 0 ? anos.filter(a => a.activo || Number(a.nombre) >= 2020) : [{ id: new Date().getFullYear(), nombre: String(new Date().getFullYear()) }]);
 
   let totalEstudiantes = $derived(estudiantes.length);
@@ -147,6 +151,11 @@
     const checkMobile = () => { isMobile = window.innerWidth <= 768; };
     checkMobile();
     window.addEventListener('resize', checkMobile);
+
+    const onVisibilityChange = () => { pageVisible = !document.hidden; };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    pageVisible = !document.hidden;
+
     function triggerRefresh() {
       if (selectedAno && selectedColegio && selectedGrado && selectedSeccion) {
         if (periodo === "diario") {
@@ -157,16 +166,17 @@
       }
     }
 
-    window.addEventListener('schooltracker-sync', () => { if (hasUnsavedChanges) return; clearTimeout(at); at = setTimeout(() => { refreshingSilent = true; triggerRefresh(); }, 300); });
+    window.addEventListener('schooltracker-sync', () => { if (!pageVisible || hasUnsavedChanges) return; clearTimeout(at); at = setTimeout(() => { refreshingSilent = true; triggerRefresh(); }, 300); });
 
     let at: ReturnType<typeof setTimeout>;
-    const u1 = listen("asistencia-updated", () => { if (hasUnsavedChanges) return; clearTimeout(at); at = setTimeout(() => { refreshingSilent = true; triggerRefresh(); }, 500); });
-    const u2 = listen("student-updated", () => { if (hasUnsavedChanges) { pendingRefreshOnSave = true; return; } clearTimeout(at); at = setTimeout(() => { refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); triggerRefresh(); }, 500); });
-    const u3 = listen("catalog-updated", () => { if (hasUnsavedChanges) return; clearTimeout(at); at = setTimeout(() => { fetchCatalogs(); fetchColegioConfig(); if (selectedColegio && selectedAno) fetchGrados(); refreshingSilent = true; triggerRefresh(); }, 500); });
+    const u1 = listen("asistencia-updated", () => { if (!pageVisible || hasUnsavedChanges) return; clearTimeout(at); at = setTimeout(() => { refreshingSilent = true; triggerRefresh(); }, 500); });
+    const u2 = listen("student-updated", () => { if (!pageVisible) return; if (hasUnsavedChanges) { pendingRefreshOnSave = true; return; } clearTimeout(at); at = setTimeout(() => { refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); triggerRefresh(); }, 500); });
+    const u3 = listen("catalog-updated", () => { if (!pageVisible || hasUnsavedChanges) return; clearTimeout(at); at = setTimeout(() => { fetchCatalogs(); fetchColegioConfig(); if (selectedColegio && selectedAno) fetchGrados(); refreshingSilent = true; triggerRefresh(); }, 500); });
     const u4 = listen("subjects-updated", () => { if (hasUnsavedChanges) return; fetchColegioConfig(); });
     fetchCatalogs();
     return () => {
       window.removeEventListener('resize', checkMobile);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('schooltracker-sync', () => {});
       u1.then(f => f()); u2.then(f => f()); u3.then(f => f()); u4.then(f => f());
     };
