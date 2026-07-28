@@ -1009,30 +1009,30 @@
               {#each asignaturas as a}<option value={a.id}>{a.nombre}</option>{/each}
             </select>
           </FilterGroup>
-          <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '0 0 auto'}">
+          <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '0 0 auto'};{isMobile ? 'overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;' : ''}">
             {#if !isAndroid}
               <button onclick={handlePrintWithIframe} disabled={estudiantes.length === 0 || loading}
-                style="height:42px;padding:0 1.25rem;font-size:0.85rem;background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:{estudiantes.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(16,185,129,0.4);flex-shrink:0;white-space:nowrap;opacity:{estudiantes.length === 0 || loading ? 0.7 : 1}"
+                style="height:42px;padding:0 {isMobile ? '0.4rem' : '1.25rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{estudiantes.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(16,185,129,0.4);flex-shrink:0;white-space:nowrap;opacity:{estudiantes.length === 0 || loading ? 0.7 : 1}"
                 title={(isMobile || isAndroid) ? "Compartir PDF" : "Imprimir"}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                Imprimir
+                <svg width="{isMobile ? '12' : '14'}" height="{isMobile ? '12' : '14'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                {#if !isMobile}Imprimir{/if}
               </button>
             {/if}
             <button onclick={exportToPDF} disabled={estudiantes.length === 0 || loading}
-              style="height:42px;padding:0 1.25rem;font-size:0.85rem;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:{estudiantes.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(239,68,68,0.4);flex-shrink:0;white-space:nowrap;opacity:{estudiantes.length === 0 || loading ? 0.7 : 1}">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-              PDF
+              style="height:42px;padding:0 {isMobile ? '0.4rem' : '1.25rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{estudiantes.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(239,68,68,0.4);flex-shrink:0;white-space:nowrap;opacity:{estudiantes.length === 0 || loading ? 0.7 : 1}">
+              <svg width="{isMobile ? '12' : '14'}" height="{isMobile ? '12' : '14'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              {#if !isMobile}PDF{/if}
             </button>
             <button onclick={exportToPDFMasivo} disabled={exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura}
-              style="height:42px;padding:0 1.25rem;font-size:0.85rem;background-color:#6366f1;color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(99,102,241,0.4);flex-shrink:0;white-space:nowrap;opacity:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura ? 0.7 : 1}">
+              style="height:42px;padding:0 {isMobile ? '0.4rem' : '1.25rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:#6366f1;color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(99,102,241,0.4);flex-shrink:0;white-space:nowrap;opacity:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura ? 0.7 : 1}">
               {exportandoMasivo ? progresoMasivo : '📚 Exportar Todo'}
             </button>
             <div style="position:relative;flex-shrink:0">
               <button onclick={toggleClipboardMenu} disabled={filteredReporte.length === 0 || loading}
-                style="height:42px;padding:0 1.25rem;font-size:0.85rem;background:linear-gradient(135deg,#a855f7,#9333ea);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:{filteredReporte.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(168,85,247,0.4);flex-shrink:0;white-space:nowrap;opacity:{filteredReporte.length === 0 || loading ? 0.7 : 1}"
+                style="height:42px;padding:0 {isMobile ? '0.4rem' : '1.25rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background:linear-gradient(135deg,#a855f7,#9333ea);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{filteredReporte.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(168,85,247,0.4);flex-shrink:0;white-space:nowrap;opacity:{filteredReporte.length === 0 || loading ? 0.7 : 1}"
                 title="Copiar al portapapeles">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                Copiar
+                <svg width="{isMobile ? '12' : '14'}" height="{isMobile ? '12' : '14'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                {#if !isMobile}Copiar{/if}
               </button>
               {#if showClipboardMenu}
                 <div onclick={(e) => e.stopPropagation()} style="position:absolute;top:calc(100% + 4px);right:0;min-width:240px;background:rgba(20,24,31,0.85);backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.1);border-radius:12px;box-shadow:0 25px 60px -12px rgba(0,0,0,0.6);padding:0.4rem;z-index:200;overflow:hidden;animation:fadeIn 0.15s ease-out">
