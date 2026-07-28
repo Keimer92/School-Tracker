@@ -834,7 +834,6 @@
       notas = [];
       fetchGradosYAsignaturas();
     } else {
-      if (!selectedColegio || !selectedAno) console.trace('[DIV] Effect 826 else clearing');
       grados = [];
       asignaturas = [];
       selectedGrado = 0;
@@ -880,13 +879,12 @@
     const grado = selectedGrado;
     const seccion = selectedSeccion;
     if (ano > 0 && corte > 0 && colegio > 0 && asignatura > 0 && grado > 0 && seccion > 0) {
-      console.trace('[DIV] loadNotas triggered by effect');
       loadNotas(ano, corte, colegio, asignatura, grado, seccion);
     }
   });
 
   $effect(() => {
-    if (refreshTrigger > 0 && !hasUnsavedRef && selectedAno > 0 && selectedCorte > 0 && selectedColegio > 0 && selectedAsignatura > 0 && selectedGrado > 0 && selectedSeccion > 0) {
+    if (refreshTrigger > 0 && !hasUnsavedRef && !loading && selectedAno > 0 && selectedCorte > 0 && selectedColegio > 0 && selectedAsignatura > 0 && selectedGrado > 0 && selectedSeccion > 0) {
       refreshTrigger = 0;
       fetchEstudiantes(undefined, true);
     }
