@@ -1118,6 +1118,45 @@
           {#if filteredNotas[currentStudentIdx]}
             {@const est = filteredNotas[currentStudentIdx]}
             <div>
+              <!-- Nota final (arriba en mobile) -->
+              <div style="margin-bottom: 0.5rem; padding: 0.6rem; border-radius: 12px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(34, 197, 94, 0.3); display: flex; justify-content: space-between; align-items: center;">
+                <div style="color: #94a3b8; font-weight: bold; font-size: 0.85rem;">Nota Final</div>
+                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                  {#if !isQualitative}
+                    <span style="font-size: 0.9rem; color: #e2e8f0;">{(() => {
+                      const rawFinal = activeIndicadores.reduce((sum, ind) => sum + ind.criterios.reduce((s, c) => {
+                        const qv = notasCualitativas[`${est.estudianteId}-${c.id}`];
+                        if (qv && ['AA','AS','AF','AI'].includes(qv)) return s + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
+                        return s;
+                      }, 0), 0);
+                      return Math.round(rawFinal);
+                    })()}</span>
+                  {/if}
+                  <div style="color: {(() => {
+                    const rawFinal = activeIndicadores.reduce((sum, ind) => sum + ind.criterios.reduce((s, c) => {
+                      const qv = notasCualitativas[`${est.estudianteId}-${c.id}`];
+                      if (qv && ['AA','AS','AF','AI'].includes(qv)) return s + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
+                      return s;
+                    }, 0), 0);
+                    const maxTotal = activeIndicadores.reduce((sum, i) => sum + i.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0), 0);
+                    const escFinal = maxTotal > 0 ? (rawFinal / maxTotal) * 100 : 0;
+                    const qualFinal = isQualitative ? calcularNotaCualitativaFinal(activeIndicadores.map(i => calcularNotaCualitativaFinal(i.criterios.map(c => notasCualitativas[`${est.estudianteId}-${c.id}`] || '')))) : (getGradeFromScore(escFinal)?.id || 'AI');
+                    return qualFinal ? getGradeColor(qualFinal) : '#94a3b8';
+                  })()}; font-weight: bold; font-size: 1.1rem;">
+                    {(() => {
+                      const rawFinal = activeIndicadores.reduce((sum, ind) => sum + ind.criterios.reduce((s, c) => {
+                        const qv = notasCualitativas[`${est.estudianteId}-${c.id}`];
+                        if (qv && ['AA','AS','AF','AI'].includes(qv)) return s + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
+                        return s;
+                      }, 0), 0);
+                      const maxTotal = activeIndicadores.reduce((sum, i) => sum + i.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0), 0);
+                      const escFinal = maxTotal > 0 ? (rawFinal / maxTotal) * 100 : 0;
+                      const qualFinal = isQualitative ? calcularNotaCualitativaFinal(activeIndicadores.map(i => calcularNotaCualitativaFinal(i.criterios.map(c => notasCualitativas[`${est.estudianteId}-${c.id}`] || '')))) : (getGradeFromScore(escFinal)?.id || 'AI');
+                      return qualFinal;
+                    })()}
+                  </div>
+                </div>
+              </div>
               {#each activeIndicadores as ind}
                     <div style="margin-bottom: 0.5rem; border-radius: 12px; border: 1px solid rgba(var(--primary-rgb), 0.25); background: rgba(30, 41, 59, 0.5); overflow: hidden;">
                   <div style="padding: 0.4rem 0.6rem; background: rgba(var(--primary-rgb), 0.1); border-bottom: 1px solid rgba(var(--primary-rgb), 0.15); display: flex; justify-content: space-between; align-items: center;">
@@ -1182,46 +1221,6 @@
                   {/each}
                 </div>
               {/each}
-
-              <!-- Nota final -->
-              <div style="margin-top: 0.5rem; padding: 0.6rem; border-radius: 12px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(34, 197, 94, 0.3); display: flex; justify-content: space-between; align-items: center;">
-                <div style="color: #94a3b8; font-weight: bold; font-size: 0.85rem;">Nota Final</div>
-                <div style="display: flex; align-items: center; gap: 0.4rem;">
-                  {#if !isQualitative}
-                    <span style="font-size: 0.9rem; color: #e2e8f0;">{(() => {
-                      const rawFinal = activeIndicadores.reduce((sum, ind) => sum + ind.criterios.reduce((s, c) => {
-                        const qv = notasCualitativas[`${est.estudianteId}-${c.id}`];
-                        if (qv && ['AA','AS','AF','AI'].includes(qv)) return s + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
-                        return s;
-                      }, 0), 0);
-                      return Math.round(rawFinal);
-                    })()}</span>
-                  {/if}
-                  <div style="color: {(() => {
-                    const rawFinal = activeIndicadores.reduce((sum, ind) => sum + ind.criterios.reduce((s, c) => {
-                      const qv = notasCualitativas[`${est.estudianteId}-${c.id}`];
-                      if (qv && ['AA','AS','AF','AI'].includes(qv)) return s + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
-                      return s;
-                    }, 0), 0);
-                    const maxTotal = activeIndicadores.reduce((sum, i) => sum + i.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0), 0);
-                    const escFinal = maxTotal > 0 ? (rawFinal / maxTotal) * 100 : 0;
-                    const qualFinal = isQualitative ? calcularNotaCualitativaFinal(activeIndicadores.map(i => calcularNotaCualitativaFinal(i.criterios.map(c => notasCualitativas[`${est.estudianteId}-${c.id}`] || '')))) : (getGradeFromScore(escFinal)?.id || 'AI');
-                    return qualFinal ? getGradeColor(qualFinal) : '#94a3b8';
-                  })()}; font-weight: bold; font-size: 1.1rem;">
-                    {(() => {
-                      const rawFinal = activeIndicadores.reduce((sum, ind) => sum + ind.criterios.reduce((s, c) => {
-                        const qv = notasCualitativas[`${est.estudianteId}-${c.id}`];
-                        if (qv && ['AA','AS','AF','AI'].includes(qv)) return s + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
-                        return s;
-                      }, 0), 0);
-                      const maxTotal = activeIndicadores.reduce((sum, i) => sum + i.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0), 0);
-                      const escFinal = maxTotal > 0 ? (rawFinal / maxTotal) * 100 : 0;
-                      const qualFinal = isQualitative ? calcularNotaCualitativaFinal(activeIndicadores.map(i => calcularNotaCualitativaFinal(i.criterios.map(c => notasCualitativas[`${est.estudianteId}-${c.id}`] || '')))) : (getGradeFromScore(escFinal)?.id || 'AI');
-                      return qualFinal;
-                    })()}
-                  </div>
-                </div>
-              </div>
             </div>
           {/if}
         </div>
