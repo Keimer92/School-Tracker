@@ -235,7 +235,7 @@
   });
 
   $effect(() => {
-    if (selectedGrado > 0 && selectedSeccion > 0 && (selectedCorte > 0 || specialCorte) && selectedAsignatura > 0) {
+    if (!loading && selectedGrado > 0 && selectedSeccion > 0 && (selectedCorte > 0 || specialCorte) && selectedAsignatura > 0) {
       if (refreshTrigger > 0) refreshTrigger = 0;
       const lid = ++loadId;
       if (!silentRefresh) loading = true;
