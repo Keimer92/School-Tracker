@@ -77,6 +77,7 @@
   let pendingRefreshOnSave = $state(false);
   let nextRefreshSilent = false;
   let loadId = 0;
+  let catalogsReady = $state(false);
   let touchStartX = 0;
   let isUndoRedoAction = false;
 
@@ -605,8 +606,9 @@
         const stillExists = data.some(s => s.id === selectedSeccion);
         if (!stillExists) selectedSeccion = data[0].id;
       } else selectedSeccion = 0;
+      catalogsReady = true;
       loadNotas(selectedAno, selectedCorte, selectedColegio, selectedAsignatura, selectedGrado, selectedSeccion);
-    } catch (error) { console.error("Error fetching secciones:", error); }
+    } catch (error) { console.error("Error fetching secciones:", error); catalogsReady = true; }
   }
 
   async function fetchConfiguracionEvaluacion(silent = false): Promise<Indicador[]> {
@@ -643,10 +645,14 @@
       const notasMap: Record<string, string> = {};
       const cuantitativasMap: Record<number, Record<number, number>> = {};
       data.forEach(est => { cuantitativasMap[est.id] = {}; });
+      let mappedCount = 0;
+      let unmatchedCount = 0;
+      let unmatchedSamples: { estudianteId: number; criterioId: number; valor: number }[] = [];
       notasGuardadas.forEach(n => {
         const key = `${n.estudianteId}-${n.criterioId}`;
         const criterio = indToUse.flatMap(ind => ind.criterios).find(c => c.id === n.criterioId);
         if (criterio) {
+          mappedCount++;
           const candidates = [
             { grade: 'AA', saved: Math.round(criterio.puntajeMaximo * (notaMapping.AA || 1.0)) },
             { grade: 'AS', saved: Math.round(criterio.puntajeMaximo * (notaMapping.AS || 0.85)) },
@@ -663,6 +669,9 @@
             else if (ratio >= 0.30) qualValue = "AI";
           }
           if (qualValue) notasMap[key] = qualValue;
+        } else {
+          unmatchedCount++;
+          if (unmatchedSamples.length < 5) unmatchedSamples.push({ estudianteId: n.estudianteId, criterioId: n.criterioId, valor: n.valor });
         }
         if (cuantitativasMap[n.estudianteId]) cuantitativasMap[n.estudianteId][n.criterioId] = n.valor;
       });
@@ -673,6 +682,8 @@
         notas: cuantitativasMap[est.id] || {}
       }));
       notasCualitativas = { ...notasMap };
+      console.log(`[NotasPage] get_notas_by_filters devolvió ${notasGuardadas.length} notas | ${estudiantes.length} estudiantes | mapeadas: ${mappedCount} | sin match (criterioId no encontrado): ${unmatchedCount}`);
+      if (unmatchedCount > 0) console.log(`[NotasPage] Muestras de notas sin match (estudianteId, criterioId, valor):`, unmatchedSamples);
       if (isActuallySilent) {
         setTimeout(() => {
           allCriterios.forEach((criterio, critIdx) => {
@@ -822,17 +833,19 @@
       selectedAsignatura = 0;
       estudiantes = [];
       notas = [];
+      catalogsReady = false;
       fetchGradosYAsignaturas();
     } else {
       grados = [];
       asignaturas = [];
       selectedGrado = 0;
       selectedAsignatura = 0;
+      catalogsReady = false;
     }
   });
 
   $effect(() => {
-    if (selectedGrado && selectedColegio && selectedAno) fetchSecciones();
+    if (selectedGrado && selectedColegio && selectedAno) { catalogsReady = false; fetchSecciones(); }
     else { secciones = []; selectedSeccion = 0; }
   });
 
@@ -864,9 +877,9 @@
     const asignatura = selectedAsignatura;
     const grado = selectedGrado;
     const seccion = selectedSeccion;
-    if (ano > 0 && corte > 0 && colegio > 0 && asignatura > 0 && grado > 0 && seccion > 0) {
+    if (ano > 0 && corte > 0 && colegio > 0 && asignatura > 0 && grado > 0 && seccion > 0 && catalogsReady) {
       loadNotas(ano, corte, colegio, asignatura, grado, seccion);
-    } else {
+    } else if (catalogsReady && (ano <= 0 || corte <= 0 || colegio <= 0 || asignatura <= 0 || grado <= 0 || seccion <= 0)) {
       estudiantes = [];
       notas = [];
     }
