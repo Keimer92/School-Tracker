@@ -4060,6 +4060,8 @@ pub async fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) 
             [*table],
         );
     }
+    // Limpiar pending deletions simples: la nube es autoritativa durante pullAll
+    let _ = tx.execute("DELETE FROM sync_pending_deletions", []);
 
     // 2. Eliminar registros locales que NO existen en la nube pero tampoco están en pending_deletions
     //    (significa que fueron eliminados en otro dispositivo)
@@ -4138,28 +4140,33 @@ pub async fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) 
         "DELETE FROM asistencia WHERE (estudiante_id, fecha) IN (SELECT estudiante_id, fecha FROM sync_pending_deletions_asistencia)",
         [],
     );
+    let _ = tx.execute("DELETE FROM sync_pending_deletions_asistencia", []);
 
     // 2. Procesar eliminaciones pendientes de notas
     let _ = tx.execute(
         "DELETE FROM nota WHERE (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id) IN (SELECT estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id FROM sync_pending_deletions_nota)",
         [],
     );
+    let _ = tx.execute("DELETE FROM sync_pending_deletions_nota", []);
 
     // 3. Procesar eliminaciones pendientes de grado_asignatura
     let _ = tx.execute(
         "DELETE FROM grado_asignatura WHERE (grado_id, asignatura_id) IN (SELECT grado_id, asignatura_id FROM sync_pending_deletions_grado_asignatura)",
         [],
     );
+    let _ = tx.execute("DELETE FROM sync_pending_deletions_grado_asignatura", []);
 
     // 4. Procesar eliminaciones pendientes de colegio_asignatura
     let _ = tx.execute(
         "DELETE FROM colegio_asignatura WHERE (colegio_id, asignatura_id) IN (SELECT colegio_id, asignatura_id FROM sync_pending_deletions_colegio_asignatura)",
         [],
     );
+    let _ = tx.execute("DELETE FROM sync_pending_deletions_colegio_asignatura", []);
 
-    // NOTA: Las pending deletions NO se limpian aquí.
-    // pushAll() las envía a Turso y luego las elimina localmente.
-    // Esto evita que se pierdan si pushAll falla (se reintentan en el próximo sync).
+    // Las pending deletions se limpian aquí porque durante pullAll la nube es la fuente
+// autoritativa. Si una nota fue eliminada localmente pero aún existe en la nube,
+// la restauramos y descartamos la pending deletion obsoleta.
+// pushAll() también las envía al proveedor remoto.
 
     // ============================================================================
     // ============================================================================
