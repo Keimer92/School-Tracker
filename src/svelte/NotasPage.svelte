@@ -359,6 +359,16 @@
     return reverseQualitativeWeights[average] || 'AI';
   }
 
+  function previewQualitativeGrade(targetGrade: string): string {
+    const values: string[] = [];
+    for (const ind of activeIndicadores) {
+      if (ind.criterios[0]) values.push(targetGrade);
+      if (ind.criterios[1]) values.push(targetGrade);
+      if (ind.criterios[2]) values.push('AA');
+    }
+    return calcularNotaCualitativaFinal(values) || targetGrade;
+  }
+
   // Undo/Redo
   function updateInputsUI(targetState: Record<string, string>) {
     notasCualitativas = { ...targetState };
@@ -1456,8 +1466,9 @@
                     <td style="padding: 0.3rem 0.6rem; color: #e2e8f0; font-weight: 500;">{est.estudianteNombre}</td>
                     <td style="padding: 0.3rem 0.6rem; text-align: center; white-space: nowrap;">
                       {#if isQualitative}
-                        {@const pctActual = calcularPctActual(est.estudianteId)}
-                        {@const gradeActual = getGradeFromScore(pctActual)?.id || ''}
+                        {@const qualValues = allCriterios.map(c => notasCualitativas[`${est.estudianteId}-${c.id}`] || '')}
+                        {@const gradeActual = calcularNotaCualitativaFinal(qualValues) || getGradeFromScore(calcularPctActual(est.estudianteId))?.id || ''}
+                        {@const pctActual = gradeActual ? getMidPctForGrade(gradeActual) : 0}
                         <span style="color: {gradeActual ? getGradeColor(gradeActual) : '#94a3b8'}; font-weight: 600;">{gradeActual}</span>
                         <span style="font-size:0.7rem;color:#64748b;margin-left:2px;">({pctActual}%)</span>
                       {:else}
@@ -1477,8 +1488,8 @@
                     {/if}
                     <td style="padding: 0.3rem 0.6rem; text-align: center; font-weight: 600; white-space: nowrap;">
                       {#if isQualitative && distribuirTargets[est.estudianteId] && ['AA','AS','AF','AI'].includes(distribuirTargets[est.estudianteId]!.trim().toUpperCase())}
-                        {@const pctPrev = calcularPctPreview(est.estudianteId, distribuirTargets[est.estudianteId])}
-                        {@const gradePrev = getGradeFromScore(pctPrev)?.id || ''}
+                        {@const gradePrev = previewQualitativeGrade(distribuirTargets[est.estudianteId]!.trim().toUpperCase()) || ''}
+                        {@const pctPrev = gradePrev ? getMidPctForGrade(gradePrev) : 0}
                         <span style="color: {gradePrev ? getGradeColor(gradePrev) : '#a78bfa'}">{gradePrev}</span>
                         <span style="font-size:0.7rem;color:#64748b;margin-left:2px;">({pctPrev}%)</span>
                       {:else}
