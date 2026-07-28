@@ -819,6 +819,7 @@
   });
 
   $effect(() => {
+    const n = notas;
     currentStudentIdx = 0;
   });
 
