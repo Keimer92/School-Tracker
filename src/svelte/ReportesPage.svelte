@@ -896,6 +896,9 @@
     .table-slide-container,.statistics-slide-container{display:none}
     .table-slide-container.active{display:flex;flex-direction:column;flex:1;min-height:0}
     .statistics-slide-container.active{display:block}
+    @media (max-width:768px){
+      .statistics-slide-container.active{overflow-y:auto;-webkit-overflow-scrolling:touch;max-height:calc(100dvh - 170px)}
+    }
     @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
     @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
     .reportes-tabs { display: inline-flex; padding: 2px; gap: 2px; background: var(--bg-elevated); border-radius: 10px; border: 1px solid var(--border); }

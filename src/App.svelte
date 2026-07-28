@@ -21,7 +21,7 @@
 
   type Tab = "dashboard" | "notas" | "reportes" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "informe" | "cloud";
 
-  let initialized = $state(false);
+  let initialized = $state<boolean | null>(null);
   let isMobile = $state(false);
   let activeTab = $state<Tab>("dashboard");
   let visitedTabs = $state<Set<Tab>>(new Set(["dashboard", "notas", "reportes", "estudiantes", "evaluaciones", "globales", "ajustes", "asistencia", "informe", "cloud"]));
@@ -221,7 +221,14 @@
   });
 </script>
 
-{#if initialized}
+{#if initialized === null}
+<div class="app-loading-screen">
+  <div class="app-loading-card">
+    <div class="loader-spinner"></div>
+    <p class="loader-text">School Tracker</p>
+  </div>
+</div>
+{:else if initialized}
 <div
   class="app-layout"
   style="grid-template-columns: {isMobile ? '0px 0px 1fr' : sidebarWidth + 'px 4px 1fr'}; padding-bottom: {isMobile ? 'env(safe-area-inset-bottom, 0px)' : '0'};"
@@ -289,6 +296,6 @@
     <div class="toast-notification {toast.type}">{toast.message}</div>
   {/if}
 </div>
-{:else}
+{:else if initialized}
   <WelcomePage />
 {/if}
