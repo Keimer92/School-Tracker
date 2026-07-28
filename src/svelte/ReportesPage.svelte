@@ -54,6 +54,7 @@
   let isAndroid = $state(false);
   let printHtml: string | null = $state(null);
   let exportandoMasivo = $state(false);
+  let expandedStudentId = $state(-1);
   let progresoMasivo = $state('');
   let loadId = 0;
 
@@ -1080,6 +1081,76 @@
         </div>
       {:else}
         <div class="table-slide-container" class:active={activeSlide === 'tabla'} style="animation:{activeSlide === 'tabla' ? 'fadeIn 0.3s ease-out' : 'none'};display:flex;flex-direction:column;flex:1;min-height:0">
+          {#if isMobile}
+            <div style="flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:0 0.3rem">
+              {#each filteredReporte as estudiante, idx}
+                {@const isExpanded = expandedStudentId === estudiante.id}
+                {@const finalColor = (estudiante.notaFinalCualitativa === "-" || !estudiante.notaFinalCualitativa) ? '#64748b' : getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa, totalPuntajeMaximoConfig)}
+                <div onclick={() => expandedStudentId = isExpanded ? -1 : estudiante.id}
+                  style="margin-bottom:0.3rem;border-radius:12px;border:1px solid rgba(255,255,255,{isExpanded ? '0.12' : '0.06'});background:{isExpanded ? 'rgba(30,41,59,0.8)' : 'rgba(15,23,42,0.5)'};overflow:hidden;cursor:pointer;transition:all 0.2s ease">
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:0.6rem 0.7rem;">
+                    <div style="display:flex;align-items:center;gap:0.5rem;min-width:0;flex:1">
+                      <div style="font-size:0.75rem;color:#64748b;min-width:28px;text-align:center;">{idx + 1}</div>
+                      <div style="font-size:0.85rem;color:#f1f5f9;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{estudiante.nombre}</div>
+                      <span style="font-size:0.65rem;color:#94a3b8;background:rgba(255,255,255,0.05);padding:0.1rem 0.4rem;border-radius:4px;flex-shrink:0">{estudiante.sexo}</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:0.4rem;flex-shrink:0;">
+                      <span style="font-size:0.85rem;font-weight:bold;color:{finalColor}">
+                        {#if isQualitative}
+                          {estudiante.notaFinalCualitativa || '-'}
+                        {:else}
+                          {estudiante.notaFinalCualitativa && estudiante.notaFinalCualitativa !== "-" ? `${Math.round(estudiante.notaFinal)} (${estudiante.notaFinalCualitativa})` : '-'}
+                        {/if}
+                      </span>
+                      <span style="font-size:0.65rem;color:#64748b;transition:transform 0.2s ease;{isExpanded ? 'transform:rotate(180deg);' : ''}">▼</span>
+                    </div>
+                  </div>
+                  {#if isExpanded}
+                    <div style="border-top:1px solid rgba(255,255,255,0.06);padding:0.5rem 0.7rem;">
+                      {#if !specialCorte}
+                        {#each configIndicadores as ind}
+                          {@const nota = estudiante.notasIndicadores[ind.id] || 0}
+                          {@const label = estudiante.notasCualitativasIndicadores[ind.id] || ''}
+                          {@const isMissing = label === "-" || label === ""}
+                          {@const noteColor = isMissing ? '#64748b' : getNoteColor(isQualitative ? 0 : nota, label, getIndicatorMaxScore(ind.id))}
+                          <div style="display:flex;align-items:center;justify-content:space-between;padding:0.35rem 0;border-bottom:1px solid rgba(255,255,255,0.04);">
+                            <div style="display:flex;align-items:center;gap:0.3rem;min-width:0;flex:1">
+                              <div style="width:4px; height:4px; border-radius:50%; background:{noteColor}; flex-shrink:0;"></div>
+                              <span style="font-size:0.75rem;color:#94a3b8;">Ind. {ind.orden}</span>
+                              {#if ind.descripcion}
+                                <span style="font-size:0.65rem;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">— {ind.descripcion}</span>
+                              {/if}
+                            </div>
+                            <span style="font-size:0.8rem;font-weight:bold;color:{noteColor};flex-shrink:0;">
+                              {#if isQualitative}
+                                {isMissing ? '-' : label}
+                              {:else}
+                                {isMissing ? '-' : `${Math.round(nota)}${label ? ` ${label}` : ''}`}
+                              {/if}
+                            </span>
+                          </div>
+                        {/each}
+                      {:else}
+                        <div style="padding:0.35rem 0;font-size:0.75rem;color:#64748b;">
+                          Vista de nota final consolidada — no hay indicadores individuales
+                        </div>
+                      {/if}
+                      <div style="display:flex;align-items:center;justify-content:space-between;padding:0.45rem 0 0.2rem;margin-top:0.2rem;border-top:1px solid rgba(var(--primary-rgb),0.15);">
+                        <span style="font-size:0.8rem;color:var(--text-secondary);font-weight:bold;">Nota Final</span>
+                        <span style="font-size:0.9rem;font-weight:bold;color:{finalColor};">
+                          {#if isQualitative}
+                            {estudiante.notaFinalCualitativa || '-'}
+                          {:else}
+                            {estudiante.notaFinalCualitativa && estudiante.notaFinalCualitativa !== "-" ? `${Math.round(estudiante.notaFinal)} (${estudiante.notaFinalCualitativa})` : '-'}
+                          {/if}
+                        </span>
+                      </div>
+                    </div>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          {:else}
           <div class="category-card table-card" style="padding:0;overflow:hidden;display:flex;flex-direction:column;flex:1;min-height:0">
             <div class="notas-table-container" style="overflow:auto;padding:0;width:100%;max-width:100%;-webkit-overflow-scrolling:touch;border:1px solid rgba(255,255,255,0.1);border-radius:8px;flex:1;min-height:0">
               <table style="width:100%;min-width:max-content;border-collapse:separate;border-spacing:0">
@@ -1136,6 +1207,7 @@
               </table>
             </div>
           </div>
+          {/if}
         </div>
 
         <div class="statistics-slide-container" class:active={activeSlide === 'estadisticas'} style="animation:{activeSlide === 'estadisticas' ? 'fadeIn 0.3s ease-out' : 'none'}">
