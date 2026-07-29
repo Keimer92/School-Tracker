@@ -51,18 +51,20 @@ class SyncManager {
   async wrapSync(promise: Promise<any>, description: string) {
     this.setState({ status: 'syncing', message: `Sincronizando ${description}...` });
     try {
-      await promise;
+      const result = await promise;
       this.setState({
         status: 'success',
         lastSync: new Date().toISOString(),
         lastSyncDetails: description,
         message: null,
       });
+      return result;
     } catch (e: any) {
       this.setState({
         status: 'error',
         message: `Error en ${description}: ${e?.message || e}`,
       });
+      throw e;
     }
   }
 }

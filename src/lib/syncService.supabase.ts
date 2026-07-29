@@ -1273,16 +1273,17 @@ export const syncService = {
    * Útil tras iniciar sesión para recuperar datos previos.
    * Usa Supabase como proveedor.
    */
-  pullAll: async () => {
+  pullAll: async function pullAllFn() {
     console.log(`[Sync] pullAll llamado desde frontend`);
     return syncManager.wrapSync((async () => {
-      syncService._schemaEnsured = false;
-      const schemaResult = await syncService.ensureSchema();
-      if (!schemaResult.ok) {
-        syncService._schemaEnsured = false;
-        throw new Error(schemaResult.error || 'No se pudo preparar el schema remoto de Supabase.');
+      if (!syncService._schemaEnsured) {
+        const schemaResult = await syncService.ensureSchema();
+        if (!schemaResult.ok) {
+          syncService._schemaEnsured = false;
+          throw new Error(schemaResult.error || 'No se pudo preparar el schema remoto de Supabase.');
+        }
+        syncService._schemaEnsured = true;
       }
-      syncService._schemaEnsured = true;
       console.log(`[Sync] Iniciando wrapSync`);
       const userId = await syncService.getUserId();
       console.log(`[Sync] User ID obtenido:`, userId);
@@ -1380,6 +1381,22 @@ export const syncService = {
         colegioAsignatura: colegioAsignatura?.length || 0,
         colegioDiasAsistencia: colegioDiasAsistencia?.length || 0
       });
+
+      // Si es incremental y NO hay datos en ninguna tabla, asumir que el filtro
+      // updated_at está excluyendo registros con NULL (columna recién agregada).
+      // Caer a pull completo.
+      const totalRows = (anos?.length || 0) + (cortes?.length || 0) + (colegios?.length || 0) +
+        (asignaturas?.length || 0) + (grados?.length || 0) + (secciones?.length || 0) +
+        (estudiantes?.length || 0) + (indicadores?.length || 0) + (criterios?.length || 0) +
+        (notas?.length || 0) + (asistencia?.length || 0) + (gradeConfigs?.length || 0) +
+        (multiplicadores?.length || 0) + (gradoAsignatura?.length || 0) +
+        (colegioAsignatura?.length || 0) + (colegioDiasAsistencia?.length || 0);
+      if (isIncremental && totalRows === 0) {
+        console.warn('[Sync] Pull incremental devolvió 0 registros — updated_at podría ser NULL en registros existentes. Reintentando pull completo...');
+        localStorage.removeItem('sb_last_sync_time');
+        // Llamar recursivamente pullAll (que ahora será completo)
+        return await (syncService as any).pullAll();
+      }
 
       // 2. Mapear datos al formato esperado por Rust
       pullData = {
