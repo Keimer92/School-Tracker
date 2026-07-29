@@ -7,6 +7,7 @@
   let view: 'landing' | 'cloud' | 'wizard' = $state('landing');
   let step = $state(1);
   let loading = $state(false);
+  let loadingMessage = $state('');
   let errorMsg = $state('');
   let seedOptions: any = $state(null);
 
@@ -242,6 +243,7 @@
     if (!sbEmail || !sbPassword) { errorMsg = 'Completa email y contraseña'; return; }
     if (authMode === 'register' && sbPassword !== sbConfirmPassword) { errorMsg = 'Las contraseñas no coinciden'; return; }
     loading = true;
+    loadingMessage = 'Iniciando sesión...';
     errorMsg = '';
     try {
       saveSupabaseConfig(cloudUrl, cloudKey);
@@ -258,21 +260,25 @@
         sbSessionUser = data.user?.email || data.user?.id || 'Conectado';
       }
       saveRememberedAccount(sbEmail, cloudUrl);
+      loadingMessage = 'Preparando esquema remoto...';
       const sr = await syncService.runSchemaSetup();
       if (!sr.ok) { errorMsg = sr.error || 'Error preparando la base de datos remota'; loading = false; return; }
+      loadingMessage = 'Descargando datos desde la nube...';
       await syncService.pullAll();
+      loadingMessage = 'Verificando datos...';
       const hasData = await invoke('is_app_initialized');
       if (hasData) {
         await invoke('set_app_initialized');
         emit('welcome-complete');
       } else {
         errorMsg = 'La nube está vacía. Se usarán los datos por defecto.';
-        setTimeout(() => { loading = false; goToWizard(); }, 1500);
+        setTimeout(() => { loading = false; loadingMessage = ''; goToWizard(); }, 1500);
       }
     } catch (e: any) {
       errorMsg = 'Error: ' + (e?.message || e);
     }
     loading = false;
+    loadingMessage = '';
   }
 
   async function handleCloudSync() {
@@ -283,24 +289,27 @@
     }
     loading = true;
     errorMsg = '';
+    loadingMessage = 'Descargando datos desde la nube...';
     try {
       localStorage.setItem('turso_url', cloudUrl);
       localStorage.setItem('turso_auth_token', cloudKey);
       setActiveProvider('turso');
       await syncService.pullAll();
+      loadingMessage = 'Verificando datos...';
       const hasData = await invoke('is_app_initialized');
       if (hasData) {
         await invoke('set_app_initialized');
         emit('welcome-complete');
       } else {
         errorMsg = 'La nube está vacía. Se usarán los datos por defecto.';
-        setTimeout(() => { loading = false; goToWizard(); }, 1500);
+        setTimeout(() => { loading = false; loadingMessage = ''; goToWizard(); }, 1500);
         return;
       }
     } catch (e: any) {
       errorMsg = 'Error de conexión: ' + (e?.message || e);
     }
     loading = false;
+    loadingMessage = '';
   }
 
   async function handleWizardComplete() {
@@ -493,8 +502,13 @@
           <div class="welcome-error">{errorMsg}</div>
         {/if}
         <button class="welcome-btn-primary" onclick={handleCloudSync} disabled={loading}>
-          {loading ? 'Conectando...' : provider === 'supabase' ? (authMode === 'register' ? 'Crear Cuenta y Sincronizar' : 'Iniciar Sesión y Sincronizar') : 'Conectar y descargar'}
+          {loading ? loadingMessage : provider === 'supabase' ? (authMode === 'register' ? 'Crear Cuenta y Sincronizar' : 'Iniciar Sesión y Sincronizar') : 'Conectar y descargar'}
         </button>
+        {#if loading}
+          <div class="welcome-loading-bar">
+            <div class="welcome-loading-bar-inner"></div>
+          </div>
+        {/if}
       </div>
     </div>
 
@@ -779,6 +793,25 @@
   }
   .welcome-btn-primary:hover:not(:disabled) { transform: translateY(-1px); }
   .welcome-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .welcome-loading-bar {
+    width: 100%;
+    height: 4px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .welcome-loading-bar-inner {
+    width: 30%;
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-color, #3b82f6), #818cf8);
+    border-radius: 2px;
+    animation: welcome-loading 1.5s ease-in-out infinite;
+  }
+  @keyframes welcome-loading {
+    0% { transform: translateX(-100%); width: 30%; }
+    50% { width: 60%; }
+    100% { transform: translateX(400%); width: 30%; }
+  }
   .welcome-error {
     color: #ef4444;
     font-size: 0.8rem;
