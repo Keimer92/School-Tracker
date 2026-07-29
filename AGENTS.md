@@ -458,6 +458,33 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 ---
 
+### Opción C: Función `list_auth_users` (para selector de usuarios en WelcomePage)
+
+En la pantalla de bienvenida, al elegir "Descargar desde la nube" → Supabase, la app puede
+mostrar un listado de usuarios registrados en Supabase Auth para seleccionar uno. Esto
+requiere una función SQL adicional:
+
+1. Ve a [Supabase Dashboard](https://supabase.com) → tu proyecto → **SQL Editor**.
+2. Crea una **New query**.
+3. Pega esto y ejecútalo (▶️ Run):
+
+```sql
+CREATE OR REPLACE FUNCTION list_auth_users()
+RETURNS TABLE (id uuid, email text)
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN QUERY SELECT au.id, au.email::text FROM auth.users au ORDER BY au.created_at DESC;
+END;
+$$ LANGUAGE plpgsql;
+
+GRANT EXECUTE ON FUNCTION list_auth_users TO anon;
+```
+
+4. Ahora en la app, al hacer clic en **"Listar usuarios registrados"** (en la vista de
+   conexión Supabase), aparecerán los usuarios de Auth como botones seleccionables.
+5. Al seleccionar uno, se autocompleta el campo de correo electrónico para iniciar sesión.
+
 ### Opción B: Crear tablas manualmente (script DDL completo)
 
 Si prefieres crear todo manualmente o no puedes crear la función `exec_sql`:

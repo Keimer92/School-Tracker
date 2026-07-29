@@ -27,6 +27,9 @@
 
   let rememberedAccounts = $state<{email: string; url: string; lastUsed: string}[]>([]);
 
+  let authUsers = $state<{id: string; email: string}[]>([]);
+  let loadingAuthUsers = $state(false);
+
   function loadRememberedAccounts() {
     try {
       const raw = localStorage.getItem('sb_remembered_accounts');
@@ -51,6 +54,43 @@
     let list = rememberedAccounts.filter(a => a.email !== email);
     rememberedAccounts = list;
     localStorage.setItem('sb_remembered_accounts', JSON.stringify(list));
+  }
+
+  async function loadAuthUsers() {
+    if (!cloudUrl || !cloudKey) { errorMsg = 'Primero ingresa URL y Anon Key'; return; }
+    loadingAuthUsers = true;
+    errorMsg = '';
+    authUsers = [];
+    try {
+      saveSupabaseConfig(cloudUrl, cloudKey);
+      setActiveProvider('supabase');
+      const client = getSupabaseClient();
+      if (!client) { errorMsg = 'No se pudo crear el cliente Supabase'; loadingAuthUsers = false; return; }
+      const { data, error } = await client.rpc('list_auth_users');
+      if (error) {
+        if (error.message?.includes('function') || error.message?.includes('not found')) {
+          errorMsg = 'La función list_auth_users no existe en tu proyecto Supabase. Ve a SQL Editor y crea la función (ver AGENTS.md).';
+        } else {
+          errorMsg = 'Error al listar usuarios: ' + error.message;
+        }
+        loadingAuthUsers = false;
+        return;
+      }
+      authUsers = data || [];
+      if (authUsers.length === 0) {
+        errorMsg = 'No hay usuarios registrados en Supabase Auth.';
+      }
+    } catch (e: any) {
+      errorMsg = 'Error: ' + (e?.message || e);
+    }
+    loadingAuthUsers = false;
+  }
+
+  function selectAuthUser(user: {id: string; email: string}) {
+    sbEmail = user.email;
+    sbPassword = '';
+    errorMsg = '';
+    authUsers = [];
   }
 
   loadRememberedAccounts();
@@ -369,6 +409,24 @@
                     title="Click para usar • {acc.email}">
                     <span style="font-size:0.85rem;">👤</span>
                     <span>{acc.email}</span>
+                  </button>
+                {/each}
+              </div>
+            </div>
+          {/if}
+          <button onclick={loadAuthUsers} disabled={loadingAuthUsers} style="margin-top:0.25rem;display:flex;align-items:center;justify-content:center;gap:0.4rem;padding:0.5rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;cursor:pointer;font-size:0.8rem;color:#94a3b8;transition:all 0.2s;font-family:inherit;width:100%;">
+            <span style="font-size:1rem;">👥</span>
+            <span>{loadingAuthUsers ? 'Cargando...' : 'Listar usuarios registrados'}</span>
+          </button>
+          {#if authUsers.length > 0}
+            <div style="margin-top:0.25rem;">
+              <div style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.3rem;">Selecciona un usuario</div>
+              <div style="display:flex;flex-wrap:wrap;gap:0.3rem;max-height:200px;overflow-y:auto;padding:0.15rem;">
+                {#each authUsers as user}
+                  <button onclick={() => selectAuthUser(user)} style="display:flex;align-items:center;gap:0.3rem;padding:0.3rem 0.6rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;cursor:pointer;font-size:0.75rem;color:#cbd5e1;transition:all 0.2s;font-family:inherit;"
+                    title="Seleccionar {user.email}">
+                    <span style="font-size:0.85rem;">👤</span>
+                    <span>{user.email}</span>
                   </button>
                 {/each}
               </div>
