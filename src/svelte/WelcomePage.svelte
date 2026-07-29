@@ -369,9 +369,6 @@
                     title="Click para usar • {acc.email}">
                     <span style="font-size:0.85rem;">👤</span>
                     <span>{acc.email}</span>
-                    <span onclick={(e) => { e.stopPropagation(); forgetAccount(acc.email); }} style="margin-left:0.2rem;color:#64748b;font-size:0.7rem;cursor:pointer;padding:0 0.15rem;border-radius:4px;"
-                      onmouseover={(e) => e.currentTarget.style.color = '#ef4444'}
-                      onmouseout={(e) => e.currentTarget.style.color = '#64748b'}>✕</span>
                   </button>
                 {/each}
               </div>
