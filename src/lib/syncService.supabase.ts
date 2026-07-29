@@ -1292,7 +1292,10 @@ export const syncService = {
       // 0. Procesar eliminaciones pendientes antes de descargar datos
       await syncService.syncPendingDeletions();
 
-      console.log(`[Sync] Iniciando descarga de datos desde Supabase (sin filtro user_id)`);
+      // Determinar si es pull incremental o completo
+      const lastPullTime = localStorage.getItem('sb_last_sync_time');
+      const isIncremental = !!lastPullTime;
+      console.log(`[Sync] ${isIncremental ? `Pull incremental (desde ${lastPullTime})` : 'Pull completo'}`);
 
       let pullData: any;
 
@@ -1307,7 +1310,7 @@ export const syncService = {
       console.log(`[Sync] Consultando tablas (sin filtro user_id)`);
 
       // Helper: obtiene TODAS las filas de una tabla, paginando de a PAGE_SIZE
-      // porque PostgREST tiene max-rows=1000 por defecto en Supabase.
+      // En incremental: filtra por updated_at > lastPullTime
       const PAGE_SIZE = 1000;
       async function fetchAllRows(table: string): Promise<any[]> {
         console.log(`[Sync] Consultando ${table}...`);
@@ -1315,11 +1318,20 @@ export const syncService = {
         let from = 0;
         let hasMore = true;
         while (hasMore) {
-          const { data, error } = await supabase
-            .from(table)
-            .select('*')
-            .range(from, from + PAGE_SIZE - 1);
+          let query = supabase.from(table).select('*');
+          if (isIncremental) {
+            query = query.gte('updated_at', lastPullTime);
+          }
+          query = query.range(from, from + PAGE_SIZE - 1);
+
+          const { data, error } = await query;
           if (error) {
+            // Si el error es por columna updated_at faltante (tabla vieja), caer a full pull
+            if (error.message?.includes('updated_at') || error.code === 'PGRST204') {
+              console.warn(`[Sync] Tabla ${table} sin updated_at, cambiando a pull completo`);
+              localStorage.removeItem('sb_last_sync_time');
+              throw error; // wrapSync reintentará sin filtro
+            }
             console.error(`[Sync] Error en ${table} (page ${from}-${from + PAGE_SIZE - 1}):`, error);
             throw error;
           }
@@ -1331,7 +1343,7 @@ export const syncService = {
             hasMore = false;
           }
         }
-        console.log(`[Sync] ${table}: ${allRows.length} registros (${Math.ceil(allRows.length / PAGE_SIZE)} página(s))`);
+        console.log(`[Sync] ${table}: ${allRows.length} registros${isIncremental ? ' (incremental)' : ''}`);
         return allRows;
       }
 
@@ -1471,6 +1483,9 @@ export const syncService = {
       try {
         await invoke('upsert_pull_data', { data: pullData });
         console.log(`[Sync] ✅ upsert_pull_data completado sin errores`);
+        // Guardar timestamp para próximo pull incremental
+        localStorage.setItem('sb_last_sync_time', new Date().toISOString());
+        console.log(`[Sync] 💾 last_sync_time actualizado`);
         // Diagnostic: verificar cuántas notas quedaron realmente en SQLite
         try {
           const total = await invoke<number>('get_notas_count_all');
@@ -1814,6 +1829,7 @@ ALTER TABLE criterio ADD COLUMN IF NOT EXISTS user_id TEXT;
 ALTER TABLE grado_asignatura ADD COLUMN IF NOT EXISTS user_id TEXT;
 ALTER TABLE colegio_asignatura ADD COLUMN IF NOT EXISTS user_id TEXT;
 ALTER TABLE colegio_dias_asistencia ADD COLUMN IF NOT EXISTS user_id TEXT;
+${allTables.map((t) => `ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS updated_at TEXT DEFAULT now()::text;`).join('\n')}
 ALTER TABLE ano_lectivo DISABLE ROW LEVEL SECURITY;
 ALTER TABLE corte_evaluativo DISABLE ROW LEVEL SECURITY;
 ALTER TABLE colegio DISABLE ROW LEVEL SECURITY;
@@ -1847,6 +1863,7 @@ ALTER TABLE sync_batch DISABLE ROW LEVEL SECURITY;`;
           'ALTER TABLE grado_asignatura ADD COLUMN IF NOT EXISTS user_id TEXT;',
           'ALTER TABLE colegio_asignatura ADD COLUMN IF NOT EXISTS user_id TEXT;',
           'ALTER TABLE colegio_dias_asistencia ADD COLUMN IF NOT EXISTS user_id TEXT;',
+          ...allTables.map((t) => `ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS updated_at TEXT DEFAULT now()::text;`),
           ...allTables.map((t) => `ALTER TABLE ${t} DISABLE ROW LEVEL SECURITY;`),
         ];
         await runSqlStatements(fixSqls, false);

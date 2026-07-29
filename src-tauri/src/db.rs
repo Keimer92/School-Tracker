@@ -68,14 +68,16 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nombre TEXT NOT NULL UNIQUE,
             activo INTEGER DEFAULT 0,
-            cualitativo INTEGER DEFAULT 0
+            cualitativo INTEGER DEFAULT 0,
+            updated_at TEXT DEFAULT (datetime('now'))
         );
 
         CREATE TABLE IF NOT EXISTS corte_evaluativo (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nombre TEXT NOT NULL UNIQUE,
             activo INTEGER DEFAULT 0,
-            cualitativo INTEGER DEFAULT 0
+            cualitativo INTEGER DEFAULT 0,
+            updated_at TEXT DEFAULT (datetime('now'))
         );
 
         CREATE TABLE IF NOT EXISTS colegio (
@@ -83,25 +85,29 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             nombre TEXT NOT NULL UNIQUE,
             activo INTEGER DEFAULT 0,
             cualitativo INTEGER DEFAULT 0,
-            orden INTEGER DEFAULT 0
+            orden INTEGER DEFAULT 0,
+            updated_at TEXT DEFAULT (datetime('now'))
         );
 
         CREATE TABLE IF NOT EXISTS asignatura (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nombre TEXT NOT NULL UNIQUE,
-            cualitativo INTEGER DEFAULT 0
+            cualitativo INTEGER DEFAULT 0,
+            updated_at TEXT DEFAULT (datetime('now'))
         );
 
         CREATE TABLE IF NOT EXISTS grado (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nombre TEXT NOT NULL UNIQUE,
-            cualitativo INTEGER DEFAULT 0
+            cualitativo INTEGER DEFAULT 0,
+            updated_at TEXT DEFAULT (datetime('now'))
         );
 
         CREATE TABLE IF NOT EXISTS seccion (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nombre TEXT NOT NULL UNIQUE,
-            cualitativo INTEGER DEFAULT 0
+            cualitativo INTEGER DEFAULT 0,
+            updated_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS app_meta (
             key TEXT PRIMARY KEY,
@@ -127,6 +133,7 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             direccion TEXT,
             email TEXT,
             foto TEXT,
+            updated_at TEXT DEFAULT (datetime('now')),
             FOREIGN KEY(ano_lectivo_id) REFERENCES ano_lectivo(id),
             FOREIGN KEY(grado_id) REFERENCES grado(id),
             FOREIGN KEY(seccion_id) REFERENCES seccion(id),
@@ -142,6 +149,7 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
         CREATE TABLE IF NOT EXISTS grado_asignatura (
             grado_id INTEGER NOT NULL,
             asignatura_id INTEGER NOT NULL,
+            updated_at TEXT DEFAULT (datetime('now')),
             PRIMARY KEY (grado_id, asignatura_id),
             FOREIGN KEY(grado_id) REFERENCES grado(id) ON DELETE CASCADE,
             FOREIGN KEY(asignatura_id) REFERENCES asignatura(id) ON DELETE CASCADE
@@ -150,6 +158,7 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
         CREATE TABLE IF NOT EXISTS colegio_asignatura (
             colegio_id INTEGER NOT NULL,
             asignatura_id INTEGER NOT NULL,
+            updated_at TEXT DEFAULT (datetime('now')),
             PRIMARY KEY (colegio_id, asignatura_id),
             FOREIGN KEY(colegio_id) REFERENCES colegio(id) ON DELETE CASCADE,
             FOREIGN KEY(asignatura_id) REFERENCES asignatura(id) ON DELETE CASCADE
@@ -169,6 +178,7 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             orden INTEGER NOT NULL,
             descripcion TEXT DEFAULT '',
             activo INTEGER DEFAULT 1,
+            updated_at TEXT DEFAULT (datetime('now')),
             FOREIGN KEY(grado_id) REFERENCES grado(id),
             FOREIGN KEY(asignatura_id) REFERENCES asignatura(id),
             FOREIGN KEY(corte_evaluativo_id) REFERENCES corte_evaluativo(id)
@@ -180,6 +190,7 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             orden INTEGER NOT NULL,
             descripcion TEXT DEFAULT '',
             puntaje_maximo INTEGER NOT NULL,
+            updated_at TEXT DEFAULT (datetime('now')),
             FOREIGN KEY(indicador_id) REFERENCES indicador(id) ON DELETE CASCADE
         );
         "#,
@@ -195,6 +206,7 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             fecha TEXT NOT NULL,
             estado TEXT CHECK(estado IN ('P', 'A', 'J')) NOT NULL,
             observacion TEXT,
+            updated_at TEXT DEFAULT (datetime('now')),
             UNIQUE(estudiante_id, fecha),
             FOREIGN KEY(estudiante_id) REFERENCES estudiante(id) ON DELETE CASCADE
         );
@@ -208,6 +220,7 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             viernes INTEGER DEFAULT 1,
             sabado INTEGER DEFAULT 1,
             domingo INTEGER DEFAULT 1,
+            updated_at TEXT DEFAULT (datetime('now')),
             FOREIGN KEY(colegio_id) REFERENCES colegio(id) ON DELETE CASCADE
         );
         "#,
@@ -223,6 +236,7 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             valor REAL NOT NULL,
             corte_evaluativo_id INTEGER NOT NULL,
             asignatura_id INTEGER NOT NULL,
+            updated_at TEXT DEFAULT (datetime('now')),
             PRIMARY KEY (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id),
             FOREIGN KEY(estudiante_id) REFERENCES estudiante(id) ON DELETE CASCADE,
             FOREIGN KEY(criterio_id) REFERENCES criterio(id) ON DELETE CASCADE,
@@ -240,7 +254,8 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             id TEXT PRIMARY KEY,
             nombre TEXT NOT NULL,
             color TEXT NOT NULL,
-            minimo INTEGER NOT NULL
+            minimo INTEGER NOT NULL,
+            updated_at TEXT DEFAULT (datetime('now'))
         );
         "#,
     )
@@ -274,7 +289,8 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
 
         CREATE TABLE IF NOT EXISTS multiplicador_calificacion (
             id TEXT PRIMARY KEY,
-            multiplicador REAL NOT NULL DEFAULT 1.0
+            multiplicador REAL NOT NULL DEFAULT 1.0,
+            updated_at TEXT DEFAULT (datetime('now'))
         );
 
         CREATE TABLE IF NOT EXISTS sync_pending_deletions_grado_asignatura (
@@ -393,6 +409,38 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
             ).ok();
         }
         println!("✅ [DB] Multiplicadores de criterios sembrados (migración)");
+    }
+
+    // Migración: agregar columna updated_at a todas las tablas que sincronizan
+    let tables_updated_at = [
+        "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
+        "estudiante", "indicador", "criterio", "asistencia", "colegio_dias_asistencia",
+        "nota", "configuracion_calificacion", "multiplicador_calificacion",
+        "grado_asignatura", "colegio_asignatura",
+    ];
+    for table in &tables_updated_at {
+        let has_col: bool = conn
+            .query_row(
+                &format!("SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = 'updated_at'"),
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap_or(0) > 0;
+        if !has_col {
+            // SQLite no permite DEFAULT con expresión en ALTER TABLE,
+            // así que agregamos sin default y luego actualizamos filas existentes
+            conn.execute(
+                &format!("ALTER TABLE {table} ADD COLUMN updated_at TEXT"),
+                [],
+            )
+            .map_err(|e| format!("Error agregando updated_at a {table}: {e}"))?;
+            conn.execute(
+                &format!("UPDATE {table} SET updated_at = datetime('now') WHERE updated_at IS NULL"),
+                [],
+            )
+            .map_err(|e| format!("Error actualizando updated_at en {table}: {e}"))?;
+            println!("✅ [DB] Columna updated_at agregada a {table}");
+        }
     }
 
     Ok(())
@@ -803,6 +851,7 @@ macro_rules! create_crud_commands {
             Ok(conn.last_insert_rowid())
         }
 
+        // Tables without activo: update + updated_at
         #[tauri::command]
         pub async fn $update(
             state: tauri::State<'_, DbState>,
@@ -815,7 +864,7 @@ macro_rules! create_crud_commands {
                 concat!(
                     "UPDATE ",
                     stringify!($table),
-                    " SET nombre = ?, cualitativo = ? WHERE id = ?"
+                    " SET nombre = ?, cualitativo = ?, updated_at = datetime('now') WHERE id = ?"
                 ),
                 rusqlite::params![nombre, if cualitativo { 1 } else { 0 }, id],
             )
@@ -892,6 +941,7 @@ macro_rules! create_crud_commands_active {
             Ok(conn.last_insert_rowid())
         }
 
+        // Tables with activo: update + updated_at
         #[tauri::command]
         pub async fn $update(
             state: tauri::State<'_, DbState>,
@@ -904,7 +954,7 @@ macro_rules! create_crud_commands_active {
                 concat!(
                     "UPDATE ",
                     stringify!($table),
-                    " SET nombre = ?, cualitativo = ? WHERE id = ?"
+                    " SET nombre = ?, cualitativo = ?, updated_at = datetime('now') WHERE id = ?"
                 ),
                 rusqlite::params![nombre, if cualitativo { 1 } else { 0 }, id],
             )
@@ -940,7 +990,11 @@ macro_rules! create_crud_commands_active {
 
             // Deactivate all
             tx.execute(
-                concat!("UPDATE ", stringify!($table), " SET activo = 0"),
+                concat!(
+                    "UPDATE ",
+                    stringify!($table),
+                    " SET activo = 0, updated_at = datetime('now')"
+                ),
                 [],
             )
             .map_err(|e| e.to_string())?;
@@ -950,7 +1004,7 @@ macro_rules! create_crud_commands_active {
                 concat!(
                     "UPDATE ",
                     stringify!($table),
-                    " SET activo = 1 WHERE id = ?"
+                    " SET activo = 1, updated_at = datetime('now') WHERE id = ?"
                 ),
                 [id],
             )
@@ -1913,7 +1967,7 @@ pub async fn add_student(state: tauri::State<'_, DbState>, student: Student) -> 
 pub async fn update_student(state: tauri::State<'_, DbState>, student: Student) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
-        "UPDATE estudiante SET nombre = ?, codigo = ?, sexo = ?, ano_lectivo_id = ?, grado_id = ?, seccion_id = ?, colegio_id = ?, telefono = ?, direccion = ?, email = ?, foto = ? WHERE id = ?",
+        "UPDATE estudiante SET nombre = ?, codigo = ?, sexo = ?, ano_lectivo_id = ?, grado_id = ?, seccion_id = ?, colegio_id = ?, telefono = ?, direccion = ?, email = ?, foto = ?, updated_at = datetime('now') WHERE id = ?",
         rusqlite::params![
             student.nombre,
             student.codigo,
@@ -2630,7 +2684,7 @@ pub async fn update_colegio(
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
-        "UPDATE colegio SET nombre = ?, cualitativo = ? WHERE id = ?",
+        "UPDATE colegio SET nombre = ?, cualitativo = ?, updated_at = datetime('now') WHERE id = ?",
         rusqlite::params![nombre, if cualitativo { 1 } else { 0 }, id],
     )
     .map(|_| ())
@@ -2651,11 +2705,11 @@ pub async fn set_active_colegio(state: tauri::State<'_, DbState>, id: i64) -> Re
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
     // Deactivate all
-    tx.execute("UPDATE colegio SET activo = 0", [])
+    tx.execute("UPDATE colegio SET activo = 0, updated_at = datetime('now')", [])
         .map_err(|e| e.to_string())?;
 
     // Activate selected
-    tx.execute("UPDATE colegio SET activo = 1 WHERE id = ?", [id])
+    tx.execute("UPDATE colegio SET activo = 1, updated_at = datetime('now') WHERE id = ?", [id])
         .map_err(|e| e.to_string())?;
 
     tx.commit().map_err(|e| e.to_string())?;
@@ -2673,7 +2727,7 @@ pub async fn update_colegio_order(
     for (index, item) in items.iter().enumerate() {
         if let Some(id) = item.id {
             tx.execute(
-                "UPDATE colegio SET orden = ? WHERE id = ?",
+                "UPDATE colegio SET orden = ?, updated_at = datetime('now') WHERE id = ?",
                 rusqlite::params![index as i64, id],
             )
             .map_err(|e| e.to_string())?;
@@ -2874,7 +2928,7 @@ pub async fn update_indicador(
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
-        "UPDATE indicador SET descripcion = ?, activo = ? WHERE id = ?",
+        "UPDATE indicador SET descripcion = ?, activo = ?, updated_at = datetime('now') WHERE id = ?",
         rusqlite::params![descripcion, if activo { 1 } else { 0 }, id],
     )
     .map(|_| ())
@@ -2891,7 +2945,7 @@ pub async fn update_criterio(
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
-        "UPDATE criterio SET descripcion = ?, puntaje_maximo = ? WHERE id = ?",
+        "UPDATE criterio SET descripcion = ?, puntaje_maximo = ?, updated_at = datetime('now') WHERE id = ?",
         rusqlite::params![descripcion, puntajeMaximo, id],
     )
     .map(|_| ())
@@ -3038,16 +3092,17 @@ pub async fn save_colegio_dias_asistencia(
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
-        "INSERT INTO colegio_dias_asistencia (colegio_id, lunes, martes, miercoles, jueves, viernes, sabado, domingo) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?) 
-         ON CONFLICT(colegio_id) DO UPDATE SET 
-         lunes = excluded.lunes, 
-         martes = excluded.martes, 
-         miercoles = excluded.miercoles, 
-         jueves = excluded.jueves, 
-         viernes = excluded.viernes, 
-         sabado = excluded.sabado, 
-         domingo = excluded.domingo",
+         "INSERT INTO colegio_dias_asistencia (colegio_id, lunes, martes, miercoles, jueves, viernes, sabado, domingo) 
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?) 
+          ON CONFLICT(colegio_id) DO UPDATE SET 
+          lunes = excluded.lunes, 
+          martes = excluded.martes, 
+          miercoles = excluded.miercoles, 
+          jueves = excluded.jueves, 
+          viernes = excluded.viernes, 
+          sabado = excluded.sabado, 
+          domingo = excluded.domingo,
+          updated_at = datetime('now')",
         rusqlite::params![
             config.colegio_id,
             config.lunes,
@@ -3208,7 +3263,7 @@ pub async fn update_grade_config(
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
-        "UPDATE configuracion_calificacion SET id = ?, nombre = ?, color = ?, minimo = ? WHERE id = ?",
+        "UPDATE configuracion_calificacion SET id = ?, nombre = ?, color = ?, minimo = ?, updated_at = datetime('now') WHERE id = ?",
         rusqlite::params![id, nombre, color, minimo, old_id],
     )
     .map(|_| ())
@@ -3585,7 +3640,8 @@ pub async fn save_asistencia(
              VALUES (?, ?, ?, ?) 
              ON CONFLICT(estudiante_id, fecha) DO UPDATE SET 
              estado = excluded.estado, 
-             observacion = excluded.observacion",
+             observacion = excluded.observacion,
+             updated_at = datetime('now')",
             rusqlite::params![
                 record.estudiante_id,
                 record.fecha,

@@ -146,6 +146,11 @@ src-tauri/gen/               generado (ignorar; no editar a mano)
   2. En `pushAllSilent` para esa tabla: intentar PostgREST upsert → fallback a RPC `exec_sql`
      con `CREATE TABLE IF NOT EXISTS` antes del `INSERT ... ON CONFLICT`
   3. Ver `multiplicador_calificacion` como ejemplo del patrón
+- **`updated_at`** — Todas las tablas sincronizables tienen columna `updated_at TEXT DEFAULT (datetime('now'))`
+  (SQLite) / `updated_at TEXT DEFAULT now()::text` (Postgres). Se usa para **pull incremental**: en lugar de
+  descargar todas las filas en cada ciclo, `pullAll` filtra con `.gte('updated_at', lastPullTime)`. 
+  `lastPullTime` se guarda en `localStorage['sb_last_sync_time']` tras cada pull exitoso.
+  `get_all_local_data_since(timestamp)` en Rust devuelve solo registros `WHERE updated_at > ?` para push incremental.
 - **`client.rpc` vs `supabase.rpc`**: Ambos llaman al mismo cliente real pero el Proxy
   (`supabase`) tiene edge cases con cadenas de métodos. Si `client.rpc` falla, probar
   `supabase.rpc` como fallback. Ambos devuelven `{ data, error }` — no lanzan excepción
@@ -168,7 +173,7 @@ src-tauri/gen/               generado (ignorar; no editar a mano)
 - **Agregar un comando Rust**: función `#[tauri::command]` + registrar en `generate_handler!`
   (lib.rs) + llamarlo con `invoke(...)` desde el frontend.
 - **Agregar tabla sincronizable a la nube**: crearla en ambos schemas, añadirla a
-  `get_all_local_data_json` (lib.rs) y a los maps de tablas base en `syncService.supabase.ts`,
+  `get_all_local_data_json` y `get_all_local_data_since` (lib.rs) y a los maps de tablas base en `syncService.supabase.ts`,
   y decidir su estrategia de pending deletions.
 - **Cambiar proveedor de sync por defecto**: `setActiveProvider()` / clave `sync_provider` en
    localStorage (`syncService.ts`).
@@ -281,13 +286,17 @@ evitar el bug `PGRST205`.
 ```
 1. ensureSchema() (schema remoto listo)
 2. syncPendingDeletions() (propagar borrados pendientes primero)
-3. Consultar las 15 tablas en paralelo vía PostgREST:
+3. Si existe lastPullTime en localStorage → pull incremental:
+   .gte('updated_at', lastPullTime) en cada query
+   (primera vez o si falla → pull completo sin filtro)
+4. Consultar las 15 tablas en paralelo vía PostgREST:
      Promise.all(tablas.map(t => supabase.from(t).select('*')))
-4. Si alguna tabla falla con PGRST205:
+5. Si alguna tabla falla con PGRST205:
      → withSupabaseSchemaRecovery reintenta hasta 3 veces
      → Entre intentos: llama ensureSchema() y espera 400-800-1200ms
-5. Resultados → invoke("upsert_pull_data", { data }) (Rust)
-6. Emitir eventos de actualización
+6. Resultados → invoke("upsert_pull_data", { data }) (Rust)
+7. Guardar lastPullTime = new Date().toISOString() en localStorage['sb_last_sync_time']
+8. Emitir eventos de actualización
 ```
 
 **withSupabaseSchemaRecovery** (`syncService.supabase.ts:9`):
@@ -357,22 +366,22 @@ La BD se crea en `app_data_dir/school.db` al arrancar la app vía `init_database
 
 | Tabla | PK | Columnas clave | Notas |
 |-------|----|----------------|-------|
-| `ano_lectivo` | `id` (INTEGER PK AUTOINCREMENT) | `nombre TEXT UNIQUE`, `activo INTEGER DEFAULT 0`, `cualitativo INTEGER DEFAULT 0` | |
-| `corte_evaluativo` | `id` | `nombre TEXT UNIQUE`, `activo INTEGER`, `cualitativo INTEGER` | |
-| `colegio` | `id` | `nombre TEXT UNIQUE`, `activo INTEGER`, `cualitativo INTEGER`, `orden INTEGER` | |
-| `asignatura` | `id` | `nombre TEXT UNIQUE`, `cualitativo INTEGER` | |
-| `grado` | `id` | `nombre TEXT UNIQUE`, `cualitativo INTEGER` | |
-| `seccion` | `id` | `nombre TEXT UNIQUE`, `cualitativo INTEGER` | |
-| `estudiante` | `id` | `nombre TEXT`, `codigo TEXT UNIQUE`, `sexo TEXT CHECK(M\|F)`, `ano_lectivo_id`, `grado_id`, `seccion_id`, `colegio_id`, `telefono`, `direccion`, `email`, `foto` | FKs a las tablas de catálogo |
-| `configuracion_calificacion` | `id` (TEXT PK) | `nombre TEXT`, `color TEXT`, `minimo INTEGER` | |
-| `multiplicador_calificacion` | `id` (TEXT PK) | `multiplicador REAL NOT NULL DEFAULT 1.0` | |
-| `grado_asignatura` | `(grado_id, asignatura_id)` | | FK CASCADE |
-| `colegio_asignatura` | `(colegio_id, asignatura_id)` | | FK CASCADE |
-| `indicador` | `id` | `grado_id`, `asignatura_id`, `corte_evaluativo_id`, `orden`, `descripcion TEXT DEFAULT ''`, `activo INTEGER DEFAULT 1` | |
-| `criterio` | `id` | `indicador_id`, `orden`, `descripcion TEXT DEFAULT ''`, `puntaje_maximo INTEGER` | FK CASCADE sobre indicador |
-| `asistencia` | `id` | `estudiante_id`, `fecha TEXT`, `estado TEXT CHECK(P\|A\|J)`, `observacion TEXT` | `UNIQUE(estudiante_id, fecha)` |
-| `colegio_dias_asistencia` | `colegio_id` | `lunes..domingo INTEGER DEFAULT 1` | |
-| `nota` | `(estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id)` | `valor REAL` | PK compuesta |
+| `ano_lectivo` | `id` (INTEGER PK AUTOINCREMENT) | `nombre TEXT UNIQUE`, `activo INTEGER DEFAULT 0`, `cualitativo INTEGER DEFAULT 0`, `updated_at TEXT` | |
+| `corte_evaluativo` | `id` | `nombre TEXT UNIQUE`, `activo INTEGER`, `cualitativo INTEGER`, `updated_at TEXT` | |
+| `colegio` | `id` | `nombre TEXT UNIQUE`, `activo INTEGER`, `cualitativo INTEGER`, `orden INTEGER`, `updated_at TEXT` | |
+| `asignatura` | `id` | `nombre TEXT UNIQUE`, `cualitativo INTEGER`, `updated_at TEXT` | |
+| `grado` | `id` | `nombre TEXT UNIQUE`, `cualitativo INTEGER`, `updated_at TEXT` | |
+| `seccion` | `id` | `nombre TEXT UNIQUE`, `cualitativo INTEGER`, `updated_at TEXT` | |
+| `estudiante` | `id` | `nombre TEXT`, `codigo TEXT UNIQUE`, `sexo TEXT CHECK(M\|F)`, `ano_lectivo_id`, `grado_id`, `seccion_id`, `colegio_id`, `telefono`, `direccion`, `email`, `foto`, `updated_at TEXT` | FKs a las tablas de catálogo |
+| `configuracion_calificacion` | `id` (TEXT PK) | `nombre TEXT`, `color TEXT`, `minimo INTEGER`, `updated_at TEXT` | |
+| `multiplicador_calificacion` | `id` (TEXT PK) | `multiplicador REAL NOT NULL DEFAULT 1.0`, `updated_at TEXT` | |
+| `grado_asignatura` | `(grado_id, asignatura_id)` | `updated_at TEXT` | FK CASCADE |
+| `colegio_asignatura` | `(colegio_id, asignatura_id)` | `updated_at TEXT` | FK CASCADE |
+| `indicador` | `id` | `grado_id`, `asignatura_id`, `corte_evaluativo_id`, `orden`, `descripcion TEXT DEFAULT ''`, `activo INTEGER DEFAULT 1`, `updated_at TEXT` | |
+| `criterio` | `id` | `indicador_id`, `orden`, `descripcion TEXT DEFAULT ''`, `puntaje_maximo INTEGER`, `updated_at TEXT` | FK CASCADE sobre indicador |
+| `asistencia` | `id` | `estudiante_id`, `fecha TEXT`, `estado TEXT CHECK(P\|A\|J)`, `observacion TEXT`, `updated_at TEXT` | `UNIQUE(estudiante_id, fecha)` |
+| `colegio_dias_asistencia` | `colegio_id` | `lunes..domingo INTEGER DEFAULT 1`, `updated_at TEXT` | |
+| `nota` | `(estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id)` | `valor REAL`, `updated_at TEXT` | PK compuesta |
 | `configuracion_calificacion` | `id` (TEXT PK) | `nombre TEXT`, `color TEXT`, `minimo INTEGER` | |
 | `sync_pending_deletions` | `id` | `tabla TEXT`, `registro_id INTEGER`, `fecha_intento TIMESTAMP DEFAULT CURRENT_TIMESTAMP` | |
 | `sync_pending_deletions_asistencia` | `id` | `estudiante_id`, `fecha TEXT`, `fecha_intento` | |
@@ -404,6 +413,7 @@ En `migrate_add_columns` (`db.rs:299`):
 - `configuracion_calificacion.nombre TEXT DEFAULT ''` (si no existe) + backfill nombres para ids viejos (`destacado`→`AA` etc.)
 - `colegio.activo INTEGER DEFAULT 0` (si no existe)
 - `multiplicador_calificacion` relleno con valores por defecto (AA=1.0, AS=0.85, AF=0.65, AI=0.40) si la tabla está vacía (siembra retroactiva para bases existentes)
+- `updated_at TEXT DEFAULT (datetime('now'))` en las 16 tablas sincronizables (si no existe)
 
 ### Flujo de llamada
 

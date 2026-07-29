@@ -296,6 +296,6 @@
     <div class="toast-notification {toast.type}">{toast.message}</div>
   {/if}
 </div>
-{:else if initialized}
+{:else}
   <WelcomePage />
 {/if}

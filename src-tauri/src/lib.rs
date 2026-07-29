@@ -91,6 +91,56 @@ async fn get_all_local_data_json(state: tauri::State<'_, DbState>) -> Result<Str
     serde_json::to_string(&result).map_err(|e| format!("Error serializando: {}", e))
 }
 
+#[tauri::command]
+async fn get_all_local_data_since(state: tauri::State<'_, DbState>, since: String) -> Result<String, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+
+    let table_names = [
+        "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
+        "grado_asignatura", "colegio_asignatura", "indicador", "criterio",
+        "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia",
+        "asistencia", "nota",
+    ];
+
+    let mut result = serde_json::Map::new();
+
+    for table in &table_names {
+        let query = format!("SELECT * FROM {} WHERE updated_at > ?", table);
+        let mut stmt = conn.prepare(&query).map_err(|e| format!("Error preparando {}: {}", table, e))?;
+        let column_count = stmt.column_count();
+        let column_names: Vec<String> = (0..column_count)
+            .map(|i| stmt.column_name(i).unwrap_or("").to_string())
+            .collect();
+
+        let rows: Vec<serde_json::Value> = stmt
+            .query_map([&since as &dyn rusqlite::types::ToSql], |row| {
+                let mut map = serde_json::Map::new();
+                for (i, col_name) in column_names.iter().enumerate() {
+                    let val = match row.get_ref(i) {
+                        Ok(rusqlite::types::ValueRef::Null) => serde_json::Value::Null,
+                        Ok(rusqlite::types::ValueRef::Integer(n)) => serde_json::json!(n),
+                        Ok(rusqlite::types::ValueRef::Real(f)) => serde_json::json!(f),
+                        Ok(rusqlite::types::ValueRef::Text(t)) => {
+                            let s = String::from_utf8_lossy(t).to_string();
+                            serde_json::Value::String(s)
+                        }
+                        Ok(rusqlite::types::ValueRef::Blob(_)) => serde_json::Value::Null,
+                        Err(_) => serde_json::Value::Null,
+                    };
+                    map.insert(col_name.clone(), val);
+                }
+                Ok(serde_json::Value::Object(map))
+            })
+            .map_err(|e| format!("Error query {}: {}", table, e))?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        result.insert(table.to_string(), serde_json::Value::Array(rows));
+    }
+
+    serde_json::to_string(&result).map_err(|e| format!("Error serializando: {}", e))
+}
+
 #[allow(dead_code)]
 fn get_all_local_data(
     conn: &mut rusqlite::Connection,
@@ -935,6 +985,7 @@ pub fn run() {
             get_recommended_colegio,
             get_schema_sql,
             get_all_local_data_json,
+            get_all_local_data_since,
             // Nuevas funciones para tablas con claves compuestas
             get_pending_deletions_asistencia,
             remove_pending_deletion_asistencia,
