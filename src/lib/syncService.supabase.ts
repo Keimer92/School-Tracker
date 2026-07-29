@@ -1276,14 +1276,13 @@ export const syncService = {
   pullAll: async () => {
     console.log(`[Sync] pullAll llamado desde frontend`);
     return syncManager.wrapSync((async () => {
-      if (!syncService._schemaEnsured) {
-        const schemaResult = await syncService.ensureSchema();
-        if (!schemaResult.ok) {
-          syncService._schemaEnsured = false;
-          throw new Error(schemaResult.error || 'No se pudo preparar el schema remoto de Supabase.');
-        }
-        syncService._schemaEnsured = true;
+      syncService._schemaEnsured = false;
+      const schemaResult = await syncService.ensureSchema();
+      if (!schemaResult.ok) {
+        syncService._schemaEnsured = false;
+        throw new Error(schemaResult.error || 'No se pudo preparar el schema remoto de Supabase.');
       }
+      syncService._schemaEnsured = true;
       console.log(`[Sync] Iniciando wrapSync`);
       const userId = await syncService.getUserId();
       console.log(`[Sync] User ID obtenido:`, userId);
@@ -1867,6 +1866,20 @@ ALTER TABLE sync_batch DISABLE ROW LEVEL SECURITY;`;
           ...allTables.map((t) => `ALTER TABLE ${t} DISABLE ROW LEVEL SECURITY;`),
         ];
         await runSqlStatements(fixSqls, false);
+        // Fallback: si los fixes no se aplicaron (ej. sin DB password), intentar vía RPC exec_sql
+        try {
+          for (const fixSql of fixSqls) {
+            const rpcRes = await client.rpc('exec_sql', { sql: fixSql });
+            if (rpcRes.error) {
+              // Ignorar errores de "already exists" o columnas que ya existen
+              if (!rpcRes.error.message?.includes('already exists') && !rpcRes.error.message?.includes('duplicate')) {
+                console.info(`[Supabase] Fix SQL omitido (RPC): ${rpcRes.error.message?.substring(0, 80)}`);
+              }
+            }
+          }
+          // Notificar a PostgREST para refrescar schema cache
+          try { await client.rpc('exec_sql', { sql: "NOTIFY pgrst, 'reload schema';" }); } catch (_e) {}
+        } catch (_e) { /* best-effort */ }
         // Crear tablas nuevas que aún no existan en el schema (ej. multiplicador_calificacion)
         for (const table of allTables) {
           const exists = await probeTablePostgrest(table);
