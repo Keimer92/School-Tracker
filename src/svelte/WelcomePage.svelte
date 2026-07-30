@@ -1,8 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { emit } from "@tauri-apps/api/event";
-  import { openUrl } from "@tauri-apps/plugin-opener";
-  import { onOpenUrl } from "@tauri-apps/plugin-deep-link";
   import { syncService } from "../lib/syncService";
 
   let view: 'landing' | 'cloud' | 'wizard' = $state('landing');
@@ -58,28 +56,9 @@
         loading = false;
         return;
       }
-      const isAndroid = /Android/i.test(navigator.userAgent);
-      const redirectUri = isAndroid ? 'schooltrackerpro://oauth/callback' : `http://localhost:${port}/callback`;
-      let codePromise: Promise<string>;
-      if (isAndroid) {
-        codePromise = new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error('Tiempo de espera agotado')), 120000);
-          let unlisten: (() => void) | null = null;
-          onOpenUrl((urls) => {
-            clearTimeout(timeout);
-            if (unlisten) unlisten();
-            const url = urls[0];
-            const match = url.match(/[?&]code=([^&#]+)/);
-            if (match) resolve(decodeURIComponent(match[1]));
-            else reject(new Error('No se encontró código en la URL: ' + url));
-          }).then(fn => unlisten = fn);
-        });
-      } else {
-        codePromise = invoke<string>("gd_start_oauth_server", { port });
-      }
+      const redirectUri = `http://localhost:${port}/callback`;
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent('https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile')}&access_type=offline&prompt=consent`;
-      await openUrl(authUrl);
-      const code = await codePromise;
+      const code = await invoke<string>("gd_open_auth_webview", { url: authUrl });
 
       const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',

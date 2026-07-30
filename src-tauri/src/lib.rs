@@ -749,6 +749,60 @@ async fn gd_start_oauth_server(port: u16) -> Result<String, String> {
 }
 
 #[tauri::command]
+async fn gd_open_auth_webview(
+    app: tauri::AppHandle,
+    url: String,
+) -> Result<String, String> {
+    let (tx, rx) = std::sync::mpsc::channel::<String>();
+
+    let parsed_url = url::Url::parse(&url)
+        .map_err(|e| format!("URL inválida: {}", e))?;
+
+    let window = tauri::WebviewWindowBuilder::new(
+        &app,
+        "google-auth",
+        tauri::WebviewUrl::External(parsed_url),
+    )
+    .title("Iniciar sesión con Google")
+    .inner_size(700.0, 620.0)
+    .resizable(false)
+    .on_navigation(move |nav_url| {
+        let s = nav_url.as_str();
+        if let Some(pos) = s.find("code=") {
+            let start = pos + 5;
+            let end = s[start..]
+                .find(|c: char| c == '&' || c == '#')
+                .map(|p| start + p)
+                .unwrap_or(s.len());
+            if start < end {
+                let _ = tx.send(s[start..end].to_string());
+                return false;
+            }
+        }
+        true
+    })
+    .build()
+    .map_err(|e| format!("Error al crear ventana: {}", e))?;
+
+    for _ in 0..600 {
+        match rx.try_recv() {
+            Ok(code) => {
+                let _ = window.close();
+                return Ok(code);
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                let _ = window.close();
+                return Err("Error en la comunicación con la ventana".to_string());
+            }
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+    let _ = window.close();
+    Err("Tiempo de espera agotado".to_string())
+}
+
+#[tauri::command]
 async fn gd_create_backup(app_handle: tauri::AppHandle) -> Result<String, String> {
     use std::fs;
     use chrono::Local;
@@ -1002,6 +1056,7 @@ pub fn run() {
             gd_write_file_base64,
             gd_open_url_browser,
             gd_start_oauth_server,
+            gd_open_auth_webview,
             gd_create_backup,
             gd_get_backups,
             gd_delete_backup,

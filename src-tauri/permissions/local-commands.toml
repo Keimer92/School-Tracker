@@ -101,6 +101,7 @@ commands.allow = [
     "gd_write_file_base64",
     "gd_open_url_browser",
     "gd_start_oauth_server",
+    "gd_open_auth_webview",
     "gd_create_backup",
     "gd_get_backups",
     "gd_delete_backup",
