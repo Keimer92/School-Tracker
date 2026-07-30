@@ -2,10 +2,7 @@
   import { onMount, onDestroy } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen, emit } from "@tauri-apps/api/event";
-  import { restoreTursoClient } from "./lib/tursoClient";
   import { syncService } from "./lib/syncService";
-  import { runAutomaticGoogleDriveBackupIfNeeded } from "./lib/googleDriveBackupService";
-  import { markAllDirty } from "./lib/dirtyTracker";
   import AsistenciaPage from "./svelte/AsistenciaPage.svelte";
   import InformePage from "./svelte/InformePage.svelte";
   import NotasPage from "./svelte/NotasPage.svelte";
@@ -174,35 +171,19 @@
         showToast(event.payload.message, event.payload.type);
       }).then(u => unlisten.push(u));
 
-      // Turso init
-      const client = restoreTursoClient();
-      if (client) {
-        markAllDirty();
+      // Google Drive sync
+      const driveSettings = localStorage.getItem('schooltracker-google-drive-settings');
+      if (driveSettings) {
         syncService.ensurePeriodicSync();
-        client.execute("SELECT COUNT(*) as count FROM ano_lectivo")
-          .then((result: any) => {
-            const count = result.rows[0]?.count as number || 0;
-            if (count > 0) syncService.pullAllSilent();
-            else invoke("seed_defaults_now");
-          })
-          .catch(() => invoke("seed_defaults_now"));
-      } else {
-        invoke("seed_defaults_now");
       }
-
-      // Google Drive scheduler
-      setTimeout(() => runAutomaticGoogleDriveBackupIfNeeded(), 10000);
-      const interval = setInterval(() => runAutomaticGoogleDriveBackupIfNeeded(), 300000);
-      unlisten.push(() => clearInterval(interval));
+      invoke("seed_defaults_now");
     }
 
     // Listen for welcome complete event (from WelcomePage)
     const welcomeListener = listen('welcome-complete', async () => {
       initialized = true;
-      // Set up sync after initialization
-      const client = restoreTursoClient();
-      if (client) {
-        markAllDirty();
+      const driveSettings = localStorage.getItem('schooltracker-google-drive-settings');
+      if (driveSettings) {
         syncService.ensurePeriodicSync();
       }
     });

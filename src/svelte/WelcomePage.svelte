@@ -1,101 +1,15 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { emit } from "@tauri-apps/api/event";
-  import { syncService, setActiveProvider } from "../lib/syncService";
-  import { getSupabaseClient, saveSupabaseConfig } from "../lib/supabase";
+  import { syncService } from "../lib/syncService";
 
   let view: 'landing' | 'cloud' | 'wizard' = $state('landing');
   let step = $state(1);
   let loading = $state(false);
   let loadingMessage = $state('');
   let errorMsg = $state('');
+
   let seedOptions: any = $state(null);
-
-  let provider: 'supabase' | 'turso' = $state('supabase');
-  let cloudUrl = $state('');
-  let cloudKey = $state('');
-
-  let sbEmail = $state('');
-  let sbPassword = $state('');
-  let sbConfirmPassword = $state('');
-  let authMode: 'login' | 'register' = $state('login');
-  let sbSessionUser: string | null = $state(null);
-  let showSbPassword = $state(false);
-  let showSbConfirmPassword = $state(false);
-
-  let envLoaded = $state(false);
-  let showManualInput = $state(false);
-
-  let rememberedAccounts = $state<{email: string; url: string; lastUsed: string}[]>([]);
-
-  let authUsers = $state<{id: string; email: string}[]>([]);
-  let loadingAuthUsers = $state(false);
-
-  function loadRememberedAccounts() {
-    try {
-      const raw = localStorage.getItem('sb_remembered_accounts');
-      rememberedAccounts = raw ? JSON.parse(raw) : [];
-    } catch { rememberedAccounts = []; }
-  }
-  function saveRememberedAccount(email: string, url: string) {
-    let list = [...rememberedAccounts];
-    list = list.filter(a => a.email !== email);
-    list.unshift({ email, url, lastUsed: new Date().toISOString() });
-    if (list.length > 5) list = list.slice(0, 5);
-    rememberedAccounts = list;
-    localStorage.setItem('sb_remembered_accounts', JSON.stringify(list));
-  }
-  function selectAccount(acc: {email: string; url: string}) {
-    cloudUrl = acc.url;
-    sbEmail = acc.email;
-    sbPassword = '';
-    errorMsg = '';
-  }
-  function forgetAccount(email: string) {
-    let list = rememberedAccounts.filter(a => a.email !== email);
-    rememberedAccounts = list;
-    localStorage.setItem('sb_remembered_accounts', JSON.stringify(list));
-  }
-
-  async function loadAuthUsers() {
-    if (!cloudUrl || !cloudKey) { errorMsg = 'Primero ingresa URL y Anon Key'; return; }
-    loadingAuthUsers = true;
-    errorMsg = '';
-    authUsers = [];
-    try {
-      saveSupabaseConfig(cloudUrl, cloudKey);
-      setActiveProvider('supabase');
-      const client = getSupabaseClient();
-      if (!client) { errorMsg = 'No se pudo crear el cliente Supabase'; loadingAuthUsers = false; return; }
-      const { data, error } = await client.rpc('list_auth_users');
-      if (error) {
-        if (error.message?.includes('function') || error.message?.includes('not found')) {
-          errorMsg = 'La función list_auth_users no existe en tu proyecto Supabase. Ve a SQL Editor y crea la función (ver AGENTS.md).';
-        } else {
-          errorMsg = 'Error al listar usuarios: ' + error.message;
-        }
-        loadingAuthUsers = false;
-        return;
-      }
-      authUsers = data || [];
-      if (authUsers.length === 0) {
-        errorMsg = 'No hay usuarios registrados en Supabase Auth.';
-      }
-    } catch (e: any) {
-      errorMsg = 'Error: ' + (e?.message || e);
-    }
-    loadingAuthUsers = false;
-  }
-
-  function selectAuthUser(user: {id: string; email: string}) {
-    sbEmail = user.email;
-    sbPassword = '';
-    errorMsg = '';
-    authUsers = [];
-  }
-
-  loadRememberedAccounts();
-
   let selectedAnos = $state<Set<string>>(new Set());
   let selectedColegios = $state<Set<string>>(new Set());
   let selectedGrados = $state<Set<string>>(new Set());
@@ -111,52 +25,8 @@
     { title: 'Resumen', icon: '✅', key: 'resumen' },
   ];
 
-  let envDefaults: { supabase: { url: string; key: string }; turso: { url: string; token: string } } = $state({
-    supabase: { url: '', key: '' },
-    turso: { url: '', token: '' }
-  });
-
-  function loadEnvDefaults() {
-    if (typeof import.meta !== 'undefined') {
-      const env = (import.meta as any).env;
-      envDefaults = {
-        supabase: { url: env?.VITE_SUPABASE_URL || '', key: env?.VITE_SUPABASE_ANON_KEY || '' },
-        turso: { url: env?.VITE_TURSO_DB_URL || '', token: env?.VITE_TURSO_AUTH_TOKEN || '' }
-      };
-    }
-  }
-  loadEnvDefaults();
-
-  function resetToEnvDefaults() {
-    const defs = envDefaults;
-    if (provider === 'supabase') {
-      cloudUrl = defs.supabase.url;
-      cloudKey = defs.supabase.key;
-    } else {
-      cloudUrl = defs.turso.url;
-      cloudKey = defs.turso.token;
-    }
-    showManualInput = false;
-    errorMsg = '';
-  }
-
-  function goToCloud() {
-    const defs = envDefaults;
-    const sbHasEnv = !!(defs.supabase.url && defs.supabase.key);
-    const tursoHasEnv = !!(defs.turso.url && defs.turso.token);
-    envLoaded = sbHasEnv || tursoHasEnv;
-    if (provider === 'supabase' && sbHasEnv) {
-      cloudUrl = defs.supabase.url;
-      cloudKey = defs.supabase.key;
-      showManualInput = false;
-    } else if (provider === 'turso' && tursoHasEnv) {
-      cloudUrl = defs.turso.url;
-      cloudKey = defs.turso.token;
-      showManualInput = false;
-    } else {
-      showManualInput = true;
-    }
-    view = 'cloud';
+  async function goToDrive() {
+    await handleDriveConnect();
   }
 
   async function goToWizard() {
@@ -173,13 +43,112 @@
     }
   }
 
-  function toggleAll(items: any[], set: Set<string>, value: boolean) {
-    if (value) {
-      items.forEach((item: any) => set.add(item.nombre ?? item));
-    } else {
-      set.clear();
+  async function handleDriveConnect() {
+    loading = true;
+    loadingMessage = 'Conectando con Google Drive...';
+    errorMsg = '';
+    try {
+      const port = 51733;
+      const code = await invoke<string>("gd_start_oauth_server", { port });
+      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+      const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
+      if (!clientId || !clientSecret) {
+        errorMsg = 'VITE_GOOGLE_CLIENT_ID y VITE_GOOGLE_CLIENT_SECRET deben estar configurados en .env';
+        loading = false;
+        return;
+      }
+      const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: clientId,
+          client_secret: clientSecret,
+          code,
+          redirect_uri: `http://localhost:${port}/callback`,
+          grant_type: 'authorization_code',
+        }),
+      });
+      if (!tokenResponse.ok) {
+        const errText = await tokenResponse.text();
+        errorMsg = 'Error intercambiando código: ' + errText;
+        loading = false;
+        return;
+      }
+      const tokenData = await tokenResponse.json();
+
+      const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      });
+      const userInfo = await userResponse.json();
+
+      const settings = {
+        clientId,
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token,
+        tokenExpiry: Date.now() + (tokenData.expires_in * 1000),
+        deviceName: navigator.platform || 'unknown',
+        googleUserEmail: userInfo.email || null,
+        googleUserName: userInfo.name || null,
+        googleUserProfilePic: userInfo.picture || null,
+        backupEnabled: false,
+        backupInterval: 60,
+        backupIntervalUnit: 'minutes',
+        lastBackupTime: null,
+      };
+      localStorage.setItem('schooltracker-google-drive-settings', JSON.stringify(settings));
+
+      loadingMessage = 'Descargando datos desde Google Drive...';
+      await syncService.pullAllSilent();
+      loadingMessage = 'Verificando datos...';
+      const hasData = await invoke('is_app_initialized');
+      if (hasData) {
+        await invoke('set_app_initialized');
+        emit('welcome-complete');
+      } else {
+        errorMsg = 'Drive está vacío. Se usarán los datos por defecto.';
+        setTimeout(() => { loading = false; loadingMessage = ''; goToWizard(); }, 1500);
+        return;
+      }
+    } catch (e: any) {
+      if (e?.message?.includes('cancelled') || e?.message?.includes('canceled')) {
+        errorMsg = 'Autenticación cancelada';
+      } else {
+        errorMsg = 'Error: ' + (e?.message || e);
+      }
     }
-    // Trigger reactivity
+    loading = false;
+    loadingMessage = '';
+  }
+
+  async function handleWizardComplete() {
+    if (selectedAnos.size === 0 || selectedColegios.size === 0 || selectedGrados.size === 0 ||
+        selectedSecciones.size === 0 || selectedAsignaturas.size === 0) {
+      errorMsg = 'Debes seleccionar al menos un elemento de cada categoría.';
+      return;
+    }
+    loading = true;
+    errorMsg = '';
+    try {
+      await invoke('seed_selected_data', {
+        selections: {
+          anos: Array.from(selectedAnos),
+          colegios: Array.from(selectedColegios),
+          grados: Array.from(selectedGrados),
+          secciones: Array.from(selectedSecciones),
+          asignaturas: Array.from(selectedAsignaturas),
+        }
+      });
+      await invoke('set_app_initialized');
+      emit('welcome-complete');
+    } catch (e: any) {
+      errorMsg = 'Error guardando datos: ' + (e?.message || e);
+    }
+    loading = false;
+  }
+
+  function toggleAll(items: any[], set: Set<string>, value: boolean) {
+    if (value) { items.forEach((item: any) => set.add(item.nombre ?? item)); }
+    else { set.clear(); }
     const copy = new Set(set);
     if (set === selectedAnos) selectedAnos = copy;
     else if (set === selectedColegios) selectedColegios = copy;
@@ -234,108 +203,7 @@
 
   function itemSubtitle(item: any): string {
     if (item.cualitativo) return 'Cualitativo';
-    if (item.orden) return '';
     return '';
-  }
-
-  async function handleSupabaseAuth() {
-    if (!cloudUrl || !cloudKey) { errorMsg = 'Completa URL y Anon Key'; return; }
-    if (!sbEmail || !sbPassword) { errorMsg = 'Completa email y contraseña'; return; }
-    if (authMode === 'register' && sbPassword !== sbConfirmPassword) { errorMsg = 'Las contraseñas no coinciden'; return; }
-    loading = true;
-    loadingMessage = 'Iniciando sesión...';
-    errorMsg = '';
-    try {
-      saveSupabaseConfig(cloudUrl, cloudKey);
-      setActiveProvider('supabase');
-      const client = getSupabaseClient();
-      if (!client) { errorMsg = 'No se pudo crear el cliente Supabase'; loading = false; return; }
-      if (authMode === 'register') {
-        const { data, error } = await client.auth.signUp({ email: sbEmail, password: sbPassword });
-        if (error) { errorMsg = error.message; loading = false; return; }
-        sbSessionUser = data.user?.email || data.user?.id || 'Registrado';
-      } else {
-        const { data, error } = await client.auth.signInWithPassword({ email: sbEmail, password: sbPassword });
-        if (error) { errorMsg = error.message; loading = false; return; }
-        sbSessionUser = data.user?.email || data.user?.id || 'Conectado';
-      }
-      saveRememberedAccount(sbEmail, cloudUrl);
-      loadingMessage = 'Preparando esquema remoto...';
-      const sr = await syncService.runSchemaSetup();
-      if (!sr.ok) { errorMsg = sr.error || 'Error preparando la base de datos remota'; loading = false; return; }
-      loadingMessage = 'Descargando datos desde la nube...';
-      await syncService.pullAll();
-      loadingMessage = 'Verificando datos...';
-      const hasData = await invoke('is_app_initialized');
-      if (hasData) {
-        await invoke('set_app_initialized');
-        emit('welcome-complete');
-      } else {
-        errorMsg = 'La nube está vacía. Se usarán los datos por defecto.';
-        setTimeout(() => { loading = false; loadingMessage = ''; goToWizard(); }, 1500);
-      }
-    } catch (e: any) {
-      errorMsg = 'Error: ' + (e?.message || e);
-    }
-    loading = false;
-    loadingMessage = '';
-  }
-
-  async function handleCloudSync() {
-    if (!cloudUrl || !cloudKey) { errorMsg = 'Completa todos los campos'; return; }
-    if (provider === 'supabase') {
-      await handleSupabaseAuth();
-      return;
-    }
-    loading = true;
-    errorMsg = '';
-    loadingMessage = 'Descargando datos desde la nube...';
-    try {
-      localStorage.setItem('turso_url', cloudUrl);
-      localStorage.setItem('turso_auth_token', cloudKey);
-      setActiveProvider('turso');
-      await syncService.pullAll();
-      loadingMessage = 'Verificando datos...';
-      const hasData = await invoke('is_app_initialized');
-      if (hasData) {
-        await invoke('set_app_initialized');
-        emit('welcome-complete');
-      } else {
-        errorMsg = 'La nube está vacía. Se usarán los datos por defecto.';
-        setTimeout(() => { loading = false; loadingMessage = ''; goToWizard(); }, 1500);
-        return;
-      }
-    } catch (e: any) {
-      errorMsg = 'Error de conexión: ' + (e?.message || e);
-    }
-    loading = false;
-    loadingMessage = '';
-  }
-
-  async function handleWizardComplete() {
-    if (selectedAnos.size === 0 || selectedColegios.size === 0 || selectedGrados.size === 0 ||
-        selectedSecciones.size === 0 || selectedAsignaturas.size === 0) {
-      errorMsg = 'Debes seleccionar al menos un elemento de cada categoría.';
-      return;
-    }
-    loading = true;
-    errorMsg = '';
-    try {
-      await invoke('seed_selected_data', {
-        selections: {
-          anos: Array.from(selectedAnos),
-          colegios: Array.from(selectedColegios),
-          grados: Array.from(selectedGrados),
-          secciones: Array.from(selectedSecciones),
-          asignaturas: Array.from(selectedAsignaturas),
-        }
-      });
-      await invoke('set_app_initialized');
-      emit('welcome-complete');
-    } catch (e: any) {
-      errorMsg = 'Error guardando datos: ' + (e?.message || e);
-    }
-    loading = false;
   }
 
   function getResumenItems() {
@@ -358,15 +226,15 @@
         <p class="welcome-subtitle">Selecciona cómo quieres iniciar</p>
       </div>
       <div class="welcome-cards">
-        <button class="welcome-card" onclick={goToCloud}>
+        <button class="welcome-card" onclick={goToDrive} disabled={loading}>
           <div class="welcome-card-icon">☁️</div>
           <div class="welcome-card-body">
-            <h3>Descargar desde la nube</h3>
-            <p>Conecta con Supabase o Turso para descargar tus datos existentes.</p>
+            <h3>Conectar con Google Drive</h3>
+            <p>Sincroniza tus datos entre dispositivos usando Google Drive.</p>
           </div>
           <div class="welcome-card-arrow">→</div>
         </button>
-        <button class="welcome-card" onclick={goToWizard}>
+        <button class="welcome-card" onclick={goToWizard} disabled={loading}>
           <div class="welcome-card-icon">⚙️</div>
           <div class="welcome-card-body">
             <h3>Configurar manualmente</h3>
@@ -375,141 +243,17 @@
           <div class="welcome-card-arrow">→</div>
         </button>
       </div>
-    </div>
-
-  {:else if view === 'cloud'}
-    <div class="welcome-container">
-      <button class="welcome-back" onclick={() => { view = 'landing'; errorMsg = ''; }}>← Volver</button>
-      <div class="welcome-brand">
-        <h2 class="welcome-title" style="font-size:1.5rem">☁️ Conectar con la nube</h2>
-        <p class="welcome-subtitle">Ingresa las credenciales de tu proveedor</p>
-      </div>
-      <div class="welcome-form">
-        <div class="provider-tabs">
-          <button class="provider-tab" class:active={provider === 'supabase'} onclick={() => { provider = 'supabase'; errorMsg = ''; if (envDefaults.supabase.url && !showManualInput) { cloudUrl = envDefaults.supabase.url; cloudKey = envDefaults.supabase.key; } }}>Supabase</button>
-          <button class="provider-tab" class:active={provider === 'turso'} onclick={() => { provider = 'turso'; errorMsg = ''; if (envDefaults.turso.url && !showManualInput) { cloudUrl = envDefaults.turso.url; cloudKey = envDefaults.turso.token; } }}>Turso</button>
-        </div>
-        {#if provider === 'supabase'}
-          {#if envLoaded && !showManualInput}
-            <div class="env-badge">
-              <span class="env-badge-icon">✅</span>
-              <span>Usando configuración predeterminada del entorno</span>
-              <button class="env-badge-btn" onclick={() => { showManualInput = true; }}>Usar otros datos →</button>
-            </div>
-          {:else}
-            <div class="field">
-              <label>URL del proyecto</label>
-              <input bind:value={cloudUrl} placeholder="https://xxxxx.supabase.co" />
-            </div>
-            <div class="field">
-              <label>Anon Key</label>
-              <input bind:value={cloudKey} placeholder="eyJhbGciOiJIUzI1NiIs..." />
-            </div>
-            {#if envLoaded}
-              <button class="env-reset-btn" onclick={resetToEnvDefaults}>↩ Volver a configuración predeterminada</button>
-            {/if}
-          {/if}
-          {#if rememberedAccounts.length > 0}
-            <div style="margin-top:0.25rem;">
-              <div style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.3rem;">Cuentas guardadas</div>
-              <div style="display:flex;flex-wrap:wrap;gap:0.3rem;">
-                {#each rememberedAccounts as acc}
-                  <button onclick={() => selectAccount(acc)} style="display:flex;align-items:center;gap:0.3rem;padding:0.3rem 0.6rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;cursor:pointer;font-size:0.75rem;color:#cbd5e1;transition:all 0.2s;font-family:inherit;"
-                    title="Click para usar • {acc.email}">
-                    <span style="font-size:0.85rem;">👤</span>
-                    <span>{acc.email}</span>
-                  </button>
-                {/each}
-              </div>
-            </div>
-          {/if}
-          <button onclick={loadAuthUsers} disabled={loadingAuthUsers} style="margin-top:0.25rem;display:flex;align-items:center;justify-content:center;gap:0.4rem;padding:0.5rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;cursor:pointer;font-size:0.8rem;color:#94a3b8;transition:all 0.2s;font-family:inherit;width:100%;">
-            <span style="font-size:1rem;">👥</span>
-            <span>{loadingAuthUsers ? 'Cargando...' : 'Listar usuarios registrados'}</span>
-          </button>
-          {#if authUsers.length > 0}
-            <div style="margin-top:0.25rem;">
-              <div style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:0.3rem;">Selecciona un usuario</div>
-              <div style="display:flex;flex-wrap:wrap;gap:0.3rem;max-height:200px;overflow-y:auto;padding:0.15rem;">
-                {#each authUsers as user}
-                  <button onclick={() => selectAuthUser(user)} style="display:flex;align-items:center;gap:0.3rem;padding:0.3rem 0.6rem;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;cursor:pointer;font-size:0.75rem;color:#cbd5e1;transition:all 0.2s;font-family:inherit;"
-                    title="Seleccionar {user.email}">
-                    <span style="font-size:0.85rem;">👤</span>
-                    <span>{user.email}</span>
-                  </button>
-                {/each}
-              </div>
-            </div>
-          {/if}
-          <div style="display:flex;gap:0.4rem;margin-top:0.25rem;background:rgba(255,255,255,0.04);padding:0.25rem;border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
-            <button onclick={() => { authMode = 'login'; errorMsg = ''; }} style="flex:1;padding:0.4rem 0.5rem;border-radius:7px;border:none;cursor:pointer;font-size:0.8rem;font-weight:600;background:{authMode === 'login' ? 'var(--primary-color)' : 'transparent'};color:{authMode === 'login' ? '#fff' : '#94a3b8'};transition:all 0.2s;">Iniciar Sesión</button>
-            <button onclick={() => { authMode = 'register'; errorMsg = ''; }} style="flex:1;padding:0.4rem 0.5rem;border-radius:7px;border:none;cursor:pointer;font-size:0.8rem;font-weight:600;background:{authMode === 'register' ? 'var(--primary-color)' : 'transparent'};color:{authMode === 'register' ? '#fff' : '#94a3b8'};transition:all 0.2s;">Crear Cuenta</button>
-          </div>
-          <div class="field">
-            <label>Correo electrónico</label>
-            <input type="email" bind:value={sbEmail} placeholder="correo@ejemplo.com" />
-          </div>
-          <div class="field">
-            <label>Contraseña</label>
-            <div class="password-wrapper">
-              <input type={showSbPassword ? 'text' : 'password'} bind:value={sbPassword} placeholder="••••••••" />
-              <button class="password-toggle" onclick={() => showSbPassword = !showSbPassword} tabindex="-1" type="button">
-                {#if showSbPassword}
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                {:else}
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                {/if}
-              </button>
-            </div>
-          </div>
-          {#if authMode === 'register'}
-            <div class="field">
-              <label>Confirmar contraseña</label>
-              <div class="password-wrapper">
-                <input type={showSbConfirmPassword ? 'text' : 'password'} bind:value={sbConfirmPassword} placeholder="••••••••" />
-                <button class="password-toggle" onclick={() => showSbConfirmPassword = !showSbConfirmPassword} tabindex="-1" type="button">
-                  {#if showSbConfirmPassword}
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                  {:else}
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                  {/if}
-                </button>
-              </div>
-            </div>
-          {/if}
-        {:else}
-          {#if envLoaded && !showManualInput}
-            <div class="env-badge">
-              <span class="env-badge-icon">✅</span>
-              <span>Usando configuración predeterminada del entorno</span>
-              <button class="env-badge-btn" onclick={() => { showManualInput = true; }}>Usar otros datos →</button>
-            </div>
-          {:else}
-            <div class="field">
-              <label>URL de la base de datos</label>
-              <input bind:value={cloudUrl} placeholder="libsql://xxxxx.turso.io" />
-            </div>
-            <div class="field">
-              <label>Auth Token</label>
-              <input bind:value={cloudKey} placeholder="tu token de acceso" />
-            </div>
-            {#if envLoaded}
-              <button class="env-reset-btn" onclick={resetToEnvDefaults}>↩ Volver a configuración predeterminada</button>
-            {/if}
-          {/if}
-        {/if}
-        {#if errorMsg}
-          <div class="welcome-error">{errorMsg}</div>
-        {/if}
-        <button class="welcome-btn-primary" onclick={handleCloudSync} disabled={loading}>
-          {loading ? loadingMessage : provider === 'supabase' ? (authMode === 'register' ? 'Crear Cuenta y Sincronizar' : 'Iniciar Sesión y Sincronizar') : 'Conectar y descargar'}
-        </button>
-        {#if loading}
+      {#if loading}
+        <div class="welcome-loading">
           <div class="welcome-loading-bar">
             <div class="welcome-loading-bar-inner"></div>
           </div>
-        {/if}
-      </div>
+          <p class="welcome-loading-text">{loadingMessage}</p>
+        </div>
+      {/if}
+      {#if errorMsg}
+        <div class="welcome-error">{errorMsg}</div>
+      {/if}
     </div>
 
   {:else if view === 'wizard'}
@@ -593,442 +337,87 @@
 
 <style>
   .welcome-page {
-    position: fixed;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg-primary, #0f172a);
-    z-index: 10000;
-    overflow-y: auto;
-    padding: 1rem;
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: var(--bg-primary, #0f172a); z-index: 10000; overflow-y: auto; padding: 1rem;
   }
   .welcome-container {
-    width: 100%;
-    max-width: 520px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1.5rem;
+    width: 100%; max-width: 520px; display: flex; flex-direction: column; align-items: center; gap: 1.5rem;
   }
-  .wizard-container {
-    max-width: 580px;
-  }
-  .welcome-brand {
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.5rem;
-  }
+  .wizard-container { max-width: 580px; }
+  .welcome-brand { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
   .welcome-logo {
-    font-size: 3rem;
-    width: 80px;
-    height: 80px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255,255,255,0.05);
-    border-radius: 24px;
-    border: 1px solid rgba(255,255,255,0.08);
+    font-size: 3rem; width: 80px; height: 80px; display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.05); border-radius: 24px; border: 1px solid rgba(255,255,255,0.08);
     backdrop-filter: blur(20px);
   }
-  .welcome-title {
-    margin: 0;
-    font-size: 1.8rem;
-    font-weight: 700;
-    color: #f1f5f9;
-    letter-spacing: -0.5px;
-  }
-  .welcome-subtitle {
-    margin: 0;
-    color: #64748b;
-    font-size: 0.9rem;
-  }
-  .welcome-cards {
-    display: flex;
-    flex-direction: column;
-    gap: 0.85rem;
-    width: 100%;
-  }
+  .welcome-title { margin: 0; font-size: 1.8rem; font-weight: 700; color: #f1f5f9; letter-spacing: -0.5px; }
+  .welcome-subtitle { margin: 0; color: #64748b; font-size: 0.9rem; }
+  .welcome-cards { display: flex; flex-direction: column; gap: 0.85rem; width: 100%; }
   .welcome-card {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 1.25rem;
-    background: rgba(255,255,255,0.02);
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 18px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    text-align: left;
-    width: 100%;
-    color: inherit;
-    font: inherit;
+    display: flex; align-items: center; gap: 1rem; padding: 1.25rem;
+    background: rgba(255,255,255,0.02); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 18px; cursor: pointer; transition: all 0.2s ease; text-align: left; width: 100%;
+    color: inherit; font: inherit;
   }
-  .welcome-card:hover {
-    border-color: var(--primary-color, #3b82f6);
-    background: rgba(255,255,255,0.04);
-    transform: translateY(-1px);
+  .welcome-card:hover:not(:disabled) {
+    border-color: var(--primary-color, #3b82f6); background: rgba(255,255,255,0.04); transform: translateY(-1px);
   }
-  .welcome-card-icon {
-    font-size: 2rem;
-    width: 50px;
-    height: 50px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
+  .welcome-card:disabled { opacity: 0.5; cursor: not-allowed; }
+  .welcome-card-icon { font-size: 2rem; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .welcome-card-body { flex: 1; }
   .welcome-card-body h3 { margin: 0 0 0.25rem; font-size: 1rem; color: #e2e8f0; font-weight: 600; }
   .welcome-card-body p { margin: 0; font-size: 0.8rem; color: #64748b; line-height: 1.4; }
   .welcome-card-arrow { font-size: 1.3rem; color: #475569; flex-shrink: 0; }
   .welcome-back {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 10px;
-    padding: 0.5rem 1rem;
-    color: #94a3b8;
-    cursor: pointer;
-    font-size: 0.85rem;
-    transition: all 0.2s ease;
-    align-self: flex-start;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px;
+    padding: 0.5rem 1rem; color: #94a3b8; cursor: pointer; font-size: 0.85rem; transition: all 0.2s ease;
+    align-self: flex-start; font-family: inherit;
   }
   .welcome-back:hover { background: rgba(255,255,255,0.08); color: #e2e8f0; }
-  .welcome-form {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-  }
-  .provider-tabs {
-    display: flex;
-    gap: 0.4rem;
-    background: rgba(255,255,255,0.04);
-    padding: 0.3rem;
-    border-radius: 12px;
-    border: 1px solid rgba(255,255,255,0.06);
-  }
-  .provider-tab {
-    flex: 1;
-    padding: 0.5rem;
-    border-radius: 8px;
-    border: none;
-    background: transparent;
-    color: #64748b;
-    font-weight: 600;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-  .provider-tab.active {
-    background: var(--primary-color, #3b82f6);
-    color: white;
-  }
-  .field { display: flex; flex-direction: column; gap: 0.3rem; }
-  .field label {
-    font-size: 0.65rem;
-    color: #64748b;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    font-weight: 500;
-  }
-  .field input {
-    padding: 0.65rem 0.85rem;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 8px;
-    color: #e2e8f0;
-    font-size: 0.85rem;
-    outline: none;
-    transition: border 0.2s ease;
-  }
-  .field input:focus { border-color: var(--primary-color, #3b82f6); }
-  .field input::placeholder { color: #475569; }
-  .password-wrapper {
-    display: flex;
-    align-items: center;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 8px;
-    transition: border 0.2s ease;
-  }
-  .password-wrapper:focus-within { border-color: var(--primary-color, #3b82f6); }
-  .password-wrapper input {
-    flex: 1;
-    background: transparent;
-    border: none;
-    outline: none;
-    padding: 0.65rem 0 0.65rem 0.85rem;
-    color: #e2e8f0;
-    font-size: 0.85rem;
-  }
-  .password-wrapper input::placeholder { color: #475569; }
-  .password-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: none;
-    border: none;
-    color: #64748b;
-    cursor: pointer;
-    padding: 0.4rem 0.65rem;
-    transition: color 0.2s;
-    font-family: inherit;
-  }
-  .password-toggle:hover { color: #94a3b8; }
-  .welcome-btn-primary {
-    padding: 0.75rem;
-    background: linear-gradient(135deg, var(--primary-color, #3b82f6), var(--primary-hover, #2563eb));
-    border: none;
-    border-radius: 10px;
-    color: white;
-    font-weight: 600;
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    box-shadow: 0 4px 15px rgba(59,130,246,0.3);
-  }
-  .welcome-btn-primary:hover:not(:disabled) { transform: translateY(-1px); }
-  .welcome-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-  .welcome-loading-bar {
-    width: 100%;
-    height: 4px;
-    background: rgba(255,255,255,0.06);
-    border-radius: 2px;
-    overflow: hidden;
-  }
-  .welcome-loading-bar-inner {
-    width: 30%;
-    height: 100%;
-    background: linear-gradient(90deg, var(--primary-color, #3b82f6), #818cf8);
-    border-radius: 2px;
-    animation: welcome-loading 1.5s ease-in-out infinite;
-  }
-  @keyframes welcome-loading {
-    0% { transform: translateX(-100%); width: 30%; }
-    50% { width: 60%; }
-    100% { transform: translateX(400%); width: 30%; }
-  }
-  .welcome-error {
-    color: #ef4444;
-    font-size: 0.8rem;
-    text-align: center;
-    padding: 0.5rem;
-    background: rgba(239,68,68,0.1);
-    border-radius: 8px;
-  }
-  .env-badge {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.65rem 0.85rem;
-    background: rgba(34,197,94,0.08);
-    border: 1px solid rgba(34,197,94,0.2);
-    border-radius: 10px;
-    font-size: 0.8rem;
-    color: #86efac;
-    flex-wrap: wrap;
-  }
-  .env-badge-icon { font-size: 1rem; }
-  .env-badge-btn {
-    margin-left: auto;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 6px;
-    padding: 0.25rem 0.6rem;
-    color: #94a3b8;
-    cursor: pointer;
-    font-size: 0.7rem;
-    transition: all 0.2s;
-    font-family: inherit;
-  }
-  .env-badge-btn:hover { background: rgba(255,255,255,0.1); color: #e2e8f0; }
-  .env-reset-btn {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 6px;
-    padding: 0.35rem 0.7rem;
-    color: #64748b;
-    cursor: pointer;
-    font-size: 0.7rem;
-    transition: all 0.2s;
-    font-family: inherit;
-    align-self: flex-start;
-  }
-  .env-reset-btn:hover { background: rgba(255,255,255,0.08); color: #94a3b8; }
+  .welcome-loading { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+  .welcome-loading-bar { width: 100%; max-width: 320px; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
+  .welcome-loading-bar-inner { width: 100%; height: 100%; background: linear-gradient(90deg, var(--primary-color, #3b82f6), #a78bfa); border-radius: 2px; animation: loadingBar 1.5s ease-in-out infinite; }
+  .welcome-loading-text { margin: 0; color: #64748b; font-size: 0.8rem; }
+  @keyframes loadingBar { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
+  .welcome-error { color: #f87171; font-size: 0.85rem; text-align: center; padding: 0.6rem 1rem; background: rgba(248,113,113,0.08); border-radius: 10px; width: 100%; max-width: 400px; border: 1px solid rgba(248,113,113,0.15); }
 
-  /* Wizard */
-  .wizard-progress {
-    display: flex;
-    align-items: center;
-    gap: 0;
-    width: 100%;
-    justify-content: center;
-    padding: 0.5rem 0;
-  }
-  .wizard-step-dot {
-    width: 36px;
-    height: 36px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.04);
-    border: 2px solid rgba(255,255,255,0.08);
-    font-size: 0.9rem;
-    transition: all 0.2s ease;
-    flex-shrink: 0;
-  }
-  .wizard-step-dot.active {
-    border-color: var(--primary-color, #3b82f6);
-    background: rgba(59,130,246,0.15);
-    box-shadow: 0 0 12px rgba(59,130,246,0.2);
-  }
-  .wizard-step-dot.done {
-    border-color: #22c55e;
-    background: rgba(34,197,94,0.15);
-  }
-  .wizard-step-line {
-    width: 40px;
-    height: 2px;
-    background: rgba(255,255,255,0.08);
-    transition: all 0.2s ease;
-  }
-  .wizard-step-line.done { background: #22c55e; }
-  .wizard-step-label {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: #e2e8f0;
-    text-align: center;
-  }
-  .wizard-items {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-  .wizard-select-all {
-    display: flex;
-    justify-content: center;
-  }
-  .wizard-toggle-all {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
-    font-size: 0.8rem;
-    color: #94a3b8;
-    padding: 0.4rem 0.75rem;
-    background: rgba(255,255,255,0.03);
-    border-radius: 8px;
-    transition: background 0.2s;
-  }
-  .wizard-toggle-all:hover { background: rgba(255,255,255,0.06); }
+  .wizard-progress { display: flex; align-items: center; gap: 0; width: 100%; max-width: 320px; }
+  .wizard-step-dot { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); flex-shrink: 0; }
+  .wizard-step-dot.active { border-color: var(--primary-color, #3b82f6); box-shadow: 0 0 0 3px rgba(59,130,246,0.2); }
+  .wizard-step-dot.done { background: rgba(59,130,246,0.2); border-color: var(--primary-color, #3b82f6); }
+  .wizard-step-line { flex: 1; height: 2px; background: rgba(255,255,255,0.08); }
+  .wizard-step-line.done { background: var(--primary-color, #3b82f6); }
+  .wizard-step-label { font-size: 0.9rem; color: #94a3b8; font-weight: 600; text-align: center; }
+
+  .wizard-items { width: 100%; }
+  .wizard-select-all { margin-bottom: 0.75rem; }
+  .wizard-toggle-all { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.8rem; color: #94a3b8; padding: 0.4rem; border-radius: 8px; background: rgba(255,255,255,0.02); }
   .wizard-toggle-all input { accent-color: var(--primary-color, #3b82f6); }
-  .wizard-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 0.5rem;
-    max-height: 280px;
-    overflow-y: auto;
-    padding: 0.25rem;
-  }
+  .wizard-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.5rem; max-height: 280px; overflow-y: auto; padding: 0.15rem; }
   .wizard-item {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.6rem 0.75rem;
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 12px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    text-align: left;
-    color: inherit;
-    font: inherit;
+    display: flex; flex-direction: column; align-items: center; gap: 0.3rem; padding: 0.75rem 0.5rem;
+    background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px;
+    cursor: pointer; transition: all 0.2s ease; color: #cbd5e1; font: inherit; font-size: 0.75rem;
   }
-  .wizard-item:hover { border-color: rgba(255,255,255,0.15); background: rgba(255,255,255,0.04); }
-  .wizard-item.selected {
-    border-color: var(--primary-color, #3b82f6);
-    background: rgba(59,130,246,0.1);
-  }
-  .wizard-check {
-    width: 18px;
-    height: 18px;
-    border-radius: 4px;
-    border: 2px solid rgba(255,255,255,0.15);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    transition: all 0.2s ease;
-  }
-  .wizard-item.selected .wizard-check {
-    background: var(--primary-color, #3b82f6);
-    border-color: var(--primary-color, #3b82f6);
-  }
-  .wizard-check svg { color: white; }
-  .wizard-item-name { font-size: 0.82rem; color: #cbd5e1; font-weight: 500; }
-  .wizard-item-badge {
-    font-size: 0.6rem;
-    color: #64748b;
-    background: rgba(255,255,255,0.04);
-    padding: 0.1rem 0.35rem;
-    border-radius: 4px;
-    margin-left: auto;
-  }
-  .wizard-resumen {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-  }
-  .resumen-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.75rem;
-    padding: 0.65rem 0.85rem;
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 12px;
-  }
-  .resumen-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
-  .resumen-body { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
-  .resumen-label { font-size: 0.65rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
-  .resumen-value { font-size: 0.85rem; color: #e2e8f0; word-wrap: break-word; }
-  .wizard-nav {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    gap: 0.5rem;
-  }
-  .wizard-btn {
-    padding: 0.6rem 1.25rem;
-    border-radius: 10px;
-    border: 1px solid rgba(255,255,255,0.08);
-    background: rgba(255,255,255,0.04);
-    color: #94a3b8;
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    font-weight: 500;
-  }
-  .wizard-btn:hover:not(:disabled) { background: rgba(255,255,255,0.08); color: #e2e8f0; }
-  .wizard-btn.primary {
-    background: linear-gradient(135deg, var(--primary-color, #3b82f6), var(--primary-hover, #2563eb));
-    border: none;
-    color: white;
-    box-shadow: 0 4px 15px rgba(59,130,246,0.3);
-  }
-  .wizard-btn.primary:hover:not(:disabled) { transform: translateY(-1px); }
+  .wizard-item.selected { border-color: var(--primary-color, #3b82f6); background: rgba(59,130,246,0.08); color: #e2e8f0; }
+  .wizard-item:hover { border-color: rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); }
+  .wizard-check { width: 20px; height: 20px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.12); display: flex; align-items: center; justify-content: center; }
+  .wizard-item.selected .wizard-check { border-color: var(--primary-color, #3b82f6); background: var(--primary-color, #3b82f6); }
+  .wizard-item-name { text-align: center; word-break: break-word; line-height: 1.3; }
+  .wizard-item-badge { font-size: 0.6rem; padding: 0.15rem 0.4rem; border-radius: 4px; background: rgba(168,85,247,0.15); color: #a78bfa; font-weight: 600; }
+
+  .wizard-nav { display: flex; align-items: center; gap: 0.75rem; width: 100%; justify-content: space-between; }
+  .wizard-btn { padding: 0.5rem 1rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.04); color: #cbd5e1; cursor: pointer; font-size: 0.8rem; transition: all 0.2s ease; font-family: inherit; }
+  .wizard-btn:hover:not(:disabled) { background: rgba(255,255,255,0.08); }
   .wizard-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .wizard-step-counter {
-    font-size: 0.8rem;
-    color: #64748b;
-    font-weight: 500;
-  }
+  .wizard-btn.primary { background: var(--primary-color, #3b82f6); color: #fff; border-color: var(--primary-color, #3b82f6); }
+  .wizard-btn.primary:hover:not(:disabled) { filter: brightness(1.1); }
+  .wizard-step-counter { font-size: 0.8rem; color: #64748b; font-weight: 600; }
+
+  .wizard-resumen { width: 100%; display: flex; flex-direction: column; gap: 0.5rem; }
+  .resumen-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0.75rem; background: rgba(255,255,255,0.02); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); }
+  .resumen-icon { font-size: 1.2rem; width: 32px; text-align: center; }
+  .resumen-body { flex: 1; }
+  .resumen-label { display: block; font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .resumen-value { display: block; font-size: 0.85rem; color: #e2e8f0; margin-top: 0.15rem; word-break: break-word; }
 </style>
