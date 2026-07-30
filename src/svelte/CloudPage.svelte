@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { emit } from "@tauri-apps/api/event";
+  import { openUrl } from "@tauri-apps/plugin-opener";
   import { syncService, syncManager, type SyncStatus } from "../lib/syncService";
   import type { DriveFile } from "../lib/driveSyncService";
   import { driveSyncService } from "../lib/driveSyncService";
@@ -94,9 +95,17 @@
     isAuthLoading = true;
     try {
       const port = 51733;
-      const redirectUri = `http://localhost:${port}/callback`;
+      const isAndroid = /Android/i.test(navigator.userAgent);
+      const redirectUri = isAndroid ? `http://127.0.0.1:${port}/callback` : `http://localhost:${port}/callback`;
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${settings.clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent('https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile')}&access_type=offline&prompt=consent`;
-      const code = await invoke<string>("gd_open_auth_webview", { url: authUrl });
+      let code: string;
+      if (isAndroid) {
+        const codePromise = invoke<string>("gd_start_oauth_server", { port });
+        await openUrl(authUrl);
+        code = await codePromise;
+      } else {
+        code = await invoke<string>("gd_open_auth_webview", { url: authUrl });
+      }
       if (code) await exchangeCode(code, redirectUri);
     } catch (e) {
       console.error('Google Auth failed:', e);
