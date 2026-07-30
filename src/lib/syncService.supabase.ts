@@ -1392,10 +1392,10 @@ export const syncService = {
         (multiplicadores?.length || 0) + (gradoAsignatura?.length || 0) +
         (colegioAsignatura?.length || 0) + (colegioDiasAsistencia?.length || 0);
       if (isIncremental && totalRows === 0) {
-        console.warn('[Sync] Pull incremental devolvió 0 registros — updated_at podría ser NULL en registros existentes. Reintentando pull completo...');
-        localStorage.removeItem('sb_last_sync_time');
-        // Llamar recursivamente pullAll (que ahora será completo)
-        return await (syncService as any).pullAll();
+        console.warn('[Sync] Pull incremental devolvió 0 registros — updated_at podría ser NULL en registros existentes. Saltando pull completo, los datos ya existen localmente.');
+        console.log(`[Sync] 💾 last_sync_time actualizado (incremental=0)`);
+        localStorage.setItem('sb_last_sync_time', new Date().toISOString());
+        return pullData;
       }
 
       // 2. Mapear datos al formato esperado por Rust

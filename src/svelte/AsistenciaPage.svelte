@@ -43,6 +43,7 @@
   let expandedObs: Record<number, boolean> = $state({});
   let obsModalStudent: EstudianteAsistencia | null = $state(null);
   let refreshingSilent = $state(false);
+  let skipNextRefresh = $state(false);
   let monthlyPcts = $state<Record<number, number>>({});
 
   let isMobile = $state(false);
@@ -169,7 +170,7 @@
     window.addEventListener('schooltracker-sync', () => { if (!pageVisible || hasUnsavedChanges) return; clearTimeout(at); at = setTimeout(() => { refreshingSilent = true; triggerRefresh(); }, 300); });
 
     let at: ReturnType<typeof setTimeout>;
-    const u1 = listen("asistencia-updated", () => { if (!pageVisible || hasUnsavedChanges) return; clearTimeout(at); at = setTimeout(() => { refreshingSilent = true; triggerRefresh(); }, 500); });
+    const u1 = listen("asistencia-updated", () => { if (!pageVisible || hasUnsavedChanges) return; if (skipNextRefresh) { skipNextRefresh = false; return; } clearTimeout(at); at = setTimeout(() => { refreshingSilent = true; triggerRefresh(); }, 500); });
     const u2 = listen("student-updated", () => { if (!pageVisible) return; if (hasUnsavedChanges) { pendingRefreshOnSave = true; return; } clearTimeout(at); at = setTimeout(() => { refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); triggerRefresh(); }, 500); });
     const u3 = listen("catalog-updated", () => { if (!pageVisible || hasUnsavedChanges) return; clearTimeout(at); at = setTimeout(() => { fetchCatalogs(); fetchColegioConfig(); if (selectedColegio && selectedAno) fetchGrados(); refreshingSilent = true; triggerRefresh(); }, 500); });
     const u4 = listen("subjects-updated", () => { if (hasUnsavedChanges) return; fetchColegioConfig(); });
@@ -352,6 +353,7 @@
             if (pendingRefreshOnSave) { pendingRefreshOnSave = false; refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); }
             await emit("show-toast", { message: "✅ Asistencia limpiada correctamente", type: "success" });
             onDataChange('asistencia');
+            skipNextRefresh = true;
             await emit("asistencia-updated");
           } catch (error) {
             console.error("Error al limpiar asistencia:", error);
@@ -366,6 +368,7 @@
       if (pendingRefreshOnSave) { pendingRefreshOnSave = false; refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); }
       await emit("show-toast", { message: "✅ Asistencia guardada localmente", type: "success" });
       onDataChange('asistencia');
+      skipNextRefresh = true;
       await emit("asistencia-updated");
     } catch (error) {
       console.error("Error saving attendance:", error);
@@ -399,6 +402,7 @@
       if (pendingRefreshOnSave) { pendingRefreshOnSave = false; refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); }
       await emit("show-toast", { message: "✅ Asistencia guardada localmente", type: "success" });
       onDataChange('asistencia');
+      skipNextRefresh = true;
       await emit("asistencia-updated");
     } catch (error) {
       console.error("Error saving multi attendance:", error);
