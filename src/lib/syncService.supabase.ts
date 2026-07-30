@@ -1869,34 +1869,20 @@ ALTER TABLE sync_batch DISABLE ROW LEVEL SECURITY;`;
       const tablesExist = await probeTablePostgrest('ano_lectivo');
 
       if (tablesExist) {
-        console.log('[Supabase] Tablas existentes visibles en PostgREST. Ejecutando fixes best-effort...');
-        // Si la conexión directa está disponible, aplicar idempotent fixes.
+        console.log('[Supabase] Tablas existentes visibles en PostgREST. Ejecutando fixes vía RPC...');
         const fixSqls = [
-          'ALTER TABLE grado ADD COLUMN IF NOT EXISTS user_id TEXT;',
-          'ALTER TABLE seccion ADD COLUMN IF NOT EXISTS user_id TEXT;',
-          'ALTER TABLE asignatura ADD COLUMN IF NOT EXISTS user_id TEXT;',
-          'ALTER TABLE criterio ADD COLUMN IF NOT EXISTS user_id TEXT;',
-          'ALTER TABLE grado_asignatura ADD COLUMN IF NOT EXISTS user_id TEXT;',
-          'ALTER TABLE colegio_asignatura ADD COLUMN IF NOT EXISTS user_id TEXT;',
-          'ALTER TABLE colegio_dias_asistencia ADD COLUMN IF NOT EXISTS user_id TEXT;',
           ...allTables.map((t) => `ALTER TABLE ${t} ADD COLUMN IF NOT EXISTS updated_at TEXT DEFAULT now()::text;`),
           ...allTables.map((t) => `ALTER TABLE ${t} DISABLE ROW LEVEL SECURITY;`),
         ];
-        await runSqlStatements(fixSqls, false);
-        // Fallback: si los fixes no se aplicaron (ej. sin DB password), intentar vía RPC exec_sql
-        try {
-          for (const fixSql of fixSqls) {
+        // Ejecutar fixes vía RPC exec_sql (no requiere DB password, funciona en Android)
+        for (const fixSql of fixSqls) {
+          try {
             const rpcRes = await client.rpc('exec_sql', { sql: fixSql });
-            if (rpcRes.error) {
-              // Ignorar errores de "already exists" o columnas que ya existen
-              if (!rpcRes.error.message?.includes('already exists') && !rpcRes.error.message?.includes('duplicate')) {
-                console.info(`[Supabase] Fix SQL omitido (RPC): ${rpcRes.error.message?.substring(0, 80)}`);
-              }
+            if (rpcRes.error && !rpcRes.error.message?.includes('already exists')) {
+              console.info(`[Supabase] Fix SQL omitido (RPC): ${rpcRes.error.message?.substring(0, 80)}`);
             }
-          }
-          // Notificar a PostgREST para refrescar schema cache
-          try { await client.rpc('exec_sql', { sql: "NOTIFY pgrst, 'reload schema';" }); } catch (_e) {}
-        } catch (_e) { /* best-effort */ }
+          } catch (_e) { /* ignorar */ }
+        }
         // Crear tablas nuevas que aún no existan en el schema (ej. multiplicador_calificacion)
         for (const table of allTables) {
           const exists = await probeTablePostgrest(table);
