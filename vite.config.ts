@@ -4,6 +4,8 @@ import topLevelAwait from "vite-plugin-top-level-await";
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST || "localhost";
+// @ts-expect-error process is a nodejs global
+const isAndroid = process.env.TAURI_ENV_PLATFORM === "android";
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
@@ -37,7 +39,7 @@ export default defineConfig(async () => ({
     port: 1420,
     strictPort: false,
     host: '0.0.0.0',
-    hmr: {
+    hmr: isAndroid ? false : {
       protocol: 'ws',
       port: 1421,
     },
