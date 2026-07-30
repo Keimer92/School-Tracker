@@ -105,6 +105,7 @@ commands.allow = [
     "gd_start_oauth_background",
     "gd_wait_oauth_code",
     "gd_has_pending_oauth_code",
+    "gd_cancel_oauth",
     "gd_create_backup",
     "gd_get_backups",
     "gd_delete_backup",

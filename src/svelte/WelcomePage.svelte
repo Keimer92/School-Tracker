@@ -26,6 +26,13 @@
     { title: 'Resumen', icon: '✅', key: 'resumen' },
   ];
 
+  function cancelAuth() {
+    invoke("gd_cancel_oauth").catch(() => {});
+    loading = false;
+    loadingMessage = '';
+    errorMsg = '';
+  }
+
   async function goToDrive() {
     await handleDriveConnect();
   }
@@ -256,6 +263,9 @@
             <div class="welcome-loading-bar-inner"></div>
           </div>
           <p class="welcome-loading-text">{loadingMessage}</p>
+          <button onclick={cancelAuth} style="margin-top:0.5rem;background:transparent;border:1px solid rgba(239,68,68,0.35);color:#f87171;padding:0.45rem 1.25rem;border-radius:8px;cursor:pointer;font-size:0.8rem;font-weight:600;transition:all 0.2s">
+            Cancelar
+          </button>
         </div>
       {/if}
       {#if errorMsg}
