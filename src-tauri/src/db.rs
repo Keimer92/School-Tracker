@@ -428,17 +428,12 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
             .unwrap_or(0) > 0;
         if !has_col {
             // SQLite no permite DEFAULT con expresión en ALTER TABLE,
-            // así que agregamos sin default y luego actualizamos filas existentes
+            // así que agregamos sin default (nuevos registros usan DEFAULT de CREATE TABLE)
             conn.execute(
                 &format!("ALTER TABLE {table} ADD COLUMN updated_at TEXT"),
                 [],
             )
             .map_err(|e| format!("Error agregando updated_at a {table}: {e}"))?;
-            conn.execute(
-                &format!("UPDATE {table} SET updated_at = datetime('now') WHERE updated_at IS NULL"),
-                [],
-            )
-            .map_err(|e| format!("Error actualizando updated_at en {table}: {e}"))?;
             println!("✅ [DB] Columna updated_at agregada a {table}");
         }
     }
