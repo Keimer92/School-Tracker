@@ -550,7 +550,15 @@ async fn gd_write_file_base64(path: String, content_base64: String) -> Result<()
 }
 
 #[tauri::command]
-async fn gd_open_url_browser(url: String) -> Result<(), String> {
+async fn gd_open_url_browser(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        use tauri_plugin_opener::OpenerExt;
+        app.opener()
+            .open_url(&url, None::<&str>)
+            .map_err(|e| format!("Failed to open browser on Android: {}", e))?;
+    }
+
     #[cfg(target_os = "windows")]
     {
         std::process::Command::new("rundll32")
@@ -575,7 +583,7 @@ async fn gd_open_url_browser(url: String) -> Result<(), String> {
             .map_err(|e| format!("Failed to open browser: {}", e))?;
     }
     
-    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    #[cfg(not(any(target_os = "android", target_os = "windows", target_os = "macos", target_os = "linux")))]
     let _ = url;
 
     Ok(())
@@ -789,82 +797,108 @@ async fn gd_open_auth_webview(
     app: tauri::AppHandle,
     url: String,
 ) -> Result<String, String> {
-    let (tx, rx) = std::sync::mpsc::channel::<String>();
-
     let port = extract_oauth_port_from_auth_url(&url);
     *oauth_code_state().lock().map_err(|e| e.to_string())? = None;
     oauth_cancel_flag().store(false, Ordering::SeqCst);
     gd_start_oauth_background(app.clone(), port).await?;
 
-    let parsed_url = url::Url::parse(&url)
-        .map_err(|e| format!("URL inválida: {}", e))?;
+    #[cfg(target_os = "android")]
+    {
+        use tauri_plugin_opener::OpenerExt;
+        app.opener()
+            .open_url(&url, None::<&str>)
+            .map_err(|e| format!("Error al abrir navegador en Android: {}", e))?;
 
-    // Cerrar ventana previa si quedó abierta de un intento anterior
-    if let Some(existing) = app.get_webview_window("google-auth") {
-        let _ = existing.close();
-    }
-
-    let window = tauri::WebviewWindowBuilder::new(
-        &app,
-        "google-auth",
-        tauri::WebviewUrl::External(parsed_url),
-    )
-    .title("Iniciar sesión con Google")
-    .inner_size(700.0, 620.0)
-    .resizable(false)
-    .on_navigation(move |nav_url| {
-        let s = nav_url.as_str();
-        println!("[OAuth] WebView navigation: {}", &s[..s.len().min(150)]);
-
-        if let Some(code) = extract_oauth_code_from_url(s) {
-            println!("[OAuth] Code extracted via WebView (len={})", code.len());
-            let _ = tx.send(code);
-            // Permitir navegar al callback localhost para que el servidor TCP también lo capture
-            if is_localhost_oauth_callback(s) {
-                return true;
+        for _ in 0..600 {
+            if oauth_cancel_flag().load(Ordering::SeqCst) {
+                oauth_cancel_flag().store(false, Ordering::SeqCst);
+                return Err("Autenticación cancelada".to_string());
             }
-            return false;
-        }
-
-        true
-    })
-    .build()
-    .map_err(|e| format!("Error al crear ventana: {}", e))?;
-
-    for _ in 0..600 {
-        if oauth_cancel_flag().load(Ordering::SeqCst) {
-            let _ = window.close();
-            oauth_cancel_flag().store(false, Ordering::SeqCst);
-            return Err("Autenticación cancelada".to_string());
-        }
-        match rx.try_recv() {
-            Ok(code) => {
-                println!("[OAuth] Code received via channel, closing WebView");
-                let _ = window.close();
-                if let Ok(mut guard) = oauth_code_state().lock() {
-                    *guard = Some(code.clone());
+            {
+                let mut guard = oauth_code_state().lock().map_err(|e| e.to_string())?;
+                if let Some(code) = guard.take() {
+                    println!("[OAuth Android] Código recibido via servidor TCP!");
+                    return Ok(code);
                 }
-                return Ok(code);
             }
-            Err(std::sync::mpsc::TryRecvError::Empty) => {}
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => {}
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         }
-        {
-            let mut guard = oauth_code_state().lock().map_err(|e| e.to_string())?;
-            if let Some(code) = guard.take() {
-                println!("[OAuth] Code received via TCP server, closing WebView");
-                let _ = window.close();
-                return Ok(code);
-            }
-        }
-        if app.get_webview_window("google-auth").is_none() {
-            println!("[OAuth] Window closed by user");
-            return Err("Autenticación cancelada".to_string());
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        return Err("Tiempo de espera agotado".to_string());
     }
-    let _ = window.close();
-    Err("Tiempo de espera agotado".to_string())
+
+    #[cfg(not(target_os = "android"))]
+    {
+        let (tx, rx) = std::sync::mpsc::channel::<String>();
+
+        let parsed_url = url::Url::parse(&url)
+            .map_err(|e| format!("URL inválida: {}", e))?;
+
+        // Cerrar ventana previa si quedó abierta de un intento anterior
+        if let Some(existing) = app.get_webview_window("google-auth") {
+            let _ = existing.close();
+        }
+
+        let window = tauri::WebviewWindowBuilder::new(
+            &app,
+            "google-auth",
+            tauri::WebviewUrl::External(parsed_url),
+        )
+        .title("Iniciar sesión con Google")
+        .inner_size(700.0, 620.0)
+        .resizable(false)
+        .on_navigation(move |nav_url| {
+            let s = nav_url.as_str();
+            println!("[OAuth] WebView navigation: {}", &s[..s.len().min(150)]);
+
+            if let Some(code) = extract_oauth_code_from_url(s) {
+                println!("[OAuth] Code extracted via WebView (len={})", code.len());
+                let _ = tx.send(code);
+                if is_localhost_oauth_callback(s) {
+                    return true;
+                }
+                return false;
+            }
+
+            true
+        })
+        .build()
+        .map_err(|e| format!("Error al crear ventana: {}", e))?;
+
+        for _ in 0..600 {
+            if oauth_cancel_flag().load(Ordering::SeqCst) {
+                let _ = window.close();
+                oauth_cancel_flag().store(false, Ordering::SeqCst);
+                return Err("Autenticación cancelada".to_string());
+            }
+            match rx.try_recv() {
+                Ok(code) => {
+                    println!("[OAuth] Code received via channel, closing WebView");
+                    let _ = window.close();
+                    if let Ok(mut guard) = oauth_code_state().lock() {
+                        *guard = Some(code.clone());
+                    }
+                    return Ok(code);
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {}
+            }
+            {
+                let mut guard = oauth_code_state().lock().map_err(|e| e.to_string())?;
+                if let Some(code) = guard.take() {
+                    println!("[OAuth] Code received via TCP server, closing WebView");
+                    let _ = window.close();
+                    return Ok(code);
+                }
+            }
+            if app.get_webview_window("google-auth").is_none() {
+                println!("[OAuth] Window closed by user");
+                return Err("Autenticación cancelada".to_string());
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        }
+        let _ = window.close();
+        Err("Tiempo de espera agotado".to_string())
+    }
 }
 
 // ── OAuth: estado global y cancelación ──
