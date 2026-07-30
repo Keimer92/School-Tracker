@@ -7,6 +7,7 @@ use rusqlite::types::ToSql;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
+use tauri::Emitter;
 
 #[tauri::command]
 async fn create_folder_and_save_file(folder_path: String, file_path: String, file_data: Vec<u8>) -> Result<(), String> {
@@ -802,6 +803,91 @@ async fn gd_open_auth_webview(
     Err("Tiempo de espera agotado".to_string())
 }
 
+// ── OAuth TCP server en background (vive aunque recargue la página) ──
+use std::sync::OnceLock;
+fn oauth_code_state() -> &'static std::sync::Mutex<Option<String>> {
+    static STATE: OnceLock<std::sync::Mutex<Option<String>>> = OnceLock::new();
+    STATE.get_or_init(|| std::sync::Mutex::new(None))
+}
+
+#[tauri::command]
+async fn gd_start_oauth_background(app: tauri::AppHandle, port: u16) -> Result<(), String> {
+    let state = oauth_code_state();
+    *state.lock().map_err(|e| e.to_string())? = None;
+
+    let state_clone = state;
+    let handle = app.clone();
+    tokio::spawn(async move {
+        use tokio::net::TcpListener;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let addr = format!("127.0.0.1:{}", port);
+        let listener = match TcpListener::bind(&addr).await {
+            Ok(l) => l,
+            Err(e) => { eprintln!("OAuth TCP error: {}", e); return; }
+        };
+
+        if let Ok((mut socket, _)) = listener.accept().await {
+            let mut buffer = [0; 2048];
+            let mut request = String::new();
+            if let Ok(size) = socket.read(&mut buffer).await {
+                request = String::from_utf8_lossy(&buffer[..size]).into_owned();
+            }
+
+            let mut code = String::new();
+            if let Some(pos) = request.find("code=") {
+                let start = pos + 5;
+                let end = request[start..]
+                    .find(|c: char| c == ' ' || c == '&')
+                    .map(|p| start + p)
+                    .unwrap_or(request.len());
+                if start < end {
+                    code = request[start..end].to_string();
+                }
+            }
+
+            if !code.is_empty() {
+                if let Ok(mut guard) = state_clone.lock() {
+                    *guard = Some(code.clone());
+                }
+                let _ = handle.emit("google-auth-code", code);
+            }
+
+            let html = r#"<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Conectado</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;font-family:system-ui,sans-serif}.card{background:rgba(30,41,59,.85);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:3rem 2.5rem;text-align:center;max-width:420px;width:90%;animation:slideUp .6s ease-out}@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}.check{width:80px;height:80px;margin:0 auto 1.5rem;background:linear-gradient(135deg,#10b981,#059669);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(16,185,129,.4)}h1{color:#f8fafc;font-size:1.5rem;font-weight:700;margin:0 0 1rem}p{color:#94a3b8;font-size:.9rem;line-height:1.6;margin:0}</style></head><body><div class="card"><div class="check"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="4 12 9 17 20 6"/></svg></div><h1>Conectado a Google Drive</h1><p>Ya puedes cerrar esta página y volver a la aplicación.</p></div></body></html>"#;
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                html.len(), html
+            );
+            let _ = socket.write_all(response.as_bytes()).await;
+            let _ = socket.flush().await;
+        }
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn gd_wait_oauth_code(timeout_secs: u64) -> Result<String, String> {
+    let state = oauth_code_state();
+    let max_polls = timeout_secs * 5;
+    for _ in 0..max_polls {
+        {
+            let mut guard = state.lock().map_err(|e| e.to_string())?;
+            if let Some(code) = guard.take() {
+                return Ok(code);
+            }
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+    Err("Tiempo de espera agotado".to_string())
+}
+
+#[tauri::command]
+async fn gd_has_pending_oauth_code() -> Result<bool, String> {
+    let guard = oauth_code_state().lock().map_err(|e| e.to_string())?;
+    Ok(guard.is_some())
+}
+
 #[tauri::command]
 async fn gd_create_backup(app_handle: tauri::AppHandle) -> Result<String, String> {
     use std::fs;
@@ -1057,6 +1143,9 @@ pub fn run() {
             gd_open_url_browser,
             gd_start_oauth_server,
             gd_open_auth_webview,
+            gd_start_oauth_background,
+            gd_wait_oauth_code,
+            gd_has_pending_oauth_code,
             gd_create_backup,
             gd_get_backups,
             gd_delete_backup,
