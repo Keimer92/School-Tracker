@@ -220,6 +220,19 @@
     const unsub = syncManager.subscribe((state) => { syncStatus = state; });
     loadSettings();
     if (settings.accessToken) await refreshFiles();
+    // Auto-detect pending OAuth code (por si la página recargó durante el flujo)
+    if (!settings.accessToken && !isAuthLoading) {
+      try {
+        const hasCode = await invoke<boolean>("gd_has_pending_oauth_code");
+        if (hasCode) {
+          isAuthLoading = true;
+          const code = await invoke<string>("gd_wait_oauth_code", { timeoutSecs: 10 });
+          const port = 51733;
+          if (code) await exchangeCode(code, `http://localhost:${port}/callback`);
+          isAuthLoading = false;
+        }
+      } catch {}
+    }
     return unsub;
   });
 </script>

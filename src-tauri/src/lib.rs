@@ -770,6 +770,7 @@ async fn gd_open_auth_webview(
     .resizable(false)
     .on_navigation(move |nav_url| {
         let s = nav_url.as_str();
+        println!("[OAuth] WebView navigation: {}", &s[..s.len().min(150)]);
         if let Some(pos) = s.find("code=") {
             let start = pos + 5;
             let end = s[start..]
@@ -777,7 +778,9 @@ async fn gd_open_auth_webview(
                 .map(|p| start + p)
                 .unwrap_or(s.len());
             if start < end {
-                let _ = tx.send(s[start..end].to_string());
+                let code = s[start..end].to_string();
+                println!("[OAuth] Code extracted via WebView (len={})", code.len());
+                let _ = tx.send(code);
                 return false;
             }
         }
@@ -794,7 +797,12 @@ async fn gd_open_auth_webview(
         }
         match rx.try_recv() {
             Ok(code) => {
+                println!("[OAuth] Code received, closing WebView");
                 let _ = window.close();
+                if let Ok(mut guard) = oauth_code_state().lock() {
+                    *guard = Some(code.clone());
+                    println!("[OAuth] Code stored in global state for reload recovery");
+                }
                 return Ok(code);
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => {}
