@@ -750,6 +750,40 @@ async fn gd_start_oauth_server(port: u16) -> Result<String, String> {
     Ok(code)
 }
 
+fn extract_oauth_code_from_url(raw_url: &str) -> Option<String> {
+    if let Ok(parsed) = url::Url::parse(raw_url) {
+        for (key, value) in parsed.query_pairs() {
+            if key == "code" && !value.is_empty() {
+                return Some(value.into_owned());
+            }
+        }
+    }
+    None
+}
+
+fn extract_oauth_port_from_auth_url(auth_url: &str) -> u16 {
+    if let Ok(parsed) = url::Url::parse(auth_url) {
+        for (key, value) in parsed.query_pairs() {
+            if key == "redirect_uri" {
+                if let Ok(redirect) = url::Url::parse(&value) {
+                    if let Some(port) = redirect.port() {
+                        return port;
+                    }
+                }
+            }
+        }
+    }
+    51733
+}
+
+fn is_localhost_oauth_callback(raw_url: &str) -> bool {
+    if let Ok(parsed) = url::Url::parse(raw_url) {
+        let host = parsed.host_str().unwrap_or("");
+        return (host == "localhost" || host == "127.0.0.1") && parsed.path().contains("callback");
+    }
+    false
+}
+
 #[tauri::command]
 async fn gd_open_auth_webview(
     app: tauri::AppHandle,
@@ -757,8 +791,18 @@ async fn gd_open_auth_webview(
 ) -> Result<String, String> {
     let (tx, rx) = std::sync::mpsc::channel::<String>();
 
+    let port = extract_oauth_port_from_auth_url(&url);
+    *oauth_code_state().lock().map_err(|e| e.to_string())? = None;
+    oauth_cancel_flag().store(false, Ordering::SeqCst);
+    gd_start_oauth_background(app.clone(), port).await?;
+
     let parsed_url = url::Url::parse(&url)
         .map_err(|e| format!("URL inválida: {}", e))?;
+
+    // Cerrar ventana previa si quedó abierta de un intento anterior
+    if let Some(existing) = app.get_webview_window("google-auth") {
+        let _ = existing.close();
+    }
 
     let window = tauri::WebviewWindowBuilder::new(
         &app,
@@ -771,19 +815,17 @@ async fn gd_open_auth_webview(
     .on_navigation(move |nav_url| {
         let s = nav_url.as_str();
         println!("[OAuth] WebView navigation: {}", &s[..s.len().min(150)]);
-        if let Some(pos) = s.find("code=") {
-            let start = pos + 5;
-            let end = s[start..]
-                .find(|c: char| c == '&' || c == '#')
-                .map(|p| start + p)
-                .unwrap_or(s.len());
-            if start < end {
-                let code = s[start..end].to_string();
-                println!("[OAuth] Code extracted via WebView (len={})", code.len());
-                let _ = tx.send(code);
-                return false;
+
+        if let Some(code) = extract_oauth_code_from_url(s) {
+            println!("[OAuth] Code extracted via WebView (len={})", code.len());
+            let _ = tx.send(code);
+            // Permitir navegar al callback localhost para que el servidor TCP también lo capture
+            if is_localhost_oauth_callback(s) {
+                return true;
             }
+            return false;
         }
+
         true
     })
     .build()
@@ -797,18 +839,22 @@ async fn gd_open_auth_webview(
         }
         match rx.try_recv() {
             Ok(code) => {
-                println!("[OAuth] Code received, closing WebView");
+                println!("[OAuth] Code received via channel, closing WebView");
                 let _ = window.close();
                 if let Ok(mut guard) = oauth_code_state().lock() {
                     *guard = Some(code.clone());
-                    println!("[OAuth] Code stored in global state for reload recovery");
                 }
                 return Ok(code);
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => {}
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {}
+        }
+        {
+            let mut guard = oauth_code_state().lock().map_err(|e| e.to_string())?;
+            if let Some(code) = guard.take() {
+                println!("[OAuth] Code received via TCP server, closing WebView");
                 let _ = window.close();
-                return Err("Error en la comunicación con la ventana".to_string());
+                return Ok(code);
             }
         }
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
