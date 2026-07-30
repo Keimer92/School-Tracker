@@ -115,10 +115,11 @@
         return;
       }
     } catch (e: any) {
-      if (e?.message?.includes('cancelled') || e?.message?.includes('canceled')) {
+      const errStr = typeof e === 'string' ? e : (e?.message || String(e));
+      if (errStr.toLowerCase().includes('cancel')) {
         errorMsg = 'Autenticación cancelada';
       } else {
-        errorMsg = 'Error: ' + (e?.message || e);
+        errorMsg = 'Error: ' + errStr;
       }
     }
     loading = false;

@@ -857,6 +857,10 @@ async fn gd_open_auth_webview(
                 return Ok(code);
             }
         }
+        if app.get_webview_window("google-auth").is_none() {
+            println!("[OAuth] Window closed by user");
+            return Err("Autenticación cancelada".to_string());
+        }
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     }
     let _ = window.close();
