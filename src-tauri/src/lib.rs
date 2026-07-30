@@ -823,6 +823,7 @@ fn oauth_cancel_flag() -> &'static AtomicBool {
 
 #[tauri::command]
 async fn gd_start_oauth_background(app: tauri::AppHandle, port: u16) -> Result<(), String> {
+    println!("[OAuth] gd_start_oauth_background called, port={}", port);
     *oauth_code_state().lock().map_err(|e| e.to_string())? = None;
     oauth_cancel_flag().store(false, Ordering::SeqCst);
 
@@ -834,45 +835,65 @@ async fn gd_start_oauth_background(app: tauri::AppHandle, port: u16) -> Result<(
             use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
             let addr = format!("127.0.0.1:{}", port);
+            println!("[OAuth] Binding TCP server to {}", addr);
             let listener = match TcpListener::bind(&addr).await {
-                Ok(l) => l,
-                Err(e) => { eprintln!("OAuth TCP error: {}", e); return; }
+                Ok(l) => { println!("[OAuth] TCP server bound OK"); l }
+                Err(e) => { eprintln!("[OAuth] TCP server bind error: {}", e); return; }
             };
 
             loop {
-                if let Ok((mut socket, _)) = listener.accept().await {
-                    if oauth_cancel_flag().load(Ordering::SeqCst) {
-                        continue;
-                    }
-                    let mut buffer = [0; 2048];
-                    let mut request = String::new();
-                    if let Ok(size) = socket.read(&mut buffer).await {
-                        request = String::from_utf8_lossy(&buffer[..size]).into_owned();
-                    }
-                    let mut code = String::new();
-                    if let Some(pos) = request.find("code=") {
-                        let start = pos + 5;
-                        let end = request[start..]
-                            .find(|c: char| c == ' ' || c == '&')
-                            .map(|p| start + p)
-                            .unwrap_or(request.len());
-                        if start < end {
-                            code = request[start..end].to_string();
+                println!("[OAuth] Waiting for TCP connection...");
+                match listener.accept().await {
+                    Ok((mut socket, peer)) => {
+                        println!("[OAuth] Accepted connection from {}", peer);
+                        if oauth_cancel_flag().load(Ordering::SeqCst) {
+                            println!("[OAuth] Cancelled, skipping connection");
+                            continue;
                         }
-                    }
-                    if !code.is_empty() {
-                        if let Ok(mut guard) = oauth_code_state().lock() {
-                            *guard = Some(code.clone());
+                        let mut buffer = [0; 2048];
+                        let size = match socket.read(&mut buffer).await {
+                            Ok(s) => s,
+                            Err(e) => { eprintln!("[OAuth] Read error: {}", e); continue; }
+                        };
+                        println!("[OAuth] Read {} bytes from socket", size);
+                        let request = String::from_utf8_lossy(&buffer[..size]).into_owned();
+                        println!("[OAuth] Request: {}", &request[..request.len().min(200)]);
+
+                        let mut code = String::new();
+                        if let Some(pos) = request.find("code=") {
+                            let start = pos + 5;
+                            let end = request[start..]
+                                .find(|c: char| c == ' ' || c == '&')
+                                .map(|p| start + p)
+                                .unwrap_or(request.len());
+                            if start < end {
+                                code = request[start..end].to_string();
+                            }
                         }
-                        let _ = handle.emit("google-auth-code", code);
+
+                        if !code.is_empty() {
+                            println!("[OAuth] Code extracted (len={})", code.len());
+                            if let Ok(mut guard) = oauth_code_state().lock() {
+                                *guard = Some(code.clone());
+                                println!("[OAuth] Code stored in global state");
+                            }
+                            let _ = handle.emit("google-auth-code", code);
+                        } else {
+                            println!("[OAuth] No code found in request");
+                        }
+
+                        let html = r#"<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Conectado</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;font-family:system-ui,sans-serif}.card{background:rgba(30,41,59,.85);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:3rem 2.5rem;text-align:center;max-width:420px;width:90%;animation:slideUp .6s ease-out}@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}.check{width:80px;height:80px;margin:0 auto 1.5rem;background:linear-gradient(135deg,#10b981,#059669);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(16,185,129,.4)}h1{color:#f8fafc;font-size:1.5rem;font-weight:700;margin:0 0 1rem}p{color:#94a3b8;font-size:.9rem;line-height:1.6;margin:0}</style></head><body><div class="card"><div class="check"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="4 12 9 17 20 6"/></svg></div><h1>Conectado a Google Drive</h1><p>Ya puedes cerrar esta página y volver a la aplicación.</p></div></body></html>"#;
+                        let response = format!(
+                            "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                            html.len(), html
+                        );
+                        let _ = socket.write_all(response.as_bytes()).await;
+                        let _ = socket.flush().await;
+                        println!("[OAuth] Response sent to browser");
                     }
-                    let html = r#"<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Conectado</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;font-family:system-ui,sans-serif}.card{background:rgba(30,41,59,.85);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:3rem 2.5rem;text-align:center;max-width:420px;width:90%;animation:slideUp .6s ease-out}@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}.check{width:80px;height:80px;margin:0 auto 1.5rem;background:linear-gradient(135deg,#10b981,#059669);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(16,185,129,.4)}h1{color:#f8fafc;font-size:1.5rem;font-weight:700;margin:0 0 1rem}p{color:#94a3b8;font-size:.9rem;line-height:1.6;margin:0}</style></head><body><div class="card"><div class="check"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="4 12 9 17 20 6"/></svg></div><h1>Conectado a Google Drive</h1><p>Ya puedes cerrar esta página y volver a la aplicación.</p></div></body></html>"#;
-                    let response = format!(
-                        "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                        html.len(), html
-                    );
-                    let _ = socket.write_all(response.as_bytes()).await;
-                    let _ = socket.flush().await;
+                    Err(e) => {
+                        eprintln!("[OAuth] Accept error: {}", e);
+                    }
                 }
             }
         });
@@ -884,32 +905,42 @@ async fn gd_start_oauth_background(app: tauri::AppHandle, port: u16) -> Result<(
 
 #[tauri::command]
 async fn gd_wait_oauth_code(timeout_secs: u64) -> Result<String, String> {
+    println!("[OAuth] gd_wait_oauth_code called, timeout={}s", timeout_secs);
     let state = oauth_code_state();
     let max_polls = timeout_secs * 5;
-    for _ in 0..max_polls {
+    for i in 0..max_polls {
         if oauth_cancel_flag().load(Ordering::SeqCst) {
+            println!("[OAuth] Cancelled flag detected, returning");
             *state.lock().map_err(|e| e.to_string())? = None;
             return Err("Autenticación cancelada".to_string());
         }
         {
             let mut guard = state.lock().map_err(|e| e.to_string())?;
             if let Some(code) = guard.take() {
+                println!("[OAuth] Code found in state, returning (len={})", code.len());
                 return Ok(code);
             }
         }
+        if i % 25 == 0 {
+            println!("[OAuth] Waiting for code... (poll {}/{})", i, max_polls);
+        }
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     }
+    println!("[OAuth] Timeout reached");
     Err("Tiempo de espera agotado".to_string())
 }
 
 #[tauri::command]
 async fn gd_has_pending_oauth_code() -> Result<bool, String> {
     let guard = oauth_code_state().lock().map_err(|e| e.to_string())?;
-    Ok(guard.is_some())
+    let has = guard.is_some();
+    println!("[OAuth] gd_has_pending_oauth_code = {}", has);
+    Ok(has)
 }
 
 #[tauri::command]
 async fn gd_cancel_oauth() -> Result<(), String> {
+    println!("[OAuth] gd_cancel_oauth called");
     oauth_cancel_flag().store(true, Ordering::SeqCst);
     *oauth_code_state().lock().map_err(|e| e.to_string())? = None;
     Ok(())

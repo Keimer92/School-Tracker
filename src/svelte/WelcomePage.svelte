@@ -1,7 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { emit } from "@tauri-apps/api/event";
-  import { openUrl } from "@tauri-apps/plugin-opener";
   import { syncService } from "../lib/syncService";
 
   let view: 'landing' | 'cloud' | 'wizard' = $state('landing');
@@ -64,17 +63,9 @@
         loading = false;
         return;
       }
-      const isAndroid = /Android/i.test(navigator.userAgent);
-      const redirectUri = isAndroid ? `http://127.0.0.1:${port}/callback` : `http://localhost:${port}/callback`;
+      const redirectUri = `http://localhost:${port}/callback`;
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent('https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile')}&access_type=offline&prompt=consent`;
-      let code: string;
-      if (isAndroid) {
-        await invoke("gd_start_oauth_background", { port });
-        await openUrl(authUrl);
-        code = await invoke<string>("gd_wait_oauth_code", { timeoutSecs: 120 });
-      } else {
-        code = await invoke<string>("gd_open_auth_webview", { url: authUrl });
-      }
+      const code = await invoke<string>("gd_open_auth_webview", { url: authUrl });
 
       const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
