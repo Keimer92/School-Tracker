@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { emit } from "@tauri-apps/api/event";
+  import { openUrl } from "@tauri-apps/plugin-opener";
   import { syncService } from "../lib/syncService";
 
   let view: 'landing' | 'cloud' | 'wizard' = $state('landing');
@@ -49,7 +50,6 @@
     errorMsg = '';
     try {
       const port = 51733;
-      const code = await invoke<string>("gd_start_oauth_server", { port });
       const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
       const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
       if (!clientId || !clientSecret) {
@@ -57,6 +57,13 @@
         loading = false;
         return;
       }
+      const isAndroid = /Android/i.test(navigator.userAgent);
+      const redirectUri = isAndroid ? 'http://127.0.0.1:51733/callback' : `http://localhost:${port}/callback`;
+      const codePromise = invoke<string>("gd_start_oauth_server", { port });
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent('https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile')}&access_type=offline&prompt=consent`;
+      await openUrl(authUrl);
+      const code = await codePromise;
+
       const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -64,7 +71,7 @@
           client_id: clientId,
           client_secret: clientSecret,
           code,
-          redirect_uri: `http://localhost:${port}/callback`,
+          redirect_uri: redirectUri,
           grant_type: 'authorization_code',
         }),
       });
@@ -84,16 +91,11 @@
       const settings = {
         clientId,
         accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token,
+        refreshToken: tokenData.refresh_token || null,
         tokenExpiry: Date.now() + (tokenData.expires_in * 1000),
-        deviceName: navigator.platform || 'unknown',
         googleUserEmail: userInfo.email || null,
         googleUserName: userInfo.name || null,
         googleUserProfilePic: userInfo.picture || null,
-        backupEnabled: false,
-        backupInterval: 60,
-        backupIntervalUnit: 'minutes',
-        lastBackupTime: null,
       };
       localStorage.setItem('schooltracker-google-drive-settings', JSON.stringify(settings));
 

@@ -171,9 +171,11 @@
         showToast(event.payload.message, event.payload.type);
       }).then(u => unlisten.push(u));
 
-      // Google Drive sync
+      // Google Drive sync — push primero (sube cambios offline), luego pull
       const driveSettings = localStorage.getItem('schooltracker-google-drive-settings');
       if (driveSettings) {
+        syncService.pushAllSilent();
+        syncService.pullAllSilent();
         syncService.ensurePeriodicSync();
       }
       invoke("seed_defaults_now");
@@ -184,6 +186,8 @@
       initialized = true;
       const driveSettings = localStorage.getItem('schooltracker-google-drive-settings');
       if (driveSettings) {
+        syncService.pushAllSilent();
+        syncService.pullAllSilent();
         syncService.ensurePeriodicSync();
       }
     });

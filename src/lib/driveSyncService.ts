@@ -3,7 +3,8 @@ import { emit } from '@tauri-apps/api/event';
 import { markDirty, markAllDirty, markAllClean, hasDirtyTables } from './dirtyTracker';
 
 const STORAGE_KEY = 'schooltracker-google-drive-settings';
-const SYNC_FILE_NAME = 'SchoolTracker_Sync.db';
+const SYNC_FILE_PREFIX = 'SchoolTracker_Sync';
+const MAX_SYNC_FILES = 4;
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'offline';
 
@@ -12,10 +13,16 @@ interface DriveSettings {
   accessToken: string | null;
   refreshToken: string | null;
   tokenExpiry: number | null;
-  deviceName: string;
   googleUserEmail: string | null;
   googleUserName: string | null;
   googleUserProfilePic: string | null;
+}
+
+export interface DriveFile {
+  id: string;
+  name: string;
+  size: number;
+  createdTime: string;
 }
 
 interface SyncState {
@@ -134,28 +141,37 @@ async function getValidToken(): Promise<string | null> {
   return await refreshAccessToken();
 }
 
-async function findOrCreateSyncFile(token: string): Promise<string | null> {
-  const listResponse = await fetch(
-    `https://www.googleapis.com/drive/v3/files?q=name='${SYNC_FILE_NAME}' and trashed=false&fields=files(id,name,modifiedTime)`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
-  if (!listResponse.ok) { console.error('[DriveSync] Error buscando archivo:', await listResponse.text()); return null; }
-  const data = await listResponse.json();
-  const files = data.files || [];
-  if (files.length > 0) return files[0].id;
-  return null;
+function timestampFileName(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${SYNC_FILE_PREFIX}_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.db`;
 }
 
-async function findSyncFile(token: string): Promise<{ id: string; modifiedTime: string } | null> {
-  const listResponse = await fetch(
-    `https://www.googleapis.com/drive/v3/files?q=name='${SYNC_FILE_NAME}' and trashed=false&fields=files(id,name,modifiedTime)`,
+async function listSyncFiles(token: string): Promise<DriveFile[]> {
+  const q = `name contains '${SYNC_FILE_PREFIX}' and trashed=false`;
+  const resp = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&orderBy=createdTime desc&fields=files(id,name,size,createdTime)`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
-  if (!listResponse.ok) return null;
-  const data = await listResponse.json();
-  const files = data.files || [];
-  if (files.length > 0) return { id: files[0].id, modifiedTime: files[0].modifiedTime };
-  return null;
+  if (!resp.ok) return [];
+  const data = await resp.json();
+  return (data.files || []).map((f: any) => ({
+    id: f.id, name: f.name, size: f.size || 0, createdTime: f.createdTime || '',
+  }));
+}
+
+async function deleteOldSyncVersions(token: string): Promise<void> {
+  const files = await listSyncFiles(token);
+  if (files.length <= MAX_SYNC_FILES) return;
+  const toDelete = files.slice(MAX_SYNC_FILES);
+  await Promise.allSettled(
+    toDelete.map(f =>
+      fetch(`https://www.googleapis.com/drive/v3/files/${f.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => {})
+    )
+  );
 }
 
 function now() {
@@ -170,6 +186,8 @@ export const driveSyncService = {
   _periodicTimer: null as ReturnType<typeof setInterval> | null,
   _syncLock: false,
 
+  listSyncFiles,
+
   syncAll: async (): Promise<void> => {
     await driveSyncService.syncAllSilent(true);
   },
@@ -180,8 +198,8 @@ export const driveSyncService = {
     }
     (driveSyncService as any)._syncLock = true;
     try {
-      await driveSyncService.pushAll();
       await driveSyncService.pullAll();
+      await driveSyncService.pushAll();
       syncManager.setState({
         lastSync: now(),
         lastSyncDetails: `Sync completo (${fmtTime()})`,
@@ -217,58 +235,30 @@ export const driveSyncService = {
       const localBackupPath = await invoke<string>('gd_create_backup');
       try {
         const dbBase64 = await invoke<string>('gd_read_file_base64', { path: localBackupPath });
-        const settings = getSettings();
-        const deviceName = settings?.deviceName?.replace(/\s+/g, '_') || 'unknown';
-        const timestampStr = now();
-        const metadata = {
-          name: SYNC_FILE_NAME,
-          description: JSON.stringify({ device: deviceName, timestamp: timestampStr, type: 'schooltracker_sync' }),
-        };
-        const existingId = await findSyncFile(token);
-        if (existingId) {
-          const boundary = 'schooltracker_sync_boundary';
-          const multipartBody =
-            `--${boundary}\r\n` +
-            `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
-            `${JSON.stringify(metadata)}\r\n` +
-            `--${boundary}\r\n` +
-            `Content-Type: application/octet-stream\r\n` +
-            `Content-Transfer-Encoding: base64\r\n\r\n` +
-            `${dbBase64}\r\n` +
-            `--${boundary}--`;
-          const xhr = await new Promise<{ status: number }>((resolve, reject) => {
-            const x = new XMLHttpRequest();
-            x.open('PATCH', `https://www.googleapis.com/upload/drive/v3/files/${existingId.id}?uploadType=multipart`);
-            x.setRequestHeader('Authorization', `Bearer ${token}`);
-            x.setRequestHeader('Content-Type', `multipart/related; boundary=${boundary}`);
-            x.onload = () => resolve({ status: x.status });
-            x.onerror = () => reject(new Error('Network error'));
-            x.send(multipartBody);
-          });
-          console.log(`[DriveSync] Archivo actualizado, status: ${xhr.status}`);
-        } else {
-          const boundary = 'schooltracker_sync_boundary';
-          const multipartBody =
-            `--${boundary}\r\n` +
-            `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
-            `${JSON.stringify(metadata)}\r\n` +
-            `--${boundary}\r\n` +
-            `Content-Type: application/octet-stream\r\n` +
-            `Content-Transfer-Encoding: base64\r\n\r\n` +
-            `${dbBase64}\r\n` +
-            `--${boundary}--`;
-          const xhr = await new Promise<{ status: number }>((resolve, reject) => {
-            const x = new XMLHttpRequest();
-            x.open('POST', 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart');
-            x.setRequestHeader('Authorization', `Bearer ${token}`);
-            x.setRequestHeader('Content-Type', `multipart/related; boundary=${boundary}`);
-            x.onload = () => resolve({ status: x.status });
-            x.onerror = () => reject(new Error('Network error'));
-            x.send(multipartBody);
-          });
-          console.log(`[DriveSync] Archivo creado, status: ${xhr.status}`);
-        }
+        const fileName = timestampFileName();
+        const metadata = { name: fileName, mimeType: 'application/octet-stream' };
+        const boundary = 'schooltracker_sync_boundary';
+        const multipartBody =
+          `--${boundary}\r\n` +
+          `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
+          `${JSON.stringify(metadata)}\r\n` +
+          `--${boundary}\r\n` +
+          `Content-Type: application/octet-stream\r\n` +
+          `Content-Transfer-Encoding: base64\r\n\r\n` +
+          `${dbBase64}\r\n` +
+          `--${boundary}--`;
+        const xhr = await new Promise<{ status: number }>((resolve, reject) => {
+          const x = new XMLHttpRequest();
+          x.open('POST', 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart');
+          x.setRequestHeader('Authorization', `Bearer ${token}`);
+          x.setRequestHeader('Content-Type', `multipart/related; boundary=${boundary}`);
+          x.onload = () => resolve({ status: x.status });
+          x.onerror = () => reject(new Error('Network error'));
+          x.send(multipartBody);
+        });
+        console.log(`[DriveSync] Archivo creado, status: ${xhr.status}`);
         try { await invoke('gd_delete_backup', { path: localBackupPath }); } catch (_) {}
+        await deleteOldSyncVersions(token);
         syncManager.setState({ lastUpload: now() });
       } catch (e) {
         try { await invoke('gd_delete_backup', { path: localBackupPath }); } catch (_) {}
@@ -305,17 +295,13 @@ export const driveSyncService = {
       return;
     }
     await syncManager.wrapSync((async () => {
-      const file = await findSyncFile(token);
-      if (!file) {
-        console.log('[DriveSync] No hay archivo de sync en Drive');
+      const files = await listSyncFiles(token);
+      if (files.length === 0) {
+        console.log('[DriveSync] No hay archivos de sync en Drive');
         return;
       }
-      const lastPull = localStorage.getItem('drive_last_pull_time');
-      if (lastPull && file.modifiedTime <= lastPull) {
-        console.log('[DriveSync] Archivo remoto no ha cambiado desde último pull');
-        return;
-      }
-      const response = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
+      const newest = files.reduce((a, b) => a.createdTime >= b.createdTime ? a : b);
+      const response = await fetch(`https://www.googleapis.com/drive/v3/files/${newest.id}?alt=media`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) throw new Error(`Error descargando: ${response.statusText}`);
@@ -333,7 +319,6 @@ export const driveSyncService = {
       const dbPath = await invoke<string>('get_db_path');
       await invoke('gd_create_backup', {});
       await invoke('gd_write_file_base64', { path: dbPath, contentBase64: base64 });
-      localStorage.setItem('drive_last_pull_time', new Date().toISOString());
       syncManager.setState({ lastDownload: now() });
       console.log('[DriveSync] Archivo descargado y restaurado correctamente');
     })(), 'descargar desde Google Drive');
@@ -414,14 +399,15 @@ export const driveSyncService = {
     const token = await getValidToken();
     if (!token) return;
     await syncManager.wrapSync((async () => {
-      const file = await findSyncFile(token);
-      if (file) {
-        await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}`, {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      }
-      localStorage.removeItem('drive_last_pull_time');
+      const files = await listSyncFiles(token);
+      await Promise.allSettled(
+        files.map(f =>
+          fetch(`https://www.googleapis.com/drive/v3/files/${f.id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` },
+          }).catch(() => {})
+        )
+      );
       syncManager.setState({
         lastSync: null, lastUpload: null, lastDownload: null,
       });
