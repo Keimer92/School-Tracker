@@ -76,7 +76,8 @@
   });
   let searchTerm = $state("");
   let isMobile = $state(false);
-  let viewMode = $state(localStorage.getItem('estudiantes-view-mode') || (isMobile ? 'list' : 'grid') as 'card' | 'list' | 'grid');
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  let viewMode = $state<'card' | 'list' | 'grid'>(isAndroid ? 'list' : (localStorage.getItem('estudiantes-view-mode') as 'card' | 'list' | 'grid') || (isMobile ? 'list' : 'grid'));
   let gridSelectedStudent: Student | null = $state(null);
   let isImporting = $state(false);
   let showImportHelp = $state(false);
@@ -524,7 +525,7 @@ async function fetchData(preserveFilters = false) {
     } finally { isDeletingSelected = false; }
   }
 
-  $effect(() => { localStorage.setItem('estudiantes-view-mode', viewMode); });
+  $effect(() => { if (!isAndroid) localStorage.setItem('estudiantes-view-mode', viewMode); });
 
   onMount(() => {
     fetchData();
@@ -690,6 +691,7 @@ async function fetchData(preserveFilters = false) {
           </button>
         {/if}
       </div>
+      {#if !isAndroid}
       <div style="display: flex; gap: 2px; background: rgba(255,255,255,0.04); border-radius: 10px; padding: 3px; border: 1px solid rgba(255,255,255,0.06);">
         {#each ['grid', 'list', 'card'] as mode}
           <button onclick={() => viewMode = mode}
@@ -700,10 +702,11 @@ async function fetchData(preserveFilters = false) {
           </button>
         {/each}
       </div>
+      {/if}
     </div>
   {/if}
 
-  <div style="flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0; width: 100%; box-sizing: border-box;">
+  <div style="flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0; min-width: 0; width: 100%; box-sizing: border-box;">
     {#if filteredStudents.length === 0}
       <div style="text-align: center; padding: 5rem 2rem; border: 2px dashed rgba(255, 255, 255, 0.1); border-radius: 16px; width: 100%; box-sizing: border-box;">
         <div style="font-size: 3rem; margin-bottom: 1rem;">{searchTerm ? '🔍' : '👥'}</div>
@@ -716,7 +719,7 @@ async function fetchData(preserveFilters = false) {
         {/if}
       </div>
     {:else if viewMode === 'card'}
-      <div style="display: grid; grid-template-columns: {isMobile ? '1fr' : 'repeat(auto-fill, minmax(320px, 1fr))'}; gap: {isMobile ? '0.5rem' : '0.75rem'}; padding: {isMobile ? '0 0.25rem' : '0'}; align-content: flex-start;">
+      <div style="display: grid; grid-template-columns: {isMobile ? 'minmax(0, 1fr)' : 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))'}; gap: {isMobile ? '0.5rem' : '0.75rem'}; padding: {isMobile ? '0 0.25rem' : '0'}; width: 100%; min-width: 0; box-sizing: border-box; align-content: flex-start;">
         {#each filteredStudents as st, index}
           <div class="category-card" style="margin: 0; padding: 0.6rem 0.8rem; border: {selectedIds.has(st.id!) ? '1.5px solid #ef4444' : '1px solid rgba(255,255,255,0.05)'};">
             <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
@@ -728,7 +731,7 @@ async function fetchData(preserveFilters = false) {
                   <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0;">👤</div>
                 {/if}
                 <span style="font-size: 0.7rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 1px 5px; border-radius: 4px; font-weight: bold; flex-shrink: 0; border: 1px solid rgba(56, 189, 248, 0.2);">#{index + 1}</span>
-                <span style="font-size: 0.9rem; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{st.nombre}</span>
+                <span style="flex: 1; min-width: 0; font-size: 0.9rem; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{st.nombre}</span>
               </div>
               <div class="item-actions" style="display: flex; gap: 0.2rem; flex-shrink: 0;">
                 <button class="icon-button edit" onclick={() => openEditModal(st)} style="width: 30px; height: 30px; font-size: 0.8rem;">✏️</button>
