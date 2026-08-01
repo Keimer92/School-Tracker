@@ -64,7 +64,7 @@
   let currentStudentIdx = $state(0);
   let showStudentList = $state(false);
 
-  let notasScrollRef: HTMLDivElement | null = null;
+  let notasScrollRef = $state<HTMLDivElement | null>(null);
   let notasScrollHeight = $state('');
   function updateNotasScrollHeight() {
     if (!isAndroid || !notasScrollRef) return;
@@ -75,8 +75,10 @@
   }
   $effect(() => {
     if (isAndroid && isMobile && !loading && estudiantes.length > 0 && notasScrollRef) {
-      const t = setTimeout(updateNotasScrollHeight, 60);
-      return () => clearTimeout(t);
+      const raf = requestAnimationFrame(updateNotasScrollHeight);
+      const t1 = setTimeout(updateNotasScrollHeight, 60);
+      const t2 = setTimeout(updateNotasScrollHeight, 300);
+      return () => { cancelAnimationFrame(raf); clearTimeout(t1); clearTimeout(t2); };
     }
   });
   $effect(() => {
@@ -1141,13 +1143,9 @@
             style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: {currentStudentIdx >= filteredNotas.length - 1 ? '#475569' : '#e2e8f0'}; border-radius: 10px; padding: 0.5rem 0.7rem; font-size: 1.1rem; cursor: {currentStudentIdx >= filteredNotas.length - 1 ? 'not-allowed' : 'pointer'}; opacity: {currentStudentIdx >= filteredNotas.length - 1 ? 0.4 : 1}; display: flex; align-items: center; justify-content: center; min-width: 40px;">▶</button>
         </div>
 
-        <div bind:this={notasScrollRef} style="flex: 1; overflow: auto; padding: 0 0.15rem; -webkit-overflow-scrolling: touch; height: {notasScrollHeight};"
-          ontouchstart={handleTouchStart} ontouchend={handleTouchEnd}>
-          {#if filteredNotas[currentStudentIdx]}
-            {@const est = filteredNotas[currentStudentIdx]}
-            <div>
-              <!-- Nota final (arriba en mobile) -->
-              <div style="margin-bottom: 0.5rem; padding: 0.6rem; border-radius: 12px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(34, 197, 94, 0.3); display: flex; justify-content: space-between; align-items: center;{isAndroid ? 'position: sticky; top: 0; z-index: 40; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); background: rgba(15, 23, 42, 0.95);' : ''}">
+        {#if filteredNotas[currentStudentIdx]}
+          {@const est = filteredNotas[currentStudentIdx]}
+          <div style="margin-bottom: 0.5rem; padding: 0.6rem; border-radius: 12px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(34, 197, 94, 0.3); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
                 <div style="color: #94a3b8; font-weight: bold; font-size: 0.85rem;">Nota Final</div>
                 <div style="display: flex; align-items: center; gap: 0.4rem;">
                   {#if !isQualitative}
@@ -1185,6 +1183,12 @@
                   </div>
                 </div>
               </div>
+          {/if}
+        <div bind:this={notasScrollRef} style="flex: 1; overflow: auto; padding: 0 0.15rem; -webkit-overflow-scrolling: touch; height: {notasScrollHeight};"
+          ontouchstart={handleTouchStart} ontouchend={handleTouchEnd}>
+          {#if filteredNotas[currentStudentIdx]}
+            {@const est = filteredNotas[currentStudentIdx]}
+            <div>
               {#each activeIndicadores as ind}
                     <div style="margin-bottom: 0.5rem; border-radius: 12px; border: 1px solid rgba(var(--primary-rgb), 0.25); background: rgba(30, 41, 59, 0.5); overflow: hidden;">
                   <div style="padding: 0.4rem 0.6rem; background: rgba(var(--primary-rgb), 0.1); border-bottom: 1px solid rgba(var(--primary-rgb), 0.15); display: flex; justify-content: space-between; align-items: center;">
