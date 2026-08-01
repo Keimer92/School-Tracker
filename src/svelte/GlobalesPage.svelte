@@ -4,6 +4,7 @@
   import { emit, listen } from "@tauri-apps/api/event";
   import { syncService } from "../lib/syncService";
   import { onDataChange } from "../lib/autoSync";
+  import { registerBackHandler } from "../lib/androidBack";
   import CategoryTabContent from "./CategoryTabContent.svelte";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
@@ -33,6 +34,32 @@
   let originalMultiplicadores: string = $state('');
   let saving = $state(false);
   let isMobile = $state(false);
+
+  let { pageActive = false }: { pageActive?: boolean } = $props();
+
+  $effect(() => {
+    if (!pageActive) return;
+    if (selectedColegioForSubjects) {
+      const dispose = registerBackHandler(() => { selectedColegioForSubjects = null; return true; });
+      return () => dispose();
+    }
+    if (selectedGrade) {
+      const dispose = registerBackHandler(() => { selectedGrade = null; return true; });
+      return () => dispose();
+    }
+    if (selectedColegio) {
+      const dispose = registerBackHandler(() => { selectedColegio = null; return true; });
+      return () => dispose();
+    }
+    if (selectedCategory) {
+      const dispose = registerBackHandler(() => { selectedCategory = null; return true; });
+      return () => dispose();
+    }
+    if (selectedTab === "Notas") {
+      const dispose = registerBackHandler(() => { selectedTab = TAB_NAMES[1]; return true; });
+      return () => dispose();
+    }
+  });
 
   let hasUnsavedChanges = $derived(
     originalGradeConfigs !== JSON.stringify(gradeConfigs) ||

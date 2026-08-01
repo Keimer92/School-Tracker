@@ -7,6 +7,7 @@
   import * as XLSX from "xlsx";
   import { syncService } from "../lib/syncService";
   import { onDataChange } from "../lib/autoSync";
+  import { registerBackHandler } from "../lib/androidBack";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
 
@@ -33,6 +34,12 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   const isAndroid = /Android/i.test(navigator.userAgent);
 
   let activeTab: typeof TABS[number]["id"] | null = $state(isAndroid ? null : "configuracion");
+
+  $effect(() => {
+    if (!pageActive || !isAndroid || activeTab === null) return;
+    const dispose = registerBackHandler(() => { activeTab = null; return true; });
+    return () => dispose();
+  });
   let dbPath = $state("");
   let gradeConfigs = $state<{ id: string; nombre: string; color: string; minimo: number }[]>([]);
   let highlightColor = $state(localStorage.getItem("student-highlight-color") || "#4ade80");
@@ -48,7 +55,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   let resetConfig = $state<{ title: string; message: string; onConfirm: () => Promise<void>; isDanger?: boolean; } | null>(null);
   let isProcessingReset = $state(false);
 
-  let { themeMode = "sistema", setThemeMode = () => {} } = $props();
+  let { themeMode = "sistema", setThemeMode = () => {}, pageActive = false } = $props();
 
   let syncInterval = $state(parseInt(localStorage.getItem('periodic_sync_interval_seconds') || '300', 10));
 

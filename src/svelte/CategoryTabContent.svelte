@@ -4,6 +4,7 @@
   import { emit, listen } from "@tauri-apps/api/event";
   import { syncService } from "../lib/syncService";
   import { onDataChange } from "../lib/autoSync";
+  import { registerBackHandler } from "../lib/androidBack";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
   interface CategoryConfig { title: string; table: string; endpoints: { get: string; add: string; update: string; delete: string; setActive?: string; updateOrder?: string; }; }
@@ -31,6 +32,21 @@
   let draggedItem: CategoryItem | null = $state(null);
   let globalCualitativo: boolean | null = $state(null);
   let promptInput: HTMLInputElement | undefined = $state(undefined);
+
+  $effect(() => {
+    if (showPrompt) {
+      const dispose = registerBackHandler(() => { showPrompt = false; return true; });
+      return () => dispose();
+    }
+    if (showDeleteConfirm) {
+      const dispose = registerBackHandler(() => { showDeleteConfirm = false; return true; });
+      return () => dispose();
+    }
+    if (showBatchDeleteConfirm) {
+      const dispose = registerBackHandler(() => { showBatchDeleteConfirm = false; return true; });
+      return () => dispose();
+    }
+  });
 
   async function fetchItems() {
     try { const data: CategoryItem[] = await invoke(config.endpoints.get); items = data; }
