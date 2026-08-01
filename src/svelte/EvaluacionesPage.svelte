@@ -29,6 +29,7 @@
   let loading = $state(false);
   let isQualitative = $state(false);
   let isMobile = $state(false);
+  const isAndroid = /Android/i.test(navigator.userAgent);
   let viewMode = $state<ViewMode>("split-panel");
   let expandedIndicador = $state<number | null>(null);
   let accordionOpen = $state<Set<number>>(new Set());
@@ -53,8 +54,7 @@
     const saved = localStorage.getItem("evaluaciones-view-mode") as ViewMode | null;
     if (saved === "refined") { viewMode = "split-panel"; localStorage.setItem("evaluaciones-view-mode", "split-panel"); }
     else if (saved) viewMode = saved;
-    const isAndroid = /Android/i.test(navigator.userAgent);
-    if (isAndroid) viewMode = "accordion";
+    if (isAndroid) viewMode = "modern-cards";
     const checkMobile = () => { isMobile = window.innerWidth <= 768; };
     checkMobile();
     window.addEventListener("resize", checkMobile);
@@ -258,13 +258,15 @@
             <button class="primary" onclick={handleSaveConfig} disabled={loading || asignaturas.length === 0} style="padding: 0.35rem 0.75rem; font-size: 0.75rem; flex-shrink: 0; white-space: nowrap;">
               {loading ? '⏳...' : '💾'}
             </button>
-            <div class="ev-view-toggle">
-              {#each VIEW_MODES as { key, label, icon }}
-                <button class="ev-view-btn" class:active={viewMode === key} onclick={() => handleViewModeChange(key)} title={label}>
-                  <span class="ev-view-icon">{icon}</span>
-                </button>
-              {/each}
-            </div>
+            {#if !isAndroid}
+              <div class="ev-view-toggle">
+                {#each VIEW_MODES as { key, label, icon }}
+                  <button class="ev-view-btn" class:active={viewMode === key} onclick={() => handleViewModeChange(key)} title={label}>
+                    <span class="ev-view-icon">{icon}</span>
+                  </button>
+                {/each}
+              </div>
+            {/if}
             {#if indicadores.length > 0}
               <div class="ev-score-pill">
                 <span>Activos:</span>
@@ -276,7 +278,7 @@
       </FilterContainer>
     </div>
 
-    {#if !isMobile}
+    {#if !isMobile && !isAndroid}
       <div style="display:flex;justify-content:center;margin-bottom:0.75rem">
         <div class="ev-view-toggle">
           {#each VIEW_MODES as { key, label, icon }}
