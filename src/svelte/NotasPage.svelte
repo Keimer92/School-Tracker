@@ -64,6 +64,26 @@
   let currentStudentIdx = $state(0);
   let showStudentList = $state(false);
 
+  let notasScrollRef: HTMLDivElement | null = null;
+  let notasScrollHeight = $state('');
+  function updateNotasScrollHeight() {
+    if (!isAndroid || !notasScrollRef) return;
+    const rect = notasScrollRef.getBoundingClientRect();
+    const vh = window.visualViewport?.height ?? window.innerHeight;
+    const h = Math.max(100, Math.floor(vh - rect.top - 10));
+    if (notasScrollHeight !== h + 'px') notasScrollHeight = h + 'px';
+  }
+  $effect(() => {
+    if (isAndroid && isMobile && !loading && estudiantes.length > 0 && notasScrollRef) {
+      const t = setTimeout(updateNotasScrollHeight, 60);
+      return () => clearTimeout(t);
+    }
+  });
+  $effect(() => {
+    const idx = currentStudentIdx;
+    if (isAndroid && notasScrollRef) notasScrollRef.scrollTop = 0;
+  });
+
   let history: Record<string, string>[] = $state([]);
   let redoStack: Record<string, string>[] = $state([]);
 
@@ -901,6 +921,10 @@
     checkMobile();
     window.addEventListener('resize', checkMobile);
 
+    const onResizeScrollArea = () => updateNotasScrollHeight();
+    window.addEventListener('resize', onResizeScrollArea);
+    window.visualViewport?.addEventListener('resize', onResizeScrollArea);
+
     // Safety: force load if catalogs chain didn't trigger it
     const forceLoadTimer = setTimeout(() => {
       if (selectedAno > 0 && selectedCorte > 0 && selectedColegio > 0 && selectedAsignatura > 0 && selectedGrado > 0 && selectedSeccion > 0 && estudiantes.length === 0) {
@@ -972,6 +996,8 @@
     return () => {
       clearTimeout(forceLoadTimer);
       window.removeEventListener('resize', checkMobile);
+      window.removeEventListener('resize', onResizeScrollArea);
+      window.visualViewport?.removeEventListener('resize', onResizeScrollArea);
       window.removeEventListener('keydown', handleKeyDownGlobal);
       window.removeEventListener('schooltracker-sync', onSync);
       try {
@@ -1115,7 +1141,7 @@
             style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: {currentStudentIdx >= filteredNotas.length - 1 ? '#475569' : '#e2e8f0'}; border-radius: 10px; padding: 0.5rem 0.7rem; font-size: 1.1rem; cursor: {currentStudentIdx >= filteredNotas.length - 1 ? 'not-allowed' : 'pointer'}; opacity: {currentStudentIdx >= filteredNotas.length - 1 ? 0.4 : 1}; display: flex; align-items: center; justify-content: center; min-width: 40px;">▶</button>
         </div>
 
-        <div style="flex: 1; overflow: auto; padding: 0 0.15rem; -webkit-overflow-scrolling: touch;"
+        <div bind:this={notasScrollRef} style="flex: 1; overflow: auto; padding: 0 0.15rem; -webkit-overflow-scrolling: touch; height: {notasScrollHeight};"
           ontouchstart={handleTouchStart} ontouchend={handleTouchEnd}>
           {#if filteredNotas[currentStudentIdx]}
             {@const est = filteredNotas[currentStudentIdx]}
