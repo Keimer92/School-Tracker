@@ -60,6 +60,7 @@
   }
 
   let isMobile = $state(false);
+  const isAndroid = /Android/i.test(navigator.userAgent);
   let currentStudentIdx = $state(0);
   let showStudentList = $state(false);
 
@@ -1099,7 +1100,7 @@
     <!-- Mobile: Card View -->
     {#if isMobile && !loading && estudiantes.length > 0}
       <div class="category-card" style="flex: 1; min-height: 0; width: 100%; max-width: 100%; overflow: hidden; display: flex; flex-direction: column; padding: 0.3rem;">
-        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.4rem; margin-bottom: 0.3rem; background: rgba(15, 23, 42, 0.6); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); user-select: none;">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.4rem; margin-bottom: 0.3rem; background: rgba(15, 23, 42, 0.6); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); user-select: none; flex-shrink: 0;{isAndroid ? 'position: sticky; top: 0; z-index: 45;' : ''}">
           <button onclick={goPrevStudent} disabled={currentStudentIdx === 0}
             style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: {currentStudentIdx === 0 ? '#475569' : '#e2e8f0'}; border-radius: 10px; padding: 0.5rem 0.7rem; font-size: 1.1rem; cursor: {currentStudentIdx === 0 ? 'not-allowed' : 'pointer'}; opacity: {currentStudentIdx === 0 ? 0.4 : 1}; display: flex; align-items: center; justify-content: center; min-width: 40px;">◀</button>
           <div style="flex: 1; text-align: center; min-width: 0; padding: 0 0.5rem; cursor: pointer;" onclick={() => showStudentList = true}>
@@ -1120,7 +1121,7 @@
             {@const est = filteredNotas[currentStudentIdx]}
             <div>
               <!-- Nota final (arriba en mobile) -->
-              <div style="margin-bottom: 0.5rem; padding: 0.6rem; border-radius: 12px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(34, 197, 94, 0.3); display: flex; justify-content: space-between; align-items: center;">
+              <div style="margin-bottom: 0.5rem; padding: 0.6rem; border-radius: 12px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(34, 197, 94, 0.3); display: flex; justify-content: space-between; align-items: center;{isAndroid ? 'position: sticky; top: 0; z-index: 40; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); background: rgba(15, 23, 42, 0.95);' : ''}">
                 <div style="color: #94a3b8; font-weight: bold; font-size: 0.85rem;">Nota Final</div>
                 <div style="display: flex; align-items: center; gap: 0.4rem;">
                   {#if !isQualitative}
