@@ -217,7 +217,7 @@
 
 <div class="page-container">
   <div class="category-grid" style="display: block;">
-    <div class="ev-sticky-header" style="{isMobile ? 'position: sticky; top: 0; z-index: 60;' : ''}">
+    <div class="ev-sticky-header" style="{isMobile ? 'position: sticky; top: 0; z-index: 60; background: rgba(10, 14, 20, 0.95); border-radius: 0 0 12px 12px; padding-bottom: 0.1rem;' : ''}">
       <FilterContainer {isMobile}>
         <FilterGroup label="Grado:" {isMobile} flex={isMobile ? '1 1 0' : undefined}>
           <select class="filter-select" bind:value={selectedGrado} aria-label="Seleccionar grado"
@@ -254,8 +254,8 @@
           </FilterActions>
         {/if}
         {#if isMobile}
-          <div style="flex: 1 1 100%; display: flex; justify-content: flex-end; align-items: center; gap: 0.5rem; margin-top: 0.3rem;">
-            <button class="primary" onclick={handleSaveConfig} disabled={loading || asignaturas.length === 0} style="padding: 0.5rem 1rem; font-size: 0.85rem; flex-shrink: 0; white-space: nowrap;">
+          <div style="flex: 1 1 100%; display: flex; justify-content: flex-end; align-items: center; gap: 0.4rem; margin-top: 0.15rem;">
+            <button class="primary" onclick={handleSaveConfig} disabled={loading || asignaturas.length === 0} style="padding: 0.35rem 0.75rem; font-size: 0.75rem; flex-shrink: 0; white-space: nowrap;">
               {loading ? '⏳...' : '💾'}
             </button>
             <div class="ev-view-toggle">
@@ -535,5 +535,37 @@
   }
   :global(.ev-score-pill span) {
     color: var(--text-muted, #64748b);
+  }
+  @media (max-width: 640px) {
+    :global(.sticky-filters) {
+      padding: 0.2rem !important;
+      margin-bottom: 0.1rem !important;
+    }
+    :global(.filters-row) {
+      gap: 0.15rem !important;
+      padding: 0.05rem !important;
+    }
+    :global(.filter-select) {
+      padding: 0.3rem 0.4rem !important;
+      font-size: 0.8rem !important;
+    }
+    :global(.ev-view-toggle) {
+      padding: 0.2rem !important;
+      gap: 0.15rem !important;
+    }
+    :global(.ev-view-btn) {
+      padding: 0.3rem 0.45rem !important;
+      font-size: 0.7rem !important;
+    }
+    :global(.ev-view-icon) {
+      font-size: 0.8rem !important;
+    }
+    :global(.ev-score-pill) {
+      padding: 0.2rem 0.5rem !important;
+      font-size: 0.65rem !important;
+    }
+    :global(.ev-score-pill span) {
+      font-size: 0.65rem !important;
+    }
   }
 </style>
