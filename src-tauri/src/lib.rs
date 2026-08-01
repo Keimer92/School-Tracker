@@ -438,7 +438,7 @@ async fn minimize_app(_app_handle: tauri::AppHandle) -> Result<(), String> {
                     activity,
                     "moveTaskToBack",
                     "(Z)V",
-                    &[jni::objects::JValue::Bool(true)],
+                    &[jni::objects::JValue::Bool(1u8)],
                 )
                 .map_err(|e| e.to_string())?;
         }
