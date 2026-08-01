@@ -339,7 +339,7 @@ export const driveSyncService = {
 
   startPeriodicSync: () => {
     const intervalStr = localStorage.getItem('periodic_sync_interval_seconds');
-    const interval = Math.max(30, Math.min(300, parseInt(intervalStr || '300') || 300)) * 1000;
+    const interval = Math.max(30, Math.min(3600, parseInt(intervalStr || '300') || 300)) * 1000;
     if ((driveSyncService as any)._periodicTimer) clearInterval((driveSyncService as any)._periodicTimer);
     (driveSyncService as any)._periodicTimer = setInterval(async () => {
       if (!getValidToken()) {
