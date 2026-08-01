@@ -22,6 +22,7 @@
 
   let initialized = $state<boolean | null>(null);
   let isMobile = $state(false);
+  let isAndroid = $state(false);
   let activeTab = $state<Tab>("dashboard");
   let tabHistory = $state<Tab[]>([]);
   let visitedTabs = $state<Set<Tab>>(new Set(["dashboard", "notas", "reportes", "estudiantes", "evaluaciones", "globales", "ajustes", "asistencia", "informe", "cloud"]));
@@ -65,6 +66,7 @@
 
   function checkMobile() {
     isMobile = window.innerWidth <= 768 || /Android/i.test(navigator.userAgent);
+    isAndroid = /Android/i.test(navigator.userAgent);
   }
 
   function saveSidebarWidth(val: number) {
@@ -154,8 +156,15 @@
     checkMobile();
 
     // Back button Android: enruta el back al JS (AppPlugin no cierra la app).
-    const backListener = await onBackButtonPress(() => { goBack(); });
-    unlisten.push(() => backListener.unregister());
+    // Solo en Android: plugin:app|register_listener solo existe en la plataforma móvil.
+    if (isAndroid) {
+      try {
+        const backListener = await onBackButtonPress(() => { goBack(); });
+        unlisten.push(() => backListener.unregister());
+      } catch (e) {
+        console.error('Error al registrar onBackButtonPress:', e);
+      }
+    }
 
     // Check if app has been initialized (welcomed)
     const init = await invoke('is_app_initialized');

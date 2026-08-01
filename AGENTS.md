@@ -317,8 +317,12 @@ Cada página usa `$effect` (Svelte 5) que registra el handler mientras el modal 
 - `GoogleDriveBackup.svelte` es legacy (no se monta en `App.svelte`); no se toca.
 
 **GOTCHAS:**
-- `onBackButtonPress` se puede registrar en desktop: el listener nunca se dispara y no
-  rompe nada (`plugin:app|register_listener` es comando core, sin permiso extra).
+- `onBackButtonPress` **solo existe en Android**: en JS llama a `plugin:app|register_listener`,
+  que está implementado únicamente en el plugin Kotlin `AppPlugin` (no hay handler en el core
+  Rust de `tauri`). En desktop (Windows/macOS/Linux) ese comando **no existe** y el `invoke`
+  falla con `app.registerListener not allowed. Command not found`, rompiendo `onMount` de
+  `App.svelte`. Por eso el registro se guarda con `if (isAndroid)` (detectado por user-agent)
+  y `try/catch`. No intentar registrarlo en desktop.
 - El back con listener registrado **consume el evento**: por eso el caso raíz (minimizar)
   se maneja explícitamente en JS y no se deja al default.
 - Durante el OAuth en Android la app queda en segundo plano (navegador del sistema), así
