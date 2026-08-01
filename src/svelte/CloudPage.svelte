@@ -26,7 +26,7 @@
   });
 
   let syncStatus = $state<{ status: SyncStatus; lastSync: string | null; lastSyncDetails: string | null; message: string | null; }>({ status: "idle", lastSync: null, lastSyncDetails: null, message: null });
-  let syncInterval = $state(parseInt(localStorage.getItem('periodic_sync_interval_seconds') || '60', 10));
+  let syncInterval = $state(parseInt(localStorage.getItem('periodic_sync_interval_seconds') || '300', 10));
   let isAuthLoading = $state(false);
   let isFetchingFiles = $state(false);
   let isTesting = $state(false);

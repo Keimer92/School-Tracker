@@ -583,6 +583,9 @@ async fn gd_open_url_browser(app: tauri::AppHandle, url: String) -> Result<(), S
             .map_err(|e| format!("Failed to open browser: {}", e))?;
     }
     
+    #[cfg(not(target_os = "android"))]
+    let _ = &app;
+
     #[cfg(not(any(target_os = "android", target_os = "windows", target_os = "macos", target_os = "linux")))]
     let _ = url;
 

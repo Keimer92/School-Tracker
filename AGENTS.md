@@ -206,6 +206,57 @@ syncManager.subscribe((state) => { ... })
 // state: { status, lastUpload, lastDownload, lastSync, message }
 ```
 
+### OAuth de Google Drive (flujo actual)
+
+**Importante**: Google Cloud Console NO acepta schemes custom (`schooltrackerpro://...`)
+porque no tienen TLD público. El redirect URI real es
+`http://localhost:51733/callback`. OAuth se inicia desde `CloudPage.svelte` y
+`WelcomePage.svelte` llamando a `invoke("gd_open_auth_webview", { url })`.
+
+El flujo usa **doble vía de captura del código** (redundancia) + estado global en Rust
+para sobrevivir recargas de página/HMR:
+
+1. **Frontend** construye la auth URL
+   (`accounts.google.com/o/oauth2/v2/auth?...redirect_uri=http://localhost:51733/callback&access_type=offline&prompt=consent`)
+   y llama a `gd_open_auth_webview`.
+2. **`gd_open_auth_webview`** (`lib.rs`):
+   - Extrae el puerto (`extract_oauth_port_from_auth_url`) y limpia estado/cancelación.
+   - Llama a `gd_start_oauth_background` (servidor TCP en `127.0.0.1:51733`).
+   - **Android**: abre el navegador del sistema vía `tauri-plugin-opener`
+     (`app.opener().open_url(...)`) y **hace polling** de `oauth_code_state()`
+     cada 200 ms (hasta ~120 s). El servidor TCP captura la redirección y guarda el código.
+   - **Desktop (Windows/macOS/Linux)**: crea una ventana WebView `"google-auth"` con el
+     callback `on_navigation`. Si la URL contiene `code=` lo envía por canal; si es el
+     callback localhost (`is_localhost_oauth_callback`) devuelve `true` para que la
+     navegación ocurra y el **servidor TCP también lo capture** (respaldo). Cierra la
+     ventana al recibir el código y detecta cierre manual por el usuario → "cancelada".
+3. **`gd_start_oauth_background`** (`lib.rs`): servidor TCP asíncrono arrancado una sola
+   vez (`OnceLock`, task `tokio::spawn` con `AppHandle` propio) → **sobrevive recargas**.
+   Lee el request HTTP, extrae `code=`, lo guarda en `oauth_code_state()`, emite el evento
+   `google-auth-code` y responde con un HTML de "Conectado".
+4. **Estado global** (OnceLock, sobrevive recargas de página):
+   - `oauth_code_state()` → `Mutex<Option<String>>` con el código pendiente.
+   - `oauth_cancel_flag()` → `AtomicBool` para cancelar desde el frontend.
+5. **Comandos auxiliares**:
+   - `gd_wait_oauth_code(timeout_secs)`: hace polling del estado (respeta cancelación).
+   - `gd_has_pending_oauth_code(): bool`: para recuperar un código tras recarga de página
+     (`CloudPage.onMount` lo revisa y continúa el flujo si existe).
+   - `gd_cancel_oauth()`: activa el flag de cancelación y limpia el estado (botones
+     "Cancelar" en ambas páginas).
+6. **`gd_open_url_browser(app, url)`**: recibe `AppHandle` y en Android usa
+   `tauri-plugin-opener` (plugin registrado en `run()`); en desktop usa
+   `rundll32`/`open`/`xdg-open`.
+
+**GOTCHAS**:
+- Todos estos comandos deben estar en `src-tauri/permissions/local-commands.toml`
+  (`commands.allow`) o `invoke` falla en runtime.
+- En **dev Android el HMR de Vite está deshabilitado** (`vite.config.ts`: si
+  `TAURI_ENV_PLATFORM === 'android'` → `hmr: false`). El WebSocket de HMR se caía al
+  abrir el navegador y recargaba la página, matando el `invoke` pendiente.
+- Los `println!("[OAuth] ...")` de Rust son los logs de depuración del flujo (van a
+  stdout/logcat, no a la consola del navegador).
+- `GoogleDriveBackup.svelte` usa el comando antiguo `gd_start_oauth_server` (otro flujo).
+
 ## Esquema de Base de Datos y Datos Iniciales
 
 ### Inicialización

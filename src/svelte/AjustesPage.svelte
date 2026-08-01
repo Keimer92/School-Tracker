@@ -50,7 +50,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
   let { themeMode = "sistema", setThemeMode = () => {} } = $props();
 
-  let syncInterval = $state(parseInt(localStorage.getItem('periodic_sync_interval_seconds') || '60', 10));
+  let syncInterval = $state(parseInt(localStorage.getItem('periodic_sync_interval_seconds') || '300', 10));
 
   function handleThemeChange(mode: string) {
     setThemeMode(mode);
