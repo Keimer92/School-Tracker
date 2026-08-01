@@ -219,7 +219,7 @@
   <div class="category-grid" style="display: block;">
     <div class="ev-sticky-header" style="{isMobile ? 'position: sticky; top: 0; z-index: 60;' : ''}">
       <FilterContainer {isMobile}>
-        <FilterGroup label="Grado:" {isMobile}>
+        <FilterGroup label="Grado:" {isMobile} flex={isMobile ? '1 1 0' : undefined}>
           <select class="filter-select" bind:value={selectedGrado} aria-label="Seleccionar grado"
             style="width:100%">
             {#each grados as g}
@@ -227,35 +227,18 @@
             {/each}
           </select>
         </FilterGroup>
-        <FilterGroup label="Asignatura:" {isMobile} flex={isMobile ? '1 1 100%' : undefined}>
-          {#if isMobile}
-            <div style="display: flex; gap: 0.3rem; align-items: center;">
-              <select class="filter-select" bind:value={selectedAsignatura} disabled={asignaturas.length === 0} aria-label="Seleccionar asignatura"
-                style="flex: 1; min-width: 0;">
-                {#if asignaturas.length === 0}
-                  <option value="0">Sin asignaturas</option>
-                {/if}
-                {#each asignaturas as a}
-                  <option value={a.id}>{a.nombre}</option>
-                {/each}
-              </select>
-              <button class="primary" onclick={handleSaveConfig} disabled={loading || asignaturas.length === 0} style="padding: 0.5rem 1rem; font-size: 0.85rem; flex-shrink: 0; white-space: nowrap;">
-                {loading ? '⏳...' : '💾'}
-              </button>
-            </div>
-          {:else}
-            <select class="filter-select" bind:value={selectedAsignatura} disabled={asignaturas.length === 0} aria-label="Seleccionar asignatura"
-              style="width:100%">
-              {#if asignaturas.length === 0}
-                <option value="0">Sin asignaturas</option>
-              {/if}
-              {#each asignaturas as a}
-                <option value={a.id}>{a.nombre}</option>
-              {/each}
-            </select>
-          {/if}
+        <FilterGroup label="Asignatura:" {isMobile} flex={isMobile ? '1 1 0' : undefined}>
+          <select class="filter-select" bind:value={selectedAsignatura} disabled={asignaturas.length === 0} aria-label="Seleccionar asignatura"
+            style="width:100%">
+            {#if asignaturas.length === 0}
+              <option value="0">Sin asignaturas</option>
+            {/if}
+            {#each asignaturas as a}
+              <option value={a.id}>{a.nombre}</option>
+            {/each}
+          </select>
         </FilterGroup>
-        <FilterGroup label="Corte:" {isMobile}>
+        <FilterGroup label="Corte:" {isMobile} flex={isMobile ? '1 1 0' : undefined}>
           <select class="filter-select" bind:value={selectedCorte} aria-label="Seleccionar corte evaluativo"
             style="width:100%">
             {#each cortes as c}
@@ -271,7 +254,10 @@
           </FilterActions>
         {/if}
         {#if isMobile}
-          <div style="flex: 1 1 100%; display: flex; justify-content: flex-end; align-items: center; gap: 0.5rem; margin-top: 0.15rem;">
+          <div style="flex: 1 1 100%; display: flex; justify-content: flex-end; align-items: center; gap: 0.5rem; margin-top: 0.3rem;">
+            <button class="primary" onclick={handleSaveConfig} disabled={loading || asignaturas.length === 0} style="padding: 0.5rem 1rem; font-size: 0.85rem; flex-shrink: 0; white-space: nowrap;">
+              {loading ? '⏳...' : '💾'}
+            </button>
             <div class="ev-view-toggle">
               {#each VIEW_MODES as { key, label, icon }}
                 <button class="ev-view-btn" class:active={viewMode === key} onclick={() => handleViewModeChange(key)} title={label}>
