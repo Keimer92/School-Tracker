@@ -217,51 +217,91 @@
 
 <div class="page-container">
   <div class="category-grid" style="display: block;">
-    <FilterContainer {isMobile}>
-      <FilterGroup label="Grado:" {isMobile}>
-        <select class="filter-select" bind:value={selectedGrado} aria-label="Seleccionar grado"
-          style="width:100%">
-          {#each grados as g}
-            <option value={g.id}>{g.nombre}</option>
-          {/each}
-        </select>
-      </FilterGroup>
-      <FilterGroup label="Asignatura:" {isMobile}>
-        <select class="filter-select" bind:value={selectedAsignatura} disabled={asignaturas.length === 0} aria-label="Seleccionar asignatura"
-          style="width:100%">
-          {#if asignaturas.length === 0}
-            <option value="0">Sin asignaturas</option>
+    <div class="ev-sticky-header" style="{isMobile ? 'position: sticky; top: 0; z-index: 60;' : ''}">
+      <FilterContainer {isMobile}>
+        <FilterGroup label="Grado:" {isMobile}>
+          <select class="filter-select" bind:value={selectedGrado} aria-label="Seleccionar grado"
+            style="width:100%">
+            {#each grados as g}
+              <option value={g.id}>{g.nombre}</option>
+            {/each}
+          </select>
+        </FilterGroup>
+        <FilterGroup label="Asignatura:" {isMobile} flex={isMobile ? '1 1 100%' : undefined}>
+          {#if isMobile}
+            <div style="display: flex; gap: 0.3rem; align-items: center;">
+              <select class="filter-select" bind:value={selectedAsignatura} disabled={asignaturas.length === 0} aria-label="Seleccionar asignatura"
+                style="flex: 1; min-width: 0;">
+                {#if asignaturas.length === 0}
+                  <option value="0">Sin asignaturas</option>
+                {/if}
+                {#each asignaturas as a}
+                  <option value={a.id}>{a.nombre}</option>
+                {/each}
+              </select>
+              <button class="primary" onclick={handleSaveConfig} disabled={loading || asignaturas.length === 0} style="padding: 0.5rem 1rem; font-size: 0.85rem; flex-shrink: 0; white-space: nowrap;">
+                {loading ? '⏳...' : '💾'}
+              </button>
+            </div>
+          {:else}
+            <select class="filter-select" bind:value={selectedAsignatura} disabled={asignaturas.length === 0} aria-label="Seleccionar asignatura"
+              style="width:100%">
+              {#if asignaturas.length === 0}
+                <option value="0">Sin asignaturas</option>
+              {/if}
+              {#each asignaturas as a}
+                <option value={a.id}>{a.nombre}</option>
+              {/each}
+            </select>
           {/if}
-          {#each asignaturas as a}
-            <option value={a.id}>{a.nombre}</option>
-          {/each}
-        </select>
-      </FilterGroup>
-      <FilterGroup label="Corte:" {isMobile}>
-        <select class="filter-select" bind:value={selectedCorte} aria-label="Seleccionar corte evaluativo"
-          style="width:100%">
-          {#each cortes as c}
-            <option value={c.id}>{c.nombre}</option>
-          {/each}
-        </select>
-      </FilterGroup>
-      <FilterActions>
-        <button class="primary" onclick={handleSaveConfig} disabled={loading || asignaturas.length === 0} style="padding: 0.5rem 1rem; font-size: 0.85rem;">
-          {loading ? '⏳...' : '💾'}
-        </button>
-      </FilterActions>
-    </FilterContainer>
-
-    <div style="display:flex;justify-content:center;margin-bottom:0.75rem">
-      <div class="ev-view-toggle">
-        {#each VIEW_MODES as { key, label, icon }}
-          <button class="ev-view-btn" class:active={viewMode === key} onclick={() => handleViewModeChange(key)} title={label}>
-            <span class="ev-view-icon">{icon}</span>
-            {#if !isMobile}<span class="ev-view-label">{label}</span>{/if}
-          </button>
-        {/each}
-      </div>
+        </FilterGroup>
+        <FilterGroup label="Corte:" {isMobile}>
+          <select class="filter-select" bind:value={selectedCorte} aria-label="Seleccionar corte evaluativo"
+            style="width:100%">
+            {#each cortes as c}
+              <option value={c.id}>{c.nombre}</option>
+            {/each}
+          </select>
+        </FilterGroup>
+        {#if !isMobile}
+          <FilterActions>
+            <button class="primary" onclick={handleSaveConfig} disabled={loading || asignaturas.length === 0} style="padding: 0.5rem 1rem; font-size: 0.85rem;">
+              {loading ? '⏳...' : '💾'}
+            </button>
+          </FilterActions>
+        {/if}
+        {#if isMobile}
+          <div style="flex: 1 1 100%; display: flex; justify-content: flex-end; align-items: center; gap: 0.5rem; margin-top: 0.15rem;">
+            <div class="ev-view-toggle">
+              {#each VIEW_MODES as { key, label, icon }}
+                <button class="ev-view-btn" class:active={viewMode === key} onclick={() => handleViewModeChange(key)} title={label}>
+                  <span class="ev-view-icon">{icon}</span>
+                </button>
+              {/each}
+            </div>
+            {#if indicadores.length > 0}
+              <div class="ev-score-pill">
+                <span>Activos:</span>
+                <strong>{activeCount}/5</strong>
+              </div>
+            {/if}
+          </div>
+        {/if}
+      </FilterContainer>
     </div>
+
+    {#if !isMobile}
+      <div style="display:flex;justify-content:center;margin-bottom:0.75rem">
+        <div class="ev-view-toggle">
+          {#each VIEW_MODES as { key, label, icon }}
+            <button class="ev-view-btn" class:active={viewMode === key} onclick={() => handleViewModeChange(key)} title={label}>
+              <span class="ev-view-icon">{icon}</span>
+              <span class="ev-view-label">{label}</span>
+            </button>
+          {/each}
+        </div>
+      </div>
+    {/if}
 
     {#if loading}
       <div class="ev-loading">
@@ -282,19 +322,21 @@
       {@const activeCount = filteredActiveIndicadores.length}
       {@const maxScore = isQualitative ? activeCount * 20 : 100}
       {@const scoreRatio = maxScore > 0 ? Math.min(puntosActivos / maxScore, 1) : 0}
-      <div class="ev-score-summary">
-        <div class="ev-score-text">
-          <span>Activos: <strong>{activeCount}</strong> / 5</span>
+      {#if !isMobile}
+        <div class="ev-score-summary">
+          <div class="ev-score-text">
+            <span>Activos: <strong>{activeCount}</strong> / 5</span>
+            {#if !isQualitative}
+              <span style="margin-left: 1rem;">Puntaje: <strong>{puntosActivos}</strong> / {maxScore} pts</span>
+            {/if}
+          </div>
           {#if !isQualitative}
-            <span style="margin-left: 1rem;">Puntaje: <strong>{puntosActivos}</strong> / {maxScore} pts</span>
+            <div class="ev-score-bar">
+              <div class="ev-score-fill" style="width: {scoreRatio * 100}%;"></div>
+            </div>
           {/if}
         </div>
-        {#if !isQualitative}
-          <div class="ev-score-bar">
-            <div class="ev-score-fill" style="width: {scoreRatio * 100}%;"></div>
-          </div>
-        {/if}
-      </div>
+      {/if}
 
       {#if viewMode === "modern-cards"}
         <div class="ev-cards-container">
@@ -496,5 +538,16 @@
   :global(.ev-view-btn.active) {
     background: var(--bg-active); color: var(--text-bright);
     box-shadow: 0 0 8px rgba(var(--primary-rgb), 0.08);
+  }
+  :global(.ev-score-pill) {
+    display: flex; align-items: center; gap: 0.3rem;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 999px; padding: 0.3rem 0.65rem;
+    font-size: 0.7rem; color: var(--text-primary, #e2e8f0);
+    white-space: nowrap; flex-shrink: 0;
+  }
+  :global(.ev-score-pill span) {
+    color: var(--text-muted, #64748b);
   }
 </style>
