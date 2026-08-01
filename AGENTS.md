@@ -250,9 +250,14 @@ para sobrevivir recargas de página/HMR:
 **GOTCHAS**:
 - Todos estos comandos deben estar en `src-tauri/permissions/local-commands.toml`
   (`commands.allow`) o `invoke` falla en runtime.
-- En **dev Android el HMR de Vite está deshabilitado** (`vite.config.ts`: si
-  `TAURI_ENV_PLATFORM === 'android'` → `hmr: false`). El WebSocket de HMR se caía al
-  abrir el navegador y recargaba la página, matando el `invoke` pendiente.
+- En **dev Android el HMR de Vite está ACTIVO** (`vite.config.ts`: `server.hmr` con
+  `protocol: 'ws'`, `port: 1421`, igual en desktop y Android). Antes estaba deshabilitado
+  (`hmr: false`) porque el WebSocket de HMR se caía al abrir el navegador del sistema durante
+  el OAuth y recargaba la página, matando el `invoke` pendiente; ese problema ya no existe.
+  Para que el HMR funcione en el dispositivo, la app debe cargar el dev server desde una IP
+  alcanzable (emulador `10.0.2.2` o IP LAN en dispositivo físico): usar
+  `npm run dev:android:hmr` / `npm run dev:android:device` (`scripts/android-hmr.mjs`, que
+  setea `TAURI_DEV_HOST`), no `npm run dev:android` (usa adb reverse solo para el puerto 1420).
 - Los `println!("[OAuth] ...")` de Rust son los logs de depuración del flujo (van a
   stdout/logcat, no a la consola del navegador).
 - `GoogleDriveBackup.svelte` usa el comando antiguo `gd_start_oauth_server` (otro flujo).
