@@ -5,6 +5,7 @@
   import * as XLSX from "xlsx";
   import { syncService } from "../lib/syncService";
   import { onDataChange } from "../lib/autoSync";
+  import { registerBackHandler } from "../lib/androidBack";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
   import SearchInput from "./SearchInput.svelte";
@@ -67,6 +68,12 @@
 
   let isModalOpen = $state(false);
   let isEditing = $state(false);
+
+  $effect(() => {
+    if (isModalOpen) {
+      return registerBackHandler(() => { isModalOpen = false; return true; });
+    }
+  });
   let searchTerm = $state("");
   let isMobile = $state(false);
   let viewMode = $state(localStorage.getItem('estudiantes-view-mode') || (isMobile ? 'list' : 'grid') as 'card' | 'list' | 'grid');

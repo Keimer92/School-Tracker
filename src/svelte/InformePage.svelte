@@ -8,6 +8,7 @@
   import jsPDF from "jspdf";
   import autoTable from "jspdf-autotable";
   import { getLocalDateISOString } from "../lib/dateUtils";
+  import { registerBackHandler } from "../lib/androidBack";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
   import FilterActions from "./FilterActions.svelte";
@@ -59,6 +60,12 @@
 
   let showSummaryModal = $state<{ show: boolean; type: string; stats: { total: number; m: number; f: number } | null }>({ show: false, type: "", stats: null });
   let selectedStudentDetail: AsistenciaReporteItem | null = $state(null);
+
+  $effect(() => {
+    if (selectedStudentDetail) {
+      return registerBackHandler(() => { selectedStudentDetail = null; return true; });
+    }
+  });
   let printHtml: string | null = $state(null);
 
   let colegioNombre = $derived(colegios.find(c => c.id === selectedColegio)?.nombre || "");

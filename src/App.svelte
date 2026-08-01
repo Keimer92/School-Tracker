@@ -2,6 +2,8 @@
   import { onMount, onDestroy } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen, emit } from "@tauri-apps/api/event";
+  import { onBackButtonPress } from "@tauri-apps/api/app";
+  import { handleBack, isBackAuthInProgress, setBackAuthInProgress } from "./lib/androidBack";
   import { syncService } from "./lib/syncService";
   import AsistenciaPage from "./svelte/AsistenciaPage.svelte";
   import InformePage from "./svelte/InformePage.svelte";
@@ -21,6 +23,7 @@
   let initialized = $state<boolean | null>(null);
   let isMobile = $state(false);
   let activeTab = $state<Tab>("dashboard");
+  let tabHistory = $state<Tab[]>([]);
   let visitedTabs = $state<Set<Tab>>(new Set(["dashboard", "notas", "reportes", "estudiantes", "evaluaciones", "globales", "ajustes", "asistencia", "informe", "cloud"]));
   let sidebarWidth = $state(Math.min(Math.max(220, Math.floor(window.innerWidth * 0.16)), 260));
   let drawerOpen = $state(false);
@@ -69,12 +72,36 @@
     localStorage.setItem("sidebar-width", String(val));
   }
 
-  function handleTabChange(tab: Tab) {
+  function setActiveTab(tab: Tab) {
     activeTab = tab;
     visitedTabs.add(tab);
     localStorage.setItem("active-tab", tab);
     localStorage.setItem("visited-tabs", JSON.stringify(Array.from(visitedTabs)));
+  }
+
+  function handleTabChange(tab: Tab) {
+    if (tab !== activeTab) tabHistory.push(activeTab);
+    setActiveTab(tab);
     if (isMobile) drawerOpen = false;
+  }
+
+  async function goBack() {
+    if (handleBack()) return;
+    if (isBackAuthInProgress()) {
+      setBackAuthInProgress(false);
+      try { await invoke("gd_cancel_oauth"); } catch {}
+      return;
+    }
+    if (drawerOpen) {
+      closeDrawer();
+      return;
+    }
+    if (tabHistory.length > 0) {
+      const prev = tabHistory.pop()!;
+      setActiveTab(prev);
+      return;
+    }
+    try { await invoke("minimize_app"); } catch {}
   }
 
   function showToast(message: string, type: "success" | "error" | "info" = "success") {
@@ -125,6 +152,10 @@
     window.addEventListener('keydown', handleKeyDown);
     onDestroy(() => window.removeEventListener('keydown', handleKeyDown));
     checkMobile();
+
+    // Back button Android: enruta el back al JS (AppPlugin no cierra la app).
+    const backListener = await onBackButtonPress(() => { goBack(); });
+    unlisten.push(() => backListener.unregister());
 
     // Check if app has been initialized (welcomed)
     const init = await invoke('is_app_initialized');

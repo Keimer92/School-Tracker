@@ -4,6 +4,7 @@
   import { emit, listen } from "@tauri-apps/api/event";
   import { syncService } from "../lib/syncService";
   import { onDataChange } from "../lib/autoSync";
+  import { registerBackHandler } from "../lib/androidBack";
   import { getLocalDateISOString } from "../lib/dateUtils";
   import { ask } from "@tauri-apps/plugin-dialog";
   import FilterContainer from "./FilterContainer.svelte";
@@ -39,6 +40,12 @@
   let pressingStatus: string | null = $state(null);
   let showSummaryModal = $state<{ show: boolean; type: string; stats: { total: number; m: number; f: number } | null }>({ show: false, type: "", stats: null });
   let selectedStudentDetail: EstudianteAsistencia | null = $state(null);
+
+  $effect(() => {
+    if (selectedStudentDetail) {
+      return registerBackHandler(() => { selectedStudentDetail = null; return true; });
+    }
+  });
   let showClearConfirm = $state(false);
   let expandedObs: Record<number, boolean> = $state({});
   let obsModalStudent: EstudianteAsistencia | null = $state(null);

@@ -423,6 +423,30 @@ async fn set_orientation(_app_handle: tauri::AppHandle, _orientation: String) ->
 }
 
 #[tauri::command]
+async fn minimize_app(_app_handle: tauri::AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        unsafe {
+            let ctx = ndk_context::android_context();
+            let vm_ptr = ctx.vm();
+            let activity_ptr = ctx.context();
+            let vm = jni::JavaVM::from_raw(vm_ptr as *mut _).map_err(|e| e.to_string())?;
+            let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+            let activity = jni::objects::JObject::from_raw(activity_ptr as *mut _);
+            let _ = env
+                .call_method(
+                    activity,
+                    "moveTaskToBack",
+                    "(Z)V",
+                    &[jni::objects::JValue::Bool(true)],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
 async fn print_pdf(_app_handle: tauri::AppHandle, _path: String) -> Result<(), String> {
     #[cfg(target_os = "android")]
     {
@@ -1253,6 +1277,7 @@ pub fn run() {
             get_colegio_dias_asistencia,
             save_colegio_dias_asistencia,
             set_orientation,
+            minimize_app,
             check_category_dependencies,
             delete_category_force,
             delete_category_force_batch,

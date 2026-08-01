@@ -257,6 +257,76 @@ para sobrevivir recargas de página/HMR:
   stdout/logcat, no a la consola del navegador).
 - `GoogleDriveBackup.svelte` usa el comando antiguo `gd_start_oauth_server` (otro flujo).
 
+## Botón "atrás" en Android (back navigation)
+
+### Por qué el back cierra la app (investigación)
+
+El comportamiento por defecto de Tauri en Android **cierra la app** cuando el back no
+encuentra historial de navegación:
+
+1. La app es una **SPA**: los tabs cambian con estado Svelte (`activeTab` en
+   `App.svelte`) y CSS `display`, **sin `history.pushState`**. El WebView solo tiene
+   1 entrada de historial (la página inicial).
+2. El SDK **tauri-android** (Kotlin) registra un `OnBackPressedCallback` en
+   `AppPlugin.kt` (`tauri-2.x.x/mobile/android/src/main/java/app/tauri/AppPlugin.kt`):
+   - Si `webView.canGoBack()` → `goBack()` (navega atrás en el historial).
+   - Si **no hay historial** → `activity.onBackPressed()` → `finish()` → **la app se cierra**.
+   - Si hay un **listener JS registrado** (`onBackButtonPress`) → enruta el back al JS
+     con payload `{ canGoBack }` y **NO cierra la app**.
+3. `TauriActivity.kt` (generado) sobreescribe `handleBackNavigation = false`, desactivando
+   el fallback de `WryActivity` (que sí revisaba `canGoBack()`).
+4. Conclusión: sin listener JS ni historial, todo back cae en `finish()` → la app se sale.
+
+### Solución implementada (referencia para apps futuras)
+
+Usar la API oficial **`onBackButtonPress`** de `@tauri-apps/api/app` (disponible desde
+`@tauri-apps/api@2.9.0` y `tauri >= 2.9.0`; este repo usa api 2.11.1 / tauri 2.11.5).
+Al registrarla, `AppPlugin` enruta el back al JS y **nunca cierra la app por sí mismo**
+(`handleOnBackPressed` no llama a `super`). El cierre/minimizado se decide en JS.
+
+**Arquitectura del manejo de back (JS):**
+1. `src/lib/androidBack.ts` — registro de handlers por página (pila LIFO):
+   - `registerBackHandler(fn: () => boolean): () => void` → cada página registra un
+     handler mientras tiene un modal/estado interno abierto (devuelve `true` si lo consumió).
+   - `handleBack(): boolean` → ejecuta el handler más interno.
+2. `App.svelte`:
+   - `tabHistory: Tab[]` — pila de tabs visitados (se pushea el tab anterior en
+     `handleTabChange`).
+   - `goBack()`: 1) `handleBack()` (modales internos) → si `true`, listo;
+     2) si el drawer móvil está abierto → cerrarlo;
+     3) si `tabHistory` no está vacío → pop y cambiar a ese tab;
+     4) si no → **minimizar a segundo plano** (`invoke("minimize_app")`).
+   - `onBackButtonPress` registrado en `onMount`, `unregister()` en `onDestroy`.
+
+**Minimizar a segundo plano (`minimize_app`):**
+- No hay comando JS oficial para `finish()`/`minimize` (el `plugin:app|exit` del SDK
+  Kotlin **no se expone como comando Rust** — `extend_api` rechaza comandos no
+  declarados). Se añade un comando Rust propio:
+  `#[tauri::command] async fn minimize_app(_app_handle: tauri::AppHandle)` que en Android
+  llama `activity.moveTaskToBack(true)` vía JNI (`ndk_context` + `jni`, patrón idéntico a
+  `set_orientation` en `lib.rs`). En desktop es no-op. Registrado en `generate_handler!`
+  y en `permissions/local-commands.toml`.
+- Para **salir** de verdad en Android: `app.exit(0)` en Rust termina el proceso
+  (`ControlFlow::ExitWithCode` → `std::process::exit` en tao android).
+
+**Integración con modales internos (por página):**
+Cada página usa `$effect` (Svelte 5) que registra el handler mientras el modal está abierto:
+- `EstudiantesPage.svelte` → `isModalOpen` (form de estudiante)
+- `AsistenciaPage.svelte` / `InformePage.svelte` → `selectedStudentDetail` (detalle)
+- `CloudPage.svelte` → `showConfirm`
+- `GoogleDriveBackup.svelte` es legacy (no se monta en `App.svelte`); no se toca.
+
+**GOTCHAS:**
+- `onBackButtonPress` se puede registrar en desktop: el listener nunca se dispara y no
+  rompe nada (`plugin:app|register_listener` es comando core, sin permiso extra).
+- El back con listener registrado **consume el evento**: por eso el caso raíz (minimizar)
+  se maneja explícitamente en JS y no se deja al default.
+- Durante el OAuth en Android la app queda en segundo plano (navegador del sistema), así
+  que el back no interfiere; si se desea, `goBack()` puede llamar `gd_cancel_oauth` si
+  hay un flujo activo (`isAuthLoading`).
+- El payload `{ canGoBack }` del evento se ignora: el historial del WebView no se usa
+  (SPA); la navegación se controla 100% con `tabHistory`.
+
 ## Esquema de Base de Datos y Datos Iniciales
 
 ### Inicialización

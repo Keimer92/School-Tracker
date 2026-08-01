@@ -5,6 +5,7 @@
   import { syncService, syncManager, type SyncStatus } from "../lib/syncService";
   import type { DriveFile } from "../lib/driveSyncService";
   import { driveSyncService } from "../lib/driveSyncService";
+  import { registerBackHandler, setBackAuthInProgress } from "../lib/androidBack";
 
   const DEFAULT_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
   const STORAGE_KEY = 'schooltracker-google-drive-settings';
@@ -42,6 +43,12 @@
   const isConnected = $derived(!!settings.accessToken);
 
   $effect(() => { if (settings.googleUserProfilePic) imgError = false; });
+
+  $effect(() => {
+    if (showConfirm) {
+      return registerBackHandler(() => { showConfirm = false; return true; });
+    }
+  });
 
   function loadSettings() {
     try {
@@ -93,6 +100,7 @@
   async function initGoogleAuth() {
     if (!settings.clientId) { await emit("show-toast", { message: "❌ No hay Client ID configurado", type: "error" }); return; }
     isAuthLoading = true;
+    setBackAuthInProgress(true);
     try {
       const port = 51733;
       const redirectUri = `http://localhost:${port}/callback`;
@@ -102,7 +110,7 @@
     } catch (e) {
       console.error('Google Auth failed:', e);
       await emit("show-toast", { message: "❌ Error al autenticar con Google: " + e, type: "error" });
-    } finally { isAuthLoading = false; }
+    } finally { isAuthLoading = false; setBackAuthInProgress(false); }
   }
 
   async function exchangeCode(code: string, redirectUri: string) {
@@ -159,6 +167,7 @@
   }
 
   async function cancelAuth() {
+    setBackAuthInProgress(false);
     try { await invoke("gd_cancel_oauth"); } catch {}
     isAuthLoading = false;
     await emit("show-toast", { message: "Autenticación cancelada", type: "info" });
@@ -227,10 +236,12 @@
         const hasCode = await invoke<boolean>("gd_has_pending_oauth_code");
         if (hasCode) {
           isAuthLoading = true;
+          setBackAuthInProgress(true);
           const code = await invoke<string>("gd_wait_oauth_code", { timeoutSecs: 10 });
           const port = 51733;
           if (code) await exchangeCode(code, `http://localhost:${port}/callback`);
           isAuthLoading = false;
+          setBackAuthInProgress(false);
         }
       } catch {}
     }

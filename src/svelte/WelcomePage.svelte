@@ -2,6 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { emit } from "@tauri-apps/api/event";
   import { syncService } from "../lib/syncService";
+  import { setBackAuthInProgress } from "../lib/androidBack";
 
   let view: 'landing' | 'cloud' | 'wizard' = $state('landing');
   let step = $state(1);
@@ -26,6 +27,7 @@
   ];
 
   function cancelAuth() {
+    setBackAuthInProgress(false);
     invoke("gd_cancel_oauth").catch(() => {});
     loading = false;
     loadingMessage = '';
@@ -54,6 +56,7 @@
     loading = true;
     loadingMessage = 'Conectando con Google Drive...';
     errorMsg = '';
+    setBackAuthInProgress(true);
     try {
       const port = 51733;
       const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
@@ -111,6 +114,7 @@
         emit('welcome-complete');
       } else {
         errorMsg = 'Drive está vacío. Se usarán los datos por defecto.';
+        setBackAuthInProgress(false);
         setTimeout(() => { loading = false; loadingMessage = ''; goToWizard(); }, 1500);
         return;
       }
@@ -124,6 +128,7 @@
     }
     loading = false;
     loadingMessage = '';
+    setBackAuthInProgress(false);
   }
 
   async function handleWizardComplete() {
