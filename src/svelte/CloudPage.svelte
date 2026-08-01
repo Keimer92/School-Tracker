@@ -41,6 +41,7 @@
   let confirmAction: (() => Promise<void>) | null = $state(null);
 
   const isConnected = $derived(!!settings.accessToken);
+  const isAndroid = /Android/i.test(navigator.userAgent);
 
   $effect(() => { if (settings.googleUserProfilePic) imgError = false; });
 
@@ -315,11 +316,20 @@
               {/if}
             </div>
           </div>
-          <div style="display: flex; gap: 6px;">
-            <button onclick={testConnection} disabled={isTesting} style="padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #94a3b8; cursor: pointer; font-size: 0.7rem;">{isTesting ? '...' : 'Probar'}</button>
-            <button onclick={disconnect} style="padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); color: #f87171; cursor: pointer; font-size: 0.7rem;">Desconectar</button>
-          </div>
+          {#if !isAndroid}
+            <div style="display: flex; gap: 6px;">
+              <button onclick={testConnection} disabled={isTesting} style="padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #94a3b8; cursor: pointer; font-size: 0.7rem;">{isTesting ? '...' : 'Probar'}</button>
+              <button onclick={disconnect} style="padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); color: #f87171; cursor: pointer; font-size: 0.7rem;">Desconectar</button>
+            </div>
+          {/if}
         </div>
+
+        {#if isAndroid}
+          <div style="display: flex; gap: 0.5rem; margin: -0.5rem 0 1.25rem;">
+            <button onclick={testConnection} disabled={isTesting} style="flex: 1; padding: 0.55rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); color: #94a3b8; cursor: pointer; font-size: 0.85rem;">{isTesting ? 'Probando...' : 'Probar'}</button>
+            <button onclick={disconnect} style="flex: 1; padding: 0.55rem; border-radius: 10px; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); color: #f87171; cursor: pointer; font-size: 0.85rem;">Desconectar</button>
+          </div>
+        {/if}
 
         {#if syncStatus.message}
           <div style="margin-bottom: 1rem; padding: 8px 12px; border-radius: 8px; font-size: 0.75rem; border-left: 3px solid {syncStatus.status === 'error' ? '#ef4444' : 'var(--primary-color)'}; background: rgba(0,0,0,0.2); color: {syncStatus.status === 'error' ? '#fca5a5' : 'var(--text-secondary)'};">
