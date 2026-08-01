@@ -605,22 +605,22 @@ async function fetchData(preserveFilters = false) {
   </FilterContainer>
 
   {#if filteredStudents.length > 0}
-    <div class="student-summary-row" style="display: flex; gap: 0.5rem; margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid rgba(255, 255, 255, 0.1); width: 100%; {isMobile ? 'flex-wrap: wrap; gap: 0.4rem;' : ''}">
-      <div style="flex: 1; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: {isMobile ? '0.3rem 0.3rem' : '0.5rem'}; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; {isMobile ? 'min-height: 40px;' : 'min-height: 50px;'} border-left: 3px solid #a855f7;" title="Total de estudiantes en todos los colegios">
-        <span style="font-size: 0.65rem; color: #94a3b8; text-transform: uppercase; font-weight: bold; margin-bottom: 2px;">General</span>
-        <span style="font-size: 1.1rem; font-weight: 800; line-height: 1; color: #a855f7;">{students.length}</span>
+    <div class="student-summary-row" style="display: flex; gap: 0.5rem; margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid rgba(255, 255, 255, 0.1); width: 100%; {isMobile ? 'gap: 0.4rem;' : ''}">
+      <div style="flex: 1; min-width: 0; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: {isMobile ? '0.3rem 0.3rem' : '0.5rem'}; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; {isMobile ? 'min-height: 40px;' : 'min-height: 50px;'} border-left: 3px solid #a855f7;" title="Total de estudiantes en todos los colegios">
+        <span style="font-size: {isMobile ? '0.5rem' : '0.65rem'}; color: #94a3b8; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; white-space: nowrap;">General</span>
+        <span style="font-size: {isMobile ? '0.95rem' : '1.1rem'}; font-weight: 800; line-height: 1; color: #a855f7;">{students.length}</span>
       </div>
-      <div style="flex: 1; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: {isMobile ? '0.3rem 0.3rem' : '0.5rem'}; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; {isMobile ? 'min-height: 40px;' : 'min-height: 50px;'} border-left: 3px solid #06b6d4;" title="Total de estudiantes con los filtros actuales">
-        <span style="font-size: 0.65rem; color: #94a3b8; text-transform: uppercase; font-weight: bold; margin-bottom: 2px;">Total</span>
-        <span style="font-size: 1.1rem; font-weight: 800; line-height: 1; color: #06b6d4;">{stats.total}</span>
+      <div style="flex: 1; min-width: 0; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: {isMobile ? '0.3rem 0.3rem' : '0.5rem'}; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; {isMobile ? 'min-height: 40px;' : 'min-height: 50px;'} border-left: 3px solid #06b6d4;" title="Total de estudiantes con los filtros actuales">
+        <span style="font-size: {isMobile ? '0.5rem' : '0.65rem'}; color: #94a3b8; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; white-space: nowrap;">Total</span>
+        <span style="font-size: {isMobile ? '0.95rem' : '1.1rem'}; font-weight: 800; line-height: 1; color: #06b6d4;">{stats.total}</span>
       </div>
-      <div style="flex: 1; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: {isMobile ? '0.3rem 0.3rem' : '0.5rem'}; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; {isMobile ? 'min-height: 40px;' : 'min-height: 50px;'} border-left: 3px solid #f472b6;" title="Cantidad de estudiantes femenino con los filtros actuales">
-        <span style="font-size: 0.65rem; color: #94a3b8; text-transform: uppercase; font-weight: bold; margin-bottom: 2px;">Femenino</span>
-        <span style="font-size: 1.1rem; font-weight: 800; line-height: 1; color: #f472b6;">{stats.f}</span>
+      <div style="flex: 1; min-width: 0; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: {isMobile ? '0.3rem 0.3rem' : '0.5rem'}; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; {isMobile ? 'min-height: 40px;' : 'min-height: 50px;'} border-left: 3px solid #f472b6;" title="Cantidad de estudiantes femenino con los filtros actuales">
+        <span style="font-size: {isMobile ? '0.5rem' : '0.65rem'}; color: #94a3b8; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; white-space: nowrap;">Femenino</span>
+        <span style="font-size: {isMobile ? '0.95rem' : '1.1rem'}; font-weight: 800; line-height: 1; color: #f472b6;">{stats.f}</span>
       </div>
-      <div style="flex: 1; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: {isMobile ? '0.3rem 0.3rem' : '0.5rem'}; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; {isMobile ? 'min-height: 40px;' : 'min-height: 50px;'} border-left: 3px solid #60a5fa;" title="Cantidad de estudiantes masculino con los filtros actuales">
-        <span style="font-size: 0.65rem; color: #94a3b8; text-transform: uppercase; font-weight: bold; margin-bottom: 2px;">Masculino</span>
-        <span style="font-size: 1.1rem; font-weight: 800; line-height: 1; color: #60a5fa;">{stats.m}</span>
+      <div style="flex: 1; min-width: 0; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: {isMobile ? '0.3rem 0.3rem' : '0.5rem'}; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; {isMobile ? 'min-height: 40px;' : 'min-height: 50px;'} border-left: 3px solid #60a5fa;" title="Cantidad de estudiantes masculino con los filtros actuales">
+        <span style="font-size: {isMobile ? '0.5rem' : '0.65rem'}; color: #94a3b8; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; white-space: nowrap;">Masculino</span>
+        <span style="font-size: {isMobile ? '0.95rem' : '1.1rem'}; font-weight: 800; line-height: 1; color: #60a5fa;">{stats.m}</span>
       </div>
     </div>
   {/if}
