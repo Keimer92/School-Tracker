@@ -24,7 +24,6 @@
   let isMobile = $state(false);
   let isAndroid = $state(false);
   let activeTab = $state<Tab>("dashboard");
-  let tabHistory = $state<Tab[]>([]);
   let visitedTabs = $state<Set<Tab>>(new Set(["dashboard", "notas", "reportes", "estudiantes", "evaluaciones", "globales", "ajustes", "asistencia", "informe", "cloud"]));
   let sidebarWidth = $state(Math.min(Math.max(220, Math.floor(window.innerWidth * 0.16)), 260));
   let drawerOpen = $state(false);
@@ -82,7 +81,6 @@
   }
 
   function handleTabChange(tab: Tab) {
-    if (tab !== activeTab) tabHistory.push(activeTab);
     setActiveTab(tab);
     if (isMobile) drawerOpen = false;
   }
@@ -98,12 +96,7 @@
       closeDrawer();
       return;
     }
-    if (tabHistory.length > 0) {
-      const prev = tabHistory.pop()!;
-      setActiveTab(prev);
-      return;
-    }
-    try { await invoke("minimize_app"); } catch {}
+    showToast("No hay más páginas atrás", "info");
   }
 
   function showToast(message: string, type: "success" | "error" | "info" = "success") {

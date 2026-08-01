@@ -61,7 +61,6 @@ commands.allow = [
     "get_colegio_dias_asistencia",
     "save_colegio_dias_asistencia",
     "set_orientation",
-    "minimize_app",
     "check_category_dependencies",
     "delete_category_force",
     "get_indicadores_all",
