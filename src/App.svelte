@@ -204,11 +204,11 @@
         showToast(event.payload.message, event.payload.type);
       }).then(u => unlisten.push(u));
 
-      // Google Drive sync — push primero (sube cambios offline), luego pull
+      // Google Drive sync — la lógica de decisión (push si hay cambios locales,
+      // pull solo si la nube es más reciente) vive en syncAllSilent.
       const driveSettings = localStorage.getItem('schooltracker-google-drive-settings');
       if (driveSettings) {
-        syncService.pushAllSilent();
-        syncService.pullAllSilent();
+        syncService.syncAllSilent();
         syncService.ensurePeriodicSync();
       }
       invoke("seed_defaults_now");
@@ -219,8 +219,7 @@
       initialized = true;
       const driveSettings = localStorage.getItem('schooltracker-google-drive-settings');
       if (driveSettings) {
-        syncService.pushAllSilent();
-        syncService.pullAllSilent();
+        syncService.syncAllSilent();
         syncService.ensurePeriodicSync();
       }
     });
