@@ -182,6 +182,25 @@ function fmtTime() {
   return new Date().toLocaleTimeString();
 }
 
+function toSqliteUtc(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString().replace('T', ' ').slice(0, 19);
+}
+
+async function hasLocalChanges(): Promise<boolean> {
+  if (hasDirtyTables()) return true;
+  const since = toSqliteUtc(localStorage.getItem('drive_last_sync_time'));
+  if (!since) return false;
+  try {
+    return await invoke<boolean>('has_local_changes', { since });
+  } catch (e) {
+    console.error('[DriveSync] Error chequeando cambios locales:', e);
+    return true;
+  }
+}
+
 export const driveSyncService = {
   _periodicTimer: null as ReturnType<typeof setInterval> | null,
   _syncLock: false,
@@ -198,8 +217,19 @@ export const driveSyncService = {
     }
     (driveSyncService as any)._syncLock = true;
     try {
-      await driveSyncService.pullAll();
-      await driveSyncService.pushAll();
+      const token = await getValidToken();
+      if (token && navigator.onLine) {
+        const localChanges = await hasLocalChanges();
+        const files = await listSyncFiles(token);
+        const newest = files.length > 0 ? files.reduce((a, b) => a.createdTime >= b.createdTime ? a : b) : null;
+        const lastSync = localStorage.getItem('drive_last_sync_time');
+        const remoteNewer = !!newest && (!lastSync || newest.createdTime > lastSync);
+        if (localChanges) {
+          await driveSyncService.pushAll();
+        } else if (remoteNewer) {
+          await driveSyncService.pullAll();
+        }
+      }
       syncManager.setState({
         lastSync: now(),
         lastSyncDetails: `Sync completo (${fmtTime()})`,
@@ -260,6 +290,7 @@ export const driveSyncService = {
         try { await invoke('gd_delete_backup', { path: localBackupPath }); } catch (_) {}
         await deleteOldSyncVersions(token);
         syncManager.setState({ lastUpload: now() });
+        markAllClean();
       } catch (e) {
         try { await invoke('gd_delete_backup', { path: localBackupPath }); } catch (_) {}
         throw e;
@@ -320,6 +351,7 @@ export const driveSyncService = {
       await invoke('gd_create_backup', {});
       await invoke('gd_write_file_base64', { path: dbPath, contentBase64: base64 });
       syncManager.setState({ lastDownload: now() });
+      markAllClean();
       console.log('[DriveSync] Archivo descargado y restaurado correctamente');
     })(), 'descargar desde Google Drive');
   },
@@ -330,6 +362,14 @@ export const driveSyncService = {
     } catch (e) {
       console.warn('[DriveSync] Pull Silent error:', e);
     }
+  },
+
+  pullAllGuarded: async (): Promise<{ pulled: boolean; blocked: boolean }> => {
+    if (await hasLocalChanges()) {
+      return { pulled: false, blocked: true };
+    }
+    await driveSyncService.pullAll();
+    return { pulled: true, blocked: false };
   },
 
   ensurePeriodicSync: () => {

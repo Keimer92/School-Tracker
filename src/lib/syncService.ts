@@ -6,12 +6,12 @@ export { syncManager };
 export const syncService = driveSyncService;
 
 export const forcePullAsistencia = async (fecha: string, _gradoId: number, _seccionId: number): Promise<void> => {
-  await syncService.pullAllSilent();
+  await syncService.syncAllSilent();
 };
 
 export const forcePullNotas = async (
   _anoLectivoId: number, _corteId: number, _colegioId: number,
   _gradoId: number, _seccionId: number, _asignaturaId: number
 ): Promise<void> => {
-  await syncService.pullAllSilent();
+  await syncService.syncAllSilent();
 };

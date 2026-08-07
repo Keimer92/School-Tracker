@@ -213,7 +213,10 @@
 
   async function requestRestore(file: DriveFile) {
     confirm(`¿Restaurar "${file.name}"?\n\nSe sobrescribirá la base de datos actual.\nEsta acción no se puede deshacer.`, "⚠️ Restaurar Respaldo", 'danger', async () => {
-      await syncService.pullAll();
+      const res = await syncService.pullAllGuarded();
+      if (res.blocked) {
+        await emit("show-toast", { message: "⚠️ Tienes cambios locales sin sincronizar. Sube primero.", type: "warning" });
+      }
     });
   }
 
@@ -343,7 +346,7 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             <span style="color: #22c55e; font-weight: 600; font-size: 0.85rem;">Subir a Drive</span>
           </button>
-          <button onclick={async () => { try { await syncService.pullAll(); } catch {} }} disabled={syncStatus.status === 'syncing'} style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.12) 0%, rgba(var(--primary-rgb), 0.04) 100%); border: 1px solid rgba(var(--primary-rgb), 0.2); border-radius: 12px; cursor: pointer; opacity: {syncStatus.status === 'syncing' ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;">
+          <button onclick={async () => { try { const res = await syncService.pullAllGuarded(); if (res.blocked) { await emit("show-toast", { message: "⚠️ Tienes cambios locales sin sincronizar. Sube primero.", type: "warning" }); } else { await refreshFiles(); } } catch {} }} disabled={syncStatus.status === 'syncing'} style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.12) 0%, rgba(var(--primary-rgb), 0.04) 100%); border: 1px solid rgba(var(--primary-rgb), 0.2); border-radius: 12px; cursor: pointer; opacity: {syncStatus.status === 'syncing' ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             <span style="color: var(--primary-color); font-weight: 600; font-size: 0.85rem;">Bajar de Drive</span>
           </button>

@@ -378,18 +378,39 @@ async function fetchData(preserveFilters = false) {
   }
 
   $effect(() => {
-    if (isModalOpen) {
-      invoke<CategoryItem[]>("get_grados").then(data => modalGrados = data).catch(() => modalGrados = []);
-      invoke<CategoryItem[]>("get_secciones").then(data => modalSecciones = data).catch(() => modalSecciones = []);
-    } else { modalSecciones = []; }
+    if (!isModalOpen) { modalGrados = []; modalSecciones = []; return; }
+    if (formData.colegioId && formData.anoLectivoId) {
+      fetchGrados(formData.colegioId, formData.anoLectivoId, true).then(loaded => {
+        if (loaded.length === 0) {
+          if (formData.gradoId !== 0 || formData.seccionId !== 0) formData = { ...formData, gradoId: 0, seccionId: 0 };
+          return;
+        }
+        if (!formData.gradoId || !loaded.some(g => g.id === formData.gradoId)) {
+          formData = { ...formData, gradoId: loaded[0].id, seccionId: 0 };
+        }
+      });
+    } else {
+      modalGrados = [];
+      if (formData.gradoId !== 0 || formData.seccionId !== 0) formData = { ...formData, gradoId: 0, seccionId: 0 };
+    }
   });
 
   $effect(() => {
-    if (isModalOpen && !isEditing && modalGrados.length > 0 && formData.gradoId === 0) formData = { ...formData, gradoId: modalGrados[0].id };
-  });
-
-  $effect(() => {
-    if (isModalOpen && !isEditing && modalSecciones.length > 0 && formData.seccionId === 0) formData = { ...formData, seccionId: modalSecciones[0].id };
+    if (!isModalOpen) return;
+    if (formData.gradoId && formData.colegioId && formData.anoLectivoId) {
+      fetchSecciones(formData.gradoId, formData.colegioId, formData.anoLectivoId, true).then(loaded => {
+        if (loaded.length === 0) {
+          if (formData.seccionId !== 0) formData = { ...formData, seccionId: 0 };
+          return;
+        }
+        if (!formData.seccionId || !loaded.some(s => s.id === formData.seccionId)) {
+          formData = { ...formData, seccionId: loaded[0].id };
+        }
+      });
+    } else {
+      modalSecciones = [];
+      if (formData.seccionId !== 0) formData = { ...formData, seccionId: 0 };
+    }
   });
 
   function openAddModal() {
@@ -398,7 +419,13 @@ async function fetchData(preserveFilters = false) {
     const activeYearId = activeYear?.id ?? 0;
     const activeColegio = colegios.find(c => c.activo) || colegios[0];
     const activeColegioId = activeColegio?.id ?? 0;
-    formData = { ...emptyStudent, anoLectivoId: activeYearId, colegioId: activeColegioId, gradoId: 0, seccionId: 0 };
+    formData = {
+      ...emptyStudent,
+      anoLectivoId: filters.anoLectivoId || activeYearId,
+      colegioId: filters.colegioId || activeColegioId,
+      gradoId: filters.gradoId || 0,
+      seccionId: filters.seccionId || 0,
+    };
     modalGrados = []; modalSecciones = [];
     isModalOpen = true;
   }
@@ -407,6 +434,7 @@ async function fetchData(preserveFilters = false) {
     isEditing = true;
     formData = { ...student, nombre: toTitleCase(student.nombre) };
     photoPreview = student.foto || null;
+    modalGrados = []; modalSecciones = [];
     isModalOpen = true;
   }
 

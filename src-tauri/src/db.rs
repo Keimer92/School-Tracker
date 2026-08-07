@@ -434,6 +434,13 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
                 [],
             )
             .map_err(|e| format!("Error agregando updated_at a {table}: {e}"))?;
+            // Backfill de una sola vez: las filas existentes quedan con NULL y el
+            // chequeo de cambios locales (`has_local_changes`) no las detectaría.
+            conn.execute(
+                &format!("UPDATE {table} SET updated_at = datetime('now') WHERE updated_at IS NULL"),
+                [],
+            )
+            .map_err(|e| format!("Error actualizando updated_at en {table}: {e}"))?;
             println!("✅ [DB] Columna updated_at agregada a {table}");
         }
     }

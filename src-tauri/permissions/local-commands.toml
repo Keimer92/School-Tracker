@@ -117,6 +117,7 @@ commands.allow = [
     "seed_defaults_now",
     "get_schema_sql",
     "get_all_local_data_json",
+    "has_local_changes",
     "create_folder_and_save_file",
     "supabase_execute_sql",
     "get_dashboard_stats",

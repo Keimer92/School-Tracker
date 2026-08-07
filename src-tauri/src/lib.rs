@@ -141,6 +141,33 @@ async fn get_all_local_data_since(state: tauri::State<'_, DbState>, since: Strin
     serde_json::to_string(&result).map_err(|e| format!("Error serializando: {}", e))
 }
 
+/// Devuelve true si alguna de las tablas sincronizables tiene filas modificadas
+/// después de `since` (formato SQLite UTC: 'YYYY-MM-DD HH:MM:SS').
+/// Se usa para decidir si hacer pull o push sin perder cambios locales.
+#[tauri::command]
+fn has_local_changes(state: tauri::State<'_, DbState>, since: String) -> Result<bool, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+
+    let table_names = [
+        "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
+        "grado_asignatura", "colegio_asignatura", "indicador", "criterio",
+        "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia",
+        "asistencia", "nota",
+    ];
+
+    for table in &table_names {
+        let query = format!("SELECT EXISTS(SELECT 1 FROM {} WHERE updated_at IS NOT NULL AND updated_at > ?)", table);
+        let changed: bool = conn
+            .query_row(&query, [&since as &dyn rusqlite::types::ToSql], |row| row.get(0))
+            .map_err(|e| format!("Error consultando {}: {}", table, e))?;
+        if changed {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}
+
 #[allow(dead_code)]
 fn get_all_local_data(
     conn: &mut rusqlite::Connection,
@@ -1277,6 +1304,7 @@ pub fn run() {
             get_schema_sql,
             get_all_local_data_json,
             get_all_local_data_since,
+            has_local_changes,
             // Nuevas funciones para tablas con claves compuestas
             get_pending_deletions_asistencia,
             remove_pending_deletion_asistencia,
