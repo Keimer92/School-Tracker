@@ -5,8 +5,6 @@
   import { join, tempDir, documentDir } from "@tauri-apps/api/path";
   import { writeFile, mkdir } from "@tauri-apps/plugin-fs";
   import { openUrl } from "@tauri-apps/plugin-opener";
-  import jsPDF from "jspdf";
-  import autoTable from "jspdf-autotable";
   import { getLocalDateISOString } from "../lib/dateUtils";
   import { registerBackHandler } from "../lib/androidBack";
   import FilterContainer from "./FilterContainer.svelte";
@@ -283,6 +281,8 @@
 
   async function exportToPDF() {
     try {
+      const { default: jsPDF } = await import("jspdf");
+      const { default: autoTable } = await import("jspdf-autotable");
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
       const margins = { top: 10, bottom: 10, left: 10, right: 10 };
       doc.setFontSize(16);
@@ -401,6 +401,8 @@
     if (reporteFiltrado.length === 0) { await emit("show-toast", { message: "⚠️ No hay datos para imprimir", type: 'warning' }); return; }
     try {
       await emit("show-toast", { message: "✅ Preparando impresión...", type: 'success' });
+      const { default: jsPDF } = await import("jspdf");
+      const { default: autoTable } = await import("jspdf-autotable");
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
       const margins = { top: 10, bottom: 10, left: 10, right: 10 };
       doc.setFontSize(16);

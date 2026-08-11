@@ -14,20 +14,20 @@ export default defineConfig(async () => ({
     }),
   ],
   build: {
-    target: "es2015",
-    minify: false,
+    target: "es2020",
+    minify: true,
     commonjsOptions: {
       transformMixedEsModules: true,
     },
   },
   esbuild: {
-    target: "es2015",
+    target: "es2020",
     legalComments: "none",
     loader: "tsx",
   },
   optimizeDeps: {
     esbuildOptions: {
-      target: "es2015",
+      target: "es2020",
       define: {
         global: "globalThis",
       },

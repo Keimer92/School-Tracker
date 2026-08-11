@@ -2,7 +2,6 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { emit, listen } from "@tauri-apps/api/event";
-  import * as XLSX from "xlsx";
   import { syncService } from "../lib/syncService";
   import { onDataChange } from "../lib/autoSync";
   import { registerBackHandler } from "../lib/androidBack";
@@ -227,6 +226,7 @@ async function fetchData(preserveFilters = false) {
 
   async function handleImportExcel() {
     try {
+      const XLSX = await import("xlsx");
       const { open } = await import("@tauri-apps/plugin-dialog");
       const { readFile } = await import("@tauri-apps/plugin-fs");
       const selected = await open({ multiple: false, filters: [{ name: "Excel", extensions: ["xlsx", "xls"] }] });
@@ -309,6 +309,7 @@ async function fetchData(preserveFilters = false) {
   }
 
   async function handleDownloadTemplate() {
+    const XLSX = await import("xlsx");
     const wb = XLSX.utils.book_new();
     const headers = ['Nombre', 'Sexo', 'Año Lectivo', 'Colegio', 'Grado', 'Sección', 'Teléfono', 'Dirección', 'Email'];
     const sampleRow = ['Juan Pérez', 'M', '2026', 'San José', '1ro', 'A', '04141234567', 'Calle Principal', 'juan@email.com'];
@@ -776,7 +777,7 @@ async function fetchData(preserveFilters = false) {
     {:else if viewMode === 'list'}
       <div style="display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05);">
         {#each filteredStudents as st, index}
-          <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-bottom: {index < filteredStudents.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none'}; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.08)' : index % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent'}; transition: background 0.15s;">
+          <div style="content-visibility: auto; contain-intrinsic-size: auto 48px; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-bottom: {index < filteredStudents.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none'}; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.08)' : index % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent'}; transition: background 0.15s;">
             <div onclick={(e) => { e.stopPropagation(); toggleSelect(st.id!); }} style="cursor: pointer; width: 18px; height: 18px; border-radius: 3px; border: 2px solid {selectedIds.has(st.id!) ? '#ef4444' : 'rgba(255,255,255,0.2)'}; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.2)' : 'transparent'}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.6rem; color: #ef4444;">{selectedIds.has(st.id!) ? '✓' : ''}</div>
             {#if st.foto}
               <img src={st.foto} alt={st.nombre} style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(56, 189, 248, 0.2); flex-shrink: 0;" />
@@ -796,7 +797,7 @@ async function fetchData(preserveFilters = false) {
       <div style="display: grid; grid-template-columns: {isMobile ? 'repeat(4, 1fr)' : 'repeat(6, 1fr)'}; gap: {isMobile ? '0.6rem' : '0.8rem'}; padding: 0.25rem 0;">
         {#each filteredStudents as st, index}
           <div onclick={() => { if (!selectedIds.has(st.id!)) gridSelectedStudent = st; }}
-            style="display: flex; flex-direction: column; align-items: center; gap: 0.25rem; cursor: pointer; padding: 0.6rem 0.4rem; border-radius: 12px; transition: background 0.2s; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.02)'}; border: 1px solid {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.04)'};">
+            style="content-visibility: auto; contain-intrinsic-size: auto 96px; display: flex; flex-direction: column; align-items: center; gap: 0.25rem; cursor: pointer; padding: 0.6rem 0.4rem; border-radius: 12px; transition: background 0.2s; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.02)'}; border: 1px solid {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.04)'};">
             <div onclick={(e) => { e.stopPropagation(); toggleSelect(st.id!); }} style="cursor: pointer; width: 22px; height: 22px; border-radius: 4px; border: 2px solid {selectedIds.has(st.id!) ? '#ef4444' : 'rgba(255,255,255,0.2)'}; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.2)' : 'transparent'}; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; color: #ef4444; margin-bottom: 2px;">{selectedIds.has(st.id!) ? '✓' : ''}</div>
             <div style="position: relative; display: inline-flex;">
               {#if st.foto}

@@ -18,6 +18,19 @@
   box-sizing: inherit;
 }
 
+/* Android (gama baja): el blur de fondo es carísimo en WebView y causa jank en
+   scroll, drawer y modales. Se apaga en TODOS los elementos con un solo override
+   (gana a los estilos inline porque estos no usan !important). */
+.is-android * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+/* Se puede recuperar un blur ligero SOLO donde aporta mucho y es barato. */
+.is-android .mobile-header {
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
+}
+
 /* Asegurar que el body respete los safe areas */
 html, body {
   margin: 0;
@@ -475,7 +488,7 @@ body {
     transform: translate3d(-100%, 0, 0);
     will-change: transform;
     backface-visibility: hidden;
-    transition: transform 0.2s ease;
+    transition: transform 0.25s ease-out;
     z-index: 1000;
     padding-top: 56px;
     padding-left: 8px !important;
@@ -806,13 +819,13 @@ body {
     transform: translate3d(-100%, 0, 0);
     will-change: transform;
     backface-visibility: hidden;
-    transition: transform 0.2s ease;
+    transition: transform 0.25s ease-out;
     z-index: 9999 !important;
     padding: calc(60px + var(--sat, env(safe-area-inset-top, 0px))) 0 calc(20px + var(--sab, env(safe-area-inset-bottom, 0px))) 0 !important;
     display: flex !important;
     flex-direction: column !important;
     background: var(--drawer-bg) !important;
-    box-shadow: 4px 0 25px rgba(0, 0, 0, 0.5) !important;
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.35) !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
   }

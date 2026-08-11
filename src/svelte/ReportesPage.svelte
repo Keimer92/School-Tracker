@@ -5,9 +5,6 @@
   import { join, tempDir, documentDir } from "@tauri-apps/api/path";
   import { writeFile, mkdir } from "@tauri-apps/plugin-fs";
   import { openUrl } from "@tauri-apps/plugin-opener";
-  import jsPDF from "jspdf";
-  import autoTable from "jspdf-autotable";
-  import * as XLSX from "xlsx";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
   import SearchInput from "./SearchInput.svelte";
@@ -477,6 +474,8 @@
   async function exportToPDF() {
     if (estudiantes.length === 0) return;
     try {
+      const { default: jsPDF } = await import("jspdf");
+      const { default: autoTable } = await import("jspdf-autotable");
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
       const names = selectedNames;
       const date = new Date().toLocaleDateString();
@@ -688,6 +687,8 @@
           return { ...est, notaFinal, notaFinalQual };
         });
 
+        const { default: jsPDF } = await import("jspdf");
+        const { default: autoTable } = await import("jspdf-autotable");
         const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
         const date = new Date().toLocaleDateString();
         const margins = { top: 10, bottom: 10, left: 10, right: 10 };

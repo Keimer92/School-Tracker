@@ -4,7 +4,6 @@
   import { emit } from "@tauri-apps/api/event";
   import { open, save } from "@tauri-apps/plugin-dialog";
   import { copyFile, writeFile, BaseDirectory } from "@tauri-apps/plugin-fs";
-  import * as XLSX from "xlsx";
   import { syncService } from "../lib/syncService";
   import { onDataChange } from "../lib/autoSync";
   import { registerBackHandler } from "../lib/androidBack";
@@ -147,6 +146,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     if (!selectedAno || !selectedColegio) { await emit("show-toast", { message: "⚠️ Seleccione año y colegio", type: "warning" }); return; }
     isExportingExcel = true;
     try {
+      const XLSX = await import("xlsx");
       const students = await invoke<any[]>("get_students");
       const filtered = students.filter(s => Number(s.anoLectivoId) === Number(selectedAno) && Number(s.colegioId) === Number(selectedColegio));
       if (filtered.length === 0) { await emit("show-toast", { message: "ℹ️ No hay estudiantes para exportar", type: "info" }); isExportingExcel = false; return; }
@@ -171,6 +171,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     if (!selectedAno) { await emit("show-toast", { message: "⚠️ Seleccione un año lectivo", type: "warning" }); return; }
     isExportingByYear = true;
     try {
+      const XLSX = await import("xlsx");
       const students = await invoke<any[]>("get_students");
       const filtered = students.filter(s => Number(s.anoLectivoId) === Number(selectedAno));
       if (filtered.length === 0) { await emit("show-toast", { message: "ℹ️ No hay estudiantes para exportar", type: "info" }); isExportingByYear = false; return; }

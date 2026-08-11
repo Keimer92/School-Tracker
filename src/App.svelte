@@ -63,6 +63,10 @@
     applyTheme(themeMode);
   });
 
+  $effect(() => {
+    document.documentElement.classList.toggle("is-android", isAndroid);
+  });
+
   function checkMobile() {
     isMobile = window.innerWidth <= 768 || /Android/i.test(navigator.userAgent);
     isAndroid = /Android/i.test(navigator.userAgent);
