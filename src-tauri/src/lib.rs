@@ -746,6 +746,7 @@ async fn gd_start_oauth_server(port: u16) -> Result<String, String> {
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.05em;
+            margin-bottom: 1.5rem;
         }
         .badge::before {
             content: '';
@@ -753,6 +754,19 @@ async fn gd_start_oauth_server(port: u16) -> Result<String, String> {
             height: 6px;
             background: #10b981;
             border-radius: 50%;
+        }
+        a.btn {
+            display: inline-block;
+            background: #3b82f6;
+            color: white;
+            text-decoration: none;
+            padding: 10px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        a.btn:hover {
+            background: #2563eb;
         }
     </style>
 </head>
@@ -765,9 +779,11 @@ async fn gd_start_oauth_server(port: u16) -> Result<String, String> {
             </svg>
         </div>
         <h1>¡Conexión Exitosa!</h1>
-        <p>Tu cuenta de Google Drive se ha vinculado correctamente con School Tracker Pro.</p>
-        <span class="badge">Seguro y Cifrado</span>
+        <p>Tu cuenta de Google Drive se ha vinculado correctamente con School Tracker Pro.<br>Redirigiendo a la aplicación...</p>
+        <span class="badge">Seguro y Cifrado</span><br>
+        <a href="schooltrackerpro://" class="btn">Volver a la App</a>
     </div>
+    <script>setTimeout(function(){window.location.href="schooltrackerpro://";window.close();},500);</script>
 </body>
 </html>"#;
         
@@ -1004,7 +1020,7 @@ async fn gd_start_oauth_background(app: tauri::AppHandle, port: u16) -> Result<(
                             println!("[OAuth] No code found in request");
                         }
 
-                        let html = r#"<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Conectado</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;font-family:system-ui,sans-serif}.card{background:rgba(30,41,59,.85);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:3rem 2.5rem;text-align:center;max-width:420px;width:90%;animation:slideUp .6s ease-out}@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}.check{width:80px;height:80px;margin:0 auto 1.5rem;background:linear-gradient(135deg,#10b981,#059669);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(16,185,129,.4)}h1{color:#f8fafc;font-size:1.5rem;font-weight:700;margin:0 0 1rem}p{color:#94a3b8;font-size:.9rem;line-height:1.6;margin:0}</style></head><body><div class="card"><div class="check"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="4 12 9 17 20 6"/></svg></div><h1>Conectado a Google Drive</h1><p>Ya puedes cerrar esta página y volver a la aplicación.</p></div></body></html>"#;
+                        let html = r#"<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Conectado</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;font-family:system-ui,sans-serif}.card{background:rgba(30,41,59,.85);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:3rem 2.5rem;text-align:center;max-width:420px;width:90%;animation:slideUp .6s ease-out}@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}.check{width:80px;height:80px;margin:0 auto 1.5rem;background:linear-gradient(135deg,#10b981,#059669);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(16,185,129,.4)}h1{color:#f8fafc;font-size:1.5rem;font-weight:700;margin:0 0 1rem}p{color:#94a3b8;font-size:.9rem;line-height:1.6;margin:0 0 1.5rem}a.btn{display:inline-block;background:#3b82f6;color:white;text-decoration:none;padding:10px 24px;border-radius:12px;font-weight:600;transition:background 0.2s}a.btn:hover{background:#2563eb}</style></head><body><div class="card"><div class="check"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="4 12 9 17 20 6"/></svg></div><h1>Conectado a Google Drive</h1><p>Redirigiendo a la aplicación...</p><a href="schooltrackerpro://" class="btn">Volver a la App</a></div><script>setTimeout(function(){window.location.href="schooltrackerpro://";window.close();},500);</script></body></html>"#;
                         let response = format!(
                             "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                             html.len(), html
