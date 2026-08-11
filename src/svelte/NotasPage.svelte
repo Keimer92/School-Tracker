@@ -1019,158 +1019,144 @@
 </script>
 
 <div class="page-container" style="height: 100%; min-height: 0;">
-  <div class="category-grid" style="display: block;">
-    <FilterContainer {isMobile}>
-      <FilterGroup label="Año Lectivo:" {isMobile}>
-        <select class="filter-select" style="width:100%" bind:value={selectedAno}>
-          {#each anos as a}
-            <option value={a.id}>{a.nombre}</option>
-          {/each}
-        </select>
-      </FilterGroup>
+  <div class="category-grid" style="display: flex; flex-direction: column; height: 100%;">
+    <div style="{isAndroid && isMobile ? 'position: sticky; top: 0; z-index: 50; background: #0f172a; padding-bottom: 0.2rem; margin-bottom: 0.3rem;' : ''}">
+      <FilterContainer {isMobile}>
+        <FilterGroup label="Año Lectivo:" {isMobile}>
+          <select class="filter-select" style="width:100%" bind:value={selectedAno}>
+            {#each anos as a}
+              <option value={a.id}>{a.nombre}</option>
+            {/each}
+          </select>
+        </FilterGroup>
 
-      <FilterGroup label="Corte:" {isMobile}>
-        <select class="filter-select" style="width:100%" bind:value={selectedCorte}>
-          {#each cortes as c}
-            <option value={c.id}>{c.nombre}</option>
-          {/each}
-        </select>
-      </FilterGroup>
+        <FilterGroup label="Corte:" {isMobile}>
+          <select class="filter-select" style="width:100%" bind:value={selectedCorte}>
+            {#each cortes as c}
+              <option value={c.id}>{c.nombre}</option>
+            {/each}
+          </select>
+        </FilterGroup>
 
-      <FilterGroup label="Colegio:" {isMobile}>
-        <select class="filter-select" style="width:100%" bind:value={selectedColegio}>
-          {#each colegios as col}
-            <option value={col.id}>{col.nombre}</option>
-          {/each}
-        </select>
-      </FilterGroup>
+        <FilterGroup label="Colegio:" {isMobile}>
+          <select class="filter-select" style="width:100%" bind:value={selectedColegio}>
+            {#each colegios as col}
+              <option value={col.id}>{col.nombre}</option>
+            {/each}
+          </select>
+        </FilterGroup>
 
-      <FilterGroup label="Grado:" {isMobile}>
-        <select class="filter-select" style="width:100%"
-          value={selectedGrado}
-          onchange={(e) => { selectedGrado = Number(e.target.value); localStorage.setItem('notas-last-grado', String(selectedGrado)); }}>
-          {#each grados as g}
-            <option value={g.id}>{g.nombre}</option>
-          {/each}
-        </select>
-      </FilterGroup>
+        <FilterGroup label="Grado:" {isMobile}>
+          <select class="filter-select" style="width:100%"
+            value={selectedGrado}
+            onchange={(e) => { selectedGrado = Number(e.target.value); localStorage.setItem('notas-last-grado', String(selectedGrado)); }}>
+            {#each grados as g}
+              <option value={g.id}>{g.nombre}</option>
+            {/each}
+          </select>
+        </FilterGroup>
 
-      <FilterGroup label="Sección:" {isMobile}>
-        <select class="filter-select" style="width:100%" bind:value={selectedSeccion}>
-          {#each secciones as s}
-            <option value={s.id}>{s.nombre}</option>
-          {/each}
-        </select>
-      </FilterGroup>
+        <FilterGroup label="Sección:" {isMobile}>
+          <select class="filter-select" style="width:100%" bind:value={selectedSeccion}>
+            {#each secciones as s}
+              <option value={s.id}>{s.nombre}</option>
+            {/each}
+          </select>
+        </FilterGroup>
 
-      <FilterGroup label="Sexo:" {isMobile}>
-        <select class="filter-select" style="width:100%" bind:value={selectedSexo}>
-          <option value="">Todos</option>
-          <option value="M">Masculino</option>
-          <option value="F">Femenino</option>
-        </select>
-      </FilterGroup>
+        <FilterGroup label="Sexo:" {isMobile}>
+          <select class="filter-select" style="width:100%" bind:value={selectedSexo}>
+            <option value="">Todos</option>
+            <option value="M">Masculino</option>
+            <option value="F">Femenino</option>
+          </select>
+        </FilterGroup>
 
-      <FilterGroup label="Asignatura:" {isMobile}>
-        <select class="filter-select" style="width:100%"
-          value={selectedAsignatura}
-          onchange={(e) => { selectedAsignatura = Number(e.target.value); localStorage.setItem('notas-last-asignatura', String(selectedAsignatura)); }}>
-          {#each asignaturas as a}
-            <option value={a.id}>{a.nombre}</option>
-          {/each}
-        </select>
-      </FilterGroup>
+        <FilterGroup label="Asignatura:" {isMobile}>
+          <select class="filter-select" style="width:100%"
+            value={selectedAsignatura}
+            onchange={(e) => { selectedAsignatura = Number(e.target.value); localStorage.setItem('notas-last-asignatura', String(selectedAsignatura)); }}>
+            {#each asignaturas as a}
+              <option value={a.id}>{a.nombre}</option>
+            {/each}
+          </select>
+        </FilterGroup>
 
-        <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '1 1 auto'};{isMobile ? 'overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;' : ''}">
-          <div style="flex:1;min-width:100px">
-            <SearchInput value={searchTerm} onChange={(v) => searchTerm = v} placeholder="Buscar..." {isMobile} height="42px" />
-          </div>
-          <button onclick={undo} disabled={history.length === 0}
-            style="height:42px;padding:0 {isMobile ? '0.4rem' : '1rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:{history.length > 0 ? '#f59e0b' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{history.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{history.length > 0 ? '0 4px 14px rgba(245,158,11,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{history.length > 0 ? 1 : 0.7}"
-            title="Deshacer (Ctrl+Z)">
-            <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">↩️</span>
-            {#if !isMobile}<span>Deshacer</span>{/if}
-          </button>
-          <button onclick={redo} disabled={redoStack.length === 0}
-            style="height:42px;padding:0 {isMobile ? '0.4rem' : '1rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:{redoStack.length > 0 ? '#f59e0b' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{redoStack.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{redoStack.length > 0 ? '0 4px 14px rgba(245,158,11,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{redoStack.length > 0 ? 1 : 0.7}"
-            title="Rehacer (Ctrl+Y)">
-            <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">↪️</span>
-            {#if !isMobile}<span>Rehacer</span>{/if}
-          </button>
-          <button onclick={() => { distribuirTargets = {}; distribuirOverwrite = true; showDistribuirModal = true; }} disabled={activeIndicadores.length === 0 || filteredNotas.length === 0}
-            style="height:42px;padding:0 {isMobile ? '0.4rem' : '1rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? '#8b5cf6' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? '0 4px 14px rgba(139,92,246,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? 1 : 0.7}"
-            title="Distribuir notas automáticamente">
-            <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">✨</span>
-            {#if !isMobile}<span>Distribuir</span>{/if}
-          </button>
-          <button onclick={handleGuardarNotas} disabled={!hasUnsavedChanges || saving || estudiantes.length === 0}
-            style="height:42px;padding:0 {isMobile ? '0.4rem' : '1rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:{!hasUnsavedChanges ? 'rgba(148,163,184,0.5)' : (saving ? '#059669' : '#10b981')};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{(!hasUnsavedChanges || saving || estudiantes.length === 0) ? 'default' : 'pointer'};transition:all 0.3s ease;box-shadow:{hasUnsavedChanges && !saving && estudiantes.length > 0 ? '0 4px 14px rgba(16,185,129,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{(hasUnsavedChanges && !saving && estudiantes.length > 0) ? 1 : 0.7}"
-            title="Guardar Notas (Ctrl+G)">
-            <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">{saving ? '⏳' : '💾'}</span>
-            {#if !isMobile}<span>{saving ? 'Guardando...' : (hasUnsavedChanges ? 'Guardar' : 'Sin cambios')}</span>{/if}
-          </button>
-          <button onclick={() => {
-            if (!selectedCorte || !selectedAsignatura) { emit("show-toast", { message: "⚠️ Seleccione un corte y asignatura primero", type: "warning" }); return; }
-            deleteMode = 'all'; deleteStudentId = 0; deleteIndicatorId = 0; showDeleteModal = true;
-          }} disabled={estudiantes.length === 0}
-            style="height:42px;padding:0 {isMobile ? '0.4rem' : '1rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:{estudiantes.length > 0 ? '#ef4444' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{estudiantes.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{estudiantes.length > 0 ? '0 4px 14px rgba(239,68,68,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{estudiantes.length > 0 ? 1 : 0.7}"
-            title="Eliminar notas">
-            <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">🗑️</span>
-            {#if !isMobile}<span>Eliminar</span>{/if}
-          </button>
-        </div>
-    </FilterContainer>
-
-    {#if loading}
-      <div style="text-align: center; padding: {isMobile ? '0.5rem' : '2rem'}; font-size: {isMobile ? '0.75rem' : '1rem'};">Cargando datos...</div>
-    {/if}
-
-    <!-- Mobile: Card View -->
-    {#if isMobile && !loading && estudiantes.length > 0}
-      <!-- Top Elements Wrapper -->
-      <div class="category-card" style="width: 100%; max-width: 100%; display: flex; flex-direction: column; padding: 0.3rem; flex-shrink: 0; margin-bottom: 0.5rem; {isAndroid ? 'position: sticky; top: 0; z-index: 45;' : ''}">
-        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.4rem; margin-bottom: 0.3rem; background: rgba(15, 23, 42, 0.6); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); user-select: none; flex-shrink: 0;">
-          <button onclick={goPrevStudent} disabled={currentStudentIdx === 0}
-            style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: {currentStudentIdx === 0 ? '#475569' : '#e2e8f0'}; border-radius: 10px; padding: 0.5rem 0.7rem; font-size: 1.1rem; cursor: {currentStudentIdx === 0 ? 'not-allowed' : 'pointer'}; opacity: {currentStudentIdx === 0 ? 0.4 : 1}; display: flex; align-items: center; justify-content: center; min-width: 40px;">◀</button>
-          <div style="flex: 1; text-align: center; min-width: 0; padding: 0 0.5rem; cursor: pointer;" onclick={() => showStudentList = true}>
-            <div style="font-weight: bold; font-size: 0.95rem; color: #f1f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-              {filteredNotas[currentStudentIdx]?.estudianteNombre || ''}
+          <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '1 1 auto'};{isMobile ? 'overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;' : ''}">
+            <div style="flex:1;min-width:100px">
+              <SearchInput value={searchTerm} onChange={(v) => searchTerm = v} placeholder="Buscar..." {isMobile} height="42px" />
             </div>
-            <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">
-              {currentStudentIdx + 1} de {filteredNotas.length} — tap para lista
-            </div>
+            <button onclick={undo} disabled={history.length === 0}
+              style="height:42px;padding:0 {isMobile ? '0.4rem' : '1rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:{history.length > 0 ? '#f59e0b' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{history.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{history.length > 0 ? '0 4px 14px rgba(245,158,11,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{history.length > 0 ? 1 : 0.7}"
+              title="Deshacer (Ctrl+Z)">
+              <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">↩️</span>
+              {#if !isMobile}<span>Deshacer</span>{/if}
+            </button>
+            <button onclick={redo} disabled={redoStack.length === 0}
+              style="height:42px;padding:0 {isMobile ? '0.4rem' : '1rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:{redoStack.length > 0 ? '#f59e0b' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{redoStack.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{redoStack.length > 0 ? '0 4px 14px rgba(245,158,11,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{redoStack.length > 0 ? 1 : 0.7}"
+              title="Rehacer (Ctrl+Y)">
+              <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">↪️</span>
+              {#if !isMobile}<span>Rehacer</span>{/if}
+            </button>
+            <button onclick={() => { distribuirTargets = {}; distribuirOverwrite = true; showDistribuirModal = true; }} disabled={activeIndicadores.length === 0 || filteredNotas.length === 0}
+              style="height:42px;padding:0 {isMobile ? '0.4rem' : '1rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? '#8b5cf6' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? '0 4px 14px rgba(139,92,246,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? 1 : 0.7}"
+              title="Distribuir notas automáticamente">
+              <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">✨</span>
+              {#if !isMobile}<span>Distribuir</span>{/if}
+            </button>
+            <button onclick={handleGuardarNotas} disabled={!hasUnsavedChanges || saving || estudiantes.length === 0}
+              style="height:42px;padding:0 {isMobile ? '0.4rem' : '1rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:{!hasUnsavedChanges ? 'rgba(148,163,184,0.5)' : (saving ? '#059669' : '#10b981')};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{(!hasUnsavedChanges || saving || estudiantes.length === 0) ? 'default' : 'pointer'};transition:all 0.3s ease;box-shadow:{hasUnsavedChanges && !saving && estudiantes.length > 0 ? '0 4px 14px rgba(16,185,129,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{(hasUnsavedChanges && !saving && estudiantes.length > 0) ? 1 : 0.7}"
+              title="Guardar Notas (Ctrl+G)">
+              <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">{saving ? '⏳' : '💾'}</span>
+              {#if !isMobile}<span>{saving ? 'Guardando...' : (hasUnsavedChanges ? 'Guardar' : 'Sin cambios')}</span>{/if}
+            </button>
+            <button onclick={() => {
+              if (!selectedCorte || !selectedAsignatura) { emit("show-toast", { message: "⚠️ Seleccione un corte y asignatura primero", type: "warning" }); return; }
+              deleteMode = 'all'; deleteStudentId = 0; deleteIndicatorId = 0; showDeleteModal = true;
+            }} disabled={estudiantes.length === 0}
+              style="height:42px;padding:0 {isMobile ? '0.4rem' : '1rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:{estudiantes.length > 0 ? '#ef4444' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{estudiantes.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{estudiantes.length > 0 ? '0 4px 14px rgba(239,68,68,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{estudiantes.length > 0 ? 1 : 0.7}"
+              title="Eliminar notas">
+              <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">🗑️</span>
+              {#if !isMobile}<span>Eliminar</span>{/if}
+            </button>
           </div>
-          <button onclick={goNextStudent} disabled={currentStudentIdx >= filteredNotas.length - 1}
-            style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: {currentStudentIdx >= filteredNotas.length - 1 ? '#475569' : '#e2e8f0'}; border-radius: 10px; padding: 0.5rem 0.7rem; font-size: 1.1rem; cursor: {currentStudentIdx >= filteredNotas.length - 1 ? 'not-allowed' : 'pointer'}; opacity: {currentStudentIdx >= filteredNotas.length - 1 ? 0.4 : 1}; display: flex; align-items: center; justify-content: center; min-width: 40px;">▶</button>
-        </div>
+      </FilterContainer>
 
-        {#if filteredNotas[currentStudentIdx]}
-          {@const est = filteredNotas[currentStudentIdx]}
-          <div style="margin-bottom: 0; padding: 0.6rem; border-radius: 12px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(34, 197, 94, 0.3); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
-                <div style="color: #94a3b8; font-weight: bold; font-size: 0.85rem;">Nota Final</div>
-                <div style="display: flex; align-items: center; gap: 0.4rem;">
-                  {#if !isQualitative}
-                    <span style="font-size: 0.9rem; color: #e2e8f0;">{(() => {
-                      const rawFinal = activeIndicadores.reduce((sum, ind) => sum + ind.criterios.reduce((s, c) => {
-                        const qv = notasCualitativas[`${est.estudianteId}-${c.id}`];
-                        if (qv && ['AA','AS','AF','AI'].includes(qv)) return s + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
-                        return s;
-                      }, 0), 0);
-                      return Math.round(rawFinal);
-                    })()}</span>
-                  {/if}
-                  <div style="color: {(() => {
-                    const rawFinal = activeIndicadores.reduce((sum, ind) => sum + ind.criterios.reduce((s, c) => {
-                      const qv = notasCualitativas[`${est.estudianteId}-${c.id}`];
-                      if (qv && ['AA','AS','AF','AI'].includes(qv)) return s + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
-                      return s;
-                    }, 0), 0);
-                    const maxTotal = activeIndicadores.reduce((sum, i) => sum + i.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0), 0);
-                    const escFinal = maxTotal > 0 ? (rawFinal / maxTotal) * 100 : 0;
-                    const qualFinal = isQualitative ? calcularNotaCualitativaFinal(activeIndicadores.map(i => calcularNotaCualitativaFinal(i.criterios.map(c => notasCualitativas[`${est.estudianteId}-${c.id}`] || '')))) : (getGradeFromScore(escFinal)?.id || 'AI');
-                    return qualFinal ? getGradeColor(qualFinal) : '#94a3b8';
-                  })()}; font-weight: bold; font-size: 1.1rem;">
-                    {(() => {
+      <!-- Mobile: Card View -->
+      {#if isMobile && !loading && estudiantes.length > 0}
+        <!-- Top Elements Wrapper -->
+        <div class="category-card" style="width: 100%; max-width: 100%; display: flex; flex-direction: column; padding: 0.3rem; flex-shrink: 0; margin-top: 0.5rem;">
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.4rem; margin-bottom: 0.3rem; background: rgba(15, 23, 42, 0.6); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); user-select: none; flex-shrink: 0;">
+            <button onclick={goPrevStudent} disabled={currentStudentIdx === 0}
+              style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: {currentStudentIdx === 0 ? '#475569' : '#e2e8f0'}; border-radius: 10px; padding: 0.5rem 0.7rem; font-size: 1.1rem; cursor: {currentStudentIdx === 0 ? 'not-allowed' : 'pointer'}; opacity: {currentStudentIdx === 0 ? 0.4 : 1}; display: flex; align-items: center; justify-content: center; min-width: 40px;">◀</button>
+            <div style="flex: 1; text-align: center; min-width: 0; padding: 0 0.5rem; cursor: pointer;" onclick={() => showStudentList = true}>
+              <div style="font-weight: bold; font-size: 0.95rem; color: #f1f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                {filteredNotas[currentStudentIdx]?.estudianteNombre || ''}
+              </div>
+              <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">
+                {currentStudentIdx + 1} de {filteredNotas.length} — tap para lista
+              </div>
+            </div>
+            <button onclick={goNextStudent} disabled={currentStudentIdx >= filteredNotas.length - 1}
+              style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: {currentStudentIdx >= filteredNotas.length - 1 ? '#475569' : '#e2e8f0'}; border-radius: 10px; padding: 0.5rem 0.7rem; font-size: 1.1rem; cursor: {currentStudentIdx >= filteredNotas.length - 1 ? 'not-allowed' : 'pointer'}; opacity: {currentStudentIdx >= filteredNotas.length - 1 ? 0.4 : 1}; display: flex; align-items: center; justify-content: center; min-width: 40px;">▶</button>
+          </div>
+
+          {#if filteredNotas[currentStudentIdx]}
+            {@const est = filteredNotas[currentStudentIdx]}
+            <div style="margin-bottom: 0; padding: 0.6rem; border-radius: 12px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(34, 197, 94, 0.3); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+                  <div style="color: #94a3b8; font-weight: bold; font-size: 0.85rem;">Nota Final</div>
+                  <div style="display: flex; align-items: center; gap: 0.4rem;">
+                    {#if !isQualitative}
+                      <span style="font-size: 0.9rem; color: #e2e8f0;">{(() => {
+                        const rawFinal = activeIndicadores.reduce((sum, ind) => sum + ind.criterios.reduce((s, c) => {
+                          const qv = notasCualitativas[`${est.estudianteId}-${c.id}`];
+                          if (qv && ['AA','AS','AF','AI'].includes(qv)) return s + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
+                          return s;
+                        }, 0), 0);
+                        return Math.round(rawFinal);
+                      })()}</span>
+                    {/if}
+                    <div style="color: {(() => {
                       const rawFinal = activeIndicadores.reduce((sum, ind) => sum + ind.criterios.reduce((s, c) => {
                         const qv = notasCualitativas[`${est.estudianteId}-${c.id}`];
                         if (qv && ['AA','AS','AF','AI'].includes(qv)) return s + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
@@ -1179,14 +1165,33 @@
                       const maxTotal = activeIndicadores.reduce((sum, i) => sum + i.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0), 0);
                       const escFinal = maxTotal > 0 ? (rawFinal / maxTotal) * 100 : 0;
                       const qualFinal = isQualitative ? calcularNotaCualitativaFinal(activeIndicadores.map(i => calcularNotaCualitativaFinal(i.criterios.map(c => notasCualitativas[`${est.estudianteId}-${c.id}`] || '')))) : (getGradeFromScore(escFinal)?.id || 'AI');
-                      return qualFinal;
-                    })()}
+                      return qualFinal ? getGradeColor(qualFinal) : '#94a3b8';
+                    })()}; font-weight: bold; font-size: 1.1rem;">
+                      {(() => {
+                        const rawFinal = activeIndicadores.reduce((sum, ind) => sum + ind.criterios.reduce((s, c) => {
+                          const qv = notasCualitativas[`${est.estudianteId}-${c.id}`];
+                          if (qv && ['AA','AS','AF','AI'].includes(qv)) return s + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
+                          return s;
+                        }, 0), 0);
+                        const maxTotal = activeIndicadores.reduce((sum, i) => sum + i.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0), 0);
+                        const escFinal = maxTotal > 0 ? (rawFinal / maxTotal) * 100 : 0;
+                        const qualFinal = isQualitative ? calcularNotaCualitativaFinal(activeIndicadores.map(i => calcularNotaCualitativaFinal(i.criterios.map(c => notasCualitativas[`${est.estudianteId}-${c.id}`] || '')))) : (getGradeFromScore(escFinal)?.id || 'AI');
+                        return qualFinal;
+                      })()}
+                    </div>
                   </div>
                 </div>
-              </div>
-          {/if}
-      </div>
+            {/if}
+        </div>
+      {/if}
+    </div>
 
+    {#if loading}
+      <div style="text-align: center; padding: {isMobile ? '0.5rem' : '2rem'}; font-size: {isMobile ? '0.75rem' : '1rem'};">Cargando datos...</div>
+    {/if}
+
+    <!-- Mobile: Card View -->
+    {#if isMobile && !loading && estudiantes.length > 0}
       <!-- Indicators Wrapper -->
       <div class="category-card" style="flex: 1; min-height: 0; width: 100%; max-width: 100%; display: flex; flex-direction: column; padding: 0.3rem;">
         <div bind:this={notasScrollRef} style="flex: 1; overflow: auto; padding: 0 0.15rem; -webkit-overflow-scrolling: touch; height: {notasScrollHeight};"
