@@ -353,7 +353,7 @@
         </div>
 
         <!-- Periodic sync + status -->
-        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 0.85rem; background: rgba(0,0,0,0.15); border-radius: 10px; margin-bottom: 1.25rem;">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; padding: 0.6rem 0.85rem; background: rgba(0,0,0,0.15); border-radius: 10px; margin-bottom: 1.25rem;">
           <div style="display: flex; align-items: center; gap: 8px;">
             <div style="width: 8px; height: 8px; border-radius: 50%; background: {syncStatus.status === 'syncing' ? '#eab308' : '#22c55e'}; box-shadow: {syncStatus.status === 'syncing' ? '0 0 8px rgba(234,179,8,0.4)' : '0 0 8px rgba(34,197,94,0.4)'};"></div>
             <span style="color: #94a3b8; font-size: 0.8rem;">Sync periódico:</span>
@@ -361,7 +361,7 @@
             <span style="color: #64748b; font-size: 0.75rem;">minutos</span>
           </div>
           {#if syncFiles.length > 0}
-            <span style="color: #64748b; font-size: 0.7rem;">{syncFiles.length} archivo{syncFiles.length !== 1 ? 's' : ''}</span>
+            <span style="color: #64748b; font-size: 0.7rem; margin-left: auto;">{syncFiles.length} archivo{syncFiles.length !== 1 ? 's' : ''}</span>
           {/if}
         </div>
 

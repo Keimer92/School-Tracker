@@ -159,8 +159,8 @@
       if (response.ok) {
         const data = await response.json();
         const files: GoogleDriveFile[] = (data.files || []).map((f: any) => ({ id: f.id, name: f.name, size: f.size || 0, createdTime: f.createdTime || f.modifiedTime || '', device: '' }));
-        driveFiles = files;
-        localStorage.setItem(CACHE_KEY, JSON.stringify(files));
+        driveFiles = files.slice(0, 2);
+        localStorage.setItem(CACHE_KEY, JSON.stringify(files.slice(0, 2)));
       }
     } catch (e) { console.error('GD_BACKUP: Failed to fetch files:', e); }
     finally { isFetchingFiles = false; }
