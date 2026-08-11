@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
 
   interface DashboardStats {
     totalEstudiantes: number;
@@ -32,10 +33,12 @@
 
   let maxGradoCount = $derived(stats ? Math.max(...stats.estudiantesPorGrado.map(g => g.count), 1) : 1);
 
-  async function loadStats() {
+  async function loadStats(silent = false) {
     try {
-      loading = true;
-      error = "";
+      if (!silent) {
+        loading = true;
+        error = "";
+      }
       const today = new Date();
       const fecha = today.toISOString().split("T")[0];
       const data = await invoke<DashboardStats>("get_dashboard_stats", { fechaHoy: fecha });
@@ -44,7 +47,9 @@
       error = String(e);
       console.error("Dashboard error:", e);
     } finally {
-      loading = false;
+      if (!silent) {
+        loading = false;
+      }
     }
   }
 
@@ -59,8 +64,28 @@
   onMount(() => {
     checkMobile();
     window.addEventListener("resize", checkMobile);
+    
+    const handleEvent = () => loadStats(true);
+    window.addEventListener("schooltracker-sync", handleEvent);
+    
     loadStats();
-    return () => window.removeEventListener("resize", checkMobile);
+
+    const unsubs: (() => void)[] = [];
+    
+    Promise.all([
+      listen("notas-updated", handleEvent),
+      listen("asistencia-updated", handleEvent),
+      listen("student-updated", handleEvent),
+      listen("catalog-updated", handleEvent)
+    ]).then((fns) => {
+      unsubs.push(...fns);
+    });
+
+    return () => {
+      window.removeEventListener("resize", checkMobile);
+      window.removeEventListener("schooltracker-sync", handleEvent);
+      unsubs.forEach((unsub) => unsub());
+    };
   });
 </script>
 
