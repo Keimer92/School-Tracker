@@ -1127,8 +1127,9 @@
 
     <!-- Mobile: Card View -->
     {#if isMobile && !loading && estudiantes.length > 0}
-      <div class="category-card" style="flex: 1; min-height: 0; width: 100%; max-width: 100%; overflow: hidden; display: flex; flex-direction: column; padding: 0.3rem;">
-        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.4rem; margin-bottom: 0.3rem; background: rgba(15, 23, 42, 0.6); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); user-select: none; flex-shrink: 0;{isAndroid ? 'position: sticky; top: 0; z-index: 45;' : ''}">
+      <!-- Top Elements Wrapper -->
+      <div class="category-card" style="width: 100%; max-width: 100%; display: flex; flex-direction: column; padding: 0.3rem; flex-shrink: 0; margin-bottom: 0.5rem; {isAndroid ? 'position: sticky; top: 0; z-index: 45;' : ''}">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.4rem; margin-bottom: 0.3rem; background: rgba(15, 23, 42, 0.6); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); user-select: none; flex-shrink: 0;">
           <button onclick={goPrevStudent} disabled={currentStudentIdx === 0}
             style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: {currentStudentIdx === 0 ? '#475569' : '#e2e8f0'}; border-radius: 10px; padding: 0.5rem 0.7rem; font-size: 1.1rem; cursor: {currentStudentIdx === 0 ? 'not-allowed' : 'pointer'}; opacity: {currentStudentIdx === 0 ? 0.4 : 1}; display: flex; align-items: center; justify-content: center; min-width: 40px;">◀</button>
           <div style="flex: 1; text-align: center; min-width: 0; padding: 0 0.5rem; cursor: pointer;" onclick={() => showStudentList = true}>
@@ -1145,7 +1146,7 @@
 
         {#if filteredNotas[currentStudentIdx]}
           {@const est = filteredNotas[currentStudentIdx]}
-          <div style="margin-bottom: 0.5rem; padding: 0.6rem; border-radius: 12px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(34, 197, 94, 0.3); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+          <div style="margin-bottom: 0; padding: 0.6rem; border-radius: 12px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(34, 197, 94, 0.3); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
                 <div style="color: #94a3b8; font-weight: bold; font-size: 0.85rem;">Nota Final</div>
                 <div style="display: flex; align-items: center; gap: 0.4rem;">
                   {#if !isQualitative}
@@ -1184,14 +1185,18 @@
                 </div>
               </div>
           {/if}
+      </div>
+
+      <!-- Indicators Wrapper -->
+      <div class="category-card" style="flex: 1; min-height: 0; width: 100%; max-width: 100%; display: flex; flex-direction: column; padding: 0.3rem;">
         <div bind:this={notasScrollRef} style="flex: 1; overflow: auto; padding: 0 0.15rem; -webkit-overflow-scrolling: touch; height: {notasScrollHeight};"
           ontouchstart={handleTouchStart} ontouchend={handleTouchEnd}>
           {#if filteredNotas[currentStudentIdx]}
             {@const est = filteredNotas[currentStudentIdx]}
             <div>
               {#each activeIndicadores as ind}
-                    <div style="margin-bottom: 0.5rem; border-radius: 12px; border: 1px solid rgba(var(--primary-rgb), 0.25); background: rgba(30, 41, 59, 0.5); overflow: hidden;">
-                  <div style="padding: 0.4rem 0.6rem; background: rgba(var(--primary-rgb), 0.1); border-bottom: 1px solid rgba(var(--primary-rgb), 0.15); display: flex; justify-content: space-between; align-items: center;">
+                <div style="margin-bottom: 0.5rem; border-radius: 12px; border: 1px solid rgba(var(--primary-rgb), 0.25); background: rgba(30, 41, 59, 0.5);">
+                  <div style="padding: 0.4rem 0.6rem; background: rgba(30, 41, 59, 0.95); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(var(--primary-rgb), 0.15); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; border-top-left-radius: 11px; border-top-right-radius: 11px;">
                     <div style="color: var(--text-secondary); font-weight: bold; font-size: 0.8rem;">Indicador {ind.orden}</div>
                     <div style="color: {(() => {
                       const totalInd = ind.criterios.reduce((sum, c) => {
