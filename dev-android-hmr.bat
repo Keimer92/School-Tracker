@@ -30,7 +30,7 @@ for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":1420" ^| findstr "LISTENING
   echo [School Tracker Pro] Cerrando proceso viejo en puerto 1420, PID %%p...
   taskkill /f /pid %%p >nul 2>&1
 )
-timeout /t 1 /nobreak >nul
+ping -n 2 127.0.0.1 >nul
 
 if "%MODE%"=="emulator" (
   echo [School Tracker Pro] Iniciando Android dev HMR con EMULADOR...
