@@ -839,11 +839,21 @@
 
   $effect(() => {
     filtersRef = { ano: selectedAno, corte: selectedCorte, colegio: selectedColegio, asignatura: selectedAsignatura, grado: selectedGrado, seccion: selectedSeccion, sexo: selectedSexo };
+    currentStudentIdx = 0;
   });
 
   $effect(() => {
-    const n = notas;
+    const s = searchTerm;
     currentStudentIdx = 0;
+  });
+
+  $effect(() => {
+    const n = filteredNotas;
+    if (n.length > 0 && currentStudentIdx >= n.length) {
+      currentStudentIdx = n.length - 1;
+    } else if (n.length === 0) {
+      currentStudentIdx = 0;
+    }
   });
 
   $effect(() => {
