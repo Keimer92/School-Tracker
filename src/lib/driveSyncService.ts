@@ -4,7 +4,7 @@ import { markDirty, markAllDirty, markAllClean, hasDirtyTables } from './dirtyTr
 
 const STORAGE_KEY = 'schooltracker-google-drive-settings';
 const SYNC_FILE_PREFIX = 'SchoolTracker_Sync';
-const MAX_SYNC_FILES = 4;
+const MAX_SYNC_FILES = 2;
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'offline';
 

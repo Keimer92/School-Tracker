@@ -357,8 +357,9 @@
           <div style="display: flex; align-items: center; gap: 8px;">
             <div style="width: 8px; height: 8px; border-radius: 50%; background: {syncStatus.status === 'syncing' ? '#eab308' : '#22c55e'}; box-shadow: {syncStatus.status === 'syncing' ? '0 0 8px rgba(234,179,8,0.4)' : '0 0 8px rgba(34,197,94,0.4)'};"></div>
             <span style="color: #94a3b8; font-size: 0.8rem;">Sync periódico:</span>
-            <input type="number" min={3} max={60} bind:value={syncInterval} oninput={() => { const mins = Math.max(3, Math.min(60, syncInterval)); localStorage.setItem('periodic_sync_interval_seconds', String(mins * 60)); syncService.ensurePeriodicSync(); }} style="width: 52px; padding: 0.2rem 0.35rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; text-align: center; outline: none;" />
+            <input type="number" min={3} max={60} bind:value={syncInterval} style="width: 52px; padding: 0.2rem 0.35rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; text-align: center; outline: none;" />
             <span style="color: #64748b; font-size: 0.75rem;">minutos</span>
+            <button onclick={() => { const mins = Math.max(3, Math.min(60, syncInterval)); syncInterval = mins; localStorage.setItem('periodic_sync_interval_seconds', String(mins * 60)); syncService.ensurePeriodicSync(); emit("show-toast", { message: "✅ Intervalo de sync guardado", type: "success" }); }} style="padding: 0.3rem 0.7rem; border-radius: 6px; border: 1px solid rgba(var(--primary-rgb),0.3); background: rgba(var(--primary-rgb),0.1); color: var(--primary-color); cursor: pointer; font-size: 0.7rem; font-weight: 600;">Guardar</button>
           </div>
           {#if syncFiles.length > 0}
             <span style="color: #64748b; font-size: 0.7rem; margin-left: auto;">{syncFiles.length} archivo{syncFiles.length !== 1 ? 's' : ''}</span>
@@ -389,7 +390,7 @@
               {/each}
             </div>
             <div style="margin-top: 0.5rem; display: flex; align-items: center; gap: 6px; color: #64748b; font-size: 0.7rem;">
-              <span>💾 Se mantienen hasta {4} archivos. Los más antiguos se eliminan automáticamente.</span>
+              <span>💾 Se mantienen hasta {2} archivos. Los más antiguos se eliminan automáticamente.</span>
             </div>
           {/if}
         </div>
