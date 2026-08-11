@@ -24,7 +24,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
   const TABS = [
     { id: "configuracion", label: "General", icon: "⚙️" },
-    { id: "sync", label: "Nube", icon: "☁️" },
     { id: "almacenamiento", label: "Almacén", icon: "📦" },
     { id: "debugging", label: "Debug", icon: "🐛" },
     { id: "acercaDe", label: "Info", icon: "📖" },
@@ -55,8 +54,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   let isProcessingReset = $state(false);
 
   let { themeMode = "sistema", setThemeMode = () => {}, pageActive = false } = $props();
-
-  let syncInterval = $state(parseInt(localStorage.getItem('periodic_sync_interval_seconds') || '300', 10));
 
   function handleThemeChange(mode: string) {
     setThemeMode(mode);
@@ -268,24 +265,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                     <div style="padding: 0.4rem 0.8rem; border-radius: 4px; background: {highlightColor}1a; border-left: 4px solid {highlightColor}; color: {highlightColor}; font-weight: bold; font-size: 0.85rem;">Juan Pérez García</div>
                     <div style="color: #64748b; font-size: 0.8rem;">← Ejemplo de estudiante resaltado</div>
                   </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        {/if}
-
-        <!-- NUBE / SYNC -->
-        {#if activeTab === "sync"}
-          <div class="category-card">
-            <div class="category-header"><h3>☁️ Sincronización en la Nube</h3></div>
-            <div style="padding: 2rem;">
-              <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 1.5rem;">Los datos se sincronizan mediante Google Drive. Sube y descarga la base de datos completa desde la sección <strong>Nube</strong> en la barra lateral.</p>
-
-              <div style="margin-top: 1rem; background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
-                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                  <span style="color: #94a3b8; font-size: 0.85rem;">Sync periódico:</span>
-                  <input type="number" min={3} max={300} bind:value={syncInterval} oninput={() => { localStorage.setItem('periodic_sync_interval_seconds', String(syncInterval)); syncService.ensurePeriodicSync(); }} style="width: 56px; padding: 0.25rem 0.4rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; text-align: center; outline: none;" />
-                  <span style="color: #64748b; font-size: 0.8rem;">segundos</span>
                 </div>
               </div>
             </div>
