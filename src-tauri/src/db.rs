@@ -4451,20 +4451,27 @@ pub struct GradoCount {
 pub async fn get_dashboard_stats(
     state: tauri::State<'_, DbState>,
     fechaHoy: String,
+    colegioId: Option<i64>,
 ) -> Result<DashboardStats, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
 
-    let total_estudiantes: i64 = conn
-        .query_row("SELECT COUNT(*) FROM estudiante", [], |row| row.get(0))
-        .map_err(|e| e.to_string())?;
+    let total_estudiantes: i64 = if let Some(cid) = colegioId {
+        conn.query_row("SELECT COUNT(*) FROM estudiante WHERE colegio_id = ?1", rusqlite::params![cid], |row| row.get(0)).map_err(|e| e.to_string())?
+    } else {
+        conn.query_row("SELECT COUNT(*) FROM estudiante", [], |row| row.get(0)).map_err(|e| e.to_string())?
+    };
 
-    let total_notas: i64 = conn
-        .query_row("SELECT COUNT(*) FROM nota", [], |row| row.get(0))
-        .map_err(|e| e.to_string())?;
+    let total_notas: i64 = if let Some(cid) = colegioId {
+        conn.query_row("SELECT COUNT(n.estudiante_id) FROM nota n JOIN estudiante e ON n.estudiante_id = e.id WHERE e.colegio_id = ?1", rusqlite::params![cid], |row| row.get(0)).map_err(|e| e.to_string())?
+    } else {
+        conn.query_row("SELECT COUNT(*) FROM nota", [], |row| row.get(0)).map_err(|e| e.to_string())?
+    };
 
-    let total_asistencias: i64 = conn
-        .query_row("SELECT COUNT(*) FROM asistencia", [], |row| row.get(0))
-        .map_err(|e| e.to_string())?;
+    let total_asistencias: i64 = if let Some(cid) = colegioId {
+        conn.query_row("SELECT COUNT(a.id) FROM asistencia a JOIN estudiante e ON a.estudiante_id = e.id WHERE e.colegio_id = ?1", rusqlite::params![cid], |row| row.get(0)).map_err(|e| e.to_string())?
+    } else {
+        conn.query_row("SELECT COUNT(*) FROM asistencia", [], |row| row.get(0)).map_err(|e| e.to_string())?
+    };
 
     let total_grados: i64 = conn
         .query_row("SELECT COUNT(*) FROM grado", [], |row| row.get(0))
@@ -4490,43 +4497,37 @@ pub async fn get_dashboard_stats(
         )
         .unwrap_or_default();
 
-    let colegio_activo: String = conn
-        .query_row(
-            "SELECT COALESCE(nombre, '') FROM colegio WHERE activo = 1 LIMIT 1",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap_or_default();
+    let colegio_activo: String = if let Some(cid) = colegioId {
+        conn.query_row("SELECT COALESCE(nombre, '') FROM colegio WHERE id = ?1", rusqlite::params![cid], |row| row.get(0)).unwrap_or_default()
+    } else {
+        conn.query_row("SELECT COALESCE(nombre, '') FROM colegio WHERE activo = 1 LIMIT 1", [], |row| row.get(0)).unwrap_or_default()
+    };
 
     // Attendance counts for today
-    let mut stmt = conn
-        .prepare("SELECT COUNT(*) FROM asistencia WHERE fecha = ?1")
-        .map_err(|e| e.to_string())?;
-    let estudiantes_hoy: i64 = stmt
-        .query_row([&fechaHoy], |row| row.get(0))
-        .map_err(|e| e.to_string())?;
+    let estudiantes_hoy: i64 = if let Some(cid) = colegioId {
+        conn.query_row("SELECT COUNT(a.id) FROM asistencia a JOIN estudiante e ON a.estudiante_id = e.id WHERE a.fecha = ?1 AND e.colegio_id = ?2", rusqlite::params![&fechaHoy, cid], |row| row.get(0)).map_err(|e| e.to_string())?
+    } else {
+        conn.query_row("SELECT COUNT(*) FROM asistencia WHERE fecha = ?1", rusqlite::params![&fechaHoy], |row| row.get(0)).map_err(|e| e.to_string())?
+    };
 
-    let mut stmt = conn
-        .prepare("SELECT COALESCE(SUM(CASE WHEN estado = 'P' THEN 1 ELSE 0 END), 0), COALESCE(SUM(CASE WHEN estado = 'A' THEN 1 ELSE 0 END), 0), COALESCE(SUM(CASE WHEN estado = 'J' THEN 1 ELSE 0 END), 0) FROM asistencia WHERE fecha = ?1")
-        .map_err(|e| e.to_string())?;
-    let (presentes_hoy, ausentes_hoy, justificados_hoy): (i64, i64, i64) = stmt
-        .query_row([&fechaHoy], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
-        .map_err(|e| e.to_string())?;
+    let (presentes_hoy, ausentes_hoy, justificados_hoy): (i64, i64, i64) = if let Some(cid) = colegioId {
+        conn.query_row("SELECT COALESCE(SUM(CASE WHEN a.estado = 'P' THEN 1 ELSE 0 END), 0), COALESCE(SUM(CASE WHEN a.estado = 'A' THEN 1 ELSE 0 END), 0), COALESCE(SUM(CASE WHEN a.estado = 'J' THEN 1 ELSE 0 END), 0) FROM asistencia a JOIN estudiante e ON a.estudiante_id = e.id WHERE a.fecha = ?1 AND e.colegio_id = ?2", rusqlite::params![&fechaHoy, cid], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?))).map_err(|e| e.to_string())?
+    } else {
+        conn.query_row("SELECT COALESCE(SUM(CASE WHEN estado = 'P' THEN 1 ELSE 0 END), 0), COALESCE(SUM(CASE WHEN estado = 'A' THEN 1 ELSE 0 END), 0), COALESCE(SUM(CASE WHEN estado = 'J' THEN 1 ELSE 0 END), 0) FROM asistencia WHERE fecha = ?1", rusqlite::params![&fechaHoy], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?))).map_err(|e| e.to_string())?
+    };
 
     // Students per grade
-    let mut stmt = conn
-        .prepare("SELECT g.nombre, COUNT(e.id) FROM estudiante e JOIN grado g ON e.grado_id = g.id GROUP BY e.grado_id ORDER BY g.nombre")
-        .map_err(|e| e.to_string())?;
-    let estudiantes_por_grado: Vec<GradoCount> = stmt
-        .query_map([], |row| {
-            Ok(GradoCount {
-                grado: row.get(0)?,
-                count: row.get(1)?,
-            })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+    let mut stmt_students_grade = if colegioId.is_some() {
+        conn.prepare("SELECT g.nombre, COUNT(e.id) FROM estudiante e JOIN grado g ON e.grado_id = g.id WHERE e.colegio_id = ?1 GROUP BY e.grado_id ORDER BY g.nombre")
+    } else {
+        conn.prepare("SELECT g.nombre, COUNT(e.id) FROM estudiante e JOIN grado g ON e.grado_id = g.id GROUP BY e.grado_id ORDER BY g.nombre")
+    }.map_err(|e| e.to_string())?;
+    
+    let estudiantes_por_grado: Vec<GradoCount> = if let Some(cid) = colegioId {
+        stmt_students_grade.query_map(rusqlite::params![cid], |row| Ok(GradoCount { grado: row.get(0)?, count: row.get(1)? })).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
+    } else {
+        stmt_students_grade.query_map([], |row| Ok(GradoCount { grado: row.get(0)?, count: row.get(1)? })).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
+    };
 
     Ok(DashboardStats {
         total_estudiantes,

@@ -22,6 +22,14 @@
 
   let { onNavigate }: { onNavigate?: (tab: string) => void } = $props();
 
+  interface Colegio {
+    id: number;
+    nombre: string;
+  }
+
+  let colegios = $state<Colegio[]>([]);
+  let selectedColegio = $state<number | null>(null);
+
   let stats = $state<DashboardStats | null>(null);
   let loading = $state(true);
   let error = $state("");
@@ -33,6 +41,15 @@
 
   let maxGradoCount = $derived(stats ? Math.max(...stats.estudiantesPorGrado.map(g => g.count), 1) : 1);
 
+  async function loadColegios() {
+    try {
+      const data = await invoke<Colegio[]>("get_colegios");
+      colegios = data || [];
+    } catch (e) {
+      console.error("Error loading colegios:", e);
+    }
+  }
+
   async function loadStats(silent = false) {
     try {
       if (!silent) {
@@ -41,7 +58,10 @@
       }
       const today = new Date();
       const fecha = today.toISOString().split("T")[0];
-      const data = await invoke<DashboardStats>("get_dashboard_stats", { fechaHoy: fecha });
+      const data = await invoke<DashboardStats>("get_dashboard_stats", { 
+        fechaHoy: fecha,
+        colegioId: selectedColegio
+      });
       stats = data;
     } catch (e) {
       error = String(e);
@@ -68,7 +88,7 @@
     const handleEvent = () => loadStats(true);
     window.addEventListener("schooltracker-sync", handleEvent);
     
-    loadStats();
+    loadColegios().then(() => loadStats());
 
     const unsubs: (() => void)[] = [];
     
@@ -107,8 +127,16 @@
         <h1 class="dashboard-title">Dashboard</h1>
         <p class="dashboard-subtitle">
           Año lectivo: <strong>{stats.anoActivo || "—"}</strong>
-          · Colegio: <strong>{stats.colegioActivo || "—"}</strong>
+          · Colegio: <strong>{stats.colegioActivo || "Todos"}</strong>
         </p>
+      </div>
+      <div class="header-right">
+        <select class="dashboard-select" bind:value={selectedColegio} onchange={() => loadStats()}>
+          <option value={null}>Todos los colegios</option>
+          {#each colegios as c}
+            <option value={c.id}>{c.nombre}</option>
+          {/each}
+        </select>
       </div>
     </div>
 
@@ -293,6 +321,24 @@
   .dashboard-header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
   .dashboard-title { font-size: 1.5rem; font-weight: 700; margin: 0; color: #f1f5f9; }
   .dashboard-subtitle { font-size: 0.8rem; color: #94a3b8; margin: 0.25rem 0 0 0; }
+  .dashboard-select {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #f1f5f9;
+    padding: 0.4rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    outline: none;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .dashboard-select:focus {
+    border-color: var(--primary-color, #8b5cf6);
+  }
+  .dashboard-select option {
+    background: #1e293b;
+    color: #f1f5f9;
+  }
   .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.75rem; }
   .summary-card {
     background: rgba(255,255,255,0.02);
