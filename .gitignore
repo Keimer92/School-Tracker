@@ -42,3 +42,7 @@ Desktop.ini
 
 # --- Logs ---
 *.log
+
+# --- Wrangler / Cloudflare local state ---
+.wrangler/
+cloudflare-sync/.wrangler/

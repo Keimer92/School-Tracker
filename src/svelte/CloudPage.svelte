@@ -351,6 +351,22 @@
       {/if}
     </div>
     <div style="padding: 0 1.5rem 1.5rem;">
+      {#if showD1Config}
+        <div style="display: flex; flex-direction: column; gap: 0.7rem; padding: 1rem; background: rgba(0,0,0,0.2); border-radius: 12px; margin-bottom: 1rem;">
+          <div>
+            <label style="display: block; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; font-size: 0.65rem; margin-bottom: 4px;">URL del Worker</label>
+            <input bind:value={d1WorkerUrl} placeholder="https://schooltracker-d1-sync.tu-cuenta.workers.dev" style="width: 100%; padding: 0.55rem 0.7rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.06); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none;" />
+          </div>
+          <div>
+            <label style="display: block; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; font-size: 0.65rem; margin-bottom: 4px;">School Key</label>
+            <input bind:value={d1SchoolKey} placeholder="stp_xxxxxxxxxxxxxxxx" style="width: 100%; padding: 0.55rem 0.7rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.06); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none;" />
+          </div>
+          <div style="display: flex; gap: 0.5rem;">
+            <button onclick={saveD1Config} disabled={isD1Saving} style="flex: 1; padding: 0.6rem; border-radius: 8px; border: none; background: linear-gradient(135deg, #F6821F, #F97316); color: white; font-weight: 600; font-size: 0.8rem; cursor: pointer; opacity: {isD1Saving ? 0.6 : 1};">{isD1Saving ? 'Guardando...' : 'Guardar'}</button>
+            <button onclick={toggleD1Config} style="padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-size: 0.8rem;">Cancelar</button>
+          </div>
+        </div>
+      {/if}
       {#if !d1Cfg}
         <div style="text-align: center; padding: 1.5rem 1rem;">
           <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">⬡</div>
@@ -361,22 +377,6 @@
           </button>
         </div>
       {:else}
-        {#if showD1Config}
-          <div style="display: flex; flex-direction: column; gap: 0.7rem; padding: 1rem; background: rgba(0,0,0,0.2); border-radius: 12px; margin-bottom: 1rem;">
-            <div>
-              <label style="display: block; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; font-size: 0.65rem; margin-bottom: 4px;">URL del Worker</label>
-              <input bind:value={d1WorkerUrl} placeholder="https://schooltracker-d1-sync.tu-cuenta.workers.dev" style="width: 100%; padding: 0.55rem 0.7rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.06); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none;" />
-            </div>
-            <div>
-              <label style="display: block; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; font-size: 0.65rem; margin-bottom: 4px;">School Key</label>
-              <input bind:value={d1SchoolKey} placeholder="stp_xxxxxxxxxxxxxxxx" style="width: 100%; padding: 0.55rem 0.7rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.06); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none;" />
-            </div>
-            <div style="display: flex; gap: 0.5rem;">
-              <button onclick={saveD1Config} disabled={isD1Saving} style="flex: 1; padding: 0.6rem; border-radius: 8px; border: none; background: linear-gradient(135deg, #F6821F, #F97316); color: white; font-weight: 600; font-size: 0.8rem; cursor: pointer; opacity: {isD1Saving ? 0.6 : 1};">{isD1Saving ? 'Guardando...' : 'Guardar'}</button>
-              <button onclick={toggleD1Config} style="padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-size: 0.8rem;">Cancelar</button>
-            </div>
-          </div>
-        {/if}
         <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 0.75rem 0.9rem; background: linear-gradient(135deg, rgba(246,130,31,0.08) 0%, rgba(246,130,31,0.03) 100%); border-radius: 12px; border: 1px solid rgba(246,130,31,0.12); margin-bottom: 0.9rem;">
           <div style="color: #f1f5f9; font-size: 0.78rem;">
             <div style="font-weight: 600; color: #fdba74;">Escuela: <span style="color:#e2e8f0; font-family: monospace;">{d1Cfg.schoolKey.slice(0, 12)}…</span></div>
