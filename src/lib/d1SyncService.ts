@@ -23,6 +23,7 @@ interface D1SyncState {
   status: D1Status;
   lastSync: string | null;
   message: string | null;
+  lastResult: D1SyncResult | null;
 }
 
 type D1SyncListener = (state: D1SyncState) => void;
@@ -32,6 +33,7 @@ class D1SyncManager {
     status: 'idle',
     lastSync: localStorage.getItem('d1_last_sync_time'),
     message: null,
+    lastResult: null,
   };
   private listeners: D1SyncListener[] = [];
 
@@ -124,6 +126,7 @@ export const d1SyncService = {
         status: 'success',
         lastSync: nowIso(),
         message: null,
+        lastResult: result,
       });
       if (dispatchEvents) {
         await emitUpdates();
@@ -231,7 +234,7 @@ export const d1SyncService = {
 
   disconnect: () => {
     d1SyncService.stopPeriodicSync();
-    d1SyncManager.setState({ status: 'idle', lastSync: null, message: null });
+    d1SyncManager.setState({ status: 'idle', lastSync: null, message: null, lastResult: null });
   },
 
   syncGradeConfig: async (config: any): Promise<void> => {
