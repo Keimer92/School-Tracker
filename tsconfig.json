@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2015",
     "useDefineForClassFields": true,
-    "lib": ["ES2015", "DOM", "DOM.Iterable"],
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
 
@@ -19,7 +19,7 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src"],
-  "exclude": ["src/**/*.supabase.ts", "src/**/*.backup.ts", "src/**/*.old.ts", "src/lib/tursoClient.ts", "src/lib/tursoSyncService.ts", "src/lib/supabase.ts", "src/lib/syncService.supabase.ts", "src/lib/realtimeService.ts", "src/lib/realtimeService.supabase.ts", "src/svelte/SyncStatus.svelte", "src/svelte/GoogleDriveBackup.svelte"],
+  "exclude": ["src/svelte/GoogleDriveBackup.svelte"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
 
