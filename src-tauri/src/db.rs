@@ -113,6 +113,22 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS d1_config (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            worker_url TEXT NOT NULL DEFAULT '',
+            school_key TEXT NOT NULL DEFAULT '',
+            device_id TEXT NOT NULL DEFAULT '',
+            last_sync TEXT,
+            updated_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS d1_id_blocks (
+            tabla TEXT PRIMARY KEY,
+            next_id INTEGER NOT NULL DEFAULT 0,
+            end_id INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT DEFAULT (datetime('now'))
+        );
         "#,
     )
     .map_err(|e| format!("Error creando tablas de categorías: {}", e))?;

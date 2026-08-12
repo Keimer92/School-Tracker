@@ -5,6 +5,7 @@
   import { onBackButtonPress } from "@tauri-apps/api/app";
   import { handleBack, isBackAuthInProgress, setBackAuthInProgress } from "./lib/androidBack";
   import { syncService } from "./lib/syncService";
+  import { isD1Configured } from "./lib/syncService";
   import AsistenciaPage from "./svelte/AsistenciaPage.svelte";
   import InformePage from "./svelte/InformePage.svelte";
   import NotasPage from "./svelte/NotasPage.svelte";
@@ -215,6 +216,13 @@
         syncService.syncAllSilent();
         syncService.ensurePeriodicSync();
       }
+      // Cloudflare D1 — si hay config guardada, arranca sync (si no hay Drive).
+      isD1Configured().then((d1) => {
+        if (d1 && !driveSettings) {
+          syncService.syncAllSilent();
+          syncService.ensurePeriodicSync();
+        }
+      });
       invoke("seed_defaults_now");
     }
 
@@ -223,6 +231,9 @@
       initialized = true;
       const driveSettings = localStorage.getItem('schooltracker-google-drive-settings');
       if (driveSettings) {
+        syncService.syncAllSilent();
+        syncService.ensurePeriodicSync();
+      } else if (await isD1Configured()) {
         syncService.syncAllSilent();
         syncService.ensurePeriodicSync();
       }

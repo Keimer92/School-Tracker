@@ -128,6 +128,13 @@ commands.allow = [
     "set_app_initialized",
     "factory_reset",
     "get_multiplicadores",
-    "update_multiplicador"
+    "update_multiplicador",
+    "get_all_local_data_since",
+    "d1_get_config",
+    "d1_save_config",
+    "d1_clear_config",
+    "d1_status",
+    "d1_sync_all",
+    "d1_reserve_ids"
 ]
 

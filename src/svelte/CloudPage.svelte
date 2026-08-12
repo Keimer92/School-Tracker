@@ -3,6 +3,8 @@
   import { invoke } from "@tauri-apps/api/core";
   import { emit } from "@tauri-apps/api/event";
   import { syncService, syncManager, type SyncStatus } from "../lib/syncService";
+  import { d1SyncService, d1SyncManager, type D1Config, type D1SyncResult } from "../lib/d1SyncService";
+  import { invalidateD1Cache } from "../lib/syncService";
   import type { DriveFile } from "../lib/driveSyncService";
   import { driveSyncService } from "../lib/driveSyncService";
   import { registerBackHandler, setBackAuthInProgress } from "../lib/androidBack";
@@ -39,6 +41,17 @@
   let confirmMessage = $state("");
   let confirmVariant: 'danger' | 'warning' | 'info' = $state('danger');
   let confirmAction: (() => Promise<void>) | null = $state(null);
+
+  // Estado D1
+  let d1Cfg = $state<D1Config | null>(null);
+  let d1WorkerUrl = $state("");
+  let d1SchoolKey = $state("");
+  let d1SyncState = $state({ status: 'idle' as string, lastSync: null as string | null, message: null as string | null });
+  let isD1Saving = $state(false);
+  let isD1Testing = $state(false);
+  let isD1Syncing = $state(false);
+  let d1LastResult = $state<D1SyncResult | null>(null);
+  let showD1Config = $state(false);
 
   const isConnected = $derived(!!settings.accessToken);
   const isAndroid = /Android/i.test(navigator.userAgent);
@@ -230,10 +243,81 @@
     });
   }
 
+  async function loadD1Config() {
+    try {
+      d1Cfg = await d1SyncService.getConfig();
+      if (d1Cfg) {
+        d1WorkerUrl = d1Cfg.workerUrl;
+        d1SchoolKey = d1Cfg.schoolKey;
+        showD1Config = false;
+      }
+    } catch {}
+  }
+
+  function toggleD1Config() { showD1Config = !showD1Config; }
+
+  async function saveD1Config() {
+    if (!d1WorkerUrl.trim()) { await emit("show-toast", { message: "❌ Ingresa la URL del Worker", type: "error" }); return; }
+    if (!d1SchoolKey.trim()) { await emit("show-toast", { message: "❌ Ingresa la School Key", type: "error" }); return; }
+    isD1Saving = true;
+    try {
+      d1Cfg = await d1SyncService.saveConfig(d1WorkerUrl.trim(), d1SchoolKey.trim());
+      invalidateD1Cache();
+      showD1Config = false;
+      await emit("show-toast", { message: "✅ Configuración D1 guardada", type: "success" });
+    } catch (e) {
+      await emit("show-toast", { message: "❌ Error guardando: " + e, type: "error" });
+    } finally { isD1Saving = false; }
+  }
+
+  async function testD1() {
+    if (!d1Cfg) return;
+    isD1Testing = true;
+    try {
+      const res = await d1SyncService.testConnection();
+      if (res.ok) {
+        await emit("show-toast", { message: `✅ Conexión D1 exitosa (${res.latency} ms)`, type: "success" });
+      } else {
+        await emit("show-toast", { message: "❌ Error de conexión: " + (res.error || 'Desconocido'), type: "error" });
+      }
+    } catch (e) {
+      await emit("show-toast", { message: "❌ Error: " + e, type: "error" });
+    } finally { isD1Testing = false; }
+  }
+
+  async function syncD1() {
+    if (!d1Cfg) return;
+    isD1Syncing = true;
+    try {
+      d1LastResult = await d1SyncService.syncAll();
+      await emit("show-toast", { message: "✅ Sync D1 completado", type: "success" });
+    } catch (e) {
+      await emit("show-toast", { message: "❌ Error en sync: " + e, type: "error" });
+    } finally { isD1Syncing = false; }
+  }
+
+  async function disconnectD1() {
+    confirm("¿Desconectar la nube D1?\n\nSe detendrá la sincronización automática con Cloudflare.", "Desconectar D1", 'warning', async () => {
+      try {
+        await d1SyncService.clearConfig();
+        d1Cfg = null;
+        d1WorkerUrl = "";
+        d1SchoolKey = "";
+        d1LastResult = null;
+        invalidateD1Cache();
+        await emit("show-toast", { message: "✅ D1 desconectado", type: "success" });
+      } catch (e) {
+        await emit("show-toast", { message: "❌ Error: " + e, type: "error" });
+      }
+    });
+  }
+
   onMount(async () => {
     const unsub = syncManager.subscribe((state) => { syncStatus = state; });
     loadSettings();
     if (settings.accessToken) await refreshFiles();
+    await loadD1Config();
+    d1SyncManager.subscribe((s) => { d1SyncState = s; });
     // Auto-detect pending OAuth code (por si la página recargó durante el flujo)
     if (!settings.accessToken && !isAuthLoading) {
       try {
@@ -254,12 +338,84 @@
 </script>
 
 <div class="cloud-page">
+  <div class="cloud-card" style="margin-bottom: 1.25rem;">
+    <div class="cloud-card-header" style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+      <h3>
+        <span style="display: inline-flex; align-items: center; gap: 10px; background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%); padding: 0.5rem 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F6821F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 7.7l5.4-.8z"/></svg>
+          Cloudflare D1 <span style="font-size: 0.65rem; font-weight: 400; color: #64748b;">(Sync principal)</span>
+        </span>
+      </h3>
+      {#if d1Cfg}
+        <button onclick={toggleD1Config} style="padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #94a3b8; cursor: pointer; font-size: 0.7rem; flex-shrink: 0;">{showD1Config ? 'Cerrar' : 'Configurar'}</button>
+      {/if}
+    </div>
+    <div style="padding: 0 1.5rem 1.5rem;">
+      {#if !d1Cfg}
+        <div style="text-align: center; padding: 1.5rem 1rem;">
+          <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">⬡</div>
+          <h4 style="color: #e2e8f0; margin: 0 0 0.4rem 0;">Sync en la Nube con Cloudflare D1</h4>
+          <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1.25rem;">Sincronización por filas (LWW). Cada colegio tiene su propia base D1.</p>
+          <button onclick={toggleD1Config} style="padding: 0.8rem 2rem; background: linear-gradient(135deg, #F6821F, #F97316); border: none; color: white; border-radius: 12px; font-weight: 600; font-size: 0.95rem; cursor: pointer; box-shadow: 0 4px 16px rgba(246,130,31,0.3);">
+            ⚙️ Configurar D1
+          </button>
+        </div>
+      {:else}
+        {#if showD1Config}
+          <div style="display: flex; flex-direction: column; gap: 0.7rem; padding: 1rem; background: rgba(0,0,0,0.2); border-radius: 12px; margin-bottom: 1rem;">
+            <div>
+              <label style="display: block; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; font-size: 0.65rem; margin-bottom: 4px;">URL del Worker</label>
+              <input bind:value={d1WorkerUrl} placeholder="https://schooltracker-d1-sync.tu-cuenta.workers.dev" style="width: 100%; padding: 0.55rem 0.7rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.06); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none;" />
+            </div>
+            <div>
+              <label style="display: block; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; font-size: 0.65rem; margin-bottom: 4px;">School Key</label>
+              <input bind:value={d1SchoolKey} placeholder="stp_xxxxxxxxxxxxxxxx" style="width: 100%; padding: 0.55rem 0.7rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.06); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none;" />
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+              <button onclick={saveD1Config} disabled={isD1Saving} style="flex: 1; padding: 0.6rem; border-radius: 8px; border: none; background: linear-gradient(135deg, #F6821F, #F97316); color: white; font-weight: 600; font-size: 0.8rem; cursor: pointer; opacity: {isD1Saving ? 0.6 : 1};">{isD1Saving ? 'Guardando...' : 'Guardar'}</button>
+              <button onclick={toggleD1Config} style="padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-size: 0.8rem;">Cancelar</button>
+            </div>
+          </div>
+        {/if}
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 0.75rem 0.9rem; background: linear-gradient(135deg, rgba(246,130,31,0.08) 0%, rgba(246,130,31,0.03) 100%); border-radius: 12px; border: 1px solid rgba(246,130,31,0.12); margin-bottom: 0.9rem;">
+          <div style="color: #f1f5f9; font-size: 0.78rem;">
+            <div style="font-weight: 600; color: #fdba74;">Escuela: <span style="color:#e2e8f0; font-family: monospace;">{d1Cfg.schoolKey.slice(0, 12)}…</span></div>
+            <div style="color: #64748b; margin-top: 2px;">Dispositivo: <span style="font-family: monospace;">{d1Cfg.deviceId}</span></div>
+            <div style="color: #64748b; margin-top: 2px;">Última sync: {d1SyncState.lastSync ? new Date(d1SyncState.lastSync).toLocaleString('es-ES') : '—'}</div>
+          </div>
+        </div>
+        {#if d1SyncState.message}
+          <div style="margin-bottom: 0.75rem; padding: 8px 12px; border-radius: 8px; font-size: 0.75rem; border-left: 3px solid {d1SyncState.status === 'error' ? '#ef4444' : '#F6821F'}; background: rgba(0,0,0,0.2); color: {d1SyncState.status === 'error' ? '#fca5a5' : 'var(--text-secondary)'};">
+            {d1SyncState.message}
+          </div>
+        {/if}
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+          <button onclick={syncD1} disabled={isD1Syncing} style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(246,130,31,0.15) 0%, rgba(246,130,31,0.05) 100%); border: 1px solid rgba(246,130,31,0.25); border-radius: 12px; cursor: pointer; opacity: {isD1Syncing ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F6821F" stroke-width="2" stroke-linecap="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+            <span style="color: #F6821F; font-weight: 600; font-size: 0.85rem;">Sincronizar ahora</span>
+          </button>
+          <button onclick={testD1} disabled={isD1Testing} style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; cursor: pointer; opacity: {isD1Testing ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;">
+            <span style="color: #94a3b8; font-weight: 600; font-size: 0.85rem;">{isD1Testing ? 'Probando...' : 'Probar conexión'}</span>
+          </button>
+        </div>
+        {#if d1LastResult}
+          <div style="margin-top: 0.75rem; padding: 0.6rem 0.8rem; background: rgba(0,0,0,0.15); border-radius: 8px; font-size: 0.7rem; color: #94a3b8; font-family: monospace; line-height: 1.6;">
+            Subidos: {JSON.stringify(d1LastResult.pushed)} · Aplicados: {JSON.stringify(d1LastResult.pulled)} · Borrados: {d1LastResult.deletedApplied}
+          </div>
+        {/if}
+        <div style="margin-top: 0.85rem; display: flex; align-items: center; gap: 6px;">
+          <button onclick={disconnectD1} style="padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); color: #f87171; cursor: pointer; font-size: 0.7rem;">Desconectar</button>
+        </div>
+      {/if}
+    </div>
+  </div>
+
   <div class="cloud-card">
     <div class="cloud-card-header">
       <h3>
         <span style="display: inline-flex; align-items: center; gap: 10px; background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%); padding: 0.5rem 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z" stroke="url(#cloudGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="cloudGrad" x1="6" y1="8" x2="19" y2="18" gradientUnits="userSpaceOnUse"><stop stop-color="var(--primary-color)"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs></svg>
-          Google Drive
+          Google Drive <span style="font-size: 0.65rem; font-weight: 400; color: #64748b;">(Respaldo manual)</span>
         </span>
       </h3>
     </div>

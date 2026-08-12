@@ -1,6 +1,8 @@
 mod db;
+mod d1;
 
 use db::*;
+use d1::*;
 use rusqlite::Connection;
 use rusqlite::params;
 use rusqlite::types::ToSql;
@@ -1357,6 +1359,12 @@ pub fn run() {
             factory_reset,
             get_notas_count,
             get_notas_count_all,
+            d1_get_config,
+            d1_save_config,
+            d1_clear_config,
+            d1_status,
+            d1_sync_all,
+            d1_reserve_ids,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

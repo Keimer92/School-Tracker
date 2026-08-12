@@ -1,0 +1,13 @@
+name = "schooltracker-d1-sync"
+main = "src/index.ts"
+compatibility_date = "2026-07-01"
+
+# El script scripts/d1-provision.mjs rellena el id de este namespace automáticamente.
+[[kv_namespaces]]
+binding = "SCHOOL_ROUTING"
+id = "6114e848035443e395b739218cc6f506"
+
+[vars]
+# Account ID de Cloudflare (cuenta de pedroluisnfc@gmail.com)
+# El secret CF_API_TOKEN se define con: wrangler secret put CF_API_TOKEN
+CF_ACCOUNT_ID = "ec285834428c30f51d6f92a67848d5d5"

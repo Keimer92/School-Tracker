@@ -29,7 +29,7 @@ tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-deep-link = "2"
-ureq = "2.9"
+ureq = { version = "2.9", features = ["json"] }
 tokio = { version = "1", features = ["full"] }
 base64 = "0.22.1"
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "json"] }
