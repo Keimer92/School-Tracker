@@ -1,4 +1,17 @@
-const DIRTY_KEY = 'turso_dirty_tables';
+// Nombre histórico del key en localStorage (antes "turso_dirty_tables").
+// Se migra una sola vez al nombre actual para no romper marcas pendientes existentes.
+const DIRTY_KEY = 'stp_dirty_tables';
+const LEGACY_DIRTY_KEY = 'turso_dirty_tables';
+
+try {
+  const legacy = localStorage.getItem(LEGACY_DIRTY_KEY);
+  if (legacy !== null) {
+    if (localStorage.getItem(DIRTY_KEY) === null) {
+      localStorage.setItem(DIRTY_KEY, legacy);
+    }
+    localStorage.removeItem(LEGACY_DIRTY_KEY);
+  }
+} catch { /* noop */ }
 
 const ALL_TABLES = [
   'ano_lectivo', 'corte_evaluativo', 'colegio', 'asignatura', 'grado',

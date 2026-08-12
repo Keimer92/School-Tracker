@@ -1,4 +1,0 @@
-[[permission]]
-identifier = "allow-supabase-execute-sql"
-description = "Permite ejecutar el comando de SQL directo para crear el schema de Supabase"
-commands.allow = ["supabase_execute_sql"]

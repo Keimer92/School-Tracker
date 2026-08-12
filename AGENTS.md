@@ -27,10 +27,8 @@ Idioma del código y comentarios: **español**. Mantener así.
 package.json                 scripts npm (dev, build, tauri, dev:android)
 vite.config.ts               puerto dev 1420; plugin svelte + top-level-await
 svelte.config.js             Svelte 5 (componentApi: 4 compat)
-tsconfig.json                target ES2015, strict; EXCLUYE *.supabase.ts, *.backup.ts,
-                              *.old.ts, tursoClient.ts, tursoSyncService.ts, supabase.ts,
-                              syncService.supabase.ts, realtimeService*.ts, SyncStatus.svelte
-.env                         (VITE_SUPABASE_*, VITE_TURSO_* ya no se usan)
+tsconfig.json                target ES2015, strict; excluye solo src/svelte/GoogleDriveBackup.svelte
+.env                         solo variables de Google Drive (VITE_GOOGLE_CLIENT_ID/SECRET)
 src/
   main.ts                    bootstrap; ventana 'google-login' maneja OAuth
   App.svelte                 shell: sidebar + tabs (notas, reportes, estudiantes,
@@ -47,12 +45,8 @@ src/
                               y forcePullNotas que llaman a pullAllSilent().
     dirtyTracker.ts          marcas de tablas "sucias" para saber qué ha cambiado
     googleDriveBackupService.ts
-    cloud/config.ts, dateUtils.ts
+    dateUtils.ts
     autoSync.ts              helper onDataChange(table) para marcar dirty
-  (Los siguientes archivos se mantienen en disco como referencia pero NO se importan
-   ni typecheckean: tursoClient.ts, tursoSyncService.ts, supabase.ts,
-   syncService.supabase.ts, supabase.backup.ts, realtimeService.ts,
-   realtimeService.supabase.ts)
 src-tauri/
   Cargo.toml                 deps Rust (ver stack)
   tauri.conf.json            productName, identifier com.keimer.schooltrackerpro, ventana,
@@ -88,9 +82,7 @@ src-tauri/gen/               generado (ignorar; no editar a mano)
   (No hay schema remoto que mantener).
 - **Svelte 5 runes**: estado con `$state`, efectos con `$effect`. No usar stores globales
   salvo que sea necesario.
-- **tsconfig** excluye `*.supabase.ts`, `*.backup.ts`, `*.old.ts`,
-  `tursoClient.ts`, `tursoSyncService.ts`, `supabase.ts`, `syncService.supabase.ts`,
-  `realtimeService.ts`, `realtimeService.supabase.ts`, `SyncStatus.svelte`.
+- **tsconfig** excluye únicamente `src/svelte/GoogleDriveBackup.svelte` (componente legacy de Drive).
 - **Android**: comandos de orientación/PDF/share usan JNI y están tras
   `#[cfg(target_os = "android")]`; en desktop devuelven `Err`/`Ok(())` según caso.
 - **Build**: `npm run build` = `tsc && vite build` (estricto: `strict: true`, pero
@@ -100,22 +92,10 @@ src-tauri/gen/               generado (ignorar; no editar a mano)
 - **Sync periódico**: configurable en ajustes (segundos). Lo maneja
   `driveSyncService.ensurePeriodicSync()`. Intervalo guardado en
   `localStorage['periodic_sync_interval_seconds']`.
-- **dirtyTracker**: la clave en localStorage se llama `turso_dirty_tables` (nombre
-  histórico, no cambiar para no romper datos existentes). Función: marcar tablas
-  modificadas para saber si hay cambios pendientes de subir.
-
-### Archivos de referencia (no tocar)
-
-Los siguientes archivos se conservan en disco como referencia histórica pero NO deben
-ser modificados ni importados. Están excluidos del typecheck en `tsconfig.json`:
-
-- `src/lib/tursoClient.ts` — cliente libSQL (antes usado con Turso)
-- `src/lib/tursoSyncService.ts` — implementación Turso del sync
-- `src/lib/supabase.ts` — cliente Supabase anon
-- `src/lib/syncService.supabase.ts` — implementación Supabase del sync
-- `src/lib/supabase.backup.ts` — respaldo
-- `src/lib/realtimeService.ts` / `src/lib/realtimeService.supabase.ts` — realtime
-- `src/svelte/SyncStatus.svelte` — componente de estado de sync (sin usar)
+- **dirtyTracker**: la clave en localStorage es `stp_dirty_tables`. En `dirtyTracker.ts`
+  hay una migración que renombra la clave histórica `turso_dirty_tables` una sola vez
+  para no perder marcas pendientes. Función: marcar tablas modificadas para saber si
+  hay cambios pendientes de subir.
 
 ## Comandos
 - `npm run dev` — servidor Vite (frontend) en http://localhost:1420 (usado por Tauri dev).

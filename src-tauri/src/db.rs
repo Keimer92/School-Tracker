@@ -1,4 +1,4 @@
-use rusqlite::{Connection, Result};
+﻿use rusqlite::{Connection, Result};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
@@ -57,11 +57,11 @@ pub struct DbState {
 }
 
 /// Inicializa la base de datos creando todas las tablas necesarias.
-/// Esta función es idempotente: usa CREATE TABLE IF NOT EXISTS.
+/// Esta funciÃ³n es idempotente: usa CREATE TABLE IF NOT EXISTS.
 pub fn init_database(conn: &Connection) -> Result<(), String> {
-    println!("🔄 [DB] Inicializando base de datos...");
+    println!("ðŸ”„ [DB] Inicializando base de datos...");
     
-    // Tablas de categorías
+    // Tablas de categorÃ­as
     conn.execute_batch(
         r#"
         CREATE TABLE IF NOT EXISTS ano_lectivo (
@@ -131,7 +131,7 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
         );
         "#,
     )
-    .map_err(|e| format!("Error creando tablas de categorías: {}", e))?;
+    .map_err(|e| format!("Error creando tablas de categorÃ­as: {}", e))?;
 
     // Tabla de estudiantes (estructura unificada)
     conn.execute_batch(
@@ -263,7 +263,7 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
     )
     .map_err(|e| format!("Error creando tabla nota: {}", e))?;
 
-    // Tabla de configuración de calificaciones
+    // Tabla de configuraciÃ³n de calificaciones
     conn.execute_batch(
         r#"
         CREATE TABLE IF NOT EXISTS configuracion_calificacion (
@@ -277,7 +277,7 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
     )
     .map_err(|e| format!("Error creando tabla configuracion_calificacion: {}", e))?;
 
-    // Tablas de sincronización
+    // Tablas de sincronizaciÃ³n
     conn.execute_batch(
         r#"
         CREATE TABLE IF NOT EXISTS sync_pending_deletions (
@@ -324,16 +324,16 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
         );
         "#,
     )
-    .map_err(|e| format!("Error creando tablas de sincronización: {}", e))?;
+    .map_err(|e| format!("Error creando tablas de sincronizaciÃ³n: {}", e))?;
 
-    // Migraciones para bases de datos existentes (agregar columnas faltantes)
+// Migraciones para bases de datos existentes (agregar columnas faltantes)
     // NOTA: Los datos iniciales NO se siembran aquí. Se siembran bajo demanda
-    // desde el frontend después de verificar si Turso tiene datos existentes.
-    // Esto evita crear datos por defecto cuando ya hay datos en la nube.
+    // desde el frontend después de verificar si ya existen datos locales.
+    // Esto evita crear datos por defecto cuando ya hay datos guardados.
     migrate_add_columns(conn)?;
     deduplicate_criteria(conn)?;
 
-    println!("✅ [DB] Base de datos inicializada correctamente");
+    println!("âœ… [DB] Base de datos inicializada correctamente");
     Ok(())
 }
 
@@ -402,7 +402,7 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
         .map_err(|e| format!("Error agregando columna activo a colegio: {}", e))?;
     }
 
-    // Sembrar multiplicadores por defecto si la tabla está vacía
+    // Sembrar multiplicadores por defecto si la tabla estÃ¡ vacÃ­a
     let has_multiplicadores: bool = conn
         .query_row(
             "SELECT COUNT(*) FROM multiplicador_calificacion",
@@ -424,10 +424,10 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
                 rusqlite::params![id, mult],
             ).ok();
         }
-        println!("✅ [DB] Multiplicadores de criterios sembrados (migración)");
+        println!("âœ… [DB] Multiplicadores de criterios sembrados (migraciÃ³n)");
     }
 
-    // Migración: agregar columna updated_at a todas las tablas que sincronizan
+    // MigraciÃ³n: agregar columna updated_at a todas las tablas que sincronizan
     let tables_updated_at = [
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
         "estudiante", "indicador", "criterio", "asistencia", "colegio_dias_asistencia",
@@ -443,21 +443,21 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
             )
             .unwrap_or(0) > 0;
         if !has_col {
-            // SQLite no permite DEFAULT con expresión en ALTER TABLE,
-            // así que agregamos sin default (nuevos registros usan DEFAULT de CREATE TABLE)
+            // SQLite no permite DEFAULT con expresiÃ³n en ALTER TABLE,
+            // asÃ­ que agregamos sin default (nuevos registros usan DEFAULT de CREATE TABLE)
             conn.execute(
                 &format!("ALTER TABLE {table} ADD COLUMN updated_at TEXT"),
                 [],
             )
             .map_err(|e| format!("Error agregando updated_at a {table}: {e}"))?;
             // Backfill de una sola vez: las filas existentes quedan con NULL y el
-            // chequeo de cambios locales (`has_local_changes`) no las detectaría.
+            // chequeo de cambios locales (`has_local_changes`) no las detectarÃ­a.
             conn.execute(
                 &format!("UPDATE {table} SET updated_at = datetime('now') WHERE updated_at IS NULL"),
                 [],
             )
             .map_err(|e| format!("Error actualizando updated_at en {table}: {e}"))?;
-            println!("✅ [DB] Columna updated_at agregada a {table}");
+            println!("âœ… [DB] Columna updated_at agregada a {table}");
         }
     }
 
@@ -477,7 +477,7 @@ fn deduplicate_criteria(conn: &Connection) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
 
     for id in &indicador_ids {
-        // Mantener solo los 3 criterios con orden más bajo
+        // Mantener solo los 3 criterios con orden mÃ¡s bajo
         conn.execute(
             "DELETE FROM criterio WHERE indicador_id = ? AND id NOT IN (SELECT id FROM criterio WHERE indicador_id = ? ORDER BY orden LIMIT 3)",
             rusqlite::params![id, id],
@@ -486,27 +486,27 @@ fn deduplicate_criteria(conn: &Connection) -> Result<(), String> {
     }
 
     if !indicador_ids.is_empty() {
-        println!("🧹 [DB] Eliminados criterios duplicados para {} indicador(es)", indicador_ids.len());
+        println!("ðŸ§¹ [DB] Eliminados criterios duplicados para {} indicador(es)", indicador_ids.len());
     }
 
     Ok(())
 }
 
-/// Inserta datos iniciales si las tablas están vacías
+/// Inserta datos iniciales si las tablas estÃ¡n vacÃ­as
 pub fn seed_default_data(conn: &Connection) -> Result<(), String> {
-    // Verificar si ya hay datos (localmente o de sincronización previa)
+    // Verificar si ya hay datos (localmente o de sincronizaciÃ³n previa)
     let count: i64 = conn
         .query_row("SELECT COUNT(*) FROM ano_lectivo", [], |row| row.get(0))
         .unwrap_or(0);
 
     if count > 0 {
-        println!("📊 [DB] Datos encontrados en base de datos local, omitiendo sembrado de datos por defecto");
+        println!("ðŸ“Š [DB] Datos encontrados en base de datos local, omitiendo sembrado de datos por defecto");
         return Ok(());
     }
 
-    println!("🌱 [DB] Base de datos vacía, sembrando datos iniciales...");
+    println!("ðŸŒ± [DB] Base de datos vacÃ­a, sembrando datos iniciales...");
 
-    // Años lectivos
+    // AÃ±os lectivos
     conn.execute(
         "INSERT INTO ano_lectivo (nombre) VALUES ('2026')",
         [],
@@ -561,7 +561,7 @@ pub fn seed_default_data(conn: &Connection) -> Result<(), String> {
         ("Convivencia & Civismo", 1),
         ("Creciendo en Valores", 1),
         ("Derecho & Dignidad de la Mujer", 1),
-        ("Educación Física", 1),
+        ("EducaciÃ³n FÃ­sica", 1),
     ];
 
     for (nombre, cualitativo) in asignaturas {
@@ -634,7 +634,7 @@ pub fn seed_default_data(conn: &Connection) -> Result<(), String> {
             [],
         )
         .ok();
-        println!("✅ [DB] Migración de calificaciones completada");
+        println!("âœ… [DB] MigraciÃ³n de calificaciones completada");
     } else {
         // Si no hay registros, insertar los nuevos
         let is_empty: bool = conn
@@ -659,7 +659,7 @@ pub fn seed_default_data(conn: &Connection) -> Result<(), String> {
                 )
                 .ok();
             }
-            println!("✅ [DB] Datos iniciales de calificaciones sembrados");
+            println!("âœ… [DB] Datos iniciales de calificaciones sembrados");
         }
     }
 
@@ -677,11 +677,11 @@ pub fn seed_default_data(conn: &Connection) -> Result<(), String> {
         ).ok();
     }
 
-    println!("✅ [DB] Datos iniciales sembrados correctamente");
+    println!("âœ… [DB] Datos iniciales sembrados correctamente");
     Ok(())
 }
 
-/// Alias para compatibilidad hacia atrás
+/// Alias para compatibilidad hacia atrÃ¡s
 pub fn run_migrations(conn: &Connection) -> Result<(), String> {
     init_database(conn)
 }
@@ -694,7 +694,7 @@ pub struct StudentImpact {
 }
 
 // ============================================================================
-// Estructuras para sincronización de eliminaciones (claves compuestas)
+// Estructuras para sincronizaciÃ³n de eliminaciones (claves compuestas)
 // ============================================================================
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -764,7 +764,7 @@ pub async fn get_student_impact(
 pub async fn reset_local_database(state: tauri::State<'_, DbState>) -> Result<(), String> {
     let conn_guard = state.conn.lock().map_err(|e| e.to_string())?;
 
-    // Lista de tablas a vaciar en orden para respetar llaves foráneas
+    // Lista de tablas a vaciar en orden para respetar llaves forÃ¡neas
     let tables = [
         "asistencia",
         "nota",
@@ -783,7 +783,7 @@ pub async fn reset_local_database(state: tauri::State<'_, DbState>) -> Result<()
         "configuracion_calificacion",
     ];
 
-    // Desactivar temporalmente las llaves foráneas para un borrado limpio
+    // Desactivar temporalmente las llaves forÃ¡neas para un borrado limpio
     conn_guard
         .execute("PRAGMA foreign_keys = OFF", [])
         .map_err(|e| e.to_string())?;
@@ -800,15 +800,15 @@ pub async fn reset_local_database(state: tauri::State<'_, DbState>) -> Result<()
         }
     }
 
-    // Limpieza adicional: Si existía el colegio con el typo, borrarlo explícitamente por si acaso
-    // (Útil para limpiar bases de datos existentes sin reset completo de tablas si se desea,
-    // pero aquí estamos dentro del reset así que las tablas ya están vacías).
+    // Limpieza adicional: Si existÃ­a el colegio con el typo, borrarlo explÃ­citamente por si acaso
+    // (Ãštil para limpiar bases de datos existentes sin reset completo de tablas si se desea,
+    // pero aquÃ­ estamos dentro del reset asÃ­ que las tablas ya estÃ¡n vacÃ­as).
 
     conn_guard
         .execute("PRAGMA foreign_keys = ON", [])
         .map_err(|e| e.to_string())?;
 
-    // Después de limpiar, volvemos a ejecutar las migraciones para asegurar
+    // DespuÃ©s de limpiar, volvemos a ejecutar las migraciones para asegurar
     // que las tablas se vuelvan a crear
     run_migrations(&conn_guard)?;
 
@@ -1597,7 +1597,7 @@ pub async fn delete_category_force(
         _ => return Err("Tabla no reconocida".to_string()),
     }
 
-    // Registrar la eliminación de la entidad principal
+    // Registrar la eliminaciÃ³n de la entidad principal
     tx.execute(
         "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)",
         rusqlite::params![&table, id],
@@ -2011,7 +2011,7 @@ pub async fn get_recommended_colegio(state: tauri::State<'_, DbState>) -> Result
     let now = Local::now();
     let weekday = now.weekday();
 
-    // Mapear el día de la semana a la columna de la base de datos
+    // Mapear el dÃ­a de la semana a la columna de la base de datos
     let column = match weekday {
         chrono::Weekday::Mon => "lunes",
         chrono::Weekday::Tue => "martes",
@@ -2024,7 +2024,7 @@ pub async fn get_recommended_colegio(state: tauri::State<'_, DbState>) -> Result
 
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
 
-    // Buscar colegios habilitados para hoy, ordenados alfabéticamente
+    // Buscar colegios habilitados para hoy, ordenados alfabÃ©ticamente
     let mut stmt = conn
         .prepare(&format!(
             "SELECT c.id FROM colegio c 
@@ -2276,7 +2276,7 @@ pub async fn delete_student(state: tauri::State<'_, DbState>, id: i64) -> Result
     tx.execute("DELETE FROM estudiante WHERE id = ?", [id])
         .map_err(|e| e.to_string())?;
 
-    // 2. Registrar la eliminación pendiente para sincronización
+    // 2. Registrar la eliminaciÃ³n pendiente para sincronizaciÃ³n
     tx.execute(
         "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)",
         rusqlite::params!["estudiante", id],
@@ -2313,7 +2313,7 @@ pub async fn get_subjects_by_grade(
 ) -> Result<Vec<CategoryItem>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     
-    // Usar LEFT JOIN para obtener todas las asignaturas, incluso si no hay relación en grado_asignatura
+    // Usar LEFT JOIN para obtener todas las asignaturas, incluso si no hay relaciÃ³n en grado_asignatura
     let mut stmt = conn
         .prepare(
             "SELECT a.id, a.nombre, a.cualitativo 
@@ -2368,8 +2368,8 @@ pub async fn assign_subject_to_grade(
     gradoId: i64,
     asignaturaId: i64,
 ) -> Result<(), String> {
-    let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    // Limpiar pending deletion previa para evitar que upsert_pull_data borre el registro recién asignado
+let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    // Limpiar pending deletion previa para evitar que un pull borre el registro recién asignado
     let _ = conn.execute(
         "DELETE FROM sync_pending_deletions_grado_asignatura WHERE grado_id = ? AND asignatura_id = ?",
         [gradoId, asignaturaId],
@@ -2391,7 +2391,7 @@ pub async fn unassign_subject_from_grade(
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
 
-    // Solo registrar si la relación existe
+    // Solo registrar si la relaciÃ³n existe
     let exists: bool = conn.query_row(
         "SELECT EXISTS(SELECT 1 FROM grado_asignatura WHERE grado_id = ? AND asignatura_id = ?)",
         [gradoId, asignaturaId],
@@ -2399,13 +2399,13 @@ pub async fn unassign_subject_from_grade(
     ).unwrap_or(false);
 
     if exists {
-        // Registrar eliminación pendiente
+        // Registrar eliminaciÃ³n pendiente
         conn.execute(
             "INSERT INTO sync_pending_deletions_grado_asignatura (grado_id, asignatura_id) VALUES (?, ?)",
             [gradoId, asignaturaId],
         ).map_err(|e| e.to_string())?;
 
-        // Eliminar la relación
+        // Eliminar la relaciÃ³n
         conn.execute(
             "DELETE FROM grado_asignatura WHERE grado_id = ? AND asignatura_id = ?",
             [gradoId, asignaturaId],
@@ -2530,8 +2530,8 @@ pub async fn assign_subject_to_colegio(
     colegioId: i64,
     asignaturaId: i64,
 ) -> Result<(), String> {
-    let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    // Limpiar pending deletion previa para evitar que upsert_pull_data borre el recién asignado
+let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    // Limpiar pending deletion previa para evitar que un pull borre el recién asignado
     let _ = conn.execute(
         "DELETE FROM sync_pending_deletions_colegio_asignatura WHERE colegio_id = ? AND asignatura_id = ?",
         [colegioId, asignaturaId],
@@ -2554,7 +2554,7 @@ pub async fn unassign_subject_from_colegio(
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
 
-    // Solo registrar si la relación existe
+    // Solo registrar si la relaciÃ³n existe
     let exists: bool = conn.query_row(
         "SELECT EXISTS(SELECT 1 FROM colegio_asignatura WHERE colegio_id = ? AND asignatura_id = ?)",
         [colegioId, asignaturaId],
@@ -2562,13 +2562,13 @@ pub async fn unassign_subject_from_colegio(
     ).unwrap_or(false);
 
     if exists {
-        // Registrar eliminación pendiente
+        // Registrar eliminaciÃ³n pendiente
         conn.execute(
             "INSERT INTO sync_pending_deletions_colegio_asignatura (colegio_id, asignatura_id) VALUES (?, ?)",
             [colegioId, asignaturaId],
         ).map_err(|e| e.to_string())?;
 
-        // Eliminar la relación
+        // Eliminar la relaciÃ³n
         conn.execute(
             "DELETE FROM colegio_asignatura WHERE colegio_id = ? AND asignatura_id = ?",
             [colegioId, asignaturaId],
@@ -2971,7 +2971,7 @@ pub async fn update_criterio(
 }
 
 // NotasPage Commands
-// Estructura específica para estudiantes en la página de notas
+// Estructura especÃ­fica para estudiantes en la pÃ¡gina de notas
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct EstudianteNota {
@@ -3450,7 +3450,7 @@ pub async fn get_monthly_attendance_pct(
 ) -> Result<Vec<MonthlyPctItem>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     if fecha.len() < 7 {
-        return Err("Fecha inválida".to_string());
+        return Err("Fecha invÃ¡lida".to_string());
     }
     let mes = &fecha[..7];
     let mes_pattern = format!("{}%", mes);
@@ -3684,105 +3684,6 @@ pub async fn save_asistencia(
     Ok(())
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct AsistenciaCloudRecord {
-    pub id: i64,
-    pub estudiante_id: i64,
-    pub fecha: String,
-    pub estado: String,
-    pub observacion: Option<String>,
-    pub user_id: String,
-}
-
-#[tauri::command]
-pub async fn upsert_asistencia_from_cloud(
-    state: tauri::State<'_, DbState>,
-    records: Vec<AsistenciaCloudRecord>,
-) -> Result<(), String> {
-    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
-    let tx = conn.transaction().map_err(|e| e.to_string())?;
-
-    let count = records.len();
-    for record in &records {
-        tx.execute(
-            "INSERT INTO asistencia (id, estudiante_id, fecha, estado, observacion) 
-             VALUES (?, ?, ?, ?, ?)
-             ON CONFLICT DO UPDATE SET
-               estudiante_id = excluded.estudiante_id,
-               fecha = excluded.fecha,
-               estado = excluded.estado,
-               observacion = excluded.observacion,
-               updated_at = CASE WHEN estudiante_id IS NOT excluded.estudiante_id
-                   OR fecha IS NOT excluded.fecha
-                   OR estado IS NOT excluded.estado
-                   OR observacion IS NOT excluded.observacion
-                 THEN datetime('now') ELSE updated_at END",
-            rusqlite::params![
-                record.id,
-                record.estudiante_id,
-                &record.fecha,
-                &record.estado,
-                &record.observacion
-            ],
-        )
-        .map_err(|e| e.to_string())?;
-    }
-
-    tx.commit().map_err(|e| e.to_string())?;
-    println!("[CloudSync] {} registros de asistencia guardados desde Supabase", count);
-    Ok(())
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct NotaCloudRecord {
-    pub id: Option<i64>,
-    pub estudiante_id: i64,
-    pub indicador_id: Option<i64>,
-    pub criterio_id: i64,
-    pub ano_lectivo_id: Option<i64>,
-    pub corte_id: i64,
-    pub colegio_id: Option<i64>,
-    pub grado_id: Option<i64>,
-    pub seccion_id: Option<i64>,
-    pub asignatura_id: i64,
-    pub puntaje: f64,
-    pub estado: Option<String>,
-}
-
-#[tauri::command]
-pub async fn upsert_notas_from_cloud(
-    state: tauri::State<'_, DbState>,
-    notas: Vec<NotaCloudRecord>,
-) -> Result<(), String> {
-    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
-    let tx = conn.transaction().map_err(|e| e.to_string())?;
-
-    let count = notas.len();
-    for n in &notas {
-        tx.execute(
-            "INSERT INTO nota (estudiante_id, criterio_id, valor, corte_evaluativo_id, asignatura_id) 
-             VALUES (?, ?, ?, ?, ?)
-             ON CONFLICT(estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id)
-             DO UPDATE SET
-               valor = excluded.valor,
-               updated_at = CASE WHEN valor IS NOT excluded.valor
-                 THEN datetime('now') ELSE updated_at END",
-            rusqlite::params![
-                n.estudiante_id,
-                n.criterio_id,
-                n.puntaje,
-                n.corte_id,
-                n.asignatura_id
-            ],
-        )
-        .map_err(|e| e.to_string())?;
-    }
-
-    tx.commit().map_err(|e| e.to_string())?;
-    println!("[CloudSync] {} registros de notas guardados desde Supabase", count);
-    Ok(())
-}
-
 #[tauri::command]
 pub async fn delete_asistencia_batch(
     state: tauri::State<'_, DbState>,
@@ -3803,7 +3704,7 @@ pub async fn delete_asistencia_batch(
             .unwrap_or(false);
 
         if exists {
-            // Registrar la eliminación pendiente ANTES de eliminar
+            // Registrar la eliminaciÃ³n pendiente ANTES de eliminar
             tx.execute(
                 "INSERT INTO sync_pending_deletions_asistencia (estudiante_id, fecha) VALUES (?, ?)",
                 rusqlite::params![id, &fecha],
@@ -3877,7 +3778,7 @@ pub async fn get_indicadores_all(state: tauri::State<'_, DbState>) -> Result<Vec
                 orden: row.get(4)?,
                 descripcion: row.get(5)?,
                 activo: row.get::<_, i64>(6)? == 1,
-                criterios: vec![], // No necesitamos cargar criterios aquí para sync simple
+                criterios: vec![], // No necesitamos cargar criterios aquÃ­ para sync simple
             })
         })
         .map_err(|e| e.to_string())?
@@ -3961,442 +3862,8 @@ pub async fn get_asistencia_all(
     Ok(registros)
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct PullData {
-    pub anos: Vec<CategoryItem>,
-    pub cortes: Vec<CategoryItem>,
-    pub colegios: Vec<CategoryItem>,
-    pub asignaturas: Vec<CategoryItem>,
-    pub grados: Vec<CategoryItem>,
-    pub secciones: Vec<CategoryItem>,
-    pub estudiantes: Vec<Student>,
-    pub indicadores: Vec<Indicador>,
-    pub criterios: Vec<Criterio>,
-    pub notas: Vec<NotaResponse>,
-    pub asistencia: Vec<AsistenciaRecord>,
-    pub grade_configs: Vec<GradeConfig>,
-    pub multiplicadores: Vec<MultiplicadorItem>,
-    pub grado_asignatura: Vec<(i64, i64)>,
-    pub colegio_asignatura: Vec<(i64, i64)>,
-    pub colegio_dias_asistencia: Vec<ColegioDiasAsistencia>,
-    pub is_partial: Option<bool>,
-}
 
-#[tauri::command]
-pub async fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) -> Result<(), String> {
-    let is_partial = data.is_partial.unwrap_or(false);
-
-    println!("[upsert_pull_data] Recibidos: anos={}, cortes={}, colegios={}, asignaturas={}, grados={}, secciones={}, estudiantes={}, indicadores={}, criterios={}, notas={}, asistencia={}, gradeConfigs={}, multiplicadores={}, gradoAsignatura={}, colegioAsignatura={}, colegioDias={}",
-        data.anos.len(), data.cortes.len(), data.colegios.len(), data.asignaturas.len(),
-        data.grados.len(), data.secciones.len(), data.estudiantes.len(), data.indicadores.len(),
-        data.criterios.len(), data.notas.len(), data.asistencia.len(), data.grade_configs.len(),
-        data.multiplicadores.len(),
-        data.grado_asignatura.len(), data.colegio_asignatura.len(), data.colegio_dias_asistencia.len()
-    );
-
-    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
-    conn.execute("PRAGMA foreign_keys = OFF", []).map_err(|e| e.to_string())?;
-
-    let result = (|| -> Result<(), String> {
-    let tx = conn.transaction().map_err(|e| e.to_string())?;
-
-    // Función auxiliar para insertar items de categorías
-    let upsert_category =
-        |tx: &rusqlite::Transaction, table: &str, items: &[CategoryItem]| -> Result<(), String> {
-            for item in items {
-                tx.execute(
-                    &format!(
-                        "INSERT INTO {} (id, nombre, cualitativo) VALUES (?, ?, ?)
-                         ON CONFLICT(id) DO UPDATE SET
-                           nombre = excluded.nombre,
-                           cualitativo = excluded.cualitativo,
-                           updated_at = CASE WHEN nombre IS NOT excluded.nombre OR cualitativo IS NOT excluded.cualitativo
-                             THEN datetime('now') ELSE updated_at END",
-                        table
-                    ),
-                    rusqlite::params![
-                        item.id,
-                        item.nombre,
-                        if item.cualitativo.unwrap_or(false) {
-                            1
-                        } else {
-                            0
-                        }
-                    ],
-                )
-                .map_err(|e| e.to_string())?;
-            }
-            Ok(())
-        };
-
-    // Función auxiliar para categorías con 'activo'
-    let upsert_category_active = |tx: &rusqlite::Transaction,
-                                  table: &str,
-                                  items: &[CategoryItem]|
-     -> Result<(), String> {
-        for item in items {
-            tx.execute(
-                &format!("INSERT INTO {} (id, nombre, activo, cualitativo) VALUES (?, ?, ?, ?)
-                         ON CONFLICT(id) DO UPDATE SET
-                           nombre = excluded.nombre,
-                           activo = excluded.activo,
-                           cualitativo = excluded.cualitativo,
-                           updated_at = CASE WHEN nombre IS NOT excluded.nombre
-                               OR activo IS NOT excluded.activo
-                               OR cualitativo IS NOT excluded.cualitativo
-                             THEN datetime('now') ELSE updated_at END", table),
-                rusqlite::params![
-                    item.id, 
-                    item.nombre, 
-                    if item.activo.unwrap_or(false) { 1 } else { 0 },
-                    if item.cualitativo.unwrap_or(false) { 1 } else { 0 }
-                ],
-            ).map_err(|e| e.to_string())?;
-        }
-        Ok(())
-    };
-
-    upsert_category_active(&tx, "ano_lectivo", &data.anos)?;
-    upsert_category_active(&tx, "corte_evaluativo", &data.cortes)?;
-    upsert_category_active(&tx, "colegio", &data.colegios)?;
-    upsert_category(&tx, "asignatura", &data.asignaturas)?;
-    upsert_category(&tx, "grado", &data.grados)?;
-    upsert_category(&tx, "seccion", &data.secciones)?;
-
-    for e in &data.estudiantes {
-        tx.execute(
-            "INSERT INTO estudiante (id, nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, colegio_id, telefono, direccion, email, foto) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT(id) DO UPDATE SET
-               nombre = excluded.nombre,
-               codigo = excluded.codigo,
-               sexo = excluded.sexo,
-               ano_lectivo_id = excluded.ano_lectivo_id,
-               grado_id = excluded.grado_id,
-               seccion_id = excluded.seccion_id,
-               colegio_id = excluded.colegio_id,
-               telefono = excluded.telefono,
-               direccion = excluded.direccion,
-               email = excluded.email,
-               foto = excluded.foto,
-               updated_at = CASE WHEN nombre IS NOT excluded.nombre
-                   OR codigo IS NOT excluded.codigo OR sexo IS NOT excluded.sexo
-                   OR ano_lectivo_id IS NOT excluded.ano_lectivo_id OR grado_id IS NOT excluded.grado_id
-                   OR seccion_id IS NOT excluded.seccion_id OR colegio_id IS NOT excluded.colegio_id
-                   OR telefono IS NOT excluded.telefono OR direccion IS NOT excluded.direccion
-                   OR email IS NOT excluded.email OR foto IS NOT excluded.foto
-                 THEN datetime('now') ELSE updated_at END",
-            rusqlite::params![e.id, e.nombre, e.codigo, e.sexo, e.ano_lectivo_id, e.grado_id, e.seccion_id, e.colegio_id, e.telefono, e.direccion, e.email, e.foto],
-        ).map_err(|e| e.to_string())?;
-    }
-
-    for i in &data.indicadores {
-        tx.execute(
-            "INSERT INTO indicador (id, grado_id, asignatura_id, corte_evaluativo_id, orden, descripcion, activo) VALUES (?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT(id) DO UPDATE SET
-               grado_id = excluded.grado_id,
-               asignatura_id = excluded.asignatura_id,
-               corte_evaluativo_id = excluded.corte_evaluativo_id,
-               orden = excluded.orden,
-               descripcion = excluded.descripcion,
-               activo = excluded.activo,
-               updated_at = CASE WHEN grado_id IS NOT excluded.grado_id
-                   OR asignatura_id IS NOT excluded.asignatura_id
-                   OR corte_evaluativo_id IS NOT excluded.corte_evaluativo_id
-                   OR orden IS NOT excluded.orden OR descripcion IS NOT excluded.descripcion
-                   OR activo IS NOT excluded.activo
-                 THEN datetime('now') ELSE updated_at END",
-            rusqlite::params![i.id, i.grado_id, i.asignatura_id, i.corte_evaluativo_id, i.orden, i.descripcion, if i.activo { 1 } else { 0 }],
-        ).map_err(|e| e.to_string())?;
-    }
-
-    for c in &data.criterios {
-        tx.execute(
-            "INSERT INTO criterio (id, indicador_id, orden, descripcion, puntaje_maximo) VALUES (?, ?, ?, ?, ?)
-             ON CONFLICT(id) DO UPDATE SET
-               indicador_id = excluded.indicador_id,
-               orden = excluded.orden,
-               descripcion = excluded.descripcion,
-               puntaje_maximo = excluded.puntaje_maximo,
-               updated_at = CASE WHEN indicador_id IS NOT excluded.indicador_id
-                   OR orden IS NOT excluded.orden OR descripcion IS NOT excluded.descripcion
-                   OR puntaje_maximo IS NOT excluded.puntaje_maximo
-                 THEN datetime('now') ELSE updated_at END",
-            rusqlite::params![c.id, c.indicador_id, c.orden, c.descripcion, c.puntaje_maximo],
-        ).map_err(|e| e.to_string())?;
-    }
-
-    let mut nota_count = 0usize;
-    for n in &data.notas {
-        tx.execute(
-            "INSERT INTO nota (estudiante_id, criterio_id, valor, corte_evaluativo_id, asignatura_id) VALUES (?, ?, ?, ?, ?)
-             ON CONFLICT(estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id) DO UPDATE SET
-               valor = excluded.valor,
-               updated_at = CASE WHEN valor IS NOT excluded.valor
-                 THEN datetime('now') ELSE updated_at END",
-            rusqlite::params![n.estudiante_id, n.criterio_id, n.valor, n.corte_evaluativo_id.unwrap_or(0), n.asignatura_id.unwrap_or(0)],
-        ).map_err(|e| e.to_string())?;
-        nota_count += 1;
-        if nota_count % 500 == 0 {
-            println!("[upsert_pull_data] notas insertadas: {}/{}", nota_count, data.notas.len());
-        }
-    }
-    println!("[upsert_pull_data] Total notas insertadas: {}/{}", nota_count, data.notas.len());
-
-    for a in &data.asistencia {
-        // En SQLite la asistencia tiene un ID autoincremental, pero en sync usamos (estudiante_id, fecha) como clave.
-        // Si viene un ID desde Supabase, lo usamos. Si no, dejamos que SQLite lo maneje o usemos INSERT OR REPLACE por el UNIQUE.
-        if let Some(id) = a.id {
-            tx.execute(
-                "INSERT INTO asistencia (id, estudiante_id, fecha, estado, observacion) VALUES (?, ?, ?, ?, ?)
-                 ON CONFLICT DO UPDATE SET
-                   estudiante_id = excluded.estudiante_id,
-                   fecha = excluded.fecha,
-                   estado = excluded.estado,
-                   observacion = excluded.observacion,
-                   updated_at = CASE WHEN estudiante_id IS NOT excluded.estudiante_id
-                       OR fecha IS NOT excluded.fecha
-                       OR estado IS NOT excluded.estado
-                       OR observacion IS NOT excluded.observacion
-                     THEN datetime('now') ELSE updated_at END",
-                rusqlite::params![id, a.estudiante_id, a.fecha, a.estado, a.observacion],
-            ).map_err(|e| e.to_string())?;
-        } else {
-            tx.execute(
-                "INSERT INTO asistencia (estudiante_id, fecha, estado, observacion) VALUES (?, ?, ?, ?)
-                 ON CONFLICT(estudiante_id, fecha) DO UPDATE SET
-                   estado = excluded.estado,
-                   observacion = excluded.observacion,
-                   updated_at = CASE WHEN estado IS NOT excluded.estado OR observacion IS NOT excluded.observacion
-                     THEN datetime('now') ELSE updated_at END",
-                rusqlite::params![a.estudiante_id, a.fecha, a.estado, a.observacion],
-            ).map_err(|e| e.to_string())?;
-        }
-    }
-
-    for gc in &data.grade_configs {
-        tx.execute(
-            "INSERT INTO configuracion_calificacion (id, nombre, color, minimo) VALUES (?, ?, ?, ?)
-             ON CONFLICT(id) DO UPDATE SET
-               nombre = excluded.nombre,
-               color = excluded.color,
-               minimo = excluded.minimo,
-               updated_at = CASE WHEN nombre IS NOT excluded.nombre
-                   OR color IS NOT excluded.color OR minimo IS NOT excluded.minimo
-                 THEN datetime('now') ELSE updated_at END",
-            rusqlite::params![gc.id, gc.nombre, gc.color, gc.minimo],
-        ).map_err(|e| e.to_string())?;
-    }
-
-    for m in &data.multiplicadores {
-        tx.execute(
-            "INSERT INTO multiplicador_calificacion (id, multiplicador) VALUES (?, ?)
-             ON CONFLICT(id) DO UPDATE SET
-               multiplicador = excluded.multiplicador,
-               updated_at = CASE WHEN multiplicador IS NOT excluded.multiplicador
-                 THEN datetime('now') ELSE updated_at END",
-            rusqlite::params![m.id, m.multiplicador],
-        ).map_err(|e| e.to_string())?;
-    }
-
-    for (grado_id, asignatura_id) in &data.grado_asignatura {
-        tx.execute(
-            "INSERT OR IGNORE INTO grado_asignatura (grado_id, asignatura_id) VALUES (?, ?)",
-            rusqlite::params![grado_id, asignatura_id],
-        )
-        .map_err(|e| e.to_string())?;
-    }
-
-    for (colegio_id, asignatura_id) in &data.colegio_asignatura {
-        tx.execute(
-            "INSERT OR IGNORE INTO colegio_asignatura (colegio_id, asignatura_id) VALUES (?, ?)",
-            rusqlite::params![colegio_id, asignatura_id],
-        )
-        .map_err(|e| e.to_string())?;
-    }
-
-    for cda in &data.colegio_dias_asistencia {
-        tx.execute(
-            "INSERT INTO colegio_dias_asistencia (colegio_id, lunes, martes, miercoles, jueves, viernes, sabado, domingo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT(colegio_id) DO UPDATE SET
-               lunes = excluded.lunes,
-               martes = excluded.martes,
-               miercoles = excluded.miercoles,
-               jueves = excluded.jueves,
-               viernes = excluded.viernes,
-               sabado = excluded.sabado,
-               domingo = excluded.domingo,
-               updated_at = CASE WHEN lunes IS NOT excluded.lunes
-                   OR martes IS NOT excluded.martes OR miercoles IS NOT excluded.miercoles
-                   OR jueves IS NOT excluded.jueves OR viernes IS NOT excluded.viernes
-                   OR sabado IS NOT excluded.sabado OR domingo IS NOT excluded.domingo
-                 THEN datetime('now') ELSE updated_at END",
-            rusqlite::params![cda.colegio_id, cda.lunes, cda.martes, cda.miercoles, cda.jueves, cda.viernes, cda.sabado, cda.domingo],
-        ).map_err(|e| e.to_string())?;
-    }
-
-    // SINCRONIZACIÓN DE ELIMINACIONES (SYNC BIDIRECCIONAL)
-    // 1. Primero, eliminar registros locales que están marcados como pendientes de borrado
-    //    (evita que reaparezcan tras un pullAll si aún no se sincronizó su borrado)
-    let pending_tables = [
-        "estudiante",
-        "colegio",
-        "grado",
-        "seccion",
-        "asignatura",
-        "ano_lectivo",
-        "corte_evaluativo",
-        "indicador",
-        "criterio",
-    ];
-
-    for table in &pending_tables {
-        let _ = tx.execute(
-            &format!("DELETE FROM {} WHERE id IN (SELECT registro_id FROM sync_pending_deletions WHERE tabla = ?)", table),
-            [*table],
-        );
-    }
-    // Limpiar pending deletions simples: la nube es autoritativa durante pullAll
-    let _ = tx.execute("DELETE FROM sync_pending_deletions", []);
-
-    // 2. Eliminar registros locales que NO existen en la nube pero tampoco están en pending_deletions
-    //    (significa que fueron eliminados en otro dispositivo)
-
-    // Recopilar IDs recibidos de la nube
-    let cloud_ano_ids: std::collections::HashSet<i64> =
-        data.anos.iter().filter_map(|a| a.id).collect();
-    let cloud_corte_ids: std::collections::HashSet<i64> =
-        data.cortes.iter().filter_map(|c| c.id).collect();
-    let cloud_colegio_ids: std::collections::HashSet<i64> =
-        data.colegios.iter().filter_map(|c| c.id).collect();
-    let cloud_asignatura_ids: std::collections::HashSet<i64> =
-        data.asignaturas.iter().filter_map(|a| a.id).collect();
-    let cloud_grado_ids: std::collections::HashSet<i64> =
-        data.grados.iter().filter_map(|g| g.id).collect();
-    let cloud_seccion_ids: std::collections::HashSet<i64> =
-        data.secciones.iter().filter_map(|s| s.id).collect();
-    let cloud_estudiante_ids: std::collections::HashSet<i64> =
-        data.estudiantes.iter().filter_map(|e| e.id).collect();
-    let cloud_indicador_ids: std::collections::HashSet<i64> =
-        data.indicadores.iter().filter_map(|i| i.id).collect();
-    let cloud_criterio_ids: std::collections::HashSet<i64> =
-        data.criterios.iter().filter_map(|c| c.id).collect();
-
-    // Función auxiliar para eliminar registros que no existen en la nube
-    let delete_not_in_cloud = |tx: &rusqlite::Transaction,
-                               table: &str,
-                               cloud_ids: &std::collections::HashSet<i64>|
-     -> Result<(), rusqlite::Error> {
-        if cloud_ids.is_empty() {
-            // Si no hay datos en la nube, no eliminamos nada localmente (excepto pending_deletions)
-            return Ok(());
-        }
-
-        // Crear placeholders para los IDs de la nube (?1, ?2, ?3...)
-        let placeholders = cloud_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-
-        // Eliminar registros que:
-        // 1. NO están en la lista de IDs de la nube
-        // 2. NO están en sync_pending_deletions (evita borrar los que el usuario local eliminó y aún no sincronizó)
-        let sql = format!(
-            "DELETE FROM {} WHERE id NOT IN ({}) AND id NOT IN (SELECT registro_id FROM sync_pending_deletions WHERE tabla = ?)",
-            table, placeholders
-        );
-
-        let mut params: Vec<&dyn rusqlite::ToSql> = cloud_ids
-            .iter()
-            .map(|id| id as &dyn rusqlite::ToSql)
-            .collect();
-        params.push(&table);
-
-        tx.execute(&sql, rusqlite::params_from_iter(params))?;
-        Ok(())
-    };
-
-    // Ejecutar limpieza para cada tabla (ignorando errores individualmente para no bloquear si una tabla falla)
-    if !is_partial {
-        let _ = delete_not_in_cloud(&tx, "ano_lectivo", &cloud_ano_ids);
-        let _ = delete_not_in_cloud(&tx, "corte_evaluativo", &cloud_corte_ids);
-        let _ = delete_not_in_cloud(&tx, "colegio", &cloud_colegio_ids);
-        let _ = delete_not_in_cloud(&tx, "asignatura", &cloud_asignatura_ids);
-        let _ = delete_not_in_cloud(&tx, "grado", &cloud_grado_ids);
-        let _ = delete_not_in_cloud(&tx, "seccion", &cloud_seccion_ids);
-        let _ = delete_not_in_cloud(&tx, "estudiante", &cloud_estudiante_ids);
-        let _ = delete_not_in_cloud(&tx, "indicador", &cloud_indicador_ids);
-        let _ = delete_not_in_cloud(&tx, "criterio", &cloud_criterio_ids);
-    }
-
-    // ============================================================================
-    // SINCRONIZACIÓN DE ELIMINACIONES - TABLAS CON CLAVES COMPUESTAS
-    // ============================================================================
-
-    // 1. Procesar eliminaciones pendientes de asistencia antes de insertar nuevos
-    // (evita conflictos UNIQUE cuando se re-inserta un registro eliminado localmente pendiente)
-    let _ = tx.execute(
-        "DELETE FROM asistencia WHERE (estudiante_id, fecha) IN (SELECT estudiante_id, fecha FROM sync_pending_deletions_asistencia)",
-        [],
-    );
-    let _ = tx.execute("DELETE FROM sync_pending_deletions_asistencia", []);
-
-    // 2. Procesar eliminaciones pendientes de notas
-    let _ = tx.execute(
-        "DELETE FROM nota WHERE (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id) IN (SELECT estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id FROM sync_pending_deletions_nota)",
-        [],
-    );
-    let _ = tx.execute("DELETE FROM sync_pending_deletions_nota", []);
-
-    // 3. Procesar eliminaciones pendientes de grado_asignatura
-    let _ = tx.execute(
-        "DELETE FROM grado_asignatura WHERE (grado_id, asignatura_id) IN (SELECT grado_id, asignatura_id FROM sync_pending_deletions_grado_asignatura)",
-        [],
-    );
-    let _ = tx.execute("DELETE FROM sync_pending_deletions_grado_asignatura", []);
-
-    // 4. Procesar eliminaciones pendientes de colegio_asignatura
-    let _ = tx.execute(
-        "DELETE FROM colegio_asignatura WHERE (colegio_id, asignatura_id) IN (SELECT colegio_id, asignatura_id FROM sync_pending_deletions_colegio_asignatura)",
-        [],
-    );
-    let _ = tx.execute("DELETE FROM sync_pending_deletions_colegio_asignatura", []);
-
-    // Las pending deletions se limpian aquí porque durante pullAll la nube es la fuente
-// autoritativa. Si una nota fue eliminada localmente pero aún existe en la nube,
-// la restauramos y descartamos la pending deletion obsoleta.
-// pushAll() también las envía al proveedor remoto.
-
-    // ============================================================================
-    // ============================================================================
-    // SINCRONIZACIÓN BIDIRECCIONAL - No eliminar registros locales durante pullAll()
-    // Para evitar perder datos de bases de datos antiguas importadas
-    // ============================================================================
-
-    // NOTA: Durante pullAll(), solo sincronizamos los datos de la nube hacia local,
-    // pero NO eliminamos registros locales que no existan en la nube.
-    // Esto permite restaurar bases de datos antiguas sin perder datos.
-    //
-    // Si necesitas eliminar registros locales que no están en la nube,
-    // usa la opción "Limpiar Nube" en Ajustes > Debugging > Reiniciar DB Local
-
-    tx.commit().map_err(|e| e.to_string())?;
-    println!("[upsert_pull_data] ✅ Transacción completada exitosamente");
-    Ok(())
-    })();
-    conn.execute("PRAGMA foreign_keys = ON", []).ok();
-    if result.is_ok() {
-        // Verificar que las notas se insertaron correctamente
-        let check_count: Result<i64, _> = conn.query_row("SELECT COUNT(*) FROM nota", [], |row| row.get(0));
-        match check_count {
-            Ok(c) => println!("[upsert_pull_data] 🎉 Notas en SQLite después del sync: {}", c),
-            Err(e) => println!("[upsert_pull_data] ⚠️ Error verificando conteo de notas: {}", e),
-        }
-        println!("[upsert_pull_data] 🎉 Función completada exitosamente");
-    } else {
-        println!("[upsert_pull_data] ❌ Función completada con error: {:?}", result);
-    }
-    result
-}
-
-/// Diagnóstico: muestra el conteo de notas en SQLite filtrado por grado/sección/corte/asignatura
+/// DiagnÃ³stico: muestra el conteo de notas en SQLite filtrado por grado/secciÃ³n/corte/asignatura
 #[tauri::command]
 pub async fn get_notas_count(
     state: tauri::State<'_, DbState>,
@@ -4415,7 +3882,7 @@ pub async fn get_notas_count(
     Ok(count)
 }
 
-/// Diagnóstico: muestra cantidad total de notas en SQLite
+/// DiagnÃ³stico: muestra cantidad total de notas en SQLite
 #[tauri::command]
 pub async fn get_notas_count_all(state: tauri::State<'_, DbState>) -> Result<i64, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
@@ -4433,7 +3900,7 @@ pub async fn delete_record_local(
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     
-    println!("🗑️ [DB] delete_record_local: {} con id {:?}", table, id);
+    println!("ðŸ—‘ï¸ [DB] delete_record_local: {} con id {:?}", table, id);
 
     let sql = match table.as_str() {
         "asistencia" => {
@@ -4464,7 +3931,7 @@ pub async fn delete_record_local(
                     return Ok(());
                 }
             }
-            return Err("Nota requiere clave compuesta para eliminación".to_string());
+            return Err("Nota requiere clave compuesta para eliminaciÃ³n".to_string());
         },
         "grado_asignatura" => "DELETE FROM grado_asignatura WHERE grado_id = ? AND asignatura_id = ?",
         "colegio_asignatura" => "DELETE FROM colegio_asignatura WHERE colegio_id = ? AND asignatura_id = ?",
@@ -4685,23 +4152,9 @@ pub async fn get_dashboard_stats(
     })
 }
 
-#[tauri::command]
-pub async fn check_turso_connectivity(turso_url: String) -> Result<bool, String> {
-    // Timeout corto: 5 segundos para no bloquear
-    let agent = ureq::AgentBuilder::new()
-        .timeout_connect(std::time::Duration::from_secs(5))
-        .build();
-    match agent.head(&turso_url).call() {
-        Ok(_) => Ok(true),
-        Err(e) => {
-            println!("[check_turso_connectivity] Error: {}", e);
-            Ok(false)
-        }
-    }
-}
 
 // ============================================================================
-// Estructuras para el wizard de inicialización
+// Estructuras para el wizard de inicializaciÃ³n
 // ============================================================================
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -4787,7 +4240,7 @@ pub async fn get_seed_options() -> Result<SeedOptions, String> {
             SeedOptionCualitativo { nombre: "Convivencia & Civismo".into(), cualitativo: true },
             SeedOptionCualitativo { nombre: "Creciendo en Valores".into(), cualitativo: true },
             SeedOptionCualitativo { nombre: "Derecho & Dignidad de la Mujer".into(), cualitativo: true },
-            SeedOptionCualitativo { nombre: "Educación Física".into(), cualitativo: true },
+            SeedOptionCualitativo { nombre: "EducaciÃ³n FÃ­sica".into(), cualitativo: true },
         ],
     })
 }
@@ -4798,7 +4251,7 @@ pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: Se
 
     conn.execute("PRAGMA foreign_keys = OFF", []).map_err(|e| e.to_string())?;
 
-    // 1. Años lectivos seleccionados
+    // 1. AÃ±os lectivos seleccionados
     for nombre in &selections.anos {
         conn.execute(
             "INSERT OR IGNORE INTO ano_lectivo (nombre) VALUES (?)",
@@ -4825,7 +4278,7 @@ pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: Se
 
     // 4. Asignaturas seleccionadas
     for nombre in &selections.asignaturas {
-        let cualitativo = matches!(nombre.as_str(), "TAC" | "AEP" | "Convivencia & Civismo" | "Creciendo en Valores" | "Derecho & Dignidad de la Mujer" | "Educación Física");
+        let cualitativo = matches!(nombre.as_str(), "TAC" | "AEP" | "Convivencia & Civismo" | "Creciendo en Valores" | "Derecho & Dignidad de la Mujer" | "EducaciÃ³n FÃ­sica");
         conn.execute(
             "INSERT OR IGNORE INTO asignatura (nombre, cualitativo) VALUES (?, ?)",
             rusqlite::params![nombre, if cualitativo { 1 } else { 0 }],
@@ -4849,7 +4302,7 @@ pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: Se
         ).map_err(|e| e.to_string())?;
     }
 
-    // 7. Producto cartesiano grado × asignatura (solo para grados y asignaturas seleccionados)
+    // 7. Producto cartesiano grado Ã— asignatura (solo para grados y asignaturas seleccionados)
     if !selections.grados.is_empty() && !selections.asignaturas.is_empty() {
         let placeholders_g = selections.grados.iter().map(|_| "?").collect::<Vec<_>>().join(",");
         let placeholders_a = selections.asignaturas.iter().map(|_| "?").collect::<Vec<_>>().join(",");
@@ -4867,7 +4320,7 @@ pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: Se
         conn.execute(&sql, params_refs.as_slice()).map_err(|e| e.to_string())?;
     }
 
-    // 8. Producto cartesiano colegio × asignatura
+    // 8. Producto cartesiano colegio Ã— asignatura
     if !selections.colegios.is_empty() && !selections.asignaturas.is_empty() {
         let placeholders_c = selections.colegios.iter().map(|_| "?").collect::<Vec<_>>().join(",");
         let placeholders_a = selections.asignaturas.iter().map(|_| "?").collect::<Vec<_>>().join(",");
@@ -4885,7 +4338,7 @@ pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: Se
         conn.execute(&sql, params_refs.as_slice()).map_err(|e| e.to_string())?;
     }
 
-    // 9. Configuración de calificaciones (siempre)
+    // 9. ConfiguraciÃ³n de calificaciones (siempre)
     let configs = vec![
         ("AA", "Aprendizaje Avanzado", "#22c55e", 90),
         ("AS", "Aprendizaje Satisfactorio", "#3b82f6", 70),
@@ -4915,7 +4368,7 @@ pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: Se
 
     conn.execute("PRAGMA foreign_keys = ON", []).map_err(|e| e.to_string())?;
 
-    println!("✅ [DB] Datos seleccionados insertados correctamente");
+    println!("âœ… [DB] Datos seleccionados insertados correctamente");
     Ok(())
 }
 
@@ -4982,16 +4435,16 @@ pub async fn factory_reset(state: tauri::State<'_, DbState>) -> Result<(), Strin
         conn.execute(&format!("DROP TABLE IF EXISTS {}", table), []).map_err(|e| e.to_string())?;
     }
 
-    // Recrear tablas vacías
+    // Recrear tablas vacÃ­as
     drop(conn);
     let conn2 = state.conn.lock().map_err(|e| e.to_string())?;
     init_database(&conn2)?;
 
-    // Limpiar flag de inicialización
+    // Limpiar flag de inicializaciÃ³n
     conn2.execute("DELETE FROM app_meta WHERE key = 'initialized'", []).map_err(|e| e.to_string())?;
 
     conn2.execute("PRAGMA foreign_keys = ON", []).map_err(|e| e.to_string())?;
 
-    println!("✅ [DB] Factory reset completado");
+    println!("âœ… [DB] Factory reset completado");
     Ok(())
 }
