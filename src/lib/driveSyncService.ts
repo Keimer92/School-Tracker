@@ -4,7 +4,7 @@ import { markDirty, markAllDirty, markAllClean, hasDirtyTables } from './dirtyTr
 
 const STORAGE_KEY = 'schooltracker-google-drive-settings';
 const SYNC_FILE_PREFIX = 'SchoolTracker_Sync';
-const MAX_SYNC_FILES = 2;
+const MAX_SYNC_FILES = 10;
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'offline';
 
@@ -201,6 +201,30 @@ async function hasLocalChanges(): Promise<boolean> {
   }
 }
 
+/** Descarga un archivo de Drive y lo restaura como base de datos local. */
+async function downloadAndRestore(token: string, fileId: string): Promise<void> {
+  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw new Error(`Error descargando: ${response.statusText}`);
+  const blob = await response.blob();
+  const reader = new FileReader();
+  const base64 = await new Promise<string>((resolve, reject) => {
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64Data = result.includes(',') ? result.split(',')[1] : result;
+      resolve(base64Data);
+    };
+    reader.onerror = () => reject(new Error('Error leyendo blob'));
+    reader.readAsDataURL(blob);
+  });
+  const dbPath = await invoke<string>('get_db_path');
+  await invoke('gd_create_backup', {});
+  await invoke('gd_write_file_base64', { path: dbPath, contentBase64: base64 });
+  syncManager.setState({ lastDownload: now() });
+  markAllClean();
+}
+
 export const driveSyncService = {
   _periodicTimer: null as ReturnType<typeof setInterval> | null,
   _syncLock: false,
@@ -332,28 +356,21 @@ export const driveSyncService = {
         return;
       }
       const newest = files.reduce((a, b) => a.createdTime >= b.createdTime ? a : b);
-      const response = await fetch(`https://www.googleapis.com/drive/v3/files/${newest.id}?alt=media`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) throw new Error(`Error descargando: ${response.statusText}`);
-      const blob = await response.blob();
-      const reader = new FileReader();
-      const base64 = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => {
-          const result = reader.result as string;
-          const base64Data = result.includes(',') ? result.split(',')[1] : result;
-          resolve(base64Data);
-        };
-        reader.onerror = () => reject(new Error('Error leyendo blob'));
-        reader.readAsDataURL(blob);
-      });
-      const dbPath = await invoke<string>('get_db_path');
-      await invoke('gd_create_backup', {});
-      await invoke('gd_write_file_base64', { path: dbPath, contentBase64: base64 });
-      syncManager.setState({ lastDownload: now() });
-      markAllClean();
+      await downloadAndRestore(token, newest.id);
       console.log('[DriveSync] Archivo descargado y restaurado correctamente');
     })(), 'descargar desde Google Drive');
+  },
+
+  pullById: async (fileId: string): Promise<void> => {
+    const token = await getValidToken();
+    if (!token) throw new Error('Google Drive no está vinculado');
+    if (!navigator.onLine) {
+      syncManager.setState({ status: 'offline', message: 'Sin conexión' });
+      return;
+    }
+    await syncManager.wrapSync((async () => {
+      await downloadAndRestore(token, fileId);
+    })(), 'restaurar respaldo');
   },
 
   pullAllSilent: async (): Promise<void> => {
@@ -378,20 +395,8 @@ export const driveSyncService = {
   },
 
   startPeriodicSync: () => {
-    const intervalStr = localStorage.getItem('periodic_sync_interval_seconds');
-    const interval = Math.max(30, Math.min(3600, parseInt(intervalStr || '300') || 300)) * 1000;
-    if ((driveSyncService as any)._periodicTimer) clearInterval((driveSyncService as any)._periodicTimer);
-    (driveSyncService as any)._periodicTimer = setInterval(async () => {
-      if (!getValidToken()) {
-        driveSyncService.stopPeriodicSync();
-        return;
-      }
-      syncManager.setState({ status: 'syncing', message: 'Sync automático...' });
-      await driveSyncService.syncAllSilent(false);
-      try { await emit("notas-updated", { timestamp: Date.now() }); } catch {}
-      try { await emit("asistencia-updated"); } catch {}
-      syncManager.setState({ status: 'idle', message: null });
-    }, interval);
+    // Google Drive ya no sincroniza automáticamente: solo se usa como respaldo
+    // manual desde la página de nube (CloudPage).
   },
 
   stopPeriodicSync: () => {

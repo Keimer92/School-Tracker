@@ -226,9 +226,11 @@
 
   async function requestRestore(file: DriveFile) {
     confirm(`¿Restaurar "${file.name}"?\n\nSe sobrescribirá la base de datos actual.\nEsta acción no se puede deshacer.`, "⚠️ Restaurar Respaldo", 'danger', async () => {
-      const res = await syncService.pullAllGuarded();
-      if (res.blocked) {
-        await emit("show-toast", { message: "⚠️ Tienes cambios locales sin sincronizar. Sube primero.", type: "warning" });
+      try {
+        await driveSyncService.pullById(file.id);
+        await emit("show-toast", { message: "✅ Respaldo restaurado", type: "success" });
+      } catch (e) {
+        await emit("show-toast", { message: "❌ Error al restaurar: " + (e?.message || e), type: "error" });
       }
     });
   }
@@ -398,6 +400,16 @@
             <span style="color: #94a3b8; font-weight: 600; font-size: 0.85rem;">{isD1Testing ? 'Probando...' : 'Probar conexión'}</span>
           </button>
         </div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; padding: 0.6rem 0.85rem; background: rgba(0,0,0,0.15); border-radius: 10px; margin-top: 0.85rem;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.4);"></div>
+            <span style="color: #94a3b8; font-size: 0.8rem;">Sync periódico:</span>
+            <input type="number" min={3} max={60} bind:value={syncInterval} style="width: 52px; padding: 0.2rem 0.35rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; text-align: center; outline: none;" />
+            <span style="color: #64748b; font-size: 0.75rem;">minutos</span>
+            <button onclick={() => { const mins = Math.max(3, Math.min(60, syncInterval)); syncInterval = mins; localStorage.setItem('periodic_sync_interval_seconds', String(mins * 60)); syncService.ensurePeriodicSync(); emit("show-toast", { message: "✅ Intervalo de sync guardado", type: "success" }); }} style="padding: 0.3rem 0.7rem; border-radius: 6px; border: 1px solid rgba(246,130,31,0.3); background: rgba(246,130,31,0.1); color: #fdba74; cursor: pointer; font-size: 0.7rem; font-weight: 600;">Guardar</button>
+          </div>
+          <span style="color: #64748b; font-size: 0.7rem; margin-left: auto;">La D1 sincroniza cambios automáticamente.</span>
+        </div>
         {#if d1LastResult}
           <div style="margin-top: 0.75rem; padding: 0.6rem 0.8rem; background: rgba(0,0,0,0.15); border-radius: 8px; font-size: 0.7rem; color: #94a3b8; font-family: monospace; line-height: 1.6;">
             Subidos: {JSON.stringify(d1LastResult.pushed)} · Aplicados: {JSON.stringify(d1LastResult.pulled)} · Borrados: {d1LastResult.deletedApplied}
@@ -432,8 +444,8 @@
         <!-- Not connected -->
         <div style="text-align: center; padding: 2rem 1rem;">
           <div style="font-size: 3rem; margin-bottom: 1rem;">☁️</div>
-          <h4 style="color: #e2e8f0; margin: 0 0 0.5rem 0;">Sincronización en la Nube</h4>
-          <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 1.5rem;">Vincula tu cuenta de Google Drive para respaldar y sincronizar tus datos.</p>
+          <h4 style="color: #e2e8f0; margin: 0 0 0.5rem 0;">Respaldo en Google Drive</h4>
+          <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 1.5rem;">Vincula tu cuenta de Google Drive para crear respaldos manuales de tu base de datos.</p>
           {#if settings.clientId}
             {#if isAuthLoading}
               <div style="display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
@@ -471,7 +483,7 @@
             <div style="color: #64748b; font-size: 0.75rem;">
               {settings.googleUserEmail || ''}
               {#if syncStatus.lastSync}
-                · Última sync: {new Date(syncStatus.lastSync).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                · Último respaldo: {new Date(syncStatus.lastSync).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
               {/if}
             </div>
           </div>
@@ -498,38 +510,24 @@
 
         <!-- Push / Pull buttons -->
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
-          <button onclick={async () => { try { await syncService.forcePushAll(); await refreshFiles(); } catch {} }} disabled={syncStatus.status === 'syncing'} style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(34,197,94,0.12) 0%, rgba(34,197,94,0.04) 100%); border: 1px solid rgba(34,197,94,0.2); border-radius: 12px; cursor: pointer; opacity: {syncStatus.status === 'syncing' ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;">
+          <button onclick={async () => { try { await driveSyncService.pushAll(); await refreshFiles(); } catch (e) { await emit("show-toast", { message: "❌ Error al crear respaldo: " + (e?.message || e), type: "error" }); } }} disabled={syncStatus.status === 'syncing'} style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(34,197,94,0.12) 0%, rgba(34,197,94,0.04) 100%); border: 1px solid rgba(34,197,94,0.2); border-radius: 12px; cursor: pointer; opacity: {syncStatus.status === 'syncing' ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            <span style="color: #22c55e; font-weight: 600; font-size: 0.85rem;">Subir a Drive</span>
+            <span style="color: #22c55e; font-weight: 600; font-size: 0.85rem;">Crear respaldo</span>
           </button>
-          <button onclick={async () => { try { const res = await syncService.pullAllGuarded(); if (res.blocked) { await emit("show-toast", { message: "⚠️ Tienes cambios locales sin sincronizar. Sube primero.", type: "warning" }); } else { await refreshFiles(); } } catch {} }} disabled={syncStatus.status === 'syncing'} style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.12) 0%, rgba(var(--primary-rgb), 0.04) 100%); border: 1px solid rgba(var(--primary-rgb), 0.2); border-radius: 12px; cursor: pointer; opacity: {syncStatus.status === 'syncing' ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;">
+          <button onclick={async () => { try { await driveSyncService.pullAll(); await refreshFiles(); } catch (e) { await emit("show-toast", { message: "❌ Error al restaurar: " + (e?.message || e), type: "error" }); } }} disabled={syncStatus.status === 'syncing'} style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.12) 0%, rgba(var(--primary-rgb), 0.04) 100%); border: 1px solid rgba(var(--primary-rgb), 0.2); border-radius: 12px; cursor: pointer; opacity: {syncStatus.status === 'syncing' ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            <span style="color: var(--primary-color); font-weight: 600; font-size: 0.85rem;">Bajar de Drive</span>
+            <span style="color: var(--primary-color); font-weight: 600; font-size: 0.85rem;">Restaurar último</span>
           </button>
-        </div>
-
-        <!-- Periodic sync + status -->
-        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; padding: 0.6rem 0.85rem; background: rgba(0,0,0,0.15); border-radius: 10px; margin-bottom: 1.25rem;">
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <div style="width: 8px; height: 8px; border-radius: 50%; background: {syncStatus.status === 'syncing' ? '#eab308' : '#22c55e'}; box-shadow: {syncStatus.status === 'syncing' ? '0 0 8px rgba(234,179,8,0.4)' : '0 0 8px rgba(34,197,94,0.4)'};"></div>
-            <span style="color: #94a3b8; font-size: 0.8rem;">Sync periódico:</span>
-            <input type="number" min={3} max={60} bind:value={syncInterval} style="width: 52px; padding: 0.2rem 0.35rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; text-align: center; outline: none;" />
-            <span style="color: #64748b; font-size: 0.75rem;">minutos</span>
-            <button onclick={() => { const mins = Math.max(3, Math.min(60, syncInterval)); syncInterval = mins; localStorage.setItem('periodic_sync_interval_seconds', String(mins * 60)); syncService.ensurePeriodicSync(); emit("show-toast", { message: "✅ Intervalo de sync guardado", type: "success" }); }} style="padding: 0.3rem 0.7rem; border-radius: 6px; border: 1px solid rgba(var(--primary-rgb),0.3); background: rgba(var(--primary-rgb),0.1); color: var(--primary-color); cursor: pointer; font-size: 0.7rem; font-weight: 600;">Guardar</button>
-          </div>
-          {#if syncFiles.length > 0}
-            <span style="color: #64748b; font-size: 0.7rem; margin-left: auto;">{syncFiles.length} archivo{syncFiles.length !== 1 ? 's' : ''}</span>
-          {/if}
         </div>
 
         <!-- Sync files -->
         <div>
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem;">
-            <h5 style="margin: 0; color: #e2e8f0; font-size: 0.85rem;">Historial de Sync</h5>
+            <h5 style="margin: 0; color: #e2e8f0; font-size: 0.85rem;">Respaldos en Drive {syncFiles.length > 0 ? `(${syncFiles.length})` : ''}</h5>
             <button onclick={refreshFiles} disabled={isFetchingFiles} style="padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-size: 0.7rem;">{isFetchingFiles ? 'Cargando...' : '↻ Refrescar'}</button>
           </div>
           {#if syncFiles.length === 0}
-            <div style="text-align: center; padding: 1.5rem; color: #64748b; font-size: 0.8rem;">No hay archivos de sync en Drive. Presiona "Subir a Drive" para crear el primero.</div>
+            <div style="text-align: center; padding: 1.5rem; color: #64748b; font-size: 0.8rem;">No hay respaldos en Drive. Presiona "Crear respaldo" para subir el primero.</div>
           {:else}
             <div style="display: flex; flex-direction: column; gap: 4px;">
               {#each syncFiles as file (file.id)}
@@ -546,7 +544,7 @@
               {/each}
             </div>
             <div style="margin-top: 0.5rem; display: flex; align-items: center; gap: 6px; color: #64748b; font-size: 0.7rem;">
-              <span>💾 Se mantienen hasta {2} archivos. Los más antiguos se eliminan automáticamente.</span>
+              <span>💾 Se mantienen hasta 10 respaldos. Los más antiguos se eliminan automáticamente.</span>
             </div>
           {/if}
         </div>

@@ -209,16 +209,10 @@
         showToast(event.payload.message, event.payload.type);
       }).then(u => unlisten.push(u));
 
-      // Google Drive sync — la lógica de decisión (push si hay cambios locales,
-      // pull solo si la nube es más reciente) vive en syncAllSilent.
-      const driveSettings = localStorage.getItem('schooltracker-google-drive-settings');
-      if (driveSettings) {
-        syncService.syncAllSilent();
-        syncService.ensurePeriodicSync();
-      }
-      // Cloudflare D1 — si hay config guardada, arranca sync (si no hay Drive).
+      // Sincronización automática SOLO con Cloudflare D1 (si está configurado).
+      // Google Drive se usa únicamente como respaldo manual desde CloudPage.
       isD1Configured().then((d1) => {
-        if (d1 && !driveSettings) {
+        if (d1) {
           syncService.syncAllSilent();
           syncService.ensurePeriodicSync();
         }
@@ -229,11 +223,7 @@
     // Listen for welcome complete event (from WelcomePage)
     const welcomeListener = listen('welcome-complete', async () => {
       initialized = true;
-      const driveSettings = localStorage.getItem('schooltracker-google-drive-settings');
-      if (driveSettings) {
-        syncService.syncAllSilent();
-        syncService.ensurePeriodicSync();
-      } else if (await isD1Configured()) {
+      if (await isD1Configured()) {
         syncService.syncAllSilent();
         syncService.ensurePeriodicSync();
       }
