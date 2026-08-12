@@ -3038,8 +3038,13 @@ pub async fn save_notas_estudiantes(
     for nota_est in notas {
         for nota in &nota_est.notas {
             tx.execute(
-                "INSERT OR REPLACE INTO nota (estudiante_id, criterio_id, valor, corte_evaluativo_id, asignatura_id) 
-                 VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO nota (estudiante_id, criterio_id, valor, corte_evaluativo_id, asignatura_id) 
+                 VALUES (?, ?, ?, ?, ?)
+                 ON CONFLICT(estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id)
+                 DO UPDATE SET
+                   valor = excluded.valor,
+                   updated_at = CASE WHEN valor IS NOT excluded.valor
+                     THEN datetime('now') ELSE updated_at END",
                 rusqlite::params![
                     nota_est.estudianteId,
                     nota.criterioId,
@@ -3315,7 +3320,11 @@ pub async fn update_multiplicador(
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
-        "INSERT OR REPLACE INTO multiplicador_calificacion (id, multiplicador) VALUES (?, ?)",
+        "INSERT INTO multiplicador_calificacion (id, multiplicador) VALUES (?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           multiplicador = excluded.multiplicador,
+           updated_at = CASE WHEN multiplicador IS NOT excluded.multiplicador
+             THEN datetime('now') ELSE updated_at END",
         rusqlite::params![id, multiplicador],
     )
     .map(|_| ())
@@ -3659,7 +3668,8 @@ pub async fn save_asistencia(
              ON CONFLICT(estudiante_id, fecha) DO UPDATE SET 
              estado = excluded.estado, 
              observacion = excluded.observacion,
-             updated_at = datetime('now')",
+             updated_at = CASE WHEN estado IS NOT excluded.estado OR observacion IS NOT excluded.observacion
+               THEN datetime('now') ELSE updated_at END",
             rusqlite::params![
                 record.estudiante_id,
                 record.fecha,
@@ -3695,8 +3705,18 @@ pub async fn upsert_asistencia_from_cloud(
     let count = records.len();
     for record in &records {
         tx.execute(
-            "INSERT OR REPLACE INTO asistencia (id, estudiante_id, fecha, estado, observacion) 
-             VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO asistencia (id, estudiante_id, fecha, estado, observacion) 
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT DO UPDATE SET
+               estudiante_id = excluded.estudiante_id,
+               fecha = excluded.fecha,
+               estado = excluded.estado,
+               observacion = excluded.observacion,
+               updated_at = CASE WHEN estudiante_id IS NOT excluded.estudiante_id
+                   OR fecha IS NOT excluded.fecha
+                   OR estado IS NOT excluded.estado
+                   OR observacion IS NOT excluded.observacion
+                 THEN datetime('now') ELSE updated_at END",
             rusqlite::params![
                 record.id,
                 record.estudiante_id,
@@ -3740,8 +3760,13 @@ pub async fn upsert_notas_from_cloud(
     let count = notas.len();
     for n in &notas {
         tx.execute(
-            "INSERT OR REPLACE INTO nota (estudiante_id, criterio_id, valor, corte_evaluativo_id, asignatura_id) 
-             VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO nota (estudiante_id, criterio_id, valor, corte_evaluativo_id, asignatura_id) 
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id)
+             DO UPDATE SET
+               valor = excluded.valor,
+               updated_at = CASE WHEN valor IS NOT excluded.valor
+                 THEN datetime('now') ELSE updated_at END",
             rusqlite::params![
                 n.estudiante_id,
                 n.criterio_id,
@@ -3982,7 +4007,12 @@ pub async fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) 
             for item in items {
                 tx.execute(
                     &format!(
-                        "INSERT OR REPLACE INTO {} (id, nombre, cualitativo) VALUES (?, ?, ?)",
+                        "INSERT INTO {} (id, nombre, cualitativo) VALUES (?, ?, ?)
+                         ON CONFLICT(id) DO UPDATE SET
+                           nombre = excluded.nombre,
+                           cualitativo = excluded.cualitativo,
+                           updated_at = CASE WHEN nombre IS NOT excluded.nombre OR cualitativo IS NOT excluded.cualitativo
+                             THEN datetime('now') ELSE updated_at END",
                         table
                     ),
                     rusqlite::params![
@@ -4007,7 +4037,15 @@ pub async fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) 
      -> Result<(), String> {
         for item in items {
             tx.execute(
-                &format!("INSERT OR REPLACE INTO {} (id, nombre, activo, cualitativo) VALUES (?, ?, ?, ?)", table),
+                &format!("INSERT INTO {} (id, nombre, activo, cualitativo) VALUES (?, ?, ?, ?)
+                         ON CONFLICT(id) DO UPDATE SET
+                           nombre = excluded.nombre,
+                           activo = excluded.activo,
+                           cualitativo = excluded.cualitativo,
+                           updated_at = CASE WHEN nombre IS NOT excluded.nombre
+                               OR activo IS NOT excluded.activo
+                               OR cualitativo IS NOT excluded.cualitativo
+                             THEN datetime('now') ELSE updated_at END", table),
                 rusqlite::params![
                     item.id, 
                     item.nombre, 
@@ -4028,21 +4066,62 @@ pub async fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) 
 
     for e in &data.estudiantes {
         tx.execute(
-            "INSERT OR REPLACE INTO estudiante (id, nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, colegio_id, telefono, direccion, email, foto) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO estudiante (id, nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, colegio_id, telefono, direccion, email, foto) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET
+               nombre = excluded.nombre,
+               codigo = excluded.codigo,
+               sexo = excluded.sexo,
+               ano_lectivo_id = excluded.ano_lectivo_id,
+               grado_id = excluded.grado_id,
+               seccion_id = excluded.seccion_id,
+               colegio_id = excluded.colegio_id,
+               telefono = excluded.telefono,
+               direccion = excluded.direccion,
+               email = excluded.email,
+               foto = excluded.foto,
+               updated_at = CASE WHEN nombre IS NOT excluded.nombre
+                   OR codigo IS NOT excluded.codigo OR sexo IS NOT excluded.sexo
+                   OR ano_lectivo_id IS NOT excluded.ano_lectivo_id OR grado_id IS NOT excluded.grado_id
+                   OR seccion_id IS NOT excluded.seccion_id OR colegio_id IS NOT excluded.colegio_id
+                   OR telefono IS NOT excluded.telefono OR direccion IS NOT excluded.direccion
+                   OR email IS NOT excluded.email OR foto IS NOT excluded.foto
+                 THEN datetime('now') ELSE updated_at END",
             rusqlite::params![e.id, e.nombre, e.codigo, e.sexo, e.ano_lectivo_id, e.grado_id, e.seccion_id, e.colegio_id, e.telefono, e.direccion, e.email, e.foto],
         ).map_err(|e| e.to_string())?;
     }
 
     for i in &data.indicadores {
         tx.execute(
-            "INSERT OR REPLACE INTO indicador (id, grado_id, asignatura_id, corte_evaluativo_id, orden, descripcion, activo) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO indicador (id, grado_id, asignatura_id, corte_evaluativo_id, orden, descripcion, activo) VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET
+               grado_id = excluded.grado_id,
+               asignatura_id = excluded.asignatura_id,
+               corte_evaluativo_id = excluded.corte_evaluativo_id,
+               orden = excluded.orden,
+               descripcion = excluded.descripcion,
+               activo = excluded.activo,
+               updated_at = CASE WHEN grado_id IS NOT excluded.grado_id
+                   OR asignatura_id IS NOT excluded.asignatura_id
+                   OR corte_evaluativo_id IS NOT excluded.corte_evaluativo_id
+                   OR orden IS NOT excluded.orden OR descripcion IS NOT excluded.descripcion
+                   OR activo IS NOT excluded.activo
+                 THEN datetime('now') ELSE updated_at END",
             rusqlite::params![i.id, i.grado_id, i.asignatura_id, i.corte_evaluativo_id, i.orden, i.descripcion, if i.activo { 1 } else { 0 }],
         ).map_err(|e| e.to_string())?;
     }
 
     for c in &data.criterios {
         tx.execute(
-            "INSERT OR REPLACE INTO criterio (id, indicador_id, orden, descripcion, puntaje_maximo) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO criterio (id, indicador_id, orden, descripcion, puntaje_maximo) VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET
+               indicador_id = excluded.indicador_id,
+               orden = excluded.orden,
+               descripcion = excluded.descripcion,
+               puntaje_maximo = excluded.puntaje_maximo,
+               updated_at = CASE WHEN indicador_id IS NOT excluded.indicador_id
+                   OR orden IS NOT excluded.orden OR descripcion IS NOT excluded.descripcion
+                   OR puntaje_maximo IS NOT excluded.puntaje_maximo
+                 THEN datetime('now') ELSE updated_at END",
             rusqlite::params![c.id, c.indicador_id, c.orden, c.descripcion, c.puntaje_maximo],
         ).map_err(|e| e.to_string())?;
     }
@@ -4050,7 +4129,11 @@ pub async fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) 
     let mut nota_count = 0usize;
     for n in &data.notas {
         tx.execute(
-            "INSERT OR REPLACE INTO nota (estudiante_id, criterio_id, valor, corte_evaluativo_id, asignatura_id) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO nota (estudiante_id, criterio_id, valor, corte_evaluativo_id, asignatura_id) VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id) DO UPDATE SET
+               valor = excluded.valor,
+               updated_at = CASE WHEN valor IS NOT excluded.valor
+                 THEN datetime('now') ELSE updated_at END",
             rusqlite::params![n.estudiante_id, n.criterio_id, n.valor, n.corte_evaluativo_id.unwrap_or(0), n.asignatura_id.unwrap_or(0)],
         ).map_err(|e| e.to_string())?;
         nota_count += 1;
@@ -4065,12 +4148,27 @@ pub async fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) 
         // Si viene un ID desde Supabase, lo usamos. Si no, dejamos que SQLite lo maneje o usemos INSERT OR REPLACE por el UNIQUE.
         if let Some(id) = a.id {
             tx.execute(
-                "INSERT OR REPLACE INTO asistencia (id, estudiante_id, fecha, estado, observacion) VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO asistencia (id, estudiante_id, fecha, estado, observacion) VALUES (?, ?, ?, ?, ?)
+                 ON CONFLICT DO UPDATE SET
+                   estudiante_id = excluded.estudiante_id,
+                   fecha = excluded.fecha,
+                   estado = excluded.estado,
+                   observacion = excluded.observacion,
+                   updated_at = CASE WHEN estudiante_id IS NOT excluded.estudiante_id
+                       OR fecha IS NOT excluded.fecha
+                       OR estado IS NOT excluded.estado
+                       OR observacion IS NOT excluded.observacion
+                     THEN datetime('now') ELSE updated_at END",
                 rusqlite::params![id, a.estudiante_id, a.fecha, a.estado, a.observacion],
             ).map_err(|e| e.to_string())?;
         } else {
             tx.execute(
-                "INSERT OR REPLACE INTO asistencia (estudiante_id, fecha, estado, observacion) VALUES (?, ?, ?, ?)",
+                "INSERT INTO asistencia (estudiante_id, fecha, estado, observacion) VALUES (?, ?, ?, ?)
+                 ON CONFLICT(estudiante_id, fecha) DO UPDATE SET
+                   estado = excluded.estado,
+                   observacion = excluded.observacion,
+                   updated_at = CASE WHEN estado IS NOT excluded.estado OR observacion IS NOT excluded.observacion
+                     THEN datetime('now') ELSE updated_at END",
                 rusqlite::params![a.estudiante_id, a.fecha, a.estado, a.observacion],
             ).map_err(|e| e.to_string())?;
         }
@@ -4078,14 +4176,25 @@ pub async fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) 
 
     for gc in &data.grade_configs {
         tx.execute(
-            "INSERT OR REPLACE INTO configuracion_calificacion (id, nombre, color, minimo) VALUES (?, ?, ?, ?)",
+            "INSERT INTO configuracion_calificacion (id, nombre, color, minimo) VALUES (?, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET
+               nombre = excluded.nombre,
+               color = excluded.color,
+               minimo = excluded.minimo,
+               updated_at = CASE WHEN nombre IS NOT excluded.nombre
+                   OR color IS NOT excluded.color OR minimo IS NOT excluded.minimo
+                 THEN datetime('now') ELSE updated_at END",
             rusqlite::params![gc.id, gc.nombre, gc.color, gc.minimo],
         ).map_err(|e| e.to_string())?;
     }
 
     for m in &data.multiplicadores {
         tx.execute(
-            "INSERT OR REPLACE INTO multiplicador_calificacion (id, multiplicador) VALUES (?, ?)",
+            "INSERT INTO multiplicador_calificacion (id, multiplicador) VALUES (?, ?)
+             ON CONFLICT(id) DO UPDATE SET
+               multiplicador = excluded.multiplicador,
+               updated_at = CASE WHEN multiplicador IS NOT excluded.multiplicador
+                 THEN datetime('now') ELSE updated_at END",
             rusqlite::params![m.id, m.multiplicador],
         ).map_err(|e| e.to_string())?;
     }
@@ -4108,7 +4217,20 @@ pub async fn upsert_pull_data(state: tauri::State<'_, DbState>, data: PullData) 
 
     for cda in &data.colegio_dias_asistencia {
         tx.execute(
-            "INSERT OR REPLACE INTO colegio_dias_asistencia (colegio_id, lunes, martes, miercoles, jueves, viernes, sabado, domingo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO colegio_dias_asistencia (colegio_id, lunes, martes, miercoles, jueves, viernes, sabado, domingo) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(colegio_id) DO UPDATE SET
+               lunes = excluded.lunes,
+               martes = excluded.martes,
+               miercoles = excluded.miercoles,
+               jueves = excluded.jueves,
+               viernes = excluded.viernes,
+               sabado = excluded.sabado,
+               domingo = excluded.domingo,
+               updated_at = CASE WHEN lunes IS NOT excluded.lunes
+                   OR martes IS NOT excluded.martes OR miercoles IS NOT excluded.miercoles
+                   OR jueves IS NOT excluded.jueves OR viernes IS NOT excluded.viernes
+                   OR sabado IS NOT excluded.sabado OR domingo IS NOT excluded.domingo
+                 THEN datetime('now') ELSE updated_at END",
             rusqlite::params![cda.colegio_id, cda.lunes, cda.martes, cda.miercoles, cda.jueves, cda.viernes, cda.sabado, cda.domingo],
         ).map_err(|e| e.to_string())?;
     }
