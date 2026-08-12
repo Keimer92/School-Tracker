@@ -78,8 +78,27 @@ fn http_post_json(
         .post(&url)
         .set("Content-Type", "application/json")
         .set("X-School-Key", school_key)
-        .send_json(body)
-        .map_err(|e| format!("Error de red hacia el Worker ({}): {}", url, e))?;
+        .send_json(body);
+
+    // En ureq 2.x las respuestas 4xx/5xx llegan como Err(Error::Status(code, response)).
+    // En ese caso hay que leer el body para obtener el mensaje real del Worker.
+    let resp = match resp {
+        Ok(r) => r,
+        Err(ureq::Error::Status(code, response)) => {
+            let text = response.into_string().unwrap_or_default();
+            let parsed_err: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
+            let detail = parsed_err
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or(&text)
+                .to_string();
+            return Err(format!("Worker error (HTTP {}): {}", code, detail));
+        }
+        Err(e) => {
+            return Err(format!("Error de red hacia el Worker ({}): {}", url, e));
+        }
+    };
+
     let status = resp.status();
     let text = resp.into_string().map_err(|e| e.to_string())?;
     let parsed: Value = serde_json::from_str(&text).map_err(|_| text.clone())?;

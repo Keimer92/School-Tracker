@@ -7,6 +7,14 @@ compatibility_date = "2026-07-01"
 binding = "SCHOOL_ROUTING"
 id = "6114e848035443e395b739218cc6f506"
 
+# D1 de la escuela "nube" (única base compartida por todos los dispositivos).
+# Env.DB.batch() permite agrupar ~100 sentencias en UN subrequest, evitando el
+# límite de 1000 subrequests por invocación del plan gratuito de Workers.
+[[d1_databases]]
+binding = "DB"
+database_name = "schooltracker-nube"
+database_id = "8b768a8e-88eb-4f82-a131-3989d62f953b"
+
 [vars]
 # Account ID de Cloudflare (cuenta de pedroluisnfc@gmail.com)
 # El secret CF_API_TOKEN se define con: wrangler secret put CF_API_TOKEN

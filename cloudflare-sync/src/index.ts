@@ -8,14 +8,20 @@
  *   POST /ids              -> { deviceId, blocks: { [tabla]: cantidad } } => { blocks: { [tabla]: { start, end } } }
  *
  * Ruteo: header `X-School-Key` -> KV SCHOOL_ROUTING -> database_id de la D1 del colegio.
- * La D1 se consulta vía REST API oficial (`/accounts/{account_id}/d1/database/{db_id}/query`)
- * con un token de API de Cloudflare (permisos D1:Read + D1:Write) como secret `CF_API_TOKEN`.
+ *
+ * IMPORTANTE (D1 binding vs REST): el acceso se hace con el binding D1 (`env.DB`),
+ * NO con la REST API `/query`. La REST no acepta arrays de sentencias y cada llamada
+ * cuenta como UN subrequest del Worker; con el seed completo se superaba el límite de
+ * 1000 subrequests por invocación del plan gratuito ("Too many subrequests by single
+ * Worker invocation"). `env.DB.batch()` ejecuta hasta ~100 sentencias en un solo
+ * subrequest (y atómicamente).
  */
 
 export interface Env {
   CF_ACCOUNT_ID: string;
   CF_API_TOKEN: string;
   SCHOOL_ROUTING: KVNamespace;
+  DB: D1Database;
 }
 
 const TABLES: Record<string, { pk: string[]; cols: string[] }> = {
@@ -88,6 +94,9 @@ const TABLES: Record<string, { pk: string[]; cols: string[] }> = {
 
 const VALID_TABLES = new Set(Object.keys(TABLES));
 
+// Máximo de sentencias por llamada a env.DB.batch() (el límite real es 100).
+const BATCH_STMT = 90;
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
@@ -96,23 +105,27 @@ function nowSqlite(): string {
   return new Date().toISOString().slice(0, 19).replace('T', ' ');
 }
 
-/** Ejecuta una consulta en la D1 del colegio vía REST API y devuelve `results`. */
-async function d1Query(env: Env, dbId: string, sql: string, params: unknown[] = []) {
-  const url = `https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/d1/database/${dbId}/query`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${env.CF_API_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ sql, params }),
-  });
-  const data: any = await res.json();
-  if (!res.ok || !data.success) {
-    const err = data?.errors?.[0]?.message || data?.messages?.[0]?.message || `HTTP ${res.status}`;
-    throw new Error(`D1 API error: ${err}`);
+/** Ejecuta una consulta simple en el binding D1 y devuelve las filas. */
+async function queryRows(db: D1Database, sql: string, params: unknown[] = []): Promise<any[]> {
+  const r = await db.prepare(sql).bind(...params).all();
+  if (!r.success) throw new Error(`D1 error: ${r.error || 'desconocido'}`);
+  return r.results as any[];
+}
+
+/** Convierte `{ sql, params }[]` en un batch. Devuelve resultados por sentencia. */
+async function batchExec(db: D1Database, statements: { sql: string; params: any[] }[]): Promise<any[]> {
+  if (statements.length === 0) return [];
+  const stmts = statements.map((s) => db.prepare(s.sql).bind(...s.params));
+  try {
+    const res = await db.batch(stmts);
+    for (const r of res) {
+      if (!r.success) throw new Error(`D1 batch error: ${r.error || 'desconocido'}`);
+    }
+    return res.map((r) => r.results as any[]);
+  } catch (e: any) {
+    // db.batch() puede lanzar D1BatchError en lugar de devolver success:false
+    throw new Error(`D1 batch error: ${e?.message || String(e)}`);
   }
-  return data.result?.[0]?.results ?? [];
 }
 
 async function routeToDb(env: Env, req: Request): Promise<string> {
@@ -167,7 +180,7 @@ export default {
       if (path === '/hello') {
         // Verifica conectividad + valida la school key contra KV
         const dbId = await routeToDb(env, req);
-        const rows = await d1Query(env, dbId, 'SELECT 1 AS ok');
+        const rows = await queryRows(env.DB, 'SELECT 1 AS ok');
         return json({
           ok: rows.length > 0,
           databaseId: dbId,
@@ -183,37 +196,40 @@ export default {
         const data: Record<string, any[]> = body.data || {};
         const deletions: { tabla: string; pk: any[]; updated_at?: string }[] = body.deletions || [];
 
-        // ---- 1. Upserts con LWW por tabla, en chunks de ~90 parámetros
+        // ---- 1. Acumular TODAS las sentencias (upserts + tombstones + deletes)
+        const statements: { sql: string; params: any[] }[] = [];
         const stats: Record<string, number> = {};
+
         for (const [table, rows] of Object.entries(data)) {
           if (!VALID_TABLES.has(table) || !Array.isArray(rows) || rows.length === 0) continue;
           const def = TABLES[table];
           const chunkSize = Math.max(1, Math.floor(90 / (def.cols.length + 1)));
-          let applied = 0;
           for (let i = 0; i < rows.length; i += chunkSize) {
             const chunk = rows.slice(i, i + chunkSize);
-            const { sql, params } = buildUpsert(table, chunk, deviceId);
-            await d1Query(env, dbId, sql, params);
-            applied += chunk.length;
+            statements.push(buildUpsert(table, chunk, deviceId));
           }
-          stats[table] = applied;
+          stats[table] = rows.length;
         }
 
-        // ---- 2. Borrados: eliminar fila + registrar tombstones (con LWW)
         let delCount = 0;
         for (const del of deletions) {
           if (!VALID_TABLES.has(del.tabla)) continue;
           const def = TABLES[del.tabla];
           const w = def.pk.map((c, i) => `${c} = ?${i + 1}`).join(' AND ');
-          const ts = nowSqlite();
+          const ts = del.updated_at || nowSqlite();
           const tsSql = `INSERT INTO sync_tombstone (tabla, pk, updated_at, device_id)
 VALUES (?1, ?2, ?3, ?4)
 ON CONFLICT(tabla, pk) DO UPDATE SET updated_at = excluded.updated_at, device_id = excluded.device_id
 WHERE excluded.updated_at > sync_tombstone.updated_at
    OR (excluded.updated_at = sync_tombstone.updated_at AND excluded.device_id > sync_tombstone.device_id)`;
-          await d1Query(env, dbId, tsSql, [del.tabla, JSON.stringify(del.pk), ts, deviceId]);
-          await d1Query(env, dbId, `DELETE FROM ${del.tabla} WHERE ${w}`, del.pk);
+          statements.push({ sql: tsSql, params: [del.tabla, JSON.stringify(del.pk), ts, deviceId] });
+          statements.push({ sql: `DELETE FROM ${del.tabla} WHERE ${w}`, params: del.pk });
           delCount++;
+        }
+
+        // ---- 2. Ejecutar en lotes de ~90 sentencias (1 subrequest por lote)
+        for (let i = 0; i < statements.length; i += BATCH_STMT) {
+          await batchExec(env.DB, statements.slice(i, i + BATCH_STMT));
         }
 
         return json({ ok: true, applied: stats, deletionsApplied: delCount });
@@ -224,25 +240,29 @@ WHERE excluded.updated_at > sync_tombstone.updated_at
         const body: any = await req.json();
         const since = body.since || '1970-01-01 00:00:00';
 
+        // ---- Selects de todas las tablas + tombstones en UN solo batch
+        const statements = Object.keys(TABLES).map((table) => ({
+          sql: `SELECT * FROM ${table} WHERE updated_at > ?1`,
+          params: [since],
+        }));
+        statements.push({
+          sql: `SELECT tabla, pk, updated_at, device_id FROM sync_tombstone WHERE updated_at > ?1`,
+          params: [since],
+        });
+        const results = await batchExec(env.DB, statements);
+
         const rows: Record<string, any[]> = {};
-        for (const table of Object.keys(TABLES)) {
-          const results = await d1Query(env, dbId, `SELECT * FROM ${table} WHERE updated_at > ?1`, [since]);
-          // Quitar device_id interno; solo devolver columnas conocidas
+        Object.keys(TABLES).forEach((table, i) => {
           const def = TABLES[table];
-          rows[table] = results.map((r: any) => {
+          rows[table] = (results[i] || []).map((r: any) => {
+            // Quitar device_id interno; solo devolver columnas conocidas
             const o: Record<string, any> = {};
             for (const c of def.cols) o[c] = r[c];
             return o;
           });
-        }
+        });
 
-        // Tombstones más recientes que `since` (otros dispositivos borraron cosas)
-        const tombstones: any = await d1Query(
-          env,
-          dbId,
-          `SELECT tabla, pk, updated_at, device_id FROM sync_tombstone WHERE updated_at > ?1`,
-          [since],
-        );
+        const tombstones = results[Object.keys(TABLES).length] || [];
         const deleted = tombstones.map((t: any) => ({
           tabla: t.tabla,
           pk: JSON.parse(t.pk),
@@ -258,22 +278,21 @@ WHERE excluded.updated_at > sync_tombstone.updated_at
         const body: any = await req.json();
         const blocks: Record<string, { start: number; end: number }> = {};
 
-        for (const [table, count] of Object.entries(body.blocks || {})) {
-          if (!VALID_TABLES.has(table)) continue;
-          const n = Math.max(1, Math.floor(Number(count) || 1));
-          // INSERT + DO UPDATE sobre el mismo contador en UNA sentencia atómica con RETURNING.
-          // value nunca decrece; el bloque reservado es (value - n + 1)..value
-          const rows: any = await d1Query(
-            env,
-            dbId,
-            `INSERT INTO sync_metadata (key, value) VALUES (?1, ?2)
+        // ---- Reserva de bloques de ids de todas las tablas en UN solo batch
+        const tablesNeeded = Object.entries(body.blocks || {}).filter(([t]) => VALID_TABLES.has(t));
+        const statements = tablesNeeded.map(([table, count]) => ({
+          sql: `INSERT INTO sync_metadata (key, value) VALUES (?1, ?2)
 ON CONFLICT(key) DO UPDATE SET value = value + ?2
 RETURNING value`,
-            [`id:${table}`, n],
-          );
-          const newVal = rows[0]?.value ?? n;
+          params: [`id:${table}`, Math.max(1, Math.floor(Number(count) || 1))],
+        }));
+        const results = await batchExec(env.DB, statements);
+
+        tablesNeeded.forEach(([table, count], i) => {
+          const n = Math.max(1, Math.floor(Number(count) || 1));
+          const newVal = Number(results[i]?.[0]?.value) || n;
           blocks[table] = { start: newVal - n + 1, end: newVal };
-        }
+        });
 
         return json({ ok: true, blocks });
       }
