@@ -358,8 +358,8 @@
             <input bind:value={d1WorkerUrl} placeholder="https://schooltracker-d1-sync.tu-cuenta.workers.dev" style="width: 100%; padding: 0.55rem 0.7rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.06); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none;" />
           </div>
           <div>
-            <label style="display: block; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; font-size: 0.65rem; margin-bottom: 4px;">School Key</label>
-            <input bind:value={d1SchoolKey} placeholder="stp_xxxxxxxxxxxxxxxx" style="width: 100%; padding: 0.55rem 0.7rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.06); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none;" />
+<label style="display: block; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; font-size: 0.65rem; margin-bottom: 4px;">Clave de sincronización</label>
+              <input bind:value={d1SchoolKey} placeholder="stp_xxxxxxxxxxxxxxxx" style="width: 100%; padding: 0.55rem 0.7rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.06); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none;" />
           </div>
           <div style="display: flex; gap: 0.5rem;">
             <button onclick={saveD1Config} disabled={isD1Saving} style="flex: 1; padding: 0.6rem; border-radius: 8px; border: none; background: linear-gradient(135deg, #F6821F, #F97316); color: white; font-weight: 600; font-size: 0.8rem; cursor: pointer; opacity: {isD1Saving ? 0.6 : 1};">{isD1Saving ? 'Guardando...' : 'Guardar'}</button>
@@ -371,7 +371,7 @@
         <div style="text-align: center; padding: 1.5rem 1rem;">
           <div style="font-size: 2.5rem; margin-bottom: 0.75rem;">⬡</div>
           <h4 style="color: #e2e8f0; margin: 0 0 0.4rem 0;">Sync en la Nube con Cloudflare D1</h4>
-          <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1.25rem;">Sincronización por filas (LWW). Cada colegio tiene su propia base D1.</p>
+          <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1.25rem;">Toda tu base de datos se sincroniza a una única base en la nube.</p>
           <button onclick={toggleD1Config} style="padding: 0.8rem 2rem; background: linear-gradient(135deg, #F6821F, #F97316); border: none; color: white; border-radius: 12px; font-weight: 600; font-size: 0.95rem; cursor: pointer; box-shadow: 0 4px 16px rgba(246,130,31,0.3);">
             ⚙️ Configurar D1
           </button>
@@ -379,7 +379,7 @@
       {:else}
         <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 0.75rem 0.9rem; background: linear-gradient(135deg, rgba(246,130,31,0.08) 0%, rgba(246,130,31,0.03) 100%); border-radius: 12px; border: 1px solid rgba(246,130,31,0.12); margin-bottom: 0.9rem;">
           <div style="color: #f1f5f9; font-size: 0.78rem;">
-            <div style="font-weight: 600; color: #fdba74;">Escuela: <span style="color:#e2e8f0; font-family: monospace;">{d1Cfg.schoolKey.slice(0, 12)}…</span></div>
+            <div style="font-weight: 600; color: #fdba74;">Clave: <span style="color:#e2e8f0; font-family: monospace;">{d1Cfg.schoolKey.slice(0, 12)}…</span></div>
             <div style="color: #64748b; margin-top: 2px;">Dispositivo: <span style="font-family: monospace;">{d1Cfg.deviceId}</span></div>
             <div style="color: #64748b; margin-top: 2px;">Última sync: {d1SyncState.lastSync ? new Date(d1SyncState.lastSync).toLocaleString('es-ES') : '—'}</div>
           </div>

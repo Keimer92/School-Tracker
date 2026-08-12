@@ -1,14 +1,9 @@
 {
   "schools": [
     {
-      "name": "Candelario Sotelo",
-      "slug": "candelario-sotelo",
-      "notes": "Colegio principal (seed de la app)"
-    },
-    {
-      "name": "Manuel Ignacio Pereira Quintana",
-      "slug": "manuel-pereira",
-      "notes": "Segundo colegio (seed de la app)"
+      "name": "Instalación School Tracker",
+      "slug": "nube",
+      "notes": "Única base D1 compartida por todos los dispositivos (modelo por año lectivo, no por colegio)"
     }
   ]
 }
