@@ -190,7 +190,14 @@
         {/if}
       </div>
 
-      <div class="cloud-card drive-card" title="Respaldo en Google Drive">
+      <div
+        class="cloud-card drive-card"
+        onclick={() => onTabChange('cloud')}
+        onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTabChange('cloud'); } }}
+        role="button"
+        tabindex="0"
+        title="Ir a Nube"
+      >
         <div class="cloud-head">
           <span class="cloud-dot drive" class:active={!!drive.lastUpload}></span>
           <span class="cloud-title">Respaldo Drive</span>
@@ -277,7 +284,7 @@
   }
 
   .cloud-card.drive-card {
-    cursor: default;
+    cursor: pointer;
   }
 
   .cloud-card.flash {
