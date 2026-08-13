@@ -7,6 +7,7 @@
   import { syncService } from "../lib/syncService";
   import { onDataChange } from "../lib/autoSync";
   import { registerBackHandler } from "../lib/androidBack";
+  import CloudPage from "./CloudPage.svelte";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
 
@@ -24,6 +25,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
   const TABS = [
     { id: "configuracion", label: "General", icon: "⚙️" },
+    { id: "nube", label: "Nube", icon: "☁️" },
     { id: "almacenamiento", label: "Almacén", icon: "📦" },
     { id: "debugging", label: "Debug", icon: "🐛" },
     { id: "acercaDe", label: "Info", icon: "📖" },
@@ -53,7 +55,14 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   let resetConfig = $state<{ title: string; message: string; onConfirm: () => Promise<void>; isDanger?: boolean; } | null>(null);
   let isProcessingReset = $state(false);
 
-  let { themeMode = "sistema", setThemeMode = () => {}, pageActive = false } = $props();
+  let { themeMode = "sistema", setThemeMode = () => {}, pageActive = false, tabRequest = null as string | null } = $props();
+
+  $effect(() => {
+    if (tabRequest) {
+      const target = TABS.find(t => t.id === tabRequest);
+      if (target) activeTab = target.id as any;
+    }
+  });
 
   function handleThemeChange(mode: string) {
     setThemeMode(mode);
@@ -232,6 +241,13 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
         </button>
       {/if}
       <div class="settings-content-wrapper">
+        <!-- NUBE -->
+        {#if activeTab === "nube"}
+          <div class="category-card" style="background: transparent; border: none;">
+            <CloudPage />
+          </div>
+        {/if}
+
         <!-- CONFIGURACIÓN -->
         {#if activeTab === "configuracion"}
           <div class="category-card">

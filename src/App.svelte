@@ -14,7 +14,6 @@
   import EstudiantesPage from "./svelte/EstudiantesPage.svelte";
   import GlobalesPage from "./svelte/GlobalesPage.svelte";
   import AjustesPage from "./svelte/AjustesPage.svelte";
-  import CloudPage from "./svelte/CloudPage.svelte";
   import DashboardPage from "./svelte/DashboardPage.svelte";
   import Sidebar from "./svelte/Sidebar.svelte";
   import WelcomePage from "./svelte/WelcomePage.svelte";
@@ -31,6 +30,7 @@
   let isResizing = $state(false);
   let toast: { message: string; type: string; isOpen: boolean } = $state({ message: "", type: "info", isOpen: false });
   let unlisten: (() => void)[] = [];
+  let ajustesTabRequest = $state<string | null>(null);
 
   // Theme state: "claro" | "oscuro" | "sistema"
   let themeMode = $state(localStorage.getItem("app-theme") || "sistema");
@@ -86,6 +86,13 @@
   }
 
   function handleTabChange(tab: Tab) {
+    if (tab === "cloud") {
+      ajustesTabRequest = "nube";
+      setActiveTab("ajustes");
+      if (isMobile) drawerOpen = false;
+      return;
+    }
+    ajustesTabRequest = null;
     setActiveTab(tab);
     if (isMobile) drawerOpen = false;
   }
@@ -306,11 +313,8 @@
     {#if visitedTabs.has('globales')}
       <div style="display: {activeTab === 'globales' ? 'block' : 'none'}; width: 100%; height: 100%;"><GlobalesPage pageActive={activeTab === 'globales'} /></div>
     {/if}
-    {#if visitedTabs.has('cloud')}
-      <div style="display: {activeTab === 'cloud' ? 'block' : 'none'}; width: 100%; height: 100%;"><CloudPage activeTab={activeTab} /></div>
-    {/if}
     {#if visitedTabs.has('ajustes')}
-      <div style="display: {activeTab === 'ajustes' ? 'block' : 'none'}; width: 100%; height: 100%;"><AjustesPage pageActive={activeTab === 'ajustes'} {themeMode} {setThemeMode} /></div>
+      <div style="display: {activeTab === 'ajustes' ? 'block' : 'none'}; width: 100%; height: 100%;"><AjustesPage pageActive={activeTab === 'ajustes'} tabRequest={ajustesTabRequest} {themeMode} {setThemeMode} /></div>
     {/if}
   </main>
 
