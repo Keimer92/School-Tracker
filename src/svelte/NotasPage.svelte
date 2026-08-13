@@ -778,7 +778,7 @@
       if (pendingRefreshOnSave) { pendingRefreshOnSave = false; nextRefreshSilent = true; refreshTrigger++; }
       saving = false;
       await emit("show-toast", { message: "✅ Notas guardadas localmente", type: "success" });
-      onDataChange('nota');
+      onDataChange('nota', { immediate: true });
       setTimeout(() => fetchEstudiantes(undefined, true), 200);
     } catch (error) {
       console.error("Error saving notes:", error);
@@ -807,7 +807,7 @@
       hasUnsavedChanges = false;
       hasUnsavedRef = false;
       if (pendingRefreshOnSave) { pendingRefreshOnSave = false; nextRefreshSilent = true; refreshTrigger++; }
-      onDataChange('nota');
+      onDataChange('nota', { immediate: true });
       setTimeout(() => fetchEstudiantes(undefined, true), 200);
     } catch (error) {
       console.error("Error deleting notas:", error);

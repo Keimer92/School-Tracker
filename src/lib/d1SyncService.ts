@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
-import { markDirty, markAllDirty, markAllClean } from './dirtyTracker';
+import { markDirty, markAllDirty, markAllClean, hasDirtyTables } from './dirtyTracker';
 
 export type D1Status = 'idle' | 'syncing' | 'error' | 'success' | 'offline';
 
@@ -187,6 +187,10 @@ export const d1SyncService = {
       const cfg = await getConfig();
       if (!cfg) {
         d1SyncService.stopPeriodicSync();
+        return;
+      }
+      if (!hasDirtyTables()) {
+        d1SyncManager.setState({ status: 'idle', message: null });
         return;
       }
       d1SyncManager.setState({ status: 'syncing', message: 'Sync automático...' });

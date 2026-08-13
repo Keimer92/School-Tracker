@@ -359,7 +359,7 @@
             draft = {}; syncDraftToStorage(); hasUnsavedChanges = false; saving = false;
             if (pendingRefreshOnSave) { pendingRefreshOnSave = false; refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); }
             await emit("show-toast", { message: "✅ Asistencia limpiada correctamente", type: "success" });
-            onDataChange('asistencia');
+            onDataChange('asistencia', { immediate: true });
             skipNextRefresh = true;
             await emit("asistencia-updated");
           } catch (error) {
@@ -374,7 +374,7 @@
       draft = {}; syncDraftToStorage(); hasUnsavedChanges = false; saving = false;
       if (pendingRefreshOnSave) { pendingRefreshOnSave = false; refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); }
       await emit("show-toast", { message: "✅ Asistencia guardada localmente", type: "success" });
-      onDataChange('asistencia');
+      onDataChange('asistencia', { immediate: true });
       skipNextRefresh = true;
       await emit("asistencia-updated");
     } catch (error) {
@@ -408,7 +408,7 @@
       draftMulti = {}; syncDraftMultiToStorage(); hasUnsavedChanges = false; saving = false;
       if (pendingRefreshOnSave) { pendingRefreshOnSave = false; refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); }
       await emit("show-toast", { message: "✅ Asistencia guardada localmente", type: "success" });
-      onDataChange('asistencia');
+      onDataChange('asistencia', { immediate: true });
       skipNextRefresh = true;
       await emit("asistencia-updated");
     } catch (error) {

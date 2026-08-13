@@ -295,7 +295,7 @@ async function fetchData(preserveFilters = false) {
           } catch (err) { console.error(`Error al procesar fila ${rowIndex}:`, row, err); errors++; }
         }
       }
-      if (newlyImportedStudents.length > 0) onDataChange('estudiante');
+      if (newlyImportedStudents.length > 0) onDataChange('estudiante', { immediate: true });
       if (importedCount > 0 || skippedCount > 0) {
         filters = lastImportedFilter;
         await emit("student-updated", { timestamp: Date.now() }); await emit("catalog-updated");
@@ -451,13 +451,13 @@ async function fetchData(preserveFilters = false) {
       if (isEditing) {
         studentToSave.foto = photoPreview || undefined;
         await invoke("update_student", { student: studentToSave });
-        onDataChange('estudiante');
+        onDataChange('estudiante', { immediate: true });
         await emit("student-updated", { timestamp: Date.now() });
         await emit("show-toast", { message: '✅ Estudiante actualizado correctamente', type: 'success' });
       } else {
         const newStudentWithFoto = { ...studentToSave, foto: photoPreview || undefined };
         const newId = await invoke<number>("add_student", { student: newStudentWithFoto });
-        onDataChange('estudiante');
+        onDataChange('estudiante', { immediate: true });
         await emit("student-updated", { timestamp: Date.now() });
         await emit("show-toast", { message: '✅ Estudiante registrado correctamente', type: 'success' });
       }
@@ -499,7 +499,7 @@ async function fetchData(preserveFilters = false) {
       showDeleteConfirm = false; studentToDeleteId = null;
       await emit("show-toast", { message: '✅ Estudiante eliminado correctamente', type: 'success' });
       await emit("student-updated", { timestamp: Date.now() });
-      onDataChange('estudiante');
+      onDataChange('estudiante', { immediate: true });
       setTimeout(() => { fetchData(true); }, 200);
     } catch (error) {
       console.error("Error deleting student:", error);
@@ -516,7 +516,7 @@ async function fetchData(preserveFilters = false) {
       students = students.filter(s => !ids.includes(s.id!));
       await emit("show-toast", { message: `✅ ${ids.length} estudiantes eliminados correctamente`, type: "success" });
       await emit("student-updated", { timestamp: Date.now() });
-      onDataChange('estudiante');
+      onDataChange('estudiante', { immediate: true });
       setTimeout(() => { fetchData(true); }, 200);
     } catch (error) {
       await emit("show-toast", { message: "❌ Error al eliminar en lote: " + error, type: "error" });
@@ -551,7 +551,7 @@ async function fetchData(preserveFilters = false) {
       selectMode = false;
       await emit("show-toast", { message: `✅ ${count} estudiantes eliminados correctamente`, type: "success" });
       await emit("student-updated", { timestamp: Date.now() });
-      onDataChange('estudiante');
+      onDataChange('estudiante', { immediate: true });
       setTimeout(() => { fetchData(true); }, 200);
     } catch (error) {
       await emit("show-toast", { message: "❌ Error al eliminar: " + error, type: "error" });

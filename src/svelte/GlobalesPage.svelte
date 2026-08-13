@@ -224,7 +224,7 @@
             id: gc.id, nombre: gc.nombre, color: gc.color, minimo: gc.minimo, oldId: gc.id
           });
         }
-        onDataChange('configuracion_calificacion');
+        onDataChange('configuracion_calificacion', { immediate: true });
       }
       // Guardar multiplicadores modificados
       const currMult = JSON.stringify(multiplicadores);
@@ -232,7 +232,7 @@
         for (const m of multiplicadores) {
           await invoke("update_multiplicador", { id: m.id, multiplicador: m.multiplicador });
         }
-        onDataChange('multiplicador_calificacion');
+        onDataChange('multiplicador_calificacion', { immediate: true });
       }
       captureOriginals();
       await emit("grade-configs-updated");
