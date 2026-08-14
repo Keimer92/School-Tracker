@@ -551,6 +551,37 @@ async fn save_file_android(
     Ok(())
 }
 
+#[tauri::command]
+async fn notify_attendance_reminder(_app_handle: tauri::AppHandle, _title: String, _body: String) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        use jni::objects::JValue;
+        unsafe {
+            let ctx = ndk_context::android_context();
+            let vm_ptr = ctx.vm();
+            let activity_ptr = ctx.context();
+            let vm = jni::JavaVM::from_raw(vm_ptr as *mut _).map_err(|e| e.to_string())?;
+            let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+            let activity = jni::objects::JObject::from_raw(activity_ptr as *mut _);
+            let j_title = env.new_string(_title).map_err(|e| e.to_string())?;
+            let j_body = env.new_string(_body).map_err(|e| e.to_string())?;
+            let _ = env
+                .call_method(
+                    activity,
+                    "notifyAttendanceReminder",
+                    "(Ljava/lang/String;Ljava/lang/String;)V",
+                    &[JValue::Object(&j_title), JValue::Object(&j_body)],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        Ok(())
+    }
+}
+
 // ========================
 // GOOGLE DRIVE BACKUP COMMANDS
 // ========================
@@ -563,6 +594,16 @@ async fn gd_read_file_base64(path: String) -> Result<String, String> {
     let bytes = fs::read(&path)
         .map_err(|e| format!("Error leyendo archivo: {}", e))?;
     Ok(general_purpose::STANDARD.encode(bytes))
+}
+
+#[tauri::command]
+async fn gd_reload_database(app_handle: tauri::AppHandle, state: tauri::State<'_, DbState>) -> Result<(), String> {
+    let app_dir = get_profile_app_dir(&app_handle)?;
+    let db_path = app_dir.join("school.db");
+    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+    *conn = Connection::open(&db_path).map_err(|e| format!("Failed to reopen database: {}", e))?;
+    db::init_database(&*conn).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -1200,7 +1241,10 @@ fn get_profile_app_dir(app_handle: &tauri::AppHandle) -> Result<std::path::PathB
             std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create profile dir: {}", e))?;
             Ok(dir)
         }
-        _ => Ok(app_dir),
+        _ => {
+            std::fs::create_dir_all(&app_dir).map_err(|e| format!("Failed to create app data dir: {}", e))?;
+            Ok(app_dir)
+        }
     }
 }
 
@@ -1335,6 +1379,7 @@ pub fn run() {
             save_file_android,
             gd_read_file_base64,
             gd_write_file_base64,
+            gd_reload_database,
             gd_open_url_browser,
             gd_start_oauth_server,
             gd_open_auth_webview,
@@ -1347,6 +1392,8 @@ pub fn run() {
             gd_delete_backup,
             gd_import_db_from_file,
             get_dashboard_stats,
+            get_grados_secciones_sin_asistencia_hoy,
+            notify_attendance_reminder,
             get_monthly_attendance_pct,
             get_seed_options,
             seed_selected_data,

@@ -170,6 +170,13 @@
           <span class="card-label">Grados</span>
         </div>
       </div>
+      <div class="summary-card" style="--card-accent: #ec4899">
+        <div class="card-icon">🏷️</div>
+        <div class="card-content">
+          <span class="card-value">{stats.totalSecciones}</span>
+          <span class="card-label">Secciones</span>
+        </div>
+      </div>
       <div class="summary-card" style="--card-accent: #ef4444">
         <div class="card-icon">🏫</div>
         <div class="card-content">

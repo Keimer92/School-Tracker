@@ -4051,6 +4051,13 @@ pub struct GradoCount {
     pub count: i64,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GradoSeccionSinAsistencia {
+    pub grado: String,
+    pub seccion: String,
+}
+
 #[tauri::command]
 #[allow(non_snake_case)]
 pub async fn get_dashboard_stats(
@@ -4150,6 +4157,71 @@ pub async fn get_dashboard_stats(
         justificados_hoy,
         estudiantes_por_grado,
     })
+}
+
+
+#[tauri::command]
+pub async fn get_grados_secciones_sin_asistencia_hoy(
+    state: tauri::State<'_, DbState>,
+    colegioId: i64,
+    fecha: String,
+) -> Result<Vec<GradoSeccionSinAsistencia>, String> {
+    use chrono::{Datelike, Local};
+
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+
+    let weekday = Local::now().weekday();
+    let column = match weekday {
+        chrono::Weekday::Mon => "lunes",
+        chrono::Weekday::Tue => "martes",
+        chrono::Weekday::Wed => "miercoles",
+        chrono::Weekday::Thu => "jueves",
+        chrono::Weekday::Fri => "viernes",
+        chrono::Weekday::Sat => "sabado",
+        chrono::Weekday::Sun => "domingo",
+    };
+
+    // Si el colegio no es laborable hoy, no hay nada que avisar.
+    let laborable: i64 = conn
+        .query_row(
+            &format!("SELECT COALESCE({}, 1) FROM colegio_dias_asistencia WHERE colegio_id = ?1", column),
+            rusqlite::params![colegioId],
+            |row| row.get(0),
+        )
+        .unwrap_or(1);
+    if laborable == 0 {
+        return Ok(Vec::new());
+    }
+
+    // Grados/secciones con estudiantes que aún no tienen asistencia en la fecha.
+    let mut stmt = conn
+        .prepare(
+            "SELECT g.nombre, s.nombre
+             FROM estudiante e
+             INNER JOIN grado g ON g.id = e.grado_id
+             INNER JOIN seccion s ON s.id = e.seccion_id
+             WHERE e.colegio_id = ?1
+               AND e.ano_lectivo_id = (SELECT id FROM ano_lectivo WHERE activo = 1)
+             GROUP BY e.grado_id, e.seccion_id
+             HAVING SUM(CASE WHEN EXISTS (
+                 SELECT 1 FROM asistencia a WHERE a.estudiante_id = e.id AND a.fecha = ?2
+             ) THEN 1 ELSE 0 END) = 0
+             ORDER BY g.nombre, s.nombre",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let items = stmt
+        .query_map(rusqlite::params![colegioId, fecha], |row| {
+            Ok(GradoSeccionSinAsistencia {
+                grado: row.get(0)?,
+                seccion: row.get(1)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(items)
 }
 
 

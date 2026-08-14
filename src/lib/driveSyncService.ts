@@ -221,6 +221,7 @@ async function downloadAndRestore(token: string, fileId: string): Promise<void> 
   const dbPath = await invoke<string>('get_db_path');
   await invoke('gd_create_backup', {});
   await invoke('gd_write_file_base64', { path: dbPath, contentBase64: base64 });
+  await invoke('gd_reload_database', {});
   syncManager.setState({ lastDownload: now() });
   markAllClean();
 }

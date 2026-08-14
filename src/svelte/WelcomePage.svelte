@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { emit } from "@tauri-apps/api/event";
-  import { syncService } from "../lib/syncService";
+  import { driveSyncService } from "../lib/driveSyncService";
   import { setBackAuthInProgress } from "../lib/androidBack";
 
   let view: 'landing' | 'cloud' | 'wizard' = $state('landing');
@@ -106,7 +106,7 @@
       localStorage.setItem('schooltracker-google-drive-settings', JSON.stringify(settings));
 
       loadingMessage = 'Descargando datos desde Google Drive...';
-      await syncService.pullAllSilent();
+      await driveSyncService.pullAll();
       loadingMessage = 'Verificando datos...';
       const hasData = await invoke('is_app_initialized');
       if (hasData) {

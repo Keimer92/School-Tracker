@@ -2,6 +2,13 @@ package com.keimer.schooltrackerpro
 
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.media.AudioAttributes
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.media.RingtoneManager
+import android.os.Build
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -195,6 +202,60 @@ class MainActivity : TauriActivity() {
       android.util.Log.i("MainActivity", "File saved to: ${destFile.absolutePath}")
     } catch (e: Exception) {
       android.util.Log.e("MainActivity", "Error saving file: ${e.message}")
+    }
+  }
+
+  fun notifyAttendanceReminder(title: String, body: String) {
+    try {
+      val channelId = "attendance_reminders"
+      val notificationManager = getSystemService(NotificationManager::class.java)
+
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val channel = NotificationChannel(
+          channelId,
+          "Recordatorio de asistencia",
+          NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+          description = "Grados/secciones sin asistencia del día"
+          val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+          setSound(
+            soundUri,
+            AudioAttributes.Builder()
+              .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+              .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+              .build()
+          )
+        }
+        notificationManager.createNotificationChannel(channel)
+      }
+
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+      ) {
+        requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 2001)
+        return
+      }
+
+      val builder: Notification.Builder =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+          Notification.Builder(this, channelId)
+        } else {
+          @Suppress("DEPRECATION")
+          Notification.Builder(this)
+        }
+
+      val notification = builder
+        .setSmallIcon(android.R.drawable.ic_dialog_info)
+        .setContentTitle(title)
+        .setContentText(body)
+        .setAutoCancel(true)
+        .setPriority(Notification.PRIORITY_HIGH)
+        .build()
+
+      notificationManager.notify(2001, notification)
+      android.util.Log.i("MainActivity", "Notification sent: $title")
+    } catch (e: Exception) {
+      android.util.Log.e("MainActivity", "Error sending notification: ${e.message}")
     }
   }
 }
