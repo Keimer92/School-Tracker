@@ -582,6 +582,176 @@ async fn notify_attendance_reminder(_app_handle: tauri::AppHandle, _title: Strin
     }
 }
 
+#[tauri::command]
+async fn schedule_attendance_alarm(_app_handle: tauri::AppHandle, _config: String, _db_path: String) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        use jni::objects::JValue;
+        unsafe {
+            let ctx = ndk_context::android_context();
+            let vm_ptr = ctx.vm();
+            let activity_ptr = ctx.context();
+            let vm = jni::JavaVM::from_raw(vm_ptr as *mut _).map_err(|e| e.to_string())?;
+            let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+            let activity = jni::objects::JObject::from_raw(activity_ptr as *mut _);
+            let j_config = env.new_string(_config).map_err(|e| e.to_string())?;
+            let j_db = env.new_string(_db_path).map_err(|e| e.to_string())?;
+            let _ = env
+                .call_method(
+                    activity,
+                    "scheduleAttendanceAlarm",
+                    "(Ljava/lang/String;Ljava/lang/String;)V",
+                    &[JValue::Object(&j_config), JValue::Object(&j_db)],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        Ok(())
+    }
+}
+
+#[tauri::command]
+async fn cancel_attendance_alarm(_app_handle: tauri::AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        unsafe {
+            let ctx = ndk_context::android_context();
+            let vm_ptr = ctx.vm();
+            let activity_ptr = ctx.context();
+            let vm = jni::JavaVM::from_raw(vm_ptr as *mut _).map_err(|e| e.to_string())?;
+            let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+            let activity = jni::objects::JObject::from_raw(activity_ptr as *mut _);
+            let _ = env
+                .call_method(activity, "cancelAttendanceAlarm", "()V", &[])
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        Ok(())
+    }
+}
+
+#[tauri::command]
+async fn get_attendance_notified_today(_app_handle: tauri::AppHandle) -> Result<bool, String> {
+    #[cfg(target_os = "android")]
+    {
+        unsafe {
+            let ctx = ndk_context::android_context();
+            let vm_ptr = ctx.vm();
+            let activity_ptr = ctx.context();
+            let vm = jni::JavaVM::from_raw(vm_ptr as *mut _).map_err(|e| e.to_string())?;
+            let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+            let activity = jni::objects::JObject::from_raw(activity_ptr as *mut _);
+            let result = env
+                .call_method(activity, "getAttendanceNotifiedToday", "()Z", &[])
+                .map_err(|e| e.to_string())?;
+            Ok(result.z().map_err(|e| e.to_string())?)
+        }
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        Ok(false)
+    }
+}
+
+#[tauri::command]
+async fn set_attendance_notified_today(_app_handle: tauri::AppHandle, _notified: bool) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        use jni::objects::JValue;
+        unsafe {
+            let ctx = ndk_context::android_context();
+            let vm_ptr = ctx.vm();
+            let activity_ptr = ctx.context();
+            let vm = jni::JavaVM::from_raw(vm_ptr as *mut _).map_err(|e| e.to_string())?;
+            let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+            let activity = jni::objects::JObject::from_raw(activity_ptr as *mut _);
+            let _ = env
+                .call_method(
+                    activity,
+                    "setAttendanceNotifiedToday",
+                    "(Z)V",
+                    &[JValue::Bool(if _notified { 1 } else { 0 })],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        Ok(())
+    }
+}
+
+/// Función JNI invocada por `AttendanceNative` (Kotlin) cuando la app está
+/// cerrada y dispara la alarma de asistencia. Recibe la ruta de la BD, la
+/// fecha local y un JSON con los filtros, y devuelve el JSON de pendientes.
+/// La consulta SQL vive SOLO en Rust (`db::grados_secciones_sin_asistencia`).
+#[cfg(target_os = "android")]
+#[no_mangle]
+pub extern "system" fn Java_com_keimer_schooltrackerpro_AttendanceNative_queryAttendancePending(
+    mut env: jni::JNIEnv,
+    _class: jni::objects::JClass,
+    db_path: jni::sys::jstring,
+    fecha: jni::sys::jstring,
+    filtros_json: jni::sys::jstring,
+) -> jni::sys::jstring {
+    use std::collections::HashMap;
+
+    let result = (|| -> Result<String, String> {
+        let db_str: String = unsafe {
+                env.get_string(&jni::objects::JString::from_raw(db_path))
+                    .map_err(|e| e.to_string())?
+                    .into()
+            };
+            let fecha_str: String = unsafe {
+                env.get_string(&jni::objects::JString::from_raw(fecha))
+                    .map_err(|e| e.to_string())?
+                    .into()
+            };
+            let filtros_str: String = unsafe {
+                env.get_string(&jni::objects::JString::from_raw(filtros_json))
+                    .map_err(|e| e.to_string())?
+                    .into()
+            };
+
+        let filtros: HashMap<String, Vec<i64>> =
+            serde_json::from_str(&filtros_str).map_err(|e| format!("JSON inválido: {}", e))?;
+
+        let colegios = filtros.get("colegios").cloned().unwrap_or_default();
+        let grados = filtros.get("grados").cloned().unwrap_or_default();
+        let secciones = filtros.get("secciones").cloned().unwrap_or_default();
+
+        let conn = rusqlite::Connection::open(&db_str).map_err(|e| format!("No se pudo abrir BD: {}", e))?;
+        let pendientes = db::grados_secciones_sin_asistencia(&conn, &colegios, &grados, &secciones, &fecha_str)?;
+        let items: Vec<serde_json::Value> = pendientes
+            .iter()
+            .map(|p| {
+                serde_json::json!({ "grado": p.grado, "seccion": p.seccion })
+            })
+            .collect();
+        serde_json::to_string(&items).map_err(|e| e.to_string())
+    })();
+
+    match result {
+        Ok(json) => env
+            .new_string(&json)
+            .map(|s| s.into_raw())
+            .unwrap_or(std::ptr::null_mut()),
+        Err(e) => {
+            let json = serde_json::json!({ "error": e }).to_string();
+            env.new_string(&json)
+                .map(|s| s.into_raw())
+                .unwrap_or(std::ptr::null_mut())
+        }
+    }
+}
+
 // ========================
 // GOOGLE DRIVE BACKUP COMMANDS
 // ========================
@@ -1393,7 +1563,12 @@ pub fn run() {
             gd_import_db_from_file,
             get_dashboard_stats,
             get_grados_secciones_sin_asistencia_hoy,
+            get_pendientes_asistencia_filtrados,
             notify_attendance_reminder,
+            schedule_attendance_alarm,
+            cancel_attendance_alarm,
+            get_attendance_notified_today,
+            set_attendance_notified_today,
             get_monthly_attendance_pct,
             get_seed_options,
             seed_selected_data,

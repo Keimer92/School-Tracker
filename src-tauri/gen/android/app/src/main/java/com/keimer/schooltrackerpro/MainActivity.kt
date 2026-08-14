@@ -1,20 +1,24 @@
 package com.keimer.schooltrackerpro
 
-import android.content.Intent
-import android.content.IntentFilter
-import android.content.pm.PackageManager
-import android.media.AudioAttributes
+import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.content.SharedPreferences
+import android.content.pm.PackageManager
+import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.os.Build
+import android.os.Bundle
+import android.os.Environment
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
-import android.os.Bundle
-import android.os.Environment
 import android.print.PrintAttributes
 import android.print.PrintManager
 import android.view.View
@@ -25,7 +29,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
+import org.json.JSONObject
 import java.io.File
+import java.util.Calendar
 
 class MainActivity : TauriActivity() {
   private var webView: WebView? = null
@@ -256,6 +264,51 @@ class MainActivity : TauriActivity() {
       android.util.Log.i("MainActivity", "Notification sent: $title")
     } catch (e: Exception) {
       android.util.Log.e("MainActivity", "Error sending notification: ${e.message}")
+    }
+  }
+
+  fun scheduleAttendanceAlarm(config: String, dbPath: String) {
+    try {
+      val prefs = getSharedPreferences(AttendancePrefs.NAME, Context.MODE_PRIVATE)
+      val json = JSONObject(config)
+
+      val enabled = json.optBoolean("enabled", false)
+      val time = json.optString("hora", "12:00")
+
+      prefs.edit()
+        .putBoolean(AttendancePrefs.KEY_ENABLED, enabled)
+        .putString(AttendancePrefs.KEY_TIME, time)
+        .putString(AttendancePrefs.KEY_COLEGIOS, json.optJSONArray("colegios")?.toString() ?: "[]")
+        .putString(AttendancePrefs.KEY_GRADOS, json.optJSONArray("grados")?.toString() ?: "[]")
+        .putString(AttendancePrefs.KEY_SECCIONES, json.optJSONArray("secciones")?.toString() ?: "[]")
+        .putString(AttendancePrefs.KEY_DB_PATH, dbPath)
+        .apply()
+
+      if (enabled) {
+        AttendanceScheduler.schedule(this)
+      } else {
+        AttendanceScheduler.cancel(this)
+      }
+      android.util.Log.i("MainActivity", "Attendance alarm scheduled: enabled=$enabled time=$time")
+    } catch (e: Exception) {
+      android.util.Log.e("MainActivity", "Error scheduling attendance alarm: ${e.message}")
+    }
+  }
+
+  fun cancelAttendanceAlarm() {
+    AttendanceScheduler.cancel(this)
+  }
+
+  fun getAttendanceNotifiedToday(): Boolean {
+    return AttendancePrefs.getNotifiedDate(this) == AttendancePrefs.today()
+  }
+
+  fun setAttendanceNotifiedToday(notified: Boolean) {
+    val prefs = getSharedPreferences(AttendancePrefs.NAME, Context.MODE_PRIVATE)
+    if (notified) {
+      prefs.edit().putString(AttendancePrefs.KEY_LAST_NOTIFIED, AttendancePrefs.today()).apply()
+    } else {
+      prefs.edit().remove(AttendancePrefs.KEY_LAST_NOTIFIED).apply()
     }
   }
 }

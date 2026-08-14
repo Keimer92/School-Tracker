@@ -77,23 +77,47 @@
 
   async function checkAttendanceReminder() {
     try {
-      let colegioId = Number(localStorage.getItem("selectedColegio")) || 0;
-      if (!colegioId) {
-        colegioId = await invoke<number>("get_recommended_colegio");
+      const NOTIF_STORAGE_KEY = 'stp_attendance_notif_settings';
+      let stored: any = null;
+      try { stored = JSON.parse(localStorage.getItem(NOTIF_STORAGE_KEY) || "null"); } catch {}
+
+      // Config no guardada o desactivada → no avisar.
+      if (!stored || !stored.enabled) return;
+
+      // Si la hora configurada aún no pasó, no avisar al abrir (la alarma lo hará).
+      if (stored.hora) {
+        const now = new Date();
+        const [h, m] = String(stored.hora).split(":").map(Number);
+        const nowMin = now.getHours() * 60 + now.getMinutes();
+        const cfgMin = (h || 0) * 60 + (m || 0);
+        if (nowMin < cfgMin) return;
       }
-      if (!colegioId) return;
+
+      // Evita duplicar si ya se notificó hoy (lo marca el receiver o este check).
+      const already = await invoke<boolean>("get_attendance_notified_today").catch(() => false);
+      if (already) return;
+
+      const colegios = Array.isArray(stored.colegios) && stored.colegios.length ? stored.colegios : [];
+      const grados = Array.isArray(stored.grados) ? stored.grados : [];
+      const secciones = Array.isArray(stored.secciones) ? stored.secciones : [];
+
       const fecha = getLocalDateISOString();
       const pendientes = await invoke<{ grado: string; seccion: string }[]>(
-        "get_grados_secciones_sin_asistencia_hoy",
-        { colegioId, fecha }
+        "get_pendientes_asistencia_filtrados",
+        { colegios, grados, secciones, fecha }
       );
-      if (!pendientes || pendientes.length === 0) return;
+      if (!pendientes || pendientes.length === 0) {
+        await invoke("set_attendance_notified_today", { notified: true }).catch(() => {});
+        return;
+      }
+
       const lista = pendientes.slice(0, 5).map(p => `${p.grado} ${p.seccion}`).join(", ");
       const resto = pendientes.length > 5 ? ` y ${pendientes.length - 5} más` : "";
       await invoke("notify_attendance_reminder", {
         title: "Asistencia pendiente",
         body: `Sin asistencia hoy: ${lista}${resto}`,
       });
+      await invoke("set_attendance_notified_today", { notified: true }).catch(() => {});
     } catch (e) {
       console.error("Error al verificar asistencias pendientes:", e);
     }

@@ -132,7 +132,7 @@
     <div class="cloud-head">
       <span class="cloud-dot drive" class:active={!!drive.lastUpload}></span>
       <span class="cloud-title">{compact ? 'Drive' : 'Respaldo Drive'}</span>
-      <span class="cloud-time-inline">{drive.lastUpload ? fmtTime(drive.lastUpload) : '—'}</span>
+      <span class="cloud-time-inline">{drive.lastUpload ? fmtTime(drive.lastUpload) : (compact ? '' : '—')}</span>
     </div>
     {#if !compact}
       <div class="cloud-time">Último respaldo: {drive.lastUpload ? fmtTime(drive.lastUpload) : 'sin hacer'}</div>

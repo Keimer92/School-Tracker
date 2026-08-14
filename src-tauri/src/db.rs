@@ -4160,18 +4160,10 @@ pub async fn get_dashboard_stats(
 }
 
 
-#[tauri::command]
-pub async fn get_grados_secciones_sin_asistencia_hoy(
-    state: tauri::State<'_, DbState>,
-    colegioId: i64,
-    fecha: String,
-) -> Result<Vec<GradoSeccionSinAsistencia>, String> {
-    use chrono::{Datelike, Local};
-
-    let conn = state.conn.lock().map_err(|e| e.to_string())?;
-
-    let weekday = Local::now().weekday();
-    let column = match weekday {
+fn weekday_column(fecha: &str) -> Option<&'static str> {
+    use chrono::{Datelike, NaiveDate};
+    let date = NaiveDate::parse_from_str(fecha, "%Y-%m-%d").ok()?;
+    let column = match date.weekday() {
         chrono::Weekday::Mon => "lunes",
         chrono::Weekday::Tue => "martes",
         chrono::Weekday::Wed => "miercoles",
@@ -4180,38 +4172,104 @@ pub async fn get_grados_secciones_sin_asistencia_hoy(
         chrono::Weekday::Sat => "sabado",
         chrono::Weekday::Sun => "domingo",
     };
+    Some(column)
+}
 
-    // Si el colegio no es laborable hoy, no hay nada que avisar.
-    let laborable: i64 = conn
-        .query_row(
-            &format!("SELECT COALESCE({}, 1) FROM colegio_dias_asistencia WHERE colegio_id = ?1", column),
-            rusqlite::params![colegioId],
-            |row| row.get(0),
-        )
-        .unwrap_or(1);
-    if laborable == 0 {
+/// Grados/secciones con estudiantes que aún no tienen asistencia en la fecha,
+/// considerando solo colegios laborables ese día y los filtros opcionales
+/// (lista vacía = todos). Es la ÚNICA implementación de esta consulta; la usan
+/// tanto el comando Tauri como el receiver de alarma (vía JNI).
+pub fn grados_secciones_sin_asistencia(
+    conn: &Connection,
+    colegios: &[i64],
+    grados: &[i64],
+    secciones: &[i64],
+    fecha: &str,
+) -> Result<Vec<GradoSeccionSinAsistencia>, String> {
+    let Some(column) = weekday_column(fecha) else {
+        return Ok(Vec::new());
+    };
+
+    // Colegios laborables el día de la fecha (los demás no se avisan).
+    let colegios_laborables: Vec<i64> = if colegios.is_empty() {
+        let mut stmt = conn
+            .prepare(&format!(
+                "SELECT c.id FROM colegio c
+                 LEFT JOIN colegio_dias_asistencia d ON d.colegio_id = c.id
+                 WHERE COALESCE(d.{}, 1) = 1",
+                column
+            ))
+            .map_err(|e| e.to_string())?;
+        let ids = stmt
+            .query_map([], |row| row.get::<_, i64>(0))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        ids
+    } else {
+        let mut laborables = Vec::new();
+        for &cid in colegios {
+            let laborable: i64 = conn
+                .query_row(
+                    &format!("SELECT COALESCE({}, 1) FROM colegio_dias_asistencia WHERE colegio_id = ?1", column),
+                    rusqlite::params![cid],
+                    |row| row.get(0),
+                )
+                .unwrap_or(1);
+            if laborable != 0 {
+                laborables.push(cid);
+            }
+        }
+        laborables
+    };
+
+    if colegios_laborables.is_empty() {
         return Ok(Vec::new());
     }
 
-    // Grados/secciones con estudiantes que aún no tienen asistencia en la fecha.
-    let mut stmt = conn
-        .prepare(
-            "SELECT g.nombre, s.nombre
-             FROM estudiante e
-             INNER JOIN grado g ON g.id = e.grado_id
-             INNER JOIN seccion s ON s.id = e.seccion_id
-             WHERE e.colegio_id = ?1
-               AND e.ano_lectivo_id = (SELECT id FROM ano_lectivo WHERE activo = 1)
-             GROUP BY e.grado_id, e.seccion_id
-             HAVING SUM(CASE WHEN EXISTS (
-                 SELECT 1 FROM asistencia a WHERE a.estudiante_id = e.id AND a.fecha = ?2
-             ) THEN 1 ELSE 0 END) = 0
-             ORDER BY g.nombre, s.nombre",
-        )
-        .map_err(|e| e.to_string())?;
+    let mut where_parts = Vec::new();
+    let mut params: Vec<rusqlite::types::Value> = Vec::new();
 
+    let placeholders_colegios: Vec<String> = (0..colegios_laborables.len()).map(|_| "?".to_string()).collect();
+    where_parts.push(format!("e.colegio_id IN ({})", placeholders_colegios.join(",")));
+    params.extend(colegios_laborables.iter().map(|v| rusqlite::types::Value::Integer(*v)));
+
+    if !grados.is_empty() {
+        let ph: Vec<String> = (0..grados.len()).map(|_| "?".to_string()).collect();
+        where_parts.push(format!("e.grado_id IN ({})", ph.join(",")));
+        params.extend(grados.iter().map(|v| rusqlite::types::Value::Integer(*v)));
+    }
+    if !secciones.is_empty() {
+        let ph: Vec<String> = (0..secciones.len()).map(|_| "?".to_string()).collect();
+        where_parts.push(format!("e.seccion_id IN ({})", ph.join(",")));
+        params.extend(secciones.iter().map(|v| rusqlite::types::Value::Integer(*v)));
+    }
+
+    where_parts.push("e.ano_lectivo_id = (SELECT id FROM ano_lectivo WHERE activo = 1)".to_string());
+
+    let sql = format!(
+        "SELECT g.nombre, s.nombre
+         FROM estudiante e
+         INNER JOIN grado g ON g.id = e.grado_id
+         INNER JOIN seccion s ON s.id = e.seccion_id
+         WHERE {}
+         GROUP BY e.grado_id, e.seccion_id
+         HAVING SUM(CASE WHEN EXISTS (
+             SELECT 1 FROM asistencia a WHERE a.estudiante_id = e.id AND a.fecha = ?
+         ) THEN 1 ELSE 0 END) = 0
+         ORDER BY g.nombre, s.nombre",
+        where_parts.join(" AND ")
+    );
+
+    let mut params_ref: Vec<&dyn rusqlite::ToSql> = Vec::new();
+    for p in &params {
+        params_ref.push(p);
+    }
+    params_ref.push(&fecha);
+
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
     let items = stmt
-        .query_map(rusqlite::params![colegioId, fecha], |row| {
+        .query_map(rusqlite::params_from_iter(params_ref.iter().copied()), |row| {
             Ok(GradoSeccionSinAsistencia {
                 grado: row.get(0)?,
                 seccion: row.get(1)?,
@@ -4222,6 +4280,30 @@ pub async fn get_grados_secciones_sin_asistencia_hoy(
         .map_err(|e| e.to_string())?;
 
     Ok(items)
+}
+
+#[tauri::command]
+pub async fn get_grados_secciones_sin_asistencia_hoy(
+    state: tauri::State<'_, DbState>,
+    colegioId: i64,
+    fecha: String,
+) -> Result<Vec<GradoSeccionSinAsistencia>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    grados_secciones_sin_asistencia(&conn, &[colegioId], &[], &[], &fecha)
+}
+
+/// Versión con filtros múltiples (cole_gios/grados/secciones vacíos = todos).
+/// La usa el check al abrir de la app y comparte la misma implementación que el JNI.
+#[tauri::command]
+pub async fn get_pendientes_asistencia_filtrados(
+    state: tauri::State<'_, DbState>,
+    colegios: Vec<i64>,
+    grados: Vec<i64>,
+    secciones: Vec<i64>,
+    fecha: String,
+) -> Result<Vec<GradoSeccionSinAsistencia>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    grados_secciones_sin_asistencia(&conn, &colegios, &grados, &secciones, &fecha)
 }
 
 
