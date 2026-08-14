@@ -6,6 +6,7 @@
   import { handleBack, isBackAuthInProgress, setBackAuthInProgress } from "./lib/androidBack";
   import { syncService } from "./lib/syncService";
   import { isD1Configured } from "./lib/syncService";
+  import { getLocalDateISOString } from "./lib/dateUtils";
   import AsistenciaPage from "./svelte/AsistenciaPage.svelte";
   import InformePage from "./svelte/InformePage.svelte";
   import NotasPage from "./svelte/NotasPage.svelte";
@@ -71,6 +72,30 @@
   function checkMobile() {
     isMobile = window.innerWidth <= 768 || /Android/i.test(navigator.userAgent);
     isAndroid = /Android/i.test(navigator.userAgent);
+  }
+
+  async function checkAttendanceReminder() {
+    try {
+      let colegioId = Number(localStorage.getItem("selectedColegio")) || 0;
+      if (!colegioId) {
+        colegioId = await invoke<number>("get_recommended_colegio");
+      }
+      if (!colegioId) return;
+      const fecha = getLocalDateISOString();
+      const pendientes = await invoke<{ grado: string; seccion: string }[]>(
+        "get_grados_secciones_sin_asistencia_hoy",
+        { colegioId, fecha }
+      );
+      if (!pendientes || pendientes.length === 0) return;
+      const lista = pendientes.slice(0, 5).map(p => `${p.grado} ${p.seccion}`).join(", ");
+      const resto = pendientes.length > 5 ? ` y ${pendientes.length - 5} más` : "";
+      await invoke("notify_attendance_reminder", {
+        title: "Asistencia pendiente",
+        body: `Sin asistencia hoy: ${lista}${resto}`,
+      });
+    } catch (e) {
+      console.error("Error al verificar asistencias pendientes:", e);
+    }
   }
 
   function saveSidebarWidth(val: number) {
@@ -225,6 +250,11 @@
         }
       });
       invoke("seed_defaults_now");
+
+      // Notificación Android: grados/secciones sin asistencia hoy (solo si colegio laborable).
+      if (isAndroid) {
+        checkAttendanceReminder();
+      }
     }
 
     // Listen for welcome complete event (from WelcomePage)
