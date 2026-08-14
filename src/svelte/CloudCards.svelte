@@ -131,7 +131,7 @@
   >
     <div class="cloud-head">
       <span class="cloud-dot drive" class:active={!!drive.lastUpload}></span>
-      <span class="cloud-title">Respaldo Drive</span>
+      <span class="cloud-title">{compact ? 'Drive' : 'Respaldo Drive'}</span>
       <span class="cloud-time-inline">{drive.lastUpload ? fmtTime(drive.lastUpload) : '—'}</span>
     </div>
     {#if !compact}
@@ -366,42 +366,63 @@
   .cloud-widget.compact {
     flex-direction: row;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.3rem;
     margin-top: 0;
     margin-left: auto;
     padding: 0;
+    max-width: 100%;
   }
 
   .cloud-widget.compact .cloud-card {
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 0.35rem;
-    padding: 0.2rem 0.55rem;
+    gap: 0.25rem;
+    padding: 0.15rem 0.45rem;
     border-radius: 999px;
     white-space: nowrap;
   }
 
   .cloud-widget.compact .cloud-head {
-    gap: 0.3rem;
+    gap: 0.25rem;
   }
 
   .cloud-widget.compact .cloud-title {
     flex: 0 0 auto;
-    font-size: 0.56rem;
+    font-size: 0.5rem;
   }
 
   .cloud-widget.compact .cloud-chip {
-    font-size: 0.46rem;
-    padding: 1px 5px;
+    font-size: 0.42rem;
+    padding: 1px 4px;
   }
 
   .cloud-widget.compact .cloud-time-inline {
-    font-size: 0.52rem;
+    font-size: 0.46rem;
   }
 
   .cloud-widget.compact .cloud-dot {
-    width: 6px;
-    height: 6px;
+    width: 5px;
+    height: 5px;
+  }
+
+  @media (max-width: 1024px) {
+    .cloud-widget.compact {
+      gap: 0.28rem;
+    }
+    .cloud-widget.compact .cloud-card {
+      gap: 0.2rem;
+      padding: 0.12rem 0.4rem;
+    }
+    .cloud-widget.compact .cloud-title {
+      font-size: 0.47rem;
+    }
+    .cloud-widget.compact .cloud-chip {
+      font-size: 0.4rem;
+      padding: 0 3px;
+    }
+    .cloud-widget.compact .cloud-time-inline {
+      font-size: 0.44rem;
+    }
   }
 </style>
