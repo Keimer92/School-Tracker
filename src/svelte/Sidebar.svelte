@@ -156,53 +156,51 @@
     </button>
   </div>
 
-  {#if !isMobile}
-    <div class="cloud-widget">
-      <div
-        class="cloud-card {justSynced ? 'flash' : ''}"
-        class:d1-ok={d1.status === 'success' || d1.status === 'idle'}
-        onclick={() => onTabChange('cloud')}
-        onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTabChange('cloud'); } }}
-        role="button"
-        tabindex="0"
-        title="Ir a Nube"
-      >
-        <div class="cloud-head">
-          <span class="cloud-dot {d1.status}"></span>
-          <span class="cloud-title">Nube D1</span>
-          <span class="cloud-chip {d1.status}">{d1Chip}</span>
-        </div>
-        {#if d1.status === 'syncing'}
-          <div class="cloud-line syncing-line"><span class="mini-spinner"></span> Sincronizando con la nube...</div>
-        {:else if d1.lastResult}
-          <div class="cloud-line metrics">
-            <span class="metric up">▲ {pushedTotal}</span>
-            <span class="metric down">▼ {pulledTotal}</span>
-            <span class="metric del">✕ {d1.lastResult.deletedApplied}</span>
-          </div>
-        {:else if d1.lastSync}
-          <div class="cloud-line muted">Última sync: {fmtTime(d1.lastSync)}</div>
-        {:else}
-          <div class="cloud-line muted">Sin sincronizar aún</div>
-        {/if}
+  <div class="cloud-widget">
+    <div
+      class="cloud-card {justSynced ? 'flash' : ''}"
+      class:d1-ok={d1.status === 'success' || d1.status === 'idle'}
+      onclick={() => onTabChange('cloud')}
+      onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTabChange('cloud'); } }}
+      role="button"
+      tabindex="0"
+      title="Ir a Nube"
+    >
+      <div class="cloud-head">
+        <span class="cloud-dot {d1.status}"></span>
+        <span class="cloud-title">Nube D1</span>
+        <span class="cloud-chip {d1.status}">{d1Chip}</span>
       </div>
-
-      <div
-        class="cloud-card drive-card"
-        onclick={() => onTabChange('cloud')}
-        onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTabChange('cloud'); } }}
-        role="button"
-        tabindex="0"
-        title="Ir a Nube"
-      >
-        <div class="cloud-head">
-          <span class="cloud-dot drive" class:active={!!drive.lastUpload}></span>
-          <span class="cloud-title">Respaldo Drive</span>
+      {#if d1.status === 'syncing'}
+        <div class="cloud-line syncing-line"><span class="mini-spinner"></span> Sincronizando con la nube...</div>
+      {:else if d1.lastResult}
+        <div class="cloud-line metrics">
+          <span class="metric up">▲ {pushedTotal}</span>
+          <span class="metric down">▼ {pulledTotal}</span>
+          <span class="metric del">✕ {d1.lastResult.deletedApplied}</span>
         </div>
-        <div class="cloud-time">Último respaldo: {drive.lastUpload ? fmtTime(drive.lastUpload) : 'sin hacer'}</div>
-      </div>
+      {:else if d1.lastSync}
+        <div class="cloud-line muted">Última sync: {fmtTime(d1.lastSync)}</div>
+      {:else}
+        <div class="cloud-line muted">Sin sincronizar aún</div>
+      {/if}
     </div>
-  {/if}
+
+    <div
+      class="cloud-card drive-card"
+      onclick={() => onTabChange('cloud')}
+      onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTabChange('cloud'); } }}
+      role="button"
+      tabindex="0"
+      title="Ir a Nube"
+    >
+      <div class="cloud-head">
+        <span class="cloud-dot drive" class:active={!!drive.lastUpload}></span>
+        <span class="cloud-title">Respaldo Drive</span>
+      </div>
+      <div class="cloud-time">Último respaldo: {drive.lastUpload ? fmtTime(drive.lastUpload) : 'sin hacer'}</div>
+    </div>
+  </div>
 
   <div class="sidebar-section-header" style="padding-top: 12px;">APARIENCIA</div>
   <div class="theme-selector">
@@ -441,5 +439,31 @@
     margin-top: 0.4rem;
     font-size: 0.62rem;
     color: var(--text-muted);
+  }
+
+  @media (max-width: 1024px) {
+    .cloud-widget {
+      gap: 0.4rem;
+      padding: 0.5rem 0 0.4rem;
+    }
+    .cloud-card {
+      padding: 0.5rem 0.6rem;
+      border-radius: 12px;
+    }
+    .cloud-title {
+      font-size: 0.62rem;
+    }
+    .cloud-chip {
+      font-size: 0.5rem;
+      padding: 2px 5px;
+    }
+    .cloud-line {
+      margin-top: 0.35rem;
+      font-size: 0.62rem;
+    }
+    .cloud-time {
+      margin-top: 0.3rem;
+      font-size: 0.58rem;
+    }
   }
 </style>
