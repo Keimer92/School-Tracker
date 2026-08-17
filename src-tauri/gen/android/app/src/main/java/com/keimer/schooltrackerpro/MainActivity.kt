@@ -299,16 +299,19 @@ class MainActivity : TauriActivity() {
     AttendanceScheduler.cancel(this)
   }
 
-  fun getAttendanceNotifiedToday(): Boolean {
-    return AttendancePrefs.getNotifiedDate(this) == AttendancePrefs.today()
+  fun getAttendanceSilencedToday(): Boolean {
+    return AttendancePrefs.isSilencedToday(this)
   }
 
-  fun setAttendanceNotifiedToday(notified: Boolean) {
-    val prefs = getSharedPreferences(AttendancePrefs.NAME, Context.MODE_PRIVATE)
-    if (notified) {
-      prefs.edit().putString(AttendancePrefs.KEY_LAST_NOTIFIED, AttendancePrefs.today()).apply()
-    } else {
-      prefs.edit().remove(AttendancePrefs.KEY_LAST_NOTIFIED).apply()
-    }
+  fun setAttendanceSilencedToday(silenced: Boolean) {
+    AttendancePrefs.setSilencedToday(this, silenced)
+  }
+
+  fun dismissAttendanceToday() {
+    AttendancePrefs.setSilencedToday(this, true)
+    val notificationManager = getSystemService(NotificationManager::class.java)
+    notificationManager.cancel(2001)
+    AttendanceScheduler.rescheduleForTomorrow(this)
+    android.util.Log.i("MainActivity", "Attendance silenced for today")
   }
 }

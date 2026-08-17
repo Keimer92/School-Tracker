@@ -93,9 +93,9 @@
         if (nowMin < cfgMin) return;
       }
 
-      // Evita duplicar si ya se notificó hoy (lo marca el receiver o este check).
-      const already = await invoke<boolean>("get_attendance_notified_today").catch(() => false);
-      if (already) return;
+      // No avisar al abrir si el día está silenciado.
+      const silenced = await invoke<boolean>("get_attendance_silenced_today").catch(() => false);
+      if (silenced) return;
 
       const colegios = Array.isArray(stored.colegios) && stored.colegios.length ? stored.colegios : [];
       const grados = Array.isArray(stored.grados) ? stored.grados : [];
@@ -106,10 +106,7 @@
         "get_pendientes_asistencia_filtrados",
         { colegios, grados, secciones, fecha }
       );
-      if (!pendientes || pendientes.length === 0) {
-        await invoke("set_attendance_notified_today", { notified: true }).catch(() => {});
-        return;
-      }
+      if (!pendientes || pendientes.length === 0) return;
 
       const lista = pendientes.slice(0, 5).map(p => `${p.grado} ${p.seccion}`).join(", ");
       const resto = pendientes.length > 5 ? ` y ${pendientes.length - 5} más` : "";
@@ -117,7 +114,6 @@
         title: "Asistencia pendiente",
         body: `Sin asistencia hoy: ${lista}${resto}`,
       });
-      await invoke("set_attendance_notified_today", { notified: true }).catch(() => {});
     } catch (e) {
       console.error("Error al verificar asistencias pendientes:", e);
     }

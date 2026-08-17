@@ -637,7 +637,7 @@ async fn cancel_attendance_alarm(_app_handle: tauri::AppHandle) -> Result<(), St
 }
 
 #[tauri::command]
-async fn get_attendance_notified_today(_app_handle: tauri::AppHandle) -> Result<bool, String> {
+async fn get_attendance_silenced_today(_app_handle: tauri::AppHandle) -> Result<bool, String> {
     #[cfg(target_os = "android")]
     {
         unsafe {
@@ -648,7 +648,7 @@ async fn get_attendance_notified_today(_app_handle: tauri::AppHandle) -> Result<
             let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
             let activity = jni::objects::JObject::from_raw(activity_ptr as *mut _);
             let result = env
-                .call_method(activity, "getAttendanceNotifiedToday", "()Z", &[])
+                .call_method(activity, "getAttendanceSilencedToday", "()Z", &[])
                 .map_err(|e| e.to_string())?;
             Ok(result.z().map_err(|e| e.to_string())?)
         }
@@ -660,7 +660,7 @@ async fn get_attendance_notified_today(_app_handle: tauri::AppHandle) -> Result<
 }
 
 #[tauri::command]
-async fn set_attendance_notified_today(_app_handle: tauri::AppHandle, _notified: bool) -> Result<(), String> {
+async fn set_attendance_silenced_today(_app_handle: tauri::AppHandle, _silenced: bool) -> Result<(), String> {
     #[cfg(target_os = "android")]
     {
         use jni::objects::JValue;
@@ -674,10 +674,33 @@ async fn set_attendance_notified_today(_app_handle: tauri::AppHandle, _notified:
             let _ = env
                 .call_method(
                     activity,
-                    "setAttendanceNotifiedToday",
+                    "setAttendanceSilencedToday",
                     "(Z)V",
-                    &[JValue::Bool(if _notified { 1 } else { 0 })],
+                    &[JValue::Bool(if _silenced { 1 } else { 0 })],
                 )
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        Ok(())
+    }
+}
+
+#[tauri::command]
+async fn dismiss_attendance_today(_app_handle: tauri::AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        unsafe {
+            let ctx = ndk_context::android_context();
+            let vm_ptr = ctx.vm();
+            let activity_ptr = ctx.context();
+            let vm = jni::JavaVM::from_raw(vm_ptr as *mut _).map_err(|e| e.to_string())?;
+            let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+            let activity = jni::objects::JObject::from_raw(activity_ptr as *mut _);
+            let _ = env
+                .call_method(activity, "dismissAttendanceToday", "()V", &[])
                 .map_err(|e| e.to_string())?;
         }
         Ok(())
@@ -1567,8 +1590,9 @@ pub fn run() {
             notify_attendance_reminder,
             schedule_attendance_alarm,
             cancel_attendance_alarm,
-            get_attendance_notified_today,
-            set_attendance_notified_today,
+            get_attendance_silenced_today,
+            set_attendance_silenced_today,
+            dismiss_attendance_today,
             get_monthly_attendance_pct,
             get_seed_options,
             seed_selected_data,

@@ -68,6 +68,8 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   let notifSelectedSecciones = $state<number[]>([]);
   let notifSaving = $state(false);
   let notifTesting = $state(false);
+  let notifSilencedToday = $state(false);
+  let notifDismissing = $state(false);
 
   function loadNotifSettings() {
     try {
@@ -146,10 +148,32 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     }
   }
 
+  async function refreshNotifSilenced() {
+    try {
+      notifSilencedToday = await invoke<boolean>("get_attendance_silenced_today");
+    } catch (e) {
+      notifSilencedToday = false;
+    }
+  }
+
+  async function dismissNotifToday() {
+    notifDismissing = true;
+    try {
+      await invoke("dismiss_attendance_today");
+      notifSilencedToday = true;
+      await emit("show-toast", { message: "🔕 Recordatorios silenciados para hoy", type: "success" });
+    } catch (error) {
+      await emit("show-toast", { message: "❌ Error: " + error, type: "error" });
+    } finally {
+      notifDismissing = false;
+    }
+  }
+
   $effect(() => {
     if (activeTab === "notificaciones") {
       loadNotifSettings();
       loadNotifCatalogs();
+      refreshNotifSilenced();
     }
   });
 
@@ -352,8 +376,9 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
             <div class="category-header"><h3>🔔 Notificaciones de Asistencia</h3></div>
             <div style="padding: 2rem; display: flex; flex-direction: column; gap: 1.5rem;">
               <p style="color: #94a3b8; font-size: 0.9rem; margin: 0;">
-                Recibe una notificación cuando haya grados/secciones sin asistencia registrada en el día.
-                La alarma se programa en el dispositivo y funciona aunque la app esté cerrada.
+                Recibe una notificación cuando un colegio con clases hoy tenga grados/secciones sin asistencia registrada.
+                Se repite cada 45 min mientras haya pendientes y no se silencie para el día. La alarma se programa en el
+                dispositivo y funciona aunque la app esté cerrada.
               </p>
 
               <!-- Activar / desactivar -->
@@ -421,6 +446,27 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                   {notifTesting ? "Enviando..." : "🔔 Probar notificación"}
                 </button>
               </div>
+
+              {#if notifSilencedToday}
+                <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 10px; padding: 0.85rem 1rem; font-size: 0.85rem; color: #6ee7b7; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+                  <span>🔕 Recordatorios silenciados para hoy</span>
+                  <button onclick={async () => {
+                    try {
+                      await invoke("set_attendance_silenced_today", { silenced: false });
+                      notifSilencedToday = false;
+                      await emit("show-toast", { message: "🔔 Recordatorios reactivados para hoy", type: "success" });
+                    } catch (e) {
+                      await emit("show-toast", { message: "❌ Error: " + e, type: "error" });
+                    }
+                  }} style="padding: 0.45rem 0.9rem; border-radius: 8px; border: 1px solid rgba(16,185,129,0.4); background: rgba(16,185,129,0.15); color: #6ee7b7; font-weight: 600; font-size: 0.78rem; cursor: pointer;">
+                    Reactivar
+                  </button>
+                </div>
+              {:else}
+                <button onclick={dismissNotifToday} disabled={notifDismissing} style="padding: 0.7rem 1.2rem; border-radius: 10px; border: 1px solid rgba(239,68,68,0.35); background: rgba(239,68,68,0.1); color: #fca5a5; font-weight: 600; font-size: 0.85rem; cursor: pointer; align-self: flex-start;">
+                  {notifDismissing ? "Silenciando..." : "🔕 Silenciar recordatorios de hoy"}
+                </button>
+              {/if}
 
               <div style="background: rgba(250, 204, 21, 0.08); border: 1px solid rgba(250, 204, 21, 0.2); border-radius: 10px; padding: 0.85rem 1rem; font-size: 0.78rem; color: #fde68a; line-height: 1.5;">
                 En Android 12+ la precisión exacta de la alarma requiere el permiso "Alarmas y recordatorios exactos" (Sistema → Apps → School Tracker Pro → Alarmas y recordatorios). Si no se concede, la notificación se entrega en una ventana de unos minutos alrededor de la hora.
