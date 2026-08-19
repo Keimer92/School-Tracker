@@ -1251,7 +1251,7 @@ async fn gd_start_oauth_background(app: tauri::AppHandle, port: u16) -> Result<(
                                 *guard = Some(code.clone());
                                 println!("[OAuth] Code stored in global state");
                             }
-                            let _ = handle.emit("google-auth-code", code);
+                            let _ = handle.emit("google-auth-code", code.clone());
                         } else {
                             println!("[OAuth] No code found in request");
                         }
