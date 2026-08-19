@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
-  import { emit } from "@tauri-apps/api/event";
+  import { emit, listen } from "@tauri-apps/api/event";
   import { syncService, syncManager, type SyncStatus } from "../lib/syncService";
   import { d1SyncService, d1SyncManager, type D1Config, type D1SyncResult } from "../lib/d1SyncService";
   import { invalidateD1Cache } from "../lib/syncService";
@@ -117,7 +117,7 @@
     setBackAuthInProgress(true);
     try {
       const port = 51733;
-      const redirectUri = `http://localhost:${port}/callback`;
+      const redirectUri = `${isAndroid ? 'http://127.0.0.1' : 'http://localhost'}:${port}/callback`;
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${settings.clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent('https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile')}&access_type=offline&prompt=consent`;
       const code = await invoke<string>("gd_open_auth_webview", { url: authUrl });
       if (code) await exchangeCode(code, redirectUri);
@@ -335,6 +335,21 @@
         }
       } catch {}
     }
+    return unsub;
+  });
+
+  // Respaldo: el código llega vía deep link (MainActivity emite 'oauth-callback-android')
+  // cuando Android captura la URL http://127.0.0.1:51733/callback?code=... mediante intent-filter.
+  onMount(async () => {
+    if (!isAndroid) return;
+    const unsub = await listen<string>("oauth-callback-android", (event) => {
+      const code = event.payload;
+      if (code && !settings.accessToken) {
+        const port = 51733;
+        const redirectUri = `http://127.0.0.1:${port}/callback`;
+        exchangeCode(code, redirectUri);
+      }
+    });
     return unsub;
   });
 </script>

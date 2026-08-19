@@ -1,6 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
-  import { emit } from "@tauri-apps/api/event";
+  import { emit, listen } from "@tauri-apps/api/event";
   import { driveSyncService } from "../lib/driveSyncService";
   import { setBackAuthInProgress } from "../lib/androidBack";
 
@@ -52,6 +52,8 @@
     }
   }
 
+  let authHandled = false;
+
   async function handleDriveConnect() {
     loading = true;
     loadingMessage = 'Conectando con Google Drive...';
@@ -66,10 +68,29 @@
         loading = false;
         return;
       }
-      const redirectUri = `http://localhost:${port}/callback`;
+      const redirectUri = `${/Android/i.test(navigator.userAgent) ? 'http://127.0.0.1' : 'http://localhost'}:${port}/callback`;
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent('https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile')}&access_type=offline&prompt=consent`;
       const code = await invoke<string>("gd_open_auth_webview", { url: authUrl });
+      await finishDriveAuth(code, redirectUri);
+    } catch (e: any) {
+      const errStr = typeof e === 'string' ? e : (e?.message || String(e));
+      if (errStr.toLowerCase().includes('cancel')) {
+        errorMsg = 'Autenticación cancelada';
+      } else {
+        errorMsg = 'Error: ' + errStr;
+      }
+    }
+    loading = false;
+    loadingMessage = '';
+    setBackAuthInProgress(false);
+  }
 
+  async function finishDriveAuth(code: string, redirectUri: string) {
+    if (authHandled) return;
+    authHandled = true;
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+    const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
+    try {
       const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -225,6 +246,27 @@
       { label: 'Secciones', items: Array.from(selectedSecciones).join(', '), icon: '👥' },
       { label: 'Asignaturas', items: Array.from(selectedAsignaturas).join(', '), icon: '📚' },
     ];
+  }
+
+  if (/Android/i.test(navigator.userAgent)) {
+    // Respaldo: el código llega vía deep link (MainActivity emite 'oauth-callback-android')
+    // cuando Android captura http://127.0.0.1:51733/callback?code=... mediante intent-filter.
+    import("svelte").then(({ onMount }) => {
+      onMount(async () => {
+        const unsub = await listen<string>("oauth-callback-android", (event) => {
+          const code = event.payload;
+          if (code && !authHandled) {
+            const port = 51733;
+            const redirectUri = `http://127.0.0.1:${port}/callback`;
+            finishDriveAuth(code, redirectUri).finally(() => {
+              loading = false;
+              setBackAuthInProgress(false);
+            });
+          }
+        });
+        return unsub;
+      });
+    });
   }
 </script>
 
