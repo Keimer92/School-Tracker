@@ -111,14 +111,14 @@ CREATE TABLE IF NOT EXISTS criterio (
 );
 
 CREATE TABLE IF NOT EXISTS asistencia (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
     estudiante_id INTEGER NOT NULL,
     fecha TEXT NOT NULL,
+    id INTEGER,
     estado TEXT CHECK(estado IN ('P', 'A', 'J')) NOT NULL,
     observacion TEXT,
     updated_at TEXT DEFAULT (datetime('now')),
     device_id TEXT,
-    UNIQUE(estudiante_id, fecha)
+    PRIMARY KEY (estudiante_id, fecha)
 );
 
 CREATE TABLE IF NOT EXISTS colegio_dias_asistencia (

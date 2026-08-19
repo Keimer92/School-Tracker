@@ -98,6 +98,9 @@ function main() {
     // Schema (idempotente)
     run(`d1 execute ${dbName} --file=schema.sql --remote --yes`);
 
+    // Migración de clave de negocio de asistencia (idempotente, corrige PK antigua)
+    run(`d1 execute ${dbName} --file=scripts/migrate-asistencia.sql --remote --yes`);
+
     // School key (mantener el mismo si ya existe para no invalidar dispositivos)
     let key = saved[slug]?.schoolKey;
     if (!key) {

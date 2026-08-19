@@ -303,6 +303,12 @@ fn sqlite_value_to_json(v: &Value) -> rusqlite::types::Value {
 
 // INSERT OR REPLACE genérico a partir de las columnas del JSON (claves del objeto).
 fn upsert_row(conn: &rusqlite::Connection, table: &str, row: &Map<String, Value>) -> Result<(), String> {
+    // asistencia: PK local = id autoinc, pero la clave de negocio sincronizable es
+    // (estudiante_id, fecha). El id remoto puede chocar con un id local existente, así
+    // que se upserta por la clave de negocio y se conserva el id local.
+    if table == "asistencia" {
+        return upsert_asistencia(conn, row);
+    }
     let cols: Vec<String> = row.keys().cloned().collect();
     if cols.is_empty() {
         return Ok(());
@@ -322,6 +328,28 @@ fn upsert_row(conn: &rusqlite::Connection, table: &str, row: &Map<String, Value>
     conn.execute(&sql, refs.as_slice())
         .map(|_| ())
         .map_err(|e| e.to_string())
+}
+
+// Upsert de asistencia por clave de negocio (estudiante_id, fecha).
+// Si el registro remoto ya existe localmente con otro id, se actualiza la fila existente
+// (estado/observación/updated_at) en lugar de insertar un id duplicado.
+fn upsert_asistencia(conn: &rusqlite::Connection, row: &Map<String, Value>) -> Result<(), String> {
+    let get = |k: &str| sqlite_value_to_json(&row.get(k).cloned().unwrap_or(Value::Null));
+    let (est, fecha) = (get("estudiante_id"), get("fecha"));
+    let estado = get("estado");
+    let observacion = get("observacion");
+    let updated_at = get("updated_at");
+    conn.execute(
+        "INSERT INTO asistencia (estudiante_id, fecha, estado, observacion, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(estudiante_id, fecha) DO UPDATE SET
+           estado = excluded.estado,
+           observacion = excluded.observacion,
+           updated_at = excluded.updated_at",
+        rusqlite::params![est, fecha, estado, observacion, updated_at],
+    )
+    .map(|_| ())
+    .map_err(|e| e.to_string())
 }
 
 // Borrado local por pk (array de valores según la definición de PK de cada tabla).
