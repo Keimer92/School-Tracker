@@ -32,6 +32,7 @@
   const storedSyncSeconds = parseInt(localStorage.getItem('periodic_sync_interval_seconds') || '300', 10);
   let syncInterval = $state(Math.round((storedSyncSeconds || 300) / 60));
   let isAuthLoading = $state(false);
+  let authHandled = false;
   let isFetchingFiles = $state(false);
   let isTesting = $state(false);
   let syncFiles: DriveFile[] = $state([]);
@@ -120,10 +121,15 @@
       const redirectUri = `${isAndroid ? 'http://127.0.0.1' : 'http://localhost'}:${port}/callback`;
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${settings.clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent('https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile')}&access_type=offline&prompt=consent`;
       const code = await invoke<string>("gd_open_auth_webview", { url: authUrl });
-      if (code) await exchangeCode(code, redirectUri);
+      if (code && !authHandled) {
+        authHandled = true;
+        await exchangeCode(code, redirectUri);
+      }
     } catch (e) {
-      console.error('Google Auth failed:', e);
-      await emit("show-toast", { message: "❌ Error al autenticar con Google: " + e, type: "error" });
+      if (!authHandled) {
+        console.error('Google Auth failed:', e);
+        await emit("show-toast", { message: "❌ Error al autenticar con Google: " + e, type: "error" });
+      }
     } finally { isAuthLoading = false; setBackAuthInProgress(false); }
   }
 
@@ -329,7 +335,11 @@
           setBackAuthInProgress(true);
           const code = await invoke<string>("gd_wait_oauth_code", { timeoutSecs: 10 });
           const port = 51733;
-          if (code) await exchangeCode(code, `http://localhost:${port}/callback`);
+          const pendingRedirect = `${isAndroid ? 'http://127.0.0.1' : 'http://localhost'}:${port}/callback`;
+          if (code && !authHandled) {
+            authHandled = true;
+            await exchangeCode(code, pendingRedirect);
+          }
           isAuthLoading = false;
           setBackAuthInProgress(false);
         }
@@ -344,7 +354,9 @@
     if (!isAndroid) return;
     const unsub = await listen<string>("oauth-callback-android", (event) => {
       const code = event.payload;
-      if (code && !settings.accessToken) {
+      if (code && !authHandled) {
+        authHandled = true;
+        invoke("gd_cancel_oauth").catch(() => {});
         const port = 51733;
         const redirectUri = `http://127.0.0.1:${port}/callback`;
         exchangeCode(code, redirectUri);

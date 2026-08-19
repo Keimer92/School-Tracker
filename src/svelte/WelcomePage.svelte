@@ -73,11 +73,13 @@
       const code = await invoke<string>("gd_open_auth_webview", { url: authUrl });
       await finishDriveAuth(code, redirectUri);
     } catch (e: any) {
-      const errStr = typeof e === 'string' ? e : (e?.message || String(e));
-      if (errStr.toLowerCase().includes('cancel')) {
-        errorMsg = 'Autenticación cancelada';
-      } else {
-        errorMsg = 'Error: ' + errStr;
+      if (!authHandled) {
+        const errStr = typeof e === 'string' ? e : (e?.message || String(e));
+        if (errStr.toLowerCase().includes('cancel')) {
+          errorMsg = 'Autenticación cancelada';
+        } else {
+          errorMsg = 'Error: ' + errStr;
+        }
       }
     }
     loading = false;
@@ -256,6 +258,7 @@
         const unsub = await listen<string>("oauth-callback-android", (event) => {
           const code = event.payload;
           if (code && !authHandled) {
+            invoke("gd_cancel_oauth").catch(() => {});
             const port = 51733;
             const redirectUri = `http://127.0.0.1:${port}/callback`;
             finishDriveAuth(code, redirectUri).finally(() => {
