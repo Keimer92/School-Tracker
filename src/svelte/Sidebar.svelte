@@ -85,7 +85,7 @@ setThemeMode: (mode: string) => void;
     <CloudCards onTabChange={onTabChange} />
   {/if}
 
-  <div class="sidebar-section-header" style="padding-top: 12px;">APARIENCIA</div>
+  <div class="sidebar-section-header" style="padding-top: 6px;">APARIENCIA</div>
   <div class="theme-selector">
     {#each themeOptions as opt}
       <button
@@ -99,6 +99,11 @@ setThemeMode: (mode: string) => void;
       </button>
     {/each}
   </div>
+
+  {#if isMobile}
+    <div class="sidebar-section-header" style="padding-top: 8px;">NUBE</div>
+    <CloudCards onTabChange={(t) => onTabChange(t as Tab)} />
+  {/if}
 </nav>
 
 <style>

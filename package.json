@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:android": "node scripts/android-dev.mjs",
+    "dev:android": "tauri android dev",
     "dev:win": "tauri dev",
     "dev:android:hot": "npx tauri android dev",
     "dev:android:hmr": "node scripts/android-hmr.mjs",

@@ -546,15 +546,18 @@ body {
   }
 
   .sidebar.drawer .sidebar-button {
-    padding: 0.75rem 0.5rem !important;
+    padding: 0.4rem 0.5rem !important;
     font-size: 0.85rem !important;
-    min-height: 44px;
+    min-height: 34px;
     white-space: nowrap;
   }
 
   .sidebar.drawer .sidebar-button span:first-child {
-    font-size: 1.4rem !important;
-    margin-right: 0.25rem;
+    font-size: 1.1rem !important;
+    width: 22px;
+    height: 22px;
+    border-radius: 7px;
+    margin-right: 0.15rem;
   }
 
   .sidebar.drawer .sidebar-button span:last-child {
@@ -568,8 +571,8 @@ body {
   }
 
   .sidebar.drawer .sidebar-section-header {
-    font-size: 0.75rem !important;
-    padding: 0.5rem !important;
+    font-size: 0.62rem !important;
+    padding: 0.25rem 0.5rem !important;
     text-transform: uppercase;
     letter-spacing: 0.5px;
   }
@@ -841,7 +844,7 @@ body {
   .sidebar-nav {
     display: flex !important;
     flex-direction: column !important;
-    gap: 4px !important;
+    gap: 1px !important;
     padding: 0 12px;
     overflow-y: auto !important;
     overflow-x: hidden !important;
@@ -879,7 +882,7 @@ body {
     pointer-events: auto !important;
     position: relative;
     z-index: 1001;
-    min-height: 48px;
+    min-height: 34px;
     width: 100% !important;
     text-align: left !important;
   }

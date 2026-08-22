@@ -1,5 +1,6 @@
 {
   "build": {
+    "beforeDevCommand": "node scripts/vite-android.mjs",
     "devUrl": "http://localhost:1422"
   }
 }

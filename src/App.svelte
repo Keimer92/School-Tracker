@@ -16,7 +16,6 @@
   import AjustesPage from "./svelte/AjustesPage.svelte";
   import DashboardPage from "./svelte/DashboardPage.svelte";
   import Sidebar from "./svelte/Sidebar.svelte";
-  import CloudCards from "./svelte/CloudCards.svelte";
   import WelcomePage from "./svelte/WelcomePage.svelte";
 
   type Tab = "dashboard" | "notas" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "cloud";
@@ -350,7 +349,6 @@
       <div class="mobile-header">
         <button class="mobile-menu-btn {drawerOpen ? 'hidden' : ''}" onclick={toggleDrawer}><span>☰</span></button>
         <span class="mobile-title">School Tracker</span>
-        <CloudCards compact onTabChange={(t) => handleTabChange(t as Tab)} />
       </div>
   {/if}
   {#if isMobile}
