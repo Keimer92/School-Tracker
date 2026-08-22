@@ -44,9 +44,37 @@ class MainActivity : TauriActivity() {
   private var connectivityCallback: ConnectivityManager.NetworkCallback? = null
   private lateinit var googleSignInLauncher: ActivityResultLauncher<Intent>
 
+  companion object {
+    // Sobrevive recreaciones de la Activity; lo consulta el frontend por polling
+    // (immune a recargas del WebView que pierden eventos)
+    @Volatile
+    var lastNativeAuthResult: String? = null
+
+    init {
+      // La lib ya se carga en Rust.kt; esto es idempotente
+      System.loadLibrary("school_tracker_pro_lib")
+    }
+  }
+
+  private external fun initNativeBridge()
+
+  /** Devuelve y limpia el último resultado nativo (patrón take). */
+  fun takeLastGoogleAuthResult(): String? {
+    val value = lastNativeAuthResult
+    lastNativeAuthResult = null
+    return value
+  }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
+
+    // Registrar esta Activity como puente JNI (GlobalRef en Rust)
+    try {
+      initNativeBridge()
+    } catch (e: Throwable) {
+      android.util.Log.w("Bridge", "initNativeBridge falló: ${e.message}")
+    }
 
     googleSignInLauncher = registerForActivityResult(
       ActivityResultContracts.StartActivityForResult()
@@ -331,6 +359,7 @@ class MainActivity : TauriActivity() {
   fun startGoogleSignIn(serverClientId: String) {
     try {
       android.util.Log.i("GoogleNativeAuth", "Iniciando sign-in nativo")
+      lastNativeAuthResult = null
       // Cerrar sesión previa para forzar el selector de cuentas
       GoogleSignIn.getClient(this, GoogleSignInOptions.DEFAULT_SIGN_IN).signOut()
 
@@ -376,6 +405,8 @@ class MainActivity : TauriActivity() {
   }
 
   private fun emitGoogleAuthResult(json: String) {
+    // Persistir SIEMPRE en estático antes del bridge JS (respaldo anti-recarga)
+    lastNativeAuthResult = json
     val escaped = json.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
     val js = """
       (function(){

@@ -75,10 +75,31 @@
         setBackAuthInProgress(false);
         try {
           await invoke("gd_start_native_signin", { serverClientId: clientId });
-          // El resultado llega por el evento 'google-native-auth-result'
         } catch (e: any) {
           errorMsg = 'Error: ' + (typeof e === 'string' ? e : e?.message || String(e));
           loading = false;
+          return;
+        }
+        // Polling de respaldo: si una recarga del WebView perdió el evento,
+        // el resultado sigue disponible en MainActivity
+        const deadline = Date.now() + 180000;
+        let gotResult = false;
+        while (Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 1000));
+          try {
+            const res = await invoke<string | null>("gd_take_last_native_result");
+            if (res) {
+              gotResult = true;
+              handleGoogleNativeResult(res);
+              break;
+            }
+          } catch {}
+          if (authHandled) break;
+        }
+        if (!gotResult && !authHandled) {
+          loading = false;
+          loadingMessage = '';
+          errorMsg = 'Tiempo de espera agotado en el selector de Google';
         }
         return;
       }

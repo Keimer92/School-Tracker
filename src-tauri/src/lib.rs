@@ -711,6 +711,73 @@ async fn dismiss_attendance_today(_app_handle: tauri::AppHandle) -> Result<(), S
     }
 }
 
+// ── Puente JNI nativo (Android) ──────────────────────────────────────
+// Caché de (puntero a JavaVM, Activity como GlobalRef). Se llena desde
+// Kotlin (MainActivity.initNativeBridge) y como respaldo desde ndk_context.
+#[cfg(target_os = "android")]
+static NATIVE_BRIDGE: std::sync::Mutex<Option<(usize, jni::objects::GlobalRef)>> =
+    std::sync::Mutex::new(None);
+
+/// Inicializa el puente JNI con la Activity actual. Invocado desde
+/// MainActivity.onCreate (Kotlin) para no depender de ndk_context.
+#[cfg(target_os = "android")]
+#[no_mangle]
+pub extern "system" fn Java_com_keimer_schooltrackerpro_MainActivity_initNativeBridge(
+    mut env: jni::JNIEnv,
+    activity: jni::objects::JObject,
+) {
+    let result = (|| -> Result<(), String> {
+        let vm = env.get_java_vm().map_err(|e| e.to_string())?;
+        let gref = env.new_global_ref(&activity).map_err(|e| e.to_string())?;
+        let ptr = unsafe { vm.get_java_vm_pointer() } as usize;
+        *NATIVE_BRIDGE.lock().map_err(|e| e.to_string())? = Some((ptr, gref));
+        Ok(())
+    })();
+    match result {
+        Ok(()) => println!("[Bridge] puente JNI inicializado desde Kotlin"),
+        Err(e) => eprintln!("[Bridge] error inicializando desde Kotlin: {}", e),
+    }
+}
+
+#[cfg(target_os = "android")]
+fn obtain_native_bridge() -> Result<(jni::JavaVM, jni::objects::GlobalRef), String> {
+    if let Some((vm_ptr, act)) = NATIVE_BRIDGE.lock().map_err(|e| e.to_string())?.clone() {
+        let vm = unsafe { jni::JavaVM::from_raw(vm_ptr as *mut _).map_err(|e| e.to_string())? };
+        return Ok((vm, act));
+    }
+    // Respaldo: intentar leer ndk_context (sin panic si no está listo)
+    for attempt in 0..10u32 {
+        let got = unsafe {
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                ndk_context::android_context()
+            }))
+            .ok()
+        };
+        if let Some(ctx) = got {
+            let vm_ptr = ctx.vm();
+            let activity_ptr = ctx.context();
+            if !vm_ptr.is_null() && !activity_ptr.is_null() {
+                let gref = unsafe {
+                    let vm = jni::JavaVM::from_raw(vm_ptr as *mut _).map_err(|e| e.to_string())?;
+                    let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+                    let activity = jni::objects::JObject::from_raw(activity_ptr as *mut _);
+                    let gref = env.new_global_ref(&activity).map_err(|e| e.to_string())?;
+                    gref
+                };
+                let vm =
+                    unsafe { jni::JavaVM::from_raw(vm_ptr as *mut _).map_err(|e| e.to_string())? };
+                *NATIVE_BRIDGE.lock().map_err(|e| e.to_string())? =
+                    Some((vm_ptr as usize, gref.clone()));
+                println!("[Bridge] ndk_context listo (intento {})", attempt + 1);
+                return Ok((vm, gref));
+            }
+        }
+        println!("[Bridge] ndk_context no listo, intento {}...", attempt + 1);
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    Err("Puente JNI no disponible (no se pudo obtener la Activity)".to_string())
+}
+
 /// Lanza el selector nativo de cuentas de Google (bottom sheet, la app no pierde
 /// el primer plano). El resultado llega al frontend por el evento
 /// `google-native-auth-result` (CustomEvent en window desde MainActivity).
@@ -719,28 +786,52 @@ async fn gd_start_native_signin(server_client_id: String) -> Result<(), String> 
     #[cfg(target_os = "android")]
     {
         use jni::objects::JValue;
-        unsafe {
-            let ctx = ndk_context::android_context();
-            let vm_ptr = ctx.vm();
-            let activity_ptr = ctx.context();
-            let vm = jni::JavaVM::from_raw(vm_ptr as *mut _).map_err(|e| e.to_string())?;
-            let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
-            let activity = jni::objects::JObject::from_raw(activity_ptr as *mut _);
-            let j_client_id = env.new_string(&server_client_id).map_err(|e| e.to_string())?;
-            let _ = env
-                .call_method(
-                    activity,
-                    "startGoogleSignIn",
-                    "(Ljava/lang/String;)V",
-                    &[JValue::Object(&j_client_id)],
-                )
-                .map_err(|e| e.to_string())?;
-        }
+        let (vm, activity) = obtain_native_bridge()?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        let j_client_id = env.new_string(&server_client_id).map_err(|e| e.to_string())?;
+        env.call_method(
+            activity.as_obj(),
+            "startGoogleSignIn",
+            "(Ljava/lang/String;)V",
+            &[JValue::Object(&j_client_id)],
+        )
+        .map_err(|e| format!("Error JNI startGoogleSignIn: {}", e))?;
+        println!("[OAuth] startGoogleSignIn invocado");
         Ok(())
     }
     #[cfg(not(target_os = "android"))]
     {
+        let _ = server_client_id;
         Err("El sign-in nativo solo está disponible en Android".to_string())
+    }
+}
+
+/// Consulta (y consume) el último resultado del sign-in nativo guardado en
+/// MainActivity. Respaldo por polling para cuando una recarga del WebView
+/// pierde el evento `google-native-auth-result`.
+#[tauri::command]
+async fn gd_take_last_native_result() -> Result<Option<String>, String> {
+    #[cfg(target_os = "android")]
+    {
+        let (vm, activity) = obtain_native_bridge()?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        let j_val = env
+            .call_method(activity.as_obj(), "takeLastGoogleAuthResult", "()Ljava/lang/String;", &[])
+            .map_err(|e| e.to_string())?
+            .l()
+            .map_err(|e| e.to_string())?;
+        if j_val.is_null() {
+            return Ok(None);
+        }
+        let s: String = env
+            .get_string(&jni::objects::JString::from(j_val))
+            .map_err(|e| e.to_string())?
+            .into();
+        Ok(Some(s))
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        Ok(None)
     }
 }
 
@@ -1646,6 +1737,7 @@ pub fn run() {
             set_attendance_silenced_today,
             dismiss_attendance_today,
             gd_start_native_signin,
+            gd_take_last_native_result,
             get_monthly_attendance_pct,
             get_seed_options,
             seed_selected_data,

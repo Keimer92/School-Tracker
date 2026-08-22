@@ -124,6 +124,27 @@
         console.error('Native Google Auth failed:', e);
         await emit("show-toast", { message: "❌ Error al abrir selector de Google: " + e, type: "error" });
         isAuthLoading = false;
+        return;
+      }
+      // Polling de respaldo: si una recarga del WebView perdió el evento,
+      // el resultado sigue disponible en MainActivity
+      const deadline = Date.now() + 180000;
+      let gotResult = false;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 1000));
+        try {
+          const res = await invoke<string | null>("gd_take_last_native_result");
+          if (res) {
+            gotResult = true;
+            handleGoogleNativeResult(res);
+            break;
+          }
+        } catch {}
+        if (authHandled) break;
+      }
+      if (!gotResult && !authHandled) {
+        isAuthLoading = false;
+        await emit("show-toast", { message: "⏱ Tiempo de espera agotado en el selector de Google", type: "error" });
       }
       return;
     }
