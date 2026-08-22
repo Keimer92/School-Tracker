@@ -159,8 +159,19 @@ setThemeMode: (mode: string) => void;
   .drawer-cloud :global(.cloud-head) {
     min-width: 0;
   }
+  .drawer-cloud :global(.cloud-title) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .drawer-cloud :global(.cloud-chip),
   .drawer-cloud :global(.cloud-time-inline) {
     flex-shrink: 0;
+  }
+  .drawer-cloud :global(.cloud-chip) {
+    font-size: 0.55rem;
+    padding: 2px 6px;
+    letter-spacing: 0.03em;
   }
 </style>
