@@ -101,8 +101,10 @@ setThemeMode: (mode: string) => void;
   </div>
 
   {#if isMobile}
-    <div class="sidebar-section-header" style="padding-top: 8px;">NUBE</div>
-    <CloudCards onTabChange={(t) => onTabChange(t as Tab)} />
+    <div class="drawer-cloud">
+      <div class="sidebar-section-header" style="padding-top: 6px;">NUBE</div>
+      <CloudCards onTabChange={(t) => onTabChange(t as Tab)} />
+    </div>
   {/if}
 </nav>
 
@@ -138,5 +140,27 @@ setThemeMode: (mode: string) => void;
   .theme-btn.active {
     background: var(--primary-light);
     border-color: var(--primary-color);
+  }
+
+  /* Cards de nube dentro del drawer: alineadas y sin desbordes */
+  .drawer-cloud {
+    padding: 0 12px 10px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .drawer-cloud :global(.cloud-widget) {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    margin-top: 0;
+    padding-top: 0.25rem;
+  }
+  .drawer-cloud :global(.cloud-head) {
+    min-width: 0;
+  }
+  .drawer-cloud :global(.cloud-chip),
+  .drawer-cloud :global(.cloud-time-inline) {
+    flex-shrink: 0;
   }
 </style>
