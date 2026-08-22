@@ -4,7 +4,11 @@ import { markDirty, markAllDirty, markAllClean, hasDirtyTables } from './dirtyTr
 
 const STORAGE_KEY = 'schooltracker-google-drive-settings';
 const SYNC_FILE_PREFIX = 'SchoolTracker_Sync';
-const MAX_SYNC_FILES = 10;
+const MAX_SYNC_FILES = 3;
+// Carpeta destino en Drive: Keimer Labs/School Tracker MINED
+const DRIVE_FOLDER_PATH = ['Keimer Labs', 'School Tracker MINED'];
+const AUTO_BACKUP_KEY = 'drive_auto_backup_minutes';
+const AUTO_BACKUP_DEFAULT_MIN = 180; // cada 3 horas
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'offline';
 
@@ -149,14 +153,63 @@ async function getValidToken(): Promise<string | null> {
   return await refreshAccessToken();
 }
 
+function devicePlatform(): 'Windows' | 'Android' {
+  return /Android/i.test(navigator.userAgent) ? 'Android' : 'Windows';
+}
+
 function timestampFileName(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${SYNC_FILE_PREFIX}_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.db`;
+  return `${SYNC_FILE_PREFIX}_${devicePlatform()}_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.db`;
+}
+
+let cachedFolderId: string | null = localStorage.getItem('drive_backup_folder_id') || null;
+
+/** Busca una carpeta por nombre dentro de parentId (o la raíz); la crea si no existe. */
+async function findOrCreateFolder(token: string, name: string, parentId: string | null): Promise<string | null> {
+  const esc = name.replace(/'/g, "\\'");
+  let q = `name='${esc}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  if (parentId) q += ` and '${parentId}' in parents`;
+  const resp = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id)`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!resp.ok) return null;
+  const data = await resp.json();
+  if (data.files?.length) return data.files[0].id as string;
+  const createResp = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name,
+      mimeType: 'application/vnd.google-apps.folder',
+      ...(parentId ? { parents: [parentId] } : {}),
+    }),
+  });
+  if (!createResp.ok) return null;
+  const created = await createResp.json();
+  return created.id || null;
+}
+
+/** Garantiza Keimer Labs/School Tracker MINED y devuelve el id de la carpeta final. */
+async function ensureBackupFolder(token: string): Promise<string | null> {
+  if (cachedFolderId) return cachedFolderId;
+  let parentId: string | null = null;
+  for (const name of DRIVE_FOLDER_PATH) {
+    parentId = await findOrCreateFolder(token, name, parentId);
+    if (!parentId) return null;
+  }
+  cachedFolderId = parentId;
+  if (parentId) localStorage.setItem('drive_backup_folder_id', parentId);
+  return parentId;
 }
 
 async function listSyncFiles(token: string): Promise<DriveFile[]> {
-  const q = `name contains '${SYNC_FILE_PREFIX}' and trashed=false`;
+  // Archivos en la carpeta destino + legacy en raíz (para restaurar/limpiar)
+  const inner = cachedFolderId
+    ? `'${cachedFolderId}' in parents or name contains '${SYNC_FILE_PREFIX}'`
+    : `name contains '${SYNC_FILE_PREFIX}'`;
+  const q = `(${inner}) and trashed=false`;
   const resp = await fetch(
     `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&orderBy=createdTime desc&fields=files(id,name,size,createdTime)`,
     { headers: { Authorization: `Bearer ${token}` } }
@@ -326,8 +379,14 @@ export const driveSyncService = {
       const localBackupPath = await invoke<string>('gd_create_backup');
       try {
         const dbBase64 = await invoke<string>('gd_read_file_base64', { path: localBackupPath });
+        const folderId = await ensureBackupFolder(token);
         const fileName = timestampFileName();
-        const metadata = { name: fileName, mimeType: 'application/octet-stream' };
+        const metadata: any = {
+          name: fileName,
+          mimeType: 'application/octet-stream',
+          appProperties: { devicePlatform: devicePlatform() },
+        };
+        if (folderId) metadata.parents = [folderId];
         const boundary = 'schooltracker_sync_boundary';
         const multipartBody =
           `--${boundary}\r\n` +
@@ -347,7 +406,14 @@ export const driveSyncService = {
           x.onerror = () => reject(new Error('Network error'));
           x.send(multipartBody);
         });
-        console.log(`[DriveSync] Archivo creado, status: ${xhr.status}`);
+        console.log(`[DriveSync] Archivo creado, status: ${xhr.status} (${fileName})`);
+        if (xhr.status === 404 && cachedFolderId) {
+          // La carpeta cacheada ya no existe en Drive: invalidar y reintentar la próxima vez
+          console.warn('[DriveSync] Carpeta destino no encontrada (404); limpiando caché de carpeta');
+          cachedFolderId = null;
+          localStorage.removeItem('drive_backup_folder_id');
+          throw new Error('La carpeta de respaldo desapareció; reintenta para recrearla');
+        }
         try { await invoke('gd_delete_backup', { path: localBackupPath }); } catch (_) {}
         await deleteOldSyncVersions(token);
         syncManager.setState({ lastUpload: now() });
@@ -441,6 +507,41 @@ export const driveSyncService = {
       clearInterval((driveSyncService as any)._periodicTimer);
       (driveSyncService as any)._periodicTimer = null;
     }
+  },
+
+  _autoBackupTimer: null as ReturnType<typeof setInterval> | null,
+
+  /** Configura el respaldo automático a Drive cada N minutos (0 = desactivado). */
+  setAutoBackupInterval: (minutes: number): void => {
+    const mins = Math.max(0, Math.round(minutes));
+    localStorage.setItem(AUTO_BACKUP_KEY, String(mins));
+    if ((driveSyncService as any)._autoBackupTimer) {
+      clearInterval((driveSyncService as any)._autoBackupTimer);
+      (driveSyncService as any)._autoBackupTimer = null;
+    }
+    if (!mins) return;
+    (driveSyncService as any)._autoBackupTimer = setInterval(async () => {
+      try {
+        const token = await getValidToken();
+        if (!token || !navigator.onLine) return;
+        // Solo sube si hubo cambios locales desde el último respaldo
+        if (!(await hasLocalChanges())) return;
+        console.log('[DriveSync] Respaldo automático iniciando...');
+        await driveSyncService.pushAll(true);
+        console.log('[DriveSync] Respaldo automático completado');
+      } catch (e) {
+        console.warn('[DriveSync] Error en respaldo automático:', e);
+      }
+    }, mins * 60000);
+    console.log(`[DriveSync] Respaldo automático activo cada ${mins} min`);
+  },
+
+  /** Arranca el respaldo automático con el intervalo guardado (default: 180 min). */
+  ensureAutoBackup: (): void => {
+    if ((driveSyncService as any)._autoBackupTimer) return;
+    const stored = parseInt(localStorage.getItem(AUTO_BACKUP_KEY) || '', 10);
+    const mins = Number.isFinite(stored) && stored > 0 ? stored : AUTO_BACKUP_DEFAULT_MIN;
+    driveSyncService.setAutoBackupInterval(mins);
   },
 
   getUserId: async (): Promise<string | null> => {

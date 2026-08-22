@@ -6,6 +6,7 @@
   import { handleBack, isBackAuthInProgress, setBackAuthInProgress } from "./lib/androidBack";
   import { syncService } from "./lib/syncService";
   import { isD1Configured } from "./lib/syncService";
+  import { driveSyncService } from "./lib/driveSyncService";
   import { getLocalDateISOString } from "./lib/dateUtils";
   import AsistenciaPage from "./svelte/AsistenciaPage.svelte";
   import InformePage from "./svelte/InformePage.svelte";
@@ -263,7 +264,8 @@
       }).then(u => unlisten.push(u));
 
       // Sincronización automática SOLO con Cloudflare D1 (si está configurado).
-      // Google Drive se usa únicamente como respaldo manual desde CloudPage.
+      // Google Drive: respaldo automático (push) cada N minutos + manual desde CloudPage.
+      driveSyncService.ensureAutoBackup();
       isD1Configured().then((d1) => {
         if (d1) {
           syncService.syncAllSilent();
@@ -281,6 +283,7 @@
     // Listen for welcome complete event (from WelcomePage)
     const welcomeListener = listen('welcome-complete', async () => {
       initialized = true;
+      driveSyncService.ensureAutoBackup();
       if (await isD1Configured()) {
         syncService.syncAllSilent();
         syncService.ensurePeriodicSync();

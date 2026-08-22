@@ -36,6 +36,14 @@
   }
   const storedSyncSeconds = parseInt(localStorage.getItem('periodic_sync_interval_seconds') || '300', 10);
   let syncInterval = $state(Math.round((storedSyncSeconds || 300) / 60));
+  const storedAutoBackup = parseInt(localStorage.getItem('drive_auto_backup_minutes') || '', 10);
+  let autoBackupMins = $state(Number.isFinite(storedAutoBackup) && storedAutoBackup > 0 ? storedAutoBackup : 180);
+
+  function filePlatform(name: string): 'Windows' | 'Android' | null {
+    if (/_Windows_/i.test(name)) return 'Windows';
+    if (/_Android_/i.test(name)) return 'Android';
+    return null;
+  }
   let isAuthLoading = $state(false);
   let authHandled = false;
   let isFetchingFiles = $state(false);
@@ -539,7 +547,7 @@
       <h3>
         <span style="display: inline-flex; align-items: center; gap: 10px; background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%); padding: 0.5rem 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z" stroke="url(#cloudGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="cloudGrad" x1="6" y1="8" x2="19" y2="18" gradientUnits="userSpaceOnUse"><stop stop-color="var(--primary-color)"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs></svg>
-          Google Drive <span style="font-size: 0.65rem; font-weight: 400; color: #64748b;">(Respaldo manual)</span>
+          Google Drive <span style="font-size: 0.65rem; font-weight: 400; color: #64748b;">(Respaldo automático)</span>
         </span>
       </h3>
     </div>
@@ -650,6 +658,18 @@
           </button>
         </div>
 
+        <!-- Respaldo automático -->
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; padding: 0.6rem 0.85rem; background: rgba(0,0,0,0.15); border-radius: 10px; margin-bottom: 0.75rem;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.4);"></div>
+            <span style="color: #94a3b8; font-size: 0.8rem;">Respaldo automático cada</span>
+            <input type="number" min={1} max={10080} bind:value={autoBackupMins} style="width: 56px; padding: 0.2rem 0.35rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; text-align: center; outline: none;" />
+            <span style="color: #64748b; font-size: 0.75rem;">minutos</span>
+            <button onclick={() => { const m = Math.max(1, Math.min(10080, autoBackupMins)); autoBackupMins = m; driveSyncService.setAutoBackupInterval(m); emit("show-toast", { message: `✅ Respaldo automático cada ${m} min`, type: "success" }); }} style="padding: 0.3rem 0.7rem; border-radius: 6px; border: 1px solid rgba(var(--primary-rgb),0.3); background: rgba(var(--primary-rgb),0.1); color: var(--primary-color); cursor: pointer; font-size: 0.7rem; font-weight: 600;">Guardar</button>
+          </div>
+          <span style="color: #64748b; font-size: 0.7rem; margin-left: auto;">📁 Keimer Labs/School Tracker MINED · solo sube si hay cambios</span>
+        </div>
+
         <!-- Sync files -->
         <div>
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem;">
@@ -664,7 +684,14 @@
                 <div style="display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.7rem; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
                   <div style="flex: 1; min-width: 0;">
                     <div style="color: #e2e8f0; font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{file.name}</div>
-                    <div style="color: #64748b; font-size: 0.65rem;">{fmtDate(file.createdTime)} · {fmtSize(file.size)}</div>
+                    <div style="display: flex; align-items: center; gap: 6px; color: #64748b; font-size: 0.65rem;">
+                      <span>{fmtDate(file.createdTime)} · {fmtSize(file.size)}</span>
+                      {#if filePlatform(file.name) === 'Android'}
+                        <span style="padding: 1px 6px; border-radius: 999px; background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.25); color: #7dd3fc;">🤖 Android</span>
+                      {:else if filePlatform(file.name) === 'Windows'}
+                        <span style="padding: 1px 6px; border-radius: 999px; background: rgba(167,139,250,0.12); border: 1px solid rgba(167,139,250,0.25); color: #c4b5fd;">🪟 Windows</span>
+                      {/if}
+                    </div>
                   </div>
                   <div style="display: flex; gap: 4px; flex-shrink: 0;">
                     <button onclick={() => requestRestore(file)} style="padding: 0.3rem 0.55rem; border-radius: 5px; border: 1px solid rgba(var(--primary-rgb),0.3); background: rgba(var(--primary-rgb),0.1); color: var(--primary-color); cursor: pointer; font-size: 0.65rem;">Restaurar</button>
@@ -674,7 +701,7 @@
               {/each}
             </div>
             <div style="margin-top: 0.5rem; display: flex; align-items: center; gap: 6px; color: #64748b; font-size: 0.7rem;">
-              <span>💾 Se mantienen hasta 10 respaldos. Los más antiguos se eliminan automáticamente.</span>
+              <span>💾 Se conservan los últimos 3 respaldos. Los más antiguos se eliminan automáticamente.</span>
             </div>
           {/if}
         </div>
