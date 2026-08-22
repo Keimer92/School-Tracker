@@ -304,12 +304,6 @@
       // Sincronización automática SOLO con Cloudflare D1 (si está configurado).
       // Google Drive: respaldo automático (push) cada N minutos + manual desde CloudPage.
       driveSyncService.ensureAutoBackup();
-      isD1Configured().then((d1) => {
-        if (d1) {
-          syncService.syncAllSilent();
-          syncService.ensurePeriodicSync();
-        }
-      });
 
       // Pull bilateral pasivo: traer cambios de otros dispositivos sin esperar
       // al timer ni generar un cambio local.
@@ -318,6 +312,8 @@
           const ok = await isD1Configured();
           console.log(`[D1Debug] sync disparado (${source}) · config=${ok}`);
           if (!ok) { stopWsSync(); return; }
+          // Revivir el timer periódico si hubiera muerto (idempotente)
+          syncService.ensurePeriodicSync();
           await ensureWsSync();
           await syncService.syncAllSilent();
         } catch (e) {
@@ -332,6 +328,13 @@
         document.removeEventListener("visibilitychange", d1OnVisible);
         window.removeEventListener("online", d1OnOnline);
       });
+
+      // ARRANQUE: sync inicial + conexión al hub WebSocket de una sola vez.
+      // Sin esto, el WS no existía hasta que el usuario cambiara de ventana/página
+      // y los avisos en tiempo real del otro dispositivo se perdían.
+      console.log('[D1Debug] ⭐ ejecutando arranque D1 (startup)…');
+      void d1TrySync('startup');
+
       invoke("seed_defaults_now");
 
       // Notificación Android: grados/secciones sin asistencia hoy (solo si colegio laborable).
