@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "dev:android": "node scripts/android-dev.mjs",
+    "dev:android:shared": "node scripts/android-dev.mjs --shared",
+    "dev:win": "tauri dev",
+    "dev:win:shared": "tauri dev --config src-tauri/tauri.no-dev-cmd.json",
     "dev:android:hot": "npx tauri android dev",
     "dev:android:hmr": "node scripts/android-hmr.mjs",
     "dev:android:device": "node scripts/android-hmr.mjs --device",

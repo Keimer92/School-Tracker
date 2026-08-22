@@ -32,7 +32,16 @@ async function main() {
   }
 
   const args = process.argv.slice(2);
-  const child = spawn("npx", ["tauri", "android", "dev", ...args], {
+  const shared = args.includes("--shared");
+  const passthrough = args.filter((a) => a !== "--shared");
+  if (shared) {
+    // Reutilizar el Vite ya en marcha (arrancado por dev:win u otra sesión):
+    // evita el error "Port 1420/1421 already in use".
+    console.log("[android-dev] Modo compartido: reutilizando Vite existente (sin beforeDevCommand)");
+    passthrough.push("--config", "src-tauri/tauri.no-dev-cmd.json");
+  }
+
+  const child = spawn("npx", ["tauri", "android", "dev", ...passthrough], {
     stdio: "inherit",
     shell: true,
   });
