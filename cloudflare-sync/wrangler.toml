@@ -19,3 +19,11 @@ database_id = "8b768a8e-88eb-4f82-a131-3989d62f953b"
 # Account ID de Cloudflare (cuenta de pedroluisnfc@gmail.com)
 # El secret CF_API_TOKEN se define con: wrangler secret put CF_API_TOKEN
 CF_ACCOUNT_ID = "ec285834428c30f51d6f92a67848d5d5"
+# -- Push en tiempo real ---------------------------------------------
+# Hub de WebSockets por colegio. DO con backend SQLite = disponible en plan gratuito.
+[durable_objects]
+bindings = [{ name = "SYNC_HUB", class_name = "SyncHub" }]
+
+[[migrations]]
+tag = "v1_sync_hub"
+new_sqlite_classes = ["SyncHub"]

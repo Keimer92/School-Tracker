@@ -7,6 +7,7 @@
   import { syncService } from "./lib/syncService";
   import { isD1Configured } from "./lib/syncService";
   import { driveSyncService } from "./lib/driveSyncService";
+  import { ensureWsSync, stopWsSync } from "./lib/wsSyncService";
   import { getLocalDateISOString } from "./lib/dateUtils";
   import AsistenciaMainPage from "./svelte/asistencia/AsistenciaMainPage.svelte";
   import NotasMainPage from "./svelte/notas/NotasMainPage.svelte";
@@ -310,7 +311,14 @@
       // Pull bilateral pasivo: traer cambios de otros dispositivos sin esperar
       // al timer ni generar un cambio local.
       const d1TrySync = async () => {
-        try { if (await isD1Configured()) await syncService.syncAllSilent(); } catch {}
+        try {
+          if (await isD1Configured()) {
+            await ensureWsSync();
+            await syncService.syncAllSilent();
+          } else {
+            stopWsSync();
+          }
+        } catch {}
       };
       const d1OnVisible = () => { if (!document.hidden) void d1TrySync(); };
       const d1OnOnline = () => void d1TrySync();

@@ -7,6 +7,7 @@
   import { invalidateD1Cache } from "../lib/syncService";
   import type { DriveFile } from "../lib/driveSyncService";
   import { driveSyncService } from "../lib/driveSyncService";
+  import { ensureWsSync, stopWsSync } from "../lib/wsSyncService";
   import { registerBackHandler, setBackAuthInProgress } from "../lib/androidBack";
 
   const DEFAULT_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
@@ -345,6 +346,8 @@
       d1Cfg = await d1SyncService.saveConfig(d1WorkerUrl.trim(), d1SchoolKey.trim());
       invalidateD1Cache();
       showD1Config = false;
+      await ensureWsSync();
+      syncService.ensurePeriodicSync();
       await emit("show-toast", { message: "✅ Configuración D1 guardada", type: "success" });
     } catch (e) {
       await emit("show-toast", { message: "❌ Error guardando: " + e, type: "error" });
@@ -381,6 +384,7 @@
     confirm("¿Desconectar la nube D1?\n\nSe detendrá la sincronización automática con Cloudflare.", "Desconectar D1", 'warning', async () => {
       try {
         await d1SyncService.clearConfig();
+        stopWsSync();
         d1Cfg = null;
         d1WorkerUrl = "";
         d1SchoolKey = "";

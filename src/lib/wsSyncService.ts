@@ -1,0 +1,153 @@
+import { invoke } from '@tauri-apps/api/core';
+import { d1SyncService } from './d1SyncService';
+
+/**
+ * Push en tiempo real vía WebSocket contra el Worker (hub por school key).
+ *
+ - Al recibir `{"type":"changes","from":"<otro dispositivo>"}` dispara un
+   `syncAllSilent()` con debounce pequeño (los ráfagas se agrupan).
+ - Reconexión con backoff exponencial (1s → 30s), re-intento al recuperar red
+   y al volver la app a primer plano.
+ - Los pings cada 25 s los responde el servidor automáticamente sin despertar
+   el Durable Object (setWebSocketAutoResponse).
+ */
+
+interface D1Cfg {
+  workerUrl: string;
+  schoolKey: string;
+  deviceId: string;
+  lastSync: string | null;
+}
+
+let ws: WebSocket | null = null;
+let myDeviceId = '';
+let currentUrl = '';
+let intentionalClose = false;
+let reconnectAttempts = 0;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let pullTimer: ReturnType<typeof setTimeout> | null = null;
+let pingTimer: ReturnType<typeof setInterval> | null = null;
+let listenersBound = false;
+
+const PULL_DEBOUNCE_MS = 700;
+const MAX_BACKOFF_MS = 30000;
+
+function buildWsUrl(cfg: D1Cfg): string | null {
+  try {
+    const u = new URL(cfg.workerUrl);
+    u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+    u.pathname = (u.pathname.replace(/\/+$/, '')) + '/ws';
+    u.search = '';
+    u.searchParams.set('key', cfg.schoolKey);
+    u.searchParams.set('device', cfg.deviceId);
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+function schedulePull() {
+  if (pullTimer) clearTimeout(pullTimer);
+  pullTimer = setTimeout(() => {
+    pullTimer = null;
+    void d1SyncService.syncAllSilent();
+  }, PULL_DEBOUNCE_MS);
+}
+
+function clearPing() {
+  if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
+}
+
+function scheduleReconnect() {
+  if (intentionalClose || reconnectTimer) return;
+  const delay = Math.min(MAX_BACKOFF_MS, 1000 * Math.pow(2, reconnectAttempts));
+  reconnectAttempts++;
+  console.log(`[WsSync] reconectando en ${delay}ms (intento ${reconnectAttempts})`);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    void ensureWsSync();
+  }, delay);
+}
+
+function closeSocketSilently() {
+  if (!ws) return;
+  const s = ws;
+  ws = null;
+  s.onopen = null; s.onmessage = null; s.onclose = null; s.onerror = null;
+  try { s.close(); } catch {}
+  clearPing();
+}
+
+function connect(url: string) {
+  try {
+    ws = new WebSocket(url);
+  } catch (e) {
+    console.error('[WsSync] error creando WebSocket:', e);
+    scheduleReconnect();
+    return;
+  }
+  ws.onopen = () => {
+    reconnectAttempts = 0;
+    console.log('[WsSync] conectado al hub');
+    clearPing();
+    pingTimer = setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try { ws.send('ping'); } catch {}
+      }
+    }, 25000);
+  };
+  ws.onmessage = (ev) => {
+    try {
+      const m = JSON.parse(String(ev.data));
+      if (m?.type === 'changes' && m.from && m.from !== myDeviceId) {
+        console.log('[WsSync] aviso de cambios desde', m.from);
+        schedulePull();
+      }
+    } catch {}
+  };
+  ws.onclose = () => {
+    ws = null;
+    clearPing();
+    scheduleReconnect();
+  };
+  ws.onerror = () => { /* onclose se encarga */ };
+}
+
+/** Conecta (o reconecta si cambió la config). Idempotente. */
+export async function ensureWsSync(): Promise<void> {
+  bindGlobalListeners();
+  let cfg: D1Cfg | null = null;
+  try { cfg = await invoke<D1Cfg | null>('d1_get_config'); } catch { return; }
+  if (!cfg?.workerUrl || !cfg?.schoolKey || !cfg?.deviceId) {
+    stopWsSync();
+    return;
+  }
+  intentionalClose = false;
+  myDeviceId = cfg.deviceId;
+  const url = buildWsUrl(cfg);
+  if (!url) return;
+  if (ws && currentUrl === url && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+  closeSocketSilently();
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  currentUrl = url;
+  connect(url);
+}
+
+/** Cierra la conexión y cancela reconexiones (config eliminada). */
+export function stopWsSync(): void {
+  intentionalClose = true;
+  closeSocketSilently();
+  currentUrl = '';
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  if (pullTimer) { clearTimeout(pullTimer); pullTimer = null; }
+  reconnectAttempts = 0;
+}
+
+function bindGlobalListeners() {
+  if (listenersBound) return;
+  listenersBound = true;
+  window.addEventListener('online', () => { void ensureWsSync(); });
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) void ensureWsSync();
+  });
+}

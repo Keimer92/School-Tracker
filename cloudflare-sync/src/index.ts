@@ -22,6 +22,53 @@ export interface Env {
   CF_API_TOKEN: string;
   SCHOOL_ROUTING: KVNamespace;
   DB: D1Database;
+  SYNC_HUB: DurableObjectNamespace;
+}
+
+/**
+ * Hub de WebSockets por colegio (una instancia por school key).
+ * Los dispositivos abren /ws y reciben `{type:'changes', from}` cuando otro
+ * dispositivo aplica cambios vía /push. Usa la API de hibernación: las
+ * conexiones idle NO consumen duración del DO.
+ */
+export class SyncHub {
+  private state: DurableObjectState;
+
+  constructor(state: DurableObjectState, _env: Env) {
+    this.state = state;
+    // Responder pings del cliente sin despertar el DO (mantener viva la conexión)
+    try {
+      this.state.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
+    } catch {}
+  }
+
+  async fetch(req: Request): Promise<Response> {
+    const url = new URL(req.url);
+
+    // Upgrade de WebSocket (lo invoca el worker principal reenviando /ws)
+    if (url.pathname === '/connect') {
+      const pair = new WebSocketPair();
+      this.state.acceptWebSocket(pair[1]);
+      return new Response(null, { status: 101, webSocket: pair[0] });
+    }
+
+    // Notificar a todos los sockets conectados
+    if (url.pathname === '/broadcast') {
+      const body: any = await req.json().catch(() => ({}));
+      const msg = JSON.stringify({ type: 'changes', from: body.from || '', ts: Date.now() });
+      let notified = 0;
+      for (const ws of this.state.getWebSockets()) {
+        try { ws.send(msg); notified++; } catch { /* socket ya muerto */ }
+      }
+      return json({ ok: true, notified });
+    }
+
+    if (url.pathname === '/stats') {
+      return json({ ok: true, clients: this.state.getWebSockets().length });
+    }
+
+    return json({ error: 'Ruta no encontrada' }, 404);
+  }
 }
 
 const TABLES: Record<string, { pk: string[]; cols: string[] }> = {
@@ -172,11 +219,24 @@ WHERE excluded.updated_at > ${table}.updated_at
 }
 
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(req.url);
     const path = url.pathname;
 
     try {
+      // ── WebSocket: reenviar el upgrade al hub de esta school key ──
+      if (path === '/ws') {
+        const key = url.searchParams.get('key') || '';
+        if (!key || !(await env.SCHOOL_ROUTING.get(key))) {
+          return json({ ok: false, error: 'School key inválida' }, 403);
+        }
+        const id = env.SYNC_HUB.idFromName(key);
+        const stub = env.SYNC_HUB.get(id);
+        const hubUrl = new URL(url.toString());
+        hubUrl.pathname = '/connect';
+        return stub.fetch(new Request(hubUrl.toString(), req));
+      }
+
       if (path === '/hello') {
         // Verifica conectividad + valida la school key contra KV
         const dbId = await routeToDb(env, req);
@@ -189,6 +249,7 @@ export default {
       }
 
       if (path === '/push') {
+        const schoolKey = req.headers.get('X-School-Key') || '';
         const dbId = await routeToDb(env, req);
         const body: any = await req.json();
         const deviceId = body.deviceId || (req.headers.get('X-Device-Id') ?? '');
@@ -230,6 +291,21 @@ WHERE excluded.updated_at > sync_tombstone.updated_at
         // ---- 2. Ejecutar en lotes de ~90 sentencias (1 subrequest por lote)
         for (let i = 0; i < statements.length; i += BATCH_STMT) {
           await batchExec(env.DB, statements.slice(i, i + BATCH_STMT));
+        }
+
+        // ---- 3. Push en tiempo real: avisar al hub para notificar al resto
+        const appliedTables = Object.keys(stats);
+        if ((appliedTables.length > 0 || delCount > 0) && schoolKey && env.SYNC_HUB) {
+          try {
+            const id = env.SYNC_HUB.idFromName(schoolKey);
+            const stub = env.SYNC_HUB.get(id);
+            await stub.fetch('https://sync-hub/broadcast', {
+              method: 'POST',
+              body: JSON.stringify({ from: deviceId }),
+            });
+          } catch (e) {
+            console.error('[WS] broadcast falló:', e);
+          }
         }
 
         return json({ ok: true, applied: stats, deletionsApplied: delCount });
