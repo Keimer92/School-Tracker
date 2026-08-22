@@ -9,6 +9,9 @@
   import SearchInput from "./SearchInput.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
 
+  // Visible = la página contenedora está activa Y este es el sub-tab seleccionado.
+  let { visible = true }: { visible?: boolean } = $props();
+
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
   interface Criterio { id: number; orden: number; descripcion: string; puntajeMaximo: number; }
   interface Indicador { id: number; orden: number; descripcion: string; activo: boolean; criterios: Criterio[]; }
@@ -554,7 +557,12 @@
   function handleTouchStart(e: TouchEvent) { touchStartX = e.touches[0].clientX; }
   function handleTouchEnd(e: TouchEvent) {
     const diff = e.changedTouches[0].clientX - touchStartX;
-    if (Math.abs(diff) > 50) { if (diff > 0) goPrevStudent(); else goNextStudent(); }
+    if (Math.abs(diff) > 50) {
+      // Este gesto pertenece a la navegación entre estudiantes: impedir que
+      // el contenedor lo interprete como cambio de sub-tab.
+      e.stopPropagation();
+      if (diff > 0) goPrevStudent(); else goNextStudent();
+    }
   }
 
   // CRUD operations
@@ -921,6 +929,19 @@
     if (refreshTrigger > 0 && !hasUnsavedRef && !loading && selectedAno > 0 && selectedCorte > 0 && selectedColegio > 0 && selectedAsignatura > 0 && selectedGrado > 0 && selectedSeccion > 0) {
       refreshTrigger = 0;
       fetchEstudiantes(undefined, true);
+    }
+  });
+
+  // Refresco silencioso al volver a verse (transición oculto → visible)
+  let wasVisible = visible;
+  $effect(() => {
+    const nowVisible = visible;
+    const prev = wasVisible;
+    wasVisible = nowVisible;
+    if (!nowVisible || prev) return;
+    if (!hasUnsavedRef && selectedAno > 0 && selectedCorte > 0 && selectedColegio > 0 && selectedAsignatura > 0 && selectedGrado > 0 && selectedSeccion > 0) {
+      nextRefreshSilent = true;
+      refreshTrigger++;
     }
   });
 

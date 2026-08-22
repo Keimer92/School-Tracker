@@ -23,6 +23,9 @@
   }
   interface GradeConfig { id: string; color: string; minimo: number; }
 
+  // Visible = la página contenedora está activa Y este es el sub-tab seleccionado.
+  let { visible = true }: { visible?: boolean } = $props();
+
   let anos: CategoryItem[] = $state([]);
   let cortes: CategoryItem[] = $state([]);
   let colegios: CategoryItem[] = $state([]);
@@ -243,6 +246,17 @@
       refreshTrigger = 0;
       estudiantes = []; configIndicadores = []; loading = false; silentRefresh = false;
     }
+  });
+
+  // Refresco silencioso al volver a verse (transición oculto → visible)
+  let wasVisible = visible;
+  $effect(() => {
+    const nowVisible = visible;
+    const prev = wasVisible;
+    wasVisible = nowVisible;
+    if (!nowVisible || prev) return;
+    silentRefresh = true;
+    refreshTrigger++;
   });
 
   async function fetchInitialCatalogs() {

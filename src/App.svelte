@@ -9,8 +9,7 @@
   import { driveSyncService } from "./lib/driveSyncService";
   import { getLocalDateISOString } from "./lib/dateUtils";
   import AsistenciaMainPage from "./svelte/asistencia/AsistenciaMainPage.svelte";
-  import NotasPage from "./svelte/NotasPage.svelte";
-  import ReportesPage from "./svelte/ReportesPage.svelte";
+  import NotasMainPage from "./svelte/notas/NotasMainPage.svelte";
   import EvaluacionesPage from "./svelte/EvaluacionesPage.svelte";
   import EstudiantesPage from "./svelte/EstudiantesPage.svelte";
   import GlobalesPage from "./svelte/GlobalesPage.svelte";
@@ -20,13 +19,13 @@
   import CloudCards from "./svelte/CloudCards.svelte";
   import WelcomePage from "./svelte/WelcomePage.svelte";
 
-  type Tab = "dashboard" | "notas" | "reportes" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "cloud";
+  type Tab = "dashboard" | "notas" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "cloud";
 
   let initialized = $state<boolean | null>(null);
   let isMobile = $state(false);
   let isAndroid = $state(false);
   let activeTab = $state<Tab>("dashboard");
-  let visitedTabs = $state<Set<Tab>>(new Set(["dashboard", "notas", "reportes", "estudiantes", "evaluaciones", "globales", "ajustes", "asistencia", "cloud"]));
+  let visitedTabs = $state<Set<Tab>>(new Set(["dashboard", "notas", "estudiantes", "evaluaciones", "globales", "ajustes", "asistencia", "cloud"]));
   let sidebarWidth = $state(Math.min(Math.max(220, Math.floor(window.innerWidth * 0.16)), 260));
   let drawerOpen = $state(false);
   let isResizing = $state(false);
@@ -34,6 +33,7 @@
   let unlisten: (() => void)[] = [];
   let ajustesTabRequest = $state<string | null>(null);
   let asistenciaSubTabRequest = $state<string | null>(null);
+  let notasSubTabRequest = $state<string | null>(null);
 
   // Theme state: "claro" | "oscuro" | "sistema"
   let themeMode = $state(localStorage.getItem("app-theme") || "sistema");
@@ -133,6 +133,13 @@
   }
 
   function handleTabChange(tab: Tab) {
+    // Migración: el quick-action "Reportes" del Dashboard abre la página unificada en su sub-tab Reportes
+    if ((tab as string) === "reportes") {
+      notasSubTabRequest = "reportes";
+      setActiveTab("notas");
+      if (isMobile) drawerOpen = false;
+      return;
+    }
     // Migración: el quick-action "Informe" del Dashboard abre la página unificada en su sub-tab Informe
     if ((tab as string) === "informe") {
       asistenciaSubTabRequest = "informe";
@@ -148,6 +155,7 @@
     }
     ajustesTabRequest = null;
     asistenciaSubTabRequest = null;
+    notasSubTabRequest = null;
     setActiveTab(tab);
     if (isMobile) drawerOpen = false;
   }
@@ -233,8 +241,12 @@
     if (init) {
       // Existing init logic only runs if already initialized
       const saved = localStorage.getItem("active-tab") as Tab | null;
-      // Migración: la antigua página 'informe' ahora vive como sub-tab de 'asistencia'
-      if (saved === "informe") { activeTab = "asistencia"; localStorage.setItem("active-tab", "asistencia"); }
+      // Migraciones: páginas fusionadas como sub-tabs
+      if (saved === "informe" || saved === "reportes") {
+        const merged = saved === "informe" ? "asistencia" : "notas";
+        activeTab = merged as Tab;
+        localStorage.setItem("active-tab", merged);
+      }
       else if (saved) activeTab = saved;
       const w = localStorage.getItem("sidebar-width");
       if (w) sidebarWidth = parseInt(w);
@@ -244,7 +256,8 @@
           const parsed = JSON.parse(visits) as string[];
           // Migración de visited-tabs históricos
           if (parsed.includes("informe")) { visitedTabs.add("asistencia"); }
-          visitedTabs = new Set(parsed.filter(t => t !== "informe"));
+          if (parsed.includes("reportes")) { visitedTabs.add("notas"); }
+          visitedTabs = new Set(parsed.filter(t => t !== "informe" && t !== "reportes"));
         } catch {}
       }
       const savedMode = localStorage.getItem("app-theme") || "sistema";
@@ -368,10 +381,7 @@
       <div style="display: {activeTab === 'asistencia' ? 'block' : 'none'}; width: 100%; height: 100%;"><AsistenciaMainPage pageActive={activeTab === 'asistencia'} subTabRequest={asistenciaSubTabRequest} /></div>
     {/if}
     {#if visitedTabs.has('notas')}
-      <div style="display: {activeTab === 'notas' ? 'block' : 'none'}; width: 100%; height: 100%;"><NotasPage /></div>
-    {/if}
-    {#if visitedTabs.has('reportes')}
-      <div style="display: {activeTab === 'reportes' ? 'block' : 'none'}; width: 100%; height: 100%;"><ReportesPage /></div>
+      <div style="display: {activeTab === 'notas' ? 'block' : 'none'}; width: 100%; height: 100%;"><NotasMainPage pageActive={activeTab === 'notas'} subTabRequest={notasSubTabRequest} /></div>
     {/if}
     {#if visitedTabs.has('evaluaciones')}
       <div style="display: {activeTab === 'evaluaciones' ? 'block' : 'none'}; width: 100%; height: 100%;"><EvaluacionesPage /></div>

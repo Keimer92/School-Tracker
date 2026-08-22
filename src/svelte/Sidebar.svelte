@@ -1,7 +1,7 @@
 <script lang="ts">
   import CloudCards from './CloudCards.svelte';
 
-  export type Tab = "dashboard" | "notas" | "reportes" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "cloud";
+  export type Tab = "dashboard" | "notas" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "cloud";
 
   let {
     activeTab,
@@ -64,9 +64,6 @@ setThemeMode: (mode: string) => void;
     <div class="sidebar-section-header">NOTAS</div>
     <button class="sidebar-button {activeTab === 'notas' ? 'active' : ''}" onclick={() => onTabChange('notas')} type="button">
       <span>📓</span><span>Notas</span>
-    </button>
-    <button class="sidebar-button {activeTab === 'reportes' ? 'active' : ''}" onclick={() => onTabChange('reportes')} type="button">
-      <span>📋</span><span>Reportes</span>
     </button>
     <button class="sidebar-button {activeTab === 'evaluaciones' ? 'active' : ''}" onclick={() => onTabChange('evaluaciones')} type="button">
       <span>📝</span><span>Evaluaciones</span>
