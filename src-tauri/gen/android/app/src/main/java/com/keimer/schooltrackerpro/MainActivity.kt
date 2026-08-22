@@ -28,7 +28,11 @@ import android.webkit.WebViewClient
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.Scope
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
 import org.json.JSONObject
@@ -38,10 +42,15 @@ import java.util.Calendar
 class MainActivity : TauriActivity() {
   private var webView: WebView? = null
   private var connectivityCallback: ConnectivityManager.NetworkCallback? = null
+  private lateinit var googleSignInLauncher: ActivityResultLauncher<Intent>
 
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
+
+    googleSignInLauncher = registerForActivityResult(
+      ActivityResultContracts.StartActivityForResult()
+    ) { result -> handleGoogleSignInResult(result.data) }
 
     ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { view, windowInsets ->
       val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
@@ -110,11 +119,14 @@ class MainActivity : TauriActivity() {
         val code = uri.getQueryParameter("code")
         if (code != null) {
           val escapedCode = code.replace("\\", "\\\\").replace("'", "\\'")
+          val js = """
+            (function(){
+              try { if (window.__TAURI__ && window.__TAURI__.event) { window.__TAURI__.event.emit('oauth-callback-android', '$escapedCode'); } } catch(e) {}
+              try { window.dispatchEvent(new CustomEvent('oauth-callback-android', { detail: '$escapedCode' })); } catch(e) {}
+            })();
+          """.trimIndent()
           webView?.post {
-            webView?.evaluateJavascript(
-              "window.__TAURI__.event.emit('oauth-callback-android', '$escapedCode')",
-              null
-            )
+            webView?.evaluateJavascript(js, null)
           }
         }
       }
@@ -313,5 +325,66 @@ class MainActivity : TauriActivity() {
     notificationManager.cancel(2001)
     AttendanceScheduler.rescheduleForTomorrow(this)
     android.util.Log.i("MainActivity", "Attendance silenced for today")
+  }
+
+  // ── Google Sign-In nativo (selector de cuentas dentro de la app) ──
+  fun startGoogleSignIn(serverClientId: String) {
+    try {
+      android.util.Log.i("GoogleNativeAuth", "Iniciando sign-in nativo")
+      // Cerrar sesión previa para forzar el selector de cuentas
+      GoogleSignIn.getClient(this, GoogleSignInOptions.DEFAULT_SIGN_IN).signOut()
+
+      val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+        .requestEmail()
+        .requestScopes(Scope("https://www.googleapis.com/auth/drive.file"))
+        .requestServerAuthCode(serverClientId)
+        .build()
+      val client = GoogleSignIn.getClient(this, gso)
+      googleSignInLauncher.launch(client.signInIntent)
+    } catch (e: Exception) {
+      android.util.Log.e("GoogleNativeAuth", "Error lanzando sign-in: ${e.message}")
+      emitGoogleAuthResult("""{"ok":false,"error":"${e.message?.replace("\"", "'") ?: "error"}"}""")
+    }
+  }
+
+  private fun handleGoogleSignInResult(data: Intent?) {
+    try {
+      val task = GoogleSignIn.getSignedInAccountFromIntent(data)
+      val account = task.getResult(Exception::class.java)
+      android.util.Log.i("GoogleNativeAuth", "Sign-in OK, email=${account.email ?: "?"}, authCode=${if (account.serverAuthCode != null) "sí" else "NO"}")
+      val json = JSONObject().apply {
+        put("ok", true)
+        put("serverAuthCode", account.serverAuthCode ?: "")
+        put("email", account.email ?: "")
+        put("displayName", account.displayName ?: "")
+        account.photoUrl?.let { put("photoUrl", it.toString()) }
+      }
+      emitGoogleAuthResult(json.toString())
+    } catch (e: Exception) {
+      var statusCode = -1
+      if (e is com.google.android.gms.common.api.ApiException) { statusCode = e.statusCode }
+      val cancelled = statusCode == 12501 // RESULT_CANCELED del usuario
+      android.util.Log.e("GoogleNativeAuth", "Sign-in error: status=$statusCode msg=${e.message}")
+      val json = JSONObject().apply {
+        put("ok", false)
+        put("cancelled", cancelled)
+        put("statusCode", statusCode)
+        put("error", e.message?.replace("\"", "'") ?: "error desconocido")
+      }
+      emitGoogleAuthResult(json.toString())
+    }
+  }
+
+  private fun emitGoogleAuthResult(json: String) {
+    val escaped = json.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+    val js = """
+      (function(){
+        try { if (window.__TAURI__ && window.__TAURI__.event) { window.__TAURI__.event.emit('google-native-auth-result', JSON.parse('$escaped')); } } catch(e) {}
+        try { window.dispatchEvent(new CustomEvent('google-native-auth-result', { detail: JSON.parse('$escaped') })); } catch(e) {}
+      })();
+    """.trimIndent()
+    webView?.post {
+      webView?.evaluateJavascript(js, null)
+    }
   }
 }

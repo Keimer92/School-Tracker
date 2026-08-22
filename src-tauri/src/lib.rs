@@ -711,6 +711,39 @@ async fn dismiss_attendance_today(_app_handle: tauri::AppHandle) -> Result<(), S
     }
 }
 
+/// Lanza el selector nativo de cuentas de Google (bottom sheet, la app no pierde
+/// el primer plano). El resultado llega al frontend por el evento
+/// `google-native-auth-result` (CustomEvent en window desde MainActivity).
+#[tauri::command]
+async fn gd_start_native_signin(server_client_id: String) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        use jni::objects::JValue;
+        unsafe {
+            let ctx = ndk_context::android_context();
+            let vm_ptr = ctx.vm();
+            let activity_ptr = ctx.context();
+            let vm = jni::JavaVM::from_raw(vm_ptr as *mut _).map_err(|e| e.to_string())?;
+            let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+            let activity = jni::objects::JObject::from_raw(activity_ptr as *mut _);
+            let j_client_id = env.new_string(&server_client_id).map_err(|e| e.to_string())?;
+            let _ = env
+                .call_method(
+                    activity,
+                    "startGoogleSignIn",
+                    "(Ljava/lang/String;)V",
+                    &[JValue::Object(&j_client_id)],
+                )
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        Err("El sign-in nativo solo está disponible en Android".to_string())
+    }
+}
+
 /// Función JNI invocada por `AttendanceNative` (Kotlin) cuando la app está
 /// cerrada y dispara la alarma de asistencia. Recibe la ruta de la BD, la
 /// fecha local y un JSON con los filtros, y devuelve el JSON de pendientes.
@@ -1201,21 +1234,38 @@ async fn gd_start_oauth_background(app: tauri::AppHandle, port: u16) -> Result<(
     *oauth_code_state().lock().map_err(|e| e.to_string())? = None;
     oauth_cancel_flag().store(false, Ordering::SeqCst);
 
-    static ONCE: OnceLock<()> = OnceLock::new();
-    ONCE.get_or_init(|| {
-        let handle = app;
-        tokio::spawn(async move {
-            use tokio::net::TcpListener;
-            use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    // Servidor arrancado una sola vez; si el bind falla se resetea el flag para
+    // permitir un reintento en la próxima llamada (evita "envenenar" el estado).
+    static SERVER_STARTED: AtomicBool = AtomicBool::new(false);
+    if SERVER_STARTED.load(Ordering::SeqCst) {
+        println!("[OAuth] TCP server already running");
+        return Ok(());
+    }
+    if SERVER_STARTED
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Ok(());
+    }
 
-            let addr = format!("127.0.0.1:{}", port);
-            println!("[OAuth] Binding TCP server to {}", addr);
-            let listener = match TcpListener::bind(&addr).await {
-                Ok(l) => { println!("[OAuth] TCP server bound OK"); l }
-                Err(e) => { eprintln!("[OAuth] TCP server bind error: {}", e); return; }
-            };
+    let handle = app;
+    tokio::spawn(async move {
+        use tokio::net::TcpListener;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-            loop {
+        let addr = format!("127.0.0.1:{}", port);
+        println!("[OAuth] Binding TCP server to {}", addr);
+        let listener = match TcpListener::bind(&addr).await {
+            Ok(l) => { println!("[OAuth] TCP server bound OK"); l }
+            Err(e) => {
+                eprintln!("[OAuth] TCP server bind error: {}", e);
+                // Permitir reintento en el próximo intento de login
+                SERVER_STARTED.store(false, Ordering::SeqCst);
+                return;
+            }
+        };
+
+        loop {
                 println!("[OAuth] Waiting for TCP connection...");
                 match listener.accept().await {
                     Ok((mut socket, peer)) => {
@@ -1275,8 +1325,6 @@ let _ = socket.write_all(response.as_bytes()).await;
                 }
             }
         });
-        ()
-    });
 
     Ok(())
 }
@@ -1597,6 +1645,7 @@ pub fn run() {
             get_attendance_silenced_today,
             set_attendance_silenced_today,
             dismiss_attendance_today,
+            gd_start_native_signin,
             get_monthly_attendance_pct,
             get_seed_options,
             seed_selected_data,

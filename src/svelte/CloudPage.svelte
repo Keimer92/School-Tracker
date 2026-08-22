@@ -115,6 +115,18 @@
   async function initGoogleAuth() {
     if (!settings.clientId) { await emit("show-toast", { message: "❌ No hay Client ID configurado", type: "error" }); return; }
     isAuthLoading = true;
+    if (isAndroid) {
+      // Selector nativo de cuentas: la app nunca pierde el primer plano
+      // (evita que Android congele el proceso y muera el TCP/deep-link)
+      try {
+        await invoke("gd_start_native_signin", { serverClientId: settings.clientId });
+      } catch (e) {
+        console.error('Native Google Auth failed:', e);
+        await emit("show-toast", { message: "❌ Error al abrir selector de Google: " + e, type: "error" });
+        isAuthLoading = false;
+      }
+      return;
+    }
     setBackAuthInProgress(true);
     try {
       const port = 51733;
@@ -131,6 +143,31 @@
         await emit("show-toast", { message: "❌ Error al autenticar con Google: " + e, type: "error" });
       }
     } finally { isAuthLoading = false; setBackAuthInProgress(false); }
+  }
+
+  // Resultado del selector nativo de Google (MainActivity emite CustomEvent en window
+  // y, si existe el global, event.emit de Tauri con el mismo nombre).
+  function handleGoogleNativeResult(detail: unknown) {
+    let res: any = detail;
+    if (typeof res === 'string') {
+      try { res = JSON.parse(res); } catch { return; }
+    }
+    if (!res) return;
+    if (!res.ok) {
+      if (!authHandled && !res.cancelled) {
+        emit("show-toast", { message: `❌ Error de Google Sign-In (${res.statusCode ?? "?"}): ${res.error ?? ""}`, type: "error" });
+      }
+      isAuthLoading = false;
+      return;
+    }
+    if (authHandled) return;
+    if (!res.serverAuthCode) {
+      isAuthLoading = false;
+      emit("show-toast", { message: "❌ Google no devolvió código de autorización", type: "error" });
+      return;
+    }
+    authHandled = true;
+    exchangeCode(res.serverAuthCode, "");
   }
 
   async function exchangeCode(code: string, redirectUri: string) {
@@ -348,21 +385,41 @@
     return unsub;
   });
 
-  // Respaldo: el código llega vía deep link (MainActivity emite 'oauth-callback-android')
+  // Respaldo: el código llega vía deep link (MainActivity emite 'oauth-callback-android'
+  // como CustomEvent en window y, si existe el global, vía event.emit de Tauri)
   // cuando Android captura la URL http://127.0.0.1:51733/callback?code=... mediante intent-filter.
-  onMount(async () => {
+  function handleNativeAuthCode(code: string) {
+    if (!code || authHandled) return;
+    authHandled = true;
+    invoke("gd_cancel_oauth").catch(() => {});
+    exchangeCode(code, "http://127.0.0.1:51733/callback");
+  }
+
+  onMount(() => {
     if (!isAndroid) return;
-    const unsub = await listen<string>("oauth-callback-android", (event) => {
-      const code = event.payload;
-      if (code && !authHandled) {
-        authHandled = true;
-        invoke("gd_cancel_oauth").catch(() => {});
-        const port = 51733;
-        const redirectUri = `http://127.0.0.1:${port}/callback`;
-        exchangeCode(code, redirectUri);
-      }
-    });
-    return unsub;
+    const nativeHandler = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail;
+      handleNativeAuthCode(detail ?? "");
+    };
+    const googleResultHandler = (e: Event) => {
+      handleGoogleNativeResult((e as CustomEvent<unknown>).detail);
+    };
+    let unsub: (() => void) | null = null;
+    let unsubResult: (() => void) | null = null;
+    listen<string>("oauth-callback-android", (event) => {
+      handleNativeAuthCode(event.payload);
+    }).then((u) => { unsub = u; }).catch(() => {});
+    listen<unknown>("google-native-auth-result", (event) => {
+      handleGoogleNativeResult(event.payload);
+    }).then((u) => { unsubResult = u; }).catch(() => {});
+    window.addEventListener("oauth-callback-android", nativeHandler);
+    window.addEventListener("google-native-auth-result", googleResultHandler);
+    return () => {
+      window.removeEventListener("oauth-callback-android", nativeHandler);
+      window.removeEventListener("google-native-auth-result", googleResultHandler);
+      if (unsub) unsub();
+      if (unsubResult) unsubResult();
+    };
   });
 </script>
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { emit, listen } from "@tauri-apps/api/event";
   import { driveSyncService } from "../lib/driveSyncService";
@@ -66,6 +67,19 @@
       if (!clientId || !clientSecret) {
         errorMsg = 'VITE_GOOGLE_CLIENT_ID y VITE_GOOGLE_CLIENT_SECRET deben estar configurados en .env';
         loading = false;
+        return;
+      }
+      if (/Android/i.test(navigator.userAgent)) {
+        // Selector nativo de cuentas: la app nunca pierde el primer plano
+        // (evita que Android congele el proceso y muera el TCP/deep-link)
+        setBackAuthInProgress(false);
+        try {
+          await invoke("gd_start_native_signin", { serverClientId: clientId });
+          // El resultado llega por el evento 'google-native-auth-result'
+        } catch (e: any) {
+          errorMsg = 'Error: ' + (typeof e === 'string' ? e : e?.message || String(e));
+          loading = false;
+        }
         return;
       }
       const redirectUri = `${/Android/i.test(navigator.userAgent) ? 'http://127.0.0.1' : 'http://localhost'}:${port}/callback`;
@@ -250,27 +264,75 @@
     ];
   }
 
-  if (/Android/i.test(navigator.userAgent)) {
-    // Respaldo: el código llega vía deep link (MainActivity emite 'oauth-callback-android')
-    // cuando Android captura http://127.0.0.1:51733/callback?code=... mediante intent-filter.
-    import("svelte").then(({ onMount }) => {
-      onMount(async () => {
-        const unsub = await listen<string>("oauth-callback-android", (event) => {
-          const code = event.payload;
-          if (code && !authHandled) {
-            invoke("gd_cancel_oauth").catch(() => {});
-            const port = 51733;
-            const redirectUri = `http://127.0.0.1:${port}/callback`;
-            finishDriveAuth(code, redirectUri).finally(() => {
-              loading = false;
-              setBackAuthInProgress(false);
-            });
-          }
-        });
-        return unsub;
-      });
-    });
+  // Respaldo: el código llega vía deep link (MainActivity emite 'oauth-callback-android'
+  // como CustomEvent en window y, si existe el global, vía event.emit de Tauri)
+  // cuando Android captura http://127.0.0.1:51733/callback?code=... mediante intent-filter.
+  async function handleNativeAuthCode(code: string) {
+    if (!code || authHandled) return;
+    authHandled = true;
+    invoke("gd_cancel_oauth").catch(() => {});
+    try {
+      await finishDriveAuth(code, "http://127.0.0.1:51733/callback");
+    } finally {
+      loading = false;
+      loadingMessage = "";
+      setBackAuthInProgress(false);
+    }
   }
+
+  // Resultado del selector nativo de Google (MainActivity emite CustomEvent en window
+  // y, si existe el global, event.emit de Tauri con el mismo nombre).
+  function handleGoogleNativeResult(detail: unknown) {
+    let res: any = detail;
+    if (typeof res === 'string') {
+      try { res = JSON.parse(res); } catch { return; }
+    }
+    if (!res) return;
+    if (!res.ok) {
+      loading = false;
+      loadingMessage = '';
+      if (!res.cancelled) {
+        errorMsg = `Error de Google Sign-In (${res.statusCode ?? "?"}): ${res.error ?? ""}`;
+      }
+      return;
+    }
+    if (authHandled) return;
+    if (!res.serverAuthCode) {
+      loading = false;
+      errorMsg = 'Google no devolvió código de autorización';
+      return;
+    }
+    authHandled = true;
+    // redirect_uri vacío: requerido para intercambiar serverAuthCode nativo
+    finishDriveAuth(res.serverAuthCode, "");
+  }
+
+  onMount(() => {
+    if (!/Android/i.test(navigator.userAgent)) return;
+    const nativeHandler = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail;
+      handleNativeAuthCode(detail ?? "");
+    };
+    let unsub: (() => void) | null = null;
+    listen<string>("oauth-callback-android", (event) => {
+      handleNativeAuthCode(event.payload);
+    }).then((u) => { unsub = u; }).catch(() => {});
+    window.addEventListener("oauth-callback-android", nativeHandler);
+    const googleResultHandler = (e: Event) => {
+      handleGoogleNativeResult((e as CustomEvent<unknown>).detail);
+    };
+    let unsubResult: (() => void) | null = null;
+    listen<unknown>("google-native-auth-result", (event) => {
+      handleGoogleNativeResult(event.payload);
+    }).then((u) => { unsubResult = u; }).catch(() => {});
+    window.addEventListener("google-native-auth-result", googleResultHandler);
+    return () => {
+      window.removeEventListener("oauth-callback-android", nativeHandler);
+      if (unsub) unsub();
+      window.removeEventListener("google-native-auth-result", googleResultHandler);
+      if (unsubResult) unsubResult();
+    };
+  });
 </script>
 
 <div class="welcome-page">

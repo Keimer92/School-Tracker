@@ -125,6 +125,7 @@ commands.allow = [
     "get_attendance_silenced_today",
     "set_attendance_silenced_today",
     "dismiss_attendance_today",
+    "gd_start_native_signin",
     "get_monthly_attendance_pct",
     "get_seed_options",
     "seed_selected_data",
