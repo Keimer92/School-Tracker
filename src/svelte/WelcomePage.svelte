@@ -88,12 +88,15 @@
           await new Promise((r) => setTimeout(r, 1000));
           try {
             const res = await invoke<string | null>("gd_take_last_native_result");
+            console.log('[NativePoll] tick, resultado=', res);
             if (res) {
               gotResult = true;
               handleGoogleNativeResult(res);
               break;
             }
-          } catch {}
+          } catch (e) {
+            console.error('[NativePoll] invoke falló:', e);
+          }
           if (authHandled) break;
         }
         if (!gotResult && !authHandled) {
@@ -128,23 +131,35 @@
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
     const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
     try {
-      const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
+      console.log('[NativeAuth] POST /token, redirect_uri="' + redirectUri + '"');
+      const tokenController = new AbortController();
+      const tokenTimeout = setTimeout(() => tokenController.abort(), 30000);
+      let tokenResponse: Response;
+      try {
+        const params: Record<string, string> = {
           client_id: clientId,
           client_secret: clientSecret,
           code,
-          redirect_uri: redirectUri,
           grant_type: 'authorization_code',
-        }),
-      });
+        };
+        if (redirectUri) params.redirect_uri = redirectUri;
+        tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams(params),
+          signal: tokenController.signal,
+        });
+      } finally {
+        clearTimeout(tokenTimeout);
+      }
       if (!tokenResponse.ok) {
         const errText = await tokenResponse.text();
+        console.error('[NativeAuth] /token falló:', tokenResponse.status, errText);
         errorMsg = 'Error intercambiando código: ' + errText;
         loading = false;
         return;
       }
+      console.log('[NativeAuth] /token OK, guardando settings...');
       const tokenData = await tokenResponse.json();
 
       const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
@@ -304,11 +319,12 @@
   // Resultado del selector nativo de Google (MainActivity emite CustomEvent en window
   // y, si existe el global, event.emit de Tauri con el mismo nombre).
   function handleGoogleNativeResult(detail: unknown) {
+    console.log('[NativeResult] entrando, detail=', detail);
     let res: any = detail;
     if (typeof res === 'string') {
-      try { res = JSON.parse(res); } catch { return; }
+      try { res = JSON.parse(res); } catch (e) { console.error('[NativeResult] JSON inválido:', e); return; }
     }
-    if (!res) return;
+    if (!res) { console.warn('[NativeResult] detail vacío'); return; }
     if (!res.ok) {
       loading = false;
       loadingMessage = '';
@@ -317,14 +333,15 @@
       }
       return;
     }
-    if (authHandled) return;
+    if (authHandled) { console.log('[NativeResult] ya manejado, ignorando'); return; }
     if (!res.serverAuthCode) {
       loading = false;
       errorMsg = 'Google no devolvió código de autorización';
       return;
     }
-    authHandled = true;
-    // redirect_uri vacío: requerido para intercambiar serverAuthCode nativo
+    console.log('[NativeResult] serverAuthCode recibido, intercambiando...');
+    // NO marcar authHandled aquí: finishDriveAuth tiene su propio guard
+    // síncrono que deduplica contra el evento/polling duplicados.
     finishDriveAuth(res.serverAuthCode, "");
   }
 

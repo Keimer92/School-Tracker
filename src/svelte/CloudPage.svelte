@@ -134,12 +134,15 @@
         await new Promise((r) => setTimeout(r, 1000));
         try {
           const res = await invoke<string | null>("gd_take_last_native_result");
+          console.log('[NativePoll] tick, resultado=', res);
           if (res) {
             gotResult = true;
             handleGoogleNativeResult(res);
             break;
           }
-        } catch {}
+        } catch (e) {
+          console.error('[NativePoll] invoke falló:', e);
+        }
         if (authHandled) break;
       }
       if (!gotResult && !authHandled) {
