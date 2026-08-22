@@ -380,6 +380,11 @@
 </script>
 
 <div class="welcome-page">
+  <div class="orbs" aria-hidden="true">
+    <span class="orb orb-a"></span>
+    <span class="orb orb-b"></span>
+    <span class="orb orb-c"></span>
+  </div>
   {#if view === 'landing'}
     <div class="welcome-container">
       <div class="welcome-brand">
@@ -388,7 +393,7 @@
         <p class="welcome-subtitle">Selecciona cómo quieres iniciar</p>
       </div>
       <div class="welcome-cards">
-        <button class="welcome-card" onclick={goToDrive} disabled={loading}>
+        <button class="welcome-card card-drive" onclick={goToDrive} disabled={loading}>
           <div class="welcome-card-icon">☁️</div>
           <div class="welcome-card-body">
             <h3>Conectar con Google Drive</h3>
@@ -396,7 +401,7 @@
           </div>
           <div class="welcome-card-arrow">→</div>
         </button>
-        <button class="welcome-card" onclick={goToWizard} disabled={loading}>
+        <button class="welcome-card card-manual" onclick={goToWizard} disabled={loading}>
           <div class="welcome-card-icon">⚙️</div>
           <div class="welcome-card-body">
             <h3>Configurar manualmente</h3>
@@ -517,38 +522,110 @@
 </div>
 
 <style>
+  /* Anti-resaltado táctil (WebView Android deja las tarjetas "enfocadas" en azul) */
+  button {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+  }
+  .welcome-card:focus, .welcome-back:focus, .wizard-item:focus,
+  .wizard-btn:focus, .wizard-back:focus { outline: none; }
+
   .welcome-page {
     position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
-    background: var(--bg-primary, #0f172a); z-index: 10000; overflow-y: auto; padding: 1rem;
+    background: var(--bg-primary, #0f172a); z-index: 10000; overflow-y: auto; overflow-x: hidden; padding: 1rem;
+  }
+  /* Orbes ambientales de vidrio */
+  .orbs { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+  .orb { position: absolute; border-radius: 50%; filter: blur(90px); opacity: 0.45; will-change: transform; animation: orbDrift 16s ease-in-out infinite alternate; }
+  .orb-a { width: 300px; height: 300px; background: #2563eb; top: -80px; left: -90px; }
+  .orb-b { width: 260px; height: 260px; background: #7c3aed; bottom: -60px; right: -80px; animation-delay: -8s; }
+  .orb-c { width: 200px; height: 200px; background: #0891b2; top: 38%; left: 58%; opacity: 0.22; animation-delay: -4s; }
+  @keyframes orbDrift {
+    from { transform: translate3d(0, 0, 0) scale(1); }
+    to { transform: translate3d(26px, -20px, 0) scale(1.1); }
   }
   .welcome-container {
     width: 100%; max-width: 520px; display: flex; flex-direction: column; align-items: center; gap: 1.5rem;
   }
   .wizard-container { max-width: 580px; }
-  .welcome-brand { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+  .welcome-brand { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
   .welcome-logo {
-    font-size: 3rem; width: 80px; height: 80px; display: flex; align-items: center; justify-content: center;
-    background: rgba(255,255,255,0.05); border-radius: 24px; border: 1px solid rgba(255,255,255,0.08);
+    font-size: 3rem; width: 84px; height: 84px; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, rgba(59,130,246,0.18), rgba(139,92,246,0.12));
+    border-radius: 26px; border: 1px solid rgba(255,255,255,0.12);
     backdrop-filter: blur(20px);
+    box-shadow: 0 12px 40px rgba(59,130,246,0.18), inset 0 1px 0 rgba(255,255,255,0.1);
+    animation: floatY 6s ease-in-out infinite;
   }
-  .welcome-title { margin: 0; font-size: 1.8rem; font-weight: 700; color: #f1f5f9; letter-spacing: -0.5px; }
+  @keyframes floatY { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+  .welcome-title {
+    margin: 0; font-size: 2rem; font-weight: 700; letter-spacing: -0.5px;
+    background: linear-gradient(135deg, #f8fafc 20%, #cbd5e1 55%, #93c5fd);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
   .welcome-subtitle { margin: 0; color: #64748b; font-size: 0.9rem; }
-  .welcome-cards { display: flex; flex-direction: column; gap: 0.85rem; width: 100%; }
+  .welcome-cards { display: flex; flex-direction: column; gap: 0.9rem; width: 100%; }
   .welcome-card {
-    display: flex; align-items: center; gap: 1rem; padding: 1.25rem;
-    background: rgba(255,255,255,0.02); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 18px; cursor: pointer; transition: all 0.2s ease; text-align: left; width: 100%;
-    color: inherit; font: inherit;
+    position: relative; overflow: hidden;
+    display: flex; align-items: center; gap: 0.95rem; padding: 1.15rem 1.2rem;
+    background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+    backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px; cursor: pointer; text-align: left; width: 100%;
+    color: inherit; font: inherit; user-select: none; -webkit-user-select: none;
+    touch-action: manipulation;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06);
+    transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
   }
+  /* Barra de acento vertical por opción */
+  .welcome-card::before {
+    content: ''; position: absolute; left: 0; top: 16px; bottom: 16px; width: 3px;
+    border-radius: 2px; opacity: 0.9;
+    background: linear-gradient(180deg, var(--accent-from, #3b82f6), var(--accent-to, #8b5cf6));
+  }
+  .card-drive { --accent-from: #38bdf8; --accent-to: #2563eb; }
+  .card-manual { --accent-from: #a78bfa; --accent-to: #7c3aed; }
   .welcome-card:hover:not(:disabled) {
-    border-color: var(--primary-color, #3b82f6); background: rgba(255,255,255,0.04); transform: translateY(-1px);
+    border-color: rgba(255,255,255,0.16);
+    background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03));
+    transform: translateY(-2px);
+    box-shadow: 0 18px 44px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.09);
+  }
+  /* Presión táctil en lugar del resaltado azul nativo */
+  .welcome-card:active:not(:disabled) {
+    transform: translateY(1px) scale(0.995);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04);
+  }
+  .welcome-card:focus-visible {
+    border-color: rgba(148,163,184,0.35);
+    box-shadow: 0 0 0 3px rgba(148,163,184,0.16), 0 12px 32px rgba(0,0,0,0.28);
   }
   .welcome-card:disabled { opacity: 0.5; cursor: not-allowed; }
-  .welcome-card-icon { font-size: 2rem; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .card-drive .welcome-card-icon {
+    background: rgba(56,189,248,0.12); border-color: rgba(56,189,248,0.25);
+    box-shadow: 0 4px 16px rgba(56,189,248,0.12), inset 0 1px 0 rgba(255,255,255,0.08);
+  }
+  .card-manual .welcome-card-icon {
+    background: rgba(167,139,250,0.12); border-color: rgba(167,139,250,0.25);
+    box-shadow: 0 4px 16px rgba(167,139,250,0.12), inset 0 1px 0 rgba(255,255,255,0.08);
+  }
+  .welcome-card-icon {
+    font-size: 1.55rem; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    border-radius: 14px; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px);
+  }
   .welcome-card-body { flex: 1; }
-  .welcome-card-body h3 { margin: 0 0 0.25rem; font-size: 1rem; color: #e2e8f0; font-weight: 600; }
-  .welcome-card-body p { margin: 0; font-size: 0.8rem; color: #64748b; line-height: 1.4; }
-  .welcome-card-arrow { font-size: 1.3rem; color: #475569; flex-shrink: 0; }
+  .welcome-card-body h3 { margin: 0 0 0.25rem; font-size: 1rem; color: #e2e8f0; font-weight: 600; letter-spacing: -0.2px; }
+  .welcome-card-body p { margin: 0; font-size: 0.8rem; color: #64748b; line-height: 1.45; }
+  .welcome-card-arrow {
+    width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.95rem; color: #94a3b8;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+    transition: all 0.2s ease;
+  }
+  .welcome-card:hover:not(:disabled) .welcome-card-arrow {
+    transform: translateX(3px); color: #e2e8f0; border-color: rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.09);
+  }
   .welcome-back {
     background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px;
     padding: 0.5rem 1rem; color: #94a3b8; cursor: pointer; font-size: 0.85rem; transition: all 0.2s ease;
