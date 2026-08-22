@@ -128,13 +128,17 @@ export const d1SyncService = {
         message: null,
         lastResult: result,
       });
-      try {
-        const p = Object.values(result?.pushed || {}).reduce((a, b) => a + Number(b || 0), 0);
-        const l = Object.values(result?.pulled || {}).reduce((a, b) => a + Number(b || 0), 0);
-        console.log(`[D1Debug] sync OK · push=${p} pull=${l} del=${result?.deletedApplied ?? 0}`);
-      } catch {}
-      if (dispatchEvents) {
+      const p = Object.values(result?.pushed || {}).reduce((a, b) => a + Number(b || 0), 0);
+      const l = Object.values(result?.pulled || {}).reduce((a, b) => a + Number(b || 0), 0);
+      const d = Number(result?.deletedApplied || 0);
+      const hadChanges = p + l + d > 0;
+      // Emitir eventos SOLO si hubo cambios reales (push o pull o borrados):
+      // así el tick periódico puede avisar a las páginas sin spamearlas.
+      if (hadChanges && dispatchEvents) {
         await emitUpdates();
+        console.log(`[D1Debug] sync OK · push=${p} pull=${l} del=${d} → eventos enviados a páginas`);
+      } else {
+        console.log(`[D1Debug] sync OK · push=${p} pull=${l} del=${d} (sin cambios)`);
       }
       markAllClean();
       return result;
@@ -196,10 +200,8 @@ export const d1SyncService = {
         return;
       }
       // Bilateral: sincroniza SIEMPRE (push de cambios locales + PULL de cambios
-      // remotos). Antes hacía return si no había tablas sucias locales, así los
-      // dispositivos nunca recibían cambios hechos en OTRO dispositivo hasta
-      // generar un cambio propio.
-      await d1SyncService.syncAllSilent(false);
+      // remotos) y con eventos activos: si trajo datos, las páginas se refrescan.
+      await d1SyncService.syncAllSilent(true);
     }, interval);
   },
 
