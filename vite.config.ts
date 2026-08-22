@@ -4,6 +4,9 @@ import topLevelAwait from "vite-plugin-top-level-await";
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST || "localhost";
+// Puertos configurables por sesión (permite dev Android y Windows independientes)
+const devPort = Number(process.env.VITE_PORT) || 1420;
+const hmrPort = Number(process.env.HMR_PORT) || devPort + 1;
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
@@ -34,12 +37,12 @@ export default defineConfig(async () => ({
     },
   },
   server: {
-    port: 1420,
+    port: devPort,
     strictPort: true,
     host: '0.0.0.0',
     hmr: {
       protocol: 'ws',
-      port: 1421,
+      port: hmrPort,
     },
     watch: {
       ignored: ["**/src-tauri/**"],

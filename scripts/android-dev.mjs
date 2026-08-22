@@ -1,10 +1,15 @@
 import { execSync, spawn } from "child_process";
 
 /**
- * Dev en Android con cable USB (devUrl localhost:1420 vía adb reverse).
- * Configura el reverse TAMBIÉN para el WebSocket de HMR (1421), que si no
- * falla con ERR_CONNECTION_REFUSED y provoca recargas del WebView.
+ * Dev en Android con cable USB, INDEPENDIENTE de la sesión de Windows:
+ * - Vite propio en los puertos 1422 (frontend) y 1423 (HMR), así puede
+ *   correr al mismo tiempo que `tauri dev` de escritorio (1420/1421).
+ * - devUrl apuntada a http://localhost:1422 vía --config.
+ * - adb reverse para ambos puertos del dispositivo.
  */
+
+const ANDROID_DEV_PORT = 1422;
+const ANDROID_HMR_PORT = 1423;
 
 function run(cmd) {
   try {
@@ -24,27 +29,27 @@ async function main() {
   }
 
   if (hasDevice) {
-    run("adb reverse tcp:1420 tcp:1420");
-    run("adb reverse tcp:1421 tcp:1421");
-    console.log("[android-dev] adb reverse listo (1420 + 1421)");
+    // Limpiar reverses previos y mapear solo los puertos de esta sesión
+    run("adb reverse --remove-all");
+    run(`adb reverse tcp:${ANDROID_DEV_PORT} tcp:${ANDROID_DEV_PORT}`);
+    run(`adb reverse tcp:${ANDROID_HMR_PORT} tcp:${ANDROID_HMR_PORT}`);
+    console.log(`[android-dev] adb reverse listo (${ANDROID_DEV_PORT} + ${ANDROID_HMR_PORT})`);
   } else {
     console.log("[android-dev] Sin dispositivo conectado; omitiendo adb reverse");
   }
 
   const args = process.argv.slice(2);
-  const shared = args.includes("--shared");
-  const passthrough = args.filter((a) => a !== "--shared");
-  if (shared) {
-    // Reutilizar el Vite ya en marcha (arrancado por dev:win u otra sesión):
-    // evita el error "Port 1420/1421 already in use".
-    console.log("[android-dev] Modo compartido: reutilizando Vite existente (sin beforeDevCommand)");
-    passthrough.push("--config", "src-tauri/tauri.no-dev-cmd.json");
-  }
+  const env = {
+    ...process.env,
+    VITE_PORT: String(ANDROID_DEV_PORT),
+    HMR_PORT: String(ANDROID_HMR_PORT),
+  };
 
-  const child = spawn("npx", ["tauri", "android", "dev", ...passthrough], {
-    stdio: "inherit",
-    shell: true,
-  });
+  const child = spawn(
+    "npx",
+    ["tauri", "android", "dev", "--config", "src-tauri/tauri.dev-android.json", ...args],
+    { stdio: "inherit", shell: true, env }
+  );
   child.on("exit", (code) => process.exit(code ?? 0));
 }
 
