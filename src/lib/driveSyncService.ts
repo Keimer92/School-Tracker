@@ -25,6 +25,12 @@ export interface DriveFile {
   createdTime: string;
 }
 
+export interface DownloadProgress {
+  loaded: number;
+  total: number;
+  pct: number;
+}
+
 interface SyncState {
   status: SyncStatus;
   lastSync: string | null;
@@ -32,6 +38,7 @@ interface SyncState {
   message: string | null;
   lastUpload: string | null;
   lastDownload: string | null;
+  downloadProgress: DownloadProgress | null;
 }
 
 type SyncListener = (state: SyncState) => void;
@@ -44,6 +51,7 @@ class SyncManager {
     message: null,
     lastUpload: localStorage.getItem('drive_last_upload'),
     lastDownload: localStorage.getItem('drive_last_download'),
+    downloadProgress: null,
   };
   private listeners: SyncListener[] = [];
 
@@ -207,7 +215,34 @@ async function downloadAndRestore(token: string, fileId: string): Promise<void> 
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) throw new Error(`Error descargando: ${response.statusText}`);
-  const blob = await response.blob();
+
+  // Descarga en streaming con reporte de progreso (bytes vs Content-Length)
+  syncManager.setState({ downloadProgress: { loaded: 0, total: 0, pct: 0 } });
+  let blob: Blob;
+  const contentLength = parseInt(response.headers.get('content-length') || '0', 10);
+  if (response.body && typeof response.body.getReader === 'function') {
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let loaded = 0;
+    let lastReported = -1;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      loaded += value.length;
+      const pct = contentLength > 0 ? Math.min(100, Math.floor((loaded / contentLength) * 100)) : -1;
+      // Notificar solo cuando cambia el porcentaje entero (máx ~100 updates)
+      if (pct !== lastReported) {
+        lastReported = pct;
+        syncManager.setState({ downloadProgress: { loaded, total: contentLength, pct: Math.max(0, pct) } });
+      }
+    }
+    blob = new Blob(chunks as BlobPart[]);
+  } else {
+    blob = await response.blob();
+  }
+  syncManager.setState({ downloadProgress: { loaded: blob.size, total: blob.size, pct: 100 } });
+
   const reader = new FileReader();
   const base64 = await new Promise<string>((resolve, reject) => {
     reader.onload = () => {
@@ -220,6 +255,7 @@ async function downloadAndRestore(token: string, fileId: string): Promise<void> 
   });
   const dbPath = await invoke<string>('get_db_path');
   await invoke('gd_create_backup', {});
+  syncManager.setState({ downloadProgress: null });
   await invoke('gd_write_file_base64', { path: dbPath, contentBase64: base64 });
   await invoke('gd_reload_database', {});
   syncManager.setState({ lastDownload: now() });

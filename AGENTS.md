@@ -186,12 +186,18 @@ syncManager.subscribe((state) => { ... })
 // state: { status, lastUpload, lastDownload, lastSync, message }
 ```
 
-### OAuth de Google Drive (flujo actual)
+### OAuth de Google Drive
 
-**Importante**: Google Cloud Console NO acepta schemes custom (`schooltrackerpro://...`)
-porque no tienen TLD público. El redirect URI real es
-`http://localhost:51733/callback`. OAuth se inicia desde `CloudPage.svelte` y
-`WelcomePage.svelte` llamando a `invoke("gd_open_auth_webview", { url })`.
+**IMPORTANTE (2026-08)**: En Android el flujo principal es **Google Sign-In NATIVO**
+(bottom sheet de Play Services, ver sección siguiente). El flujo de navegador/TCP
+descrito aquí abajo queda como flujo de **desktop** (Windows/macOS/Linux) y
+respaldo histórico en Android.
+
+**Desktop**: Google Cloud Console NO acepta schemes custom (`schooltrackerpro://...`)
+porque no tienen TLD público. El redirect URI real (web client, registrado junto a
+`http://127.0.0.1:51733/callback`) es `http://localhost:51733/callback`. OAuth se
+inicia desde `CloudPage.svelte` y `WelcomePage.svelte` llamando a
+`invoke("gd_open_auth_webview", { url })`.
 
 El flujo usa **doble vía de captura del código** (redundancia) + estado global en Rust
 para sobrevivir recargas de página/HMR:
@@ -202,18 +208,23 @@ para sobrevivir recargas de página/HMR:
 2. **`gd_open_auth_webview`** (`lib.rs`):
    - Extrae el puerto (`extract_oauth_port_from_auth_url`) y limpia estado/cancelación.
    - Llama a `gd_start_oauth_background` (servidor TCP en `127.0.0.1:51733`).
-   - **Android**: abre el navegador del sistema vía `tauri-plugin-opener`
+   - **Android (solo fallback)**: abre el navegador del sistema vía `tauri-plugin-opener`
      (`app.opener().open_url(...)`) y **hace polling** de `oauth_code_state()`
-     cada 200 ms (hasta ~120 s). El servidor TCP captura la redirección y guarda el código.
-   - **Desktop (Windows/macOS/Linux)**: crea una ventana WebView `"google-auth"` con el
+     cada 200 ms (hasta ~120 s). ⚠️ Este path es NO fiable en dispositivo real:
+     Android congela el proceso en background y el TCP server no responde.
+   - **Desktop**: crea una ventana WebView `"google-auth"` con el
      callback `on_navigation`. Si la URL contiene `code=` lo envía por canal; si es el
      callback localhost (`is_localhost_oauth_callback`) devuelve `true` para que la
      navegación ocurra y el **servidor TCP también lo capture** (respaldo). Cierra la
      ventana al recibir el código y detecta cierre manual por el usuario → "cancelada".
 3. **`gd_start_oauth_background`** (`lib.rs`): servidor TCP asíncrono arrancado una sola
-   vez (`OnceLock`, task `tokio::spawn` con `AppHandle` propio) → **sobrevive recargas**.
-   Lee el request HTTP, extrae `code=`, lo guarda en `oauth_code_state()`, emite el evento
-   `google-auth-code` y responde con un HTML de "Conectado".
+   vez (flag `SERVER_STARTED: AtomicBool`, task `tokio::spawn` con `AppHandle` propio)
+   → **sobrevive recargas**; si el bind falla el flag se resetea para reintentar
+   (antes usaba `OnceLock` y quedaba "envenenado" para siempre). Lee el request HTTP,
+   extrae `code=`, lo guarda en `oauth_code_state()`, emite el evento
+   `google-auth-code` y responde HTML que redirige a `schooltracker-auth://callback?code=...`
+   (scheme custom registrado en el AndroidManifest; antes apuntaba a
+   `schooltrackerpro://` que NO está registrado → el navegador nunca volvía a la app).
 4. **Estado global** (OnceLock, sobrevive recargas de página):
    - `oauth_code_state()` → `Mutex<Option<String>>` con el código pendiente.
    - `oauth_cancel_flag()` → `AtomicBool` para cancelar desde el frontend.
@@ -226,6 +237,76 @@ para sobrevivir recargas de página/HMR:
 6. **`gd_open_url_browser(app, url)`**: recibe `AppHandle` y en Android usa
    `tauri-plugin-opener` (plugin registrado en `run()`); en desktop usa
    `rundll32`/`open`/`xdg-open`.
+
+### OAuth nativo en Android (flujo principal, 2026-08)
+
+Google Sign-In clásico (`com.google.android.gms:play-services-auth:21.2.0`) con
+`requestServerAuthCode(webClientId)` + scope `drive.file`. La app **nunca sale del
+primer plano** → evita el congelamiento del proceso que mataba el flujo por navegador.
+
+Cadena completa:
+1. Frontend (`WelcomePage.handleDriveConnect` / `CloudPage.initGoogleAuth`) detecta
+   Android → `invoke("gd_start_native_signin", { serverClientId })`.
+2. Rust JNI (`obtain_native_bridge`) → `MainActivity.startGoogleSignIn(serverClientId)`
+   → lanza intent de GoogleSignIn vía `googleSignInLauncher`
+   (`registerForActivityResult` en `onCreate`). Antes hace `signOut()` (async;
+   normalmente Google auto-selecciona la última cuenta = "Welcome back" sin picker).
+3. Resultado → `handleGoogleSignInResult` → JSON `{ok, serverAuthCode, email,
+   displayName, photoUrl}` o `{ok:false, cancelled, statusCode, error}`
+   (statusCode 12501 = cancelado por usuario; 10 = DEVELOPER_ERROR → falta registrar
+   el cliente Android con el SHA-1 en GCP).
+4. **Doble entrega al frontend** (redundancia anti-recarga de WebView):
+   - Evento JS: `emitGoogleAuthResult` inyecta CustomEvent `google-native-auth-result`
+     en `window` (⚠️ NO usar `window.__TAURI__.event.emit` como único medio: sin
+     `withGlobalTauri:true` ese global NO existe).
+   - Estático Kotlin `lastNativeAuthResult` + comando Rust
+     `gd_take_last_native_result` (patrón take). Las páginas hacen polling cada 1 s
+     hasta 180 s como respaldo.
+5. Frontend intercambia el `serverAuthCode` en `finishDriveAuth(code, "")` /
+   `exchangeCode(code, "")`: POST `oauth2.googleapis.com/token` con web client id +
+   secret y **SIN redirect_uri** (se omite la clave cuando viene vacío). Devuelve
+   access+refresh tokens que se guardan en
+   `localStorage['schooltracker-google-drive-settings']` → todo el resto de la app
+   (driveSyncService, refresh, push/pull) funciona sin cambios.
+
+Piezas clave:
+- `MainActivity.kt`: `initNativeBridge()` (external, llamado en `onCreate`),
+  `startGoogleSignIn`, `handleGoogleSignInResult`, `emitGoogleAuthResult`,
+  `lastNativeAuthResult` (@Volatile static), `takeLastGoogleAuthResult`.
+- `lib.rs`: `NATIVE_BRIDGE: Mutex<Option<(usize /*vm ptr*/, GlobalRef)>>`,
+  `Java_..._MainActivity_initNativeBridge` (llenar caché),
+  `obtain_native_bridge()` (cache-first; fallback ndk_context con catch_unwind),
+  comandos `gd_start_native_signin`, `gd_take_last_native_result`.
+- GCP Console requiere clientes OAuth tipo **Android** (paquete
+  `com.keimer.schooltrackerpro`): SHA-1 debug
+  `49:50:A3:FF:0E:BB:34:AC:A9:44:45:90:F0:BB:83:54:E7:47:58:E5`, SHA-1 release keystore
+  `3C:7D:22:D4:97:D0:E3:72:51:83:85:B2:12:01:45:15:30:77:0F:78`, y el SHA-1 de
+  **Play App Signing** cuando se publique en la tienda (Play Console → Firma de apps).
+
+GOTCHAS aprendidos (no repetir):
+- **`ndk_context::android_context()` NO está inicializado** en este setup de Tauri 2
+  (el glue nunca llama initialize) → panics "android context was not initialized".
+  SIEMPRE usar el puente propio (`initNativeBridge` desde Kotlin + `NATIVE_BRIDGE`);
+  envolver cualquier acceso legacy en `catch_unwind`.
+- **Svelte 5**: `onMount` debe importarse estáticamente y llamarse durante la
+  inicialización del componente (nada de `import("svelte").then(...)` ni awaits previos).
+- Un guard tipo `if (authHandled) return` al inicio de un async + setear la flag ANTES
+  de llamarlo = la función se auto-bloquea (bug real que dejó el flujo colgado).
+- Los eventos JS muere si el WebView se recarga (HMR): por eso existe el polling.
+- Barra de progreso de descarga: `syncManager.downloadProgress {loaded,total,pct}`;
+  streaming con `response.body.getReader()` vs header `Content-Length`; UI en
+  WelcomePage (primera conexión) y CloudPage (restaurar).
+
+### Dev Android (HMR silencioso)
+
+`npm run dev:android` ejecuta `scripts/android-dev.mjs`: configura
+`adb reverse tcp:1420` Y `tcp:1421` antes de lanzar tauri dev. Sin el reverse de 1421
+el WebSocket de HMR falla (`ERR_CONNECTION_REFUSED`), Vite termina recargando la
+página y se pierden eventos/invoke pendientes (los scripts init de Tauri se
+re-inyectan y sueltan `Cannot redefine property: postMessage/__TAURI_PATTERN__`).
+Alternativa WiFi/emulador: `dev:android:hmr` / `dev:android:device`
+(`scripts/android-hmr.mjs`, setea `TAURI_DEV_HOST`).
+
 
 **GOTCHAS**:
 - Todos estos comandos deben estar en `src-tauri/permissions/local-commands.toml`

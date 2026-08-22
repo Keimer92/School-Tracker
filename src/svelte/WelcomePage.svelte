@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { emit, listen } from "@tauri-apps/api/event";
-  import { driveSyncService } from "../lib/driveSyncService";
+  import { driveSyncService, syncManager, type DownloadProgress } from "../lib/driveSyncService";
   import { setBackAuthInProgress } from "../lib/androidBack";
 
   let view: 'landing' | 'cloud' | 'wizard' = $state('landing');
@@ -10,6 +10,14 @@
   let loading = $state(false);
   let loadingMessage = $state('');
   let errorMsg = $state('');
+
+  // Progreso de descarga de la BD desde Drive (reportado por driveSyncService)
+  let downloadProgress = $state<DownloadProgress | null>(null);
+  function fmtBytes(n: number): string {
+    if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+    if (n >= 1024) return (n / 1024).toFixed(0) + ' KB';
+    return n + ' B';
+  }
 
   let seedOptions: any = $state(null);
   let selectedAnos = $state<Set<string>>(new Set());
@@ -88,7 +96,6 @@
           await new Promise((r) => setTimeout(r, 1000));
           try {
             const res = await invoke<string | null>("gd_take_last_native_result");
-            console.log('[NativePoll] tick, resultado=', res);
             if (res) {
               gotResult = true;
               handleGoogleNativeResult(res);
@@ -131,7 +138,6 @@
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
     const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
     try {
-      console.log('[NativeAuth] POST /token, redirect_uri="' + redirectUri + '"');
       const tokenController = new AbortController();
       const tokenTimeout = setTimeout(() => tokenController.abort(), 30000);
       let tokenResponse: Response;
@@ -159,7 +165,6 @@
         loading = false;
         return;
       }
-      console.log('[NativeAuth] /token OK, guardando settings...');
       const tokenData = await tokenResponse.json();
 
       const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
@@ -319,12 +324,11 @@
   // Resultado del selector nativo de Google (MainActivity emite CustomEvent en window
   // y, si existe el global, event.emit de Tauri con el mismo nombre).
   function handleGoogleNativeResult(detail: unknown) {
-    console.log('[NativeResult] entrando, detail=', detail);
     let res: any = detail;
     if (typeof res === 'string') {
       try { res = JSON.parse(res); } catch (e) { console.error('[NativeResult] JSON inválido:', e); return; }
     }
-    if (!res) { console.warn('[NativeResult] detail vacío'); return; }
+    if (!res) return;
     if (!res.ok) {
       loading = false;
       loadingMessage = '';
@@ -333,17 +337,19 @@
       }
       return;
     }
-    if (authHandled) { console.log('[NativeResult] ya manejado, ignorando'); return; }
+    if (authHandled) return;
     if (!res.serverAuthCode) {
       loading = false;
       errorMsg = 'Google no devolvió código de autorización';
       return;
     }
-    console.log('[NativeResult] serverAuthCode recibido, intercambiando...');
     // NO marcar authHandled aquí: finishDriveAuth tiene su propio guard
     // síncrono que deduplica contra el evento/polling duplicados.
     finishDriveAuth(res.serverAuthCode, "");
   }
+
+  // Suscripción al progreso de descarga (todas las plataformas)
+  onMount(() => syncManager.subscribe((s) => { downloadProgress = s.downloadProgress ?? null; }));
 
   onMount(() => {
     if (!/Android/i.test(navigator.userAgent)) return;
@@ -401,9 +407,25 @@
       </div>
       {#if loading}
         <div class="welcome-loading">
-          <div class="welcome-loading-bar">
-            <div class="welcome-loading-bar-inner"></div>
-          </div>
+          {#if downloadProgress}
+            <div class="dl-progress-wrap">
+              <div class="dl-progress-bar">
+                <div class="dl-progress-fill" style="width: {downloadProgress.pct}%;"></div>
+              </div>
+              <p class="welcome-loading-text">
+                Descargando base de datos · {downloadProgress.pct}%
+                {#if downloadProgress.total > 0}
+                  · {fmtBytes(downloadProgress.loaded)} / {fmtBytes(downloadProgress.total)}
+                {:else}
+                  · {fmtBytes(downloadProgress.loaded)}
+                {/if}
+              </p>
+            </div>
+          {:else}
+            <div class="welcome-loading-bar">
+              <div class="welcome-loading-bar-inner"></div>
+            </div>
+          {/if}
           <p class="welcome-loading-text">{loadingMessage}</p>
           <button onclick={cancelAuth} style="margin-top:0.5rem;background:transparent;border:1px solid rgba(239,68,68,0.35);color:#f87171;padding:0.45rem 1.25rem;border-radius:8px;cursor:pointer;font-size:0.8rem;font-weight:600;transition:all 0.2s">
             Cancelar
@@ -537,6 +559,9 @@
   .welcome-loading-bar { width: 100%; max-width: 320px; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
   .welcome-loading-bar-inner { width: 100%; height: 100%; background: linear-gradient(90deg, var(--primary-color, #3b82f6), #a78bfa); border-radius: 2px; animation: loadingBar 1.5s ease-in-out infinite; }
   .welcome-loading-text { margin: 0; color: #64748b; font-size: 0.8rem; }
+  .dl-progress-wrap { width: 100%; max-width: 320px; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+  .dl-progress-bar { width: 100%; height: 8px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden; border: 1px solid rgba(255,255,255,0.06); }
+  .dl-progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary-color, #3b82f6), #a78bfa); border-radius: 4px; transition: width 0.2s ease; box-shadow: 0 0 12px rgba(59,130,246,0.35); }
   @keyframes loadingBar { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
   .welcome-error { color: #f87171; font-size: 0.85rem; text-align: center; padding: 0.6rem 1rem; background: rgba(248,113,113,0.08); border-radius: 10px; width: 100%; max-width: 400px; border: 1px solid rgba(248,113,113,0.15); }
 

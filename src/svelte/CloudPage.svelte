@@ -28,7 +28,12 @@
     googleUserEmail: null, googleUserName: null, googleUserProfilePic: null,
   });
 
-  let syncStatus = $state<{ status: SyncStatus; lastSync: string | null; lastSyncDetails: string | null; message: string | null; }>({ status: "idle", lastSync: null, lastSyncDetails: null, message: null });
+  let syncStatus = $state<{ status: SyncStatus; lastSync: string | null; lastSyncDetails: string | null; message: string | null; downloadProgress?: { loaded: number; total: number; pct: number } | null; }>({ status: "idle", lastSync: null, lastSyncDetails: null, message: null });
+  function fmtBytes(n: number): string {
+    if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+    if (n >= 1024) return (n / 1024).toFixed(0) + ' KB';
+    return n + ' B';
+  }
   const storedSyncSeconds = parseInt(localStorage.getItem('periodic_sync_interval_seconds') || '300', 10);
   let syncInterval = $state(Math.round((storedSyncSeconds || 300) / 60));
   let isAuthLoading = $state(false);
@@ -134,7 +139,6 @@
         await new Promise((r) => setTimeout(r, 1000));
         try {
           const res = await invoke<string | null>("gd_take_last_native_result");
-          console.log('[NativePoll] tick, resultado=', res);
           if (res) {
             gotResult = true;
             handleGoogleNativeResult(res);
@@ -613,6 +617,24 @@
         {#if syncStatus.message}
           <div style="margin-bottom: 1rem; padding: 8px 12px; border-radius: 8px; font-size: 0.75rem; border-left: 3px solid {syncStatus.status === 'error' ? '#ef4444' : 'var(--primary-color)'}; background: rgba(0,0,0,0.2); color: {syncStatus.status === 'error' ? '#fca5a5' : 'var(--text-secondary)'};">
             {syncStatus.message}
+          </div>
+        {/if}
+
+        {#if syncStatus.downloadProgress && syncStatus.downloadProgress.pct < 100}
+          <div style="margin-bottom: 1rem;">
+            <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden; border: 1px solid rgba(255,255,255,0.06);">
+              <div style="height: 100%; background: linear-gradient(90deg, var(--primary-color, #3b82f6), #a78bfa); border-radius: 4px; transition: width 0.2s ease; box-shadow: 0 0 12px rgba(59,130,246,0.35); width: {syncStatus.downloadProgress.pct}%;"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: 4px; font-size: 0.7rem; color: #64748b;">
+              <span>Descargando base de datos</span>
+              <span>
+                {#if syncStatus.downloadProgress.total > 0}
+                  {fmtBytes(syncStatus.downloadProgress.loaded)} / {fmtBytes(syncStatus.downloadProgress.total)} · {syncStatus.downloadProgress.pct}%
+                {:else}
+                  {fmtBytes(syncStatus.downloadProgress.loaded)}
+                {/if}
+              </span>
+            </div>
           </div>
         {/if}
 
