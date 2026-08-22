@@ -132,6 +132,11 @@
   }
 
   function handleTabChange(tab: Tab) {
+    // Pull bilateral al navegar: trae cambios hechos en otros dispositivos
+    // sin esperar al timer periódico.
+    void (async () => {
+      try { if (await isD1Configured()) await syncService.syncAllSilent(); } catch {}
+    })();
     // Migración: el quick-action "Reportes" del Dashboard abre la página unificada en su sub-tab Reportes
     if ((tab as string) === "reportes") {
       notasSubTabRequest = "reportes";
@@ -300,6 +305,20 @@
           syncService.syncAllSilent();
           syncService.ensurePeriodicSync();
         }
+      });
+
+      // Pull bilateral pasivo: traer cambios de otros dispositivos sin esperar
+      // al timer ni generar un cambio local.
+      const d1TrySync = async () => {
+        try { if (await isD1Configured()) await syncService.syncAllSilent(); } catch {}
+      };
+      const d1OnVisible = () => { if (!document.hidden) void d1TrySync(); };
+      const d1OnOnline = () => void d1TrySync();
+      document.addEventListener("visibilitychange", d1OnVisible);
+      window.addEventListener("online", d1OnOnline);
+      unlisten.push(() => {
+        document.removeEventListener("visibilitychange", d1OnVisible);
+        window.removeEventListener("online", d1OnOnline);
       });
       invoke("seed_defaults_now");
 

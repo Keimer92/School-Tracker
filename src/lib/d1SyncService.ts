@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
-import { markDirty, markAllDirty, markAllClean, hasDirtyTables } from './dirtyTracker';
+import { markDirty, markAllDirty, markAllClean } from './dirtyTracker';
 
 export type D1Status = 'idle' | 'syncing' | 'error' | 'success' | 'offline';
 
@@ -189,13 +189,11 @@ export const d1SyncService = {
         d1SyncService.stopPeriodicSync();
         return;
       }
-      if (!hasDirtyTables()) {
-        d1SyncManager.setState({ status: 'idle', message: null });
-        return;
-      }
-      d1SyncManager.setState({ status: 'syncing', message: 'Sync automático...' });
+      // Bilateral: sincroniza SIEMPRE (push de cambios locales + PULL de cambios
+      // remotos). Antes hacía return si no había tablas sucias locales, así los
+      // dispositivos nunca recibían cambios hechos en OTRO dispositivo hasta
+      // generar un cambio propio.
       await d1SyncService.syncAllSilent(false);
-      d1SyncManager.setState({ status: 'idle', message: null });
     }, interval);
   },
 
