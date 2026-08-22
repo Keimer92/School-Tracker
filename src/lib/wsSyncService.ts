@@ -143,15 +143,28 @@ function connect(url: string) {
 }
 
 /** Conecta (o reconecta si cambió la config). Idempotente. */
+let lastGoodCfg: D1Cfg | null = null;
+
 export async function ensureWsSync(): Promise<void> {
   bindGlobalListeners();
   let cfg: D1Cfg | null = null;
-  try { cfg = await invoke<D1Cfg | null>('d1_get_config'); } catch { return; }
+  try {
+    cfg = await invoke<D1Cfg | null>('d1_get_config');
+    if (!cfg) wsLog('d1_get_config devolvió null (sin configurar)');
+  } catch (e) {
+    console.error('[WsSync] ❌ d1_get_config falló:', e);
+  }
+  // Fallback: usar la última config buena si la consulta falla
+  if (!cfg && lastGoodCfg) {
+    console.warn('[WsSync] usando config cacheada tras fallo de d1_get_config');
+    cfg = lastGoodCfg;
+  }
   if (!cfg?.workerUrl || !cfg?.schoolKey || !cfg?.deviceId) {
     wsLog('sin config D1 — WS apagado');
     stopWsSync();
     return;
   }
+  lastGoodCfg = cfg;
   intentionalClose = false;
   myDeviceId = cfg.deviceId;
   const url = buildWsUrl(cfg);

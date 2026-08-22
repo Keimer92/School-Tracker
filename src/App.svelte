@@ -243,8 +243,10 @@
     }
 
     // Check if app has been initialized (welcomed)
+    console.log('[D1Debug] onMount: consultando is_app_initialized…');
     const init = await invoke('is_app_initialized');
     initialized = init;
+    console.log(`[D1Debug] onMount: init=${init}`);
 
     if (init) {
       // Existing init logic only runs if already initialized
