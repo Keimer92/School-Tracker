@@ -37,7 +37,7 @@
   const storedSyncSeconds = parseInt(localStorage.getItem('periodic_sync_interval_seconds') || '300', 10);
   let syncInterval = $state(Math.round((storedSyncSeconds || 300) / 60));
   const storedAutoBackup = parseInt(localStorage.getItem('drive_auto_backup_minutes') || '', 10);
-  let autoBackupMins = $state(Number.isFinite(storedAutoBackup) && storedAutoBackup > 0 ? storedAutoBackup : 180);
+  let autoBackupHours = $state(Number.isFinite(storedAutoBackup) && storedAutoBackup > 0 ? Math.max(1, Math.round(storedAutoBackup / 60)) : 3);
 
   function filePlatform(name: string): 'Windows' | 'Android' | null {
     if (/_Windows_/i.test(name)) return 'Windows';
@@ -659,15 +659,15 @@
         </div>
 
         <!-- Respaldo automático -->
-        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; padding: 0.6rem 0.85rem; background: rgba(0,0,0,0.15); border-radius: 10px; margin-bottom: 0.75rem;">
-          <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="display: flex; flex-direction: column; gap: 6px; padding: 0.65rem 0.85rem; background: rgba(0,0,0,0.15); border-radius: 10px; margin-bottom: 0.75rem;">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
             <div style="width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.4);"></div>
             <span style="color: #94a3b8; font-size: 0.8rem;">Respaldo automático cada</span>
-            <input type="number" min={1} max={10080} bind:value={autoBackupMins} style="width: 56px; padding: 0.2rem 0.35rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; text-align: center; outline: none;" />
-            <span style="color: #64748b; font-size: 0.75rem;">minutos</span>
-            <button onclick={() => { const m = Math.max(1, Math.min(10080, autoBackupMins)); autoBackupMins = m; driveSyncService.setAutoBackupInterval(m); emit("show-toast", { message: `✅ Respaldo automático cada ${m} min`, type: "success" }); }} style="padding: 0.3rem 0.7rem; border-radius: 6px; border: 1px solid rgba(var(--primary-rgb),0.3); background: rgba(var(--primary-rgb),0.1); color: var(--primary-color); cursor: pointer; font-size: 0.7rem; font-weight: 600;">Guardar</button>
+            <input type="number" min={1} max={168} bind:value={autoBackupHours} style="width: 52px; padding: 0.2rem 0.35rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.3); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; text-align: center; outline: none;" />
+            <span style="color: #64748b; font-size: 0.75rem;">horas</span>
+            <button onclick={() => { const h = Math.max(1, Math.min(168, autoBackupHours)); autoBackupHours = h; driveSyncService.setAutoBackupInterval(h * 60); emit("show-toast", { message: `✅ Respaldo automático cada ${h} h`, type: "success" }); }} style="padding: 0.3rem 0.7rem; border-radius: 6px; border: 1px solid rgba(var(--primary-rgb),0.3); background: rgba(var(--primary-rgb),0.1); color: var(--primary-color); cursor: pointer; font-size: 0.7rem; font-weight: 600; margin-left: auto;">Guardar</button>
           </div>
-          <span style="color: #64748b; font-size: 0.7rem; margin-left: auto;">📁 Keimer Labs/School Tracker MINED · solo sube si hay cambios</span>
+          <span style="color: #64748b; font-size: 0.7rem;">📁 Keimer Labs/School Tracker MINED · solo sube si hay cambios</span>
         </div>
 
         <!-- Sync files -->
