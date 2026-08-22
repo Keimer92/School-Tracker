@@ -136,7 +136,10 @@
     // Pull bilateral al navegar: trae cambios hechos en otros dispositivos
     // sin esperar al timer periódico.
     void (async () => {
-      try { if (await isD1Configured()) await syncService.syncAllSilent(); } catch {}
+      try {
+        console.log('[D1Debug] sync disparado (navegación)');
+        if (await isD1Configured()) { await ensureWsSync(); await syncService.syncAllSilent(); }
+      } catch {}
     })();
     // Migración: el quick-action "Reportes" del Dashboard abre la página unificada en su sub-tab Reportes
     if ((tab as string) === "reportes") {
@@ -310,18 +313,19 @@
 
       // Pull bilateral pasivo: traer cambios de otros dispositivos sin esperar
       // al timer ni generar un cambio local.
-      const d1TrySync = async () => {
+      const d1TrySync = async (source: string = 'manual') => {
         try {
-          if (await isD1Configured()) {
-            await ensureWsSync();
-            await syncService.syncAllSilent();
-          } else {
-            stopWsSync();
-          }
-        } catch {}
+          const ok = await isD1Configured();
+          console.log(`[D1Debug] sync disparado (${source}) · config=${ok}`);
+          if (!ok) { stopWsSync(); return; }
+          await ensureWsSync();
+          await syncService.syncAllSilent();
+        } catch (e) {
+          console.error('[D1Debug] error en sync disparado:', e);
+        }
       };
-      const d1OnVisible = () => { if (!document.hidden) void d1TrySync(); };
-      const d1OnOnline = () => void d1TrySync();
+      const d1OnVisible = () => { if (!document.hidden) void d1TrySync('foreground'); };
+      const d1OnOnline = () => void d1TrySync('online');
       document.addEventListener("visibilitychange", d1OnVisible);
       window.addEventListener("online", d1OnOnline);
       unlisten.push(() => {

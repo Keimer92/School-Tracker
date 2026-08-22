@@ -128,6 +128,11 @@ export const d1SyncService = {
         message: null,
         lastResult: result,
       });
+      try {
+        const p = Object.values(result?.pushed || {}).reduce((a, b) => a + Number(b || 0), 0);
+        const l = Object.values(result?.pulled || {}).reduce((a, b) => a + Number(b || 0), 0);
+        console.log(`[D1Debug] sync OK · push=${p} pull=${l} del=${result?.deletedApplied ?? 0}`);
+      } catch {}
       if (dispatchEvents) {
         await emitUpdates();
       }
@@ -184,6 +189,7 @@ export const d1SyncService = {
     const interval = Math.max(30, Math.min(3600, parseInt(intervalStr || '300') || 300)) * 1000;
     if ((d1SyncService as any)._periodicTimer) clearInterval((d1SyncService as any)._periodicTimer);
     (d1SyncService as any)._periodicTimer = setInterval(async () => {
+      console.log('[D1Debug] tick periódico');
       const cfg = await getConfig();
       if (!cfg) {
         d1SyncService.stopPeriodicSync();
