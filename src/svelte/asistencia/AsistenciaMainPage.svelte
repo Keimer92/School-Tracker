@@ -42,6 +42,54 @@
   function switchTo(tab: SubTab) {
     activeSub = tab;
   }
+
+  // ── Swipe horizontal para alternar sub-tabs (solo Android) ──
+  // Deslizar a la izquierda → Informe · Deslizar a la derecha → Tomar asistencia.
+  // Se ignora el gesto si inicia dentro de un elemento con scroll horizontal propio
+  // (chips mensuales, filas semanales, tablas anchas) o dentro de un modal/overlay fijo.
+  let isAndroidUA = /Android/i.test(navigator.userAgent);
+  let swipeStartX = 0;
+  let swipeStartY = 0;
+  let swipeEligible = false;
+
+  function isSwipeBlockedTarget(e: Event): boolean {
+    const path = e.composedPath ? (e.composedPath() as EventTarget[]) : [];
+    for (const node of path) {
+      if (!(node instanceof HTMLElement)) continue;
+      const st = getComputedStyle(node);
+      // Modales/overlays fijos de las páginas hijas
+      if (st.position === "fixed") {
+        const z = parseInt(st.zIndex, 10);
+        if (!Number.isNaN(z) && z >= 100) return true;
+      }
+      // Áreas con scroll horizontal propio
+      if ((st.overflowX === "auto" || st.overflowX === "scroll") && node.scrollWidth > node.clientWidth + 4) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function onContentTouchStart(e: TouchEvent) {
+    if (!isAndroidUA || e.touches.length !== 1) { swipeEligible = false; return; }
+    const t = e.touches[0];
+    swipeStartX = t.clientX;
+    swipeStartY = t.clientY;
+    swipeEligible = !isSwipeBlockedTarget(e);
+  }
+
+  function onContentTouchEnd(e: TouchEvent) {
+    if (!isAndroidUA) return;
+    if (!swipeEligible) { swipeEligible = false; return; }
+    swipeEligible = false;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - swipeStartX;
+    const dy = t.clientY - swipeStartY;
+    if (Math.abs(dx) >= 70 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      if (dx < 0 && activeSub === "tomar") switchTo("informe");
+      else if (dx > 0 && activeSub === "informe") switchTo("tomar");
+    }
+  }
 </script>
 
 <div class="asistencia-main" style="height:100%;min-height:0">
@@ -56,7 +104,7 @@
     </button>
   </div>
 
-  <div style="flex:1;min-height:0;position:relative">
+  <div style="flex:1;min-height:0;position:relative" ontouchstart={onContentTouchStart} ontouchend={onContentTouchEnd}>
     {#if mountedRegistrar}
       <div style="display:{activeSub === 'tomar' ? 'block' : 'none'};height:100%">
         <AsistenciaPage visible={pageActive && activeSub === 'tomar'} />
