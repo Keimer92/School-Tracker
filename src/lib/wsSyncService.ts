@@ -1,14 +1,14 @@
-import { invoke } from '@tauri-apps/api/core';
+﻿import { invoke } from '@tauri-apps/api/core';
 import { d1SyncService } from './d1SyncService';
 
 /**
- * Push en tiempo real vía WebSocket contra el Worker (hub por school key).
+ * Push en tiempo real vÃ­a WebSocket contra el Worker (hub por school key).
  *
  - Al recibir `{"type":"changes","from":"<otro dispositivo>"}` dispara un
-   `syncAllSilent()` con debounce pequeño (los ráfagas se agrupan).
- - Reconexión con backoff exponencial (1s → 30s), re-intento al recuperar red
+   `syncAllSilent()` con debounce pequeÃ±o (los rÃ¡fagas se agrupan).
+ - ReconexiÃ³n con backoff exponencial (1s â†’ 30s), re-intento al recuperar red
    y al volver la app a primer plano.
- - Los pings cada 25 s los responde el servidor automáticamente sin despertar
+ - Los pings cada 25 s los responde el servidor automÃ¡ticamente sin despertar
    el Durable Object (setWebSocketAutoResponse).
  */
 
@@ -50,12 +50,12 @@ function schedulePull() {
   if (pullTimer) clearTimeout(pullTimer);
   pullTimer = setTimeout(() => {
     pullTimer = null;
-    console.log('[WsSync] pull disparado por aviso remoto');
+    console.log('[WsSync-Debug] pull disparado por aviso remoto');
     void d1SyncService.syncAllSilent();
   }, PULL_DEBOUNCE_MS);
 }
 
-// ── DEBUG: inspecciona desde consola con window.__wsDebug() ──
+// â”€â”€ DEBUG: inspecciona desde consola con window.__wsDebug() â”€â”€
 let lastClose: { code: number; reason: string; at: number } | null = null;
 let lastMsgAt = 0;
 let openedOnce = false;
@@ -71,7 +71,13 @@ let openedOnce = false;
   intentionalClose,
 });
 
-function wsLog(...args: unknown[]) { console.log('[WsSync]', ...args); }
+function wsLog(...args: unknown[]) { console.log('[WsSync-Debug]', ...args); }
+
+// Auto-arranque desacoplado de App.svelte: garantiza intento de conexiÃ³n
+// ~1.2s despuÃ©s de cargar el bundle, venga de donde venga.
+if (typeof window !== 'undefined') {
+  setTimeout(() => { void ensureWsSync(); }, 1200);
+}
 
 function clearPing() {
   if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
@@ -81,7 +87,7 @@ function scheduleReconnect() {
   if (intentionalClose || reconnectTimer) return;
   const delay = Math.min(MAX_BACKOFF_MS, 1000 * Math.pow(2, reconnectAttempts));
   reconnectAttempts++;
-  console.log(`[WsSync] reconectando en ${delay}ms (intento ${reconnectAttempts})`);
+  console.log(`[WsSync-Debug] reconectando en ${delay}ms (intento ${reconnectAttempts})`);
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
     void ensureWsSync();
@@ -101,14 +107,14 @@ function connect(url: string) {
   try {
     ws = new WebSocket(url);
   } catch (e) {
-    console.error('[WsSync] error creando WebSocket:', e);
+    console.error('[WsSync-Debug] error creando WebSocket:', e);
     scheduleReconnect();
     return;
   }
   ws.onopen = () => {
     reconnectAttempts = 0;
     openedOnce = true;
-    wsLog('✅ conectado al hub:', url);
+    wsLog('âœ… conectado al hub:', url);
     clearPing();
     pingTimer = setInterval(() => {
       if (ws && ws.readyState === WebSocket.OPEN) {
@@ -118,7 +124,7 @@ function connect(url: string) {
   };
   ws.onmessage = (ev) => {
     lastMsgAt = Date.now();
-    wsLog('📩 mensaje:', String(ev.data));
+    wsLog('ðŸ“© mensaje:', String(ev.data));
     try {
       const m = JSON.parse(String(ev.data));
       if (m?.type === 'changes' && m.from && m.from !== myDeviceId) {
@@ -129,20 +135,20 @@ function connect(url: string) {
   ws.onclose = (ev: CloseEvent) => {
     lastClose = { code: ev.code, reason: ev.reason, at: Date.now() };
     const everOpened = openedOnce;
-    wsLog(`❌ cerrado code=${ev.code} reason="${ev.reason || '-'}" (abrió antes: ${everOpened})`);
+    wsLog(`âŒ cerrado code=${ev.code} reason="${ev.reason || '-'}" (abriÃ³ antes: ${everOpened})`);
     if (!everOpened && (ev.code === 1006 || ev.code === 1015)) {
-      console.warn('[WsSync] ⚠️ Nunca pudo abrirse el WebSocket. Causas típicas: ' +
-        '1) El worker NO tiene desplegada la versión con /ws → ejecuta `npx wrangler deploy` en cloudflare-sync. ' +
+      console.warn('[WsSync-Debug] âš ï¸ Nunca pudo abrirse el WebSocket. Causas tÃ­picas: ' +
+        '1) El worker NO tiene desplegada la versiÃ³n con /ws â†’ ejecuta `npx wrangler deploy` en cloudflare-sync. ' +
         '2) URL/key incorrecta.');
     }
     ws = null;
     clearPing();
     scheduleReconnect();
   };
-  ws.onerror = () => { wsLog('⚠️ error de socket'); };
+  ws.onerror = () => { wsLog('âš ï¸ error de socket'); };
 }
 
-/** Conecta (o reconecta si cambió la config). Idempotente. */
+/** Conecta (o reconecta si cambiÃ³ la config). Idempotente. */
 let lastGoodCfg: D1Cfg | null = null;
 
 export async function ensureWsSync(): Promise<void> {
@@ -150,17 +156,17 @@ export async function ensureWsSync(): Promise<void> {
   let cfg: D1Cfg | null = null;
   try {
     cfg = await invoke<D1Cfg | null>('d1_get_config');
-    if (!cfg) wsLog('d1_get_config devolvió null (sin configurar)');
+    if (!cfg) wsLog('d1_get_config devolviÃ³ null (sin configurar)');
   } catch (e) {
-    console.error('[WsSync] ❌ d1_get_config falló:', e);
+    console.error('[WsSync-Debug] âŒ d1_get_config fallÃ³:', e);
   }
-  // Fallback: usar la última config buena si la consulta falla
+  // Fallback: usar la Ãºltima config buena si la consulta falla
   if (!cfg && lastGoodCfg) {
-    console.warn('[WsSync] usando config cacheada tras fallo de d1_get_config');
+    console.warn('[WsSync-Debug] usando config cacheada tras fallo de d1_get_config');
     cfg = lastGoodCfg;
   }
   if (!cfg?.workerUrl || !cfg?.schoolKey || !cfg?.deviceId) {
-    wsLog('sin config D1 — WS apagado');
+    wsLog('sin config D1 â€” WS apagado');
     stopWsSync();
     return;
   }
@@ -168,7 +174,7 @@ export async function ensureWsSync(): Promise<void> {
   intentionalClose = false;
   myDeviceId = cfg.deviceId;
   const url = buildWsUrl(cfg);
-  if (!url) { wsLog('URL inválida desde workerUrl:', cfg.workerUrl); return; }
+  if (!url) { wsLog('URL invÃ¡lida desde workerUrl:', cfg.workerUrl); return; }
   if (ws && currentUrl === url && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
   wsLog('conectando a:', url);
   closeSocketSilently();
@@ -177,7 +183,7 @@ export async function ensureWsSync(): Promise<void> {
   connect(url);
 }
 
-/** Cierra la conexión y cancela reconexiones (config eliminada). */
+/** Cierra la conexiÃ³n y cancela reconexiones (config eliminada). */
 export function stopWsSync(): void {
   intentionalClose = true;
   closeSocketSilently();
@@ -195,3 +201,4 @@ function bindGlobalListeners() {
     if (!document.hidden) void ensureWsSync();
   });
 }
+
