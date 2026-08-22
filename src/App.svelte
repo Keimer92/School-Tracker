@@ -8,8 +8,7 @@
   import { isD1Configured } from "./lib/syncService";
   import { driveSyncService } from "./lib/driveSyncService";
   import { getLocalDateISOString } from "./lib/dateUtils";
-  import AsistenciaPage from "./svelte/AsistenciaPage.svelte";
-  import InformePage from "./svelte/InformePage.svelte";
+  import AsistenciaMainPage from "./svelte/asistencia/AsistenciaMainPage.svelte";
   import NotasPage from "./svelte/NotasPage.svelte";
   import ReportesPage from "./svelte/ReportesPage.svelte";
   import EvaluacionesPage from "./svelte/EvaluacionesPage.svelte";
@@ -21,19 +20,20 @@
   import CloudCards from "./svelte/CloudCards.svelte";
   import WelcomePage from "./svelte/WelcomePage.svelte";
 
-  type Tab = "dashboard" | "notas" | "reportes" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "informe" | "cloud";
+  type Tab = "dashboard" | "notas" | "reportes" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "cloud";
 
   let initialized = $state<boolean | null>(null);
   let isMobile = $state(false);
   let isAndroid = $state(false);
   let activeTab = $state<Tab>("dashboard");
-  let visitedTabs = $state<Set<Tab>>(new Set(["dashboard", "notas", "reportes", "estudiantes", "evaluaciones", "globales", "ajustes", "asistencia", "informe", "cloud"]));
+  let visitedTabs = $state<Set<Tab>>(new Set(["dashboard", "notas", "reportes", "estudiantes", "evaluaciones", "globales", "ajustes", "asistencia", "cloud"]));
   let sidebarWidth = $state(Math.min(Math.max(220, Math.floor(window.innerWidth * 0.16)), 260));
   let drawerOpen = $state(false);
   let isResizing = $state(false);
   let toast: { message: string; type: string; isOpen: boolean } = $state({ message: "", type: "info", isOpen: false });
   let unlisten: (() => void)[] = [];
   let ajustesTabRequest = $state<string | null>(null);
+  let asistenciaSubTabRequest = $state<string | null>(null);
 
   // Theme state: "claro" | "oscuro" | "sistema"
   let themeMode = $state(localStorage.getItem("app-theme") || "sistema");
@@ -133,6 +133,13 @@
   }
 
   function handleTabChange(tab: Tab) {
+    // Migración: el quick-action "Informe" del Dashboard abre la página unificada en su sub-tab Informe
+    if ((tab as string) === "informe") {
+      asistenciaSubTabRequest = "informe";
+      setActiveTab("asistencia");
+      if (isMobile) drawerOpen = false;
+      return;
+    }
     if (tab === "cloud") {
       ajustesTabRequest = "nube";
       setActiveTab("ajustes");
@@ -140,6 +147,7 @@
       return;
     }
     ajustesTabRequest = null;
+    asistenciaSubTabRequest = null;
     setActiveTab(tab);
     if (isMobile) drawerOpen = false;
   }
@@ -225,11 +233,20 @@
     if (init) {
       // Existing init logic only runs if already initialized
       const saved = localStorage.getItem("active-tab") as Tab | null;
-      if (saved) activeTab = saved;
+      // Migración: la antigua página 'informe' ahora vive como sub-tab de 'asistencia'
+      if (saved === "informe") { activeTab = "asistencia"; localStorage.setItem("active-tab", "asistencia"); }
+      else if (saved) activeTab = saved;
       const w = localStorage.getItem("sidebar-width");
       if (w) sidebarWidth = parseInt(w);
       const visits = localStorage.getItem("visited-tabs");
-      if (visits) { try { visitedTabs = new Set(JSON.parse(visits)); } catch {} }
+      if (visits) {
+        try {
+          const parsed = JSON.parse(visits) as string[];
+          // Migración de visited-tabs históricos
+          if (parsed.includes("informe")) { visitedTabs.add("asistencia"); }
+          visitedTabs = new Set(parsed.filter(t => t !== "informe"));
+        } catch {}
+      }
       const savedMode = localStorage.getItem("app-theme") || "sistema";
       themeMode = savedMode;
       applyTheme(savedMode);
@@ -348,10 +365,7 @@
       <div style="display: {activeTab === 'dashboard' ? 'block' : 'none'}; width: 100%; height: 100%;"><DashboardPage onNavigate={handleTabChange} /></div>
     {/if}
     {#if visitedTabs.has('asistencia')}
-      <div style="display: {activeTab === 'asistencia' ? 'block' : 'none'}; width: 100%; height: 100%;"><AsistenciaPage /></div>
-    {/if}
-    {#if visitedTabs.has('informe')}
-      <div style="display: {activeTab === 'informe' ? 'block' : 'none'}; width: 100%; height: 100%;"><InformePage /></div>
+      <div style="display: {activeTab === 'asistencia' ? 'block' : 'none'}; width: 100%; height: 100%;"><AsistenciaMainPage pageActive={activeTab === 'asistencia'} subTabRequest={asistenciaSubTabRequest} /></div>
     {/if}
     {#if visitedTabs.has('notas')}
       <div style="display: {activeTab === 'notas' ? 'block' : 'none'}; width: 100%; height: 100%;"><NotasPage /></div>

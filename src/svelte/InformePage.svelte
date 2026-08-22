@@ -24,6 +24,9 @@
     jueves: boolean; viernes: boolean; sabado: boolean; domingo: boolean;
   }
 
+  // Visible = la página contenedora está activa Y este es el sub-tab seleccionado.
+  let { visible = true }: { visible?: boolean } = $props();
+
   let anos: CategoryItem[] = $state([]);
   let colegios: CategoryItem[] = $state([]);
   let grados: CategoryItem[] = $state([]);
@@ -60,9 +63,21 @@
   let selectedStudentDetail: AsistenciaReporteItem | null = $state(null);
 
   $effect(() => {
+    if (!visible) return;
     if (selectedStudentDetail) {
       return registerBackHandler(() => { selectedStudentDetail = null; return true; });
     }
+  });
+
+  // Refresco silencioso al volver a verse (transición oculto → visible)
+  let wasVisible = visible;
+  $effect(() => {
+    const nowVisible = visible;
+    const prev = wasVisible;
+    wasVisible = nowVisible;
+    if (!nowVisible || prev) return;
+    silentRefresh = true;
+    fetchReporte();
   });
   let printHtml: string | null = $state(null);
 

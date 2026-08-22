@@ -17,6 +17,10 @@
   interface EstudianteAsistencia { id: number; nombre: string; codigo: string; sexo: string; estado: string | null; observacion: string | null; }
   interface DiaEstado { estado: string | null; observacion: string | null; }
 
+  // Visible = la página contenedora está activa Y este es el sub-tab seleccionado.
+  // Controla el registro del back-handler y el refresco silencioso al volver a verse.
+  let { visible = true }: { visible?: boolean } = $props();
+
   let anos: CategoryItem[] = $state([]);
   let colegios: CategoryItem[] = $state([]);
   let grados: CategoryItem[] = $state([]);
@@ -42,8 +46,26 @@
   let selectedStudentDetail: EstudianteAsistencia | null = $state(null);
 
   $effect(() => {
+    if (!visible) return;
     if (selectedStudentDetail) {
       return registerBackHandler(() => { selectedStudentDetail = null; return true; });
+    }
+  });
+
+  // Refresco silencioso al volver a verse (transición oculto → visible)
+  let wasVisible = visible;
+  $effect(() => {
+    const nowVisible = visible;
+    const prev = wasVisible;
+    wasVisible = nowVisible;
+    if (!nowVisible || prev) return;
+    if (selectedAno && selectedColegio && selectedGrado && selectedSeccion) {
+      refreshingSilent = true;
+      if (periodo === "diario") {
+        if (selectedFecha && isFechaHabilitada) fetchEstudiantes();
+      } else {
+        fetchEstudiantesMulti();
+      }
     }
   });
   let showClearConfirm = $state(false);
