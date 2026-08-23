@@ -41,7 +41,6 @@
   let saving = $state(false);
   let hasUnsavedChanges = $state(false);
   let pendingRefreshOnSave = $state(false);
-  let pressingStatus: string | null = $state(null);
   let showSummaryModal = $state<{ show: boolean; type: string; stats: { total: number; m: number; f: number } | null }>({ show: false, type: "", stats: null });
   let selectedStudentDetail: EstudianteAsistencia | null = $state(null);
 
@@ -82,7 +81,6 @@
   let pageVisible = $state(true);
 
   let draft: Record<number, { estado: string | null; observacion: string | null }> = {};
-  let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 
   type AsistenciaPeriodo = "diario" | "semanal" | "mensual";
   let periodo = $state<AsistenciaPeriodo>((localStorage.getItem("asistencia_periodo") as AsistenciaPeriodo) || "diario");
@@ -594,21 +592,6 @@
     } else { setter(value); }
   }
 
-  function handleLongPressStart(estado: string) {
-    if (longPressTimer) return;
-    pressingStatus = estado;
-    longPressTimer = setTimeout(() => {
-      marcarTodos(estado); pressingStatus = null; longPressTimer = null;
-      const card = document.querySelector(`.summary-card.${estado.toLowerCase()}`);
-      if (card) { card.classList.add('pulse-feedback'); setTimeout(() => card.classList.remove('pulse-feedback'), 500); }
-    }, 1500);
-  }
-
-  function handleLongPressEnd() {
-    if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
-    pressingStatus = null;
-  }
-
   function getActiveStudentCount(): number {
     if (periodo === "diario") return estudiantes.length;
     return estudiantesMulti.length;
@@ -636,7 +619,6 @@
   <style>
     .summary-card{background:rgba(255,255,255,0.02);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:0.5rem 0.25rem;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:60px;min-width:0;transition:all 0.25s cubic-bezier(0.4,0,0.2,1);user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;position:relative;overflow:hidden;cursor:pointer}
     .summary-card:hover{transform:translateY(-2px);border-color:rgba(255,255,255,0.12);background:rgba(255,255,255,0.04)}
-    .summary-card.pressing{transform:scale(0.96);background:rgba(255,255,255,0.08)}
     .card-accent{position:absolute;top:0;left:0;right:0;height:3px;border-radius:12px 12px 0 0}
     .card-icon{font-size:1rem;margin-bottom:2px;line-height:1}
     .card-value{font-size:1.05rem;font-weight:700;color:#fff;line-height:1.2}
@@ -683,9 +665,6 @@
     .semanal-status.estado-j{background:rgba(245,158,11,0.15);border-color:#f59e0b;color:#f59e0b}
     .semanal-obs{width:100%;padding:0.2rem 0.35rem;border-radius:4px;border:1px solid rgba(255,255,255,0.06);background:rgba(0,0,0,0.2);color:#fff;font-size:0.6rem;outline:none;box-sizing:border-box;margin-top:2px;transition:border-color 0.2s}
     .semanal-obs:focus{border-color:var(--primary-color)}
-    .pressing-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10000;backdrop-filter:blur(3px);pointer-events:none}
-    .mass-marking-spinner{width:60px;height:60px;border:5px solid rgba(255,255,255,0.1);border-left-color:var(--primary-color);border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:1rem;box-shadow:0 0 15px rgba(var(--primary-rgb), 0.5)}
-    @keyframes spin{to{transform:rotate(360deg)}}
   </style>
 
   <PageLayout>
@@ -788,19 +767,16 @@
             <div onclick={() => handleCardClick('Total', { total: totalEstudiantes, m: totalM, f: totalF })} style="display:flex;align-items:center;gap:2px;cursor:pointer">
               <span style="color:#06b6d4;font-weight:bold;font-size:0.8rem">E:</span><span style="color:#fff;font-weight:bold;font-size:0.9rem">{totalEstudiantes}</span>
             </div>
-            <div onclick={() => handleCardClick('Presentes', statsP)} onmousedown={() => handleLongPressStart('P')} onmouseup={handleLongPressEnd} onmouseleave={handleLongPressEnd}
-              ontouchstart={(e) => { e.preventDefault(); handleLongPressStart('P'); }} ontouchend={handleLongPressEnd}
-              style="display:flex;align-items:center;gap:2px;cursor:pointer;position:relative">
+            <div onclick={() => handleCardClick('Presentes', statsP)}
+              style="display:flex;align-items:center;gap:2px;cursor:pointer">
               <span style="color:#10b981;font-weight:bold;font-size:0.8rem">P:</span><span style="color:#fff;font-weight:bold;font-size:0.9rem">{statsP.total}</span>
             </div>
-            <div onclick={() => handleCardClick('Ausentes', statsA)} onmousedown={() => handleLongPressStart('A')} onmouseup={handleLongPressEnd} onmouseleave={handleLongPressEnd}
-              ontouchstart={(e) => { e.preventDefault(); handleLongPressStart('A'); }} ontouchend={handleLongPressEnd}
-              style="display:flex;align-items:center;gap:2px;cursor:pointer;position:relative">
+            <div onclick={() => handleCardClick('Ausentes', statsA)}
+              style="display:flex;align-items:center;gap:2px;cursor:pointer">
               <span style="color:#ef4444;font-weight:bold;font-size:0.8rem">A:</span><span style="color:#fff;font-weight:bold;font-size:0.9rem">{statsA.total}</span>
             </div>
-            <div onclick={() => handleCardClick('Justificados', statsJ)} onmousedown={() => handleLongPressStart('J')} onmouseup={handleLongPressEnd} onmouseleave={handleLongPressEnd}
-              ontouchstart={(e) => { e.preventDefault(); handleLongPressStart('J'); }} ontouchend={handleLongPressEnd}
-              style="display:flex;align-items:center;gap:2px;cursor:pointer;position:relative">
+            <div onclick={() => handleCardClick('Justificados', statsJ)}
+              style="display:flex;align-items:center;gap:2px;cursor:pointer">
               <span style="color:#f59e0b;font-weight:bold;font-size:0.8rem">J:</span><span style="color:#fff;font-weight:bold;font-size:0.9rem">{statsJ.total}</span>
             </div>
           </div>
@@ -816,30 +792,21 @@
             <span class="card-label">Total</span>
             <div class="card-gender"><span class="gender-m">M:{totalM}</span><span class="gender-f">F:{totalF}</span></div>
           </div>
-          <div class="summary-card" class:pressing={pressingStatus === 'P'} onclick={() => handleCardClick('Presentes', statsP)}
-            onmousedown={() => handleLongPressStart('P')} onmouseup={handleLongPressEnd} onmouseleave={handleLongPressEnd}
-            ontouchstart={(e) => { e.preventDefault(); handleLongPressStart('P'); }} ontouchend={handleLongPressEnd} oncontextmenu={(e) => e.preventDefault()}
-            title="Mantén presionado para marcar todos como Presente">
+          <div class="summary-card" onclick={() => handleCardClick('Presentes', statsP)}>
             <div class="card-accent" style="background:#10b981"></div>
             <span class="card-icon">✅</span>
             <span class="card-value">{statsP.total}</span>
             <span class="card-label">Presentes</span>
             <div class="card-gender"><span class="gender-m">M:{statsP.m}</span><span class="gender-f">F:{statsP.f}</span></div>
           </div>
-          <div class="summary-card" class:pressing={pressingStatus === 'A'} onclick={() => handleCardClick('Ausentes', statsA)}
-            onmousedown={() => handleLongPressStart('A')} onmouseup={handleLongPressEnd} onmouseleave={handleLongPressEnd}
-            ontouchstart={(e) => { e.preventDefault(); handleLongPressStart('A'); }} ontouchend={handleLongPressEnd} oncontextmenu={(e) => e.preventDefault()}
-            title="Mantén presionado para marcar todos como Ausente">
+          <div class="summary-card" onclick={() => handleCardClick('Ausentes', statsA)}>
             <div class="card-accent" style="background:#ef4444"></div>
             <span class="card-icon">❌</span>
             <span class="card-value">{statsA.total}</span>
             <span class="card-label">Ausentes</span>
             <div class="card-gender"><span class="gender-m">M:{statsA.m}</span><span class="gender-f">F:{statsA.f}</span></div>
           </div>
-          <div class="summary-card" class:pressing={pressingStatus === 'J'} onclick={() => handleCardClick('Justificados', statsJ)}
-            onmousedown={() => handleLongPressStart('J')} onmouseup={handleLongPressEnd} onmouseleave={handleLongPressEnd}
-            ontouchstart={(e) => { e.preventDefault(); handleLongPressStart('J'); }} ontouchend={handleLongPressEnd} oncontextmenu={(e) => e.preventDefault()}
-            title="Mantén presionado para marcar todos como Justificado">
+          <div class="summary-card" onclick={() => handleCardClick('Justificados', statsJ)}>
             <div class="card-accent" style="background:#f59e0b"></div>
             <span class="card-icon">⚠️</span>
             <span class="card-value">{statsJ.total}</span>
@@ -1194,15 +1161,6 @@
           <div style="display:inline-block;padding:0.3rem 0.8rem;border-radius:20px;background:{selectedStudentDetail.sexo === 'M' ? 'rgba(96,165,250,0.1)' : 'rgba(244,114,182,0.1)'};color:{selectedStudentDetail.sexo === 'M' ? '#60a5fa' : '#f472b6'};font-size:0.85rem;font-weight:600;margin-top:0.3rem">{selectedStudentDetail.sexo === 'M' ? 'Masculino' : 'Femenino'}</div>
         </div>
         <button class="primary" onclick={() => selectedStudentDetail = null} style="margin-top:1rem;width:100%">Cerrar</button>
-      </div>
-    </div>
-  {/if}
-
-  {#if pressingStatus}
-    <div class="pressing-overlay">
-      <div class="mass-marking-spinner"></div>
-      <div style="color:white;font-weight:bold;font-size:1.1rem;text-shadow:0 2px 10px rgba(0,0,0,0.5);text-align:center;padding:0 2rem">
-        Marcando todos como {pressingStatus === 'P' ? 'Presentes' : pressingStatus === 'A' ? 'Ausentes' : 'Justificados'}...
       </div>
     </div>
   {/if}
