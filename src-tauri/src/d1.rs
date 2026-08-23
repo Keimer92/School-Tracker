@@ -169,7 +169,10 @@ pub fn d1_reset_device_id(state: tauri::State<'_, DbState>) -> Result<String, St
     let new_id = generate_device_id();
     let n = conn
         .execute(
-            "UPDATE d1_config SET device_id = ?1 WHERE id = 1",
+            // last_sync = NULL fuerza un re-pull completo desde época en el
+            // próximo sync (idempotente gracias al upsert LWW). Útil cuando el
+            // cursor quedó ADELANTE del reloj real (desfase entre dispositivos).
+            "UPDATE d1_config SET device_id = ?1, last_sync = NULL WHERE id = 1",
             rusqlite::params![new_id],
         )
         .map_err(|e| e.to_string())?;
@@ -506,8 +509,17 @@ pub async fn d1_sync_all(state: tauri::State<'_, DbState>) -> Result<Value, Stri
     // Confirmar: los borrados pendientes locales ya se aplicaron en el Worker
     clear_all_pending_deletions(&tx)?;
 
-    // Actualizar last_sync
-    let new_sync = now_sqlite();
+    // Cursor AUTORITATIVO del servidor (reloj único de Cloudflare). Antes se
+    // usaba el reloj local de cada dispositivo: un reloj adelantado hacía que
+    // su cursor superara los updated_at de las filas escritas por el otro y
+    // éstas nunca se pullaban ("la nueva sí llegó, la anterior no").
+    let new_sync = pull_resp
+        .get("serverTime")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .unwrap_or_else(now_sqlite);
+    println!("[D1] nuevo cursor last_sync=\"{}\" (fuente: {})", new_sync,
+        if pull_resp.get("serverTime").is_some() { "servidor" } else { "reloj local (fallback)" });
     tx.execute(
         "UPDATE d1_config SET last_sync = ?1, updated_at = datetime('now') WHERE id = 1",
         params![new_sync],

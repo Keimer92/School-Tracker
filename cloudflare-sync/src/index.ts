@@ -357,7 +357,7 @@ WHERE excluded.updated_at > sync_tombstone.updated_at
           device_id: t.device_id,
         }));
 
-        return json({ ok: true, rows, deleted });
+        return json({ ok: true, rows, deleted, serverTime: nowSqlite() });
       }
 
       if (path === '/ids') {
