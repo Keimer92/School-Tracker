@@ -184,8 +184,11 @@ async function routeToDb(env: Env, req: Request): Promise<string> {
   return dbId;
 }
 
-/** Upsert LWW: solo se sobrescribe si (updated_at, device_id) del nuevo gana. */
-function buildUpsert(table: string, rows: any[], deviceId: string): { sql: string; params: any[] } {
+/** Upsert LWW: el updated_at lo asigna el SERVIDOR (orden real de llegada),
+ *  ignorando el reloj local del cliente. Esto elimina toda la clase de bugs
+ *  por desfase de reloj entre dispositivos (un reloj adelantado vencía
+ *  sistematicamente a los cambios posteriores del otro). */
+function buildUpsert(table: string, rows: any[], deviceId: string, serverNow: string): { sql: string; params: any[] } {
   const def = TABLES[table];
   const upsertCols = [...def.cols, 'device_id'];
   const pkTarget = def.pk.join(', ');
@@ -198,6 +201,7 @@ function buildUpsert(table: string, rows: any[], deviceId: string): { sql: strin
   for (const row of rows) {
     const vals = upsertCols.map((c, i) => {
       if (c === 'device_id') return deviceId;
+      if (c === 'updated_at') return serverNow;
       let v: any = row[c] ?? null;
       // Marshall SQLite integers -> JSON (el cliente manda enteros/booleanos ya serializados)
       if (typeof v === 'boolean') v = v ? 1 : 0;
@@ -262,13 +266,14 @@ export default {
         const statements: { sql: string; params: any[] }[] = [];
         const stats: Record<string, number> = {};
 
+        const serverNow = nowSqlite();
         for (const [table, rows] of Object.entries(data)) {
           if (!VALID_TABLES.has(table) || !Array.isArray(rows) || rows.length === 0) continue;
           const def = TABLES[table];
           const chunkSize = Math.max(1, Math.floor(90 / (def.cols.length + 1)));
           for (let i = 0; i < rows.length; i += chunkSize) {
             const chunk = rows.slice(i, i + chunkSize);
-            statements.push(buildUpsert(table, chunk, deviceId));
+            statements.push(buildUpsert(table, chunk, deviceId, serverNow));
           }
           stats[table] = rows.length;
         }
@@ -278,7 +283,7 @@ export default {
           if (!VALID_TABLES.has(del.tabla)) continue;
           const def = TABLES[del.tabla];
           const w = def.pk.map((c, i) => `${c} = ?${i + 1}`).join(' AND ');
-          const ts = del.updated_at || nowSqlite();
+          const ts = serverNow;
           const tsSql = `INSERT INTO sync_tombstone (tabla, pk, updated_at, device_id)
 VALUES (?1, ?2, ?3, ?4)
 ON CONFLICT(tabla, pk) DO UPDATE SET updated_at = excluded.updated_at, device_id = excluded.device_id
