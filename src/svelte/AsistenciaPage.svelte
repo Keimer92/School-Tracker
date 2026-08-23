@@ -302,6 +302,18 @@
     }
   }
 
+  /** Aplica un reemplazo de datos preservando el scroll de la tabla
+   *  (los refrescos silenciosos por sync no deben devolver al usuario arriba). */
+  function withPreservedScroll(apply: () => void) {
+    const wrap = document.querySelector('.scroll-table-wrapper') as HTMLElement | null;
+    const top = wrap?.scrollTop ?? 0;
+    apply();
+    if (wrap && top > 0) {
+      requestAnimationFrame(() => { if (wrap.isConnected) wrap.scrollTop = top; });
+      setTimeout(() => { if (wrap.isConnected) wrap.scrollTop = top; }, 60);
+    }
+  }
+
   async function fetchEstudiantes() {
     if (!refreshingSilent) loading = true;
     refreshingSilent = false;
@@ -310,10 +322,12 @@
         fecha: selectedFecha, anoLectivoId: selectedAno, colegioId: selectedColegio,
         gradoId: selectedGrado, seccionId: selectedSeccion, sexo: selectedSexo || null,
       });
-      estudiantes = data.map(est => {
-        const d = draft[est.id];
-        if (d) return { ...est, estado: d.estado !== undefined ? d.estado : est.estado, observacion: d.observacion !== undefined ? d.observacion : est.observacion };
-        return est;
+      withPreservedScroll(() => {
+        estudiantes = data.map(est => {
+          const d = draft[est.id];
+          if (d) return { ...est, estado: d.estado !== undefined ? d.estado : est.estado, observacion: d.observacion !== undefined ? d.observacion : est.observacion };
+          return est;
+        });
       });
       fetchMonthlyPct();
     } catch (error) {
@@ -348,20 +362,22 @@
         fechaInicio: fechas[0], fechaFin: fechas[fechas.length - 1],
         gradoId: selectedGrado, seccionId: selectedSeccion, sexo: selectedSexo || null,
       });
-      estudiantesMulti = data.map(est => {
-        const diasRecord: Record<string, DiaEstado> = {};
-        for (const d of est.dias) {
-          diasRecord[d.fecha] = { estado: d.estado, observacion: d.observacion };
-        }
-        const savedDraft = draftMulti[est.id];
-        if (savedDraft) {
-          for (const fecha of fechas) {
-            if (savedDraft[fecha]) {
-              diasRecord[fecha] = { ...diasRecord[fecha], ...savedDraft[fecha] };
+      withPreservedScroll(() => {
+        estudiantesMulti = data.map(est => {
+          const diasRecord: Record<string, DiaEstado> = {};
+          for (const d of est.dias) {
+            diasRecord[d.fecha] = { estado: d.estado, observacion: d.observacion };
+          }
+          const savedDraft = draftMulti[est.id];
+          if (savedDraft) {
+            for (const fecha of fechas) {
+              if (savedDraft[fecha]) {
+                diasRecord[fecha] = { ...diasRecord[fecha], ...savedDraft[fecha] };
+              }
             }
           }
-        }
-        return { id: est.id, nombre: est.nombre, codigo: est.codigo, sexo: est.sexo, dias: diasRecord };
+          return { id: est.id, nombre: est.nombre, codigo: est.codigo, sexo: est.sexo, dias: diasRecord };
+        });
       });
     } catch (error) {
       console.error("Error fetching multi students:", error);

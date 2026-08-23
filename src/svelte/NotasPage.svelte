@@ -706,12 +706,15 @@
         if (cuantitativasMap[n.estudianteId]) cuantitativasMap[n.estudianteId][n.criterioId] = n.valor;
       });
       if (isActuallySilent) { history = []; redoStack = []; hasUnsavedChanges = false; hasUnsavedRef = false; }
+      // Preservar el estudiante que el usuario está viendo durante refrescos
+      const keepIdx = Math.min(currentStudentIdx, Math.max(0, data.length - 1));
       notas = data.map(est => ({
         estudianteId: est.id,
         estudianteNombre: est.nombre,
         notas: cuantitativasMap[est.id] || {}
       }));
       notasCualitativas = { ...notasMap };
+      if (keepIdx > 0 && keepIdx < estudiantes.length) currentStudentIdx = keepIdx;
       if (isActuallySilent) {
         setTimeout(() => {
           allCriterios.forEach((criterio, critIdx) => {
