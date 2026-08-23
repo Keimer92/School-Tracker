@@ -24,32 +24,47 @@ Idioma del cÃ³digo y comentarios: **espaÃ±ol**. Mantener asÃ­.
 
 ## Estructura
 ```
-package.json                 scripts npm (dev, build, tauri, dev:android)
-vite.config.ts               puerto dev 1420; plugin svelte + top-level-await
+package.json                 scripts npm (dev, build, tauri, dev:android, dev:win)
+vite.config.ts               puertos por env (VITE_PORT/HMR_PORT; default 1420/1421);
+                             plugin svelte + top-level-await
 svelte.config.js             Svelte 5 (componentApi: 4 compat)
 tsconfig.json                target ES2015, strict; excluye solo src/svelte/GoogleDriveBackup.svelte
 .env                         solo variables de Google Drive (VITE_GOOGLE_CLIENT_ID/SECRET)
 src/
   main.ts                    bootstrap; ventana 'google-login' maneja OAuth
-  App.svelte                 shell: sidebar + tabs (notas, reportes, estudiantes,
-                              evaluaciones, globales, asistencia, informe, cloud, ajustes)
+  App.svelte                 shell: sidebar + tabs (dashboard, asistencia [sub-tabs
+                              tomar/informe], notas [sub-tabs registrar/reportes],
+                              evaluaciones, estudiantes, globales, ajustes, cloud)
+                             PÃ¡ginas fusionadas: ver svelte/asistencia/ y svelte/notas/
   App.css
   svelte/                    pÃ¡ginas UI (*Page.svelte) y componentes reutilizables
+    asistencia/              AsistenciaMainPage.svelte (wrapper sub-tabs: AsistenciaPage + InformePage)
+    notas/                   NotasMainPage.svelte (wrapper sub-tabs: NotasPage + ReportesPage)
+    CloudCards.svelte        cards Nube D1 / Respaldo Drive (drawer mÃ³vil + header desktop)
   lib/
-    driveSyncService.ts      ÃšNICO servicio de sync: pushAll/pullAll sube/baja el
-                              archivo school.db completo desde/a Google Drive.
-                              Contiene SyncManager (estado: status, lastUpload, lastDownload,
-                              lastSync, message) con subscribe().
-    syncService.ts           Delegado simple de driveSyncService (exporta syncService,
-                              syncManager, type SyncStatus). TambiÃ©n exporta forcePullAsistencia
-                              y forcePullNotas que llaman a pullAllSilent().
+    driveSyncService.ts      Respaldo por ARCHIVO COMPLETO school.db en Google Drive.
+                             SyncManager (status, lastUpload/Download, lastSync,
+                             downloadProgress) con subscribe(). Carpeta destino:
+                             Keimer Labs/School Tracker MINED (mÃ¡x 3 respaldos,
+                             nombre incluye _Windows/_Android). Auto-respaldo cada N
+                             min (drive_auto_backup_minutes, default 180).
+    d1SyncService.ts         SYNC BILATERAL Cloudflare D1 (ver secciÃ³n dedicada).
+                             Dual-cursor: last_sync=servidor(pull), last_push_sync=
+                             local(push). emitUpdates() dispara refrescos de pÃ¡ginas.
+    wsSyncService.ts         Push tiempo real: WebSocket al Worker (hub por school
+                             key). Auto-arranque 1.2s, backoff 1sâ†’30s, ping 25s.
+                             Debug: window.__wsDebug(). Prefijo logs [WsSync-Debug].
+    syncService.ts           Delegador: enruta a d1SyncService si D1 configurado;
+                             Drive queda como respaldo. invalidateD1Cache().
     dirtyTracker.ts          marcas de tablas "sucias" para saber quÃ© ha cambiado
     googleDriveBackupService.ts
     dateUtils.ts
-    autoSync.ts              helper onDataChange(table) para marcar dirty
+    autoSync.ts              helper onDataChange(table,{immediate}) â†’ flush â†’ syncAllSilent
 src-tauri/
   Cargo.toml                 deps Rust (ver stack)
   tauri.conf.json            productName, identifier com.keimer.schooltrackerpro, ventana,
+  tauri.android.conf.json    override auto-fusionado en comandos Android:
+                             devUrl http://localhost:1422 (sesiÃ³n dev independiente)
                             plugins fs, bundle targets "all"
   src/
     main.rs                  entrypoint -> llama run()
@@ -297,13 +312,22 @@ GOTCHAS aprendidos (no repetir):
   streaming con `response.body.getReader()` vs header `Content-Length`; UI en
   WelcomePage (primera conexiÃ³n) y CloudPage (restaurar).
 
-### Dev Android (HMR silencioso)
+### Dev Android / Windows â€” sesiones independientes (2026-08)
 
-`npm run dev:android` ejecuta `scripts/android-dev.mjs`: configura
-`adb reverse tcp:1420` Y `tcp:1421` antes de lanzar tauri dev. Sin el reverse de 1421
-el WebSocket de HMR falla (`ERR_CONNECTION_REFUSED`), Vite termina recargando la
-pÃ¡gina y se pierden eventos/invoke pendientes (los scripts init de Tauri se
-re-inyectan y sueltan `Cannot redefine property: postMessage/__TAURI_PATTERN__`).
+Los dos entornos corren **simultÃ¡neamente sin pelearse por puertos**:
+
+| SesiÃ³n | Comando | Vite | HMR |
+|---|---|---|---|
+| Windows | `npm run dev:win` (= `tauri dev`) | 1420 | 1421 |
+| Android | `npm run dev:android` (= `tauri android dev`) | **1422** | **1423** |
+
+CÃ³mo: `vite.config.ts` lee `VITE_PORT`/`HMR_PORT` del entorno;
+`src-tauri/tauri.android.conf.json` (auto-fusionado en comandos Android) fija
+`devUrl http://localhost:1422`; `scripts/vite-android.mjs` es el
+`beforeDevCommand` de esa config: hace `adb reverse tcp:1422/1423` y arranca
+Vite con los env vars. Sin reverse de 1423 el WebSocket de HMR falla
+(`ERR_CONNECTION_REFUSED`), Vite recarga la pÃ¡gina y se pierden eventos/invoke
+pendientes (`Cannot redefine property: postMessage/__TAURI_PATTERN__`).
 Alternativa WiFi/emulador: `dev:android:hmr` / `dev:android:device`
 (`scripts/android-hmr.mjs`, setea `TAURI_DEV_HOST`).
 
@@ -312,9 +336,9 @@ Alternativa WiFi/emulador: `dev:android:hmr` / `dev:android:device`
 - Todos estos comandos deben estar en `src-tauri/permissions/local-commands.toml`
   (`commands.allow`) o `invoke` falla en runtime.
 - En **dev Android el HMR de Vite estÃ¡ ACTIVO** (`vite.config.ts`: `server.hmr` con
-  `protocol: 'ws'`, `port: 1421`, igual en desktop y Android). Antes estaba deshabilitado
-  (`hmr: false`) porque el WebSocket de HMR se caÃ­a al abrir el navegador del sistema durante
-  el OAuth y recargaba la pÃ¡gina, matando el `invoke` pendiente; ese problema ya no existe.
+  `protocol: 'ws'`, `port: HMR_PORT` â€” 1421 desktop / 1423 Android). Antes estaba
+  deshabilitado porque el WebSocket de HMR se caÃ­a al abrir el navegador del sistema
+  durante el OAuth y recargaba la pÃ¡gina; ese problema ya no existe.
   Para que el HMR funcione en el dispositivo, la app debe cargar el dev server desde una IP
   alcanzable (emulador `10.0.2.2` o IP LAN en dispositivo fÃ­sico): usar
   `npm run dev:android:hmr` / `npm run dev:android:device` (`scripts/android-hmr.mjs`, que
@@ -466,3 +490,126 @@ En `migrate_add_columns` (`db.rs:299`):
 1. `lib.rs:setup` â†’ `init_database()` (crea tablas + migraciones)
 2. Frontend (`App.svelte` `onMount`): llama `invoke("seed_defaults_now")` â†’
    `seed_default_data()` si BD vacÃ­a.
+
+## Sincronización Cloudflare D1 — bilateral y en tiempo real (2026-08)
+
+Reemplaza al modelo viejo (solo push por cambios locales). Hoy: **cualquier
+guardado en cualquier dispositivo se refleja en los demás en ~1 segundo**,
+sin tocar nada, e inmune a desfases de reloj entre dispositivos.
+
+### Arquitectura
+
+`
+GUARDAS local ? onDataChange(table,{immediate}) ? d1_sync_all (Rust)
+   +- PUSH  /push  : filas PROPIAS > last_push_sync (reloj LOCAL)
+   +- PULL  /pull  : todo lo ajeno > last_sync      (reloj SERVIDOR)
+Worker: aplica con updated_at sellado por SU reloj; si escribió algo real
+   ? difunde por WebSocket a todos los sockets del school key.
+Peers (WS): {"type":"changes"} ? syncAllSilent() con debounce 700ms
+   ? emitUpdates() ? eventos a páginas ? refresco en sitio (keyed).
+`
+
+**DOS CURSORES en d1_config (clave del diseño):**
+- last_sync = serverTime del worker (/pull). Autoritativo ENTRE dispositivos.
+- last_push_sync = hora LOCAL. Comparable con los updated_at que este
+  dispositivo estampa en sus filas.
+NUNCA mezclarlos: con un solo cursor, un reloj local adelantado/atrasado
+hacía que el push comiera sus propias ediciones o que el pull ignorara las
+del otro ("la nueva sí llegó, la anterior no").
+
+**LWW por llegada**: el worker RE-SELLA updated_at = serverNow en cada fila
+pusheada y el upsert es INCONDICIONAL (sin WHERE comparando stamps heredados).
+"Último en llegar al servidor gana". Los relojes de clientes no participan.
+
+**Anti re-relevo** (sync_recent_pulls tabla local): cada fila aplicada por
+pull se registra (tabla|pk|updated_at); collect_local_data_since excluye
+esas filas hasta que se modifiquen localmente. Sin esto, filas con stamp "a
+futuro" (reloj torcido) circulaban entre dispositivos revertándose.
+
+**Broadcast solo con cambios reales**: /push difunde únicamente si
+meta.changes > 0 || deletions > 0. Un UPDATE idéntico o un sync sin cambios
+NO difunde ? sin bucles ni tormentas de auto-eco.
+
+### Worker (cloudflare-sync/) — desplegar tras cada cambio
+
+`powershell
+cd cloudflare-sync; npx wrangler deploy
+`
+?? Un deploy olvidado = cliente nuevo contra worker viejo = fallos mudos
+(p. ej. /ws 404). Verificar con 
+px wrangler deployments list.
+
+- SyncHub: **Durable Object SQLite** (plan gratuito) por school key, API de
+  hibernación + setWebSocketAutoResponse('ping'?'pong') (pings sin despertar DO).
+  Rutas: /ws?key= (upgrade validando key vs KV) ? /connect; /broadcast.
+- Migración en wrangler.toml: [[migrations]] tag="v1_sync_hub"
+  new_sqlite_classes=["SyncHub"].
+- /pull devuelve serverTime (cursor autoritativo) y **excluye filas del
+  propio device** (IFNULL(device_id,'') != ?2) — no re-recibas lo tuyo.
+- Logs para 
+px wrangler tail: [push] device=… enviadas=X cambiosReales=Y.
+
+### Frontend (src/lib/wsSyncService.ts)
+
+- Auto-arranque 1.2s post-load (desacoplado de App.svelte).
+- Reconexión backoff 1s?30s; reintentos en online y isibilitychange.
+- Ping cada 25s (respondido sin despertar el DO).
+- Filtra avisos propios (rom === myDeviceId) — requiere IDs únicos (ver abajo).
+- Debug: window.__wsDebug(); prefijo [WsSync-Debug] (console.debug).
+
+### Disparadores de sync (todos terminan en syncAllSilent)
+
+startup · WS aviso remoto · visibilitychange(foreground) · online ·
+navegación entre tabs · tick periódico (input en CloudPage, min 3 min).
+emitUpdates() SOLO si el sync trajo/aplicó cambios ? páginas refrescan en
+sitio (listas con {#each … (est.id)} keyed: sin saltos de scroll).
+
+### Identidad de dispositivo (¡crítico!)
+
+d1_config.device_id es POR INSTALACIÓN. El respaldo de Google Drive copia
+el school.db completo INCLUSA esa tabla ? restaurarlo duplica identidades:
+con IDs iguales, cada peer descarta los avisos del otro como "propios" y el
+tiempo real muere silenciosamente (los pulls por cursor/timer siguen, por eso
+"funciona al recargar").
+- **Regenerar ID**: CloudPage ? botón naranja (comando d1_reset_device_id;
+  también pone ambos cursores a NULL ? re-push+re-pull completos una vez,
+  idempotente). Úsalo si dos equipos muestran el mismo ID.
+- Prevención: tras restaurar un respaldo Drive, driveSyncService.pullAll
+  regenera el ID automáticamente.
+
+### GOTCHAS D1 (aprendidos con sangre)
+
+- **ndk_context NO inicializado** en este setup Tauri 2 ? puente propio JNI
+  (initNativeBridge desde Kotlin) + catch_unwind en cualquier acceso legacy.
+- **esbuild (wrangler/vite) NO hace typecheck**: una variable sin declarar en
+  el worker o un import mal nombrado revienta SOLO en runtime. Tras editar
+  cloudflare-sync, probar con 
+px wrangler deploy --dry-run y validar rutas
+  con curl antes de culpar al cliente.
+- **PowerShell Set-Content/Get-Content -Raw corrompe UTF-8 sin BOM**
+  (acentos ? Ã¡, emojis ? ðŸ“©). Editar archivos fuente SOLO con herramientas
+  de edición; si ya ocurrió: re-leer como UTF8, re-codificar bytes vía
+  Windows-1252 y re-escribir UTF8 sin BOM (transformación inversa exacta).
+- Errores de red TLS puntuales (10054) son transitorios: el siguiente
+  disparador/tick recupera todo; no agregar retries agresivos.
+- Diagnóstico rápido: consola Windows filtro Debug ([D1Debug],
+  [WsSync-Debug]), Android db logcat -s RustStdoutStderr (líneas [D1]
+  sync INICIO/PUSH/PULL/FIN con cursores y contadores), servidor
+  
+px wrangler tail.
+
+### Páginas fusionadas (sub-tabs) — patrón
+
+src/svelte/asistencia/AsistenciaMainPage.svelte y
+src/svelte/notas/NotasMainPage.svelte: wrappers con segmented control glass,
+props { pageActive, subTabRequest }, montaje perezoso (cada hijo se monta al
+primera visita y queda oculto con display:none — preserva estado/drafts),
+siempre abren en el sub-tab principal salvo subTabRequest (quick-actions del
+Dashboard mapean en App.handleTabChange: 'informe'?asistencia, 'reportes'?notas).
+Hijos reciben isible para condicionar egisterBackHandler. Swipe
+horizontal Android alterna sub-tabs (ignora gestos sobre scroll-x propios o
+modales fixed z=100).
+
+**Refrescos silenciosos sin perder posición**: listas con each KEYED
+((est.id)); NotasPage preserva currentStudentIdx en el refresh silencioso;
+nunca reconstruir toda la lista sin clave (salta scroll al inicio).
