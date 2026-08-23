@@ -712,8 +712,6 @@
         notas: cuantitativasMap[est.id] || {}
       }));
       notasCualitativas = { ...notasMap };
-      console.log(`[NotasPage] get_notas_by_filters devolvió ${notasGuardadas.length} notas | ${estudiantes.length} estudiantes | mapeadas: ${mappedCount} | sin match (criterioId no encontrado): ${unmatchedCount}`);
-      if (unmatchedCount > 0) console.log(`[NotasPage] Muestras de notas sin match (estudianteId, criterioId, valor):`, unmatchedSamples);
       if (isActuallySilent) {
         setTimeout(() => {
           allCriterios.forEach((criterio, critIdx) => {
@@ -890,10 +888,10 @@
 
   async function loadNotas(ano: number, corte: number, colegio: number, asignatura: number, grado: number, seccion: number) {
     if (!(ano > 0 && corte > 0 && colegio > 0 && asignatura > 0 && grado > 0 && seccion > 0)) {
-      console.log(`[NotasPage] loadNotas SKIPPED: ano=${ano} corte=${corte} colegio=${colegio} asignatura=${asignatura} grado=${grado} seccion=${seccion}`);
+      console.debug(`[NotasPage] loadNotas SKIPPED: ano=${ano} corte=${corte} colegio=${colegio} asignatura=${asignatura} grado=${grado} seccion=${seccion}`);
       return;
     }
-    console.log(`[NotasPage] loadNotas CALLED: ano=${ano} corte=${corte} colegio=${colegio} asignatura=${asignatura} grado=${grado} seccion=${seccion}`);
+    console.debug(`[NotasPage] loadNotas CALLED: ano=${ano} corte=${corte} colegio=${colegio} asignatura=${asignatura} grado=${grado} seccion=${seccion}`);
     const currentLoadId = ++loadId;
     loading = true;
     try {
@@ -961,7 +959,7 @@
     // Safety: force load if catalogs chain didn't trigger it
     const forceLoadTimer = setTimeout(() => {
       if (selectedAno > 0 && selectedCorte > 0 && selectedColegio > 0 && selectedAsignatura > 0 && selectedGrado > 0 && selectedSeccion > 0 && estudiantes.length === 0) {
-        console.log('[NotasPage] Force-loading notas (fallback timer)');
+        console.debug('[NotasPage] Force-loading notas (fallback timer)');
         nextRefreshSilent = true;
         refreshTrigger++;
       }

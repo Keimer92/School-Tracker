@@ -137,7 +137,7 @@
     // sin esperar al timer periódico.
     void (async () => {
       try {
-        console.log('[D1Debug] sync disparado (navegación)');
+        console.debug('[D1Debug] sync disparado (navegación)');
         if (await isD1Configured()) { await ensureWsSync(); await syncService.syncAllSilent(); }
       } catch {}
     })();
@@ -243,10 +243,8 @@
     }
 
     // Check if app has been initialized (welcomed)
-    console.log('[D1Debug] onMount: consultando is_app_initialized…');
     const init = await invoke('is_app_initialized');
     initialized = init;
-    console.log(`[D1Debug] onMount: init=${init}`);
 
     if (init) {
       // Existing init logic only runs if already initialized
@@ -312,7 +310,7 @@
       const d1TrySync = async (source: string = 'manual') => {
         try {
           const ok = await isD1Configured();
-          console.log(`[D1Debug] sync disparado (${source}) · config=${ok}`);
+          console.debug(`[D1Debug] sync disparado (${source}) · config=${ok}`);
           if (!ok) { stopWsSync(); return; }
           // Revivir el timer periódico si hubiera muerto (idempotente)
           syncService.ensurePeriodicSync();
@@ -334,7 +332,6 @@
       // ARRANQUE: sync inicial + conexión al hub WebSocket de una sola vez.
       // Sin esto, el WS no existía hasta que el usuario cambiara de ventana/página
       // y los avisos en tiempo real del otro dispositivo se perdían.
-      console.log('[D1Debug] ⭐ ejecutando arranque D1 (startup)…');
       void d1TrySync('startup');
 
       invoke("seed_defaults_now");
