@@ -61,6 +61,8 @@
   // ── Instrumentos de evaluación ──
   let showInstrumentosModal = $state(false);
   let generatingPdf = $state(false);
+  let excelGenerating = $state(false);
+  let mostrarAyudaExcel = $state(false);
   let distribuirTargets: Record<number, string> = $state({});
   let distribuirOverwrite = $state(true);
   let distribuirInputs = new Map<number, HTMLInputElement>();
@@ -930,6 +932,78 @@
     }
   }
 
+  const AYUDA_PLANTILLA_XLSX = `OBJETIVO
+Crear una plantilla Excel (.xlsx) que la app School Tracker Pro rellenará
+automáticamente con los datos reales (encabezado, indicador, criterios y
+estudiantes con sus notas cualitativas), conservando TODO tu diseño.
+
+HERRAMIENTAS VÁLIDAS
+- Microsoft Excel o LibreOffice Calc: guardar como .xlsx.
+- Google Sheets: Archivo > Descargar > Microsoft Excel (.xlsx).
+
+REGLA DE ORO
+- Todo marcador debe estar COMPLETO dentro de una sola celda.
+- Guarda siempre como .xlsx (no .xls, no .ods).
+
+PASO 1 — ENCABEZADO (filas libres arriba)
+Diseña tu encabezado como quieras (colores, logo, celdas combinadas) y coloca
+estos marcadores donde correspondan:
+  {COLEGIO}   {ANO}   {CORTE}   {ASIGNATURA}   {GRADO}   {SECCION}
+  {IND_ORDEN}  -> número del indicador
+  {IND_TEXTO}  -> texto del indicador
+  {CRITERIOS_LISTA} -> lista numerada "1. descripción (puntos)" de todos los criterios
+
+PASO 2 — FILA REPETIBLE DE ESTUDIANTES
+Elige UNA fila que servirá de plantilla para cada estudiante. En su PRIMERA
+celda escribe exactamente la bandera: {{FILAS}}
+En las demás celdas de esa misma fila coloca estos marcadores:
+  {NUM}      -> número correlativo (1, 2, 3...)
+  {NOMBRE}   -> nombre del estudiante
+  {SEXO}     -> M o F
+  {LETRA_1}  -> nota cualitativa del criterio 1 (AA, AS, AF, AI o vacía)
+  {LETRA_2}  -> criterio 2 ... {LETRA_N} según cantidad de criterios
+  {VAL_IND}  -> valoración cualitativa del indicador completo
+
+La app CLONará esa fila una vez por estudiante, manteniendo su formato, y
+correrá hacia abajo todo lo que esté debajo.
+
+REGLAS IMPORTANTES
+1. NO uses celdas combinadas DENTRO de la fila repetible (encima sí).
+2. Los marcadores no deben dividirse entre varias celdas.
+3. Un solo bloque {{FILAS}} por hoja. Puedes tener varias hojas.
+4. Deja unas filas libres entre el encabezado y la fila bandera si necesitas espacio.
+
+EJEMPLO DE MAQUETACIÓN
+  Fila 1-4: título, {COLEGIO}, {GRADO}-{SECCION}, {CORTE}
+  Fila 5:   {IND_ORDEN}. {IND_TEXTO}
+  Fila 6:   Criterios: {CRITERIOS_LISTA}
+  Fila 8:   {{FILAS}} | {NUM} | {NOMBRE} | {LETRA_1} | {LETRA_2} | {VAL_IND}
+
+RESULTADO
+Al pulsar el botón XLS y elegir esta plantilla, la app genera un archivo
+.xlsx idéntico a tu diseño pero con todos los datos reales, listo para
+imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
+
+  async function copiarAyudaPlantilla() {
+    try {
+      await navigator.clipboard.writeText(AYUDA_PLANTILLA_XLSX);
+      await emit("show-toast", { message: "📋 Instrucciones copiadas al portapapeles", type: "success" });
+    } catch {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = AYUDA_PLANTILLA_XLSX;
+        ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        await emit("show-toast", { message: "📋 Instrucciones copiadas al portapapeles", type: "success" });
+      } catch (e) {
+        await emit("show-toast", { message: "❌ No se pudo copiar automáticamente", type: "error" });
+      }
+    }
+  }
+
   async function generarTodosInstrumentos() {
     if (activeIndicadores.length === 0) return;
     generatingPdf = true;
@@ -1231,6 +1305,12 @@
             <div style="flex:1;min-width:100px">
               <SearchInput value={searchTerm} onChange={(v) => searchTerm = v} placeholder="Buscar..." {isMobile} height="42px" />
             </div>
+            <button onclick={() => { showInstrumentosModal = true; console.debug('[Instrumentos] abrir modal'); }} disabled={activeIndicadores.length === 0}
+              style="height:42px;padding:0 {isMobile ? '0.4rem' : '1rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:{activeIndicadores.length > 0 ? '#0ea5e9' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{activeIndicadores.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{activeIndicadores.length > 0 ? '0 4px 14px rgba(14,165,233,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{activeIndicadores.length > 0 ? 1 : 0.7}"
+              title="Instrumentos de evaluación">
+              <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">📋</span>
+              {#if !isMobile}<span>Instrumentos</span>{/if}
+            </button>
             <button onclick={undo} disabled={history.length === 0}
               style="height:42px;padding:0 {isMobile ? '0.4rem' : '1rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:{history.length > 0 ? '#f59e0b' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{history.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{history.length > 0 ? '0 4px 14px rgba(245,158,11,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{history.length > 0 ? 1 : 0.7}"
               title="Deshacer (Ctrl+Z)">
@@ -1248,12 +1328,6 @@
               title="Distribuir notas automáticamente">
               <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">✨</span>
               {#if !isMobile}<span>Distribuir</span>{/if}
-            </button>
-            <button onclick={() => { showInstrumentosModal = true; }} disabled={activeIndicadores.length === 0}
-              style="height:42px;padding:0 {isMobile ? '0.4rem' : '1rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:{activeIndicadores.length > 0 ? '#0ea5e9' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{activeIndicadores.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{activeIndicadores.length > 0 ? '0 4px 14px rgba(14,165,233,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{activeIndicadores.length > 0 ? 1 : 0.7}"
-              title="Instrumentos de evaluación">
-              <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">📋</span>
-              {#if !isMobile}<span>Instrumentos</span>{/if}
             </button>
             <button onclick={handleGuardarNotas} disabled={!hasUnsavedChanges || saving || estudiantes.length === 0}
               style="height:42px;padding:0 {isMobile ? '0.4rem' : '1rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:{!hasUnsavedChanges ? 'rgba(148,163,184,0.5)' : (saving ? '#059669' : '#10b981')};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{(!hasUnsavedChanges || saving || estudiantes.length === 0) ? 'default' : 'pointer'};transition:all 0.3s ease;box-shadow:{hasUnsavedChanges && !saving && estudiantes.length > 0 ? '0 4px 14px rgba(16,185,129,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{(hasUnsavedChanges && !saving && estudiantes.length > 0) ? 1 : 0.7}"
@@ -1778,7 +1852,24 @@
               style="flex: 1; padding: 0.55rem; border-radius: 10px; border: none; background: linear-gradient(135deg, #0ea5e9, #0284c7); color: #fff; font-weight: 700; font-size: 0.8rem; cursor: pointer; opacity: {generatingPdf ? 0.6 : 1};">
               {generatingPdf ? '⏳ Generando…' : '📄 Generar todos'}
             </button>
+            <button onclick={() => mostrarAyudaExcel = !mostrarAyudaExcel}
+              style="padding: 0.55rem 0.8rem; border-radius: 10px; border: 1px dashed rgba(34,197,94,0.5); background: rgba(34,197,94,0.08); color: #86efac; font-weight: 700; font-size: 0.8rem; cursor: pointer;">
+              ❓ Ayuda Excel
+            </button>
           </div>
+
+          {#if mostrarAyudaExcel}
+            <div style="margin-bottom: 1rem; border: 1px solid rgba(34,197,94,0.35); border-radius: 12px; overflow: hidden;">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.6rem 0.8rem; background: rgba(34,197,94,0.1);">
+                <span style="color: #86efac; font-weight: 700; font-size: 0.75rem;">📗 Cómo crear tu plantilla en Excel</span>
+                <button onclick={copiarAyudaPlantilla}
+                  style="padding: 0.3rem 0.6rem; border-radius: 6px; border: 1px solid rgba(34,197,94,0.4); background: rgba(34,197,94,0.15); color: #86efac; cursor: pointer; font-size: 0.65rem; font-weight: 700; flex-shrink: 0;">
+                  📋 Copiar instrucciones
+                </button>
+              </div>
+              <pre style="white-space: pre-wrap; margin: 0; padding: 0.8rem; background: rgba(0,0,0,0.3); color: #cbd5e1; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.62rem; line-height: 1.55;">{AYUDA_PLANTILLA_XLSX}</pre>
+            </div>
+          {/if}
 
           {#each activeIndicadores as ind (ind.id)}
             {@const tipoActual = normTipo((ind as any).instrumento)}
