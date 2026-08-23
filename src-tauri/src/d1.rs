@@ -206,7 +206,6 @@ pub fn d1_status(state: tauri::State<'_, DbState>) -> Result<Value, String> {
 fn collect_local_data_since(
     conn: &rusqlite::Connection,
     since: &str,
-    device_id: &str,
 ) -> Result<Value, String> {
     let table_names = [
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
@@ -217,14 +216,11 @@ fn collect_local_data_since(
 
     let mut result = Map::new();
     for table in &table_names {
-        // Solo filas propias: retransmitir filas ajenas (p. ej. traídas por pull
-        // con updated_at "a futuro" por desfase de reloj) provoca bucles de
-        // sincronización. Cada dispositivo empuja SUS ediciones; los pares
-        // reciben todo directamente vía /pull.
-        let query = format!(
-            "SELECT * FROM {} WHERE updated_at > ?1 AND IFNULL(device_id, '') IN ('', ?2)",
-            table
-        );
+        // NOTA: sin filtro por device_id (no todas las tablas locales lo tienen).
+        // El bucle de re-relevo ya está cortado aguas arriba: el worker re-sella
+        // updated_at con su reloj y los cursores (pull=servidor, push=local)
+        // garantizan que una fila aplicada por pull quede fuera del siguiente push.
+        let query = format!("SELECT * FROM {} WHERE updated_at > ?1", table);
         let mut stmt = conn
             .prepare(&query)
             .map_err(|e| format!("Error preparando {}: {}", table, e))?;
@@ -233,7 +229,7 @@ fn collect_local_data_since(
             .map(|i| stmt.column_name(i).unwrap_or("").to_string())
             .collect();
         let rows: Vec<Value> = stmt
-            .query_map(rusqlite::params![since, device_id], |row| {
+            .query_map([since], |row| {
                 let mut map = Map::new();
                 for (i, col_name) in column_names.iter().enumerate() {
                     let val = match row.get_ref(i) {
@@ -464,8 +460,8 @@ pub async fn d1_sync_all(state: tauri::State<'_, DbState>) -> Result<Value, Stri
     );
 
     // ---- 1. PUSH (cursor local)
-    // ---- 1. PUSH (cursor local + solo filas propias)
-    let data = collect_local_data_since(&conn, &push_since, &cfg.device_id)?;
+    // ---- 1. PUSH (cursor local)
+    let data = collect_local_data_since(&conn, &push_since)?;
     let deletions = collect_pending_deletions(&conn)?;
     drop(conn);
 
