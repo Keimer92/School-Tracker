@@ -149,6 +149,8 @@ async function ensureSchema(env: Env): Promise<void> {
   if (schemaReady) return;
   const stmts = [
     "ALTER TABLE indicador ADD COLUMN instrumento TEXT NOT NULL DEFAULT 'general'",
+    // 'general' retirado como tipo: las filas históricas pasan a escala
+    "UPDATE indicador SET instrumento = 'escala' WHERE instrumento = 'general'",
   ];
   for (const sql of stmts) {
     try { await env.DB.prepare(sql).run(); } catch { /* ya existe */ }

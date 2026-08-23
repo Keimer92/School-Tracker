@@ -10,10 +10,9 @@ import { openUrl } from '@tauri-apps/plugin-opener';
  * con celdas vacías + registro de estudiantes).
  */
 
-export type InstrumentoTipo = 'general' | 'cotejo' | 'escala' | 'rubrica';
+export type InstrumentoTipo = 'cotejo' | 'escala' | 'rubrica';
 
 export const INSTRUMENTO_OPS: { id: InstrumentoTipo; label: string }[] = [
-  { id: 'general', label: 'General (tabla)' },
   { id: 'cotejo', label: 'Lista de cotejo' },
   { id: 'escala', label: 'Escala valorativa' },
   { id: 'rubrica', label: 'Rúbrica' },
@@ -99,6 +98,7 @@ function drawHeader(doc: any, input: InstrumentoInput, title: string): number {
 
   // ── Indicador ──
   const totalPts = input.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0);
+    doc.setDrawColor(0);
   let y = 29;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
@@ -117,7 +117,7 @@ function drawHeader(doc: any, input: InstrumentoInput, title: string): number {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     if (ptsText) doc.text(ptsText, rightMargin, y, { align: 'right' });
-    doc.setLineWidth(0.3);
+    doc.setLineWidth(0.9);
     doc.line(10 + doc.getTextWidth(label) + 2, y, rightMargin - doc.getTextWidth(ptsText) - 2, y);
     y += 6;
   }
@@ -149,7 +149,7 @@ function drawHeader(doc: any, input: InstrumentoInput, title: string): number {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         doc.text(ptsSuffix, rightMargin, y, { align: 'right' });
-        doc.setLineWidth(0.3);
+        doc.setLineWidth(0.9);
         doc.line(14 + numW, y, rightMargin - doc.getTextWidth(ptsSuffix) - 2, y);
         y += 6;
       }
@@ -178,13 +178,13 @@ function tablaEstudiantes(
     head: [headers],
     body: rows,
     theme: 'grid',
-    styles: { fontSize: 7.5, cellPadding: 1.6, halign: 'center' },
+    styles: { fontSize: 7.5, cellPadding: 1.6, halign: 'center', textColor: 0, lineColor: [0, 0, 0], lineWidth: 0.35 },
     columnStyles: {
       0: { cellWidth: 8 },
       1: { halign: 'left', cellWidth: 'auto' },
       [headers.length - 1]: { fontStyle: 'bold' },
     },
-    headStyles: { fillColor: [71, 85, 105], textColor: 255 },
+    headStyles: { fillColor: [0, 0, 0], textColor: 255 },
   });
 }
 
@@ -205,12 +205,12 @@ function matrizRubrica(
     head: [headers],
     body: rows,
     theme: 'grid',
-    styles: { fontSize: 7.5, cellPadding: 2, minCellHeight: 18, valign: 'middle' },
+    styles: { fontSize: 7.5, cellPadding: 2, minCellHeight: 18, valign: 'middle', textColor: 0, lineColor: [0, 0, 0], lineWidth: 0.35 },
     columnStyles: {
       0: { halign: 'left', cellWidth: 45 },
       [headers.length - 1]: { cellWidth: 16, fontStyle: 'bold' },
     },
-    headStyles: { fillColor: [139, 92, 246], textColor: 255 },
+    headStyles: { fillColor: [0, 0, 0], textColor: 255 },
   });
 }
 

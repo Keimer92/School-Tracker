@@ -838,6 +838,9 @@
   // ── Instrumentos de evaluación ──
   const INSTRUMENTO_TIPOS: { id: InstrumentoTipo; label: string }[] = INSTRUMENTO_OPS.map(o => ({ id: o.id as InstrumentoTipo, label: o.label }));
 
+  const normTipo = (v: any): InstrumentoTipo =>
+    ['cotejo', 'escala', 'rubrica'].includes(v) ? v : 'escala';
+
   async function setInstrumento(ind: Indicador, tipo: InstrumentoTipo) {
     try {
       await invoke('update_indicador', { id: ind.id, descripcion: ind.descripcion, activo: ind.activo, instrumento: tipo });
@@ -862,7 +865,7 @@
       };
     });
     return {
-      tipo: ((ind as any).instrumento || 'general') as InstrumentoTipo,
+      tipo: normTipo((ind as any).instrumento),
       orden: ind.orden,
       descripcion: ind.descripcion,
       criterios: ind.criterios.map(c => ({ orden: c.orden, descripcion: c.descripcion, puntajeMaximo: c.puntajeMaximo })),
@@ -1741,7 +1744,7 @@
           </div>
 
           {#each activeIndicadores as ind (ind.id)}
-            {@const tipoActual = ((ind as any).instrumento || 'general') as InstrumentoTipo}
+            {@const tipoActual = normTipo((ind as any).instrumento)}
             <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.7rem; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; margin-bottom: 0.45rem; flex-wrap: wrap;">
               <span style="width: 26px; height: 26px; border-radius: 8px; background: rgba(14,165,233,0.15); color: #7dd3fc; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.72rem; flex-shrink: 0;">{ind.orden}</span>
               <div style="flex: 1; min-width: 140px;">

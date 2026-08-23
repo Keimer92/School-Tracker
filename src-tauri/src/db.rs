@@ -374,6 +374,12 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
         )
         .map_err(|e| format!("Error agregando columna instrumento: {}", e))?;
     }
+    // 'general' retirado como tipo: las filas históricas pasan a escala
+    conn.execute(
+        "UPDATE indicador SET instrumento = 'escala' WHERE instrumento = 'general'",
+        [],
+    )
+    .map_err(|e| e.to_string())?;
 
     // Agregar columna 'minimo' a configuracion_calificacion si no existe
     let has_minimo: bool = conn
