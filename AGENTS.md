@@ -589,7 +589,7 @@ tiempo real muere silenciosamente (los pulls por cursor/timer siguen, por eso
 px wrangler deploy --dry-run y validar rutas
   con curl antes de culpar al cliente.
 - **PowerShell Set-Content/Get-Content -Raw corrompe UTF-8 sin BOM**
-  (acentos ? Ã¡, emojis ? ðŸ“©). Editar archivos fuente SOLO con herramientas
+  (acentos → `Ã¡`, emojis → `📩`). Editar archivos fuente SOLO con herramientas
   de edición; si ya ocurrió: re-leer como UTF8, re-codificar bytes vía
   Windows-1252 y re-escribir UTF8 sin BOM (transformación inversa exacta).
 - Errores de red TLS puntuales (10054) son transitorios: el siguiente
