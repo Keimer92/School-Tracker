@@ -129,15 +129,12 @@ function connect(url: string) {
     try {
       const m = JSON.parse(String(ev.data));
       if (m?.type === 'changes') {
-        // NOTA: no filtramos `from === myDeviceId` a prop�sito. Si dos
-        // dispositivos compartieran deviceId (respaldo restaurado), filtrar
-        // har�a que se ignoren mutuamente. No hay bucle posible: el worker
-        // solo difunde cuando un /push APLIC� cambios, y un sync sin cambios
-        // locales no difunde nada.
-        wsLog('aviso de cambios (from:', m.from, ')');
+        // Los IDs ya son únicos por instalación: los avisos propios se
+        // ignoran para no disparar un sync redundante tras cada guardado.
+        if (m.from === myDeviceId) return;
+        console.debug('[WsSync-Debug] aviso remoto de cambios desde', m.from);
         schedulePull();
       }
-      // 'pong' y otros mensajes no se loguean (ruido)
     } catch {}
   };
   ws.onclose = (ev: CloseEvent) => {
