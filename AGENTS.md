@@ -491,10 +491,12 @@ En `migrate_add_columns` (`db.rs:299`):
 2. Frontend (`App.svelte` `onMount`): llama `invoke("seed_defaults_now")` â†’
    `seed_default_data()` si BD vacÃ­a.
 
-## Sincronización Cloudflare D1 — bilateral y en tiempo real (2026-08)
+
+
+## SincronizaciÃ³n Cloudflare D1 â€” bilateral y en tiempo real (2026-08)
 
 Reemplaza al modelo viejo (solo push por cambios locales). Hoy: **cualquier
-guardado en cualquier dispositivo se refleja en los demás en ~1 segundo**,
+guardado en cualquier dispositivo se refleja en los demÃ¡s en ~1 segundo**,
 sin tocar nada, e inmune a desfases de reloj entre dispositivos.
 
 ### Arquitectura
@@ -503,34 +505,34 @@ sin tocar nada, e inmune a desfases de reloj entre dispositivos.
 GUARDAS local ? onDataChange(table,{immediate}) ? d1_sync_all (Rust)
    +- PUSH  /push  : filas PROPIAS > last_push_sync (reloj LOCAL)
    +- PULL  /pull  : todo lo ajeno > last_sync      (reloj SERVIDOR)
-Worker: aplica con updated_at sellado por SU reloj; si escribió algo real
+Worker: aplica con updated_at sellado por SU reloj; si escribiÃ³ algo real
    ? difunde por WebSocket a todos los sockets del school key.
 Peers (WS): {"type":"changes"} ? syncAllSilent() con debounce 700ms
-   ? emitUpdates() ? eventos a páginas ? refresco en sitio (keyed).
+   ? emitUpdates() ? eventos a pÃ¡ginas ? refresco en sitio (keyed).
 `
 
-**DOS CURSORES en d1_config (clave del diseño):**
+**DOS CURSORES en d1_config (clave del diseÃ±o):**
 - last_sync = serverTime del worker (/pull). Autoritativo ENTRE dispositivos.
 - last_push_sync = hora LOCAL. Comparable con los updated_at que este
   dispositivo estampa en sus filas.
 NUNCA mezclarlos: con un solo cursor, un reloj local adelantado/atrasado
-hacía que el push comiera sus propias ediciones o que el pull ignorara las
-del otro ("la nueva sí llegó, la anterior no").
+hacÃ­a que el push comiera sus propias ediciones o que el pull ignorara las
+del otro ("la nueva sÃ­ llegÃ³, la anterior no").
 
 **LWW por llegada**: el worker RE-SELLA updated_at = serverNow en cada fila
 pusheada y el upsert es INCONDICIONAL (sin WHERE comparando stamps heredados).
-"Último en llegar al servidor gana". Los relojes de clientes no participan.
+"Ãšltimo en llegar al servidor gana". Los relojes de clientes no participan.
 
 **Anti re-relevo** (sync_recent_pulls tabla local): cada fila aplicada por
 pull se registra (tabla|pk|updated_at); collect_local_data_since excluye
 esas filas hasta que se modifiquen localmente. Sin esto, filas con stamp "a
-futuro" (reloj torcido) circulaban entre dispositivos revertándose.
+futuro" (reloj torcido) circulaban entre dispositivos revertÃ¡ndose.
 
-**Broadcast solo con cambios reales**: /push difunde únicamente si
-meta.changes > 0 || deletions > 0. Un UPDATE idéntico o un sync sin cambios
+**Broadcast solo con cambios reales**: /push difunde Ãºnicamente si
+meta.changes > 0 || deletions > 0. Un UPDATE idÃ©ntico o un sync sin cambios
 NO difunde ? sin bucles ni tormentas de auto-eco.
 
-### Worker (cloudflare-sync/) — desplegar tras cada cambio
+### Worker (cloudflare-sync/) â€” desplegar tras cada cambio
 
 `powershell
 cd cloudflare-sync; npx wrangler deploy
@@ -540,42 +542,42 @@ cd cloudflare-sync; npx wrangler deploy
 px wrangler deployments list.
 
 - SyncHub: **Durable Object SQLite** (plan gratuito) por school key, API de
-  hibernación + setWebSocketAutoResponse('ping'?'pong') (pings sin despertar DO).
+  hibernaciÃ³n + setWebSocketAutoResponse('ping'?'pong') (pings sin despertar DO).
   Rutas: /ws?key= (upgrade validando key vs KV) ? /connect; /broadcast.
-- Migración en wrangler.toml: [[migrations]] tag="v1_sync_hub"
+- MigraciÃ³n en wrangler.toml: [[migrations]] tag="v1_sync_hub"
   new_sqlite_classes=["SyncHub"].
 - /pull devuelve serverTime (cursor autoritativo) y **excluye filas del
-  propio device** (IFNULL(device_id,'') != ?2) — no re-recibas lo tuyo.
+  propio device** (IFNULL(device_id,'') != ?2) â€” no re-recibas lo tuyo.
 - Logs para 
-px wrangler tail: [push] device=… enviadas=X cambiosReales=Y.
+px wrangler tail: [push] device=â€¦ enviadas=X cambiosReales=Y.
 
 ### Frontend (src/lib/wsSyncService.ts)
 
 - Auto-arranque 1.2s post-load (desacoplado de App.svelte).
-- Reconexión backoff 1s?30s; reintentos en online y isibilitychange.
+- ReconexiÃ³n backoff 1s?30s; reintentos en online y isibilitychange.
 - Ping cada 25s (respondido sin despertar el DO).
-- Filtra avisos propios (rom === myDeviceId) — requiere IDs únicos (ver abajo).
+- Filtra avisos propios (rom === myDeviceId) â€” requiere IDs Ãºnicos (ver abajo).
 - Debug: window.__wsDebug(); prefijo [WsSync-Debug] (console.debug).
 
 ### Disparadores de sync (todos terminan en syncAllSilent)
 
-startup · WS aviso remoto · visibilitychange(foreground) · online ·
-navegación entre tabs · tick periódico (input en CloudPage, min 3 min).
-emitUpdates() SOLO si el sync trajo/aplicó cambios ? páginas refrescan en
-sitio (listas con {#each … (est.id)} keyed: sin saltos de scroll).
+startup Â· WS aviso remoto Â· visibilitychange(foreground) Â· online Â·
+navegaciÃ³n entre tabs Â· tick periÃ³dico (input en CloudPage, min 3 min).
+emitUpdates() SOLO si el sync trajo/aplicÃ³ cambios ? pÃ¡ginas refrescan en
+sitio (listas con {#each â€¦ (est.id)} keyed: sin saltos de scroll).
 
-### Identidad de dispositivo (¡crítico!)
+### Identidad de dispositivo (Â¡crÃ­tico!)
 
-d1_config.device_id es POR INSTALACIÓN. El respaldo de Google Drive copia
+d1_config.device_id es POR INSTALACIÃ“N. El respaldo de Google Drive copia
 el school.db completo INCLUSA esa tabla ? restaurarlo duplica identidades:
 con IDs iguales, cada peer descarta los avisos del otro como "propios" y el
 tiempo real muere silenciosamente (los pulls por cursor/timer siguen, por eso
 "funciona al recargar").
-- **Regenerar ID**: CloudPage ? botón naranja (comando d1_reset_device_id;
-  también pone ambos cursores a NULL ? re-push+re-pull completos una vez,
-  idempotente). Úsalo si dos equipos muestran el mismo ID.
-- Prevención: tras restaurar un respaldo Drive, driveSyncService.pullAll
-  regenera el ID automáticamente.
+- **Regenerar ID**: CloudPage ? botÃ³n naranja (comando d1_reset_device_id;
+  tambiÃ©n pone ambos cursores a NULL ? re-push+re-pull completos una vez,
+  idempotente). Ãšsalo si dos equipos muestran el mismo ID.
+- PrevenciÃ³n: tras restaurar un respaldo Drive, driveSyncService.pullAll
+  regenera el ID automÃ¡ticamente.
 
 ### GOTCHAS D1 (aprendidos con sangre)
 
@@ -587,29 +589,29 @@ tiempo real muere silenciosamente (los pulls por cursor/timer siguen, por eso
 px wrangler deploy --dry-run y validar rutas
   con curl antes de culpar al cliente.
 - **PowerShell Set-Content/Get-Content -Raw corrompe UTF-8 sin BOM**
-  (acentos ? Ã¡, emojis ? ðŸ“©). Editar archivos fuente SOLO con herramientas
-  de edición; si ya ocurrió: re-leer como UTF8, re-codificar bytes vía
-  Windows-1252 y re-escribir UTF8 sin BOM (transformación inversa exacta).
+  (acentos ? ÃƒÂ¡, emojis ? Ã°Å¸â€œÂ©). Editar archivos fuente SOLO con herramientas
+  de ediciÃ³n; si ya ocurriÃ³: re-leer como UTF8, re-codificar bytes vÃ­a
+  Windows-1252 y re-escribir UTF8 sin BOM (transformaciÃ³n inversa exacta).
 - Errores de red TLS puntuales (10054) son transitorios: el siguiente
   disparador/tick recupera todo; no agregar retries agresivos.
-- Diagnóstico rápido: consola Windows filtro Debug ([D1Debug],
-  [WsSync-Debug]), Android db logcat -s RustStdoutStderr (líneas [D1]
+- DiagnÃ³stico rÃ¡pido: consola Windows filtro Debug ([D1Debug],
+  [WsSync-Debug]), Android db logcat -s RustStdoutStderr (lÃ­neas [D1]
   sync INICIO/PUSH/PULL/FIN con cursores y contadores), servidor
   
 px wrangler tail.
 
-### Páginas fusionadas (sub-tabs) — patrón
+### PÃ¡ginas fusionadas (sub-tabs) â€” patrÃ³n
 
 src/svelte/asistencia/AsistenciaMainPage.svelte y
 src/svelte/notas/NotasMainPage.svelte: wrappers con segmented control glass,
 props { pageActive, subTabRequest }, montaje perezoso (cada hijo se monta al
-primera visita y queda oculto con display:none — preserva estado/drafts),
+primera visita y queda oculto con display:none â€” preserva estado/drafts),
 siempre abren en el sub-tab principal salvo subTabRequest (quick-actions del
 Dashboard mapean en App.handleTabChange: 'informe'?asistencia, 'reportes'?notas).
 Hijos reciben isible para condicionar egisterBackHandler. Swipe
 horizontal Android alterna sub-tabs (ignora gestos sobre scroll-x propios o
 modales fixed z=100).
 
-**Refrescos silenciosos sin perder posición**: listas con each KEYED
+**Refrescos silenciosos sin perder posiciÃ³n**: listas con each KEYED
 ((est.id)); NotasPage preserva currentStudentIdx en el refresh silencioso;
 nunca reconstruir toda la lista sin clave (salta scroll al inicio).
