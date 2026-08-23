@@ -339,6 +339,23 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
 
 /// Agrega columnas faltantes a tablas existentes (para migraciones de bases de datos antiguas)
 fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
+    // Cursor de PUSH separado del cursor de PULL en d1_config (reloj local vs servidor)
+    let has_last_push: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('d1_config') WHERE name = 'last_push_sync'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(0) > 0;
+
+    if !has_last_push {
+        conn.execute(
+            "ALTER TABLE d1_config ADD COLUMN last_push_sync TEXT",
+            [],
+        )
+        .map_err(|e| format!("Error agregando columna last_push_sync: {}", e))?;
+    }
+
     // Agregar columna 'minimo' a configuracion_calificacion si no existe
     let has_minimo: bool = conn
         .query_row(

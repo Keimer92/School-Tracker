@@ -16,13 +16,18 @@ pub struct D1Config {
     pub worker_url: String,
     pub school_key: String,
     pub device_id: String,
+    /// Cursor del PULL: hora del SERVIDOR (autoritativo, inmune a desfases).
     pub last_sync: Option<String>,
+    /// Cursor del PUSH: hora LOCAL (consistente con los updated_at que el
+    /// propio dispositivo estampa en sus filas). Separado del cursor de pull
+    /// para que un reloj local atrasado/adelantado nunca coma ediciones.
+    pub last_push_sync: Option<String>,
 }
 
 fn read_config(conn: &rusqlite::Connection) -> Result<Option<D1Config>, String> {
-    let mut stmt = conn
-        .prepare("SELECT worker_url, school_key, device_id, last_sync FROM d1_config WHERE id = 1")
-        .map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare(
+        "SELECT worker_url, school_key, device_id, last_sync, last_push_sync FROM d1_config WHERE id = 1",
+    ).map_err(|e| e.to_string())?;
     let mut rows = stmt
         .query_map([], |row| {
             Ok(D1Config {
@@ -30,6 +35,7 @@ fn read_config(conn: &rusqlite::Connection) -> Result<Option<D1Config>, String> 
                 school_key: row.get(1)?,
                 device_id: row.get(2)?,
                 last_sync: row.get(3)?,
+                last_push_sync: row.get(4).unwrap_or(None),
             })
         })
         .map_err(|e| e.to_string())?;
@@ -38,10 +44,10 @@ fn read_config(conn: &rusqlite::Connection) -> Result<Option<D1Config>, String> 
 
 fn write_config(conn: &rusqlite::Connection, cfg: &D1Config) -> Result<(), String> {
     conn.execute(
-        "INSERT INTO d1_config (id, worker_url, school_key, device_id, last_sync, updated_at)
-         VALUES (1, ?1, ?2, ?3, ?4, datetime('now'))
-         ON CONFLICT(id) DO UPDATE SET worker_url = ?1, school_key = ?2, device_id = ?3, last_sync = ?4, updated_at = datetime('now')",
-        params![cfg.worker_url, cfg.school_key, cfg.device_id, cfg.last_sync],
+        "INSERT INTO d1_config (id, worker_url, school_key, device_id, last_sync, last_push_sync, updated_at)
+         VALUES (1, ?1, ?2, ?3, ?4, ?5, datetime('now'))
+         ON CONFLICT(id) DO UPDATE SET worker_url = ?1, school_key = ?2, device_id = ?3, last_sync = ?4, last_push_sync = ?5, updated_at = datetime('now')",
+        params![cfg.worker_url, cfg.school_key, cfg.device_id, cfg.last_sync, cfg.last_push_sync],
     )
     .map(|_| ())
     .map_err(|e| e.to_string())
@@ -140,6 +146,7 @@ pub fn d1_save_config(
         school_key: String::new(),
         device_id: String::new(),
         last_sync: None,
+        last_push_sync: None,
     });
     cfg.worker_url = worker_url;
     cfg.school_key = school_key;
@@ -169,10 +176,11 @@ pub fn d1_reset_device_id(state: tauri::State<'_, DbState>) -> Result<String, St
     let new_id = generate_device_id();
     let n = conn
         .execute(
-            // last_sync = NULL fuerza un re-pull completo desde época en el
-            // próximo sync (idempotente gracias al upsert LWW). Útil cuando el
-            // cursor quedó ADELANTE del reloj real (desfase entre dispositivos).
-            "UPDATE d1_config SET device_id = ?1, last_sync = NULL WHERE id = 1",
+            // Ambos cursores a NULL fuerzan push+pull completos desde época en
+            // el próximo sync (idempotente gracias al upsert LWW del worker).
+            // Útil cuando el cursor quedó ADELANTE del reloj real (desfase entre
+            // dispositivos) o tras restaurar respaldos que duplican identidad.
+            "UPDATE d1_config SET device_id = ?1, last_sync = NULL, last_push_sync = NULL WHERE id = 1",
             rusqlite::params![new_id],
         )
         .map_err(|e| e.to_string())?;
@@ -428,18 +436,27 @@ fn clear_all_pending_deletions(conn: &rusqlite::Connection) -> Result<(), String
 pub async fn d1_sync_all(state: tauri::State<'_, DbState>) -> Result<Value, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let cfg = read_config(&conn)?.ok_or_else(|| "D1 no está configurado".to_string())?;
+    // DOS cursores independientes:
+    //  - push_since  = reloj LOCAL (comparable con los updated_at que este
+    //    dispositivo estampa en sus propias filas) -> nunca come ediciones propias.
+    //  - since (pull) = reloj del SERVIDOR (autoritativo entre dispositivos).
+    let push_since = cfg
+        .last_push_sync
+        .clone()
+        .unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
     let since = cfg
         .last_sync
         .clone()
         .unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
     println!(
-        "[D1] sync INICIO device={}… since=\"{}\"",
+        "[D1] sync INICIO device={}… push_since=\"{}\" pull_since=\"{}\"",
         &cfg.device_id[..cfg.device_id.len().min(16)],
+        push_since,
         since
     );
 
-    // ---- 1. PUSH
-    let data = collect_local_data_since(&conn, &since)?;
+    // ---- 1. PUSH (cursor local)
+    let data = collect_local_data_since(&conn, &push_since)?;
     let deletions = collect_pending_deletions(&conn)?;
     drop(conn);
 
@@ -455,7 +472,7 @@ pub async fn d1_sync_all(state: tauri::State<'_, DbState>) -> Result<Value, Stri
     );
 
     let push_body = json!({
-        "since": since,
+        "since": push_since,
         "deviceId": cfg.device_id,
         "data": data,
         "deletions": deletions,
@@ -520,9 +537,10 @@ pub async fn d1_sync_all(state: tauri::State<'_, DbState>) -> Result<Value, Stri
         .unwrap_or_else(now_sqlite);
     println!("[D1] nuevo cursor last_sync=\"{}\" (fuente: {})", new_sync,
         if pull_resp.get("serverTime").is_some() { "servidor" } else { "reloj local (fallback)" });
+    let new_push_cursor = now_sqlite(); // reloj LOCAL: par del cursor de push
     tx.execute(
-        "UPDATE d1_config SET last_sync = ?1, updated_at = datetime('now') WHERE id = 1",
-        params![new_sync],
+        "UPDATE d1_config SET last_sync = ?1, last_push_sync = ?2, updated_at = datetime('now') WHERE id = 1",
+        params![new_sync, new_push_cursor],
     )
     .map_err(|e| e.to_string())?;
 
