@@ -1,4 +1,4 @@
-﻿import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@tauri-apps/api/core';
 import { d1SyncService } from './d1SyncService';
 
 /**
@@ -50,12 +50,12 @@ function schedulePull() {
   if (pullTimer) clearTimeout(pullTimer);
   pullTimer = setTimeout(() => {
     pullTimer = null;
-    console.log('[WsSync-Debug] pull disparado por aviso remoto');
+    console.debug('[WsSync-Debug] pull disparado por aviso remoto');
     void d1SyncService.syncAllSilent();
   }, PULL_DEBOUNCE_MS);
 }
 
-// ── DEBUG: inspecciona desde consola con window.__wsDebug() ──
+// -- DEBUG: inspecciona desde consola con window.__wsDebug() --
 let lastClose: { code: number; reason: string; at: number } | null = null;
 let lastMsgAt = 0;
 let openedOnce = false;
@@ -71,7 +71,7 @@ let openedOnce = false;
   intentionalClose,
 });
 
-function wsLog(...args: unknown[]) { console.log('[WsSync-Debug]', ...args); }
+function wsLog(...args: unknown[]) { console.debug('[WsSync-Debug]', ...args); }
 
 // Auto-arranque desacoplado de App.svelte: garantiza intento de conexion
 // ~1.2s despues de cargar el bundle, venga de donde venga.
@@ -89,7 +89,7 @@ function scheduleReconnect() {
   if (intentionalClose || reconnectTimer) return;
   const delay = Math.min(MAX_BACKOFF_MS, 1000 * Math.pow(2, reconnectAttempts));
   reconnectAttempts++;
-  console.log(`[WsSync-Debug] reconectando en ${delay}ms (intento ${reconnectAttempts})`);
+  console.debug(`[WsSync-Debug] reconectando en ${delay}ms (intento ${reconnectAttempts})`);
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
     void ensureWsSync();
@@ -129,10 +129,10 @@ function connect(url: string) {
     try {
       const m = JSON.parse(String(ev.data));
       if (m?.type === 'changes') {
-        // NOTA: no filtramos `from === myDeviceId` a propósito. Si dos
+        // NOTA: no filtramos `from === myDeviceId` a prop�sito. Si dos
         // dispositivos compartieran deviceId (respaldo restaurado), filtrar
-        // haría que se ignoren mutuamente. No hay bucle posible: el worker
-        // solo difunde cuando un /push APLICÓ cambios, y un sync sin cambios
+        // har�a que se ignoren mutuamente. No hay bucle posible: el worker
+        // solo difunde cuando un /push APLIC� cambios, y un sync sin cambios
         // locales no difunde nada.
         wsLog('aviso de cambios (from:', m.from, ')');
         schedulePull();
@@ -172,7 +172,7 @@ export async function ensureWsSync(): Promise<void> {
     cfg = lastGoodCfg;
   }
   if (!cfg?.workerUrl || !cfg?.schoolKey || !cfg?.deviceId) {
-    wsLog('sin config D1 — WS apagado');
+    wsLog('sin config D1 � WS apagado');
     stopWsSync();
     return;
   }

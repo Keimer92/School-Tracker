@@ -530,9 +530,9 @@ export const driveSyncService = {
         if (!token || !navigator.onLine) return;
         // Solo sube si hubo cambios locales desde el último respaldo
         if (!(await hasLocalChanges())) return;
-        console.log('[DriveSync] Respaldo automático iniciando...');
+        console.debug('[DriveSync] Respaldo automático iniciando...');
         await driveSyncService.pushAll(true);
-        console.log('[DriveSync] Respaldo automático completado');
+        console.debug('[DriveSync] Respaldo automático completado');
       } catch (e) {
         console.warn('[DriveSync] Error en respaldo automático:', e);
       }

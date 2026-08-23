@@ -136,9 +136,9 @@ export const d1SyncService = {
       // así el tick periódico puede avisar a las páginas sin spamearlas.
       if (hadChanges && dispatchEvents) {
         await emitUpdates();
-        console.log(`[D1Debug] sync OK · push=${p} pull=${l} del=${d} → eventos enviados a páginas`);
+        console.debug(`[D1Debug] sync OK · push=${p} pull=${l} del=${d} → eventos enviados a páginas`);
       } else {
-        console.log(`[D1Debug] sync OK · push=${p} pull=${l} del=${d} (sin cambios)`);
+        console.debug(`[D1Debug] sync OK · push=${p} pull=${l} del=${d} (sin cambios)`);
       }
       markAllClean();
       return result;
@@ -193,7 +193,6 @@ export const d1SyncService = {
     const interval = Math.max(30, Math.min(3600, parseInt(intervalStr || '300') || 300)) * 1000;
     if ((d1SyncService as any)._periodicTimer) clearInterval((d1SyncService as any)._periodicTimer);
     (d1SyncService as any)._periodicTimer = setInterval(async () => {
-      console.log('[D1Debug] tick periódico');
       const cfg = await getConfig();
       if (!cfg) {
         d1SyncService.stopPeriodicSync();
