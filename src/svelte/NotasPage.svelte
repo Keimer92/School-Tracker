@@ -9,6 +9,9 @@
   import SearchInput from "./SearchInput.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import { generarInstrumentoPDF, generarInstrumentosTodosPDF, INSTRUMENTO_OPS, type InstrumentoInput, type InstrumentoTipo } from "../lib/instrumentosPdf";
+  import { generarInstrumentoExcel, type ExcelInstrumentoInput } from "../lib/instrumentosExcel";
+  import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
+  import { readFile } from "@tauri-apps/plugin-fs";
 
   // Visible = la página contenedora está activa Y este es el sub-tab seleccionado.
   let { visible = true }: { visible?: boolean } = $props();
@@ -619,7 +622,7 @@
         try {
           const subjectsByGrade = await invoke<CategoryItem[]>("get_subjects_by_grade", { gradoId: firstGradoId });
           if (subjectsByGrade.length > 0) filteredAsignaturas = subjectsByGrade.filter(sg => asignaturasData.some(ca => ca.id === sg.id));
-        } catch (e) { console.log("Comando get_subjects_by_grade no disponible, usando globales"); }
+        } catch (e) { console.debug("Comando get_subjects_by_grade no disponible, usando globales"); }
       }
       const sortedAsignaturas = [...filteredAsignaturas].sort((a, b) => a.nombre.localeCompare(b.nombre));
       asignaturas = sortedAsignaturas;
@@ -891,6 +894,40 @@
       console.error('[Instrumentos] Error:', e);
       await emit("show-toast", { message: "❌ Error generando PDF: " + e, type: "error" });
     } finally { generatingPdf = false; }
+  }
+
+  async function generarExcelInstrumento(ind: Indicador) {
+    try {
+      const picked = await openFileDialog({
+        multiple: false,
+        title: 'Elegir plantilla Excel (.xlsx)',
+        filters: [{ name: 'Plantilla Excel', extensions: ['xlsx'] }],
+      });
+      if (!picked || Array.isArray(picked)) return;
+      const bytes = await readFile(picked);
+
+      const input: ExcelInstrumentoInput = {
+        meta: buildInstrumentoInput(ind).meta,
+        indicadorOrden: ind.orden,
+        indicadorDescripcion: ind.descripcion,
+        criterios: ind.criterios.map(c => ({ orden: c.orden, descripcion: c.descripcion, puntajeMaximo: c.puntajeMaximo })),
+        estudiantes: estudiantes.map(est => ({
+          nombre: est.nombre,
+          sexo: (est as any).sexo || '',
+          letras: ind.criterios.map(c => (notasCualitativas[`${est.id}-${c.id}`] || '').toUpperCase()),
+          valoracion: calcularNotaCualitativaFinal(
+            ind.criterios.map(c => (notasCualitativas[`${est.id}-${c.id}`] || '').toUpperCase())
+              .filter(l => ['AA','AS','AF','AI'].includes(l))
+          ),
+        })),
+      };
+      const base = `Instrumento_Ind${ind.orden}_${(buildInstrumentoInput(ind).meta.asignatura || 'Asignatura').replace(/[<>:"/\\|?*]/g, '_')}`;
+      const ruta = await generarInstrumentoExcel(bytes, base, input);
+      await emit("show-toast", { message: "✅ XLSX generado en Documents/SchoolTrackerPro/Instrumentos", type: "success" });
+    } catch (e) {
+      console.error('[Instrumentos-Excel] Error:', e);
+      await emit("show-toast", { message: "❌ Error generando XLSX: " + e, type: "error" });
+    }
   }
 
   async function generarTodosInstrumentos() {
@@ -1761,6 +1798,9 @@
               <button onclick={() => generarPDFInstrumento(ind)} disabled={generatingPdf}
                 title="Generar PDF de este instrumento"
                 style="padding: 0.35rem 0.6rem; border-radius: 8px; border: 1px solid rgba(14,165,233,0.35); background: rgba(14,165,233,0.12); color: #7dd3fc; cursor: pointer; font-size: 0.7rem; font-weight: 700; flex-shrink: 0;">PDF</button>
+              <button onclick={() => generarExcelInstrumento(ind)} disabled={excelGenerating}
+                title="Generar desde tu plantilla Excel (.xlsx) con marcadores"
+                style="padding: 0.35rem 0.55rem; border-radius: 8px; border: 1px solid rgba(34,197,94,0.4); background: rgba(34,197,94,0.12); color: #86efac; cursor: pointer; font-size: 0.68rem; font-weight: 700; flex-shrink: 0;">XLS</button>
             </div>
           {:else}
             <div style="text-align: center; padding: 1rem; color: #64748b; font-size: 0.8rem;">No hay indicadores activos</div>
@@ -1769,6 +1809,26 @@
           <p style="margin: 0.75rem 0 0; color: #64748b; font-size: 0.68rem; text-align: center;">
             El instrumento se guarda por indicador y se sincroniza entre dispositivos. Los PDF se generan con las notas actuales.
           </p>
+
+          <!-- Guía plantilla Excel -->
+          <div style="margin-top: 0.75rem; padding: 0.7rem 0.8rem; background: rgba(34,197,94,0.06); border: 1px dashed rgba(34,197,94,0.35); border-radius: 12px;">
+            <div style="color: #86efac; font-weight: 700; font-size: 0.72rem; margin-bottom: 0.4rem;">📗 Plantilla propia en Excel</div>
+            <p style="margin: 0 0 0.4rem; color: #94a3b8; font-size: 0.68rem; line-height: 1.5;">
+              Diseña tu formato en Excel y escribe estos marcadores donde quieras los datos.
+              El botón <span style="color:#86efac;font-weight:700;">XLS</span> rellena tu archivo
+              <span style="color:#e2e8f0;">conservando todo tu diseño</span> (bordes, colores, logo, celdas combinadas).
+            </p>
+            <div style="font-family: monospace; font-size: 0.62rem; color: #86efac; line-height: 1.6;">
+              {'{COLEGIO}'} {'{ANO}'} {'{CORTE}'} {'{ASIGNATURA}'} {'{GRADO}'} {'{SECCION}'}<br>
+              {'{IND_ORDEN}'} {'{IND_TEXTO}'} {'{CRITERIOS_LISTA}'}
+            </div>
+            <p style="margin: 0.4rem 0 0; color: #94a3b8; font-size: 0.66rem; line-height: 1.5;">
+              <span style="color:#e2e8f0;">Fila de estudiantes:</span> en una fila escribe
+              <span style="font-family: monospace; color:#86efac;">{'{{FILAS}}'}</span> en la primera celda (bandera) y en las demás:
+              <span style="font-family: monospace; color:#86efac;">{'{NUM} {NOMBRE} {SEXO} {LETRA_1} {LETRA_2} … {VAL_IND}'}</span>.
+              Esa fila se clona por estudiante. Evita celdas combinadas dentro de esa fila.
+            </p>
+          </div>
         </div>
       </div>
     {/if}

@@ -410,7 +410,7 @@ export const driveSyncService = {
           x.onerror = () => reject(new Error('Network error'));
           x.send(multipartBody);
         });
-        console.log(`[DriveSync] Archivo creado, status: ${xhr.status} (${fileName})`);
+        console.debug(`[DriveSync] Archivo creado, status: ${xhr.status} (${fileName})`);
         if (xhr.status === 404 && cachedFolderId) {
           // La carpeta cacheada ya no existe en Drive: invalidar y reintentar la próxima vez
           console.warn('[DriveSync] Carpeta destino no encontrada (404); limpiando caché de carpeta');
@@ -459,12 +459,12 @@ export const driveSyncService = {
     await syncManager.wrapSync((async () => {
       const files = await listSyncFiles(token);
       if (files.length === 0) {
-        console.log('[DriveSync] No hay archivos de sync en Drive');
+        console.debug('[DriveSync] No hay archivos de sync en Drive');
         return;
       }
       const newest = files.reduce((a, b) => a.createdTime >= b.createdTime ? a : b);
       await downloadAndRestore(token, newest.id);
-      console.log('[DriveSync] Archivo descargado y restaurado correctamente');
+      console.debug('[DriveSync] Archivo descargado y restaurado correctamente');
     })(), 'descargar desde Google Drive');
   },
 
@@ -537,7 +537,7 @@ export const driveSyncService = {
         console.warn('[DriveSync] Error en respaldo automático:', e);
       }
     }, mins * 60000);
-    console.log(`[DriveSync] Respaldo automático activo cada ${mins} min`);
+    console.debug(`[DriveSync] Respaldo automático activo cada ${mins} min`);
   },
 
   /** Arranca el respaldo automático con el intervalo guardado (default: 180 min). */
