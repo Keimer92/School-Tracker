@@ -502,12 +502,12 @@ sin tocar nada, e inmune a desfases de reloj entre dispositivos.
 ### Arquitectura
 
 `
-GUARDAS local ? onDataChange(table,{immediate}) ? d1_sync_all (Rust)
+GUARDAS local → onDataChange(table,{immediate}) → d1_sync_all (Rust)
    +- PUSH  /push  : filas PROPIAS > last_push_sync (reloj LOCAL)
    +- PULL  /pull  : todo lo ajeno > last_sync      (reloj SERVIDOR)
 Worker: aplica con updated_at sellado por SU reloj; si escribió algo real
-   ? difunde por WebSocket a todos los sockets del school key.
-Peers (WS): {"type":"changes"} ? syncAllSilent() con debounce 700ms
+   → difunde por WebSocket a todos los sockets del school key.
+Peers (WS): {"type":"changes"} → syncAllSilent() con debounce 700ms
    ? emitUpdates() ? eventos a páginas ? refresco en sitio (keyed).
 `
 
@@ -530,7 +530,7 @@ futuro" (reloj torcido) circulaban entre dispositivos revertándose.
 
 **Broadcast solo con cambios reales**: /push difunde únicamente si
 meta.changes > 0 || deletions > 0. Un UPDATE idéntico o un sync sin cambios
-NO difunde ? sin bucles ni tormentas de auto-eco.
+NO difunde → sin bucles ni tormentas de auto-eco.
 
 ### Worker (cloudflare-sync/) — desplegar tras cada cambio
 
@@ -543,7 +543,7 @@ px wrangler deployments list.
 
 - SyncHub: **Durable Object SQLite** (plan gratuito) por school key, API de
   hibernación + setWebSocketAutoResponse('ping'?'pong') (pings sin despertar DO).
-  Rutas: /ws?key= (upgrade validando key vs KV) ? /connect; /broadcast.
+  Rutas: /ws?key= (upgrade validando key vs KV) → /connect; /broadcast.
 - Migración en wrangler.toml: [[migrations]] tag="v1_sync_hub"
   new_sqlite_classes=["SyncHub"].
 - /pull devuelve serverTime (cursor autoritativo) y **excluye filas del
@@ -569,7 +569,7 @@ sitio (listas con {#each … (est.id)} keyed: sin saltos de scroll).
 ### Identidad de dispositivo (¡crítico!)
 
 d1_config.device_id es POR INSTALACIÓN. El respaldo de Google Drive copia
-el school.db completo INCLUSA esa tabla ? restaurarlo duplica identidades:
+el school.db completo INCLUSA esa tabla → restaurarlo duplica identidades:
 con IDs iguales, cada peer descarta los avisos del otro como "propios" y el
 tiempo real muere silenciosamente (los pulls por cursor/timer siguen, por eso
 "funciona al recargar").
@@ -581,7 +581,7 @@ tiempo real muere silenciosamente (los pulls por cursor/timer siguen, por eso
 
 ### GOTCHAS D1 (aprendidos con sangre)
 
-- **ndk_context NO inicializado** en este setup Tauri 2 ? puente propio JNI
+- **ndk_context NO inicializado** en este setup Tauri 2 → puente propio JNI
   (initNativeBridge desde Kotlin) + catch_unwind en cualquier acceso legacy.
 - **esbuild (wrangler/vite) NO hace typecheck**: una variable sin declarar en
   el worker o un import mal nombrado revienta SOLO en runtime. Tras editar
@@ -607,7 +607,7 @@ src/svelte/notas/NotasMainPage.svelte: wrappers con segmented control glass,
 props { pageActive, subTabRequest }, montaje perezoso (cada hijo se monta al
 primera visita y queda oculto con display:none — preserva estado/drafts),
 siempre abren en el sub-tab principal salvo subTabRequest (quick-actions del
-Dashboard mapean en App.handleTabChange: 'informe'?asistencia, 'reportes'?notas).
+Dashboard mapean en App.handleTabChange: 'informe'→asistencia, 'reportes'→notas).
 Hijos reciben isible para condicionar egisterBackHandler. Swipe
 horizontal Android alterna sub-tabs (ignora gestos sobre scroll-x propios o
 modales fixed z=100).
