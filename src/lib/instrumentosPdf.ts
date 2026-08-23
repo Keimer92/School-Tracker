@@ -5,9 +5,9 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 
 /**
  * Instrumentos de evaluación por indicador (PDF).
- * Tipos: general (tabla de notas del indicador), cotejo (casillas),
+ * Tipos: general (tabla de notas del indicador), cotejo (registro con Total),
  * escala valorativa (letras + leyenda) y rúbrica (matriz criterios × niveles
- * con celdas vacías para descriptores manuales).
+ * con celdas vacías + registro de estudiantes).
  */
 
 export type InstrumentoTipo = 'general' | 'cotejo' | 'escala' | 'rubrica';
@@ -55,7 +55,8 @@ export interface InstrumentoInput {
 
 const NIVELES_RUBRICA = ['Superior (4)', 'Alto (3)', 'Básico (2)', 'Bajo (1)'];
 const LEYENDA_ESCALA =
-  'AA = Superior (90-100)   AS = Alto (70-89)   AF = Básico (50-69)   AI = Insuficiente (<50)';
+  'AA = Superior (90-100)    AS = Alto (70-89)    AF = Básico (50-69)    AI = Insuficiente (<50)';
+const GUIONES = '________________________________________';
 
 // jspdf-autotable v5: API funcional (no parchea el prototipo de jsPDF)
 type AutoTableFn = (doc: any, options: any) => void;
@@ -72,63 +73,100 @@ function sanitize(s: string): string {
   return s.replace(/[<>:"/\\|?*]/g, '_');
 }
 
-/** Encabezado común de todos los instrumentos. Devuelve la Y donde sigue el contenido. */
+/** Encabezado en UNA sola línea + bloque de indicador/criterios.
+ *  Si falta una descripción, dibuja una línea horizontal para completar a mano,
+ *  con el puntaje al final. Devuelve la Y donde continúa el contenido. */
 function drawHeader(doc: any, input: InstrumentoInput, title: string): number {
   const m = input.meta;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.text(title, doc.internal.pageSize.getWidth() / 2, 15, { align: 'center' });
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  const info1 = `Colegio: ${m.colegio}    Año: ${m.ano}    Corte: ${m.corte}`;
-  const info2 = `Grado: ${m.grado} - Sección: ${m.seccion}    Asignatura: ${m.asignatura}`;
-  doc.text(info1, 10, 23);
-  doc.text(info2, 10, 28);
+  const pageW = doc.internal.pageSize.getWidth();
+  const rightMargin = pageW - 10;
 
-  // Texto del indicador
   doc.setFont('helvetica', 'bold');
-  doc.text(`Indicador ${input.orden}:`, 10, 36);
-  doc.setFont('helvetica', 'normal');
-  const descLines = doc.splitTextToSize(input.descripcion || '(Sin descripción)', doc.internal.pageSize.getWidth() - 20);
-  doc.text(descLines, 10, 41);
-  let y = 41 + descLines.length * 5;
+  doc.setFontSize(13);
+  doc.text(title, pageW / 2, 14, { align: 'center' });
 
-  // Criterios enumerados
-  if (input.criterios.length > 0) {
-    doc.setFont('helvetica', 'bold');
-    doc.text('Criterios:', 10, y);
-    y += 5;
+  // ── Info del curso: UNA sola línea ──
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  const info = [
+    `Colegio: ${m.colegio}`,
+    `Año: ${m.ano}`,
+    `Corte: ${m.corte}`,
+    `Grado-Sección: ${m.grado}-${m.seccion}`,
+    `Asignatura: ${m.asignatura}`,
+  ].join('    ');
+  doc.text(info, 10, 21);
+
+  // ── Indicador ──
+  const totalPts = input.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0);
+  let y = 29;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  const label = `Indicador ${input.orden}:`;
+  doc.text(label, 10, y);
+
+  if ((input.descripcion || '').trim()) {
     doc.setFont('helvetica', 'normal');
+    const xDesc = 10 + doc.getTextWidth(label) + 2;
+    const descLines = doc.splitTextToSize(input.descripcion, rightMargin - 10);
+    doc.text(descLines, xDesc, y);
+    y += descLines.length * 4.6;
+  } else {
+    // Línea para escribir a mano + puntaje total al final
+    const ptsText = totalPts > 0 ? ` (${totalPts} pts)` : '';
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    if (ptsText) doc.text(ptsText, rightMargin, y, { align: 'right' });
+    doc.setLineWidth(0.3);
+    doc.line(10 + doc.getTextWidth(label) + 2, y, rightMargin - doc.getTextWidth(ptsText) - 2, y);
+    y += 6;
+  }
+
+  // ── Criterios ──
+  if (input.criterios.length > 0) {
+    y += 1;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.text('Criterios:', 10, y);
+    y += 5.2;
     for (const c of input.criterios) {
-      const line = `${c.orden}. ${c.descripcion || '(Sin descripción)'} (${c.puntajeMaximo} pts)`;
-      const cl = doc.splitTextToSize(line, doc.internal.pageSize.getWidth() - 24);
-      doc.text(cl, 14, y);
-      y += cl.length * 4.5;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      const numLabel = `${c.orden}.`;
+      doc.text(numLabel, 14, y);
+      const numW = doc.getTextWidth(numLabel) + 2;
+      const ptsSuffix = ` (${c.puntajeMaximo} pts)`;
+
+      if ((c.descripcion || '').trim()) {
+        doc.setFont('helvetica', 'normal');
+        const avail = rightMargin - 10 - numW - 14 - doc.getTextWidth(ptsSuffix);
+        const cl = doc.splitTextToSize(c.descripcion, avail);
+        doc.text(cl, 14 + numW, y);
+        doc.text(ptsSuffix, rightMargin, y, { align: 'right' });
+        y += cl.length * 4.5;
+      } else {
+        // Línea horizontal para escribir la descripción a mano + puntaje al final
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.text(ptsSuffix, rightMargin, y, { align: 'right' });
+        doc.setLineWidth(0.3);
+        doc.line(14 + numW, y, rightMargin - doc.getTextWidth(ptsSuffix) - 2, y);
+        y += 6;
+      }
     }
   }
-  return y + 3;
+  return y + 2;
 }
 
-async function guardarYEntregar(doc: any, fileName: string, subfolder: string): Promise<string> {
-  const pdfData = doc.output('arraybuffer');
-  const docsPath = await documentDir();
-  const sep = /Android/i.test(navigator.userAgent) ? '/' : '\\';
-  const dir = `${docsPath}${sep}SchoolTrackerPro${sep}Instrumentos${sep}${subfolder}`;
-  await mkdir(dir, { recursive: true }).catch(() => {});
-  const fullPath = `${dir}${sep}${fileName}`;
-  await writeFile(fullPath, new Uint8Array(pdfData));
-  const folderPath = dir.replace(/\\/g, '/');
-  if (/Android/i.test(navigator.userAgent)) {
-    try { await invoke('share_pdf', { path: fullPath.replace(/\\/g, '/') }); } catch {}
-  } else {
-    try { await openUrl('file:///' + folderPath); } catch {}
-  }
-  return fullPath;
-}
-
-/** Tabla estudiantes × criterios con letra actual + columna de valoración. */
-function tablaConNotas(doc: any, input: InstrumentoInput, startY: number, autoTable: AutoTableFn): void {
-  const headers = ['#', 'Estudiante', ...input.criterios.map(c => `C${c.orden}`), 'Valoración'];
+/** Tabla común: estudiantes × criterios (letras actuales) + columna final. */
+function tablaEstudiantes(
+  doc: any,
+  input: InstrumentoInput,
+  startY: number,
+  autoTable: AutoTableFn,
+  lastColLabel: string
+): void {
+  const headers = ['#', 'Estudiante', ...input.criterios.map(c => `C${c.orden}`), lastColLabel];
   const rows = input.estudiantes.map((e, i) => [
     String(i + 1),
     e.nombre,
@@ -150,37 +188,17 @@ function tablaConNotas(doc: any, input: InstrumentoInput, startY: number, autoTa
   });
 }
 
-/** Tabla estudiantes × criterios con casillas vacías (lista de cotejo impresa). */
-function tablaCotejo(doc: any, input: InstrumentoInput, startY: number, autoTable: AutoTableFn): void {
-  const headers = ['#', 'Estudiante', ...input.criterios.map(c => `C${c.orden}`), 'Logrados'];
-  const rows = input.estudiantes.map((e, i) => [
-    String(i + 1),
-    e.nombre,
-    ...input.criterios.map(() => ''), // casillas vacías para marcar a mano
-    '',
-  ]);
-  autoTable(doc, {
-    startY,
-    head: [headers],
-    body: rows,
-    theme: 'grid',
-    styles: { fontSize: 7.5, cellPadding: 2.4, halign: 'center' },
-    columnStyles: Object.assign(
-      { 0: { cellWidth: 8 }, 1: { halign: 'left', cellWidth: 'auto' } },
-      Object.fromEntries(input.criterios.map((_c, ci) => [ci + 2, { cellWidth: 12 }])),
-      { [headers.length - 1]: { cellWidth: 16 } }
-    ),
-    headStyles: { fillColor: [16, 185, 129], textColor: 255 },
-  });
-}
-
 /** Matriz criterios × niveles con celdas vacías para descriptores manuales. */
-function matrizRubrica(doc: any, input: InstrumentoInput, startY: number, autoTable: AutoTableFn): void {
+function matrizRubrica(
+  doc: any,
+  input: InstrumentoInput,
+  startY: number,
+  autoTable: AutoTableFn
+): void {
   const headers = ['Criterio', ...NIVELES_RUBRICA, 'Puntaje'];
   const rows = input.criterios.map(c => [
-    c.descripcion || `(Criterio sin descripción)`,
+    `${c.orden}. ${c.descripcion || GUIONES} (${c.puntajeMaximo} pts)`,
     '', '', '', '', // descriptores manuales
-    `${c.puntajeMaximo} pts`,
   ]);
   autoTable(doc, {
     startY,
@@ -198,16 +216,23 @@ function matrizRubrica(doc: any, input: InstrumentoInput, startY: number, autoTa
 
 function construir(doc: any, input: InstrumentoInput, autoTable: AutoTableFn): void {
   const titulo = `Instrumento: ${tipoLabel(input.tipo)} — Indicador ${input.orden}`;
-  const startY = drawHeader(doc, input, titulo);
+  let startY = drawHeader(doc, input, titulo);
+
   switch (input.tipo) {
-    case 'cotejo':
-      tablaCotejo(doc, input, startY, autoTable);
-      break;
     case 'rubrica':
+      // 1) Matriz de descriptores (referencia)  2) Registro por estudiante
       matrizRubrica(doc, input, startY, autoTable);
+      startY = ((doc as any).lastAutoTable?.finalY ?? startY) + 8;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.text('Registro por estudiante:', 10, startY);
+      tablaEstudiantes(doc, input, startY + 2, autoTable, 'Valoración');
+      break;
+    case 'cotejo':
+      tablaEstudiantes(doc, input, startY, autoTable, 'Total');
       break;
     case 'escala':
-      tablaConNotas(doc, input, startY, autoTable);
+      tablaEstudiantes(doc, input, startY, autoTable, 'Valoración');
       {
         const after = (doc as any).lastAutoTable?.finalY ?? startY + 20;
         doc.setFont('helvetica', 'italic');
@@ -216,12 +241,29 @@ function construir(doc: any, input: InstrumentoInput, autoTable: AutoTableFn): v
       }
       break;
     default:
-      tablaConNotas(doc, input, startY, autoTable);
+      tablaEstudiantes(doc, input, startY, autoTable, 'Valoración');
   }
 }
 
 function tipoLabel(tipo: InstrumentoTipo): string {
   return INSTRUMENTO_OPS.find(o => o.id === tipo)?.label ?? tipo;
+}
+
+async function guardarYEntregar(doc: any, fileName: string, subfolder: string): Promise<string> {
+  const pdfData = doc.output('arraybuffer');
+  const docsPath = await documentDir();
+  const sep = /Android/i.test(navigator.userAgent) ? '/' : '\\';
+  const dir = `${docsPath}${sep}SchoolTrackerPro${sep}Instrumentos${sep}${subfolder}`;
+  await mkdir(dir, { recursive: true }).catch(() => {});
+  const fullPath = `${dir}${sep}${fileName}`;
+  await writeFile(fullPath, new Uint8Array(pdfData));
+  const folderPath = dir.replace(/\\/g, '/');
+  if (/Android/i.test(navigator.userAgent)) {
+    try { await invoke('share_pdf', { path: fullPath.replace(/\\/g, '/') }); } catch {}
+  } else {
+    try { await openUrl('file:///' + folderPath); } catch {}
+  }
+  return fullPath;
 }
 
 /** Genera el PDF de UN indicador. Devuelve la ruta completa del archivo. */
