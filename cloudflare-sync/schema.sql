@@ -96,6 +96,7 @@ CREATE TABLE IF NOT EXISTS indicador (
     orden INTEGER NOT NULL,
     descripcion TEXT DEFAULT '',
     activo INTEGER DEFAULT 1,
+    instrumento TEXT NOT NULL DEFAULT 'general',
     updated_at TEXT DEFAULT (datetime('now')),
     device_id TEXT
 );

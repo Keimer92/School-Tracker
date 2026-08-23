@@ -8,13 +8,14 @@
   import FilterGroup from "./FilterGroup.svelte";
   import SearchInput from "./SearchInput.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
+  import { generarInstrumentoPDF, generarInstrumentosTodosPDF, INSTRUMENTO_OPS, type InstrumentoInput, type InstrumentoTipo } from "../lib/instrumentosPdf";
 
   // Visible = la página contenedora está activa Y este es el sub-tab seleccionado.
   let { visible = true }: { visible?: boolean } = $props();
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
   interface Criterio { id: number; orden: number; descripcion: string; puntajeMaximo: number; }
-  interface Indicador { id: number; orden: number; descripcion: string; activo: boolean; criterios: Criterio[]; }
+  interface Indicador { id: number; orden: number; descripcion: string; activo: boolean; instrumento: string; criterios: Criterio[]; }
   interface Estudiante { id: number; nombre: string; gradoId: number; seccionId: number; grado: string; seccion: string; }
   interface NotaEstudiante { estudianteId: number; estudianteNombre: string; notas: Record<number, number>; }
 
@@ -53,6 +54,10 @@
   let deleting = $state(false);
 
   let showDistribuirModal = $state(false);
+
+  // ── Instrumentos de evaluación ──
+  let showInstrumentosModal = $state(false);
+  let generatingPdf = $state(false);
   let distribuirTargets: Record<number, string> = $state({});
   let distribuirOverwrite = $state(true);
   let distribuirInputs = new Map<number, HTMLInputElement>();
@@ -830,6 +835,74 @@
     showDeleteConfirm = true;
   }
 
+  // ── Instrumentos de evaluación ──
+  const INSTRUMENTO_TIPOS: { id: InstrumentoTipo; label: string }[] = INSTRUMENTO_OPS.map(o => ({ id: o.id as InstrumentoTipo, label: o.label }));
+
+  async function setInstrumento(ind: Indicador, tipo: InstrumentoTipo) {
+    try {
+      await invoke('update_indicador', { id: ind.id, descripcion: ind.descripcion, activo: ind.activo, instrumento: tipo });
+      indicadores = indicadores.map(i => i.id === ind.id ? { ...i, instrumento: tipo } : i);
+      await emit("show-toast", { message: `✅ Indicador ${ind.orden}: ${INSTRUMENTO_OPS.find(o => o.id === tipo)?.label}`, type: "success" });
+      emit("indicadores-updated");
+    } catch (e) {
+      await emit("show-toast", { message: "❌ Error guardando instrumento: " + e, type: "error" });
+    }
+  }
+
+  function buildInstrumentoInput(ind: Indicador): InstrumentoInput {
+    const estudiantes_input = estudiantes.map(est => {
+      const letras = ind.criterios.map(c => (notasCualitativas[`${est.id}-${c.id}`] || '').toUpperCase());
+      const validas = letras.filter(l => ['AA', 'AS', 'AF', 'AI'].includes(l));
+      return {
+        id: est.id,
+        nombre: est.nombre,
+        sexo: (est as any).sexo || '',
+        letras,
+        valoracion: calcularNotaCualitativaFinal(validas),
+      };
+    });
+    return {
+      tipo: ((ind as any).instrumento || 'general') as InstrumentoTipo,
+      orden: ind.orden,
+      descripcion: ind.descripcion,
+      criterios: ind.criterios.map(c => ({ orden: c.orden, descripcion: c.descripcion, puntajeMaximo: c.puntajeMaximo })),
+      estudiantes: estudiantes_input,
+      meta: {
+        colegio: colegios.find(c => c.id === selectedColegio)?.nombre || '',
+        ano: anos.find(a => a.id === selectedAno)?.nombre || '',
+        corte: cortes.find(c => c.id === selectedCorte)?.nombre || '',
+        asignatura: asignaturas.find(a => a.id === selectedAsignatura)?.nombre || '',
+        grado: grados.find(g => g.id === selectedGrado)?.nombre || '',
+        seccion: secciones.find(s => s.id === selectedSeccion)?.nombre || '',
+      },
+    };
+  }
+
+  async function generarPDFInstrumento(ind: Indicador) {
+    generatingPdf = true;
+    try {
+      const ruta = await generarInstrumentoPDF(buildInstrumentoInput(ind));
+      await emit("show-toast", { message: "✅ PDF generado en Documents/SchoolTrackerPro/Instrumentos", type: "success" });
+      console.debug('[Instrumentos] PDF:', ruta);
+    } catch (e) {
+      console.error('[Instrumentos] Error:', e);
+      await emit("show-toast", { message: "❌ Error generando PDF: " + e, type: "error" });
+    } finally { generatingPdf = false; }
+  }
+
+  async function generarTodosInstrumentos() {
+    if (activeIndicadores.length === 0) return;
+    generatingPdf = true;
+    try {
+      const inputs = activeIndicadores.map(buildInstrumentoInput);
+      await generarInstrumentosTodosPDF(inputs);
+      await emit("show-toast", { message: `✅ ${inputs.length} instrumentos generados`, type: "success" });
+    } catch (e) {
+      console.error('[Instrumentos] Error generación masiva:', e);
+      await emit("show-toast", { message: "❌ Error generando instrumentos: " + e, type: "error" });
+    } finally { generatingPdf = false; }
+  }
+
   function registerInput(node: HTMLInputElement, key: string) {
     inputsRef.set(key, node);
     return { destroy() { inputsRef.delete(key); } };
@@ -1135,6 +1208,12 @@
               title="Distribuir notas automáticamente">
               <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">✨</span>
               {#if !isMobile}<span>Distribuir</span>{/if}
+            </button>
+            <button onclick={() => { showInstrumentosModal = true; }} disabled={activeIndicadores.length === 0}
+              style="height:42px;padding:0 {isMobile ? '0.4rem' : '1rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:{activeIndicadores.length > 0 ? '#0ea5e9' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{activeIndicadores.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{activeIndicadores.length > 0 ? '0 4px 14px rgba(14,165,233,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{activeIndicadores.length > 0 ? 1 : 0.7}"
+              title="Instrumentos de evaluación">
+              <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">📋</span>
+              {#if !isMobile}<span>Instrumentos</span>{/if}
             </button>
             <button onclick={handleGuardarNotas} disabled={!hasUnsavedChanges || saving || estudiantes.length === 0}
               style="height:42px;padding:0 {isMobile ? '0.4rem' : '1rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:{!hasUnsavedChanges ? 'rgba(148,163,184,0.5)' : (saving ? '#059669' : '#10b981')};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{(!hasUnsavedChanges || saving || estudiantes.length === 0) ? 'default' : 'pointer'};transition:all 0.3s ease;box-shadow:{hasUnsavedChanges && !saving && estudiantes.length > 0 ? '0 4px 14px rgba(16,185,129,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{(hasUnsavedChanges && !saving && estudiantes.length > 0) ? 1 : 0.7}"
@@ -1640,6 +1719,53 @@
               ✨ Aplicar
             </button>
           </div>
+        </div>
+      </div>
+    {/if}
+
+    <!-- Instrumentos de evaluación -->
+    {#if showInstrumentosModal}
+      <div style="position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; padding: 1rem;">
+        <div onclick={() => showInstrumentosModal = false} style="position: absolute; inset: 0; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(4px);"></div>
+        <div style="position: relative; background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98)); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 20px; padding: 1.75rem; width: min(560px, 94vw); max-height: 86vh; overflow-y: auto; box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.6);">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
+            <h3 style="margin: 0; color: #f1f5f9; font-size: 1.15rem; font-weight: 700;">📋 Instrumentos de evaluación</h3>
+            <button onclick={() => showInstrumentosModal = false} style="background: transparent; border: none; color: #64748b; font-size: 1.2rem; cursor: pointer;">✕</button>
+          </div>
+
+          <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+            <button onclick={generarTodosInstrumentos} disabled={generatingPdf}
+              style="flex: 1; padding: 0.55rem; border-radius: 10px; border: none; background: linear-gradient(135deg, #0ea5e9, #0284c7); color: #fff; font-weight: 700; font-size: 0.8rem; cursor: pointer; opacity: {generatingPdf ? 0.6 : 1};">
+              {generatingPdf ? '⏳ Generando…' : '📄 Generar todos'}
+            </button>
+          </div>
+
+          {#each activeIndicadores as ind (ind.id)}
+            {@const tipoActual = ((ind as any).instrumento || 'general') as InstrumentoTipo}
+            <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.7rem; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; margin-bottom: 0.45rem; flex-wrap: wrap;">
+              <span style="width: 26px; height: 26px; border-radius: 8px; background: rgba(14,165,233,0.15); color: #7dd3fc; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.72rem; flex-shrink: 0;">{ind.orden}</span>
+              <div style="flex: 1; min-width: 140px;">
+                <div style="color: #e2e8f0; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{ind.descripcion || '(Sin descripción)'}</div>
+                <div style="color: #64748b; font-size: 0.65rem;">{ind.criterios.length} criterio(s)</div>
+              </div>
+              <select value={tipoActual}
+                onchange={(e) => setInstrumento(ind, (e.target as HTMLSelectElement).value as InstrumentoTipo)}
+                style="padding: 0.3rem 0.4rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(15,23,42,0.8); color: #e2e8f0; font-size: 0.72rem; outline: none; max-width: 150px;">
+                {#each INSTRUMENTO_TIPOS as op}
+                  <option value={op.id}>{op.label}</option>
+                {/each}
+              </select>
+              <button onclick={() => generarPDFInstrumento(ind)} disabled={generatingPdf}
+                title="Generar PDF de este instrumento"
+                style="padding: 0.35rem 0.6rem; border-radius: 8px; border: 1px solid rgba(14,165,233,0.35); background: rgba(14,165,233,0.12); color: #7dd3fc; cursor: pointer; font-size: 0.7rem; font-weight: 700; flex-shrink: 0;">PDF</button>
+            </div>
+          {:else}
+            <div style="text-align: center; padding: 1rem; color: #64748b; font-size: 0.8rem;">No hay indicadores activos</div>
+          {/each}
+
+          <p style="margin: 0.75rem 0 0; color: #64748b; font-size: 0.68rem; text-align: center;">
+            El instrumento se guarda por indicador y se sincroniza entre dispositivos. Los PDF se generan con las notas actuales.
+          </p>
         </div>
       </div>
     {/if}

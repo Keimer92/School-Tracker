@@ -12,7 +12,7 @@
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
   interface Criterio { id: number; orden: number; descripcion: string; puntajeMaximo: number; }
-  interface Indicador { id: number; orden: number; descripcion: string; activo: boolean; criterios: Criterio[]; }
+  interface Indicador { id: number; orden: number; descripcion: string; activo: boolean; instrumento?: string; criterios: Criterio[]; }
   interface Estudiante { id: number; nombre: string; sexo: string; grado: string; seccion: string; }
   interface EstudianteReporte extends Estudiante {
     notasIndicadores: Record<number, number>;

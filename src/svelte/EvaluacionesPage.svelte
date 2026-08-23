@@ -9,7 +9,7 @@
   import FilterActions from "./FilterActions.svelte";
 
   interface Criterio { id: number; orden: number; descripcion: string; puntajeMaximo: number; }
-  interface Indicador { id: number; orden: number; descripcion: string; activo: boolean; criterios: Criterio[]; }
+  interface Indicador { id: number; orden: number; descripcion: string; activo: boolean; instrumento?: string; criterios: Criterio[]; }
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
   type ViewMode = "modern-cards" | "accordion" | "split-panel";
 

@@ -49,6 +49,7 @@ pub struct Indicador {
     pub orden: i64,
     pub descripcion: String,
     pub activo: bool,
+    pub instrumento: String,
     pub criterios: Vec<Criterio>,
 }
 
@@ -194,6 +195,7 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             orden INTEGER NOT NULL,
             descripcion TEXT DEFAULT '',
             activo INTEGER DEFAULT 1,
+            instrumento TEXT NOT NULL DEFAULT 'general',
             updated_at TEXT DEFAULT (datetime('now')),
             FOREIGN KEY(grado_id) REFERENCES grado(id),
             FOREIGN KEY(asignatura_id) REFERENCES asignatura(id),
@@ -354,6 +356,23 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
             [],
         )
         .map_err(|e| format!("Error agregando columna last_push_sync: {}", e))?;
+    }
+
+    // Agregar columna 'minimo' a configuracion_calificacion si no existe
+    let has_instrumento: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('indicador') WHERE name = 'instrumento'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(0) > 0;
+
+    if !has_instrumento {
+        conn.execute(
+            "ALTER TABLE indicador ADD COLUMN instrumento TEXT NOT NULL DEFAULT 'general'",
+            [],
+        )
+        .map_err(|e| format!("Error agregando columna instrumento: {}", e))?;
     }
 
     // Agregar columna 'minimo' a configuracion_calificacion si no existe
@@ -2861,8 +2880,8 @@ pub async fn get_evaluation_config(
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, orden, descripcion, activo FROM indicador 
-             WHERE grado_id = ? AND asignatura_id = ? AND corte_evaluativo_id = ? 
+            "SELECT id, orden, descripcion, activo, COALESCE(instrumento,'general') FROM indicador
+             WHERE grado_id = ? AND asignatura_id = ? AND corte_evaluativo_id = ?
              ORDER BY orden",
         )
         .map_err(|e| e.to_string())?;
@@ -2873,6 +2892,7 @@ pub async fn get_evaluation_config(
             let orden: i64 = row.get(1)?;
             let descripcion: String = row.get(2)?;
             let activo: bool = row.get::<_, i64>(3)? == 1;
+            let instrumento: String = row.get(4)?;
 
             Ok(Indicador {
                 id: Some(id),
@@ -2882,6 +2902,7 @@ pub async fn get_evaluation_config(
                 orden,
                 descripcion,
                 activo,
+                instrumento,
                 criterios: Vec::new(), // Will fill momentarily
             })
         })
@@ -2960,14 +2981,29 @@ pub async fn update_indicador(
     id: i64,
     descripcion: String,
     activo: bool,
+    instrumento: Option<String>,
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    conn.execute(
-        "UPDATE indicador SET descripcion = ?, activo = ?, updated_at = datetime('now') WHERE id = ?",
-        rusqlite::params![descripcion, if activo { 1 } else { 0 }, id],
-    )
-    .map(|_| ())
-    .map_err(|e| e.to_string())
+    // Instrumento opcional para retrocompatibilidad con llamadas existentes
+    // (EvaluacionesPage): si viene None se conserva el valor actual.
+    let n = if let Some(instr) = instrumento {
+        let instr = if instr.trim().is_empty() { "general".to_string() } else { instr.trim().to_lowercase() };
+        conn.execute(
+            "UPDATE indicador SET descripcion = ?, activo = ?, instrumento = ?, updated_at = datetime('now') WHERE id = ?",
+            rusqlite::params![descripcion, if activo { 1 } else { 0 }, instr, id],
+        )
+        .map_err(|e| e.to_string())?
+    } else {
+        conn.execute(
+            "UPDATE indicador SET descripcion = ?, activo = ?, updated_at = datetime('now') WHERE id = ?",
+            rusqlite::params![descripcion, if activo { 1 } else { 0 }, id],
+        )
+        .map_err(|e| e.to_string())?
+    };
+    if n == 0 {
+        return Err(format!("Indicador {} no encontrado", id));
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -3782,7 +3818,7 @@ pub async fn delete_asistencia_rango(
 pub async fn get_indicadores_all(state: tauri::State<'_, DbState>) -> Result<Vec<Indicador>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
-        .prepare("SELECT id, grado_id, asignatura_id, corte_evaluativo_id, orden, descripcion, activo FROM indicador")
+        .prepare("SELECT id, grado_id, asignatura_id, corte_evaluativo_id, orden, descripcion, activo, COALESCE(instrumento,'general') FROM indicador")
         .map_err(|e| e.to_string())?;
 
     let indicadores = stmt
@@ -3795,6 +3831,7 @@ pub async fn get_indicadores_all(state: tauri::State<'_, DbState>) -> Result<Vec
                 orden: row.get(4)?,
                 descripcion: row.get(5)?,
                 activo: row.get::<_, i64>(6)? == 1,
+                instrumento: row.get(7)?,
                 criterios: vec![], // No necesitamos cargar criterios aquÃ­ para sync simple
             })
         })

@@ -106,7 +106,7 @@ const TABLES: Record<string, { pk: string[]; cols: string[] }> = {
   },
   indicador: {
     pk: ['id'],
-    cols: ['id', 'grado_id', 'asignatura_id', 'corte_evaluativo_id', 'orden', 'descripcion', 'activo', 'updated_at'],
+    cols: ['id', 'grado_id', 'asignatura_id', 'corte_evaluativo_id', 'orden', 'descripcion', 'activo', 'instrumento', 'updated_at'],
   },
   criterio: {
     pk: ['id'],
@@ -140,6 +140,21 @@ const TABLES: Record<string, { pk: string[]; cols: string[] }> = {
 };
 
 const VALID_TABLES = new Set(Object.keys(TABLES));
+
+// ── Auto-migración ligera: garantizar columnas nuevas una vez por isolate.
+// Evita depender de `wrangler d1 execute --remote` (token CLI a veces sin
+// permisos de escritura D1). Los ALTER fallan silenciosamente si ya existen.
+let schemaReady = false;
+async function ensureSchema(env: Env): Promise<void> {
+  if (schemaReady) return;
+  const stmts = [
+    "ALTER TABLE indicador ADD COLUMN instrumento TEXT NOT NULL DEFAULT 'general'",
+  ];
+  for (const sql of stmts) {
+    try { await env.DB.prepare(sql).run(); } catch { /* ya existe */ }
+  }
+  schemaReady = true;
+}
 
 // Máximo de sentencias por llamada a env.DB.batch() (el límite real es 100).
 const BATCH_STMT = 90;
@@ -230,6 +245,8 @@ export default {
     const path = url.pathname;
 
     try {
+      await ensureSchema(env);
+
       // ── WebSocket: reenviar el upgrade al hub de esta school key ──
       if (path === '/ws') {
         const key = url.searchParams.get('key') || '';
