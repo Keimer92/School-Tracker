@@ -159,8 +159,8 @@ async function queryRows(db: D1Database, sql: string, params: unknown[] = []): P
   return r.results as any[];
 }
 
-/** Convierte `{ sql, params }[]` en un batch. Devuelve resultados por sentencia. */
-async function batchExec(db: D1Database, statements: { sql: string; params: any[] }[]): Promise<any[]> {
+/** Convierte `{ sql, params }[]` en un batch. Devuelve resultados + cambios reales por sentencia. */
+async function batchExec(db: D1Database, statements: { sql: string; params: any[] }[]): Promise<{ results: any[]; changes: number }[]> {
   if (statements.length === 0) return [];
   const stmts = statements.map((s) => db.prepare(s.sql).bind(...s.params));
   try {
@@ -168,7 +168,8 @@ async function batchExec(db: D1Database, statements: { sql: string; params: any[
     for (const r of res) {
       if (!r.success) throw new Error(`D1 batch error: ${r.error || 'desconocido'}`);
     }
-    return res.map((r) => r.results as any[]);
+    // meta.changes = filas REALMENTE escritas (LWW puede rechazar el upsert)
+    return res.map((r) => ({ results: r.results as any[], changes: r.meta?.changes ?? 0 }));
   } catch (e: any) {
     // db.batch() puede lanzar D1BatchError en lugar de devolver success:false
     throw new Error(`D1 batch error: ${e?.message || String(e)}`);
@@ -289,23 +290,31 @@ WHERE excluded.updated_at > sync_tombstone.updated_at
         }
 
         // ---- 2. Ejecutar en lotes de ~90 sentencias (1 subrequest por lote)
+        let realChanges = 0;
         for (let i = 0; i < statements.length; i += BATCH_STMT) {
-          await batchExec(env.DB, statements.slice(i, i + BATCH_STMT));
+          const batchRes = await batchExec(env.DB, statements.slice(i, i + BATCH_STMT));
+          realChanges += batchRes.reduce((a, b) => a + b.changes, 0);
         }
+        console.log(`[push] device=${deviceId} enviadas=${Object.values(stats).reduce((a, b) => a + b, 0)} cambiosReales=${realChanges} del=${delCount}`);
 
-        // ---- 3. Push en tiempo real: avisar al hub para notificar al resto
+        // ---- 3. Push en tiempo real: avisar SOLO si D1 realmente cambió.
+        // Contar filas enviadas (aunque el LWW las rechace) provocaba bucles
+        // de auto-broadcast: cada sync re-difundía sin datos nuevos.
         const appliedTables = Object.keys(stats);
-        if ((appliedTables.length > 0 || delCount > 0) && schoolKey && env.SYNC_HUB) {
+        if ((realChanges > 0 || delCount > 0) && schoolKey && env.SYNC_HUB) {
           try {
             const id = env.SYNC_HUB.idFromName(schoolKey);
             const stub = env.SYNC_HUB.get(id);
-            await stub.fetch('https://sync-hub/broadcast', {
+            const bc = await stub.fetch('https://sync-hub/broadcast', {
               method: 'POST',
               body: JSON.stringify({ from: deviceId }),
             });
+            console.log(`[push] broadcast -> ${await bc.text()}`);
           } catch (e) {
             console.error('[WS] broadcast falló:', e);
           }
+        } else {
+          console.log('[push] sin cambios reales; no se difunde');
         }
 
         return json({ ok: true, applied: stats, deletionsApplied: delCount });
@@ -315,22 +324,24 @@ WHERE excluded.updated_at > sync_tombstone.updated_at
         const dbId = await routeToDb(env, req);
         const body: any = await req.json();
         const since = body.since || '1970-01-01 00:00:00';
+        const deviceId: string = body.deviceId || '';
 
         // ---- Selects de todas las tablas + tombstones en UN solo batch
+        // (excluyendo las filas escritas por este mismo dispositivo)
         const statements = Object.keys(TABLES).map((table) => ({
-          sql: `SELECT * FROM ${table} WHERE updated_at > ?1`,
-          params: [since],
+          sql: `SELECT * FROM ${table} WHERE updated_at > ?1 AND IFNULL(device_id, '') != ?2`,
+          params: [since, deviceId],
         }));
         statements.push({
-          sql: `SELECT tabla, pk, updated_at, device_id FROM sync_tombstone WHERE updated_at > ?1`,
-          params: [since],
+          sql: `SELECT tabla, pk, updated_at, device_id FROM sync_tombstone WHERE updated_at > ?1 AND IFNULL(device_id, '') != ?2`,
+          params: [since, deviceId],
         });
         const results = await batchExec(env.DB, statements);
 
         const rows: Record<string, any[]> = {};
         Object.keys(TABLES).forEach((table, i) => {
           const def = TABLES[table];
-          rows[table] = (results[i] || []).map((r: any) => {
+          rows[table] = (results[i].results || []).map((r: any) => {
             // Quitar device_id interno; solo devolver columnas conocidas
             const o: Record<string, any> = {};
             for (const c of def.cols) o[c] = r[c];
@@ -338,7 +349,7 @@ WHERE excluded.updated_at > sync_tombstone.updated_at
           });
         });
 
-        const tombstones = results[Object.keys(TABLES).length] || [];
+        const tombstones = results[Object.keys(TABLES).length].results || [];
         const deleted = tombstones.map((t: any) => ({
           tabla: t.tabla,
           pk: JSON.parse(t.pk),
@@ -366,7 +377,7 @@ RETURNING value`,
 
         tablesNeeded.forEach(([table, count], i) => {
           const n = Math.max(1, Math.floor(Number(count) || 1));
-          const newVal = Number(results[i]?.[0]?.value) || n;
+          const newVal = Number(results[i].results[0]?.value) || n;
           blocks[table] = { start: newVal - n + 1, end: newVal };
         });
 

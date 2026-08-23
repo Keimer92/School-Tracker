@@ -397,6 +397,25 @@
     });
   }
 
+  async function regenerateDeviceId() {
+    confirm(
+      "¿Regenerar el ID de este dispositivo?\n\nÚsalo SOLO si dos dispositivos muestran el mismo ID (suele pasar al restaurar un respaldo de Drive). La sincronización en tiempo real quedará reparada.",
+      "Regenerar ID de dispositivo",
+      'warning',
+      async () => {
+        try {
+          const nuevo = await invoke<string>('d1_reset_device_id');
+          if (d1Cfg) d1Cfg.deviceId = nuevo;
+          stopWsSync();
+          await ensureWsSync();
+          await emit("show-toast", { message: `✅ Nuevo ID: ${nuevo.slice(-8)}`, type: "success" });
+        } catch (e) {
+          await emit("show-toast", { message: "❌ Error: " + e, type: "error" });
+        }
+      }
+    );
+  }
+
   onMount(async () => {
     const unsub = syncManager.subscribe((state) => { syncStatus = state; });
     loadSettings();
@@ -506,6 +525,9 @@
         <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 0.75rem 0.9rem; background: linear-gradient(135deg, rgba(246,130,31,0.08) 0%, rgba(246,130,31,0.03) 100%); border-radius: 12px; border: 1px solid rgba(246,130,31,0.12); margin-bottom: 0.9rem;">
           <div style="color: #f1f5f9; font-size: 0.78rem;">
             <div style="font-weight: 600; color: #fdba74;">Clave: <span style="color:#e2e8f0; font-family: monospace;">{d1Cfg.schoolKey.slice(0, 12)}…</span></div>
+            <div style="font-weight: 600; color: #94a3b8; font-size: 0.72rem;">ID dispositivo: <span style="color:#e2e8f0; font-family: monospace;">…{d1Cfg.deviceId.slice(-10)}</span>
+              {#if d1Cfg.lastSync}<span style="color:#64748b;"> · cursor: {d1Cfg.lastSync}</span>{/if}
+            </div>
             <div style="color: #64748b; margin-top: 2px;">Dispositivo: <span style="font-family: monospace;">{d1Cfg.deviceId}</span></div>
             <div style="color: #64748b; margin-top: 2px;">Última sync: {d1SyncState.lastSync ? new Date(d1SyncState.lastSync).toLocaleString('es-ES') : '—'}</div>
           </div>
@@ -540,6 +562,7 @@
           </div>
         {/if}
         <div style="margin-top: 0.85rem; display: flex; align-items: center; gap: 6px;">
+          <button onclick={regenerateDeviceId} style="padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid rgba(245,158,11,0.3); background: rgba(245,158,11,0.1); color: #fbbf24; cursor: pointer; font-size: 0.7rem;">Regenerar ID dispositivo</button>
           <button onclick={disconnectD1} style="padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); color: #f87171; cursor: pointer; font-size: 0.7rem;">Desconectar</button>
         </div>
       {/if}

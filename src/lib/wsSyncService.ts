@@ -2,14 +2,14 @@
 import { d1SyncService } from './d1SyncService';
 
 /**
- * Push en tiempo real vÃ­a WebSocket contra el Worker (hub por school key).
+ * Push en tiempo real via WebSocket contra el Worker (hub por school key).
  *
- - Al recibir `{"type":"changes","from":"<otro dispositivo>"}` dispara un
-   `syncAllSilent()` con debounce pequeÃ±o (los rÃ¡fagas se agrupan).
- - ReconexiÃ³n con backoff exponencial (1s â†’ 30s), re-intento al recuperar red
-   y al volver la app a primer plano.
- - Los pings cada 25 s los responde el servidor automÃ¡ticamente sin despertar
-   el Durable Object (setWebSocketAutoResponse).
+ * - Al recibir `{"type":"changes","from":"<otro dispositivo>"}` dispara un
+ *   `syncAllSilent()` con debounce pequeno (las rafagas se agrupan).
+ * - Reconexion con backoff exponencial (1s -> 30s), reintento al recuperar red
+ *   y al volver la app a primer plano.
+ * - Los pings cada 25 s los responde el servidor automaticamente sin despertar
+ *   el Durable Object (setWebSocketAutoResponse).
  */
 
 interface D1Cfg {
@@ -55,7 +55,7 @@ function schedulePull() {
   }, PULL_DEBOUNCE_MS);
 }
 
-// â”€â”€ DEBUG: inspecciona desde consola con window.__wsDebug() â”€â”€
+// ── DEBUG: inspecciona desde consola con window.__wsDebug() ──
 let lastClose: { code: number; reason: string; at: number } | null = null;
 let lastMsgAt = 0;
 let openedOnce = false;
@@ -73,11 +73,13 @@ let openedOnce = false;
 
 function wsLog(...args: unknown[]) { console.log('[WsSync-Debug]', ...args); }
 
-// Auto-arranque desacoplado de App.svelte: garantiza intento de conexiÃ³n
-// ~1.2s despuÃ©s de cargar el bundle, venga de donde venga.
+// Auto-arranque desacoplado de App.svelte: garantiza intento de conexion
+// ~1.2s despues de cargar el bundle, venga de donde venga.
 if (typeof window !== 'undefined') {
   setTimeout(() => { void ensureWsSync(); }, 1200);
 }
+
+let lastGoodCfg: D1Cfg | null = null;
 
 function clearPing() {
   if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
@@ -114,7 +116,7 @@ function connect(url: string) {
   ws.onopen = () => {
     reconnectAttempts = 0;
     openedOnce = true;
-    wsLog('âœ… conectado al hub:', url);
+    wsLog('conectado al hub:', url);
     clearPing();
     pingTimer = setInterval(() => {
       if (ws && ws.readyState === WebSocket.OPEN) {
@@ -124,49 +126,53 @@ function connect(url: string) {
   };
   ws.onmessage = (ev) => {
     lastMsgAt = Date.now();
-    wsLog('ðŸ“© mensaje:', String(ev.data));
     try {
       const m = JSON.parse(String(ev.data));
-      if (m?.type === 'changes' && m.from && m.from !== myDeviceId) {
+      if (m?.type === 'changes') {
+        // NOTA: no filtramos `from === myDeviceId` a propósito. Si dos
+        // dispositivos compartieran deviceId (respaldo restaurado), filtrar
+        // haría que se ignoren mutuamente. No hay bucle posible: el worker
+        // solo difunde cuando un /push APLICÓ cambios, y un sync sin cambios
+        // locales no difunde nada.
+        wsLog('aviso de cambios (from:', m.from, ')');
         schedulePull();
       }
+      // 'pong' y otros mensajes no se loguean (ruido)
     } catch {}
   };
   ws.onclose = (ev: CloseEvent) => {
     lastClose = { code: ev.code, reason: ev.reason, at: Date.now() };
     const everOpened = openedOnce;
-    wsLog(`âŒ cerrado code=${ev.code} reason="${ev.reason || '-'}" (abriÃ³ antes: ${everOpened})`);
+    wsLog(`cerrado code=${ev.code} reason="${ev.reason || '-'}" (abrio antes: ${everOpened})`);
     if (!everOpened && (ev.code === 1006 || ev.code === 1015)) {
-      console.warn('[WsSync-Debug] âš ï¸ Nunca pudo abrirse el WebSocket. Causas tÃ­picas: ' +
-        '1) El worker NO tiene desplegada la versiÃ³n con /ws â†’ ejecuta `npx wrangler deploy` en cloudflare-sync. ' +
+      console.warn('[WsSync-Debug] AVISO: Nunca pudo abrirse el WebSocket. Causas tipicas: ' +
+        '1) El worker NO tiene desplegada la version con /ws -> ejecuta `npx wrangler deploy` en cloudflare-sync. ' +
         '2) URL/key incorrecta.');
     }
     ws = null;
     clearPing();
     scheduleReconnect();
   };
-  ws.onerror = () => { wsLog('âš ï¸ error de socket'); };
+  ws.onerror = () => { wsLog('error de socket'); };
 }
 
-/** Conecta (o reconecta si cambiÃ³ la config). Idempotente. */
-let lastGoodCfg: D1Cfg | null = null;
-
+/** Conecta (o reconecta si cambio la config). Idempotente. */
 export async function ensureWsSync(): Promise<void> {
   bindGlobalListeners();
   let cfg: D1Cfg | null = null;
   try {
     cfg = await invoke<D1Cfg | null>('d1_get_config');
-    if (!cfg) wsLog('d1_get_config devolviÃ³ null (sin configurar)');
+    if (!cfg) wsLog('d1_get_config devolvio null (sin configurar)');
   } catch (e) {
-    console.error('[WsSync-Debug] âŒ d1_get_config fallÃ³:', e);
+    console.error('[WsSync-Debug] d1_get_config fallo:', e);
   }
-  // Fallback: usar la Ãºltima config buena si la consulta falla
+  // Fallback: usar la ultima config buena si la consulta falla
   if (!cfg && lastGoodCfg) {
     console.warn('[WsSync-Debug] usando config cacheada tras fallo de d1_get_config');
     cfg = lastGoodCfg;
   }
   if (!cfg?.workerUrl || !cfg?.schoolKey || !cfg?.deviceId) {
-    wsLog('sin config D1 â€” WS apagado');
+    wsLog('sin config D1 — WS apagado');
     stopWsSync();
     return;
   }
@@ -174,7 +180,7 @@ export async function ensureWsSync(): Promise<void> {
   intentionalClose = false;
   myDeviceId = cfg.deviceId;
   const url = buildWsUrl(cfg);
-  if (!url) { wsLog('URL invÃ¡lida desde workerUrl:', cfg.workerUrl); return; }
+  if (!url) { wsLog('URL invalida desde workerUrl:', cfg.workerUrl); return; }
   if (ws && currentUrl === url && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
   wsLog('conectando a:', url);
   closeSocketSilently();
@@ -183,7 +189,7 @@ export async function ensureWsSync(): Promise<void> {
   connect(url);
 }
 
-/** Cierra la conexiÃ³n y cancela reconexiones (config eliminada). */
+/** Cierra la conexion y cancela reconexiones (config eliminada). */
 export function stopWsSync(): void {
   intentionalClose = true;
   closeSocketSilently();
@@ -201,4 +207,3 @@ function bindGlobalListeners() {
     if (!document.hidden) void ensureWsSync();
   });
 }
-

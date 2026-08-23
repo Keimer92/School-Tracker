@@ -311,6 +311,10 @@ async function downloadAndRestore(token: string, fileId: string): Promise<void> 
   syncManager.setState({ downloadProgress: null });
   await invoke('gd_write_file_base64', { path: dbPath, contentBase64: base64 });
   await invoke('gd_reload_database', {});
+  // La identidad del dispositivo NUNCA debe viajar dentro de un respaldo:
+  // si el backup incluyó la tabla d1_config, restaurarla duplicaría el
+  // device_id entre dispositivos y rompería el push en tiempo real.
+  try { await invoke('d1_reset_device_id'); } catch {}
   syncManager.setState({ lastDownload: now() });
   markAllClean();
 }

@@ -74,6 +74,7 @@ fn http_post_json(
         .timeout(Duration::from_secs(60))
         .build();
     let url = format!("{}{}", base_url.trim_end_matches('/'), path);
+    println!("[D1] POST {} (key={}…)", url, &school_key[..school_key.len().min(8)]);
     let resp = agent
         .post(&url)
         .set("Content-Type", "application/json")
@@ -86,6 +87,7 @@ fn http_post_json(
         Ok(r) => r,
         Err(ureq::Error::Status(code, response)) => {
             let text = response.into_string().unwrap_or_default();
+            println!("[D1] HTTP {} en {} -> {}", code, path, &text[..text.len().min(300)]);
             let parsed_err: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
             let detail = parsed_err
                 .get("error")
@@ -95,6 +97,7 @@ fn http_post_json(
             return Err(format!("Worker error (HTTP {}): {}", code, detail));
         }
         Err(e) => {
+            println!("[D1] red FAIL {}: {}", url, e);
             return Err(format!("Error de red hacia el Worker ({}): {}", url, e));
         }
     };
@@ -108,8 +111,10 @@ fn http_post_json(
             .and_then(|v| v.as_str())
             .unwrap_or(&text)
             .to_string();
+        println!("[D1] HTTP {} (ok=false) en {} -> {}", status, path, &err[..err.len().min(300)]);
         return Err(format!("Worker error (HTTP {}): {}", status, err));
     }
+    println!("[D1] HTTP {} OK {}", status, path);
     Ok(parsed)
 }
 
@@ -151,6 +156,27 @@ pub fn d1_clear_config(state: tauri::State<'_, DbState>) -> Result<(), String> {
     conn.execute("DELETE FROM d1_config WHERE id = 1", [])
         .map(|_| ())
         .map_err(|e| e.to_string())
+}
+
+/// Regenera el device_id de esta instalación. Necesario cuando la identidad
+/// se duplicó entre dispositivos (p. ej. al restaurar un respaldo de Drive que
+/// incluyó la tabla d1_config): con ids compartidos, el LWW no puede
+/// desempatar y el filtro de avisos propios del WebSocket descarta los
+/// cambios del otro dispositivo.
+#[tauri::command]
+pub fn d1_reset_device_id(state: tauri::State<'_, DbState>) -> Result<String, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let new_id = generate_device_id();
+    let n = conn
+        .execute(
+            "UPDATE d1_config SET device_id = ?1 WHERE id = 1",
+            rusqlite::params![new_id],
+        )
+        .map_err(|e| e.to_string())?;
+    if n == 0 {
+        return Err("D1 no está configurado".to_string());
+    }
+    Ok(new_id)
 }
 
 #[tauri::command]
@@ -403,11 +429,27 @@ pub async fn d1_sync_all(state: tauri::State<'_, DbState>) -> Result<Value, Stri
         .last_sync
         .clone()
         .unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
+    println!(
+        "[D1] sync INICIO device={}… since=\"{}\"",
+        &cfg.device_id[..cfg.device_id.len().min(16)],
+        since
+    );
 
     // ---- 1. PUSH
     let data = collect_local_data_since(&conn, &since)?;
     let deletions = collect_pending_deletions(&conn)?;
     drop(conn);
+
+    let total_push: usize = data
+        .as_object()
+        .map(|m| m.values().filter_map(|v| v.as_array()).map(|a| a.len()).sum())
+        .unwrap_or(0);
+    println!(
+        "[D1] push: {} filas en {} tablas, {} borrados pendientes",
+        total_push,
+        data.as_object().map(|m| m.len()).unwrap_or(0),
+        deletions.len()
+    );
 
     let push_body = json!({
         "since": since,
@@ -476,6 +518,15 @@ pub async fn d1_sync_all(state: tauri::State<'_, DbState>) -> Result<Value, Stri
     drop(conn);
 
     let applied = push_resp.get("applied").cloned().unwrap_or(Value::Null);
+    println!(
+        "[D1] sync FIN device={}… push={:?} pull={} tablas ({} filas) del={} nuevo_since=\"{}\"",
+        &cfg.device_id[..cfg.device_id.len().min(16)],
+        applied,
+        pulled_counts.len(),
+        pulled_counts.values().filter_map(|v| v.as_u64()).sum::<u64>(),
+        deleted_count,
+        new_sync
+    );
     Ok(json!({
         "ok": true,
         "pushed": applied,
