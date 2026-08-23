@@ -302,18 +302,6 @@
     }
   }
 
-  /** Aplica un reemplazo de datos preservando el scroll de la tabla
-   *  (los refrescos silenciosos por sync no deben devolver al usuario arriba). */
-  function withPreservedScroll(apply: () => void) {
-    const wrap = document.querySelector('.scroll-table-wrapper') as HTMLElement | null;
-    const top = wrap?.scrollTop ?? 0;
-    apply();
-    if (wrap && top > 0) {
-      requestAnimationFrame(() => { if (wrap.isConnected) wrap.scrollTop = top; });
-      setTimeout(() => { if (wrap.isConnected) wrap.scrollTop = top; }, 60);
-    }
-  }
-
   async function fetchEstudiantes() {
     if (!refreshingSilent) loading = true;
     refreshingSilent = false;
@@ -322,12 +310,10 @@
         fecha: selectedFecha, anoLectivoId: selectedAno, colegioId: selectedColegio,
         gradoId: selectedGrado, seccionId: selectedSeccion, sexo: selectedSexo || null,
       });
-      withPreservedScroll(() => {
-        estudiantes = data.map(est => {
-          const d = draft[est.id];
-          if (d) return { ...est, estado: d.estado !== undefined ? d.estado : est.estado, observacion: d.observacion !== undefined ? d.observacion : est.observacion };
-          return est;
-        });
+      estudiantes = data.map(est => {
+        const d = draft[est.id];
+        if (d) return { ...est, estado: d.estado !== undefined ? d.estado : est.estado, observacion: d.observacion !== undefined ? d.observacion : est.observacion };
+        return est;
       });
       fetchMonthlyPct();
     } catch (error) {
@@ -362,22 +348,20 @@
         fechaInicio: fechas[0], fechaFin: fechas[fechas.length - 1],
         gradoId: selectedGrado, seccionId: selectedSeccion, sexo: selectedSexo || null,
       });
-      withPreservedScroll(() => {
-        estudiantesMulti = data.map(est => {
-          const diasRecord: Record<string, DiaEstado> = {};
-          for (const d of est.dias) {
-            diasRecord[d.fecha] = { estado: d.estado, observacion: d.observacion };
-          }
-          const savedDraft = draftMulti[est.id];
-          if (savedDraft) {
-            for (const fecha of fechas) {
-              if (savedDraft[fecha]) {
-                diasRecord[fecha] = { ...diasRecord[fecha], ...savedDraft[fecha] };
-              }
+      estudiantesMulti = data.map(est => {
+        const diasRecord: Record<string, DiaEstado> = {};
+        for (const d of est.dias) {
+          diasRecord[d.fecha] = { estado: d.estado, observacion: d.observacion };
+        }
+        const savedDraft = draftMulti[est.id];
+        if (savedDraft) {
+          for (const fecha of fechas) {
+            if (savedDraft[fecha]) {
+              diasRecord[fecha] = { ...diasRecord[fecha], ...savedDraft[fecha] };
             }
           }
-          return { id: est.id, nombre: est.nombre, codigo: est.codigo, sexo: est.sexo, dias: diasRecord };
-        });
+        }
+        return { id: est.id, nombre: est.nombre, codigo: est.codigo, sexo: est.sexo, dias: diasRecord };
       });
     } catch (error) {
       console.error("Error fetching multi students:", error);
@@ -889,7 +873,7 @@
           </div>
         {:else if isAndroidMobile}
           <div style="display:flex;flex-direction:column;gap:0.5rem;padding:0.4rem 0">
-            {#each filteredEstudiantes as est, index}
+            {#each filteredEstudiantes as est, index (est.id)}
               <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:0.5rem 0.6rem">
                 <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.4rem">
                   <span style="font-size:0.7rem;color:#64748b;font-weight:bold;min-width:20px">{index + 1}</span>
@@ -922,7 +906,7 @@
               <th style="width:60px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10">% Mes</th>
             </tr></thead>
             <tbody>
-              {#each filteredEstudiantes as est, index}
+              {#each filteredEstudiantes as est, index (est.id)}
                 {@const pct = monthlyPcts[est.id] ?? -1}
                 <tr>
                   <td><span class="student-number-badge">{index + 1}</span></td>
@@ -1036,7 +1020,7 @@
           </div>
         {:else if isAndroidMobile && periodo === "semanal"}
           <div style="display:flex;flex-direction:column;gap:0.5rem;padding:0.4rem 0">
-            {#each filteredEstudiantesMulti as est, index}
+            {#each filteredEstudiantesMulti as est, index (est.id)}
               <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:0.5rem 0.6rem">
                 <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.4rem">
                   <span style="font-size:0.7rem;color:#64748b;font-weight:bold;min-width:20px">{index + 1}</span>
@@ -1066,7 +1050,7 @@
           </div>
         {:else if isAndroidMobile && periodo === "mensual"}
           <div style="display:flex;flex-direction:column;gap:0.5rem;padding:0.4rem 0">
-            {#each filteredEstudiantesMulti as est, index}
+            {#each filteredEstudiantesMulti as est, index (est.id)}
               <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:0.5rem 0.6rem">
                 <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.3rem">
                   <span style="font-size:0.7rem;color:#64748b;font-weight:bold;min-width:20px">{index + 1}</span>
@@ -1100,7 +1084,7 @@
               {/each}
             </tr></thead>
             <tbody>
-              {#each filteredEstudiantesMulti as est, index}
+              {#each filteredEstudiantesMulti as est, index (est.id)}
                 <tr>
                   <td><span class="student-number-badge">{index + 1}</span></td>
                   <td style="text-align:left">
@@ -1138,7 +1122,7 @@
               {/each}
             </tr></thead>
             <tbody>
-              {#each filteredEstudiantesMulti as est, index}
+              {#each filteredEstudiantesMulti as est, index (est.id)}
                 <tr>
                   <td><span class="student-number-badge">{index + 1}</span></td>
                   <td style="text-align:left">

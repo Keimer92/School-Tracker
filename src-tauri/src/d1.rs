@@ -203,9 +203,39 @@ pub fn d1_status(state: tauri::State<'_, DbState>) -> Result<Value, String> {
 // Payload de push: datos locales desde `since` + borrados pendientes
 // ============================================================================
 
+/// Columnas de clave primaria por tabla (espejo de TABLES en el worker).
+fn pk_cols(table: &str) -> &'static [&'static str] {
+    match table {
+        "grado_asignatura" => &["grado_id", "asignatura_id"],
+        "colegio_asignatura" => &["colegio_id", "asignatura_id"],
+        "colegio_dias_asistencia" => &["colegio_id"],
+        "nota" => &["estudiante_id", "criterio_id", "corte_evaluativo_id", "asignatura_id"],
+        "asistencia" => &["estudiante_id", "fecha"],
+        _ => &["id"],
+    }
+}
+
+/// Parte de PK canónica: "v1|v2|"
+fn pk_part(table: &str, row: &Map<String, Value>) -> String {
+    let mut s = String::new();
+    for c in pk_cols(table) {
+        let v = row.get(*c).cloned().unwrap_or(Value::Null);
+        s.push_str(&v.to_string());
+        s.push('|');
+    }
+    s
+}
+
+/// Clave completa del anti re-relevo: "tabla|pk|updated_at"
+fn row_recent_key(table: &str, row: &Map<String, Value>) -> String {
+    let ua = row.get("updated_at").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    format!("{}|{}|{}", table, pk_part(table, row), ua)
+}
+
 fn collect_local_data_since(
     conn: &rusqlite::Connection,
     since: &str,
+    recent: &std::collections::HashSet<String>,
 ) -> Result<Value, String> {
     let table_names = [
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
@@ -248,6 +278,17 @@ fn collect_local_data_since(
             })
             .map_err(|e| format!("Error query {}: {}", table, e))?
             .filter_map(|r| r.ok())
+            .filter(|row| {
+                // Excluir filas recién pulladas y aún sin modificación local:
+                // evita re-relevar datos ajenos (bucle de sincronización).
+                match row.as_object() {
+                    Some(obj) => {
+                        let key = row_recent_key(table, obj);
+                        !recent.contains(&key)
+                    }
+                    None => true,
+                }
+            })
             .collect();
         result.insert(table.to_string(), Value::Array(rows));
     }
@@ -440,6 +481,52 @@ fn clear_all_pending_deletions(conn: &rusqlite::Connection) -> Result<(), String
 pub async fn d1_sync_all(state: tauri::State<'_, DbState>) -> Result<Value, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let cfg = read_config(&conn)?.ok_or_else(|| "D1 no está configurado".to_string())?;
+
+    // ── Anti re-relevo: recordar filas recién PULLADAS para no volver a
+    // pushearlas mientras no se modifiquen localmente. Corte elástico: sin
+    // esta memoria, filas con updated_at "a futuro" (relojes torcidos) eran
+    // re-enviadas por cada dispositivo y revertaban cambios ajenos.
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS sync_recent_pulls (
+            tabla TEXT NOT NULL,
+            pk TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            ts INTEGER NOT NULL,
+            PRIMARY KEY (tabla, pk)
+        );"
+    )
+    .map_err(|e| e.to_string())?;
+    let now_epoch = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    conn.execute(
+        "DELETE FROM sync_recent_pulls WHERE ts < ?1",
+        params![now_epoch.saturating_sub(86400)],
+    )
+    .map_err(|e| e.to_string())?;
+
+    // Cargar conjunto de recién-pullados: clave = "tabla|pk|updated_at"
+    let mut recent: std::collections::HashSet<String> = Default::default();
+    {
+        let mut stmt = conn
+            .prepare("SELECT tabla, pk, updated_at FROM sync_recent_pulls")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })
+            .map_err(|e| e.to_string())?;
+        for r in rows {
+            let (t, p, u) = r.map_err(|e| e.to_string())?;
+            recent.insert(format!("{}|{}|{}", t, p, u));
+        }
+    }
+
     // DOS cursores independientes:
     //  - push_since  = reloj LOCAL (comparable con los updated_at que este
     //    dispositivo estampa en sus propias filas) -> nunca come ediciones propias.
@@ -461,7 +548,7 @@ pub async fn d1_sync_all(state: tauri::State<'_, DbState>) -> Result<Value, Stri
 
     // ---- 1. PUSH (cursor local)
     // ---- 1. PUSH (cursor local)
-    let data = collect_local_data_since(&conn, &push_since)?;
+    let data = collect_local_data_since(&conn, &push_since, &recent)?;
     let deletions = collect_pending_deletions(&conn)?;
     drop(conn);
 
@@ -505,6 +592,17 @@ pub async fn d1_sync_all(state: tauri::State<'_, DbState>) -> Result<Value, Stri
                 for entry in entries {
                     if let Some(obj) = entry.as_object() {
                         upsert_row(&tx, table, obj)?;
+                        // Registrar en anti re-relevo: esta fila (pk + sello)
+                        // no debe volver a pushearse sin modificación local.
+                        let key = row_recent_key(table, obj);
+                        tx.execute(
+                            "INSERT INTO sync_recent_pulls (tabla, pk, updated_at, ts)
+                             VALUES (?1, ?2, ?3, ?4)
+                             ON CONFLICT(tabla, pk) DO UPDATE SET updated_at = excluded.updated_at, ts = excluded.ts",
+                            params![table, pk_part(table, obj), obj.get("updated_at").and_then(|v| v.as_str()).unwrap_or(""), now_epoch],
+                        )
+                        .map_err(|e| e.to_string())?;
+                        let _ = key;
                         n += 1;
                     }
                 }

@@ -214,11 +214,12 @@ function buildUpsert(table: string, rows: any[], deviceId: string, serverNow: st
   }
 
   const setClause = upsertCols.map((c) => `${c} = excluded.${c}`).join(', ');
+  // Upsert INCONDICIONAL: gana el ÚLTIMO PUSH EN LLEGAR (orden real del servidor,
+  // ya que updated_at es sellado por el propio worker). Sin comparaciones contra
+  // timestamps heredados de clientes con relojes torcidos.
   return {
     sql: `INSERT INTO ${table} (${colList}) VALUES ${valueTuples.join(', ')}
-ON CONFLICT(${pkTarget}) DO UPDATE SET ${setClause}
-WHERE excluded.updated_at > ${table}.updated_at
-   OR (excluded.updated_at = ${table}.updated_at AND excluded.device_id > ${table}.device_id)`,
+ON CONFLICT(${pkTarget}) DO UPDATE SET ${setClause}`,
     params,
   };
 }
@@ -353,7 +354,6 @@ WHERE excluded.updated_at > sync_tombstone.updated_at
             return o;
           });
         });
-
         const tombstones = results[Object.keys(TABLES).length].results || [];
         const deleted = tombstones.map((t: any) => ({
           tabla: t.tabla,
