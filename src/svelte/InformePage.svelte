@@ -86,6 +86,81 @@
   let gradoNombre = $derived(grados.find(g => g.id === selectedGrado)?.nombre || "");
   let seccionNombre = $derived(secciones.find(s => s.id === selectedSeccion)?.nombre || "");
 
+  // ── Modo semanal: popover mes + semanas ──
+  const pad2 = (n: number) => String(n).padStart(2, '0');
+  function lunesDeISO(iso: string): string {
+    const b = new Date(iso + 'T12:00:00');
+    const off = (b.getDay() + 6) % 7;
+    b.setDate(b.getDate() - off);
+    return `${b.getFullYear()}-${pad2(b.getMonth() + 1)}-${pad2(b.getDate())}`;
+  }
+
+  interface SemanaOpt { n: number; lunes: string; rango: string }
+  let semanasOpts = $state<SemanaOpt[]>([]);
+  let popSemanaAbierta = $state(false);
+  let popRootEl: HTMLElement | null = $state(null);
+
+  let semanaActiva = $derived(lunesDeISO(fechaBase) === fechaBase
+    ? (semanasOpts.find(s => s.lunes === fechaBase)?.n ?? 1)
+    : 1);
+
+  // Construir semanas del mes seleccionado + auto-alinear fechaBase al lunes de la semana 1
+  $effect(() => {
+    if (periodo !== 'semanal') return;
+    const primerDia = `${anoSeleccionado}-${pad2(mesSeleccionado)}-01`;
+    const lunes0 = lunesDeISO(primerDia);
+    const fin = new Date(anoSeleccionado, mesSeleccionado, 0);
+    const finISO = `${fin.getFullYear()}-${pad2(fin.getMonth() + 1)}-${pad2(fin.getDate())}`;
+
+    const opts: SemanaOpt[] = [];
+    let lu = lunes0;
+    let n = 1;
+    while (lu <= finISO) {
+      const dom = sumaDias(lu, 6);
+      opts.push({ n, lunes: lu, rango: `${fmtDM(lu)} – ${fmtDM(dom)}` });
+      lu = sumaDiasISO(lu, 7);
+      n++;
+    }
+    semanasOpts = opts;
+
+    if (opts.length > 0 && !opts.some(s => s.lunes === fechaBase)) {
+      fechaBase = opts[0].lunes;
+    }
+  });
+
+  function sumaDias(iso: string, n: number): string {
+    const d = new Date(iso + 'T12:00:00');
+    d.setDate(d.getDate() + n);
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  }
+  function fmtDM(iso: string): string {
+    return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+  }
+  function nombreMes(m: number): string {
+    return ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][m] ?? '';
+  }
+
+  function elegirSemanaInforme(s: SemanaOpt) {
+    fechaBase = s.lunes;
+    popSemanaAbierta = false;
+  }
+
+  function cerrarPopSemana() { popSemanaAbierta = false; }
+
+  // Cierre por clic fuera + Back de Android mientras el popover esté abierto
+  $effect(() => {
+    if (!popSemanaAbierta) return;
+    const fuera = (e: Event) => {
+      if (popRootEl && !popRootEl.contains(e.target as Node)) cerrarPopSemana();
+    };
+    document.addEventListener('pointerdown', fuera, true);
+    return () => document.removeEventListener('pointerdown', fuera, true);
+  });
+  $effect(() => {
+    if (!popSemanaAbierta) return;
+    return registerBackHandler(() => { cerrarPopSemana(); return true; });
+  });
+
   onMount(() => {
     const checkMobile = () => {
       isMobile = window.innerWidth <= 768;
@@ -530,6 +605,21 @@
     .table-container::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.2);border-radius:3px}
     .table-container::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.3)}
     .custom-table thead th{position:sticky;top:0;z-index:10;background:#1e293b!important}
+    .pop-wrap{position:relative;display:block;width:100%}
+    .pop-trigger{display:flex;align-items:center;justify-content:space-between;gap:.4rem;text-align:left;cursor:pointer}
+    .pop-caret{color:#64748b;font-size:.7rem;flex-shrink:0}
+    .pop-panel{position:absolute;top:calc(100% + 6px);left:0;width:min(280px,calc(100vw - 40px));box-sizing:border-box;padding:.75rem;border-radius:16px;background:rgba(13,20,36,.975);backdrop-filter:blur(24px) saturate(1.3);-webkit-backdrop-filter:blur(24px) saturate(1.3);border:1px solid rgba(255,255,255,.16);box-shadow:0 24px 60px -12px rgba(0,0,0,.7);z-index:1200;outline:none;animation:pop-in .18s cubic-bezier(.34,1.3,.64,1)}
+    @keyframes pop-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+    .pop-mes{display:flex;align-items:center;justify-content:space-between;margin-bottom:.55rem}
+    .pop-nav{width:26px;height:26px;border-radius:8px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:#cbd5e1;font-size:.85rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s ease}
+    .pop-nav:hover{background:rgba(255,255,255,.09);color:#fff}
+    .pop-mes-txt{font-weight:700;font-size:.8rem;background-image:linear-gradient(90deg,#f472b6,#22d3ee);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .pop-sems{display:flex;flex-direction:column;gap:3px;max-height:240px;overflow-y:auto}
+    .pop-sem{display:flex;align-items:center;justify-content:space-between;gap:.5rem;padding:.5rem .6rem;border:none;border-radius:10px;background:transparent;color:#cbd5e1;font-size:.76rem;font-weight:600;cursor:pointer;text-align:left;transition:all .14s ease;-webkit-tap-highlight-color:transparent;border-left:2px solid transparent}
+    .pop-sem:hover{background:rgba(244,114,182,.12);color:#fff}
+    .pop-sem.sel{background:linear-gradient(135deg,rgba(236,113,182,.22),rgba(34,211,238,.16));border-left-color:#f472b6;color:#fff}
+    .pop-sem-n{font-weight:700}
+    .pop-sem-rango{color:#94a3b8;font-size:.68rem}
   </style>
 
   <PageLayout>
@@ -543,9 +633,42 @@
           </select>
         </FilterGroup>
 
-        {#if periodo !== "mensual"}
-          <FilterGroup label={periodo === "diario" ? "Fecha:" : "Semana de:"} {isMobile}>
+        {#if periodo === "diario"}
+          <FilterGroup label="Fecha:" {isMobile}>
             <DatePickerGlass bind:value={fechaBase} />
+          </FilterGroup>
+        {:else if periodo === "semanal"}
+          <FilterGroup label="Semana de:" {isMobile}>
+            <div class="pop-wrap" bind:this={popRootEl}>
+              <button type="button" class="filter-select pop-trigger" onclick={() => popSemanaAbierta = !popSemanaAbierta}>
+                <span>Semana {semanaActiva} · {semanasOpts.find(s => s.n === semanaActiva)?.rango ?? ''}</span>
+                <span class="pop-caret">▾</span>
+              </button>
+
+              {#if popSemanaAbierta}
+                <div class="pop-panel" tabindex="-1">
+                  <div class="pop-mes">
+                    <button type="button" class="pop-nav" onclick={() => mesSeleccionado = mesSeleccionado === 1 ? 12 : mesSeleccionado - 1} title="Mes anterior">‹</button>
+                    <span class="pop-mes-txt">{nombreMes(mesSeleccionado)} {anoSeleccionado}</span>
+                    <button type="button" class="pop-nav" onclick={() => mesSeleccionado = mesSeleccionado === 12 ? 1 : mesSeleccionado + 1} title="Mes siguiente">›</button>
+                  </div>
+
+                  <div class="pop-sems">
+                    {#each semanasOpts as s (s.lunes)}
+                      <button
+                        type="button"
+                        class="pop-sem"
+                        class:sel={semanaActiva === s.n}
+                        onclick={() => elegirSemanaInforme(s)}
+                      >
+                        <span class="pop-sem-n">Semana {s.n}</span>
+                        <span class="pop-sem-rango">{s.rango}</span>
+                      </button>
+                    {/each}
+                  </div>
+                </div>
+              {/if}
+            </div>
           </FilterGroup>
         {:else}
           <FilterGroup label="Mes:" {isMobile}>
