@@ -7,7 +7,16 @@ import { emit } from "@tauri-apps/api/event";
 const init = async () => {
   const currentWindow = getCurrentWebviewWindow();
   console.log("Iniciando aplicación en ventana:", currentWindow.label);
-  
+
+  // Android: bloquear gestos de pinch-zoom (2+ dedos) en cualquier página
+  if (/Android/i.test(navigator.userAgent)) {
+    const bloquearMultitouch = (e: TouchEvent) => {
+      if (e.touches.length >= 2) e.preventDefault();
+    };
+    document.addEventListener("touchstart", bloquearMultitouch, { passive: false, capture: true });
+    document.addEventListener("touchmove", bloquearMultitouch, { passive: false, capture: true });
+  }
+
   if (currentWindow.label === 'google-login') {
     document.getElementById("root")!.innerHTML = `
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#0f172a;color:white;font-family:sans-serif;text-align:center;padding:20px;">
