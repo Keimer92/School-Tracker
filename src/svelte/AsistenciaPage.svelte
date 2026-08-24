@@ -12,6 +12,7 @@
   import SearchFab from "./SearchFab.svelte";
   import PageLayout from "./PageLayout.svelte";
   import ScrollableTable from "./ScrollableTable.svelte";
+  import DatePickerGlass from "./DatePickerGlass.svelte";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
   interface EstudianteAsistencia { id: number; nombre: string; codigo: string; sexo: string; estado: string | null; observacion: string | null; }
@@ -695,9 +696,7 @@
             </FilterGroup>
           {:else}
             <FilterGroup label={periodo === 'semanal' ? 'Semana:' : 'Fecha:'} {isMobile}>
-              <input type="date" lang="es-ES" class="filter-select" class:invalid-date={!isFechaHabilitada}
-                style="width:100%;min-width:130px;border:{!isFechaHabilitada ? '1px solid #ef4444' : ''};color:{!isFechaHabilitada ? '#ef4444' : 'inherit'}"
-                bind:value={selectedFecha} onclick={(e) => (e.target as HTMLInputElement).showPicker()} />
+              <DatePickerGlass bind:value={selectedFecha} invalid={!isFechaHabilitada} />
             </FilterGroup>
           {/if}
           <FilterGroup label="Año:" {isMobile}>

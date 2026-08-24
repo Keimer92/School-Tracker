@@ -12,6 +12,7 @@
   import FilterActions from "./FilterActions.svelte";
   import SearchFab from "./SearchFab.svelte";
   import PageLayout from "./PageLayout.svelte";
+  import DatePickerGlass from "./DatePickerGlass.svelte";
   import ScrollableTable from "./ScrollableTable.svelte";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
@@ -544,7 +545,7 @@
 
         {#if periodo !== "mensual"}
           <FilterGroup label={periodo === "diario" ? "Fecha:" : "Semana de:"} {isMobile}>
-            <input type="date" class="filter-select" bind:value={fechaBase} style="width:100%" onclick={(e) => (e.target as HTMLInputElement).showPicker()} />
+            <DatePickerGlass bind:value={fechaBase} />
           </FilterGroup>
         {:else}
           <FilterGroup label="Mes:" {isMobile}>
