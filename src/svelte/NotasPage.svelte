@@ -9,8 +9,7 @@
   import SearchInput from "./SearchInput.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import { generarInstrumentoPDF, generarInstrumentosTodosPDF, INSTRUMENTO_OPS, type InstrumentoInput, type InstrumentoTipo } from "../lib/instrumentosPdf";
-  import { generarInstrumentoExcel, type ExcelInstrumentoInput } from "../lib/instrumentosExcel";
-  import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
+  import { generarInstrumentoExcel, listarPlantillas, asegurarCarpetaPlantillas, abrirCarpetaPlantillas, plantillasDir, type ExcelInstrumentoInput } from "../lib/instrumentosExcel";
   import { readFile } from "@tauri-apps/plugin-fs";
 
   // Visible = la página contenedora está activa Y este es el sub-tab seleccionado.
@@ -63,6 +62,33 @@
   let generatingPdf = $state(false);
   let excelGenerating = $state(false);
   let mostrarAyudaExcel = $state(false);
+
+  // Plantillas .xlsx en la carpeta fija Documents/SchoolTrackerPro/Plantillas
+  let plantillas = $state<{ nombre: string; ruta: string }[]>([]);
+  let plantillaSel = $state('');
+  let cargandoPlantillas = $state(false);
+
+  async function recargarPlantillas() {
+    cargandoPlantillas = true;
+    try {
+      await asegurarCarpetaPlantillas();
+      plantillas = await listarPlantillas();
+      if (!plantillas.some(p => p.nombre === plantillaSel)) {
+        plantillaSel = plantillas[0]?.nombre ?? '';
+      }
+    } finally { cargandoPlantillas = false; }
+  }
+
+  async function abrirCarpetaDePlantillas() {
+    await abrirCarpetaPlantillas();
+    setTimeout(() => void recargarPlantillas(), 800);
+  }
+
+  // Al abrir el modal: cargar lista de plantillas de la carpeta fija
+  $effect(() => {
+    if (showInstrumentosModal) void recargarPlantillas();
+  });
+
   let distribuirTargets: Record<number, string> = $state({});
   let distribuirOverwrite = $state(true);
   let distribuirInputs = new Map<number, HTMLInputElement>();
@@ -899,14 +925,14 @@
   }
 
   async function generarExcelInstrumento(ind: Indicador) {
+    if (!plantillaSel) {
+      await emit("show-toast", { message: "⚠️ Primero selecciona una plantilla .xlsx (o copia una a la carpeta Plantillas)", type: "warning" });
+      return;
+    }
     try {
-      const picked = await openFileDialog({
-        multiple: false,
-        title: 'Elegir plantilla Excel (.xlsx)',
-        filters: [{ name: 'Plantilla Excel', extensions: ['xlsx'] }],
-      });
-      if (!picked || Array.isArray(picked)) return;
-      const bytes = await readFile(picked);
+      const rutaPlantilla = plantillas.find(p => p.nombre === plantillaSel)?.ruta
+        || `${await plantillasDir()}\\${plantillaSel}`;
+      const bytes = await readFile(rutaPlantilla);
 
       const input: ExcelInstrumentoInput = {
         meta: buildInstrumentoInput(ind).meta,
@@ -924,8 +950,8 @@
         })),
       };
       const base = `Instrumento_Ind${ind.orden}_${(buildInstrumentoInput(ind).meta.asignatura || 'Asignatura').replace(/[<>:"/\\|?*]/g, '_')}`;
-      const ruta = await generarInstrumentoExcel(bytes, base, input);
-      await emit("show-toast", { message: "✅ XLSX generado en Documents/SchoolTrackerPro/Instrumentos", type: "success" });
+      const ruta = await generarInstrumentoExcel(new Uint8Array(bytes), base, input);
+      await emit("show-toast", { message: `✅ XLSX generado con "${plantillaSel}" → Documents/SchoolTrackerPro/Instrumentos`, type: "success" });
     } catch (e) {
       console.error('[Instrumentos-Excel] Error:', e);
       await emit("show-toast", { message: "❌ Error generando XLSX: " + e, type: "error" });
@@ -940,6 +966,11 @@ estudiantes con sus notas cualitativas), conservando TODO tu diseño.
 HERRAMIENTAS VÁLIDAS
 - Microsoft Excel o LibreOffice Calc: guardar como .xlsx.
 - Google Sheets: Archivo > Descargar > Microsoft Excel (.xlsx).
+
+DÓNDE GUARDAR LA PLANTILLA
+En la carpeta que abre el botón "Carpeta" de este modal:
+  Documentos/SchoolTrackerPro/Plantillas/
+La app la detecta sola y aparece en la lista desplegable.
 
 REGLA DE ORO
 - Todo marcador debe estar COMPLETO dentro de una sola celda.
@@ -980,8 +1011,9 @@ EJEMPLO DE MAQUETACIÓN
   Fila 8:   {{FILAS}} | {NUM} | {NOMBRE} | {LETRA_1} | {LETRA_2} | {VAL_IND}
 
 RESULTADO
-Al pulsar el botón XLS y elegir esta plantilla, la app genera un archivo
-.xlsx idéntico a tu diseño pero con todos los datos reales, listo para
+Guarda tu plantilla en la carpeta "SchoolTrackerPro/Plantillas" (botón
+"Carpeta" del modal). Al pulsar XLS, la app rellena esa plantilla y entrega
+un .xlsx idéntico a tu diseño pero con todos los datos reales, listo para
 imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
 
   async function copiarAyudaPlantilla() {
@@ -1856,6 +1888,27 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
               style="padding: 0.55rem 0.8rem; border-radius: 10px; border: 1px dashed rgba(34,197,94,0.5); background: rgba(34,197,94,0.08); color: #86efac; font-weight: 700; font-size: 0.8rem; cursor: pointer;">
               ❓ Ayuda Excel
             </button>
+          </div>
+
+          <!-- Plantilla Excel de la carpeta fija -->
+          <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; padding: 0.65rem 0.8rem; background: rgba(34,197,94,0.07); border: 1px solid rgba(34,197,94,0.3); border-radius: 12px; margin-bottom: 1rem;">
+            <span style="color: #86efac; font-weight: 700; font-size: 0.72rem;">📗 Plantilla:</span>
+            {#if cargandoPlantillas}
+              <span style="color:#64748b;font-size:0.72rem;">cargando…</span>
+            {:else if plantillas.length === 0}
+              <span style="color:#fbbf24;font-size:0.72rem;">Sin plantillas — abre la carpeta y copia tu .xlsx</span>
+            {:else}
+              <select bind:value={plantillaSel}
+                style="flex: 1; min-width: 160px; padding: 0.3rem 0.4rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(15,23,42,0.8); color: #e2e8f0; font-size: 0.72rem; outline: none;">
+                {#each plantillas as p (p.ruta)}
+                  <option value={p.nombre}>{p.nombre}</option>
+                {/each}
+              </select>
+            {/if}
+            <button onclick={abrirCarpetaDePlantillas} title="Abrir carpeta de plantillas"
+              style="padding: 0.3rem 0.6rem; border-radius: 8px; border: 1px solid rgba(34,197,94,0.4); background: rgba(34,197,94,0.12); color: #86efac; cursor: pointer; font-size: 0.68rem; font-weight: 700; flex-shrink: 0;">📂 Carpeta</button>
+            <button onclick={() => void recargarPlantillas()} disabled={cargandoPlantillas} title="Recargar lista"
+              style="padding: 0.3rem 0.5rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: transparent; color: #94a3b8; cursor: pointer; font-size: 0.68rem; flex-shrink: 0;">↻</button>
           </div>
 
           {#if mostrarAyudaExcel}

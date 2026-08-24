@@ -1,6 +1,6 @@
 import JSZip from 'jszip';
 import { documentDir } from '@tauri-apps/api/path';
-import { writeFile, mkdir } from '@tauri-apps/plugin-fs';
+import { writeFile, mkdir, readDir } from '@tauri-apps/plugin-fs';
 
 /**
  * Motor de instrumentos basado en plantillas Excel con marcadores.
@@ -187,6 +187,41 @@ function procesarBloqueEstudiantes(sheetXml: string, input: ExcelInstrumentoInpu
   // Dimension tag: ampliar o limpiar para que Excel recalcule
   result = result.replace(/<dimension ref="[^"]*"\/>/, '');
   return result;
+}
+
+/** Carpeta fija donde la app busca plantillas .xlsx del usuario. */
+export async function plantillasDir(): Promise<string> {
+  const docsPath = await documentDir();
+  const sep = /Android/i.test(navigator.userAgent) ? '/' : '\\';
+  return `${docsPath}${sep}SchoolTrackerPro${sep}Plantillas`;
+}
+
+/** Lista las plantillas .xlsx disponibles (carpeta vacía/inexistente → []). */
+export async function listarPlantillas(): Promise<{ nombre: string; ruta: string }[]> {
+  const dir = await plantillasDir();
+  const sep = /Android/i.test(navigator.userAgent) ? '/' : '\\';
+  try {
+    const entries = await readDir(dir);
+    return entries
+      .filter(e => e.name && e.name.toLowerCase().endsWith('.xlsx') && !e.name.startsWith('~$'))
+      .map(e => ({ nombre: e.name!, ruta: `${dir}${sep}${e.name}` }));
+  } catch {
+    return []; // carpeta aún no creada
+  }
+}
+
+/** Crea la carpeta de plantillas si no existe. */
+export async function asegurarCarpetaPlantillas(): Promise<string> {
+  const dir = await plantillasDir();
+  await mkdir(dir, { recursive: true }).catch(() => {});
+  return dir;
+}
+
+/** Abre la carpeta de plantillas en el explorador del sistema. */
+export async function abrirCarpetaPlantillas(): Promise<void> {
+  const { openUrl } = await import('@tauri-apps/plugin-opener');
+  const dir = await asegurarCarpetaPlantillas();
+  try { await openUrl('file:///' + dir.replace(/\\/g, '/')); } catch {}
 }
 
 /**
