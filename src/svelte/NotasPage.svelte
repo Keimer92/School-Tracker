@@ -6,7 +6,7 @@
   import { onDataChange } from "../lib/autoSync";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
-  import SearchInput from "./SearchInput.svelte";
+  import SearchFab from "./SearchFab.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
   import { generarInstrumentoPDF, generarInstrumentosTodosPDF, INSTRUMENTO_OPS, type InstrumentoInput, type InstrumentoTipo } from "../lib/instrumentosPdf";
   import { generarInstrumentoExcel, listarPlantillas, asegurarCarpetaPlantillas, abrirCarpetaPlantillas, plantillasDir, type ExcelInstrumentoInput } from "../lib/instrumentosExcel";
@@ -1402,9 +1402,6 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
               <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">🗑️</span>
               {#if !isMobile}<span>Eliminar</span>{/if}
             </button>
-            <div style="flex:{isMobile ? '1 1 100%' : '1'};min-width:100px">
-              <SearchInput value={searchTerm} onChange={(v) => searchTerm = v} placeholder="Buscar..." {isMobile} height="42px" />
-            </div>
           </div>
       </FilterContainer>
 
@@ -2095,5 +2092,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
       onConfirm={handleDeleteNotas}
       onCancel={() => showDeleteConfirm = false}
     />
+
+    <SearchFab bind:value={searchTerm} placeholder="Buscar estudiante o nota..." />
   </div>
 </div>
