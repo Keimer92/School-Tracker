@@ -873,6 +873,10 @@
   const normTipo = (v: any): InstrumentoTipo =>
     ['cotejo', 'escala', 'rubrica'].includes(v) ? v : 'escala';
 
+  function labelTipo(t: InstrumentoTipo): string {
+    return INSTRUMENTO_TIPOS.find(o => o.id === t)?.label ?? t;
+  }
+
   async function setInstrumento(ind: Indicador, tipo: InstrumentoTipo) {
     try {
       await invoke('update_indicador', { id: ind.id, descripcion: ind.descripcion, activo: ind.activo, instrumento: tipo });
@@ -1961,9 +1965,6 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                 disabled={disponibles.length === 0}
                 title={disponibles.length === 0 ? 'No hay plantillas en la carpeta Plantillas' : ''}
                 style="padding: 0.3rem 0.4rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(15,23,42,0.8); color: {disponibles.length === 0 ? '#64748b' : '#e2e8f0'}; font-size: 0.72rem; outline: none; max-width: 150px;">
-                {#if !disponibles.some(t => t.id === tipoActual)}
-                  <option value={tipoActual} disabled>{tipoActual} (sin plantilla)</option>
-                {/if}
                 {#each disponibles as op}
                   <option value={op.id}>{op.label}</option>
                 {/each}
