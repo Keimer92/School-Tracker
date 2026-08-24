@@ -1,6 +1,21 @@
 import JSZip from 'jszip';
 import { documentDir } from '@tauri-apps/api/path';
 import { writeFile, mkdir, readDir } from '@tauri-apps/plugin-fs';
+import type { InstrumentoTipo } from './instrumentosPdf';
+
+/** Detecta el tipo de instrumento por palabras clave EN EL NOMBRE DEL ARCHIVO.
+ *  El nombre debe contener: "Rúbrica"/"Rubrica", "Cotejo" o "Escala".
+ *  Fallback: escala. */
+export function detectarTipoPlantilla(nombre: string): InstrumentoTipo {
+  // Normalizar: minúsculas sin acentos (rúbrica -> rubrica)
+  const n = nombre
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  if (n.includes('rubric')) return 'rubrica';
+  if (n.includes('cotejo')) return 'cotejo';
+  return 'escala';
+}
 
 /**
  * Motor de instrumentos basado en plantillas Excel con marcadores.
@@ -196,15 +211,20 @@ export async function plantillasDir(): Promise<string> {
   return `${docsPath}${sep}SchoolTrackerPro${sep}Plantillas`;
 }
 
-/** Lista las plantillas .xlsx disponibles (carpeta vacía/inexistente → []). */
-export async function listarPlantillas(): Promise<{ nombre: string; ruta: string }[]> {
+/** Lista las plantillas .xlsx disponibles con su tipo detectado por nombre. */
+export async function listarPlantillas(): Promise<{ nombre: string; ruta: string; tipo: InstrumentoTipo }[]> {
   const dir = await plantillasDir();
   const sep = /Android/i.test(navigator.userAgent) ? '/' : '\\';
   try {
     const entries = await readDir(dir);
     return entries
       .filter(e => e.name && e.name.toLowerCase().endsWith('.xlsx') && !e.name.startsWith('~$'))
-      .map(e => ({ nombre: e.name!, ruta: `${dir}${sep}${e.name}` }));
+      .map(e => ({
+        nombre: e.name!,
+        ruta: `${dir}${sep}${e.name}`,
+        tipo: detectarTipoPlantilla(e.name!),
+      }))
+      .sort((a, b) => a.tipo.localeCompare(b.tipo) || a.nombre.localeCompare(b.nombre));
   } catch {
     return []; // carpeta aún no creada
   }

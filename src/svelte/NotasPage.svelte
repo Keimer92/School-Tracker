@@ -64,8 +64,9 @@
   let mostrarAyudaExcel = $state(false);
 
   // Plantillas .xlsx en la carpeta fija Documents/SchoolTrackerPro/Plantillas
-  let plantillas = $state<{ nombre: string; ruta: string }[]>([]);
-  let plantillaSel = $state('');
+  // El nombre del archivo clasifica el tipo: debe contener Rubrica/Cotejo/Escala
+  let plantillas = $state<{ nombre: string; ruta: string; tipo: InstrumentoTipo }[]>([]);
+  let plantillaSel = $state(''); // '' = AUTO según el tipo del indicador
   let cargandoPlantillas = $state(false);
 
   async function recargarPlantillas() {
@@ -74,7 +75,7 @@
       await asegurarCarpetaPlantillas();
       plantillas = await listarPlantillas();
       if (!plantillas.some(p => p.nombre === plantillaSel)) {
-        plantillaSel = plantillas[0]?.nombre ?? '';
+        plantillaSel = '';
       }
     } finally { cargandoPlantillas = false; }
   }
@@ -925,14 +926,26 @@
   }
 
   async function generarExcelInstrumento(ind: Indicador) {
-    if (!plantillaSel) {
-      await emit("show-toast", { message: "⚠️ Primero selecciona una plantilla .xlsx (o copia una a la carpeta Plantillas)", type: "warning" });
-      return;
+    const tipoNecesario = normTipo((ind as any).instrumento || 'escala');
+    let nombrePlantilla = plantillaSel;
+
+    // AUTO: si no hay selección manual, usar la plantilla del tipo del indicador
+    if (!nombrePlantilla) {
+      const match = plantillas.find(p => p.tipo === tipoNecesario);
+      if (!match) {
+        await emit("show-toast", {
+          message: `⚠️ No hay plantilla de "${tipoNecesario}" en la carpeta Plantillas. El nombre del archivo debe contener esa palabra.`,
+          type: "warning",
+        });
+        return;
+      }
+      nombrePlantilla = match.nombre;
     }
+
     try {
-      const rutaPlantilla = plantillas.find(p => p.nombre === plantillaSel)?.ruta
-        || `${await plantillasDir()}\\${plantillaSel}`;
-      const bytes = await readFile(rutaPlantilla);
+      const rutaPlantilla = plantillas.find(p => p.nombre === nombrePlantilla)?.ruta
+        || `${await plantillasDir()}\\${nombrePlantilla}`;
+      const bytes = new Uint8Array(await readFile(rutaPlantilla));
 
       const input: ExcelInstrumentoInput = {
         meta: buildInstrumentoInput(ind).meta,
@@ -950,8 +963,8 @@
         })),
       };
       const base = `Instrumento_Ind${ind.orden}_${(buildInstrumentoInput(ind).meta.asignatura || 'Asignatura').replace(/[<>:"/\\|?*]/g, '_')}`;
-      const ruta = await generarInstrumentoExcel(new Uint8Array(bytes), base, input);
-      await emit("show-toast", { message: `✅ XLSX generado con "${plantillaSel}" → Documents/SchoolTrackerPro/Instrumentos`, type: "success" });
+      const ruta = await generarInstrumentoExcel(bytes, base, input);
+      await emit("show-toast", { message: `✅ XLSX generado con "${nombrePlantilla}" → Documents/SchoolTrackerPro/Instrumentos`, type: "success" });
     } catch (e) {
       console.error('[Instrumentos-Excel] Error:', e);
       await emit("show-toast", { message: "❌ Error generando XLSX: " + e, type: "error" });
@@ -1009,6 +1022,15 @@ EJEMPLO DE MAQUETACIÓN
   Fila 5:   {IND_ORDEN}. {IND_TEXTO}
   Fila 6:   Criterios: {CRITERIOS_LISTA}
   Fila 8:   {{FILAS}} | {NUM} | {NOMBRE} | {LETRA_1} | {LETRA_2} | {VAL_IND}
+
+REGLAS DE NOMBRADO (importante)
+El NOMBRE del archivo .xlsx debe contener el tipo de instrumento para que la
+app sepa cuál usar según lo configurado en cada indicador:
+  ...Rubrica....  -> plantilla de rúbrica
+  ...Cotejo....   -> plantilla de lista de cotejo
+  ...Escala....   -> plantilla de escala valorativa
+Ejemplos válidos: "Rubrica_MINED.xlsx", "Mi cotejo de lectura.xlsx",
+"Escala semestral.xlsx". Sin palabra clave = se trata como Escala.
 
 RESULTADO
 Guarda tu plantilla en la carpeta "SchoolTrackerPro/Plantillas" (botón
@@ -1896,12 +1918,13 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             {#if cargandoPlantillas}
               <span style="color:#64748b;font-size:0.72rem;">cargando…</span>
             {:else if plantillas.length === 0}
-              <span style="color:#fbbf24;font-size:0.72rem;">Sin plantillas — abre la carpeta y copia tu .xlsx</span>
+              <span style="color:#fbbf24;font-size:0.72rem;">Sin plantillas — abre la carpeta y copia tus .xlsx (nombre con Rubrica/Cotejo/Escala)</span>
             {:else}
               <select bind:value={plantillaSel}
-                style="flex: 1; min-width: 160px; padding: 0.3rem 0.4rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(15,23,42,0.8); color: #e2e8f0; font-size: 0.72rem; outline: none;">
+                style="flex: 1; min-width: 180px; padding: 0.3rem 0.4rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(15,23,42,0.8); color: #e2e8f0; font-size: 0.72rem; outline: none;">
+                <option value="">(Auto — según el tipo del indicador)</option>
                 {#each plantillas as p (p.ruta)}
-                  <option value={p.nombre}>{p.nombre}</option>
+                  <option value={p.nombre}>{p.tipo === 'rubrica' ? '🟣 Rúbrica' : p.tipo === 'cotejo' ? '🟢 Cotejo' : '🔵 Escala'} — {p.nombre}</option>
                 {/each}
               </select>
             {/if}
@@ -1926,16 +1949,22 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
 
           {#each activeIndicadores as ind (ind.id)}
             {@const tipoActual = normTipo((ind as any).instrumento)}
+            {@const disponibles = INSTRUMENTO_TIPOS.filter(t => plantillas.some(p => p.tipo === t.id))}
             <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.7rem; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; margin-bottom: 0.45rem; flex-wrap: wrap;">
               <span style="width: 26px; height: 26px; border-radius: 8px; background: rgba(14,165,233,0.15); color: #7dd3fc; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.72rem; flex-shrink: 0;">{ind.orden}</span>
               <div style="flex: 1; min-width: 140px;">
                 <div style="color: #e2e8f0; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{ind.descripcion || '(Sin descripción)'}</div>
                 <div style="color: #64748b; font-size: 0.65rem;">{ind.criterios.length} criterio(s)</div>
               </div>
-              <select value={tipoActual}
+              <select value={disponibles.some(t => t.id === tipoActual) ? tipoActual : (disponibles[0]?.id ?? tipoActual)}
                 onchange={(e) => setInstrumento(ind, (e.target as HTMLSelectElement).value as InstrumentoTipo)}
-                style="padding: 0.3rem 0.4rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(15,23,42,0.8); color: #e2e8f0; font-size: 0.72rem; outline: none; max-width: 150px;">
-                {#each INSTRUMENTO_TIPOS as op}
+                disabled={disponibles.length === 0}
+                title={disponibles.length === 0 ? 'No hay plantillas en la carpeta Plantillas' : ''}
+                style="padding: 0.3rem 0.4rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(15,23,42,0.8); color: {disponibles.length === 0 ? '#64748b' : '#e2e8f0'}; font-size: 0.72rem; outline: none; max-width: 150px;">
+                {#if !disponibles.some(t => t.id === tipoActual)}
+                  <option value={tipoActual} disabled>{tipoActual} (sin plantilla)</option>
+                {/if}
+                {#each disponibles as op}
                   <option value={op.id}>{op.label}</option>
                 {/each}
               </select>

@@ -23,6 +23,10 @@
       "identifier": "fs:allow-read-file",
       "allow": [{ "path": "$APPDATA/**" }, { "path": "$DOWNLOAD/**" }, { "path": "$DOCUMENT/**" }, { "path": "$HOME/**" }, { "path": "$TEMP/**" }]
     },
+    {
+      "identifier": "fs:allow-read-dir",
+      "allow": [{ "path": "$DOCUMENT/**" }]
+    },
     "fs:allow-exists",
     {
       "identifier": "fs:allow-write-file",
