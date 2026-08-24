@@ -989,6 +989,20 @@ En la carpeta que abre el botón "Carpeta" de este modal:
   Documentos/SchoolTrackerPro/Plantillas/
 La app la detecta sola y aparece en la lista desplegable.
 
+TIPOS DE INSTRUMENTO (según el nombre del archivo)
+El NOMBRE del archivo .xlsx debe contener la palabra clave del tipo:
+  ...Rubrica... / ...Rúbrica...  -> Rúbrica
+  ...Cotejo...                   -> Lista de cotejo
+  ...Escala...                   -> Escala valorativa
+Ejemplos válidos: "Rubrica_MINED.xlsx", "Mi cotejo de lectura.xlsx",
+"Escala semestral.xlsx". Sin palabra clave = se trata como Escala.
+
+SELECCIÓN AUTOMÁTICA
+Cada indicador tiene un tipo configurado (selector en este modal; solo se
+muestran los tipos que tienen plantilla en la carpeta). Al pulsar XLS, la app
+usa automáticamente la plantilla cuyo nombre coincida con ese tipo. Si
+prefieres otra, selecciónala manualmente en el desplegable.
+
 REGLA DE ORO
 - Todo marcador debe estar COMPLETO dentro de una sola celda.
 - Guarda siempre como .xlsx (no .xls, no .ods).
@@ -1026,15 +1040,6 @@ EJEMPLO DE MAQUETACIÓN
   Fila 5:   {IND_ORDEN}. {IND_TEXTO}
   Fila 6:   Criterios: {CRITERIOS_LISTA}
   Fila 8:   {{FILAS}} | {NUM} | {NOMBRE} | {LETRA_1} | {LETRA_2} | {VAL_IND}
-
-REGLAS DE NOMBRADO (importante)
-El NOMBRE del archivo .xlsx debe contener el tipo de instrumento para que la
-app sepa cuál usar según lo configurado en cada indicador:
-  ...Rubrica....  -> plantilla de rúbrica
-  ...Cotejo....   -> plantilla de lista de cotejo
-  ...Escala....   -> plantilla de escala valorativa
-Ejemplos válidos: "Rubrica_MINED.xlsx", "Mi cotejo de lectura.xlsx",
-"Escala semestral.xlsx". Sin palabra clave = se trata como Escala.
 
 RESULTADO
 Guarda tu plantilla en la carpeta "SchoolTrackerPro/Plantillas" (botón

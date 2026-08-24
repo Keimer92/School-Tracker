@@ -1586,13 +1586,61 @@ fn get_profile_app_dir(app_handle: &tauri::AppHandle) -> Result<std::path::PathB
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_deep_link::init());
 
+    // F12 abre/cierra DevTools (WebView2 en Windows no registra F12 por defecto)
+    #[cfg(desktop)]
+    {
+        use tauri_plugin_global_shortcut::ShortcutState;
+        builder = builder.plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    println!("[Shortcuts] evento F12 recibido (estado: {:?})", event.state());
+                    if event.state() == ShortcutState::Pressed {
+                        if let Some(webview) = app.get_webview_window("main") {
+                            if webview.is_devtools_open() {
+                                let _ = webview.close_devtools();
+                                println!("[Shortcuts] DevTools cerrados");
+                            } else {
+                                webview.open_devtools();
+                                println!("[Shortcuts] DevTools abiertos");
+                            }
+                        } else {
+                            println!("[Shortcuts] ventana 'main' no encontrada");
+                        }
+                    }
+                })
+                .build(),
+        );
+    }
+
+    builder
         .setup(|app| {
+            // Registro tolerante con cadena de respaldo: si otra app del sistema
+            // ya retiene una tecla, se prueba la siguiente de la lista.
+            #[cfg(desktop)]
+            {
+                use tauri_plugin_global_shortcut::GlobalShortcutExt as _;
+                let candidatos = ["F11", "Ctrl+Alt+F12", "F12"];
+                let mut registrado = String::new();
+                for c in candidatos {
+                    match app.global_shortcut().register(c) {
+                        Ok(_) => {
+                            println!("[Shortcuts] '{c}' -> DevTools registrado");
+                            registrado = c.to_string();
+                            break;
+                        }
+                        Err(e) => println!("[Shortcuts] '{c}' ocupado: {e}"),
+                    }
+                }
+                if registrado.is_empty() {
+                    println!("[Shortcuts] Ningun atajo disponible; alternativa: clic derecho > Inspeccionar");
+                }
+            }
             let app_handle = app.handle().clone();
             let app_dir = get_profile_app_dir(&app_handle).expect("Failed to get profile dir");
             let db_path = app_dir.join("school.db");
