@@ -9,7 +9,7 @@
   import { ask } from "@tauri-apps/plugin-dialog";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
-  import SearchInput from "./SearchInput.svelte";
+  import SearchFab from "./SearchFab.svelte";
   import PageLayout from "./PageLayout.svelte";
   import ScrollableTable from "./ScrollableTable.svelte";
 
@@ -614,6 +614,8 @@
     return { total, m, f };
   }
 </script>
+<SearchFab bind:value={searchTerm} placeholder="Buscar..." />
+
 
 <div class="page-container" style="height:100%;min-height:0">
   <style>
@@ -749,7 +751,6 @@
             {#if saving}<span class="saving-dot"></span><span>{isAndroidMobile ? '' : 'Guardando'}</span>{:else}<span>💾</span><span>{isAndroidMobile ? '' : 'Guardar'}</span>{/if}
           </button>
           <div style="flex:1;min-width:{isAndroidMobile ? '0' : '100px'};{isAndroidMobile ? 'flex-basis:56px;max-width:40vw' : ''}">
-            <SearchInput bind:value={searchTerm} onChange={(v: string) => searchTerm = v} placeholder="Buscar..." {isMobile} height="42px" />
           </div>
           </div>
         </div>

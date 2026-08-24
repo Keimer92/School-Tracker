@@ -7,7 +7,7 @@
   import { registerBackHandler } from "../lib/androidBack";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
-  import SearchInput from "./SearchInput.svelte";
+  import SearchFab from "./SearchFab.svelte";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
   interface Student { id?: number; nombre: string; codigo: string; sexo: string; anoLectivoId: number; gradoId: number; seccionId: number; colegioId: number; telefono?: string; direccion?: string; email?: string; foto?: string | null; }
@@ -576,6 +576,8 @@ async function fetchData(preserveFilters = false) {
     };
   });
 </script>
+<SearchFab bind:value={searchTerm} placeholder="Nombre o codigo..." />
+
 
 <div class="page-container" id="estudiantes-page" style="height: 100%; min-height: 0;">
   <FilterContainer {isMobile}>
@@ -616,7 +618,6 @@ async function fetchData(preserveFilters = false) {
       </FilterGroup>
       <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '0 0 auto'}">
         <div style="flex:1;min-width:100px">
-          <SearchInput value={searchTerm} onChange={(v) => searchTerm = v} placeholder="Nombre o código..." {isMobile} height="42px" />
         </div>
         <button onclick={openAddModal}
           style="height:42px;padding:0 1.25rem;font-size:0.85rem;background:linear-gradient(135deg,var(--primary-hover),var(--primary-color));color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:pointer;transition:all 0.2s ease;box-shadow:0 4px 14px rgba(var(--primary-rgb),0.4);flex-shrink:0;white-space:nowrap">

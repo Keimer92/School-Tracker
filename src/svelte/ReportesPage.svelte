@@ -7,7 +7,7 @@
   import { openUrl } from "@tauri-apps/plugin-opener";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
-  import SearchInput from "./SearchInput.svelte";
+  import SearchFab from "./SearchFab.svelte";
   import PageLayout from "./PageLayout.svelte";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
@@ -886,6 +886,8 @@
     }
   }
 </script>
+<SearchFab bind:value={searchTerm} placeholder="Buscar..." />
+
 
 <div class="page-container" style="height:100%;min-height:0">
   <style>
@@ -1073,7 +1075,6 @@
               {/if}
             </div>
             <div style="flex:1;min-width:100px">
-              <SearchInput bind:value={searchTerm} onChange={(v: string) => searchTerm = v} placeholder="Buscar..." {isMobile} height="42px" />
             </div>
           </div>
         </FilterContainer>
