@@ -272,8 +272,9 @@
 
   .dg-dias-head {
     display: grid;
-    grid-template-columns: repeat(7, 1fr);
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 2px;
+    width: 100%;
     margin-bottom: 2px;
   }
   .dg-dow {
@@ -295,8 +296,13 @@
 
   .dg-dia {
     width: 100%;
+    margin: 0;
     padding: 0;
     box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
     aspect-ratio: 1 / 0.92;
     border-radius: 9px;
     border: none;
@@ -308,20 +314,29 @@
     transition: background 0.14s ease, color 0.14s ease, box-shadow 0.14s ease;
     -webkit-tap-highlight-color: transparent;
   }
-  .dg-dia:hover { background: rgba(244, 114, 182, 0.16); color: #fff; }
+  .dg-dia:hover {
+    background: rgba(244, 114, 182, 0.16);
+    color: #fff;
+    box-shadow:
+      0 0 10px rgba(244, 114, 182, 0.5),
+      0 0 22px rgba(34, 211, 238, 0.35);
+  }
 
   .dg-dia.hoy {
     box-shadow: inset 0 0 0 1.5px var(--accent-cyan-solid, #22d3ee);
     color: var(--accent-cyan-solid, #22d3ee);
+  }
+  .dg-dia.hoy:hover {
+    color: #fff;
   }
 
   .dg-dia.sel {
     background: linear-gradient(135deg, #ec4899, #06b6d4);
     color: #fff;
     font-weight: 800;
-    box-shadow: 0 4px 16px rgba(236, 72, 153, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 10px rgba(236, 72, 153, 0.4);
   }
-  .dg-dia.sel.hoy { box-shadow: 0 4px 16px rgba(236, 72, 153, 0.45), inset 0 0 0 2px rgba(255, 255, 255, 0.55); }
+  .dg-dia.sel.hoy { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.55), 0 2px 10px rgba(236, 72, 153, 0.4); }
 
   .dg-foot {
     display: flex;
