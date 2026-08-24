@@ -1364,7 +1364,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           </select>
         </FilterGroup>
 
-          <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '1 1 auto'};{isMobile ? 'overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;' : ''}">
+          <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:1 1 100%;{isMobile ? 'overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;' : ''}">
             <div style="flex:1;min-width:100px">
               <SearchInput value={searchTerm} onChange={(v) => searchTerm = v} placeholder="Buscar..." {isMobile} height="42px" />
             </div>
