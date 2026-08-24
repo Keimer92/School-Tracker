@@ -1365,7 +1365,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
         </FilterGroup>
 
           <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:1 1 100%;{isMobile ? 'overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;' : ''}">
-            <div style="flex:1;min-width:100px">
+            <div style="flex:{isMobile ? '1 0 120px' : '0 1 260px'};min-width:110px">
               <SearchInput value={searchTerm} onChange={(v) => searchTerm = v} placeholder="Buscar..." {isMobile} height="42px" />
             </div>
             <button onclick={() => { showInstrumentosModal = true; console.debug('[Instrumentos] abrir modal'); }} disabled={activeIndicadores.length === 0}
