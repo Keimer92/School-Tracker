@@ -210,7 +210,7 @@
     if (!selectedColegio || !selectedSeccion || !fechaInicio || !fechaFin) { diasSinClases = []; return; }
     try {
       diasSinClases = await invoke<DiaSinClase[]>('get_dias_sin_clases', {
-        colegioId: selectedColegio, seccionId: selectedSeccion,
+        colegioId: selectedColegio, gradoId: selectedGrado, seccionId: selectedSeccion,
         fechaInicio, fechaFin,
       });
     } catch (e) { console.error('Error cargando días sin clases:', e); }

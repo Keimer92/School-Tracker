@@ -17,7 +17,7 @@
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
   interface EstudianteAsistencia { id: number; nombre: string; codigo: string; sexo: string; estado: string | null; observacion: string | null; }
   interface DiaEstado { estado: string | null; observacion: string | null; }
-  interface DiaSinClase { id: number; colegio_id: number; seccion_id: number | null; fecha: string; descripcion: string; }
+  interface DiaSinClase { id: number; colegio_id: number; grado_id: number | null; seccion_id: number | null; fecha: string; descripcion: string; }
 
   // Visible = la página contenedora está activa Y este es el sub-tab seleccionado.
   // Controla el registro del back-handler y el refresco silencioso al volver a verse.
@@ -263,7 +263,10 @@
   let sinClasesGuardando = $state(false);
 
   function coberturaSinClases(fecha: string): DiaSinClase | undefined {
-    return diasSinClases.find(d => d.fecha === fecha && (d.seccion_id === null || d.seccion_id === selectedSeccion));
+    return diasSinClases.find(d => d.fecha === fecha && (
+      (d.grado_id === null && d.seccion_id === null) ||
+      (d.grado_id === selectedGrado && d.seccion_id === selectedSeccion)
+    ));
   }
   function esDiaSinClases(fecha: string): boolean { return !!coberturaSinClases(fecha); }
 
@@ -272,7 +275,7 @@
     try {
       const fechas = getFechasPeriodo();
       diasSinClases = await invoke<DiaSinClase[]>('get_dias_sin_clases', {
-        colegioId: selectedColegio, seccionId: selectedSeccion,
+        colegioId: selectedColegio, gradoId: selectedGrado, seccionId: selectedSeccion,
         fechaInicio: fechas[0], fechaFin: fechas[fechas.length - 1],
       });
     } catch (e) { console.error('Error cargando días sin clases:', e); }
@@ -289,7 +292,7 @@
     const objetivos = getDiasHabilitadosBase(getFechasPeriodo());
     return objetivos.length > 0 && objetivos.every(f => {
       const d = diasSinClases.find(x => x.fecha === f);
-      return !!d && d.seccion_id === null;
+      return !!d && d.grado_id === null && d.seccion_id === null;
     });
   });
 
@@ -324,7 +327,8 @@
     sinClasesGuardando = true;
     try {
       await invoke('set_dias_sin_clases', {
-        colegioId: selectedColegio, seccionId: nivelColegio ? null : selectedSeccion,
+        colegioId: selectedColegio, gradoId: nivelColegio ? null : selectedGrado,
+        seccionId: nivelColegio ? null : selectedSeccion,
         fechas: objetivos, descripcion: motivo, activo: true,
       });
       onDataChange('dia_sin_clases');
@@ -344,7 +348,7 @@
     // Si la cobertura completa viene de una marca de colegio, la quitamos a ese nivel
     const nivelColegio = objetivos.every(f => {
       const d = diasSinClases.find(x => x.fecha === f);
-      return !!d && d.seccion_id === null;
+      return !!d && d.grado_id === null && d.seccion_id === null;
     });
     const rangoTxt = objetivos.length === 1 ? objetivos[0].split('-').reverse().join('/') : `${objetivos[0].split('-').reverse().join('/')} al ${objetivos[objetivos.length - 1].split('-').reverse().join('/')}`;
     const ok = await ask(`¿Reactivar las clases para ${rangoTxt}?\n\nSe quitará la marca de "${nivelColegio ? 'todo el colegio' : 'esta sección'}".`, { title: 'Reactivar clases', kind: 'info', okLabel: 'Sí, reactivar', cancelLabel: 'Cancelar' });
@@ -352,7 +356,8 @@
     sinClasesGuardando = true;
     try {
       await invoke('set_dias_sin_clases', {
-        colegioId: selectedColegio, seccionId: nivelColegio ? null : selectedSeccion,
+        colegioId: selectedColegio, gradoId: nivelColegio ? null : selectedGrado,
+        seccionId: nivelColegio ? null : selectedSeccion,
         fechas: objetivos, descripcion: '', activo: false,
       });
       onDataChange('dia_sin_clases');
@@ -1132,7 +1137,7 @@
         {:else if !isFechaHabilitada && periodo === 'diario' && esDiaSinClases(selectedFecha)}
           <div style="padding:40px;text-align:center;background:rgba(245,158,11,0.12);border-radius:12px;border:1px dashed #f59e0b;color:#f59e0b">
             <h3>🚫 No hubo clases este día</h3>
-            <p>{coberturaSinClases(selectedFecha)?.descripcion || 'Día marcado sin clases'}{coberturaSinClases(selectedFecha)?.seccion_id === null ? ' (todo el colegio)' : ''}.</p>
+            <p>{coberturaSinClases(selectedFecha)?.descripcion || 'Día marcado sin clases'}{coberturaSinClases(selectedFecha)?.grado_id === null ? ' (todo el colegio)' : ''}.</p>
           </div>
         {:else if !isFechaHabilitada}
           <div style="padding:40px;text-align:center;background:rgba(239,68,68,0.1);border-radius:12px;border:1px dashed #ef4444;color:#ef4444">
