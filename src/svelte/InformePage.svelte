@@ -971,6 +971,44 @@
             </div>
           {/each}
         </div>
+      {:else if periodo === "semanal"}
+        <table class="custom-table" style="width:100%;margin:0;overflow:visible">
+          <thead>
+            <tr>
+              <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
+              <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;min-width:200px">Estudiante</th>
+              {#each fechasColumnas as f}
+                <th style="min-width:105px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;font-size:0.7rem;font-weight:600;padding:0.3rem 0.15rem">
+                  {new Date(f + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }).replace('.','').replace(',','')}
+                </th>
+              {/each}
+            </tr>
+          </thead>
+          <tbody>
+            {#each reporteFiltrado as item, index}
+              <tr>
+                <td><span class="student-number-badge">{index + 1}</span></td>
+                <td style="text-align:left">
+                  <span style="font-weight:bold;font-size:0.85rem;cursor:pointer;white-space:normal;word-break:break-word;line-height:1.25" onclick={() => selectedStudentDetail = item}>{item.nombre}</span>
+                  <div style="font-size:0.65rem;opacity:0.6">{item.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
+                </td>
+                {#each fechasColumnas as f}
+                  {@const est = getEstadoEnFecha(item, f)}
+                  {@const obs = getObservacionEnFecha(item, f)}
+                  <td style="text-align:center;padding:0.15rem;min-width:105px">
+                    <div class="semanal-status" class:estado-p={est === 'P'} class:estado-a={est === 'A'} class:estado-j={est === 'J'}
+                      title={est === 'P' ? 'Presente' : est === 'A' ? 'Ausente' : est === 'J' ? 'Justificado' : 'Sin registro'}>
+                      {est === 'P' ? 'Presente' : est === 'A' ? 'Ausente' : est === 'J' ? 'Justificado' : '—'}
+                    </div>
+                    {#if obs}
+                      <div class="semanal-obs" style="cursor:default" title={`Observación: ${obs}`}>{obs}</div>
+                    {/if}
+                  </td>
+                {/each}
+              </tr>
+            {/each}
+          </tbody>
+        </table>
       {:else}
         <table class="custom-table" style="width:100%;margin:0;overflow:visible">
           <thead>
