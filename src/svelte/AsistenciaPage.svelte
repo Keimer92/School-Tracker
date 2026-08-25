@@ -666,6 +666,19 @@
     return draftD?.observacion ?? d?.observacion ?? '';
   }
 
+  /** Cuenta cuántos días del período tienen ese estado (incluye borrador sin guardar). */
+  function countMultiEstados(estId: number, estado: string): number {
+    const est = estudiantesMulti.find(e => e.id === estId);
+    if (!est) return 0;
+    let n = 0;
+    for (const f of fechasPeriodo) {
+      const draftD = draftMulti[estId]?.[f];
+      const eff = draftD?.estado !== undefined ? draftD.estado : (est.dias[f]?.estado || null);
+      if (eff === estado) n++;
+    }
+    return n;
+  }
+
   async function handleFilterChange(setter: (v: any) => void, value: any) {
     if (hasUnsavedChanges) {
       const answer = await ask('Tienes cambios sin guardar. ¿Deseas guardarlos antes de continuar?', { title: 'Cambios sin guardar', kind: 'warning', okLabel: 'Guardar', cancelLabel: 'Descartar' });
@@ -1223,14 +1236,23 @@
                   {fecha.split('-').slice(1).reverse().join('/')}
                 </th>
               {/each}
+              <th style="width:{isAndroidMobile ? '24px' : '30px'};position:sticky;top:0;background:#1e293b;z-index:10">P</th>
+              <th style="width:{isAndroidMobile ? '24px' : '30px'};position:sticky;top:0;background:#1e293b;z-index:10">A</th>
+              <th style="width:{isAndroidMobile ? '24px' : '30px'};position:sticky;top:0;background:#1e293b;z-index:10">J</th>
             </tr></thead>
             <tbody>
               {#each filteredEstudiantesMulti as est, index (est.id)}
+                {@const p = countMultiEstados(est.id, 'P')}
+                {@const a = countMultiEstados(est.id, 'A')}
+                {@const j = countMultiEstados(est.id, 'J')}
                 <tr>
                   <td><span class="student-number-badge">{index + 1}</span></td>
-                  <td style="text-align:left">
-                    <span style="font-weight:bold;font-size:0.85rem;cursor:pointer;white-space:normal;word-break:break-word;line-height:1.25" onclick={() => selectedStudentDetail = est as any}>{est.nombre}</span>
-                    <div style="font-size:0.65rem;opacity:0.6">{est.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
+                  <td style="text-align:left;overflow:hidden">
+                    <div style="font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:6px;width:100%" onclick={() => selectedStudentDetail = est as any}>
+                      <span style="font-size:1.1rem;flex-shrink:0">{est.sexo === 'F' ? '👩' : '👨'}</span>
+                      <span style="white-space:normal;word-break:break-word;line-height:1.25">{est.nombre}</span>
+                    </div>
+                    <div style="font-size:0.7rem;opacity:0.6;margin-left:22px">{est.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                   </td>
                   {#each fechasPeriodo as fecha}
                     {@const d = est.dias[fecha]}
@@ -1240,10 +1262,13 @@
                       <div class="ciclo-cell" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
                         onclick={() => cicloEstado(est.id, fecha)}
                         title={new Date(fecha + "T12:00:00").toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) + ': ' + (effectiveEstado === 'P' ? 'Presente' : effectiveEstado === 'A' ? 'Ausente' : effectiveEstado === 'J' ? 'Justificado' : 'Sin marcar')}>
-                        {new Date(fecha + "T12:00:00").getDate()}
+                        {effectiveEstado ?? '-'}
                       </div>
                     </td>
                   {/each}
+                  <td style="color:#4caf50;font-weight:bold">{p}</td>
+                  <td style="color:#f44336;font-weight:bold">{a}</td>
+                  <td style="color:#ff9800;font-weight:bold">{j}</td>
                 </tr>
               {/each}
             </tbody>
