@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { emit, listen } from "@tauri-apps/api/event";
-  import { open as openDialog } from "@tauri-apps/plugin-dialog";
+  import { open as openDialog, ask } from "@tauri-apps/plugin-dialog";
   import { readTextFile } from "@tauri-apps/plugin-fs";
   import { driveSyncService, syncManager, type DownloadProgress } from "../lib/driveSyncService";
   import { setBackAuthInProgress } from "../lib/androidBack";
@@ -83,6 +83,18 @@
       let cfg: any;
       try { cfg = JSON.parse(txt); } catch { throw new Error('El archivo no es un .key válido'); }
       if (!cfg.workerUrl || !cfg.schoolKey) throw new Error('El archivo no contiene workerUrl/schoolKey');
+      // Si ya existía una conexión con OTRAS credenciales (p. ej. BD restaurada
+      // desde Drive que trae su propia d1_config), reemplazar limpio para no
+      // mezclar datos de una nube con otra: nuevo device_id + cursores en cero.
+      const previa = await invoke<any>('d1_get_config');
+      if (previa && (previa.workerUrl !== cfg.workerUrl || previa.schoolKey !== cfg.schoolKey)) {
+        const ok = await ask(
+          'Ya existe una conexión a la nube con OTRAS credenciales.\n\n¿Reemplazarla? Se generará un nuevo ID de dispositivo y los datos locales se sincronizarán con la nube nueva.',
+          { title: 'Reemplazar conexión', kind: 'warning', okLabel: 'Sí, reemplazar', cancelLabel: 'Cancelar' }
+        );
+        if (!ok) { loading = false; loadingMessage = ''; return; }
+        await invoke('d1_clear_config');
+      }
       // Guardar solo en SQLite (d1_config) — el frontend no retiene los valores
       await invoke('d1_save_config', { workerUrl: cfg.workerUrl, schoolKey: cfg.schoolKey });
       loadingMessage = 'Sincronizando con la nube...';

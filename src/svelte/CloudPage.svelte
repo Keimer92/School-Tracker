@@ -9,8 +9,8 @@
   import { driveSyncService } from "../lib/driveSyncService";
   import { ensureWsSync, stopWsSync } from "../lib/wsSyncService";
   import { registerBackHandler, setBackAuthInProgress } from "../lib/androidBack";
-  import { save as saveDialog } from "@tauri-apps/plugin-dialog";
-  import { writeTextFile } from "@tauri-apps/plugin-fs";
+  import { save as saveDialog, open as openDialog } from "@tauri-apps/plugin-dialog";
+  import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
 
   const DEFAULT_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
   const STORAGE_KEY = 'schooltracker-google-drive-settings';
@@ -80,8 +80,6 @@
 
   // Estado D1
   let d1Cfg = $state<D1Config | null>(null);
-  let d1WorkerUrl = $state("");
-  let d1SchoolKey = $state("");
   let d1SyncState = $state({ status: 'idle' as string, lastSync: null as string | null, message: null as string | null });
   let isD1Saving = $state(false);
   let isD1Testing = $state(false);
@@ -349,34 +347,70 @@
   async function loadD1Config() {
     try {
       d1Cfg = await d1SyncService.getConfig();
-      if (d1Cfg) {
-        d1WorkerUrl = d1Cfg.workerUrl;
-        // La clave NO se precarga: si el input queda vacío se conserva la actual
-        d1SchoolKey = "";
-        showD1Config = false;
-      }
+      if (d1Cfg) showD1Config = false;
     } catch {}
   }
 
   function toggleD1Config() { showD1Config = !showD1Config; }
 
-  async function saveD1Config() {
-    if (!d1WorkerUrl.trim()) { await emit("show-toast", { message: "❌ Ingresa la URL del Worker", type: "error" }); return; }
-    // Sin clave nueva: conserva la existente (edición de URL solamente)
-    const claveFinal = d1SchoolKey.trim() || d1Cfg?.schoolKey || "";
-    if (!claveFinal) { await emit("show-toast", { message: "❌ Ingresa la School Key", type: "error" }); return; }
-    isD1Saving = true;
+  /**
+   * Importa credenciales desde un archivo .key. Si ya existía una conexión con
+   * OTRAS credenciales, avisa y reemplaza limpio (d1_clear_config antes de
+   * guardar → nuevo device_id y cursores en cero), evitando mezclar datos de
+   * una nube con otra (p. ej. tras restaurar un respaldo de Drive).
+   */
+  async function importarClaveD1() {
     try {
-      d1Cfg = await d1SyncService.saveConfig(d1WorkerUrl.trim(), claveFinal);
-      invalidateD1Cache();
-      d1SchoolKey = "";
-      showD1Config = false;
-      await ensureWsSync();
-      syncService.ensurePeriodicSync();
-      await emit("show-toast", { message: "✅ Configuración D1 guardada", type: "success" });
+      const ruta = await openDialog({
+        title: 'Selecciona el archivo de conexión',
+        filters: [{ name: 'Conexión School Tracker', extensions: ['key', 'json'] }],
+        multiple: false,
+      });
+      if (!ruta || typeof ruta !== 'string') return;
+      let cfg: any;
+      try {
+        cfg = JSON.parse(await readTextFile(ruta));
+      } catch { throw new Error('El archivo no es un .key válido'); }
+      if (!cfg.workerUrl || !cfg.schoolKey) throw new Error('El archivo no contiene workerUrl/schoolKey');
+
+      const previa = await d1SyncService.getConfig();
+      const distinta = previa && (previa.workerUrl !== cfg.workerUrl || previa.schoolKey !== cfg.schoolKey);
+      if (distinta) {
+        confirm(
+          'Las credenciales del archivo son DIFERENTES a las actuales.\n\nSe reemplazarán por completo: se generará un nuevo ID de dispositivo y se reiniciará la sincronización. Los datos locales actuales se subirán a la nube nueva en el próximo sync.',
+          '⚠️ Reemplazar conexión',
+          'warning',
+          async () => {
+            try {
+              stopWsSync();
+              await d1SyncService.clearConfig();
+              d1Cfg = await d1SyncService.saveConfig(cfg.workerUrl, cfg.schoolKey);
+              invalidateD1Cache();
+              await ensureWsSync();
+              syncService.ensurePeriodicSync();
+              showD1Config = false;
+              await emit("show-toast", { message: "✅ Conexión reemplazada. Sincronizando...", type: "success" });
+              syncD1();
+            } catch (e) {
+              await emit("show-toast", { message: "❌ Error: " + e, type: "error" });
+            }
+          }
+        );
+        return;
+      }
+
+      isD1Saving = true;
+      try {
+        d1Cfg = await d1SyncService.saveConfig(cfg.workerUrl, cfg.schoolKey);
+        invalidateD1Cache();
+        showD1Config = false;
+        await ensureWsSync();
+        syncService.ensurePeriodicSync();
+        await emit("show-toast", { message: "✅ Conexión importada correctamente", type: "success" });
+      } finally { isD1Saving = false; }
     } catch (e) {
-      await emit("show-toast", { message: "❌ Error guardando: " + e, type: "error" });
-    } finally { isD1Saving = false; }
+      await emit("show-toast", { message: "❌ " + (typeof e === 'string' ? e : e?.message || String(e)), type: "error" });
+    }
   }
 
   async function testD1() {
@@ -411,8 +445,6 @@
         await d1SyncService.clearConfig();
         stopWsSync();
         d1Cfg = null;
-        d1WorkerUrl = "";
-        d1SchoolKey = "";
         d1LastResult = null;
         invalidateD1Cache();
         await emit("show-toast", { message: "✅ D1 desconectado", type: "success" });
@@ -522,19 +554,15 @@
     </div>
     <div style="padding: 0 1.5rem 1.5rem;">
       {#if showD1Config}
-        <div style="display: flex; flex-direction: column; gap: 0.7rem; padding: 1rem; background: rgba(0,0,0,0.2); border-radius: 12px; margin-bottom: 1rem;">
-          <div>
-            <label style="display: block; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; font-size: 0.65rem; margin-bottom: 4px;">URL del Worker</label>
-            <input bind:value={d1WorkerUrl} placeholder="https://schooltracker-d1-sync.tu-cuenta.workers.dev" style="width: 100%; padding: 0.55rem 0.7rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.06); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none;" />
-          </div>
-          <div>
-<label style="display: block; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; font-size: 0.65rem; margin-bottom: 4px;">Clave de sincronización</label>
-              <input bind:value={d1SchoolKey} type="password" placeholder={d1Cfg ? '•••••••• (sin cambios)' : 'stp_xxxxxxxxxxxxxxxx'} autocomplete="off" style="width: 100%; padding: 0.55rem 0.7rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.06); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none;" />
-          </div>
-          <div style="display: flex; gap: 0.5rem;">
-            <button onclick={saveD1Config} disabled={isD1Saving} style="flex: 1; padding: 0.6rem; border-radius: 8px; border: none; background: linear-gradient(135deg, #F6821F, #F97316); color: white; font-weight: 600; font-size: 0.8rem; cursor: pointer; opacity: {isD1Saving ? 0.6 : 1};">{isD1Saving ? 'Guardando...' : 'Guardar'}</button>
-            <button onclick={toggleD1Config} style="padding: 0.6rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-size: 0.8rem;">Cancelar</button>
-          </div>
+        <div style="display: flex; flex-direction: column; gap: 0.7rem; padding: 1.25rem; background: rgba(0,0,0,0.2); border-radius: 12px; margin-bottom: 1rem; text-align: center;">
+          <div style="font-size: 2rem;">🔑</div>
+          <p style="color: #94a3b8; font-size: 0.82rem; margin: 0 0 0.25rem;">Selecciona tu archivo <strong style="color:#e2e8f0">schooltracker.key</strong> para conectar este dispositivo con la nube.</p>
+          <p style="color: #64748b; font-size: 0.72rem; margin: 0 0 0.75rem;">El archivo lo genera otro dispositivo ya configurado desde "Exportar clave".</p>
+          <button onclick={importarClaveD1} disabled={isD1Saving}
+            style="padding: 0.8rem 1.5rem; background: linear-gradient(135deg, #F6821F, #F97316); border: none; color: white; border-radius: 12px; font-weight: 600; font-size: 0.9rem; cursor: pointer; box-shadow: 0 4px 16px rgba(246,130,31,0.3); opacity: {isD1Saving ? 0.6 : 1};">
+            {isD1Saving ? 'Importando...' : '📂 Importar archivo .key'}
+          </button>
+          <button onclick={toggleD1Config} style="padding: 0.55rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-size: 0.8rem;">Cancelar</button>
         </div>
       {/if}
       {#if !d1Cfg}
