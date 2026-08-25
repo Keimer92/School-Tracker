@@ -648,6 +648,11 @@
     saving = true;
     try {
       const records = updated.filter(est => est.estado && ['P', 'A', 'J'].includes(est.estado)).map(est => ({ estudianteId: est.id, fecha: selectedFecha, estado: est.estado, observacion: est.observacion || '' }));
+      // Estudiantes limpiados ('-'/null): borrar sus registros de la BD si existen
+      // (delete_asistencia_batch ya verifica existencia antes de borrar)
+      const idsLimpiados = updated
+        .filter(est => (!est.estado || est.estado === '-'))
+        .map(est => est.id);
       if (records.length === 0) {
         const intentClear = updated.every(est => !est.estado || est.estado === '-');
         if (intentClear) {
@@ -667,6 +672,10 @@
         } else { saving = false; await emit("show-toast", { message: "⚠️ No hay asistencias marcadas para guardar.", type: "warning" }); }
         return;
       }
+      // Limpiezas parciales: borrar las celdas vaciadas antes de guardar el resto
+      if (idsLimpiados.length > 0) {
+        await invoke('delete_asistencia_batch', { estudianteIds: idsLimpiados, fecha: selectedFecha });
+      }
       await invoke("save_asistencia", { records });
       draft = {}; syncDraftToStorage(); hasUnsavedChanges = false; saving = false;
       if (pendingRefreshOnSave) { pendingRefreshOnSave = false; refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); }
@@ -685,6 +694,8 @@
     saving = true;
     try {
       const records: Array<{ estudianteId: number; fecha: string; estado: string; observacion: string }> = [];
+      // Celdas vaciadas que tenían registro guardado: hay que borrarlas de la BD
+      const limpias: Record<string, number[]> = {};
       for (const est of estudiantesMulti) {
         for (const fecha of fechasPeriodo) {
           const d = est.dias[fecha];
@@ -693,12 +704,28 @@
           const obs = draftD?.observacion !== undefined ? draftD.observacion : (d?.observacion || '');
           if (estado && ['P', 'A', 'J'].includes(estado)) {
             records.push({ estudianteId: est.id, fecha, estado, observacion: obs || '' });
+          } else if ((!estado || estado === '-') && d?.estado) {
+            (limpias[fecha] ||= []).push(est.id);
           }
         }
       }
+      // Borrar primero las celdas limpiadas (si no, quedaban huérfanas en la BD)
+      for (const [fecha, ids] of Object.entries(limpias)) {
+        await invoke('delete_asistencia_batch', { estudianteIds: ids, fecha });
+      }
       if (records.length === 0) {
-        saving = false;
-        await emit("show-toast", { message: "⚠️ No hay asistencias marcadas para guardar.", type: "warning" });
+        if (Object.keys(limpias).length > 0) {
+          // Todo el período quedó limpiado: mismo flujo de éxito que el modo diario
+          draftMulti = {}; syncDraftMultiToStorage(); hasUnsavedChanges = false; saving = false;
+          if (pendingRefreshOnSave) { pendingRefreshOnSave = false; refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); }
+          await emit("show-toast", { message: "✅ Asistencia limpiada correctamente", type: "success" });
+          onDataChange('asistencia', { immediate: true });
+          skipNextRefresh = true;
+          await emit("asistencia-updated");
+        } else {
+          saving = false;
+          await emit("show-toast", { message: "⚠️ No hay asistencias marcadas para guardar.", type: "warning" });
+        }
         return;
       }
       await invoke("save_asistencia", { records });
