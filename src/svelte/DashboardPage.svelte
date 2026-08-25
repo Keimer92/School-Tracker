@@ -50,10 +50,10 @@
     return registerBackHandler(() => { detalle = null; return true; });
   });
 
-  async function verDetalle(tipo: 'colegio' | 'grado' | 'seccion') {
+  async function verDetalle(tipo: 'colegio' | 'grado' | 'seccion' | 'asignatura') {
     try {
       const items = await invoke<DetalleItem[]>('get_dashboard_detalle', { tipo, colegioId: selectedColegio });
-      const titulos = { colegio: '🏫 Colegios', grado: '📚 Grados', seccion: '🏷️ Secciones' } as const;
+      const titulos = { colegio: '🏫 Colegios', grado: '📚 Grados', seccion: '🏷️ Secciones', asignatura: '📖 Asignaturas' } as const;
       detalle = { titulo: titulos[tipo], items };
     } catch (e) {
       console.error('Error cargando detalle:', e);
@@ -203,7 +203,7 @@
           <span class="card-label">Colegios</span>
         </div>
       </div>
-      <div class="summary-card" style="--card-accent: #06b6d4">
+      <div class="summary-card clickable" style="--card-accent: #06b6d4" onclick={() => verDetalle('asignatura')} title="Ver asignaturas">
         <div class="card-icon">📖</div>
         <div class="card-content">
           <span class="card-value">{stats.totalAsignaturas}</span>

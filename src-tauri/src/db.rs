@@ -4344,6 +4344,30 @@ pub async fn get_dashboard_detalle(
                 .map_err(|e| e.to_string())?;
             Ok(items)
         }
+        "asignatura" => {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT DISTINCT c.nombre, a.nombre, COALESCE(a.updated_at, '')
+                     FROM colegio_asignatura ca
+                     JOIN colegio c ON ca.colegio_id = c.id
+                     JOIN asignatura a ON ca.asignatura_id = a.id
+                     WHERE (?1 IS NULL OR ca.colegio_id = ?1)
+                     ORDER BY c.nombre, a.nombre",
+                )
+                .map_err(|e| e.to_string())?;
+            let items = stmt
+                .query_map(rusqlite::params![colegioId], |row| {
+                    Ok(DetalleItem {
+                        colegio: Some(row.get(0)?),
+                        nombre: row.get(1)?,
+                        actualizado: row.get(2)?,
+                    })
+                })
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
+            Ok(items)
+        }
         _ => Err(format!("Tipo desconocido: {}", tipo)),
     }
 }
@@ -4409,8 +4433,15 @@ pub async fn get_dashboard_stats(
         )
         .map_err(|e| e.to_string())?;
 
+    // Asignaturas reales: pares (colegio, asignatura) asignados vía colegio_asignatura
     let total_asignaturas: i64 = conn
-        .query_row("SELECT COUNT(*) FROM asignatura", [], |row| row.get(0))
+        .query_row(
+            "SELECT COALESCE(COUNT(*), 0) FROM (
+               SELECT DISTINCT colegio_id, asignatura_id FROM colegio_asignatura
+               WHERE (?1 IS NULL OR colegio_id = ?1)
+             )",
+            rusqlite::params![colegioId], |row| row.get(0),
+        )
         .map_err(|e| e.to_string())?;
 
     let ano_activo: String = conn
