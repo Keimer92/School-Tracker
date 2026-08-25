@@ -94,7 +94,7 @@ class MainActivity : TauriActivity() {
     this.webView = webView
     // Desactivar pinch-zoom en toda la app
     webView.settings.apply {
-      supportZoom = false
+      setSupportZoom(false)
       builtInZoomControls = false
       displayZoomControls = false
     }
