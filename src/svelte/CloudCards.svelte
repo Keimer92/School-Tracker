@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { d1SyncManager, syncManager } from '../lib/syncService';
+  import { driveSyncService } from '../lib/driveSyncService';
   import type { D1Status } from '../lib/syncService';
 
   let {
@@ -24,6 +25,34 @@
 
   let d1 = $state<CloudD1State>(d1SyncManager.getState() as CloudD1State);
   let drive = $state<CloudDriveState>({ lastUpload: null, lastDownload: null });
+  let respaldando = $state(false);
+
+  /** Respaldo manual a Drive. Si Drive no está vinculado, lleva a la pestaña Nube. */
+  async function respaldoManualDrive() {
+    if (respaldando) return;
+    let conectado = false;
+    try {
+      const s = localStorage.getItem('schooltracker-google-drive-settings');
+      conectado = !!(s && JSON.parse(s)?.accessToken);
+    } catch {}
+    if (!conectado) { onTabChange('cloud'); return; }
+    respaldando = true;
+    try {
+      await driveSyncService.pushAll();
+    } catch (e) {
+      console.error('Respaldo manual a Drive falló:', e);
+    } finally { respaldando = false; }
+  }
+
+  function driveCardTitle(): string {
+    if (respaldando) return 'Creando respaldo en Drive...';
+    let conectado = false;
+    try {
+      const s = localStorage.getItem('schooltracker-google-drive-settings');
+      conectado = !!(s && JSON.parse(s)?.accessToken);
+    } catch {}
+    return conectado ? 'Crear respaldo en Drive ahora' : 'Vincula Drive en la pestaña Nube';
+  }
 
   let lastSyncSeen: string | null = null;
   let justSynced = $state(false);
@@ -122,20 +151,24 @@
   </div>
 
   <div
-    class="cloud-card drive-card"
-    onclick={() => onTabChange('cloud')}
-    onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTabChange('cloud'); } }}
+    class="cloud-card drive-card {respaldando ? 'respaldando' : ''}"
+    onclick={respaldoManualDrive}
+    onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); respaldoManualDrive(); } }}
     role="button"
     tabindex="0"
-    title="Ir a Nube"
+    title={driveCardTitle()}
   >
     <div class="cloud-head">
       <span class="cloud-dot drive" class:active={!!drive.lastUpload}></span>
-      <span class="cloud-title">{compact ? 'Drive' : 'Respaldo Drive'}</span>
-      <span class="cloud-time-inline">{drive.lastUpload ? fmtTime(drive.lastUpload) : (compact ? '' : '—')}</span>
+      <span class="cloud-title">{compact ? 'Drive' : (respaldando ? 'Respaldo Drive…' : 'Respaldo Drive')}</span>
+      {#if respaldando}
+        <span class="mini-spinner"></span>
+      {:else}
+        <span class="cloud-time-inline">{drive.lastUpload ? fmtTime(drive.lastUpload) : (compact ? '' : '—')}</span>
+      {/if}
     </div>
     {#if !compact}
-      <div class="cloud-time">Último respaldo: {drive.lastUpload ? fmtTime(drive.lastUpload) : 'sin hacer'}</div>
+      <div class="cloud-time">{respaldando ? 'Subiendo base de datos...' : `Último respaldo: ${drive.lastUpload ? fmtTime(drive.lastUpload) : 'sin hacer'}`}</div>
     {/if}
   </div>
 </div>
@@ -169,6 +202,10 @@
 
   .cloud-card.drive-card {
     cursor: pointer;
+  }
+  .cloud-card.respaldando {
+    border-color: rgba(var(--primary-rgb), 0.45);
+    background: rgba(var(--primary-rgb), 0.05);
   }
 
   .cloud-card.flash {
