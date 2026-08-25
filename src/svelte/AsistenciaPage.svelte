@@ -100,8 +100,6 @@
   let totalEstudiantes = $derived(estudiantes.length);
   let totalM = $derived(estudiantes.filter(e => e.sexo === 'M').length);
   let totalF = $derived(estudiantes.filter(e => e.sexo === 'F').length);
-  let asistenciaPct = $derived(totalEstudiantes > 0 ? Math.round(statsP.total / totalEstudiantes * 100) : 0);
-  let totalPosibleMulti = $derived(estudiantesMulti.length * fechasPeriodo.length);
 
   function getStats(estado: string | null) {
     const filtered = estudiantes.filter(e => e.estado === estado);
@@ -110,6 +108,8 @@
   let statsP = $derived(getStats('P'));
   let statsA = $derived(getStats('A'));
   let statsJ = $derived(getStats('J'));
+  let asistenciaPct = $derived(totalEstudiantes > 0 ? Math.round(statsP.total / totalEstudiantes * 100) : 0);
+  let totalPosibleMulti = $derived(estudiantesMulti.length * fechasPeriodo.length);
 
   let filteredEstudiantes = $derived(estudiantes.filter(est => est.nombre.toLowerCase().includes(searchTerm.toLowerCase())));
   let filteredEstudiantesMulti = $derived(estudiantesMulti.filter(est => est.nombre.toLowerCase().includes(searchTerm.toLowerCase())));
@@ -663,7 +663,7 @@
     if (!est) return '';
     const d = est.dias[fecha];
     const draftD = draftMulti[estudianteId]?.[fecha];
-    return draftD?.observacion !== undefined ? draftD.observacion : (d?.observacion || '');
+    return draftD?.observacion ?? d?.observacion ?? '';
   }
 
   async function handleFilterChange(setter: (v: any) => void, value: any) {

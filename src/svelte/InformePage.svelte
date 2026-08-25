@@ -111,7 +111,7 @@
     let n = 1;
     while (lu <= finISO) {
       opts.push({ n, lunes: lu, rango: `${fmtDM(lu)} – ${fmtDM(sumaDias(lu, 6))}` });
-      lu = sumaDiasISO(lu, 7);
+      lu = sumaDias(lu, 7);
       n++;
     }
     return opts;
