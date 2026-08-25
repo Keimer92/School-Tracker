@@ -6,9 +6,12 @@
 
   let {
     compact = false,
+    ocultarD1 = false,
     onTabChange,
   } = $props<{
     compact?: boolean;
+    /** Oculta la card de Nube D1 (p. ej. drawer móvil, donde hay chip en el header). */
+    ocultarD1?: boolean;
     onTabChange: (tab: string) => void;
   }>();
 
@@ -119,6 +122,7 @@
 </script>
 
 <div class="cloud-widget {compact ? 'compact' : ''}">
+  {#if !ocultarD1}
   <div
     class="cloud-card {justSynced ? 'flash' : ''}"
     class:d1-ok={d1.status === 'success' || d1.status === 'idle'}
@@ -149,6 +153,7 @@
       {/if}
     {/if}
   </div>
+  {/if}
 
   <div
     class="cloud-card drive-card {respaldando ? 'respaldando' : ''}"
@@ -160,16 +165,13 @@
   >
     <div class="cloud-head">
       <span class="cloud-dot drive" class:active={!!drive.lastUpload}></span>
-      <span class="cloud-title">{compact ? 'Drive' : (respaldando ? 'Respaldo Drive…' : 'Respaldo Drive')}</span>
+      <span class="cloud-title">{respaldando ? 'Subiendo…' : (compact || ocultarD1 ? 'Drive' : 'Respaldo Drive')}</span>
       {#if respaldando}
         <span class="mini-spinner"></span>
       {:else}
-        <span class="cloud-time-inline">{drive.lastUpload ? fmtTime(drive.lastUpload) : (compact ? '' : '—')}</span>
+        <span class="cloud-time-inline">{drive.lastUpload ? fmtTime(drive.lastUpload) : ''}</span>
       {/if}
     </div>
-    {#if !compact}
-      <div class="cloud-time">{respaldando ? 'Subiendo base de datos...' : `Último respaldo: ${drive.lastUpload ? fmtTime(drive.lastUpload) : 'sin hacer'}`}</div>
-    {/if}
   </div>
 </div>
 
@@ -231,11 +233,21 @@
 
   .cloud-title {
     flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-size: 0.68rem;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--text-bright);
+  }
+  .drive-card .cloud-title { letter-spacing: 0.04em; }
+  .cloud-time-inline {
+    flex-shrink: 0;
+    font-size: 0.6rem;
+    color: #64748b;
   }
 
   .cloud-chip {

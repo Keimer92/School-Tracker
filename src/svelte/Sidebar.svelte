@@ -85,6 +85,12 @@ setThemeMode: (mode: string) => void;
     <CloudCards onTabChange={onTabChange} />
   {/if}
 
+  {#if isMobile}
+    <div class="drawer-cloud">
+      <CloudCards ocultarD1 onTabChange={(t) => onTabChange(t as Tab)} />
+    </div>
+  {/if}
+
   <div class="sidebar-section-header" style="padding-top: 6px;">APARIENCIA</div>
   <div class="theme-selector">
     {#each themeOptions as opt}
@@ -166,5 +172,18 @@ setThemeMode: (mode: string) => void;
     font-size: 0.55rem;
     padding: 2px 6px;
     letter-spacing: 0.03em;
+  }
+  /* Card de respaldo Drive en el drawer móvil: compacta y sin desbordes */
+  .drawer-cloud {
+    padding: 0 12px 8px;
+    min-width: 0;
+  }
+  .drawer-cloud :global(.cloud-widget) {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    margin-top: 0;
+    padding-top: 0.25rem;
+    padding-bottom: 0;
   }
 </style>
