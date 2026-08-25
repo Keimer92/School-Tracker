@@ -264,6 +264,21 @@
   let popSinClasesEl: HTMLElement | null = $state(null);
   let sinClasesDescripcion = $state('');
   let sinClasesGuardando = $state(false);
+  // Si viene de un click en el encabezado de una fecha concreta (semanal/mensual)
+  let colFechaObjetivo = $state<string | null>(null);
+
+  function cerrarPopSinClases() {
+    popSinClasesAbierta = false;
+    colFechaObjetivo = null;
+  }
+
+  /** Click en el encabezado de una fecha: marca o desmarca solo ese día. */
+  function clickHeaderFecha(fecha: string) {
+    if (esDiaSinClases(fecha)) { desactivarSinClases([fecha]); return; }
+    colFechaObjetivo = fecha;
+    sinClasesDescripcion = '';
+    popSinClasesAbierta = true;
+  }
 
   function coberturaSinClases(fecha: string): DiaSinClase | undefined {
     return diasSinClases.find(d => d.fecha === fecha && (
@@ -325,6 +340,14 @@
     return coberturaSinClases(fecha)?.descripcion || 'Sin clases';
   }
 
+  /** Días seleccionables en el calendario: hábiles del colegio y no marcados sin clases. */
+  function esDiaHabilCalendario(iso: string): boolean {
+    if (!colegioConfig) return true;
+    const dayNames = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+    if (colegioConfig[dayNames[new Date(iso + "T12:00:00").getDay()]] === false) return false;
+    return !esDiaSinClases(iso);
+  }
+
   function handleSinClasesClick() {
     if (sinClasesActivo) { desactivarSinClases(); return; }
     sinClasesDescripcion = '';
@@ -334,7 +357,7 @@
   async function activarSinClases(nivelColegio: boolean) {
     const motivo = sinClasesDescripcion.trim();
     if (!motivo) { emit("show-toast", { message: "⚠️ El motivo es obligatorio", type: "warning" }); return; }
-    const objetivos = fechasObjetivoSinClases();
+    const objetivos = colFechaObjetivo ? [colFechaObjetivo] : fechasObjetivoSinClases();
     if (objetivos.length === 0) return;
     const alcanceTxt = nivelColegio ? 'TODO el colegio' : 'solo esta sección';
     const rangoTxt = objetivos.length === 1 ? objetivos[0].split('-').reverse().join('/') : `${objetivos[0].split('-').reverse().join('/')} al ${objetivos[objetivos.length - 1].split('-').reverse().join('/')}`;
@@ -348,9 +371,10 @@
         fechas: objetivos, descripcion: motivo, activo: true,
       });
       onDataChange('dia_sin_clases');
-      popSinClasesAbierta = false;
+      cerrarPopSinClases();
       sinClasesDescripcion = '';
       await fetchDiasSinClases();
+      if (periodo !== 'diario') { refreshingSilent = true; fetchEstudiantesMulti(); }
       emit("show-toast", { message: `🚫 ${nivelColegio ? 'Colegio' : 'Sección'}: ${objetivos.length} día(s) sin clases (${motivo})`, type: "success" });
     } catch (e) {
       console.error('Error marcando días sin clases:', e);
@@ -358,8 +382,8 @@
     } finally { sinClasesGuardando = false; }
   }
 
-  async function desactivarSinClases() {
-    const objetivos = fechasObjetivoSinClases().filter(f => esDiaSinClases(f));
+  async function desactivarSinClases(fechasArg?: string[]) {
+    const objetivos = (fechasArg ?? fechasObjetivoSinClases()).filter(f => esDiaSinClases(f));
     if (objetivos.length === 0) return;
     // Si la cobertura completa viene de una marca de colegio, la quitamos a ese nivel
     const nivelColegio = objetivos.every(f => {
@@ -378,6 +402,7 @@
       });
       onDataChange('dia_sin_clases');
       await fetchDiasSinClases();
+      if (periodo !== 'diario') { refreshingSilent = true; fetchEstudiantesMulti(); }
       emit("show-toast", { message: "✅ Clases reactivadas para el período", type: "success" });
     } catch (e) {
       console.error('Error reactivando clases:', e);
@@ -389,10 +414,14 @@
   $effect(() => {
     if (!popSinClasesAbierta) return;
     const fuera = (e: Event) => {
-      if (popSinClasesEl && !popSinClasesEl.contains(e.target as Node)) popSinClasesAbierta = false;
+      if (popSinClasesEl && !popSinClasesEl.contains(e.target as Node)) cerrarPopSinClases();
     };
     document.addEventListener('pointerdown', fuera, true);
     return () => document.removeEventListener('pointerdown', fuera, true);
+  });
+  $effect(() => {
+    if (!popSinClasesAbierta) return;
+    return registerBackHandler(() => { cerrarPopSinClases(); return true; });
   });
   $effect(() => {
     if (!popSinClasesAbierta) return;
@@ -948,6 +977,8 @@
     .dsc-icon{width:50px;height:50px;border-radius:14px;background:rgba(245,158,11,.16);border:1px solid rgba(245,158,11,.32);display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0}
     .dsc-badge{display:inline-block;padding:.2rem .6rem;border-radius:999px;font-size:.62rem;font-weight:700;letter-spacing:.4px;text-transform:uppercase;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.35);color:#fbbf24;white-space:nowrap}
     .dsc-th{background:#2b2410!important;color:#fbbf24!important}
+    .fch-th{cursor:pointer;transition:filter .15s ease,background .15s ease}
+    .fch-th:hover{filter:brightness(1.35)}
     .dsc-col{background:linear-gradient(180deg,rgba(245,158,11,.10),rgba(245,158,11,.02));text-align:center;vertical-align:middle;color:#f59e0b;font-weight:700;padding:.5rem .35rem;min-width:70px}
   </style>
 
@@ -964,7 +995,7 @@
           </FilterGroup>
           {#if periodo === "diario"}
             <FilterGroup label="Fecha:" {isMobile}>
-              <DatePickerGlass bind:value={selectedFecha} />
+              <DatePickerGlass bind:value={selectedFecha} diaHabilitado={esDiaHabilCalendario} />
             </FilterGroup>
           {:else if periodo === "semanal"}
             <FilterGroup label="Semana de:" {isMobile}>
@@ -1053,7 +1084,10 @@
 
               {#if popSinClasesAbierta}
                 <div class="pop-panel" tabindex="-1" style="left:auto;right:0;width:min(300px,calc(100vw - 40px))">
-                  <div class="pop-mes"><span class="pop-mes-txt">Motivo del día sin clases</span></div>
+                  <div class="pop-mes"><span class="pop-mes-txt">{colFechaObjetivo ? `Marcar ${fmtDM(colFechaObjetivo)} sin clases` : 'Motivo del día(s) sin clases'}</span></div>
+                  {#if colFechaObjetivo}
+                    <div style="font-size:.65rem;color:#94a3b8;margin:-.3rem 0 .5rem">Solo afecta esa fecha específica</div>
+                  {/if}
                   <input class="obs-inline" placeholder="Ej: Feriado nacional (obligatorio)"
                     bind:value={sinClasesDescripcion}
                     onkeydown={(e) => { if (e.key === 'Enter' && sinClasesDescripcion.trim()) activarSinClases(false); }} />
@@ -1397,9 +1431,10 @@
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
               <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;min-width:200px">Estudiante</th>
               {#each fechasVisibles as fv (fv.fecha)}
-                <th class:dsc-th={fv.sinClases}
+                <th class:dsc-th={fv.sinClases} class:fch-th={true}
                   style="min-width:105px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;font-size:0.7rem;font-weight:600;padding:0.3rem 0.15rem"
-                  title={fv.sinClases ? motivoSinClasesEn(fv.fecha) : undefined}>
+                  title={fv.sinClases ? `${motivoSinClasesEn(fv.fecha)} — Click para reactivar clases` : 'Click para marcar este día sin clases'}
+                  onclick={() => clickHeaderFecha(fv.fecha)}>
                   {fv.sinClases ? '🚫 ' : ''}{new Date(fv.fecha + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }).replace('.','').replace(',','')}
                 </th>
               {/each}
@@ -1446,9 +1481,10 @@
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
               <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;min-width:200px">Estudiante</th>
               {#each fechasVisibles as fv (fv.fecha)}
-                <th class:dsc-th={fv.sinClases}
+                <th class:dsc-th={fv.sinClases} class:fch-th={true}
                   style="font-size:0.7rem;white-space:nowrap;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;min-width:48px;padding:0.35rem 0.45rem"
-                  title={fv.sinClases ? motivoSinClasesEn(fv.fecha) : undefined}>
+                  title={fv.sinClases ? `${motivoSinClasesEn(fv.fecha)} — Click para reactivar clases` : 'Click para marcar este día sin clases'}
+                  onclick={() => clickHeaderFecha(fv.fecha)}>
                   <div style="font-size:0.6rem;opacity:0.7">{fv.sinClases ? '🚫 ' : ''}{new Date(fv.fecha + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short' })}</div>
                   {fv.fecha.split('-').slice(1).reverse().join('/')}
                 </th>

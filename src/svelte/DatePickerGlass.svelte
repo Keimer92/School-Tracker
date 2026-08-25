@@ -14,7 +14,17 @@
     disabled = false,
     invalid = false,
     zIndex = 1200,
-  }: { value?: string; disabled?: boolean; invalid?: boolean; zIndex?: number } = $props();
+    diaHabilitado,
+  }: {
+    value?: string;
+    disabled?: boolean;
+    invalid?: boolean;
+    zIndex?: number;
+    /** Predicado opcional: los días que devuelven false se muestran tachados y no seleccionables. */
+    diaHabilitado?: (iso: string) => boolean;
+  } = $props();
+
+  const habilitado = (iso: string): boolean => (diaHabilitado ? !!diaHabilitado(iso) : true);
 
   const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
   const DIAS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -172,14 +182,17 @@
               class="dg-dia"
               class:hoy={esHoy}
               class:sel={esSel}
-              onclick={() => seleccionar(c.iso)}
+              class:deshab={!habilitado(c.iso)}
+              disabled={!habilitado(c.iso)}
+              title={habilitado(c.iso) ? undefined : 'Día sin clases o no hábil para este colegio'}
+              onclick={() => habilitado(c.iso) && seleccionar(c.iso)}
             >{c.dia}</button>
           {/if}
         {/each}
       </div>
 
       <div class="dg-foot">
-        <button class="dg-hoy" onclick={irHoy}>● Hoy</button>
+        <button class="dg-hoy" onclick={irHoy} disabled={!habilitado(hoyIso())}>● Hoy</button>
       </div>
     </div>
   {/if}
@@ -337,6 +350,18 @@
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 10px rgba(236, 72, 153, 0.4);
   }
   .dg-dia.sel.hoy { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.55), 0 2px 10px rgba(236, 72, 153, 0.4); }
+
+  .dg-dia.deshab {
+    color: #475569;
+    text-decoration: line-through;
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  .dg-dia.deshab:hover {
+    background: transparent;
+    color: #475569;
+    box-shadow: none;
+  }
 
   .dg-foot {
     display: flex;

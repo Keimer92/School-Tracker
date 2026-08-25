@@ -227,6 +227,14 @@
     return 'Sin clases: ' + marcados.map(d => `${fmtDM(d.fecha)} (${d.descripcion})`).join(', ');
   });
   let hoySinClases = $derived(periodo === 'diario' && esSinClases(fechaBase));
+
+  /** Días seleccionables en el calendario: hábiles del colegio y no marcados sin clases. */
+  function esDiaHabilCalendario(iso: string): boolean {
+    if (!colegioConfig) return true;
+    const dayNames = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+    if ((colegioConfig as any)[dayNames[new Date(iso + 'T12:00:00').getDay()]] === false) return false;
+    return !esSinClases(iso);
+  }
   function motivoSinClases(fecha: string): string {
     return diasSinClases.find(d => d.fecha === fecha)?.descripcion || 'Sin clases';
   }
@@ -724,7 +732,7 @@
 
         {#if periodo === "diario"}
           <FilterGroup label="Fecha:" {isMobile}>
-            <DatePickerGlass bind:value={fechaBase} />
+            <DatePickerGlass bind:value={fechaBase} diaHabilitado={esDiaHabilCalendario} />
           </FilterGroup>
         {:else if periodo === "semanal"}
           <FilterGroup label="Semana de:" {isMobile}>
