@@ -806,6 +806,24 @@ async fn gd_start_native_signin(server_client_id: String) -> Result<(), String> 
     }
 }
 
+/// Pide el permiso POST_NOTIFICATIONS (Android 13+) mostrando el diálogo
+/// nativo del sistema. Se invoca en la primera ejecución (WelcomePage).
+#[tauri::command]
+async fn gd_request_notification_permission() -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        let (vm, activity) = obtain_native_bridge()?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        env.call_method(activity.as_obj(), "requestNotificationPermissionNow", "()V", &[])
+            .map_err(|e| format!("Error JNI requestNotificationPermissionNow: {}", e))?;
+        Ok(())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        Ok(()) // En desktop no se requiere permiso de notificaciones
+    }
+}
+
 /// Consulta (y consume) el último resultado del sign-in nativo guardado en
 /// MainActivity. Respaldo por polling para cuando una recarga del WebView
 /// pierde el evento `google-native-auth-result`.
@@ -1788,6 +1806,7 @@ pub fn run() {
             set_attendance_silenced_today,
             dismiss_attendance_today,
             gd_start_native_signin,
+            gd_request_notification_permission,
             gd_take_last_native_result,
             get_monthly_attendance_pct,
             get_seed_options,

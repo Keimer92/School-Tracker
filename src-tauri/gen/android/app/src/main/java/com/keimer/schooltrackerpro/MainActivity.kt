@@ -361,6 +361,20 @@ class MainActivity : TauriActivity() {
     android.util.Log.i("MainActivity", "Attendance silenced for today")
   }
 
+  // ── Permisos de notificaciones (Android 13+, primera ejecución) ──
+  fun requestNotificationPermissionNow() {
+    try {
+      if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
+        checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+      ) {
+        requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 2001)
+        android.util.Log.i("MainActivity", "Solicitando permiso POST_NOTIFICATIONS")
+      }
+    } catch (e: Exception) {
+      android.util.Log.e("MainActivity", "Error solicitando permiso de notificaciones: ${e.message}")
+    }
+  }
+
   // ── Google Sign-In nativo (selector de cuentas dentro de la app) ──
   fun startGoogleSignIn(serverClientId: String) {
     try {

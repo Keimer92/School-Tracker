@@ -2,6 +2,8 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { emit, listen } from "@tauri-apps/api/event";
+  import { open as openDialog } from "@tauri-apps/plugin-dialog";
+  import { readTextFile } from "@tauri-apps/plugin-fs";
   import { driveSyncService, syncManager, type DownloadProgress } from "../lib/driveSyncService";
   import { setBackAuthInProgress } from "../lib/androidBack";
 
@@ -59,6 +61,62 @@
     } catch (e) {
       errorMsg = 'Error cargando opciones: ' + e;
     }
+  }
+
+  /**
+   * Importa un archivo .key (exportado desde otro dispositivo en CloudPage)
+   * con {workerUrl, schoolKey}. Los valores pasan una sola vez a Rust y quedan
+   * guardados SOLO en la BD local (d1_config), nunca en localStorage/bundle.
+   */
+  async function importarArchivoConexion() {
+    try {
+      const ruta = await openDialog({
+        title: 'Selecciona tu archivo de conexión',
+        filters: [{ name: 'Conexión School Tracker', extensions: ['key', 'json'] }],
+        multiple: false,
+      });
+      if (!ruta || typeof ruta !== 'string') return;
+      loading = true;
+      errorMsg = '';
+      loadingMessage = 'Importando conexión...';
+      const txt = await readTextFile(ruta);
+      let cfg: any;
+      try { cfg = JSON.parse(txt); } catch { throw new Error('El archivo no es un .key válido'); }
+      if (!cfg.workerUrl || !cfg.schoolKey) throw new Error('El archivo no contiene workerUrl/schoolKey');
+      // Guardar solo en SQLite (d1_config) — el frontend no retiene los valores
+      await invoke('d1_save_config', { workerUrl: cfg.workerUrl, schoolKey: cfg.schoolKey });
+      loadingMessage = 'Sincronizando con la nube...';
+      try {
+        await invoke('d1_sync_all');
+      } catch (syncErr) {
+        console.error('[Import] primer sync falló:', syncErr);
+        errorMsg = 'No se pudo sincronizar con el Worker. Verifica tu conexión.';
+        loading = false; loadingMessage = '';
+        return;
+      }
+      loadingMessage = 'Verificando datos...';
+      const hasData = await invoke('is_app_initialized');
+      if (hasData) {
+        await invoke('set_app_initialized');
+        await solicitarPermisoNotificaciones();
+        emit('welcome-complete');
+      } else {
+        // Nube vacía: continuar con el asistente de datos iniciales
+        loading = false; loadingMessage = '';
+        goToWizard();
+        return;
+      }
+    } catch (e: any) {
+      errorMsg = 'Error importando conexión: ' + (typeof e === 'string' ? e : e?.message || String(e));
+    }
+    loading = false;
+    loadingMessage = '';
+  }
+
+  /** Pide el permiso POST_NOTIFICATIONS (Android 13+) en la primera ejecución. */
+  async function solicitarPermisoNotificaciones() {
+    if (!/Android/i.test(navigator.userAgent)) return;
+    try { await invoke('gd_request_notification_permission'); } catch (e) { console.error('Permiso notificaciones:', e); }
   }
 
   let authHandled = false;
@@ -189,6 +247,7 @@
       const hasData = await invoke('is_app_initialized');
       if (hasData) {
         await invoke('set_app_initialized');
+        await solicitarPermisoNotificaciones();
         emit('welcome-complete');
       } else {
         errorMsg = 'Drive está vacío. Se usarán los datos por defecto.';
@@ -228,6 +287,7 @@
         }
       });
       await invoke('set_app_initialized');
+      await solicitarPermisoNotificaciones();
       emit('welcome-complete');
     } catch (e: any) {
       errorMsg = 'Error guardando datos: ' + (e?.message || e);
@@ -406,6 +466,14 @@
           <div class="welcome-card-body">
             <h3>Configurar manualmente</h3>
             <p>Selecciona exactamente qué años, colegios, grados y asignaturas deseas usar.</p>
+          </div>
+          <div class="welcome-card-arrow">→</div>
+        </button>
+        <button class="welcome-card card-key" onclick={importarArchivoConexion} disabled={loading}>
+          <div class="welcome-card-icon">🔑</div>
+          <div class="welcome-card-body">
+            <h3>Tengo un archivo de conexión</h3>
+            <p>Importa tu archivo .key para sincronizar con Cloudflare y recuperar tus datos.</p>
           </div>
           <div class="welcome-card-arrow">→</div>
         </button>
@@ -607,6 +675,11 @@
   .card-manual .welcome-card-icon {
     background: rgba(167,139,250,0.12); border-color: rgba(167,139,250,0.25);
     box-shadow: 0 4px 16px rgba(167,139,250,0.12), inset 0 1px 0 rgba(255,255,255,0.08);
+  }
+  .card-key { --accent-from: #fbbf24; --accent-to: #f59e0b; }
+  .card-key .welcome-card-icon {
+    background: rgba(251,191,36,0.12); border-color: rgba(251,191,36,0.25);
+    box-shadow: 0 4px 16px rgba(251,191,36,0.12), inset 0 1px 0 rgba(255,255,255,0.08);
   }
   .welcome-card-icon {
     font-size: 1.55rem; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;

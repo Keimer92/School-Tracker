@@ -9,9 +9,30 @@
   import { driveSyncService } from "../lib/driveSyncService";
   import { ensureWsSync, stopWsSync } from "../lib/wsSyncService";
   import { registerBackHandler, setBackAuthInProgress } from "../lib/androidBack";
+  import { save as saveDialog } from "@tauri-apps/plugin-dialog";
+  import { writeTextFile } from "@tauri-apps/plugin-fs";
 
   const DEFAULT_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
   const STORAGE_KEY = 'schooltracker-google-drive-settings';
+
+  /** Exporta la clave de conexión D1 como archivo .key para configurar otro dispositivo. */
+  async function exportarClaveConexion() {
+    if (!d1Cfg) return;
+    try {
+      const ruta = await saveDialog({
+        title: 'Exportar clave de conexión',
+        defaultPath: 'schooltracker.key',
+        filters: [{ name: 'Conexión School Tracker', extensions: ['key'] }],
+      });
+      if (!ruta) return;
+      const contenido = JSON.stringify({ workerUrl: d1Cfg.workerUrl, schoolKey: d1Cfg.schoolKey }, null, 2);
+      await writeTextFile(ruta, contenido);
+      await emit("show-toast", { message: "✅ Clave exportada: " + ruta, type: "success" });
+    } catch (e) {
+      console.error('Error exportando clave:', e);
+      await emit("show-toast", { message: "❌ Error al exportar la clave: " + e, type: "error" });
+    }
+  }
 
   interface DriveSettings {
     clientId: string;
@@ -530,6 +551,8 @@
             </div>
             <div style="color: #64748b; margin-top: 2px;">Dispositivo: <span style="font-family: monospace;">{d1Cfg.deviceId}</span></div>
             <div style="color: #64748b; margin-top: 2px;">Última sync: {d1SyncState.lastSync ? new Date(d1SyncState.lastSync).toLocaleString('es-ES') : '—'}</div>
+            <button onclick={exportarClaveConexion} title="Genera un archivo .key para configurar otro dispositivo"
+              style="margin-top: 6px; padding: 0.3rem 0.7rem; border-radius: 6px; border: 1px solid rgba(246,130,31,0.3); background: rgba(246,130,31,0.1); color: #fdba74; cursor: pointer; font-size: 0.7rem; font-weight: 600;">📤 Exportar clave (.key)</button>
           </div>
         </div>
         {#if d1SyncState.message}
