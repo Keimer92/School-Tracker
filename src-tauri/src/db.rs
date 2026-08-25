@@ -4345,23 +4345,13 @@ pub async fn get_dashboard_detalle(
             Ok(items)
         }
         "asignatura" => {
+            // Catálogo global de asignaturas (sin desglose por colegio)
             let mut stmt = conn
-                .prepare(
-                    "SELECT DISTINCT c.nombre, a.nombre, COALESCE(a.updated_at, '')
-                     FROM colegio_asignatura ca
-                     JOIN colegio c ON ca.colegio_id = c.id
-                     JOIN asignatura a ON ca.asignatura_id = a.id
-                     WHERE (?1 IS NULL OR ca.colegio_id = ?1)
-                     ORDER BY c.nombre, a.nombre",
-                )
+                .prepare("SELECT nombre, COALESCE(updated_at, '') FROM asignatura ORDER BY nombre")
                 .map_err(|e| e.to_string())?;
             let items = stmt
-                .query_map(rusqlite::params![colegioId], |row| {
-                    Ok(DetalleItem {
-                        colegio: Some(row.get(0)?),
-                        nombre: row.get(1)?,
-                        actualizado: row.get(2)?,
-                    })
+                .query_map([], |row| {
+                    Ok(DetalleItem { nombre: row.get(0)?, colegio: None, actualizado: row.get(1)? })
                 })
                 .map_err(|e| e.to_string())?
                 .collect::<Result<Vec<_>, _>>()
@@ -4433,15 +4423,10 @@ pub async fn get_dashboard_stats(
         )
         .map_err(|e| e.to_string())?;
 
-    // Asignaturas reales: pares (colegio, asignatura) asignados vía colegio_asignatura
+    // Asignaturas: catálogo GLOBAL (a diferencia de grados/secciones, no se
+    // cuentan por combinación con el colegio).
     let total_asignaturas: i64 = conn
-        .query_row(
-            "SELECT COALESCE(COUNT(*), 0) FROM (
-               SELECT DISTINCT colegio_id, asignatura_id FROM colegio_asignatura
-               WHERE (?1 IS NULL OR colegio_id = ?1)
-             )",
-            rusqlite::params![colegioId], |row| row.get(0),
-        )
+        .query_row("SELECT COUNT(*) FROM asignatura", [], |row| row.get(0))
         .map_err(|e| e.to_string())?;
 
     let ano_activo: String = conn
