@@ -17,6 +17,7 @@
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
   interface EstudianteAsistencia { id: number; nombre: string; codigo: string; sexo: string; estado: string | null; observacion: string | null; }
   interface DiaEstado { estado: string | null; observacion: string | null; }
+  interface DiaSinClase { id: number; colegio_id: number; seccion_id: number | null; fecha: string; descripcion: string; }
 
   // Visible = la página contenedora está activa Y este es el sub-tab seleccionado.
   // Controla el registro del back-handler y el refresco silencioso al volver a verse.
@@ -249,9 +250,133 @@
     const dayNames = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
     return fechas.filter(f => {
       const d = new Date(f + "T12:00:00");
-      return colegioConfig[dayNames[d.getDay()]] !== false;
+      if (colegioConfig[dayNames[d.getDay()]] === false) return false;
+      return !esDiaSinClases(f);
     });
   }
+
+  // ── Días sin clases (feriados / sin actividad) por sección o colegio ──
+  let diasSinClases = $state<DiaSinClase[]>([]);
+  let popSinClasesAbierta = $state(false);
+  let popSinClasesEl: HTMLElement | null = $state(null);
+  let sinClasesDescripcion = $state('');
+  let sinClasesGuardando = $state(false);
+
+  function coberturaSinClases(fecha: string): DiaSinClase | undefined {
+    return diasSinClases.find(d => d.fecha === fecha && (d.seccion_id === null || d.seccion_id === selectedSeccion));
+  }
+  function esDiaSinClases(fecha: string): boolean { return !!coberturaSinClases(fecha); }
+
+  async function fetchDiasSinClases() {
+    if (!selectedColegio || !selectedSeccion) { diasSinClases = []; return; }
+    try {
+      const fechas = getFechasPeriodo();
+      diasSinClases = await invoke<DiaSinClase[]>('get_dias_sin_clases', {
+        colegioId: selectedColegio, seccionId: selectedSeccion,
+        fechaInicio: fechas[0], fechaFin: fechas[fechas.length - 1],
+      });
+    } catch (e) { console.error('Error cargando días sin clases:', e); }
+  }
+
+  // ¿El período actual (diario/semanal) está totalmente marcado como sin clases?
+  let sinClasesActivo = $derived.by(() => {
+    if (periodo === 'mensual') return false;
+    const objetivos = getDiasHabilitadosBase(getFechasPeriodo());
+    return objetivos.length > 0 && objetivos.every(f => esDiaSinClases(f));
+  });
+  // true si la cobertura viene de una marca a nivel colegio (todas las fechas)
+  let sinClasesNivelColegio = $derived.by(() => {
+    const objetivos = getDiasHabilitadosBase(getFechasPeriodo());
+    return objetivos.length > 0 && objetivos.every(f => {
+      const d = diasSinClases.find(x => x.fecha === f);
+      return !!d && d.seccion_id === null;
+    });
+  });
+
+  /** Días hábiles según configuración semanal del colegio, SIN filtrar días sin clases. */
+  function getDiasHabilitadosBase(fechas: string[]): string[] {
+    if (!colegioConfig) return fechas;
+    const dayNames = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+    return fechas.filter(f => colegioConfig[dayNames[new Date(f + "T12:00:00").getDay()]] !== false);
+  }
+  /** Fechas objetivo del botón: días hábibles de la semana/día actual. */
+  function fechasObjetivoSinClases(): string[] {
+    const base = getDiasHabilitadosBase(getFechasPeriodo());
+    // En semanal solo se marcan los días que aún no están cubiertos por otra marca
+    return base;
+  }
+
+  function handleSinClasesClick() {
+    if (sinClasesActivo) { desactivarSinClases(); return; }
+    sinClasesDescripcion = '';
+    popSinClasesAbierta = !popSinClasesAbierta;
+  }
+
+  async function activarSinClases(nivelColegio: boolean) {
+    const motivo = sinClasesDescripcion.trim();
+    if (!motivo) { emit("show-toast", { message: "⚠️ El motivo es obligatorio", type: "warning" }); return; }
+    const objetivos = fechasObjetivoSinClases();
+    if (objetivos.length === 0) return;
+    const alcanceTxt = nivelColegio ? 'TODO el colegio' : 'solo esta sección';
+    const rangoTxt = objetivos.length === 1 ? objetivos[0].split('-').reverse().join('/') : `${objetivos[0].split('-').reverse().join('/')} al ${objetivos[objetivos.length - 1].split('-').reverse().join('/')}`;
+    const ok = await ask(`¿Marcar ${rangoTxt} como día(s) sin clases?\n\nAlcance: ${alcanceTxt}\nMotivo: ${motivo}`, { title: 'Marcar sin clases', kind: 'warning', okLabel: 'Sí, marcar', cancelLabel: 'Cancelar' });
+    if (!ok) return;
+    sinClasesGuardando = true;
+    try {
+      await invoke('set_dias_sin_clases', {
+        colegioId: selectedColegio, seccionId: nivelColegio ? null : selectedSeccion,
+        fechas: objetivos, descripcion: motivo, activo: true,
+      });
+      onDataChange('dia_sin_clases');
+      popSinClasesAbierta = false;
+      sinClasesDescripcion = '';
+      await fetchDiasSinClases();
+      emit("show-toast", { message: `🚫 ${nivelColegio ? 'Colegio' : 'Sección'}: ${objetivos.length} día(s) sin clases (${motivo})`, type: "success" });
+    } catch (e) {
+      console.error('Error marcando días sin clases:', e);
+      await emit("show-toast", { message: "❌ Error al marcar días sin clases: " + e, type: "error" });
+    } finally { sinClasesGuardando = false; }
+  }
+
+  async function desactivarSinClases() {
+    const objetivos = fechasObjetivoSinClases().filter(f => esDiaSinClases(f));
+    if (objetivos.length === 0) return;
+    // Si la cobertura completa viene de una marca de colegio, la quitamos a ese nivel
+    const nivelColegio = objetivos.every(f => {
+      const d = diasSinClases.find(x => x.fecha === f);
+      return !!d && d.seccion_id === null;
+    });
+    const rangoTxt = objetivos.length === 1 ? objetivos[0].split('-').reverse().join('/') : `${objetivos[0].split('-').reverse().join('/')} al ${objetivos[objetivos.length - 1].split('-').reverse().join('/')}`;
+    const ok = await ask(`¿Reactivar las clases para ${rangoTxt}?\n\nSe quitará la marca de "${nivelColegio ? 'todo el colegio' : 'esta sección'}".`, { title: 'Reactivar clases', kind: 'info', okLabel: 'Sí, reactivar', cancelLabel: 'Cancelar' });
+    if (!ok) return;
+    sinClasesGuardando = true;
+    try {
+      await invoke('set_dias_sin_clases', {
+        colegioId: selectedColegio, seccionId: nivelColegio ? null : selectedSeccion,
+        fechas: objetivos, descripcion: '', activo: false,
+      });
+      onDataChange('dia_sin_clases');
+      await fetchDiasSinClases();
+      emit("show-toast", { message: "✅ Clases reactivadas para el período", type: "success" });
+    } catch (e) {
+      console.error('Error reactivando clases:', e);
+      await emit("show-toast", { message: "❌ Error al reactivar clases: " + e, type: "error" });
+    } finally { sinClasesGuardando = false; }
+  }
+
+  // Cierre por clic fuera + Back de Android para el popover de sin clases
+  $effect(() => {
+    if (!popSinClasesAbierta) return;
+    const fuera = (e: Event) => {
+      if (popSinClasesEl && !popSinClasesEl.contains(e.target as Node)) popSinClasesAbierta = false;
+    };
+    document.addEventListener('pointerdown', fuera, true);
+    return () => document.removeEventListener('pointerdown', fuera, true);
+  });
+  $effect(() => {
+    if (!popSinClasesAbierta) return;
+    return registerBackHandler(() => { popSinClasesAbierta = false; return true; });
+  });
 
   onMount(() => {
     const savedDraft = sessionStorage.getItem("asistencia_draft");
@@ -309,8 +434,10 @@
       const date = new Date(selectedFecha + "T12:00:00");
       const dayNames = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
       const habilitado = colegioConfig[dayNames[date.getDay()]] !== false;
-      isFechaHabilitada = habilitado;
-      if (!habilitado) estudiantes = [];
+      // Día sin clases (feriado / marca manual) se trata igual que día inhábil
+      const sinClases = esDiaSinClases(selectedFecha);
+      isFechaHabilitada = habilitado && !sinClases;
+      if (!habilitado || sinClases) estudiantes = [];
     } else {
       isFechaHabilitada = true;
     }
@@ -330,6 +457,7 @@
     sessionStorage.setItem("asistencia_selectedFecha_v2", selectedFecha);
     localStorage.setItem("asistencia_periodo", periodo);
     if (selectedAno && selectedColegio && selectedGrado && selectedSeccion) {
+      fetchDiasSinClases();
       if (periodo === "diario") {
         if (selectedFecha && isFechaHabilitada) fetchEstudiantes();
       } else {
@@ -878,6 +1006,33 @@
             </select>
           </FilterGroup>
           <div style="display:flex;gap:0.4rem;align-items:stretch;flex-shrink:0;{isAndroidMobile ? 'flex:1 1 100%;width:100%' : ''}">
+          {#if periodo !== 'mensual'}
+            <div class="pop-wrap" bind:this={popSinClasesEl}>
+              <button type="button" onclick={handleSinClasesClick} disabled={sinClasesGuardando || !selectedSeccion}
+                style="height:42px;padding:0 1rem;font-size:0.85rem;background:{sinClasesActivo ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.03)'};border:1px solid {sinClasesActivo ? '#f59e0b' : 'rgba(255,255,255,0.08)'};color:{sinClasesActivo ? '#f59e0b' : '#94a3b8'};border-radius:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all 0.15s;white-space:nowrap;opacity:{sinClasesGuardando ? 0.6 : 1}">
+                <span>{sinClasesActivo ? '🏫' : '🚫'}</span><span>{isAndroidMobile ? '' : (sinClasesActivo ? 'Sin clases' : 'No hubo clases')}</span>
+              </button>
+
+              {#if popSinClasesAbierta}
+                <div class="pop-panel" tabindex="-1" style="left:auto;right:0;width:min(300px,calc(100vw - 40px))">
+                  <div class="pop-mes"><span class="pop-mes-txt">Motivo del día sin clases</span></div>
+                  <input class="obs-inline" placeholder="Ej: Feriado nacional (obligatorio)"
+                    bind:value={sinClasesDescripcion}
+                    onkeydown={(e) => { if (e.key === 'Enter' && sinClasesDescripcion.trim()) activarSinClases(false); }} />
+                  <div style="display:flex;flex-direction:column;gap:3px;margin-top:.55rem">
+                    <button type="button" class="pop-sem sel" style="justify-content:center;border-radius:10px" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando}
+                      onclick={() => activarSinClases(false)}>
+                      🚪 Marcar solo esta sección
+                    </button>
+                    <button type="button" class="pop-sem sel" style="justify-content:center;border-radius:10px" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando}
+                      onclick={() => activarSinClases(true)}>
+                      🏫 Marcar todo el colegio
+                    </button>
+                  </div>
+                </div>
+              {/if}
+            </div>
+          {/if}
           <button onclick={limpiarAsistencia} disabled={getActiveStudentCount() === 0}
             style="height:42px;padding:0 1.25rem;font-size:0.85rem;background-color:{getActiveStudentCount() > 0 ? '#ef4444' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:{getActiveStudentCount() > 0 ? 'pointer' : 'not-allowed'};transition:all 0.3s ease;box-shadow:{getActiveStudentCount() > 0 ? '0 4px 14px rgba(239,68,68,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{getActiveStudentCount() > 0 ? 1 : 0.7}">
             <span>🧹</span><span>{isAndroidMobile ? '' : 'Limpiar'}</span>
@@ -974,6 +1129,11 @@
       <ScrollableTable>
         {#if loading}
           <div class="loading-state">Cargando estudiantes...</div>
+        {:else if !isFechaHabilitada && periodo === 'diario' && esDiaSinClases(selectedFecha)}
+          <div style="padding:40px;text-align:center;background:rgba(245,158,11,0.12);border-radius:12px;border:1px dashed #f59e0b;color:#f59e0b">
+            <h3>🚫 No hubo clases este día</h3>
+            <p>{coberturaSinClases(selectedFecha)?.descripcion || 'Día marcado sin clases'}{coberturaSinClases(selectedFecha)?.seccion_id === null ? ' (todo el colegio)' : ''}.</p>
+          </div>
         {:else if !isFechaHabilitada}
           <div style="padding:40px;text-align:center;background:rgba(239,68,68,0.1);border-radius:12px;border:1px dashed #ef4444;color:#ef4444">
             <h3>📅 Día no laborable</h3>

@@ -24,6 +24,7 @@
     colegioId: number; lunes: boolean; martes: boolean; miercoles: boolean;
     jueves: boolean; viernes: boolean; sabado: boolean; domingo: boolean;
   }
+  interface DiaSinClase { id: number; colegio_id: number; seccion_id: number | null; fecha: string; descripcion: string; }
 
   // Visible = la página contenedora está activa Y este es el sub-tab seleccionado.
   let { visible = true }: { visible?: boolean } = $props();
@@ -200,6 +201,36 @@
 
   function onSync() { silentRefresh = true; refreshTrigger++; }
 
+  // ── Días sin clases (marcados desde AsistenciaPage, por sección o colegio) ──
+  let diasSinClases = $state<DiaSinClase[]>([]);
+  function esSinClases(fecha: string): boolean {
+    return diasSinClases.some(d => d.fecha === fecha);
+  }
+  async function fetchDiasSinClases() {
+    if (!selectedColegio || !selectedSeccion || !fechaInicio || !fechaFin) { diasSinClases = []; return; }
+    try {
+      diasSinClases = await invoke<DiaSinClase[]>('get_dias_sin_clases', {
+        colegioId: selectedColegio, seccionId: selectedSeccion,
+        fechaInicio, fechaFin,
+      });
+    } catch (e) { console.error('Error cargando días sin clases:', e); }
+  }
+  $effect(() => {
+    // Deps: colegio/sección y rango del período
+    void selectedColegio; void selectedSeccion; void fechaInicio; void fechaFin;
+    fetchDiasSinClases();
+  });
+  /** Nota para PDF/impresión con los días sin clases del período. */
+  let diasSinClasesNota = $derived.by(() => {
+    const marcados = diasSinClases.filter(d => d.fecha >= fechaInicio && d.fecha <= fechaFin);
+    if (marcados.length === 0) return '';
+    return 'Sin clases: ' + marcados.map(d => `${fmtDM(d.fecha)} (${d.descripcion})`).join(', ');
+  });
+  let hoySinClases = $derived(periodo === 'diario' && esSinClases(fechaBase));
+  function motivoSinClases(fecha: string): string {
+    return diasSinClases.find(d => d.fecha === fecha)?.descripcion || 'Sin clases';
+  }
+
   $effect(() => {
     const hoy = new Date();
     const base = new Date(fechaBase + "T12:00:00");
@@ -330,7 +361,9 @@
         3: colegioConfig.miercoles, 4: colegioConfig.jueves, 5: colegioConfig.viernes, 6: colegioConfig.sabado,
       };
       while (temp <= fin) {
-        if (diasMap[temp.getDay()]) fechasSet.add(getLocalDateISOString(temp));
+        const iso = getLocalDateISOString(temp);
+        // Los días marcados sin clases no aparecen como columnas del reporte
+        if (diasMap[temp.getDay()] && !esSinClases(iso)) fechasSet.add(iso);
         temp.setDate(temp.getDate() + 1);
       }
     } else {
@@ -393,13 +426,26 @@
       doc.setFontSize(10);
       doc.text(`Colegio: ${colegioNombre}`, margins.left + 4, 22);
       doc.text(`Grado: ${gradoNombre} - Sección: ${seccionNombre}`, margins.left + 4, 27);
-      doc.text(`Periodo: ${periodo.toUpperCase()} (${fechaInicio} al ${fechaFin})`, margins.left + 4, 32);
+      doc.text(`Periodo: ${periodo.toUpperCase()} (${fechaInicio} al ${fechaFin})${diasSinClasesNota ? ' — ' + diasSinClasesNota : ''}`, margins.left + 4, 32);
       if (selectedSexo) doc.text(`Filtro Sexo: ${selectedSexo === 'M' ? 'Masculino' : 'Femenino'}`, margins.left + 4, 37);
 
       let headers: string[], body: any[][];
       if (periodo === "diario") {
         headers = ["Estudiante", "Sexo", "Estado", "Observación"];
-        body = reporteFiltrado.map(est => [est.nombre, est.sexo, getEstadoEnFecha(est, fechaInicio) === '-' ? 'Sin registro' : getEstadoEnFecha(est, fechaInicio), getObservacionEnFecha(est, fechaInicio)]);
+        const n = reporteFiltrado.length;
+        body = reporteFiltrado.map((est, i) => {
+          // Día sin clases: la columna Estado se combina en una sola celda
+          // con el motivo, en vez de repetirlo por estudiante.
+          let estadoCell: any;
+          if (hoySinClases) {
+            estadoCell = i === 0 && n > 0
+              ? { content: `SIN CLASES\n${motivoSinClases(fechaInicio)}`, rowSpan: n, styles: { halign: 'center', valign: 'middle', fontStyle: 'bold', textColor: [245, 158, 11], minCellHeight: 10 } }
+              : '';
+          } else {
+            estadoCell = getEstadoEnFecha(est, fechaInicio) === '-' ? 'Sin registro' : getEstadoEnFecha(est, fechaInicio);
+          }
+          return [est.nombre, est.sexo, estadoCell, getObservacionEnFecha(est, fechaInicio)];
+        });
       } else {
         const fechasCols = getFechasUnicas();
         headers = ["Estudiante", "Sexo", ...fechasCols.map(f => f.split('-').slice(1).reverse().join('/')), "P", "A", "J"];
@@ -457,11 +503,18 @@
       let headers: string[], rows: string;
       if (periodo === "diario") {
         headers = ["Estudiante", "Sexo", "Estado", "Observación"];
-        rows = reporteFiltrado.map(est => {
+        const n = reporteFiltrado.length;
+        rows = reporteFiltrado.map((est, i) => {
           const estado = getEstadoEnFecha(est, fechaInicio);
           const obs = getObservacionEnFecha(est, fechaInicio);
           const estadoClass = estado === 'P' ? 'estado-P' : estado === 'A' ? 'estado-A' : estado === 'J' ? 'estado-J' : '';
-          return `<tr><td>${est.nombre}</td><td>${est.sexo}</td><td class="${estadoClass}">${estado === '-' ? '' : estado}</td><td>${obs}</td></tr>`;
+          // Día sin clases: columna Estado combinada (rowspan) con el motivo
+          const estadoCell = hoySinClases
+            ? (i === 0 && n > 0
+                ? `<td rowspan="${n}" style="color:#f59e0b;font-weight:bold;vertical-align:middle">SIN CLASES<br>${motivoSinClases(fechaInicio)}</td>`
+                : '')
+            : `<td class="${estadoClass}">${estado === '-' ? '' : estado}</td>`;
+          return `<tr><td>${est.nombre}</td><td>${est.sexo}</td>${estadoCell}<td>${obs}</td></tr>`;
         }).join('');
       } else {
         const fechasCols = getFechasUnicas();
@@ -491,6 +544,7 @@
           <p><strong>Colegio:</strong> ${colegioNombre}</p>
           <p><strong>Grado:</strong> ${gradoNombre} - Sección: ${seccionNombre}</p>
           <p><strong>Período:</strong> ${periodo.toUpperCase()} (${fechaInicio} al ${fechaFin})${selectedSexo ? ` - Sexo: ${selectedSexo === 'M' ? 'Masculino' : 'Femenino'}` : ''}</p>
+          ${diasSinClasesNota ? `<p><strong>🚫 ${diasSinClasesNota}</strong></p>` : ''}
         </div>
         <table><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
       </body></html>`;
@@ -513,13 +567,26 @@
       doc.setFontSize(10);
       doc.text(`Colegio: ${colegioNombre}`, margins.left + 4, 22);
       doc.text(`Grado: ${gradoNombre} - Sección: ${seccionNombre}`, margins.left + 4, 27);
-      doc.text(`Periodo: ${periodo.toUpperCase()} (${fechaInicio} al ${fechaFin})`, margins.left + 4, 32);
+      doc.text(`Periodo: ${periodo.toUpperCase()} (${fechaInicio} al ${fechaFin})${diasSinClasesNota ? ' — ' + diasSinClasesNota : ''}`, margins.left + 4, 32);
       if (selectedSexo) doc.text(`Filtro Sexo: ${selectedSexo === 'M' ? 'Masculino' : 'Femenino'}`, margins.left + 4, 37);
 
       let headers: string[], body: any[][];
       if (periodo === "diario") {
         headers = ["Estudiante", "Sexo", "Estado", "Observación"];
-        body = reporteFiltrado.map(est => [est.nombre, est.sexo, getEstadoEnFecha(est, fechaInicio) === '-' ? 'Sin registro' : getEstadoEnFecha(est, fechaInicio), getObservacionEnFecha(est, fechaInicio)]);
+        const n = reporteFiltrado.length;
+        body = reporteFiltrado.map((est, i) => {
+          // Día sin clases: la columna Estado se combina en una sola celda
+          // con el motivo, en vez de repetirlo por estudiante.
+          let estadoCell: any;
+          if (hoySinClases) {
+            estadoCell = i === 0 && n > 0
+              ? { content: `SIN CLASES\n${motivoSinClases(fechaInicio)}`, rowSpan: n, styles: { halign: 'center', valign: 'middle', fontStyle: 'bold', textColor: [245, 158, 11], minCellHeight: 10 } }
+              : '';
+          } else {
+            estadoCell = getEstadoEnFecha(est, fechaInicio) === '-' ? 'Sin registro' : getEstadoEnFecha(est, fechaInicio);
+          }
+          return [est.nombre, est.sexo, estadoCell, getObservacionEnFecha(est, fechaInicio)];
+        });
       } else {
         const fechasCols = getFechasUnicas();
         headers = ["Estudiante", "Sexo", ...fechasCols.map(f => f.split('-').slice(1).reverse().join('/')), "P", "A", "J"];
