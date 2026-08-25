@@ -1178,7 +1178,7 @@
           <table class="custom-table" style="width:100%;margin:0;overflow:visible">
             <thead><tr>
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
-              <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10">Estudiante</th>
+              <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;min-width:200px">Estudiante</th>
               {#each fechasPeriodo as fecha}
                 <th style="min-width:105px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;font-size:0.7rem;font-weight:600;padding:0.3rem 0.15rem">
                   {new Date(fecha + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }).replace('.','').replace(',','')}
@@ -1190,7 +1190,7 @@
                 <tr>
                   <td><span class="student-number-badge">{index + 1}</span></td>
                   <td style="text-align:left">
-                    <span style="font-weight:bold;font-size:0.85rem;cursor:pointer;white-space:nowrap" onclick={() => selectedStudentDetail = est as any}>{est.nombre}</span>
+                    <span style="font-weight:bold;font-size:0.85rem;cursor:pointer;white-space:normal;word-break:break-word;line-height:1.25" onclick={() => selectedStudentDetail = est as any}>{est.nombre}</span>
                     <div style="font-size:0.65rem;opacity:0.6">{est.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                   </td>
                   {#each fechasPeriodo as fecha}
@@ -1216,10 +1216,11 @@
           <table class="custom-table" style="width:100%;margin:0;overflow:visible">
             <thead><tr>
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
-              <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10">Estudiante</th>
+              <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;min-width:200px">Estudiante</th>
               {#each fechasPeriodo as fecha}
-                <th style="width:32px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;font-size:0.65rem;font-weight:600;padding:0.2rem 0.1rem">
-                  {new Date(fecha + "T12:00:00").getDate()}
+                <th style="font-size:0.7rem;white-space:nowrap;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;min-width:48px;padding:0.35rem 0.45rem">
+                  <div style="font-size:0.6rem;opacity:0.7">{new Date(fecha + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short' })}</div>
+                  {fecha.split('-').slice(1).reverse().join('/')}
                 </th>
               {/each}
             </tr></thead>
@@ -1228,7 +1229,7 @@
                 <tr>
                   <td><span class="student-number-badge">{index + 1}</span></td>
                   <td style="text-align:left">
-                    <span style="font-weight:bold;font-size:0.85rem;cursor:pointer;white-space:nowrap" onclick={() => selectedStudentDetail = est as any}>{est.nombre.split(' ')[0]}</span>
+                    <span style="font-weight:bold;font-size:0.85rem;cursor:pointer;white-space:normal;word-break:break-word;line-height:1.25" onclick={() => selectedStudentDetail = est as any}>{est.nombre}</span>
                     <div style="font-size:0.65rem;opacity:0.6">{est.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                   </td>
                   {#each fechasPeriodo as fecha}

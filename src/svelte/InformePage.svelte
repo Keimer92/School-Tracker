@@ -976,9 +976,9 @@
           <thead>
             <tr>
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
-              <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10">Estudiante</th>
+              <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;min-width:200px">Estudiante</th>
               {#each fechasColumnas as f}
-                <th style="font-size:0.7rem;white-space:nowrap;position:sticky;top:0;background:#1e293b;z-index:10">
+                <th style="font-size:0.7rem;white-space:nowrap;position:sticky;top:0;background:#1e293b;z-index:10;min-width:48px;padding:0.35rem 0.45rem">
                   <div style="font-size:0.6rem;opacity:0.7">{new Date(f + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short' })}</div>
                   {f.split('-').slice(1).reverse().join('/')}
                 </th>
@@ -998,7 +998,7 @@
                 <td style="text-align:left;overflow:hidden">
                   <div style="font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:6px;width:100%" onclick={() => selectedStudentDetail = item}>
                     <span style="font-size:1.1rem;flex-shrink:0">{item.sexo === 'F' ? '👩' : '👨'}</span>
-                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{item.nombre}</span>
+                    <span style="white-space:normal;word-break:break-word;line-height:1.25">{item.nombre}</span>
                   </div>
                   <div style="font-size:0.7rem;opacity:0.6;margin-left:22px">{item.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                 </td>
