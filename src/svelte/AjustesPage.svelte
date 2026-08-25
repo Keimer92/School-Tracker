@@ -686,7 +686,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
           <p style="color: #94a3b8; white-space: pre-wrap;">{resetConfig.message}</p>
           <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 2rem;">
             <button class="cancel" onclick={() => showResetConfirm = false}>Cancelar</button>
-            <button class="primary" onclick={async () => { isProcessingReset = true; await resetConfig.onConfirm(); showResetConfirm = false; isProcessingReset = false; }} style="background-color: #ef4444;">{isProcessingReset ? "..." : "Confirmar"}</button>
+            <button class="primary" onclick={async () => { if (!resetConfig) return; isProcessingReset = true; await resetConfig.onConfirm(); showResetConfirm = false; isProcessingReset = false; }} style="background-color: #ef4444;">{isProcessingReset ? "..." : "Confirmar"}</button>
           </div>
         </div>
       </div>
@@ -695,7 +695,19 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 </div>
 
 <style>
-  .ajustes-ribbon-container { display: flex; justify-content: center; margin-bottom: 1.5rem; }
+  .ajustes-ribbon-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+    position: sticky;
+    top: 0;
+    z-index: 500;
+    padding: 0.6rem 0;
+    background: var(--bg-primary, #0f172a);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-radius: 0 0 14px 14px;
+  }
   :global(.ajustes-ribbon) { display: inline-flex; padding: 0.4rem; gap: 0.3rem; background: var(--bg-elevated); border-radius: 14px; border: 1px solid var(--border); }
   :global(.ajustes-tab) { padding: 0.5rem 1rem; border-radius: 10px; border: none; background: transparent; color: var(--text-muted); font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.2s ease; display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
   :global(.ajustes-tab.active) { color: var(--text-bright); background: var(--bg-active); box-shadow: 0 0 8px rgba(var(--primary-rgb), 0.08); }
