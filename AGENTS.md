@@ -458,6 +458,7 @@ si hay datos existentes (evita duplicar defaults).
 | `sync_pending_deletions_nota` | `id` | `estudiante_id`, `criterio_id`, `corte_evaluativo_id`, `asignatura_id`, `fecha_intento` | |
 | `sync_pending_deletions_grado_asignatura` | `id` | `grado_id`, `asignatura_id`, `fecha_intento` | |
 | `sync_pending_deletions_colegio_asignatura` | `id` | `colegio_id`, `asignatura_id`, `fecha_intento` | |
+| `dia_sin_clases` | `id` (INTEGER PK AUTOINCREMENT) | `colegio_id`, `grado_id NULL`, `seccion_id NULL`, `fecha TEXT`, `descripcion TEXT NOT NULL`, `updated_at` | Feriados/días sin clases. UNIQUE(colegio_id, IFNULL(grado_id,0), IFNULL(seccion_id,0), fecha). grado/seccion NULL = nivel colegio. Sincronizada en D1 |
 
 ### Datos semilla (`seed_default_data` en `db.rs:396`)
 
@@ -615,3 +616,93 @@ modales fixed z=100).
 **Refrescos silenciosos sin perder posición**: listas con each KEYED
 ((est.id)); NotasPage preserva currentStudentIdx en el refresh silencioso;
 nunca reconstruir toda la lista sin clave (salta scroll al inicio).
+
+## Días sin clases (2026-08) — feriados por sección o colegio
+
+Tabla `dia_sin_clases` (ver esquema; añadir fila en la lista de tablas).
+Comandos: `get_dias_sin_clases(colegioId, gradoId?, seccionId?, fechaInicio, fechaFin)`
+y `set_dias_sin_clases(..., fechas[], descripcion, activo)` (bulk transaccional,
+pending deletions al borrar). Registrados en generate_handler + local-commands.toml.
+
+**Alcances**: `grado_id`+`seccion_id` con valor = solo esa sección DE ese grado
+(las secciones son catálogos compartidos entre grados: sin `grado_id`, una marca
+"A" afectaría a todos los grados); ambos NULL = todo el colegio.
+
+**UI (AsistenciaPage)**:
+- Botón "🚫 Sin Clases" junto a Limpiar (solo diario/semanal). Popover con MOTIVO
+  OBLIGATORIO + alcance (sección / colegio) y confirmación nativa (`ask`);
+  desmarcar también confirma.
+- Diario marcado → banner ámbar glass + lista vacía. Semanal/mensual: los días
+  marcados NO desaparecen; encabezado de columna ámbar 🚫 y celda combinada
+  (`rowspan`) con el motivo vertical.
+- Click en el ENCABEZADO de una fecha (semanal/mensual) marca/desmarca esa
+  fecha puntual (popover contextual, `colFechaObjetivo`).
+- `fechasPeriodo` excluye los días sin clases (no cuentan P/A/J ni %);
+  `fechasVisibles` los incluye para pintarlos.
+
+**InformePage**: columnas omitidas de reportes; nota en PDF/impresión
+("Sin clases: dd/mm (motivo)"); diario muestra "SIN CLASES" en la columna
+Estado COMBINADA (rowSpan autoTable / rowspan HTML); banner on-screen.
+
+**DatePickerGlass inteligente**: prop `diaHabilitado(iso)` — días no hábiles del
+colegio o marcados sin clases se ven tachados/no seleccionables (también "Hoy").
+
+**GOTCHAS nuevos**:
+- El worker D1 agrega `device_id` a TODAS las tablas que guarda: el CREATE TABLE
+  remoto debe incluirlo (ensureSchema ya lo maneja + ALTER tolerante).
+- Bucle `$effect`: fetchEstudiantesMulti lee `diasSinClases` y el efecto llamaba
+  `fetchDiasSinClases` que lo reasignaba → re-disparo infinito ("Cargando..." a
+  cada rato). Regla: fetch dentro de efectos va en `untrack()` y reasignar estado
+  solo si cambió el contenido (comparar JSON).
+
+## Limpieza y toggle de asistencia (2026-08)
+
+- Re-tocar el mismo estado (P/A/J) LIMPIA la marca. En diario los handlers van en
+  `onclick` del `<label>` SIN `<input type=radio>` oculto: los radios no disparan
+  `onchange` al re-clicar, y el label reenvía un clic sintético al input que
+  disparaba el handler DOS veces (toggle anulado → parecía congelado).
+- `saveChanges`/`saveChangesMulti` BORRAN las celdas vaciadas
+  (`delete_asistencia_batch`) antes de guardar: si no, quedaban huérfanas en BD y
+  InformePage seguía mostrando asistencia ya limpiada.
+- Botón Limpiar usa diálogo nativo `ask` (modal custom eliminado).
+
+## Credenciales Cloudflare (.key) + Welcome (2026-08)
+
+- **Formato .key**: JSON `{workerUrl, schoolKey}` (plantilla `schooltracker.key`
+  en raíz del proyecto, añadida a `.gitignore`).
+- **Exportar**: CloudPage botón "📤 Exportar clave" (diálogo save nativo).
+- **Importar**: WelcomePage 3ra tarjeta "Tengo un archivo de conexión" → `open`
+  dialog → valores pasan UNA vez a `d1_save_config` (solo SQLite/d1_config;
+  nunca localStorage ni bundle). Ejecuta primer `d1_sync_all`; nube vacía → wizard.
+- **Protección anti-mezcla**: si la config existente difiere del .key (p. ej. una
+  BD restaurada desde Drive trae su propia `d1_config`), se avisa y reemplaza
+  LIMPIO: `d1_clear_config` antes de guardar → nuevo device_id, cursores en cero,
+  re-sync completo. Implementado en CloudPage y WelcomePage.
+- **Modal Configurar D1**: ya no tiene inputs; SOLO importa archivo .key.
+- **Clave enmascarada** en UI: card muestra `••••••••{últimos 4}`; formulario
+  manual eliminado.
+- **Notificaciones Android**: comando `gd_request_notification_permission`
+  (JNI → `MainActivity.requestNotificationPermissionNow()`, POST_NOTIFICATIONS)
+  se invoca al completar la primera ejecución (ambos caminos del Welcome).
+
+## Worker D1: esquema auto-creado
+
+`ensureSchema` (cloudflare-sync/src/index.ts) crea TODAS las tablas
+sincronizables (`CREATE TABLE IF NOT EXISTS` espejo de TABLES, PKs compuestas
+correctas) + `sync_tombstone` + reshape de `dia_sin_clases`. Una base D1 nueva
+queda operativa al primer sync. Tras cada cambio del worker:
+`npx wrangler deploy` (obligatorio).
+
+## Sidebar/Header móvil (2026-08)
+
+- Chip compacto `mobile-sync-chip` en `mobile-header` (App.svelte) a la derecha
+  del título: punto coloreado por estado D1 + ☁️, tap abre pestaña Nube.
+- Drawer móvil: solo card "Respaldo Drive" (`CloudCards` prop `ocultarD1`),
+  texto compacto responsivo (una línea, ellipsis).
+- Card Respaldo Drive (todas las plataformas): tap = respaldo manual real
+  (`driveSyncService.pushAll()`); si Drive no está vinculado lleva a pestaña
+  Nube. Spinner + "Subiendo…" durante la subida.
+- GOTCHA: meter widgets de CloudCards dentro del header flex rompe layouts
+  (ancho mínimo/media queries propios); usar chips dedicados.
+- GOTCHA: NUNCA editar AGENTS.md vía PowerShell (Get-Content/Set-Content) —
+  corrompe UTF-8 igual que los fuentes; usar solo herramientas de edición.
