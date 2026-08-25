@@ -351,7 +351,8 @@
       d1Cfg = await d1SyncService.getConfig();
       if (d1Cfg) {
         d1WorkerUrl = d1Cfg.workerUrl;
-        d1SchoolKey = d1Cfg.schoolKey;
+        // La clave NO se precarga: si el input queda vacío se conserva la actual
+        d1SchoolKey = "";
         showD1Config = false;
       }
     } catch {}
@@ -361,11 +362,14 @@
 
   async function saveD1Config() {
     if (!d1WorkerUrl.trim()) { await emit("show-toast", { message: "❌ Ingresa la URL del Worker", type: "error" }); return; }
-    if (!d1SchoolKey.trim()) { await emit("show-toast", { message: "❌ Ingresa la School Key", type: "error" }); return; }
+    // Sin clave nueva: conserva la existente (edición de URL solamente)
+    const claveFinal = d1SchoolKey.trim() || d1Cfg?.schoolKey || "";
+    if (!claveFinal) { await emit("show-toast", { message: "❌ Ingresa la School Key", type: "error" }); return; }
     isD1Saving = true;
     try {
-      d1Cfg = await d1SyncService.saveConfig(d1WorkerUrl.trim(), d1SchoolKey.trim());
+      d1Cfg = await d1SyncService.saveConfig(d1WorkerUrl.trim(), claveFinal);
       invalidateD1Cache();
+      d1SchoolKey = "";
       showD1Config = false;
       await ensureWsSync();
       syncService.ensurePeriodicSync();
@@ -525,7 +529,7 @@
           </div>
           <div>
 <label style="display: block; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; font-size: 0.65rem; margin-bottom: 4px;">Clave de sincronización</label>
-              <input bind:value={d1SchoolKey} placeholder="stp_xxxxxxxxxxxxxxxx" style="width: 100%; padding: 0.55rem 0.7rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.06); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none;" />
+              <input bind:value={d1SchoolKey} type="password" placeholder={d1Cfg ? '•••••••• (sin cambios)' : 'stp_xxxxxxxxxxxxxxxx'} autocomplete="off" style="width: 100%; padding: 0.55rem 0.7rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.06); color: #e2e8f0; font-size: 0.8rem; font-family: monospace; outline: none;" />
           </div>
           <div style="display: flex; gap: 0.5rem;">
             <button onclick={saveD1Config} disabled={isD1Saving} style="flex: 1; padding: 0.6rem; border-radius: 8px; border: none; background: linear-gradient(135deg, #F6821F, #F97316); color: white; font-weight: 600; font-size: 0.8rem; cursor: pointer; opacity: {isD1Saving ? 0.6 : 1};">{isD1Saving ? 'Guardando...' : 'Guardar'}</button>
@@ -545,7 +549,7 @@
       {:else}
         <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 0.75rem 0.9rem; background: linear-gradient(135deg, rgba(246,130,31,0.08) 0%, rgba(246,130,31,0.03) 100%); border-radius: 12px; border: 1px solid rgba(246,130,31,0.12); margin-bottom: 0.9rem;">
           <div style="color: #f1f5f9; font-size: 0.78rem;">
-            <div style="font-weight: 600; color: #fdba74;">Clave: <span style="color:#e2e8f0; font-family: monospace;">{d1Cfg.schoolKey.slice(0, 12)}…</span></div>
+            <div style="font-weight: 600; color: #fdba74;">Clave: <span style="color:#e2e8f0; font-family: monospace;">••••••••{d1Cfg.schoolKey.slice(-4)}</span></div>
             <div style="font-weight: 600; color: #94a3b8; font-size: 0.72rem;">ID dispositivo: <span style="color:#e2e8f0; font-family: monospace;">…{d1Cfg.deviceId.slice(-10)}</span>
               {#if d1Cfg.lastSync}<span style="color:#64748b;"> · cursor: {d1Cfg.lastSync}</span>{/if}
             </div>
