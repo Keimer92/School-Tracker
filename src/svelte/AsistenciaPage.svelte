@@ -954,7 +954,7 @@
   <PageLayout>
     {#snippet filters()}
       <FilterContainer {isMobile} style="padding:{isAndroidMobile ? '0.5rem' : '0.4rem'}">
-        <div style="display:flex;flex-wrap:wrap;gap:0.4rem;width:100%;align-items:flex-end">
+        <div style="display:flex;{isAndroidMobile ? 'flex-wrap:wrap' : 'flex-wrap:nowrap;overflow-x:auto'};gap:0.4rem;width:100%;align-items:flex-end">
           <FilterGroup label="Período:" {isMobile}>
             <select class="filter-select" bind:value={periodo} style="width:100%">
               <option value="diario">Diario</option>
@@ -1048,7 +1048,7 @@
             <div class="pop-wrap" bind:this={popSinClasesEl}>
               <button type="button" onclick={handleSinClasesClick} disabled={sinClasesGuardando || !selectedSeccion}
                 style="height:42px;padding:0 1rem;font-size:0.85rem;background:{sinClasesActivo ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.03)'};border:1px solid {sinClasesActivo ? '#f59e0b' : 'rgba(255,255,255,0.08)'};color:{sinClasesActivo ? '#f59e0b' : '#94a3b8'};border-radius:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all 0.15s;white-space:nowrap;opacity:{sinClasesGuardando ? 0.6 : 1}">
-                <span>{sinClasesActivo ? '🏫' : '🚫'}</span><span>{isAndroidMobile ? '' : (sinClasesActivo ? 'Sin clases' : 'No hubo clases')}</span>
+                <span>{sinClasesActivo ? '🏫' : '🚫'}</span><span>{isAndroidMobile ? '' : 'Sin Clases'}</span>
               </button>
 
               {#if popSinClasesAbierta}
