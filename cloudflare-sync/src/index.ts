@@ -151,6 +151,33 @@ const VALID_TABLES = new Set(Object.keys(TABLES));
 let schemaReady = false;
 async function ensureSchema(env: Env): Promise<void> {
   if (schemaReady) return;
+  // ── Esquema completo: crea TODAS las tablas sincronizables si la base D1
+  // es nueva. En bases existentes los CREATE IF NOT EXISTS no hacen nada.
+  const schemaStmts = [
+    `CREATE TABLE IF NOT EXISTS ano_lectivo (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, updated_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS corte_evaluativo (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, updated_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS colegio (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, orden INTEGER, updated_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS asignatura (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT UNIQUE, cualitativo INTEGER DEFAULT 0, updated_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS grado (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT UNIQUE, cualitativo INTEGER DEFAULT 0, updated_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS seccion (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT UNIQUE, cualitativo INTEGER DEFAULT 0, updated_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS grado_asignatura (grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, updated_at TEXT, PRIMARY KEY (grado_id, asignatura_id))`,
+    `CREATE TABLE IF NOT EXISTS colegio_asignatura (colegio_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, updated_at TEXT, PRIMARY KEY (colegio_id, asignatura_id))`,
+    `CREATE TABLE IF NOT EXISTS indicador (id INTEGER PRIMARY KEY AUTOINCREMENT, grado_id INTEGER, asignatura_id INTEGER, corte_evaluativo_id INTEGER, orden INTEGER, descripcion TEXT DEFAULT '', activo INTEGER DEFAULT 1, instrumento TEXT, updated_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS criterio (id INTEGER PRIMARY KEY AUTOINCREMENT, indicador_id INTEGER, orden INTEGER, descripcion TEXT DEFAULT '', puntaje_maximo INTEGER, updated_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS estudiante (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, codigo TEXT UNIQUE, sexo TEXT, ano_lectivo_id INTEGER, grado_id INTEGER, seccion_id INTEGER, colegio_id INTEGER, telefono TEXT, direccion TEXT, email TEXT, foto TEXT, updated_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS configuracion_calificacion (id TEXT PRIMARY KEY, nombre TEXT, color TEXT, minimo INTEGER, updated_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS multiplicador_calificacion (id TEXT PRIMARY KEY, multiplicador REAL, updated_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS colegio_dias_asistencia (colegio_id INTEGER PRIMARY KEY, lunes INTEGER DEFAULT 1, martes INTEGER DEFAULT 1, miercoles INTEGER DEFAULT 1, jueves INTEGER DEFAULT 1, viernes INTEGER DEFAULT 1, sabado INTEGER DEFAULT 1, domingo INTEGER DEFAULT 1, updated_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS asistencia (estudiante_id INTEGER NOT NULL, fecha TEXT NOT NULL, estado TEXT, observacion TEXT, id INTEGER, updated_at TEXT, PRIMARY KEY (estudiante_id, fecha))`,
+    `CREATE TABLE IF NOT EXISTS nota (estudiante_id INTEGER NOT NULL, criterio_id INTEGER NOT NULL, corte_evaluativo_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, valor REAL, updated_at TEXT, PRIMARY KEY (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id))`,
+    `CREATE TABLE IF NOT EXISTS sync_tombstone (
+      tabla TEXT NOT NULL,
+      pk TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      device_id TEXT,
+      PRIMARY KEY (tabla, pk)
+    )`,
+  ];
   // Reshape de dia_sin_clases: versión antigua sin grado_id se recrea (datos de prueba)
   try {
     const dscCols = await queryRows(env.DB, "SELECT name FROM pragma_table_info('dia_sin_clases')");
@@ -159,9 +186,7 @@ async function ensureSchema(env: Env): Promise<void> {
     }
   } catch { /* tabla no existe aún */ }
   const stmts = [
-    "ALTER TABLE indicador ADD COLUMN instrumento TEXT NOT NULL DEFAULT 'general'",
-    // 'general' retirado como tipo: las filas históricas pasan a escala
-    "UPDATE indicador SET instrumento = 'escala' WHERE instrumento = 'general'",
+    ...schemaStmts,
     // Días sin clases (feriados / sin actividad), por colegio o por sección DE un grado
     // (device_id es interno del mecanismo de sync: se agrega a todas las tablas)
     `CREATE TABLE IF NOT EXISTS dia_sin_clases (
