@@ -783,21 +783,12 @@
               <option value="mensual">Mensual</option>
             </select>
           </FilterGroup>
-          {#if periodo === "mensual"}
-            <FilterGroup label="Mes:" {isMobile}>
-              <select class="filter-select" style="width:100%;min-width:100px"
-                value={mesSeleccionado} onchange={(e) => mesSeleccionado = Number((e.target as HTMLSelectElement).value)}>
-                {#each mesesOptions as m}<option value={m.value}>{m.label}</option>{/each}
-              </select>
+          {#if periodo === "diario"}
+            <FilterGroup label="Fecha:" {isMobile}>
+              <DatePickerGlass bind:value={selectedFecha} />
             </FilterGroup>
-            <FilterGroup label="Año:" {isMobile}>
-              <select class="filter-select" style="width:100%;min-width:90px"
-                value={anoSeleccionado} onchange={(e) => anoSeleccionado = Number((e.target as HTMLSelectElement).value)}>
-                {#each anosOptions as a}<option value={Number(a.nombre)}>{a.nombre}</option>{/each}
-              </select>
-            </FilterGroup>
-          {:else}
-            <FilterGroup label="Semana:" {isMobile}>
+          {:else if periodo === "semanal"}
+            <FilterGroup label="Semana de:" {isMobile}>
               <div class="pop-wrap" bind:this={popRootEl}>
                 <button type="button" class="filter-select pop-trigger" onclick={() => popSemanaAbierta = !popSemanaAbierta}>
                   <span>Semana {semanaActiva} · {semanasOpts.find(s => s.n === semanaActiva)?.rango ?? ''}</span>
@@ -828,6 +819,19 @@
                   </div>
                 {/if}
               </div>
+            </FilterGroup>
+          {:else}
+            <FilterGroup label="Mes:" {isMobile}>
+              <select class="filter-select" style="width:100%;min-width:100px"
+                value={mesSeleccionado} onchange={(e) => mesSeleccionado = Number((e.target as HTMLSelectElement).value)}>
+                {#each mesesOptions as m}<option value={m.value}>{m.label}</option>{/each}
+              </select>
+            </FilterGroup>
+            <FilterGroup label="Año:" {isMobile}>
+              <select class="filter-select" style="width:100%;min-width:90px"
+                value={anoSeleccionado} onchange={(e) => anoSeleccionado = Number((e.target as HTMLSelectElement).value)}>
+                {#each anosOptions as a}<option value={Number(a.nombre)}>{a.nombre}</option>{/each}
+              </select>
             </FilterGroup>
           {/if}
           <FilterGroup label="Año:" {isMobile}>

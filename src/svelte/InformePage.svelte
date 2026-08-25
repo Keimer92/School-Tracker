@@ -159,8 +159,6 @@
     }
   }
 
-  function cerrarPopSemana() { popSemanaAbierta = false; }
-
   // Cierre por clic fuera + Back de Android mientras el popover esté abierto
   $effect(() => {
     if (!popSemanaAbierta) return;
