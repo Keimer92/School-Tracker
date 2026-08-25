@@ -976,7 +976,7 @@
           <thead>
             <tr>
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
-              <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;min-width:200px">Estudiante</th>
+              <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;width:220px">Estudiante</th>
               {#each fechasColumnas as f}
                 <th style="min-width:105px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;font-size:0.7rem;font-weight:600;padding:0.3rem 0.15rem">
                   {new Date(f + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }).replace('.','').replace(',','')}
