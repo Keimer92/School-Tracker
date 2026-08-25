@@ -160,6 +160,19 @@
 
   let popSemanaAbierta = $state(false);
   let popRootEl: HTMLElement | null = $state(null);
+  let semTriggerEl: HTMLElement | null = $state(null);
+  let popSemPos = $state({ top: 0, left: 0 });
+
+  // position:fixed calculado al abrir: el popover escapa del contenedor con
+  // overflow-x:auto de la barra de filtros (que de lo contrario lo recorta).
+  function togglePopSemana() {
+    if (!popSemanaAbierta && semTriggerEl) {
+      const r = semTriggerEl.getBoundingClientRect();
+      const w = Math.min(280, window.innerWidth - 40);
+      popSemPos = { top: r.bottom + 6, left: Math.max(8, Math.min(r.left, window.innerWidth - w - 12)) };
+    }
+    popSemanaAbierta = !popSemanaAbierta;
+  }
 
   let semanaActiva = $derived(
     semanasOpts.find(s => selectedFecha >= s.lunes && selectedFecha <= sumaDiasISO(s.lunes, 6))?.n ?? 1
@@ -186,14 +199,21 @@
 
   function cerrarPopSemana() { popSemanaAbierta = false; }
 
-  // Cierre por clic fuera + Back de Android
+  // Cierre por clic fuera + scroll + Back de Android
   $effect(() => {
     if (!popSemanaAbierta) return;
     const fuera = (e: Event) => {
       if (popRootEl && !popRootEl.contains(e.target as Node)) cerrarPopSemana();
     };
+    const cierra = () => cerrarPopSemana();
     document.addEventListener('pointerdown', fuera, true);
-    return () => document.removeEventListener('pointerdown', fuera, true);
+    window.addEventListener('scroll', cierra, true);
+    window.addEventListener('resize', cierra);
+    return () => {
+      document.removeEventListener('pointerdown', fuera, true);
+      window.removeEventListener('scroll', cierra, true);
+      window.removeEventListener('resize', cierra);
+    };
   });
   $effect(() => {
     if (!popSemanaAbierta) return;
@@ -262,6 +282,8 @@
   let diasSinClases = $state<DiaSinClase[]>([]);
   let popSinClasesAbierta = $state(false);
   let popSinClasesEl: HTMLElement | null = $state(null);
+  let scTriggerEl: HTMLElement | null = $state(null);
+  let popSinClasesPos = $state({ top: 0, left: 0 });
   let sinClasesDescripcion = $state('');
   let sinClasesGuardando = $state(false);
 
@@ -327,6 +349,11 @@
 
   function handleSinClasesClick() {
     if (sinClasesActivo) { desactivarSinClases(); return; }
+    if (!popSinClasesAbierta && scTriggerEl) {
+      const r = scTriggerEl.getBoundingClientRect();
+      const w = Math.min(300, window.innerWidth - 40);
+      popSinClasesPos = { top: r.bottom + 6, left: Math.max(8, Math.min(r.left, window.innerWidth - w - 12)) };
+    }
     sinClasesDescripcion = '';
     popSinClasesAbierta = !popSinClasesAbierta;
   }
@@ -385,14 +412,21 @@
     } finally { sinClasesGuardando = false; }
   }
 
-  // Cierre por clic fuera + Back de Android para el popover de sin clases
+  // Cierre por clic fuera + scroll + Back de Android para el popover de sin clases
   $effect(() => {
     if (!popSinClasesAbierta) return;
     const fuera = (e: Event) => {
       if (popSinClasesEl && !popSinClasesEl.contains(e.target as Node)) popSinClasesAbierta = false;
     };
+    const cierra = () => { popSinClasesAbierta = false; };
     document.addEventListener('pointerdown', fuera, true);
-    return () => document.removeEventListener('pointerdown', fuera, true);
+    window.addEventListener('scroll', cierra, true);
+    window.addEventListener('resize', cierra);
+    return () => {
+      document.removeEventListener('pointerdown', fuera, true);
+      window.removeEventListener('scroll', cierra, true);
+      window.removeEventListener('resize', cierra);
+    };
   });
   $effect(() => {
     if (!popSinClasesAbierta) return;
@@ -969,13 +1003,13 @@
           {:else if periodo === "semanal"}
             <FilterGroup label="Semana de:" {isMobile}>
               <div class="pop-wrap" bind:this={popRootEl}>
-                <button type="button" class="filter-select pop-trigger" onclick={() => popSemanaAbierta = !popSemanaAbierta}>
+                <button type="button" class="filter-select pop-trigger" bind:this={semTriggerEl} onclick={togglePopSemana}>
                   <span>Semana {semanaActiva} · {semanasOpts.find(s => s.n === semanaActiva)?.rango ?? ''}</span>
                   <span class="pop-caret">▾</span>
                 </button>
 
                 {#if popSemanaAbierta}
-                  <div class="pop-panel" tabindex="-1">
+                  <div class="pop-panel" tabindex="-1" style="position:fixed;top:{popSemPos.top}px;left:{popSemPos.left}px">
                     <div class="pop-mes">
                       <button class="pop-nav" onclick={() => cambiarMesSem(-1)} title="Mes anterior">‹</button>
                       <span class="pop-mes-txt">{nombreMesSel} {anoSeleccionado}</span>
@@ -1047,12 +1081,13 @@
           {#if periodo !== 'mensual'}
             <div class="pop-wrap" bind:this={popSinClasesEl}>
               <button type="button" onclick={handleSinClasesClick} disabled={sinClasesGuardando || !selectedSeccion}
+                bind:this={scTriggerEl}
                 style="height:42px;padding:0 1rem;font-size:0.85rem;background:{sinClasesActivo ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.03)'};border:1px solid {sinClasesActivo ? '#f59e0b' : 'rgba(255,255,255,0.08)'};color:{sinClasesActivo ? '#f59e0b' : '#94a3b8'};border-radius:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all 0.15s;white-space:nowrap;opacity:{sinClasesGuardando ? 0.6 : 1}">
                 <span>{sinClasesActivo ? '🏫' : '🚫'}</span><span>{isAndroidMobile ? '' : 'Sin Clases'}</span>
               </button>
 
               {#if popSinClasesAbierta}
-                <div class="pop-panel" tabindex="-1" style="left:auto;right:0;width:min(300px,calc(100vw - 40px))">
+                <div class="pop-panel" tabindex="-1" style="position:fixed;top:{popSinClasesPos.top}px;left:{popSinClasesPos.left}px;width:min(300px,calc(100vw - 40px))">
                   <div class="pop-mes"><span class="pop-mes-txt">Motivo del día sin clases</span></div>
                   <input class="obs-inline" placeholder="Ej: Feriado nacional (obligatorio)"
                     bind:value={sinClasesDescripcion}
