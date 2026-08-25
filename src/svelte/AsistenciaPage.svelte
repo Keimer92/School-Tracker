@@ -309,6 +309,17 @@
     return base;
   }
 
+  /** Días hábiles del período para pintar la tabla (incluye los sin clases con su marca). */
+  let fechasVisibles = $derived.by(() => {
+    return getDiasHabilitadosBase(getFechasPeriodo()).map(f => ({
+      fecha: f,
+      sinClases: esDiaSinClases(f),
+    }));
+  });
+  function motivoSinClasesEn(fecha: string): string {
+    return coberturaSinClases(fecha)?.descripcion || 'Sin clases';
+  }
+
   function handleSinClasesClick() {
     if (sinClasesActivo) { desactivarSinClases(); return; }
     sinClasesDescripcion = '';
@@ -916,6 +927,12 @@
     .pop-sem.sel{background:linear-gradient(135deg,rgba(236,113,182,.22),rgba(34,211,238,.16));border-left-color:#f472b6;color:#fff}
     .pop-sem-n{font-weight:700}
     .pop-sem-rango{color:#94a3b8;font-size:.68rem}
+    .dsc-banner{display:flex;align-items:center;gap:1rem;margin:1rem;padding:1.1rem 1.3rem;border-radius:16px;background:linear-gradient(135deg,rgba(245,158,11,.14),rgba(245,158,11,.04));backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(245,158,11,.28);animation:dsc-in .25s cubic-bezier(.34,1.3,.64,1)}
+    @keyframes dsc-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+    .dsc-icon{width:50px;height:50px;border-radius:14px;background:rgba(245,158,11,.16);border:1px solid rgba(245,158,11,.32);display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0}
+    .dsc-badge{display:inline-block;padding:.2rem .6rem;border-radius:999px;font-size:.62rem;font-weight:700;letter-spacing:.4px;text-transform:uppercase;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.35);color:#fbbf24;white-space:nowrap}
+    .dsc-th{background:#2b2410!important;color:#fbbf24!important}
+    .dsc-col{background:linear-gradient(180deg,rgba(245,158,11,.10),rgba(245,158,11,.02));text-align:center;vertical-align:middle;color:#f59e0b;font-weight:700;padding:.5rem .35rem;min-width:70px}
   </style>
 
   <PageLayout>
@@ -1135,9 +1152,15 @@
         {#if loading}
           <div class="loading-state">Cargando estudiantes...</div>
         {:else if !isFechaHabilitada && periodo === 'diario' && esDiaSinClases(selectedFecha)}
-          <div style="padding:40px;text-align:center;background:rgba(245,158,11,0.12);border-radius:12px;border:1px dashed #f59e0b;color:#f59e0b">
-            <h3>🚫 No hubo clases este día</h3>
-            <p>{coberturaSinClases(selectedFecha)?.descripcion || 'Día marcado sin clases'}{coberturaSinClases(selectedFecha)?.grado_id === null ? ' (todo el colegio)' : ''}.</p>
+          {@const cov = coberturaSinClases(selectedFecha)}
+          <div class="dsc-banner">
+            <div class="dsc-icon">🚫</div>
+            <div style="flex:1;min-width:0;text-align:left">
+              <h3 style="margin:0 0 .25rem;color:#fbbf24;font-size:1.05rem">No hubo clases este día</h3>
+              <p style="margin:0;color:#e2e8f0;font-size:.88rem;font-weight:600">{cov?.descripcion || 'Día marcado sin clases'}</p>
+              <p style="margin:.25rem 0 0;color:#94a3b8;font-size:.75rem;text-transform:capitalize">{new Date(selectedFecha + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+            </div>
+            <span class="dsc-badge">{cov?.grado_id === null ? '🏫 Todo el colegio' : '🚪 Esta sección'}</span>
           </div>
         {:else if !isFechaHabilitada}
           <div style="padding:40px;text-align:center;background:rgba(239,68,68,0.1);border-radius:12px;border:1px dashed #ef4444;color:#ef4444">
@@ -1357,9 +1380,11 @@
             <thead><tr>
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
               <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;min-width:200px">Estudiante</th>
-              {#each fechasPeriodo as fecha}
-                <th style="min-width:105px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;font-size:0.7rem;font-weight:600;padding:0.3rem 0.15rem">
-                  {new Date(fecha + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }).replace('.','').replace(',','')}
+              {#each fechasVisibles as fv (fv.fecha)}
+                <th class:dsc-th={fv.sinClases}
+                  style="min-width:105px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;font-size:0.7rem;font-weight:600;padding:0.3rem 0.15rem"
+                  title={fv.sinClases ? motivoSinClasesEn(fv.fecha) : undefined}>
+                  {fv.sinClases ? '🚫 ' : ''}{new Date(fv.fecha + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }).replace('.','').replace(',','')}
                 </th>
               {/each}
             </tr></thead>
@@ -1371,20 +1396,29 @@
                     <span style="font-weight:bold;font-size:0.85rem;cursor:pointer;white-space:normal;word-break:break-word;line-height:1.25" onclick={() => selectedStudentDetail = est as any}>{est.nombre}</span>
                     <div style="font-size:0.65rem;opacity:0.6">{est.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                   </td>
-                  {#each fechasPeriodo as fecha}
-                    {@const d = est.dias[fecha]}
-                    {@const draftD = draftMulti[est.id]?.[fecha]}
-                    {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
-                    <td style="text-align:center;padding:0.15rem;min-width:105px">
-                      <div class="semanal-status" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
-                        onclick={() => cicloEstado(est.id, fecha)}
-                        title={effectiveEstado === 'P' ? 'Presente' : effectiveEstado === 'A' ? 'Ausente' : effectiveEstado === 'J' ? 'Justificado' : 'Sin marcar'}>
-                        {effectiveEstado === 'P' ? 'Presente' : effectiveEstado === 'A' ? 'Ausente' : effectiveEstado === 'J' ? 'Justificado' : '—'}
-                      </div>
-                      <input type="text" placeholder="Obs..." class="semanal-obs"
-                        value={getObsMulti(est.id, fecha)}
-                        oninput={(e) => handleObservacionChangeMulti(est.id, fecha, (e.target as HTMLInputElement).value)} />
-                    </td>
+                  {#each fechasVisibles as fv (fv.fecha)}
+                    {#if fv.sinClases}
+                      {#if index === 0}
+                        <td class="dsc-col" rowspan={filteredEstudiantesMulti.length}>
+                          <span style="font-size:1.1rem">🚫</span>
+                          <span class="dsc-motivo">{motivoSinClasesEn(fv.fecha)}</span>
+                        </td>
+                      {/if}
+                    {:else}
+                      {@const d = est.dias[fv.fecha]}
+                      {@const draftD = draftMulti[est.id]?.[fv.fecha]}
+                      {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
+                      <td style="text-align:center;padding:0.15rem;min-width:105px">
+                        <div class="semanal-status" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
+                          onclick={() => cicloEstado(est.id, fv.fecha)}
+                          title={effectiveEstado === 'P' ? 'Presente' : effectiveEstado === 'A' ? 'Ausente' : effectiveEstado === 'J' ? 'Justificado' : 'Sin marcar'}>
+                          {effectiveEstado === 'P' ? 'Presente' : effectiveEstado === 'A' ? 'Ausente' : effectiveEstado === 'J' ? 'Justificado' : '—'}
+                        </div>
+                        <input type="text" placeholder="Obs..." class="semanal-obs"
+                          value={getObsMulti(est.id, fv.fecha)}
+                          oninput={(e) => handleObservacionChangeMulti(est.id, fv.fecha, (e.target as HTMLInputElement).value)} />
+                      </td>
+                    {/if}
                   {/each}
                 </tr>
               {/each}
@@ -1395,10 +1429,12 @@
             <thead><tr>
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
               <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;min-width:200px">Estudiante</th>
-              {#each fechasPeriodo as fecha}
-                <th style="font-size:0.7rem;white-space:nowrap;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;min-width:48px;padding:0.35rem 0.45rem">
-                  <div style="font-size:0.6rem;opacity:0.7">{new Date(fecha + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short' })}</div>
-                  {fecha.split('-').slice(1).reverse().join('/')}
+              {#each fechasVisibles as fv (fv.fecha)}
+                <th class:dsc-th={fv.sinClases}
+                  style="font-size:0.7rem;white-space:nowrap;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;min-width:48px;padding:0.35rem 0.45rem"
+                  title={fv.sinClases ? motivoSinClasesEn(fv.fecha) : undefined}>
+                  <div style="font-size:0.6rem;opacity:0.7">{fv.sinClases ? '🚫 ' : ''}{new Date(fv.fecha + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short' })}</div>
+                  {fv.fecha.split('-').slice(1).reverse().join('/')}
                 </th>
               {/each}
               <th style="width:{isAndroidMobile ? '24px' : '30px'};position:sticky;top:0;background:#1e293b;z-index:10">P</th>
@@ -1419,17 +1455,26 @@
                     </div>
                     <div style="font-size:0.7rem;opacity:0.6;margin-left:22px">{est.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                   </td>
-                  {#each fechasPeriodo as fecha}
-                    {@const d = est.dias[fecha]}
-                    {@const draftD = draftMulti[est.id]?.[fecha]}
-                    {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
-                    <td style="text-align:center;padding:0.15rem">
-                      <div class="ciclo-cell" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
-                        onclick={() => cicloEstado(est.id, fecha)}
-                        title={new Date(fecha + "T12:00:00").toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) + ': ' + (effectiveEstado === 'P' ? 'Presente' : effectiveEstado === 'A' ? 'Ausente' : effectiveEstado === 'J' ? 'Justificado' : 'Sin marcar')}>
-                        {effectiveEstado ?? '-'}
-                      </div>
-                    </td>
+                  {#each fechasVisibles as fv (fv.fecha)}
+                    {#if fv.sinClases}
+                      {#if index === 0}
+                        <td class="dsc-col" rowspan={filteredEstudiantesMulti.length} style="min-width:48px">
+                          <span style="font-size:0.9rem">🚫</span>
+                          <span class="dsc-motivo" style="font-size:.55rem">{motivoSinClasesEn(fv.fecha)}</span>
+                        </td>
+                      {/if}
+                    {:else}
+                      {@const d = est.dias[fv.fecha]}
+                      {@const draftD = draftMulti[est.id]?.[fv.fecha]}
+                      {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
+                      <td style="text-align:center;padding:0.15rem">
+                        <div class="ciclo-cell" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
+                          onclick={() => cicloEstado(est.id, fv.fecha)}
+                          title={new Date(fv.fecha + "T12:00:00").toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) + ': ' + (effectiveEstado === 'P' ? 'Presente' : effectiveEstado === 'A' ? 'Ausente' : effectiveEstado === 'J' ? 'Justificado' : 'Sin marcar')}>
+                          {effectiveEstado ?? '-'}
+                        </div>
+                      </td>
+                    {/if}
                   {/each}
                   <td style="color:#4caf50;font-weight:bold">{p}</td>
                   <td style="color:#f44336;font-weight:bold">{a}</td>

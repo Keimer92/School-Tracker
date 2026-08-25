@@ -24,7 +24,7 @@
     colegioId: number; lunes: boolean; martes: boolean; miercoles: boolean;
     jueves: boolean; viernes: boolean; sabado: boolean; domingo: boolean;
   }
-  interface DiaSinClase { id: number; colegio_id: number; seccion_id: number | null; fecha: string; descripcion: string; }
+  interface DiaSinClase { id: number; colegio_id: number; grado_id: number | null; seccion_id: number | null; fecha: string; descripcion: string; }
 
   // Visible = la página contenedora está activa Y este es el sub-tab seleccionado.
   let { visible = true }: { visible?: boolean } = $props();
@@ -230,6 +230,7 @@
   function motivoSinClases(fecha: string): string {
     return diasSinClases.find(d => d.fecha === fecha)?.descripcion || 'Sin clases';
   }
+  function motivoSinClasesEn(fecha: string): string { return motivoSinClases(fecha); }
 
   $effect(() => {
     const hoy = new Date();
@@ -350,7 +351,7 @@
     }
   }
 
-  function getFechasUnicas() {
+  function getFechasUnicas(incluirSinClases = false) {
     const fechasSet = new Set<string>();
     if (colegioConfig && (periodo === "semanal" || periodo === "mensual")) {
       const inicio = new Date(fechaInicio + "T12:00:00");
@@ -362,8 +363,8 @@
       };
       while (temp <= fin) {
         const iso = getLocalDateISOString(temp);
-        // Los días marcados sin clases no aparecen como columnas del reporte
-        if (diasMap[temp.getDay()] && !esSinClases(iso)) fechasSet.add(iso);
+        // Los días marcados sin clases no cuentan como columnas de asistencia
+        if (diasMap[temp.getDay()] && (incluirSinClases || !esSinClases(iso))) fechasSet.add(iso);
         temp.setDate(temp.getDate() + 1);
       }
     } else {
@@ -374,6 +375,8 @@
   }
 
   let fechasColumnas = $derived(getFechasUnicas());
+  /** Todas las días hábiles del período (incluye los sin clases, para pintarlos). */
+  let fechasVisibles = $derived(periodo === 'diario' ? [] : getFechasUnicas(true));
 
   let reporteFiltrado = $derived.by(() => {
     let f = reporte;
@@ -699,6 +702,13 @@
     .pop-sem.sel{background:linear-gradient(135deg,rgba(236,113,182,.22),rgba(34,211,238,.16));border-left-color:#f472b6;color:#fff}
     .pop-sem-n{font-weight:700}
     .pop-sem-rango{color:#94a3b8;font-size:.68rem}
+    .dsc-banner{display:flex;align-items:center;gap:1rem;margin:.5rem 1rem;padding:1.1rem 1.3rem;border-radius:16px;background:linear-gradient(135deg,rgba(245,158,11,.14),rgba(245,158,11,.04));backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(245,158,11,.28);animation:dsc-in .25s cubic-bezier(.34,1.3,.64,1)}
+    @keyframes dsc-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+    .dsc-icon{width:50px;height:50px;border-radius:14px;background:rgba(245,158,11,.16);border:1px solid rgba(245,158,11,.32);display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0}
+    .dsc-badge{display:inline-block;padding:.2rem .6rem;border-radius:999px;font-size:.62rem;font-weight:700;letter-spacing:.4px;text-transform:uppercase;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.35);color:#fbbf24;white-space:nowrap}
+    .dsc-th{background:#2b2410!important;color:#fbbf24!important}
+    .dsc-col{background:linear-gradient(180deg,rgba(245,158,11,.10),rgba(245,158,11,.02));text-align:center;vertical-align:middle;color:#f59e0b;font-weight:700;padding:.5rem .35rem;min-width:70px}
+    .dsc-motivo{display:block;font-size:.62rem;line-height:1.35;word-break:break-word;margin-top:2px}
   </style>
 
   <PageLayout>
@@ -910,6 +920,18 @@
       </div>
     {/if}
 
+    {#if periodo === 'diario' && hoySinClases}
+      <div class="dsc-banner">
+        <div class="dsc-icon">🚫</div>
+        <div style="flex:1;min-width:0;text-align:left">
+          <h3 style="margin:0 0 .25rem;color:#fbbf24;font-size:1.05rem">No hubo clases este día</h3>
+          <p style="margin:0;color:#e2e8f0;font-size:.88rem;font-weight:600">{motivoSinClases(fechaBase)}</p>
+          <p style="margin:.25rem 0 0;color:#94a3b8;font-size:.75rem;text-transform:capitalize">{new Date(fechaBase + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+        </div>
+        <span class="dsc-badge">{(() => { const cov = diasSinClases.find(d => d.fecha === fechaBase); return cov ? (cov.grado_id === null ? '🏫 Todo el colegio' : '🚪 Esta sección') : ''; })()}</span>
+      </div>
+    {/if}
+
     <ScrollableTable>
       {#if loading}
         <div class="loading-container">Cargando reporte...</div>
@@ -1044,9 +1066,11 @@
             <tr>
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
               <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;width:220px">Estudiante</th>
-              {#each fechasColumnas as f}
-                <th style="min-width:105px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;font-size:0.7rem;font-weight:600;padding:0.3rem 0.15rem">
-                  {new Date(f + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }).replace('.','').replace(',','')}
+              {#each fechasVisibles as f}
+                <th class:dsc-th={esSinClases(f)}
+                  style="min-width:105px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;font-size:0.7rem;font-weight:600;padding:0.3rem 0.15rem"
+                  title={esSinClases(f) ? motivoSinClasesEn(f) : undefined}>
+                  {esSinClases(f) ? '🚫 ' : ''}{new Date(f + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }).replace('.','').replace(',','')}
                 </th>
               {/each}
             </tr>
@@ -1059,18 +1083,27 @@
                   <span style="font-weight:bold;font-size:0.85rem;cursor:pointer;white-space:normal;word-break:break-word;line-height:1.25" onclick={() => selectedStudentDetail = item}>{item.nombre}</span>
                   <div style="font-size:0.65rem;opacity:0.6">{item.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                 </td>
-                {#each fechasColumnas as f}
-                  {@const est = getEstadoEnFecha(item, f)}
-                  {@const obs = getObservacionEnFecha(item, f)}
-                  <td style="text-align:center;padding:0.15rem;min-width:105px">
-                    <div class="semanal-status" class:estado-p={est === 'P'} class:estado-a={est === 'A'} class:estado-j={est === 'J'}
-                      title={est === 'P' ? 'Presente' : est === 'A' ? 'Ausente' : est === 'J' ? 'Justificado' : 'Sin registro'}>
-                      {est === 'P' ? 'Presente' : est === 'A' ? 'Ausente' : est === 'J' ? 'Justificado' : '—'}
-                    </div>
-                    {#if obs}
-                      <div class="semanal-obs" style="cursor:default" title={`Observación: ${obs}`}>{obs}</div>
+                {#each fechasVisibles as f}
+                  {#if esSinClases(f)}
+                    {#if index === 0}
+                      <td class="dsc-col" rowspan={reporteFiltrado.length}>
+                        <span style="font-size:1.1rem">🚫</span>
+                        <span class="dsc-motivo">{motivoSinClasesEn(f)}</span>
+                      </td>
                     {/if}
-                  </td>
+                  {:else}
+                    {@const est = getEstadoEnFecha(item, f)}
+                    {@const obs = getObservacionEnFecha(item, f)}
+                    <td style="text-align:center;padding:0.15rem;min-width:105px">
+                      <div class="semanal-status" class:estado-p={est === 'P'} class:estado-a={est === 'A'} class:estado-j={est === 'J'}
+                        title={est === 'P' ? 'Presente' : est === 'A' ? 'Ausente' : est === 'J' ? 'Justificado' : 'Sin registro'}>
+                        {est === 'P' ? 'Presente' : est === 'A' ? 'Ausente' : est === 'J' ? 'Justificado' : '—'}
+                      </div>
+                      {#if obs}
+                        <div class="semanal-obs" style="cursor:default" title={`Observación: ${obs}`}>{obs}</div>
+                      {/if}
+                    </td>
+                  {/if}
                 {/each}
               </tr>
             {/each}
@@ -1082,9 +1115,11 @@
             <tr>
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
               <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;min-width:200px">Estudiante</th>
-              {#each fechasColumnas as f}
-                <th style="font-size:0.7rem;white-space:nowrap;position:sticky;top:0;background:#1e293b;z-index:10;min-width:48px;padding:0.35rem 0.45rem">
-                  <div style="font-size:0.6rem;opacity:0.7">{new Date(f + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short' })}</div>
+              {#each fechasVisibles as f}
+                <th class:dsc-th={esSinClases(f)}
+                  style="font-size:0.7rem;white-space:nowrap;position:sticky;top:0;background:#1e293b;z-index:10;min-width:48px;padding:0.35rem 0.45rem"
+                  title={esSinClases(f) ? motivoSinClasesEn(f) : undefined}>
+                  <div style="font-size:0.6rem;opacity:0.7">{esSinClases(f) ? '🚫 ' : ''}{new Date(f + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short' })}</div>
                   {f.split('-').slice(1).reverse().join('/')}
                 </th>
               {/each}
@@ -1107,11 +1142,20 @@
                   </div>
                   <div style="font-size:0.7rem;opacity:0.6;margin-left:22px">{item.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                 </td>
-                {#each fechasColumnas as f}
-                  {@const est = getEstadoEnFecha(item, f)}
-                  <td>
-                    <div class="ciclo-cell" class:estado-p={est === 'P'} class:estado-a={est === 'A'} class:estado-j={est === 'J'}>{est}</div>
-                  </td>
+                {#each fechasVisibles as f}
+                  {#if esSinClases(f)}
+                    {#if index === 0}
+                      <td class="dsc-col" rowspan={reporteFiltrado.length} style="min-width:48px">
+                        <span style="font-size:0.9rem">🚫</span>
+                        <span class="dsc-motivo" style="font-size:.55rem">{motivoSinClasesEn(f)}</span>
+                      </td>
+                    {/if}
+                  {:else}
+                    {@const est = getEstadoEnFecha(item, f)}
+                    <td>
+                      <div class="ciclo-cell" class:estado-p={est === 'P'} class:estado-a={est === 'A'} class:estado-j={est === 'J'}>{est}</div>
+                    </td>
+                  {/if}
                 {/each}
                 <td style="color:#4caf50;font-weight:bold">{p}</td>
                 <td style="color:#f44336;font-weight:bold">{a}</td>
