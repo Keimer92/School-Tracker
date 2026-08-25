@@ -119,6 +119,7 @@ commands.allow = [
     "has_local_changes",
     "create_folder_and_save_file",
     "get_dashboard_stats",
+    "get_dashboard_detalle",
     "get_grados_secciones_sin_asistencia_hoy",
     "get_pendientes_asistencia_filtrados",
     "notify_attendance_reminder",

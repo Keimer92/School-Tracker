@@ -1778,6 +1778,7 @@ pub fn run() {
             gd_delete_backup,
             gd_import_db_from_file,
             get_dashboard_stats,
+            get_dashboard_detalle,
             get_grados_secciones_sin_asistencia_hoy,
             get_pendientes_asistencia_filtrados,
             notify_attendance_reminder,

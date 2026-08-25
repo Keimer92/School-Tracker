@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
+  import { registerBackHandler } from "../lib/androidBack";
 
   interface DashboardStats {
     totalEstudiantes: number;
@@ -40,6 +41,24 @@
   let pctJ = $derived(stats && stats.estudiantesHoy > 0 ? Math.round((stats.justificadosHoy / stats.estudiantesHoy) * 100) : 0);
 
   let maxGradoCount = $derived(stats ? Math.max(...stats.estudiantesPorGrado.map(g => g.count), 1) : 1);
+
+  interface DetalleItem { nombre: string; colegio: string | null; actualizado: string; }
+  let detalle = $state<{ titulo: string; items: DetalleItem[] } | null>(null);
+
+  $effect(() => {
+    if (!detalle) return;
+    return registerBackHandler(() => { detalle = null; return true; });
+  });
+
+  async function verDetalle(tipo: 'colegio' | 'grado' | 'seccion') {
+    try {
+      const items = await invoke<DetalleItem[]>('get_dashboard_detalle', { tipo, colegioId: selectedColegio });
+      const titulos = { colegio: '🏫 Colegios', grado: '📚 Grados', seccion: '🏷️ Secciones' } as const;
+      detalle = { titulo: titulos[tipo], items };
+    } catch (e) {
+      console.error('Error cargando detalle:', e);
+    }
+  }
 
   async function loadColegios() {
     try {
@@ -163,21 +182,21 @@
           <span class="card-label">Asistencias</span>
         </div>
       </div>
-      <div class="summary-card" style="--card-accent: #f59e0b">
+      <div class="summary-card clickable" style="--card-accent: #f59e0b" onclick={() => verDetalle('grado')} title="Ver grados">
         <div class="card-icon">📚</div>
         <div class="card-content">
           <span class="card-value">{stats.totalGrados}</span>
           <span class="card-label">Grados</span>
         </div>
       </div>
-      <div class="summary-card" style="--card-accent: #ec4899">
+      <div class="summary-card clickable" style="--card-accent: #ec4899" onclick={() => verDetalle('seccion')} title="Ver secciones">
         <div class="card-icon">🏷️</div>
         <div class="card-content">
           <span class="card-value">{stats.totalSecciones}</span>
           <span class="card-label">Secciones</span>
         </div>
       </div>
-      <div class="summary-card" style="--card-accent: #ef4444">
+      <div class="summary-card clickable" style="--card-accent: #ef4444" onclick={() => verDetalle('colegio')} title="Ver colegios">
         <div class="card-icon">🏫</div>
         <div class="card-content">
           <span class="card-value">{stats.totalColegios}</span>
@@ -284,6 +303,30 @@
   {/if}
 </div>
 
+{#if detalle}
+  <div class="modal-overlay" onclick={() => (detalle = null)}>
+    <div class="modal-content" onclick={(e) => e.stopPropagation()}>
+      <h3 class="detalle-titulo">{detalle.titulo}</h3>
+      <div class="detalle-list">
+        {#if detalle.items.length === 0}
+          <div class="empty-state-sm"><span>📭</span><span>Sin registros</span></div>
+        {:else}
+          {#each detalle.items as it}
+            <div class="detalle-row">
+              <div style="min-width:0">
+                <div class="det-nombre">{it.nombre}</div>
+                {#if it.colegio}<div class="det-sub">{it.colegio}</div>{/if}
+              </div>
+              <span class="det-fecha" title="Última modificación">{it.actualizado || '—'}</span>
+            </div>
+          {/each}
+        {/if}
+      </div>
+      <button class="detalle-cerrar" onclick={() => (detalle = null)}>Cerrar</button>
+    </div>
+  </div>
+{/if}
+
 <style>
   .dashboard {
     padding: 1.5rem;
@@ -371,6 +414,61 @@
     border-radius: 0 2px 2px 0;
   }
   .summary-card:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); }
+  .summary-card.clickable { cursor: pointer; }
+  .summary-card.clickable:hover { transform: translateY(-2px); }
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 3000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  .modal-content {
+    width: 420px;
+    max-width: 92vw;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    background: rgba(20,24,31,0.9);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 20px;
+    box-shadow: 0 25px 60px -12px rgba(0,0,0,0.6);
+    padding: 1.5rem;
+    animation: modal-in 0.2s cubic-bezier(0.34,1.3,0.64,1);
+  }
+  @keyframes modal-in { from { opacity: 0; transform: translateY(-8px) scale(0.98); } to { opacity: 1; transform: none; } }
+  .detalle-titulo {
+    margin: 0 0 1rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    background-image: linear-gradient(90deg, #f472b6, #22d3ee);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .detalle-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0.35rem; }
+  .detalle-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+    padding: 0.55rem 0.7rem; border-radius: 12px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+  }
+  .det-nombre { font-size: 0.85rem; font-weight: 600; color: #f1f5f9; }
+  .det-sub { font-size: 0.68rem; color: #94a3b8; margin-top: 1px; }
+  .det-fecha { font-size: 0.65rem; color: #64748b; white-space: nowrap; flex-shrink: 0; }
+  .detalle-cerrar {
+    margin-top: 1rem; padding: 0.55rem 1rem; border-radius: 10px; border: none;
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: #fff; font-weight: 700; cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .detalle-cerrar:hover { filter: brightness(1.15); }
   .card-icon { font-size: 1.5rem; flex-shrink: 0; }
   .card-content { display: flex; flex-direction: column; gap: 0.1rem; }
   .card-value { font-size: 1.4rem; font-weight: 700; color: #f1f5f9; line-height: 1; }

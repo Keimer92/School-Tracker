@@ -4289,6 +4289,67 @@ pub struct GradoCount {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct DetalleItem {
+    pub nombre: String,
+    pub colegio: Option<String>,
+    pub actualizado: String,
+}
+
+/// Detalle para las cards del dashboard: lista de colegios o de las instancias
+/// reales (colegio, grado/sección) en uso, con su última modificación.
+#[tauri::command]
+#[allow(non_snake_case)]
+pub async fn get_dashboard_detalle(
+    state: tauri::State<'_, DbState>,
+    tipo: String,
+    colegioId: Option<i64>,
+) -> Result<Vec<DetalleItem>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    match tipo.as_str() {
+        "colegio" => {
+            let mut stmt = conn
+                .prepare("SELECT nombre, COALESCE(updated_at, '') FROM colegio ORDER BY nombre")
+                .map_err(|e| e.to_string())?;
+            let items = stmt
+                .query_map([], |row| {
+                    Ok(DetalleItem { nombre: row.get(0)?, colegio: None, actualizado: row.get(1)? })
+                })
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
+            Ok(items)
+        }
+        "grado" | "seccion" => {
+            let (tabla, col) = if tipo == "grado" { ("grado", "g") } else { ("seccion", "s") };
+            let sql = format!(
+                "SELECT DISTINCT c.nombre, {}.nombre, COALESCE({}.updated_at, '')
+                 FROM estudiante e
+                 JOIN {} {} ON e.{}_id = {}.id
+                 JOIN colegio c ON e.colegio_id = c.id
+                 WHERE (?1 IS NULL OR e.colegio_id = ?1)
+                 ORDER BY c.nombre, {}.nombre",
+                col, col, tabla, col, tabla, col, col
+            );
+            let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+            let items = stmt
+                .query_map(rusqlite::params![colegioId], |row| {
+                    Ok(DetalleItem {
+                        colegio: Some(row.get(0)?),
+                        nombre: row.get(1)?,
+                        actualizado: row.get(2)?,
+                    })
+                })
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
+            Ok(items)
+        }
+        _ => Err(format!("Tipo desconocido: {}", tipo)),
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct GradoSeccionSinAsistencia {
     pub grado: String,
     pub seccion: String,
@@ -4321,35 +4382,32 @@ pub async fn get_dashboard_stats(
         conn.query_row("SELECT COUNT(*) FROM asistencia", [], |row| row.get(0)).map_err(|e| e.to_string())?
     };
 
-    // Grados y secciones REALES: distintos valores en uso por estudiantes,
-    // no el catálogo global (las tablas grado/seccion son genéricas compartidas).
-    let total_grados: i64 = if let Some(cid) = colegioId {
-        conn.query_row(
-            "SELECT COUNT(DISTINCT grado_id) FROM estudiante WHERE colegio_id = ?1 AND grado_id IS NOT NULL",
-            rusqlite::params![cid], |row| row.get(0),
-        ).map_err(|e| e.to_string())?
-    } else {
-        conn.query_row(
-            "SELECT COUNT(DISTINCT grado_id) FROM estudiante WHERE grado_id IS NOT NULL",
-            [], |row| row.get(0),
-        ).map_err(|e| e.to_string())?
-    };
+    // Grados y secciones REALES: los catálogos grado/seccion son genéricos y
+    // compartidos entre colegios, así que la unidad real es la COMBINACIÓN
+    // (colegio, grado) / (colegio, sección) que existe entre los estudiantes.
+    let total_grados: i64 = conn
+        .query_row(
+            "SELECT COALESCE(COUNT(*), 0) FROM (
+               SELECT DISTINCT colegio_id, grado_id FROM estudiante
+               WHERE grado_id IS NOT NULL AND (?1 IS NULL OR colegio_id = ?1)
+             )",
+            rusqlite::params![colegioId], |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
 
     let total_colegios: i64 = conn
         .query_row("SELECT COUNT(*) FROM colegio", [], |row| row.get(0))
         .map_err(|e| e.to_string())?;
 
-    let total_secciones: i64 = if let Some(cid) = colegioId {
-        conn.query_row(
-            "SELECT COUNT(DISTINCT seccion_id) FROM estudiante WHERE colegio_id = ?1 AND seccion_id IS NOT NULL",
-            rusqlite::params![cid], |row| row.get(0),
-        ).map_err(|e| e.to_string())?
-    } else {
-        conn.query_row(
-            "SELECT COUNT(DISTINCT seccion_id) FROM estudiante WHERE seccion_id IS NOT NULL",
-            [], |row| row.get(0),
-        ).map_err(|e| e.to_string())?
-    };
+    let total_secciones: i64 = conn
+        .query_row(
+            "SELECT COALESCE(COUNT(*), 0) FROM (
+               SELECT DISTINCT colegio_id, seccion_id FROM estudiante
+               WHERE seccion_id IS NOT NULL AND (?1 IS NULL OR colegio_id = ?1)
+             )",
+            rusqlite::params![colegioId], |row| row.get(0),
+        )
+        .map_err(|e| e.to_string())?;
 
     let total_asignaturas: i64 = conn
         .query_row("SELECT COUNT(*) FROM asignatura", [], |row| row.get(0))
