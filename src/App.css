@@ -719,9 +719,36 @@ body {
   padding-bottom: 8px;
   align-items: center;
   gap: 16px;
-  z-index: 1002;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+
 }
+/* Chip de nube a la derecha del título (móvil): tap → pestaña Nube */
+.mobile-sync-chip {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  cursor: pointer;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-sync-chip:active { transform: scale(0.94); }
+.msc-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #94a3b8;
+  flex-shrink: 0;
+}
+.mobile-sync-chip.ok .msc-dot { background: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.5); }
+.mobile-sync-chip.syncing .msc-dot { background: #f59e0b; animation: mscPulse 1s ease-in-out infinite; }
+.mobile-sync-chip.err .msc-dot { background: #ef4444; box-shadow: 0 0 8px rgba(239,68,68,0.5); }
+@keyframes mscPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 
 @media (max-width: 1024px) {
   .mobile-header {

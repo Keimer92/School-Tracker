@@ -5,7 +5,7 @@
   import { onBackButtonPress } from "@tauri-apps/api/app";
   import { handleBack, isBackAuthInProgress, setBackAuthInProgress } from "./lib/androidBack";
   import { syncService } from "./lib/syncService";
-  import { isD1Configured } from "./lib/syncService";
+  import { isD1Configured, d1SyncManager } from "./lib/syncService";
   import { driveSyncService } from "./lib/driveSyncService";
   import { ensureWsSync, stopWsSync } from "./lib/wsSyncService";
   import { getLocalDateISOString } from "./lib/dateUtils";
@@ -32,6 +32,15 @@
   let toast: { message: string; type: string; isOpen: boolean } = $state({ message: "", type: "info", isOpen: false });
   let unlisten: (() => void)[] = [];
   let ajustesTabRequest = $state<string | null>(null);
+
+  // Estado de sync D1 para el chip del header móvil
+  let d1Status = $state<string>((d1SyncManager.getState() as { status?: string })?.status ?? 'idle');
+  $effect(() => {
+    const unsub = d1SyncManager.subscribe((s: unknown) => {
+      d1Status = (s as { status?: string })?.status ?? 'idle';
+    });
+    return () => unsub();
+  });
   let asistenciaSubTabRequest = $state<string | null>(null);
   let notasSubTabRequest = $state<string | null>(null);
 
@@ -382,6 +391,17 @@
       <div class="mobile-header">
         <button class="mobile-menu-btn {drawerOpen ? 'hidden' : ''}" onclick={toggleDrawer}><span>☰</span></button>
         <span class="mobile-title">School Tracker</span>
+        <!-- Card/chip de nube a la derecha del título (tap → pestaña Nube) -->
+        <button
+          class="mobile-sync-chip"
+          class:ok={d1Status === 'success'}
+          class:syncing={d1Status === 'syncing'}
+          class:err={d1Status === 'error'}
+          onclick={() => handleTabChange('cloud')}
+          title="Estado de sincronización — tocar para abrir Nube"
+        >
+          <span class="msc-dot"></span><span>☁️</span>
+        </button>
       </div>
   {/if}
   {#if isMobile}
