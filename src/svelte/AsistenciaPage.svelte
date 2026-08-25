@@ -132,21 +132,15 @@
   }
 
   interface SemanaOpt { n: number; lunes: string; domingo: string; rango: string }
-  let semanasOpts = $state<SemanaOpt[]>([]);
-  let popSemanaAbierta = $state(false);
-  let popRootEl: HTMLElement | null = $state(null);
 
-  let semanaActiva = $derived(
-    semanasOpts.find(s => selectedFecha >= s.lunes && selectedFecha <= sumaDiasISO(s.lunes, 6))?.n ?? 1
-  );
-
-  // Construir semanas del mes seleccionado + auto-alinear selectedFecha
-  $effect(() => {
-    if (periodo !== 'semanal') return;
+  // Semanas del mes seleccionado — DERIVED PURO (sin efectos que escriban):
+  // un $effect que lee+escribe selectedFecha aquí creaba un bucle que rompía
+  // la reactividad del componente (selects congelados, semanas vacías).
+  let semanasOpts = $derived.by(() => {
     const primerDia = `${anoSeleccionado}-${pad2(mesSeleccionado)}-01`;
-    const lunes0 = lunesDeISO(primerDia);
-    const fin = new Date(anoSeleccionado, mesSeleccionado, 0);
-    const finISO = `${fin.getFullYear()}-${pad2(fin.getMonth() + 1)}-${pad2(fin.getDate())}`;
+    const off = (new Date(primerDia + 'T12:00:00').getDay() + 6) % 7;
+    const lunes0 = sumaDiasISO(primerDia, -off);
+    const finISO = sumaDiasISO(`${anoSeleccionado}-${pad2(mesSeleccionado)}-${new Date(anoSeleccionado, mesSeleccionado, 0).getDate()}`, 0);
 
     const opts: SemanaOpt[] = [];
     let lu = lunes0;
@@ -157,16 +151,33 @@
       lu = sumaDiasISO(lu, 7);
       n++;
     }
-    semanasOpts = opts;
-
-    // Si la fecha actual no cae en ninguna semana de este mes -> ir a la primera
-    const dentro = opts.some(s => selectedFecha >= s.lunes && selectedFecha <= sumaDiasISO(s.lunes, 6));
-    if (!dentro && opts.length > 0) selectedFecha = opts[0].lunes;
+    return opts;
   });
+
+  let popSemanaAbierta = $state(false);
+  let popRootEl: HTMLElement | null = $state(null);
+
+  let semanaActiva = $derived(
+    semanasOpts.find(s => selectedFecha >= s.lunes && selectedFecha <= sumaDiasISO(s.lunes, 6))?.n ?? 1
+  );
 
   function elegirSemana(s: SemanaOpt) {
     selectedFecha = s.lunes;
     popSemanaAbierta = false;
+  }
+
+  /** Cambia el mes del popover y alinea la fecha a ese mes si quedó fuera. */
+  function cambiarMesSem(d: number) {
+    let m = mesSeleccionado + d;
+    let a = anoSeleccionado;
+    if (m < 1) { m = 12; a--; }
+    if (m > 12) { m = 1; a++; }
+    mesSeleccionado = m;
+    anoSeleccionado = a;
+    const s0 = semanasOpts[0];
+    if (s0 && !(selectedFecha >= s0.lunes && selectedFecha <= sumaDiasISO(s0.lunes, 6))) {
+      selectedFecha = s0.lunes;
+    }
   }
 
   function cerrarPopSemana() { popSemanaAbierta = false; }
@@ -796,9 +807,9 @@
                 {#if popSemanaAbierta}
                   <div class="pop-panel" tabindex="-1">
                     <div class="pop-mes">
-                      <button class="pop-nav" onclick={() => mesSeleccionado = mesSeleccionado === 1 ? 12 : mesSeleccionado - 1} title="Mes anterior">‹</button>
+                      <button class="pop-nav" onclick={() => cambiarMesSem(-1)} title="Mes anterior">‹</button>
                       <span class="pop-mes-txt">{nombreMesSel} {anoSeleccionado}</span>
-                      <button class="pop-nav" onclick={() => mesSeleccionado = mesSeleccionado === 12 ? 1 : mesSeleccionado + 1} title="Mes siguiente">›</button>
+                      <button class="pop-nav" onclick={() => cambiarMesSem(1)} title="Mes siguiente">›</button>
                     </div>
 
                     <div class="pop-sems">
