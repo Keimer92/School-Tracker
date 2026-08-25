@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { emit, listen } from "@tauri-apps/api/event";
   import { syncService } from "../lib/syncService";
@@ -62,11 +63,13 @@
     if (!nowVisible || prev) return;
     if (selectedAno && selectedColegio && selectedGrado && selectedSeccion) {
       refreshingSilent = true;
-      if (periodo === "diario") {
-        if (selectedFecha && isFechaHabilitada) fetchEstudiantes();
-      } else {
-        fetchEstudiantesMulti();
-      }
+      untrack(() => {
+        if (periodo === "diario") {
+          if (selectedFecha && isFechaHabilitada) fetchEstudiantes();
+        } else {
+          fetchEstudiantesMulti();
+        }
+      });
     }
   });
   let showClearConfirm = $state(false);
@@ -274,10 +277,12 @@
     if (!selectedColegio || !selectedSeccion) { diasSinClases = []; return; }
     try {
       const fechas = getFechasPeriodo();
-      diasSinClases = await invoke<DiaSinClase[]>('get_dias_sin_clases', {
+      const data = await invoke<DiaSinClase[]>('get_dias_sin_clases', {
         colegioId: selectedColegio, gradoId: selectedGrado, seccionId: selectedSeccion,
         fechaInicio: fechas[0], fechaFin: fechas[fechas.length - 1],
       });
+      // Evitar reasignar si el contenido no cambió (rompe dependencias sin motivo)
+      if (JSON.stringify(data) !== JSON.stringify(diasSinClases)) diasSinClases = data;
     } catch (e) { console.error('Error cargando días sin clases:', e); }
   }
 
@@ -473,13 +478,24 @@
     sessionStorage.setItem("asistencia_selectedFecha_v2", selectedFecha);
     localStorage.setItem("asistencia_periodo", periodo);
     if (selectedAno && selectedColegio && selectedGrado && selectedSeccion) {
-      fetchDiasSinClases();
-      if (periodo === "diario") {
-        if (selectedFecha && isFechaHabilitada) fetchEstudiantes();
-      } else {
-        fetchEstudiantesMulti();
-      }
+      // untrack: los fetch leen diasSinClases/colegioConfig al preparar parámetros;
+      // sin esto, reasignar esos estados re-disparaba este efecto en bucle.
+      untrack(() => {
+        if (periodo === "diario") {
+          if (selectedFecha && isFechaHabilitada) fetchEstudiantes();
+        } else {
+          fetchEstudiantesMulti();
+        }
+      });
     }
+  });
+
+  // Carga de días sin clases: efecto dedicado con dependencias acotadas
+  $effect(() => {
+    const c = selectedColegio, g = selectedGrado, s = selectedSeccion;
+    void c; void g; void s; void periodo; void selectedFecha; void mesSeleccionado; void anoSeleccionado;
+    if (!c || !g || !s) { diasSinClases = []; return; }
+    untrack(() => fetchDiasSinClases());
   });
 
   async function fetchCatalogs() {
