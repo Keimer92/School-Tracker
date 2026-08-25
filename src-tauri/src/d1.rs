@@ -209,6 +209,7 @@ fn pk_cols(table: &str) -> &'static [&'static str] {
         "grado_asignatura" => &["grado_id", "asignatura_id"],
         "colegio_asignatura" => &["colegio_id", "asignatura_id"],
         "colegio_dias_asistencia" => &["colegio_id"],
+        "dia_sin_clases" => &["id"],
         "nota" => &["estudiante_id", "criterio_id", "corte_evaluativo_id", "asignatura_id"],
         "asistencia" => &["estudiante_id", "fecha"],
         _ => &["id"],
@@ -242,6 +243,7 @@ fn collect_local_data_since(
         "grado_asignatura", "colegio_asignatura", "indicador", "criterio",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion",
         "colegio_dias_asistencia", "asistencia", "nota",
+        "dia_sin_clases",
     ];
 
     let mut result = Map::new();

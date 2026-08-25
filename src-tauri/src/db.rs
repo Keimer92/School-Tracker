@@ -241,6 +241,20 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             updated_at TEXT DEFAULT (datetime('now')),
             FOREIGN KEY(colegio_id) REFERENCES colegio(id) ON DELETE CASCADE
         );
+
+        CREATE TABLE IF NOT EXISTS dia_sin_clases (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            colegio_id INTEGER NOT NULL,
+            seccion_id INTEGER,
+            fecha TEXT NOT NULL,
+            descripcion TEXT NOT NULL DEFAULT '',
+            updated_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY(colegio_id) REFERENCES colegio(id) ON DELETE CASCADE,
+            FOREIGN KEY(seccion_id) REFERENCES seccion(id) ON DELETE CASCADE
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_dia_sin_clases_unica
+            ON dia_sin_clases(colegio_id, IFNULL(seccion_id, 0), fecha);
         "#,
     )
     .map_err(|e| format!("Error creando tablas de asistencia: {}", e))?;
@@ -472,7 +486,7 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
     // MigraciÃ³n: agregar columna updated_at a todas las tablas que sincronizan
     let tables_updated_at = [
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
-        "estudiante", "indicador", "criterio", "asistencia", "colegio_dias_asistencia",
+        "estudiante", "indicador", "criterio", "asistencia", "colegio_dias_asistencia", "dia_sin_clases",
         "nota", "configuracion_calificacion", "multiplicador_calificacion",
         "grado_asignatura", "colegio_asignatura",
     ];
@@ -819,6 +833,7 @@ pub async fn reset_local_database(state: tauri::State<'_, DbState>) -> Result<()
         "grado",
         "asignatura",
         "colegio_dias_asistencia",
+        "dia_sin_clases",
         "colegio",
         "corte_evaluativo",
         "ano_lectivo",
@@ -3201,6 +3216,116 @@ pub async fn save_colegio_dias_asistencia(
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DiaSinClase {
+    pub id: i64,
+    pub colegio_id: i64,
+    pub seccion_id: Option<i64>,
+    pub fecha: String,
+    pub descripcion: String,
+}
+
+/// Devuelve los días sin clases que aplican a una sección dentro de un rango
+/// (incluye las marcas a nivel colegio, con seccion_id NULL).
+#[tauri::command]
+#[allow(non_snake_case)]
+pub async fn get_dias_sin_clases(
+    state: tauri::State<'_, DbState>,
+    colegioId: i64,
+    seccionId: Option<i64>,
+    fechaInicio: String,
+    fechaFin: String,
+) -> Result<Vec<DiaSinClase>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, colegio_id, seccion_id, fecha, descripcion
+             FROM dia_sin_clases
+             WHERE colegio_id = ?1 AND fecha >= ?2 AND fecha <= ?3
+               AND (seccion_id IS NULL OR (?4 IS NOT NULL AND seccion_id = ?4))
+             ORDER BY fecha",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let rows = stmt
+        .query_map(
+            rusqlite::params![colegioId, fechaInicio, fechaFin, seccionId],
+            |row| {
+                Ok(DiaSinClase {
+                    id: row.get(0)?,
+                    colegio_id: row.get(1)?,
+                    seccion_id: row.get(2)?,
+                    fecha: row.get(3)?,
+                    descripcion: row.get::<_, Option<String>>(4)?.unwrap_or_default(),
+                })
+            },
+        )
+        .map_err(|e| e.to_string())?;
+
+    let mut result = Vec::new();
+    for row in rows {
+        result.push(row.map_err(|e| e.to_string())?);
+    }
+    Ok(result)
+}
+
+/// Marca o desmarca días sin clases. `seccionId = None` → marca a nivel colegio.
+/// Al desmarcar elimina las filas del alcance indicado y registra los borrados
+/// en sync_pending_deletions para la sincronización.
+#[tauri::command]
+#[allow(non_snake_case)]
+pub async fn set_dias_sin_clases(
+    state: tauri::State<'_, DbState>,
+    colegioId: i64,
+    seccionId: Option<i64>,
+    fechas: Vec<String>,
+    descripcion: String,
+    activo: bool,
+) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    if activo {
+        for fecha in &fechas {
+            tx.execute(
+                "INSERT INTO dia_sin_clases (colegio_id, seccion_id, fecha, descripcion, updated_at)
+                 VALUES (?, ?, ?, ?, datetime('now'))
+                 ON CONFLICT(colegio_id, IFNULL(seccion_id, 0), fecha) DO UPDATE SET
+                   descripcion = excluded.descripcion,
+                   updated_at = excluded.updated_at",
+                rusqlite::params![colegioId, seccionId, fecha, descripcion],
+            )
+            .map_err(|e| format!("Error marcando {}: {}", fecha, e))?;
+        }
+    } else {
+        for fecha in &fechas {
+            let ids: Vec<i64> = {
+                let mut stmt = tx
+                    .prepare(
+                        "SELECT id FROM dia_sin_clases
+                         WHERE colegio_id = ?1 AND fecha = ?2
+                           AND ((?3 IS NOT NULL AND seccion_id = ?3) OR (?3 IS NULL AND seccion_id IS NULL))",
+                    )
+                    .map_err(|e| e.to_string())?;
+                let rows = stmt
+                    .query_map(rusqlite::params![colegioId, fecha, seccionId], |r| r.get::<_, i64>(0))
+                    .map_err(|e| e.to_string())?;
+                rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
+            };
+            for id in ids {
+                tx.execute(
+                    "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES ('dia_sin_clases', ?)",
+                    rusqlite::params![id],
+                )
+                .map_err(|e| e.to_string())?;
+                tx.execute("DELETE FROM dia_sin_clases WHERE id = ?", [id])
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+    }
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 #[allow(non_snake_case)]
 pub struct NotaEstudianteRequest {
@@ -4634,7 +4759,7 @@ pub async fn factory_reset(state: tauri::State<'_, DbState>) -> Result<(), Strin
     let tables = [
         "asistencia", "nota", "criterio", "indicador",
         "grado_asignatura", "colegio_asignatura", "estudiante",
-        "seccion", "grado", "asignatura", "colegio_dias_asistencia",
+        "seccion", "grado", "asignatura", "colegio_dias_asistencia", "dia_sin_clases",
         "colegio", "corte_evaluativo", "ano_lectivo",
         "configuracion_calificacion",
         "multiplicador_calificacion",

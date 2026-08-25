@@ -50,7 +50,7 @@ async fn get_all_local_data_json(state: tauri::State<'_, DbState>) -> Result<Str
     let table_names = [
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
         "grado_asignatura", "colegio_asignatura", "indicador", "criterio",
-        "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia",
+        "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia", "dia_sin_clases",
         "asistencia", "nota",
     ];
 
@@ -100,7 +100,7 @@ async fn get_all_local_data_since(state: tauri::State<'_, DbState>, since: Strin
     let table_names = [
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
         "grado_asignatura", "colegio_asignatura", "indicador", "criterio",
-        "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia",
+        "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia", "dia_sin_clases",
         "asistencia", "nota",
     ];
 
@@ -153,7 +153,7 @@ fn has_local_changes(state: tauri::State<'_, DbState>, since: String) -> Result<
     let table_names = [
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
         "grado_asignatura", "colegio_asignatura", "indicador", "criterio",
-        "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia",
+        "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia", "dia_sin_clases",
         "asistencia", "nota",
     ];
 
@@ -1723,6 +1723,8 @@ pub fn run() {
             get_asistencia_all,
             get_colegio_dias_asistencia,
             save_colegio_dias_asistencia,
+            get_dias_sin_clases,
+            set_dias_sin_clases,
             set_orientation,
             check_category_dependencies,
             delete_category_force,
