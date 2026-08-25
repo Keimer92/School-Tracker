@@ -4321,17 +4321,35 @@ pub async fn get_dashboard_stats(
         conn.query_row("SELECT COUNT(*) FROM asistencia", [], |row| row.get(0)).map_err(|e| e.to_string())?
     };
 
-    let total_grados: i64 = conn
-        .query_row("SELECT COUNT(*) FROM grado", [], |row| row.get(0))
-        .map_err(|e| e.to_string())?;
+    // Grados y secciones REALES: distintos valores en uso por estudiantes,
+    // no el catálogo global (las tablas grado/seccion son genéricas compartidas).
+    let total_grados: i64 = if let Some(cid) = colegioId {
+        conn.query_row(
+            "SELECT COUNT(DISTINCT grado_id) FROM estudiante WHERE colegio_id = ?1 AND grado_id IS NOT NULL",
+            rusqlite::params![cid], |row| row.get(0),
+        ).map_err(|e| e.to_string())?
+    } else {
+        conn.query_row(
+            "SELECT COUNT(DISTINCT grado_id) FROM estudiante WHERE grado_id IS NOT NULL",
+            [], |row| row.get(0),
+        ).map_err(|e| e.to_string())?
+    };
 
     let total_colegios: i64 = conn
         .query_row("SELECT COUNT(*) FROM colegio", [], |row| row.get(0))
         .map_err(|e| e.to_string())?;
 
-    let total_secciones: i64 = conn
-        .query_row("SELECT COUNT(*) FROM seccion", [], |row| row.get(0))
-        .map_err(|e| e.to_string())?;
+    let total_secciones: i64 = if let Some(cid) = colegioId {
+        conn.query_row(
+            "SELECT COUNT(DISTINCT seccion_id) FROM estudiante WHERE colegio_id = ?1 AND seccion_id IS NOT NULL",
+            rusqlite::params![cid], |row| row.get(0),
+        ).map_err(|e| e.to_string())?
+    } else {
+        conn.query_row(
+            "SELECT COUNT(DISTINCT seccion_id) FROM estudiante WHERE seccion_id IS NOT NULL",
+            [], |row| row.get(0),
+        ).map_err(|e| e.to_string())?
+    };
 
     let total_asignaturas: i64 = conn
         .query_row("SELECT COUNT(*) FROM asignatura", [], |row| row.get(0))
@@ -4364,18 +4382,32 @@ pub async fn get_dashboard_stats(
         conn.query_row("SELECT COALESCE(SUM(CASE WHEN estado = 'P' THEN 1 ELSE 0 END), 0), COALESCE(SUM(CASE WHEN estado = 'A' THEN 1 ELSE 0 END), 0), COALESCE(SUM(CASE WHEN estado = 'J' THEN 1 ELSE 0 END), 0) FROM asistencia WHERE fecha = ?1", rusqlite::params![&fechaHoy], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?))).map_err(|e| e.to_string())?
     };
 
-    // Students per grade
-    let mut stmt_students_grade = if colegioId.is_some() {
-        conn.prepare("SELECT g.nombre, COUNT(e.id) FROM estudiante e JOIN grado g ON e.grado_id = g.id WHERE e.colegio_id = ?1 GROUP BY e.grado_id ORDER BY g.nombre")
-    } else {
-        conn.prepare("SELECT g.nombre, COUNT(e.id) FROM estudiante e JOIN grado g ON e.grado_id = g.id GROUP BY e.grado_id ORDER BY g.nombre")
-    }.map_err(|e| e.to_string())?;
-    
-    let estudiantes_por_grado: Vec<GradoCount> = if let Some(cid) = colegioId {
-        stmt_students_grade.query_map(rusqlite::params![cid], |row| Ok(GradoCount { grado: row.get(0)?, count: row.get(1)? })).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
-    } else {
-        stmt_students_grade.query_map([], |row| Ok(GradoCount { grado: row.get(0)?, count: row.get(1)? })).map_err(|e| e.to_string())?.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
-    };
+    // Students per grade — separados por colegio (grados son genéricos compartidos)
+    let mut stmt_students_grade = conn
+        .prepare(
+            "SELECT g.nombre, c.nombre, COUNT(e.id)
+             FROM estudiante e
+             JOIN grado g ON e.grado_id = g.id
+             JOIN colegio c ON e.colegio_id = c.id
+             WHERE (?1 IS NULL OR e.colegio_id = ?1)
+             GROUP BY e.grado_id, e.colegio_id
+             ORDER BY c.nombre, g.nombre",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let estudiantes_por_grado: Vec<GradoCount> = stmt_students_grade
+        .query_map(rusqlite::params![colegioId], |row| {
+            let grado: String = row.get(0)?;
+            let colegio: String = row.get(1)?;
+            let count: i64 = row.get(2)?;
+            // Con filtro de colegio basta el nombre del grado; con "todos"
+            // se etiqueta con el colegio para distinguir grados homónimos.
+            let label = if colegioId.is_some() { grado } else { format!("{} · {}", grado, colegio) };
+            Ok(GradoCount { grado: label, count })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
 
     Ok(DashboardStats {
         total_estudiantes,

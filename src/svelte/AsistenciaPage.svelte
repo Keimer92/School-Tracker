@@ -72,7 +72,6 @@
       });
     }
   });
-  let showClearConfirm = $state(false);
   let expandedObs: Record<number, boolean> = $state({});
   let obsModalStudent: EstudianteAsistencia | null = $state(null);
   let refreshingSilent = $state(false);
@@ -834,7 +833,6 @@
       });
     }
     hasUnsavedChanges = true;
-    showClearConfirm = false;
     emit("show-toast", { message: "🧹 Asistencia limpiada. Recuerda guardar los cambios.", type: "info" });
   }
 
@@ -846,7 +844,12 @@
     }
   }
 
-  function limpiarAsistencia() { showClearConfirm = true; }
+  async function limpiarAsistencia() {
+    if (getActiveStudentCount() === 0) return;
+    const ok = await ask('¿Limpiar todos los estados de asistencia del período actual?\n\nLos cambios sin guardar se descartarán.', { title: 'Confirmar Limpieza', kind: 'warning', okLabel: 'Sí, limpiar', cancelLabel: 'Cancelar' });
+    if (!ok) return;
+    confirmClearAllStatus();
+  }
 
   function handleCardClick(type: string, stats: { total: number; m: number; f: number }) {
     showSummaryModal = { show: true, type, stats };
@@ -1585,19 +1588,6 @@
           </div>
         </div>
         <button class="primary" onclick={() => showSummaryModal = { ...showSummaryModal, show: false }} style="margin-top:1.5rem;width:100%">Cerrar</button>
-      </div>
-    </div>
-  {/if}
-
-  {#if showClearConfirm}
-    <div class="modal-overlay">
-      <div class="modal-content category-card" style="width:400px;max-width:90%;padding:1.5rem">
-        <h3 style="margin-top:0;color:#f87171">⚠️ Confirmar Limpieza</h3>
-        <div style="margin:1.5rem 0;color:#e2e8f0;font-size:0.95rem;line-height:1.5">¿Está seguro de limpiar todos los estados de asistencia seleccionados?</div>
-        <div style="display:flex;justify-content:flex-end;gap:1rem">
-          <button class="cancel" onclick={() => showClearConfirm = false}>Cancelar</button>
-          <button class="primary" onclick={confirmClearAllStatus} style="background-color:#ef4444">Limpiar Todo</button>
-        </div>
       </div>
     </div>
   {/if}

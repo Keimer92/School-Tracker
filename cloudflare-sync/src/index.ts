@@ -163,6 +163,7 @@ async function ensureSchema(env: Env): Promise<void> {
     // 'general' retirado como tipo: las filas históricas pasan a escala
     "UPDATE indicador SET instrumento = 'escala' WHERE instrumento = 'general'",
     // Días sin clases (feriados / sin actividad), por colegio o por sección DE un grado
+    // (device_id es interno del mecanismo de sync: se agrega a todas las tablas)
     `CREATE TABLE IF NOT EXISTS dia_sin_clases (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       colegio_id INTEGER NOT NULL,
@@ -170,8 +171,10 @@ async function ensureSchema(env: Env): Promise<void> {
       seccion_id INTEGER,
       fecha TEXT NOT NULL,
       descripcion TEXT NOT NULL DEFAULT '',
-      updated_at TEXT
+      updated_at TEXT,
+      device_id TEXT
     )`,
+    "ALTER TABLE dia_sin_clases ADD COLUMN device_id TEXT",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_dia_sin_clases_unica ON dia_sin_clases(colegio_id, IFNULL(grado_id, 0), IFNULL(seccion_id, 0), fecha)",
   ];
   for (const sql of stmts) {

@@ -119,7 +119,7 @@
     <div class="error-container">
       <span class="error-icon">⚠️</span>
       <span>Error al cargar: {error}</span>
-      <button class="retry-btn" onclick={loadStats}>Reintentar</button>
+      <button class="retry-btn" onclick={() => loadStats()}>Reintentar</button>
     </div>
   {:else if stats}
     <div class="dashboard-header">
@@ -423,7 +423,7 @@
   .grade-card {}
   .grade-list { display: flex; flex-direction: column; gap: 0.5rem; }
   .grade-row { display: flex; align-items: center; gap: 0.75rem; }
-  .grade-name { font-size: 0.8rem; color: #cbd5e1; width: 80px; flex-shrink: 0; font-weight: 600; }
+  .grade-name { font-size: 0.8rem; color: #cbd5e1; width: auto; min-width: 80px; max-width: 45%; flex-shrink: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .grade-bar-track { flex: 1; height: 20px; background: rgba(255,255,255,0.05); border-radius: 10px; overflow: hidden; }
   .grade-bar-fill { height: 100%; background: linear-gradient(90deg, var(--primary-color, #8b5cf6), #a78bfa); border-radius: 10px; transition: width 0.5s ease; min-width: 4px; }
   .grade-count { font-size: 0.8rem; color: #94a3b8; width: 30px; text-align: right; font-weight: 700; }
