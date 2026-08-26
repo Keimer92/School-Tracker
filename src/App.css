@@ -444,11 +444,14 @@ body {
 
 /* Nombres de páginas más grandes en el drawer de Android */
 .sidebar.drawer .sidebar-button span:last-child {
-  font-size: 1.08rem;
+  font-size: 1.22rem;
   font-weight: 600;
 }
+.sidebar.drawer .sidebar-button {
+  padding: 0.85rem 1rem;
+}
 .sidebar.drawer .sidebar-button span:first-child {
-  font-size: 1.25rem;
+  font-size: 1.45rem;
 }
 .sidebar.drawer .sidebar-section-header {
   font-size: 0.72rem;
@@ -792,6 +795,13 @@ body {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
+}
+
+/* Con el drawer abierto el botón sigue visible (encima del backdrop) y cierra */
+.mobile-menu-btn.drawer-abierto {
+  position: relative;
+  z-index: 60;
+  color: var(--text-bright);
 }
 
 .mobile-title {

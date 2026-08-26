@@ -390,7 +390,8 @@
 >
   {#if isMobile}
       <div class="mobile-header">
-        <button class="mobile-menu-btn {drawerOpen ? 'hidden' : ''}" onclick={toggleDrawer}><span>☰</span></button>
+        <!-- El botón queda VISIBLE con el drawer abierto: sirve para cerrarlo -->
+        <button class="mobile-menu-btn {drawerOpen ? 'drawer-abierto' : ''}" onclick={toggleDrawer}><span>{drawerOpen ? '✕' : '☰'}</span></button>
         <span class="mobile-title">
           <img class="mobile-title-icon" src={appIcon} alt="" draggable="false" />
           School Tracker
