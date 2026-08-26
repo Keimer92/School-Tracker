@@ -974,6 +974,19 @@
         setter(value);
       } else {
         draft = {}; syncDraftToStorage(); draftMulti = {}; syncDraftMultiToStorage();
+        // Restaurar los estados del servidor (el diff es real ahora)
+        estudiantes = estudiantes.map(est => {
+          const o = originalDiario[est.id];
+          return o ? { ...est, estado: o.estado as any, observacion: o.observacion } : est;
+        });
+        estudiantesMulti = estudiantesMulti.map(est => {
+          const newDias: typeof est.dias = {};
+          for (const f of fechasPeriodo) {
+            const o = originalMulti[`${est.id}|${f}`];
+            newDias[f] = { estado: o ? o.estado : (est.dias[f]?.estado ?? null), observacion: o ? o.observacion : (est.dias[f]?.observacion || '') };
+          }
+          return { ...est, dias: newDias };
+        });
         if (pendingRefreshOnSave) { pendingRefreshOnSave = false; refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); }
         setter(value);
       }
