@@ -2375,11 +2375,29 @@ pub async fn delete_student(state: tauri::State<'_, DbState>, id: i64) -> Result
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
-    // 1. Eliminar el estudiante
+    // 1. Registrar eliminaciones pendientes de las filas dependientes
+    //    (asistencia/nota) ANTES del cascade, para que la nube también
+    //    las borre y no queden huérfanas que el pull revive.
+    let mut stmt = tx.prepare("SELECT id, fecha FROM asistencia WHERE estudiante_id = ?1").map_err(|e| e.to_string())?;
+    let filas: Vec<(i64, String)> = stmt
+        .query_map([id], |r| Ok((r.get(0)?, r.get(1)?)))
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    drop(stmt);
+    for (_, fecha) in &filas {
+        tx.execute(
+            "INSERT INTO sync_pending_deletions_asistencia (estudiante_id, fecha) VALUES (?, ?)",
+            rusqlite::params![id, fecha],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    // 2. Eliminar el estudiante
     tx.execute("DELETE FROM estudiante WHERE id = ?", [id])
         .map_err(|e| e.to_string())?;
 
-    // 2. Registrar la eliminaciÃ³n pendiente para sincronizaciÃ³n
+    // 3. Registrar la eliminaciÃ³n pendiente para sincronizaciÃ³n
     tx.execute(
         "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)",
         rusqlite::params!["estudiante", id],
@@ -2395,6 +2413,21 @@ pub async fn delete_student_batch(state: tauri::State<'_, DbState>, ids: Vec<i64
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
     let tx = conn.transaction().map_err(|e| e.to_string())?;
     for &id in &ids {
+        // Tombstones de asistencia antes del cascade (ver delete_student)
+        let mut stmt = tx.prepare("SELECT fecha FROM asistencia WHERE estudiante_id = ?1").map_err(|e| e.to_string())?;
+        let fechas: Vec<String> = stmt
+            .query_map([id], |r| r.get(0))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        drop(stmt);
+        for fecha in &fechas {
+            tx.execute(
+                "INSERT INTO sync_pending_deletions_asistencia (estudiante_id, fecha) VALUES (?, ?)",
+                rusqlite::params![id, fecha],
+            )
+            .map_err(|e| e.to_string())?;
+        }
         tx.execute("DELETE FROM estudiante WHERE id = ?", [id])
             .map_err(|e| e.to_string())?;
         tx.execute(

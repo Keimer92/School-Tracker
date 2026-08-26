@@ -548,7 +548,29 @@ pub async fn d1_sync_all(state: tauri::State<'_, DbState>) -> Result<Value, Stri
         since
     );
 
-    // ---- 1. PUSH (cursor local)
+    // ---- 0. Purga de huérfanos: asistencias cuyo estudiante ya no existe
+    // (p. ej. borrados previos al fix de tombstones). Idempotente: registra
+    // los tombstones y borra localmente; el push de esta misma pasada
+    // propaga la eliminación a la nube.
+    {
+        let n = conn.execute(
+            "INSERT INTO sync_pending_deletions_asistencia (estudiante_id, fecha)
+             SELECT a.estudiante_id, a.fecha FROM asistencia a
+             LEFT JOIN estudiante e ON e.id = a.estudiante_id
+             WHERE e.id IS NULL",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        if n > 0 {
+            conn.execute(
+                "DELETE FROM asistencia WHERE estudiante_id NOT IN (SELECT id FROM estudiante)",
+                [],
+            )
+            .map_err(|e| e.to_string())?;
+            println!("[D1] purga: {} asistencias huérfanas marcadas para borrar en nube", n);
+        }
+    }
+
     // ---- 1. PUSH (cursor local)
     let data = collect_local_data_since(&conn, &push_since, &recent)?;
     let deletions = collect_pending_deletions(&conn)?;
