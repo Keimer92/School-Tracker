@@ -156,13 +156,21 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
       const pendientes = await invoke<Array<{ grado: string; seccion: string }>>(
         "get_grados_secciones_sin_asistencia_hoy", { colegioId: cid, fecha }
       );
+      const nombre = notifColegios.find(c => c.id === cid)?.nombre || "";
       if (!pendientes || pendientes.length === 0) {
-        await emit("show-toast", { message: "✅ Sin pendientes hoy para ese colegio (todo registrado)", type: "info" });
+        // Distinguir motivo: día no hábil vs todo registrado
+        let motivo = 'todo está registrado hoy ✅';
+        try {
+          const cfg = await invoke<Record<string, boolean>>("get_colegio_dias_asistencia", { colegioId: cid });
+          const dias = ['domingo','lunes','martes','miercoles','jueves','viernes','sabado'];
+          const d = new Date(fecha + 'T12:00:00').getDay();
+          if (cfg && cfg[dias[d]] === false) motivo = 'hoy NO es día hábil para este colegio 🚫';
+        } catch {}
+        await emit("show-toast", { message: `ℹ️ Sin pendientes: ${motivo}`, type: "info" });
         return;
       }
       const lista = pendientes.slice(0, 5).map(p => `${p.grado} ${p.seccion}`).join(", ");
       const resto = pendientes.length > 5 ? ` y ${pendientes.length - 5} más` : "";
-      const nombre = notifColegios.find(c => c.id === cid)?.nombre || "";
       await invoke("notify_attendance_reminder", {
         title: "Asistencia pendiente",
         body: `Sin asistencia hoy (${nombre}): ${lista}${resto}`,
@@ -767,6 +775,51 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     :global(.ajustes-tab.active) { padding: 0.5rem 0.8rem; }
     :global(.ajustes-tab.active .tab-label) { display: inline-block; font-size: 0.8rem; }
   }
+  /* ── Switch redondeado moderno (toggle de notificaciones) ── */
+  .notif-hero .switch {
+    position: relative;
+    display: inline-block;
+    width: 52px;
+    height: 30px;
+    margin: 0;
+  }
+  .notif-hero .switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .notif-hero .slider {
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .notif-hero .slider::before {
+    content: '';
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    left: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #cbd5e1;
+    border-radius: 50%;
+    transition: all 0.3s cubic-bezier(0.34, 1.3, 0.64, 1);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+  }
+  .notif-hero .switch input:checked + .slider {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    border-color: transparent;
+    box-shadow: 0 0 12px rgba(34,197,94,0.35);
+  }
+  .notif-hero .switch input:checked + .slider::before {
+    transform: translateY(-50%) translateX(21px);
+    background: #fff;
+  }
+
   /* ── Notificaciones (glassmorphism, solo Android) ── */
   .notif-page { display: flex; flex-direction: column; gap: 0.75rem; }
   .notif-hero {
