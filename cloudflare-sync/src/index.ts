@@ -242,6 +242,19 @@ function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 }
 
+// ── CORS: el frontend llama a /auth y /admin/* con fetch del WebView
+// (el sync D1 va por Rust/reqwest y no necesita esto) ──
+const CORS_HEADERS: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, X-School-Key, X-Device-Id, X-Auth-Token',
+  'Access-Control-Max-Age': '86400',
+};
+
+function jsonCors(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } });
+}
+
 function nowSqlite(): string {
   return new Date().toISOString().slice(0, 19).replace('T', ' ');
 }
@@ -435,8 +448,7 @@ async function requireAdmin(env: Env, req: Request): Promise<UserRecord> {
   return user;
 }
 
-export default {
-  async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+async function route(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
     const path = url.pathname;
 
@@ -727,5 +739,18 @@ RETURNING value`,
     } catch (e: any) {
       return json({ ok: false, error: e?.message || String(e) }, 400);
     }
+}
+
+export default {
+  async fetch(req: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
+    // Preflight CORS (fetch del WebView hacia /auth y /admin/*)
+    if (req.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: CORS_HEADERS });
+    }
+    const res = await route(req, env);
+    // Adjuntar cabeceras CORS a TODAS las respuestas
+    const out = new Response(res.body, res);
+    for (const [k, v] of Object.entries(CORS_HEADERS)) out.headers.set(k, v);
+    return out;
   },
 };
