@@ -787,7 +787,14 @@
     hasUnsavedChanges = true;
   }
 
-  function marcarTodos(estado: string) {
+  async function marcarTodos(estado: string) {
+    const n = periodo === "diario" ? getActiveStudentCount() : estudiantesMulti.length * fechasPeriodo.length;
+    if (n === 0) return;
+    const etiqueta = estado === 'P' ? 'Presente' : estado === 'A' ? 'Ausente' : 'Justificado';
+    const ok = await ask(`¿Marcar a TODOS como "${etiqueta}" (${estado}) para el período actual?\n\nSe aplicará a ${periodo === "diario" ? `${getActiveStudentCount()} estudiante(s)` : `${estudiantesMulti.length} estudiante(s) × ${fechasPeriodo.length} día(s)`}.`, {
+      title: `Marcar todos: ${etiqueta}`, kind: 'info', okLabel: `Sí, marcar todo`, cancelLabel: 'Cancelar',
+    });
+    if (!ok) return;
     if (periodo === "diario") {
       estudiantes.forEach(est => { draft[est.id] = { ...draft[est.id], estado }; });
       syncDraftToStorage();
@@ -836,7 +843,12 @@
     emit("show-toast", { message: "🧹 Asistencia limpiada. Recuerda guardar los cambios.", type: "info" });
   }
 
-  function handleManualSave() {
+  async function handleManualSave() {
+    if (!hasUnsavedChanges) return;
+    const ok = await ask('¿Guardar los cambios de asistencia pendientes?', {
+      title: 'Confirmar guardado', kind: 'info', okLabel: 'Guardar', cancelLabel: 'Cancelar',
+    });
+    if (!ok) return;
     if (periodo === "diario") {
       saveChanges(estudiantes);
     } else {
