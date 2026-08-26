@@ -404,12 +404,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     </div>
   {:else if activeTab !== null}
     <div style="padding: isAndroid ? '1rem' : '0'">
-      {#if isAndroid}
-        <button onclick={() => activeTab = null} style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1rem; background: rgba(51, 65, 85, 0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; cursor: pointer; margin-bottom: 1.5rem; width: 100%;">
-          <span style="font-size: 1.25rem;">←</span>
-          <span style="font-size: 0.95rem; font-weight: 600; color: #94a3b8;">Volver a Ajustes</span>
-        </button>
-      {/if}
+      <!-- El back nativo de Android ya maneja la vuelta (registerBackHandler) -->
       <div class="settings-content-wrapper">
         <!-- NUBE -->
         {#if activeTab === "nube"}

@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { emit, listen } from "@tauri-apps/api/event";
+  import { ask } from "@tauri-apps/plugin-dialog";
   import { syncService } from "../lib/syncService";
   import { onDataChange } from "../lib/autoSync";
   import { registerBackHandler } from "../lib/androidBack";
@@ -40,15 +41,15 @@
   $effect(() => {
     if (!pageActive) return;
     if (selectedColegioForSubjects) {
-      const dispose = registerBackHandler(() => { selectedColegioForSubjects = null; return true; });
+      const dispose = registerBackHandler(() => { cerrarColegioSubjects(); return true; });
       return () => dispose();
     }
     if (selectedGrade) {
-      const dispose = registerBackHandler(() => { selectedGrade = null; return true; });
+      const dispose = registerBackHandler(() => { cerrarGradeModal(); return true; });
       return () => dispose();
     }
     if (selectedColegio) {
-      const dispose = registerBackHandler(() => { selectedColegio = null; return true; });
+      const dispose = registerBackHandler(() => { cerrarColegioModal(); return true; });
       return () => dispose();
     }
     if (selectedCategory) {
@@ -75,15 +76,33 @@
   let selectedGrade: CategoryItem | null = $state(null);
   let selectedColegio: CategoryItem | null = $state(null);
   let colegioConfig: ColegioDiasAsistencia | null = $state(null);
+  let colegioConfigOriginal: string = $state('');
   let allSubjects: CategoryItem[] = $state([]);
   let assignedSubjects: number[] = $state([]);
+  let assignedOriginal: string = $state('');
   let selectedColegioForSubjects: CategoryItem | null = $state(null);
-  let colegioSubjects: CategoryItem[] = $state([]);
+  let colegioAsignadasIds: number[] = $state([]);
+  let colegioAsignadasOriginal: string = $state('');
+  let savingModal = $state(false);
+
+  // ---- Cierre seguro de modales con draft pendiente (ask nativo) ----
+  async function cerrarSiSeguro(dirty: boolean, cerrar: () => void) {
+    if (!dirty) { cerrar(); return; }
+    const ok = await ask("Hay cambios sin guardar en este modal.\n¿Descartarlos?", {
+      title: "Cambios sin guardar", kind: "warning", okLabel: "Descartar", cancelLabel: "Seguir editando",
+    });
+    if (ok) cerrar();
+  }
+
+  function cerrarGradeModal() { cerrarSiSeguro(gradeDirty, () => { selectedGrade = null; }); }
+  function cerrarColegioModal() { cerrarSiSeguro(diasDirty, () => { selectedColegio = null; }); }
+  function cerrarColegioSubjects() { cerrarSiSeguro(colegioSubjectsDirty, () => { selectedColegioForSubjects = null; }); }
 
   function fetchColegioConfig() {
     if (!selectedColegio) return;
     invoke("get_colegio_dias_asistencia", { colegioId: selectedColegio.id }).then((config) => {
       colegioConfig = config as ColegioDiasAsistencia;
+      colegioConfigOriginal = JSON.stringify(colegioConfig);
     }).catch((error) => console.error("Error fetching colegio config:", error));
   }
 
@@ -94,65 +113,39 @@
       invoke<CategoryItem[]>("get_subjects_by_colegio", { colegioId: selectedColegioForSubjects.id }),
     ]).then(([all, assigned]) => {
       allSubjects = all;
-      colegioSubjects = assigned;
+      colegioAsignadasIds = assigned.map((s) => s.id);
+      colegioAsignadasOriginal = JSON.stringify(colegioAsignadasIds);
     }).catch((error) => console.error("[DEBUG ColegioSubjects] Error fetching colegio subjects:", error));
   }
 
-  async function handleToggleColegioSubject(subject: CategoryItem) {
-    if (!selectedColegioForSubjects || !subject.id) return;
-    const isAssigned = colegioSubjects.some((s) => s.id === subject.id);
-    const newAssigned = isAssigned ? colegioSubjects.filter((s) => s.id !== subject.id) : [...colegioSubjects, subject];
-    colegioSubjects = newAssigned;
-    try {
-      if (isAssigned) await invoke("unassign_subject_from_colegio", { colegioId: selectedColegioForSubjects.id, asignaturaId: subject.id });
-      else await invoke("assign_subject_to_colegio", { colegioId: selectedColegioForSubjects.id, asignaturaId: subject.id });
-      onDataChange('colegio_asignatura');
-      await emit("show-toast", { message: "✅ Asignación actualizada", type: "success" });
-      await emit("subjects-updated");
-    } catch (error) {
-      await emit("show-toast", { message: "❌ Error actualizando asignación: " + error, type: "error" });
-      fetchColegioSubjectsData();
-    }
+  // ---- Días de asistencia (buffer + guardar con confirmación nativa) ----
+  let diasDirty = $derived(colegioConfig !== null && JSON.stringify(colegioConfig) !== colegioConfigOriginal);
+
+  function handleToggleDay(day: keyof Omit<ColegioDiasAsistencia, "colegioId">) {
+    if (!colegioConfig) return;
+    colegioConfig = { ...colegioConfig, [day]: !colegioConfig[day] };
   }
 
-  async function handleBulkColegioSubject(action: "assign_all" | "unassign_all") {
-    if (!selectedColegioForSubjects) return;
-    try {
-      if (action === "assign_all") {
-        await invoke("assign_all_subjects_to_colegio", { colegioId: selectedColegioForSubjects.id });
-        colegioSubjects = [...allSubjects];
-      } else {
-        await invoke("unassign_all_subjects_from_colegio", { colegioId: selectedColegioForSubjects.id });
-        colegioSubjects = [];
-      }
-      onDataChange('colegio_asignatura');
-      await emit("show-toast", { message: "✅ Asignación actualizada", type: "success" });
-      await emit("subjects-updated");
-    } catch (error) { await emit("show-toast", { message: "❌ Error: " + error, type: "error" }); }
+  function handleBulkDays(checked: boolean) {
+    if (!colegioConfig) return;
+    colegioConfig = { ...colegioConfig, lunes: checked, martes: checked, miercoles: checked, jueves: checked, viernes: checked, sabado: checked, domingo: checked };
   }
 
-  async function handleToggleDay(day: keyof Omit<ColegioDiasAsistencia, "colegioId">) {
-    if (!colegioConfig || !selectedColegio) return;
-    const newConfig = { ...colegioConfig, [day]: !colegioConfig[day] };
+  async function saveColegioDias() {
+    if (!colegioConfig || !selectedColegio || !diasDirty) return;
+    const ok = await ask(`¿Aplicar la configuración de días de "${selectedColegio.nombre}"?`, {
+      title: "Confirmar cambios", kind: "info", okLabel: "Guardar", cancelLabel: "Cancelar",
+    });
+    if (!ok) return;
+    savingModal = true;
     try {
-      await invoke("save_colegio_dias_asistencia", { config: newConfig });
-      colegioConfig = newConfig;
+      await invoke("save_colegio_dias_asistencia", { config: colegioConfig });
+      colegioConfigOriginal = JSON.stringify(colegioConfig);
       onDataChange('colegio_dias_asistencia');
       await emit("show-toast", { message: "✅ Configuración guardada", type: "success" });
       await emit("catalog-updated");
     } catch (error) { await emit("show-toast", { message: "❌ Error guardando configuración: " + error, type: "error" }); }
-  }
-
-  async function handleBulkDays(checked: boolean) {
-    if (!colegioConfig || !selectedColegio) return;
-    const newConfig = { ...colegioConfig, lunes: checked, martes: checked, miercoles: checked, jueves: checked, viernes: checked, sabado: checked, domingo: checked };
-    try {
-      await invoke("save_colegio_dias_asistencia", { config: newConfig });
-      colegioConfig = newConfig;
-      onDataChange('colegio_dias_asistencia');
-      await emit("show-toast", { message: `✅ Todos los días ${checked ? "marcados" : "desmarcados"}`, type: "success" });
-      await emit("catalog-updated");
-    } catch (error) { await emit("show-toast", { message: "❌ Error en actualización masiva: " + error, type: "error" }); }
+    finally { savingModal = false; }
   }
 
   function fetchSubjectsData() {
@@ -163,37 +156,80 @@
     ]).then(([all, assigned]) => {
       allSubjects = all;
       assignedSubjects = assigned.map((s) => s.id);
+      assignedOriginal = JSON.stringify(assignedSubjects);
     }).catch((error) => console.error("Error fetching subjects:", error));
   }
 
-  async function toggleSubject(subjectId: number) {
+  // ---- Materias de grado (buffer + guardar con confirmación nativa) ----
+  let gradeDirty = $derived(selectedGrade !== null && JSON.stringify(assignedSubjects) !== assignedOriginal);
+  let colegioSubjectsDirty = $derived(selectedColegioForSubjects !== null && JSON.stringify(colegioAsignadasIds) !== colegioAsignadasOriginal);
+
+  function toggleSubject(subjectId: number) {
     if (!selectedGrade) return;
-    const isAssigned = assignedSubjects.includes(subjectId);
-    try {
-      if (isAssigned) await invoke("unassign_subject_from_grade", { gradoId: selectedGrade.id, asignaturaId: subjectId });
-      else await invoke("assign_subject_to_grade", { gradoId: selectedGrade.id, asignaturaId: subjectId });
-      if (isAssigned) assignedSubjects = assignedSubjects.filter((id) => id !== subjectId);
-      else assignedSubjects = [...assignedSubjects, subjectId];
-      await emit("show-toast", { message: "✅ Currículo actualizado", type: "success" });
-      onDataChange('grado_asignatura');
-      await emit("subjects-updated");
-    } catch (error) { await emit("show-toast", { message: "❌ Error updating curriculum: " + error, type: "error" }); }
+    if (assignedSubjects.includes(subjectId)) assignedSubjects = assignedSubjects.filter((id) => id !== subjectId);
+    else assignedSubjects = [...assignedSubjects, subjectId];
   }
 
-  async function handleBulkAction(action: "assign_all" | "unassign_all") {
+  function handleBulkAction(action: "assign_all" | "unassign_all") {
     if (!selectedGrade) return;
+    assignedSubjects = action === "assign_all" ? allSubjects.map((s) => s.id) : [];
+  }
+
+  async function saveCurriculum() {
+    if (!selectedGrade || !gradeDirty) return;
+    const ok = await ask(`¿Aplicar los cambios de currículo de "${selectedGrade.nombre}"?`, {
+      title: "Confirmar cambios", kind: "info", okLabel: "Guardar", cancelLabel: "Cancelar",
+    });
+    if (!ok) return;
+    savingModal = true;
     try {
-      if (action === "assign_all") {
-        await invoke("assign_all_subjects_to_grade", { gradoId: selectedGrade.id });
-        assignedSubjects = allSubjects.map((s) => s.id);
-      } else {
-        await invoke("unassign_all_subjects_from_grade", { gradoId: selectedGrade.id });
-        assignedSubjects = [];
+      const orig: number[] = JSON.parse(assignedOriginal);
+      for (const id of assignedSubjects) {
+        if (!orig.includes(id)) await invoke("assign_subject_to_grade", { gradoId: selectedGrade.id, asignaturaId: id });
       }
-      await emit("show-toast", { message: "✅ Currículo actualizado", type: "success" });
+      for (const id of orig) {
+        if (!assignedSubjects.includes(id)) await invoke("unassign_subject_from_grade", { gradoId: selectedGrade.id, asignaturaId: id });
+      }
+      assignedOriginal = JSON.stringify(assignedSubjects);
       onDataChange('grado_asignatura');
+      await emit("show-toast", { message: "✅ Currículo guardado", type: "success" });
       await emit("subjects-updated");
-    } catch (error) { await emit("show-toast", { message: "❌ Error: " + error, type: "error" }); }
+    } catch (error) { await emit("show-toast", { message: "❌ Error al guardar currículo: " + error, type: "error" }); }
+    finally { savingModal = false; }
+  }
+
+  // ---- Asignaturas de colegio (buffer + guardar con confirmación nativa) ----
+  function handleToggleColegioSubject(subject: CategoryItem) {
+    if (!subject.id) return;
+    if (colegioAsignadasIds.includes(subject.id)) colegioAsignadasIds = colegioAsignadasIds.filter((id) => id !== subject.id);
+    else colegioAsignadasIds = [...colegioAsignadasIds, subject.id];
+  }
+
+  function handleBulkColegioSubject(action: "assign_all" | "unassign_all") {
+    colegioAsignadasIds = action === "assign_all" ? allSubjects.map((s) => s.id) : [];
+  }
+
+  async function saveColegioSubjects() {
+    if (!selectedColegioForSubjects || !colegioSubjectsDirty) return;
+    const ok = await ask(`¿Aplicar las asignaturas de "${selectedColegioForSubjects.nombre}"?`, {
+      title: "Confirmar cambios", kind: "info", okLabel: "Guardar", cancelLabel: "Cancelar",
+    });
+    if (!ok) return;
+    savingModal = true;
+    try {
+      const orig: number[] = JSON.parse(colegioAsignadasOriginal);
+      for (const id of colegioAsignadasIds) {
+        if (!orig.includes(id)) await invoke("assign_subject_to_colegio", { colegioId: selectedColegioForSubjects.id, asignaturaId: id });
+      }
+      for (const id of orig) {
+        if (!colegioAsignadasIds.includes(id)) await invoke("unassign_subject_from_colegio", { colegioId: selectedColegioForSubjects.id, asignaturaId: id });
+      }
+      colegioAsignadasOriginal = JSON.stringify(colegioAsignadasIds);
+      onDataChange('colegio_asignatura');
+      await emit("show-toast", { message: "✅ Asignación guardada", type: "success" });
+      await emit("subjects-updated");
+    } catch (error) { await emit("show-toast", { message: "❌ Error al guardar asignación: " + error, type: "error" }); }
+    finally { savingModal = false; }
   }
 
   $effect(() => { if (selectedGrade) fetchSubjectsData(); });
@@ -286,29 +322,21 @@
       </div>
     {:else if selectedCategory}
       <div style="padding: 1rem;">
-        <button onclick={() => selectedCategory = null}
-          style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1rem; background: rgba(51, 65, 85, 0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; cursor: pointer; margin-bottom: 1rem; width: 100%; transition: all 0.2s ease;">
-          <span style="font-size: 1.25rem;">←</span>
-          <span style="font-size: 0.95rem; font-weight: 600; color: #94a3b8;">Volver a categorías</span>
-        </button>
+        <!-- El back nativo de Android ya maneja la vuelta -->
         <CategoryTabContent
-          config={selectedCategory}
+          config={selectedCategory!}
           onConfigClick={(item: CategoryItem) => {
-            if (selectedCategory.title === "Grado") selectedGrade = item;
-            if (selectedCategory.title === "Colegio") selectedColegio = item;
+            if (selectedCategory?.title === "Grado") selectedGrade = item;
+            if (selectedCategory?.title === "Colegio") selectedColegio = item;
           }}
           onSubjectsClick={(item: CategoryItem) => {
-            if (selectedCategory.title === "Colegio") selectedColegioForSubjects = item;
+            if (selectedCategory?.title === "Colegio") selectedColegioForSubjects = item;
           }}
         />
       </div>
     {:else}
       <div style="padding: 1rem;">
-        <button onclick={() => { selectedTab = "Año Lectivo"; selectedCategory = null; }}
-          style="display: flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1rem; background: rgba(51, 65, 85, 0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; cursor: pointer; margin-bottom: 1rem; width: 100%; transition: all 0.2s ease;">
-          <span style="font-size: 1.25rem;">←</span>
-          <span style="font-size: 0.95rem; font-weight: 600; color: #94a3b8;">Volver</span>
-        </button>
+        <!-- El back nativo de Android ya maneja la vuelta -->
         <div class="category-card">
           <div class="category-header"><h3>⭐ Configuración de Calificaciones</h3></div>
           <div style="padding: 1.25rem;">
@@ -556,7 +584,7 @@
           <div style="display: flex; gap: 0.3rem; flex-wrap: wrap;">
             <button onclick={() => handleBulkAction("assign_all")} class="primary" style="font-size: 0.65rem; padding: 0.25rem 0.5rem;">Marcar todas</button>
             <button onclick={() => handleBulkAction("unassign_all")} class="cancel" style="font-size: 0.65rem; padding: 0.25rem 0.5rem;">Desmarcar todas</button>
-            <button onclick={() => selectedGrade = null} style="background: transparent; border: none; color: white; cursor: pointer; font-size: 1.2rem; margin-left: 0.2rem;">✕</button>
+            <button onclick={cerrarGradeModal} style="background: transparent; border: none; color: white; cursor: pointer; font-size: 1.2rem; margin-left: 0.2rem;">✕</button>
           </div>
         </div>
         <div class="item-list" style="max-height: 300px; overflow-y: auto;">
@@ -570,6 +598,15 @@
             </div>
           {/each}
         </div>
+        {#if gradeDirty}
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:0.6rem;padding-top:0.9rem;margin-top:0.5rem;border-top:1px solid rgba(255,255,255,0.07);flex-wrap:wrap;">
+            <span style="font-size:0.75rem;color:#fbbf24;font-weight:600;">⚠️ Cambios sin guardar</span>
+            <div style="display:flex;gap:0.5rem;">
+              <button onclick={() => { assignedSubjects = JSON.parse(assignedOriginal); }} style="padding:0.4rem 0.85rem;font-size:0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:#cbd5e1;cursor:pointer;font-weight:600;">Descartar</button>
+              <button onclick={saveCurriculum} disabled={savingModal} style="padding:0.45rem 1rem;font-size:0.78rem;border-radius:8px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:white;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(34,197,94,0.3);">{savingModal ? "Guardando..." : "💾 Guardar"}</button>
+            </div>
+          </div>
+        {/if}
       </div>
     </div>
   {/if}
@@ -583,20 +620,29 @@
           <div style="display: flex; gap: 0.3rem; flex-wrap: wrap;">
             <button onclick={() => handleBulkDays(true)} class="primary" style="font-size: 0.65rem; padding: 0.25rem 0.5rem;">Marcar todos</button>
             <button onclick={() => handleBulkDays(false)} class="cancel" style="font-size: 0.65rem; padding: 0.25rem 0.5rem;">Desmarcar todos</button>
-            <button onclick={() => selectedColegio = null} style="background: transparent; border: none; color: white; cursor: pointer; font-size: 1.2rem; margin-left: 0.2rem;">✕</button>
+            <button onclick={cerrarColegioModal} style="background: transparent; border: none; color: white; cursor: pointer; font-size: 1.2rem; margin-left: 0.2rem;">✕</button>
           </div>
         </div>
         <div class="item-list">
           {#each ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"] as day}
-            <div class="item-row" style="cursor: pointer; display: flex; align-items: center; gap: 12px; justify-content: flex-start;" onclick={() => handleToggleDay(day)}>
+            <div class="item-row" style="cursor: pointer; display: flex; align-items: center; gap: 12px; justify-content: flex-start;" onclick={() => handleToggleDay(day as keyof Omit<ColegioDiasAsistencia, "colegioId">)}>
               <label class="switch" style="pointer-events: none;">
-                <input type="checkbox" checked={colegioConfig[day]} readonly />
+                <input type="checkbox" checked={colegioConfig[day as keyof Omit<ColegioDiasAsistencia, "colegioId">]} readonly />
                 <span class="slider round"></span>
               </label>
-              <span style="flex: 1; text-align: left; font-weight: {colegioConfig[day] ? 'bold' : 'normal'}; color: {colegioConfig[day] ? '#4ade80' : 'inherit'}; text-transform: capitalize;">{day}</span>
+              <span style="flex: 1; text-align: left; font-weight: {colegioConfig[day as keyof Omit<ColegioDiasAsistencia, "colegioId">] ? 'bold' : 'normal'}; color: {colegioConfig[day as keyof Omit<ColegioDiasAsistencia, "colegioId">] ? '#4ade80' : 'inherit'}; text-transform: capitalize;">{day}</span>
             </div>
           {/each}
         </div>
+        {#if diasDirty}
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:0.6rem;padding-top:0.9rem;margin-top:0.5rem;border-top:1px solid rgba(255,255,255,0.07);flex-wrap:wrap;">
+            <span style="font-size:0.75rem;color:#fbbf24;font-weight:600;">⚠️ Cambios sin guardar</span>
+            <div style="display:flex;gap:0.5rem;">
+              <button onclick={() => { colegioConfig = JSON.parse(colegioConfigOriginal); }} style="padding:0.4rem 0.85rem;font-size:0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:#cbd5e1;cursor:pointer;font-weight:600;">Descartar</button>
+              <button onclick={saveColegioDias} disabled={savingModal} style="padding:0.45rem 1rem;font-size:0.78rem;border-radius:8px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:white;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(34,197,94,0.3);">{savingModal ? "Guardando..." : "💾 Guardar"}</button>
+            </div>
+          </div>
+        {/if}
       </div>
     </div>
   {/if}
@@ -610,12 +656,12 @@
           <div style="display: flex; gap: 0.3rem; flex-wrap: wrap;">
             <button onclick={() => handleBulkColegioSubject("assign_all")} class="primary" style="font-size: 0.65rem; padding: 0.25rem 0.5rem;">Marcar todas</button>
             <button onclick={() => handleBulkColegioSubject("unassign_all")} class="cancel" style="font-size: 0.65rem; padding: 0.25rem 0.5rem;">Desmarcar todas</button>
-            <button onclick={() => selectedColegioForSubjects = null} style="background: transparent; border: none; color: white; cursor: pointer; font-size: 1.2rem; margin-left: 0.2rem;">✕</button>
+            <button onclick={cerrarColegioSubjects} style="background: transparent; border: none; color: white; cursor: pointer; font-size: 1.2rem; margin-left: 0.2rem;">✕</button>
           </div>
         </div>
         <div class="item-list" style="max-height: 300px; overflow-y: auto;">
           {#each allSubjects as sub (sub.id)}
-            {@const isAssigned = colegioSubjects.some((s) => s.id === sub.id)}
+            {@const isAssigned = colegioAsignadasIds.includes(sub.id!)}
             <div class="item-row" style="cursor: pointer; display: flex; align-items: center; gap: 12px; justify-content: flex-start;" onclick={() => handleToggleColegioSubject(sub)}>
               <label class="switch" style="pointer-events: none;">
                 <input type="checkbox" checked={isAssigned} readonly />
@@ -625,6 +671,15 @@
             </div>
           {/each}
         </div>
+        {#if colegioSubjectsDirty}
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:0.6rem;padding-top:0.9rem;margin-top:0.5rem;border-top:1px solid rgba(255,255,255,0.07);flex-wrap:wrap;">
+            <span style="font-size:0.75rem;color:#fbbf24;font-weight:600;">⚠️ Cambios sin guardar</span>
+            <div style="display:flex;gap:0.5rem;">
+              <button onclick={() => { colegioAsignadasIds = JSON.parse(colegioAsignadasOriginal); }} style="padding:0.4rem 0.85rem;font-size:0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:#cbd5e1;cursor:pointer;font-weight:600;">Descartar</button>
+              <button onclick={saveColegioSubjects} disabled={savingModal} style="padding:0.45rem 1rem;font-size:0.78rem;border-radius:8px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:white;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(34,197,94,0.3);">{savingModal ? "Guardando..." : "💾 Guardar"}</button>
+            </div>
+          </div>
+        {/if}
       </div>
     </div>
   {/if}
