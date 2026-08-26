@@ -7,6 +7,7 @@
   import { syncService } from "../lib/syncService";
   import { onDataChange } from "../lib/autoSync";
   import { registerBackHandler } from "../lib/androidBack";
+  import { getLocalDateISOString } from "../lib/dateUtils";
   import CloudPage from "./CloudPage.svelte";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
@@ -69,6 +70,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   let notifTesting = $state(false);
   let notifSilencedToday = $state(false);
   let notifDismissing = $state(false);
+  let testColegio = $state<number>(0);
 
   function cfgDe(id: number): NotifColegioCfg {
     return notifCfg[id] ?? { activo: false, inicio: '07:00', fin: '12:00', intervaloMin: 45 };
@@ -144,15 +146,29 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   }
 
   async function testNotif() {
+    const cid = testColegio || notifColegios[0]?.id;
+    if (!cid) { await emit("show-toast", { message: "⚠️ No hay colegios configurados", type: "warning" }); return; }
     notifTesting = true;
     try {
-      console.log('[NotifUI] Enviando notificación de prueba...');
+      // PRUEBA REAL: consulta los grados pendientes de HOY para ese colegio
+      const fecha = getLocalDateISOString();
+      console.log('[NotifUI] Test real: colegio', cid, 'fecha', fecha);
+      const pendientes = await invoke<Array<{ grado: string; seccion: string }>>(
+        "get_grados_secciones_sin_asistencia_hoy", { colegioId: cid, fecha }
+      );
+      if (!pendientes || pendientes.length === 0) {
+        await emit("show-toast", { message: "✅ Sin pendientes hoy para ese colegio (todo registrado)", type: "info" });
+        return;
+      }
+      const lista = pendientes.slice(0, 5).map(p => `${p.grado} ${p.seccion}`).join(", ");
+      const resto = pendientes.length > 5 ? ` y ${pendientes.length - 5} más` : "";
+      const nombre = notifColegios.find(c => c.id === cid)?.nombre || "";
       await invoke("notify_attendance_reminder", {
         title: "Asistencia pendiente",
-        body: "Notificación de prueba desde ajustes",
+        body: `Sin asistencia hoy (${nombre}): ${lista}${resto}`,
       });
-      console.log('[NotifUI] notify_attendance_reminder OK');
-      await emit("show-toast", { message: "🔔 Notificación de prueba enviada", type: "success" });
+      console.log('[NotifUI] notify_attendance_reminder OK, pendientes:', pendientes.length);
+      await emit("show-toast", { message: `🔔 Notificación enviada con ${pendientes.length} grado(s) pendiente(s)`, type: "success" });
     } catch (error) {
       console.error('[NotifUI] Error en notificación de prueba:', error);
       await emit("show-toast", { message: "❌ Error: " + error, type: "error" });
@@ -449,12 +465,20 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
               </div>
 
               <!-- Acciones -->
+              <div class="notif-campo" style="width:100%">
+                <label>Colegio para la prueba</label>
+                <select bind:value={testColegio}>
+                  {#each notifColegios as c (c.id)}
+                    <option value={c.id}>{c.nombre}</option>
+                  {/each}
+                </select>
+              </div>
               <div style="display:flex;gap:0.6rem;">
                 <button class="notif-btn-primary" onclick={saveNotifSettings} disabled={notifSaving} style="flex:1">
                   {notifSaving ? "Guardando..." : "💾 Guardar"}
                 </button>
                 <button class="notif-btn-ghost" onclick={testNotif} disabled={notifTesting} style="flex:1">
-                  {notifTesting ? "Enviando..." : "🔔 Probar"}
+                  {notifTesting ? "Probando..." : "🔔 Probar real"}
                 </button>
               </div>
 
