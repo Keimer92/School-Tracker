@@ -389,7 +389,7 @@
   style="grid-template-columns: {isMobile ? '0px 0px 1fr' : sidebarWidth + 'px 4px 1fr'}; padding-bottom: {isMobile ? 'env(safe-area-inset-bottom, 0px)' : '0'};"
 >
   {#if isMobile}
-      <div class="mobile-header">
+      <div class="mobile-header" class:encima-drawer={drawerOpen}>
         <!-- El botón queda VISIBLE con el drawer abierto: sirve para cerrarlo -->
         <button class="mobile-menu-btn {drawerOpen ? 'drawer-abierto' : ''}" onclick={toggleDrawer}><span>{drawerOpen ? '✕' : '☰'}</span></button>
         <span class="mobile-title">

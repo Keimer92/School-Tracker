@@ -797,10 +797,11 @@ body {
   pointer-events: none;
 }
 
-/* Con el drawer abierto el botón sigue visible (encima del backdrop) y cierra */
+/* Con el drawer abierto el header queda ENCIMA (botón ✕ visible y tocable) */
+.mobile-header.encima-drawer {
+  z-index: 10000;
+}
 .mobile-menu-btn.drawer-abierto {
-  position: relative;
-  z-index: 60;
   color: var(--text-bright);
 }
 
