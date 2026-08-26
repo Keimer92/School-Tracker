@@ -76,6 +76,23 @@
     return false;
   }
 
+  /** Tras un guardado exitoso: el estado actual pasa a ser la nueva referencia. */
+  function capturarOriginalDiario() {
+    const snap: Record<number, { estado: string | null; observacion: string }> = {};
+    for (const est of estudiantes) snap[est.id] = { estado: norm(est.estado), observacion: est.observacion || '' };
+    originalDiario = snap;
+  }
+
+  function capturarOriginalMulti() {
+    const snap: Record<string, { estado: string | null; observacion: string }> = {};
+    for (const est of estudiantesMulti) {
+      for (const f of fechasPeriodo) {
+        snap[`${est.id}|${f}`] = { estado: norm(est.dias[f]?.estado), observacion: est.dias[f]?.observacion || '' };
+      }
+    }
+    originalMulti = snap;
+  }
+
   $effect(() => {
     if (!visible) return;
     if (selectedStudentDetail) {
@@ -700,6 +717,7 @@
           try {
             await invoke("delete_asistencia_batch", { estudianteIds: updated.map(est => est.id), fecha: selectedFecha });
             draft = {}; syncDraftToStorage(); saving = false;
+            capturarOriginalDiario();
             if (pendingRefreshOnSave) { pendingRefreshOnSave = false; refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); }
             await emit("show-toast", { message: "✅ Asistencia limpiada correctamente", type: "success" });
             onDataChange('asistencia', { immediate: true });
@@ -719,6 +737,7 @@
       }
       await invoke("save_asistencia", { records });
       draft = {}; syncDraftToStorage(); saving = false;
+      capturarOriginalDiario();
       if (pendingRefreshOnSave) { pendingRefreshOnSave = false; refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); }
       await emit("show-toast", { message: "✅ Asistencia guardada localmente", type: "success" });
       onDataChange('asistencia', { immediate: true });
@@ -758,6 +777,7 @@
         if (Object.keys(limpias).length > 0) {
           // Todo el período quedó limpiado: mismo flujo de éxito que el modo diario
           draftMulti = {}; syncDraftMultiToStorage(); saving = false;
+          capturarOriginalMulti();
           if (pendingRefreshOnSave) { pendingRefreshOnSave = false; refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); }
           await emit("show-toast", { message: "✅ Asistencia limpiada correctamente", type: "success" });
           onDataChange('asistencia', { immediate: true });
@@ -771,6 +791,7 @@
       }
       await invoke("save_asistencia", { records });
       draftMulti = {}; syncDraftMultiToStorage(); saving = false;
+      capturarOriginalMulti();
       if (pendingRefreshOnSave) { pendingRefreshOnSave = false; refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); }
       await emit("show-toast", { message: "✅ Asistencia guardada localmente", type: "success" });
       onDataChange('asistencia', { immediate: true });
