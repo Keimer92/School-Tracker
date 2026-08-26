@@ -556,28 +556,26 @@ async fn notify_attendance_reminder(_app_handle: tauri::AppHandle, _title: Strin
     #[cfg(target_os = "android")]
     {
         use jni::objects::JValue;
-        unsafe {
-            let ctx = ndk_context::android_context();
-            let vm_ptr = ctx.vm();
-            let activity_ptr = ctx.context();
-            let vm = jni::JavaVM::from_raw(vm_ptr as *mut _).map_err(|e| e.to_string())?;
-            let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
-            let activity = jni::objects::JObject::from_raw(activity_ptr as *mut _);
-            let j_title = env.new_string(_title).map_err(|e| e.to_string())?;
-            let j_body = env.new_string(_body).map_err(|e| e.to_string())?;
-            let _ = env
-                .call_method(
-                    activity,
-                    "notifyAttendanceReminder",
-                    "(Ljava/lang/String;Ljava/lang/String;)V",
-                    &[JValue::Object(&j_title), JValue::Object(&j_body)],
-                )
-                .map_err(|e| e.to_string())?;
-        }
+        println!("[Notif] notify_attendance_reminder: title='{}' body='{}'", _title, _body);
+        // NOTA: ndk_context::android_context() NO está inicializado en este setup
+        // (panics silenciosos). Usar SIEMPRE el puente propio initNativeBridge.
+        let (vm, activity) = obtain_native_bridge()?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        let j_title = env.new_string(&_title).map_err(|e| e.to_string())?;
+        let j_body = env.new_string(&_body).map_err(|e| e.to_string())?;
+        env.call_method(
+            activity.as_obj(),
+            "notifyAttendanceReminder",
+            "(Ljava/lang/String;Ljava/lang/String;)V",
+            &[JValue::Object(&j_title), JValue::Object(&j_body)],
+        )
+        .map_err(|e| format!("Error JNI notifyAttendanceReminder: {}", e))?;
+        println!("[Notif] notifyAttendanceReminder invocado OK");
         Ok(())
     }
     #[cfg(not(target_os = "android"))]
     {
+        println!("[Notif] notify_attendance_reminder: no-op (no Android)");
         Ok(())
     }
 }
@@ -587,28 +585,25 @@ async fn schedule_attendance_alarm(_app_handle: tauri::AppHandle, _config: Strin
     #[cfg(target_os = "android")]
     {
         use jni::objects::JValue;
-        unsafe {
-            let ctx = ndk_context::android_context();
-            let vm_ptr = ctx.vm();
-            let activity_ptr = ctx.context();
-            let vm = jni::JavaVM::from_raw(vm_ptr as *mut _).map_err(|e| e.to_string())?;
-            let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
-            let activity = jni::objects::JObject::from_raw(activity_ptr as *mut _);
-            let j_config = env.new_string(_config).map_err(|e| e.to_string())?;
-            let j_db = env.new_string(_db_path).map_err(|e| e.to_string())?;
-            let _ = env
-                .call_method(
-                    activity,
-                    "scheduleAttendanceAlarm",
-                    "(Ljava/lang/String;Ljava/lang/String;)V",
-                    &[JValue::Object(&j_config), JValue::Object(&j_db)],
-                )
-                .map_err(|e| e.to_string())?;
-        }
+        println!("[Notif] schedule_attendance_alarm: db='{}' config={}", _db_path, _config);
+        let (vm, activity) = obtain_native_bridge()?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        let j_config = env.new_string(&_config).map_err(|e| e.to_string())?;
+        let j_db = env.new_string(&_db_path).map_err(|e| e.to_string())?;
+        env.call_method(
+            activity.as_obj(),
+            "scheduleAttendanceAlarm",
+            "(Ljava/lang/String;Ljava/lang/String;)V",
+            &[JValue::Object(&j_config), JValue::Object(&j_db)],
+        )
+        .map_err(|e| format!("Error JNI scheduleAttendanceAlarm: {}", e))?;
+        println!("[Notif] scheduleAttendanceAlarm invocado OK");
         Ok(())
     }
     #[cfg(not(target_os = "android"))]
     {
+        println!("[Notif] schedule_attendance_alarm: no-op (no Android)");
+        let _ = (_config, _db_path);
         Ok(())
     }
 }
@@ -617,17 +612,12 @@ async fn schedule_attendance_alarm(_app_handle: tauri::AppHandle, _config: Strin
 async fn cancel_attendance_alarm(_app_handle: tauri::AppHandle) -> Result<(), String> {
     #[cfg(target_os = "android")]
     {
-        unsafe {
-            let ctx = ndk_context::android_context();
-            let vm_ptr = ctx.vm();
-            let activity_ptr = ctx.context();
-            let vm = jni::JavaVM::from_raw(vm_ptr as *mut _).map_err(|e| e.to_string())?;
-            let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
-            let activity = jni::objects::JObject::from_raw(activity_ptr as *mut _);
-            let _ = env
-                .call_method(activity, "cancelAttendanceAlarm", "()V", &[])
-                .map_err(|e| e.to_string())?;
-        }
+        println!("[Notif] cancel_attendance_alarm");
+        let (vm, activity) = obtain_native_bridge()?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        env.call_method(activity.as_obj(), "cancelAttendanceAlarm", "()V", &[])
+            .map_err(|e| format!("Error JNI cancelAttendanceAlarm: {}", e))?;
+        println!("[Notif] cancelAttendanceAlarm invocado OK");
         Ok(())
     }
     #[cfg(not(target_os = "android"))]
@@ -640,18 +630,14 @@ async fn cancel_attendance_alarm(_app_handle: tauri::AppHandle) -> Result<(), St
 async fn get_attendance_silenced_today(_app_handle: tauri::AppHandle) -> Result<bool, String> {
     #[cfg(target_os = "android")]
     {
-        unsafe {
-            let ctx = ndk_context::android_context();
-            let vm_ptr = ctx.vm();
-            let activity_ptr = ctx.context();
-            let vm = jni::JavaVM::from_raw(vm_ptr as *mut _).map_err(|e| e.to_string())?;
-            let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
-            let activity = jni::objects::JObject::from_raw(activity_ptr as *mut _);
-            let result = env
-                .call_method(activity, "getAttendanceSilencedToday", "()Z", &[])
-                .map_err(|e| e.to_string())?;
-            Ok(result.z().map_err(|e| e.to_string())?)
-        }
+        let (vm, activity) = obtain_native_bridge()?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        let result = env
+            .call_method(activity.as_obj(), "getAttendanceSilencedToday", "()Z", &[])
+            .map_err(|e| format!("Error JNI getAttendanceSilencedToday: {}", e))?;
+        let silenced = result.z().map_err(|e| e.to_string())?;
+        println!("[Notif] get_attendance_silenced_today = {}", silenced);
+        Ok(silenced)
     }
     #[cfg(not(target_os = "android"))]
     {
@@ -664,22 +650,16 @@ async fn set_attendance_silenced_today(_app_handle: tauri::AppHandle, _silenced:
     #[cfg(target_os = "android")]
     {
         use jni::objects::JValue;
-        unsafe {
-            let ctx = ndk_context::android_context();
-            let vm_ptr = ctx.vm();
-            let activity_ptr = ctx.context();
-            let vm = jni::JavaVM::from_raw(vm_ptr as *mut _).map_err(|e| e.to_string())?;
-            let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
-            let activity = jni::objects::JObject::from_raw(activity_ptr as *mut _);
-            let _ = env
-                .call_method(
-                    activity,
-                    "setAttendanceSilencedToday",
-                    "(Z)V",
-                    &[JValue::Bool(if _silenced { 1 } else { 0 })],
-                )
-                .map_err(|e| e.to_string())?;
-        }
+        println!("[Notif] set_attendance_silenced_today = {}", _silenced);
+        let (vm, activity) = obtain_native_bridge()?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        env.call_method(
+            activity.as_obj(),
+            "setAttendanceSilencedToday",
+            "(Z)V",
+            &[JValue::Bool(if _silenced { 1 } else { 0 })],
+        )
+        .map_err(|e| format!("Error JNI setAttendanceSilencedToday: {}", e))?;
         Ok(())
     }
     #[cfg(not(target_os = "android"))]
@@ -692,17 +672,11 @@ async fn set_attendance_silenced_today(_app_handle: tauri::AppHandle, _silenced:
 async fn dismiss_attendance_today(_app_handle: tauri::AppHandle) -> Result<(), String> {
     #[cfg(target_os = "android")]
     {
-        unsafe {
-            let ctx = ndk_context::android_context();
-            let vm_ptr = ctx.vm();
-            let activity_ptr = ctx.context();
-            let vm = jni::JavaVM::from_raw(vm_ptr as *mut _).map_err(|e| e.to_string())?;
-            let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
-            let activity = jni::objects::JObject::from_raw(activity_ptr as *mut _);
-            let _ = env
-                .call_method(activity, "dismissAttendanceToday", "()V", &[])
-                .map_err(|e| e.to_string())?;
-        }
+        println!("[Notif] dismiss_attendance_today");
+        let (vm, activity) = obtain_native_bridge()?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        env.call_method(activity.as_obj(), "dismissAttendanceToday", "()V", &[])
+            .map_err(|e| format!("Error JNI dismissAttendanceToday: {}", e))?;
         Ok(())
     }
     #[cfg(not(target_os = "android"))]

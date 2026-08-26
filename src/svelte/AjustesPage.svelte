@@ -117,16 +117,21 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
         grados: notifSelectedGrados,
         secciones: notifSelectedSecciones,
       };
+      console.log('[NotifUI] Guardando config:', JSON.stringify(config));
       localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(config));
       const dbPath = await invoke<string>("get_db_path");
+      console.log('[NotifUI] dbPath =', dbPath);
       if (notifEnabled) {
         await invoke("schedule_attendance_alarm", { config: JSON.stringify(config), dbPath });
+        console.log('[NotifUI] schedule_attendance_alarm OK');
         await emit("show-toast", { message: "🔔 Notificaciones programadas: " + notifTime, type: "success" });
       } else {
         await invoke("cancel_attendance_alarm");
+        console.log('[NotifUI] cancel_attendance_alarm OK');
         await emit("show-toast", { message: "🔕 Notificaciones desactivadas", type: "info" });
       }
     } catch (error) {
+      console.error('[NotifUI] Error guardando/programando:', error);
       await emit("show-toast", { message: "❌ Error al guardar: " + error, type: "error" });
     } finally {
       notifSaving = false;
@@ -136,12 +141,15 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   async function testNotif() {
     notifTesting = true;
     try {
+      console.log('[NotifUI] Enviando notificación de prueba...');
       await invoke("notify_attendance_reminder", {
         title: "Asistencia pendiente",
         body: "Notificación de prueba desde ajustes",
       });
+      console.log('[NotifUI] notify_attendance_reminder OK');
       await emit("show-toast", { message: "🔔 Notificación de prueba enviada", type: "success" });
     } catch (error) {
+      console.error('[NotifUI] Error en notificación de prueba:', error);
       await emit("show-toast", { message: "❌ Error: " + error, type: "error" });
     } finally {
       notifTesting = false;
