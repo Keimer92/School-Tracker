@@ -216,6 +216,17 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
   function handleUpdateHighlightColor(color: string) { highlightColor = color; emit("highlight-color-updated", color); }
 
+  /** Android: pide el permiso POST_NOTIFICATIONS (segunda vía si el diálogo
+   *  inicial del Welcome no apareció o fue denegado). */
+  async function pedirPermisoNotificaciones() {
+    try {
+      await invoke('gd_request_notification_permission');
+      await emit("show-toast", { message: "🔔 Si no viste el diálogo, actívalo en Sistema → Apps → School Tracker Pro → Notificaciones", type: "info" });
+    } catch (e) {
+      await emit("show-toast", { message: "❌ Error solicitando permiso: " + e, type: "error" });
+    }
+  }
+
   async function handleExportDB() {
     try {
       const dbFile = await invoke<string>("get_db_path");
@@ -510,6 +521,16 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                   </div>
                 </div>
               </div>
+
+              {#if isAndroid}
+                <div style="margin-top: 2rem; background: rgba(245,158,11,0.06); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(245,158,11,0.2);">
+                  <h4 style="margin: 0 0 0.5rem 0; color: #e2e8f0;">🔔 Notificaciones del sistema</h4>
+                  <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1rem;">Permite que la app muestre recordatorios de asistencia y avisos de sincronización. Si el aviso del primer inicio no apareció o denegaste el permiso, actívalo aquí.</p>
+                  <button onclick={pedirPermisoNotificaciones} style="padding: 0.7rem 1.2rem; border-radius: 10px; border: 1px solid rgba(245,158,11,0.35); background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer;">
+                    Activar notificaciones
+                  </button>
+                </div>
+              {/if}
             </div>
           </div>
         {/if}

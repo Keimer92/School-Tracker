@@ -110,8 +110,8 @@
       const hasData = await invoke('is_app_initialized');
       if (hasData) {
         await invoke('set_app_initialized');
-        await solicitarPermisoNotificaciones();
         emit('welcome-complete');
+        setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
       } else {
         // Nube vacía: continuar con el asistente de datos iniciales
         loading = false; loadingMessage = '';
@@ -128,6 +128,9 @@
   /** Pide el permiso POST_NOTIFICATIONS (Android 13+) en la primera ejecución. */
   async function solicitarPermisoNotificaciones() {
     if (!/Android/i.test(navigator.userAgent)) return;
+    // Solo pedir una vez por instalación (evita diálogos repetidos raros)
+    if (localStorage.getItem('stp_notif_permiso_pedido')) return;
+    localStorage.setItem('stp_notif_permiso_pedido', '1');
     try { await invoke('gd_request_notification_permission'); } catch (e) { console.error('Permiso notificaciones:', e); }
   }
 
@@ -259,8 +262,8 @@
       const hasData = await invoke('is_app_initialized');
       if (hasData) {
         await invoke('set_app_initialized');
-        await solicitarPermisoNotificaciones();
         emit('welcome-complete');
+        setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
       } else {
         errorMsg = 'Drive está vacío. Se usarán los datos por defecto.';
         setBackAuthInProgress(false);
@@ -299,8 +302,8 @@
         }
       });
       await invoke('set_app_initialized');
-      await solicitarPermisoNotificaciones();
       emit('welcome-complete');
+      setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
     } catch (e: any) {
       errorMsg = 'Error guardando datos: ' + (e?.message || e);
     }
