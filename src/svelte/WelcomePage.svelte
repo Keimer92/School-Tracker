@@ -1,12 +1,13 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
-  import { emit, listen } from "@tauri-apps/api/event";
+  import { emit } from "@tauri-apps/api/event";
   import { open as openDialog, ask } from "@tauri-apps/plugin-dialog";
   import { readTextFile } from "@tauri-apps/plugin-fs";
-  import { driveSyncService, syncManager, type DownloadProgress } from "../lib/driveSyncService";
+  import { syncManager, type DownloadProgress } from "../lib/driveSyncService";
   import { setBackAuthInProgress } from "../lib/androidBack";
   import { authWithGoogleIdToken, guardarTokenSesion, DEFAULT_WORKER_URL } from "../lib/cloudAuth";
+  import appIcon from "../assets/app-icon.png";
 
   let view: 'landing' | 'cloud' | 'wizard' = $state('landing');
   let step = $state(1);
@@ -44,10 +45,6 @@
     loading = false;
     loadingMessage = '';
     errorMsg = '';
-  }
-
-  async function goToDrive() {
-    await handleDriveConnect();
   }
 
   async function goToWizard() {
@@ -141,7 +138,7 @@
     if (!clientId) { errorMsg = 'Falta VITE_GOOGLE_CLIENT_ID en .env'; return; }
     loading = true;
     errorMsg = '';
-    cloudLoginActivo = true;
+    let driveAuthCode = '';
     try {
       let idToken = '';
       if (/Android/i.test(navigator.userAgent)) {
@@ -159,6 +156,8 @@
                 loading = false; loadingMessage = ''; return;
               }
               idToken = parsed.idToken || '';
+              // El sign-in nativo pide scope drive.file → reutilizamos el código para Drive
+              driveAuthCode = parsed.serverAuthCode || '';
               break;
             }
           } catch (e: any) {
@@ -170,10 +169,11 @@
           loading = false; loadingMessage = ''; return;
         }
       } else {
-        // Desktop: OAuth navegador con scopes openid/email/profile
+        // Desktop: OAuth navegador con openid + Drive (una sola consentición
+        // sirve para la nube Cloudflare Y para vincular Drive)
         setBackAuthInProgress(true);
         const redirectUri = 'http://localhost:51733/callback';
-        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent('openid email profile')}&prompt=select_account`;
+        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent('openid email profile https://www.googleapis.com/auth/drive.file')}&access_type=offline&prompt=consent`;
         loadingMessage = 'Esperando autenticación de Google...';
         const code = await invoke<string>('gd_open_auth_webview', { url: authUrl });
         setBackAuthInProgress(false);
@@ -194,6 +194,7 @@
         const tokenData = await tokenRes.json();
         idToken = tokenData.id_token || '';
         if (!idToken) throw new Error('Google no devolvió id_token');
+        guardarSesionDrive(clientId, tokenData);
       }
 
       loadingMessage = 'Ingresando a la nube...';
@@ -201,11 +202,16 @@
       guardarTokenSesion(idToken);
       loadingMessage = result.creado ? 'Cuenta creada. Preparando tu nube...' : 'Bienvenido de nuevo...';
       await conectarConCredenciales(DEFAULT_WORKER_URL, result.schoolKey);
+      // Nube conectada → vincular Drive con la misma cuenta (no bloquea)
+      if (/Android/i.test(navigator.userAgent)) {
+        if (driveAuthCode) { loadingMessage = 'Vinculando Google Drive...'; await vincularDriveAndroid(driveAuthCode); }
+      } else {
+        await emit("show-toast", { message: "☁️ Google Drive vinculado con la misma cuenta", type: "success" });
+      }
     } catch (e: any) {
       const errStr = typeof e === 'string' ? e : (e?.message || String(e));
       errorMsg = errStr.toLowerCase().includes('cancel') ? 'Autenticación cancelada' : errStr;
     }
-    cloudLoginActivo = false;
     loading = false;
     loadingMessage = '';
     setBackAuthInProgress(false);
@@ -220,157 +226,66 @@
     try { await invoke('gd_request_notification_permission'); } catch (e) { console.error('Permiso notificaciones:', e); }
   }
 
-  let authHandled = false;
-  /** True mientras el login Cloudflare usa el selector nativo: los listeners
-   *  del flujo Drive (evento google-native-auth-result / oauth-callback)
-   *  deben IGNORAR ese mismo resultado para no lanzar pullAll en paralelo. */
-  let cloudLoginActivo = false;
+  // ── Vinculación de Google Drive con la MISMA sesión del login Cloudflare ──
+  // No bloquea el flujo principal: si falla, solo queda Drive desconectado.
 
-  async function handleDriveConnect() {
-    loading = true;
-    loadingMessage = 'Conectando con Google Drive...';
-    errorMsg = '';
-    setBackAuthInProgress(true);
-    try {
-      const port = 51733;
-      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-      const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
-      if (!clientId || !clientSecret) {
-        errorMsg = 'VITE_GOOGLE_CLIENT_ID y VITE_GOOGLE_CLIENT_SECRET deben estar configurados en .env';
-        loading = false;
-        return;
-      }
-      if (/Android/i.test(navigator.userAgent)) {
-        // Selector nativo de cuentas: la app nunca pierde el primer plano
-        // (evita que Android congele el proceso y muera el TCP/deep-link)
-        setBackAuthInProgress(false);
-        try {
-          await invoke("gd_start_native_signin", { serverClientId: clientId });
-        } catch (e: any) {
-          errorMsg = 'Error: ' + (typeof e === 'string' ? e : e?.message || String(e));
-          loading = false;
-          return;
-        }
-        // Polling de respaldo: si una recarga del WebView perdió el evento,
-        // el resultado sigue disponible en MainActivity
-        const deadline = Date.now() + 180000;
-        let gotResult = false;
-        while (Date.now() < deadline) {
-          await new Promise((r) => setTimeout(r, 1000));
-          try {
-            const res = await invoke<string | null>("gd_take_last_native_result");
-            if (res) {
-              gotResult = true;
-              handleGoogleNativeResult(res);
-              break;
-            }
-          } catch (e) {
-            console.error('[NativePoll] invoke falló:', e);
-          }
-          if (authHandled) break;
-        }
-        if (!gotResult && !authHandled) {
-          loading = false;
-          loadingMessage = '';
-          errorMsg = 'Tiempo de espera agotado en el selector de Google';
-        }
-        return;
-      }
-      const redirectUri = `${/Android/i.test(navigator.userAgent) ? 'http://127.0.0.1' : 'http://localhost'}:${port}/callback`;
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent('https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile')}&access_type=offline&prompt=consent`;
-      const code = await invoke<string>("gd_open_auth_webview", { url: authUrl });
-      await finishDriveAuth(code, redirectUri);
-    } catch (e: any) {
-      if (!authHandled) {
-        const errStr = typeof e === 'string' ? e : (e?.message || String(e));
-        if (errStr.toLowerCase().includes('cancel')) {
-          errorMsg = 'Autenticación cancelada';
-        } else {
-          errorMsg = 'Error: ' + errStr;
-        }
-      }
-    }
-    loading = false;
-    loadingMessage = '';
-    setBackAuthInProgress(false);
-  }
-
-  async function finishDriveAuth(code: string, redirectUri: string) {
-    if (authHandled) return;
-    authHandled = true;
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-    const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
-    try {
-      const tokenController = new AbortController();
-      const tokenTimeout = setTimeout(() => tokenController.abort(), 30000);
-      let tokenResponse: Response;
-      try {
-        const params: Record<string, string> = {
-          client_id: clientId,
-          client_secret: clientSecret,
-          code,
-          grant_type: 'authorization_code',
-        };
-        if (redirectUri) params.redirect_uri = redirectUri;
-        tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams(params),
-          signal: tokenController.signal,
-        });
-      } finally {
-        clearTimeout(tokenTimeout);
-      }
-      if (!tokenResponse.ok) {
-        const errText = await tokenResponse.text();
-        console.error('[NativeAuth] /token falló:', tokenResponse.status, errText);
-        errorMsg = 'Error intercambiando código: ' + errText;
-        loading = false;
-        return;
-      }
-      const tokenData = await tokenResponse.json();
-
-      const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-        headers: { Authorization: `Bearer ${tokenData.access_token}` },
-      });
-      const userInfo = await userResponse.json();
-
-      const settings = {
+  function guardarSesionDrive(clientId: string, tokenData: any): void {
+    // userinfo se resuelve aparte para no bloquear si falla
+    fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    }).then(r => r.ok ? r.json() : {}).then((userInfo: any) => {
+      localStorage.setItem('schooltracker-google-drive-settings', JSON.stringify({
         clientId,
         accessToken: tokenData.access_token,
         refreshToken: tokenData.refresh_token || null,
-        tokenExpiry: Date.now() + (tokenData.expires_in * 1000),
+        tokenExpiry: Date.now() + ((tokenData.expires_in || 3600) * 1000),
         googleUserEmail: userInfo.email || null,
         googleUserName: userInfo.name || null,
         googleUserProfilePic: userInfo.picture || null,
-      };
-      localStorage.setItem('schooltracker-google-drive-settings', JSON.stringify(settings));
+      }));
+    }).catch((e) => console.error('[Drive] userinfo:', e));
+  }
 
-      loadingMessage = 'Descargando datos desde Google Drive...';
-      await driveSyncService.pullAll();
-      loadingMessage = 'Verificando datos...';
-      const hasData = await invoke('is_app_initialized');
-      if (hasData) {
-        await invoke('set_app_initialized');
-        emit('welcome-complete');
-        setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
-      } else {
-        errorMsg = 'Drive está vacío. Se usarán los datos por defecto.';
-        setBackAuthInProgress(false);
-        setTimeout(() => { loading = false; loadingMessage = ''; goToWizard(); }, 1500);
-        return;
-      }
-    } catch (e: any) {
-      const errStr = typeof e === 'string' ? e : (e?.message || String(e));
-      if (errStr.toLowerCase().includes('cancel')) {
-        errorMsg = 'Autenticación cancelada';
-      } else {
-        errorMsg = 'Error: ' + errStr;
-      }
+  /** Desktop: el mismo code del OAuth incluye drive.file → guarda la sesión Drive. */
+  async function vincularDriveDesktop(code: string) {
+    try {
+      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+      const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
+      const redirectUri = 'http://localhost:51733/callback';
+      const res = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, code, grant_type: 'authorization_code', redirect_uri: redirectUri }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      guardarSesionDrive(clientId, await res.json());
+      await emit("show-toast", { message: "☁️ Google Drive vinculado con la misma cuenta", type: "success" });
+    } catch (e) {
+      console.error('[Drive] vinculación desktop falló:', e);
     }
-    loading = false;
-    loadingMessage = '';
-    setBackAuthInProgress(false);
+  }
+
+  /** Android: el sign-in nativo ya pidió serverAuthCode con scope drive.file. */
+  async function vincularDriveAndroid(serverAuthCode: string) {
+    if (!serverAuthCode) return;
+    try {
+      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+      const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
+      const params: Record<string, string> = {
+        client_id: clientId, client_secret: clientSecret,
+        code: serverAuthCode, grant_type: 'authorization_code',
+      };
+      const res = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams(params),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      guardarSesionDrive(clientId, await res.json());
+      await emit("show-toast", { message: "☁️ Google Drive vinculado con la misma cuenta", type: "success" });
+    } catch (e) {
+      console.error('[Drive] vinculación android falló:', e);
+    }
   }
 
   async function handleWizardComplete() {
@@ -470,79 +385,8 @@
     ];
   }
 
-  // Respaldo: el código llega vía deep link (MainActivity emite 'oauth-callback-android'
-  // como CustomEvent en window y, si existe el global, vía event.emit de Tauri)
-  // cuando Android captura http://127.0.0.1:51733/callback?code=... mediante intent-filter.
-  async function handleNativeAuthCode(code: string) {
-    if (!code || authHandled || cloudLoginActivo) return;
-    authHandled = true;
-    invoke("gd_cancel_oauth").catch(() => {});
-    try {
-      await finishDriveAuth(code, "http://127.0.0.1:51733/callback");
-    } finally {
-      loading = false;
-      loadingMessage = "";
-      setBackAuthInProgress(false);
-    }
-  }
-
-  // Resultado del selector nativo de Google (MainActivity emite CustomEvent en window
-  // y, si existe el global, event.emit de Tauri con el mismo nombre).
-  function handleGoogleNativeResult(detail: unknown) {
-    if (cloudLoginActivo) return; // el resultado lo consume handleCloudLogin
-    let res: any = detail;
-    if (typeof res === 'string') {
-      try { res = JSON.parse(res); } catch (e) { console.error('[NativeResult] JSON inválido:', e); return; }
-    }
-    if (!res) return;
-    if (!res.ok) {
-      loading = false;
-      loadingMessage = '';
-      if (!res.cancelled) {
-        errorMsg = `Error de Google Sign-In (${res.statusCode ?? "?"}): ${res.error ?? ""}`;
-      }
-      return;
-    }
-    if (authHandled) return;
-    if (!res.serverAuthCode) {
-      loading = false;
-      errorMsg = 'Google no devolvió código de autorización';
-      return;
-    }
-    // NO marcar authHandled aquí: finishDriveAuth tiene su propio guard
-    // síncrono que deduplica contra el evento/polling duplicados.
-    finishDriveAuth(res.serverAuthCode, "");
-  }
-
   // Suscripción al progreso de descarga (todas las plataformas)
   onMount(() => syncManager.subscribe((s) => { downloadProgress = s.downloadProgress ?? null; }));
-
-  onMount(() => {
-    if (!/Android/i.test(navigator.userAgent)) return;
-    const nativeHandler = (e: Event) => {
-      const detail = (e as CustomEvent<string>).detail;
-      handleNativeAuthCode(detail ?? "");
-    };
-    let unsub: (() => void) | null = null;
-    listen<string>("oauth-callback-android", (event) => {
-      handleNativeAuthCode(event.payload);
-    }).then((u) => { unsub = u; }).catch(() => {});
-    window.addEventListener("oauth-callback-android", nativeHandler);
-    const googleResultHandler = (e: Event) => {
-      handleGoogleNativeResult((e as CustomEvent<unknown>).detail);
-    };
-    let unsubResult: (() => void) | null = null;
-    listen<unknown>("google-native-auth-result", (event) => {
-      handleGoogleNativeResult(event.payload);
-    }).then((u) => { unsubResult = u; }).catch(() => {});
-    window.addEventListener("google-native-auth-result", googleResultHandler);
-    return () => {
-      window.removeEventListener("oauth-callback-android", nativeHandler);
-      if (unsub) unsub();
-      window.removeEventListener("google-native-auth-result", googleResultHandler);
-      if (unsubResult) unsubResult();
-    };
-  });
 </script>
 
 <div class="welcome-page">
@@ -554,7 +398,7 @@
   {#if view === 'landing'}
     <div class="welcome-container">
       <div class="welcome-brand">
-        <div class="welcome-logo">📚</div>
+        <img class="welcome-logo" src={appIcon} alt="School Tracker Pro" draggable="false" />
         <h1 class="welcome-title">School Tracker Pro</h1>
         <p class="welcome-subtitle">Selecciona cómo quieres iniciar</p>
       </div>
@@ -564,14 +408,6 @@
           <div class="welcome-card-body">
             <h3>Continuar con Google</h3>
             <p>Crea tu cuenta o inicia sesión para sincronizar en la nube con tu propia base de datos privada.</p>
-          </div>
-          <div class="welcome-card-arrow">→</div>
-        </button>
-        <button class="welcome-card card-drive" onclick={goToDrive} disabled={loading}>
-          <div class="welcome-card-icon">☁️</div>
-          <div class="welcome-card-body">
-            <h3>Conectar con Google Drive</h3>
-            <p>Sincroniza tus datos entre dispositivos usando Google Drive.</p>
           </div>
           <div class="welcome-card-arrow">→</div>
         </button>
@@ -592,33 +428,6 @@
           <div class="welcome-card-arrow">→</div>
         </button>
       </div>
-      {#if loading}
-        <div class="welcome-loading">
-          {#if downloadProgress}
-            <div class="dl-progress-wrap">
-              <div class="dl-progress-bar">
-                <div class="dl-progress-fill" style="width: {downloadProgress.pct}%;"></div>
-              </div>
-              <p class="welcome-loading-text">
-                Descargando base de datos · {downloadProgress.pct}%
-                {#if downloadProgress.total > 0}
-                  · {fmtBytes(downloadProgress.loaded)} / {fmtBytes(downloadProgress.total)}
-                {:else}
-                  · {fmtBytes(downloadProgress.loaded)}
-                {/if}
-              </p>
-            </div>
-          {:else}
-            <div class="welcome-loading-bar">
-              <div class="welcome-loading-bar-inner"></div>
-            </div>
-          {/if}
-          <p class="welcome-loading-text">{loadingMessage}</p>
-          <button onclick={cancelAuth} style="margin-top:0.5rem;background:transparent;border:1px solid rgba(239,68,68,0.35);color:#f87171;padding:0.45rem 1.25rem;border-radius:8px;cursor:pointer;font-size:0.8rem;font-weight:600;transition:all 0.2s">
-            Cancelar
-          </button>
-        </div>
-      {/if}
       {#if errorMsg}
         <div class="welcome-error">{errorMsg}</div>
       {/if}
@@ -701,6 +510,38 @@
       </div>
     </div>
   {/if}
+
+  <!-- Modal emergente de progreso (login / sync / descarga) -->
+  {#if loading}
+    <div class="loading-overlay">
+      <div class="loading-modal">
+        {#if downloadProgress}
+          <div class="dl-progress-wrap">
+            <div class="dl-progress-bar">
+              <div class="dl-progress-fill" style="width: {downloadProgress.pct}%;"></div>
+            </div>
+            <p class="welcome-loading-text">
+              Descargando base de datos · {downloadProgress.pct}%
+              {#if downloadProgress.total > 0}
+                · {fmtBytes(downloadProgress.loaded)} / {fmtBytes(downloadProgress.total)}
+              {:else}
+                · {fmtBytes(downloadProgress.loaded)}
+              {/if}
+            </p>
+          </div>
+        {:else}
+          <div class="welcome-logo loading-spin">
+            <img src={appIcon} alt="" draggable="false" />
+          </div>
+          <div class="welcome-loading-bar">
+            <div class="welcome-loading-bar-inner"></div>
+          </div>
+        {/if}
+        <p class="welcome-loading-text">{loadingMessage}</p>
+        <button onclick={cancelAuth}>Cancelar</button>
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -732,13 +573,13 @@
   .wizard-container { max-width: 580px; }
   .welcome-brand { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
   .welcome-logo {
-    font-size: 3rem; width: 84px; height: 84px; display: flex; align-items: center; justify-content: center;
-    background: linear-gradient(135deg, rgba(59,130,246,0.18), rgba(139,92,246,0.12));
-    border-radius: 26px; border: 1px solid rgba(255,255,255,0.12);
-    backdrop-filter: blur(20px);
-    box-shadow: 0 12px 40px rgba(59,130,246,0.18), inset 0 1px 0 rgba(255,255,255,0.1);
+    width: 128px; height: 128px; display: flex; align-items: center; justify-content: center;
+    border-radius: 32px;
+    box-shadow: 0 18px 56px rgba(59,130,246,0.25), inset 0 1px 0 rgba(255,255,255,0.1);
     animation: floatY 6s ease-in-out infinite;
+    user-select: none; -webkit-user-drag: none;
   }
+  .welcome-logo img { width: 100%; height: 100%; object-fit: contain; border-radius: 32px; -webkit-user-drag: none; }
   @keyframes floatY { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
   .welcome-title {
     margin: 0; font-size: 2rem; font-weight: 700; letter-spacing: -0.5px;
@@ -821,6 +662,30 @@
   }
   .welcome-back:hover { background: rgba(255,255,255,0.08); color: #e2e8f0; }
   .welcome-loading { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+  /* Modal emergente de progreso */
+  .loading-overlay {
+    position: fixed; inset: 0; z-index: 100000;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.55); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    animation: overlayIn 0.2s ease;
+  }
+  @keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
+  .loading-modal {
+    width: min(360px, 88vw); padding: 1.75rem 1.5rem 1.4rem;
+    display: flex; flex-direction: column; align-items: center; gap: 0.9rem;
+    background: rgba(20,24,31,0.88); backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 22px;
+    box-shadow: 0 25px 60px -12px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+  .loading-spin { animation: floatY 2.6s ease-in-out infinite; width: 72px !important; height: 72px !important; border-radius: 18px !important; }
+  .loading-spin img { border-radius: 18px !important; }
+  .loading-modal button {
+    margin-top: 0.35rem; background: transparent;
+    border: 1px solid rgba(239,68,68,0.35); color: #f87171;
+    padding: 0.45rem 1.25rem; border-radius: 8px; cursor: pointer;
+    font-size: 0.8rem; font-weight: 600; transition: all 0.2s ease;
+  }
+  .loading-modal button:hover { background: rgba(239,68,68,0.08); }
   .welcome-loading-bar { width: 100%; max-width: 320px; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
   .welcome-loading-bar-inner { width: 100%; height: 100%; background: linear-gradient(90deg, var(--primary-color, #3b82f6), #a78bfa); border-radius: 2px; animation: loadingBar 1.5s ease-in-out infinite; }
   .welcome-loading-text { margin: 0; color: #64748b; font-size: 0.8rem; }
