@@ -1,5 +1,6 @@
 <script lang="ts">
   import CloudCards from './CloudCards.svelte';
+  import appIcon from '../assets/app-icon.png';
 
   export type Tab = "dashboard" | "notas" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "cloud";
 
@@ -37,7 +38,7 @@ setThemeMode: (mode: string) => void;
 >
   <div class="sidebar-header-integrated">
     <div class="mode-badge">
-      <span class="glow-icon-notas">📚</span>
+      <img class="sidebar-app-icon" src={appIcon} alt="School Tracker Pro" draggable="false" />
       <div class="mode-info">
         <span class="mode-label">SCHOOL</span>
         <div class="mode-name-line">

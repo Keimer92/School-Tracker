@@ -432,6 +432,28 @@ body {
   font-size: 1rem;
 }
 
+/* Icono real de la app en el sidebar/drawer */
+.sidebar-app-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Nombres de páginas más grandes en el drawer de Android */
+.sidebar.drawer .sidebar-button span:last-child {
+  font-size: 1.08rem;
+  font-weight: 600;
+}
+.sidebar.drawer .sidebar-button span:first-child {
+  font-size: 1.25rem;
+}
+.sidebar.drawer .sidebar-section-header {
+  font-size: 0.72rem;
+}
+
 .mode-info {
   display: flex;
   flex-direction: column;
@@ -776,6 +798,19 @@ body {
   color: var(--text-primary);
   font-weight: 600;
   font-size: 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.mobile-title-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
 .drawer-close-btn {

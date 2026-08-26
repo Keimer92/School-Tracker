@@ -9,6 +9,7 @@
   import { driveSyncService } from "./lib/driveSyncService";
   import { ensureWsSync, stopWsSync } from "./lib/wsSyncService";
   import { getLocalDateISOString } from "./lib/dateUtils";
+  import appIcon from "./assets/app-icon.png";
   import AsistenciaMainPage from "./svelte/asistencia/AsistenciaMainPage.svelte";
   import NotasMainPage from "./svelte/notas/NotasMainPage.svelte";
   import EvaluacionesPage from "./svelte/EvaluacionesPage.svelte";
@@ -390,7 +391,10 @@
   {#if isMobile}
       <div class="mobile-header">
         <button class="mobile-menu-btn {drawerOpen ? 'hidden' : ''}" onclick={toggleDrawer}><span>☰</span></button>
-        <span class="mobile-title">School Tracker</span>
+        <span class="mobile-title">
+          <img class="mobile-title-icon" src={appIcon} alt="" draggable="false" />
+          School Tracker
+        </span>
         <!-- Card/chip de nube a la derecha del título (tap → pestaña Nube) -->
         <button
           class="mobile-sync-chip"
