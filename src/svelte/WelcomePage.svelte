@@ -141,6 +141,7 @@
     if (!clientId) { errorMsg = 'Falta VITE_GOOGLE_CLIENT_ID en .env'; return; }
     loading = true;
     errorMsg = '';
+    cloudLoginActivo = true;
     try {
       let idToken = '';
       if (/Android/i.test(navigator.userAgent)) {
@@ -204,6 +205,7 @@
       const errStr = typeof e === 'string' ? e : (e?.message || String(e));
       errorMsg = errStr.toLowerCase().includes('cancel') ? 'Autenticación cancelada' : errStr;
     }
+    cloudLoginActivo = false;
     loading = false;
     loadingMessage = '';
     setBackAuthInProgress(false);
@@ -219,6 +221,10 @@
   }
 
   let authHandled = false;
+  /** True mientras el login Cloudflare usa el selector nativo: los listeners
+   *  del flujo Drive (evento google-native-auth-result / oauth-callback)
+   *  deben IGNORAR ese mismo resultado para no lanzar pullAll en paralelo. */
+  let cloudLoginActivo = false;
 
   async function handleDriveConnect() {
     loading = true;
@@ -468,7 +474,7 @@
   // como CustomEvent en window y, si existe el global, vía event.emit de Tauri)
   // cuando Android captura http://127.0.0.1:51733/callback?code=... mediante intent-filter.
   async function handleNativeAuthCode(code: string) {
-    if (!code || authHandled) return;
+    if (!code || authHandled || cloudLoginActivo) return;
     authHandled = true;
     invoke("gd_cancel_oauth").catch(() => {});
     try {
@@ -483,6 +489,7 @@
   // Resultado del selector nativo de Google (MainActivity emite CustomEvent en window
   // y, si existe el global, event.emit de Tauri con el mismo nombre).
   function handleGoogleNativeResult(detail: unknown) {
+    if (cloudLoginActivo) return; // el resultado lo consume handleCloudLogin
     let res: any = detail;
     if (typeof res === 'string') {
       try { res = JSON.parse(res); } catch (e) { console.error('[NativeResult] JSON inválido:', e); return; }
