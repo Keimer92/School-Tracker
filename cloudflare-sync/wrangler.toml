@@ -7,6 +7,11 @@ compatibility_date = "2026-07-01"
 binding = "SCHOOL_ROUTING"
 id = "6114e848035443e395b739218cc6f506"
 
+# Registro/login de usuarios (email -> schoolKey, perfil, rol)
+[[kv_namespaces]]
+binding = "USERS"
+id = "a4ebcfe59f9e4e5f8fa905397b9390e6"
+
 # D1 de la escuela "nube" (única base compartida por todos los dispositivos).
 # Env.DB.batch() permite agrupar ~100 sentencias en UN subrequest, evitando el
 # límite de 1000 subrequests por invocación del plan gratuito de Workers.
@@ -19,6 +24,11 @@ database_id = "8b768a8e-88eb-4f82-a131-3989d62f953b"
 # Account ID de Cloudflare (cuenta de pedroluisnfc@gmail.com)
 # El secret CF_API_TOKEN se define con: wrangler secret put CF_API_TOKEN
 CF_ACCOUNT_ID = "ec285834428c30f51d6f92a67848d5d5"
+# -- Login con Google (verificación de ID tokens) --------------------
+GOOGLE_CLIENT_ID = "495262715252-gd84mfbdqg8b32h4ppplfal50m772v8t.apps.googleusercontent.com"
+# Emails administradores (separados por coma). El primer admin que hace
+# login reclama todas las filas legacy (sk NULL) como propias.
+ADMIN_EMAILS = "pedroluisnfc@gmail.com"
 # -- Push en tiempo real ---------------------------------------------
 # Hub de WebSockets por colegio. DO con backend SQLite = disponible en plan gratuito.
 [durable_objects]

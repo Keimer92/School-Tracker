@@ -389,6 +389,8 @@ class MainActivity : TauriActivity() {
         .requestEmail()
         .requestScopes(Scope("https://www.googleapis.com/auth/drive.file"))
         .requestServerAuthCode(serverClientId)
+        // idToken para el login/registro del sync Cloudflare (POST /auth)
+        .requestIdToken(serverClientId)
         .build()
       val client = GoogleSignIn.getClient(this, gso)
       googleSignInLauncher.launch(client.signInIntent)
@@ -406,6 +408,7 @@ class MainActivity : TauriActivity() {
       val json = JSONObject().apply {
         put("ok", true)
         put("serverAuthCode", account.serverAuthCode ?: "")
+        put("idToken", account.idToken ?: "")
         put("email", account.email ?: "")
         put("displayName", account.displayName ?: "")
         account.photoUrl?.let { put("photoUrl", it.toString()) }

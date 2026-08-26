@@ -6,6 +6,7 @@
   import { readTextFile } from "@tauri-apps/plugin-fs";
   import { driveSyncService, syncManager, type DownloadProgress } from "../lib/driveSyncService";
   import { setBackAuthInProgress } from "../lib/androidBack";
+  import { authWithGoogleIdToken, guardarTokenSesion, DEFAULT_WORKER_URL } from "../lib/cloudAuth";
 
   let view: 'landing' | 'cloud' | 'wizard' = $state('landing');
   let step = $state(1);
@@ -64,6 +65,45 @@
   }
 
   /**
+   * Flujo común tras obtener credenciales (por .key o por login Google):
+   * guarda la config en d1_config (protección anti-mezcla) y sincroniza.
+   */
+  async function conectarConCredenciales(workerUrl: string, schoolKey: string) {
+    // Si ya existía una conexión con OTRAS credenciales, reemplazar limpio
+    const previa = await invoke<any>('d1_get_config');
+    if (previa && (previa.workerUrl !== workerUrl || previa.schoolKey !== schoolKey)) {
+      const ok = await ask(
+        'Ya existe una conexión a la nube con OTRAS credenciales.\n\n¿Reemplazarla? Se generará un nuevo ID de dispositivo y los datos locales se sincronizarán con la nube nueva.',
+        { title: 'Reemplazar conexión', kind: 'warning', okLabel: 'Sí, reemplazar', cancelLabel: 'Cancelar' }
+      );
+      if (!ok) { loading = false; loadingMessage = ''; return; }
+      await invoke('d1_clear_config');
+    }
+    await invoke('d1_save_config', { workerUrl, schoolKey });
+    loadingMessage = 'Sincronizando con la nube...';
+    try {
+      await invoke('d1_sync_all');
+    } catch (syncErr) {
+      console.error('[Cloud] primer sync falló:', syncErr);
+      errorMsg = 'No se pudo sincronizar con el Worker. Verifica tu conexión.';
+      loading = false; loadingMessage = '';
+      return;
+    }
+    loadingMessage = 'Verificando datos...';
+    const hasData = await invoke('is_app_initialized');
+    if (hasData) {
+      await invoke('set_app_initialized');
+      emit('welcome-complete');
+      setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
+    } else {
+      loading = false; loadingMessage = '';
+      goToWizard();
+    }
+    loading = false;
+    loadingMessage = '';
+  }
+
+  /**
    * Importa un archivo .key (exportado desde otro dispositivo en CloudPage)
    * con {workerUrl, schoolKey}. Los valores pasan una sola vez a Rust y quedan
    * guardados SOLO en la BD local (d1_config), nunca en localStorage/bundle.
@@ -83,46 +123,90 @@
       let cfg: any;
       try { cfg = JSON.parse(txt); } catch { throw new Error('El archivo no es un .key válido'); }
       if (!cfg.workerUrl || !cfg.schoolKey) throw new Error('El archivo no contiene workerUrl/schoolKey');
-      // Si ya existía una conexión con OTRAS credenciales (p. ej. BD restaurada
-      // desde Drive que trae su propia d1_config), reemplazar limpio para no
-      // mezclar datos de una nube con otra: nuevo device_id + cursores en cero.
-      const previa = await invoke<any>('d1_get_config');
-      if (previa && (previa.workerUrl !== cfg.workerUrl || previa.schoolKey !== cfg.schoolKey)) {
-        const ok = await ask(
-          'Ya existe una conexión a la nube con OTRAS credenciales.\n\n¿Reemplazarla? Se generará un nuevo ID de dispositivo y los datos locales se sincronizarán con la nube nueva.',
-          { title: 'Reemplazar conexión', kind: 'warning', okLabel: 'Sí, reemplazar', cancelLabel: 'Cancelar' }
-        );
-        if (!ok) { loading = false; loadingMessage = ''; return; }
-        await invoke('d1_clear_config');
-      }
-      // Guardar solo en SQLite (d1_config) — el frontend no retiene los valores
-      await invoke('d1_save_config', { workerUrl: cfg.workerUrl, schoolKey: cfg.schoolKey });
-      loadingMessage = 'Sincronizando con la nube...';
-      try {
-        await invoke('d1_sync_all');
-      } catch (syncErr) {
-        console.error('[Import] primer sync falló:', syncErr);
-        errorMsg = 'No se pudo sincronizar con el Worker. Verifica tu conexión.';
-        loading = false; loadingMessage = '';
-        return;
-      }
-      loadingMessage = 'Verificando datos...';
-      const hasData = await invoke('is_app_initialized');
-      if (hasData) {
-        await invoke('set_app_initialized');
-        emit('welcome-complete');
-        setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
-      } else {
-        // Nube vacía: continuar con el asistente de datos iniciales
-        loading = false; loadingMessage = '';
-        goToWizard();
-        return;
-      }
+      await conectarConCredenciales(cfg.workerUrl, cfg.schoolKey);
     } catch (e: any) {
       errorMsg = 'Error importando conexión: ' + (typeof e === 'string' ? e : e?.message || String(e));
     }
     loading = false;
     loadingMessage = '';
+  }
+
+  /**
+   * LOGIN/REGISTRO con Google para el sync Cloudflare.
+   * Android: selector nativo (idToken vía JNI). Desktop: OAuth navegador
+   * reutilizando el webview/servidor local de Drive (scopes openid).
+   */
+  async function handleCloudLogin() {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+    if (!clientId) { errorMsg = 'Falta VITE_GOOGLE_CLIENT_ID en .env'; return; }
+    loading = true;
+    errorMsg = '';
+    try {
+      let idToken = '';
+      if (/Android/i.test(navigator.userAgent)) {
+        loadingMessage = 'Abriendo Google Sign-In...';
+        await invoke('gd_start_native_signin', { serverClientId: clientId });
+        const deadline = Date.now() + 180000;
+        while (Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 1000));
+          try {
+            const res = await invoke<string | null>('gd_take_last_native_result');
+            if (res) {
+              const parsed: any = typeof res === 'string' ? JSON.parse(res) : res;
+              if (!parsed.ok) {
+                if (!parsed.cancelled) throw new Error(`Google Sign-In (${parsed.statusCode ?? '?' }): ${parsed.error ?? ''}`);
+                loading = false; loadingMessage = ''; return;
+              }
+              idToken = parsed.idToken || '';
+              break;
+            }
+          } catch (e: any) {
+            if (typeof e === 'object' && e?.message?.includes('Sign-In')) throw e;
+          }
+        }
+        if (!idToken) {
+          if (!errorMsg) errorMsg = 'No se obtuvo el token de Google';
+          loading = false; loadingMessage = ''; return;
+        }
+      } else {
+        // Desktop: OAuth navegador con scopes openid/email/profile
+        setBackAuthInProgress(true);
+        const redirectUri = 'http://localhost:51733/callback';
+        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent('openid email profile')}&prompt=select_account`;
+        loadingMessage = 'Esperando autenticación de Google...';
+        const code = await invoke<string>('gd_open_auth_webview', { url: authUrl });
+        setBackAuthInProgress(false);
+        loadingMessage = 'Verificando identidad...';
+        const params: Record<string, string> = {
+          client_id: clientId,
+          client_secret: import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '',
+          code,
+          grant_type: 'authorization_code',
+          redirect_uri: redirectUri,
+        };
+        const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams(params),
+        });
+        if (!tokenRes.ok) throw new Error('Error intercambiando código: ' + (await tokenRes.text()));
+        const tokenData = await tokenRes.json();
+        idToken = tokenData.id_token || '';
+        if (!idToken) throw new Error('Google no devolvió id_token');
+      }
+
+      loadingMessage = 'Ingresando a la nube...';
+      const result = await authWithGoogleIdToken(idToken);
+      guardarTokenSesion(idToken);
+      loadingMessage = result.creado ? 'Cuenta creada. Preparando tu nube...' : 'Bienvenido de nuevo...';
+      await conectarConCredenciales(DEFAULT_WORKER_URL, result.schoolKey);
+    } catch (e: any) {
+      const errStr = typeof e === 'string' ? e : (e?.message || String(e));
+      errorMsg = errStr.toLowerCase().includes('cancel') ? 'Autenticación cancelada' : errStr;
+    }
+    loading = false;
+    loadingMessage = '';
+    setBackAuthInProgress(false);
   }
 
   /** Pide el permiso POST_NOTIFICATIONS (Android 13+) en la primera ejecución. */
@@ -468,6 +552,14 @@
         <p class="welcome-subtitle">Selecciona cómo quieres iniciar</p>
       </div>
       <div class="welcome-cards">
+        <button class="welcome-card card-google" onclick={handleCloudLogin} disabled={loading}>
+          <div class="welcome-card-icon">🔐</div>
+          <div class="welcome-card-body">
+            <h3>Continuar con Google</h3>
+            <p>Crea tu cuenta o inicia sesión para sincronizar en la nube con tu propia base de datos privada.</p>
+          </div>
+          <div class="welcome-card-arrow">→</div>
+        </button>
         <button class="welcome-card card-drive" onclick={goToDrive} disabled={loading}>
           <div class="welcome-card-icon">☁️</div>
           <div class="welcome-card-body">
@@ -666,6 +758,7 @@
     background: linear-gradient(180deg, var(--accent-from, #3b82f6), var(--accent-to, #8b5cf6));
   }
   .card-drive { --accent-from: #38bdf8; --accent-to: #2563eb; }
+  .card-google { --accent-from: #34a853; --accent-to: #1a73e8; }
   .card-manual { --accent-from: #a78bfa; --accent-to: #7c3aed; }
   .welcome-card:hover:not(:disabled) {
     border-color: rgba(255,255,255,0.16);

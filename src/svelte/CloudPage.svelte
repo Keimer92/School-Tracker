@@ -11,6 +11,78 @@
   import { registerBackHandler, setBackAuthInProgress } from "../lib/androidBack";
   import { save as saveDialog, open as openDialog } from "@tauri-apps/plugin-dialog";
   import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
+  import { ask } from "@tauri-apps/plugin-dialog";
+  import {
+    getPerfilLocal, clearPerfilLocal, getAuthToken, authTokenExpirado,
+    fetchAdminUsers, suspendUser, deleteUserData,
+    type CloudPerfil, type AdminUserInfo,
+  } from "../lib/cloudAuth";
+
+  // ── Perfil de la cuenta Google (login cloud) ──
+  let perfil: CloudPerfil | null = $state(getPerfilLocal());
+
+  function cerrarSesionCloud() {
+    clearPerfilLocal();
+    perfil = null;
+    adminUsers = [];
+    showAdminPanel = false;
+    emit("show-toast", { message: "👋 Sesión cerrada (la nube y tus datos permanecen intactos)", type: "info" });
+  }
+
+  // ── Panel de administración (solo rol admin) ──
+  let showAdminPanel = $state(false);
+  let adminUsers: AdminUserInfo[] = $state([]);
+  let adminLoading = $state(false);
+  let adminActionBusy = $state(false);
+
+  async function cargarUsuarios() {
+    const token = getAuthToken();
+    if (!token) { await emit("show-toast", { message: "⚠️ Inicia sesión con Google para administrar usuarios", type: "warning" }); return; }
+    if (authTokenExpirado(token)) {
+      await emit("show-toast", { message: "⏰ Tu sesión expiró. Vuelve a iniciar sesión con Google (desconecta y reconecta).", type: "warning" });
+      return;
+    }
+    adminLoading = true;
+    try {
+      const d1c = await invoke<any>("d1_get_config");
+      const workerUrl = d1c?.workerUrl || undefined;
+      adminUsers = await fetchAdminUsers(workerUrl);
+    } catch (e) {
+      await emit("show-toast", { message: "❌ Error cargando usuarios: " + e, type: "error" });
+    } finally { adminLoading = false; }
+  }
+
+  async function toggleSuspend(u: AdminUserInfo) {
+    const accion = u.suspendido ? "restaurar el acceso de" : "suspender a";
+    const ok = await ask(`¿Seguro que deseas ${accion} "${u.nombre}" (${u.email})?${u.suspendido ? "" : "\n\nNo podrá sincronizar hasta que lo restaures. Sus datos NO se borran."}`, {
+      title: u.suspendido ? "Restaurar usuario" : "Suspender usuario",
+      kind: "warning", okLabel: u.suspendido ? "Restaurar" : "Suspender", cancelLabel: "Cancelar",
+    });
+    if (!ok) return;
+    adminActionBusy = true;
+    try {
+      await suspendUser(u.email, !u.suspendido);
+      u.suspendido = !u.suspendido;
+      adminUsers = [...adminUsers];
+      await emit("show-toast", { message: u.suspendido ? "🚫 Acceso suspendido" : "✅ Acceso restaurado", type: "success" });
+    } catch (e) {
+      await emit("show-toast", { message: "❌ Error: " + e, type: "error" });
+    } finally { adminActionBusy = false; }
+  }
+
+  async function purgarDatos(u: AdminUserInfo) {
+    const ok = await ask(`⚠️ ¿ELIMINAR TODOS LOS DATOS en la nube de "${u.nombre}" (${u.email})?\n\nEsta acción es PERMANENTE e IRREVERSIBLE. Los datos locales de sus dispositivos NO se tocan, pero se borrarán al intentar sincronizar.`, {
+      title: "Eliminar base de datos del usuario", kind: "warning", okLabel: "Eliminar todo", cancelLabel: "Cancelar",
+    });
+    if (!ok) return;
+    adminActionBusy = true;
+    try {
+      const n = await deleteUserData(u.email);
+      await emit("show-toast", { message: `🗑️ ${n} filas eliminadas de la nube para ${u.email}`, type: "success" });
+    } catch (e) {
+      await emit("show-toast", { message: "❌ Error: " + e, type: "error" });
+    } finally { adminActionBusy = false; }
+  }
 
   const DEFAULT_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
   const STORAGE_KEY = 'schooltracker-google-drive-settings';
@@ -540,6 +612,72 @@
 </script>
 
 <div class="cloud-page">
+  <!-- Perfil de la cuenta + panel admin -->
+  {#if perfil}
+    <div class="cloud-card" style="margin-bottom: 1.25rem;">
+      <div style="padding: 1.1rem 1.5rem; display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap;">
+        {#if perfil.foto}
+          <img src={perfil.foto} alt="" referrerpolicy="no-referrer"
+            style="width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.15); object-fit: cover;" />
+        {:else}
+          <div style="width:44px;height:44px;border-radius:50%;background:rgba(52,168,83,0.15);border:2px solid rgba(52,168,83,0.3);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">👤</div>
+        {/if}
+        <div style="flex:1;min-width:140px;">
+          <div style="color:#f1f5f9;font-weight:700;font-size:0.95rem;display:flex;align-items:center;gap:6px;">
+            {perfil.nombre}
+            {#if perfil.rol === 'admin'}<span style="font-size:0.6rem;background:rgba(245,158,11,0.15);color:#fbbf24;padding:0.1rem 0.4rem;border-radius:4px;text-transform:uppercase;font-weight:800;">Admin</span>{/if}
+          </div>
+          <div style="color:#94a3b8;font-size:0.78rem;">{perfil.email}</div>
+        </div>
+        <button onclick={cerrarSesionCloud} style="padding: 0.4rem 0.85rem; border-radius: 8px; border: 1px solid rgba(239,68,68,0.25); background: rgba(239,68,68,0.08); color: #fca5a5; cursor: pointer; font-size: 0.75rem; font-weight: 600;">Cerrar sesión</button>
+      </div>
+      {#if perfil.rol === 'admin'}
+        <div style="padding: 0 1.5rem 1.1rem;">
+          <button onclick={() => { showAdminPanel = !showAdminPanel; if (showAdminPanel && adminUsers.length === 0) cargarUsuarios(); }}
+            style="width:100%;padding:0.55rem 1rem;border-radius:10px;border:1px solid rgba(245,158,11,0.25);background:rgba(245,158,11,0.07);color:#fbbf24;cursor:pointer;font-size:0.8rem;font-weight:600;">
+            🛡️ Panel de administración {showAdminPanel ? '▲' : '▼'}
+          </button>
+          {#if showAdminPanel}
+            <div style="margin-top:0.75rem;padding:0.9rem;background:rgba(0,0,0,0.2);border-radius:12px;">
+              {#if adminLoading}
+                <p style="color:#94a3b8;font-size:0.8rem;margin:0.4rem;">Cargando usuarios...</p>
+              {:else if adminUsers.length === 0}
+                <p style="color:#64748b;font-size:0.8rem;margin:0.4rem;">Sin usuarios registrados aún.</p>
+              {:else}
+                {#each adminUsers as u (u.email)}
+                  <div style="display:flex;align-items:center;gap:0.6rem;padding:0.55rem 0.35rem;border-bottom:1px solid rgba(255,255,255,0.05);">
+                    {#if u.foto}
+                      <img src={u.foto} alt="" referrerpolicy="no-referrer" style="width:30px;height:30px;border-radius:50%;object-fit:cover;" />
+                    {:else}
+                      <div style="width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-size:0.9rem;">👤</div>
+                    {/if}
+                    <div style="flex:1;min-width:0;">
+                      <div style="color:#e2e8f0;font-size:0.8rem;font-weight:600;{u.suspendido ? 'text-decoration:line-through;opacity:0.6;' : ''}">{u.nombre}{u.rol === 'admin' ? ' · admin' : ''}</div>
+                      <div style="color:#64748b;font-size:0.68rem;">{u.email} · alta {u.creado?.slice(0, 10)}</div>
+                    </div>
+                    {#if u.rol !== 'admin'}
+                      <button onclick={() => toggleSuspend(u)} disabled={adminActionBusy}
+                        style="padding:0.3rem 0.6rem;border-radius:7px;border:1px solid {u.suspendido ? 'rgba(34,197,94,0.3)' : 'rgba(245,158,11,0.3)'};background:{u.suspendido ? 'rgba(34,197,94,0.1)' : 'rgba(245,158,11,0.1)'};color:{u.suspendido ? '#4ade80' : '#fbbf24'};cursor:pointer;font-size:0.65rem;font-weight:600;">
+                        {u.suspendido ? 'Restaurar' : 'Suspender'}
+                      </button>
+                      <button onclick={() => purgarDatos(u)} disabled={adminActionBusy}
+                        style="padding:0.3rem 0.6rem;border-radius:7px;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.1);color:#fca5a5;cursor:pointer;font-size:0.65rem;font-weight:600;">
+                        🗑 Datos
+                      </button>
+                    {/if}
+                  </div>
+                {/each}
+              {/if}
+              <button onclick={cargarUsuarios} disabled={adminLoading} style="margin-top:0.6rem;padding:0.4rem 0.8rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:#cbd5e1;cursor:pointer;font-size:0.72rem;font-weight:600;">
+                {adminLoading ? 'Cargando...' : '🔄 Recargar lista'}
+              </button>
+            </div>
+          {/if}
+        </div>
+      {/if}
+    </div>
+  {/if}
+
   <div class="cloud-card" style="margin-bottom: 1.25rem;">
     <div class="cloud-card-header" style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
       <h3>

@@ -1,42 +1,40 @@
 /**
  * School Tracker Pro — Cloudflare D1 Sync Worker
  *
- * API multi-colegio (un D1 por colegio):
+ * API multi-usuario (un namespace `sk` por usuario dentro de una sola D1):
  *   GET  /hello            -> test de conexión
- *   POST /push             -> { since, deviceId, data: { [tabla]: [fila...] }, deletions: [{ tabla, pk: [..] }] }
+ *   POST /push             -> { since, deviceId, data, deletions }
  *   POST /pull             -> { since, deviceId }  =>  { rows, deleted }
- *   POST /ids              -> { deviceId, blocks: { [tabla]: cantidad } } => { blocks: { [tabla]: { start, end } } }
+ *   POST /ids              -> reserva de bloques de ids
+ *   POST /auth             -> { idToken } (Google) => login/registro + schoolKey
+ *   POST /admin/users      -> lista de usuarios (solo admin)
+ *   POST /admin/suspend    -> revoca acceso de un usuario (datos quedan)
+ *   POST /admin/delete-data-> purga TODOS los datos de un usuario
  *
- * Ruteo: header `X-School-Key` -> KV SCHOOL_ROUTING -> database_id de la D1 del colegio.
- *
- * IMPORTANTE (D1 binding vs REST): el acceso se hace con el binding D1 (`env.DB`),
- * NO con la REST API `/query`. La REST no acepta arrays de sentencias y cada llamada
- * cuenta como UN subrequest del Worker; con el seed completo se superaba el límite de
- * 1000 subrequests por invocación del plan gratuito ("Too many subrequests by single
- * Worker invocation"). `env.DB.batch()` ejecuta hasta ~100 sentencias en un solo
- * subrequest (y atómicamente).
+ * Ruteo: header `X-School-Key` -> KV SCHOOL_ROUTING -> database_id.
+ * Aislamiento: TODA fila lleva columna `sk` = hash corto del school key;
+ * push/pull/deletes/tombstones se filtran por ese namespace.
  */
 
 export interface Env {
   CF_ACCOUNT_ID: string;
   CF_API_TOKEN: string;
   SCHOOL_ROUTING: KVNamespace;
+  USERS: KVNamespace;
   DB: D1Database;
   SYNC_HUB: DurableObjectNamespace;
+  GOOGLE_CLIENT_ID: string;
+  ADMIN_EMAILS: string; // lista separada por comas
 }
 
 /**
  * Hub de WebSockets por colegio (una instancia por school key).
- * Los dispositivos abren /ws y reciben `{type:'changes', from}` cuando otro
- * dispositivo aplica cambios vía /push. Usa la API de hibernación: las
- * conexiones idle NO consumen duración del DO.
  */
 export class SyncHub {
   private state: DurableObjectState;
 
   constructor(state: DurableObjectState, _env: Env) {
     this.state = state;
-    // Responder pings del cliente sin despertar el DO (mantener viva la conexión)
     try {
       this.state.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));
     } catch {}
@@ -45,14 +43,12 @@ export class SyncHub {
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url);
 
-    // Upgrade de WebSocket (lo invoca el worker principal reenviando /ws)
     if (url.pathname === '/connect') {
       const pair = new WebSocketPair();
       this.state.acceptWebSocket(pair[1]);
       return new Response(null, { status: 101, webSocket: pair[0] });
     }
 
-    // Notificar a todos los sockets conectados
     if (url.pathname === '/broadcast') {
       const body: any = await req.json().catch(() => ({}));
       const msg = JSON.stringify({ type: 'changes', from: body.from || '', ts: Date.now() });
@@ -145,26 +141,31 @@ const TABLES: Record<string, { pk: string[]; cols: string[] }> = {
 
 const VALID_TABLES = new Set(Object.keys(TABLES));
 
-// ── Auto-migración ligera: garantizar columnas nuevas una vez por isolate.
-// Evita depender de `wrangler d1 execute --remote` (token CLI a veces sin
-// permisos de escritura D1). Los ALTER fallan silenciosamente si ya existen.
+// ── Hash corto del school key → namespace de filas (`sk`) ──
+async function skOf(schoolKey: string): Promise<string> {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(schoolKey));
+  return Array.from(new Uint8Array(buf)).slice(0, 8).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ── Auto-migración ligera ──
 let schemaReady = false;
 async function ensureSchema(env: Env): Promise<void> {
   if (schemaReady) return;
-  // ── Esquema completo: crea TODAS las tablas sincronizables si la base D1
-  // es nueva. En bases existentes los CREATE IF NOT EXISTS no hacen nada.
+  // NOTA: sin UNIQUE globales en nombre/codigo — con múltiples usuarios en una
+  // sola D1 cada usuario necesita sus propias claves de negocio. Las tablas ya
+  // existentes con UNIQUE se reconstruyen una vez vía deUniqueTables().
   const schemaStmts = [
-    `CREATE TABLE IF NOT EXISTS ano_lectivo (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, updated_at TEXT)`,
-    `CREATE TABLE IF NOT EXISTS corte_evaluativo (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, updated_at TEXT)`,
-    `CREATE TABLE IF NOT EXISTS colegio (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT UNIQUE, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, orden INTEGER, updated_at TEXT)`,
-    `CREATE TABLE IF NOT EXISTS asignatura (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT UNIQUE, cualitativo INTEGER DEFAULT 0, updated_at TEXT)`,
-    `CREATE TABLE IF NOT EXISTS grado (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT UNIQUE, cualitativo INTEGER DEFAULT 0, updated_at TEXT)`,
-    `CREATE TABLE IF NOT EXISTS seccion (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT UNIQUE, cualitativo INTEGER DEFAULT 0, updated_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS ano_lectivo (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, updated_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS corte_evaluativo (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, updated_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS colegio (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, orden INTEGER, updated_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS asignatura (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, cualitativo INTEGER DEFAULT 0, updated_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS grado (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, cualitativo INTEGER DEFAULT 0, updated_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS seccion (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, cualitativo INTEGER DEFAULT 0, updated_at TEXT)`,
     `CREATE TABLE IF NOT EXISTS grado_asignatura (grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, updated_at TEXT, PRIMARY KEY (grado_id, asignatura_id))`,
     `CREATE TABLE IF NOT EXISTS colegio_asignatura (colegio_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, updated_at TEXT, PRIMARY KEY (colegio_id, asignatura_id))`,
     `CREATE TABLE IF NOT EXISTS indicador (id INTEGER PRIMARY KEY AUTOINCREMENT, grado_id INTEGER, asignatura_id INTEGER, corte_evaluativo_id INTEGER, orden INTEGER, descripcion TEXT DEFAULT '', activo INTEGER DEFAULT 1, instrumento TEXT, updated_at TEXT)`,
     `CREATE TABLE IF NOT EXISTS criterio (id INTEGER PRIMARY KEY AUTOINCREMENT, indicador_id INTEGER, orden INTEGER, descripcion TEXT DEFAULT '', puntaje_maximo INTEGER, updated_at TEXT)`,
-    `CREATE TABLE IF NOT EXISTS estudiante (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, codigo TEXT UNIQUE, sexo TEXT, ano_lectivo_id INTEGER, grado_id INTEGER, seccion_id INTEGER, colegio_id INTEGER, telefono TEXT, direccion TEXT, email TEXT, foto TEXT, updated_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS estudiante (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, codigo TEXT, sexo TEXT, ano_lectivo_id INTEGER, grado_id INTEGER, seccion_id INTEGER, colegio_id INTEGER, telefono TEXT, direccion TEXT, email TEXT, foto TEXT, updated_at TEXT)`,
     `CREATE TABLE IF NOT EXISTS configuracion_calificacion (id TEXT PRIMARY KEY, nombre TEXT, color TEXT, minimo INTEGER, updated_at TEXT)`,
     `CREATE TABLE IF NOT EXISTS multiplicador_calificacion (id TEXT PRIMARY KEY, multiplicador REAL, updated_at TEXT)`,
     `CREATE TABLE IF NOT EXISTS colegio_dias_asistencia (colegio_id INTEGER PRIMARY KEY, lunes INTEGER DEFAULT 1, martes INTEGER DEFAULT 1, miercoles INTEGER DEFAULT 1, jueves INTEGER DEFAULT 1, viernes INTEGER DEFAULT 1, sabado INTEGER DEFAULT 1, domingo INTEGER DEFAULT 1, updated_at TEXT)`,
@@ -175,20 +176,10 @@ async function ensureSchema(env: Env): Promise<void> {
       pk TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       device_id TEXT,
-      PRIMARY KEY (tabla, pk)
+      sk TEXT DEFAULT '',
+      PRIMARY KEY (tabla, pk, sk)
     )`,
-  ];
-  // Reshape de dia_sin_clases: versión antigua sin grado_id se recrea (datos de prueba)
-  try {
-    const dscCols = await queryRows(env.DB, "SELECT name FROM pragma_table_info('dia_sin_clases')");
-    if (dscCols.length > 0 && !dscCols.some((c: any) => c.name === 'grado_id')) {
-      await env.DB.prepare("DROP TABLE dia_sin_clases").run();
-    }
-  } catch { /* tabla no existe aún */ }
-  const stmts = [
-    ...schemaStmts,
-    // Días sin clases (feriados / sin actividad), por colegio o por sección DE un grado
-    // (device_id es interno del mecanismo de sync: se agrega a todas las tablas)
+    `CREATE TABLE IF NOT EXISTS sync_metadata (key TEXT PRIMARY KEY, value INTEGER NOT NULL DEFAULT 0)`,
     `CREATE TABLE IF NOT EXISTS dia_sin_clases (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       colegio_id INTEGER NOT NULL,
@@ -202,9 +193,45 @@ async function ensureSchema(env: Env): Promise<void> {
     "ALTER TABLE dia_sin_clases ADD COLUMN device_id TEXT",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_dia_sin_clases_unica ON dia_sin_clases(colegio_id, IFNULL(grado_id, 0), IFNULL(seccion_id, 0), fecha)",
   ];
+  const stmts = [...schemaStmts];
+
+  // Reshape de dia_sin_clases antiguo sin grado_id
+  try {
+    const dscCols = await queryRows(env.DB, "SELECT name FROM pragma_table_info('dia_sin_clases')");
+    if (dscCols.length > 0 && !dscCols.some((c: any) => c.name === 'grado_id')) {
+      await env.DB.prepare("DROP TABLE dia_sin_clases").run();
+      stmts.push(schemaStmts[schemaStmts.length - 2]); // recrear dia_sin_clases
+    }
+  } catch { /* tabla no existe aún */ }
+
+  // Migración de sync_tombstone antigua (PK sin sk): copiar preservando filas
+  try {
+    const tsCols = await queryRows(env.DB, "SELECT name FROM pragma_table_info('sync_tombstone')");
+    if (tsCols.length > 0 && !tsCols.some((c: any) => c.name === 'sk')) {
+      await env.DB.prepare("ALTER TABLE sync_tombstone RENAME TO sync_tombstone_old").run();
+      await env.DB.execute(`CREATE TABLE sync_tombstone (
+        tabla TEXT NOT NULL, pk TEXT NOT NULL, updated_at TEXT NOT NULL,
+        device_id TEXT, sk TEXT DEFAULT '',
+        PRIMARY KEY (tabla, pk, sk))`);
+      await env.DB.execute(`INSERT OR IGNORE INTO sync_tombstone (tabla, pk, updated_at, device_id, sk)
+        SELECT tabla, pk, updated_at, device_id, '' FROM sync_tombstone_old`);
+      await env.DB.prepare("DROP TABLE sync_tombstone_old").run();
+    }
+  } catch { /* best effort */ }
+
   for (const sql of stmts) {
     try { await env.DB.prepare(sql).run(); } catch { /* ya existe */ }
   }
+
+  // Reconstruir tablas con UNIQUE globales (una sola vez) ANTES de tocar columnas
+  await deUniqueTables(env);
+
+  // Columna `sk` en todas las tablas sincronizadas + índices para pull
+  for (const table of VALID_TABLES) {
+    try { await env.DB.prepare(`ALTER TABLE ${table} ADD COLUMN sk TEXT`).run(); } catch { /* ya existe */ }
+    try { await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_${table}_sk ON ${table}(sk, updated_at)`).run(); } catch { /* índice ya existe */ }
+  }
+
   schemaReady = true;
 }
 
@@ -235,10 +262,8 @@ async function batchExec(db: D1Database, statements: { sql: string; params: any[
     for (const r of res) {
       if (!r.success) throw new Error(`D1 batch error: ${r.error || 'desconocido'}`);
     }
-    // meta.changes = filas REALMENTE escritas (LWW puede rechazar el upsert)
     return res.map((r) => ({ results: r.results as any[], changes: r.meta?.changes ?? 0 }));
   } catch (e: any) {
-    // db.batch() puede lanzar D1BatchError en lugar de devolver success:false
     throw new Error(`D1 batch error: ${e?.message || String(e)}`);
   }
 }
@@ -247,30 +272,26 @@ async function routeToDb(env: Env, req: Request): Promise<string> {
   const schoolKey = req.headers.get('X-School-Key');
   if (!schoolKey) throw new Error('Falta X-School-Key');
   const dbId = await env.SCHOOL_ROUTING.get(schoolKey);
-  if (!dbId) throw new Error('School key desconocido');
+  if (!dbId) throw new Error('School key desconocida o suspendida');
   return dbId;
 }
 
-/** Upsert LWW: el updated_at lo asigna el SERVIDOR (orden real de llegada),
- *  ignorando el reloj local del cliente. Esto elimina toda la clase de bugs
- *  por desfase de reloj entre dispositivos (un reloj adelantado vencía
- *  sistematicamente a los cambios posteriores del otro). */
-function buildUpsert(table: string, rows: any[], deviceId: string, serverNow: string): { sql: string; params: any[] } {
+/** Upsert LWW con namespace de usuario (`sk`). El updated_at lo sella el SERVIDOR. */
+function buildUpsert(table: string, rows: any[], deviceId: string, serverNow: string, sk: string): { sql: string; params: any[] } {
   const def = TABLES[table];
-  const upsertCols = [...def.cols, 'device_id'];
+  const upsertCols = [...def.cols, 'device_id', 'sk'];
   const pkTarget = def.pk.join(', ');
   const colList = upsertCols.join(', ');
-  const placeholders = upsertCols.map((_, i) => `?${i + 1}`).join(', ');
 
   const valueTuples: string[] = [];
   const params: any[] = [];
   let n = 0;
   for (const row of rows) {
-    const vals = upsertCols.map((c, i) => {
+    const vals = upsertCols.map((c) => {
       if (c === 'device_id') return deviceId;
       if (c === 'updated_at') return serverNow;
+      if (c === 'sk') return sk;
       let v: any = row[c] ?? null;
-      // Marshall SQLite integers -> JSON (el cliente manda enteros/booleanos ya serializados)
       if (typeof v === 'boolean') v = v ? 1 : 0;
       return v;
     });
@@ -281,14 +302,137 @@ function buildUpsert(table: string, rows: any[], deviceId: string, serverNow: st
   }
 
   const setClause = upsertCols.map((c) => `${c} = excluded.${c}`).join(', ');
-  // Upsert INCONDICIONAL: gana el ÚLTIMO PUSH EN LLEGAR (orden real del servidor,
-  // ya que updated_at es sellado por el propio worker). Sin comparaciones contra
-  // timestamps heredados de clientes con relojes torcidos.
   return {
     sql: `INSERT INTO ${table} (${colList}) VALUES ${valueTuples.join(', ')}
 ON CONFLICT(${pkTarget}) DO UPDATE SET ${setClause}`,
     params,
   };
+}
+
+// ═══════════════════ Verificación Google ID Token ═══════════════════
+
+interface GoogleClaims {
+  sub: string; email: string; email_verified?: boolean;
+  name?: string; picture?: string; aud: string; iss: string; exp: number;
+}
+
+function b64urlToBytes(s: string): Uint8Array {
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  const bin = atob(s);
+  return Uint8Array.from(bin, c => c.charCodeAt(0));
+}
+
+async function verifyGoogleIdToken(env: Env, idToken: string): Promise<GoogleClaims> {
+  const parts = idToken.split('.');
+  if (parts.length !== 3) throw new Error('ID token malformado');
+  const header = JSON.parse(new TextDecoder().decode(b64urlToBytes(parts[0])));
+  if (header.alg !== 'RS256') throw new Error('Algoritmo no soportado');
+  const kid: string = header.kid;
+
+  // JWKS de Google (con caché simple por isolate)
+  let jwks: any = (globalThis as any).__googleJwks;
+  if (!jwks) {
+    const res = await fetch('https://www.googleapis.com/oauth2/v3/certs');
+    if (!res.ok) throw new Error('No se pudo obtener JWKS de Google');
+    jwks = await res.json();
+    (globalThis as any).__googleJwks = jwks;
+  }
+  const jwk = jwks.keys.find((k: any) => k.kid === kid);
+  if (!jwk) throw new Error('kid desconocido');
+
+  const key = await crypto.subtle.importKey(
+    'jwk', jwk,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false, ['verify'],
+  );
+  const signedPart = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
+  const sig = b64urlToBytes(parts[2]);
+  const valid = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, sig, signedPart);
+  if (!valid) throw new Error('Firma del ID token inválida');
+
+  const claims: GoogleClaims = JSON.parse(new TextDecoder().decode(b64urlToBytes(parts[1])));
+  const now = Math.floor(Date.now() / 1000);
+  if (claims.exp < now - 60) throw new Error('ID token expirado');
+  if (!['accounts.google.com', 'https://accounts.google.com'].includes(claims.iss)) throw new Error('Issuer inválido');
+  if (claims.aud !== env.GOOGLE_CLIENT_ID) throw new Error('Audience inválido');
+  if (!claims.email || claims.email_verified === false) throw new Error('Email no verificado');
+  return claims;
+}
+
+function isAdminEmail(env: Env, email: string): boolean {
+  return (env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).includes(email.toLowerCase());
+}
+
+/**
+ * Reconstruye las tablas con restricciones UNIQUE globales (nombre/codigo)
+ * SIN esa constraint: con múltiples usuarios en una sola D1, cada usuario
+ * necesita poder tener "2026" o el mismo código de estudiante.
+ * Se ejecuta UNA sola vez (flag en sync_metadata).
+ */
+const DEUNIQUE_TABLES: Record<string, string> = {
+  ano_lectivo: `(id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, updated_at TEXT, device_id TEXT, sk TEXT)`,
+  corte_evaluativo: `(id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, updated_at TEXT, device_id TEXT, sk TEXT)`,
+  colegio: `(id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, orden INTEGER, updated_at TEXT, device_id TEXT, sk TEXT)`,
+  asignatura: `(id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, cualitativo INTEGER DEFAULT 0, updated_at TEXT, device_id TEXT, sk TEXT)`,
+  grado: `(id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, cualitativo INTEGER DEFAULT 0, updated_at TEXT, device_id TEXT, sk TEXT)`,
+  seccion: `(id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, cualitativo INTEGER DEFAULT 0, updated_at TEXT, device_id TEXT, sk TEXT)`,
+  estudiante: `(id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, codigo TEXT, sexo TEXT, ano_lectivo_id INTEGER, grado_id INTEGER, seccion_id INTEGER, colegio_id INTEGER, telefono TEXT, direccion TEXT, email TEXT, foto TEXT, updated_at TEXT, device_id TEXT, sk TEXT)`,
+};
+
+async function deUniqueTables(env: Env): Promise<void> {
+  const done = await env.DB.prepare(`SELECT value FROM sync_metadata WHERE key = 'deunique_v1'`).first().catch(() => null);
+  if (done) return;
+  // Asegurar que sync_metadata exista (ensureSchema aún no corrió sus stmts si falla el .first)
+  try { await env.DB.prepare(`CREATE TABLE IF NOT EXISTS sync_metadata (key TEXT PRIMARY KEY, value INTEGER NOT NULL DEFAULT 0)`).run(); } catch {}
+  for (const [table, def] of Object.entries(DEUNIQUE_TABLES)) {
+    try {
+      const info = await queryRows(env.DB, `SELECT sql FROM sqlite_master WHERE type='table' AND name='${table}'`);
+      if (!info.length || !String(info[0].sql || '').toUpperCase().includes('UNIQUE')) continue;
+      await env.DB.prepare(`ALTER TABLE ${table} RENAME TO ${table}_old_dq`).run();
+      await env.DB.execute(`CREATE TABLE ${table} ${def}`);
+      await env.DB.execute(`INSERT INTO ${table} SELECT * FROM ${table}_old_dq`);
+      await env.DB.prepare(`DROP TABLE ${table}_old_dq`).run();
+      console.log(`[migración] ${table}: UNIQUE global eliminado`);
+    } catch (e: any) {
+      console.error(`[migración] ${table}: ${e?.message}`);
+      // Si quedó renombrada a medias, revertir para no perder datos
+      try { await env.DB.prepare(`ALTER TABLE ${table}_old_dq RENAME TO ${table}`).run(); } catch {}
+    }
+  }
+  try { await env.DB.prepare(`INSERT OR REPLACE INTO sync_metadata (key, value) VALUES ('deunique_v1', 1)`).run(); } catch {}
+}
+
+function randomSchoolKey(): string {
+  const bytes = new Uint8Array(18);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+interface UserRecord {
+  sub: string; email: string; nombre: string; foto: string;
+  schoolKey: string; rol: 'admin' | 'user';
+  creado: string; suspendido?: boolean;
+}
+
+async function loadUserByEmail(env: Env, email: string): Promise<UserRecord | null> {
+  const raw = await env.USERS.get(`user:${email.toLowerCase()}`);
+  return raw ? JSON.parse(raw) as UserRecord : null;
+}
+
+async function saveUser(env: Env, u: UserRecord): Promise<void> {
+  await env.USERS.put(`user:${u.email.toLowerCase()}`, JSON.stringify(u));
+}
+
+/** Autentica un request admin: header X-Auth-Token con idToken válido de un admin. */
+async function requireAdmin(env: Env, req: Request): Promise<UserRecord> {
+  const token = req.headers.get('X-Auth-Token') || '';
+  if (!token) throw new Error('Falta autenticación');
+  const claims = await verifyGoogleIdToken(env, token);
+  const user = await loadUserByEmail(env, claims.email);
+  if (!user || user.rol !== 'admin') throw new Error('Solo administradores');
+  if (user.suspendido) throw new Error('Cuenta suspendida');
+  return user;
 }
 
 export default {
@@ -297,6 +441,134 @@ export default {
     const path = url.pathname;
 
     try {
+      // ── Auth/registro NO requiere schoolKey ──
+      if (path === '/auth') {
+        const body: any = await req.json();
+        if (!body.idToken) throw new Error('Falta idToken');
+        const claims = await verifyGoogleIdToken(env, body.idToken);
+        const email = claims.email.toLowerCase();
+        const admin = isAdminEmail(env, email);
+
+        let user = await loadUserByEmail(env, email);
+        let creado = false;
+        if (!user) {
+          // Registro nuevo
+          const schoolKey = randomSchoolKey();
+          user = {
+            sub: claims.sub, email, nombre: claims.name || email,
+            foto: claims.picture || '', schoolKey,
+            rol: admin ? 'admin' : 'user',
+            creado: nowSqlite(),
+          };
+          await saveUser(env, user);
+          await env.SCHOOL_ROUTING.put(schoolKey, 'primary');
+          creado = true;
+          console.log(`[auth] registrado: ${email} (${user.rol})`);
+        } else {
+          if (user.suspendido) return json({ ok: false, error: 'Cuenta suspendida. Contacta al administrador.' }, 403);
+          // Actualizar perfil si cambió
+          if ((claims.name && claims.name !== user.nombre) || (claims.picture && claims.picture !== user.foto)) {
+            user.nombre = claims.name || user.nombre;
+            user.foto = claims.picture || user.foto;
+            await saveUser(env, user);
+          }
+          console.log(`[auth] login: ${email}`);
+        }
+
+        // Reclamo legacy: el PRIMER admin que entra reclama los datos existentes.
+        // Si aún no hay otros usuarios, reclama TODO (incluye filas ya estampadas
+        // con la sk de una .key previa); si no, solo las huérfanas (NULL/'').
+        let reclamadas = 0;
+        if (user.rol === 'admin') {
+          const flag = await env.USERS.get('legacy_claimed');
+          if (!flag) {
+            const sk = await skOf(user.schoolKey);
+            const others = await env.USERS.list({ prefix: 'user:' });
+            const soloAdmin = others.keys.length <= 1;
+            const stmts = [...VALID_TABLES].map(t => soloAdmin
+              ? { sql: `UPDATE ${t} SET sk = ?1`, params: [sk] }
+              : { sql: `UPDATE ${t} SET sk = ?1 WHERE sk IS NULL OR sk = ''`, params: [sk] });
+            stmts.push(soloAdmin
+              ? { sql: `UPDATE sync_tombstone SET sk = ?1`, params: [sk] }
+              : { sql: `UPDATE sync_tombstone SET sk = ?1 WHERE sk IS NULL OR sk = ''`, params: [sk] });
+            for (let i = 0; i < stmts.length; i += BATCH_STMT) {
+              const res = await batchExec(env.DB, stmts.slice(i, i + BATCH_STMT));
+              reclamadas += res.reduce((a, b) => a + b.changes, 0);
+            }
+            await env.USERS.put('legacy_claimed', `${user.email}:${nowSqlite()}`);
+            console.log(`[auth] legacy reclamado por ${email}: ${reclamadas} filas (soloAdmin=${soloAdmin})`);
+          }
+        }
+
+        // Asegurar routing vigente (p. ej. tras restore)
+        if (!(await env.SCHOOL_ROUTING.get(user.schoolKey))) {
+          await env.SCHOOL_ROUTING.put(user.schoolKey, 'primary');
+        }
+
+        return json({
+          ok: true, creado,
+          schoolKey: user.schoolKey,
+          perfil: { nombre: user.nombre, foto: user.foto, email: user.email, rol: user.rol },
+          legacyReclamadas: reclamadas,
+        });
+      }
+
+      // ── Endpoints admin (requieren X-Auth-Token de un admin) ──
+      if (path.startsWith('/admin/')) {
+        await requireAdmin(env, req);
+
+        if (path === '/admin/users' && req.method === 'POST') {
+          const list = await env.USERS.list({ prefix: 'user:' });
+          const users: any[] = [];
+          for (const k of list.keys) {
+            const raw = await env.USERS.get(k.name);
+            if (!raw) continue;
+            const u = JSON.parse(raw);
+            users.push({
+              email: u.email, nombre: u.nombre, foto: u.foto,
+              rol: u.rol, creado: u.creado, suspendido: !!u.suspendido,
+            });
+          }
+          return json({ ok: true, users });
+        }
+
+        if (path === '/admin/suspend' && req.method === 'POST') {
+          const body: any = await req.json();
+          const target = String(body.email || '').toLowerCase();
+          const suspend = body.suspend !== false;
+          const u = await loadUserByEmail(env, target);
+          if (!u) throw new Error('Usuario no encontrado');
+          if (u.rol === 'admin') throw new Error('No se puede suspender a un administrador');
+          u.suspendido = suspend;
+          await saveUser(env, u);
+          if (suspend) await env.SCHOOL_ROUTING.delete(u.schoolKey);
+          else await env.SCHOOL_ROUTING.put(u.schoolKey, 'primary');
+          console.log(`[admin] ${target} ${suspend ? 'suspendido' : 'restaurado'}`);
+          return json({ ok: true });
+        }
+
+        if (path === '/admin/delete-data' && req.method === 'POST') {
+          const body: any = await req.json();
+          const target = String(body.email || '').toLowerCase();
+          const u = await loadUserByEmail(env, target);
+          if (!u) throw new Error('Usuario no encontrado');
+          const sk = await skOf(u.schoolKey);
+          const stmts = [
+            ...[...VALID_TABLES].map(t => ({ sql: `DELETE FROM ${t} WHERE sk = ?1`, params: [sk] })),
+            { sql: `DELETE FROM sync_tombstone WHERE sk = ?1`, params: [sk] },
+          ];
+          let borradas = 0;
+          for (let i = 0; i < stmts.length; i += BATCH_STMT) {
+            const res = await batchExec(env.DB, stmts.slice(i, i + BATCH_STMT));
+            borradas += res.reduce((a, b) => a + b.changes, 0);
+          }
+          console.log(`[admin] datos de ${target} purgados: ${borradas} filas`);
+          return json({ ok: true, borradas });
+        }
+
+        return json({ ok: false, error: 'Ruta admin desconocida' }, 404);
+      }
+
       await ensureSchema(env);
 
       // ── WebSocket: reenviar el upgrade al hub de esta school key ──
@@ -313,7 +585,6 @@ export default {
       }
 
       if (path === '/hello') {
-        // Verifica conectividad + valida la school key contra KV
         const dbId = await routeToDb(env, req);
         const rows = await queryRows(env.DB, 'SELECT 1 AS ok');
         return json({
@@ -325,14 +596,14 @@ export default {
 
       if (path === '/push') {
         const schoolKey = req.headers.get('X-School-Key') || '';
-        const dbId = await routeToDb(env, req);
+        await routeToDb(env, req);
+        const sk = await skOf(schoolKey);
         const body: any = await req.json();
         const deviceId = body.deviceId || (req.headers.get('X-Device-Id') ?? '');
         if (!deviceId) throw new Error('Falta deviceId');
         const data: Record<string, any[]> = body.data || {};
-        const deletions: { tabla: string; pk: any[]; updated_at?: string }[] = body.deletions || [];
+        const deletions: { tabla: string; pk: any[] }[] = body.deletions || [];
 
-        // ---- 1. Acumular TODAS las sentencias (upserts + tombstones + deletes)
         const statements: { sql: string; params: any[] }[] = [];
         const stats: Record<string, number> = {};
 
@@ -340,10 +611,10 @@ export default {
         for (const [table, rows] of Object.entries(data)) {
           if (!VALID_TABLES.has(table) || !Array.isArray(rows) || rows.length === 0) continue;
           const def = TABLES[table];
-          const chunkSize = Math.max(1, Math.floor(90 / (def.cols.length + 1)));
+          const chunkSize = Math.max(1, Math.floor(90 / (def.cols.length + 3)));
           for (let i = 0; i < rows.length; i += chunkSize) {
             const chunk = rows.slice(i, i + chunkSize);
-            statements.push(buildUpsert(table, chunk, deviceId, serverNow));
+            statements.push(buildUpsert(table, chunk, deviceId, serverNow, sk));
           }
           stats[table] = rows.length;
         }
@@ -353,18 +624,15 @@ export default {
           if (!VALID_TABLES.has(del.tabla)) continue;
           const def = TABLES[del.tabla];
           const w = def.pk.map((c, i) => `${c} = ?${i + 1}`).join(' AND ');
-          const ts = serverNow;
-          const tsSql = `INSERT INTO sync_tombstone (tabla, pk, updated_at, device_id)
-VALUES (?1, ?2, ?3, ?4)
-ON CONFLICT(tabla, pk) DO UPDATE SET updated_at = excluded.updated_at, device_id = excluded.device_id
-WHERE excluded.updated_at > sync_tombstone.updated_at
-   OR (excluded.updated_at = sync_tombstone.updated_at AND excluded.device_id > sync_tombstone.device_id)`;
-          statements.push({ sql: tsSql, params: [del.tabla, JSON.stringify(del.pk), ts, deviceId] });
-          statements.push({ sql: `DELETE FROM ${del.tabla} WHERE ${w}`, params: del.pk });
+          const tsSql = `INSERT INTO sync_tombstone (tabla, pk, updated_at, device_id, sk)
+VALUES (?1, ?2, ?3, ?4, ?5)
+ON CONFLICT(tabla, pk, sk) DO UPDATE SET updated_at = excluded.updated_at, device_id = excluded.device_id`;
+          statements.push({ sql: tsSql, params: [del.tabla, JSON.stringify(del.pk), serverNow, deviceId, sk] });
+          // Delete acotado al namespace del usuario
+          statements.push({ sql: `DELETE FROM ${del.tabla} WHERE ${w} AND sk = ?${def.pk.length + 1}`, params: [...del.pk, sk] });
           delCount++;
         }
 
-        // ---- 2. Ejecutar en lotes de ~90 sentencias (1 subrequest por lote)
         let realChanges = 0;
         for (let i = 0; i < statements.length; i += BATCH_STMT) {
           const batchRes = await batchExec(env.DB, statements.slice(i, i + BATCH_STMT));
@@ -372,9 +640,6 @@ WHERE excluded.updated_at > sync_tombstone.updated_at
         }
         console.log(`[push] device=${deviceId} enviadas=${Object.values(stats).reduce((a, b) => a + b, 0)} cambiosReales=${realChanges} del=${delCount}`);
 
-        // ---- 3. Push en tiempo real: avisar SOLO si D1 realmente cambió.
-        // Contar filas enviadas (aunque el LWW las rechace) provocaba bucles
-        // de auto-broadcast: cada sync re-difundía sin datos nuevos.
         const appliedTables = Object.keys(stats);
         if ((realChanges > 0 || delCount > 0) && schoolKey && env.SYNC_HUB) {
           try {
@@ -396,20 +661,22 @@ WHERE excluded.updated_at > sync_tombstone.updated_at
       }
 
       if (path === '/pull') {
-        const dbId = await routeToDb(env, req);
+        const schoolKey = req.headers.get('X-School-Key') || '';
+        await routeToDb(env, req);
+        const sk = await skOf(schoolKey);
         const body: any = await req.json();
         const since = body.since || '1970-01-01 00:00:00';
         const deviceId: string = body.deviceId || '';
 
-        // ---- Selects de todas las tablas + tombstones en UN solo batch
-        // (excluyendo las filas escritas por este mismo dispositivo)
+        // Solo filas DEL PROPIO namespace (aislamiento por usuario),
+        // excluyendo las escritas por este mismo dispositivo.
         const statements = Object.keys(TABLES).map((table) => ({
-          sql: `SELECT * FROM ${table} WHERE updated_at > ?1 AND IFNULL(device_id, '') != ?2`,
-          params: [since, deviceId],
+          sql: `SELECT * FROM ${table} WHERE sk = ?1 AND updated_at > ?2 AND IFNULL(device_id, '') != ?3`,
+          params: [sk, since, deviceId],
         }));
         statements.push({
-          sql: `SELECT tabla, pk, updated_at, device_id FROM sync_tombstone WHERE updated_at > ?1 AND IFNULL(device_id, '') != ?2`,
-          params: [since, deviceId],
+          sql: `SELECT tabla, pk, updated_at, device_id FROM sync_tombstone WHERE sk = ?1 AND updated_at > ?2 AND IFNULL(device_id, '') != ?3`,
+          params: [sk, since, deviceId],
         });
         const results = await batchExec(env.DB, statements);
 
@@ -417,7 +684,6 @@ WHERE excluded.updated_at > sync_tombstone.updated_at
         Object.keys(TABLES).forEach((table, i) => {
           const def = TABLES[table];
           rows[table] = (results[i].results || []).map((r: any) => {
-            // Quitar device_id interno; solo devolver columnas conocidas
             const o: Record<string, any> = {};
             for (const c of def.cols) o[c] = r[c];
             return o;
@@ -435,11 +701,10 @@ WHERE excluded.updated_at > sync_tombstone.updated_at
       }
 
       if (path === '/ids') {
-        const dbId = await routeToDb(env, req);
+        await routeToDb(env, req);
         const body: any = await req.json();
         const blocks: Record<string, { start: number; end: number }> = {};
 
-        // ---- Reserva de bloques de ids de todas las tablas en UN solo batch
         const tablesNeeded = Object.entries(body.blocks || {}).filter(([t]) => VALID_TABLES.has(t));
         const statements = tablesNeeded.map(([table, count]) => ({
           sql: `INSERT INTO sync_metadata (key, value) VALUES (?1, ?2)
