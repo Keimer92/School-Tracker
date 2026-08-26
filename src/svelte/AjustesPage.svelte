@@ -25,7 +25,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
   const TABS = [
     { id: "configuracion", label: "General", icon: "⚙️" },
-    { id: "notificaciones", label: "Notif. Asistencia", icon: "🔔" },
+    { id: "notificaciones", label: "Notif. Asistencia", icon: "🔔", soloAndroid: true },
     { id: "nube", label: "Nube", icon: "☁️" },
     { id: "almacenamiento", label: "Almacén", icon: "📦" },
     { id: "debugging", label: "Debug", icon: "🐛" },
@@ -33,6 +33,8 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   ] as const;
 
   const isAndroid = /Android/i.test(navigator.userAgent);
+  // Notificaciones de asistencia SOLO Android (usa AlarmManager nativo)
+  const tabsVisibles = TABS.filter(t => isAndroid || !("soloAndroid" in t && t.soloAndroid));
 
   let activeTab: typeof TABS[number]["id"] | null = $state(isAndroid ? null : "configuracion");
 
@@ -58,18 +60,22 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
   const NOTIF_STORAGE_KEY = 'stp_attendance_notif_settings';
 
+  interface NotifColegioCfg { activo: boolean; inicio: string; fin: string; intervaloMin: number; }
   let notifColegios: CategoryItem[] = $state([]);
-  let notifGrados: CategoryItem[] = $state([]);
-  let notifSecciones: CategoryItem[] = $state([]);
   let notifEnabled = $state(false);
-  let notifTime = $state("12:00");
-  let notifSelectedColegios = $state<number[]>([]);
-  let notifSelectedGrados = $state<number[]>([]);
-  let notifSelectedSecciones = $state<number[]>([]);
+  // Config por colegio: ventana [inicio, fin] + repetición cada N minutos
+  let notifCfg = $state<Record<number, NotifColegioCfg>>({});
   let notifSaving = $state(false);
   let notifTesting = $state(false);
   let notifSilencedToday = $state(false);
   let notifDismissing = $state(false);
+
+  function cfgDe(id: number): NotifColegioCfg {
+    return notifCfg[id] ?? { activo: false, inicio: '07:00', fin: '12:00', intervaloMin: 45 };
+  }
+  function setCfg(id: number, patch: Partial<NotifColegioCfg>) {
+    notifCfg = { ...notifCfg, [id]: { ...cfgDe(id), ...patch } };
+  }
 
   function loadNotifSettings() {
     try {
@@ -77,31 +83,28 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
       if (stored) {
         const s = JSON.parse(stored);
         notifEnabled = !!s.enabled;
-        if (s.hora) notifTime = s.hora;
-        notifSelectedColegios = Array.isArray(s.colegios) ? s.colegios : [];
-        notifSelectedGrados = Array.isArray(s.grados) ? s.grados : [];
-        notifSelectedSecciones = Array.isArray(s.secciones) ? s.secciones : [];
+        // Nuevo modelo: [{id, inicio, fin, intervaloMin}]
+        const map: Record<number, NotifColegioCfg> = {};
+        for (const c of Array.isArray(s.colegios) ? s.colegios : []) {
+          if (typeof c === 'object' && c.id != null) {
+            map[Number(c.id)] = {
+              activo: true,
+              inicio: c.inicio || '07:00',
+              fin: c.fin || '12:00',
+              intervaloMin: Number(c.intervaloMin) || 45,
+            };
+          }
+        }
+        if (Object.keys(map).length > 0) notifCfg = map;
       }
     } catch (e) {
       console.error("Error cargando config de notificaciones:", e);
     }
   }
 
-  function toggleNotifList(id: number, list: number[], setList: (v: number[]) => void) {
-    if (list.includes(id)) setList(list.filter(x => x !== id));
-    else setList([...list, id]);
-  }
-
   async function loadNotifCatalogs() {
     try {
-      const [c, g, s] = await Promise.all([
-        invoke<CategoryItem[]>("get_colegios"),
-        invoke<CategoryItem[]>("get_grados"),
-        invoke<CategoryItem[]>("get_secciones"),
-      ]);
-      notifColegios = c;
-      notifGrados = g;
-      notifSecciones = s;
+      notifColegios = await invoke<CategoryItem[]>("get_colegios");
     } catch (e) {
       console.error("Error cargando catálogos de notificaciones:", e);
     }
@@ -110,21 +113,18 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   async function saveNotifSettings() {
     notifSaving = true;
     try {
-      const config = {
-        enabled: notifEnabled,
-        hora: notifTime,
-        colegios: notifSelectedColegios,
-        grados: notifSelectedGrados,
-        secciones: notifSelectedSecciones,
-      };
+      const colegios = Object.entries(notifCfg)
+        .filter(([, c]) => c.activo)
+        .map(([id, c]) => ({ id: Number(id), inicio: c.inicio, fin: c.fin, intervaloMin: Number(c.intervaloMin) || 45 }));
+      const config = { enabled: notifEnabled && colegios.length > 0, colegios };
       console.log('[NotifUI] Guardando config:', JSON.stringify(config));
       localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(config));
       const dbPath = await invoke<string>("get_db_path");
       console.log('[NotifUI] dbPath =', dbPath);
-      if (notifEnabled) {
+      if (config.enabled) {
         await invoke("schedule_attendance_alarm", { config: JSON.stringify(config), dbPath });
         console.log('[NotifUI] schedule_attendance_alarm OK');
-        await emit("show-toast", { message: "🔔 Notificaciones programadas: " + notifTime, type: "success" });
+        await emit("show-toast", { message: "🔔 Notificaciones programadas para " + colegios.length + " colegio(s)", type: "success" });
       } else {
         await invoke("cancel_attendance_alarm");
         console.log('[NotifUI] cancel_attendance_alarm OK');
@@ -136,6 +136,11 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     } finally {
       notifSaving = false;
     }
+  }
+
+  function toggleNotifColegio(id: number) {
+    const c = cfgDe(id);
+    setCfg(id, { activo: !c.activo });
   }
 
   async function testNotif() {
@@ -189,7 +194,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
   $effect(() => {
     if (tabRequest) {
-      const target = TABS.find(t => t.id === tabRequest);
+      const target = tabsVisibles.find(t => t.id === tabRequest);
       if (target) activeTab = target.id as any;
     }
   });
@@ -345,7 +350,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   {#if !isAndroid}
     <div class="ajustes-ribbon-container">
       <div class="ajustes-ribbon">
-        {#each TABS as tab (tab.id)}
+        {#each tabsVisibles as tab (tab.id)}
           <button class="ajustes-tab" class:active={activeTab === tab.id} onclick={() => activeTab = tab.id}>
             <span style="font-size: 1.1rem;">{tab.icon}</span>
             <span class="tab-label">{tab.label}</span>
@@ -359,7 +364,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     <div style="padding: 1rem;">
       <h1 style="font-size: 1.5rem; font-weight: 700; color: #f1f5f9; margin-bottom: 1.5rem; text-align: center;">Ajustes</h1>
       <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-        {#each TABS as tab (tab.id)}
+        {#each tabsVisibles as tab (tab.id)}
           <button onclick={() => activeTab = tab.id} style="display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; background: rgba(51, 65, 85, 0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; cursor: pointer; width: 100%;">
             <div style="display: flex; align-items: center; gap: 1rem;">
               <div style="width: 4px; height: 40px; background: linear-gradient(180deg, var(--primary-color) 0%, var(--primary-hover) 100%); border-radius: 2px;"></div>
@@ -389,85 +394,73 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
           </div>
         {/if}
 
-        <!-- NOTIFICACIONES DE ASISTENCIA -->
+        <!-- NOTIFICACIONES DE ASISTENCIA (solo Android) -->
         {#if activeTab === "notificaciones"}
-          <div class="category-card">
-            <div class="category-header"><h3>🔔 Notificaciones de Asistencia</h3></div>
-            <div style="padding: 2rem; display: flex; flex-direction: column; gap: 1.5rem;">
-              <p style="color: #94a3b8; font-size: 0.9rem; margin: 0;">
-                Recibe una notificación cuando un colegio con clases hoy tenga grados/secciones sin asistencia registrada.
-                Se repite cada 45 min mientras haya pendientes y no se silencie para el día. La alarma se programa en el
-                dispositivo y funciona aunque la app esté cerrada.
-              </p>
-
-              <!-- Activar / desactivar -->
-              <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: rgba(255,255,255,0.04); padding: 1rem 1.25rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);">
-                <div>
-                  <div style="font-weight: 600; color: #e2e8f0;">Notificaciones activadas</div>
-                  <div style="font-size: 0.8rem; color: #94a3b8;">Avisa cuando el día esté en curso</div>
-                </div>
-                <label class="switch">
-                  <input type="checkbox" bind:checked={notifEnabled} />
-                  <span class="slider"></span>
-                </label>
+          <div class="notif-page">
+            <!-- Header glass con toggle global -->
+            <div class="notif-hero">
+              <div class="notif-hero-icon">🔔</div>
+              <div style="flex:1;min-width:0">
+                <h3 style="margin:0 0 2px;font-size:1.05rem;color:#f1f5f9;">Notificaciones de Asistencia</h3>
+                <p style="margin:0;font-size:0.75rem;color:#94a3b8;line-height:1.45;">Avisa cuando un colegio tenga grados sin asistencia, dentro de su ventana horaria. Funciona con la app cerrada.</p>
               </div>
+              <label class="switch" style="flex-shrink:0">
+                <input type="checkbox" bind:checked={notifEnabled} />
+                <span class="slider"></span>
+              </label>
+            </div>
 
-              <!-- Hora del día -->
-              <div>
-                <label style="display: block; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; font-size: 0.65rem; margin-bottom: 0.5rem;">Hora de la notificación</label>
-                <input type="time" bind:value={notifTime} style="width: 100%; padding: 0.6rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.06); color: #e2e8f0; font-size: 0.95rem; outline: none; box-sizing: border-box;" />
-              </div>
-
-              <!-- Colegios -->
-              <div>
-                <label style="display: block; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; font-size: 0.65rem; margin-bottom: 0.5rem;">Colegios (vacío = todos)</label>
-                <div class="item-list" style="max-height: 160px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;">
-                  {#each notifColegios as c (c.id)}
-                    <div class="item-row" style="cursor: pointer; display: flex; align-items: center; gap: 10px;" onclick={() => toggleNotifList(c.id!, notifSelectedColegios, (v) => notifSelectedColegios = v)}>
-                      <span style="width: 16px; height: 16px; border-radius: 4px; border: 2px solid {notifSelectedColegios.includes(c.id!) ? 'var(--primary-color)' : 'rgba(255,255,255,0.2)'}; background: {notifSelectedColegios.includes(c.id!) ? 'rgba(var(--primary-rgb),0.2)' : 'transparent'}; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; color: var(--primary-color);">{notifSelectedColegios.includes(c.id!) ? '✓' : ''}</span>
-                      <span style="font-size: 0.85rem; color: #e2e8f0;">{c.nombre}</span>
+            {#if notifEnabled}
+              <!-- Cards por colegio -->
+              <div style="display:flex;flex-direction:column;gap:0.6rem;">
+                {#each notifColegios as c (c.id)}
+                  {@const cfg = cfgDe(c.id!)}
+                  <div class="notif-colegio-card" class:activa={cfg.activo}>
+                    <div class="notif-colegio-head" onclick={() => toggleNotifColegio(c.id!)}>
+                      <span class="notif-check">{cfg.activo ? '✓' : ''}</span>
+                      <span class="notif-colegio-nombre">{c.nombre}</span>
                     </div>
-                  {/each}
-                </div>
+                    {#if cfg.activo}
+                      <div class="notif-colegio-body">
+                        <div class="notif-campo">
+                          <label>Desde</label>
+                          <input type="time" value={cfg.inicio} onchange={(e) => setCfg(c.id!, { inicio: (e.target as HTMLInputElement).value })} />
+                        </div>
+                        <div class="notif-campo">
+                          <label>Hasta</label>
+                          <input type="time" value={cfg.fin} onchange={(e) => setCfg(c.id!, { fin: (e.target as HTMLInputElement).value })} />
+                        </div>
+                        <div class="notif-campo" style="flex:1.3">
+                          <label>Repetir cada</label>
+                          <select value={String(cfg.intervaloMin)} onchange={(e) => setCfg(c.id!, { intervaloMin: Number((e.target as HTMLSelectElement).value) })}>
+                            {#each [15, 30, 45, 60, 90, 120] as m}
+                              <option value={m}>{m} min</option>
+                            {/each}
+                          </select>
+                        </div>
+                      </div>
+                      <div class="notif-resumen">⏱ De {cfg.inicio} a {cfg.fin} · cada {cfg.intervaloMin} min si hay grados pendientes</div>
+                    {/if}
+                  </div>
+                {/each}
+                {#if Object.values(notifCfg).filter(c => c.activo).length === 0}
+                  <div class="empty-state-sm"><span>👆</span><span>Toca un colegio para configurar su horario</span></div>
+                {/if}
               </div>
 
-              <!-- Grados -->
-              <div>
-                <label style="display: block; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; font-size: 0.65rem; margin-bottom: 0.5rem;">Grados (vacío = todos)</label>
-                <div class="item-list" style="max-height: 160px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;">
-                  {#each notifGrados as g (g.id)}
-                    <div class="item-row" style="cursor: pointer; display: flex; align-items: center; gap: 10px;" onclick={() => toggleNotifList(g.id!, notifSelectedGrados, (v) => notifSelectedGrados = v)}>
-                      <span style="width: 16px; height: 16px; border-radius: 4px; border: 2px solid {notifSelectedGrados.includes(g.id!) ? 'var(--primary-color)' : 'rgba(255,255,255,0.2)'}; background: {notifSelectedGrados.includes(g.id!) ? 'rgba(var(--primary-rgb),0.2)' : 'transparent'}; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; color: var(--primary-color);">{notifSelectedGrados.includes(g.id!) ? '✓' : ''}</span>
-                      <span style="font-size: 0.85rem; color: #e2e8f0;">{g.nombre}</span>
-                    </div>
-                  {/each}
-                </div>
-              </div>
-
-              <!-- Secciones -->
-              <div>
-                <label style="display: block; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; font-size: 0.65rem; margin-bottom: 0.5rem;">Secciones (vacío = todas)</label>
-                <div class="item-list" style="max-height: 160px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;">
-                  {#each notifSecciones as s (s.id)}
-                    <div class="item-row" style="cursor: pointer; display: flex; align-items: center; gap: 10px;" onclick={() => toggleNotifList(s.id!, notifSelectedSecciones, (v) => notifSelectedSecciones = v)}>
-                      <span style="width: 16px; height: 16px; border-radius: 4px; border: 2px solid {notifSelectedSecciones.includes(s.id!) ? 'var(--primary-color)' : 'rgba(255,255,255,0.2)'}; background: {notifSelectedSecciones.includes(s.id!) ? 'rgba(var(--primary-rgb),0.2)' : 'transparent'}; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; color: var(--primary-color);">{notifSelectedSecciones.includes(s.id!) ? '✓' : ''}</span>
-                      <span style="font-size: 0.85rem; color: #e2e8f0;">{s.nombre}</span>
-                    </div>
-                  {/each}
-                </div>
-              </div>
-
-              <div style="display: flex; flex-wrap: wrap; gap: 0.75rem;">
-                <button onclick={saveNotifSettings} disabled={notifSaving} style="padding: 0.7rem 1.2rem; border-radius: 10px; border: 1px solid rgba(var(--primary-rgb),0.35); background: linear-gradient(135deg, var(--primary-color), var(--primary-hover)); color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer; box-shadow: 0 4px 14px rgba(var(--primary-rgb),0.25);">
-                  {notifSaving ? "Guardando..." : "Guardar configuración"}
+              <!-- Acciones -->
+              <div style="display:flex;gap:0.6rem;">
+                <button class="notif-btn-primary" onclick={saveNotifSettings} disabled={notifSaving} style="flex:1">
+                  {notifSaving ? "Guardando..." : "💾 Guardar"}
                 </button>
-                <button onclick={testNotif} disabled={notifTesting} style="padding: 0.7rem 1.2rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.06); color: #e2e8f0; font-weight: 600; font-size: 0.85rem; cursor: pointer;">
-                  {notifTesting ? "Enviando..." : "🔔 Probar notificación"}
+                <button class="notif-btn-ghost" onclick={testNotif} disabled={notifTesting} style="flex:1">
+                  {notifTesting ? "Enviando..." : "🔔 Probar"}
                 </button>
               </div>
 
+              <!-- Silenciar hoy -->
               {#if notifSilencedToday}
-                <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 10px; padding: 0.85rem 1rem; font-size: 0.85rem; color: #6ee7b7; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+                <div class="notif-banner-ok">
                   <span>🔕 Recordatorios silenciados para hoy</span>
                   <button onclick={async () => {
                     try {
@@ -477,20 +470,20 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                     } catch (e) {
                       await emit("show-toast", { message: "❌ Error: " + e, type: "error" });
                     }
-                  }} style="padding: 0.45rem 0.9rem; border-radius: 8px; border: 1px solid rgba(16,185,129,0.4); background: rgba(16,185,129,0.15); color: #6ee7b7; font-weight: 600; font-size: 0.78rem; cursor: pointer;">
-                    Reactivar
-                  </button>
+                  }} class="notif-btn-mini">Reactivar</button>
                 </div>
               {:else}
-                <button onclick={dismissNotifToday} disabled={notifDismissing} style="padding: 0.7rem 1.2rem; border-radius: 10px; border: 1px solid rgba(239,68,68,0.35); background: rgba(239,68,68,0.1); color: #fca5a5; font-weight: 600; font-size: 0.85rem; cursor: pointer; align-self: flex-start;">
+                <button class="notif-btn-ghost" onclick={dismissNotifToday} disabled={notifDismissing} style="align-self:flex-start;width:auto;">
                   {notifDismissing ? "Silenciando..." : "🔕 Silenciar recordatorios de hoy"}
                 </button>
               {/if}
 
-              <div style="background: rgba(250, 204, 21, 0.08); border: 1px solid rgba(250, 204, 21, 0.2); border-radius: 10px; padding: 0.85rem 1rem; font-size: 0.78rem; color: #fde68a; line-height: 1.5;">
-                En Android 12+ la precisión exacta de la alarma requiere el permiso "Alarmas y recordatorios exactos" (Sistema → Apps → School Tracker Pro → Alarmas y recordatorios). Si no se concede, la notificación se entrega en una ventana de unos minutos alrededor de la hora.
+              <div class="notif-nota">
+                ⚠️ En Android 12+ la precisión exacta requiere el permiso "Alarmas y recordatorios exactos" (Sistema → Apps → School Tracker Pro).
               </div>
-            </div>
+            {:else}
+              <div class="empty-state-sm"><span>🔕</span><span>Las notificaciones están desactivadas</span></div>
+            {/if}
           </div>
         {/if}
 
@@ -749,5 +742,93 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     :global(.ajustes-tab .tab-label) { display: none; }
     :global(.ajustes-tab.active) { padding: 0.5rem 0.8rem; }
     :global(.ajustes-tab.active .tab-label) { display: inline-block; font-size: 0.8rem; }
+  }
+  /* ── Notificaciones (glassmorphism, solo Android) ── */
+  .notif-page { display: flex; flex-direction: column; gap: 0.75rem; }
+  .notif-hero {
+    display: flex; align-items: center; gap: 0.9rem;
+    padding: 1rem 1.1rem; border-radius: 18px;
+    background: linear-gradient(135deg, rgba(245,158,11,0.12), rgba(139,92,246,0.06));
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.09);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+  .notif-hero-icon {
+    width: 46px; height: 46px; border-radius: 14px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 1.3rem;
+    background: rgba(245,158,11,0.14); border: 1px solid rgba(245,158,11,0.28);
+    backdrop-filter: blur(10px);
+  }
+  .notif-colegio-card {
+    border-radius: 16px; overflow: hidden;
+    background: rgba(255,255,255,0.02);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.07);
+    transition: all 0.2s ease;
+  }
+  .notif-colegio-card.activa {
+    border-color: rgba(var(--primary-rgb), 0.35);
+    background: rgba(var(--primary-rgb), 0.04);
+  }
+  .notif-colegio-head {
+    display: flex; align-items: center; gap: 0.7rem;
+    padding: 0.8rem 0.9rem; cursor: pointer; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .notif-colegio-head:active { background: rgba(255,255,255,0.04); }
+  .notif-check {
+    width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.65rem; font-weight: 800; color: #fff;
+    border: 2px solid rgba(255,255,255,0.2);
+    transition: all 0.2s ease;
+  }
+  .activa .notif-check { background: var(--primary-color); border-color: var(--primary-color); box-shadow: 0 0 10px rgba(var(--primary-rgb), 0.4); }
+  .notif-colegio-nombre { flex: 1; min-width: 0; font-size: 0.88rem; font-weight: 600; color: #e2e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .notif-colegio-body { display: flex; gap: 0.5rem; padding: 0 0.9rem 0.5rem; }
+  .notif-campo { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+  .notif-campo label {
+    font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.5px;
+    color: #64748b; font-weight: 700;
+  }
+  .notif-campo input, .notif-campo select {
+    width: 100%; padding: 0.45rem 0.55rem; border-radius: 9px; box-sizing: border-box;
+    border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.25); color: #e2e8f0;
+    font-size: 0.85rem; outline: none; text-align: center;
+  }
+  .notif-campo input:focus, .notif-campo select:focus { border-color: var(--primary-color); }
+  .notif-resumen {
+    margin: 0 0.9rem 0.75rem; padding: 0.35rem 0.6rem; border-radius: 8px;
+    font-size: 0.68rem; color: #94a3b8;
+    background: rgba(0,0,0,0.2); border-left: 3px solid var(--primary-color);
+  }
+  .notif-btn-primary {
+    height: 44px; border-radius: 12px; border: none; cursor: pointer;
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+    color: #fff; font-weight: 700; font-size: 0.85rem;
+    box-shadow: 0 4px 14px rgba(var(--primary-rgb), 0.3);
+  }
+  .notif-btn-primary:disabled { opacity: 0.6; }
+  .notif-btn-ghost {
+    height: 44px; border-radius: 12px; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05);
+    color: #cbd5e1; font-weight: 600; font-size: 0.82rem;
+  }
+  .notif-btn-mini {
+    padding: 0.35rem 0.75rem; border-radius: 8px; cursor: pointer;
+    border: 1px solid rgba(16,185,129,0.4); background: rgba(16,185,129,0.15);
+    color: #6ee7b7; font-weight: 600; font-size: 0.72rem;
+  }
+  .notif-banner-ok {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap;
+    padding: 0.8rem 0.95rem; border-radius: 12px; font-size: 0.8rem; color: #6ee7b7;
+    background: rgba(16,185,129,0.08); backdrop-filter: blur(12px);
+    border: 1px solid rgba(16,185,129,0.28);
+  }
+  .notif-nota {
+    padding: 0.75rem 0.9rem; border-radius: 12px;
+    font-size: 0.7rem; color: #fde68a; line-height: 1.5;
+    background: rgba(250,204,21,0.07); border: 1px solid rgba(250,204,21,0.18);
+    backdrop-filter: blur(12px);
   }
 </style>

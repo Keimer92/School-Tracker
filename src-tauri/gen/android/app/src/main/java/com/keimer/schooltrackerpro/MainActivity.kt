@@ -319,23 +319,25 @@ class MainActivity : TauriActivity() {
       val json = JSONObject(config)
 
       val enabled = json.optBoolean("enabled", false)
-      val time = json.optString("hora", "12:00")
+      val colegiosArr = json.optJSONArray("colegios") ?: org.json.JSONArray()
 
-      prefs.edit()
-        .putBoolean(AttendancePrefs.KEY_ENABLED, enabled)
-        .putString(AttendancePrefs.KEY_TIME, time)
-        .putString(AttendancePrefs.KEY_COLEGIOS, json.optJSONArray("colegios")?.toString() ?: "[]")
-        .putString(AttendancePrefs.KEY_GRADOS, json.optJSONArray("grados")?.toString() ?: "[]")
-        .putString(AttendancePrefs.KEY_SECCIONES, json.optJSONArray("secciones")?.toString() ?: "[]")
-        .putString(AttendancePrefs.KEY_DB_PATH, dbPath)
-        .apply()
+        // IDs de colegios para el filtro de la consulta Rust
+        val colegioIds = org.json.JSONArray()
+        for (i in 0 until colegiosArr.length()) colegioIds.put(colegiosArr.getJSONObject(i).optLong("id"))
+        prefs.edit()
+          .putBoolean(AttendancePrefs.KEY_ENABLED, enabled)
+          // Config completa de ventanas por colegio: [{id,inicio,fin,intervaloMin}]
+          .putString(AttendancePrefs.KEY_CONFIG, colegiosArr.toString())
+          .putString(AttendancePrefs.KEY_COLEGIOS, colegioIds.toString())
+          .putString(AttendancePrefs.KEY_DB_PATH, dbPath)
+          .apply()
 
       if (enabled) {
         AttendanceScheduler.schedule(this)
       } else {
         AttendanceScheduler.cancel(this)
       }
-      android.util.Log.i("MainActivity", "Attendance alarm scheduled: enabled=$enabled time=$time")
+      android.util.Log.i("MainActivity", "Attendance alarm: enabled=$enabled colegios=${colegiosArr.length()}")
     } catch (e: Exception) {
       android.util.Log.e("MainActivity", "Error scheduling attendance alarm: ${e.message}")
     }
