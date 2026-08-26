@@ -42,10 +42,39 @@
   let estudiantes: EstudianteAsistencia[] = $state([]);
   let loading = $state(false);
   let saving = $state(false);
-  let hasUnsavedChanges = $state(false);
+  let hasUnsavedChanges = $derived(hayDiffDiario() || hayDiffMulti());
   let pendingRefreshOnSave = $state(false);
-  let showSummaryModal = $state<{ show: boolean; type: string; stats: { total: number; m: number; f: number } | null }>({ show: false, type: "", stats: null });
   let selectedStudentDetail: EstudianteAsistencia | null = $state(null);
+  let showSummaryModal = $state<{ show: boolean; type: string; stats: { total: number; m: number; f: number } | null }>({ show: false, type: "", stats: null });
+
+  // ── Snapshot del SERVIDOR (sin borrador) para detectar diffs reales ──
+  // Un toggle P→null vuelve al estado original → ya NO cuenta como cambio.
+  const norm = (e: string | null | undefined) => (e === '-' ? null : e ?? null);
+  let originalDiario = $state<Record<number, { estado: string | null; observacion: string }>>({});
+  let originalMulti = $state<Record<string, { estado: string | null; observacion: string }>>({});
+
+  function hayDiffDiario(): boolean {
+    for (const est of estudiantes) {
+      const o = originalDiario[est.id];
+      if (!o) continue;
+      if (norm(est.estado) !== norm(o.estado) || (est.observacion || '') !== (o.observacion || '')) return true;
+    }
+    return false;
+  }
+
+  function hayDiffMulti(): boolean {
+    for (const est of estudiantesMulti) {
+      for (const f of fechasPeriodo) {
+        const o = originalMulti[`${est.id}|${f}`];
+        if (!o) continue;
+        const dDraft = draftMulti[est.id]?.[f];
+        const effEstado = dDraft?.estado !== undefined ? dDraft.estado : (est.dias[f]?.estado ?? null);
+        const effObs = dDraft?.observacion ?? est.dias[f]?.observacion ?? '';
+        if (norm(effEstado) !== norm(o.estado) || (effObs || '') !== (o.observacion || '')) return true;
+      }
+    }
+    return false;
+  }
 
   $effect(() => {
     if (!visible) return;
@@ -430,12 +459,12 @@
   onMount(() => {
     const savedDraft = sessionStorage.getItem("asistencia_draft");
     if (savedDraft) {
-      try { draft = JSON.parse(savedDraft); if (Object.keys(draft).length > 0) hasUnsavedChanges = true; }
+      try { draft = JSON.parse(savedDraft); }
       catch (e) { console.error("Error cargando borrador:", e); }
     }
     const savedDraftMulti = sessionStorage.getItem("asistencia_draft_multi");
     if (savedDraftMulti) {
-      try { draftMulti = JSON.parse(savedDraftMulti); if (Object.keys(draftMulti).length > 0) hasUnsavedChanges = true; }
+      try { draftMulti = JSON.parse(savedDraftMulti); }
       catch (e) { console.error("Error cargando borrador multi:", e); }
     }
     const checkMobile = () => { isMobile = window.innerWidth <= 768; };
@@ -584,6 +613,10 @@
         fecha: selectedFecha, anoLectivoId: selectedAno, colegioId: selectedColegio,
         gradoId: selectedGrado, seccionId: selectedSeccion, sexo: selectedSexo || null,
       });
+      // Snapshot del estado SERVIDOR antes de mezclar borradores
+      const snap: Record<number, { estado: string | null; observacion: string }> = {};
+      for (const est of data) snap[est.id] = { estado: norm(est.estado), observacion: est.observacion || '' };
+      originalDiario = snap;
       estudiantes = data.map(est => {
         const d = draft[est.id];
         if (d) return { ...est, estado: d.estado !== undefined ? d.estado : est.estado, observacion: d.observacion !== undefined ? d.observacion : est.observacion };
@@ -637,6 +670,15 @@
         }
         return { id: est.id, nombre: est.nombre, codigo: est.codigo, sexo: est.sexo, dias: diasRecord };
       });
+      // Snapshot del estado SERVIDOR (clave id|fecha) antes de mezclar borradores
+      const snapM: Record<string, { estado: string | null; observacion: string }> = {};
+      for (const est of data) {
+        for (const f of fechas) {
+          const d = est.dias.find(x => x.fecha === f);
+          snapM[`${est.id}|${f}`] = { estado: norm(d?.estado), observacion: d?.observacion || '' };
+        }
+      }
+      originalMulti = snapM;
     } catch (error) {
       console.error("Error fetching multi students:", error);
       await emit("show-toast", { message: "❌ Error al cargar estudiantes: " + error, type: "error" });
@@ -657,7 +699,7 @@
         if (intentClear) {
           try {
             await invoke("delete_asistencia_batch", { estudianteIds: updated.map(est => est.id), fecha: selectedFecha });
-            draft = {}; syncDraftToStorage(); hasUnsavedChanges = false; saving = false;
+            draft = {}; syncDraftToStorage(); saving = false;
             if (pendingRefreshOnSave) { pendingRefreshOnSave = false; refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); }
             await emit("show-toast", { message: "✅ Asistencia limpiada correctamente", type: "success" });
             onDataChange('asistencia', { immediate: true });
@@ -676,7 +718,7 @@
         await invoke('delete_asistencia_batch', { estudianteIds: idsLimpiados, fecha: selectedFecha });
       }
       await invoke("save_asistencia", { records });
-      draft = {}; syncDraftToStorage(); hasUnsavedChanges = false; saving = false;
+      draft = {}; syncDraftToStorage(); saving = false;
       if (pendingRefreshOnSave) { pendingRefreshOnSave = false; refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); }
       await emit("show-toast", { message: "✅ Asistencia guardada localmente", type: "success" });
       onDataChange('asistencia', { immediate: true });
@@ -715,7 +757,7 @@
       if (records.length === 0) {
         if (Object.keys(limpias).length > 0) {
           // Todo el período quedó limpiado: mismo flujo de éxito que el modo diario
-          draftMulti = {}; syncDraftMultiToStorage(); hasUnsavedChanges = false; saving = false;
+          draftMulti = {}; syncDraftMultiToStorage(); saving = false;
           if (pendingRefreshOnSave) { pendingRefreshOnSave = false; refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); }
           await emit("show-toast", { message: "✅ Asistencia limpiada correctamente", type: "success" });
           onDataChange('asistencia', { immediate: true });
@@ -728,7 +770,7 @@
         return;
       }
       await invoke("save_asistencia", { records });
-      draftMulti = {}; syncDraftMultiToStorage(); hasUnsavedChanges = false; saving = false;
+      draftMulti = {}; syncDraftMultiToStorage(); saving = false;
       if (pendingRefreshOnSave) { pendingRefreshOnSave = false; refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); }
       await emit("show-toast", { message: "✅ Asistencia guardada localmente", type: "success" });
       onDataChange('asistencia', { immediate: true });
@@ -747,7 +789,6 @@
     draft[estudianteId] = { ...draft[estudianteId], estado: newEstado };
     syncDraftToStorage();
     estudiantes = estudiantes.map(est => est.id === estudianteId ? { ...est, estado: newEstado } : est);
-    hasUnsavedChanges = true;
   }
 
   function handleEstadoChangeMulti(estudianteId: number, fecha: string, estado: string) {
@@ -765,14 +806,12 @@
       const newDias = { ...e.dias, [fecha]: { ...e.dias[fecha], estado: newEstado } };
       return { ...e, dias: newDias };
     });
-    hasUnsavedChanges = true;
   }
 
   function handleObservacionChange(estudianteId: number, observacion: string) {
     draft[estudianteId] = { ...draft[estudianteId], observacion };
     syncDraftToStorage();
     estudiantes = estudiantes.map(est => est.id === estudianteId ? { ...est, observacion } : est);
-    hasUnsavedChanges = true;
   }
 
   function handleObservacionChangeMulti(estudianteId: number, fecha: string, observacion: string) {
@@ -784,7 +823,6 @@
       if (e.id !== estudianteId) return e;
       return { ...e, dias: { ...e.dias, [fecha]: { ...e.dias[fecha], observacion } } };
     });
-    hasUnsavedChanges = true;
   }
 
   async function marcarTodos(estado: string) {
@@ -815,7 +853,6 @@
         return { ...est, dias: newDias };
       });
     }
-    hasUnsavedChanges = true;
   }
 
   function confirmClearAllStatus() {
@@ -839,7 +876,6 @@
         return { ...est, dias: newDias };
       });
     }
-    hasUnsavedChanges = true;
     emit("show-toast", { message: "🧹 Asistencia limpiada. Recuerda guardar los cambios.", type: "info" });
   }
 
@@ -886,7 +922,6 @@
       if (e.id !== estudianteId) return e;
       return { ...e, dias: { ...e.dias, [fecha]: { ...e.dias[fecha], estado: next } } };
     });
-    hasUnsavedChanges = true;
   }
 
   function getObsMulti(estudianteId: number, fecha: string): string {
@@ -915,9 +950,9 @@
       const answer = await ask('Tienes cambios sin guardar. ¿Deseas guardarlos antes de continuar?', { title: 'Cambios sin guardar', kind: 'warning', okLabel: 'Guardar', cancelLabel: 'Descartar' });
       if (answer) {
         if (periodo === "diario") { await saveChanges(estudiantes); } else { await saveChangesMulti(); }
-        hasUnsavedChanges = false; setter(value);
+        setter(value);
       } else {
-        draft = {}; syncDraftToStorage(); draftMulti = {}; syncDraftMultiToStorage(); hasUnsavedChanges = false;
+        draft = {}; syncDraftToStorage(); draftMulti = {}; syncDraftMultiToStorage();
         if (pendingRefreshOnSave) { pendingRefreshOnSave = false; refreshingSilent = true; if (selectedColegio && selectedAno) fetchGrados(); }
         setter(value);
       }
