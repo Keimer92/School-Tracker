@@ -191,6 +191,13 @@
   const isConnected = $derived(!!settings.accessToken);
   const isAndroid = /Android/i.test(navigator.userAgent);
 
+  /** Suma los conteos de un resultado de sync (puede ser número o mapa por tabla). */
+  function sumarConteos(o: any): number {
+    if (typeof o === 'number') return o;
+    if (!o) return 0;
+    return Object.values(o as Record<string, unknown>).reduce((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+  }
+
   $effect(() => { if (settings.googleUserProfilePic) imgError = false; });
 
   $effect(() => {
@@ -812,8 +819,34 @@
           <span style="color: #64748b; font-size: 0.7rem; margin-left: auto;">La D1 sincroniza cambios automáticamente.</span>
         </div>
         {#if d1LastResult}
-          <div style="margin-top: 0.75rem; padding: 0.6rem 0.8rem; background: rgba(0,0,0,0.15); border-radius: 8px; font-size: 0.7rem; color: #94a3b8; font-family: monospace; line-height: 1.6;">
-            Subidos: {JSON.stringify(d1LastResult.pushed)} · Aplicados: {JSON.stringify(d1LastResult.pulled)} · Borrados: {d1LastResult.deletedApplied}
+          {@const subidos = sumarConteos(d1LastResult.pushed)}
+          {@const aplicados = sumarConteos(d1LastResult.pulled)}
+          {@const borrados = d1LastResult.deletedApplied || 0}
+          <div style="margin-top: 0.85rem; padding: 0.9rem 1rem; background: rgba(15,23,42,0.55); border: 1px solid rgba(246,130,31,0.12); border-radius: 14px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);">
+            <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 0.75rem; color: #94a3b8; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fdba74" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+              Registro de sincronización
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 0.65rem 0.4rem; border-radius: 10px; background: rgba(246,130,31,0.08); border: 1px solid rgba(246,130,31,0.18);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F6821F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <span style="font-size: 1.15rem; font-weight: 700; color: #fdba74; font-family: monospace;">{subidos}</span>
+                <span style="font-size: 0.62rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.4px;">Subidos</span>
+              </div>
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 0.65rem 0.4rem; border-radius: 10px; background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.18);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span style="font-size: 1.15rem; font-weight: 700; color: #93c5fd; font-family: monospace;">{aplicados}</span>
+                <span style="font-size: 0.62rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.4px;">Aplicados</span>
+              </div>
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 0.65rem 0.4rem; border-radius: 10px; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.18);">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                <span style="font-size: 1.15rem; font-weight: 700; color: #fca5a5; font-family: monospace;">{borrados}</span>
+                <span style="font-size: 0.62rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.4px;">Borrados</span>
+              </div>
+            </div>
+            {#if subidos === 0 && aplicados === 0 && borrados === 0}
+              <p style="margin: 0.7rem 0 0; text-align: center; color: #64748b; font-size: 0.7rem;">✓ Todo sincronizado · sin cambios pendientes</p>
+            {/if}
           </div>
         {/if}
         <div style="margin-top: 0.85rem; display: flex; align-items: center; gap: 6px;">
