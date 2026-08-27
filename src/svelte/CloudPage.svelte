@@ -703,7 +703,6 @@
           <div style="color:#94a3b8;font-size:0.78rem;">{perfil.email}</div>
         </div>
         <button onclick={cerrarSesionCloud} style="padding: 0.4rem 0.85rem; border-radius: 8px; border: 1px solid rgba(239,68,68,0.25); background: rgba(239,68,68,0.08); color: #fca5a5; cursor: pointer; font-size: 0.75rem; font-weight: 600;">Cerrar sesión</button>
-        <button onclick={iniciarSesionCloud} disabled={cloudLoginLoading} style="padding: 0.4rem 0.85rem; border-radius: 8px; border: 1px solid rgba(66,133,244,0.25); background: rgba(66,133,244,0.08); color: #93c5fd; cursor: pointer; font-size: 0.75rem; font-weight: 600; opacity: {cloudLoginLoading ? 0.6 : 1};">Cambiar cuenta</button>
       </div>
       {#if perfil.rol === 'admin'}
         <div style="padding: 0 1.5rem 1.1rem;">
