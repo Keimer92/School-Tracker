@@ -1243,6 +1243,7 @@ async fn gd_open_auth_webview(
         )
         .title("Iniciar sesión con Google")
         .inner_size(700.0, 620.0)
+        .center()
         .resizable(false)
         .on_navigation(move |nav_url| {
             let s = nav_url.as_str();
