@@ -7,7 +7,7 @@
   import { registerBackHandler } from "../lib/androidBack";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
-  interface CategoryConfig { title: string; table: string; endpoints: { get: string; add: string; update: string; delete: string; setActive?: string; updateOrder?: string; }; hideDefault?: boolean; }
+  interface CategoryConfig { title: string; table: string; endpoints: { get: string; add: string; update: string; delete: string; setActive?: string; updateOrder?: string; }; hideDefault?: boolean; noAdd?: boolean; }
   interface DeleteCheckResponse { hasStudents: boolean; hasGrades: boolean; hasNotes: boolean; hasAttendance: boolean; studentCount: number; noteCount: number; attendanceCount: number; }
 
   let { config, onConfigClick, onSubjectsClick }: {
@@ -352,7 +352,7 @@
       {#if hasUnsavedChanges}
         <span title="Cambios sin guardar" style="width:10px;height:10px;border-radius:50%;background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,0.6);flex-shrink:0;"></span>
       {/if}
-      {#if items.length > 0}
+      {#if items.length > 0 && config.title !== "Corte Evaluativo"}
         <label onclick={(e) => e.stopPropagation()} style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer; padding: 0.3rem 0.5rem; border-radius: 6px; background: {selectedIds.size > 0 ? 'rgba(var(--primary-rgb), 0.08)' : 'rgba(255,255,255,0.03)'}; border: {selectedIds.size > 0 ? '1px solid rgba(var(--primary-rgb), 0.2)' : '1px solid transparent'}; font-size: 0.7rem; color: {selectedIds.size > 0 ? 'var(--text-secondary)' : '#94a3b8'}; font-weight: 600; user-select: none;transition:all 0.2s">
           <input type="checkbox" checked={items.length > 0 && selectedIds.size === items.length} onchange={toggleSelectAll} style="display: none;" />
           <span style="display: flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 4px; border: {selectedIds.size === items.length ? '2px solid var(--primary-color)' : '2px solid rgba(255,255,255,0.15)'}; background: {selectedIds.size === items.length ? 'rgba(var(--primary-rgb), 0.2)' : 'transparent'}; flex-shrink: 0;">
@@ -376,6 +376,7 @@
         </div>
       {/if}
     </div>
+    {#if !config.noAdd}
     <button onclick={handleAdd} style="padding:0.55rem 1.1rem;font-size:0.8rem;border-radius:10px;background:linear-gradient(135deg,var(--primary-color),var(--primary-hover));border:none;cursor:pointer;font-weight:600;color:white;box-shadow:0 2px 10px rgba(var(--primary-rgb),0.3);transition:all 0.2s;letter-spacing:0.2px"
       onmouseenter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
       onmouseleave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
@@ -383,6 +384,7 @@
       onmouseup={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}>
       <span style="margin-right:0.4rem;font-size:1rem;">+</span> Agregar {config.title}
     </button>
+    {/if}
   </div>
 
   <div style="display: flex; flex-direction: column; gap: 0.65rem;">
@@ -390,7 +392,11 @@
       <div style="padding:3rem 2rem;text-align:center;background:rgba(255,255,255,0.02);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:14px;border:1px dashed rgba(255,255,255,0.08);">
         <div style="font-size: 2.5rem; margin-bottom: 1rem;">📭</div>
         <p style="margin: 0; font-size: 1rem; color: #94a3b8; font-weight: 500;">No hay {config.title.toLowerCase()}s registrados</p>
-        <p style="margin: 0.75rem 0 0 0; font-size: 0.85rem; color: #64748b;">Haz clic en "<strong style="color: var(--primary-color);">+ Agregar</strong>" para crear uno nuevo</p>
+        {#if config.noAdd}
+          <p style="margin: 0.75rem 0 0 0; font-size: 0.85rem; color: #64748b;">Están definidos por el sistema (4 cortes evaluativos).</p>
+        {:else}
+          <p style="margin: 0.75rem 0 0 0; font-size: 0.85rem; color: #64748b;">Haz clic en "<strong style="color: var(--primary-color);">+ Agregar</strong>" para crear uno nuevo</p>
+        {/if}
       </div>
     {:else}
       {#each vista as item (item.id)}
@@ -400,7 +406,7 @@
           onmouseenter={(e) => { if (draggedItem?.id !== item.id) { e.currentTarget.style.borderColor = 'rgba(var(--primary-rgb), 0.25)'; e.currentTarget.style.background = 'rgba(var(--primary-rgb), 0.04)'; }}}
           onmouseleave={(e) => { if (draggedItem?.id !== item.id) { e.currentTarget.style.borderColor = item.esNuevo ? 'rgba(var(--primary-rgb),0.45)' : 'rgba(255,255,255,0.06)'; e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}}>
           <div style="display: flex; align-items: center; gap: 6px;">
-            {#if !item.esNuevo}
+            {#if !item.esNuevo && config.title !== "Corte Evaluativo"}
               <label onclick={(e) => e.stopPropagation()} style="display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 5px; border: {selectedIds.has(item.id) ? '2px solid var(--primary-color)' : '2px solid rgba(255,255,255,0.12)'}; background: {selectedIds.has(item.id) ? 'rgba(var(--primary-rgb), 0.15)' : 'transparent'}; cursor: pointer; flex-shrink: 0;transition:all 0.15s;">
                 <input type="checkbox" checked={selectedIds.has(item.id)} onchange={() => toggleSelectItem(item.id)} style="display: none;" />
                 {#if selectedIds.has(item.id)}
