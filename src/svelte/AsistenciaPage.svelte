@@ -130,6 +130,10 @@
   let isAndroidMobile = $derived(isAndroid || (isMobile && !isWindows));
   let pageVisible = $state(true);
 
+  // Ancho de los modales (Sin Clases / Semana): más grande y cómodo en Windows,
+  // ajustado al viewport en móvil para no salirse de pantalla.
+  const modalCardWidth = isWindows ? 'min(480px, calc(100vw - 64px))' : 'min(320px, calc(100vw - 32px))';
+
   let draft: Record<number, { estado: string | null; observacion: string | null }> = {};
 
   type AsistenciaPeriodo = "diario" | "semanal" | "mensual";
@@ -1117,25 +1121,28 @@
                 </button>
 
                 {#if popSemanaAbierta}
-                  <div class="pop-panel" tabindex="-1">
-                    <div class="pop-mes">
-                      <button class="pop-nav" onclick={() => cambiarMesSem(-1)} title="Mes anterior">‹</button>
-                      <span class="pop-mes-txt">{nombreMesSel} {anoSeleccionado}</span>
-                      <button class="pop-nav" onclick={() => cambiarMesSem(1)} title="Mes siguiente">›</button>
-                    </div>
+                  <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) cerrarPopSemana(); }} style="z-index:2000">
+                    <div class="pop-panel" tabindex="-1" style="position:relative;top:auto;left:auto;right:auto;bottom:auto;width:{modalCardWidth};max-width:{modalCardWidth};max-height:85vh;overflow-y:auto;">
+                      <button type="button" onclick={cerrarPopSemana} title="Cerrar" style="position:absolute;top:.6rem;right:.6rem;width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#cbd5e1;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1">✕</button>
+                      <div class="pop-mes" style="padding-right:2.2rem">
+                        <button class="pop-nav" onclick={() => cambiarMesSem(-1)} title="Mes anterior">‹</button>
+                        <span class="pop-mes-txt">{nombreMesSel} {anoSeleccionado}</span>
+                        <button class="pop-nav" onclick={() => cambiarMesSem(1)} title="Mes siguiente">›</button>
+                      </div>
 
-                    <div class="pop-sems">
-                      {#each semanasOpts as s (s.n)}
-                        <button
-                          type="button"
-                          class="pop-sem"
-                          class:sel={semanaActiva === s.n}
-                          onclick={() => elegirSemana(s)}
-                        >
-                          <span class="pop-sem-n">Semana {s.n}</span>
-                          <span class="pop-sem-rango">{s.rango}</span>
-                        </button>
-                      {/each}
+                      <div class="pop-sems">
+                        {#each semanasOpts as s (s.n)}
+                          <button
+                            type="button"
+                            class="pop-sem"
+                            class:sel={semanaActiva === s.n}
+                            onclick={() => elegirSemana(s)}
+                          >
+                            <span class="pop-sem-n">Semana {s.n}</span>
+                            <span class="pop-sem-rango">{s.rango}</span>
+                          </button>
+                        {/each}
+                      </div>
                     </div>
                   </div>
                 {/if}
@@ -1195,7 +1202,8 @@
 
               {#if popSinClasesAbierta}
                 <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) cerrarPopSinClases(); }} style="z-index:2000">
-                  <div class="pop-panel" tabindex="-1" style="position:relative;top:auto;left:auto;right:auto;bottom:auto;width:min(320px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-height:85vh;overflow-y:auto;">
+                  <div class="pop-panel" tabindex="-1" style="position:relative;top:auto;left:auto;right:auto;bottom:auto;width:{modalCardWidth};max-width:{modalCardWidth};max-height:85vh;overflow-y:auto;">
+                    <button type="button" onclick={cerrarPopSinClases} title="Cerrar" style="position:absolute;top:.6rem;right:.6rem;width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#cbd5e1;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1">✕</button>
                     <div class="pop-mes"><span class="pop-mes-txt">{colFechaObjetivo ? `Marcar ${fmtDM(colFechaObjetivo)} sin clases` : 'Motivo del día(s) sin clases'}</span></div>
                     {#if colFechaObjetivo}
                       <div style="font-size:.65rem;color:#94a3b8;margin:-.3rem 0 .5rem">Solo afecta esa fecha específica</div>
