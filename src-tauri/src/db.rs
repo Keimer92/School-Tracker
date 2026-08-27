@@ -4648,9 +4648,29 @@ pub struct SeedItem {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct ColegioDias {
+    pub lunes: bool,
+    pub martes: bool,
+    pub miercoles: bool,
+    pub jueves: bool,
+    pub viernes: bool,
+    pub sabado: bool,
+    pub domingo: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ColegioSeed {
+    pub nombre: String,
+    pub dias: ColegioDias,
+    pub asignaturas: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct SeedSelections {
     pub anos: Vec<String>,
-    pub colegios: Vec<String>,
+    pub colegios: Vec<ColegioSeed>,
     pub grados: Vec<SeedItem>,
     pub secciones: Vec<String>,
     pub asignaturas: Vec<SeedItem>,
@@ -4728,11 +4748,11 @@ pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: Se
 
     // 3. Colegios seleccionados (orden = orden de captura, para respetar el
     // orden en que el usuario los introdujo en el asistente manual)
-    for (idx, nombre) in selections.colegios.iter().enumerate() {
+    for (idx, c) in selections.colegios.iter().enumerate() {
         let orden = (idx + 1) as i64;
         conn.execute(
             "INSERT OR IGNORE INTO colegio (nombre, orden) VALUES (?, ?)",
-            rusqlite::params![nombre, orden],
+            rusqlite::params![c.nombre, orden],
         ).map_err(|e| e.to_string())?;
     }
 
@@ -4750,6 +4770,32 @@ pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: Se
             "INSERT OR IGNORE INTO grado (nombre, cualitativo) VALUES (?, ?)",
             rusqlite::params![g.nombre, if g.cualitativo { 1 } else { 0 }],
         ).map_err(|e| e.to_string())?;
+    }
+
+    // 5b. Días de clase y asignaturas por colegio (selección manual del usuario)
+    for c in &selections.colegios {
+        conn.execute(
+            "INSERT OR IGNORE INTO colegio_dias_asistencia (colegio_id, lunes, martes, miercoles, jueves, viernes, sabado, domingo)
+             VALUES ((SELECT id FROM colegio WHERE nombre = ?1), ?, ?, ?, ?, ?, ?, ?)",
+            rusqlite::params![
+                c.nombre,
+                if c.dias.lunes { 1 } else { 0 },
+                if c.dias.martes { 1 } else { 0 },
+                if c.dias.miercoles { 1 } else { 0 },
+                if c.dias.jueves { 1 } else { 0 },
+                if c.dias.viernes { 1 } else { 0 },
+                if c.dias.sabado { 1 } else { 0 },
+                if c.dias.domingo { 1 } else { 0 },
+            ],
+        ).map_err(|e| e.to_string())?;
+        for a_nombre in &c.asignaturas {
+            conn.execute(
+                "INSERT OR IGNORE INTO colegio_asignatura (colegio_id, asignatura_id)
+                 SELECT co.id, a.id FROM colegio co, asignatura a
+                 WHERE co.nombre = ?1 AND a.nombre = ?2",
+                rusqlite::params![c.nombre, a_nombre],
+            ).map_err(|e| e.to_string())?;
+        }
     }
 
     // 6. Secciones seleccionadas
@@ -4773,24 +4819,6 @@ pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: Se
         );
         let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
         for g in &selections.grados { params.push(Box::new(g.nombre.clone())); }
-        for a in &selections.asignaturas { params.push(Box::new(a.nombre.clone())); }
-        let params_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
-        conn.execute(&sql, params_refs.as_slice()).map_err(|e| e.to_string())?;
-    }
-
-    // 8. Producto cartesiano colegio Ã— asignatura
-    if !selections.colegios.is_empty() && !selections.asignaturas.is_empty() {
-        let placeholders_c = selections.colegios.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-        let placeholders_a = selections.asignaturas.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-        let sql = format!(
-            "INSERT OR IGNORE INTO colegio_asignatura (colegio_id, asignatura_id)
-             SELECT c.id, a.id FROM colegio c
-             CROSS JOIN asignatura a
-             WHERE c.nombre IN ({}) AND a.nombre IN ({})",
-            placeholders_c, placeholders_a
-        );
-        let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
-        for n in &selections.colegios { params.push(Box::new(n.clone())); }
         for a in &selections.asignaturas { params.push(Box::new(a.nombre.clone())); }
         let params_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
         conn.execute(&sql, params_refs.as_slice()).map_err(|e| e.to_string())?;

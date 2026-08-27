@@ -29,9 +29,11 @@
   }
 
   interface GradItem { nombre: string; cualitativo: boolean; }
+  interface DiasClase { lunes: boolean; martes: boolean; miercoles: boolean; jueves: boolean; viernes: boolean; sabado: boolean; domingo: boolean; }
+  interface ColegioItem { nombre: string; dias: DiasClase; asignaturas: string[]; }
 
   let inputAnos = $state<string[]>([]);
-  let inputColegios = $state<string[]>([]);
+  let inputColegios = $state<ColegioItem[]>([]);
   let inputGrados = $state<GradItem[]>([]);
   let inputSecciones = $state<string[]>([]);
   let inputAsignaturas = $state<GradItem[]>([]);
@@ -39,10 +41,10 @@
 
   const steps = [
     { title: 'Años Lectivos', icon: '📅', key: 'anos' },
+    { title: 'Asignaturas', icon: '📚', key: 'asignaturas' },
     { title: 'Colegios', icon: '🏫', key: 'colegios' },
     { title: 'Grados', icon: '📊', key: 'grados' },
     { title: 'Secciones', icon: '👥', key: 'secciones' },
-    { title: 'Asignaturas', icon: '📚', key: 'asignaturas' },
     { title: 'Resumen', icon: '✅', key: 'resumen' },
   ];
 
@@ -203,7 +205,7 @@
       await invoke('seed_selected_data', {
         selections: {
           anos: inputAnos.map((a) => a.trim()),
-          colegios: inputColegios.map((c) => c.trim()),
+          colegios: inputColegios.map((c) => ({ nombre: c.nombre.trim(), dias: c.dias, asignaturas: c.asignaturas })),
           grados,
           secciones: inputSecciones.map((s) => s.trim()),
           asignaturas,
@@ -240,7 +242,14 @@
     };
     return map[stepKey()];
   }
-  function currentItems(): (string | GradItem)[] {
+  const diasKeys: (keyof DiasClase)[] = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'];
+  function defaultDias(): DiasClase {
+    return { lunes: true, martes: true, miercoles: true, jueves: true, viernes: true, sabado: false, domingo: false };
+  }
+  function diaShort(k: keyof DiasClase): string {
+    return { lunes: 'L', martes: 'M', miercoles: 'X', jueves: 'J', viernes: 'V', sabado: 'S', domingo: 'D' }[k];
+  }
+  function currentItems(): (string | GradItem | ColegioItem)[] {
     const k = stepKey();
     if (k === 'anos') return inputAnos;
     if (k === 'colegios') return inputColegios;
@@ -251,14 +260,14 @@
   function setItems(arr: string[]) {
     const k = stepKey();
     if (k === 'anos') inputAnos = arr;
-    else if (k === 'colegios') inputColegios = arr;
     else if (k === 'secciones') inputSecciones = arr;
   }
-  function chipLabel(item: string | GradItem): string {
+  function chipLabel(item: string | GradItem | ColegioItem): string {
     return typeof item === 'string' ? item : item.nombre;
   }
-  function chipCualitativo(item: string | GradItem): boolean {
-    return typeof item === 'string' ? false : item.cualitativo;
+  function chipCualitativo(item: string | GradItem | ColegioItem): boolean {
+    if (typeof item === 'string') return false;
+    return (item as GradItem).cualitativo ?? false;
   }
   function addCurrentItem() {
     const v = currentInput.trim();
@@ -272,6 +281,10 @@
       if (!inputAsignaturas.some((a) => a.nombre.toLowerCase() === v.toLowerCase())) {
         inputAsignaturas = [...inputAsignaturas, { nombre: v, cualitativo: false }];
       }
+    } else if (k === 'colegios') {
+      if (!inputColegios.some((c) => c.nombre.toLowerCase() === v.toLowerCase())) {
+        inputColegios = [...inputColegios, { nombre: v, dias: defaultDias(), asignaturas: [] }];
+      }
     } else {
       const items = [...(currentItems() as string[])];
       if (!items.some((x) => x.toLowerCase() === v.toLowerCase())) items.push(v);
@@ -283,6 +296,7 @@
     const k = stepKey();
     if (k === 'grados') inputGrados = inputGrados.filter((_, idx) => idx !== i);
     else if (k === 'asignaturas') inputAsignaturas = inputAsignaturas.filter((_, idx) => idx !== i);
+    else if (k === 'colegios') inputColegios = inputColegios.filter((_, idx) => idx !== i);
     else setItems((currentItems() as string[]).filter((_, idx) => idx !== i));
   }
   function toggleCualitativo(i: number) {
@@ -293,6 +307,21 @@
       inputAsignaturas = inputAsignaturas.map((a, idx) => idx === i ? { ...a, cualitativo: !a.cualitativo } : a);
     }
   }
+  function toggleDia(ci: number, dk: keyof DiasClase) {
+    inputColegios = inputColegios.map((c, idx) => {
+      if (idx !== ci) return c;
+      const dias = { ...c.dias, [dk]: !c.dias[dk] };
+      return { ...c, dias };
+    });
+  }
+  function toggleAsignaturaColegio(ci: number, nombre: string) {
+    inputColegios = inputColegios.map((c, idx) => {
+      if (idx !== ci) return c;
+      const has = c.asignaturas.includes(nombre);
+      const asignaturas = has ? c.asignaturas.filter((n) => n !== nombre) : [...c.asignaturas, nombre];
+      return { ...c, asignaturas };
+    });
+  }
 
   function getResumenItems() {
     const gradosResumen = inputGrados.map((g) => {
@@ -301,7 +330,7 @@
     });
     return [
       { label: 'Años Lectivos', items: inputAnos.join(', '), icon: '📅' },
-      { label: 'Colegios', items: inputColegios.join(', '), icon: '🏫' },
+      { label: 'Colegios', items: inputColegios.map((c) => c.nombre).join(', '), icon: '🏫' },
       { label: 'Grados', items: gradosResumen.join(', '), icon: '📊' },
       { label: 'Secciones', items: inputSecciones.join(', '), icon: '👥' },
       { label: 'Asignaturas', items: inputAsignaturas.map((a) => a.nombre).join(', '), icon: '📚' },
@@ -396,6 +425,29 @@
           </div>
           {#if currentItems().length === 0}
             <p class="wizard-empty">Aún no has agregado {stepLabel()}. Escribe uno arriba y pulsa “Agregar”.</p>
+          {:else if stepKey() === 'colegios'}
+            <div class="wizard-colegios">
+              {#each inputColegios as col, ci}
+                <div class="wizard-colegio-card">
+                  <div class="wizard-colegio-head">
+                    <span class="wizard-colegio-name">{col.nombre}</span>
+                    <button class="wizard-chip-x" onclick={() => removeItem(ci)} aria-label="Eliminar">×</button>
+                  </div>
+                  <div class="wizard-colegio-label">Días de clases</div>
+                  <div class="wizard-dias">
+                    {#each diasKeys as dk}
+                      <button class="wizard-dia" class:active={col.dias[dk]} onclick={() => toggleDia(ci, dk)}>{diaShort(dk)}</button>
+                    {/each}
+                  </div>
+                  <div class="wizard-colegio-label">Asignaturas que imparte</div>
+                  <div class="wizard-asig">
+                    {#each inputAsignaturas as a}
+                      <button class="wizard-asig-chip" class:active={col.asignaturas.includes(a.nombre)} onclick={() => toggleAsignaturaColegio(ci, a.nombre)}>{a.nombre}</button>
+                    {/each}
+                  </div>
+                </div>
+              {/each}
+            </div>
           {:else}
             <div class="wizard-chips">
               {#each currentItems() as item, i}
@@ -645,6 +697,27 @@
   .wizard-add-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(59,130,246,0.25); }
   .wizard-add-btn:active { transform: translateY(1px); }
   .wizard-empty { color: #64748b; font-size: 0.8rem; text-align: center; padding: 1rem; background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.1); border-radius: 12px; }
+  .wizard-colegios { display: flex; flex-direction: column; gap: 0.75rem; max-height: 320px; overflow-y: auto; padding: 0.15rem; }
+  .wizard-colegio-card {
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 0.85rem 0.95rem;
+  }
+  .wizard-colegio-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; }
+  .wizard-colegio-name { font-size: 0.95rem; font-weight: 700; color: #e2e8f0; }
+  .wizard-colegio-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin: 0.5rem 0 0.35rem; }
+  .wizard-dias { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+  .wizard-dia {
+    width: 34px; height: 34px; border-radius: 9px; cursor: pointer; font-size: 0.85rem; font-weight: 700; font-family: inherit;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); color: #64748b; transition: all 0.2s ease;
+  }
+  .wizard-dia:hover { border-color: var(--primary-color, #3b82f6); }
+  .wizard-dia.active { background: linear-gradient(135deg, var(--primary-color, #3b82f6), #a78bfa); color: #fff; border-color: transparent; box-shadow: 0 4px 12px rgba(59,130,246,0.25); }
+  .wizard-asig { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .wizard-asig-chip {
+    padding: 0.4rem 0.7rem; border-radius: 9px; cursor: pointer; font-size: 0.78rem; font-family: inherit;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; transition: all 0.2s ease;
+  }
+  .wizard-asig-chip:hover { border-color: #a78bfa; color: #e2e8f0; }
+  .wizard-asig-chip.active { background: rgba(168,85,247,0.16); border-color: rgba(168,85,247,0.5); color: #d8b4fe; }
   .wizard-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; max-height: 280px; overflow-y: auto; padding: 0.15rem; }
   .wizard-chip {
     display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.6rem;
