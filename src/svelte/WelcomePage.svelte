@@ -6,7 +6,7 @@
   import { readTextFile } from "@tauri-apps/plugin-fs";
   import { syncManager, type DownloadProgress } from "../lib/driveSyncService";
   import { setBackAuthInProgress } from "../lib/androidBack";
-  import { authWithGoogleIdToken, guardarTokenSesion, DEFAULT_WORKER_URL } from "../lib/cloudAuth";
+  import { iniciarSesionGoogleConNube } from "../lib/cloudLogin";
   import appIcon from "../assets/app-icon.png";
 
   let view: 'landing' | 'cloud' | 'wizard' = $state('landing');
@@ -130,87 +130,37 @@
 
   /**
    * LOGIN/REGISTRO con Google para el sync Cloudflare.
-   * Android: selector nativo (idToken vía JNI). Desktop: OAuth navegador
-   * reutilizando el webview/servidor local de Drive (scopes openid).
+   * Reutiliza el flujo compartido (src/lib/cloudLogin.ts) que además vincula
+   * Google Drive con la MISMA cuenta. Tras conectar, verifica si la nube ya
+   * tiene datos para saltar el asistente.
    */
   async function handleCloudLogin() {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-    if (!clientId) { errorMsg = 'Falta VITE_GOOGLE_CLIENT_ID en .env'; return; }
     loading = true;
     errorMsg = '';
-    let driveAuthCode = '';
     try {
-      let idToken = '';
-      if (/Android/i.test(navigator.userAgent)) {
-        loadingMessage = 'Abriendo Google Sign-In...';
-        await invoke('gd_start_native_signin', { serverClientId: clientId });
-        const deadline = Date.now() + 180000;
-        while (Date.now() < deadline) {
-          await new Promise((r) => setTimeout(r, 1000));
-          try {
-            const res = await invoke<string | null>('gd_take_last_native_result');
-            if (res) {
-              const parsed: any = typeof res === 'string' ? JSON.parse(res) : res;
-              if (!parsed.ok) {
-                if (!parsed.cancelled) throw new Error(`Google Sign-In (${parsed.statusCode ?? '?' }): ${parsed.error ?? ''}`);
-                loading = false; loadingMessage = ''; return;
-              }
-              idToken = parsed.idToken || '';
-              // El sign-in nativo pide scope drive.file → reutilizamos el código para Drive
-              driveAuthCode = parsed.serverAuthCode || '';
-              break;
-            }
-          } catch (e: any) {
-            if (typeof e === 'object' && e?.message?.includes('Sign-In')) throw e;
-          }
+      const res = await iniciarSesionGoogleConNube({
+        onStatus: (m) => { loadingMessage = m; },
+        setBackAuth: setBackAuthInProgress,
+      });
+      if (res.status === 'ok') {
+        loadingMessage = 'Verificando datos...';
+        const hasData = await invoke('is_app_initialized');
+        if (hasData) {
+          await invoke('set_app_initialized');
+          emit('welcome-complete');
+          setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
+        } else {
+          loading = false; loadingMessage = '';
+          goToWizard();
+          return;
         }
-        if (!idToken) {
-          if (!errorMsg) errorMsg = 'No se obtuvo el token de Google';
-          loading = false; loadingMessage = ''; return;
-        }
+      } else if (res.status === 'cancelled') {
+        errorMsg = 'Autenticación cancelada';
       } else {
-        // Desktop: OAuth navegador con openid + Drive (una sola consentición
-        // sirve para la nube Cloudflare Y para vincular Drive)
-        setBackAuthInProgress(true);
-        const redirectUri = 'http://localhost:51733/callback';
-        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent('openid email profile https://www.googleapis.com/auth/drive.file')}&access_type=offline&prompt=consent`;
-        loadingMessage = 'Esperando autenticación de Google...';
-        const code = await invoke<string>('gd_open_auth_webview', { url: authUrl });
-        setBackAuthInProgress(false);
-        loadingMessage = 'Verificando identidad...';
-        const params: Record<string, string> = {
-          client_id: clientId,
-          client_secret: import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '',
-          code,
-          grant_type: 'authorization_code',
-          redirect_uri: redirectUri,
-        };
-        const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams(params),
-        });
-        if (!tokenRes.ok) throw new Error('Error intercambiando código: ' + (await tokenRes.text()));
-        const tokenData = await tokenRes.json();
-        idToken = tokenData.id_token || '';
-        if (!idToken) throw new Error('Google no devolvió id_token');
-        guardarSesionDrive(clientId, tokenData);
-      }
-
-      loadingMessage = 'Ingresando a la nube...';
-      const result = await authWithGoogleIdToken(idToken);
-      guardarTokenSesion(idToken);
-      loadingMessage = result.creado ? 'Cuenta creada. Preparando tu nube...' : 'Bienvenido de nuevo...';
-      await conectarConCredenciales(DEFAULT_WORKER_URL, result.schoolKey);
-      // Nube conectada → vincular Drive con la misma cuenta (no bloquea)
-      if (/Android/i.test(navigator.userAgent)) {
-        if (driveAuthCode) { loadingMessage = 'Vinculando Google Drive...'; await vincularDriveAndroid(driveAuthCode); }
-      } else {
-        await emit("show-toast", { message: "☁️ Google Drive vinculado con la misma cuenta", type: "success" });
+        errorMsg = res.error;
       }
     } catch (e: any) {
-      const errStr = typeof e === 'string' ? e : (e?.message || String(e));
-      errorMsg = errStr.toLowerCase().includes('cancel') ? 'Autenticación cancelada' : errStr;
+      errorMsg = typeof e === 'string' ? e : (e?.message || String(e));
     }
     loading = false;
     loadingMessage = '';
@@ -224,68 +174,6 @@
     if (localStorage.getItem('stp_notif_permiso_pedido')) return;
     localStorage.setItem('stp_notif_permiso_pedido', '1');
     try { await invoke('gd_request_notification_permission'); } catch (e) { console.error('Permiso notificaciones:', e); }
-  }
-
-  // ── Vinculación de Google Drive con la MISMA sesión del login Cloudflare ──
-  // No bloquea el flujo principal: si falla, solo queda Drive desconectado.
-
-  function guardarSesionDrive(clientId: string, tokenData: any): void {
-    // userinfo se resuelve aparte para no bloquear si falla
-    fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-      headers: { Authorization: `Bearer ${tokenData.access_token}` },
-    }).then(r => r.ok ? r.json() : {}).then((userInfo: any) => {
-      localStorage.setItem('schooltracker-google-drive-settings', JSON.stringify({
-        clientId,
-        accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token || null,
-        tokenExpiry: Date.now() + ((tokenData.expires_in || 3600) * 1000),
-        googleUserEmail: userInfo.email || null,
-        googleUserName: userInfo.name || null,
-        googleUserProfilePic: userInfo.picture || null,
-      }));
-    }).catch((e) => console.error('[Drive] userinfo:', e));
-  }
-
-  /** Desktop: el mismo code del OAuth incluye drive.file → guarda la sesión Drive. */
-  async function vincularDriveDesktop(code: string) {
-    try {
-      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-      const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
-      const redirectUri = 'http://localhost:51733/callback';
-      const res = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, code, grant_type: 'authorization_code', redirect_uri: redirectUri }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      guardarSesionDrive(clientId, await res.json());
-      await emit("show-toast", { message: "☁️ Google Drive vinculado con la misma cuenta", type: "success" });
-    } catch (e) {
-      console.error('[Drive] vinculación desktop falló:', e);
-    }
-  }
-
-  /** Android: el sign-in nativo ya pidió serverAuthCode con scope drive.file. */
-  async function vincularDriveAndroid(serverAuthCode: string) {
-    if (!serverAuthCode) return;
-    try {
-      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-      const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
-      const params: Record<string, string> = {
-        client_id: clientId, client_secret: clientSecret,
-        code: serverAuthCode, grant_type: 'authorization_code',
-      };
-      const res = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams(params),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      guardarSesionDrive(clientId, await res.json());
-      await emit("show-toast", { message: "☁️ Google Drive vinculado con la misma cuenta", type: "success" });
-    } catch (e) {
-      console.error('[Drive] vinculación android falló:', e);
-    }
   }
 
   async function handleWizardComplete() {

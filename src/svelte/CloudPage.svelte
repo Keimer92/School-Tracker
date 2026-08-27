@@ -9,6 +9,7 @@
   import { driveSyncService } from "../lib/driveSyncService";
   import { ensureWsSync, stopWsSync } from "../lib/wsSyncService";
   import { registerBackHandler, setBackAuthInProgress } from "../lib/androidBack";
+  import { iniciarSesionGoogleConNube } from "../lib/cloudLogin";
   import { save as saveDialog, open as openDialog } from "@tauri-apps/plugin-dialog";
   import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
   import { ask } from "@tauri-apps/plugin-dialog";
@@ -27,6 +28,38 @@
     adminUsers = [];
     showAdminPanel = false;
     emit("show-toast", { message: "👋 Sesión cerrada (la nube y tus datos permanecen intactos)", type: "info" });
+  }
+
+  // ── Iniciar / rehacer la sesión Google desde la propia CloudPage ──
+  let cloudLoginLoading = $state(false);
+  let cloudLoginMsg = $state("");
+
+  async function iniciarSesionCloud() {
+    cloudLoginLoading = true;
+    cloudLoginMsg = "";
+    try {
+      const res = await iniciarSesionGoogleConNube({
+        onStatus: (m) => { cloudLoginMsg = m; },
+        setBackAuth: setBackAuthInProgress,
+      });
+      if (res.status === 'ok') {
+        perfil = getPerfilLocal();
+        await loadD1Config();
+        loadSettings();
+        if (settings.accessToken) await refreshFiles();
+        await emit("show-toast", {
+          message: perfil?.rol === 'admin' ? "👑 Sesión de administrador iniciada" : "✅ Sesión iniciada con Google",
+          type: "success",
+        });
+      } else if (res.status === 'cancelled') {
+        await emit("show-toast", { message: "Autenticación cancelada", type: "info" });
+      } else {
+        await emit("show-toast", { message: "❌ " + res.error, type: "error" });
+      }
+    } finally {
+      cloudLoginLoading = false;
+      cloudLoginMsg = "";
+    }
   }
 
   // ── Panel de administración (solo rol admin) ──
@@ -612,6 +645,33 @@
 </script>
 
 <div class="cloud-page">
+  <!-- Iniciar sesión con Google (cuando no hay perfil activo) -->
+  {#if !perfil}
+    <div class="cloud-card" style="margin-bottom: 1.25rem;">
+      <div class="cloud-card-header" style="display: flex; align-items: center; gap: 10px;">
+        <h3>
+          <span style="display: inline-flex; align-items: center; gap: 10px; background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%); padding: 0.5rem 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);">
+            <svg width="22" height="22" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z"/></svg>
+            Cuenta de la nube
+          </span>
+        </h3>
+      </div>
+      <div style="padding: 1.25rem 1.5rem 1.5rem; text-align: center;">
+        <p style="color: #94a3b8; font-size: 0.88rem; margin: 0 0 1.1rem;">Inicia sesión con Google para sincronizar tus datos en la nube y administrar tu cuenta.</p>
+        {#if cloudLoginLoading}
+          <div style="display:flex;flex-direction:column;align-items:center;gap:0.6rem;">
+            <button disabled style="padding: 0.8rem 2rem; background: linear-gradient(135deg, #4285F4, #34A853); border: none; color: white; border-radius: 12px; font-weight: 600; font-size: 1rem; opacity: 0.7; cursor: default;">Continuando...</button>
+            {#if cloudLoginMsg}<p style="color:#94a3b8;font-size:0.78rem;margin:0;">{cloudLoginMsg}</p>{/if}
+          </div>
+        {:else}
+          <button onclick={iniciarSesionCloud} style="padding: 0.8rem 2rem; background: linear-gradient(135deg, #4285F4, #34A853); border: none; color: white; border-radius: 12px; font-weight: 600; font-size: 1rem; cursor: pointer; box-shadow: 0 4px 16px rgba(66,133,244,0.3);">
+            🔵 Continuar con Google
+          </button>
+        {/if}
+      </div>
+    </div>
+  {/if}
+
   <!-- Perfil de la cuenta + panel admin -->
   {#if perfil}
     <div class="cloud-card" style="margin-bottom: 1.25rem;">
@@ -630,6 +690,7 @@
           <div style="color:#94a3b8;font-size:0.78rem;">{perfil.email}</div>
         </div>
         <button onclick={cerrarSesionCloud} style="padding: 0.4rem 0.85rem; border-radius: 8px; border: 1px solid rgba(239,68,68,0.25); background: rgba(239,68,68,0.08); color: #fca5a5; cursor: pointer; font-size: 0.75rem; font-weight: 600;">Cerrar sesión</button>
+        <button onclick={iniciarSesionCloud} disabled={cloudLoginLoading} style="padding: 0.4rem 0.85rem; border-radius: 8px; border: 1px solid rgba(66,133,244,0.25); background: rgba(66,133,244,0.08); color: #93c5fd; cursor: pointer; font-size: 0.75rem; font-weight: 600; opacity: {cloudLoginLoading ? 0.6 : 1};">Cambiar cuenta</button>
       </div>
       {#if perfil.rol === 'admin'}
         <div style="padding: 0 1.5rem 1.1rem;">
