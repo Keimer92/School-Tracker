@@ -7,7 +7,7 @@
   import { registerBackHandler } from "../lib/androidBack";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
-  interface CategoryConfig { title: string; table: string; endpoints: { get: string; add: string; update: string; delete: string; setActive?: string; updateOrder?: string; }; }
+  interface CategoryConfig { title: string; table: string; endpoints: { get: string; add: string; update: string; delete: string; setActive?: string; updateOrder?: string; }; hideDefault?: boolean; }
   interface DeleteCheckResponse { hasStudents: boolean; hasGrades: boolean; hasNotes: boolean; hasAttendance: boolean; studentCount: number; noteCount: number; attendanceCount: number; }
 
   let { config, onConfigClick, onSubjectsClick }: {
@@ -418,7 +418,7 @@
                 <span style="cursor:grab;color:var(--text-muted);font-size:1rem;user-select:none;padding:0.15rem;opacity:0.5;">⋮⋮</span>
               {/if}
             {/if}
-            {#if config.endpoints.setActive && !item.esNuevo}
+            {#if config.endpoints.setActive && !config.hideDefault && !item.esNuevo}
               <label class="switch" title="Activar">
                 <input type="checkbox" checked={item.activo || false} onchange={() => handleSetActive(item.id)} />
                 <span class="slider round"></span>
@@ -431,12 +431,12 @@
               </label>
             {/if}
           </div>
-          <span style="flex: 1; color: {item.cualitativo ? '#a78bfa' : (item.activo ? '#4ade80' : '#e2e8f0')}; font-weight: {(item.activo || item.cualitativo) ? '700' : '500'}; font-size: 0.9rem; letter-spacing: 0.01em;">
+          <span style="flex: 1; color: {item.cualitativo ? '#a78bfa' : ((item.activo && config.title !== 'Colegio') ? '#4ade80' : '#e2e8f0')}; font-weight: {((item.activo && config.title !== 'Colegio') || item.cualitativo) ? '700' : '500'}; font-size: 0.9rem; letter-spacing: 0.01em;">
             {item.nombre}
             {#if item.esNuevo}
               <span style="margin-left: 0.5rem; font-size: 0.65rem; color: var(--primary-color); font-weight: 700; text-transform: uppercase; background: rgba(var(--primary-rgb), 0.12); padding: 0.15rem 0.4rem; border-radius: 4px; letter-spacing: 0.04em;">+ Nuevo</span>
             {/if}
-            {#if item.activo}
+            {#if item.activo && config.title !== "Colegio"}
               <span style="margin-left: 0.5rem; font-size: 0.65rem; color: #4ade80; font-weight: 700; text-transform: uppercase; background: rgba(74, 222, 128, 0.12); padding: 0.15rem 0.4rem; border-radius: 4px; letter-spacing: 0.04em;">✓ Activo</span>
             {/if}
             {#if item.cualitativo}
