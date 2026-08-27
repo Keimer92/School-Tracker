@@ -789,8 +789,8 @@
               style="margin-top: 6px; padding: 0.3rem 0.7rem; border-radius: 6px; border: 1px solid rgba(246,130,31,0.3); background: rgba(246,130,31,0.1); color: #fdba74; cursor: pointer; font-size: 0.7rem; font-weight: 600;">📤 Exportar clave (.key)</button>
           </div>
         </div>
-        {#if d1SyncState.message}
-          <div style="margin-bottom: 0.75rem; padding: 8px 12px; border-radius: 8px; font-size: 0.75rem; border-left: 3px solid {d1SyncState.status === 'error' ? '#ef4444' : '#F6821F'}; background: rgba(0,0,0,0.2); color: {d1SyncState.status === 'error' ? '#fca5a5' : 'var(--text-secondary)'};">
+        {#if d1SyncState.message && d1SyncState.status !== 'error'}
+          <div style="margin-bottom: 0.75rem; padding: 8px 12px; border-radius: 8px; font-size: 0.75rem; border-left: 3px solid #F6821F; background: rgba(0,0,0,0.2); color: var(--text-secondary);">
             {d1SyncState.message}
           </div>
         {/if}
@@ -818,15 +818,22 @@
           </div>
           <span style="color: #64748b; font-size: 0.7rem; margin-left: auto;">La D1 sincroniza cambios automáticamente.</span>
         </div>
-        {#if d1LastResult}
-          {@const subidos = sumarConteos(d1LastResult.pushed)}
-          {@const aplicados = sumarConteos(d1LastResult.pulled)}
-          {@const borrados = d1LastResult.deletedApplied || 0}
-          <div style="margin-top: 0.85rem; padding: 0.9rem 1rem; background: rgba(15,23,42,0.55); border: 1px solid rgba(246,130,31,0.12); border-radius: 14px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);">
-            <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 0.75rem; color: #94a3b8; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700;">
+        <div style="margin-top: 0.85rem; padding: 0.9rem 1rem; background: rgba(15,23,42,0.55); border: 1px solid {d1SyncState.status === 'error' ? 'rgba(239,68,68,0.3)' : 'rgba(246,130,31,0.12)'}; border-radius: 14px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);">
+          <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 0.75rem; color: {d1SyncState.status === 'error' ? '#fca5a5' : '#94a3b8'}; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700;">
+            {#if d1SyncState.status === 'error'}
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              Error de sincronización
+            {:else}
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fdba74" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
               Registro de sincronización
-            </div>
+            {/if}
+          </div>
+          {#if d1SyncState.status === 'error' && d1SyncState.message}
+            <p style="margin: 0; padding: 0.6rem 0.7rem; border-radius: 10px; background: rgba(239,68,68,0.1); color: #fecaca; font-size: 0.74rem; line-height: 1.5; border-left: 3px solid #ef4444;">{d1SyncState.message}</p>
+          {:else if d1LastResult}
+            {@const subidos = sumarConteos(d1LastResult.pushed)}
+            {@const aplicados = sumarConteos(d1LastResult.pulled)}
+            {@const borrados = d1LastResult.deletedApplied || 0}
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
               <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 0.65rem 0.4rem; border-radius: 10px; background: rgba(246,130,31,0.08); border: 1px solid rgba(246,130,31,0.18);">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F6821F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -847,8 +854,10 @@
             {#if subidos === 0 && aplicados === 0 && borrados === 0}
               <p style="margin: 0.7rem 0 0; text-align: center; color: #64748b; font-size: 0.7rem;">✓ Todo sincronizado · sin cambios pendientes</p>
             {/if}
-          </div>
-        {/if}
+          {:else}
+            <p style="margin: 0; color: #64748b; font-size: 0.72rem; text-align: center;">Aún no se ha sincronizado</p>
+          {/if}
+        </div>
         <div style="margin-top: 0.85rem; display: flex; align-items: center; gap: 6px;">
           <button onclick={regenerateDeviceId} style="padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid rgba(245,158,11,0.3); background: rgba(245,158,11,0.1); color: #fbbf24; cursor: pointer; font-size: 0.7rem;">Regenerar ID dispositivo</button>
           <button onclick={disconnectD1} style="padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); color: #f87171; cursor: pointer; font-size: 0.7rem;">Desconectar</button>
