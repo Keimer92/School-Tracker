@@ -15,8 +15,9 @@
   import EvaluacionesPage from "./svelte/EvaluacionesPage.svelte";
   import EstudiantesPage from "./svelte/EstudiantesPage.svelte";
   import GlobalesPage from "./svelte/GlobalesPage.svelte";
-  import AjustesPage from "./svelte/AjustesPage.svelte";
-  import DashboardPage from "./svelte/DashboardPage.svelte";
+import AjustesPage from "./svelte/AjustesPage.svelte";
+import DashboardPage from "./svelte/DashboardPage.svelte";
+import CloudPage from "./svelte/CloudPage.svelte";
   import Sidebar from "./svelte/Sidebar.svelte";
   import WelcomePage from "./svelte/WelcomePage.svelte";
 
@@ -162,12 +163,6 @@
     if ((tab as string) === "informe") {
       asistenciaSubTabRequest = "informe";
       setActiveTab("asistencia");
-      if (isMobile) drawerOpen = false;
-      return;
-    }
-    if (tab === "cloud") {
-      ajustesTabRequest = "nube";
-      setActiveTab("ajustes");
       if (isMobile) drawerOpen = false;
       return;
     }
@@ -450,6 +445,9 @@
     {/if}
     {#if visitedTabs.has('ajustes')}
       <div style="display: {activeTab === 'ajustes' ? 'block' : 'none'}; width: 100%; height: 100%;"><AjustesPage pageActive={activeTab === 'ajustes'} tabRequest={ajustesTabRequest} {themeMode} {setThemeMode} /></div>
+    {/if}
+    {#if visitedTabs.has('cloud')}
+      <div style="display: {activeTab === 'cloud' ? 'block' : 'none'}; width: 100%; height: 100%; overflow-y: auto;"><CloudPage /></div>
     {/if}
   </main>
 

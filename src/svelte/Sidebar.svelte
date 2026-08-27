@@ -80,6 +80,9 @@ setThemeMode: (mode: string) => void;
     <button class="sidebar-button {activeTab === 'ajustes' ? 'active' : ''}" onclick={() => onTabChange('ajustes')} type="button">
       <span>⚙️</span><span>Ajustes</span>
     </button>
+    <button class="sidebar-button {activeTab === 'cloud' ? 'active' : ''}" onclick={() => onTabChange('cloud')} type="button">
+      <span>☁️</span><span>Nube</span>
+    </button>
   </div>
 
   {#if !isMobile}

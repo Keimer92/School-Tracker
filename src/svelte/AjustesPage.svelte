@@ -8,7 +8,6 @@
   import { onDataChange } from "../lib/autoSync";
   import { registerBackHandler } from "../lib/androidBack";
   import { getLocalDateISOString } from "../lib/dateUtils";
-  import CloudPage from "./CloudPage.svelte";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
 
@@ -27,7 +26,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   const TABS = [
     { id: "configuracion", label: "General", icon: "⚙️" },
     { id: "notificaciones", label: "Notif. Asistencia", icon: "🔔", soloAndroid: true },
-    { id: "nube", label: "Nube", icon: "☁️" },
     { id: "almacenamiento", label: "Almacén", icon: "📦" },
     { id: "debugging", label: "Debug", icon: "🐛" },
     { id: "acercaDe", label: "Info", icon: "📖" },
@@ -406,13 +404,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     <div style="padding: isAndroid ? '1rem' : '0'">
       <!-- El back nativo de Android ya maneja la vuelta (registerBackHandler) -->
       <div class="settings-content-wrapper">
-        <!-- NUBE -->
-        {#if activeTab === "nube"}
-          <div class="category-card" style="background: transparent; border: none;">
-            <CloudPage />
-          </div>
-        {/if}
-
         <!-- NOTIFICACIONES DE ASISTENCIA (solo Android) -->
         {#if activeTab === "notificaciones"}
           <div class="notif-page">
