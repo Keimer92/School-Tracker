@@ -353,14 +353,12 @@
         <span title="Cambios sin guardar" style="width:10px;height:10px;border-radius:50%;background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,0.6);flex-shrink:0;"></span>
       {/if}
       {#if items.length > 0 && config.title !== "Corte Evaluativo"}
-        <label onclick={(e) => e.stopPropagation()} style="display: flex; align-items: center; gap: 0.35rem; cursor: pointer; padding: 0.3rem 0.5rem; border-radius: 6px; background: {selectedIds.size > 0 ? 'rgba(var(--primary-rgb), 0.08)' : 'rgba(255,255,255,0.03)'}; border: {selectedIds.size > 0 ? '1px solid rgba(var(--primary-rgb), 0.2)' : '1px solid transparent'}; font-size: 0.7rem; color: {selectedIds.size > 0 ? 'var(--text-secondary)' : '#94a3b8'}; font-weight: 600; user-select: none;transition:all 0.2s">
-          <input type="checkbox" checked={items.length > 0 && selectedIds.size === items.length} onchange={toggleSelectAll} style="display: none;" />
-          <span style="display: flex; align-items: center; justify-content: center; width: 14px; height: 14px; border-radius: 4px; border: {selectedIds.size === items.length ? '2px solid var(--primary-color)' : '2px solid rgba(255,255,255,0.15)'}; background: {selectedIds.size === items.length ? 'rgba(var(--primary-rgb), 0.2)' : 'transparent'}; flex-shrink: 0;">
-            {#if selectedIds.size === items.length}
-              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-            {/if}
+        <label class="cat-select-all" class:active={selectedIds.size > 0} onclick={(e) => e.stopPropagation()}>
+          <input type="checkbox" class="cat-selectbox-input" checked={items.length > 0 && selectedIds.size === items.length} onchange={toggleSelectAll} />
+          <span class="cat-selectbox" class:checked={selectedIds.size === items.length}>
+            <svg class="cat-selectbox-check" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
           </span>
-          Todo
+          <span class="cat-select-all-text">Todo{selectedIds.size > 0 ? ` · ${selectedIds.size}` : ""}</span>
         </label>
         {#if selectedIds.size > 0}
           <button onclick={handleBatchDelete} disabled={isDeleting} style="padding:0.3rem 0.6rem;font-size:0.7rem;border-radius:6px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);cursor:pointer;font-weight:600;color:#fca5a5;transition:all 0.2s;">🗑 {selectedIds.size}</button>
@@ -407,11 +405,11 @@
           onmouseleave={(e) => { if (draggedItem?.id !== item.id) { e.currentTarget.style.borderColor = item.esNuevo ? 'rgba(var(--primary-rgb),0.45)' : 'rgba(255,255,255,0.06)'; e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}}>
           <div style="display: flex; align-items: center; gap: 6px;">
             {#if !item.esNuevo && config.title !== "Corte Evaluativo"}
-              <label onclick={(e) => e.stopPropagation()} style="display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 5px; border: {selectedIds.has(item.id) ? '2px solid var(--primary-color)' : '2px solid rgba(255,255,255,0.12)'}; background: {selectedIds.has(item.id) ? 'rgba(var(--primary-rgb), 0.15)' : 'transparent'}; cursor: pointer; flex-shrink: 0;transition:all 0.15s;">
-                <input type="checkbox" checked={selectedIds.has(item.id)} onchange={() => toggleSelectItem(item.id)} style="display: none;" />
-                {#if selectedIds.has(item.id)}
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-                {/if}
+              <label class="cat-selectbox-wrap" onclick={(e) => e.stopPropagation()}>
+                <input type="checkbox" class="cat-selectbox-input" checked={selectedIds.has(item.id)} onchange={() => toggleSelectItem(item.id)} />
+                <span class="cat-selectbox" class:checked={selectedIds.has(item.id)}>
+                  <svg class="cat-selectbox-check" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                </span>
               </label>
             {/if}
             {#if config.endpoints.updateOrder}
@@ -524,4 +522,48 @@
   .cat-btn-save:hover { transform: translateY(-1px); }
   .cat-btn-save:active { transform: translateY(1px); }
   .cat-btn-save:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+  /* Casillas de selección (borrado en lote) — glassmorphism moderno */
+  .cat-selectbox-input { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+  .cat-selectbox-wrap {
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; flex-shrink: 0; padding: 3px; border-radius: 11px;
+    transition: background 0.2s ease;
+  }
+  .cat-selectbox-wrap:hover { background: rgba(var(--primary-rgb), 0.1); }
+  .cat-selectbox {
+    display: flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 8px;
+    border: 2px solid rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.03);
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .cat-selectbox-wrap:hover .cat-selectbox {
+    border-color: var(--primary-color);
+    background: rgba(var(--primary-rgb), 0.08);
+  }
+  .cat-selectbox.checked {
+    border-color: transparent;
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+    box-shadow: 0 4px 14px rgba(var(--primary-rgb), 0.45);
+  }
+  .cat-selectbox-check {
+    color: #fff; opacity: 0; transform: scale(0.3) rotate(-12deg);
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .cat-selectbox.checked .cat-selectbox-check { opacity: 1; transform: scale(1) rotate(0deg); }
+
+  .cat-select-all {
+    display: inline-flex; align-items: center; gap: 0.5rem; cursor: pointer;
+    padding: 0.35rem 0.75rem; border-radius: 11px;
+    background: rgba(255,255,255,0.03); border: 1px solid transparent;
+    font-size: 0.72rem; color: #94a3b8; font-weight: 700; user-select: none;
+    letter-spacing: 0.3px; transition: all 0.2s ease;
+  }
+  .cat-select-all:hover { background: rgba(var(--primary-rgb), 0.1); color: var(--text-secondary); }
+  .cat-select-all.active {
+    background: rgba(var(--primary-rgb), 0.14); border-color: rgba(var(--primary-rgb), 0.3);
+    color: var(--text-bright, #e2e8f0); box-shadow: 0 2px 10px rgba(var(--primary-rgb), 0.15);
+  }
+  .cat-select-all-text { white-space: nowrap; }
 </style>
