@@ -304,7 +304,7 @@
       { label: 'Colegios', items: inputColegios.join(', '), icon: '🏫' },
       { label: 'Grados', items: gradosResumen.join(', '), icon: '📊' },
       { label: 'Secciones', items: inputSecciones.join(', '), icon: '👥' },
-      { label: 'Asignaturas', items: inputAsignaturas.join(', '), icon: '📚' },
+      { label: 'Asignaturas', items: inputAsignaturas.map((a) => a.nombre).join(', '), icon: '📚' },
     ];
   }
 
