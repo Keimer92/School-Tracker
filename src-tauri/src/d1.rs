@@ -1,6 +1,7 @@
 use crate::db::*;
 use chrono::Utc;
 use rusqlite::params;
+use tauri::Emitter;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
@@ -480,101 +481,106 @@ fn clear_all_pending_deletions(conn: &rusqlite::Connection) -> Result<(), String
 // ============================================================================
 
 #[tauri::command]
-pub async fn d1_sync_all(state: tauri::State<'_, DbState>) -> Result<Value, String> {
-    let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    let cfg = read_config(&conn)?.ok_or_else(|| "D1 no está configurado".to_string())?;
-
-    // ── Anti re-relevo: recordar filas recién PULLADAS para no volver a
-    // pushearlas mientras no se modifiquen localmente. Corte elástico: sin
-    // esta memoria, filas con updated_at "a futuro" (relojes torcidos) eran
-    // re-enviadas por cada dispositivo y revertaban cambios ajenos.
-    conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS sync_recent_pulls (
-            tabla TEXT NOT NULL,
-            pk TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            ts INTEGER NOT NULL,
-            PRIMARY KEY (tabla, pk)
-        );"
-    )
-    .map_err(|e| e.to_string())?;
+pub async fn d1_sync_all(app: tauri::AppHandle, state: tauri::State<'_, DbState>) -> Result<Value, String> {
+    // Fase local (síncrona). Se acota el lock en este bloque para que el
+    // MutexGuard NO cruce ningún .await (el futuro del comando debe ser Send).
+    // Todo el trabajo de BD ocurre aquí, antes de lanzar la red con spawn_blocking.
     let now_epoch = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
-    conn.execute(
-        "DELETE FROM sync_recent_pulls WHERE ts < ?1",
-        params![now_epoch.saturating_sub(86400)],
-    )
-    .map_err(|e| e.to_string())?;
+    let (cfg, push_since, since, data, deletions) = {
+        let conn = state.conn.lock().map_err(|e| e.to_string())?;
+        let cfg = read_config(&conn)?.ok_or_else(|| "D1 no está configurado".to_string())?;
 
-    // Cargar conjunto de recién-pullados: clave = "tabla|pk|updated_at"
-    let mut recent: std::collections::HashSet<String> = Default::default();
-    {
-        let mut stmt = conn
-            .prepare("SELECT tabla, pk, updated_at FROM sync_recent_pulls")
-            .map_err(|e| e.to_string())?;
-        let rows = stmt
-            .query_map([], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                ))
-            })
-            .map_err(|e| e.to_string())?;
-        for r in rows {
-            let (t, p, u) = r.map_err(|e| e.to_string())?;
-            recent.insert(format!("{}|{}|{}", t, p, u));
-        }
-    }
-
-    // DOS cursores independientes:
-    //  - push_since  = reloj LOCAL (comparable con los updated_at que este
-    //    dispositivo estampa en sus propias filas) -> nunca come ediciones propias.
-    //  - since (pull) = reloj del SERVIDOR (autoritativo entre dispositivos).
-    let push_since = cfg
-        .last_push_sync
-        .clone()
-        .unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
-    let since = cfg
-        .last_sync
-        .clone()
-        .unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
-    println!(
-        "[D1] sync INICIO device={}… push_since=\"{}\" pull_since=\"{}\"",
-        &cfg.device_id[..cfg.device_id.len().min(16)],
-        push_since,
-        since
-    );
-
-    // ---- 0. Purga de huérfanos: asistencias cuyo estudiante ya no existe
-    // (p. ej. borrados previos al fix de tombstones). Idempotente: registra
-    // los tombstones y borra localmente; el push de esta misma pasada
-    // propaga la eliminación a la nube.
-    {
-        let n = conn.execute(
-            "INSERT INTO sync_pending_deletions_asistencia (estudiante_id, fecha)
-             SELECT a.estudiante_id, a.fecha FROM asistencia a
-             LEFT JOIN estudiante e ON e.id = a.estudiante_id
-             WHERE e.id IS NULL",
-            [],
+        // ── Anti re-relevo: recordar filas recién PULLADAS para no volver a
+        // pushearlas mientras no se modifiquen localmente. Corte elástico: sin
+        // esta memoria, filas con updated_at "a futuro" (relojes torcidos) eran
+        // re-enviadas por cada dispositivo y revertaban cambios ajenos.
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS sync_recent_pulls (
+                tabla TEXT NOT NULL,
+                pk TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                ts INTEGER NOT NULL,
+                PRIMARY KEY (tabla, pk)
+            );"
         )
         .map_err(|e| e.to_string())?;
-        if n > 0 {
-            conn.execute(
-                "DELETE FROM asistencia WHERE estudiante_id NOT IN (SELECT id FROM estudiante)",
+        conn.execute(
+            "DELETE FROM sync_recent_pulls WHERE ts < ?1",
+            params![now_epoch.saturating_sub(86400)],
+        )
+        .map_err(|e| e.to_string())?;
+
+        // Cargar conjunto de recién-pullados: clave = "tabla|pk|updated_at"
+        let mut recent: std::collections::HashSet<String> = Default::default();
+        {
+            let mut stmt = conn
+                .prepare("SELECT tabla, pk, updated_at FROM sync_recent_pulls")
+                .map_err(|e| e.to_string())?;
+            let rows = stmt
+                .query_map([], |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                })
+                .map_err(|e| e.to_string())?;
+            for r in rows {
+                let (t, p, u) = r.map_err(|e| e.to_string())?;
+                recent.insert(format!("{}|{}|{}", t, p, u));
+            }
+        }
+
+        // DOS cursores independientes:
+        //  - push_since  = reloj LOCAL (comparable con los updated_at que este
+        //    dispositivo estampa en sus propias filas) -> nunca come ediciones propias.
+        //  - since (pull) = reloj del SERVIDOR (autoritativo entre dispositivos).
+        let push_since = cfg
+            .last_push_sync
+            .clone()
+            .unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
+        let since = cfg
+            .last_sync
+            .clone()
+            .unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
+        println!(
+            "[D1] sync INICIO device={}… push_since=\"{}\" pull_since=\"{}\"",
+            &cfg.device_id[..cfg.device_id.len().min(16)],
+            push_since,
+            since
+        );
+
+        // ---- 0. Purga de huérfanos: asistencias cuyo estudiante ya no existe
+        // (p. ej. borrados previos al fix de tombstones). Idempotente: registra
+        // los tombstones y borra localmente; el push de esta misma pasada
+        // propaga la eliminación a la nube.
+        {
+            let n = conn.execute(
+                "INSERT INTO sync_pending_deletions_asistencia (estudiante_id, fecha)
+                 SELECT a.estudiante_id, a.fecha FROM asistencia a
+                 LEFT JOIN estudiante e ON e.id = a.estudiante_id
+                 WHERE e.id IS NULL",
                 [],
             )
             .map_err(|e| e.to_string())?;
-            println!("[D1] purga: {} asistencias huérfanas marcadas para borrar en nube", n);
+            if n > 0 {
+                conn.execute(
+                    "DELETE FROM asistencia WHERE estudiante_id NOT IN (SELECT id FROM estudiante)",
+                    [],
+                )
+                .map_err(|e| e.to_string())?;
+                println!("[D1] purga: {} asistencias huérfanas marcadas para borrar en nube", n);
+            }
         }
-    }
 
-    // ---- 1. PUSH (cursor local)
-    let data = collect_local_data_since(&conn, &push_since, &recent)?;
-    let deletions = collect_pending_deletions(&conn)?;
-    drop(conn);
+        // ---- 1. PUSH (cursor local): leer toda la BD local modificada.
+        let data = collect_local_data_since(&conn, &push_since, &recent)?;
+        let deletions = collect_pending_deletions(&conn)?;
+        (cfg, push_since, since, data, deletions)
+    };
 
     let total_push: usize = data
         .as_object()
@@ -593,16 +599,35 @@ pub async fn d1_sync_all(state: tauri::State<'_, DbState>) -> Result<Value, Stri
         "data": data,
         "deletions": deletions,
     });
-    let push_resp = http_post_json(&cfg.worker_url, &cfg.school_key, "/push", push_body)?;
+    // La red es bloqueante (ureq). Ejecutarla dentro de spawn_blocking para que
+    // este comando async SI ceda el hilo: así el loop de eventos que atiende el
+    // WebView (Android incluido) no se satura y el modal de progreso no se ve
+    // congelado durante los segundos que dura el viaje al Worker.
+    let _ = app.emit("d1-sync-progress", json!({ "message": "Subiendo cambios a la nube…" }));
+    let push_resp = tauri::async_runtime::spawn_blocking({
+        let cfg = cfg.clone();
+        let push_body = push_body.clone();
+        move || http_post_json(&cfg.worker_url, &cfg.school_key, "/push", push_body)
+    })
+    .await
+    .map_err(|e| format!("Error en push (hilo): {}", e))??;
 
     // ---- 2. PULL
     let pull_body = json!({
         "since": since,
         "deviceId": cfg.device_id,
     });
-    let pull_resp = http_post_json(&cfg.worker_url, &cfg.school_key, "/pull", pull_body)?;
+    let _ = app.emit("d1-sync-progress", json!({ "message": "Descargando cambios de la nube…" }));
+    let pull_resp = tauri::async_runtime::spawn_blocking({
+        let cfg = cfg.clone();
+        let pull_body = pull_body.clone();
+        move || http_post_json(&cfg.worker_url, &cfg.school_key, "/pull", pull_body)
+    })
+    .await
+    .map_err(|e| format!("Error en pull (hilo): {}", e))??;
 
     // ---- 3. Apply
+    let _ = app.emit("d1-sync-progress", json!({ "message": "Guardando datos localmente…" }));
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute("PRAGMA foreign_keys = OFF", [])
         .map_err(|e| e.to_string())?;

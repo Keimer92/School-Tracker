@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
-  import { emit } from "@tauri-apps/api/event";
+   import { emit, listen } from "@tauri-apps/api/event";
   import { open as openDialog, ask } from "@tauri-apps/plugin-dialog";
   import { readTextFile } from "@tauri-apps/plugin-fs";
   import { syncManager, type DownloadProgress } from "../lib/driveSyncService";
@@ -28,12 +28,12 @@
     return n + ' B';
   }
 
-  let seedOptions: any = $state(null);
-  let selectedAnos = $state<Set<string>>(new Set());
-  let selectedColegios = $state<Set<string>>(new Set());
-  let selectedGrados = $state<Set<string>>(new Set());
-  let selectedSecciones = $state<Set<string>>(new Set());
-  let selectedAsignaturas = $state<Set<string>>(new Set());
+  let inputAnos = $state<string[]>([]);
+  let inputColegios = $state<string[]>([]);
+  let inputGrados = $state<string[]>([]);
+  let inputSecciones = $state<string[]>([]);
+  let inputAsignaturas = $state<string[]>([]);
+  let currentInput = $state('');
 
   const steps = [
     { title: 'Años Lectivos', icon: '📅', key: 'anos' },
@@ -52,18 +52,11 @@
     errorMsg = '';
   }
 
-  async function goToWizard() {
-    try {
-      seedOptions = await invoke('get_seed_options');
-      selectedAnos = new Set(seedOptions.anos.map((a: any) => a.nombre));
-      selectedColegios = new Set(seedOptions.colegios.map((c: any) => c.nombre));
-      selectedGrados = new Set(seedOptions.grados.map((g: any) => g.nombre));
-      selectedSecciones = new Set(seedOptions.secciones.map((s: any) => s.nombre));
-      selectedAsignaturas = new Set(seedOptions.asignaturas.map((a: any) => a.nombre));
-      view = 'wizard';
-    } catch (e) {
-      errorMsg = 'Error cargando opciones: ' + e;
-    }
+  function goToWizard() {
+    view = 'wizard';
+    step = 1;
+    errorMsg = '';
+    currentInput = '';
   }
 
   /**
@@ -83,6 +76,12 @@
     }
     await invoke('d1_save_config', { workerUrl, schoolKey });
     loadingMessage = 'Sincronizando con la nube...';
+    let unlisten: (() => void) | null = null;
+    try {
+      unlisten = await listen<{ message?: string }>('d1-sync-progress', (e) => {
+        if (e.payload?.message) loadingMessage = e.payload.message;
+      });
+    } catch { /* ignorable */ }
     try {
       await invoke('d1_sync_all');
     } catch (syncErr) {
@@ -90,6 +89,8 @@
       errorMsg = 'No se pudo sincronizar con el Worker. Verifica tu conexión.';
       loading = false; loadingMessage = '';
       return;
+    } finally {
+      if (unlisten) unlisten();
     }
     loadingMessage = 'Verificando datos...';
     const hasData = await invoke('is_app_initialized');
@@ -182,21 +183,27 @@
   }
 
   async function handleWizardComplete() {
-    if (selectedAnos.size === 0 || selectedColegios.size === 0 || selectedGrados.size === 0 ||
-        selectedSecciones.size === 0 || selectedAsignaturas.size === 0) {
-      errorMsg = 'Debes seleccionar al menos un elemento de cada categoría.';
+    if (inputAnos.length === 0 || inputColegios.length === 0 || inputGrados.length === 0 ||
+        inputSecciones.length === 0 || inputAsignaturas.length === 0) {
+      errorMsg = 'Debes agregar al menos un elemento en cada categoría.';
       return;
     }
     loading = true;
     errorMsg = '';
     try {
+      // El sistema anexa " grado" a lo que el usuario escriba en Grados
+      // (p. ej. "1er" -> "1er grado"), salvo que ya lo incluya.
+      const grados = inputGrados.map((g) => {
+        const t = g.trim();
+        return /grado\s*$/i.test(t) ? t : t + ' grado';
+      });
       await invoke('seed_selected_data', {
         selections: {
-          anos: Array.from(selectedAnos),
-          colegios: Array.from(selectedColegios),
-          grados: Array.from(selectedGrados),
-          secciones: Array.from(selectedSecciones),
-          asignaturas: Array.from(selectedAsignaturas),
+          anos: inputAnos.map((a) => a.trim()),
+          colegios: inputColegios.map((c) => c.trim()),
+          grados,
+          secciones: inputSecciones.map((s) => s.trim()),
+          asignaturas: inputAsignaturas.map((a) => a.trim()),
         }
       });
       await invoke('set_app_initialized');
@@ -208,73 +215,67 @@
     loading = false;
   }
 
-  function toggleAll(items: any[], set: Set<string>, value: boolean) {
-    if (value) { items.forEach((item: any) => set.add(item.nombre ?? item)); }
-    else { set.clear(); }
-    const copy = new Set(set);
-    if (set === selectedAnos) selectedAnos = copy;
-    else if (set === selectedColegios) selectedColegios = copy;
-    else if (set === selectedGrados) selectedGrados = copy;
-    else if (set === selectedSecciones) selectedSecciones = copy;
-    else if (set === selectedAsignaturas) selectedAsignaturas = copy;
-  }
-
-  function toggleItem(set: Set<string>, item: string) {
-    const copy = new Set(set);
-    if (copy.has(item)) copy.delete(item); else copy.add(item);
-    if (set === selectedAnos) selectedAnos = copy;
-    else if (set === selectedColegios) selectedColegios = copy;
-    else if (set === selectedGrados) selectedGrados = copy;
-    else if (set === selectedSecciones) selectedSecciones = copy;
-    else if (set === selectedAsignaturas) selectedAsignaturas = copy;
-  }
-
-  function allSelected(items: any[], set: Set<string>): boolean {
-    return items.length > 0 && items.every((item: any) => set.has(item.nombre ?? item));
-  }
-
   function nextStep() { if (step < steps.length) step++; }
   function prevStep() { if (step > 1) step--; }
 
-  function getStepItems(): any[] {
-    switch (step) {
-      case 1: return seedOptions?.anos || [];
-      case 2: return seedOptions?.colegios || [];
-      case 3: return seedOptions?.grados || [];
-      case 4: return seedOptions?.secciones || [];
-      case 5: return seedOptions?.asignaturas || [];
-      default: return [];
-    }
+  type StepKey = 'anos' | 'colegios' | 'grados' | 'secciones' | 'asignaturas';
+  function stepKey(): StepKey {
+    return steps[step - 1].key as StepKey;
   }
-
-  function getStepSet(): Set<string> {
-    switch (step) {
-      case 1: return selectedAnos;
-      case 2: return selectedColegios;
-      case 3: return selectedGrados;
-      case 4: return selectedSecciones;
-      case 5: return selectedAsignaturas;
-      default: return new Set();
-    }
+  function stepLabel(): string {
+    const map: Record<StepKey, string> = {
+      anos: 'años lectivos', colegios: 'colegios', grados: 'grados',
+      secciones: 'secciones', asignaturas: 'asignaturas',
+    };
+    return map[stepKey()];
   }
-
-  function formatItem(item: any): string {
-    if (typeof item === 'string') return item;
-    return item.nombre || '';
+  function inputPlaceholder(): string {
+    const map: Record<StepKey, string> = {
+      anos: 'Ej: 2026', colegios: 'Ej: Colegio Central',
+      grados: 'Ej: 1er (se agrega "grado")', secciones: 'Ej: A',
+      asignaturas: 'Ej: Matemáticas',
+    };
+    return map[stepKey()];
   }
-
-  function itemSubtitle(item: any): string {
-    if (item.cualitativo) return 'Cualitativo';
-    return '';
+  function currentItems(): string[] {
+    const k = stepKey();
+    if (k === 'anos') return inputAnos;
+    if (k === 'colegios') return inputColegios;
+    if (k === 'grados') return inputGrados;
+    if (k === 'secciones') return inputSecciones;
+    return inputAsignaturas;
+  }
+  function setItems(arr: string[]) {
+    const k = stepKey();
+    if (k === 'anos') inputAnos = arr;
+    else if (k === 'colegios') inputColegios = arr;
+    else if (k === 'grados') inputGrados = arr;
+    else if (k === 'secciones') inputSecciones = arr;
+    else inputAsignaturas = arr;
+  }
+  function addCurrentItem() {
+    const v = currentInput.trim();
+    if (!v) return;
+    const items = [...currentItems()];
+    if (!items.some((x) => x.toLowerCase() === v.toLowerCase())) items.push(v);
+    setItems(items);
+    currentInput = '';
+  }
+  function removeItem(i: number) {
+    setItems(currentItems().filter((_, idx) => idx !== i));
   }
 
   function getResumenItems() {
+    const gradosResumen = inputGrados.map((g) => {
+      const t = g.trim();
+      return /grado\s*$/i.test(t) ? t : t + ' grado';
+    });
     return [
-      { label: 'Años Lectivos', items: Array.from(selectedAnos).join(', '), icon: '📅' },
-      { label: 'Colegios', items: Array.from(selectedColegios).join(', '), icon: '🏫' },
-      { label: 'Grados', items: Array.from(selectedGrados).join(', '), icon: '📊' },
-      { label: 'Secciones', items: Array.from(selectedSecciones).join(', '), icon: '👥' },
-      { label: 'Asignaturas', items: Array.from(selectedAsignaturas).join(', '), icon: '📚' },
+      { label: 'Años Lectivos', items: inputAnos.join(', '), icon: '📅' },
+      { label: 'Colegios', items: inputColegios.join(', '), icon: '🏫' },
+      { label: 'Grados', items: gradosResumen.join(', '), icon: '📊' },
+      { label: 'Secciones', items: inputSecciones.join(', '), icon: '👥' },
+      { label: 'Asignaturas', items: inputAsignaturas.join(', '), icon: '📚' },
     ];
   }
 
@@ -358,31 +359,24 @@
         </div>
       {:else}
         <div class="wizard-items">
-          <div class="wizard-select-all">
-            <label class="wizard-toggle-all">
-              <input type="checkbox"
-                checked={allSelected(getStepItems(), getStepSet())}
-                onchange={(e) => toggleAll(getStepItems(), getStepSet(), (e.target as HTMLInputElement).checked)} />
-              <span>Seleccionar / Deseleccionar todos</span>
-            </label>
+          <div class="wizard-input-row">
+            <input class="wizard-input" type="text" placeholder={inputPlaceholder()}
+              bind:value={currentInput}
+              onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCurrentItem(); } }} />
+            <button class="wizard-add-btn" onclick={addCurrentItem}>Agregar</button>
           </div>
-          <div class="wizard-grid">
-            {#each getStepItems() as item}
-              {@const nombre = formatItem(item)}
-              {@const selected = getStepSet().has(nombre)}
-              <button class="wizard-item" class:selected onpointerdown={(e) => { e.preventDefault(); toggleItem(getStepSet(), nombre); }}>
-                <div class="wizard-check">
-                  {#if selected}
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-                  {/if}
+          {#if currentItems().length === 0}
+            <p class="wizard-empty">Aún no has agregado {stepLabel()}. Escribe uno arriba y pulsa “Agregar”.</p>
+          {:else}
+            <div class="wizard-chips">
+              {#each currentItems() as item, i}
+                <div class="wizard-chip">
+                  <span>{item}</span>
+                  <button class="wizard-chip-x" onclick={() => removeItem(i)} aria-label="Eliminar">×</button>
                 </div>
-                <span class="wizard-item-name">{nombre}</span>
-                {#if itemSubtitle(item)}
-                  <span class="wizard-item-badge">{itemSubtitle(item)}</span>
-                {/if}
-              </button>
-            {/each}
-          </div>
+              {/each}
+            </div>
+          {/if}
         </div>
       {/if}
 
@@ -394,7 +388,7 @@
         <button class="wizard-btn" onclick={prevStep} disabled={step === 1}>← Anterior</button>
         <div class="wizard-step-counter">{step} / {steps.length}</div>
         {#if step < 6}
-          <button class="wizard-btn primary" onclick={nextStep} disabled={getStepSet().size === 0}>Siguiente →</button>
+          <button class="wizard-btn primary" onclick={nextStep} disabled={currentItems().length === 0}>Siguiente →</button>
         {:else}
           <button class="wizard-btn primary" onclick={handleWizardComplete} disabled={loading}>
             {loading ? 'Guardando...' : 'Comenzar'}
@@ -600,6 +594,37 @@
   .wizard-select-all { margin-bottom: 0.75rem; }
   .wizard-toggle-all { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.8rem; color: #94a3b8; padding: 0.4rem; border-radius: 8px; background: rgba(255,255,255,0.02); }
   .wizard-toggle-all input { accent-color: var(--primary-color, #3b82f6); }
+
+  /* Inputs libres del asistente manual */
+  .wizard-input-row { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+  .wizard-input {
+    flex: 1; padding: 0.6rem 0.75rem; border-radius: 10px;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+    color: #e2e8f0; font-size: 0.85rem; font-family: inherit; outline: none;
+    transition: all 0.2s ease;
+  }
+  .wizard-input:focus { border-color: var(--primary-color, #3b82f6); box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+  .wizard-add-btn {
+    padding: 0.6rem 1rem; border-radius: 10px; cursor: pointer; font-size: 0.8rem; font-weight: 600; font-family: inherit;
+    background: linear-gradient(135deg, var(--primary-color, #3b82f6), #a78bfa); color: #fff; border: none;
+    transition: all 0.2s ease;
+  }
+  .wizard-add-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(59,130,246,0.25); }
+  .wizard-add-btn:active { transform: translateY(1px); }
+  .wizard-empty { color: #64748b; font-size: 0.8rem; text-align: center; padding: 1rem; background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.1); border-radius: 12px; }
+  .wizard-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; max-height: 280px; overflow-y: auto; padding: 0.15rem; }
+  .wizard-chip {
+    display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.6rem;
+    background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.25);
+    border-radius: 999px; color: #e2e8f0; font-size: 0.8rem;
+  }
+  .wizard-chip-x {
+    width: 18px; height: 18px; border-radius: 50%; border: none; cursor: pointer;
+    background: rgba(255,255,255,0.08); color: #cbd5e1; font-size: 0.85rem; line-height: 1;
+    display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;
+  }
+  .wizard-chip-x:hover { background: rgba(239,68,68,0.2); color: #f87171; }
+
   .wizard-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.5rem; max-height: 280px; overflow-y: auto; padding: 0.15rem; }
   .wizard-item {
     display: flex; flex-direction: column; align-items: center; gap: 0.3rem; padding: 0.75rem 0.5rem;

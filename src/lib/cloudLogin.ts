@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { emit } from "@tauri-apps/api/event";
+import { emit, listen } from "@tauri-apps/api/event";
 import { ask } from "@tauri-apps/plugin-dialog";
 import {
   authWithGoogleIdToken,
@@ -51,14 +51,22 @@ async function exchangeServerAuthCode(code: string): Promise<any> {
  * Flujo común tras obtener credenciales (por .key o por login Google):
  * guarda la config en d1_config (protección anti-mezcla) y sincroniza.
  */
-async function conectarConCredenciales(workerUrl: string, schoolKey: string) {
+async function conectarConCredenciales(workerUrl: string, schoolKey: string, opts?: { onStatus?: (msg: string) => void }) {
+  // Reflejar el progreso granular que emite el Rust (d1-sync-progress) en el
+  // modal de carga, para que no parezca congelado durante el sync.
+  let unlisten: (() => void) | null = null;
+  try {
+    unlisten = await listen<{ message?: string }>('d1-sync-progress', (e) => {
+      if (e.payload?.message) opts?.onStatus?.(e.payload.message);
+    });
+  } catch { /* ignorable */ }
   const previa = await d1SyncService.getConfig();
   if (previa && (previa.workerUrl !== workerUrl || previa.schoolKey !== schoolKey)) {
     const ok = await ask(
       'Ya existe una conexión a la nube con OTRAS credenciales.\n\n¿Reemplazarla? Se generará un nuevo ID de dispositivo y los datos locales se sincronizarán con la nube nueva.',
       { title: 'Reemplazar conexión', kind: 'warning', okLabel: 'Sí, reemplazar', cancelLabel: 'Cancelar' }
     );
-    if (!ok) return;
+    if (!ok) { if (unlisten) unlisten(); return; }
     await d1SyncService.clearConfig();
   }
   await d1SyncService.saveConfig(workerUrl, schoolKey);
@@ -67,6 +75,7 @@ async function conectarConCredenciales(workerUrl: string, schoolKey: string) {
   await ensureWsSync();
   syncService.ensurePeriodicSync();
   try { await invoke('d1_sync_all'); } catch (e) { console.error('[Cloud] primer sync falló:', e); }
+  if (unlisten) unlisten();
 }
 
 /**
@@ -135,7 +144,7 @@ export async function iniciarSesionGoogleConNube(opts?: {
     const result = await authWithGoogleIdToken(idToken);
     guardarTokenSesion(idToken, getRefreshToken());
     opts?.onStatus?.(result.creado ? 'Cuenta creada. Preparando tu nube...' : 'Bienvenido de nuevo...');
-    await conectarConCredenciales(DEFAULT_WORKER_URL, result.schoolKey);
+    await conectarConCredenciales(DEFAULT_WORKER_URL, result.schoolKey, opts);
 
     if (/Android/i.test(navigator.userAgent)) {
       if (driveAuthCode) {

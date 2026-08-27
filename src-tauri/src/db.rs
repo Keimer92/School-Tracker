@@ -608,21 +608,7 @@ pub fn seed_default_data(conn: &Connection) -> Result<(), String> {
 
     println!("ðŸŒ± [DB] Base de datos vacÃ­a, sembrando datos iniciales...");
 
-    // AÃ±os lectivos
-    conn.execute(
-        "INSERT INTO ano_lectivo (nombre) VALUES ('2026')",
-        [],
-    ).ok();
-    conn.execute(
-        "INSERT INTO ano_lectivo (nombre) VALUES ('2027')",
-        [],
-    ).ok();
-    conn.execute(
-        "INSERT INTO ano_lectivo (nombre) VALUES ('2028')",
-        [],
-    ).ok();
-
-    // Cortes evaluativos
+    // Cortes evaluativos (configuración de sistema, no introducida por el usuario)
     conn.execute(
         "INSERT INTO corte_evaluativo (nombre) VALUES ('1er corte evaluativo')",
         [],
@@ -640,76 +626,12 @@ pub fn seed_default_data(conn: &Connection) -> Result<(), String> {
         [],
     ).ok();
 
-    // Colegios
-    conn.execute(
-        "INSERT INTO colegio (nombre, orden) VALUES ('Candelario Sotelo', 1)",
-        [],
-    ).ok();
-    conn.execute(
-        "INSERT INTO colegio (nombre, orden) VALUES ('Manuel Ignacio Pereira Quintana', 2)",
-        [],
-    ).ok();
-
-    // Asignaturas
-    let asignaturas = vec![
-        ("Ingles", 0),
-        ("Matematicas", 0),
-        ("Fisica", 0),
-        ("Biologia", 0),
-        ("Ciencias Naturales", 0),
-        ("Ciencias Sociales", 0),
-        ("TAC", 1),
-        ("AEP", 1),
-        ("Convivencia & Civismo", 1),
-        ("Creciendo en Valores", 1),
-        ("Derecho & Dignidad de la Mujer", 1),
-        ("EducaciÃ³n FÃ­sica", 1),
-    ];
-
-    for (nombre, cualitativo) in asignaturas {
-        conn.execute(
-            "INSERT INTO asignatura (nombre, cualitativo) VALUES (?, ?)",
-            rusqlite::params![nombre, cualitativo],
-        ).ok();
-    }
-
-    // Grados - 1er y 2do grado son cualitativos por defecto
-    let grados_cualitativos = vec!["1er grado", "2do grado"];
-    let grados_default = vec![
-        "1er grado", "2do grado", "3er grado", "4to grado", "5to grado",
-        "6to grado", "7mo grado", "8vo grado", "9no grado", "10mo grado", "11mo grado",
-    ];
-
-    for nombre in grados_default {
-        let cualitativo = if grados_cualitativos.contains(&nombre) { 1 } else { 0 };
-        conn.execute(
-            "INSERT INTO grado (nombre, cualitativo) VALUES (?, ?)",
-            rusqlite::params![nombre, cualitativo],
-        )
-        .ok();
-    }
-
-    // Secciones
-    for nombre in ["A", "B", "C", "D"] {
-        conn.execute("INSERT INTO seccion (nombre) VALUES (?)", [nombre])
-            .ok();
-    }
-
-    // Asignar todas las asignaturas a todos los grados
-    conn.execute(
-        "INSERT OR IGNORE INTO grado_asignatura (grado_id, asignatura_id)
-         SELECT g.id, a.id FROM grado g CROSS JOIN asignatura a",
-        [],
-    )
-    .ok();
-
-    // Asignar todas las asignaturas a todos los colegios
-    conn.execute(
-        "INSERT OR IGNORE INTO colegio_asignatura (colegio_id, asignatura_id)
-         SELECT c.id, a.id FROM colegio c CROSS JOIN asignatura a",
-        [],
-    )
-    .ok();
+    // NOTA: Los catálogos de usuario (año lectivo, colegio, asignatura, grado,
+    // sección) YA NO se siembran por defecto. Ahora el usuario los crea en el
+    // asistente "Configurar manualmente" (WelcomePage), por lo que arrancan
+    // vacíos y el wizard los puebla con lo que el usuario introduzca. Las
+    // relaciones grado_asignatura / colegio_asignatura también quedan vacías
+    // hasta que el usuario defina grados y asignaturas.
 
     // Migrar IDs de calificaciones si existen los viejos
     let needs_migration: bool = conn
@@ -4797,9 +4719,10 @@ pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: Se
         ).map_err(|e| e.to_string())?;
     }
 
-    // 3. Colegios seleccionados
-    for nombre in &selections.colegios {
-        let orden = if nombre == "Candelario Sotelo" { 1 } else { 2 };
+    // 3. Colegios seleccionados (orden = orden de captura, para respetar el
+    // orden en que el usuario los introdujo en el asistente manual)
+    for (idx, nombre) in selections.colegios.iter().enumerate() {
+        let orden = (idx + 1) as i64;
         conn.execute(
             "INSERT OR IGNORE INTO colegio (nombre, orden) VALUES (?, ?)",
             rusqlite::params![nombre, orden],
