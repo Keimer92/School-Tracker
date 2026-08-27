@@ -28,11 +28,13 @@
     return n + ' B';
   }
 
+  interface GradItem { nombre: string; cualitativo: boolean; }
+
   let inputAnos = $state<string[]>([]);
   let inputColegios = $state<string[]>([]);
-  let inputGrados = $state<string[]>([]);
+  let inputGrados = $state<GradItem[]>([]);
   let inputSecciones = $state<string[]>([]);
-  let inputAsignaturas = $state<string[]>([]);
+  let inputAsignaturas = $state<GradItem[]>([]);
   let currentInput = $state('');
 
   const steps = [
@@ -194,16 +196,17 @@
       // El sistema anexa " grado" a lo que el usuario escriba en Grados
       // (p. ej. "1er" -> "1er grado"), salvo que ya lo incluya.
       const grados = inputGrados.map((g) => {
-        const t = g.trim();
-        return /grado\s*$/i.test(t) ? t : t + ' grado';
+        const t = g.nombre.trim();
+        return { nombre: /grado\s*$/i.test(t) ? t : t + ' grado', cualitativo: g.cualitativo };
       });
+      const asignaturas = inputAsignaturas.map((a) => ({ nombre: a.nombre.trim(), cualitativo: a.cualitativo }));
       await invoke('seed_selected_data', {
         selections: {
           anos: inputAnos.map((a) => a.trim()),
           colegios: inputColegios.map((c) => c.trim()),
           grados,
           secciones: inputSecciones.map((s) => s.trim()),
-          asignaturas: inputAsignaturas.map((a) => a.trim()),
+          asignaturas,
         }
       });
       await invoke('set_app_initialized');
@@ -237,7 +240,7 @@
     };
     return map[stepKey()];
   }
-  function currentItems(): string[] {
+  function currentItems(): (string | GradItem)[] {
     const k = stepKey();
     if (k === 'anos') return inputAnos;
     if (k === 'colegios') return inputColegios;
@@ -249,25 +252,51 @@
     const k = stepKey();
     if (k === 'anos') inputAnos = arr;
     else if (k === 'colegios') inputColegios = arr;
-    else if (k === 'grados') inputGrados = arr;
     else if (k === 'secciones') inputSecciones = arr;
-    else inputAsignaturas = arr;
+  }
+  function chipLabel(item: string | GradItem): string {
+    return typeof item === 'string' ? item : item.nombre;
+  }
+  function chipCualitativo(item: string | GradItem): boolean {
+    return typeof item === 'string' ? false : item.cualitativo;
   }
   function addCurrentItem() {
     const v = currentInput.trim();
     if (!v) return;
-    const items = [...currentItems()];
-    if (!items.some((x) => x.toLowerCase() === v.toLowerCase())) items.push(v);
-    setItems(items);
+    const k = stepKey();
+    if (k === 'grados') {
+      if (!inputGrados.some((g) => g.nombre.toLowerCase() === v.toLowerCase())) {
+        inputGrados = [...inputGrados, { nombre: v, cualitativo: false }];
+      }
+    } else if (k === 'asignaturas') {
+      if (!inputAsignaturas.some((a) => a.nombre.toLowerCase() === v.toLowerCase())) {
+        inputAsignaturas = [...inputAsignaturas, { nombre: v, cualitativo: false }];
+      }
+    } else {
+      const items = [...(currentItems() as string[])];
+      if (!items.some((x) => x.toLowerCase() === v.toLowerCase())) items.push(v);
+      setItems(items);
+    }
     currentInput = '';
   }
   function removeItem(i: number) {
-    setItems(currentItems().filter((_, idx) => idx !== i));
+    const k = stepKey();
+    if (k === 'grados') inputGrados = inputGrados.filter((_, idx) => idx !== i);
+    else if (k === 'asignaturas') inputAsignaturas = inputAsignaturas.filter((_, idx) => idx !== i);
+    else setItems((currentItems() as string[]).filter((_, idx) => idx !== i));
+  }
+  function toggleCualitativo(i: number) {
+    const k = stepKey();
+    if (k === 'grados') {
+      inputGrados = inputGrados.map((g, idx) => idx === i ? { ...g, cualitativo: !g.cualitativo } : g);
+    } else if (k === 'asignaturas') {
+      inputAsignaturas = inputAsignaturas.map((a, idx) => idx === i ? { ...a, cualitativo: !a.cualitativo } : a);
+    }
   }
 
   function getResumenItems() {
     const gradosResumen = inputGrados.map((g) => {
-      const t = g.trim();
+      const t = g.nombre.trim();
       return /grado\s*$/i.test(t) ? t : t + ' grado';
     });
     return [
@@ -371,7 +400,11 @@
             <div class="wizard-chips">
               {#each currentItems() as item, i}
                 <div class="wizard-chip">
-                  <span>{item}</span>
+                  <span>{chipLabel(item)}</span>
+                  {#if stepKey() === 'grados' || stepKey() === 'asignaturas'}
+                    <button class="wizard-chip-toggle" class:active={chipCualitativo(item)}
+                      onclick={() => toggleCualitativo(i)} title="Solo cualitativo">C</button>
+                  {/if}
                   <button class="wizard-chip-x" onclick={() => removeItem(i)} aria-label="Eliminar">×</button>
                 </div>
               {/each}
@@ -624,6 +657,13 @@
     display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;
   }
   .wizard-chip-x:hover { background: rgba(239,68,68,0.2); color: #f87171; }
+  .wizard-chip-toggle {
+    width: 20px; height: 20px; border-radius: 50%; border: 1px solid rgba(168,85,247,0.4); cursor: pointer;
+    background: rgba(255,255,255,0.06); color: #a78bfa; font-size: 0.7rem; font-weight: 700; line-height: 1;
+    display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;
+  }
+  .wizard-chip-toggle:hover { background: rgba(168,85,247,0.18); }
+  .wizard-chip-toggle.active { background: linear-gradient(135deg, #a78bfa, #7c3aed); color: #fff; border-color: transparent; box-shadow: 0 0 10px rgba(168,85,247,0.4); }
 
   .wizard-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.5rem; max-height: 280px; overflow-y: auto; padding: 0.15rem; }
   .wizard-item {

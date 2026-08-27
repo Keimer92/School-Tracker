@@ -4641,12 +4641,19 @@ pub struct SeedOptions {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
+pub struct SeedItem {
+    pub nombre: String,
+    pub cualitativo: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct SeedSelections {
     pub anos: Vec<String>,
     pub colegios: Vec<String>,
-    pub grados: Vec<String>,
+    pub grados: Vec<SeedItem>,
     pub secciones: Vec<String>,
-    pub asignaturas: Vec<String>,
+    pub asignaturas: Vec<SeedItem>,
 }
 
 #[tauri::command]
@@ -4729,21 +4736,19 @@ pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: Se
         ).map_err(|e| e.to_string())?;
     }
 
-    // 4. Asignaturas seleccionadas
-    for nombre in &selections.asignaturas {
-        let cualitativo = matches!(nombre.as_str(), "TAC" | "AEP" | "Convivencia & Civismo" | "Creciendo en Valores" | "Derecho & Dignidad de la Mujer" | "EducaciÃ³n FÃ­sica");
+    // 4. Asignaturas seleccionadas (cualitativo definido por el usuario)
+    for a in &selections.asignaturas {
         conn.execute(
             "INSERT OR IGNORE INTO asignatura (nombre, cualitativo) VALUES (?, ?)",
-            rusqlite::params![nombre, if cualitativo { 1 } else { 0 }],
+            rusqlite::params![a.nombre, if a.cualitativo { 1 } else { 0 }],
         ).map_err(|e| e.to_string())?;
     }
 
-    // 5. Grados seleccionados
-    for nombre in &selections.grados {
-        let cualitativo = matches!(nombre.as_str(), "1er grado" | "2do grado");
+    // 5. Grados seleccionados (cualitativo definido por el usuario)
+    for g in &selections.grados {
         conn.execute(
             "INSERT OR IGNORE INTO grado (nombre, cualitativo) VALUES (?, ?)",
-            rusqlite::params![nombre, if cualitativo { 1 } else { 0 }],
+            rusqlite::params![g.nombre, if g.cualitativo { 1 } else { 0 }],
         ).map_err(|e| e.to_string())?;
     }
 
@@ -4767,8 +4772,8 @@ pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: Se
             placeholders_g, placeholders_a
         );
         let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
-        for n in &selections.grados { params.push(Box::new(n.clone())); }
-        for n in &selections.asignaturas { params.push(Box::new(n.clone())); }
+        for g in &selections.grados { params.push(Box::new(g.nombre.clone())); }
+        for a in &selections.asignaturas { params.push(Box::new(a.nombre.clone())); }
         let params_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
         conn.execute(&sql, params_refs.as_slice()).map_err(|e| e.to_string())?;
     }
@@ -4786,7 +4791,7 @@ pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: Se
         );
         let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
         for n in &selections.colegios { params.push(Box::new(n.clone())); }
-        for n in &selections.asignaturas { params.push(Box::new(n.clone())); }
+        for a in &selections.asignaturas { params.push(Box::new(a.nombre.clone())); }
         let params_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
         conn.execute(&sql, params_refs.as_slice()).map_err(|e| e.to_string())?;
     }
