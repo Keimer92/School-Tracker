@@ -84,6 +84,13 @@
       return registerBackHandler(() => { showImportHelp = false; return true; });
     }
   });
+  // Cierre garantizado con Escape (desktop), autónomo y sin depender de la pila de back-handlers.
+  $effect(() => {
+    if (!showImportHelp) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') showImportHelp = false; };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
   let searchTerm = $state("");
   let isMobile = $state(false);
   const isAndroid = /Android/i.test(navigator.userAgent);
