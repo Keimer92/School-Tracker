@@ -1194,23 +1194,25 @@
               </button>
 
               {#if popSinClasesAbierta}
-                <div class="pop-panel" tabindex="-1" style="left:auto;right:0;width:min(300px,calc(100vw - 40px))">
-                  <div class="pop-mes"><span class="pop-mes-txt">{colFechaObjetivo ? `Marcar ${fmtDM(colFechaObjetivo)} sin clases` : 'Motivo del día(s) sin clases'}</span></div>
-                  {#if colFechaObjetivo}
-                    <div style="font-size:.65rem;color:#94a3b8;margin:-.3rem 0 .5rem">Solo afecta esa fecha específica</div>
-                  {/if}
-                  <input class="obs-inline" placeholder="Ej: Feriado nacional (obligatorio)"
-                    bind:value={sinClasesDescripcion}
-                    onkeydown={(e) => { if (e.key === 'Enter' && sinClasesDescripcion.trim()) activarSinClases(false); }} />
-                  <div style="display:flex;flex-direction:column;gap:3px;margin-top:.55rem">
-                    <button type="button" class="pop-sem sel" style="justify-content:center;border-radius:10px" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando}
-                      onclick={() => activarSinClases(false)}>
-                      🚪 Marcar solo esta sección
-                    </button>
-                    <button type="button" class="pop-sem sel" style="justify-content:center;border-radius:10px" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando}
-                      onclick={() => activarSinClases(true)}>
-                      🏫 Marcar todo el colegio
-                    </button>
+                <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) cerrarPopSinClases(); }} style="z-index:2000">
+                  <div class="pop-panel" tabindex="-1" style="position:relative;top:auto;left:auto;right:auto;bottom:auto;width:min(320px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-height:85vh;overflow-y:auto;">
+                    <div class="pop-mes"><span class="pop-mes-txt">{colFechaObjetivo ? `Marcar ${fmtDM(colFechaObjetivo)} sin clases` : 'Motivo del día(s) sin clases'}</span></div>
+                    {#if colFechaObjetivo}
+                      <div style="font-size:.65rem;color:#94a3b8;margin:-.3rem 0 .5rem">Solo afecta esa fecha específica</div>
+                    {/if}
+                    <input class="obs-inline" placeholder="Ej: Feriado nacional (obligatorio)"
+                      bind:value={sinClasesDescripcion}
+                      onkeydown={(e) => { if (e.key === 'Enter' && sinClasesDescripcion.trim()) activarSinClases(false); }} />
+                    <div style="display:flex;flex-direction:column;gap:3px;margin-top:.55rem">
+                      <button type="button" class="pop-sem sel" style="justify-content:center;border-radius:10px" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando}
+                        onclick={() => activarSinClases(false)}>
+                        🚪 Marcar solo esta sección
+                      </button>
+                      <button type="button" class="pop-sem sel" style="justify-content:center;border-radius:10px" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando}
+                        onclick={() => activarSinClases(true)}>
+                        🏫 Marcar todo el colegio
+                      </button>
+                    </div>
                   </div>
                 </div>
               {/if}
