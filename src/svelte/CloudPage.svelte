@@ -191,6 +191,16 @@
   const isConnected = $derived(!!settings.accessToken);
   const isAndroid = /Android/i.test(navigator.userAgent);
 
+  // ── Layout CloudPage: columnas en desktop, swipe en móvil ──
+  let activeCloudTab = $state(0); // 0 = Cloudflare D1, 1 = Google Drive
+  let cloudTouchX = 0;
+  function onCloudTouchStart(e: TouchEvent) { cloudTouchX = e.changedTouches[0].clientX; }
+  function onCloudTouchEnd(e: TouchEvent) {
+    const dx = e.changedTouches[0].clientX - cloudTouchX;
+    if (dx > 50) activeCloudTab = 0;
+    else if (dx < -50) activeCloudTab = 1;
+  }
+
   /** Suma los conteos de un resultado de sync (puede ser número o mapa por tabla). */
   function sumarConteos(o: any): number {
     if (typeof o === 'number') return o;
@@ -742,6 +752,24 @@
     </div>
   {/if}
 
+  <!-- Tabs de selección (solo móvil/swipe) -->
+  {#if isAndroid}
+    <div class="cloud-tabs">
+      <button class:active={activeCloudTab === 0} onclick={() => activeCloudTab = 0}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 7.7l5.4-.8z"/></svg>
+        Cloudflare D1
+      </button>
+      <button class:active={activeCloudTab === 1} onclick={() => activeCloudTab = 1}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Google Drive
+      </button>
+    </div>
+  {/if}
+
+  <div class="cloud-cols" class:mobile={isAndroid}
+    style={isAndroid ? `transform: translateX(-${activeCloudTab * 50}%);` : ''}
+    ontouchstart={isAndroid ? onCloudTouchStart : undefined}
+    ontouchend={isAndroid ? onCloudTouchEnd : undefined}>
   <div class="cloud-card" style="margin-bottom: 1.25rem;">
     <div class="cloud-card-header" style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
       <h3>
@@ -1032,6 +1060,7 @@
       {/if}
     </div>
   </div>
+  </div>
 </div>
 
 {#if showConfirm}
@@ -1048,7 +1077,57 @@
 {/if}
 
 <style>
-  .cloud-page { max-width: 680px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; }
+  .cloud-page { max-width: 1000px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; }
+
+  /* Layout de nube: dos columnas en desktop, swipe en móvil */
+  .cloud-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    align-items: start;
+  }
+  .cloud-cols.mobile {
+    display: flex;
+    gap: 0;
+    overflow: hidden;
+    transition: transform 0.28s ease;
+    width: 100%;
+  }
+  .cloud-cols.mobile > .cloud-card {
+    flex: 0 0 100%;
+    min-width: 100%;
+    margin-bottom: 0;
+  }
+  .cloud-tabs {
+    display: none;
+  }
+  .cloud-cols.mobile ~ .cloud-tabs,
+  .cloud-page > .cloud-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+  .cloud-tabs button {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 0.6rem 1rem;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.04);
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+  }
+  .cloud-tabs button.active {
+    color: #f1f5f9;
+    background: rgba(246,130,31,0.12);
+    border-color: rgba(246,130,31,0.35);
+  }
   .cloud-card { background: var(--card-bg); border-radius: 20px; border: 1px solid var(--card-border); overflow: hidden; }
   .cloud-card-header { padding: 1.25rem 1.5rem 0; }
   .cloud-card-header h3 { margin: 0; color: var(--text-primary); font-size: 1.1rem; font-weight: 700; }
