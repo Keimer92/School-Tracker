@@ -173,11 +173,6 @@
   let isTesting = $state(false);
   let syncFiles: DriveFile[] = $state([]);
   let imgError = $state(false);
-  let showConfirm = $state(false);
-  let confirmTitle = $state("");
-  let confirmMessage = $state("");
-  let confirmVariant: 'danger' | 'warning' | 'info' = $state('danger');
-  let confirmAction: (() => Promise<void>) | null = $state(null);
 
   // Estado D1
   let d1Cfg = $state<D1Config | null>(null);
@@ -209,12 +204,6 @@
   }
 
   $effect(() => { if (settings.googleUserProfilePic) imgError = false; });
-
-  $effect(() => {
-    if (showConfirm) {
-      return registerBackHandler(() => { showConfirm = false; return true; });
-    }
-  });
 
   function loadSettings() {
     try {
@@ -433,12 +422,11 @@
     return new Date(iso).toLocaleString('es-ES');
   }
 
-  function confirm(msg: string, title: string, variant: 'danger' | 'warning' | 'info', action: () => Promise<void>) {
-    confirmTitle = title;
-    confirmMessage = msg;
-    confirmVariant = variant;
-    confirmAction = action;
-    showConfirm = true;
+  /** Confirmación nativa del sistema (Tauri ask). Ejecuta action solo si el usuario acepta. */
+  async function confirm(msg: string, title: string, variant: 'danger' | 'warning' | 'info', action: () => Promise<void>) {
+    const kind = variant === 'danger' ? 'warning' : variant === 'info' ? 'info' : 'warning';
+    const ok = await ask(msg, { title, kind, okLabel: 'Confirmar', cancelLabel: 'Cancelar' });
+    if (ok) await action();
   }
 
   async function requestRestore(file: DriveFile) {
@@ -494,7 +482,7 @@
       const previa = await d1SyncService.getConfig();
       const distinta = previa && (previa.workerUrl !== cfg.workerUrl || previa.schoolKey !== cfg.schoolKey);
       if (distinta) {
-        confirm(
+        await confirm(
           'Las credenciales del archivo son DIFERENTES a las actuales.\n\nSe reemplazarán por completo: se generará un nuevo ID de dispositivo y se reiniciará la sincronización. Los datos locales actuales se subirán a la nube nueva en el próximo sync.',
           '⚠️ Reemplazar conexión',
           'warning',
@@ -1061,19 +1049,6 @@
   </div>
   </div>
 </div>
-
-{#if showConfirm}
-  <div style="position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; padding: 1rem; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);">
-    <div style="width: 420px; max-width: 90%; padding: 1.5rem; background: linear-gradient(135deg, rgba(30,41,59,0.98), rgba(15,23,42,0.99)); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; box-shadow: 0 25px 60px rgba(0,0,0,0.6);">
-      <h3 style="margin-top: 0; color: {confirmVariant === 'danger' ? '#f87171' : '#eab308'};">{confirmTitle}</h3>
-      <div style="white-space: pre-wrap; margin: 1.5rem 0; color: #e2e8f0; font-size: 0.9rem; line-height: 1.5;">{confirmMessage}</div>
-      <div style="display: flex; justify-content: flex-end; gap: 1rem;">
-        <button onclick={() => showConfirm = false} style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-weight: 600; font-size: 0.85rem;">Cancelar</button>
-        <button onclick={async () => { if (confirmAction) await confirmAction(); showConfirm = false; }} style="padding: 0.5rem 1.25rem; border-radius: 8px; border: none; background: {confirmVariant === 'danger' ? '#ef4444' : '#eab308'}; color: white; font-weight: 700; cursor: pointer; font-size: 0.85rem;">Confirmar</button>
-      </div>
-    </div>
-  </div>
-{/if}
 
 <style>
   .cloud-page { max-width: 1000px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; }

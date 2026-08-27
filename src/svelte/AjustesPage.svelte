@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { emit } from "@tauri-apps/api/event";
-  import { open, save } from "@tauri-apps/plugin-dialog";
+  import { open, save, ask } from "@tauri-apps/plugin-dialog";
   import { copyFile, writeFile, BaseDirectory } from "@tauri-apps/plugin-fs";
   import { syncService } from "../lib/syncService";
   import { onDataChange } from "../lib/autoSync";
@@ -53,9 +53,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   let selectedColegio = $state(0);
   let isExportingExcel = $state(false);
   let isExportingByYear = $state(false);
-  let showResetConfirm = $state(false);
-  let resetConfig = $state<{ title: string; message: string; onConfirm: () => Promise<void>; isDanger?: boolean; } | null>(null);
-  let isProcessingReset = $state(false);
 
   const NOTIF_STORAGE_KEY = 'stp_attendance_notif_settings';
 
@@ -284,22 +281,23 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     } catch (error) { await emit("show-toast", { message: "❌ Error al importar: " + error, type: "error" }); }
   }
 
-  function handleResetLocalDB() {
-    resetConfig = { title: "⚠️ Reiniciar Base de Datos Local", message: "¿Estás SEGURO de que quieres reiniciar la base de datos LOCAL?\n\nSe borrarán todos los estudiantes, notas, asistencias y configuraciones.\nEsta acción no se puede deshacer.", isDanger: true, onConfirm: async () => {
-      try { await invoke("reset_local_database"); await emit("catalog-updated"); await emit("show-toast", { message: "✅ Base de datos local reiniciada.", type: "success" }); }
-      catch (error) { await emit("show-toast", { message: "❌ Error al reiniciar DB: " + error, type: "error" }); }
-    } }; showResetConfirm = true;
+  async function handleResetLocalDB() {
+    const ok = await ask("¿Estás SEGURO de que quieres reiniciar la base de datos LOCAL?\n\nSe borrarán todos los estudiantes, notas, asistencias y configuraciones.\nEsta acción no se puede deshacer.", { title: "⚠️ Reiniciar Base de Datos Local", kind: "warning", okLabel: "Confirmar", cancelLabel: "Cancelar" });
+    if (!ok) return;
+    try { await invoke("reset_local_database"); await emit("catalog-updated"); await emit("show-toast", { message: "✅ Base de datos local reiniciada.", type: "success" }); }
+    catch (error) { await emit("show-toast", { message: "❌ Error al reiniciar DB: " + error, type: "error" }); }
   }
 
-  function handleResetRemoteDB() {
-    resetConfig = { title: "🚨 Limpiar Datos en Sync", message: "¡ATENCIÓN! ¿Estás SEGURO de limpiar los datos sincronizados?\n\nSe borrarán PERMANENTEMENTE todos tus datos en el servidor.", isDanger: true, onConfirm: async () => {
-      try { await syncService.wipeRemoteData(); await emit("show-toast", { message: "✅ Datos en la nube eliminados.", type: "success" }); }
-      catch (error) { await emit("show-toast", { message: "❌ Error al limpiar nube.", type: "error" }); }
-    } }; showResetConfirm = true;
+  async function handleResetRemoteDB() {
+    const ok = await ask("¡ATENCIÓN! ¿Estás SEGURO de limpiar los datos sincronizados?\n\nSe borrarán PERMANENTEMENTE todos tus datos en el servidor.", { title: "🚨 Limpiar Datos en Sync", kind: "warning", okLabel: "Confirmar", cancelLabel: "Cancelar" });
+    if (!ok) return;
+    try { await syncService.wipeRemoteData(); await emit("show-toast", { message: "✅ Datos en la nube eliminados.", type: "success" }); }
+    catch (error) { await emit("show-toast", { message: "❌ Error al limpiar nube.", type: "error" }); }
   }
 
   async function handleFactoryReset() {
-    if (!confirm('¿Estás SEGURO? Se borrarán TODOS los datos locales y la app se reiniciará desde cero.\n\nEsta acción no se puede deshacer.')) return;
+    const ok = await ask('¿Estás SEGURO? Se borrarán TODOS los datos locales y la app se reiniciará desde cero.\n\nEsta acción no se puede deshacer.', { title: 'Restablecer valores de fábrica', kind: 'warning', okLabel: 'Confirmar', cancelLabel: 'Cancelar' });
+    if (!ok) return;
     try {
       await invoke('factory_reset');
       await emit('show-toast', { message: '✅ Datos restablecidos. La app se recargará.', type: 'success' });
@@ -718,20 +716,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     </div>
   {/if}
 
-  {#if showResetConfirm && resetConfig}
-    <div class="modal-overlay" style="position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);">
-      <div class="modal-content category-card" style="width: 450px;">
-        <div class="category-header"><h3>{resetConfig.title}</h3></div>
-        <div style="padding: 1.5rem;">
-          <p style="color: #94a3b8; white-space: pre-wrap;">{resetConfig.message}</p>
-          <div style="display: flex; justify-content: flex-end; gap: 1rem; margin-top: 2rem;">
-            <button class="cancel" onclick={() => showResetConfirm = false}>Cancelar</button>
-            <button class="primary" onclick={async () => { if (!resetConfig) return; isProcessingReset = true; await resetConfig.onConfirm(); showResetConfirm = false; isProcessingReset = false; }} style="background-color: #ef4444;">{isProcessingReset ? "..." : "Confirmar"}</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  {/if}
 </div>
 
 <style>

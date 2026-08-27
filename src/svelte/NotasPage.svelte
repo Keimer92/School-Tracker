@@ -7,10 +7,10 @@
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
   import SearchFab from "./SearchFab.svelte";
-  import ConfirmDialog from "./ConfirmDialog.svelte";
   import { generarInstrumentoPDF, generarInstrumentosTodosPDF, INSTRUMENTO_OPS, type InstrumentoInput, type InstrumentoTipo } from "../lib/instrumentosPdf";
   import { generarInstrumentoExcel, listarPlantillas, asegurarCarpetaPlantillas, abrirCarpetaPlantillas, plantillasDir, type ExcelInstrumentoInput } from "../lib/instrumentosExcel";
   import { readFile } from "@tauri-apps/plugin-fs";
+  import { ask } from "@tauri-apps/plugin-dialog";
 
   // Visible = la página contenedora está activa Y este es el sub-tab seleccionado.
   let { visible = true }: { visible?: boolean } = $props();
@@ -52,7 +52,6 @@
   let deleteMode: 'all' | 'student' | 'indicator' = $state('all');
   let deleteStudentId = $state(0);
   let deleteIndicatorId = $state(0);
-  let showDeleteConfirm = $state(false);
   let deleting = $state(false);
 
   let showDistribuirModal = $state(false);
@@ -835,6 +834,15 @@
 
   // Delete
   async function handleDeleteNotas() {
+    if (deleteMode === 'student' && !deleteStudentId) { await emit("show-toast", { message: "⚠️ Seleccione un estudiante", type: "warning" }); return; }
+    if (deleteMode === 'indicator' && !deleteIndicatorId) { await emit("show-toast", { message: "⚠️ Seleccione un indicador", type: "warning" }); return; }
+    const mensaje = deleteMode === 'all'
+      ? '¿Está seguro de eliminar TODAS las notas mostradas para este corte y asignatura? Esta acción no se puede deshacer.'
+      : deleteMode === 'student'
+        ? `¿Está seguro de eliminar todas las notas de "${filteredNotas.find(n => n.estudianteId === deleteStudentId)?.estudianteNombre || ''}" para este corte y asignatura?`
+        : `¿Está seguro de eliminar todas las notas del ${indicadores.find(i => i.id === deleteIndicatorId) ? `Indicador ${indicadores.find(i => i.id === deleteIndicatorId)!.orden}` : 'indicador seleccionado'} para este corte y asignatura?`;
+    const ok = await ask(mensaje, { title: "🗑️ Confirmar eliminación", kind: "warning", okLabel: "Sí, eliminar", cancelLabel: "Cancelar" });
+    if (!ok) return;
     try {
       deleting = true;
       const delCorteId = selectedCorte;
@@ -846,7 +854,6 @@
         criterioId: deleteMode === 'indicator' ? deleteIndicatorId : 0,
       });
       showDeleteModal = false;
-      showDeleteConfirm = false;
       await emit("show-toast", { message: `✅ Notas eliminadas`, type: "success" });
       history = [];
       redoStack = [];
@@ -859,12 +866,6 @@
       console.error("Error deleting notas:", error);
       await emit("show-toast", { message: "❌ Error al eliminar notas: " + error, type: "error" });
     } finally { deleting = false; }
-  }
-
-  function openDeleteConfirm() {
-    if (deleteMode === 'student' && !deleteStudentId) { emit("show-toast", { message: "⚠️ Seleccione un estudiante", type: "warning" }); return; }
-    if (deleteMode === 'indicator' && !deleteIndicatorId) { emit("show-toast", { message: "⚠️ Seleccione un indicador", type: "warning" }); return; }
-    showDeleteConfirm = true;
   }
 
   // ── Instrumentos de evaluación ──
@@ -2073,7 +2074,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           <div style="display: flex; gap: 0.75rem; justify-content: flex-end; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 1rem;">
             <button onclick={() => showDeleteModal = false}
               style="padding: 0.6rem 1.2rem; border-radius: 10px; background: transparent; border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: all 0.15s ease;">Cancelar</button>
-            <button onclick={openDeleteConfirm} disabled={deleting}
+            <button onclick={handleDeleteNotas} disabled={deleting}
               style="padding: 0.6rem 1.4rem; border-radius: 10px; background: {deleting ? 'rgba(239, 68, 68, 0.5)' : 'linear-gradient(135deg, #ef4444, #dc2626)'}; border: none; color: white; font-weight: 700; font-size: 0.85rem; cursor: {deleting ? 'not-allowed' : 'pointer'}; transition: all 0.2s ease; box-shadow: {deleting ? 'none' : '0 4px 14px rgba(239, 68, 68, 0.35)'};">
               {deleting ? 'Eliminando...' : 'Continuar'}
             </button>
@@ -2082,16 +2083,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
       </div>
     {/if}
 
-    <ConfirmDialog
-      isOpen={showDeleteConfirm}
-      title="🗑️ Confirmar eliminación"
-      message={deleteMode === 'all' ? '¿Está seguro de eliminar TODAS las notas mostradas para este corte y asignatura? Esta acción no se puede deshacer.' : deleteMode === 'student' ? `¿Está seguro de eliminar todas las notas de "${filteredNotas.find(n => n.estudianteId === deleteStudentId)?.estudianteNombre || ''}" para este corte y asignatura?` : `¿Está seguro de eliminar todas las notas del ${indicadores.find(i => i.id === deleteIndicatorId) ? `Indicador ${indicadores.find(i => i.id === deleteIndicatorId)!.orden}` : 'indicador seleccionado'} para este corte y asignatura?`}
-      confirmText="Sí, eliminar"
-      cancelText="Cancelar"
-      variant="danger"
-      onConfirm={handleDeleteNotas}
-      onCancel={() => showDeleteConfirm = false}
-    />
+
 
     <SearchFab bind:value={searchTerm} placeholder="Buscar estudiante o nota..." />
   </div>
