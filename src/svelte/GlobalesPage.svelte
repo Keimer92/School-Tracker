@@ -101,7 +101,10 @@
   function fetchColegioConfig() {
     if (!selectedColegio) return;
     invoke("get_colegio_dias_asistencia", { colegioId: selectedColegio.id }).then((config) => {
-      colegioConfig = config as ColegioDiasAsistencia;
+      // La nueva lógica de días solo considera lunes–viernes; sábado y domingo
+      // nunca son días de clase, así que se fuerzan a falso al cargar (incluso
+      // en bases previas que los tenían activos por defecto).
+      colegioConfig = { ...(config as ColegioDiasAsistencia), sabado: false, domingo: false };
       colegioConfigOriginal = JSON.stringify(colegioConfig);
     }).catch((error) => console.error("Error fetching colegio config:", error));
   }
@@ -128,7 +131,7 @@
 
   function handleBulkDays(checked: boolean) {
     if (!colegioConfig) return;
-    colegioConfig = { ...colegioConfig, lunes: checked, martes: checked, miercoles: checked, jueves: checked, viernes: checked, sabado: checked, domingo: checked };
+    colegioConfig = { ...colegioConfig, lunes: checked, martes: checked, miercoles: checked, jueves: checked, viernes: checked, sabado: false, domingo: false };
   }
 
   async function saveColegioDias() {
@@ -624,7 +627,7 @@
           </div>
         </div>
         <div class="item-list">
-          {#each ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"] as day}
+          {#each ["lunes", "martes", "miercoles", "jueves", "viernes"] as day}
             <div class="item-row" style="cursor: pointer; display: flex; align-items: center; gap: 12px; justify-content: flex-start;" onclick={() => handleToggleDay(day as keyof Omit<ColegioDiasAsistencia, "colegioId">)}>
               <label class="switch" style="pointer-events: none;">
                 <input type="checkbox" checked={colegioConfig[day as keyof Omit<ColegioDiasAsistencia, "colegioId">]} readonly />
