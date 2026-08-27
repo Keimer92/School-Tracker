@@ -100,6 +100,18 @@
     }
   });
 
+  $effect(() => {
+    if (showSummaryModal.show) {
+      return registerBackHandler(() => { showSummaryModal = { ...showSummaryModal, show: false }; return true; });
+    }
+  });
+
+  $effect(() => {
+    if (obsModalStudent) {
+      return registerBackHandler(() => { obsModalStudent = null; expandedObs = {}; return true; });
+    }
+  });
+
   // Refresco silencioso al volver a verse (transición oculto → visible)
   let wasVisible = visible;
   $effect(() => {

@@ -229,6 +229,10 @@ import CloudPage from "./svelte/CloudPage.svelte";
     if (e.key === 'F12') {
       e.preventDefault();
     }
+    // En desktop, Escape cierra el modal superior (misma pila que el back de Android).
+    if (e.key === 'Escape' && !isAndroid) {
+      handleBack();
+    }
   }
 
   onMount(async () => {
