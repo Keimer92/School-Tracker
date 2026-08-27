@@ -787,14 +787,19 @@
             {d1SyncState.message}
           </div>
         {/if}
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-          <button onclick={syncD1} disabled={isD1Syncing} style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(246,130,31,0.15) 0%, rgba(246,130,31,0.05) 100%); border: 1px solid rgba(246,130,31,0.25); border-radius: 12px; cursor: pointer; opacity: {isD1Syncing ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F6821F" stroke-width="2" stroke-linecap="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
-            <span style="color: #F6821F; font-weight: 600; font-size: 0.85rem;">Sincronizar ahora</span>
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <!-- Botón de sync manual discreto (icono + etiqueta) -->
+          <button onclick={syncD1} disabled={isD1Syncing} title="Sincronizar ahora"
+            style="display: inline-flex; align-items: center; gap: 6px; padding: 0 0.7rem; height: 34px; border-radius: 9px; border: 1px solid rgba(246,130,31,0.2); background: rgba(246,130,31,0.06); color: #fdba74; cursor: pointer; opacity: {isD1Syncing ? 0.5 : 1}; transition: all 0.2s ease; font-size: 0.72rem; font-weight: 600; {isD1Syncing ? '' : 'hover: background: rgba(246,130,31,0.12);'}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F6821F" stroke-width="2" stroke-linecap="round" style="{isD1Syncing ? 'animation: spin 1s linear infinite;' : ''}"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+            <span>Sincronizar</span>
           </button>
-          <button onclick={testD1} disabled={isD1Testing} style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; cursor: pointer; opacity: {isD1Testing ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;">
-            <span style="color: #94a3b8; font-weight: 600; font-size: 0.85rem;">{isD1Testing ? 'Probando...' : 'Probar conexión'}</span>
+          <button onclick={testD1} disabled={isD1Testing} title="Probar conexión"
+            style="display: inline-flex; align-items: center; gap: 6px; padding: 0 0.7rem; height: 34px; border-radius: 9px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: #94a3b8; cursor: pointer; opacity: {isD1Testing ? 0.5 : 1}; transition: all 0.2s ease; font-size: 0.72rem; font-weight: 600; {isD1Testing ? '' : 'hover: background: rgba(255,255,255,0.1);'}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            <span>Probar</span>
           </button>
+          <span style="color: #64748b; font-size: 0.72rem; margin-left: auto;">Sync automático en tiempo real vía WebSocket</span>
         </div>
         <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; padding: 0.6rem 0.85rem; background: rgba(0,0,0,0.15); border-radius: 10px; margin-top: 0.85rem;">
           <div style="display: flex; align-items: center; gap: 8px;">
