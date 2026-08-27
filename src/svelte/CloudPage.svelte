@@ -14,7 +14,7 @@
   import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
   import { ask } from "@tauri-apps/plugin-dialog";
   import {
-    getPerfilLocal, clearPerfilLocal, getAuthToken, authTokenExpirado,
+    getPerfilLocal, clearPerfilLocal, getValidAuthToken,
     fetchAdminUsers, suspendUser, deleteUserData,
     type CloudPerfil, type AdminUserInfo,
   } from "../lib/cloudAuth";
@@ -69,12 +69,8 @@
   let adminActionBusy = $state(false);
 
   async function cargarUsuarios() {
-    const token = getAuthToken();
+    const token = await getValidAuthToken();
     if (!token) { await emit("show-toast", { message: "⚠️ Inicia sesión con Google para administrar usuarios", type: "warning" }); return; }
-    if (authTokenExpirado(token)) {
-      await emit("show-toast", { message: "⏰ Tu sesión expiró. Vuelve a iniciar sesión con Google (desconecta y reconecta).", type: "warning" });
-      return;
-    }
     adminLoading = true;
     try {
       const d1c = await invoke<any>("d1_get_config");

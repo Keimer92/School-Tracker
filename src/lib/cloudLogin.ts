@@ -4,6 +4,7 @@ import { ask } from "@tauri-apps/plugin-dialog";
 import {
   authWithGoogleIdToken,
   guardarTokenSesion,
+  getRefreshToken,
   DEFAULT_WORKER_URL,
   type AuthResult,
 } from "./cloudAuth";
@@ -33,21 +34,17 @@ function guardarSesionDrive(clientId: string, tokenData: any): void {
   }).catch((e) => console.error('[Drive] userinfo:', e));
 }
 
-async function vincularDriveAndroid(serverAuthCode: string) {
-  try {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-    const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
-    const res = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, code: serverAuthCode, grant_type: 'authorization_code' }),
-    });
-    if (!res.ok) throw new Error(await res.text());
-    guardarSesionDrive(clientId, await res.json());
-    await emit("show-toast", { message: "☁️ Google Drive vinculado con la misma cuenta", type: "success" });
-  } catch (e) {
-    console.error('[Drive] vinculación android falló:', e);
-  }
+/** Intercambia un serverAuthCode (Android) por tokens completos (incluye refresh). */
+async function exchangeServerAuthCode(code: string): Promise<any> {
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+  const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, code, grant_type: 'authorization_code' }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return await res.json();
 }
 
 /**
@@ -130,16 +127,27 @@ export async function iniciarSesionGoogleConNube(opts?: {
       idToken = tokenData.id_token || '';
       if (!idToken) return { status: 'error', error: 'Google no devolvió id_token' };
       guardarSesionDrive(clientId, tokenData);
+      // El refresh_token NO expira: permite renovar el id_token sin re-login.
+      guardarTokenSesion(idToken, tokenData.refresh_token);
     }
 
     opts?.onStatus?.('Ingresando a la nube...');
     const result = await authWithGoogleIdToken(idToken);
-    guardarTokenSesion(idToken);
+    guardarTokenSesion(idToken, getRefreshToken());
     opts?.onStatus?.(result.creado ? 'Cuenta creada. Preparando tu nube...' : 'Bienvenido de nuevo...');
     await conectarConCredenciales(DEFAULT_WORKER_URL, result.schoolKey);
 
     if (/Android/i.test(navigator.userAgent)) {
-      if (driveAuthCode) { opts?.onStatus?.('Vinculando Google Drive...'); await vincularDriveAndroid(driveAuthCode); }
+      if (driveAuthCode) {
+        opts?.onStatus?.('Vinculando Google Drive...');
+        try {
+          const tokens = await exchangeServerAuthCode(driveAuthCode);
+          guardarSesionDrive(clientId, tokens);
+          guardarTokenSesion(idToken, tokens.refresh_token);
+        } catch (e) {
+          console.error('[Drive] vinculación android falló:', e);
+        }
+      }
     } else {
       await emit("show-toast", { message: "☁️ Google Drive vinculado con la misma cuenta", type: "success" });
     }

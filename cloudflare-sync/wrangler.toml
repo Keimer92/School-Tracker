@@ -29,6 +29,10 @@ GOOGLE_CLIENT_ID = "495262715252-gd84mfbdqg8b32h4ppplfal50m772v8t.apps.googleuse
 # Emails administradores (separados por coma). El primer admin que hace
 # login reclama todas las filas legacy (sk NULL) como propias.
 ADMIN_EMAILS = "pedroluisnfc@gmail.com"
+# Cuentas Google autorizadas a INICIAR SESIÓN en la nube. Vacío = usar ADMIN_EMAILS.
+# Por ahora solo el administrador (pedroluisnfc@gmail.com). Para dar acceso a más
+# cuentas, añádelas separadas por coma, p. ej.: "a@gmail.com, b@gmail.com".
+ALLOWED_EMAILS = "pedroluisnfc@gmail.com"
 # -- Push en tiempo real ---------------------------------------------
 # Hub de WebSockets por colegio. DO con backend SQLite = disponible en plan gratuito.
 [durable_objects]

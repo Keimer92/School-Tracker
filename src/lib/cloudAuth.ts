@@ -27,6 +27,9 @@ export interface AuthResult {
 const PERFIL_KEY = "stp_cloud_perfil";
 const TOKEN_KEY = "stp_cloud_idtoken";
 
+const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
+const CLIENT_SECRET = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || "";
+
 export function getPerfilLocal(): CloudPerfil | null {
   try {
     const raw = localStorage.getItem(PERFIL_KEY);
@@ -42,20 +45,77 @@ export function clearPerfilLocal(): void {
   localStorage.removeItem(PERFIL_KEY);
 }
 
-// ── ID token de la última sesión (para llamadas admin; expira ~1 h) ──
+interface TokenBundle { idToken: string; refreshToken: string; expiresAt: number; }
+
+function parseExpMs(idToken: string): number {
+  try {
+    const payload = JSON.parse(atob(idToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return (payload.exp || 0) * 1000;
+  } catch { return 0; }
+}
+
+function readBundle(): TokenBundle | null {
+  const raw = localStorage.getItem(TOKEN_KEY);
+  if (!raw) return null;
+  try {
+    const b = JSON.parse(raw);
+    if (b && b.idToken) return b as TokenBundle;
+  } catch { /* formato legacy: solo el idToken plano */ }
+  // Compatibilidad con versiones anteriores (guardaban el idToken como string)
+  try { return { idToken: raw, refreshToken: "", expiresAt: parseExpMs(raw) }; } catch { return null; }
+}
+
+// ── ID token de la última sesión (para llamadas admin) ──
 export function setAuthToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token);
+  // Mantiene un refresh token previo si ya existía
+  const prev = readBundle();
+  const bundle: TokenBundle = { idToken: token, refreshToken: prev?.refreshToken || "", expiresAt: parseExpMs(token) };
+  localStorage.setItem(TOKEN_KEY, JSON.stringify(bundle));
 }
 
 export function getAuthToken(): string {
-  return localStorage.getItem(TOKEN_KEY) || "";
+  return readBundle()?.idToken || "";
 }
 
 export function authTokenExpirado(token: string): boolean {
+  return parseExpMs(token) < Date.now();
+}
+
+export function getRefreshToken(): string {
+  return readBundle()?.refreshToken || "";
+}
+
+/**
+ * Devuelve un ID token válido. Si el actual expiró y tenemos refresh_token,
+ * lo renueva SILENCIOSAMENTE contra Google (evita tener que re-iniciar sesión
+ * cada ~1 h). El refresh_token NO expira salvo que el usuario lo revoque.
+ */
+export async function getValidAuthToken(): Promise<string> {
+  const cur = getAuthToken();
+  if (cur && !authTokenExpirado(cur)) return cur;
+  const rt = getRefreshToken();
+  if (!rt) return cur;
   try {
-    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-    return (payload.exp || 0) * 1000 < Date.now();
-  } catch { return true; }
+    const resp = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+        refresh_token: rt,
+        grant_type: "refresh_token",
+      }),
+    });
+    if (!resp.ok) return cur;
+    const d = await resp.json();
+    if (d.id_token) {
+      const prev = readBundle();
+      const bundle: TokenBundle = { idToken: d.id_token, refreshToken: d.refresh_token || prev?.refreshToken || rt, expiresAt: parseExpMs(d.id_token) };
+      localStorage.setItem(TOKEN_KEY, JSON.stringify(bundle));
+      return d.id_token;
+    }
+  } catch { /* red caída: devolvemos el actual aunque expiró */ }
+  return cur;
 }
 
 export interface AdminUserInfo {
@@ -64,9 +124,10 @@ export interface AdminUserInfo {
 }
 
 async function adminFetch(workerUrl: string, path: string, body: unknown): Promise<any> {
+  const token = await getValidAuthToken();
   const res = await fetch(`${workerUrl}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-Auth-Token": getAuthToken() },
+    headers: { "Content-Type": "application/json", "X-Auth-Token": token },
     body: JSON.stringify(body),
   });
   const data = await res.json();
@@ -108,9 +169,16 @@ export async function authWithGoogleIdToken(idToken: string, workerUrl = DEFAULT
   }
 }
 
-/** Guarda el ID token de la sesión (llamar tras un auth exitoso). */
-export function guardarTokenSesion(idToken: string): void {
-  if (idToken) setAuthToken(idToken);
+/** Guarda el ID token (y opcionalmente el refresh token) de la sesión. */
+export function guardarTokenSesion(idToken: string, refreshToken?: string): void {
+  if (!idToken) return;
+  const prev = readBundle();
+  const bundle: TokenBundle = {
+    idToken,
+    refreshToken: refreshToken || prev?.refreshToken || "",
+    expiresAt: parseExpMs(idToken),
+  };
+  localStorage.setItem(TOKEN_KEY, JSON.stringify(bundle));
 }
 
 /** Extrae el email de un ID token sin verificar la firma (solo para mostrar). */

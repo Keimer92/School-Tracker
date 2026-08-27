@@ -25,6 +25,7 @@ export interface Env {
   SYNC_HUB: DurableObjectNamespace;
   GOOGLE_CLIENT_ID: string;
   ADMIN_EMAILS: string; // lista separada por comas
+  ALLOWED_EMAILS: string; // cuentas Google autorizadas a INICIAR SESIÓN (vacío = usar ADMIN_EMAILS)
 }
 
 /**
@@ -377,6 +378,12 @@ function isAdminEmail(env: Env, email: string): boolean {
   return (env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).includes(email.toLowerCase());
 }
 
+/** Cuentas Google autorizadas a iniciar sesión. Por defecto = ADMIN_EMAILS. */
+function isAllowedEmail(env: Env, email: string): boolean {
+  const list = (env.ALLOWED_EMAILS || env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+  return list.includes(email.toLowerCase());
+}
+
 /**
  * Reconstruye las tablas con restricciones UNIQUE globales (nombre/codigo)
  * SIN esa constraint: con múltiples usuarios en una sola D1, cada usuario
@@ -459,6 +466,10 @@ async function route(req: Request, env: Env): Promise<Response> {
         if (!body.idToken) throw new Error('Falta idToken');
         const claims = await verifyGoogleIdToken(env, body.idToken);
         const email = claims.email.toLowerCase();
+        if (!isAllowedEmail(env, email)) {
+          console.log(`[auth] cuenta NO autorizada: ${email}`);
+          return json({ ok: false, error: 'Esta cuenta de Google no está autorizada para usar la nube.' }, 403);
+        }
         const admin = isAdminEmail(env, email);
 
         let user = await loadUserByEmail(env, email);
