@@ -163,7 +163,7 @@
     }).catch((error) => console.error("Error fetching subjects:", error));
   }
 
-  // ---- Materias de grado (buffer + guardar con confirmación nativa) ----
+  // ---- Asignaturas de grado (buffer + guardar con confirmación nativa) ----
   let gradeDirty = $derived(selectedGrade !== null && JSON.stringify(assignedSubjects) !== assignedOriginal);
   let colegioSubjectsDirty = $derived(selectedColegioForSubjects !== null && JSON.stringify(colegioAsignadasIds) !== colegioAsignadasOriginal);
 
@@ -304,7 +304,7 @@
           <button onclick={() => selectedTab = "Notas"}
             style="display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; background: rgba(51, 65, 85, 0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; cursor: pointer; transition: all 0.2s ease; width: 100%;">
             <div style="display: flex; align-items: center; gap: 1rem;">
-              <div style="width: 4px; height: 40px; background: linear-gradient(180deg, var(--primary-color) 0%, var(--primary-hover) 100%); border-radius: 2px;"></div>
+              
                 <span style="font-size: 1.1rem; flex-shrink:0">{TAB_ICONS["Notas"]}</span>
                 <span style="font-size: 1rem; font-weight: 600; color: #e2e8f0; text-align: left;">Notas</span>
             </div>
@@ -314,7 +314,7 @@
             <button onclick={() => selectedCategory = cat}
               style="display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; background: rgba(51, 65, 85, 0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; cursor: pointer; transition: all 0.2s ease; width: 100%;">
               <div style="display: flex; align-items: center; gap: 1rem;">
-                <div style="width: 4px; height: 40px; background: linear-gradient(180deg, var(--primary-color) 0%, var(--primary-hover) 100%); border-radius: 2px;"></div>
+                
                 <span style="font-size: 1.1rem; flex-shrink:0">{TAB_ICONS[cat.title]}</span>
                 <span style="font-size: 1rem; font-weight: 600; color: #e2e8f0; text-align: left;">{cat.title}</span>
               </div>
@@ -583,21 +583,21 @@
     <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) cerrarGradeModal(); }}>
       <div class="modal-content category-card">
         <div class="category-header" style="justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
-          <h3 style="margin: 0; font-size: 1.1rem;">Materias: {selectedGrade.nombre}</h3>
+          <h3 style="margin: 0; font-size: 1.1rem;">Asignaturas: {selectedGrade.nombre}</h3>
           <div style="display: flex; gap: 0.3rem; flex-wrap: wrap;">
             <button onclick={() => handleBulkAction("assign_all")} class="primary" style="font-size: 0.65rem; padding: 0.25rem 0.5rem;">Marcar todas</button>
             <button onclick={() => handleBulkAction("unassign_all")} class="cancel" style="font-size: 0.65rem; padding: 0.25rem 0.5rem;">Desmarcar todas</button>
             <button onclick={cerrarGradeModal} style="background: transparent; border: none; color: white; cursor: pointer; font-size: 1.2rem; margin-left: 0.2rem;">✕</button>
           </div>
         </div>
-        <div class="item-list" style="max-height: 300px; overflow-y: auto;">
+        <div class="item-list" style="max-height: none; overflow: visible;">
           {#each allSubjects as sub (sub.id)}
             <div class="item-row" style="cursor: pointer; display: flex; align-items: center; gap: 12px; justify-content: flex-start;" onclick={() => toggleSubject(sub.id)}>
               <label class="switch" style="pointer-events: none;">
                 <input type="checkbox" checked={assignedSubjects.includes(sub.id)} readonly />
                 <span class="slider round"></span>
               </label>
-              <span style="flex: 1; text-align: left; font-weight: {assignedSubjects.includes(sub.id) ? 'bold' : 'normal'}; color: {assignedSubjects.includes(sub.id) ? '#4ade80' : 'inherit'};">{sub.nombre}</span>
+              <span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; font-weight: {assignedSubjects.includes(sub.id) ? 'bold' : 'normal'}; color: {assignedSubjects.includes(sub.id) ? '#4ade80' : 'inherit'};">{sub.nombre}</span>
             </div>
           {/each}
         </div>
@@ -626,14 +626,14 @@
             <button onclick={cerrarColegioModal} style="background: transparent; border: none; color: white; cursor: pointer; font-size: 1.2rem; margin-left: 0.2rem;">✕</button>
           </div>
         </div>
-        <div class="item-list">
+        <div class="item-list" style="max-height: none; overflow: visible;">
           {#each ["lunes", "martes", "miercoles", "jueves", "viernes"] as day}
             <div class="item-row" style="cursor: pointer; display: flex; align-items: center; gap: 12px; justify-content: flex-start;" onclick={() => handleToggleDay(day as keyof Omit<ColegioDiasAsistencia, "colegioId">)}>
               <label class="switch" style="pointer-events: none;">
                 <input type="checkbox" checked={colegioConfig[day as keyof Omit<ColegioDiasAsistencia, "colegioId">]} readonly />
                 <span class="slider round"></span>
               </label>
-              <span style="flex: 1; text-align: left; font-weight: {colegioConfig[day as keyof Omit<ColegioDiasAsistencia, "colegioId">] ? 'bold' : 'normal'}; color: {colegioConfig[day as keyof Omit<ColegioDiasAsistencia, "colegioId">] ? '#4ade80' : 'inherit'}; text-transform: capitalize;">{day}</span>
+              <span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; font-weight: {colegioConfig[day as keyof Omit<ColegioDiasAsistencia, "colegioId">] ? 'bold' : 'normal'}; color: {colegioConfig[day as keyof Omit<ColegioDiasAsistencia, "colegioId">] ? '#4ade80' : 'inherit'}; text-transform: capitalize;">{day}</span>
             </div>
           {/each}
         </div>
@@ -662,7 +662,7 @@
             <button onclick={cerrarColegioSubjects} style="background: transparent; border: none; color: white; cursor: pointer; font-size: 1.2rem; margin-left: 0.2rem;">✕</button>
           </div>
         </div>
-        <div class="item-list" style="max-height: 300px; overflow-y: auto;">
+        <div class="item-list" style="max-height: none; overflow: visible;">
           {#each allSubjects as sub (sub.id)}
             {@const isAssigned = colegioAsignadasIds.includes(sub.id!)}
             <div class="item-row" style="cursor: pointer; display: flex; align-items: center; gap: 12px; justify-content: flex-start;" onclick={() => handleToggleColegioSubject(sub)}>
@@ -670,7 +670,7 @@
                 <input type="checkbox" checked={isAssigned} readonly />
                 <span class="slider round"></span>
               </label>
-              <span style="flex: 1; text-align: left; font-weight: {isAssigned ? 'bold' : 'normal'}; color: {isAssigned ? '#4ade80' : 'inherit'};">{sub.nombre}</span>
+              <span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; font-weight: {isAssigned ? 'bold' : 'normal'}; color: {isAssigned ? '#4ade80' : 'inherit'};">{sub.nombre}</span>
             </div>
           {/each}
         </div>

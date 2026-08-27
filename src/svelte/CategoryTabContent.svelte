@@ -347,7 +347,6 @@
   <div style="position:absolute;top:0;left:0;width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(var(--primary-rgb),0.3),transparent);"></div>
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.06);">
     <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
-      <div style="width: 4px; height: 28px; background: linear-gradient(180deg, var(--primary-color), var(--primary-hover)); border-radius: 2px;"></div>
       <h2 style="margin: 0; font-size: 1.25rem; color: #f1f5f9; font-weight: 700; letter-spacing: -0.02em;">{config.title}</h2>
       {#if hasUnsavedChanges}
         <span title="Cambios sin guardar" style="width:10px;height:10px;border-radius:50%;background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,0.6);flex-shrink:0;"></span>
@@ -403,7 +402,7 @@
           style="position:relative;background:rgba(255,255,255,0.02);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:12px;border:{item.esNuevo ? '1px dashed rgba(var(--primary-rgb),0.45)' : '1px solid rgba(255,255,255,0.06)'};padding:0.85rem 1rem;display:flex;align-items:center;gap:10px;opacity:{draggedItem?.id === item.id ? 0.4 : 1};cursor:{config.endpoints.updateOrder && !isAndroid ? 'grab' : 'default'};transition:all 0.2s ease;box-shadow:0 1px 4px rgba(0,0,0,0.1);"
           onmouseenter={(e) => { if (draggedItem?.id !== item.id) { e.currentTarget.style.borderColor = 'rgba(var(--primary-rgb), 0.25)'; e.currentTarget.style.background = 'rgba(var(--primary-rgb), 0.04)'; }}}
           onmouseleave={(e) => { if (draggedItem?.id !== item.id) { e.currentTarget.style.borderColor = item.esNuevo ? 'rgba(var(--primary-rgb),0.45)' : 'rgba(255,255,255,0.06)'; e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}}>
-          <div style="display: flex; align-items: center; gap: 6px;">
+          <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
             {#if !item.esNuevo && config.title !== "Corte Evaluativo"}
               <label class="cat-selectbox-wrap" onclick={(e) => e.stopPropagation()}>
                 <input type="checkbox" class="cat-selectbox-input" checked={selectedIds.has(item.id)} onchange={() => toggleSelectItem(item.id)} />
@@ -422,20 +421,8 @@
                 <span style="cursor:grab;color:var(--text-muted);font-size:1rem;user-select:none;padding:0.15rem;opacity:0.5;">⋮⋮</span>
               {/if}
             {/if}
-            {#if config.endpoints.setActive && !config.hideDefault && !item.esNuevo}
-              <label class="switch" title="Activar">
-                <input type="checkbox" checked={item.activo || false} onchange={() => handleSetActive(item.id)} />
-                <span class="slider round"></span>
-              </label>
-            {/if}
-            {#if (config.title === "Grado" || config.title === "Asignatura")}
-              <label class="switch" title={item.cualitativo ? "Cambiar a Cuantitativo" : "Cambiar a Cualitativo"}>
-                <input type="checkbox" checked={item.cualitativo || false} onchange={() => handleToggleCualitativo(item)} />
-                <span class="slider round" style="background-color: {item.cualitativo ? '#8b5cf6' : undefined};"></span>
-              </label>
-            {/if}
           </div>
-          <span style="flex: 1; color: {item.cualitativo ? '#a78bfa' : ((item.activo && config.title !== 'Colegio') ? '#4ade80' : '#e2e8f0')}; font-weight: {((item.activo && config.title !== 'Colegio') || item.cualitativo) ? '700' : '500'}; font-size: 0.9rem; letter-spacing: 0.01em;">
+          <span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: {item.cualitativo ? '#a78bfa' : ((item.activo && config.title !== 'Colegio') ? '#4ade80' : '#e2e8f0')}; font-weight: {((item.activo && config.title !== 'Colegio') || item.cualitativo) ? '700' : '500'}; font-size: 0.9rem; letter-spacing: 0.01em;">
             {item.nombre}
             {#if item.esNuevo}
               <span style="margin-left: 0.5rem; font-size: 0.65rem; color: var(--primary-color); font-weight: 700; text-transform: uppercase; background: rgba(var(--primary-rgb), 0.12); padding: 0.15rem 0.4rem; border-radius: 4px; letter-spacing: 0.04em;">+ Nuevo</span>
@@ -447,9 +434,25 @@
               <span style="margin-left: 0.5rem; font-size: 0.65rem; color: #a78bfa; font-weight: 700; background: rgba(167, 139, 250, 0.12); padding: 0.15rem 0.4rem; border-radius: 4px; letter-spacing: 0.04em;">♢ Cualitativo</span>
             {/if}
           </span>
-          <div style="display: flex; gap: 0.35rem;">
+          <div style="display: flex; gap: 0.35rem; flex-shrink: 0; align-items: center;">
+            {#if config.endpoints.setActive && !config.hideDefault && !item.esNuevo}
+              <span class="cat-toggle-slot">
+                <label class="switch" title="Activar">
+                  <input type="checkbox" checked={item.activo || false} onchange={() => handleSetActive(item.id)} />
+                  <span class="slider round"></span>
+                </label>
+              </span>
+            {/if}
+            {#if (config.title === "Grado" || config.title === "Asignatura")}
+              <span class="cat-toggle-slot">
+                <label class="switch" title={item.cualitativo ? "Cambiar a Cuantitativo" : "Cambiar a Cualitativo"}>
+                  <input type="checkbox" checked={item.cualitativo || false} onchange={() => handleToggleCualitativo(item)} />
+                  <span class="slider round" style="background-color: {item.cualitativo ? '#8b5cf6' : undefined};"></span>
+                </label>
+              </span>
+            {/if}
             {#if config.title === "Grado" && onConfigClick && !item.esNuevo}
-              <button onclick={() => onConfigClick(item)} title="Configurar Materias" style="background:rgba(var(--primary-rgb),0.1);border:1px solid rgba(var(--primary-rgb),0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.1)'}>🛠️</button>
+              <button onclick={() => onConfigClick(item)} title="Configurar Asignaturas" style="background:rgba(var(--primary-rgb),0.1);border:1px solid rgba(var(--primary-rgb),0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.1)'}>🛠️</button>
             {/if}
             {#if config.title === "Colegio" && onConfigClick && !item.esNuevo}
               <button onclick={() => onConfigClick(item)} title="Configurar Días de Asistencia" style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(16,185,129,0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(16,185,129,0.1)'}>📅</button>
@@ -566,4 +569,12 @@
     color: var(--text-bright, #e2e8f0); box-shadow: 0 2px 10px rgba(var(--primary-rgb), 0.15);
   }
   .cat-select-all-text { white-space: nowrap; }
+
+  .cat-toggle-slot {
+    display: inline-flex;
+    align-items: center;
+    padding-right: 0.4rem;
+    margin-right: 0.15rem;
+    border-right: 1px solid rgba(255,255,255,0.08);
+  }
 </style>
