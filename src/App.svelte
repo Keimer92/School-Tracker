@@ -229,7 +229,10 @@ import CloudPage from "./svelte/CloudPage.svelte";
     if (e.key === 'F12') {
       e.preventDefault();
     }
-    // En desktop, Escape cierra el modal superior (misma pila que el back de Android).
+    // En desktop, Escape cierra el modal/dialogo superior. Se delega a handleBack(),
+    // que recorre la pila de back-handlers registrados por cada modal al abrirse
+    // (misma pila que el botón "atrás" de Android). Así SE CIERRA CUALQUIER MODAL
+    // de CUALQUIER página, sin importar su clase/markup, siempre que registre su cierre.
     if (e.key === 'Escape' && !isAndroid) {
       handleBack();
     }

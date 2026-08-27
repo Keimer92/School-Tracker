@@ -11,6 +11,7 @@
   import { generarInstrumentoExcel, listarPlantillas, asegurarCarpetaPlantillas, abrirCarpetaPlantillas, plantillasDir, type ExcelInstrumentoInput } from "../lib/instrumentosExcel";
   import { readFile } from "@tauri-apps/plugin-fs";
   import { ask } from "@tauri-apps/plugin-dialog";
+  import { registerBackHandler } from "../lib/androidBack";
 
   // Visible = la página contenedora está activa Y este es el sub-tab seleccionado.
   let { visible = true }: { visible?: boolean } = $props();
@@ -102,6 +103,28 @@
   const isAndroid = /Android/i.test(navigator.userAgent);
   let currentStudentIdx = $state(0);
   let showStudentList = $state(false);
+
+  // Cerrar modales con Escape / back de Android
+  $effect(() => {
+    if (isMobile && showStudentList) {
+      return registerBackHandler(() => { showStudentList = false; return true; });
+    }
+  });
+  $effect(() => {
+    if (showDistribuirModal) {
+      return registerBackHandler(() => { showDistribuirModal = false; return true; });
+    }
+  });
+  $effect(() => {
+    if (showInstrumentosModal) {
+      return registerBackHandler(() => { showInstrumentosModal = false; return true; });
+    }
+  });
+  $effect(() => {
+    if (showDeleteModal) {
+      return registerBackHandler(() => { showDeleteModal = false; return true; });
+    }
+  });
 
   let notasScrollRef = $state<HTMLDivElement | null>(null);
   let notasScrollHeight = $state('');

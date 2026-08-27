@@ -9,6 +9,7 @@
   import FilterGroup from "./FilterGroup.svelte";
   import SearchFab from "./SearchFab.svelte";
   import PageLayout from "./PageLayout.svelte";
+  import { registerBackHandler } from "../lib/androidBack";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
   interface Criterio { id: number; orden: number; descripcion: string; puntajeMaximo: number; }
@@ -839,9 +840,10 @@
 
   $effect(() => {
     if (showClipboardMenu) {
+      const dispose = registerBackHandler(() => { showClipboardMenu = false; return true; });
       const handler = () => { showClipboardMenu = false; };
       const timer = setTimeout(() => window.addEventListener('click', handler), 0);
-      return () => { clearTimeout(timer); window.removeEventListener('click', handler); };
+      return () => { clearTimeout(timer); window.removeEventListener('click', handler); dispose(); };
     }
   });
 

@@ -477,7 +477,7 @@
 
 <!-- Prompt Modal (Add/Edit — solo entrada de texto; la confirmación final es nativa) -->
 {#if showPrompt}
-  <div class="modal-overlay" style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);">
+  <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) showPrompt = false; }} style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);">
     <div style="width:400px;max-width:90%;padding:1.5rem;background:rgba(20,24,31,0.85);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.08);border-radius:20px;box-shadow:0 25px 60px -12px rgba(0,0,0,0.6);">
       <h3 style="margin:0 0 0.25rem;color:#f1f5f9;font-size:1.05rem;font-weight:700;">{promptTitle}</h3>
       <div style="margin:1.25rem 0 1.5rem;">

@@ -577,7 +577,7 @@
 
   <!-- Grade Curriculum Modal -->
   {#if selectedGrade}
-    <div class="modal-overlay">
+    <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) cerrarGradeModal(); }}>
       <div class="modal-content category-card">
         <div class="category-header" style="justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
           <h3 style="margin: 0; font-size: 1.1rem;">Materias: {selectedGrade.nombre}</h3>
@@ -613,7 +613,7 @@
 
   <!-- Colegio Days Modal -->
   {#if selectedColegio && colegioConfig}
-    <div class="modal-overlay">
+    <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) cerrarColegioModal(); }}>
       <div class="modal-content category-card">
         <div class="category-header" style="justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
           <h3 style="margin: 0; font-size: 1.1rem;">Días de Asistencia: {selectedColegio.nombre}</h3>
@@ -649,7 +649,7 @@
 
   <!-- Colegio Subjects Modal -->
   {#if selectedColegioForSubjects}
-    <div class="modal-overlay">
+    <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) cerrarColegioSubjects(); }}>
       <div class="modal-content category-card">
         <div class="category-header" style="justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
           <h3 style="margin: 0; font-size: 1.1rem;">Asignaturas: {selectedColegioForSubjects.nombre}</h3>

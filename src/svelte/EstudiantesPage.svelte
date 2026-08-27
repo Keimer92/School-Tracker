@@ -74,6 +74,16 @@
       return registerBackHandler(() => { isModalOpen = false; return true; });
     }
   });
+  $effect(() => {
+    if (gridSelectedStudent) {
+      return registerBackHandler(() => { gridSelectedStudent = null; return true; });
+    }
+  });
+  $effect(() => {
+    if (showImportHelp) {
+      return registerBackHandler(() => { showImportHelp = false; return true; });
+    }
+  });
   let searchTerm = $state("");
   let isMobile = $state(false);
   const isAndroid = /Android/i.test(navigator.userAgent);
@@ -820,7 +830,7 @@ async function fetchData(preserveFilters = false) {
 
   <!-- Modal: Add/Edit Student -->
   {#if isModalOpen}
-    <div class="modal-overlay" style="position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);">
+    <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) isModalOpen = false; }} style="position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);">
       <div class="modal-content category-card" style="width: 450px; max-width: 95%; max-height: 90vh; overflow-y: auto; position: relative; background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98)); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; box-shadow: 0 25px 60px -12px rgba(0,0,0,0.6);">
         <div class="category-header" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.06);">
           <h3 style="margin: 0; font-size: 1.1rem; color: #f1f5f9;">{isEditing ? "Editar Estudiante" : "Registrar Estudiante"}</h3>

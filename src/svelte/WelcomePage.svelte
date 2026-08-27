@@ -5,7 +5,7 @@
   import { open as openDialog, ask } from "@tauri-apps/plugin-dialog";
   import { readTextFile } from "@tauri-apps/plugin-fs";
   import { syncManager, type DownloadProgress } from "../lib/driveSyncService";
-  import { setBackAuthInProgress } from "../lib/androidBack";
+  import { setBackAuthInProgress, registerBackHandler } from "../lib/androidBack";
   import { iniciarSesionGoogleConNube } from "../lib/cloudLogin";
   import appIcon from "../assets/app-icon.png";
 
@@ -17,6 +17,11 @@
 
   // Progreso de descarga de la BD desde Drive (reportado por driveSyncService)
   let downloadProgress = $state<DownloadProgress | null>(null);
+  $effect(() => {
+    if (loading) {
+      return registerBackHandler(() => { cancelAuth(); return true; });
+    }
+  });
   function fmtBytes(n: number): string {
     if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
     if (n >= 1024) return (n / 1024).toFixed(0) + ' KB';

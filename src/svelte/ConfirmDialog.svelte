@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { registerBackHandler } from '../lib/androidBack';
 
   let { isOpen, title, message, confirmText = 'Confirmar', cancelText = 'Cancelar', variant = 'danger', onConfirm, onCancel }: {
     isOpen: boolean;
@@ -19,6 +20,13 @@
       requestAnimationFrame(() => isVisible = true);
     } else {
       isVisible = false;
+    }
+  });
+
+  // Android back / Escape global → igual que Cancelar
+  $effect(() => {
+    if (isOpen) {
+      return registerBackHandler(() => { onCancel(); return true; });
     }
   });
 

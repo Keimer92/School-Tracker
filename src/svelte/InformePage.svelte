@@ -71,6 +71,13 @@
     }
   });
 
+  $effect(() => {
+    if (!visible) return;
+    if (showSummaryModal.show) {
+      return registerBackHandler(() => { showSummaryModal = { ...showSummaryModal, show: false }; return true; });
+    }
+  });
+
   // Refresco silencioso al volver a verse (transición oculto → visible)
   let wasVisible = visible;
   $effect(() => {
