@@ -441,19 +441,10 @@
       </div>
     {/if}
   {:else}
-    <div style="display:flex;justify-content:center;margin-bottom:1.5rem">
-      <div class="globales-tabs">
-        {#each TAB_NAMES as tabName}
-          <button class="globales-tab" class:active={selectedTab === tabName} onclick={() => selectedTab = tabName}>
-            <span style="font-size:1.1rem">{TAB_ICONS[tabName]}</span>
-            <span>{tabName}</span>
-          </button>
-        {/each}
-      </div>
-    </div>
-    <div style="width: 100%;">
-      {#if selectedTab === "Notas"}
-        <div class="category-card">
+    <h1 style="font-size: 1.6rem; font-weight: 700; color: #f1f5f9; margin: 0 0 1.25rem;">Datos Globales</h1>
+    <div class="globales-grid">
+      <!-- escritorio: calificaciones siempre visibles en el grid -->
+        <div class="category-card" style="grid-column: 1 / -1;">
           <div class="category-header"><h3>⭐ Configuración de Calificaciones</h3></div>
           <div style="padding: 1.5rem 2rem;">
             <p style="margin:0 0 1.5rem 0;color:#94a3b8;font-size:0.85rem;">Personaliza las escalas de calificación cualitativa, sus colores y puntajes mínimos.</p>
@@ -517,7 +508,7 @@
           </div>
         </div>
         <!-- Multiplicadores de Criterios (Desktop) -->
-        <div class="category-card" style="margin-top: 1.5rem;">
+        <div class="category-card" style="margin-top: 1.5rem; grid-column: 1 / -1;">
           <div class="category-header"><h3>📊 Multiplicadores de Criterios</h3></div>
           <div style="padding: 1.5rem 2rem;">
             <p style="margin:0 0 1.5rem 0;color:#94a3b8;font-size:0.85rem;">Define el factor de ponderación que cada calificación cualitativa aplica por criterio.</p>
@@ -549,20 +540,18 @@
             </div>
           </div>
         </div>
-      {:else}
-        {#each CATEGORIES.filter(cat => cat.title === selectedTab) as cat (cat.title)}
-          <CategoryTabContent
-            config={cat}
-            onConfigClick={(item: CategoryItem) => {
-              if (cat.title === "Grado") selectedGrade = item;
-              if (cat.title === "Colegio") selectedColegio = item;
-            }}
-            onSubjectsClick={(item: CategoryItem) => {
-              if (cat.title === "Colegio") selectedColegioForSubjects = item;
-            }}
-          />
-        {/each}
-      {/if}
+      {#each CATEGORIES as cat (cat.title)}
+        <CategoryTabContent
+          config={cat}
+          onConfigClick={(item: CategoryItem) => {
+            if (cat.title === "Grado") selectedGrade = item;
+            if (cat.title === "Colegio") selectedColegio = item;
+          }}
+          onSubjectsClick={(item: CategoryItem) => {
+            if (cat.title === "Colegio") selectedColegioForSubjects = item;
+          }}
+        />
+      {/each}
     </div>
     <!-- Desktop Save Button -->
     {#if hasUnsavedChanges}
