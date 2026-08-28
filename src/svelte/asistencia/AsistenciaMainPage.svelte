@@ -196,8 +196,9 @@
   .asistencia-main.mobile .asistencia-subtabs-float {
     display: flex;
     position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
+    bottom: 0.75rem;
+    left: 0.75rem;
+    right: auto;
     z-index: 50;
     gap: 4px;
     padding: 4px;
