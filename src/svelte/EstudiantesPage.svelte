@@ -455,6 +455,17 @@ async function fetchData(preserveFilters = false) {
 
   async function handleSubmit(e: Event) {
     e.preventDefault();
+    const esEdicion = isEditing;
+    const mensaje = esEdicion
+      ? `¿Guardar los cambios de "${toTitleCase(formData.nombre).trim()}"?`
+      : "¿Registrar este nuevo estudiante?";
+    const ok = await ask(mensaje, {
+      title: esEdicion ? "✏️ Confirmar edición" : "➕ Confirmar registro",
+      kind: "info",
+      okLabel: esEdicion ? "Guardar" : "Registrar",
+      cancelLabel: "Cancelar",
+    });
+    if (!ok) return;
     try {
       let studentToSave = { ...formData, nombre: toTitleCase(formData.nombre).trim() };
       if (!studentToSave.codigo.trim()) {
