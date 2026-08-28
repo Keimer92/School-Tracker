@@ -87,10 +87,13 @@
       });
     } catch { /* ignorable */ }
     try {
-      await invoke('d1_sync_all');
+      await invoke('d1_restore_from_cloud');
     } catch (syncErr) {
       console.error('[Cloud] primer sync falló:', syncErr);
-      errorMsg = 'No se pudo sincronizar con el Worker. Verifica tu conexión.';
+      const detail = (typeof syncErr === 'string' && syncErr.trim())
+        ? syncErr
+        : (syncErr?.message || JSON.stringify(syncErr));
+      errorMsg = 'No se pudo sincronizar con el Worker.\n' + detail;
       loading = false; loadingMessage = '';
       return;
     } finally {

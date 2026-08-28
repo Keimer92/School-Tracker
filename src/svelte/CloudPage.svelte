@@ -482,8 +482,9 @@
       if (known && known.schoolKey && known.schoolKey !== res.result.schoolKey) {
         await d1SyncService.saveConfig(known.workerUrl, known.schoolKey);
         await invalidateD1Cache();
-        // Volver a sincronizar contra el schoolKey real para restaurar los datos
-        try { await invoke("d1_sync_all"); } catch { /* ignore */ }
+        // Restaurar autoritativamente desde el schoolKey real (regenera device_id
+        // y descarga TODO el contenido de la nube, sin colisiones UNIQUE locales).
+        try { await invoke("d1_restore_from_cloud"); } catch { /* ignore */ }
       }
       // 7) Registrar la cuenta activa y refrescar estados de UI
       if (newEmail) {

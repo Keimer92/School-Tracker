@@ -1798,6 +1798,7 @@ pub fn run() {
             d1_reset_device_id,
             d1_status,
             d1_sync_all,
+            d1_restore_from_cloud,
             d1_reserve_ids,
         ])
         .run(tauri::generate_context!())

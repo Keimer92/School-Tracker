@@ -719,6 +719,161 @@ pub async fn d1_sync_all(app: tauri::AppHandle, state: tauri::State<'_, DbState>
 }
 
 // ============================================================================
+// Restauración autoritativa desde la nube (modo "recuperar / cambiar cuenta")
+// ----------------------------------------------------------------------------
+// Diferencias con d1_sync_all:
+//   * Regenera el device_id de la instalación ANTES del pull. El Worker excluye
+//     en /pull las filas escritas por el propio device_id, así que si reusamos
+//     el device_id anterior (el que subió originalmente los datos) el pull
+//     vendría VACÍO y la recuperación fallaría en silencio.
+//   * BORRA todas las tablas locales (incluidas las de catálogo con UNIQUE)
+//     antes de aplicar, de modo que el pull sea la fuente de verdad y no
+//     colisione por ids distintos en columnas UNIQUE (p. ej. corte_evaluativo.nombre).
+//   * NO hace push: es una restauración nube→local, no una mezcla.
+// ============================================================================
+#[tauri::command]
+pub async fn d1_restore_from_cloud(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, DbState>,
+) -> Result<Value, String> {
+    let now_epoch = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+
+    // 1) Config: regenerar device_id y anular cursores para un pull completo.
+    let cfg = {
+        let conn = state.conn.lock().map_err(|e| e.to_string())?;
+        let mut cfg = read_config(&conn)?.ok_or_else(|| "D1 no está configurado".to_string())?;
+        cfg.device_id = generate_device_id();
+        cfg.last_sync = None;
+        cfg.last_push_sync = None;
+        write_config(&conn, &cfg)?;
+        cfg
+    };
+    println!(
+        "[D1] restore INICIO device={}… (regenerado) schoolKey={}…",
+        &cfg.device_id[..cfg.device_id.len().min(16)],
+        &cfg.school_key[..cfg.school_key.len().min(8)]
+    );
+
+    // 2) Limpiar TODA la base local (la nube es autoritativa).
+    {
+        let conn = state.conn.lock().map_err(|e| e.to_string())?;
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS sync_recent_pulls (
+                tabla TEXT NOT NULL, pk TEXT NOT NULL, updated_at TEXT NOT NULL, ts INTEGER NOT NULL,
+                PRIMARY KEY (tabla, pk)
+            );",
+        )
+        .map_err(|e| e.to_string())?;
+        let tables = [
+            "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
+            "grado_asignatura", "colegio_asignatura", "indicador", "criterio",
+            "estudiante", "configuracion_calificacion", "multiplicador_calificacion",
+            "colegio_dias_asistencia", "asistencia", "nota", "dia_sin_clases",
+            "sync_pending_deletions", "sync_pending_deletions_asistencia",
+            "sync_pending_deletions_nota", "sync_pending_deletions_grado_asignatura",
+            "sync_pending_deletions_colegio_asignatura", "sync_recent_pulls",
+        ];
+        for t in &tables {
+            conn.execute(&format!("DELETE FROM {}", t), [])
+                .map_err(|e| format!("Error limpiando {}: {}", t, e))?;
+        }
+    }
+
+    // 3) PULL completo (el device_id nuevo trae TODAS las filas de la nube).
+    let pull_body = json!({
+        "since": "1970-01-01 00:00:00",
+        "deviceId": cfg.device_id,
+    });
+    let _ = app.emit("d1-sync-progress", json!({ "message": "Descargando datos de la nube…" }));
+    let pull_resp = tauri::async_runtime::spawn_blocking({
+        let cfg = cfg.clone();
+        let pull_body = pull_body.clone();
+        move || http_post_json(&cfg.worker_url, &cfg.school_key, "/pull", pull_body)
+    })
+    .await
+    .map_err(|e| format!("Error en pull (hilo): {}", e))??;
+
+    // 4) Aplicar filas (local vacío → sin conflicto UNIQUE).
+    let _ = app.emit("d1-sync-progress", json!({ "message": "Guardando datos localmente…" }));
+    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+    conn.execute("PRAGMA foreign_keys = OFF", []).map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    let mut pulled_counts: Map<String, Value> = Map::new();
+    if let Some(rows) = pull_resp.get("rows").and_then(|v| v.as_object()) {
+        for (table, arr) in rows {
+            if let Some(entries) = arr.as_array() {
+                let mut n = 0;
+                for entry in entries {
+                    if let Some(obj) = entry.as_object() {
+                        upsert_row(&tx, table, obj)?;
+                        tx.execute(
+                            "INSERT INTO sync_recent_pulls (tabla, pk, updated_at, ts)
+                             VALUES (?1, ?2, ?3, ?4)
+                             ON CONFLICT(tabla, pk) DO UPDATE SET updated_at = excluded.updated_at, ts = excluded.ts",
+                            params![table, pk_part(table, obj), obj.get("updated_at").and_then(|v| v.as_str()).unwrap_or(""), now_epoch],
+                        )
+                        .map_err(|e| e.to_string())?;
+                        n += 1;
+                    }
+                }
+                pulled_counts.insert(table.clone(), json!(n));
+            }
+        }
+    }
+
+    let mut deleted_count = 0u64;
+    if let Some(deleted) = pull_resp.get("deleted").and_then(|v| v.as_array()) {
+        for d in deleted {
+            let tabla = d.get("tabla").and_then(|v| v.as_str()).unwrap_or("");
+            let pk = d.get("pk").cloned().unwrap_or(Value::Null);
+            let dev = d.get("device_id").and_then(|v| v.as_str()).unwrap_or("");
+            if dev == cfg.device_id {
+                continue;
+            }
+            delete_by_pk(&tx, tabla, &pk)?;
+            deleted_count += 1;
+        }
+    }
+
+    let new_sync = pull_resp
+        .get("serverTime")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .unwrap_or_else(now_sqlite);
+    let new_push_cursor = now_sqlite();
+    tx.execute(
+        "UPDATE d1_config SET last_sync = ?1, last_push_sync = ?2, updated_at = datetime('now') WHERE id = 1",
+        params![new_sync, new_push_cursor],
+    )
+    .map_err(|e| e.to_string())?;
+
+    tx.commit().map_err(|e| e.to_string())?;
+    drop(conn);
+
+    let _ = app.emit("schooltracker-sync", json!({ "source": "restore" }));
+    let _ = app.emit("data-updated", json!({ "source": "restore" }));
+
+    println!(
+        "[D1] restore FIN device={}… pull={} tablas ({} filas) del={} nuevo_since=\"{}\"",
+        &cfg.device_id[..cfg.device_id.len().min(16)],
+        pulled_counts.len(),
+        pulled_counts.values().filter_map(|v| v.as_u64()).sum::<u64>(),
+        deleted_count,
+        new_sync
+    );
+    Ok(json!({
+        "ok": true,
+        "pulled": pulled_counts,
+        "deletedApplied": deleted_count,
+        "lastSync": new_sync,
+    }))
+}
+
+// ============================================================================
 // Reserva de bloques de IDs (F2)
 // ============================================================================
 

@@ -11,6 +11,7 @@ import {
 import { d1SyncService } from "./d1SyncService";
 import { invalidateD1Cache, syncService } from "./syncService";
 import { ensureWsSync, stopWsSync } from "./wsSyncService";
+import { getProfile, saveProfile } from "./accountProfiles";
 
 export type CloudLoginResult =
   | { status: 'ok'; result: AuthResult; schoolKey: string }
@@ -145,7 +146,34 @@ export async function iniciarSesionGoogleConNube(opts?: {
     const result = await authWithGoogleIdToken(idToken);
     guardarTokenSesion(idToken, getRefreshToken());
     opts?.onStatus?.(result.creado ? 'Cuenta creada. Preparando tu nube...' : 'Bienvenido de nuevo...');
-    await conectarConCredenciales(DEFAULT_WORKER_URL, result.schoolKey, opts);
+
+    // Reusar el schoolKey REAL de la cuenta si ya lo conocemos (registro local)
+    // o si ya había una nube configurada en este dispositivo (p. ej. tras
+    // recuperar los datos con un archivo .key). Evita que /auth devuelva una
+    // escuela nueva y vacía y se pierda el vínculo con los datos existentes.
+    const email = (result.perfil?.email || '').toLowerCase();
+    let effectiveKey = result.schoolKey;
+    let effectiveWorker = DEFAULT_WORKER_URL;
+    if (email) {
+      const known = getProfile(email);
+      if (known?.schoolKey) {
+        effectiveKey = known.schoolKey;
+        if (known.workerUrl) effectiveWorker = known.workerUrl;
+      } else {
+        const localCfg = await d1SyncService.getConfig().catch(() => null);
+        if (localCfg?.schoolKey) {
+          saveProfile({
+            email,
+            schoolKey: localCfg.schoolKey,
+            workerUrl: localCfg.workerUrl || DEFAULT_WORKER_URL,
+            nombre: result.perfil?.nombre,
+          });
+          effectiveKey = localCfg.schoolKey;
+          if (localCfg.workerUrl) effectiveWorker = localCfg.workerUrl;
+        }
+      }
+    }
+    await conectarConCredenciales(effectiveWorker, effectiveKey, opts);
 
     if (/Android/i.test(navigator.userAgent)) {
       if (driveAuthCode) {
