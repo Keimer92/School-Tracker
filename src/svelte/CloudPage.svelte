@@ -188,13 +188,6 @@
 
   // ── Layout CloudPage: columnas en desktop, swipe en móvil ──
   let activeCloudTab = $state(0); // 0 = Cloudflare D1, 1 = Google Drive
-  let cloudTouchX = 0;
-  function onCloudTouchStart(e: TouchEvent) { cloudTouchX = e.changedTouches[0].clientX; }
-  function onCloudTouchEnd(e: TouchEvent) {
-    const dx = e.changedTouches[0].clientX - cloudTouchX;
-    if (dx > 50) activeCloudTab = 0;
-    else if (dx < -50) activeCloudTab = 1;
-  }
 
   /** Suma los conteos de un resultado de sync (puede ser número o mapa por tabla). */
   function sumarConteos(o: any): number {
@@ -753,10 +746,7 @@
     </div>
   {/if}
 
-  <div class="cloud-cols" class:mobile={isAndroid}
-    style={isAndroid ? `transform: translateX(-${activeCloudTab * 50}%);` : ''}
-    ontouchstart={isAndroid ? onCloudTouchStart : undefined}
-    ontouchend={isAndroid ? onCloudTouchEnd : undefined}>
+  <div class="cloud-cols" class:mobile={isAndroid}>
   <div class="cloud-card" style="margin-bottom: 1.25rem;">
     <div class="cloud-card-header" style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
       <h3>
@@ -1053,7 +1043,7 @@
 <style>
   .cloud-page { max-width: 1000px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; }
 
-  /* Layout de nube: dos columnas en desktop, swipe en móvil */
+  /* Layout de nube: dos columnas en desktop, swipe/mobile en Android */
   .cloud-cols {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1062,9 +1052,9 @@
   }
   .cloud-cols.mobile {
     display: flex;
-    gap: 0;
-    overflow: hidden;
-    transition: transform 0.28s ease;
+    flex-direction: column;
+    gap: 1.25rem;
+    overflow: visible;
     width: 100%;
   }
   .cloud-cols.mobile > .cloud-card {
@@ -1075,9 +1065,10 @@
   .cloud-tabs {
     display: none;
   }
-  .cloud-cols.mobile ~ .cloud-tabs,
-  .cloud-page > .cloud-tabs {
+  .cloud-page > .cloud-tabs,
+  .cloud-cols.mobile ~ .cloud-tabs {
     display: flex;
+    flex-direction: column;
     gap: 0.5rem;
     margin-bottom: 1rem;
   }
