@@ -188,6 +188,14 @@
 
   // ── Layout CloudPage: columnas en desktop, swipe en móvil ──
   let activeCloudTab = $state(0); // 0 = Cloudflare D1, 1 = Google Drive
+  let cloudTouchX = 0;
+  function onCloudTouchStart(e: TouchEvent) { cloudTouchX = e.changedTouches[0].clientX; }
+  function onCloudTouchEnd(e: TouchEvent) {
+    const dx = e.changedTouches[0].clientX - cloudTouchX;
+    // Deslizar a la izquierda (dx < 0) -> Drive; a la derecha (dx > 0) -> D1
+    if (dx > 50) activeCloudTab = 0;
+    else if (dx < -50) activeCloudTab = 1;
+  }
 
   /** Suma los conteos de un resultado de sync (puede ser número o mapa por tabla). */
   function sumarConteos(o: any): number {
@@ -746,7 +754,10 @@
     </div>
   {/if}
 
-  <div class="cloud-cols" class:mobile={isAndroid}>
+  <div class="cloud-cols" class:mobile={isAndroid}
+    style={isAndroid ? `transform: translateX(-${activeCloudTab * 100}%);` : ''}
+    ontouchstart={isAndroid ? onCloudTouchStart : undefined}
+    ontouchend={isAndroid ? onCloudTouchEnd : undefined}>
   <div class="cloud-card" style="margin-bottom: 1.25rem;">
     <div class="cloud-card-header" style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
       <h3>
