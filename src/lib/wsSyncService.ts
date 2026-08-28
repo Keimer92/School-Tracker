@@ -199,8 +199,32 @@ export function stopWsSync(): void {
 function bindGlobalListeners() {
   if (listenersBound) return;
   listenersBound = true;
-  window.addEventListener('online', () => { void ensureWsSync(); });
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) void ensureWsSync();
+  window.addEventListener('online', () => { void syncAfterReconnect(); });
+  // Android (MainActivity.kt registerConnectivityListener) despacha 'connectivity-android'
+  // con {online:true} cuando el sistema recupera la red, incluso en segundo plano
+  // (el NetworkCallback vive a nivel de proceso, no de Activity en primer plano).
+  window.addEventListener('connectivity-android', (e: Event) => {
+    const detail = (e as CustomEvent<{ online?: boolean }>).detail;
+    if (detail && detail.online) void syncAfterReconnect();
   });
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) void syncAfterReconnect();
+  });
+}
+
+let reconnectSyncing = false;
+/** Al recuperar la conexión (o volver a primer plano) fuerza un sync D1 inmediato
+ *  (empuja los cambios locales en cola por estar offline + jala los remotos). */
+async function syncAfterReconnect() {
+  wsLog('red disponible / foreground: reconectando WS y sincronizando D1');
+  void ensureWsSync();
+  if (reconnectSyncing) return;
+  reconnectSyncing = true;
+  try {
+    await d1SyncService.syncAllSilent();
+  } catch (e) {
+    console.error('[WsSync-Debug] syncAllSilent tras reconexion fallo:', e);
+  } finally {
+    reconnectSyncing = false;
+  }
 }

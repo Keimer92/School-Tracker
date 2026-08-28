@@ -50,6 +50,14 @@ class MainActivity : TauriActivity() {
     @Volatile
     var lastNativeAuthResult: String? = null
 
+    // Estado de ciclo de vida para el wake de sincronización en segundo plano/cerrado.
+    @Volatile
+    var isForeground: Boolean = false
+
+    // La app fue lanzada por el worker de red para forzar un sync D1.
+    @Volatile
+    var pendingSyncOnConnect: Boolean = false
+
     init {
       // La lib ya se carga en Rust.kt; esto es idempotente
       System.loadLibrary("school_tracker_pro_lib")
@@ -90,6 +98,16 @@ class MainActivity : TauriActivity() {
     handleIntent(intent)
   }
 
+  override fun onResume() {
+    super.onResume()
+    isForeground = true
+  }
+
+  override fun onPause() {
+    isForeground = false
+    super.onPause()
+  }
+
   override fun onWebViewCreate(webView: WebView) {
     this.webView = webView
     // Desactivar pinch-zoom en toda la app
@@ -97,6 +115,17 @@ class MainActivity : TauriActivity() {
       setSupportZoom(false)
       builtInZoomControls = false
       displayZoomControls = false
+    }
+    // Si la app fue abierta por el worker de red, forzar el evento de
+    // reconexión para que el frontend sincronice D1 de inmediato.
+    if (pendingSyncOnConnect) {
+      pendingSyncOnConnect = false
+      webView.post {
+        webView.evaluateJavascript(
+          "window.dispatchEvent(new CustomEvent('connectivity-android', { detail: { online: true } }))",
+          null
+        )
+      }
     }
   }
 
@@ -124,6 +153,11 @@ class MainActivity : TauriActivity() {
 
       override fun onLost(network: Network) {
         android.util.Log.i("Connectivity", "Red perdida")
+        // Programar el wake de sincronización: el trabajo queda pendiente y
+        // corre apenas vuelva la conexión, aunque la app esté cerrada.
+        try { SyncOnConnectWorker.schedule(applicationContext, 0, true) } catch (e: Throwable) {
+          android.util.Log.w("SyncOnConnect", "onLost schedule falló: ${e.message}")
+        }
         webView?.post {
           webView?.evaluateJavascript(
             "window.dispatchEvent(new CustomEvent('connectivity-android', { detail: { online: false } }))",
@@ -145,6 +179,9 @@ class MainActivity : TauriActivity() {
   }
 
   private fun handleIntent(intent: Intent?) {
+    if (intent?.action == "com.keimer.schooltrackerpro.SYNC_ON_CONNECT") {
+      pendingSyncOnConnect = true
+    }
     if (intent?.data != null) {
       val uri = intent.data!!
       val isMatch = (uri.scheme == "http" && uri.host == "127.0.0.1" && uri.path == "/callback") ||
