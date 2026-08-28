@@ -92,7 +92,7 @@
   }
 </script>
 
-<div class="notas-main" style="height:100%;min-height:0">
+<div class="notas-main" class:mobile={isAndroidUA} style="height:100%;min-height:0">
   <div class="notas-subtabs">
     <button class="subtab-btn" class:active={activeSub === 'registrar'} onclick={() => switchTo('registrar')} type="button">
       <span class="subtab-icon">✏️</span>
@@ -105,6 +105,16 @@
   </div>
 
   <div style="flex:1;min-height:0;position:relative" ontouchstart={onContentTouchStart} ontouchend={onContentTouchEnd}>
+    {#if isAndroidUA}
+      <div class="notas-subtabs-float">
+        <button class="subtab-btn" class:active={activeSub === 'registrar'} onclick={() => switchTo('registrar')} type="button" aria-label="Registrar">
+          <span class="subtab-icon">✏️</span>
+        </button>
+        <button class="subtab-btn" class:active={activeSub === 'reportes'} onclick={() => switchTo('reportes')} type="button" aria-label="Reportes">
+          <span class="subtab-icon">📊</span>
+        </button>
+      </div>
+    {/if}
     {#if mountedRegistrar}
       <div style="display:{activeSub === 'registrar' ? 'block' : 'none'};height:100%">
         <NotasPage visible={pageActive && activeSub === 'registrar'} />
@@ -174,6 +184,33 @@
   .subtab-icon {
     font-size: 0.85rem;
     line-height: 1;
+  }
+  /* En Android la barra de pestañas se oculta para ahorrar espacio vertical:
+     se alterna con swipe o con este conmutador flotante (icons-only, absoluto). */
+  .notas-subtabs-float {
+    display: none;
+  }
+  .notas-main.mobile .notas-subtabs {
+    display: none;
+  }
+  .notas-main.mobile .notas-subtabs-float {
+    display: flex;
+    position: absolute;
+    bottom: 0.75rem;
+    left: 0.75rem;
+    right: auto;
+    z-index: 50;
+    gap: 4px;
+    padding: 4px;
+    background: rgba(15, 23, 42, 0.82);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  }
+  .notas-main.mobile .notas-subtabs-float .subtab-btn {
+    padding: 0.4rem 0.6rem;
   }
   @media (max-width: 480px) {
     .subtab-btn span:last-child {
