@@ -155,7 +155,7 @@ class MainActivity : TauriActivity() {
         android.util.Log.i("Connectivity", "Red perdida")
         // Programar el wake de sincronización: el trabajo queda pendiente y
         // corre apenas vuelva la conexión, aunque la app esté cerrada.
-        try { SyncOnConnectWorker.schedule(applicationContext, 0, true) } catch (e: Throwable) {
+        try { SyncOnConnectWorker.schedule(applicationContext, 0) } catch (e: Throwable) {
           android.util.Log.w("SyncOnConnect", "onLost schedule falló: ${e.message}")
         }
         webView?.post {
