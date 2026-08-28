@@ -42,10 +42,12 @@
     activeSub = tab;
   }
 
-  // ── Swipe horizontal para alternar sub-tabs (solo Android) ──
+  // ── Swipe horizontal para alternar sub-tabs (solo Android, solo en vertical) ──
   // Deslizar a la izquierda → Reportes · Deslizar a la derecha → Registrar.
+  // En modo horizontal (landscape) el swipe está DESHABILITADO: la tabla de notas
+  // usa scroll horizontal propio y el gesto conflictúa con la navegación de sub-tabs.
   // Se ignora el gesto si inicia dentro de un elemento con scroll horizontal propio
-  // o dentro de un modal/overlay fijo. Nota: en la vista de captura de Notas,
+  // o dentro de un modal/overlay fijo. Nota: en la vista de captura de Notas (vertical),
   // el deslizamiento horizontal ya navega entre estudiantes (el hijo consume ese gesto).
   let isAndroidUA = /Android/i.test(navigator.userAgent);
   let swipeStartX = 0;
@@ -72,6 +74,9 @@
 
   function onContentTouchStart(e: TouchEvent) {
     if (!isAndroidUA || e.touches.length !== 1) { swipeEligible = false; return; }
+    // Sin swipe lateral en modo horizontal (landscape): la tabla de notas usa
+    // scroll horizontal propio y el gesto conflictúa con la navegación de sub-tabs.
+    if (window.innerHeight <= window.innerWidth) { swipeEligible = false; return; }
     const t = e.touches[0];
     swipeStartX = t.clientX;
     swipeStartY = t.clientY;
@@ -82,6 +87,8 @@
     if (!isAndroidUA) return;
     if (!swipeEligible) { swipeEligible = false; return; }
     swipeEligible = false;
+    // Solo en vertical (portrait) se alternan sub-tabs con swipe.
+    if (window.innerHeight <= window.innerWidth) return;
     const t = e.changedTouches[0];
     const dx = t.clientX - swipeStartX;
     const dy = t.clientY - swipeStartY;
@@ -195,8 +202,8 @@
   }
   .notas-main.mobile .notas-subtabs-float {
     display: flex;
-    position: absolute;
-    bottom: 0.75rem;
+    position: fixed;
+    bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
     left: 0.75rem;
     right: auto;
     z-index: 50;

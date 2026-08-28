@@ -1422,7 +1422,7 @@ label,
     flex: none !important;
     height: auto !important;
     min-height: 0 !important;
-    overflow: visible !important;
+    overflow: auto !important;
     -webkit-overflow-scrolling: touch;
   }
   .notas-page-root .notas-table thead {
