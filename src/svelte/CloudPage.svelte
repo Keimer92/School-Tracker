@@ -1063,9 +1063,11 @@
   }
   .cloud-cols.mobile {
     display: flex;
-    flex-direction: column;
-    gap: 1.25rem;
-    overflow: visible;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 0;
+    overflow: hidden;
+    transition: transform 0.28s ease;
     width: 100%;
   }
   .cloud-cols.mobile > .cloud-card {
