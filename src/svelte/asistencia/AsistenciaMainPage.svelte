@@ -92,7 +92,7 @@
   }
 </script>
 
-<div class="asistencia-main" style="height:100%;min-height:0">
+<div class="asistencia-main" class:mobile={isAndroidUA} style="height:100%;min-height:0">
   <div class="asistencia-subtabs">
     <button class="subtab-btn" class:active={activeSub === 'tomar'} onclick={() => switchTo('tomar')} type="button">
       <span class="subtab-icon">✏️</span>
@@ -105,6 +105,16 @@
   </div>
 
   <div style="flex:1;min-height:0;position:relative" ontouchstart={onContentTouchStart} ontouchend={onContentTouchEnd}>
+    {#if isAndroidUA}
+      <div class="asistencia-subtabs-float">
+        <button class="subtab-btn" class:active={activeSub === 'tomar'} onclick={() => switchTo('tomar')} type="button" aria-label="Tomar asistencia">
+          <span class="subtab-icon">✏️</span>
+        </button>
+        <button class="subtab-btn" class:active={activeSub === 'informe'} onclick={() => switchTo('informe')} type="button" aria-label="Informe">
+          <span class="subtab-icon">📊</span>
+        </button>
+      </div>
+    {/if}
     {#if mountedRegistrar}
       <div style="display:{activeSub === 'tomar' ? 'block' : 'none'};height:100%">
         <AsistenciaPage visible={pageActive && activeSub === 'tomar'} />
@@ -174,6 +184,32 @@
   .subtab-icon {
     font-size: 0.85rem;
     line-height: 1;
+  }
+  /* En Android la barra de pestañas se oculta para ahorrar espacio vertical:
+     se alterna con swipe o con este conmutador flotante (icons-only, absoluto). */
+  .asistencia-subtabs-float {
+    display: none;
+  }
+  .asistencia-main.mobile .asistencia-subtabs {
+    display: none;
+  }
+  .asistencia-main.mobile .asistencia-subtabs-float {
+    display: flex;
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 50;
+    gap: 4px;
+    padding: 4px;
+    background: rgba(15, 23, 42, 0.82);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 999px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  }
+  .asistencia-main.mobile .asistencia-subtabs-float .subtab-btn {
+    padding: 0.4rem 0.6rem;
   }
   @media (max-width: 480px) {
     .subtab-btn span:last-child {
