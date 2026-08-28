@@ -87,6 +87,7 @@ async function conectarConCredenciales(workerUrl: string, schoolKey: string, opt
 export async function iniciarSesionGoogleConNube(opts?: {
   onStatus?: (msg: string) => void;
   setBackAuth?: (b: boolean) => void;
+  forceSelectAccount?: boolean;
 }): Promise<CloudLoginResult> {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
     if (!clientId) return { status: 'error', error: 'Falta VITE_GOOGLE_CLIENT_ID en .env' };
@@ -121,7 +122,7 @@ export async function iniciarSesionGoogleConNube(opts?: {
     } else {
       opts?.setBackAuth?.(true);
       const redirectUri = 'http://localhost:51733/callback';
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent('openid email profile https://www.googleapis.com/auth/drive.file')}&access_type=offline&prompt=consent`;
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent('openid email profile https://www.googleapis.com/auth/drive.file')}&access_type=offline&prompt=${opts?.forceSelectAccount ? 'select_account' : 'consent'}`;
       opts?.onStatus?.('Esperando autenticación de Google...');
       const code = await invoke<string>('gd_open_auth_webview', { url: authUrl });
       opts?.setBackAuth?.(false);

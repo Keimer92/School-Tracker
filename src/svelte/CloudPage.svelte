@@ -24,9 +24,6 @@
   // ── Perfil de la cuenta Google (login cloud) ──
   let perfil: CloudPerfil | null = $state(getPerfilLocal());
 
-  // Bandera para "Cambio de Profesor": tras autenticar, ir al menú de catálogos si la cuenta no tiene datos
-  let pendingSwitchToCatalog = $state(false);
-
   function cerrarSesionCloud() {
     clearPerfilLocal();
     perfil = null;
@@ -412,39 +409,46 @@
   }
 
   /**
-   * "Cambio de Profesor": desvincula la cuenta de Google Drive actual y abre el
-   * selector de cuentas para elegir la del nuevo profesor. Si la cuenta elegida
-   * no tiene respaldos en Drive, se envía al menú de catálogos para configurar datos.
+   * "Cambio de Profesor": cambia la cuenta de Google de AMBAS nubes a la vez
+   * (Cloudflare D1 / perfil Y Google Drive) usando un único flujo de autenticación
+   * con selector de cuenta forzado. Tras autenticar, si la cuenta nueva no tiene
+   * datos en la nube (cuenta recién creada) se envía al menú de catálogos.
    */
-  async function cambiarProfesor() {
-    if (isAuthLoading) return;
-    pendingSwitchToCatalog = true;
-    // Desvincular la cuenta Drive actual (la nube D1/perfil quedan intactos)
-    settings.accessToken = null;
-    settings.refreshToken = null;
-    settings.tokenExpiry = null;
-    settings.googleUserEmail = null;
-    settings.googleUserName = null;
-    settings.googleUserProfilePic = null;
-    saveSettings();
-    syncFiles = [];
-    // Reiniciar el flag para permitir procesar la nueva autenticación
+  let isSwitchingAccount = $state(false);
+  async function cambiarCuentaGoogle() {
+    if (isSwitchingAccount || isAuthLoading) return;
+    const ok = await ask(
+      'Vas a cambiar la cuenta de Google de este dispositivo.\n\n' +
+      'Esto afecta a LA NUBE (Cloudflare D1) y a GOOGLE DRIVE por igual.\n\n' +
+      'Tus datos locales NO se borran: se volverán a sincronizar con la nube de la nueva cuenta. ' +
+      'Si esa cuenta ya tiene datos en la nube, se combinarán (la última versión de cada registro gana).\n\n' +
+      '¿Continuar?',
+      { title: 'Cambiar cuenta de Google', kind: 'warning', okLabel: 'Sí, cambiar', cancelLabel: 'Cancelar' }
+    );
+    if (!ok) return;
+    isSwitchingAccount = true;
     authHandled = false;
-    await emit("show-toast", { message: "Selecciona la cuenta de Google del profesor", type: "info" });
-    await initGoogleAuth(true);
-    if (!pendingSwitchToCatalog) return;
-    pendingSwitchToCatalog = false;
-    if (!settings.accessToken) {
-      await emit("show-toast", { message: "No se cambió la cuenta de Google", type: "info" });
-      return;
-    }
-    const token = await getValidToken();
-    if (token) syncFiles = await driveSyncService.listSyncFiles(token);
-    if (!syncFiles || syncFiles.length === 0) {
-      await emit("show-toast", { message: "ℹ️ Esta cuenta no tiene respaldos. Configura tus catálogos.", type: "info" });
-      onNavigate?.('globales');
-    } else {
-      await emit("show-toast", { message: "✅ Cuenta de Drive cambiada a " + (settings.googleUserEmail || ''), type: "success" });
+    try {
+      const res = await iniciarSesionGoogleConNube({
+        forceSelectAccount: true,
+        onStatus: (m) => emit("show-toast", { message: m, type: "info" }),
+        setBackAuth: setBackAuthInProgress,
+      });
+      if (res.status === 'cancelled') {
+        await emit("show-toast", { message: "Cambio de cuenta cancelado", type: "info" });
+        return;
+      }
+      if (res.status === 'error') {
+        await emit("show-toast", { message: "❌ " + res.error, type: "error" });
+        return;
+      }
+      await emit("show-toast", { message: "✅ Cuenta de Google cambiada (Nube + Drive)", type: "success" });
+      // La nueva cuenta no tiene datos en la nube → ir a configurar catálogos
+      if (res.result?.creado) onNavigate?.('globales');
+    } catch (e) {
+      await emit("show-toast", { message: "❌ Error al cambiar cuenta: " + e, type: "error" });
+    } finally {
+      isSwitchingAccount = false;
     }
   }
 
@@ -782,6 +786,41 @@
     </div>
   {/if}
 
+  <!-- Cuenta de Google (panel principal): cambia AMBAS nubes (Nube + Drive) a la vez -->
+  <div class="cloud-card" style="margin-bottom: 1.25rem;">
+    <div class="cloud-card-header">
+      <h3>
+        <span style="display: inline-flex; align-items: center; gap: 10px; background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%); padding: 0.5rem 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4285F4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 14 0v1"/></svg>
+          Cuenta de Google <span style="font-size: 0.65rem; font-weight: 400; color: #64748b;">(Nube + Drive)</span>
+        </span>
+      </h3>
+    </div>
+    <div style="padding: 0 1.5rem 1.5rem;">
+      {#if isConnected}
+        <div style="display: flex; align-items: center; gap: 1rem; padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(66,133,244,0.08) 0%, rgba(66,133,244,0.04) 100%); border-radius: 14px; border: 1px solid rgba(66,133,244,0.12); margin-bottom: 1rem;">
+          {#if settings.googleUserProfilePic && !imgError}
+            <img src={settings.googleUserProfilePic} alt="" style="width: 36px; height: 36px; border-radius: 50%;" onerror={() => imgError = true} />
+          {:else}
+            <div style="width: 36px; height: 36px; border-radius: 50%; background: #4285F4; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; color: white;">{settings.googleUserName?.charAt(0) || 'G'}</div>
+          {/if}
+          <div style="flex: 1; min-width: 0;">
+            <div style="color: #f1f5f9; font-weight: 600; font-size: 0.85rem;">{settings.googleUserName || 'Usuario de Google'}</div>
+            <div style="color: #64748b; font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{settings.googleUserEmail || ''}</div>
+          </div>
+        </div>
+        <button onclick={cambiarCuentaGoogle} disabled={isSwitchingAccount || isAuthLoading} style="width: 100%; padding: 0.7rem 1rem; border-radius: 12px; border: 1px solid rgba(168,85,247,0.3); background: linear-gradient(135deg, rgba(168,85,247,0.15), rgba(99,102,241,0.12)); color: #c4b5fd; cursor: {isSwitchingAccount || isAuthLoading ? 'default' : 'pointer'}; font-size: 0.85rem; font-weight: 600; opacity: {isSwitchingAccount || isAuthLoading ? 0.6 : 1};">
+          {isSwitchingAccount ? 'Cambiando cuenta...' : '👤 Cambiar cuenta de Google (Nube + Drive)'}
+        </button>
+      {:else}
+        <p style="color: #94a3b8; font-size: 0.85rem; margin: 0 0 1rem;">Conecta tu cuenta de Google para usar la Nube (Cloudflare D1) y Google Drive con la misma identidad.</p>
+        <button onclick={() => cambiarCuentaGoogle()} disabled={isSwitchingAccount} style="width: 100%; padding: 0.8rem 1rem; border-radius: 12px; background: linear-gradient(135deg, #4285F4, #34A853); border: none; color: white; font-size: 0.9rem; font-weight: 600; cursor: {isSwitchingAccount ? 'default' : 'pointer'}; opacity: {isSwitchingAccount ? 0.6 : 1};">
+          🔗 Conectar cuenta de Google
+        </button>
+      {/if}
+    </div>
+  </div>
+
   <!-- Tabs de selección (solo móvil/swipe) -->
   {#if isAndroid}
     <div class="cloud-tabs">
@@ -994,12 +1033,6 @@
               <button onclick={disconnect} style="padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); color: #f87171; cursor: pointer; font-size: 0.7rem;">Desconectar</button>
             </div>
           {/if}
-        </div>
-
-        <div style="margin: 0 0 1rem;">
-          <button onclick={cambiarProfesor} disabled={isAuthLoading} style="width: 100%; padding: 0.6rem 1rem; border-radius: 10px; border: 1px solid rgba(168,85,247,0.3); background: rgba(168,85,247,0.1); color: #c084fc; cursor: {isAuthLoading ? 'default' : 'pointer'}; font-size: 0.8rem; font-weight: 600; opacity: {isAuthLoading ? 0.6 : 1};">
-            👤 Cambio de Profesor (cambiar cuenta de Google)
-          </button>
         </div>
 
         {#if isAndroid}
