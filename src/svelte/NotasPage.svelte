@@ -1249,16 +1249,6 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
       }
     }, 2000);
 
-    const lockOrientation = async () => {
-      try {
-        if (window.innerWidth <= 768 && screen.orientation && ('lock' in screen.orientation)) {
-          // @ts-ignore
-          await screen.orientation.lock("landscape");
-        }
-      } catch (err) { console.warn("No se pudo bloquear la orientación:", err); }
-    };
-    lockOrientation();
-
     // Keyboard shortcuts
     const handleKeyDownGlobal = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
