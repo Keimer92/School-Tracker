@@ -431,8 +431,8 @@
     try {
       // 1) Asegurar que los datos del profesor actual están en su nube antes de borrar
       try { await invoke("d1_sync_all"); } catch { /* ignore */ }
-      // 2) Borrar la base de datos local (limpia datos, d1_config y pendientes de sync)
-      await invoke("reset_local_database");
+      // 2) Borrar TODA la base de datos local (incluida d1_config y pendientes de sync) para aislar el perfil
+      await invoke("reset_profile_account");
       // 3) Desvincular nube y Drive localmente
       stopWsSync();
       await d1SyncService.clearConfig();

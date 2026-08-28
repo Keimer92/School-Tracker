@@ -818,12 +818,39 @@ pub async fn get_student_impact(
 #[tauri::command]
 pub async fn reset_local_database(state: tauri::State<'_, DbState>) -> Result<(), String> {
     let conn_guard = state.conn.lock().map_err(|e| e.to_string())?;
-    // Vacía TODAS las tablas (datos de usuario + metadatos de sincronización:
-    // d1_config, sync_pending_deletions*, sync_recent_pulls, etc.) para aislar
-    // totalmente el perfil. El esquema se recrea con run_migrations.
+    // Reinicio "suave" de datos locales: borra datos de usuario y pendientes de
+    // sincronización, PERO conserva d1_config para no desvincular la nube (la
+    // próxima sync re-trae los datos del profesor actual desde su nube).
+    conn_guard.execute("PRAGMA foreign_keys = OFF", []).map_err(|e| e.to_string())?;
+    let tables: Vec<String> = {
+        let mut stmt = conn_guard
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name != 'd1_config' AND name != 'app_meta'")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| r.get::<_, String>(0))
+            .map_err(|e| e.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
+    };
+    let tx = conn_guard.unchecked_transaction().map_err(|e| e.to_string())?;
+    for t in &tables {
+        tx.execute(&format!("DELETE FROM \"{}\"", t), [])
+            .map_err(|e| e.to_string())?;
+    }
+    tx.commit().map_err(|e| e.to_string())?;
+    conn_guard.execute("PRAGMA foreign_keys = ON", []).map_err(|e| e.to_string())?;
+    run_migrations(&conn_guard)?;
+    seed_default_data(&conn_guard)?;
+    Ok(())
+}
+
+/// Reinicio TOTAL del perfil al cambiar de cuenta de profesor: borra TODAS las
+/// tablas (incluida d1_config y los pendientes de sincronización) para aislar
+/// totalmente cada perfil. Luego la app restaura los datos desde la nube de la
+/// nueva cuenta.
+#[tauri::command]
+pub async fn reset_profile_account(state: tauri::State<'_, DbState>) -> Result<(), String> {
+    let conn_guard = state.conn.lock().map_err(|e| e.to_string())?;
     truncate_all_local_data(&conn_guard)?;
-    // Sembrar solo configuración de sistema (no catálogos de usuario) para que
-    // la app funcione; los catálogos del profesor se restauran desde su nube.
     seed_default_data(&conn_guard)?;
     Ok(())
 }
