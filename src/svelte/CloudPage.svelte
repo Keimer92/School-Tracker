@@ -19,8 +19,13 @@
     type CloudPerfil, type AdminUserInfo,
   } from "../lib/cloudAuth";
 
+  let { onNavigate }: { onNavigate?: (tab: string) => void } = $props();
+
   // ── Perfil de la cuenta Google (login cloud) ──
   let perfil: CloudPerfil | null = $state(getPerfilLocal());
+
+  // Bandera para "Cambio de Profesor": tras autenticar, ir al menú de catálogos si la cuenta no tiene datos
+  let pendingSwitchToCatalog = $state(false);
 
   function cerrarSesionCloud() {
     clearPerfilLocal();
@@ -253,7 +258,7 @@
     return await refreshAccessToken();
   }
 
-  async function initGoogleAuth() {
+  async function initGoogleAuth(forceSelectAccount: boolean = false) {
     if (!settings.clientId) { await emit("show-toast", { message: "❌ No hay Client ID configurado", type: "error" }); return; }
     isAuthLoading = true;
     if (isAndroid) {
@@ -295,7 +300,7 @@
     try {
       const port = 51733;
       const redirectUri = `${isAndroid ? 'http://127.0.0.1' : 'http://localhost'}:${port}/callback`;
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${settings.clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent('https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile')}&access_type=offline&prompt=consent`;
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${settings.clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent('https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile')}&access_type=offline&prompt=${forceSelectAccount ? 'select_account' : 'consent'}`;
       const code = await invoke<string>("gd_open_auth_webview", { url: authUrl });
       if (code && !authHandled) {
         authHandled = true;
@@ -404,6 +409,43 @@
     saveSettings();
     syncFiles = [];
     await emit("show-toast", { message: "✅ Google Drive desconectado", type: "success" });
+  }
+
+  /**
+   * "Cambio de Profesor": desvincula la cuenta de Google Drive actual y abre el
+   * selector de cuentas para elegir la del nuevo profesor. Si la cuenta elegida
+   * no tiene respaldos en Drive, se envía al menú de catálogos para configurar datos.
+   */
+  async function cambiarProfesor() {
+    if (isAuthLoading) return;
+    pendingSwitchToCatalog = true;
+    // Desvincular la cuenta Drive actual (la nube D1/perfil quedan intactos)
+    settings.accessToken = null;
+    settings.refreshToken = null;
+    settings.tokenExpiry = null;
+    settings.googleUserEmail = null;
+    settings.googleUserName = null;
+    settings.googleUserProfilePic = null;
+    saveSettings();
+    syncFiles = [];
+    // Reiniciar el flag para permitir procesar la nueva autenticación
+    authHandled = false;
+    await emit("show-toast", { message: "Selecciona la cuenta de Google del profesor", type: "info" });
+    await initGoogleAuth(true);
+    if (!pendingSwitchToCatalog) return;
+    pendingSwitchToCatalog = false;
+    if (!settings.accessToken) {
+      await emit("show-toast", { message: "No se cambió la cuenta de Google", type: "info" });
+      return;
+    }
+    const token = await getValidToken();
+    if (token) syncFiles = await driveSyncService.listSyncFiles(token);
+    if (!syncFiles || syncFiles.length === 0) {
+      await emit("show-toast", { message: "ℹ️ Esta cuenta no tiene respaldos. Configura tus catálogos.", type: "info" });
+      onNavigate?.('globales');
+    } else {
+      await emit("show-toast", { message: "✅ Cuenta de Drive cambiada a " + (settings.googleUserEmail || ''), type: "success" });
+    }
   }
 
   async function refreshFiles() {
@@ -952,6 +994,12 @@
               <button onclick={disconnect} style="padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); color: #f87171; cursor: pointer; font-size: 0.7rem;">Desconectar</button>
             </div>
           {/if}
+        </div>
+
+        <div style="margin: 0 0 1rem;">
+          <button onclick={cambiarProfesor} disabled={isAuthLoading} style="width: 100%; padding: 0.6rem 1rem; border-radius: 10px; border: 1px solid rgba(168,85,247,0.3); background: rgba(168,85,247,0.1); color: #c084fc; cursor: {isAuthLoading ? 'default' : 'pointer'}; font-size: 0.8rem; font-weight: 600; opacity: {isAuthLoading ? 0.6 : 1};">
+            👤 Cambio de Profesor (cambiar cuenta de Google)
+          </button>
         </div>
 
         {#if isAndroid}

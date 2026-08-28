@@ -579,14 +579,25 @@ async function fetchData(preserveFilters = false) {
 
   $effect(() => { if (!isAndroid) localStorage.setItem('estudiantes-view-mode', viewMode); });
 
+  // Refresca lista y dropdowns (grado/sección) ante cualquier cambio de catálogo, estudiante o sync
+  async function refreshAll() {
+    await fetchData(true);
+    if (filters.colegioId > 0 && filters.anoLectivoId > 0) {
+      grados = await fetchGrados(filters.colegioId, filters.anoLectivoId);
+    }
+    if (filters.gradoId > 0 && filters.colegioId > 0 && filters.anoLectivoId > 0) {
+      secciones = await fetchSecciones(filters.gradoId, filters.colegioId, filters.anoLectivoId);
+    }
+  }
+
   onMount(() => {
     fetchData();
     const checkMobile = () => { isMobile = window.innerWidth <= 768; };
     checkMobile();
     window.addEventListener('resize', checkMobile);
-    const u1 = listen("catalog-updated", () => fetchData(true));
-    const u2 = listen("student-updated", () => fetchData(true));
-    const onSync = () => fetchData(true);
+    const u1 = listen("catalog-updated", () => refreshAll());
+    const u2 = listen("student-updated", () => refreshAll());
+    const onSync = () => refreshAll();
     window.addEventListener('schooltracker-sync', onSync);
     return () => {
       window.removeEventListener('resize', checkMobile);
