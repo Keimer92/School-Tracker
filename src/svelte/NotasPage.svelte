@@ -832,6 +832,8 @@
         }
       }
     }
+    const okGuardar = await ask("¿Guardar las notas?\n\nSe registrarán los cambios en la base de datos local.", { title: "💾 Confirmar guardado", kind: "info", okLabel: "Guardar", cancelLabel: "Cancelar" });
+    if (!okGuardar) return;
     saving = true;
     try {
       const notasParaGuardar = notasActualizadas.map(notaEst => ({
