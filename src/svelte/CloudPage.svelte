@@ -14,10 +14,13 @@
   import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
   import { ask } from "@tauri-apps/plugin-dialog";
   import {
-    getPerfilLocal, clearPerfilLocal, getValidAuthToken,
+    getPerfilLocal, clearPerfilLocal, getValidAuthToken, DEFAULT_WORKER_URL,
     fetchAdminUsers, suspendUser, deleteUserData,
     type CloudPerfil, type AdminUserInfo,
   } from "../lib/cloudAuth";
+  import {
+    saveProfile, getProfile, setCurrentEmail,
+  } from "../lib/accountProfiles";
 
   let { onNavigate }: { onNavigate?: (tab: string) => void } = $props();
 
@@ -429,6 +432,14 @@
     isSwitchingAccount = true;
     authHandled = false;
     try {
+      // Capturar la cuenta ACTUAL y su schoolKey REAL antes de borrar, para no
+      // perder el vínculo con su nube (el Worker puede crear uno nuevo y vacío al
+      // re-autenticar si la cuenta fue conectada vía archivo .key).
+      const curCfg = await d1SyncService.getConfig();
+      const curEmail = (getPerfilLocal()?.email || settings.googleUserEmail || '').toLowerCase();
+      if (curCfg && curEmail) {
+        saveProfile({ email: curEmail, schoolKey: curCfg.schoolKey, workerUrl: curCfg.workerUrl, nombre: getPerfilLocal()?.nombre });
+      }
       // 1) Asegurar que los datos del profesor actual están en su nube antes de borrar
       try { await invoke("d1_sync_all"); } catch { /* ignore */ }
       // 2) Borrar TODA la base de datos local (incluida d1_config y pendientes de sync) para aislar el perfil
@@ -464,7 +475,26 @@
         await emit("show-toast", { message: "❌ " + res.error, type: "error" });
         return;
       }
-      // conectarConCredenciales ya hizo el pull desde la nube de la nueva cuenta
+      // 6) Reusar el schoolKey REAL de la cuenta si ya lo conocemos (evita que /auth
+      // haya creado uno nuevo y vacío, perdiendo el vínculo con los datos existentes).
+      const newEmail = (res.result?.perfil?.email || '').toLowerCase();
+      const known = newEmail ? getProfile(newEmail) : null;
+      if (known && known.schoolKey && known.schoolKey !== res.result.schoolKey) {
+        await d1SyncService.saveConfig(known.workerUrl, known.schoolKey);
+        await invalidateD1Cache();
+        // Volver a sincronizar contra el schoolKey real para restaurar los datos
+        try { await invoke("d1_sync_all"); } catch { /* ignore */ }
+      }
+      // 7) Registrar la cuenta activa y refrescar estados de UI
+      if (newEmail) {
+        saveProfile({
+          email: newEmail,
+          schoolKey: known?.schoolKey || res.result.schoolKey,
+          workerUrl: known?.workerUrl || DEFAULT_WORKER_URL,
+          nombre: res.result?.perfil?.nombre,
+        });
+        setCurrentEmail(newEmail);
+      }
       loadSettings();
       perfil = getPerfilLocal();
       d1Cfg = await d1SyncService.getConfig();
@@ -472,8 +502,8 @@
       await emit("data-updated", {});
       await emit("catalog-updated", {});
       await emit("student-updated", {});
-      // Cuenta nueva sin datos en la nube → ir a configurar catálogos
-      if (res.result?.creado) onNavigate?.('globales');
+      // Cuenta nueva sin datos en la nube y sin schoolKey conocido → ir a catálogos
+      if (res.result?.creado && !known) onNavigate?.('globales');
     } catch (e) {
       await emit("show-toast", { message: "❌ Error al cambiar de profesor: " + e, type: "error" });
     } finally {
@@ -568,6 +598,8 @@
               await d1SyncService.clearConfig();
               d1Cfg = await d1SyncService.saveConfig(cfg.workerUrl, cfg.schoolKey);
               invalidateD1Cache();
+              const em1 = (getPerfilLocal()?.email || '').toLowerCase();
+              if (em1) saveProfile({ email: em1, schoolKey: cfg.schoolKey, workerUrl: cfg.workerUrl, nombre: getPerfilLocal()?.nombre });
               await ensureWsSync();
               syncService.ensurePeriodicSync();
               showD1Config = false;
@@ -585,6 +617,8 @@
       try {
         d1Cfg = await d1SyncService.saveConfig(cfg.workerUrl, cfg.schoolKey);
         invalidateD1Cache();
+        const em2 = (getPerfilLocal()?.email || '').toLowerCase();
+        if (em2) saveProfile({ email: em2, schoolKey: cfg.schoolKey, workerUrl: cfg.workerUrl, nombre: getPerfilLocal()?.nombre });
         showD1Config = false;
         await ensureWsSync();
         syncService.ensurePeriodicSync();
