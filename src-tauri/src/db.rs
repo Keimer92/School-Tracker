@@ -2748,7 +2748,26 @@ pub async fn add_colegio(state: tauri::State<'_, DbState>, nombre: String) -> Re
     )
     .map_err(|e| e.to_string())?;
 
-    Ok(conn.last_insert_rowid())
+    let new_id = conn.last_insert_rowid();
+
+    // Heredar todas las asignaturas existentes para este colegio
+    let mut stmt = conn
+        .prepare("SELECT id FROM asignatura")
+        .map_err(|e| e.to_string())?;
+    let asignaturas: Vec<i64> = stmt
+        .query_map([], |row| row.get(0))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+    for aid in asignaturas {
+        conn.execute(
+            "INSERT OR IGNORE INTO colegio_asignatura (colegio_id, asignatura_id, updated_at) VALUES (?, ?, datetime('now'))",
+            rusqlite::params![new_id, aid],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    Ok(new_id)
 }
 
 #[tauri::command]

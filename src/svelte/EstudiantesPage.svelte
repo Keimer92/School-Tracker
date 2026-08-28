@@ -394,38 +394,24 @@ async function fetchData(preserveFilters = false) {
 
   $effect(() => {
     if (!isModalOpen) { modalGrados = []; modalSecciones = []; return; }
-    if (formData.colegioId && formData.anoLectivoId) {
-      fetchGrados(formData.colegioId, formData.anoLectivoId, true).then(loaded => {
-        if (loaded.length === 0) {
-          if (formData.gradoId !== 0 || formData.seccionId !== 0) formData = { ...formData, gradoId: 0, seccionId: 0 };
-          return;
-        }
-        if (!formData.gradoId || !loaded.some(g => g.id === formData.gradoId)) {
-          formData = { ...formData, gradoId: loaded[0].id, seccionId: 0 };
-        }
-      });
-    } else {
-      modalGrados = [];
-      if (formData.gradoId !== 0 || formData.seccionId !== 0) formData = { ...formData, gradoId: 0, seccionId: 0 };
-    }
+    // El catálogo de grados es global: mostrar TODOS sin filtrar por colegio/año
+    invoke<CategoryItem[]>("get_grados").then(data => {
+      modalGrados = data;
+      if (!formData.gradoId || !data.some(g => g.id === formData.gradoId)) {
+        formData = { ...formData, gradoId: data[0]?.id ?? 0, seccionId: 0 };
+      }
+    });
   });
 
   $effect(() => {
     if (!isModalOpen) return;
-    if (formData.gradoId && formData.colegioId && formData.anoLectivoId) {
-      fetchSecciones(formData.gradoId, formData.colegioId, formData.anoLectivoId, true).then(loaded => {
-        if (loaded.length === 0) {
-          if (formData.seccionId !== 0) formData = { ...formData, seccionId: 0 };
-          return;
-        }
-        if (!formData.seccionId || !loaded.some(s => s.id === formData.seccionId)) {
-          formData = { ...formData, seccionId: loaded[0].id };
-        }
-      });
-    } else {
-      modalSecciones = [];
-      if (formData.seccionId !== 0) formData = { ...formData, seccionId: 0 };
-    }
+    // El catálogo de secciones es global: mostrar TODAS sin filtrar por grado/colegio/año
+    invoke<CategoryItem[]>("get_secciones").then(data => {
+      modalSecciones = data;
+      if (!formData.seccionId || !data.some(s => s.id === formData.seccionId)) {
+        formData = { ...formData, seccionId: data[0]?.id ?? 0 };
+      }
+    });
   });
 
   function openAddModal() {
@@ -478,12 +464,14 @@ async function fetchData(preserveFilters = false) {
         await invoke("update_student", { student: studentToSave });
         onDataChange('estudiante', { immediate: true });
         await emit("student-updated", { timestamp: Date.now() });
+        await emit("catalog-updated", { timestamp: Date.now() });
         await emit("show-toast", { message: '✅ Estudiante actualizado correctamente', type: 'success' });
       } else {
         const newStudentWithFoto = { ...studentToSave, foto: photoPreview || undefined };
         const newId = await invoke<number>("add_student", { student: newStudentWithFoto });
         onDataChange('estudiante', { immediate: true });
         await emit("student-updated", { timestamp: Date.now() });
+        await emit("catalog-updated", { timestamp: Date.now() });
         await emit("show-toast", { message: '✅ Estudiante registrado correctamente', type: 'success' });
       }
       formData = { ...emptyStudent };
