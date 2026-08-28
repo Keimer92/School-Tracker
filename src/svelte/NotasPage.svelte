@@ -1227,7 +1227,12 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
     fetchMultiplicadores();
     fetchCatalogs();
 
-    const checkMobile = () => { isMobile = window.innerWidth <= 768; };
+    const checkMobile = () => {
+      const portrait = window.innerHeight > window.innerWidth;
+      // En Android: portrait => vista de cards; landscape => vista desktop (tabla).
+      // En el resto: responsivo por ancho.
+      isMobile = isAndroid ? portrait : (window.innerWidth <= 768);
+    };
     checkMobile();
     window.addEventListener('resize', checkMobile);
 
