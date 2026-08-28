@@ -142,6 +142,38 @@
   }
 
   /**
+   * Importa una base de datos local en formato .db (respaldo) y, tras cargarla,
+   * salta automáticamente al flujo "Continuar con Google" para vincular esa base
+   * a la cuenta elegida. Si la cuenta tiene la nube de Cloudflare VACÍA, el
+   * primer sync sube los datos importados (la nube deja de estar vacía).
+   */
+  async function importarBaseDatos() {
+    try {
+      const ruta = await openDialog({
+        title: 'Selecciona tu base de datos (.db)',
+        filters: [{ name: 'Base de datos School Tracker', extensions: ['db'] }],
+        multiple: false,
+      });
+      if (!ruta || typeof ruta !== 'string') return;
+      loading = true;
+      errorMsg = '';
+      loadingMessage = 'Importando base de datos...';
+      await invoke('gd_import_db_from_file', { sourcePath: ruta });
+      await invoke('gd_reload_database');
+      loadingMessage = 'Vinculando con tu cuenta de Google...';
+      // Desvincular la nube anterior que pudiera venir dentro del respaldo
+      // (d1_config de otro dispositivo) para reconectar LIMPIO con la cuenta
+      // de Google elegida en el siguiente paso.
+      try { await invoke('d1_clear_config'); } catch {}
+      await handleCloudLogin();
+    } catch (e: any) {
+      errorMsg = 'Error importando base de datos: ' + (typeof e === 'string' ? e : e?.message || String(e));
+      loading = false;
+      loadingMessage = '';
+    }
+  }
+
+  /**
    * LOGIN/REGISTRO con Google para el sync Cloudflare.
    * Reutiliza el flujo compartido (src/lib/cloudLogin.ts) que además vincula
    * Google Drive con la MISMA cuenta. Tras conectar, verifica si la nube ya
@@ -382,6 +414,14 @@
           </div>
           <div class="welcome-card-arrow">→</div>
         </button>
+        <button class="welcome-card card-import" onclick={importarBaseDatos} disabled={loading}>
+          <div class="welcome-card-icon">💾</div>
+          <div class="welcome-card-body">
+            <h3>Importar base de datos (.db)</h3>
+            <p>Restaura tu respaldo de la base de datos y vincúlalo automáticamente a tu cuenta de Google.</p>
+          </div>
+          <div class="welcome-card-arrow">→</div>
+        </button>
       </div>
       {#if errorMsg}
         <div class="welcome-error">{errorMsg}</div>
@@ -611,6 +651,11 @@
   .card-key .welcome-card-icon {
     background: rgba(251,191,36,0.12); border-color: rgba(251,191,36,0.25);
     box-shadow: 0 4px 16px rgba(251,191,36,0.12), inset 0 1px 0 rgba(255,255,255,0.08);
+  }
+  .card-import { --accent-from: #22d3ee; --accent-to: #0ea5e9; }
+  .card-import .welcome-card-icon {
+    background: rgba(34,211,238,0.12); border-color: rgba(34,211,238,0.25);
+    box-shadow: 0 4px 16px rgba(34,211,238,0.12), inset 0 1px 0 rgba(255,255,255,0.08);
   }
   .welcome-card-icon {
     font-size: 1.55rem; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
