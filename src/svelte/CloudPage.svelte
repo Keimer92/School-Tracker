@@ -418,35 +418,64 @@
   async function cambiarCuentaGoogle() {
     if (isSwitchingAccount || isAuthLoading) return;
     const ok = await ask(
-      'Vas a cambiar la cuenta de Google de este dispositivo.\n\n' +
-      'Esto afecta a LA NUBE (Cloudflare D1) y a GOOGLE DRIVE por igual.\n\n' +
-      'Tus datos locales NO se borran: se volverán a sincronizar con la nube de la nueva cuenta. ' +
-      'Si esa cuenta ya tiene datos en la nube, se combinarán (la última versión de cada registro gana).\n\n' +
+      'Vas a cambiar de profesor (cuenta de Google).\n\n' +
+      'Se BORRARÁ la base de datos local de este dispositivo y se reconectará a la nube de la nueva cuenta. ' +
+      'Luego tus datos se RESTAURARÁN desde la nube de esa cuenta (Nube D1 y/o Drive).\n\n' +
+      'El dispositivo queda aislado: los datos del profesor anterior NO se mezclan con los del nuevo.\n\n' +
       '¿Continuar?',
-      { title: 'Cambiar cuenta de Google', kind: 'warning', okLabel: 'Sí, cambiar', cancelLabel: 'Cancelar' }
+      { title: 'Cambiar de profesor', kind: 'warning', okLabel: 'Sí, cambiar', cancelLabel: 'Cancelar' }
     );
     if (!ok) return;
     isSwitchingAccount = true;
     authHandled = false;
     try {
+      // 1) Asegurar que los datos del profesor actual están en su nube antes de borrar
+      try { await invoke("d1_sync_all"); } catch { /* ignore */ }
+      // 2) Borrar la base de datos local (limpia datos, d1_config y pendientes de sync)
+      await invoke("reset_local_database");
+      // 3) Desvincular nube y Drive localmente
+      stopWsSync();
+      await d1SyncService.clearConfig();
+      clearPerfilLocal();
+      perfil = null;
+      settings.accessToken = null;
+      settings.refreshToken = null;
+      settings.tokenExpiry = null;
+      settings.googleUserEmail = null;
+      settings.googleUserName = null;
+      settings.googleUserProfilePic = null;
+      saveSettings();
+      syncFiles = [];
+      // 4) Avisar a las páginas para refrescar con la BD vacía
+      await emit("data-updated", {});
+      await emit("catalog-updated", {});
+      await emit("student-updated", {});
+      // 5) Autenticar la nueva cuenta (Nube + Drive en un solo flujo, con selector forzado)
       const res = await iniciarSesionGoogleConNube({
         forceSelectAccount: true,
         onStatus: (m) => emit("show-toast", { message: m, type: "info" }),
         setBackAuth: setBackAuthInProgress,
       });
       if (res.status === 'cancelled') {
-        await emit("show-toast", { message: "Cambio de cuenta cancelado", type: "info" });
+        await emit("show-toast", { message: "Cambio de profesor cancelado", type: "info" });
         return;
       }
       if (res.status === 'error') {
         await emit("show-toast", { message: "❌ " + res.error, type: "error" });
         return;
       }
-      await emit("show-toast", { message: "✅ Cuenta de Google cambiada (Nube + Drive)", type: "success" });
-      // La nueva cuenta no tiene datos en la nube → ir a configurar catálogos
+      // conectarConCredenciales ya hizo el pull desde la nube de la nueva cuenta
+      loadSettings();
+      perfil = getPerfilLocal();
+      d1Cfg = await d1SyncService.getConfig();
+      await emit("show-toast", { message: "✅ Perfil cambiado: datos restaurados desde la nube de la nueva cuenta", type: "success" });
+      await emit("data-updated", {});
+      await emit("catalog-updated", {});
+      await emit("student-updated", {});
+      // Cuenta nueva sin datos en la nube → ir a configurar catálogos
       if (res.result?.creado) onNavigate?.('globales');
     } catch (e) {
-      await emit("show-toast", { message: "❌ Error al cambiar cuenta: " + e, type: "error" });
+      await emit("show-toast", { message: "❌ Error al cambiar de profesor: " + e, type: "error" });
     } finally {
       isSwitchingAccount = false;
     }

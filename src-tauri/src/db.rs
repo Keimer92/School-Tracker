@@ -705,6 +705,37 @@ pub fn seed_default_data(conn: &Connection) -> Result<(), String> {
     Ok(())
 }
 
+/// Borra TODOS los datos del usuario y la metadatos de sincronización local,
+/// dejando el esquema intacto. Se usa al cambiar de cuenta de profesor para
+/// aislar totalmente cada perfil: la BD local queda vacía y luego se restaura
+/// desde la nube de la nueva cuenta (Cloudflare D1 / Drive).
+pub fn truncate_all_local_data(conn: &Connection) -> Result<(), String> {
+    conn.execute("PRAGMA foreign_keys = OFF", [])
+        .map_err(|e| e.to_string())?;
+    let tables: Vec<String> = {
+        let mut stmt = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| r.get::<_, String>(0))
+            .map_err(|e| e.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?
+    };
+    let tx = conn
+        .unchecked_transaction()
+        .map_err(|e| e.to_string())?;
+    for t in &tables {
+        tx.execute(&format!("DELETE FROM \"{}\"", t), [])
+            .map_err(|e| format!("Error limpiando tabla {}: {}", t, e))?;
+    }
+    tx.commit().map_err(|e| e.to_string())?;
+    conn.execute("PRAGMA foreign_keys = ON", [])
+        .map_err(|e| e.to_string())?;
+    init_database(conn)?;
+    println!("[DB] Base de datos local reiniciada (reset de perfil)");
+    Ok(())
+}
+
 /// Alias para compatibilidad hacia atrÃ¡s
 pub fn run_migrations(conn: &Connection) -> Result<(), String> {
     init_database(conn)
@@ -787,59 +818,13 @@ pub async fn get_student_impact(
 #[tauri::command]
 pub async fn reset_local_database(state: tauri::State<'_, DbState>) -> Result<(), String> {
     let conn_guard = state.conn.lock().map_err(|e| e.to_string())?;
-
-    // Lista de tablas a vaciar en orden para respetar llaves forÃ¡neas
-    let tables = [
-        "asistencia",
-        "nota",
-        "criterio",
-        "indicador",
-        "grado_asignatura",
-        "colegio_asignatura",
-        "estudiante",
-        "seccion",
-        "grado",
-        "asignatura",
-        "colegio_dias_asistencia",
-        "dia_sin_clases",
-        "colegio",
-        "corte_evaluativo",
-        "ano_lectivo",
-        "configuracion_calificacion",
-    ];
-
-    // Desactivar temporalmente las llaves forÃ¡neas para un borrado limpio
-    conn_guard
-        .execute("PRAGMA foreign_keys = OFF", [])
-        .map_err(|e| e.to_string())?;
-
-    for table in tables.iter() {
-        // Borrar tabla (si existe) para un reset completo
-        match conn_guard.execute(&format!("DROP TABLE IF EXISTS {}", table), []) {
-            Ok(_) => {}
-            Err(e) => {
-                let err_msg = e.to_string();
-                let _ = conn_guard.execute("PRAGMA foreign_keys = ON", []);
-                return Err(format!("Error al eliminar tabla {}: {}", table, err_msg));
-            }
-        }
-    }
-
-    // Limpieza adicional: Si existÃ­a el colegio con el typo, borrarlo explÃ­citamente por si acaso
-    // (Ãštil para limpiar bases de datos existentes sin reset completo de tablas si se desea,
-    // pero aquÃ­ estamos dentro del reset asÃ­ que las tablas ya estÃ¡n vacÃ­as).
-
-    conn_guard
-        .execute("PRAGMA foreign_keys = ON", [])
-        .map_err(|e| e.to_string())?;
-
-    // DespuÃ©s de limpiar, volvemos a ejecutar las migraciones para asegurar
-    // que las tablas se vuelvan a crear
-    run_migrations(&conn_guard)?;
-
-    // Sembrar datos iniciales (reset siempre crea defaults)
+    // Vacía TODAS las tablas (datos de usuario + metadatos de sincronización:
+    // d1_config, sync_pending_deletions*, sync_recent_pulls, etc.) para aislar
+    // totalmente el perfil. El esquema se recrea con run_migrations.
+    truncate_all_local_data(&conn_guard)?;
+    // Sembrar solo configuración de sistema (no catálogos de usuario) para que
+    // la app funcione; los catálogos del profesor se restauran desde su nube.
     seed_default_data(&conn_guard)?;
-
     Ok(())
 }
 
