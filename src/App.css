@@ -1394,17 +1394,18 @@ label,
     z-index: 10002 !important;
   }
 
-  /* NotasPage en landscape: la página entera hace scroll. La tabla se expande
-     a su alto completo y el scroll lo maneja main-content (sin scroll interno
-     ni cabecera sticky que tape las notas). */
+  /* NotasPage en landscape: la tabla tiene su propio área de scroll acotada.
+     La cabecera (thead) se congela al tope del contenedor (justo debajo del
+     banner) mientras se scrollea la tabla, y el scroll horizontal de columnas
+     funciona dentro del mismo contenedor. Filtros/toolbar quedan arriba. */
   .notas-page-root {
-    height: auto !important;
+    height: 100% !important;
     min-height: 0 !important;
     display: flex !important;
     flex-direction: column !important;
   }
   .notas-page-root .category-grid {
-    height: auto !important;
+    height: 100% !important;
   }
   .notas-page-root .sticky-filters {
     position: relative !important;
@@ -1413,20 +1414,19 @@ label,
     overflow: visible !important;
   }
   .notas-page-root .category-card {
-    flex: none !important;
-    height: auto !important;
+    flex: 1 1 0% !important;
     min-height: 0 !important;
-    overflow: visible !important;
+    overflow: hidden !important;
   }
   .notas-page-root .notas-table-container {
-    flex: none !important;
-    height: auto !important;
+    flex: 1 1 0% !important;
     min-height: 0 !important;
     overflow: auto !important;
     -webkit-overflow-scrolling: touch;
   }
   .notas-page-root .notas-table thead {
-    position: static !important;
+    position: sticky !important;
+    top: 0 !important;
   }
 }
 
