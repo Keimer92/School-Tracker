@@ -378,9 +378,13 @@ function isAdminEmail(env: Env, email: string): boolean {
   return (env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).includes(email.toLowerCase());
 }
 
-/** Cuentas Google autorizadas a iniciar sesión. Por defecto = ADMIN_EMAILS. */
+/** Cuentas Google autorizadas a iniciar sesión.
+ *  - Si ALLOWED_EMAILS está vacío => se permite CUALQUIER cuenta Google
+ *    (cada una recibe su propio schoolKey/namespace; sólo ADMIN_EMAILS es admin).
+ *  - Si ALLOWED_EMAILS tiene emails => sólo esos pueden iniciar sesión. */
 function isAllowedEmail(env: Env, email: string): boolean {
-  const list = (env.ALLOWED_EMAILS || env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+  const list = (env.ALLOWED_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+  if (list.length === 0) return true;
   return list.includes(email.toLowerCase());
 }
 
