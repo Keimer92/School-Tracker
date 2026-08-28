@@ -1394,10 +1394,12 @@ label,
     z-index: 10002 !important;
   }
 
-  /* NotasPage en landscape: la tabla tiene su propio área de scroll acotada.
-     La cabecera (thead) se congela al tope del contenedor (justo debajo del
-     banner) mientras se scrollea la tabla, y el scroll horizontal de columnas
-     funciona dentro del mismo contenedor. Filtros/toolbar quedan arriba. */
+  /* NotasPage en landscape: el scroll lo maneja category-grid (UN contenedor).
+     Al bajar la página, la card de filtros se desplaza y se va; el thead se
+     congela en el tope del contenedor (borde del banner). La card se fija solo
+     en horizontal (left:0) para que no se corra al hacer scroll de columnas.
+     Ningún contenedor intermedio tiene overflow, así el sticky del thead se
+     referencia a category-grid y no a un scroll interno. */
   .notas-page-root {
     height: 100% !important;
     min-height: 0 !important;
@@ -1406,23 +1408,31 @@ label,
   }
   .notas-page-root .category-grid {
     height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: auto !important;
+    -webkit-overflow-scrolling: touch;
   }
   .notas-page-root .sticky-filters {
-    position: relative !important;
+    position: sticky !important;
+    top: auto !important;
+    left: 0 !important;
     flex-shrink: 0 !important;
     max-height: none !important;
     overflow: visible !important;
+    z-index: 50 !important;
   }
   .notas-page-root .category-card {
-    flex: 1 1 0% !important;
+    flex: none !important;
+    height: auto !important;
     min-height: 0 !important;
-    overflow: hidden !important;
+    overflow: visible !important;
   }
   .notas-page-root .notas-table-container {
-    flex: 1 1 0% !important;
+    flex: none !important;
+    height: auto !important;
     min-height: 0 !important;
-    overflow: auto !important;
-    -webkit-overflow-scrolling: touch;
+    overflow: visible !important;
   }
   .notas-page-root .notas-table thead {
     position: sticky !important;
