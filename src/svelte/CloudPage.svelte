@@ -755,10 +755,9 @@
   {/if}
 
   <div class="cloud-cols" class:mobile={isAndroid}
-    style={isAndroid ? `transform: translateX(-${activeCloudTab * 100}%);` : ''}
     ontouchstart={isAndroid ? onCloudTouchStart : undefined}
     ontouchend={isAndroid ? onCloudTouchEnd : undefined}>
-  <div class="cloud-card" style="margin-bottom: 1.25rem;">
+  <div class="cloud-card" style={isAndroid && activeCloudTab !== 0 ? 'display:none;' : 'margin-bottom: 1.25rem;'}>
     <div class="cloud-card-header" style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
       <h3>
         <span style="display: inline-flex; align-items: center; gap: 10px; background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%); padding: 0.5rem 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);">
@@ -882,7 +881,7 @@
     </div>
   </div>
 
-  <div class="cloud-card">
+  <div class="cloud-card" style={isAndroid && activeCloudTab !== 1 ? 'display:none;' : ''}>
     <div class="cloud-card-header">
       <h3>
         <span style="display: inline-flex; align-items: center; gap: 10px; background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%); padding: 0.5rem 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);">
@@ -1062,18 +1061,8 @@
     align-items: start;
   }
   .cloud-cols.mobile {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    gap: 0;
-    overflow: hidden;
-    transition: transform 0.28s ease;
+    display: block;
     width: 100%;
-  }
-  .cloud-cols.mobile > .cloud-card {
-    flex: 0 0 100%;
-    min-width: 100%;
-    margin-bottom: 0;
   }
   .cloud-tabs {
     display: none;
@@ -1081,7 +1070,7 @@
   .cloud-page > .cloud-tabs,
   .cloud-cols.mobile ~ .cloud-tabs {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     gap: 0.5rem;
     margin-bottom: 1rem;
   }
