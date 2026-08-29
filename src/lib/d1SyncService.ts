@@ -93,7 +93,22 @@ export const d1SyncService = {
   _syncLock: false,
 
   getConfig,
-  saveConfig: async (workerUrl: string, schoolKey: string): Promise<D1Config> => {
+  saveConfig: async (workerUrl: any, schoolKey: any): Promise<D1Config> => {
+    // Defensa: a veces se pasa un objeto de config completo en lugar de strings
+    // sueltos (p. ej. saveConfig(cfg) en vez de saveConfig(cfg.workerUrl, cfg.schoolKey)).
+    // Extraemos los valores correctos y avisamos para rastrear la fuente.
+    if (workerUrl && typeof workerUrl === 'object') {
+      schoolKey = schoolKey ?? workerUrl.schoolKey ?? workerUrl.school_key;
+      workerUrl = workerUrl.workerUrl ?? workerUrl.worker_url;
+      console.warn('[saveConfig] se recibió un objeto en workerUrl; se extrajo', { workerUrl, schoolKey });
+    }
+    if (schoolKey && typeof schoolKey === 'object') {
+      schoolKey = schoolKey.schoolKey ?? schoolKey.school_key;
+      console.warn('[saveConfig] schoolKey llegó como objeto; se extrajo', schoolKey);
+    }
+    if (typeof workerUrl !== 'string' || typeof schoolKey !== 'string') {
+      throw new Error(`saveConfig: args inválidos (workerUrl=${typeof workerUrl}, schoolKey=${typeof schoolKey})`);
+    }
     const cfg = await invoke<D1Config>('d1_save_config', { workerUrl, schoolKey });
     return cfg;
   },

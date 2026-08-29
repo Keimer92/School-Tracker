@@ -186,6 +186,9 @@
   async function handleCloudLogin(preferredKey?: string) {
     loading = true;
     errorMsg = '';
+    // Si se invoca como handler de click, el primer argumento es un Event;
+    // en ese caso no hay clave prefijada.
+    if (preferredKey && typeof preferredKey !== 'string') preferredKey = undefined;
     try {
       const res = await iniciarSesionGoogleConNube({
         onStatus: (m) => { loadingMessage = m; },
@@ -395,7 +398,7 @@
         <p class="welcome-subtitle">Selecciona cómo quieres iniciar</p>
       </div>
       <div class="welcome-cards">
-        <button class="welcome-card card-google" onclick={handleCloudLogin} disabled={loading}>
+        <button class="welcome-card card-google" onclick={() => handleCloudLogin()} disabled={loading}>
           <div class="welcome-card-icon">🔐</div>
           <div class="welcome-card-body">
             <h3>Continuar con Google</h3>
