@@ -1532,7 +1532,7 @@ async fn gd_delete_backup(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn gd_import_db_from_file(app_handle: tauri::AppHandle, source_path: String) -> Result<String, String> {
+async fn gd_import_db_from_file(app_handle: tauri::AppHandle, state: tauri::State<'_, DbState>, source_path: String) -> Result<String, String> {
     use std::fs;
     
     let import_path = std::path::PathBuf::from(&source_path);
@@ -1556,6 +1556,19 @@ async fn gd_import_db_from_file(app_handle: tauri::AppHandle, source_path: Strin
     let _ = fs::copy(&db_path, &safety_backup);
     
     fs::copy(&import_path, &db_path).map_err(|e| format!("Failed to import database: {}", e))?;
+
+    // Excluir la tabla d1_config (school_key / device_id) del archivo importado:
+    // así se conservan los DATOS pero NO la identidad de nube del dispositivo
+    // origen (que podría contaminar este dispositivo). La nube se relinka a
+    // continuación vía Google (handleCloudLogin). Se reabre la conexión del
+    // estado sobre el archivo ya reemplazado.
+    {
+        let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+        *conn = Connection::open(&db_path).map_err(|e| format!("Failed to reopen imported database: {}", e))?;
+        conn.execute("DROP TABLE IF EXISTS d1_config", [])
+            .map_err(|e| format!("Failed to exclude d1_config from import: {}", e))?;
+    }
+
     Ok(db_path.to_string_lossy().into_owned())
 }
 
