@@ -159,7 +159,15 @@ export async function iniciarSesionGoogleConNube(opts?: {
     let localCfg: any = null;
     if (email) {
       known = getProfile(email);
-      if (known?.schoolKey) {
+      // /auth (el Worker) es la fuente autoritativa del mapeo email→schoolKey.
+      // El registro local (accountProfiles) pudo contaminarse con claves vacías
+      // durante los "cambiar de usuario" rotos, por eso se prefiere /auth.
+      if (result.schoolKey) {
+        effectiveKey = result.schoolKey;
+        if (known?.schoolKey && known.schoolKey !== effectiveKey) {
+          console.log(`[CloudLogin] registry key ${known.schoolKey} != /auth ${effectiveKey}; se usa /auth (autoritativo)`);
+        }
+      } else if (known?.schoolKey) {
         effectiveKey = known.schoolKey;
         if (known.workerUrl) effectiveWorker = known.workerUrl;
       } else {
@@ -171,7 +179,7 @@ export async function iniciarSesionGoogleConNube(opts?: {
       }
     }
     console.log(
-      `[CloudLogin] effectiveKey=${effectiveKey} fromKnown=${!!known?.schoolKey} fromLocalCfg=${!!(!known?.schoolKey && localCfg?.schoolKey)} authSchoolKey=${result.schoolKey} creado=${result.creado} email=${email} skipSync=${!!opts?.skipSync}`
+      `[CloudLogin] effectiveKey=${effectiveKey} fromAuth=${!!result.schoolKey} fromKnown=${!!known?.schoolKey} fromLocalCfg=${!!localCfg?.schoolKey} creado=${result.creado} email=${email} skipSync=${!!opts?.skipSync}`
     );
     await conectarConCredenciales(effectiveWorker, effectiveKey, opts);
     // Registrar SIEMPRE el perfil (email → schoolKey) tras conectarse: así un

@@ -487,7 +487,10 @@
       // haya creado uno nuevo y vacío, perdiendo el vínculo con los datos existentes).
       const newEmail = (res.result?.perfil?.email || '').toLowerCase();
       const known = newEmail ? getProfile(newEmail) : null;
-      const effectiveKey = known?.schoolKey || res.result.schoolKey;
+      // EL Worker (/auth) es autoritativo para email→schoolKey. El registro local
+      // pudo contaminarse con claves vacías en switches rotos; por eso se prefiere
+      // res.result.schoolKey sobre known.schoolKey.
+      const effectiveKey = res.result.schoolKey || known?.schoolKey;
       const effectiveWorker = known?.workerUrl || DEFAULT_WORKER_URL;
       console.log("[cambiarCuenta] email=", newEmail, "known.schoolKey=", known?.schoolKey, "authSchoolKey=", res.result.schoolKey, "effectiveKey=", effectiveKey);
       // Forzar config al schoolKey real de la cuenta (sin disparar push).
@@ -503,6 +506,15 @@
         console.error("[cambiarCuenta] restore falló:", e);
         await emit("show-toast", { message: "❌ No se pudieron restaurar los datos de la nube: " + e, type: "error" });
         return;
+      }
+      // 6c) Si la nube de la cuenta está vacía, avisar claramente (no dejar al
+      // usuario perdido en WelcomePage sin explicación).
+      const pulledAny = restoreRes && restoreRes.pulled && Object.values(restoreRes.pulled).some((n: any) => Number(n) > 0);
+      if (!pulledAny) {
+        await emit("show-toast", {
+          message: "⚠️ La nube de " + newEmail + " está vacía. Usa 'Tengo un respaldo' (WelcomePage) o 'Restaurar' (Drive) para recuperar sus datos.",
+          type: "warning",
+        });
       }
       // 7) Registrar la cuenta activa y refrescar estados de UI
       if (newEmail) {
