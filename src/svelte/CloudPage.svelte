@@ -545,6 +545,14 @@
         });
         setCurrentEmail(newEmail);
       }
+      // 7b) Drive queda SOLO como respaldo: tras restaurar desde Cloudflare,
+      // subimos el estado restaurado a Drive (backup) para que quede coherente y
+      // el próximo auto-sync de Drive NO haga pull sobre los datos de Cloudflare.
+      // Nunca restauramos desde Drive en un cambio de cuenta.
+      try {
+        await driveSyncService.pushAll();
+        console.log("[cambiarCuenta] backup a Drive del estado restaurado desde Cloudflare");
+      } catch (e) { console.warn("[cambiarCuenta] no se pudo respaldar a Drive:", e); }
       loadSettings();
       perfil = getPerfilLocal();
       d1Cfg = await d1SyncService.getConfig();
