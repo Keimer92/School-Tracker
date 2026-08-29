@@ -1559,6 +1559,25 @@ async fn gd_import_db_from_file(app_handle: tauri::AppHandle, source_path: Strin
     Ok(db_path.to_string_lossy().into_owned())
 }
 
+/// Copia de seguridad de la BD local antes de un "cambio de profesor" destructivo,
+/// para poder recuperar si el restore desde la nube falla. Devuelve la ruta del backup.
+#[tauri::command]
+async fn create_switch_backup(app_handle: tauri::AppHandle) -> Result<String, String> {
+    use std::fs;
+    let app_data_dir = get_profile_app_dir(&app_handle)?;
+    let db_path = app_data_dir.join("school.db");
+    if !db_path.exists() {
+        return Err("No existe school.db para respaldar".to_string());
+    }
+    let backups_dir = app_data_dir.join("backups");
+    if !backups_dir.exists() {
+        fs::create_dir_all(&backups_dir).map_err(|e| format!("Failed to create backups dir: {}", e))?;
+    }
+    let backup = backups_dir.join(format!("switch_backup_{}.db", chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")));
+    fs::copy(&db_path, &backup).map_err(|e| format!("Failed to create switch backup: {}", e))?;
+    Ok(backup.to_string_lossy().into_owned())
+}
+
 fn get_profile_app_dir(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
     let app_dir = app_handle
         .path()
@@ -1771,6 +1790,7 @@ pub fn run() {
             gd_get_backups,
             gd_delete_backup,
             gd_import_db_from_file,
+            create_switch_backup,
             get_dashboard_stats,
             get_dashboard_detalle,
             get_grados_secciones_sin_asistencia_hoy,

@@ -547,8 +547,9 @@ pub async fn d1_sync_all(app: tauri::AppHandle, state: tauri::State<'_, DbState>
             .clone()
             .unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
         println!(
-            "[D1] sync INICIO device={}… push_since=\"{}\" pull_since=\"{}\"",
+            "[D1] sync INICIO device={}… schoolKey={}… push_since=\"{}\" pull_since=\"{}\"",
             &cfg.device_id[..cfg.device_id.len().min(16)],
+            &cfg.school_key[..cfg.school_key.len().min(10)],
             push_since,
             since
         );
@@ -757,32 +758,8 @@ pub async fn d1_restore_from_cloud(
         &cfg.school_key[..cfg.school_key.len().min(8)]
     );
 
-    // 2) Limpiar TODA la base local (la nube es autoritativa).
-    {
-        let conn = state.conn.lock().map_err(|e| e.to_string())?;
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS sync_recent_pulls (
-                tabla TEXT NOT NULL, pk TEXT NOT NULL, updated_at TEXT NOT NULL, ts INTEGER NOT NULL,
-                PRIMARY KEY (tabla, pk)
-            );",
-        )
-        .map_err(|e| e.to_string())?;
-        let tables = [
-            "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
-            "grado_asignatura", "colegio_asignatura", "indicador", "criterio",
-            "estudiante", "configuracion_calificacion", "multiplicador_calificacion",
-            "colegio_dias_asistencia", "asistencia", "nota", "dia_sin_clases",
-            "sync_pending_deletions", "sync_pending_deletions_asistencia",
-            "sync_pending_deletions_nota", "sync_pending_deletions_grado_asignatura",
-            "sync_pending_deletions_colegio_asignatura", "sync_recent_pulls",
-        ];
-        for t in &tables {
-            conn.execute(&format!("DELETE FROM {}", t), [])
-                .map_err(|e| format!("Error limpiando {}: {}", t, e))?;
-        }
-    }
-
-    // 3) PULL completo (el device_id nuevo trae TODAS las filas de la nube).
+    // 2) PULL completo PRIMERO (el device_id nuevo trae TODAS las filas de la
+    // nube). Si el pull falla, la BD local queda intacta.
     let pull_body = json!({
         "since": "1970-01-01 00:00:00",
         "deviceId": cfg.device_id,
@@ -796,11 +773,35 @@ pub async fn d1_restore_from_cloud(
     .await
     .map_err(|e| format!("Error en pull (hilo): {}", e))??;
 
-    // 4) Aplicar filas (local vacío → sin conflicto UNIQUE).
+    // 3) Aplicar en UNA sola transacción: se BORRAN todas las tablas locales
+    // (incluidas las de catálogo con UNIQUE) y se insertan las filas de la
+    // nube. La nube es la fuente de verdad → sin colisiones por ids distintos
+    // (p. ej. corte_evaluativo.nombre) contra la siembra local.
     let _ = app.emit("d1-sync-progress", json!({ "message": "Guardando datos localmente…" }));
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute("PRAGMA foreign_keys = OFF", []).map_err(|e| e.to_string())?;
     let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    tx.execute_batch(
+        "CREATE TABLE IF NOT EXISTS sync_recent_pulls (
+            tabla TEXT NOT NULL, pk TEXT NOT NULL, updated_at TEXT NOT NULL, ts INTEGER NOT NULL,
+            PRIMARY KEY (tabla, pk)
+        );",
+    )
+    .map_err(|e| e.to_string())?;
+    let tables = [
+        "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
+        "grado_asignatura", "colegio_asignatura", "indicador", "criterio",
+        "estudiante", "configuracion_calificacion", "multiplicador_calificacion",
+        "colegio_dias_asistencia", "asistencia", "nota", "dia_sin_clases",
+        "sync_pending_deletions", "sync_pending_deletions_asistencia",
+        "sync_pending_deletions_nota", "sync_pending_deletions_grado_asignatura",
+        "sync_pending_deletions_colegio_asignatura", "sync_recent_pulls",
+    ];
+    for t in &tables {
+        tx.execute(&format!("DELETE FROM {}", t), [])
+            .map_err(|e| format!("Error limpiando {}: {}", t, e))?;
+    }
 
     let mut pulled_counts: Map<String, Value> = Map::new();
     if let Some(rows) = pull_resp.get("rows").and_then(|v| v.as_object()) {
@@ -857,11 +858,18 @@ pub async fn d1_restore_from_cloud(
     let _ = app.emit("schooltracker-sync", json!({ "source": "restore" }));
     let _ = app.emit("data-updated", json!({ "source": "restore" }));
 
+    let pulled_total: u64 = pulled_counts.values().filter_map(|v| v.as_u64()).sum();
+    let pulled_detail: Vec<String> = pulled_counts
+        .iter()
+        .map(|(t, n)| format!("{}:{}", t, n.as_u64().unwrap_or(0)))
+        .collect();
     println!(
-        "[D1] restore FIN device={}… pull={} tablas ({} filas) del={} nuevo_since=\"{}\"",
+        "[D1] restore FIN device={}… schoolKey={}… pull={} tablas ({} filas) [{}] del={} nuevo_since=\"{}\"",
         &cfg.device_id[..cfg.device_id.len().min(16)],
+        &cfg.school_key[..cfg.school_key.len().min(10)],
         pulled_counts.len(),
-        pulled_counts.values().filter_map(|v| v.as_u64()).sum::<u64>(),
+        pulled_total,
+        pulled_detail.join(", "),
         deleted_count,
         new_sync
     );

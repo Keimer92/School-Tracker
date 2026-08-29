@@ -11,7 +11,7 @@ import {
 import { d1SyncService } from "./d1SyncService";
 import { invalidateD1Cache, syncService } from "./syncService";
 import { ensureWsSync, stopWsSync } from "./wsSyncService";
-import { getProfile, saveProfile } from "./accountProfiles";
+import { getProfile, saveProfile, setCurrentEmail } from "./accountProfiles";
 
 export type CloudLoginResult =
   | { status: 'ok'; result: AuthResult; schoolKey: string }
@@ -52,7 +52,7 @@ async function exchangeServerAuthCode(code: string): Promise<any> {
  * Flujo común tras obtener credenciales (por .key o por login Google):
  * guarda la config en d1_config (protección anti-mezcla) y sincroniza.
  */
-async function conectarConCredenciales(workerUrl: string, schoolKey: string, opts?: { onStatus?: (msg: string) => void }) {
+async function conectarConCredenciales(workerUrl: string, schoolKey: string, opts?: { onStatus?: (msg: string) => void; skipSync?: boolean }) {
   // Reflejar el progreso granular que emite el Rust (d1-sync-progress) en el
   // modal de carga, para que no parezca congelado durante el sync.
   let unlisten: (() => void) | null = null;
@@ -75,7 +75,7 @@ async function conectarConCredenciales(workerUrl: string, schoolKey: string, opt
   stopWsSync();
   await ensureWsSync();
   syncService.ensurePeriodicSync();
-  try { await invoke('d1_sync_all'); } catch (e) { console.error('[Cloud] primer sync falló:', e); }
+  try { if (!opts?.skipSync) await invoke('d1_sync_all'); } catch (e) { console.error('[Cloud] primer sync falló:', e); }
   if (unlisten) unlisten();
 }
 
@@ -89,6 +89,7 @@ export async function iniciarSesionGoogleConNube(opts?: {
   onStatus?: (msg: string) => void;
   setBackAuth?: (b: boolean) => void;
   forceSelectAccount?: boolean;
+  skipSync?: boolean;
 }): Promise<CloudLoginResult> {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
     if (!clientId) return { status: 'error', error: 'Falta VITE_GOOGLE_CLIENT_ID en .env' };
@@ -154,26 +155,37 @@ export async function iniciarSesionGoogleConNube(opts?: {
     const email = (result.perfil?.email || '').toLowerCase();
     let effectiveKey = result.schoolKey;
     let effectiveWorker = DEFAULT_WORKER_URL;
+    let known: any = null;
+    let localCfg: any = null;
     if (email) {
-      const known = getProfile(email);
+      known = getProfile(email);
       if (known?.schoolKey) {
         effectiveKey = known.schoolKey;
         if (known.workerUrl) effectiveWorker = known.workerUrl;
       } else {
-        const localCfg = await d1SyncService.getConfig().catch(() => null);
+        localCfg = await d1SyncService.getConfig().catch(() => null);
         if (localCfg?.schoolKey) {
-          saveProfile({
-            email,
-            schoolKey: localCfg.schoolKey,
-            workerUrl: localCfg.workerUrl || DEFAULT_WORKER_URL,
-            nombre: result.perfil?.nombre,
-          });
           effectiveKey = localCfg.schoolKey;
           if (localCfg.workerUrl) effectiveWorker = localCfg.workerUrl;
         }
       }
     }
+    console.log(
+      `[CloudLogin] effectiveKey=${effectiveKey} fromKnown=${!!known?.schoolKey} fromLocalCfg=${!!(!known?.schoolKey && localCfg?.schoolKey)} authSchoolKey=${result.schoolKey} creado=${result.creado} email=${email} skipSync=${!!opts?.skipSync}`
+    );
     await conectarConCredenciales(effectiveWorker, effectiveKey, opts);
+    // Registrar SIEMPRE el perfil (email → schoolKey) tras conectarse: así un
+    // futuro "cambiar de usuario" reutiliza el schoolKey correcto aunque /auth
+    // devuelva una escuela nueva y vacía (cuentas conectadas vía .key/.db).
+    if (email) {
+      saveProfile({
+        email,
+        schoolKey: effectiveKey,
+        workerUrl: effectiveWorker,
+        nombre: result.perfil?.nombre,
+      });
+      setCurrentEmail(email);
+    }
 
     if (/Android/i.test(navigator.userAgent)) {
       if (driveAuthCode) {

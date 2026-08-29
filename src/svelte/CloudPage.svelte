@@ -442,6 +442,11 @@
       }
       // 1) Asegurar que los datos del profesor actual están en su nube antes de borrar
       try { await invoke("d1_sync_all"); } catch { /* ignore */ }
+      // 1b) Respaldo de seguridad local de la BD antes de cualquier borrado destructivo
+      try {
+        const bk = await invoke<string>("create_switch_backup");
+        console.log("[cambiarCuenta] respaldo local creado:", bk);
+      } catch (e) { console.warn("[cambiarCuenta] no se pudo crear respaldo:", e); }
       // 2) Borrar TODA la base de datos local (incluida d1_config y pendientes de sync) para aislar el perfil
       await invoke("reset_profile_account");
       // 3) Desvincular nube y Drive localmente
@@ -461,9 +466,12 @@
       await emit("data-updated", {});
       await emit("catalog-updated", {});
       await emit("student-updated", {});
-      // 5) Autenticar la nueva cuenta (Nube + Drive en un solo flujo, con selector forzado)
+      // 5) Autenticar la nueva cuenta (Nube + Drive en un solo flujo, con selector forzado).
+      // skipSync: NO hacemos push de la BD recién sembrada a la nube de la nueva cuenta
+      // (eso corrompía/borraba los datos de la cuenta destino). Solo se hará pull en el restore.
       const res = await iniciarSesionGoogleConNube({
         forceSelectAccount: true,
+        skipSync: true,
         onStatus: (m) => emit("show-toast", { message: m, type: "info" }),
         setBackAuth: setBackAuthInProgress,
       });
@@ -479,19 +487,29 @@
       // haya creado uno nuevo y vacío, perdiendo el vínculo con los datos existentes).
       const newEmail = (res.result?.perfil?.email || '').toLowerCase();
       const known = newEmail ? getProfile(newEmail) : null;
-      if (known && known.schoolKey && known.schoolKey !== res.result.schoolKey) {
-        await d1SyncService.saveConfig(known.workerUrl, known.schoolKey);
-        await invalidateD1Cache();
-        // Restaurar autoritativamente desde el schoolKey real (regenera device_id
-        // y descarga TODO el contenido de la nube, sin colisiones UNIQUE locales).
-        try { await invoke("d1_restore_from_cloud"); } catch { /* ignore */ }
+      const effectiveKey = known?.schoolKey || res.result.schoolKey;
+      const effectiveWorker = known?.workerUrl || DEFAULT_WORKER_URL;
+      console.log("[cambiarCuenta] email=", newEmail, "known.schoolKey=", known?.schoolKey, "authSchoolKey=", res.result.schoolKey, "effectiveKey=", effectiveKey);
+      // Forzar config al schoolKey real de la cuenta (sin disparar push).
+      await d1SyncService.saveConfig(effectiveWorker, effectiveKey);
+      await invalidateD1Cache();
+      // 6b) Restaurar SIEMPRE desde el schoolKey real (SOLO pull, sin push). Esto
+      // limpia la siembra local y descarga lo que la cuenta tenga en la nube.
+      let restoreRes: any = null;
+      try {
+        restoreRes = await invoke("d1_restore_from_cloud");
+        console.log("[cambiarCuenta] restore OK:", JSON.stringify(restoreRes));
+      } catch (e) {
+        console.error("[cambiarCuenta] restore falló:", e);
+        await emit("show-toast", { message: "❌ No se pudieron restaurar los datos de la nube: " + e, type: "error" });
+        return;
       }
       // 7) Registrar la cuenta activa y refrescar estados de UI
       if (newEmail) {
         saveProfile({
           email: newEmail,
-          schoolKey: known?.schoolKey || res.result.schoolKey,
-          workerUrl: known?.workerUrl || DEFAULT_WORKER_URL,
+          schoolKey: effectiveKey,
+          workerUrl: effectiveWorker,
           nombre: res.result?.perfil?.nombre,
         });
         setCurrentEmail(newEmail);
