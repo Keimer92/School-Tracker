@@ -125,7 +125,13 @@ export async function iniciarSesionGoogleConNube(opts?: {
     } else {
       opts?.setBackAuth?.(true);
       const redirectUri = 'http://localhost:51733/callback';
-      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent('openid email profile https://www.googleapis.com/auth/drive.file')}&access_type=offline&prompt=${opts?.forceSelectAccount ? 'select_account' : 'consent'}`;
+      // forceSelectAccount: al cambiar de cuenta queremos el selector de cuenta
+      // (select_account) PERO también forzar el consentimiento (consent) para que
+      // Google muestre la pantalla de confirmación y emita un refresh_token nuevo
+      // (necesario para Drive), en lugar de devolver el código "de golpe" y cerrar
+      // el modal sin confirmación.
+      const prompt = opts?.forceSelectAccount ? 'select_account consent' : 'consent';
+      const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent('openid email profile https://www.googleapis.com/auth/drive.file')}&access_type=offline&prompt=${encodeURIComponent(prompt)}`;
       opts?.onStatus?.('Esperando autenticación de Google...');
       const code = await invoke<string>('gd_open_auth_webview', { url: authUrl });
       opts?.setBackAuth?.(false);
