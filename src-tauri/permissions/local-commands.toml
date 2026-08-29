@@ -111,6 +111,7 @@ commands.allow = [
     "gd_delete_backup",
     "gd_import_db_from_file",
     "create_switch_backup",
+    "restore_switch_backup_db",
     "get_current_school_key",
     "delete_notas",
     "delete_student_batch",

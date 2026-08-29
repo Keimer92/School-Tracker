@@ -440,8 +440,14 @@
       if (curCfg && curEmail) {
         saveProfile({ email: curEmail, schoolKey: curCfg.schoolKey, workerUrl: curCfg.workerUrl, nombre: getPerfilLocal()?.nombre });
       }
-      // 1) Asegurar que los datos del profesor actual están en su nube antes de borrar
-      try { await invoke("d1_sync_all"); } catch { /* ignore */ }
+      // 1) Asegurar que los datos del profesor actual están en su nube antes de borrar.
+      //    Solo si hay datos reales: si la BD está vacía (p. ej. tras un restore
+      //    fallido de un switch previo) NO empujamos, para no machacar la nube con
+      //    una BD vacía.
+      try {
+        const sts: any = await invoke("get_students").catch(() => null);
+        if (Array.isArray(sts) && sts.length > 0) await invoke("d1_sync_all");
+      } catch { /* ignore */ }
       // 1b) Respaldo de seguridad local de la BD antes de cualquier borrado destructivo
       try {
         const bk = await invoke<string>("create_switch_backup");
@@ -483,45 +489,58 @@
         await emit("show-toast", { message: "❌ " + res.error, type: "error" });
         return;
       }
-      // 6) Reusar el schoolKey REAL de la cuenta si ya lo conocemos (evita que /auth
-      // haya creado uno nuevo y vacío, perdiendo el vínculo con los datos existentes).
+      // 6) Resolver la schoolKey REAL de la cuenta. Probamos varias fuentes en
+      // orden de prioridad y nos quedamos con la PRIMERA que realmente devuelva
+      // datos desde la nube. Así evitamos quedarnos con una clave vacía/errónea
+      // (p. ej. un /auth que creó una escuela nueva) que dejaría la BD vacía y
+      // nos enviaría a WelcomePage, o que luego machacara la nube al sincronizar.
       const newEmail = (res.result?.perfil?.email || '').toLowerCase();
       const known = newEmail ? getProfile(newEmail) : null;
-      // Preferir el registro local (email→schoolKey), que fue poblado
-      // correctamente al importar/restaurar la cuenta (usa la clave real del
-      // archivo, no /auth). /auth es solo respaldo.
-      const effectiveKey = known?.schoolKey || res.result.schoolKey;
-      const effectiveWorker = known?.workerUrl || DEFAULT_WORKER_URL;
-      console.log("[cambiarCuenta] email=", newEmail, "known.schoolKey=", known?.schoolKey, "authSchoolKey=", res.result.schoolKey, "effectiveKey=", effectiveKey);
-      // Forzar config al schoolKey real de la cuenta (sin disparar push).
-      await d1SyncService.saveConfig(effectiveWorker, effectiveKey);
-      await invalidateD1Cache();
-      // 6b) Restaurar SIEMPRE desde el schoolKey real (SOLO pull, sin push). Esto
-      // limpia la siembra local y descarga lo que la cuenta tenga en la nube.
+      type Cand = { key: string; worker: string; label: string };
+      const candMap = new Map<string, Cand>();
+      if (known?.schoolKey) candMap.set(known.schoolKey, { key: known.schoolKey, worker: known.workerUrl || DEFAULT_WORKER_URL, label: "registro-local" });
+      if (res.result.schoolKey) candMap.set(res.result.schoolKey, { key: res.result.schoolKey, worker: DEFAULT_WORKER_URL, label: "auth" });
+      const candidates = Array.from(candMap.values());
+      console.log("[cambiarCuenta] email=", newEmail, "candidatos:", candidates.map((c) => `${c.label}=${c.key.slice(0, 8)}…`).join(", "));
+
       let restoreRes: any = null;
-      try {
-        restoreRes = await invoke("d1_restore_from_cloud");
-        console.log("[cambiarCuenta] restore OK:", JSON.stringify(restoreRes));
-      } catch (e) {
-        console.error("[cambiarCuenta] restore falló:", e);
-        await emit("show-toast", { message: "❌ No se pudieron restaurar los datos de la nube: " + e, type: "error" });
+      let usedCand: Cand | null = null;
+      for (const cand of candidates) {
+        try {
+          await d1SyncService.saveConfig(cand.worker, cand.key);
+          await invalidateD1Cache();
+          const r: any = await invoke("d1_restore_from_cloud");
+          console.log(`[cambiarCuenta] restore(${cand.label}) OK:`, JSON.stringify(r));
+          const pulledAny = r?.pulled && Object.values(r.pulled).some((n: any) => Number(n) > 0);
+          if (pulledAny) { restoreRes = r; usedCand = cand; break; }
+          console.log(`[cambiarCuenta] restore(${cand.label}) vacío, probando siguiente candidato`);
+        } catch (e) {
+          console.error(`[cambiarCuenta] restore(${cand.label}) falló:`, e);
+        }
+      }
+      if (!usedCand) {
+        // Ningún candidato trajo datos: restaurar el respaldo local de seguridad
+        // (la BD del profesor saliente) para no dejar la app vacía ni machacar la
+        // nube con una BD vacía en un switch posterior.
+        await emit("show-toast", {
+          message: "❌ No se encontraron datos en la nube para " + newEmail + " con ninguna clave conocida. Se restauró tu base local anterior.",
+          type: "error",
+        });
+        try {
+          if (bk) {
+            await invoke("restore_switch_backup_db", { sourcePath: bk });
+            await invoke("gd_reload_database");
+          }
+        } catch (e2) { console.error("[cambiarCuenta] no se pudo restaurar respaldo:", e2); }
         return;
       }
-      // 6c) Si la nube de la cuenta está vacía, avisar claramente (no dejar al
-      // usuario perdido en WelcomePage sin explicación).
-      const pulledAny = restoreRes && restoreRes.pulled && Object.values(restoreRes.pulled).some((n: any) => Number(n) > 0);
-      if (!pulledAny) {
-        await emit("show-toast", {
-          message: "⚠️ La nube de " + newEmail + " está vacía. Usa 'Tengo un respaldo' (WelcomePage) o 'Restaurar' (Drive) para recuperar sus datos.",
-          type: "warning",
-        });
-      }
-      // 7) Registrar la cuenta activa y refrescar estados de UI
+      // 7) Registrar la cuenta activa (SOLO si el restore tuvo éxito, para no
+      // envenenar el registro local con una clave vacía) y refrescar UI.
       if (newEmail) {
         saveProfile({
           email: newEmail,
-          schoolKey: effectiveKey,
-          workerUrl: effectiveWorker,
+          schoolKey: usedCand.key,
+          workerUrl: usedCand.worker,
           nombre: res.result?.perfil?.nombre,
         });
         setCurrentEmail(newEmail);

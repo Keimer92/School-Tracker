@@ -1591,6 +1591,23 @@ async fn create_switch_backup(app_handle: tauri::AppHandle) -> Result<String, St
     Ok(backup.to_string_lossy().into_owned())
 }
 
+/// Restaura la BD local desde un respaldo de seguridad (p. ej. el creado al
+/// cambiar de profesor) SIN tocar d1_config, para poder volver al estado previo
+/// si un restore desde la nube falla. No borra la tabla d1_config (a diferencia
+/// de gd_import_db_from_file), así la cuenta saliente queda intacta.
+#[tauri::command]
+async fn restore_switch_backup_db(app_handle: tauri::AppHandle, source_path: String) -> Result<String, String> {
+    use std::fs;
+    let import_path = std::path::PathBuf::from(&source_path);
+    if !import_path.exists() {
+        return Err("El respaldo especificado no existe".to_string());
+    }
+    let app_data_dir = get_profile_app_dir(&app_handle)?;
+    let db_path = app_data_dir.join("school.db");
+    fs::copy(&import_path, &db_path).map_err(|e| format!("Failed to restore backup: {}", e))?;
+    Ok(db_path.to_string_lossy().into_owned())
+}
+
 /// Lee la school_key actualmente configurada en la BD local (antes de que se
 /// limpie), para poder reusarla al importar un respaldo .db en lugar de
 /// depender de /auth (que puede devolver una clave distinta a donde están los datos).
@@ -1816,6 +1833,7 @@ pub fn run() {
             gd_delete_backup,
             gd_import_db_from_file,
             create_switch_backup,
+            restore_switch_backup_db,
             get_current_school_key,
             get_dashboard_stats,
             get_dashboard_detalle,
