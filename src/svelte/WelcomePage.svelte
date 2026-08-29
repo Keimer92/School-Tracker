@@ -160,12 +160,16 @@
       loadingMessage = 'Importando base de datos...';
       await invoke('gd_import_db_from_file', { sourcePath: ruta });
       await invoke('gd_reload_database');
+      // Leer la school_key que TRAE el respaldo .db ANTES de limpiar la
+      // configuración, para reusarla al vincular Google (si usamos /auth se
+      // podría generar una clave distinta y los datos quedarían huérfanos).
+      const importedKey = await invoke<string | null>('get_current_school_key');
       loadingMessage = 'Vinculando con tu cuenta de Google...';
       // Desvincular la nube anterior que pudiera venir dentro del respaldo
       // (d1_config de otro dispositivo) para reconectar LIMPIO con la cuenta
       // de Google elegida en el siguiente paso.
       try { await invoke('d1_clear_config'); } catch {}
-      await handleCloudLogin();
+      await handleCloudLogin(importedKey || undefined);
     } catch (e: any) {
       errorMsg = 'Error importando base de datos: ' + (typeof e === 'string' ? e : e?.message || String(e));
       loading = false;
@@ -179,13 +183,14 @@
    * Google Drive con la MISMA cuenta. Tras conectar, verifica si la nube ya
    * tiene datos para saltar el asistente.
    */
-  async function handleCloudLogin() {
+  async function handleCloudLogin(preferredKey?: string) {
     loading = true;
     errorMsg = '';
     try {
       const res = await iniciarSesionGoogleConNube({
         onStatus: (m) => { loadingMessage = m; },
         setBackAuth: setBackAuthInProgress,
+        preferredKey,
       });
       if (res.status === 'ok') {
         loadingMessage = 'Verificando datos...';

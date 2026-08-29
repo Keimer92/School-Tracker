@@ -1578,6 +1578,18 @@ async fn create_switch_backup(app_handle: tauri::AppHandle) -> Result<String, St
     Ok(backup.to_string_lossy().into_owned())
 }
 
+/// Lee la school_key actualmente configurada en la BD local (antes de que se
+/// limpie), para poder reusarla al importar un respaldo .db en lugar de
+/// depender de /auth (que puede devolver una clave distinta a donde están los datos).
+#[tauri::command]
+async fn get_current_school_key(state: tauri::State<'_, DbState>) -> Result<Option<String>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let key: Option<String> = conn
+        .query_row("SELECT school_key FROM d1_config WHERE id = 1", [], |r| r.get(0))
+        .ok();
+    Ok(key)
+}
+
 fn get_profile_app_dir(app_handle: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
     let app_dir = app_handle
         .path()
@@ -1791,6 +1803,7 @@ pub fn run() {
             gd_delete_backup,
             gd_import_db_from_file,
             create_switch_backup,
+            get_current_school_key,
             get_dashboard_stats,
             get_dashboard_detalle,
             get_grados_secciones_sin_asistencia_hoy,

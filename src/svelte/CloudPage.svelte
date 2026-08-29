@@ -487,10 +487,10 @@
       // haya creado uno nuevo y vacío, perdiendo el vínculo con los datos existentes).
       const newEmail = (res.result?.perfil?.email || '').toLowerCase();
       const known = newEmail ? getProfile(newEmail) : null;
-      // EL Worker (/auth) es autoritativo para email→schoolKey. El registro local
-      // pudo contaminarse con claves vacías en switches rotos; por eso se prefiere
-      // res.result.schoolKey sobre known.schoolKey.
-      const effectiveKey = res.result.schoolKey || known?.schoolKey;
+      // Preferir el registro local (email→schoolKey), que fue poblado
+      // correctamente al importar/restaurar la cuenta (usa la clave real del
+      // archivo, no /auth). /auth es solo respaldo.
+      const effectiveKey = known?.schoolKey || res.result.schoolKey;
       const effectiveWorker = known?.workerUrl || DEFAULT_WORKER_URL;
       console.log("[cambiarCuenta] email=", newEmail, "known.schoolKey=", known?.schoolKey, "authSchoolKey=", res.result.schoolKey, "effectiveKey=", effectiveKey);
       // Forzar config al schoolKey real de la cuenta (sin disparar push).

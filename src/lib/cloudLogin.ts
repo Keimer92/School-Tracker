@@ -52,7 +52,7 @@ async function exchangeServerAuthCode(code: string): Promise<any> {
  * Flujo común tras obtener credenciales (por .key o por login Google):
  * guarda la config en d1_config (protección anti-mezcla) y sincroniza.
  */
-async function conectarConCredenciales(workerUrl: string, schoolKey: string, opts?: { onStatus?: (msg: string) => void; skipSync?: boolean }) {
+async function conectarConCredenciales(workerUrl: string, schoolKey: string, opts?: { onStatus?: (msg: string) => void; skipSync?: boolean; preferredKey?: string }) {
   // Reflejar el progreso granular que emite el Rust (d1-sync-progress) en el
   // modal de carga, para que no parezca congelado durante el sync.
   let unlisten: (() => void) | null = null;
@@ -90,6 +90,7 @@ export async function iniciarSesionGoogleConNube(opts?: {
   setBackAuth?: (b: boolean) => void;
   forceSelectAccount?: boolean;
   skipSync?: boolean;
+  preferredKey?: string;
 }): Promise<CloudLoginResult> {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
     if (!clientId) return { status: 'error', error: 'Falta VITE_GOOGLE_CLIENT_ID en .env' };
@@ -153,33 +154,36 @@ export async function iniciarSesionGoogleConNube(opts?: {
     // recuperar los datos con un archivo .key). Evita que /auth devuelva una
     // escuela nueva y vacía y se pierda el vínculo con los datos existentes.
     const email = (result.perfil?.email || '').toLowerCase();
+    const preferredKey = opts?.preferredKey;
     let effectiveKey = result.schoolKey;
     let effectiveWorker = DEFAULT_WORKER_URL;
     let known: any = null;
     let localCfg: any = null;
     if (email) {
       known = getProfile(email);
-      // /auth (el Worker) es la fuente autoritativa del mapeo email→schoolKey.
-      // El registro local (accountProfiles) pudo contaminarse con claves vacías
-      // durante los "cambiar de usuario" rotos, por eso se prefiere /auth.
-      if (result.schoolKey) {
-        effectiveKey = result.schoolKey;
-        if (known?.schoolKey && known.schoolKey !== effectiveKey) {
-          console.log(`[CloudLogin] registry key ${known.schoolKey} != /auth ${effectiveKey}; se usa /auth (autoritativo)`);
-        }
+      localCfg = await d1SyncService.getConfig().catch(() => null);
+      // Prioridad de resolución de clave:
+      //   1) preferredKey → clave explícita del archivo (.db/.key importado)
+      //   2) localCfg     → d1_config actual (p. ej. importación .key)
+      //   3) known        → registro local (email→clave)
+      //   4) /auth        → result.schoolKey (último recurso: puede diferir de
+      //                     donde REALMENTE están los datos si la cuenta se
+      //                     configuró vía archivo .key/.db).
+      if (preferredKey) {
+        effectiveKey = preferredKey;
+        if (localCfg?.workerUrl) effectiveWorker = localCfg.workerUrl;
+      } else if (localCfg?.schoolKey) {
+        effectiveKey = localCfg.schoolKey;
+        if (localCfg.workerUrl) effectiveWorker = localCfg.workerUrl;
       } else if (known?.schoolKey) {
         effectiveKey = known.schoolKey;
         if (known.workerUrl) effectiveWorker = known.workerUrl;
       } else {
-        localCfg = await d1SyncService.getConfig().catch(() => null);
-        if (localCfg?.schoolKey) {
-          effectiveKey = localCfg.schoolKey;
-          if (localCfg.workerUrl) effectiveWorker = localCfg.workerUrl;
-        }
+        effectiveKey = result.schoolKey;
       }
     }
     console.log(
-      `[CloudLogin] effectiveKey=${effectiveKey} fromAuth=${!!result.schoolKey} fromKnown=${!!known?.schoolKey} fromLocalCfg=${!!localCfg?.schoolKey} creado=${result.creado} email=${email} skipSync=${!!opts?.skipSync}`
+      `[CloudLogin] effectiveKey=${effectiveKey} fromPreferred=${!!preferredKey} fromLocalCfg=${!!localCfg?.schoolKey} fromKnown=${!!known?.schoolKey} fromAuth=${!!result.schoolKey} creado=${result.creado} email=${email} skipSync=${!!opts?.skipSync}`
     );
     await conectarConCredenciales(effectiveWorker, effectiveKey, opts);
     // Registrar SIEMPRE el perfil (email → schoolKey) tras conectarse: así un
