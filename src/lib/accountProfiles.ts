@@ -19,6 +19,14 @@ export interface AccountProfile {
   schoolKey: string;
   workerUrl: string;
   nombre?: string;
+  foto?: string;
+  // Credenciales guardadas para alternar de cuenta SIN re-autorizar
+  googleIdToken?: string;
+  googleAccessToken?: string | null;
+  googleRefreshToken?: string | null;
+  googleIdExpiresAt?: number;
+  googleDriveExpiresAt?: number;
+  googleClientId?: string;
 }
 
 export function loadProfiles(): Record<string, AccountProfile> {
@@ -31,13 +39,30 @@ export function loadProfiles(): Record<string, AccountProfile> {
 
 export function saveProfile(p: AccountProfile): void {
   const all = loadProfiles();
-  all[p.email.toLowerCase()] = p;
+  const key = p.email.toLowerCase();
+  // Merge (no reemplazo) para no perder las credenciales ya guardadas
+  // (tokens) cuando sólo se actualiza la schoolKey/workerUrl.
+  all[key] = { ...all[key], ...p };
+  localStorage.setItem(PROFILES_KEY, JSON.stringify(all));
+}
+
+/** Actualiza solo un subconjunto de campos (p. ej. tokens refrescados). */
+export function patchProfileTokens(email: string, patch: Partial<AccountProfile>): void {
+  const all = loadProfiles();
+  const key = (email || '').toLowerCase();
+  if (!key || !all[key]) return;
+  all[key] = { ...all[key], ...patch };
   localStorage.setItem(PROFILES_KEY, JSON.stringify(all));
 }
 
 export function getProfile(email: string | null | undefined): AccountProfile | null {
   if (!email) return null;
   return loadProfiles()[email.toLowerCase()] || null;
+}
+
+/** Lista de todas las cuentas vinculadas (para el selector de switch). */
+export function listProfiles(): AccountProfile[] {
+  return Object.values(loadProfiles());
 }
 
 export function removeProfile(email: string | null | undefined): void {

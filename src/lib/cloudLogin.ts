@@ -13,10 +13,24 @@ import { invalidateD1Cache, syncService } from "./syncService";
 import { ensureWsSync, stopWsSync } from "./wsSyncService";
 import { getProfile, saveProfile, setCurrentEmail } from "./accountProfiles";
 
+export interface CloudLoginTokens {
+  idToken: string;
+  accessToken: string | null;
+  refreshToken: string | null;
+}
+
 export type CloudLoginResult =
-  | { status: 'ok'; result: AuthResult; schoolKey: string }
+  | { status: 'ok'; result: AuthResult; schoolKey: string; tokens?: CloudLoginTokens }
   | { status: 'cancelled' }
   | { status: 'error'; error: string };
+
+/** Decode exp (ms) de un id_token sin verificar firma (solo para refresh). */
+function idTokenExpMs(idToken: string): number {
+  try {
+    const p = JSON.parse(atob(idToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return (p.exp || 0) * 1000;
+  } catch { return 0; }
+}
 
 /** Guarda la sesión de Google Drive en localStorage (misma cuenta que la nube). */
 function guardarSesionDrive(clientId: string, tokenData: any): void {
@@ -97,6 +111,8 @@ export async function iniciarSesionGoogleConNube(opts?: {
   let driveAuthCode = '';
   try {
     let idToken = '';
+    let accessToken: string | null = null;
+    let refreshToken: string | null = null;
     if (/Android/i.test(navigator.userAgent)) {
       opts?.onStatus?.('Abriendo Google Sign-In...');
       await invoke('gd_start_native_signin', { serverClientId: clientId });
@@ -144,6 +160,8 @@ export async function iniciarSesionGoogleConNube(opts?: {
       if (!tokenRes.ok) return { status: 'error', error: 'Error intercambiando código: ' + (await tokenRes.text()) };
       const tokenData = await tokenRes.json();
       idToken = tokenData.id_token || '';
+      accessToken = tokenData.access_token || null;
+      refreshToken = tokenData.refresh_token || null;
       if (!idToken) return { status: 'error', error: 'Google no devolvió id_token' };
       guardarSesionDrive(clientId, tokenData);
       // El refresh_token NO expira: permite renovar el id_token sin re-login.
@@ -198,6 +216,13 @@ export async function iniciarSesionGoogleConNube(opts?: {
         schoolKey: effectiveKey,
         workerUrl: effectiveWorker,
         nombre: result.perfil?.nombre,
+        foto: result.perfil?.foto,
+        googleIdToken: idToken,
+        googleAccessToken: accessToken,
+        googleRefreshToken: refreshToken,
+        googleIdExpiresAt: idTokenExpMs(idToken),
+        googleDriveExpiresAt: Date.now() + (accessToken ? 3600 * 1000 : 0),
+        googleClientId: clientId,
       });
       setCurrentEmail(email);
     }
@@ -209,6 +234,8 @@ export async function iniciarSesionGoogleConNube(opts?: {
           const tokens = await exchangeServerAuthCode(driveAuthCode);
           guardarSesionDrive(clientId, tokens);
           guardarTokenSesion(idToken, tokens.refresh_token);
+          accessToken = tokens.access_token || null;
+          refreshToken = tokens.refresh_token || null;
         } catch (e) {
           console.error('[Drive] vinculación android falló:', e);
         }
@@ -216,7 +243,7 @@ export async function iniciarSesionGoogleConNube(opts?: {
     } else {
       await emit("show-toast", { message: "☁️ Google Drive vinculado con la misma cuenta", type: "success" });
     }
-    return { status: 'ok', result, schoolKey: result.schoolKey };
+    return { status: 'ok', result, schoolKey: result.schoolKey, tokens: { idToken, accessToken, refreshToken } };
   } catch (e: any) {
     const errStr = typeof e === 'string' ? e : (e?.message || String(e));
     if (errStr.toLowerCase().includes('cancel')) return { status: 'cancelled' };

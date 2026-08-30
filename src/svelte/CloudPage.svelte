@@ -14,18 +14,24 @@
   import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
   import { ask } from "@tauri-apps/plugin-dialog";
   import {
-    getPerfilLocal, clearPerfilLocal, getValidAuthToken, DEFAULT_WORKER_URL,
+    getPerfilLocal, clearPerfilLocal, setPerfilLocal, getValidAuthToken, getAuthToken,
+    guardarTokenSesion, DEFAULT_WORKER_URL,
     fetchAdminUsers, suspendUser, deleteUserData,
     type CloudPerfil, type AdminUserInfo,
   } from "../lib/cloudAuth";
   import {
-    saveProfile, getProfile, setCurrentEmail,
+    saveProfile, getProfile, setCurrentEmail, listProfiles, patchProfileTokens,
+    type AccountProfile,
   } from "../lib/accountProfiles";
 
   let { onNavigate }: { onNavigate?: (tab: string) => void } = $props();
 
   // ── Perfil de la cuenta Google (login cloud) ──
   let perfil: CloudPerfil | null = $state(getPerfilLocal());
+
+  // Cuentas vinculadas (para alternar sin re-autorizar)
+  let linkedAccounts: AccountProfile[] = $state([]);
+  function refreshLinkedAccounts() { linkedAccounts = listProfiles(); }
 
   function cerrarSesionCloud() {
     clearPerfilLocal();
@@ -51,6 +57,7 @@
         perfil = getPerfilLocal();
         await loadD1Config();
         loadSettings();
+        refreshLinkedAccounts();
         if (settings.accessToken) await refreshFiles();
         await emit("show-toast", {
           message: perfil?.rol === 'admin' ? "👑 Sesión de administrador iniciada" : "✅ Sesión iniciada con Google",
@@ -418,6 +425,177 @@
    * datos en la nube (cuenta recién creada) se envía al menú de catálogos.
    */
   let isSwitchingAccount = $state(false);
+  // ── Switch de cuentas (con y sin re-autorización) ──
+
+  /** Prepara el cambio: empuja los datos del profesor actual a su nube (si hay),
+   *  crea respaldo local y limpia la BD local. Devuelve la ruta del respaldo. */
+  async function prepSwitch(): Promise<string | null> {
+    const curCfg = await d1SyncService.getConfig();
+    const curEmail = (getPerfilLocal()?.email || settings.googleUserEmail || '').toLowerCase();
+    if (curCfg && curEmail) {
+      saveProfile({ email: curEmail, schoolKey: curCfg.schoolKey, workerUrl: curCfg.workerUrl, nombre: getPerfilLocal()?.nombre });
+    }
+    try {
+      const sts: any = await invoke("get_students").catch(() => null);
+      if (Array.isArray(sts) && sts.length > 0) await invoke("d1_sync_all");
+    } catch { /* ignore */ }
+    let bk: string | null = null;
+    try { bk = await invoke<string>("create_switch_backup"); console.log("[cambiarCuenta] respaldo local creado:", bk); }
+    catch (e) { console.warn("[cambiarCuenta] no se pudo crear respaldo:", e); }
+    await invoke("reset_profile_account");
+    stopWsSync();
+    await d1SyncService.clearConfig();
+    clearPerfilLocal();
+    perfil = null;
+    settings.accessToken = null;
+    settings.refreshToken = null;
+    settings.tokenExpiry = null;
+    settings.googleUserEmail = null;
+    settings.googleUserName = null;
+    settings.googleUserProfilePic = null;
+    saveSettings();
+    syncFiles = [];
+    await emit("data-updated", {});
+    await emit("catalog-updated", {});
+    await emit("student-updated", {});
+    return bk;
+  }
+
+  /** Aplica las credenciales de una cuenta a los stores globales (cloudAuth + Drive). */
+  function applyAccountStores(acct: {
+    idToken?: string; accessToken?: string | null; refreshToken?: string | null;
+    idExpiresAt?: number; driveExpiresAt?: number; clientId?: string;
+    email: string; nombre?: string; foto?: string;
+  }) {
+    if (acct.idToken) guardarTokenSesion(acct.idToken, acct.refreshToken || undefined);
+    settings.clientId = acct.clientId || settings.clientId || DEFAULT_CLIENT_ID;
+    if (acct.accessToken !== undefined) settings.accessToken = acct.accessToken;
+    if (acct.refreshToken !== undefined) settings.refreshToken = acct.refreshToken;
+    if (acct.driveExpiresAt !== undefined) settings.tokenExpiry = acct.driveExpiresAt;
+    settings.googleUserEmail = acct.email;
+    settings.googleUserName = acct.nombre || null;
+    settings.googleUserProfilePic = acct.foto || null;
+    saveSettings();
+    setPerfilLocal({ email: acct.email, nombre: acct.nombre || '', foto: acct.foto || '', rol: 'user' });
+  }
+
+  function parseIdTokenExp(idToken: string): number {
+    try { const p = JSON.parse(atob(idToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))); return (p.exp || 0) * 1000; } catch { return 0; }
+  }
+
+  /** Restaura desde la nube de la cuenta (candidatos = claves a probar) y finaliza la UI. */
+  async function finishSwitch(
+    newEmail: string,
+    candidates: { key: string; worker: string; label: string }[],
+    perfilInfo: { nombre?: string; foto?: string },
+    bk: string | null,
+  ): Promise<boolean> {
+    let restoreRes: any = null;
+    let usedCand: { key: string; worker: string; label: string } | null = null;
+    for (const cand of candidates) {
+      try {
+        await d1SyncService.saveConfig(cand.worker, cand.key);
+        await invalidateD1Cache();
+        const r: any = await invoke("d1_restore_from_cloud");
+        console.log(`[cambiarCuenta] restore(${cand.label}) OK:`, JSON.stringify(r));
+        const pulledAny = r?.pulled && Object.values(r.pulled).some((n: any) => Number(n) > 0);
+        if (pulledAny) { restoreRes = r; usedCand = cand; break; }
+        console.log(`[cambiarCuenta] restore(${cand.label}) vacío, probando siguiente candidato`);
+      } catch (e) {
+        console.error(`[cambiarCuenta] restore(${cand.label}) falló:`, e);
+      }
+    }
+    if (!usedCand) {
+      // La nube de la cuenta destino está vacía bajo todas las claves conocidas.
+      // Se configura B como cuenta nueva y se va directo al wizard de catálogos.
+      // El respaldo local (bk) queda en disco por si se necesita recuperar manualmente.
+      await emit("show-toast", { message: "Cuenta sin datos en la nube. Configura tus catálogos para empezar.", type: "info" });
+      try { await invoke("seed_defaults_now"); } catch (e) { console.warn("[cambiarCuenta] seed falló:", e); }
+      loadSettings();
+      settings.googleUserEmail = newEmail;
+      settings.googleUserName = perfilInfo.nombre || null;
+      settings.googleUserProfilePic = perfilInfo.foto || null;
+      saveSettings();
+      perfil = getPerfilLocal();
+      d1Cfg = await d1SyncService.getConfig();
+      await emit("data-updated", {});
+      await emit("catalog-updated", {});
+      await emit("student-updated", {});
+      onNavigate?.('globales');
+      ensureWsSync();
+      return false;
+    }
+    if (newEmail) {
+      saveProfile({ email: newEmail, schoolKey: usedCand.key, workerUrl: usedCand.worker, nombre: perfilInfo.nombre });
+      setCurrentEmail(newEmail);
+    }
+    // Drive queda SOLO como respaldo: tras restaurar desde Cloudflare, subimos el
+    // estado restaurado a Drive para que quede coherente. Nunca restauramos desde Drive.
+    try { await driveSyncService.pushAll(); console.log("[cambiarCuenta] backup a Drive del estado restaurado desde Cloudflare"); }
+    catch (e) { console.warn("[cambiarCuenta] no se pudo respaldar a Drive:", e); }
+    loadSettings();
+    settings.googleUserEmail = newEmail;
+    settings.googleUserName = perfilInfo.nombre || null;
+    settings.googleUserProfilePic = perfilInfo.foto || null;
+    saveSettings();
+    perfil = getPerfilLocal();
+    d1Cfg = await d1SyncService.getConfig();
+    await emit("show-toast", { message: "✅ Perfil cambiado: datos restaurados desde la nube de la nueva cuenta", type: "success" });
+    await emit("data-updated", {});
+    await emit("catalog-updated", {});
+    await emit("student-updated", {});
+    ensureWsSync();
+    return true;
+  }
+
+  /** Alterna a una cuenta YA vinculada usando sus tokens guardados (SIN re-autorizar). */
+  async function switchToStoredAccount(email: string) {
+    if (isSwitchingAccount || isAuthLoading) return;
+    const prof = getProfile(email);
+    if (!prof || !prof.googleRefreshToken) {
+      await emit("show-toast", { message: "Esta cuenta requiere volver a iniciar sesión (no hay tokens guardados).", type: "info" });
+      return cambiarCuentaGoogle();
+    }
+    const ok = await ask(
+      `Vas a cambiar a la cuenta ${prof.email}.\n\nSe BORRARÁ la base local y se restaurará desde la nube de esa cuenta.\n\n¿Continuar?`,
+      { title: 'Cambiar de cuenta', kind: 'warning', okLabel: 'Sí, cambiar', cancelLabel: 'Cancelar' }
+    );
+    if (!ok) return;
+    isSwitchingAccount = true;
+    try {
+      const bk = await prepSwitch();
+      applyAccountStores({
+        idToken: prof.googleIdToken || '',
+        accessToken: prof.googleAccessToken ?? null,
+        refreshToken: prof.googleRefreshToken ?? null,
+        idExpiresAt: prof.googleIdExpiresAt,
+        driveExpiresAt: prof.googleDriveExpiresAt,
+        clientId: prof.googleClientId || DEFAULT_CLIENT_ID,
+        email: prof.email,
+        nombre: prof.nombre,
+        foto: prof.foto,
+      });
+      const candidates = [{ key: prof.schoolKey, worker: prof.workerUrl || DEFAULT_WORKER_URL, label: 'registro-local' }];
+      const okSw = await finishSwitch(prof.email, candidates, { nombre: prof.nombre, foto: prof.foto }, bk);
+      if (okSw) {
+        // Persistir tokens posiblemente refrescados durante el restore
+        patchProfileTokens(prof.email, {
+          googleIdToken: getAuthToken(),
+          googleAccessToken: settings.accessToken,
+          googleRefreshToken: settings.refreshToken,
+          googleIdExpiresAt: parseIdTokenExp(getAuthToken()),
+          googleDriveExpiresAt: settings.tokenExpiry || undefined,
+          googleClientId: settings.clientId || DEFAULT_CLIENT_ID,
+        });
+      }
+      refreshLinkedAccounts();
+    } catch (e) {
+      await emit("show-toast", { message: "❌ Error al cambiar de cuenta: " + e, type: "error" });
+    } finally {
+      isSwitchingAccount = false;
+    }
+  }
+
   async function cambiarCuentaGoogle() {
     if (isSwitchingAccount || isAuthLoading) return;
     const ok = await ask(
@@ -430,53 +608,8 @@
     );
     if (!ok) return;
     isSwitchingAccount = true;
-    authHandled = false;
     try {
-      // Capturar la cuenta ACTUAL y su schoolKey REAL antes de borrar, para no
-      // perder el vínculo con su nube (el Worker puede crear uno nuevo y vacío al
-      // re-autenticar si la cuenta fue conectada vía archivo .key).
-      const curCfg = await d1SyncService.getConfig();
-      const curEmail = (getPerfilLocal()?.email || settings.googleUserEmail || '').toLowerCase();
-      if (curCfg && curEmail) {
-        saveProfile({ email: curEmail, schoolKey: curCfg.schoolKey, workerUrl: curCfg.workerUrl, nombre: getPerfilLocal()?.nombre });
-      }
-      // 1) Asegurar que los datos del profesor actual están en su nube antes de borrar.
-      //    Solo si hay datos reales: si la BD está vacía (p. ej. tras un restore
-      //    fallido de un switch previo) NO empujamos, para no machacar la nube con
-      //    una BD vacía.
-      try {
-        const sts: any = await invoke("get_students").catch(() => null);
-        if (Array.isArray(sts) && sts.length > 0) await invoke("d1_sync_all");
-      } catch { /* ignore */ }
-      // 1b) Respaldo de seguridad local de la BD antes de cualquier borrado destructivo
-      // `bk` se declara fuera del try para que sea visible en el fallback (paso 7).
-      let bk: string | null = null;
-      try {
-        bk = await invoke<string>("create_switch_backup");
-        console.log("[cambiarCuenta] respaldo local creado:", bk);
-      } catch (e) { console.warn("[cambiarCuenta] no se pudo crear respaldo:", e); }
-      // 2) Borrar TODA la base de datos local (incluida d1_config y pendientes de sync) para aislar el perfil
-      await invoke("reset_profile_account");
-      // 3) Desvincular nube y Drive localmente
-      stopWsSync();
-      await d1SyncService.clearConfig();
-      clearPerfilLocal();
-      perfil = null;
-      settings.accessToken = null;
-      settings.refreshToken = null;
-      settings.tokenExpiry = null;
-      settings.googleUserEmail = null;
-      settings.googleUserName = null;
-      settings.googleUserProfilePic = null;
-      saveSettings();
-      syncFiles = [];
-      // 4) Avisar a las páginas para refrescar con la BD vacía
-      await emit("data-updated", {});
-      await emit("catalog-updated", {});
-      await emit("student-updated", {});
-      // 5) Autenticar la nueva cuenta (Nube + Drive en un solo flujo, con selector forzado).
-      // skipSync: NO hacemos push de la BD recién sembrada a la nube de la nueva cuenta
-      // (eso corrompía/borraba los datos de la cuenta destino). Solo se hará pull en el restore.
+      const bk = await prepSwitch();
       const res = await iniciarSesionGoogleConNube({
         forceSelectAccount: true,
         skipSync: true,
@@ -491,94 +624,39 @@
         await emit("show-toast", { message: "❌ " + res.error, type: "error" });
         return;
       }
-      // 6) Resolver la schoolKey REAL de la cuenta. Probamos varias fuentes en
-      // orden de prioridad y nos quedamos con la PRIMERA que realmente devuelva
-      // datos desde la nube. Así evitamos quedarnos con una clave vacía/errónea
-      // (p. ej. un /auth que creó una escuela nueva) que dejaría la BD vacía y
-      // nos enviaría a WelcomePage, o que luego machacara la nube al sincronizar.
       const newEmail = (res.result?.perfil?.email || '').toLowerCase();
       const known = newEmail ? getProfile(newEmail) : null;
-      type Cand = { key: string; worker: string; label: string };
-      const candMap = new Map<string, Cand>();
+      const candMap = new Map<string, { key: string; worker: string; label: string }>();
       if (known?.schoolKey) candMap.set(known.schoolKey, { key: known.schoolKey, worker: known.workerUrl || DEFAULT_WORKER_URL, label: "registro-local" });
       if (res.result.schoolKey) candMap.set(res.result.schoolKey, { key: res.result.schoolKey, worker: DEFAULT_WORKER_URL, label: "auth" });
       const candidates = Array.from(candMap.values());
       console.log("[cambiarCuenta] email=", newEmail, "candidatos:", candidates.map((c) => `${c.label}=${c.key.slice(0, 8)}…`).join(", "));
-
-      let restoreRes: any = null;
-      let usedCand: Cand | null = null;
-      for (const cand of candidates) {
-        try {
-          await d1SyncService.saveConfig(cand.worker, cand.key);
-          await invalidateD1Cache();
-          const r: any = await invoke("d1_restore_from_cloud");
-          console.log(`[cambiarCuenta] restore(${cand.label}) OK:`, JSON.stringify(r));
-          const pulledAny = r?.pulled && Object.values(r.pulled).some((n: any) => Number(n) > 0);
-          if (pulledAny) { restoreRes = r; usedCand = cand; break; }
-          console.log(`[cambiarCuenta] restore(${cand.label}) vacío, probando siguiente candidato`);
-        } catch (e) {
-          console.error(`[cambiarCuenta] restore(${cand.label}) falló:`, e);
-        }
-      }
-      if (!usedCand) {
-        // La nube de la cuenta destino está vacía bajo todas las claves conocidas.
-        // En lugar de revertir al respaldo del profesor saliente (lo cual metería
-        // los datos de A dentro de B), se configura B como cuenta nueva y se va
-        // directo al wizard de catálogos. El respaldo local (bk) queda en disco
-        // por si se necesita recuperar manualmente.
-        await emit("show-toast", {
-          message: "Cuenta sin datos en la nube. Configura tus catálogos para empezar.",
-          type: "info",
+      // Aplicar credenciales globales (Drive + cloudAuth) para esta sesión
+      applyAccountStores({
+        idToken: res.tokens?.idToken || '',
+        accessToken: res.tokens?.accessToken ?? null,
+        refreshToken: res.tokens?.refreshToken ?? null,
+        idExpiresAt: res.tokens?.idToken ? parseIdTokenExp(res.tokens.idToken) : undefined,
+        driveExpiresAt: res.tokens?.accessToken ? Date.now() + 3600 * 1000 : undefined,
+        clientId: DEFAULT_CLIENT_ID,
+        email: newEmail,
+        nombre: res.result?.perfil?.nombre,
+        foto: res.result?.perfil?.foto,
+      });
+      // Persistir tokens en el registro para futuros switches sin re-auth
+      if (res.tokens) {
+        patchProfileTokens(newEmail, {
+          googleIdToken: res.tokens.idToken,
+          googleAccessToken: res.tokens.accessToken,
+          googleRefreshToken: res.tokens.refreshToken,
+          googleIdExpiresAt: parseIdTokenExp(res.tokens.idToken),
+          googleDriveExpiresAt: Date.now() + 3600 * 1000,
+          googleClientId: DEFAULT_CLIENT_ID,
         });
-        try { await invoke("seed_defaults_now"); } catch (e) { console.warn("[cambiarCuenta] seed falló:", e); }
-        loadSettings();
-        settings.googleUserEmail = res.result?.perfil?.email || null;
-        settings.googleUserName = res.result?.perfil?.nombre || null;
-        settings.googleUserProfilePic = res.result?.perfil?.foto || null;
-        saveSettings();
-        perfil = getPerfilLocal();
-        d1Cfg = await d1SyncService.getConfig();
-        await emit("data-updated", {});
-        await emit("catalog-updated", {});
-        await emit("student-updated", {});
-        onNavigate?.('globales');
-        return;
       }
-      // 7) Registrar la cuenta activa (SOLO si el restore tuvo éxito, para no
-      // envenenar el registro local con una clave vacía) y refrescar UI.
-      if (newEmail) {
-        saveProfile({
-          email: newEmail,
-          schoolKey: usedCand.key,
-          workerUrl: usedCand.worker,
-          nombre: res.result?.perfil?.nombre,
-        });
-        setCurrentEmail(newEmail);
-      }
-      // 7b) Drive queda SOLO como respaldo: tras restaurar desde Cloudflare,
-      // subimos el estado restaurado a Drive (backup) para que quede coherente y
-      // el próximo auto-sync de Drive NO haga pull sobre los datos de Cloudflare.
-      // Nunca restauramos desde Drive en un cambio de cuenta.
-      try {
-        await driveSyncService.pushAll();
-        console.log("[cambiarCuenta] backup a Drive del estado restaurado desde Cloudflare");
-      } catch (e) { console.warn("[cambiarCuenta] no se pudo respaldar a Drive:", e); }
-      loadSettings();
-      // Reflejar la cuenta activa en la UI de inmediato (sin esperar F5): las
-      // cards leen settings.googleUserEmail/googleUserName, que NO se reescriben
-      // solas tras el cambio (guardarSesionDrive usa otra clave de localStorage).
-      settings.googleUserEmail = res.result?.perfil?.email || null;
-      settings.googleUserName = res.result?.perfil?.nombre || null;
-      settings.googleUserProfilePic = res.result?.perfil?.foto || null;
-      saveSettings();
-      perfil = getPerfilLocal();
-      d1Cfg = await d1SyncService.getConfig();
-      await emit("show-toast", { message: "✅ Perfil cambiado: datos restaurados desde la nube de la nueva cuenta", type: "success" });
-      await emit("data-updated", {});
-      await emit("catalog-updated", {});
-      await emit("student-updated", {});
-      // Cuenta nueva sin datos en la nube y sin schoolKey conocido → ir a catálogos
-      if (res.result?.creado && !known) onNavigate?.('globales');
+      const okSw = await finishSwitch(newEmail, candidates, { nombre: res.result?.perfil?.nombre, foto: res.result?.perfil?.foto }, bk);
+      if (okSw && res.result?.creado && !known) onNavigate?.('globales');
+      refreshLinkedAccounts();
     } catch (e) {
       await emit("show-toast", { message: "❌ Error al cambiar de profesor: " + e, type: "error" });
     } finally {
@@ -770,6 +848,7 @@
     if (settings.accessToken) await refreshFiles();
     await loadD1Config();
     d1SyncManager.subscribe((s) => { d1SyncState = s; });
+    refreshLinkedAccounts();
     // Auto-detect pending OAuth code (por si la página recargó durante el flujo)
     if (!settings.accessToken && !isAuthLoading) {
       try {
@@ -947,8 +1026,22 @@
             <div style="color: #64748b; font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{settings.googleUserEmail || ''}</div>
           </div>
         </div>
+        {#if linkedAccounts.length > 0}
+          <div style="margin-bottom: 0.8rem;">
+            <div style="font-size: 0.65rem; letter-spacing: 0.5px; color: #64748b; margin-bottom: 0.4rem;">CUENTAS VINCULADAS</div>
+            {#each linkedAccounts as acc (acc.email)}
+              {@const isActive = acc.email.toLowerCase() === (settings.googleUserEmail || '').toLowerCase()}
+              <button onclick={() => switchToStoredAccount(acc.email)} disabled={isSwitchingAccount || isAuthLoading || isActive}
+                style="display:flex;align-items:center;gap:0.6rem;width:100%;padding:0.5rem 0.7rem;margin-bottom:0.35rem;border-radius:10px;border:1px solid {isActive ? 'rgba(66,133,244,0.5)' : 'rgba(255,255,255,0.08)'};background:{isActive ? 'rgba(66,133,244,0.12)' : 'rgba(255,255,255,0.02)'};color:#e2e8f0;cursor:{isSwitchingAccount || isAuthLoading || isActive ? 'default' : 'pointer'};font-size:0.8rem;text-align:left;opacity:{isActive ? 0.85 : 1};">
+                <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{acc.nombre || acc.email}</span>
+                {#if !acc.googleRefreshToken}<span style="color:#fbbf24;font-size:0.62rem;">↻ requiere login</span>{/if}
+                {#if isActive}<span style="color:#4ade80;font-size:0.7rem;">● activa</span>{/if}
+              </button>
+            {/each}
+          </div>
+        {/if}
         <button onclick={cambiarCuentaGoogle} disabled={isSwitchingAccount || isAuthLoading} style="width: 100%; padding: 0.7rem 1rem; border-radius: 12px; border: 1px solid rgba(168,85,247,0.3); background: linear-gradient(135deg, rgba(168,85,247,0.15), rgba(99,102,241,0.12)); color: #c4b5fd; cursor: {isSwitchingAccount || isAuthLoading ? 'default' : 'pointer'}; font-size: 0.85rem; font-weight: 600; opacity: {isSwitchingAccount || isAuthLoading ? 0.6 : 1};">
-          {isSwitchingAccount ? 'Cambiando cuenta...' : '👤 Cambiar cuenta de Google (Nube + Drive)'}
+          {isSwitchingAccount ? 'Cambiando cuenta...' : '➕ Agregar otra cuenta de Google'}
         </button>
       {:else}
         <p style="color: #94a3b8; font-size: 0.85rem; margin: 0 0 1rem;">Conecta tu cuenta de Google para usar la Nube (Cloudflare D1) y Google Drive con la misma identidad.</p>
