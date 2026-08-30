@@ -877,6 +877,8 @@
         asignaturaId: delAsignaturaId,
         estudianteId: deleteMode === 'student' ? deleteStudentId : 0,
         criterioId: deleteMode === 'indicator' ? deleteIndicatorId : 0,
+        gradoId: selectedGrado || 0,
+        seccionId: selectedSeccion || 0,
       });
       showDeleteModal = false;
       await emit("show-toast", { message: `✅ Notas eliminadas`, type: "success" });

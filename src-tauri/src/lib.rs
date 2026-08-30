@@ -1943,8 +1943,10 @@ async fn delete_notas(
     asignaturaId: i64,
     estudianteId: i64,
     criterioId: i64,
+    gradoId: Option<i64>,
+    seccionId: Option<i64>,
 ) -> Result<i64, String> {
-    println!("[delete_notas] CALLED with corte={}, asig={}, est={}, crit={}", corteEvaluativoId, asignaturaId, estudianteId, criterioId);
+    println!("[delete_notas] CALLED with corte={}, asig={}, est={}, crit={}, grado={}, seccion={}", corteEvaluativoId, asignaturaId, estudianteId, criterioId, gradoId.unwrap_or(0), seccionId.unwrap_or(0));
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
@@ -1964,11 +1966,17 @@ async fn delete_notas(
         conditions.push("criterio_id = ?".to_string());
         param_values.push(Box::new(criterioId));
     }
+    if let (Some(gid), Some(sid)) = (gradoId, seccionId) {
+        if gid > 0 && sid > 0 {
+            conditions.push("estudiante_id IN (SELECT id FROM estudiante WHERE grado_id = ? AND seccion_id = ?)".to_string());
+            param_values.push(Box::new(gid));
+            param_values.push(Box::new(sid));
+        }
+    }
     let where_clause = conditions.join(" AND ");
 
     let param_refs: Vec<&dyn ToSql> = param_values.iter().map(|p| p.as_ref()).collect();
 
-    // Insert into sync_pending_deletions_nota first
     let select_sql = format!(
         "SELECT estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id FROM nota WHERE {}",
         where_clause
@@ -2000,7 +2008,6 @@ async fn delete_notas(
     }
     drop(insert_stmt);
 
-    // Delete from nota table
     let delete_sql = format!("DELETE FROM nota WHERE {}", where_clause);
     let deleted = tx
         .execute(&delete_sql, param_refs.as_slice())
