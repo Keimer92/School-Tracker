@@ -337,15 +337,13 @@ export const driveSyncService = {
     try {
       const token = await getValidToken();
       if (token && navigator.onLine) {
+        // Drive es SOLO respaldo: nunca se restaura automáticamente desde aquí.
+        // Solo subimos (push) si hay cambios locales; el restore es manual
+        // (botón "Restaurar"). Así un respaldo antiguo de Drive no sobreescribe
+        // los datos de Cloudflare (p. ej. tras un cambio de cuenta).
         const localChanges = await hasLocalChanges();
-        const files = await listSyncFiles(token);
-        const newest = files.length > 0 ? files.reduce((a, b) => a.createdTime >= b.createdTime ? a : b) : null;
-        const lastSync = localStorage.getItem('drive_last_sync_time');
-        const remoteNewer = !!newest && (!lastSync || newest.createdTime > lastSync);
         if (localChanges) {
           await driveSyncService.pushAll();
-        } else if (remoteNewer) {
-          await driveSyncService.pullAll();
         }
       }
       syncManager.setState({

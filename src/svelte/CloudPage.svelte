@@ -554,6 +554,13 @@
         console.log("[cambiarCuenta] backup a Drive del estado restaurado desde Cloudflare");
       } catch (e) { console.warn("[cambiarCuenta] no se pudo respaldar a Drive:", e); }
       loadSettings();
+      // Reflejar la cuenta activa en la UI de inmediato (sin esperar F5): las
+      // cards leen settings.googleUserEmail/googleUserName, que NO se reescriben
+      // solas tras el cambio (guardarSesionDrive usa otra clave de localStorage).
+      settings.googleUserEmail = res.result?.perfil?.email || null;
+      settings.googleUserName = res.result?.perfil?.nombre || null;
+      settings.googleUserProfilePic = res.result?.perfil?.foto || null;
+      saveSettings();
       perfil = getPerfilLocal();
       d1Cfg = await d1SyncService.getConfig();
       await emit("show-toast", { message: "✅ Perfil cambiado: datos restaurados desde la nube de la nueva cuenta", type: "success" });
