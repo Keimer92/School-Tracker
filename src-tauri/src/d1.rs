@@ -546,6 +546,7 @@ pub async fn d1_sync_all(app: tauri::AppHandle, state: tauri::State<'_, DbState>
     let (cfg, push_since, since, data, deletions) = {
         let conn = state.conn.lock().map_err(|e| e.to_string())?;
         let cfg = read_config(&conn)?.ok_or_else(|| "D1 no está configurado".to_string())?;
+        let is_full = full.unwrap_or(false);
 
         // ── Anti re-relevo: recordar filas recién PULLADAS para no volver a
         // pushearlas mientras no se modifiquen localmente. Corte elástico: sin
@@ -596,7 +597,6 @@ pub async fn d1_sync_all(app: tauri::AppHandle, state: tauri::State<'_, DbState>
         // completo ignorando cursores: garantiza que la nube de la cuenta que
         // sale quede 100% al día aunque el último restore haya dejado
         // last_push_sync = now y un push incremental enviaría 0 filas.
-        let is_full = full.unwrap_or(false);
         let push_since = if is_full {
             "1970-01-01 00:00:00".to_string()
         } else {
