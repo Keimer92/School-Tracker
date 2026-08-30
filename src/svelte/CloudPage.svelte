@@ -521,24 +521,16 @@
         }
       }
       if (!usedCand) {
-        // Ningún candidato trajo datos de la nube (p. ej. los push previos fallaron
-        // y la nube quedó vacía): restaurar el respaldo local de seguridad para no
-        // perder la BD del profesor saliente.
+        // La nube de la cuenta destino está vacía bajo todas las claves conocidas.
+        // En lugar de revertir al respaldo del profesor saliente (lo cual metería
+        // los datos de A dentro de B), se configura B como cuenta nueva y se va
+        // directo al wizard de catálogos. El respaldo local (bk) queda en disco
+        // por si se necesita recuperar manualmente.
         await emit("show-toast", {
-          message: "⚠️ La nube de " + newEmail + " estaba vacía. Se restauró tu base local anterior y se subió a la nube.",
+          message: "Cuenta sin datos en la nube. Configura tus catálogos para empezar.",
           type: "info",
         });
-        try {
-          if (bk) {
-            await invoke("restore_switch_backup_db", { sourcePath: bk });
-            await invoke("gd_reload_database");
-            // La nube de esta cuenta está vacía: subir el respaldo recuperado para
-            // no depender solo del backup local en el próximo switch.
-            try { await invoke("d1_sync_all"); console.log("[cambiarCuenta] respaldo local subido a la nube"); }
-            catch (e3) { console.warn("[cambiarCuenta] no se pudo subir respaldo a la nube:", e3); }
-          }
-        } catch (e2) { console.error("[cambiarCuenta] no se pudo restaurar respaldo:", e2); }
-        // Refrescar UI con la cuenta activa (igual que el camino de éxito).
+        try { await invoke("seed_defaults_now"); } catch (e) { console.warn("[cambiarCuenta] seed falló:", e); }
         loadSettings();
         settings.googleUserEmail = res.result?.perfil?.email || null;
         settings.googleUserName = res.result?.perfil?.nombre || null;
@@ -549,6 +541,7 @@
         await emit("data-updated", {});
         await emit("catalog-updated", {});
         await emit("student-updated", {});
+        onNavigate?.('globales');
         return;
       }
       // 7) Registrar la cuenta activa (SOLO si el restore tuvo éxito, para no
