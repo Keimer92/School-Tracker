@@ -535,7 +535,7 @@ fn clear_all_pending_deletions(conn: &rusqlite::Connection) -> Result<(), String
 // ============================================================================
 
 #[tauri::command]
-pub async fn d1_sync_all(app: tauri::AppHandle, state: tauri::State<'_, DbState>) -> Result<Value, String> {
+pub async fn d1_sync_all(app: tauri::AppHandle, state: tauri::State<'_, DbState>, full: Option<bool>) -> Result<Value, String> {
     // Fase local (síncrona). Se acota el lock en este bloque para que el
     // MutexGuard NO cruce ningún .await (el futuro del comando debe ser Send).
     // Todo el trabajo de BD ocurre aquí, antes de lanzar la red con spawn_blocking.
@@ -569,33 +569,41 @@ pub async fn d1_sync_all(app: tauri::AppHandle, state: tauri::State<'_, DbState>
 
         // Cargar conjunto de recién-pullados: clave = "tabla|pk|updated_at"
         let mut recent: std::collections::HashSet<String> = Default::default();
-        {
-            let mut stmt = conn
-                .prepare("SELECT tabla, pk, updated_at FROM sync_recent_pulls")
-                .map_err(|e| e.to_string())?;
-            let rows = stmt
-                .query_map([], |row| {
-                    Ok((
-                        row.get::<_, String>(0)?,
-                        row.get::<_, String>(1)?,
-                        row.get::<_, String>(2)?,
-                    ))
-                })
-                .map_err(|e| e.to_string())?;
-            for r in rows {
-                let (t, p, u) = r.map_err(|e| e.to_string())?;
-                recent.insert(format!("{}|{}|{}", t, p, u));
-            }
+        if !is_full {
+          let mut stmt = conn
+            .prepare("SELECT tabla, pk, updated_at FROM sync_recent_pulls")
+            .map_err(|e| e.to_string())?;
+          let rows = stmt
+            .query_map([], |row| {
+              Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+              ))
+            })
+            .map_err(|e| e.to_string())?;
+          for r in rows {
+            let (t, p, u) = r.map_err(|e| e.to_string())?;
+            recent.insert(format!("{}|{}|{}", t, p, u));
+          }
         }
 
         // DOS cursores independientes:
         //  - push_since  = reloj LOCAL (comparable con los updated_at que este
         //    dispositivo estampa en sus propias filas) -> nunca come ediciones propias.
         //  - since (pull) = reloj del SERVIDOR (autoritativo entre dispositivos).
-        let push_since = cfg
-            .last_push_sync
-            .clone()
-            .unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
+        // `full` (usado al cambiar de cuenta, antes de borrar) fuerza un push
+        // completo ignorando cursores: garantiza que la nube de la cuenta que
+        // sale quede 100% al día aunque el último restore haya dejado
+        // last_push_sync = now y un push incremental enviaría 0 filas.
+        let is_full = full.unwrap_or(false);
+        let push_since = if is_full {
+            "1970-01-01 00:00:00".to_string()
+        } else {
+            cfg.last_push_sync
+                .clone()
+                .unwrap_or_else(|| "1970-01-01 00:00:00".to_string())
+        };
         let since = cfg
             .last_sync
             .clone()

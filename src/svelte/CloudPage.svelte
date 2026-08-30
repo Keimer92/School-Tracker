@@ -437,7 +437,7 @@
     }
     try {
       const sts: any = await invoke("get_students").catch(() => null);
-      if (Array.isArray(sts) && sts.length > 0) await invoke("d1_sync_all");
+      if (Array.isArray(sts) && sts.length > 0) await invoke("d1_sync_all", { full: true });
     } catch { /* ignore */ }
     let bk: string | null = null;
     try { bk = await invoke<string>("create_switch_backup"); console.log("[cambiarCuenta] respaldo local creado:", bk); }
