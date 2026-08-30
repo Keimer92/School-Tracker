@@ -449,8 +449,10 @@
         if (Array.isArray(sts) && sts.length > 0) await invoke("d1_sync_all");
       } catch { /* ignore */ }
       // 1b) Respaldo de seguridad local de la BD antes de cualquier borrado destructivo
+      // `bk` se declara fuera del try para que sea visible en el fallback (paso 7).
+      let bk: string | null = null;
       try {
-        const bk = await invoke<string>("create_switch_backup");
+        bk = await invoke<string>("create_switch_backup");
         console.log("[cambiarCuenta] respaldo local creado:", bk);
       } catch (e) { console.warn("[cambiarCuenta] no se pudo crear respaldo:", e); }
       // 2) Borrar TODA la base de datos local (incluida d1_config y pendientes de sync) para aislar el perfil
@@ -519,19 +521,34 @@
         }
       }
       if (!usedCand) {
-        // Ningún candidato trajo datos: restaurar el respaldo local de seguridad
-        // (la BD del profesor saliente) para no dejar la app vacía ni machacar la
-        // nube con una BD vacía en un switch posterior.
+        // Ningún candidato trajo datos de la nube (p. ej. los push previos fallaron
+        // y la nube quedó vacía): restaurar el respaldo local de seguridad para no
+        // perder la BD del profesor saliente.
         await emit("show-toast", {
-          message: "❌ No se encontraron datos en la nube para " + newEmail + " con ninguna clave conocida. Se restauró tu base local anterior.",
-          type: "error",
+          message: "⚠️ La nube de " + newEmail + " estaba vacía. Se restauró tu base local anterior y se subió a la nube.",
+          type: "info",
         });
         try {
           if (bk) {
             await invoke("restore_switch_backup_db", { sourcePath: bk });
             await invoke("gd_reload_database");
+            // La nube de esta cuenta está vacía: subir el respaldo recuperado para
+            // no depender solo del backup local en el próximo switch.
+            try { await invoke("d1_sync_all"); console.log("[cambiarCuenta] respaldo local subido a la nube"); }
+            catch (e3) { console.warn("[cambiarCuenta] no se pudo subir respaldo a la nube:", e3); }
           }
         } catch (e2) { console.error("[cambiarCuenta] no se pudo restaurar respaldo:", e2); }
+        // Refrescar UI con la cuenta activa (igual que el camino de éxito).
+        loadSettings();
+        settings.googleUserEmail = res.result?.perfil?.email || null;
+        settings.googleUserName = res.result?.perfil?.nombre || null;
+        settings.googleUserProfilePic = res.result?.perfil?.foto || null;
+        saveSettings();
+        perfil = getPerfilLocal();
+        d1Cfg = await d1SyncService.getConfig();
+        await emit("data-updated", {});
+        await emit("catalog-updated", {});
+        await emit("student-updated", {});
         return;
       }
       // 7) Registrar la cuenta activa (SOLO si el restore tuvo éxito, para no

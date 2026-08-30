@@ -142,6 +142,20 @@ const TABLES: Record<string, { pk: string[]; cols: string[] }> = {
 
 const VALID_TABLES = new Set(Object.keys(TABLES));
 
+// Tablas catálogo/entidades cuya clave de negocio NO es el id autoincrement,
+// sino una columna única (nombre/codigo). Se reconcilian por esa clave en el
+// sync para no chocar con UNIQUE(nombre/codigo) cuando los ids locales
+// divergen de los remotos tras reseeds/restores.
+const BUSINESS_KEY: Record<string, string> = {
+  ano_lectivo: 'nombre',
+  corte_evaluativo: 'nombre',
+  colegio: 'nombre',
+  asignatura: 'nombre',
+  grado: 'nombre',
+  seccion: 'nombre',
+  estudiante: 'codigo',
+};
+
 // ── Hash corto del school key → namespace de filas (`sk`) ──
 async function skOf(schoolKey: string): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(schoolKey));
@@ -295,6 +309,12 @@ function buildUpsert(table: string, rows: any[], deviceId: string, serverNow: st
   const def = TABLES[table];
   const upsertCols = [...def.cols, 'device_id', 'sk'];
   const pkTarget = def.pk.join(', ');
+  // Catálogo/entidades: reconciliar por la clave de negocio (nombre/codigo) en
+  // lugar del id autoincrement, para no chocar con UNIQUE(nombre/codigo) cuando
+  // los ids locales divergen de los remotos tras reseeds/restores.
+  const bk = BUSINESS_KEY[table];
+  const conflictTarget = bk || pkTarget;
+  const setCols = bk ? upsertCols.filter((c) => c !== 'id') : upsertCols;
   const colList = upsertCols.join(', ');
 
   const valueTuples: string[] = [];
@@ -315,10 +335,10 @@ function buildUpsert(table: string, rows: any[], deviceId: string, serverNow: st
     n += vals.length;
   }
 
-  const setClause = upsertCols.map((c) => `${c} = excluded.${c}`).join(', ');
+  const setClause = setCols.map((c) => `${c} = excluded.${c}`).join(', ');
   return {
     sql: `INSERT INTO ${table} (${colList}) VALUES ${valueTuples.join(', ')}
-ON CONFLICT(${pkTarget}) DO UPDATE SET ${setClause}`,
+ON CONFLICT(${conflictTarget}) DO UPDATE SET ${setClause}`,
     params,
   };
 }
@@ -405,26 +425,33 @@ const DEUNIQUE_TABLES: Record<string, string> = {
 };
 
 async function deUniqueTables(env: Env): Promise<void> {
-  const done = await env.DB.prepare(`SELECT value FROM sync_metadata WHERE key = 'deunique_v1'`).first().catch(() => null);
+  const done = await env.DB.prepare(`SELECT value FROM sync_metadata WHERE key = 'deunique_v2'`).first().catch(() => null);
   if (done) return;
   // Asegurar que sync_metadata exista (ensureSchema aún no corrió sus stmts si falla el .first)
   try { await env.DB.prepare(`CREATE TABLE IF NOT EXISTS sync_metadata (key TEXT PRIMARY KEY, value INTEGER NOT NULL DEFAULT 0)`).run(); } catch {}
   for (const [table, def] of Object.entries(DEUNIQUE_TABLES)) {
+    let renamed = false;
     try {
       const info = await queryRows(env.DB, `SELECT sql FROM sqlite_master WHERE type='table' AND name='${table}'`);
       if (!info.length || !String(info[0].sql || '').toUpperCase().includes('UNIQUE')) continue;
+      // Copiar explícitamente las columnas existentes + defaults para las nuevas
+      // (device_id, sk) que aún NO existen en la tabla vieja. El SELECT * previo
+      // fallaba por diferencia de nº de columnas y dejaba la UNIQUE sin quitar.
+      const oldCols = await queryRows(env.DB, `SELECT name FROM pragma_table_info('${table}')`);
+      const colList = oldCols.map((c: any) => c.name).join(', ');
       await env.DB.prepare(`ALTER TABLE ${table} RENAME TO ${table}_old_dq`).run();
+      renamed = true;
       await env.DB.execute(`CREATE TABLE ${table} ${def}`);
-      await env.DB.execute(`INSERT INTO ${table} SELECT * FROM ${table}_old_dq`);
+      await env.DB.execute(`INSERT INTO ${table} (${colList}, device_id, sk) SELECT ${colList}, '', '' FROM ${table}_old_dq`);
       await env.DB.prepare(`DROP TABLE ${table}_old_dq`).run();
       console.log(`[migración] ${table}: UNIQUE global eliminado`);
     } catch (e: any) {
       console.error(`[migración] ${table}: ${e?.message}`);
       // Si quedó renombrada a medias, revertir para no perder datos
-      try { await env.DB.prepare(`ALTER TABLE ${table}_old_dq RENAME TO ${table}`).run(); } catch {}
+      if (renamed) { try { await env.DB.prepare(`ALTER TABLE ${table}_old_dq RENAME TO ${table}`).run(); } catch {} }
     }
   }
-  try { await env.DB.prepare(`INSERT OR REPLACE INTO sync_metadata (key, value) VALUES ('deunique_v1', 1)`).run(); } catch {}
+  try { await env.DB.prepare(`INSERT OR REPLACE INTO sync_metadata (key, value) VALUES ('deunique_v2', 1)`).run(); } catch {}
 }
 
 function randomSchoolKey(): string {

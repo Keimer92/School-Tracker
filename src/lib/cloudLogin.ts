@@ -155,10 +155,6 @@ export async function iniciarSesionGoogleConNube(opts?: {
     guardarTokenSesion(idToken, getRefreshToken());
     opts?.onStatus?.(result.creado ? 'Cuenta creada. Preparando tu nube...' : 'Bienvenido de nuevo...');
 
-    // Reusar el schoolKey REAL de la cuenta si ya lo conocemos (registro local)
-    // o si ya había una nube configurada en este dispositivo (p. ej. tras
-    // recuperar los datos con un archivo .key). Evita que /auth devuelva una
-    // escuela nueva y vacía y se pierda el vínculo con los datos existentes.
     const email = (result.perfil?.email || '').toLowerCase();
     const preferredKey = opts?.preferredKey;
     let effectiveKey = result.schoolKey;
@@ -168,24 +164,25 @@ export async function iniciarSesionGoogleConNube(opts?: {
     if (email) {
       known = getProfile(email);
       localCfg = await d1SyncService.getConfig().catch(() => null);
-      // Prioridad de resolución de clave:
-      //   1) preferredKey → clave explícita del archivo (.db/.key importado)
-      //   2) localCfg     → d1_config actual (p. ej. importación .key)
-      //   3) known        → registro local (email→clave)
-      //   4) /auth        → result.schoolKey (último recurso: puede diferir de
-      //                     donde REALMENTE están los datos si la cuenta se
-      //                     configuró vía archivo .key/.db).
       if (preferredKey) {
+        // Importación explícita de .key/.db: esa clave es la fuente de verdad
+        // (p. ej. restauración desde otro dispositivo). Se antepone a /auth.
         effectiveKey = preferredKey;
         if (localCfg?.workerUrl) effectiveWorker = localCfg.workerUrl;
-      } else if (localCfg?.schoolKey) {
-        effectiveKey = localCfg.schoolKey;
-        if (localCfg.workerUrl) effectiveWorker = localCfg.workerUrl;
-      } else if (known?.schoolKey) {
-        effectiveKey = known.schoolKey;
-        if (known.workerUrl) effectiveWorker = known.workerUrl;
       } else {
+        // Login normal: el Worker KV (user:email -> schoolKey) es la ÚNICA
+        // fuente de verdad. /auth persiste esa relación, así que usar
+        // result.schoolKey garantiza la MISMA llave en cada reinicio y evita
+        // caer en un namespace vacío por divergencia con el registro local o
+        // d1_config. Luego se sobrescribe registro + d1_config con esta clave.
         effectiveKey = result.schoolKey;
+        effectiveWorker = DEFAULT_WORKER_URL;
+        // Si la config local diverge de la llave autoritativa del Worker,
+        // limpiarla para adoptar la correcta sin disparar el prompt
+        // "Reemplazar conexión" ni quedar en un namespace vacío.
+        if (localCfg?.schoolKey && localCfg.schoolKey !== result.schoolKey) {
+          try { await d1SyncService.clearConfig(); } catch {}
+        }
       }
     }
     console.log(

@@ -386,6 +386,53 @@ fn sqlite_value_to_json(v: &Value) -> rusqlite::types::Value {
     }
 }
 
+// Tablas catálogo/entidades reconciliadas por su clave de negocio (nombre/codigo)
+// en lugar del id autoincrement, preservando el id local (los FK locales lo referencian).
+const BUSINESS_KEY_TABLES: &[(&str, &str)] = &[
+    ("ano_lectivo", "nombre"),
+    ("corte_evaluativo", "nombre"),
+    ("colegio", "nombre"),
+    ("asignatura", "nombre"),
+    ("grado", "nombre"),
+    ("seccion", "nombre"),
+    ("estudiante", "codigo"),
+];
+
+// Upsert de catálogo/entidades por su clave de negocio (nombre/codigo).
+// Actualiza la fila local existente (conservando su id) o inserta una nueva
+// (id autoincrement local) si la clave de negocio no existe. Evita colisionar
+// con UNIQUE(nombre/codigo) cuando los ids locales divergen de los remotos
+// tras reseeds/restores.
+fn upsert_catalog(conn: &rusqlite::Connection, table: &str, bk: &str, row: &Map<String, Value>) -> Result<(), String> {
+    let cols: Vec<String> = row.keys().cloned().filter(|c| c.as_str() != "id").collect();
+    if cols.is_empty() {
+        return Ok(());
+    }
+    let set_clause = cols.iter().map(|c| format!("{} = ?", c)).collect::<Vec<_>>().join(", ");
+    let update_sql = format!("UPDATE {} SET {} WHERE {} = ?", table, set_clause, bk);
+    let mut up_params: Vec<rusqlite::types::Value> = cols
+        .iter()
+        .map(|c| sqlite_value_to_json(&row.get(c).cloned().unwrap_or(Value::Null)))
+        .collect();
+    let bk_val = sqlite_value_to_json(&row.get(bk).cloned().unwrap_or(Value::Null));
+    up_params.push(bk_val);
+    let up_refs: Vec<&dyn rusqlite::types::ToSql> = up_params.iter().map(|v| v as &dyn rusqlite::types::ToSql).collect();
+    let updated = conn.execute(&update_sql, up_refs.as_slice()).map_err(|e| e.to_string())?;
+    if updated == 0 {
+        let placeholders = cols.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let insert_sql = format!("INSERT INTO {} ({}) VALUES ({})", table, cols.join(", "), placeholders);
+        let vals: Vec<rusqlite::types::Value> = cols
+            .iter()
+            .map(|c| sqlite_value_to_json(&row.get(c).cloned().unwrap_or(Value::Null)))
+            .collect();
+        let refs: Vec<&dyn rusqlite::types::ToSql> = vals.iter().map(|v| v as &dyn rusqlite::types::ToSql).collect();
+        conn.execute(&insert_sql, refs.as_slice())
+            .map(|_| ())
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 // INSERT OR REPLACE genérico a partir de las columnas del JSON (claves del objeto).
 fn upsert_row(conn: &rusqlite::Connection, table: &str, row: &Map<String, Value>) -> Result<(), String> {
     // asistencia: PK local = id autoinc, pero la clave de negocio sincronizable es
@@ -393,6 +440,13 @@ fn upsert_row(conn: &rusqlite::Connection, table: &str, row: &Map<String, Value>
     // que se upserta por la clave de negocio y se conserva el id local.
     if table == "asistencia" {
         return upsert_asistencia(conn, row);
+    }
+    // Catálogo/entidades: reconciliar por la clave de negocio (nombre/codigo) y
+    // conservar el id local para no romper los FK que las referencian.
+    for (t, bk) in BUSINESS_KEY_TABLES {
+        if *t == table {
+            return upsert_catalog(conn, table, bk, row);
+        }
     }
     let cols: Vec<String> = row.keys().cloned().collect();
     if cols.is_empty() {
