@@ -392,16 +392,15 @@ export const driveSyncService = {
     }
     await syncManager.wrapSync((async () => {
       const localBackupPath = await invoke<string>('gd_create_backup');
-      try {
-        const dbBase64 = await invoke<string>('gd_read_file_base64', { path: localBackupPath });
-        const folderId = await ensureBackupFolder(token);
+      const dbBase64 = await invoke<string>('gd_read_file_base64', { path: localBackupPath });
+      let folderId = await ensureBackupFolder(token);
+      const send = async (fid: string | null) => {
         const fileName = timestampFileName();
         const metadata: any = {
-          name: fileName,
-          mimeType: 'application/octet-stream',
+          name: fileName, mimeType: 'application/octet-stream',
           appProperties: { devicePlatform: devicePlatform() },
         };
-        if (folderId) metadata.parents = [folderId];
+        if (fid) metadata.parents = [fid];
         const boundary = 'schooltracker_sync_boundary';
         const multipartBody =
           `--${boundary}\r\n` +
@@ -421,21 +420,27 @@ export const driveSyncService = {
           x.onerror = () => reject(new Error('Network error'));
           x.send(multipartBody);
         });
+        return { xhr, fileName };
+      };
+      let ok = false;
+      for (let attempt = 0; attempt < 2 && !ok; attempt++) {
+        const { xhr, fileName } = await send(folderId);
         console.debug(`[DriveSync] Archivo creado, status: ${xhr.status} (${fileName})`);
         if (xhr.status === 404 && cachedFolderId) {
-          // La carpeta cacheada ya no existe en Drive: invalidar y reintentar la próxima vez
-          console.warn('[DriveSync] Carpeta destino no encontrada (404); limpiando caché de carpeta');
+          console.warn('[DriveSync] Carpeta destino no encontrada (404); reintentando con carpeta recién creada');
           cachedFolderId = null;
           localStorage.removeItem('drive_backup_folder_id');
-          throw new Error('La carpeta de respaldo desapareció; reintenta para recrearla');
+          folderId = await ensureBackupFolder(token);
+          continue;
         }
         try { await invoke('gd_delete_backup', { path: localBackupPath }); } catch (_) {}
         await deleteOldSyncVersions(token);
         syncManager.setState({ lastUpload: now() });
         markAllClean();
-      } catch (e) {
-        try { await invoke('gd_delete_backup', { path: localBackupPath }); } catch (_) {}
-        throw e;
+        ok = true;
+      }
+      if (!ok) {
+        throw new Error('La carpeta de respaldo desapareció; reintenta para recrearla');
       }
     })(), 'subir a Google Drive');
   },
