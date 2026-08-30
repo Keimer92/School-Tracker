@@ -7,7 +7,12 @@ convenciones, comandos y los "tropezones" frecuentes.
 Aplicación de escritorio/móvil (**Tauri 2 + Svelte 5**) para gestión escolar: años
 lectivos, colegios, grados, secciones, asignaturas, estudiantes, evaluaciones
 (indicadores/criterios/notas), asistencia e informes/PDF. Datos locales en **SQLite**
-y sincronización en la nube mediante **Google Drive** (archivo completo `school.db`).
+y sincronización en la nube mediante **Google Drive** (archivo por cuenta
+`school_<email>.db`) y **Cloudflare D1** (sync bilateral en tiempo real).
+
+Cada cuenta de Google tiene su propio archivo SQLite local (ver sección
+"Cambio de cuentas / per-account DBs"). Al cambiar de cuenta se abre el
+archivo correspondiente; no se borran datos.
 
 Idioma del código y comentarios: **español**. Mantener así.
 
@@ -17,7 +22,8 @@ Idioma del código y comentarios: **español**. Mantener así.
 - **DB local**: SQLite vía `rusqlite` (features `bundled`), archivo `school.db` en el
   `app_data_dir` de Tauri (o subdirectorio según `SCHOOLTRACKER_PROFILE`).
 - **Nube**: Google Drive OAuth (servidor local en Rust). Carga/descarga del archivo
-  `SchoolTracker_Sync.db` completo (multipart upload, base64).
+  `SchoolTracker_Sync.db` completo (multipart upload, base64). Filename is
+  per-account: `SchoolTracker_Sync_<email>_<platform>_<timestamp>.db`.
 - **Otros**: `jspdf` + `jspdf-autotable` (PDF), `xlsx`.
 - **Rust deps clave**: `rusqlite`, `futures`, `tokio`,
   `tauri-plugin-{fs,dialog,opener}`, `jni`/`ndk-context` (Android).
@@ -46,8 +52,9 @@ src/
                              SyncManager (status, lastUpload/Download, lastSync,
                              downloadProgress) con subscribe(). Carpeta destino:
                              Keimer Labs/School Tracker MINED (máx 3 respaldos,
-                             nombre incluye _Windows/_Android). Auto-respaldo cada N
-                             min (drive_auto_backup_minutes, default 180).
+                             nombre incluye _Windows/_Android + tag de cuenta).
+                             Auto-respaldo cada N min (drive_auto_backup_minutes,
+                             default 180). Filename por cuenta:SchoolTracker_Sync_<tag>_<platform>_<ts>.db
     d1SyncService.ts         SYNC BILATERAL Cloudflare D1 (ver sección dedicada).
                              Dual-cursor: last_sync=servidor(pull), last_push_sync=
                              local(push). emitUpdates() dispara refrescos de páginas.
@@ -69,9 +76,12 @@ src-tauri/
   src/
     main.rs                  entrypoint -> llama run()
     lib.rs                   #![tauri::command]s (CRUD, backup, etc.)
-                              y run() con generate_handler! (REGISTRO de comandos)
+                               y run() con generate_handler! (REGISTRO de comandos)
+                               open_account_db, get_db_path, etc.
     db.rs                    SCHEMA SQLite (init_database), migraciones, semillas,
-                              macros de CRUD, comandos de borrado en cascada + pending deletions
+                               macros de CRUD, comandos de borrado en cascada + pending deletions
+                               + helpers per-account: sanitize_account_id, account_db_path,
+                               read/write_active_account, resolve_active_db_path
 src-tauri/gen/               generado (ignorar; no editar a mano)
 ```
 
@@ -111,6 +121,10 @@ src-tauri/gen/               generado (ignorar; no editar a mano)
   hay una migración que renombra la clave histórica `turso_dirty_tables` una sola vez
   para no perder marcas pendientes. Función: marcar tablas modificadas para saber si
   hay cambios pendientes de subir.
+- **Per-account DBs**: cada cuenta de Google tiene su propio archivo SQLite
+  (`school_<email>.db`). El archivo activo se controla via `active_account.txt`
+  y helpers `db::read_active_account` / `db::write_active_account`. NO usar
+  `Connection::open("school.db")` directamente; usar `resolve_active_db_path()`.
 
 ## Comandos
 - `npm run dev` — servidor Vite (frontend) en http://localhost:1420 (usado por Tauri dev).
@@ -168,24 +182,25 @@ Google Drive (SchoolTracker_Sync.db)
 ### pushAll (subida)
 
 1. Obtener token OAuth de `localStorage['schooltracker-google-drive-settings']`
-2. Leer el archivo `school.db` local (Rust `get_db_path`)
-3. Subir a Drive como `SchoolTracker_Sync.db`:
-   - Buscar archivo existente por nombre en Drive
-   - Si existe → multipart update (PATCH)
-   - Si no existe → multipart create (POST)
-4. Actualizar `syncManager` estado: `lastUpload`, `lastSync`
-5. Emitir evento `sync-completed`
+2. Leer el archivo activo de la cuenta (Rust `get_db_path` → `resolve_active_db_path`)
+3. Subir a Drive como `SchoolTracker_Sync_<tag>_<platform>_<timestamp>.db`:
+   - Usar `accountTag()` (sanitizado de `googleUserEmail`) para aislar respaldos por cuenta.
+   - Si la carpeta cacheada 404 → limpiar caché, recrear carpeta, reintentar una vez.
+   - Crear archivo multipart POST.
+4. `deleteOldSyncVersions` mantiene máx 3 respaldos **por cuenta** (filtra por tag).
+5. Actualizar `syncManager` estado: `lastUpload`, `lastSync`
 
 ### pullAll (descarga)
 
 1. Obtener token OAuth
-2. Buscar `SchoolTracker_Sync.db` en Drive por nombre
-3. Si no existe → abortar (no hay datos remotos)
+2. Buscar archivos `SchoolTracker_Sync_<tag>_` en Drive (solo la cuenta activa).
+3. Si no existen → abortar (no hay datos remotos)
 4. Descargar contenido (base64 → ArrayBuffer)
-5. Hacer **safety backup** del `school.db` local antes de sobrescribir
-6. Reemplazar `school.db` local con el contenido descargado
-7. Actualizar `syncManager` estado: `lastDownload`, `lastSync`
-8. Emitir eventos `sync-completed`, `data-updated`
+5. Hacer **safety backup** del archivo activo antes de sobrescribir
+6. Reemplazar archivo activo con el contenido descargado
+7. `d1_reset_device_id` tras restaurar (evita colisión de device_id)
+8. Actualizar `syncManager` estado: `lastDownload`, `lastSync`
+9. Emitir eventos `sync-completed`, `data-updated`
 
 ### Periodic sync
 
@@ -432,6 +447,23 @@ La BD se crea en `app_data_dir/school.db` al arrancar la app vía `init_database
 se siembran bajo demanda desde el frontend (`seed_defaults_now`) después de verificar
 si hay datos existentes (evita duplicar defaults).
 
+**Cambio de cuentas / per-account DBs**: cada cuenta de Google tiene su propio
+archivo SQLite (`school_<email>.db`). El activo se controla con `active_account.txt`
+(marca el email de la cuenta activa). Helpers en `db.rs`:
+- `sanitize_account_id(email)` → sufijo de archivo seguro.
+- `account_db_path(dir, email)` → `dir/school_<tag>.db`.
+- `read_active_account(dir)` / `write_active_account(dir, email)`.
+- `resolve_active_db_path(dir)` → ruta del archivo activo (o `school.db` por defecto).
+
+`open_account_db(email, migrateFromDefault)` abre/crea el archivo de la cuenta,
+migra `school.db` solo la primera vez (si no hay otro `school_*.db`), cierra la
+conexión activa para liberar el handle de Windows antes del rename, y escribe la marca.
+Se registra en `generate_handler!` + `local-commands.toml`.
+
+**GOTCHA rename**: `fs::rename` de un archivo SQLite bloqueado por `rusqlite` falla
+con "os error 32". Antes de renombrar, se reemplaza la conexión activa con
+`Connection::open_in_memory()` (manteniendo el lock) para liberar el handle.
+
 ### Tablas creadas en `init_database` (`src-tauri/src/db.rs:61`)
 
 | Tabla | PK | Columnas clave | Notas |
@@ -488,7 +520,8 @@ En `migrate_add_columns` (`db.rs:299`):
 
 ### Flujo de llamada
 
-1. `lib.rs:setup` → `init_database()` (crea tablas + migraciones)
+1. `lib.rs:setup` → `init_database()` (crea tablas + migraciones). Si `active_account.txt`
+   existe y el archivo correspondiente, abre ese en lugar de `school.db`.
 2. Frontend (`App.svelte` `onMount`): llama `invoke("seed_defaults_now")` →
    `seed_default_data()` si BD vacía.
 
@@ -706,3 +739,105 @@ queda operativa al primer sync. Tras cada cambio del worker:
   (ancho mínimo/media queries propios); usar chips dedicados.
 - GOTCHA: NUNCA editar AGENTS.md vía PowerShell (Get-Content/Set-Content) —
   corrompe UTF-8 igual que los fuentes; usar solo herramientas de edición.
+
+## Cambio de cuentas / per-account DBs (2026-08)
+
+Cada cuenta de Google tiene su propio archivo SQLite local, eliminando la
+necesidad de borrar/restaurar al cambiar de cuenta. La sincronización con
+Cloudflare D1 y Google Drive es de respaldo; el archivo local siempre es la
+fuente de verdad.
+
+### Archivos por cuenta
+
+| Ruta | Contenido |
+|------|-----------|
+| `app_data_dir/school.db` | BD por defecto (solo instalaciones antiguas sin per-account) |
+| `app_data_dir/school_<tag>.db` | BD de una cuenta concreta (`tag` = email sanitizado) |
+| `app_data_dir/active_account.txt` | Email de la cuenta activa (marca de archivo) |
+
+- `sanitize_account_id(email)` → `plbarostegui92_gmail_com`
+- `account_db_path(dir, email)` → `dir/school_<tag>.db`
+- `resolve_active_db_path(dir)` → ruta del archivo activo (o `school.db` si no hay marker)
+
+### Comando Rust: `open_account_db`
+
+```rust
+#[tauri::command]
+async fn open_account_db(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<'_, DbState>,
+    email: String,
+    migrate_from_default: bool,
+) -> Result<String, String>
+```
+
+1. Calcula ruta del archivo `school_<tag>.db`.
+2. Si no existe y `school.db` es la primera (no hay otros `school_*`):
+   - **Libera el handle**: reemplaza la conexión activa con `Connection::open_in_memory()`
+     para soltar el lock de Windows sobre `school.db`.
+   - Renombra `school.db` → `school_<tag>.db`.
+3. Abre `school_<tag>.db`, init_database, reemplaza la conexión activa, escribe marker.
+
+**GOTCHA rename**: `fs::rename` de un SQLite abierto falla con "os error 32" en Windows.
+Se reemplaza la conexión con `Connection::open_in_memory()` ANTES de renombrar.
+
+### Flujo de cambio de cuentas
+
+**Stored (sin re-auth)**:
+1. `invoke('open_account_db', { email })` → abre archivo propio.
+2. `applyAccountStores(...)` → tokens + perfil.
+3. `ensureWsSync()` → reconecta al hub de la nueva cuenta.
+4. `invoke('d1_sync_all', {})` → push+pull con la nube de esa cuenta.
+5. `driveSyncService.pushAll()` → respaldo a Drive (con `accountTag()` en el nombre).
+
+**OAuth (nueva cuenta)**:
+1. `iniciarSesionGoogleConNube(...)` → OAuth → `open_account_db(email)` internamente
+   (antes de `conectarConCredenciales` para que la config de nube vaya al archivo correcto).
+2. `applyAccountStores(...)`.
+3. `finalizeAccountSwitch({ cloud })` → saveConfig + sync + Drive push.
+
+**Primera conexión (welcome)**:
+- `iniciarSesionGoogleConNube` → `open_account_db` migra `school.db` → `school_<email>.db`
+  (el usuario conserva sus datos del primer setup).
+
+### Drive por cuenta
+
+`accountTag()` genera un sufijo a partir del email para aislar respaldos:
+- Filename: `SchoolTracker_Sync_<tag>_<platform>_<timestamp>.db`
+- `listSyncFiles` filtra por `name contains 'SchoolTracker_Sync_<tag>_'`
+- `deleteOldSyncVersions` solo borra versiones de la misma cuenta (máx 3)
+
+**Retry en pushAll**: si el POST devuelve 404 (carpeta cacheada stale), se invalida
+el caché, se recrea la carpeta vía `ensureBackupFolder`, y se reintenta una vez.
+
+### Comandos Rust relacionados (todos en `local-commands.toml`)
+
+| Comando | Descripción |
+|---------|-------------|
+| `open_account_db` | Abre/crea archivo de una cuenta + migra school.db si es primera vez |
+| `get_db_path` | Devuelve la ruta del archivo activo (`resolve_active_db_path`) |
+| `gd_reload_database` | Reabre la conexión activa (usa `resolve_active_db_path`) |
+| `gd_import_db_from_file` | Importa .db en el archivo activo |
+| `gd_create_backup` | Copia el archivo activo para backup temporal |
+
+### Helpers en `db.rs`
+
+| Función | Descripción |
+|---------|-------------|
+| `sanitize_account_id(email)` | Email → sufijo de archivo seguro |
+| `account_db_path(dir, email)` | Ruta del archivo de una cuenta |
+| `read_active_account(dir)` | Lee `active_account.txt` → Option<String> |
+| `write_active_account(dir, email)` | Escribe `active_account.txt` |
+| `resolve_active_db_path(dir)` | Ruta activa (account file o school.db fallback) |
+
+### Gotchas per-account
+
+- **`fs::rename` con SQLite abierto** → "os error 32". Solución: `Connection::open_in_memory()`
+  antes de rename para liberar el handle.
+- **`d1_config` se escribe ANTES del rename**: `iniciarSesionGoogleConNube` llama
+  `open_account_db` DESPUÉS de `authWithGoogleIdToken` pero ANTES de
+  `conectarConCredenciales`, para que la config de nube se guarde en el archivo nuevo.
+- **school.db como fallback**: `resolve_active_db_path` devuelve `school.db` si no hay
+  marker o si el archivo del marker no existe (backward compat).
+- **Migración solo una vez**: solo ocurre si NO hay ningún `school_*.db` en el dir.
+  Si ya existe uno, se crea archivo vacío para la nueva cuenta.
