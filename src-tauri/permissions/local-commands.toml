@@ -51,6 +51,7 @@ commands.allow = [
     "save_notas_estudiantes",
     "get_notas_by_filters",
     "get_db_path",
+    "open_account_db",
     "get_grade_configs",
     "update_grade_config",
     "get_asistencia_estudiantes",

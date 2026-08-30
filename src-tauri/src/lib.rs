@@ -1592,7 +1592,9 @@ async fn open_account_db(
     }
     let target = db::account_db_path(&app_dir, &email);
 
-    if !target.exists() {
+    // ¿Hay que migrar la BD por defecto (school.db) a la cuenta? Solo la primera
+    // vez y si aún no existe ningún archivo de cuenta.
+    let needs_migrate = !target.exists() && {
         let default = app_dir.join("school.db");
         let ya_hay_cuenta = fs::read_dir(&app_dir)
             .map(|entries| {
@@ -1604,17 +1606,26 @@ async fn open_account_db(
                     })
             })
             .unwrap_or(false);
-        if default.exists() && migrate_from_default && !ya_hay_cuenta {
+        default.exists() && migrate_from_default && !ya_hay_cuenta
+    };
+
+    // Abrir/reemplazar la conexión activa. Si vamos a mover school.db, primero
+    // soltamos el handle abierto (lo cambiamos por una BD en memoria) para poder
+    // renombrar el archivo en Windows sin el error "file used by another process".
+    // Se mantiene el lock durante toda la operación para evitar una condición de
+    // carrera con otros comandos.
+    {
+        let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+        if needs_migrate {
+            *conn = Connection::open_in_memory()
+                .map_err(|e| format!("No se pudo liberar la BD actual: {}", e))?;
+            let default = app_dir.join("school.db");
             fs::rename(&default, &target)
                 .map_err(|e| format!("No se pudo migrar la BD por defecto: {}", e))?;
         }
-    }
-
-    let new_conn =
-        Connection::open(&target).map_err(|e| format!("No se pudo abrir la BD de la cuenta: {}", e))?;
-    db::init_database(&new_conn).map_err(|e| e.to_string())?;
-    {
-        let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+        let new_conn = Connection::open(&target)
+            .map_err(|e| format!("No se pudo abrir la BD de la cuenta: {}", e))?;
+        db::init_database(&new_conn).map_err(|e| e.to_string())?;
         *conn = new_conn;
     }
     db::write_active_account(&app_dir, &email)?;
