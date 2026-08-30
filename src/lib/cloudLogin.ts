@@ -174,6 +174,17 @@ export async function iniciarSesionGoogleConNube(opts?: {
     opts?.onStatus?.(result.creado ? 'Cuenta creada. Preparando tu nube...' : 'Bienvenido de nuevo...');
 
     const email = (result.perfil?.email || '').toLowerCase();
+    // Abrir el archivo de BD propio de esta cuenta ANTES de guardar la
+    // configuración de nube, para no escribir la config de la cuenta nueva
+    // en el archivo de la cuenta anterior (que sigue activo hasta este momento).
+    if (email) {
+      try {
+        await invoke('open_account_db', { email, migrateFromDefault: true });
+        setCurrentEmail(email);
+      } catch (e) {
+        console.error('[CloudLogin] no se pudo abrir la BD de la cuenta:', e);
+      }
+    }
     const preferredKey = opts?.preferredKey;
     let effectiveKey = result.schoolKey;
     let effectiveWorker = DEFAULT_WORKER_URL;

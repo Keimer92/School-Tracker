@@ -157,10 +157,21 @@ function devicePlatform(): 'Windows' | 'Android' {
   return /Android/i.test(navigator.userAgent) ? 'Android' : 'Windows';
 }
 
+/** Etiqueta de la cuenta actual para aislar los respaldos de Drive por cuenta. */
+function accountTag(): string {
+  const s = getSettings() as any;
+  const email = s?.googleUserEmail || '';
+  const tag = (email || 'default')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return tag || 'default';
+}
+
 function timestampFileName(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${SYNC_FILE_PREFIX}_${devicePlatform()}_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.db`;
+  return `${SYNC_FILE_PREFIX}_${accountTag()}_${devicePlatform()}_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.db`;
 }
 
 let cachedFolderId: string | null = localStorage.getItem('drive_backup_folder_id') || null;
@@ -205,10 +216,12 @@ async function ensureBackupFolder(token: string): Promise<string | null> {
 }
 
 async function listSyncFiles(token: string): Promise<DriveFile[]> {
-  // Archivos en la carpeta destino + legacy en raíz (para restaurar/limpiar)
+  // Archivos en la carpeta destino + legacy en raíz (para restaurar/limpiar),
+  // filtrados por la etiqueta de la cuenta para no mezclar respaldos de distintas cuentas.
+  const tag = accountTag();
   const inner = cachedFolderId
-    ? `'${cachedFolderId}' in parents or name contains '${SYNC_FILE_PREFIX}'`
-    : `name contains '${SYNC_FILE_PREFIX}'`;
+    ? `'${cachedFolderId}' in parents or name contains '${SYNC_FILE_PREFIX}_${tag}_'`
+    : `name contains '${SYNC_FILE_PREFIX}_${tag}_'`;
   const q = `(${inner}) and trashed=false`;
   const resp = await fetch(
     `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&orderBy=createdTime desc&fields=files(id,name,size,createdTime)`,

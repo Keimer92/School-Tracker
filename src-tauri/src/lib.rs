@@ -908,7 +908,7 @@ async fn gd_read_file_base64(path: String) -> Result<String, String> {
 #[tauri::command]
 async fn gd_reload_database(app_handle: tauri::AppHandle, state: tauri::State<'_, DbState>) -> Result<(), String> {
     let app_dir = get_profile_app_dir(&app_handle)?;
-    let db_path = app_dir.join("school.db");
+    let db_path = db::resolve_active_db_path(&app_dir);
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
     *conn = Connection::open(&db_path).map_err(|e| format!("Failed to reopen database: {}", e))?;
     db::init_database(&*conn).map_err(|e| e.to_string())?;
@@ -1462,8 +1462,8 @@ async fn gd_create_backup(app_handle: tauri::AppHandle) -> Result<String, String
     use chrono::Local;
     
     let app_data_dir = get_profile_app_dir(&app_handle)?;
-    let db_path = app_data_dir.join("school.db");
-    
+    let db_path = db::resolve_active_db_path(&app_data_dir);
+
     if !db_path.exists() {
         return Err("Database file not found".to_string());
     }
@@ -1548,8 +1548,8 @@ async fn gd_import_db_from_file(app_handle: tauri::AppHandle, state: tauri::Stat
     }
     
     let app_data_dir = get_profile_app_dir(&app_handle)?;
-    let db_path = app_data_dir.join("school.db");
-    
+    let db_path = db::resolve_active_db_path(&app_data_dir);
+
     let backups_dir = app_data_dir.join("backups");
     if !backups_dir.exists() { fs::create_dir_all(&backups_dir).ok(); }
     let safety_backup = backups_dir.join(format!("safety_before_import_{}.db", chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")));
@@ -1572,15 +1572,64 @@ async fn gd_import_db_from_file(app_handle: tauri::AppHandle, state: tauri::Stat
     Ok(db_path.to_string_lossy().into_owned())
 }
 
+/// Abre (o crea) la base de datos local de una cuenta de Google concreta y la
+/// convierte en la BD activa del proceso, SIN destruir ninguna otra cuenta.
+/// En la primera conexión de la instalación, si existe la BD por defecto
+/// (school.db) y aún no hay ninguna cuenta con archivo propio, se migra dicha
+/// BD a la cuenta para no perder los datos previos del único profesor.
+#[tauri::command]
+async fn open_account_db(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<'_, DbState>,
+    email: String,
+    migrate_from_default: bool,
+) -> Result<String, String> {
+    use std::fs;
+    let app_dir = get_profile_app_dir(&app_handle)?;
+    let email = email.trim().to_lowercase();
+    if email.is_empty() {
+        return Err("email de cuenta vacío".to_string());
+    }
+    let target = db::account_db_path(&app_dir, &email);
+
+    if !target.exists() {
+        let default = app_dir.join("school.db");
+        let ya_hay_cuenta = fs::read_dir(&app_dir)
+            .map(|entries| {
+                entries
+                    .filter_map(|e| e.ok())
+                    .any(|e| {
+                        let n = e.file_name().to_string_lossy().to_string();
+                        n.starts_with("school_") && n.ends_with(".db")
+                    })
+            })
+            .unwrap_or(false);
+        if default.exists() && migrate_from_default && !ya_hay_cuenta {
+            fs::rename(&default, &target)
+                .map_err(|e| format!("No se pudo migrar la BD por defecto: {}", e))?;
+        }
+    }
+
+    let new_conn =
+        Connection::open(&target).map_err(|e| format!("No se pudo abrir la BD de la cuenta: {}", e))?;
+    db::init_database(&new_conn).map_err(|e| e.to_string())?;
+    {
+        let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+        *conn = new_conn;
+    }
+    db::write_active_account(&app_dir, &email)?;
+    Ok(target.to_string_lossy().into_owned())
+}
+
 /// Copia de seguridad de la BD local antes de un "cambio de profesor" destructivo,
 /// para poder recuperar si el restore desde la nube falla. Devuelve la ruta del backup.
 #[tauri::command]
 async fn create_switch_backup(app_handle: tauri::AppHandle) -> Result<String, String> {
     use std::fs;
     let app_data_dir = get_profile_app_dir(&app_handle)?;
-    let db_path = app_data_dir.join("school.db");
+    let db_path = db::resolve_active_db_path(&app_data_dir);
     if !db_path.exists() {
-        return Err("No existe school.db para respaldar".to_string());
+        return Err("No existe la base de datos para respaldar".to_string());
     }
     let backups_dir = app_data_dir.join("backups");
     if !backups_dir.exists() {
@@ -1603,7 +1652,7 @@ async fn restore_switch_backup_db(app_handle: tauri::AppHandle, source_path: Str
         return Err("El respaldo especificado no existe".to_string());
     }
     let app_data_dir = get_profile_app_dir(&app_handle)?;
-    let db_path = app_data_dir.join("school.db");
+    let db_path = db::resolve_active_db_path(&app_data_dir);
     fs::copy(&import_path, &db_path).map_err(|e| format!("Failed to restore backup: {}", e))?;
     Ok(db_path.to_string_lossy().into_owned())
 }
@@ -1697,7 +1746,12 @@ pub fn run() {
             }
             let app_handle = app.handle().clone();
             let app_dir = get_profile_app_dir(&app_handle).expect("Failed to get profile dir");
-            let db_path = app_dir.join("school.db");
+            let db_path = if let Some(email) = db::read_active_account(&app_dir) {
+                let p = db::account_db_path(&app_dir, &email);
+                if p.exists() { p } else { app_dir.join("school.db") }
+            } else {
+                app_dir.join("school.db")
+            };
             let conn = Connection::open(db_path).expect("Failed to open database");
             db::init_database(&conn).expect("Failed to initialize database");
             app_handle.manage(DbState {
@@ -1765,6 +1819,7 @@ pub fn run() {
             delete_notas,
             get_notas_by_filters,
             get_db_path,
+            open_account_db,
             get_grade_configs,
             update_grade_config,
             get_multiplicadores,
