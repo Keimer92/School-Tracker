@@ -1567,6 +1567,11 @@ async fn gd_import_db_from_file(app_handle: tauri::AppHandle, state: tauri::Stat
         *conn = Connection::open(&db_path).map_err(|e| format!("Failed to reopen imported database: {}", e))?;
         conn.execute("DROP TABLE IF EXISTS d1_config", [])
             .map_err(|e| format!("Failed to exclude d1_config from import: {}", e))?;
+        // El archivo importado puede venir de una versión anterior de la app
+        // (sin colegio_grado, dia_sin_clases, columna tipo, etc.). Correr
+        // init_database aquí garantiza schema + migraciones al día ANTES de que
+        // cualquier sync (D1) o página intente usar tablas que aún no existen.
+        db::init_database(&*conn).map_err(|e| format!("Failed to migrate imported database: {}", e))?;
     }
 
     Ok(db_path.to_string_lossy().into_owned())

@@ -289,7 +289,15 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
       const source = await open({ filters: [{ name: "Database File", extensions: ["db"] }], multiple: false });
       if (source && typeof source === "string") {
         const dbFile = await invoke<string>("get_db_path"); await copyFile(source, dbFile);
-        await emit("show-toast", { message: "✅ Base de datos importada. Reinicie la app.", type: "success" });
+        // Reabrir la conexión Y correr migraciones: un backup de una versión
+        // anterior puede carecer de tablas nuevas (colegio_grado, dia_sin_clases,
+        // columna tipo, …). Sin esto el sync D1 falla con "no such table".
+        try {
+          await invoke("gd_reload_database");
+          await emit("catalog-updated");
+          await emit("data-updated");
+        } catch (e) { console.warn("Post-import migrate/reload:", e); }
+        await emit("show-toast", { message: "✅ Base de datos importada y migrada. Reinicie la app si algo no responde.", type: "success" });
       }
     } catch (error) { await emit("show-toast", { message: "❌ Error al importar: " + error, type: "error" }); }
   }

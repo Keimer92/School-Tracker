@@ -189,6 +189,23 @@
   // Estado D1
   let d1Cfg = $state<D1Config | null>(null);
   let d1SyncState = $state({ status: 'idle' as string, lastSync: null as string | null, message: null as string | null });
+
+  // ── Diagnóstico de errores de sync (window.__d1LastError lo llena d1SyncService) ──
+  let d1ErrorDetalle = $state('');
+  let showD1ErrorDetalle = $state(false);
+  function refreshD1ErrorDetalle() {
+    const d = (window as any).__d1LastError;
+    if (!d) { d1ErrorDetalle = ''; return; }
+    d1ErrorDetalle = `[${d.ts}] online=${d.online}\nMENSAJE:\n${d.mensaje}\n\nERROR COMPLETO (JSON):\n${d.completo || '(sin detalle)'}`;
+  }
+  async function copiarD1Error() {
+    try {
+      await navigator.clipboard.writeText(d1ErrorDetalle || (window as any).__d1LastError?.mensaje || '');
+      await emit("show-toast", { message: "📋 Diagnóstico del error copiado al portapapeles", type: "success" });
+    } catch (e) {
+      await emit("show-toast", { message: "❌ No se pudo copiar: " + e, type: "error" });
+    }
+  }
   let isD1Saving = $state(false);
   let isD1Testing = $state(false);
   let isD1Syncing = $state(false);
@@ -751,6 +768,28 @@
     } finally { isD1Syncing = false; }
   }
 
+  /** Sync COMPLETO forzado: ignora cursores (push_since/pull_since = época),
+   *  re-push de TODAS las filas locales y re-pull total. Úsalo tras importar
+   *  una base vieja cuyo d1_config trae cursores adelantados (los datos con
+   *  updated_at antiguos nunca se subirían con un sync incremental). */
+  async function syncD1Full() {
+    if (!d1Cfg) return;
+    const ok = await ask(
+      "Sincronización COMPLETA forzada:\n\n· Re-subirá TODAS las filas locales a la nube (ignora cursores).\n· Luego re-descargará todo lo remoto.\n\nEs la forma correcta de reparar la nube tras importar una base de datos.\n\n¿Continuar?",
+      { title: "🔄 Sync completo (forzado)", kind: "info", okLabel: "Sincronizar todo", cancelLabel: "Cancelar" }
+    );
+    if (!ok) return;
+    isD1Syncing = true;
+    try {
+      d1LastResult = await invoke<D1SyncResult>("d1_sync_all", { full: true });
+      const sub = sumarConteos((d1LastResult as any)?.pushed);
+      await emit("show-toast", { message: `✅ Sync completo: ${sub} filas re-subidas a la nube`, type: "success" });
+    } catch (e) {
+      console.error("[D1] sync completo falló:", e);
+      await emit("show-toast", { message: "❌ Error en sync completo: " + e, type: "error" });
+    } finally { isD1Syncing = false; }
+  }
+
   async function disconnectD1() {
     confirm("¿Desconectar la nube D1?\n\nSe detendrá la sincronización automática con Cloudflare.", "Desconectar D1", 'warning', async () => {
       try {
@@ -790,7 +829,7 @@
     loadSettings();
     if (settings.accessToken) await refreshFiles();
     await loadD1Config();
-    d1SyncManager.subscribe((s) => { d1SyncState = s; });
+    d1SyncManager.subscribe((s) => { d1SyncState = s; if (s.status === 'error') refreshD1ErrorDetalle(); });
     refreshLinkedAccounts();
     // Auto-detect pending OAuth code (por si la página recargó durante el flujo)
     if (!settings.accessToken && !isAuthLoading) {
@@ -1071,6 +1110,11 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F6821F" stroke-width="2" stroke-linecap="round" style="{isD1Syncing ? 'animation: spin 1s linear infinite;' : ''}"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
             <span>Sincronizar</span>
           </button>
+          <button onclick={syncD1Full} disabled={isD1Syncing} title="Re-subir TODO lo local ignorando cursores (reparación tras importar una base)"
+            style="display: inline-flex; align-items: center; gap: 6px; padding: 0 0.7rem; height: 34px; border-radius: 9px; border: 1px solid rgba(34,197,94,0.25); background: rgba(34,197,94,0.08); color: #86efac; cursor: pointer; opacity: {isD1Syncing ? 0.5 : 1}; transition: all 0.2s ease; font-size: 0.72rem; font-weight: 600;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="{isD1Syncing ? 'animation: spin 1s linear infinite;' : ''}"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span>Sync completo</span>
+          </button>
           <button onclick={testD1} disabled={isD1Testing} title="Probar conexión"
             style="display: inline-flex; align-items: center; gap: 6px; padding: 0 0.7rem; height: 34px; border-radius: 9px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: #94a3b8; cursor: pointer; opacity: {isD1Testing ? 0.5 : 1}; transition: all 0.2s ease; font-size: 0.72rem; font-weight: 600; {isD1Testing ? '' : 'hover: background: rgba(255,255,255,0.1);'}">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
@@ -1099,7 +1143,16 @@
             {/if}
           </div>
           {#if d1SyncState.status === 'error' && d1SyncState.message}
-            <p style="margin: 0; padding: 0.6rem 0.7rem; border-radius: 10px; background: rgba(239,68,68,0.1); color: #fecaca; font-size: 0.74rem; line-height: 1.5; border-left: 3px solid #ef4444;">{d1SyncState.message}</p>
+            <div style="margin: 0;">
+              <p style="margin: 0; padding: 0.6rem 0.7rem; border-radius: 10px; background: rgba(239,68,68,0.1); color: #fecaca; font-size: 0.74rem; line-height: 1.5; border-left: 3px solid #ef4444; word-break: break-word;">{d1SyncState.message}</p>
+              <div style="display: flex; gap: 6px; margin-top: 0.5rem;">
+                <button onclick={() => { refreshD1ErrorDetalle(); showD1ErrorDetalle = !showD1ErrorDetalle; }} style="padding: 0.3rem 0.7rem; border-radius: 6px; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); color: #fca5a5; cursor: pointer; font-size: 0.68rem; font-weight: 600;">{showD1ErrorDetalle ? '▲ Ocultar diagnóstico' : '▼ Ver diagnóstico completo'}</button>
+                <button onclick={copiarD1Error} style="padding: 0.3rem 0.7rem; border-radius: 6px; border: 1px solid rgba(59,130,246,0.3); background: rgba(59,130,246,0.1); color: #93c5fd; cursor: pointer; font-size: 0.68rem; font-weight: 600;">📋 Copiar diagnóstico</button>
+              </div>
+              {#if showD1ErrorDetalle && d1ErrorDetalle}
+                <pre style="margin: 0.5rem 0 0; padding: 0.7rem; border-radius: 10px; background: rgba(0,0,0,0.45); border: 1px solid rgba(239,68,68,0.2); color: #fca5a5; font-size: 0.62rem; line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 260px; overflow-y: auto; font-family: monospace;">{d1ErrorDetalle}</pre>
+              {/if}
+            </div>
           {:else if d1LastResult}
             {@const subidos = sumarConteos(d1LastResult.pushed)}
             {@const aplicados = sumarConteos(d1LastResult.pulled)}

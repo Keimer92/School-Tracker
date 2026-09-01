@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
-import { markDirty, markAllDirty, markAllClean } from './dirtyTracker';
+import { markDirty, markAllDirty, markAllClean, getDirtyTables } from './dirtyTracker';
 
 export type D1Status = 'idle' | 'syncing' | 'error' | 'success' | 'offline';
 
@@ -136,7 +136,9 @@ export const d1SyncService = {
         return null;
       }
       d1SyncManager.setState({ status: 'syncing', message: `Sincronizando con la nube D1...` });
+      console.debug(`[D1Debug] sync INICIO · tablas sucias: [${getDirtyTables().join(', ') || 'ninguna'}]`);
       const result = await invoke<D1SyncResult>('d1_sync_all');
+      console.debug('[D1Debug] sync resultado crudo:', JSON.stringify(result).slice(0, 1500));
       d1SyncManager.setState({
         status: 'success',
         lastSync: nowIso(),
@@ -154,13 +156,36 @@ export const d1SyncService = {
         console.debug(`[D1Debug] sync OK · push=${p} pull=${l} del=${d} → eventos enviados a páginas`);
       } else {
         console.debug(`[D1Debug] sync OK · push=${p} pull=${l} del=${d} (sin cambios)`);
-      }
+      } 
       markAllClean();
       return result;
     } catch (e: any) {
+      // ── Diagnóstico detallado del error de sync ──
+      // El error de Tauri llega como string (no Error); serializar TODO para
+      // no perder información (mensajes largos del worker/Rust, etc.)
+      let completo: string = '';
+      try {
+        completo = JSON.stringify(e, Object.getOwnPropertyNames(e || {}), 2);
+      } catch { completo = String(e); }
+      const detalle = {
+        mensaje: e?.message || String(e),
+        stack: e?.stack || null,
+        completo,
+        completoLen: completo.length,
+        online: navigator.onLine,
+        ts: new Date().toISOString(),
+      };
+      // Inspección manual desde consola: window.__d1LastError
+      (window as any).__d1LastError = detalle;
+      // console.warn (NO debug): DevTools oculta console.debug salvo nivel "Verbose"
+      console.warn('[D1Sync] ════ ERROR EN SYNC ════');
+      console.warn('[D1Sync] mensaje:', detalle.mensaje);
+      if (detalle.stack) console.warn('[D1Sync] stack:', detalle.stack);
+      console.warn('[D1Sync] error completo (JSON):', completo);
+      console.warn('[D1Sync] contexto:', { online: detalle.online, ts: detalle.ts, msgLen: detalle.mensaje.length });
       d1SyncManager.setState({
         status: 'error',
-        message: `Error en sync: ${e?.message || e}`,
+        message: `Error en sync: ${detalle.mensaje} (detalle completo en consola [D1Sync] o window.__d1LastError)`,
       });
       console.error('[D1Sync] Error en syncAllSilent:', e);
       return null;
