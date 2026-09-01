@@ -503,14 +503,49 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
               <div style="display: inline-block; margin-top: 0.4rem; padding: 0.15rem 0.6rem; background: rgba(255,255,255,0.05); border-radius: 20px; font-size: 0.7rem; color: var(--primary-color); border: 1px solid var(--primary-color);">v1.2.0</div>
             </div>
           </div>
-          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; text-align: center;">
-            {#each [{ icon: "📱", title: "Mobile", desc: "Optimizada" }, { icon: "☁️", title: "Cloud", desc: "Sync" }, { icon: "🎨", title: "Temas", desc: "Dinámicos" }, { icon: "🛡️", title: "Local", desc: "Storage" }] as card}
-              <div style="background: rgba(255,255,255,0.05); padding: 0.75rem 0.5rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);">
-                <div style="font-size: 1.5rem; margin-bottom: 0.3rem;">{card.icon}</div>
-                <div style="font-weight: bold; font-size: 0.8rem;">{card.title}</div>
-                <div style="font-size: 0.7rem; color: #94a3b8;">{card.desc}</div>
+          <div class="info-features">
+            <div class="info-feature">
+              <span class="info-feature-icon">📋</span>
+              <div>
+                <div class="info-feature-title">Gestión Académica</div>
+                <div class="info-feature-desc">Años lectivos, colegios, grados, secciones y asignaturas en un solo lugar.</div>
               </div>
-            {/each}
+            </div>
+            <div class="info-feature">
+              <span class="info-feature-icon">📝</span>
+              <div>
+                <div class="info-feature-title">Notas y Evaluaciones</div>
+                <div class="info-feature-desc">Registro de notas por criterio e indicador con corte evaluativo y configuración flexible.</div>
+              </div>
+            </div>
+            <div class="info-feature">
+              <span class="info-feature-icon">✅</span>
+              <div>
+                <div class="info-feature-title">Control de Asistencia</div>
+                <div class="info-feature-desc">Tomar asistencia diaria, semanal o mensual con días sin clases y reportes detallados.</div>
+              </div>
+            </div>
+            <div class="info-feature">
+              <span class="info-feature-icon">📊</span>
+              <div>
+                <div class="info-feature-title">Informes y PDF</div>
+                <div class="info-feature-desc">Generación de boletines, listados y reportes exportables en Excel y PDF.</div>
+              </div>
+            </div>
+            <div class="info-feature">
+              <span class="info-feature-icon">☁️</span>
+              <div>
+                <div class="info-feature-title">Sincronización en la Nube</div>
+                <div class="info-feature-desc">Respaldo en Google Drive y sync en tiempo real entre dispositivos con Cloudflare D1.</div>
+              </div>
+            </div>
+            <div class="info-feature">
+              <span class="info-feature-icon">📱</span>
+              <div>
+                <div class="info-feature-title">Multiplataforma</div>
+                <div class="info-feature-desc">Funciona en Windows, Android y cualquier navegador. Datos locales sin dependencia de internet.</div>
+              </div>
+            </div>
           </div>
           <div style="margin-top: 1rem; text-align: center; color: #64748b; font-size: 0.8rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 0.75rem;">Desarrollado con ❤️ por Keimer</div>
         </div>
@@ -838,14 +873,49 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                   <div style="display: inline-block; margin-top: 0.4rem; padding: 0.2rem 0.7rem; background: rgba(255,255,255,0.05); border-radius: 20px; font-size: 0.75rem; color: var(--primary-color); border: 1px solid var(--primary-color);">v1.2.0 - Android & Cloud Edition</div>
                 </div>
               </div>
-              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; text-align: center;">
-                {#each [{ icon: "📱", title: "Mobile First", desc: "Interfaz optimizada" }, { icon: "☁️", title: "Cloud Sync", desc: "Google Drive" }, { icon: "🎨", title: "Personalizable", desc: "Temas dinámicos" }, { icon: "🛡️", title: "Seguridad", desc: "Local Storage" }] as card}
-                  <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
-                    <div style="font-size: 2rem; margin-bottom: 0.5rem;">{card.icon}</div>
-                    <div style="font-weight: bold;">{card.title}</div>
-                    <div style="font-size: 0.8rem; color: #94a3b8;">{card.desc}</div>
+              <div class="info-features">
+                <div class="info-feature">
+                  <span class="info-feature-icon">📋</span>
+                  <div>
+                    <div class="info-feature-title">Gestión Académica</div>
+                    <div class="info-feature-desc">Años lectivos, colegios, grados, secciones y asignaturas.</div>
                   </div>
-                {/each}
+                </div>
+                <div class="info-feature">
+                  <span class="info-feature-icon">📝</span>
+                  <div>
+                    <div class="info-feature-title">Notas y Evaluaciones</div>
+                    <div class="info-feature-desc">Notas por criterio con corte evaluativo y config flexible.</div>
+                  </div>
+                </div>
+                <div class="info-feature">
+                  <span class="info-feature-icon">✅</span>
+                  <div>
+                    <div class="info-feature-title">Control de Asistencia</div>
+                    <div class="info-feature-desc">Diaria, semanal o mensual con días sin clases.</div>
+                  </div>
+                </div>
+                <div class="info-feature">
+                  <span class="info-feature-icon">📊</span>
+                  <div>
+                    <div class="info-feature-title">Informes y PDF</div>
+                    <div class="info-feature-desc">Boletines y reportes en Excel y PDF.</div>
+                  </div>
+                </div>
+                <div class="info-feature">
+                  <span class="info-feature-icon">☁️</span>
+                  <div>
+                    <div class="info-feature-title">Sync en la Nube</div>
+                    <div class="info-feature-desc">Google Drive y Cloudflare D1 en tiempo real.</div>
+                  </div>
+                </div>
+                <div class="info-feature">
+                  <span class="info-feature-icon">📱</span>
+                  <div>
+                    <div class="info-feature-title">Multiplataforma</div>
+                    <div class="info-feature-desc">Windows, Android y navegador. Datos locales.</div>
+                  </div>
+                </div>
               </div>
               <div style="background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
                 <h4 style="margin: 0 0 1rem 0; color: #e2e8f0;">🚀 Últimas Actualizaciones (v1.2.0)</h4>
@@ -937,6 +1007,41 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   @keyframes info-shimmer {
     0%, 100% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
+  }
+  .info-features {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .info-feature {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+    transition: all 0.2s ease;
+  }
+  .info-feature:hover {
+    border-color: rgba(var(--primary-rgb, 96,165,250), 0.2);
+    background: rgba(255,255,255,0.04);
+  }
+  .info-feature-icon {
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .info-feature-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    margin-bottom: 0.15rem;
+  }
+  .info-feature-desc {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    line-height: 1.4;
   }
   .ajustes-ribbon-container {
     display: flex;
