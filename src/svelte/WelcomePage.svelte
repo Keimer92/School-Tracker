@@ -30,7 +30,10 @@
 
   interface GradItem { nombre: string; cualitativo: boolean; }
   interface DiasClase { lunes: boolean; martes: boolean; miercoles: boolean; jueves: boolean; viernes: boolean; sabado: boolean; domingo: boolean; }
-  interface ColegioItem { nombre: string; dias: DiasClase; asignaturas: string[]; }
+  interface ColegioItem { nombre: string; tipo: 'Primaria' | 'Secundaria'; dias: DiasClase; asignaturas: string[]; }
+
+  const gradosPrimaria = ['1er grado', '2do grado', '3er grado', '4to grado', '5to grado', '6to grado'];
+  const gradosSecundaria = ['7mo grado', '8vo grado', '9no grado', '10mo grado', '11mo grado'];
 
   let inputAnos = $state<string[]>([]);
   let inputColegios = $state<ColegioItem[]>([]);
@@ -38,6 +41,7 @@
   let inputSecciones = $state<string[]>([]);
   let inputAsignaturas = $state<GradItem[]>([]);
   let currentInput = $state('');
+  let nuevoColegioTipo = $state<'Primaria' | 'Secundaria'>('Primaria');
 
   const steps = [
     { title: 'Años Lectivos', icon: '📅', key: 'anos' },
@@ -250,7 +254,7 @@
       await invoke('seed_selected_data', {
         selections: {
           anos: inputAnos.map((a) => a.trim()),
-          colegios: inputColegios.map((c) => ({ nombre: c.nombre.trim(), dias: c.dias, asignaturas: c.asignaturas })),
+          colegios: inputColegios.map((c) => ({ nombre: c.nombre.trim(), tipo: c.tipo, dias: c.dias, asignaturas: c.asignaturas })),
           grados,
           secciones: inputSecciones.map((s) => s.trim()),
           asignaturas,
@@ -328,7 +332,13 @@
       }
     } else if (k === 'colegios') {
       if (!inputColegios.some((c) => c.nombre.toLowerCase() === v.toLowerCase())) {
-        inputColegios = [...inputColegios, { nombre: v, dias: defaultDias(), asignaturas: [] }];
+        inputColegios = [...inputColegios, { nombre: v, tipo: nuevoColegioTipo, dias: defaultDias(), asignaturas: [] }];
+        // Auto-agregar grados correspondientes al tipo del colegio
+        const gradosTipo = nuevoColegioTipo === 'Primaria' ? gradosPrimaria : gradosSecundaria;
+        const nuevosGrados = gradosTipo.filter(g => !inputGrados.some(eg => eg.nombre.toLowerCase() === g.toLowerCase()));
+        if (nuevosGrados.length > 0) {
+          inputGrados = [...inputGrados, ...nuevosGrados.map(g => ({ nombre: g, cualitativo: false }))];
+        }
       }
     } else {
       const items = [...(currentItems() as string[])];
@@ -470,8 +480,17 @@
         </div>
       {:else}
         <div class="wizard-items">
+          {#if stepKey() === 'colegios'}
+            <div class="wizard-tipo-row">
+              <span class="wizard-tipo-label">Tipo:</span>
+              <div class="wizard-tipo-segmented">
+                <button class="wizard-tipo-btn" class:active={nuevoColegioTipo === 'Primaria'} onclick={() => nuevoColegioTipo = 'Primaria'}>🏫 Primaria</button>
+                <button class="wizard-tipo-btn" class:active={nuevoColegioTipo === 'Secundaria'} onclick={() => nuevoColegioTipo = 'Secundaria'}>🏛️ Secundaria</button>
+              </div>
+            </div>
+          {/if}
           <div class="wizard-input-row">
-            <input class="wizard-input" type="text" placeholder={inputPlaceholder()}
+            <input class="wizard-input" type="text" placeholder={stepKey() === 'colegios' ? 'Ej: Colegio Central' : inputPlaceholder()}
               bind:value={currentInput}
               onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCurrentItem(); } }} />
             <button class="wizard-add-btn" onclick={addCurrentItem}>Agregar</button>
@@ -484,6 +503,9 @@
                 <div class="wizard-colegio-card">
                   <div class="wizard-colegio-head">
                     <span class="wizard-colegio-name">{col.nombre}</span>
+                    <span class="wizard-colegio-tipo-badge" class:secundaria={col.tipo === 'Secundaria'}>
+                      {col.tipo === 'Primaria' ? '🏫 Primaria' : '🏛️ Secundaria'}
+                    </span>
                     <button class="wizard-chip-x" onclick={() => removeItem(ci)} aria-label="Eliminar">×</button>
                   </div>
                   <div class="wizard-colegio-label">Días de clases</div>
@@ -759,7 +781,7 @@
   .wizard-colegio-card {
     background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 0.85rem 0.95rem;
   }
-  .wizard-colegio-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; }
+  .wizard-colegio-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.6rem; }
   .wizard-colegio-name { font-size: 0.95rem; font-weight: 700; color: #e2e8f0; }
   .wizard-colegio-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin: 0.5rem 0 0.35rem; }
   .wizard-dias { display: flex; gap: 0.35rem; flex-wrap: wrap; }
@@ -776,6 +798,20 @@
   }
   .wizard-asig-chip:hover { border-color: #a78bfa; color: #e2e8f0; }
   .wizard-asig-chip.active { background: rgba(168,85,247,0.16); border-color: rgba(168,85,247,0.5); color: #d8b4fe; }
+  .wizard-tipo-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+  .wizard-tipo-label { font-size: 0.75rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .wizard-tipo-segmented { display: flex; gap: 0.35rem; }
+  .wizard-tipo-btn {
+    padding: 0.35rem 0.7rem; border-radius: 8px; cursor: pointer; font-size: 0.75rem; font-family: inherit; font-weight: 600;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; transition: all 0.2s ease;
+  }
+  .wizard-tipo-btn:hover { border-color: rgba(255,255,255,0.2); color: #e2e8f0; }
+  .wizard-tipo-btn.active { background: linear-gradient(135deg, #3b82f6, #6366f1); color: #fff; border-color: transparent; box-shadow: 0 2px 8px rgba(59,130,246,0.25); }
+  .wizard-colegio-tipo-badge {
+    font-size: 0.65rem; padding: 0.15rem 0.45rem; border-radius: 4px; font-weight: 600;
+    background: rgba(59,130,246,0.15); color: #60a5fa;
+  }
+  .wizard-colegio-tipo-badge.secundaria { background: rgba(168,85,247,0.15); color: #a78bfa; }
   .wizard-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; max-height: 280px; overflow-y: auto; padding: 0.15rem; }
   .wizard-chip {
     display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.6rem;

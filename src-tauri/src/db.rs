@@ -35,6 +35,25 @@ pub struct Student {
 pub struct PromoteResult {
     pub promoted: i64,
     pub graduated: i64,
+    #[serde(default)]
+    pub pending_sixth_graders: Vec<PendingSixthGrader>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingSixthGrader {
+    pub estudiante_id: i64,
+    pub nombre: String,
+    pub colegio_origen_id: i64,
+    pub colegio_origen_nombre: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ColegioInfo {
+    pub id: i64,
+    pub nombre: String,
+    pub tipo: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -4775,9 +4794,13 @@ pub struct ColegioDias {
 #[serde(rename_all = "camelCase")]
 pub struct ColegioSeed {
     pub nombre: String,
+    #[serde(default = "default_tipo")]
+    pub tipo: String,
     pub dias: ColegioDias,
     pub asignaturas: Vec<String>,
 }
+
+fn default_tipo() -> String { "Primaria".to_string() }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -4863,9 +4886,10 @@ pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: Se
     // orden en que el usuario los introdujo en el asistente manual)
     for (idx, c) in selections.colegios.iter().enumerate() {
         let orden = (idx + 1) as i64;
+        let tipo = if c.tipo == "Secundaria" { "Secundaria" } else { "Primaria" };
         conn.execute(
-            "INSERT OR IGNORE INTO colegio (nombre, orden) VALUES (?, ?)",
-            rusqlite::params![c.nombre, orden],
+            "INSERT OR IGNORE INTO colegio (nombre, tipo, orden) VALUES (?, ?, ?)",
+            rusqlite::params![c.nombre, tipo, orden],
         ).map_err(|e| e.to_string())?;
     }
 
@@ -5048,6 +5072,31 @@ pub async fn factory_reset(state: tauri::State<'_, DbState>) -> Result<(), Strin
     Ok(())
 }
 
+fn get_grade_number(conn: &Connection, grado_id: i64) -> Result<Option<i64>, String> {
+    let mut stmt = conn
+        .prepare("SELECT nombre FROM grado WHERE id = ?")
+        .map_err(|e| e.to_string())?;
+    let name: Option<String> = stmt.query_row([grado_id], |row| row.get(0)).ok();
+    drop(stmt);
+    match name {
+        Some(n) => {
+            let stripped = n.replace(" grado", "").replace("Grado", "");
+            let clean: String = stripped.chars().take_while(|c| c.is_ascii_digit()).collect();
+            Ok(clean.parse::<i64>().ok())
+        }
+        None => Ok(None),
+    }
+}
+
+fn get_colegio_tipo(conn: &Connection, colegio_id: i64) -> Result<String, String> {
+    let mut stmt = conn
+        .prepare("SELECT tipo FROM colegio WHERE id = ?")
+        .map_err(|e| e.to_string())?;
+    let tipo: Option<String> = stmt.query_row([colegio_id], |row| row.get(0)).ok();
+    drop(stmt);
+    Ok(tipo.unwrap_or_else(|| "Primaria".to_string()))
+}
+
 fn get_grade_order_map(conn: &Connection) -> Result<HashMap<i64, i64>, String> {
     let mut stmt = conn
         .prepare("SELECT id, nombre FROM grado ORDER BY nombre")
@@ -5080,6 +5129,7 @@ pub async fn promote_students(
     state: tauri::State<'_, DbState>,
     from_ano_id: i64,
     to_ano_id: i64,
+    colegio_destino_map: Option<HashMap<i64, i64>>,
 ) -> Result<PromoteResult, String> {
     if from_ano_id == to_ano_id {
         return Err("Los años deben ser diferentes".to_string());
@@ -5092,14 +5142,38 @@ pub async fn promote_students(
         return Err("No hay grados definidos".to_string());
     }
 
+    // Buscar colegios Secundaria disponibles
+    let mut stmt_sec = conn
+        .prepare("SELECT id, nombre, tipo FROM colegio WHERE tipo = 'Secundaria'")
+        .map_err(|e| e.to_string())?;
+    let secundaria_colegios: Vec<(i64, String, String)> = stmt_sec
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    drop(stmt_sec);
+
+    // Buscar grado 7mo (destino para estudiantes de6to que migran a Secundaria)
+    let grado_7mo_id: Option<i64> = {
+        let mut stmt_g = conn
+            .prepare("SELECT id FROM grado WHERE nombre LIKE '7mo%' OR nombre LIKE '7°%' LIMIT 1")
+            .map_err(|e| e.to_string())?;
+        let result = stmt_g.query_row([], |row| row.get(0)).ok();
+        drop(stmt_g);
+        result
+    };
+
     let mut stmt = conn
         .prepare(
-            "SELECT id, nombre, codigo, sexo, grado_id, seccion_id, colegio_id, telefono, direccion, email, foto FROM estudiante WHERE ano_lectivo_id = ?",
+            "SELECT e.id, e.nombre, e.codigo, e.sexo, e.grado_id, e.seccion_id, e.colegio_id, e.telefono, e.direccion, e.email, e.foto, g.nombre as grado_nombre
+             FROM estudiante e
+             JOIN grado g ON e.grado_id = g.id
+             WHERE e.ano_lectivo_id = ?",
         )
         .map_err(|e| e.to_string())?;
 
     let students: Vec<(
-        i64, String, String, String, i64, i64, i64, Option<String>, Option<String>, Option<String>, Option<String>,
+        i64, String, String, String, i64, i64, i64, Option<String>, Option<String>, Option<String>, Option<String>, String,
     )> = stmt
         .query_map([from_ano_id], |row| {
             Ok((
@@ -5114,6 +5188,7 @@ pub async fn promote_students(
                 row.get::<_, Option<String>>(8)?,
                 row.get::<_, Option<String>>(9)?,
                 row.get::<_, Option<String>>(10)?,
+                row.get(11)?,
             ))
         })
         .map_err(|e| e.to_string())?
@@ -5124,14 +5199,98 @@ pub async fn promote_students(
 
     let mut promoted = 0i64;
     let mut graduated = 0i64;
+    let mut pending_sixth_graders: Vec<PendingSixthGrader> = Vec::new();
 
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
-    for student in students {
-        let (id, nombre, codigo, sexo, grado_id, seccion_id, colegio_id, telefono, direccion, email, foto) =
+    for student in &students {
+        let (id, nombre, codigo, sexo, grado_id, seccion_id, colegio_id, telefono, direccion, email, foto, grado_nombre) =
             student;
 
-        if let Some(&next_grade_id) = grade_map.get(&grado_id) {
+        let grado_num = get_grade_number(&tx, *grado_id)?.unwrap_or(0);
+        let colegio_tipo = get_colegio_tipo(&tx, *colegio_id)?;
+
+        // Caso especial:6to grado en colegio Primaria → migrar a Secundaria
+        if grado_num == 6 && colegio_tipo == "Primaria" {
+            if secundaria_colegios.is_empty() {
+                // No hay colegio Secundaria → se queda en el año origen (no se promueve)
+                graduated += 1;
+                continue;
+            }
+
+            // Determinar colegio destino
+            let destino_colegio_id = if let Some(ref map) = colegio_destino_map {
+                map.get(colegio_id).copied()
+            } else if secundaria_colegios.len() == 1 {
+                // Solo 1 colegio Secundaria → migrar automáticamente
+                Some(secundaria_colegios[0].0)
+            } else {
+                // Múltiples colegios Secundaria → devolver pendientes para que el frontend pida selección
+                let origen_nombre: String = {
+                    let mut stmt_cn = tx
+                        .prepare("SELECT nombre FROM colegio WHERE id = ?")
+                        .map_err(|e| e.to_string())?;
+                    let n = stmt_cn.query_row([*colegio_id], |row| row.get(0)).unwrap_or_default();
+                    drop(stmt_cn);
+                    n
+                };
+                pending_sixth_graders.push(PendingSixthGrader {
+                    estudiante_id: *id,
+                    nombre: nombre.clone(),
+                    colegio_origen_id: *colegio_id,
+                    colegio_origen_nombre: origen_nombre,
+                });
+                continue;
+            };
+
+            let destino_id = match destino_colegio_id {
+                Some(id) => id,
+                None => {
+                    graduated += 1;
+                    continue;
+                }
+            };
+
+            let next_grade_id = match grado_7mo_id {
+                Some(id) => id,
+                None => {
+                    // No existe grado7mo, buscar el siguiente en el map
+                    match grade_map.get(grado_id) {
+                        Some(&id) => id,
+                        None => {
+                            graduated += 1;
+                            continue;
+                        }
+                    }
+                }
+            };
+
+            let new_id = tx
+                .execute(
+                    "INSERT INTO estudiante (nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, colegio_id, telefono, direccion, email, foto, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+                    rusqlite::params![nombre, codigo, sexo, to_ano_id, next_grade_id, seccion_id, destino_id, telefono, direccion, email, foto],
+                )
+                .map_err(|e| e.to_string())?;
+
+            promoted += 1;
+
+            tx.execute(
+                "INSERT INTO nota (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id, valor, updated_at) SELECT ?, criterio_id, corte_evaluativo_id, asignatura_id, valor, datetime('now') FROM nota WHERE estudiante_id = ?",
+                rusqlite::params![new_id, id],
+            )
+            .map_err(|e| e.to_string())?;
+
+            tx.execute(
+                "INSERT INTO asistencia (estudiante_id, fecha, estado, observacion, updated_at) SELECT ?, fecha, estado, observacion, datetime('now') FROM asistencia WHERE estudiante_id = ?",
+                rusqlite::params![new_id, id],
+            )
+            .map_err(|e| e.to_string())?;
+
+            continue;
+        }
+
+        // Caso normal: siguiente grado en el mismo colegio
+        if let Some(&next_grade_id) = grade_map.get(grado_id) {
             let new_id = tx
                 .execute(
                     "INSERT INTO estudiante (nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, colegio_id, telefono, direccion, email, foto, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
@@ -5159,5 +5318,27 @@ pub async fn promote_students(
 
     tx.commit().map_err(|e| e.to_string())?;
 
-    Ok(PromoteResult { promoted, graduated })
+    Ok(PromoteResult { promoted, graduated, pending_sixth_graders })
+}
+
+#[tauri::command]
+pub async fn get_secundaria_colegios(
+    state: tauri::State<'_, DbState>,
+) -> Result<Vec<ColegioInfo>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare("SELECT id, nombre, tipo FROM colegio WHERE tipo = 'Secundaria' ORDER BY nombre")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(ColegioInfo {
+                id: row.get(0)?,
+                nombre: row.get(1)?,
+                tipo: row.get(2)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    Ok(rows)
 }

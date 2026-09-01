@@ -142,6 +142,19 @@ src-tauri/gen/               generado (ignorar; no editar a mano)
 - **Agregar tabla sincronizable**: crearla en `db.rs` (schema SQLite), y si debe
   participar en sync (pending deletions), definir su estrategia en `db.rs`.
 
+## Regla de modales unificados
+Cuando una entidad (ej. Colegio, Grado) tenga **múltiples acciones de configuración**
+(editar nombre, asignar días, asignar asignaturas, cambiar tipo, etc.), se usa **UN
+solo botón ⚙️** que abre un **modal unificado** con todas las opciones organizadas en
+secciones o segmented controls (tabs). **NO crear botones separados** por cada acción
+(✎ editar, 📅 días, 📚 asignaturas, 🛠️ config). Ejemplo:
+- Colegio → un solo ⚙️ → modal con: editar nombre + segmented control (🏫 Tipo /
+  📅 Días / 📚 Asignaturas).
+- Grado → un solo ⚙️ → modal con: editar nombre + 📚 Asignaturas.
+
+Esto mantiene la UI limpia y consistente. La excepción son entidades con una sola
+acción (como Sección: solo editar/eliminar).
+
 ## Estilo UI (Apple-style Glassmorphism)
 Toda la interfaz debe seguir un diseño **glassmorphism minimalista tipo Apple**:
 
@@ -736,7 +749,8 @@ colegio o marcados sin clases se ven tachados/no seleccionables (también "Hoy")
 ## Promoción de estudiantes (2026-08)
 
 Sistema automático para copiar estudiantes de un año lectivo al siguiente,
-incrementando su grado (1er→2do, 2do→3ro, ..., 11mo=graduado).
+incrementando su grado (1er→2do, 2do→3ro, ..., 11mo=graduado) con lógica
+especial para 6to grado (transición Primaria→Secundaria).
 
 ### Diseño
 
@@ -744,8 +758,16 @@ incrementando su grado (1er→2do, 2do→3ro, ..., 11mo=graduado).
   hereda del `ano_lectivo_id` del estudiante.
 - **Orden de grado**: se deriva parseando el número al inicio del nombre
   (`"1er grado"`→1, `"2do grado"`→2, ..., `"11mo grado"`→11).
-- **Promoción**: estudiantes en 1er-10mo grado se copian al año destino con
-  grado incrementado (+1). Se copian también `nota` y `asistencia`.
+- **Tabla `colegio` con tipo**: `tipo TEXT DEFAULT 'Primaria'` (Primaria=1-6,
+  Secundaria=7-11). Los grados se asignan por tipo de colegio.
+- **Promoción normal**: estudiantes en 1er-5to grado se copian al año destino
+  con grado incrementado (+1) y **mismo colegio**.
+- **6to grado (transición)**: estudiantes en 6to grado (último de Primaria):
+  - Si **no hay colegio Secundaria** → se quedan en el año origen (no se promueven).
+  - Si hay **exactamente 1 colegio Secundaria** → se mueven a ese colegio con
+    grado 7mo (año destino).
+  - Si hay **múltiples colegios Secundaria** → se muestra un modal preguntando
+    a qué colegio se mueven (solo para 6to grado).
 - **Graduación**: estudiantes en 11mo grado NO se promueven (se graduaron).
 
 ### Backend (Rust)
@@ -754,44 +776,61 @@ incrementando su grado (1er→2do, 2do→3ro, ..., 11mo=graduado).
 ```rust
 struct PromoteResult { promoted: i64, graduated: i64 }
 
-#[tauri::command]
 fn get_grade_order_map(conn) -> Result<HashMap<i64, i64>, String>
 // → HashMap<grado_id, next_grado_id> (11mo → no está en el map)
 
+fn get_grade_number(conn, grado_id) -> Result<Option<i64>, String>
+// → parsea el número del nombre del grado (1er→1, 2do→2, etc.)
+
 #[tauri::command]
-fn promote_students(conn, from_ano_id: i64, to_ano_id: i64) -> Result<PromoteResult, String>
+fn promote_students(conn, from_ano_id, to_ano_id, colegio_destino_map?) -> Result<PromoteResult, String>
 // 1. Valida que los años sean distintos
 // 2. Obtiene todos los estudiantes del año origen
 // 3. Para cada estudiante:
-//    - Si tiene siguiente grado → INSERT en año destino con grado+1
+//    - Si grado=6to y hay colegio Secundaria:
+//      - Si colegio_destino_map tiene entry para este colegio → mover ahí con grado 7mo
+//      - Si 1 solo colegio Secundaria → mover automáticamente
+//      - Si no hay Secundaria → quedarse en origen (graduated)
+//    - Si tiene siguiente grado (normal) → INSERT en año destino con grado+1
 //    - Copia notas (nota) y asistencia (asistencia)
 //    - Si es 11mo (sin siguiente) → cuenta como graduated
 // 4. Retorna { promoted, graduated }
+
+#[tauri::command]
+fn get_secundaria_colegios(conn) -> Result<Vec<ColegioInfo>, String>
+// → lista de colegios con tipo='Secundaria' (para el modal de selección)
 ```
 
-**`src-tauri/src/lib.rs`**: `promote_students` registrado en `generate_handler!`
-**`src-tauri/permissions/local-commands.toml`**: `promote_students` en `commands.allow`
+**`src-tauri/src/lib.rs`**: `promote_students` y `get_secundaria_colegios`
+  registrados en `generate_handler!`
+**`src-tauri/permissions/local-commands.toml`**: ambos en `commands.allow`
 
-### Frontend (GlobalesPage.svelte)
+### Frontend (EstudiantesPage.svelte)
 
 **Estado**:
 - `showPromoteBanner`, `promoteFromAno`, `promoteToAno`, `promoteStudentCount`, `isPromoting`
+- `showColegioPicker`, `secundariaColegios`, `pendingSixthGraders`, `selectedColegioId`
 
 **Lógica**:
-- `checkPromotionEligibility()` — detecta año activo con estudiantes + año nuevo vacío
-- Se ejecuta en `onMount` y reacciona a `catalog-updated` / `student-updated`
-- `handlePromoteStudents()` — confirma con `ask()`, llama `invoke('promote_students')`, toast resultado, `onDataChange('estudiante')`
-- `dismissPromoteBanner()` — oculta el banner
+- `checkPromotionEligibility()` — detecta año activo con estudiantes + año nuevo
+- Antes de promover, verifica si hay estudiantes en 6to grado:
+  - Si 0 colegios Secundaria → promueve normalmente (6to se queda)
+  - Si 1 colegio Secundaria → promueve con migración automática de 6to
+  - Si >1 colegio Secundaria → abre modal `showColegioPicker`
+- `handlePromoteStudents()` — confirma, llama `invoke('promote_students')`, toast
+- `handleColegioSelected(colegioId)` — completa la promoción con el colegio destino
 
-**UI (Mobile + Desktop)**:
-- Banner glassmorphism púrpura: "📚 X estudiantes en {añoOrigen} → {añoDestino}"
-- Botones: **Promover ahora** / **Descartar**
+**UI**:
+- Banner púrpura con botones Promover/Descartar
+- Modal picker de colegio Secundaria (solo si >1 y hay estudiantes en 6to)
 
 ### Gotchas
 
 - **11mo grado = graduados**: no hay grado 12, los estudiantes de 11mo no se promueven.
+- **6to grado = transición**: solo se mueve si hay colegio Secundaria.
 - **Grado compartido entre años**: la tabla `grado` no tiene añolectivo; el año se hereda del `ano_lectivo_id` del estudiante.
 - **Copia de datos**: se copian `nota` y `asistencia` al año destino; los catálogos (grado, seccion, asignatura) son globales.
+- **colegio_destino_map**: parámetro opcional `HashMap<i64, i64>` (colegio_origen → colegio_destino) para resolver la selección del usuario en el modal.
 
 ## Limpieza y toggle de asistencia (2026-08)
 

@@ -112,6 +112,10 @@
   let promoteToAno: CategoryItem | null = $state(null);
   let promoteStudentCount = $state(0);
   let isPromoting = $state(false);
+  let showColegioPicker = $state(false);
+  let secundariaColegios: { id: number; nombre: string; tipo: string }[] = $state([]);
+  let pendingSixthGraders: { estudianteId: number; nombre: string; colegioOrigenId: number; colegioOrigenNombre: string }[] = $state([]);
+  let selectedColegioId = $state(0);
 
   const emptyStudent: Student = { nombre: "", codigo: "", sexo: "M", anoLectivoId: 0, gradoId: 0, seccionId: 0, colegioId: 0, telefono: "", direccion: "", email: "" };
   let formData: Student = $state({ ...emptyStudent });
@@ -633,15 +637,60 @@ async function fetchData(preserveFilters = false) {
   async function handlePromoteStudents() {
     if (!promoteFromAno || !promoteToAno) return;
     const ok = await ask(
-      `¿Promover ${promoteStudentCount} estudiantes de "${promoteFromAno.nombre}" a "${promoteToAno.nombre}"?\n\nLos estudiantes subirán de grado (1er→2do, 2do→3ro...). Los de 11mo grado se marcarán como graduados.`,
+      `¿Promover ${promoteStudentCount} estudiantes de "${promoteFromAno.nombre}" a "${promoteToAno.nombre}"?\n\nLos estudiantes subirán de grado (1er→2do, 2do→3ro...). Los de 11mo grado se marcarán como graduados.\n\nLos estudiantes de6to grado (Primaria) serán migrados a un colegio Secundaria si existe.`,
       { title: "📈 Confirmar promoción", kind: "info", okLabel: "Promover", cancelLabel: "Cancelar" }
     );
     if (!ok) return;
     isPromoting = true;
     try {
-      const result = await invoke<{ promoted: number; graduated: number }>("promote_students", {
+      const result = await invoke<{ promoted: number; graduated: number; pendingSixthGraders: any[] }>("promote_students", {
         fromAnoId: promoteFromAno.id,
         toAnoId: promoteToAno.id,
+      });
+
+      // Si hay estudiantes de6to grado pendientes (múltiples colegios Secundaria)
+      if (result.pendingSixthGraders && result.pendingSixthGraders.length > 0) {
+        pendingSixthGraders = result.pendingSixthGraders;
+        // Obtener colegios Secundaria disponibles
+        secundariaColegios = await invoke<{ id: number; nombre: string; tipo: string }[]>("get_secundaria_colegios");
+        if (secundariaColegios.length > 0) {
+          selectedColegioId = secundariaColegios[0].id;
+          showColegioPicker = true;
+          isPromoting = false;
+          return;
+        }
+      }
+
+      let msg = `✅ Promoción completada: ${result.promoted} promovidos`;
+      if (result.graduated > 0) msg += `, ${result.graduated} graduados`;
+      await emit("show-toast", { message: msg, type: "success" });
+      await emit("student-updated", { timestamp: Date.now() });
+      await emit("catalog-updated", { timestamp: Date.now() });
+      onDataChange("estudiante", { immediate: true });
+      showPromoteBanner = false;
+      await fetchData(true);
+    } catch (e) {
+      console.error("Error promoting:", e);
+      await emit("show-toast", { message: "❌ Error al promover: " + e, type: "error" });
+    } finally {
+      isPromoting = false;
+    }
+  }
+
+  async function handleColegioSelected() {
+    if (!promoteFromAno || !promoteToAno || selectedColegioId === 0) return;
+    showColegioPicker = false;
+    isPromoting = true;
+    try {
+      // Construir el mapa de colegio origen → colegio destino para los estudiantes pendientes
+      const colegioDestinoMap: Record<number, number> = {};
+      for (const pg of pendingSixthGraders) {
+        colegioDestinoMap[pg.colegioOrigenId] = selectedColegioId;
+      }
+      const result = await invoke<{ promoted: number; graduated: number; pendingSixthGraders: any[] }>("promote_students", {
+        fromAnoId: promoteFromAno.id,
+        toAnoId: promoteToAno.id,
+        colegioDestinoMap,
       });
       let msg = `✅ Promoción completada: ${result.promoted} promovidos`;
       if (result.graduated > 0) msg += `, ${result.graduated} graduados`;
@@ -656,6 +705,7 @@ async function fetchData(preserveFilters = false) {
       await emit("show-toast", { message: "❌ Error al promover: " + e, type: "error" });
     } finally {
       isPromoting = false;
+      pendingSixthGraders = [];
     }
   }
 
@@ -755,6 +805,60 @@ async function fetchData(preserveFilters = false) {
           <button onclick={() => showPromoteBanner = false}
             style="padding: 0.45rem 0.8rem; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: #c7d2fe; font-weight: 600; cursor: pointer; font-size: 0.8rem;">
             Descartar
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  {#if showColegioPicker}
+    <div style="position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);animation:overlayIn 0.2s ease">
+      <div style="width:min(420px,90vw);max-height:80vh;overflow-y:auto;background:rgba(20,24,31,0.92);backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);border:1px solid rgba(255,255,255,0.1);border-radius:20px;box-shadow:0 25px 60px -12px rgba(0,0,0,0.65);padding:1.5rem">
+        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem">
+          <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:1.2rem">🏫</div>
+          <div>
+            <div style="font-weight:700;color:#e0e7ff;font-size:1rem">Migrar6to grado a Secundaria</div>
+            <div style="color:#94a3b8;font-size:0.75rem;margin-top:2px">Hay {pendingSixthGraders.length} estudiante{pendingSixthGraders.length > 1 ? 's' : ''} de6to grado que {pendingSixthGraders.length > 1 ? 'necesitan' : 'necesita'} un colegio Secundaria</div>
+          </div>
+        </div>
+
+        <div style="margin-bottom:1rem">
+          <div style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;margin-bottom:0.5rem;font-weight:600">Estudiantes afectados</div>
+          <div style="display:flex;flex-direction:column;gap:0.35rem;max-height:120px;overflow-y:auto">
+            {#each pendingSixthGraders as pg}
+              <div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.6rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px">
+                <span style="color:#e2e8f0;font-size:0.8rem;flex:1">{pg.nombre}</span>
+                <span style="color:#94a3b8;font-size:0.7rem">→ {pg.colegioOrigenNombre}</span>
+              </div>
+            {/each}
+          </div>
+        </div>
+
+        <div style="margin-bottom:1.25rem">
+          <div style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;margin-bottom:0.5rem;font-weight:600">Mover a colegio Secundaria</div>
+          <div style="display:flex;flex-direction:column;gap:0.35rem">
+            {#each secundariaColegios as col}
+              <button onclick={() => selectedColegioId = col.id}
+                style="display:flex;align-items:center;gap:0.6rem;padding:0.6rem 0.75rem;border-radius:10px;cursor:pointer;text-align:left;width:100%;font-family:inherit;transition:all 0.2s ease;background:{selectedColegioId === col.id ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)'};border:1px solid {selectedColegioId === col.id ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.06)'}">
+                <div style="width:20px;height:20px;border-radius:50%;border:2px solid {selectedColegioId === col.id ? '#6366f1' : 'rgba(255,255,255,0.15)'};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                  {#if selectedColegioId === col.id}
+                    <div style="width:10px;height:10px;border-radius:50%;background:#6366f1"></div>
+                  {/if}
+                </div>
+                <span style="color:#e2e8f0;font-size:0.85rem;font-weight:600">{col.nombre}</span>
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <div style="display:flex;gap:0.5rem;justify-content:flex-end">
+          <button onclick={() => { showColegioPicker = false; pendingSixthGraders = []; }}
+            style="padding:0.5rem 1rem;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;font-weight:600;cursor:pointer;font-size:0.8rem;font-family:inherit;transition:all 0.2s ease">
+            Cancelar
+          </button>
+          <button onclick={handleColegioSelected} disabled={selectedColegioId === 0}
+            style="padding:0.5rem 1.25rem;border-radius:8px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;color:white;font-weight:600;cursor:pointer;font-size:0.8rem;font-family:inherit;transition:all 0.2s ease;opacity:{selectedColegioId === 0 ? 0.5 : 1}">
+            Confirmar migración
           </button>
         </div>
       </div>

@@ -145,6 +145,7 @@ commands.allow = [
     "get_multiplicadores",
     "update_multiplicador",
     "promote_students",
+    "get_secundaria_colegios",
     "get_all_local_data_since",
     "d1_get_config",
     "d1_save_config",
