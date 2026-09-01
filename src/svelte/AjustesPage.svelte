@@ -56,6 +56,16 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   let selectedColegio = $state(0);
   let isExportingExcel = $state(false);
   let isExportingByYear = $state(false);
+  let selectedFeature = $state<{ icon: string; title: string; desc: string } | null>(null);
+
+  const FEATURES = [
+    { icon: "📋", title: "Gestión Académica", desc: "Organiza años lectivos, colegios, grados, secciones y asignaturas. Crea y administra catálogos completos con relaciones entre grados y asignaturas por colegio." },
+    { icon: "📝", title: "Notas y Evaluaciones", desc: "Registra notas por indicador y criterio dentro de cada corte evaluativo. Soporta calificaciones numéricas y cualitativas (AA, AS, AF, AI) con multiplicadores configurables." },
+    { icon: "✅", title: "Asistencia", desc: "Control diario, semanal y mensual de asistencia por estudiante (Presente, Ausente, Justificado). Incluye días sin clases, informes por período y exportación." },
+    { icon: "📊", title: "Informes y PDF", desc: "Genera boletines de calificaciones, listados de estudiantes y reportes de asistencia en formato PDF y Excel. Personaliza colores y diseño de encabezados." },
+    { icon: "☁️", title: "Sync en la Nube", desc: "Respaldo completo en Google Drive y sincronización bilateral en tiempo real con Cloudflare D1. Múltiples dispositivos siempre actualizados." },
+    { icon: "📱", title: "Multiplataforma", desc: "Funciona en Windows, Android y navegadores web. Datos almacenados localmente en SQLite — no requiere conexión constante a internet." },
+  ];
 
   const NOTIF_STORAGE_KEY = 'stp_attendance_notif_settings';
 
@@ -504,48 +514,12 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
             </div>
           </div>
           <div class="info-features">
-            <div class="info-feature">
-              <span class="info-feature-icon">📋</span>
-              <div>
-                <div class="info-feature-title">Gestión Académica</div>
-                <div class="info-feature-desc">Años lectivos, colegios, grados, secciones y asignaturas en un solo lugar.</div>
-              </div>
-            </div>
-            <div class="info-feature">
-              <span class="info-feature-icon">📝</span>
-              <div>
-                <div class="info-feature-title">Notas y Evaluaciones</div>
-                <div class="info-feature-desc">Registro de notas por criterio e indicador con corte evaluativo y configuración flexible.</div>
-              </div>
-            </div>
-            <div class="info-feature">
-              <span class="info-feature-icon">✅</span>
-              <div>
-                <div class="info-feature-title">Control de Asistencia</div>
-                <div class="info-feature-desc">Tomar asistencia diaria, semanal o mensual con días sin clases y reportes detallados.</div>
-              </div>
-            </div>
-            <div class="info-feature">
-              <span class="info-feature-icon">📊</span>
-              <div>
-                <div class="info-feature-title">Informes y PDF</div>
-                <div class="info-feature-desc">Generación de boletines, listados y reportes exportables en Excel y PDF.</div>
-              </div>
-            </div>
-            <div class="info-feature">
-              <span class="info-feature-icon">☁️</span>
-              <div>
-                <div class="info-feature-title">Sincronización en la Nube</div>
-                <div class="info-feature-desc">Respaldo en Google Drive y sync en tiempo real entre dispositivos con Cloudflare D1.</div>
-              </div>
-            </div>
-            <div class="info-feature">
-              <span class="info-feature-icon">📱</span>
-              <div>
-                <div class="info-feature-title">Multiplataforma</div>
-                <div class="info-feature-desc">Funciona en Windows, Android y cualquier navegador. Datos locales sin dependencia de internet.</div>
-              </div>
-            </div>
+            {#each FEATURES as f}
+              <button class="info-feature" onclick={() => selectedFeature = f}>
+                <span class="info-feature-icon">{f.icon}</span>
+                <span class="info-feature-title">{f.title}</span>
+              </button>
+            {/each}
           </div>
           <div style="margin-top: 1rem; text-align: center; color: #64748b; font-size: 0.8rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 0.75rem;">Desarrollado con ❤️ por Keimer</div>
         </div>
@@ -874,48 +848,12 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                 </div>
               </div>
               <div class="info-features">
-                <div class="info-feature">
-                  <span class="info-feature-icon">📋</span>
-                  <div>
-                    <div class="info-feature-title">Gestión Académica</div>
-                    <div class="info-feature-desc">Años lectivos, colegios, grados, secciones y asignaturas.</div>
-                  </div>
-                </div>
-                <div class="info-feature">
-                  <span class="info-feature-icon">📝</span>
-                  <div>
-                    <div class="info-feature-title">Notas y Evaluaciones</div>
-                    <div class="info-feature-desc">Notas por criterio con corte evaluativo y config flexible.</div>
-                  </div>
-                </div>
-                <div class="info-feature">
-                  <span class="info-feature-icon">✅</span>
-                  <div>
-                    <div class="info-feature-title">Control de Asistencia</div>
-                    <div class="info-feature-desc">Diaria, semanal o mensual con días sin clases.</div>
-                  </div>
-                </div>
-                <div class="info-feature">
-                  <span class="info-feature-icon">📊</span>
-                  <div>
-                    <div class="info-feature-title">Informes y PDF</div>
-                    <div class="info-feature-desc">Boletines y reportes en Excel y PDF.</div>
-                  </div>
-                </div>
-                <div class="info-feature">
-                  <span class="info-feature-icon">☁️</span>
-                  <div>
-                    <div class="info-feature-title">Sync en la Nube</div>
-                    <div class="info-feature-desc">Google Drive y Cloudflare D1 en tiempo real.</div>
-                  </div>
-                </div>
-                <div class="info-feature">
-                  <span class="info-feature-icon">📱</span>
-                  <div>
-                    <div class="info-feature-title">Multiplataforma</div>
-                    <div class="info-feature-desc">Windows, Android y navegador. Datos locales.</div>
-                  </div>
-                </div>
+                {#each FEATURES as f}
+                  <button class="info-feature" onclick={() => selectedFeature = f}>
+                    <span class="info-feature-icon">{f.icon}</span>
+                    <span class="info-feature-title">{f.title}</span>
+                  </button>
+                {/each}
               </div>
               <div style="background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
                 <h4 style="margin: 0 0 1rem 0; color: #e2e8f0;">🚀 Últimas Actualizaciones (v1.2.0)</h4>
@@ -943,6 +881,19 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   {/if}
 
 </div>
+
+{#if selectedFeature}
+  <div class="info-modal-overlay" onclick={() => selectedFeature = null} role="presentation">
+    <div class="info-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-label={selectedFeature.title}>
+      <div class="info-modal-header">
+        <span class="info-modal-icon">{selectedFeature.icon}</span>
+        <h3 class="info-modal-title">{selectedFeature.title}</h3>
+      </div>
+      <p class="info-modal-desc">{selectedFeature.desc}</p>
+      <button class="info-modal-close" onclick={() => selectedFeature = null}>Cerrar</button>
+    </div>
+  </div>
+{/if}
 
 <style>
   .ajustes-grid {
@@ -1010,38 +961,44 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   }
   .info-features {
     display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
   .info-feature {
     display: flex;
-    align-items: flex-start;
-    gap: 0.85rem;
-    padding: 0.85rem 1rem;
-    border-radius: 12px;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.85rem;
+    border-radius: 10px;
     background: rgba(255,255,255,0.02);
     border: 1px solid rgba(255,255,255,0.06);
+    color: inherit;
+    font: inherit;
     transition: all 0.2s ease;
+    flex: 1 1 auto;
+    min-width: 0;
+    cursor: pointer;
   }
   .info-feature:hover {
     border-color: rgba(var(--primary-rgb, 96,165,250), 0.2);
     background: rgba(255,255,255,0.04);
   }
+  .info-feature:active {
+    transform: scale(0.97);
+  }
   .info-feature-icon {
-    font-size: 1.2rem;
+    font-size: 1rem;
     flex-shrink: 0;
-    margin-top: 1px;
   }
   .info-feature-title {
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     font-weight: 600;
     color: #e2e8f0;
-    margin-bottom: 0.15rem;
+    white-space: nowrap;
   }
   .info-feature-desc {
-    font-size: 0.75rem;
-    color: #94a3b8;
-    line-height: 1.4;
+    display: none;
   }
   .ajustes-ribbon-container {
     display: flex;
@@ -1201,5 +1158,59 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     font-size: 0.7rem; color: #fde68a; line-height: 1.5;
     background: rgba(250,204,21,0.07); border: 1px solid rgba(250,204,21,0.18);
     backdrop-filter: blur(12px);
+  }
+
+  /* ── Modal Info Feature ── */
+  .info-modal-overlay {
+    position: fixed; inset: 0; z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(8px);
+    animation: info-modal-fade-in 0.2s ease-out;
+  }
+  .info-modal {
+    width: min(90vw, 380px);
+    padding: 1.5rem;
+    border-radius: 18px;
+    background: rgba(20,24,31,0.92);
+    backdrop-filter: blur(24px);
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 25px 60px -12px rgba(0,0,0,0.6);
+    animation: info-modal-slide-in 0.25s ease-out;
+  }
+  .info-modal-header {
+    display: flex; align-items: center; gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  .info-modal-icon {
+    font-size: 1.8rem;
+    width: 48px; height: 48px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 14px;
+    background: rgba(var(--primary-rgb, 96,165,250), 0.1);
+    border: 1px solid rgba(var(--primary-rgb, 96,165,250), 0.2);
+    flex-shrink: 0;
+  }
+  .info-modal-title {
+    margin: 0; font-size: 1.1rem; font-weight: 700; color: #f1f5f9;
+  }
+  .info-modal-desc {
+    margin: 0 0 1.25rem; font-size: 0.85rem; color: #94a3b8; line-height: 1.6;
+  }
+  .info-modal-close {
+    width: 100%; padding: 0.65rem; border: none; border-radius: 10px;
+    background: rgba(255,255,255,0.08); color: #e2e8f0;
+    font-size: 0.85rem; font-weight: 600; cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .info-modal-close:hover { background: rgba(255,255,255,0.12); }
+  .info-modal-close:active { transform: scale(0.97); }
+  @keyframes info-modal-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes info-modal-slide-in {
+    from { opacity: 0; transform: translateY(16px) scale(0.96); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
   }
 </style>
