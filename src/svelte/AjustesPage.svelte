@@ -8,6 +8,7 @@
   import { onDataChange } from "../lib/autoSync";
   import { registerBackHandler } from "../lib/androidBack";
   import { getLocalDateISOString } from "../lib/dateUtils";
+  import appIcon from "../assets/app-icon.png";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
 
@@ -488,12 +489,13 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
       <!-- INFO -->
       <div class="category-card" style="border-left: 3px solid {TAB_COLORS.acercaDe};">
         <div class="category-header" style="border-left: none;">
-          <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.acercaDe}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">📖</div>
+          <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.acercaDe}18;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><img src={appIcon} alt="" style="width:24px;height:24px;border-radius:6px;object-fit:contain;" /></div>
           <h3>Info</h3>
         </div>
         <div style="padding: 1.5rem 2rem;">
           <div style="text-align: center; margin-bottom: 1rem;">
-            <h2 style="margin: 0 0 0.4rem 0; font-size: 1.8rem; background: linear-gradient(135deg, var(--primary-color) 0%, #a855f7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">📊 School Tracker</h2>
+            <div style="width:80px;height:80px;margin:0 auto 0.75rem;border-radius:20px;overflow:hidden;"><img src={appIcon} alt="School Tracker" style="width:100%;height:100%;object-fit:contain;" /></div>
+            <h2 style="margin: 0 0 0.4rem 0; font-size: 1.8rem; background: linear-gradient(135deg, var(--primary-color) 0%, #a855f7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">School Tracker</h2>
             <p style="color: #94a3b8; font-size: 0.9rem; margin: 0;">Sistema de Gestión Académica</p>
             <div style="display: inline-block; margin-top: 0.4rem; padding: 0.15rem 0.6rem; background: rgba(255,255,255,0.05); border-radius: 20px; font-size: 0.7rem; color: var(--primary-color); border: 1px solid var(--primary-color);">v1.2.0</div>
           </div>
@@ -522,7 +524,9 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
             style="display: flex; align-items: center; gap: 1rem; padding: 1rem 1.25rem; background: rgba(51, 65, 85, 0.5); border: 1px solid rgba(255,255,255,0.08); border-left: 3px solid {color}; border-radius: 12px; cursor: pointer; width: 100%; transition: all 0.2s ease;"
             onmouseenter={(e) => { e.currentTarget.style.borderColor = color + '44'; e.currentTarget.style.background = color + '0d'; }}
             onmouseleave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.borderLeftColor = color; e.currentTarget.style.background = 'rgba(51, 65, 85, 0.5)'; }}>
-            <div style="width:40px;height:40px;border-radius:10px;background:{color}18;display:flex;align-items:center;justify-content:center;font-size:1.15rem;flex-shrink:0;">{tab.icon}</div>
+            <div style="width:40px;height:40px;border-radius:10px;background:{color}18;display:flex;align-items:center;justify-content:center;font-size:1.15rem;flex-shrink:0;">
+              {#if tab.id === "acercaDe"}<img src={appIcon} alt="" style="width:24px;height:24px;border-radius:6px;object-fit:contain;" />{:else}{tab.icon}{/if}
+            </div>
             <span style="font-size: 1rem; font-weight: 600; color: #e2e8f0; text-align: left; flex:1;">{tab.label}</span>
             <span style="font-size: 1.25rem; color: #64748b;">›</span>
           </button>
@@ -816,7 +820,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
         {#if activeTab === "acercaDe"}
           <div class="category-card" style="border-left: 3px solid {TAB_COLORS.acercaDe};">
             <div class="category-header" style="border-left: none;">
-              <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.acercaDe}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">📖</div>
+              <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.acercaDe}18;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><img src={appIcon} alt="" style="width:24px;height:24px;border-radius:6px;object-fit:contain;" /></div>
               <h3>Acerca de la Aplicación</h3>
             </div>
             <div style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem;">
