@@ -880,6 +880,64 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
     gap: 1.25rem;
   }
+  .info-hero {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 1.5rem;
+    border-radius: 16px;
+    background: linear-gradient(135deg, rgba(var(--primary-rgb, 96,165,250), 0.08), rgba(168,85,247,0.06));
+    border: 1px solid rgba(255,255,255,0.07);
+    backdrop-filter: blur(20px);
+    margin-bottom: 1.25rem;
+  }
+  .info-hero-icon-wrap {
+    width: 72px;
+    height: 72px;
+    border-radius: 18px;
+    overflow: hidden;
+    flex-shrink: 0;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3), 0 0 20px rgba(var(--primary-rgb, 96,165,250), 0.15);
+    animation: info-float 3s ease-in-out infinite, info-glow 2s ease-in-out infinite alternate;
+  }
+  .info-hero-icon {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+  .info-hero-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    animation: info-slide-in 0.6s ease-out both;
+  }
+  .info-hero-title {
+    margin: 0;
+    font-size: 1.8rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--primary-color) 0%, #a855f7 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: info-shimmer 3s ease-in-out infinite;
+    background-size: 200% 100%;
+  }
+  @keyframes info-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+  @keyframes info-glow {
+    0% { box-shadow: 0 8px 24px rgba(0,0,0,0.3), 0 0 15px rgba(var(--primary-rgb, 96,165,250), 0.1); }
+    100% { box-shadow: 0 8px 24px rgba(0,0,0,0.3), 0 0 25px rgba(var(--primary-rgb, 96,165,250), 0.25); }
+  }
+  @keyframes info-slide-in {
+    0% { opacity: 0; transform: translateX(-12px); }
+    100% { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes info-shimmer {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
   .ajustes-ribbon-container {
     display: flex;
     justify-content: center;
