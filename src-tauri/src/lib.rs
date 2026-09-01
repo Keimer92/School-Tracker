@@ -1930,6 +1930,7 @@ pub fn run() {
             d1_sync_all,
             d1_restore_from_cloud,
             d1_reserve_ids,
+            promote_students,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

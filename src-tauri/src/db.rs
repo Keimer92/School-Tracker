@@ -1,5 +1,6 @@
 ﻿use rusqlite::{Connection, Result};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
@@ -27,6 +28,13 @@ pub struct Student {
     pub direccion: Option<String>,
     pub email: Option<String>,
     pub foto: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PromoteResult {
+    pub promoted: i64,
+    pub graduated: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -5019,4 +5027,118 @@ pub async fn factory_reset(state: tauri::State<'_, DbState>) -> Result<(), Strin
 
     println!("âœ… [DB] Factory reset completado");
     Ok(())
+}
+
+fn get_grade_order_map(conn: &Connection) -> Result<HashMap<i64, i64>, String> {
+    let mut stmt = conn
+        .prepare("SELECT id, nombre FROM grado ORDER BY nombre")
+        .map_err(|e| e.to_string())?;
+    let grades: Vec<(i64, String)> = stmt
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    let mut numbered: Vec<(i64, i64)> = Vec::new();
+    for (id, name) in grades {
+        let stripped = name.replace(" grado", "").replace("Grado", "");
+        let clean: String = stripped.chars().take_while(|c| c.is_ascii_digit()).collect();
+        if let Ok(n) = clean.parse::<i64>() {
+            numbered.push((id, n));
+        }
+    }
+    numbered.sort_by_key(|(_, n)| *n);
+
+    let mut map = HashMap::new();
+    for i in 0..numbered.len().saturating_sub(1) {
+        map.insert(numbered[i].0, numbered[i + 1].0);
+    }
+    Ok(map)
+}
+
+#[tauri::command]
+pub async fn promote_students(
+    state: tauri::State<'_, DbState>,
+    from_ano_id: i64,
+    to_ano_id: i64,
+) -> Result<PromoteResult, String> {
+    if from_ano_id == to_ano_id {
+        return Err("Los años deben ser diferentes".to_string());
+    }
+
+    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let grade_map = get_grade_order_map(&conn)?;
+
+    if grade_map.is_empty() {
+        return Err("No hay grados definidos".to_string());
+    }
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, nombre, codigo, sexo, grado_id, seccion_id, colegio_id, telefono, direccion, email, foto FROM estudiante WHERE ano_lectivo_id = ?",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let students: Vec<(
+        i64, String, String, String, i64, i64, i64, Option<String>, Option<String>, Option<String>, Option<String>,
+    )> = stmt
+        .query_map([from_ano_id], |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get(5)?,
+                row.get(6)?,
+                row.get::<_, Option<String>>(7)?,
+                row.get::<_, Option<String>>(8)?,
+                row.get::<_, Option<String>>(9)?,
+                row.get::<_, Option<String>>(10)?,
+            ))
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    
+    drop(stmt);
+
+    let mut promoted = 0i64;
+    let mut graduated = 0i64;
+
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    for student in students {
+        let (id, nombre, codigo, sexo, grado_id, seccion_id, colegio_id, telefono, direccion, email, foto) =
+            student;
+
+        if let Some(&next_grade_id) = grade_map.get(&grado_id) {
+            let new_id = tx
+                .execute(
+                    "INSERT INTO estudiante (nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, colegio_id, telefono, direccion, email, foto, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+                    rusqlite::params![nombre, codigo, sexo, to_ano_id, next_grade_id, seccion_id, colegio_id, telefono, direccion, email, foto],
+                )
+                .map_err(|e| e.to_string())?;
+
+            promoted += 1;
+
+            tx.execute(
+                "INSERT INTO nota (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id, valor, updated_at) SELECT ?, criterio_id, corte_evaluativo_id, asignatura_id, valor, datetime('now') FROM nota WHERE estudiante_id = ?",
+                rusqlite::params![new_id, id],
+            )
+            .map_err(|e| e.to_string())?;
+
+            tx.execute(
+                "INSERT INTO asistencia (estudiante_id, fecha, estado, observacion, updated_at) SELECT ?, fecha, estado, observacion, datetime('now') FROM asistencia WHERE estudiante_id = ?",
+                rusqlite::params![new_id, id],
+            )
+            .map_err(|e| e.to_string())?;
+        } else {
+            graduated += 1;
+        }
+    }
+
+    tx.commit().map_err(|e| e.to_string())?;
+
+    Ok(PromoteResult { promoted, graduated })
 }
