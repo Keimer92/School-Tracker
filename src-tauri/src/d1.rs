@@ -797,6 +797,86 @@ pub async fn d1_sync_all(app: tauri::AppHandle, state: tauri::State<'_, DbState>
         "lastSync": new_sync,
     }))
 }
+// ============================================================================
+// Purga TOTAL de la nube D1 del perfil (school key) — sin tocar la config local
+// ----------------------------------------------------------------------------
+// Estrategia: /pull completo con un deviceId "probe" (el worker excluye en /pull
+// las filas escritas por el propio device_id; con un id distinto devuelve TODO),
+// luego /push por lotes con TODAS las PKs como tombstones. El worker borra cada
+// fila acotada al namespace (sk) y registra tombstones para que los demás
+// dispositivos también las eliminen. Al final, cursores a NULL para que el
+// próximo sync sea push+pull completos.
+// ============================================================================
+#[tauri::command]
+pub async fn d1_wipe_remote(state: tauri::State<'_, DbState>) -> Result<Value, String> {
+    let cfg = {
+        let conn = state.conn.lock().map_err(|e| e.to_string())?;
+        read_config(&conn)?.ok_or_else(|| "D1 no está configurado".to_string())?
+    };
+
+    // ── 1. Pull completo (deviceId probe → no excluye filas propias) ──
+    let pull_body = json!({ "since": "1970-01-01 00:00:00", "deviceId": "wipe-probe" });
+    let resp = tauri::async_runtime::spawn_blocking({
+        let cfg = cfg.clone();
+        move || http_post_json(&cfg.worker_url, &cfg.school_key, "/pull", pull_body)
+    })
+    .await
+    .map_err(|e| format!("Error en pull (hilo): {}", e))??;
+
+    // ── 2. Construir la lista de borrados [{tabla, pk}] con PKs en orden ──
+    let table_names = [
+        "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
+        "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio",
+        "estudiante", "configuracion_calificacion", "multiplicador_calificacion",
+        "colegio_dias_asistencia", "asistencia", "nota",
+        "dia_sin_clases",
+    ];
+    let mut deletions: Vec<Value> = Vec::new();
+    if let Some(rows) = resp.get("rows").and_then(|v| v.as_object()) {
+        for table in &table_names {
+            if let Some(entries) = rows.get(*table).and_then(|v| v.as_array()) {
+                for entry in entries {
+                    if let Some(obj) = entry.as_object() {
+                        let pk: Vec<Value> = pk_cols(table)
+                            .iter()
+                            .map(|c| obj.get(*c).cloned().unwrap_or(Value::Null))
+                            .collect();
+                        deletions.push(json!({ "tabla": table, "pk": pk }));
+                    }
+                }
+            }
+        }
+    }
+    let total = deletions.len();
+    println!("[D1] wipe: {} filas a borrar en la nube (device={}…)", total, &cfg.device_id[..cfg.device_id.len().min(16)]);
+
+    // ── 3. Push de tombstones por lotes (el worker crea 2 statements por fila) ──
+    for chunk in deletions.chunks(100) {
+        let body = json!({ "deviceId": cfg.device_id, "data": {}, "deletions": chunk });
+        let _ = tauri::async_runtime::spawn_blocking({
+            let cfg = cfg.clone();
+            move || http_post_json(&cfg.worker_url, &cfg.school_key, "/push", body)
+        })
+        .await
+        .map_err(|e| format!("Error en push (hilo): {}", e))??;
+    }
+
+    // ── 4. Cursores a NULL → el próximo sync será push+pull completos ──
+    {
+        let conn = state.conn.lock().map_err(|e| e.to_string())?;
+        conn.execute(
+            "UPDATE d1_config SET last_sync = NULL, last_push_sync = NULL, updated_at = datetime('now') WHERE id = 1",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    println!("[D1] wipe FIN: nube vaciada ({} filas borradas)", total);
+    Ok(json!({ "ok": true, "deleted": total }))
+}
+
+// ============================================================================
+// Restauración autoritativa desde la nube (modo "recuperar / cambiar cuenta")
 
 // ============================================================================
 // Restauración autoritativa desde la nube (modo "recuperar / cambiar cuenta")

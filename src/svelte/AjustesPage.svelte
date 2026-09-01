@@ -308,6 +308,49 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     catch (error) { await emit("show-toast", { message: "❌ Error al limpiar nube.", type: "error" }); }
   }
 
+  /** Purga TOTAL del perfil logueado: vacía la nube D1 (school key activa) Y
+   *  reinicia la base local, dejando el perfil en cero para importar una DB
+   *  buena. La config de conexión (d1_config) se conserva. */
+  let isWipingProfile = $state(false);
+  async function handleWipeProfileData() {
+    const ok = await ask(
+      "¡ATENCIÓN MÁXIMA! Esto dejará en CERO el perfil actual:\n\n" +
+      "1️⃣ Borrará TODOS los datos de la NUBE (Cloudflare D1) de esta cuenta.\n" +
+      "2️⃣ Reiniciará la base de datos LOCAL (con datos semilla por defecto).\n\n" +
+      "Los demás dispositivos sincronizados también perderán los datos.\n" +
+      "Después podrás importar tu base de datos buena.\n\n¿Continuar?",
+      { title: "🚨 Purgar Perfil (Nube + Local)", kind: "warning", okLabel: "Sí, purgar todo", cancelLabel: "Cancelar" }
+    );
+    if (!ok) return;
+    isWipingProfile = true;
+    try {
+      // 1. Vaciar la nube D1 del perfil (best-effort: si D1 no está configurado, seguir)
+      let nubeOk = true;
+      try {
+        const r = await invoke<{ ok: boolean; deleted: number }>("d1_wipe_remote");
+        console.log("[Wipe] nube purgada:", r);
+      } catch (e) {
+        nubeOk = false;
+        console.warn("[Wipe] nube no purgada (¿D1 sin configurar?):", e);
+      }
+      // 2. Reiniciar la base local (conserva d1_config, re-siembra defaults)
+      await invoke("reset_local_database");
+      await emit("catalog-updated");
+      await emit("data-updated");
+      await emit("show-toast", {
+        message: nubeOk
+          ? "✅ Perfil purgado (nube + local en cero). Ahora importa tu base buena."
+          : "⚠️ Local reiniciada; la nube NO se purgó (D1 sin configurar).",
+        type: nubeOk ? "success" : "warning",
+      });
+    } catch (error) {
+      console.error("[Wipe] error:", error);
+      await emit("show-toast", { message: "❌ Error al purgar perfil: " + error, type: "error" });
+    } finally {
+      isWipingProfile = false;
+    }
+  }
+
   async function handleFactoryReset() {
     const ok = await ask('¿Estás SEGURO? Se borrarán TODOS los datos locales y la app se reiniciará desde cero.\n\nEsta acción no se puede deshacer.', { title: 'Restablecer valores de fábrica', kind: 'warning', okLabel: 'Confirmar', cancelLabel: 'Cancelar' });
     if (!ok) return;
@@ -815,8 +858,10 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
                   <button onclick={handleResetLocalDB} style="padding: 0.6rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600;">🗑️ Reiniciar DB Local</button>
                   <button onclick={handleResetRemoteDB} style="padding: 0.6rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="margin-right: 6px; vertical-align: middle;"><path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z" stroke="#f87171" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Limpiar Nube</button>
+                  <button onclick={handleWipeProfileData} disabled={isWipingProfile} style="padding: 0.6rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600; opacity: {isWipingProfile ? 0.6 : 1};">{isWipingProfile ? "⏳ Purgando…" : "🧨 Purgar Perfil (Nube + Local)"}</button>
                   <button onclick={handleFactoryReset} style="padding: 0.6rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600;">🔄 Restablecer valores de fábrica</button>
                 </div>
+                <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.75rem;">🧨 <strong>Purgar Perfil</strong>: vacía la nube D1 de esta cuenta Y reinicia la base local. Úsalo antes de importar una base de datos buena para evitar mezclas con datos viejos.</div>
               </div>
               <div style="background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); margin-top: 1.5rem;">
                 <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;"><span style="font-size: 1.2rem;">📊</span><h5 style="margin: 0; color: #e2e8f0; font-size: 1rem;">Información del Sistema</h5></div>

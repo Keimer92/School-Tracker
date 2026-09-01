@@ -69,7 +69,7 @@ src/
     autoSync.ts              helper onDataChange(table,{immediate}) → flush → syncAllSilent
 src-tauri/
   Cargo.toml                 deps Rust (ver stack)
-  tauri.conf.json            productName, identifier com.keimer.schooltrackerpro, ventana,
+  tauri.conf.json            productName, identifier com.keimer.schooltracker, ventana,
   tauri.android.conf.json    override auto-fusionado en comandos Android:
                              devUrl http://localhost:1422 (sesión dev independiente)
                             plugins fs, bundle targets "all"
@@ -270,6 +270,38 @@ Google Drive (SchoolTracker_Sync.db)
 
 Objeto singleton en `driveSyncService` con estado reactivo:
 ```ts
+## Cambio de applicationId a com.keimer.schooltracker (2026-09)
+
+El `applicationId` de Android (y el `identifier` de Tauri) pasó de
+`com.keimer.schooltrackerpro` a **`com.keimer.schooltracker`**.
+
+Archivos tocados:
+- `src-tauri/tauri.conf.json` → `"identifier": "com.keimer.schooltracker"`
+- `src-tauri/gen/android/app/build.gradle.kts` → `applicationId = "com.keimer.schooltracker"`
+
+**IMPORTANTE — qué NO se cambió y por qué:**
+- El `namespace` en `build.gradle.kts` sigue siendo `com.keimer.schooltrackerpro`,
+  igual que los paquetes Kotlin (`src/main/java/com/keimer/schooltrackerpro/*.kt`).
+  Razón: los símbolos JNI en `lib.rs` (`Java_com_keimer_schooltrackerpro_MainActivity_initNativeBridge`,
+  `Java_com_keimer_schooltrackerpro_AttendanceNative_queryAttendancePending`)
+  derivan del paquete Java/Kotlin de las clases, NO del applicationId.
+  Renombrar el paquete Kotlin requeriría mover los archivos de `gen/android`,
+  redeclarar los símbolos JNI en Rust y actualizar todas las referencias.
+- El deep link scheme `schooltracker://` (OAuth callback en lib.rs) es
+  independiente del applicationId; se actualizó junto con el paquete (2026-09).
+
+**Consecuencias del cambio:**
+- En el dispositivo, la app se instala como un paquete NUEVO (`com.keimer.schooltracker`):
+  no actualiza sobre una instalación previa `com.keimer.schooltrackerpro`, hay que
+  desinstalar la anterior manualmente.
+- **GCP Console**: el cliente OAuth tipo Android debe estar registrado con el
+  paquete `com.keimer.schooltracker` (además de los SHA-1 de abajo). Si solo está
+  el cliente antiguo, el Sign-In nativo devolverá DEVELOPER_ERROR (statusCode 10).
+- El `identifier` de Tauri también afecta rutas de datos en desktop en instalaciones
+  nuevas (app data dir por identifier). No afecta las DBs per-account ya creadas
+  si el directorio de datos es el mismo; verificar en caso de perder datos.
+
+
 syncManager.subscribe((state) => { ... })
 // state: { status, lastUpload, lastDownload, lastSync, message }
 ```
@@ -281,7 +313,7 @@ syncManager.subscribe((state) => { ... })
 descrito aquí abajo queda como flujo de **desktop** (Windows/macOS/Linux) y
 respaldo histórico en Android.
 
-**Desktop**: Google Cloud Console NO acepta schemes custom (`schooltrackerpro://...`)
+**Desktop**: Google Cloud Console NO acepta schemes custom (`schooltracker://...`)
 porque no tienen TLD público. El redirect URI real (web client, registrado junto a
 `http://127.0.0.1:51733/callback`) es `http://localhost:51733/callback`. OAuth se
 inicia desde `CloudPage.svelte` y `WelcomePage.svelte` llamando a
@@ -312,7 +344,7 @@ para sobrevivir recargas de página/HMR:
    extrae `code=`, lo guarda en `oauth_code_state()`, emite el evento
    `google-auth-code` y responde HTML que redirige a `schooltracker-auth://callback?code=...`
    (scheme custom registrado en el AndroidManifest; antes apuntaba a
-   `schooltrackerpro://` que NO está registrado → el navegador nunca volvía a la app).
+   `schooltracker://` que NO está registrado → el navegador nunca volvía a la app).
 4. **Estado global** (OnceLock, sobrevive recargas de página):
    - `oauth_code_state()` → `Mutex<Option<String>>` con el código pendiente.
    - `oauth_cancel_flag()` → `AtomicBool` para cancelar desde el frontend.
@@ -366,7 +398,7 @@ Piezas clave:
   `obtain_native_bridge()` (cache-first; fallback ndk_context con catch_unwind),
   comandos `gd_start_native_signin`, `gd_take_last_native_result`.
 - GCP Console requiere clientes OAuth tipo **Android** (paquete
-  `com.keimer.schooltrackerpro`): SHA-1 debug
+  `com.keimer.schooltracker`): SHA-1 debug
   `49:50:A3:FF:0E:BB:34:AC:A9:44:45:90:F0:BB:83:54:E7:47:58:E5`, SHA-1 release keystore
   `3C:7D:22:D4:97:D0:E3:72:51:83:85:B2:12:01:45:15:30:77:0F:78`, y el SHA-1 de
   **Play App Signing** cuando se publique en la tienda (Play Console → Firma de apps).

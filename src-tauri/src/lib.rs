@@ -1133,9 +1133,9 @@ async fn gd_start_oauth_server(port: u16) -> Result<String, String> {
         <h1>¡Conexión Exitosa!</h1>
         <p>Tu cuenta de Google Drive se ha vinculado correctamente con School Tracker Pro.<br>Redirigiendo a la aplicación...</p>
         <span class="badge">Seguro y Cifrado</span><br>
-        <a href="schooltrackerpro://" class="btn">Volver a la App</a>
+        <a href="schooltracker://" class="btn">Volver a la App</a>
     </div>
-    <script>setTimeout(function(){window.location.href="schooltrackerpro://";window.close();},500);</script>
+    <script>setTimeout(function(){window.location.href="schooltracker://";window.close();},500);</script>
 </body>
 </html>"#;
         
@@ -1933,6 +1933,7 @@ pub fn run() {
             d1_reset_device_id,
             d1_status,
             d1_sync_all,
+            d1_wipe_remote,
             d1_restore_from_cloud,
             d1_reserve_ids,
             promote_students,
