@@ -13,8 +13,9 @@
   interface ColegioDiasAsistencia { colegioId: number; lunes: boolean; martes: boolean; miercoles: boolean; jueves: boolean; viernes: boolean; sabado: boolean; domingo: boolean; }
   interface GradeConfig { id: string; nombre: string; color: string; minimo: number; }
   interface MultiplicadorItem { id: string; multiplicador: number; }
+  interface PromoteResult { promoted: number; graduated: number; }
 
-  const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff200","#22b14c","#00a2e8","#3f48cc","#a349a4","#ffffff","#c3c3c3","#b97a57","#ffaec9","#ffc90e","#efe4b0","#b5e61d","#99d9ea","#7092be","#c8bfe7","#C00000","#FF0000","#FFC000","#FFFF00","#92D050","#00B050","#00B0F0","#0070C0","#002060","#7030A0"];
+  const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff200","#22b14c","#00a2e8","#3f48cc","#a349a4","#ffffff","#c3c3c3","b97a57","#ffaec9","#ffc90e","#efe4b0","#b5e61d","#99d9ea","#7092be","#c8bfe7","#C00000","#FF0000","#FFC000","#FFFF00","#92D050","#00B050","#00B0F0","#0070C0","#002060","#7030A0"];
 
   const CATEGORIES: CategoryConfig[] = [
     { title: "Año Lectivo", table: "ano_lectivo", endpoints: { get: "get_anos", add: "add_ano", update: "update_ano", delete: "delete_ano", setActive: "set_active_ano" } },
@@ -84,6 +85,72 @@
   let colegioAsignadasIds: number[] = $state([]);
   let colegioAsignadasOriginal: string = $state('');
   let savingModal = $state(false);
+
+// ---- Promoción de estudiantes ----
+  let showPromoteBanner = $state(false);
+  let promoteFromAno: CategoryItem | null = $state(null);
+  let promoteToAno: CategoryItem | null = $state(null);
+  let promoteStudentCount = $state(0);
+  let isPromoting = $state(false);
+
+  async function checkPromotionEligibility() {
+    try {
+      const anos = await invoke<CategoryItem[]>("get_anos");
+      const activeAno = anos.find(a => a.activo);
+      if (!activeAno) return;
+
+      // Buscar si hay un año más reciente sin estudiantes
+      const allAnos = anos.filter(a => a.id !== activeAno.id).sort((a, b) => (b.nombre || '').localeCompare(a.nombre || ''));
+      if (allAnos.length === 0) return;
+
+      const newestAno = allAnos[0];
+      
+      // Contar estudiantes en el año activo
+      const students = await invoke<{ id: number; ano_lectivo_id: number }[]>("get_students");
+      const activeCount = students.filter(s => s.ano_lectivo_id === activeAno.id).length;
+      const newestCount = students.filter(s => s.ano_lectivo_id === newestAno.id).length;
+
+      if (activeCount > 0 && newestCount === 0) {
+        promoteFromAno = activeAno;
+        promoteToAno = newestAno;
+        promoteStudentCount = activeCount;
+        showPromoteBanner = true;
+      }
+    } catch (e) {
+      console.error("Error checking promotion:", e);
+    }
+  }
+
+  async function handlePromoteStudents() {
+    if (!promoteFromAno || !promoteToAno || isPromoting) return;
+    const ok = await ask(
+      `¿Promover ${promoteStudentCount} estudiantes de "${promoteFromAno.nombre}" a "${promoteToAno.nombre}"?\n\nLos estudiantes subirán de grado (1er→2do, 2do→3ro, etc.). Los de 11mo se marcan como graduados.`,
+      { title: "📚 Promover estudiantes", kind: "info", okLabel: "Promover", cancelLabel: "Cancelar" }
+    );
+    if (!ok) return;
+
+    isPromoting = true;
+    try {
+      const result = await invoke<PromoteResult>("promote_students", {
+        from_ano_id: promoteFromAno.id,
+        to_ano_id: promoteToAno.id,
+      });
+      showPromoteBanner = false;
+      await emit("show-toast", {
+        message: `✅ ${result.promoted} estudiantes promocionados${result.graduated > 0 ? `, ${result.graduated} graduados` : ''}`,
+        type: "success"
+      });
+      onDataChange('estudiante', { immediate: true });
+    } catch (error) {
+      await emit("show-toast", { message: "❌ Error al promover: " + error, type: "error" });
+    } finally {
+      isPromoting = false;
+    }
+  }
+
+  function dismissPromoteBanner() {
+    showPromoteBanner = false;
+  }
 
   // ---- Cierre seguro de modales con draft pendiente (ask nativo) ----
   async function cerrarSiSeguro(dirty: boolean, cerrar: () => void) {
@@ -291,7 +358,13 @@
     mql.addEventListener("change", handler);
     invoke<GradeConfig[]>("get_grade_configs").then(d => { gradeConfigs = d.sort((a, b) => GRADE_ORDER.indexOf(a.id) - GRADE_ORDER.indexOf(b.id)); captureOriginals(); }).catch(e => console.error("Error fetching grade configs:", e));
     invoke<MultiplicadorItem[]>("get_multiplicadores").then(d => { multiplicadores = d; captureOriginals(); }).catch(e => console.error("Error fetching multiplicadores:", e));
-    return () => mql.removeEventListener("change", handler);
+    checkPromotionEligibility();
+    const u1 = listen("catalog-updated", () => checkPromotionEligibility());
+    const u2 = listen("student-updated", () => checkPromotionEligibility());
+    return () => {
+      mql.removeEventListener("change", handler);
+      u1.then(f => f()); u2.then(f => f());
+    };
   });
 </script>
 
@@ -300,6 +373,30 @@
     {#if !selectedCategory && selectedTab !== "Notas"}
       <div style="padding: 1rem;">
         <h1 style="font-size: 1.5rem; font-weight: 700; color: #f1f5f9; margin-bottom: 1.5rem; text-align: center;">Datos Globales</h1>
+        {#if showPromoteBanner && promoteFromAno && promoteToAno}
+          <div style="margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(139, 92, 246, 0.15)); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 12px;">
+            <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
+              <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #8b5cf6); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">📚</div>
+              <div style="flex: 1; min-width: 0;">
+                <div style="font-weight: 700; color: #e0e7ff; font-size: 0.9rem;">Promover estudiantes</div>
+                <div style="color: #c7d2fe; font-size: 0.8rem; margin-top: 0.25rem;">
+                  <strong>{promoteStudentCount}</strong> estudiantes en <strong>{promoteFromAno.nombre}</strong> → <strong>{promoteToAno.nombre}</strong>
+                </div>
+                <div style="color: #a5b4fc; font-size: 0.7rem; margin-top: 0.25rem;">Suben de grado (1er→2do, 2do→3ro...). 11mo = graduados.</div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap;">
+              <button onclick={handlePromoteStudents} disabled={isPromoting}
+                style="flex: 1; min-width: 120px; padding: 0.5rem 1rem; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; font-size: 0.85rem;">
+                {isPromoting ? '⏳ Promoviendo...' : '📈 Promover ahora'}
+              </button>
+              <button onclick={dismissPromoteBanner}
+                style="padding: 0.5rem 1rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; color: #c7d2fe; font-weight: 600; cursor: pointer; font-size: 0.85rem;">
+                Descartar
+              </button>
+            </div>
+          </div>
+        {/if}
         <div style="display: flex; flex-direction: column; gap: 0.75rem;">
           <button onclick={() => selectedTab = "Notas"}
             style="display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; background: rgba(51, 65, 85, 0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; cursor: pointer; transition: all 0.2s ease; width: 100%;">
@@ -442,6 +539,35 @@
     {/if}
   {:else}
     <h1 style="font-size: 1.6rem; font-weight: 700; color: #f1f5f9; margin: 0 0 1.25rem;">Datos Globales</h1>
+    {#if showPromoteBanner && promoteFromAno && promoteToAno}
+      <div style="margin-bottom: 1.5rem; padding: 1.25rem; background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(139, 92, 246, 0.12)); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: 14px;">
+        <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+          <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #6366f1, #8b5cf6); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">📚</div>
+          <div style="flex: 1; min-width: 200px;">
+            <div style="font-weight: 700; color: #e0e7ff; font-size: 1rem;">Promover estudiantes al nuevo año</div>
+            <div style="color: #c7d2fe; font-size: 0.85rem; margin-top: 0.25rem;">
+              <strong>{promoteStudentCount}</strong> estudiantes en <strong>{promoteFromAno.nombre}</strong> listos para pasar a <strong>{promoteToAno.nombre}</strong>
+            </div>
+            <div style="color: #a5b4fc; font-size: 0.75rem; margin-top: 0.25rem;">Suben de grado automáticamente (1er→2do, 2do→3ro...). 11mo = graduados.</div>
+          </div>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button onclick={handlePromoteStudents} disabled={isPromoting}
+              style="padding: 0.6rem 1.25rem; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; border-radius: 10px; color: white; font-weight: 600; cursor: pointer; font-size: 0.9rem; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3); transition: all 0.2s;"
+              onmouseenter={(e) => { if (!isPromoting) e.currentTarget.style.transform = 'translateY(-1px)'; }}
+              onmouseleave={(e) => { if (!isPromoting) e.currentTarget.style.transform = 'translateY(0)'; }}>
+              {isPromoting ? '⏳ Promoviendo...' : '📈 Promover ahora'}
+            </button>
+            <button onclick={dismissPromoteBanner}
+              style="padding: 0.6rem 1.25rem; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; color: #c7d2fe; font-weight: 600; cursor: pointer; font-size: 0.9rem; transition: all 0.2s;"
+              onmouseenter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
+              onmouseleave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}
+            >
+              Descartar
+            </button>
+          </div>
+        </div>
+      </div>
+    {/if}
     <div class="globales-grid">
       <!-- escritorio: calificaciones siempre visibles en el grid -->
         <div class="category-card" style="grid-column: 1 / -1;">
