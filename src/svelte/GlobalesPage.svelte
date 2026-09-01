@@ -71,6 +71,7 @@
   let selectedTab = $state(TAB_NAMES[1]);
   let selectedCategory: CategoryConfig | null = $state(null);
   let selectedGrade: CategoryItem | null = $state(null);
+  let gradeNombreEdit = $state('');
   let allSubjects: CategoryItem[] = $state([]);
   let assignedSubjects: number[] = $state([]);
   let assignedOriginal: string = $state('');
@@ -163,6 +164,7 @@
 
   function fetchSubjectsData() {
     if (!selectedGrade) return;
+    gradeNombreEdit = selectedGrade.nombre;
     Promise.all([
       invoke<CategoryItem[]>("get_asignaturas"),
       invoke<CategoryItem[]>("get_subjects_by_grade", { gradoId: selectedGrade.id }),
@@ -208,6 +210,21 @@
       await emit("show-toast", { message: "✅ Currículo guardado", type: "success" });
       await emit("subjects-updated");
     } catch (error) { await emit("show-toast", { message: "❌ Error al guardar currículo: " + error, type: "error" }); }
+    finally { savingModal = false; }
+  }
+
+  async function saveGradeNombre() {
+    if (!selectedGrade || !gradeNombreEdit.trim()) return;
+    const nuevoNombre = gradeNombreEdit.trim();
+    if (nuevoNombre === selectedGrade.nombre) return;
+    savingModal = true;
+    try {
+      await invoke("update_grado", { id: selectedGrade.id, nombre: nuevoNombre, cualitativo: selectedGrade.cualitativo || false });
+      selectedGrade = { ...selectedGrade, nombre: nuevoNombre };
+      onDataChange('grado');
+      await emit("catalog-updated");
+      await emit("show-toast", { message: "✅ Nombre actualizado", type: "success" });
+    } catch (error) { await emit("show-toast", { message: "❌ Error al renombrar: " + error, type: "error" }); }
     finally { savingModal = false; }
   }
 
@@ -616,38 +633,55 @@
     {/if}
   {/if}
 
-  <!-- Grade Curriculum Modal -->
+  <!-- Grade Unified Config Modal -->
   {#if selectedGrade}
     <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) cerrarGradeModal(); }}>
-      <div class="modal-content category-card">
-        <div class="category-header" style="justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
-          <h3 style="margin: 0; font-size: 1.1rem;">Asignaturas: {selectedGrade.nombre}</h3>
-          <div style="display: flex; gap: 0.3rem; flex-wrap: wrap;">
-            <button onclick={() => handleBulkAction("assign_all")} class="primary" style="font-size: 0.65rem; padding: 0.25rem 0.5rem;">Marcar todas</button>
-            <button onclick={() => handleBulkAction("unassign_all")} class="cancel" style="font-size: 0.65rem; padding: 0.25rem 0.5rem;">Desmarcar todas</button>
-            <button onclick={cerrarGradeModal} style="background: transparent; border: none; color: white; cursor: pointer; font-size: 1.2rem; margin-left: 0.2rem;">✕</button>
-          </div>
+      <div class="modal-content category-card" style="max-width: 480px; width: 95%;">
+        <div class="category-header" style="justify-content: space-between;">
+          <h3 style="margin: 0; font-size: 1.1rem;">⚙️ Configurar grado</h3>
+          <button onclick={cerrarGradeModal} style="background: transparent; border: none; color: white; cursor: pointer; font-size: 1.2rem;">✕</button>
         </div>
-        <div class="item-list" style="max-height: none; overflow: visible;">
-          {#each allSubjects as sub (sub.id)}
-            <div class="item-row" style="cursor: pointer; display: flex; align-items: center; gap: 12px; justify-content: flex-start;" onclick={() => toggleSubject(sub.id)}>
-              <label class="switch" style="pointer-events: none;">
-                <input type="checkbox" checked={assignedSubjects.includes(sub.id)} readonly />
-                <span class="slider round"></span>
-              </label>
-              <span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; font-weight: {assignedSubjects.includes(sub.id) ? 'bold' : 'normal'}; color: {assignedSubjects.includes(sub.id) ? '#4ade80' : 'inherit'};">{sub.nombre}</span>
-            </div>
-          {/each}
+
+        <!-- Editar nombre -->
+        <div style="display:flex;align-items:center;gap:0.5rem;padding:0.5rem 1rem;margin-top:0.5rem;">
+          <input bind:value={gradeNombreEdit} placeholder="Nombre del grado"
+            style="flex:1;padding:0.45rem 0.7rem;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.06);color:#e2e8f0;font-size:0.85rem;outline:none;" />
+          {#if gradeNombreEdit !== selectedGrade.nombre}
+            <button onclick={saveGradeNombre} disabled={savingModal}
+              style="padding:0.45rem 0.8rem;border-radius:8px;border:none;background:linear-gradient(135deg,#818cf8,#6366f1);color:white;font-weight:600;font-size:0.78rem;cursor:pointer;white-space:nowrap;">
+              {savingModal ? '...' : '💾 Renombrar'}
+            </button>
+          {/if}
         </div>
-        {#if gradeDirty}
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:0.6rem;padding-top:0.9rem;margin-top:0.5rem;border-top:1px solid rgba(255,255,255,0.07);flex-wrap:wrap;">
-            <span style="font-size:0.75rem;color:#fbbf24;font-weight:600;">⚠️ Cambios sin guardar</span>
-            <div style="display:flex;gap:0.5rem;">
-              <button onclick={() => { assignedSubjects = JSON.parse(assignedOriginal); }} style="padding:0.4rem 0.85rem;font-size:0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:#cbd5e1;cursor:pointer;font-weight:600;">Descartar</button>
-              <button onclick={saveCurriculum} disabled={savingModal} style="padding:0.45rem 1rem;font-size:0.78rem;border-radius:8px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:white;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(34,197,94,0.3);">{savingModal ? "Guardando..." : "💾 Guardar"}</button>
+
+        <!-- Asignaturas -->
+        <div style="padding:0.5rem 1rem 1rem;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
+            <span style="font-size:0.8rem;font-weight:700;color:#e2e8f0;">📚 Asignaturas</span>
+            <div style="display:flex;gap:0.3rem;">
+              <button onclick={() => handleBulkAction("assign_all")} style="padding:0.3rem 0.6rem;font-size:0.7rem;border-radius:6px;border:1px solid rgba(var(--primary-rgb),0.3);background:rgba(var(--primary-rgb),0.1);color:var(--primary-color);cursor:pointer;font-weight:600;">Todas</button>
+              <button onclick={() => handleBulkAction("unassign_all")} style="padding:0.3rem 0.6rem;font-size:0.7rem;border-radius:6px;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.1);color:#fca5a5;cursor:pointer;font-weight:600;">Ninguna</button>
             </div>
           </div>
-        {/if}
+          <div style="display:flex;flex-direction:column;gap:0.4rem;max-height:300px;overflow-y:auto;">
+            {#each allSubjects as sub (sub.id)}
+              {@const isAssigned = assignedSubjects.includes(sub.id)}
+              <div class="item-row" style="cursor:pointer;display:flex;align-items:center;gap:10px;padding:0.5rem 0.65rem;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid {isAssigned ? 'rgba(74,222,128,0.3)' : 'rgba(255,255,255,0.06)'};transition:all 0.2s;" onclick={() => toggleSubject(sub.id)}>
+                <label class="switch" style="pointer-events:none;margin:0;">
+                  <input type="checkbox" checked={isAssigned} readonly />
+                  <span class="slider round"></span>
+                </label>
+                <span style="flex:1;font-weight:{isAssigned ? '700' : '500'};color:{isAssigned ? '#4ade80' : '#94a3b8'};font-size:0.85rem;">{sub.nombre}</span>
+              </div>
+            {/each}
+          </div>
+          {#if gradeDirty}
+            <button onclick={saveCurriculum} disabled={savingModal}
+              style="margin-top:0.75rem;width:100%;padding:0.6rem 1.25rem;border-radius:10px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:white;font-weight:700;font-size:0.85rem;cursor:pointer;box-shadow:0 4px 14px rgba(34,197,94,0.3);">
+              {savingModal ? '⏳ Guardando...' : '💾 Guardar asignaturas'}
+            </button>
+          {/if}
+        </div>
       </div>
     </div>
   {/if}
