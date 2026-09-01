@@ -10,10 +10,9 @@
   interface CategoryConfig { title: string; table: string; endpoints: { get: string; add: string; update: string; delete: string; setActive?: string; updateOrder?: string; }; hideDefault?: boolean; noAdd?: boolean; }
   interface DeleteCheckResponse { hasStudents: boolean; hasGrades: boolean; hasNotes: boolean; hasAttendance: boolean; studentCount: number; noteCount: number; attendanceCount: number; }
 
-  let { config, onConfigClick, onSubjectsClick, accentColor = 'var(--primary-color)', accentIcon = '📋' }: {
+  let { config, onConfigClick, accentColor = 'var(--primary-color)', accentIcon = '📋' }: {
     config: CategoryConfig;
     onConfigClick?: (item: CategoryItem) => void;
-    onSubjectsClick?: (item: CategoryItem) => void;
     accentColor?: string;
     accentIcon?: string;
   } = $props();
@@ -470,10 +469,7 @@
               <button onclick={() => onConfigClick(item)} title="Configurar Asignaturas" style="background:rgba(var(--primary-rgb),0.1);border:1px solid rgba(var(--primary-rgb),0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.1)'}>🛠️</button>
             {/if}
             {#if config.title === "Colegio" && onConfigClick && !item.esNuevo}
-              <button onclick={() => onConfigClick(item)} title="Configurar Días de Asistencia" style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(16,185,129,0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(16,185,129,0.1)'}>📅</button>
-            {/if}
-            {#if config.title === "Colegio" && onSubjectsClick && !item.esNuevo}
-              <button onclick={() => onSubjectsClick(item)} title="Configurar Asignaturas" style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(245,158,11,0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(245,158,11,0.1)'}>📚</button>
+              <button onclick={() => onConfigClick(item)} title="Configurar colegio" style="background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(52,211,153,0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(52,211,153,0.1)'}>⚙️</button>
             {/if}
             <button onclick={() => handleEdit(item)} title="Editar" style="background:rgba(var(--primary-rgb),0.1);border:1px solid rgba(var(--primary-rgb),0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.1)'}>✎</button>
             {#if config.title !== "Corte Evaluativo"}

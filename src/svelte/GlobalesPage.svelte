@@ -41,16 +41,12 @@
 
   $effect(() => {
     if (!pageActive) return;
-    if (selectedColegioForSubjects) {
-      const dispose = registerBackHandler(() => { cerrarColegioSubjects(); return true; });
+    if (selectedColegioConfig) {
+      const dispose = registerBackHandler(() => { cerrarColegioConfigModal(); return true; });
       return () => dispose();
     }
     if (selectedGrade) {
       const dispose = registerBackHandler(() => { cerrarGradeModal(); return true; });
-      return () => dispose();
-    }
-    if (selectedColegio) {
-      const dispose = registerBackHandler(() => { cerrarColegioModal(); return true; });
       return () => dispose();
     }
     if (selectedCategory) {
@@ -75,16 +71,20 @@
   let selectedTab = $state(TAB_NAMES[1]);
   let selectedCategory: CategoryConfig | null = $state(null);
   let selectedGrade: CategoryItem | null = $state(null);
-  let selectedColegio: CategoryItem | null = $state(null);
-  let colegioConfig: ColegioDiasAsistencia | null = $state(null);
-  let colegioConfigOriginal: string = $state('');
   let allSubjects: CategoryItem[] = $state([]);
   let assignedSubjects: number[] = $state([]);
   let assignedOriginal: string = $state('');
-  let selectedColegioForSubjects: CategoryItem | null = $state(null);
+  let savingModal = $state(false);
+
+  // Unificado: modal de configuración de colegio
+  let selectedColegioConfig: CategoryItem | null = $state(null);
+  let colegioTab = $state<'tipo' | 'dias' | 'asignaturas'>('tipo');
+  let colegioTipo = $state('Primaria');
+  let colegioNombreEdit = $state('');
+  let colegioConfig: ColegioDiasAsistencia | null = $state(null);
+  let colegioConfigOriginal: string = $state('');
   let colegioAsignadasIds: number[] = $state([]);
   let colegioAsignadasOriginal: string = $state('');
-  let savingModal = $state(false);
 
   // ---- Cierre seguro de modales con draft pendiente (ask nativo) ----
   async function cerrarSiSeguro(dirty: boolean, cerrar: () => void) {
@@ -96,25 +96,34 @@
   }
 
   function cerrarGradeModal() { cerrarSiSeguro(gradeDirty, () => { selectedGrade = null; }); }
-  function cerrarColegioModal() { cerrarSiSeguro(diasDirty, () => { selectedColegio = null; }); }
-  function cerrarColegioSubjects() { cerrarSiSeguro(colegioSubjectsDirty, () => { selectedColegioForSubjects = null; }); }
+  function cerrarColegioConfigModal() {
+    const anyDirty = diasDirty || colegioSubjectsDirty;
+    cerrarSiSeguro(anyDirty, () => { selectedColegioConfig = null; });
+  }
 
   function fetchColegioConfig() {
-    if (!selectedColegio) return;
-    invoke("get_colegio_dias_asistencia", { colegioId: selectedColegio.id }).then((config) => {
-      // La nueva lógica de días solo considera lunes–viernes; sábado y domingo
-      // nunca son días de clase, así que se fuerzan a falso al cargar (incluso
-      // en bases previas que los tenían activos por defecto).
+    if (!selectedColegioConfig) return;
+    colegioNombreEdit = selectedColegioConfig.nombre;
+    colegioTab = 'tipo';
+    invoke("get_colegio_dias_asistencia", { colegioId: selectedColegioConfig.id }).then((config) => {
       colegioConfig = { ...(config as ColegioDiasAsistencia), sabado: false, domingo: false };
       colegioConfigOriginal = JSON.stringify(colegioConfig);
     }).catch((error) => console.error("Error fetching colegio config:", error));
+    // Cargar tipo del colegio
+    invoke<CategoryItem[]>("get_colegios").then((colegios) => {
+      const col = colegios.find(c => c.id === selectedColegioConfig!.id);
+      if (col) {
+        const tipo = (col as any).tipo || 'Primaria';
+        colegioTipo = tipo;
+      }
+    }).catch(() => {});
   }
 
   function fetchColegioSubjectsData() {
-    if (!selectedColegioForSubjects) return;
+    if (!selectedColegioConfig) return;
     Promise.all([
       invoke<CategoryItem[]>("get_asignaturas"),
-      invoke<CategoryItem[]>("get_subjects_by_colegio", { colegioId: selectedColegioForSubjects.id }),
+      invoke<CategoryItem[]>("get_subjects_by_colegio", { colegioId: selectedColegioConfig.id }),
     ]).then(([all, assigned]) => {
       allSubjects = all;
       colegioAsignadasIds = assigned.map((s) => s.id);
@@ -136,8 +145,8 @@
   }
 
   async function saveColegioDias() {
-    if (!colegioConfig || !selectedColegio || !diasDirty) return;
-    const ok = await ask(`¿Aplicar la configuración de días de "${selectedColegio.nombre}"?`, {
+    if (!colegioConfig || !selectedColegioConfig || !diasDirty) return;
+    const ok = await ask(`¿Aplicar la configuración de días de "${selectedColegioConfig.nombre}"?`, {
       title: "Confirmar cambios", kind: "info", okLabel: "Guardar", cancelLabel: "Cancelar",
     });
     if (!ok) return;
@@ -166,7 +175,7 @@
 
   // ---- Asignaturas de grado (buffer + guardar con confirmación nativa) ----
   let gradeDirty = $derived(selectedGrade !== null && JSON.stringify(assignedSubjects) !== assignedOriginal);
-  let colegioSubjectsDirty = $derived(selectedColegioForSubjects !== null && JSON.stringify(colegioAsignadasIds) !== colegioAsignadasOriginal);
+  let colegioSubjectsDirty = $derived(selectedColegioConfig !== null && JSON.stringify(colegioAsignadasIds) !== colegioAsignadasOriginal);
 
   function toggleSubject(subjectId: number) {
     if (!selectedGrade) return;
@@ -214,8 +223,8 @@
   }
 
   async function saveColegioSubjects() {
-    if (!selectedColegioForSubjects || !colegioSubjectsDirty) return;
-    const ok = await ask(`¿Aplicar las asignaturas de "${selectedColegioForSubjects.nombre}"?`, {
+    if (!selectedColegioConfig || !colegioSubjectsDirty) return;
+    const ok = await ask(`¿Aplicar las asignaturas de "${selectedColegioConfig.nombre}"?`, {
       title: "Confirmar cambios", kind: "info", okLabel: "Guardar", cancelLabel: "Cancelar",
     });
     if (!ok) return;
@@ -223,10 +232,10 @@
     try {
       const orig: number[] = JSON.parse(colegioAsignadasOriginal);
       for (const id of colegioAsignadasIds) {
-        if (!orig.includes(id)) await invoke("assign_subject_to_colegio", { colegioId: selectedColegioForSubjects.id, asignaturaId: id });
+        if (!orig.includes(id)) await invoke("assign_subject_to_colegio", { colegioId: selectedColegioConfig.id, asignaturaId: id });
       }
       for (const id of orig) {
-        if (!colegioAsignadasIds.includes(id)) await invoke("unassign_subject_from_colegio", { colegioId: selectedColegioForSubjects.id, asignaturaId: id });
+        if (!colegioAsignadasIds.includes(id)) await invoke("unassign_subject_from_colegio", { colegioId: selectedColegioConfig.id, asignaturaId: id });
       }
       colegioAsignadasOriginal = JSON.stringify(colegioAsignadasIds);
       onDataChange('colegio_asignatura');
@@ -236,9 +245,46 @@
     finally { savingModal = false; }
   }
 
+  async function saveColegioTipo() {
+    if (!selectedColegioConfig) return;
+    savingModal = true;
+    try {
+      await invoke("update_colegio", {
+        id: selectedColegioConfig.id,
+        nombre: selectedColegioConfig.nombre,
+        cualitativo: selectedColegioConfig.cualitativo || false,
+        tipo: colegioTipo,
+      });
+      onDataChange('colegio');
+      await emit("catalog-updated");
+      await emit("show-toast", { message: "✅ Tipo de colegio guardado", type: "success" });
+    } catch (error) { await emit("show-toast", { message: "❌ Error al guardar: " + error, type: "error" }); }
+    finally { savingModal = false; }
+  }
+
+  async function saveColegioNombre() {
+    if (!selectedColegioConfig || !colegioNombreEdit.trim()) return;
+    const nuevoNombre = colegioNombreEdit.trim();
+    if (nuevoNombre === selectedColegioConfig.nombre) return;
+    savingModal = true;
+    try {
+      await invoke("update_colegio", {
+        id: selectedColegioConfig.id,
+        nombre: nuevoNombre,
+        cualitativo: selectedColegioConfig.cualitativo || false,
+        tipo: colegioTipo,
+      });
+      selectedColegioConfig = { ...selectedColegioConfig, nombre: nuevoNombre };
+      onDataChange('colegio');
+      await emit("catalog-updated");
+      await emit("show-toast", { message: "✅ Nombre actualizado", type: "success" });
+    } catch (error) { await emit("show-toast", { message: "❌ Error al renombrar: " + error, type: "error" }); }
+    finally { savingModal = false; }
+  }
+
   $effect(() => { if (selectedGrade) fetchSubjectsData(); });
-  $effect(() => { if (selectedColegio) fetchColegioConfig(); });
-  $effect(() => { if (selectedColegioForSubjects) fetchColegioSubjectsData(); });
+  $effect(() => { if (selectedColegioConfig) fetchColegioConfig(); });
+  $effect(() => { if (selectedColegioConfig) fetchColegioSubjectsData(); });
 
   function updateGradeConfig(id: string, nombre: string, color: string, minimo: number, oldId?: string) {
     let v = minimo; if (id !== "AI") { if (v < 0) v = 0; if (v > 100) v = 100; } else v = 0;
@@ -337,10 +383,7 @@
           accentIcon={TAB_ICONS[selectedCategory!.title] || '📋'}
           onConfigClick={(item: CategoryItem) => {
             if (selectedCategory?.title === "Grado") selectedGrade = item;
-            if (selectedCategory?.title === "Colegio") selectedColegio = item;
-          }}
-          onSubjectsClick={(item: CategoryItem) => {
-            if (selectedCategory?.title === "Colegio") selectedColegioForSubjects = item;
+            if (selectedCategory?.title === "Colegio") selectedColegioConfig = item;
           }}
         />
       </div>
@@ -554,10 +597,7 @@
           accentIcon={TAB_ICONS[cat.title] || '📋'}
           onConfigClick={(item: CategoryItem) => {
             if (cat.title === "Grado") selectedGrade = item;
-            if (cat.title === "Colegio") selectedColegio = item;
-          }}
-          onSubjectsClick={(item: CategoryItem) => {
-            if (cat.title === "Colegio") selectedColegioForSubjects = item;
+            if (cat.title === "Colegio") selectedColegioConfig = item;
           }}
         />
       {/each}
@@ -612,75 +652,109 @@
     </div>
   {/if}
 
-  <!-- Colegio Days Modal -->
-  {#if selectedColegio && colegioConfig}
-    <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) cerrarColegioModal(); }}>
-      <div class="modal-content category-card">
-        <div class="category-header" style="justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
-          <h3 style="margin: 0; font-size: 1.1rem;">Días de Asistencia: {selectedColegio.nombre}</h3>
-          <div style="display: flex; gap: 0.3rem; flex-wrap: wrap;">
-            <button onclick={() => handleBulkDays(true)} class="primary" style="font-size: 0.65rem; padding: 0.25rem 0.5rem;">Marcar todos</button>
-            <button onclick={() => handleBulkDays(false)} class="cancel" style="font-size: 0.65rem; padding: 0.25rem 0.5rem;">Desmarcar todos</button>
-            <button onclick={cerrarColegioModal} style="background: transparent; border: none; color: white; cursor: pointer; font-size: 1.2rem; margin-left: 0.2rem;">✕</button>
-          </div>
+  <!-- Colegio Unified Config Modal -->
+  {#if selectedColegioConfig}
+    <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) cerrarColegioConfigModal(); }}>
+      <div class="modal-content category-card" style="max-width: 520px; width: 95%;">
+        <div class="category-header" style="justify-content: space-between;">
+          <h3 style="margin: 0; font-size: 1.1rem;">⚙️ Configurar colegio</h3>
+          <button onclick={cerrarColegioConfigModal} style="background: transparent; border: none; color: white; cursor: pointer; font-size: 1.2rem;">✕</button>
         </div>
-        <div class="item-list" style="max-height: none; overflow: visible;">
-          {#each ["lunes", "martes", "miercoles", "jueves", "viernes"] as day}
-            <div class="item-row" style="cursor: pointer; display: flex; align-items: center; gap: 12px; justify-content: flex-start;" onclick={() => handleToggleDay(day as keyof Omit<ColegioDiasAsistencia, "colegioId">)}>
-              <label class="switch" style="pointer-events: none;">
-                <input type="checkbox" checked={colegioConfig[day as keyof Omit<ColegioDiasAsistencia, "colegioId">]} readonly />
-                <span class="slider round"></span>
-              </label>
-              <span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; font-weight: {colegioConfig[day as keyof Omit<ColegioDiasAsistencia, "colegioId">] ? 'bold' : 'normal'}; color: {colegioConfig[day as keyof Omit<ColegioDiasAsistencia, "colegioId">] ? '#4ade80' : 'inherit'}; text-transform: capitalize;">{day}</span>
-            </div>
-          {/each}
-        </div>
-        {#if diasDirty}
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:0.6rem;padding-top:0.9rem;margin-top:0.5rem;border-top:1px solid rgba(255,255,255,0.07);flex-wrap:wrap;">
-            <span style="font-size:0.75rem;color:#fbbf24;font-weight:600;">⚠️ Cambios sin guardar</span>
-            <div style="display:flex;gap:0.5rem;">
-              <button onclick={() => { colegioConfig = JSON.parse(colegioConfigOriginal); }} style="padding:0.4rem 0.85rem;font-size:0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:#cbd5e1;cursor:pointer;font-weight:600;">Descartar</button>
-              <button onclick={saveColegioDias} disabled={savingModal} style="padding:0.45rem 1rem;font-size:0.78rem;border-radius:8px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:white;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(34,197,94,0.3);">{savingModal ? "Guardando..." : "💾 Guardar"}</button>
-            </div>
-          </div>
-        {/if}
-      </div>
-    </div>
-  {/if}
 
-  <!-- Colegio Subjects Modal -->
-  {#if selectedColegioForSubjects}
-    <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) cerrarColegioSubjects(); }}>
-      <div class="modal-content category-card">
-        <div class="category-header" style="justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
-          <h3 style="margin: 0; font-size: 1.1rem;">Asignaturas: {selectedColegioForSubjects.nombre}</h3>
-          <div style="display: flex; gap: 0.3rem; flex-wrap: wrap;">
-            <button onclick={() => handleBulkColegioSubject("assign_all")} class="primary" style="font-size: 0.65rem; padding: 0.25rem 0.5rem;">Marcar todas</button>
-            <button onclick={() => handleBulkColegioSubject("unassign_all")} class="cancel" style="font-size: 0.65rem; padding: 0.25rem 0.5rem;">Desmarcar todas</button>
-            <button onclick={cerrarColegioSubjects} style="background: transparent; border: none; color: white; cursor: pointer; font-size: 1.2rem; margin-left: 0.2rem;">✕</button>
-          </div>
+        <!-- Editar nombre -->
+        <div style="display:flex;align-items:center;gap:0.5rem;padding:0.5rem 1rem;margin-top:0.5rem;">
+          <input bind:value={colegioNombreEdit} placeholder="Nombre del colegio"
+            style="flex:1;padding:0.45rem 0.7rem;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.06);color:#e2e8f0;font-size:0.85rem;outline:none;" />
+          {#if colegioNombreEdit !== selectedColegioConfig.nombre}
+            <button onclick={saveColegioNombre} disabled={savingModal}
+              style="padding:0.45rem 0.8rem;border-radius:8px;border:none;background:linear-gradient(135deg,#818cf8,#6366f1);color:white;font-weight:600;font-size:0.78rem;cursor:pointer;white-space:nowrap;">
+              {savingModal ? '...' : '💾 Renombrar'}
+            </button>
+          {/if}
         </div>
-        <div class="item-list" style="max-height: none; overflow: visible;">
-          {#each allSubjects as sub (sub.id)}
-            {@const isAssigned = colegioAsignadasIds.includes(sub.id!)}
-            <div class="item-row" style="cursor: pointer; display: flex; align-items: center; gap: 12px; justify-content: flex-start;" onclick={() => handleToggleColegioSubject(sub)}>
-              <label class="switch" style="pointer-events: none;">
-                <input type="checkbox" checked={isAssigned} readonly />
-                <span class="slider round"></span>
-              </label>
-              <span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; font-weight: {isAssigned ? 'bold' : 'normal'}; color: {isAssigned ? '#4ade80' : 'inherit'};">{sub.nombre}</span>
-            </div>
+
+        <!-- Segmented Control -->
+        <div style="display:flex;gap:4px;padding:6px;margin:0.5rem 1rem 0;background:rgba(255,255,255,0.04);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
+          {#each [{id:'tipo',label:'🏫 Tipo'},{id:'dias',label:'📅 Días'},{id:'asignaturas',label:'📚 Asignaturas'}] as tab}
+            <button onclick={() => colegioTab = tab.id as any}
+              style="flex:1;padding:0.45rem 0.5rem;border-radius:8px;border:none;font-size:0.78rem;font-weight:600;cursor:pointer;transition:all 0.2s;{colegioTab === tab.id ? 'background:linear-gradient(135deg,#34d399,#10b981);color:white;box-shadow:0 2px 8px rgba(52,211,153,0.3);' : 'background:transparent;color:#94a3b8;'}">{tab.label}</button>
           {/each}
         </div>
-        {#if colegioSubjectsDirty}
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:0.6rem;padding-top:0.9rem;margin-top:0.5rem;border-top:1px solid rgba(255,255,255,0.07);flex-wrap:wrap;">
-            <span style="font-size:0.75rem;color:#fbbf24;font-weight:600;">⚠️ Cambios sin guardar</span>
-            <div style="display:flex;gap:0.5rem;">
-              <button onclick={() => { colegioAsignadasIds = JSON.parse(colegioAsignadasOriginal); }} style="padding:0.4rem 0.85rem;font-size:0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:#cbd5e1;cursor:pointer;font-weight:600;">Descartar</button>
-              <button onclick={saveColegioSubjects} disabled={savingModal} style="padding:0.45rem 1rem;font-size:0.78rem;border-radius:8px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:white;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(34,197,94,0.3);">{savingModal ? "Guardando..." : "💾 Guardar"}</button>
+
+        <div style="padding:0.5rem 1rem 1rem;">
+          <!-- TAB: Tipo -->
+          {#if colegioTab === 'tipo'}
+            <div style="display:flex;flex-direction:column;gap:0.75rem;">
+              <p style="margin:0;color:#94a3b8;font-size:0.8rem;">Define el nivel del colegio para filtrar grados automáticamente.</p>
+              {#each [{value:'Primaria',label:'Primaria',desc:'1er grado a 6to grado',icon:'🏫',color:'#34d399'},{value:'Secundaria',label:'Secundaria',desc:'7mo grado a 11mo grado',icon:'🎓',color:'#818cf8'}] as option}
+                <button onclick={() => colegioTipo = option.value}
+                  style="display:flex;align-items:center;gap:0.75rem;padding:0.85rem 1rem;border-radius:12px;border:2px solid {colegioTipo === option.value ? option.color : 'rgba(255,255,255,0.08)'};background:{colegioTipo === option.value ? option.color + '18' : 'rgba(255,255,255,0.03)'};cursor:pointer;transition:all 0.2s;text-align:left;width:100%;">
+                  <div style="width:40px;height:40px;border-radius:10px;background:{option.color}22;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;">{option.icon}</div>
+                  <div style="flex:1;">
+                    <div style="font-weight:700;color:{colegioTipo === option.value ? option.color : '#e2e8f0'};font-size:0.9rem;">{option.label}</div>
+                    <div style="color:#94a3b8;font-size:0.75rem;margin-top:2px;">{option.desc}</div>
+                  </div>
+                  {#if colegioTipo === option.value}
+                    <div style="width:22px;height:22px;border-radius:50%;background:{option.color};display:flex;align-items:center;justify-content:center;color:white;font-size:0.7rem;font-weight:700;flex-shrink:0;">✓</div>
+                  {/if}
+                </button>
+              {/each}
+              <button onclick={saveColegioTipo} disabled={savingModal}
+                style="margin-top:0.5rem;padding:0.6rem 1.25rem;border-radius:10px;border:none;background:linear-gradient(135deg,#34d399,#10b981);color:white;font-weight:700;font-size:0.85rem;cursor:pointer;box-shadow:0 4px 14px rgba(52,211,153,0.3);transition:all 0.2s;">
+                {savingModal ? '⏳ Guardando...' : '💾 Guardar tipo'}
+              </button>
             </div>
-          </div>
-        {/if}
+
+          <!-- TAB: Días -->
+          {:else if colegioTab === 'dias'}
+            <div style="display:flex;flex-direction:column;gap:0.5rem;">
+              <div style="display:flex;gap:0.4rem;margin-bottom:0.5rem;">
+                <button onclick={() => handleBulkDays(true)} style="flex:1;padding:0.4rem;font-size:0.75rem;border-radius:8px;border:1px solid rgba(52,211,153,0.3);background:rgba(52,211,153,0.1);color:#34d399;cursor:pointer;font-weight:600;">Marcar todos</button>
+                <button onclick={() => handleBulkDays(false)} style="flex:1;padding:0.4rem;font-size:0.75rem;border-radius:8px;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.1);color:#fca5a5;cursor:pointer;font-weight:600;">Desmarcar todos</button>
+              </div>
+              {#each ["lunes", "martes", "miercoles", "jueves", "viernes"] as day}
+                <div class="item-row" style="cursor:pointer;display:flex;align-items:center;gap:12px;padding:0.6rem 0.75rem;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);transition:all 0.2s;" onclick={() => handleToggleDay(day as keyof Omit<ColegioDiasAsistencia, "colegioId">)}>
+                  <label class="switch" style="pointer-events:none;">
+                    <input type="checkbox" checked={colegioConfig?.[day as keyof Omit<ColegioDiasAsistencia, "colegioId">] ?? false} readonly />
+                    <span class="slider round"></span>
+                  </label>
+                  <span style="flex:1;font-weight:{colegioConfig?.[day as keyof Omit<ColegioDiasAsistencia, "colegioId">] ? '700' : '500'};color:{colegioConfig?.[day as keyof Omit<ColegioDiasAsistencia, "colegioId">] ? '#4ade80' : '#94a3b8'};text-transform:capitalize;font-size:0.85rem;">{day}</span>
+                </div>
+              {/each}
+              {#if diasDirty}
+                <button onclick={saveColegioDias} disabled={savingModal}
+                  style="margin-top:0.5rem;padding:0.6rem 1.25rem;border-radius:10px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:white;font-weight:700;font-size:0.85rem;cursor:pointer;box-shadow:0 4px 14px rgba(34,197,94,0.3);">
+                  {savingModal ? '⏳ Guardando...' : '💾 Guardar días'}
+                </button>
+              {/if}
+            </div>
+
+          <!-- TAB: Asignaturas -->
+          {:else if colegioTab === 'asignaturas'}
+            <div style="display:flex;flex-direction:column;gap:0.5rem;">
+              <div style="display:flex;gap:0.4rem;margin-bottom:0.5rem;">
+                <button onclick={() => handleBulkColegioSubject("assign_all")} style="flex:1;padding:0.4rem;font-size:0.75rem;border-radius:8px;border:1px solid rgba(96,165,250,0.3);background:rgba(96,165,250,0.1);color:#60a5fa;cursor:pointer;font-weight:600;">Marcar todas</button>
+                <button onclick={() => handleBulkColegioSubject("unassign_all")} style="flex:1;padding:0.4rem;font-size:0.75rem;border-radius:8px;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.1);color:#fca5a5;cursor:pointer;font-weight:600;">Desmarcar todas</button>
+              </div>
+              {#each allSubjects as sub (sub.id)}
+                {@const isAssigned = colegioAsignadasIds.includes(sub.id!)}
+                <div class="item-row" style="cursor:pointer;display:flex;align-items:center;gap:12px;padding:0.5rem 0.75rem;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid {isAssigned ? 'rgba(74,222,128,0.3)' : 'rgba(255,255,255,0.06)'};transition:all 0.2s;" onclick={() => handleToggleColegioSubject(sub)}>
+                  <label class="switch" style="pointer-events:none;">
+                    <input type="checkbox" checked={isAssigned} readonly />
+                    <span class="slider round"></span>
+                  </label>
+                  <span style="flex:1;font-weight:{isAssigned ? '700' : '500'};color:{isAssigned ? '#4ade80' : '#94a3b8'};font-size:0.85rem;">{sub.nombre}</span>
+                </div>
+              {/each}
+              {#if colegioSubjectsDirty}
+                <button onclick={saveColegioSubjects} disabled={savingModal}
+                  style="margin-top:0.5rem;padding:0.6rem 1.25rem;border-radius:10px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:white;font-weight:700;font-size:0.85rem;cursor:pointer;box-shadow:0 4px 14px rgba(34,197,94,0.3);">
+                  {savingModal ? '⏳ Guardando...' : '💾 Guardar asignaturas'}
+                </button>
+              {/if}
+            </div>
+          {/if}
+        </div>
       </div>
     </div>
   {/if}

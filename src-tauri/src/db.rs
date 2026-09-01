@@ -95,6 +95,7 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             activo INTEGER DEFAULT 0,
             cualitativo INTEGER DEFAULT 0,
             orden INTEGER DEFAULT 0,
+            tipo TEXT DEFAULT 'Primaria',
             updated_at TEXT DEFAULT (datetime('now'))
         );
 
@@ -466,6 +467,23 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
             [],
         )
         .map_err(|e| format!("Error agregando columna activo a colegio: {}", e))?;
+    }
+
+    // Agregar columna 'tipo' a colegio si no existe
+    let has_tipo_colegio: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('colegio') WHERE name = 'tipo'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(0) > 0;
+
+    if !has_tipo_colegio {
+        conn.execute(
+            "ALTER TABLE colegio ADD COLUMN tipo TEXT DEFAULT 'Primaria'",
+            [],
+        )
+        .map_err(|e| format!("Error agregando columna tipo a colegio: {}", e))?;
     }
 
     // Sembrar multiplicadores por defecto si la tabla estÃ¡ vacÃ­a
@@ -2796,11 +2814,12 @@ pub async fn update_colegio(
     id: i64,
     nombre: String,
     cualitativo: bool,
+    tipo: String,
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
-        "UPDATE colegio SET nombre = ?, cualitativo = ?, updated_at = datetime('now') WHERE id = ?",
-        rusqlite::params![nombre, if cualitativo { 1 } else { 0 }, id],
+        "UPDATE colegio SET nombre = ?, cualitativo = ?, tipo = ?, updated_at = datetime('now') WHERE id = ?",
+        rusqlite::params![nombre, if cualitativo { 1 } else { 0 }, tipo, id],
     )
     .map(|_| ())
     .map_err(|e| e.to_string())

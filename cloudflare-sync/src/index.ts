@@ -79,7 +79,7 @@ const TABLES: Record<string, { pk: string[]; cols: string[] }> = {
   },
   colegio: {
     pk: ['id'],
-    cols: ['id', 'nombre', 'activo', 'cualitativo', 'orden', 'updated_at'],
+    cols: ['id', 'nombre', 'activo', 'cualitativo', 'orden', 'tipo', 'updated_at'],
   },
   asignatura: {
     pk: ['id'],
@@ -172,7 +172,7 @@ async function ensureSchema(env: Env): Promise<void> {
   const schemaStmts = [
     `CREATE TABLE IF NOT EXISTS ano_lectivo (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, updated_at TEXT)`,
     `CREATE TABLE IF NOT EXISTS corte_evaluativo (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, updated_at TEXT)`,
-    `CREATE TABLE IF NOT EXISTS colegio (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, orden INTEGER, updated_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS colegio (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, orden INTEGER, tipo TEXT DEFAULT 'Primaria', updated_at TEXT)`,
     `CREATE TABLE IF NOT EXISTS asignatura (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, cualitativo INTEGER DEFAULT 0, updated_at TEXT)`,
     `CREATE TABLE IF NOT EXISTS grado (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, cualitativo INTEGER DEFAULT 0, updated_at TEXT)`,
     `CREATE TABLE IF NOT EXISTS seccion (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, cualitativo INTEGER DEFAULT 0, updated_at TEXT)`,
@@ -231,6 +231,15 @@ async function ensureSchema(env: Env): Promise<void> {
       await env.DB.execute(`INSERT OR IGNORE INTO sync_tombstone (tabla, pk, updated_at, device_id, sk)
         SELECT tabla, pk, updated_at, device_id, '' FROM sync_tombstone_old`);
       await env.DB.prepare("DROP TABLE sync_tombstone_old").run();
+    }
+  } catch { /* best effort */ }
+
+  // Migración: agregar columna 'tipo' a colegio si no existe
+  try {
+    const colegioCols = await queryRows(env.DB, "SELECT name FROM pragma_table_info('colegio')");
+    if (colegioCols.length > 0 && !colegioCols.some((c: any) => c.name === 'tipo')) {
+      await env.DB.prepare("ALTER TABLE colegio ADD COLUMN tipo TEXT DEFAULT 'Primaria'").run();
+      console.log('[migración] colegio: columna tipo agregada');
     }
   } catch { /* best effort */ }
 
@@ -417,7 +426,7 @@ function isAllowedEmail(env: Env, email: string): boolean {
 const DEUNIQUE_TABLES: Record<string, string> = {
   ano_lectivo: `(id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, updated_at TEXT, device_id TEXT, sk TEXT)`,
   corte_evaluativo: `(id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, updated_at TEXT, device_id TEXT, sk TEXT)`,
-  colegio: `(id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, orden INTEGER, updated_at TEXT, device_id TEXT, sk TEXT)`,
+  colegio: `(id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, activo INTEGER DEFAULT 0, cualitativo INTEGER DEFAULT 0, orden INTEGER, tipo TEXT DEFAULT 'Primaria', updated_at TEXT, device_id TEXT, sk TEXT)`,
   asignatura: `(id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, cualitativo INTEGER DEFAULT 0, updated_at TEXT, device_id TEXT, sk TEXT)`,
   grado: `(id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, cualitativo INTEGER DEFAULT 0, updated_at TEXT, device_id TEXT, sk TEXT)`,
   seccion: `(id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, cualitativo INTEGER DEFAULT 0, updated_at TEXT, device_id TEXT, sk TEXT)`,
