@@ -28,6 +28,7 @@
 
   const TAB_NAMES = ["Notas", ...CATEGORIES.map(c => c.title)];
   const GRADE_ORDER = ["AA", "AS", "AF", "AI"];
+  const CATEGORY_COLORS: Record<string, string> = { Notas: "#fbbf24", "Año Lectivo": "#818cf8", "Corte Evaluativo": "#f472b6", Asignatura: "#60a5fa", Colegio: "#34d399", Grado: "#fb923c", Sección: "#a78bfa" };
   const TAB_ICONS: Record<string, string> = { Notas: "⭐", "Año Lectivo": "📅", "Corte Evaluativo": "✂️", Colegio: "🏫", Asignatura: "📚", Grado: "📊", Sección: "👥" };
 
   let gradeConfigs: GradeConfig[] = $state([]);
@@ -399,23 +400,21 @@
         {/if}
         <div style="display: flex; flex-direction: column; gap: 0.75rem;">
           <button onclick={() => selectedTab = "Notas"}
-            style="display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; background: rgba(51, 65, 85, 0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; cursor: pointer; transition: all 0.2s ease; width: 100%;">
-            <div style="display: flex; align-items: center; gap: 1rem;">
-              
-                <span style="font-size: 1.1rem; flex-shrink:0">{TAB_ICONS["Notas"]}</span>
-                <span style="font-size: 1rem; font-weight: 600; color: #e2e8f0; text-align: left;">Notas</span>
-            </div>
-            <span style="font-size: 1.25rem; color: #64748b;">→</span>
+            style="display: flex; align-items: center; gap: 1rem; padding: 1rem 1.25rem; background: rgba(51, 65, 85, 0.5); border: 1px solid rgba(255,255,255,0.08); border-left: 3px solid {CATEGORY_COLORS['Notas']}; border-radius: 12px; cursor: pointer; transition: all 0.2s ease; width: 100%;"
+            onmouseenter={(e) => { e.currentTarget.style.borderColor = CATEGORY_COLORS['Notas'] + '44'; e.currentTarget.style.background = CATEGORY_COLORS['Notas'] + '0d'; }}
+            onmouseleave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.borderLeftColor = CATEGORY_COLORS['Notas']; e.currentTarget.style.background = 'rgba(51, 65, 85, 0.5)'; }}>
+            <div style="width:40px;height:40px;border-radius:10px;background:{CATEGORY_COLORS['Notas']}18;display:flex;align-items:center;justify-content:center;font-size:1.15rem;flex-shrink:0;">{TAB_ICONS["Notas"]}</div>
+            <span style="font-size: 1rem; font-weight: 600; color: #e2e8f0; text-align: left; flex:1;">Notas</span>
+            <span style="font-size: 1.25rem; color: #64748b;">›</span>
           </button>
           {#each CATEGORIES as cat (cat.title)}
             <button onclick={() => selectedCategory = cat}
-              style="display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; background: rgba(51, 65, 85, 0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; cursor: pointer; transition: all 0.2s ease; width: 100%;">
-              <div style="display: flex; align-items: center; gap: 1rem;">
-                
-                <span style="font-size: 1.1rem; flex-shrink:0">{TAB_ICONS[cat.title]}</span>
-                <span style="font-size: 1rem; font-weight: 600; color: #e2e8f0; text-align: left;">{cat.title}</span>
-              </div>
-              <span style="font-size: 1.25rem; color: #64748b;">→</span>
+              style="display: flex; align-items: center; gap: 1rem; padding: 1rem 1.25rem; background: rgba(51, 65, 85, 0.5); border: 1px solid rgba(255,255,255,0.08); border-left: 3px solid {CATEGORY_COLORS[cat.title]}; border-radius: 12px; cursor: pointer; transition: all 0.2s ease; width: 100%;"
+              onmouseenter={(e) => { e.currentTarget.style.borderColor = CATEGORY_COLORS[cat.title] + '44'; e.currentTarget.style.background = CATEGORY_COLORS[cat.title] + '0d'; }}
+              onmouseleave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.borderLeftColor = CATEGORY_COLORS[cat.title]; e.currentTarget.style.background = 'rgba(51, 65, 85, 0.5)'; }}>
+              <div style="width:40px;height:40px;border-radius:10px;background:{CATEGORY_COLORS[cat.title]}18;display:flex;align-items:center;justify-content:center;font-size:1.15rem;flex-shrink:0;">{TAB_ICONS[cat.title]}</div>
+              <span style="font-size: 1rem; font-weight: 600; color: #e2e8f0; text-align: left; flex:1;">{cat.title}</span>
+              <span style="font-size: 1.25rem; color: #64748b;">›</span>
             </button>
           {/each}
         </div>
@@ -425,6 +424,8 @@
         <!-- El back nativo de Android ya maneja la vuelta -->
         <CategoryTabContent
           config={selectedCategory!}
+          accentColor={CATEGORY_COLORS[selectedCategory!.title] || 'var(--primary-color)'}
+          accentIcon={TAB_ICONS[selectedCategory!.title] || '📋'}
           onConfigClick={(item: CategoryItem) => {
             if (selectedCategory?.title === "Grado") selectedGrade = item;
             if (selectedCategory?.title === "Colegio") selectedColegio = item;
@@ -669,6 +670,8 @@
       {#each CATEGORIES as cat (cat.title)}
         <CategoryTabContent
           config={cat}
+          accentColor={CATEGORY_COLORS[cat.title] || 'var(--primary-color)'}
+          accentIcon={TAB_ICONS[cat.title] || '📋'}
           onConfigClick={(item: CategoryItem) => {
             if (cat.title === "Grado") selectedGrade = item;
             if (cat.title === "Colegio") selectedColegio = item;
@@ -808,5 +811,7 @@
   .globales-tab { padding: 0.5rem 1rem; border-radius: 10px; border: none; background: transparent; color: var(--text-muted); font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.2s ease; font-size: 0.85rem; }
   .globales-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
   .globales-tab.active { background: var(--bg-active); color: var(--text-bright); box-shadow: 0 0 8px rgba(var(--primary-rgb), 0.08); }
-  .globales-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1.25rem; align-items: start; padding-bottom: 2rem; }
+  .globales-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; align-items: start; padding-bottom: 2rem; }
+  @media (max-width: 1100px) { .globales-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 700px) { .globales-grid { grid-template-columns: 1fr; } }
 </style>

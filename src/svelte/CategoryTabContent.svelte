@@ -10,10 +10,12 @@
   interface CategoryConfig { title: string; table: string; endpoints: { get: string; add: string; update: string; delete: string; setActive?: string; updateOrder?: string; }; hideDefault?: boolean; noAdd?: boolean; }
   interface DeleteCheckResponse { hasStudents: boolean; hasGrades: boolean; hasNotes: boolean; hasAttendance: boolean; studentCount: number; noteCount: number; attendanceCount: number; }
 
-  let { config, onConfigClick, onSubjectsClick }: {
+  let { config, onConfigClick, onSubjectsClick, accentColor = 'var(--primary-color)', accentIcon = '📋' }: {
     config: CategoryConfig;
     onConfigClick?: (item: CategoryItem) => void;
     onSubjectsClick?: (item: CategoryItem) => void;
+    accentColor?: string;
+    accentIcon?: string;
   } = $props();
 
   const isAndroid = /Android/i.test(navigator.userAgent);
@@ -343,10 +345,13 @@
   });
 </script>
 
-<div class="category-card" style="position:relative;background:rgba(255,255,255,0.02);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.06);border-radius:18px;padding:1.5rem;margin-bottom:1.5rem;overflow:hidden;transition:all 0.25s ease;">
-  <div style="position:absolute;top:0;left:0;width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(var(--primary-rgb),0.3),transparent);"></div>
+<div class="category-card" style="position:relative;background:rgba(255,255,255,0.02);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.06);border-left:3px solid {accentColor};border-radius:18px;padding:1.5rem;margin-bottom:1.5rem;overflow:hidden;transition:all 0.25s ease;"
+  onmouseenter={(e) => { e.currentTarget.style.borderColor = accentColor + '44'; e.currentTarget.style.boxShadow = `0 8px 32px ${accentColor}22`; }}
+  onmouseleave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'; e.currentTarget.style.borderLeftColor = accentColor; e.currentTarget.style.boxShadow = 'none'; }}>
+  <div style="position:absolute;top:0;left:0;width:100%;height:1px;background:linear-gradient(90deg,{accentColor}33,transparent);"></div>
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.06);">
     <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+      <div style="width:36px;height:36px;border-radius:10px;background:{accentColor}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">{accentIcon}</div>
       <h2 style="margin: 0; font-size: 1.25rem; color: #f1f5f9; font-weight: 700; letter-spacing: -0.02em;">{config.title}</h2>
       {#if hasUnsavedChanges}
         <span title="Cambios sin guardar" style="width:10px;height:10px;border-radius:50%;background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,0.6);flex-shrink:0;"></span>
@@ -374,7 +379,7 @@
       {/if}
     </div>
     {#if !config.noAdd}
-    <button onclick={handleAdd} style="padding:0.55rem 1.1rem;font-size:0.8rem;border-radius:10px;background:linear-gradient(135deg,var(--primary-color),var(--primary-hover));border:none;cursor:pointer;font-weight:600;color:white;box-shadow:0 2px 10px rgba(var(--primary-rgb),0.3);transition:all 0.2s;letter-spacing:0.2px"
+    <button onclick={handleAdd} style="padding:0.55rem 1.1rem;font-size:0.8rem;border-radius:10px;background:linear-gradient(135deg,{accentColor},{accentColor}dd);border:none;cursor:pointer;font-weight:600;color:white;box-shadow:0 2px 10px {accentColor}4d;transition:all 0.2s;letter-spacing:0.2px"
       onmouseenter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
       onmouseleave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
       onmousedown={(e) => e.currentTarget.style.transform = 'translateY(1px)'}
@@ -387,7 +392,7 @@
   <div style="display: flex; flex-direction: column; gap: 0.65rem;">
     {#if vista.length === 0}
       <div style="padding:3rem 2rem;text-align:center;background:rgba(255,255,255,0.02);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:14px;border:1px dashed rgba(255,255,255,0.08);">
-        <div style="font-size: 2.5rem; margin-bottom: 1rem;">📭</div>
+        <div style="font-size: 2.5rem; margin-bottom: 1rem; opacity: 0.7;">{accentIcon}</div>
         <p style="margin: 0; font-size: 1rem; color: #94a3b8; font-weight: 500;">No hay {config.title.toLowerCase()}s registrados</p>
         {#if config.noAdd}
           <p style="margin: 0.75rem 0 0 0; font-size: 0.85rem; color: #64748b;">Están definidos por el sistema (4 cortes evaluativos).</p>
@@ -497,7 +502,7 @@
       </div>
       <div style="display:flex;justify-content:flex-end;gap:0.75rem;">
         <button onclick={() => showPrompt = false} style="padding:0.5rem 1rem;font-size:0.8rem;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);color:#94a3b8;cursor:pointer;font-weight:600;transition:all 0.15s;">Cancelar</button>
-        <button onclick={() => { if (promptOnConfirm) promptOnConfirm(promptValue); showPrompt = false; }} style="padding:0.5rem 1.25rem;font-size:0.8rem;border-radius:8px;border:none;background:linear-gradient(135deg,var(--primary-hover),var(--primary-color));color:white;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(var(--primary-rgb),0.3);transition:all 0.15s;">Aceptar</button>
+        <button onclick={() => { if (promptOnConfirm) promptOnConfirm(promptValue); showPrompt = false; }} style="padding:0.5rem 1.25rem;font-size:0.8rem;border-radius:8px;border:none;background:linear-gradient(135deg,{accentColor},{accentColor}dd);color:white;font-weight:700;cursor:pointer;box-shadow:0 4px 14px {accentColor}4d;transition:all 0.15s;">Aceptar</button>
       </div>
     </div>
   </div>
