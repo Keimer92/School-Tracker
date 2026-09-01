@@ -106,6 +106,13 @@
 
   let filters = $state({ anoLectivoId: 0, colegioId: 0, gradoId: 0, seccionId: 0, sexo: "" });
 
+  // Promoción de estudiantes
+  let showPromoteBanner = $state(false);
+  let promoteFromAno: CategoryItem | null = $state(null);
+  let promoteToAno: CategoryItem | null = $state(null);
+  let promoteStudentCount = $state(0);
+  let isPromoting = $state(false);
+
   const emptyStudent: Student = { nombre: "", codigo: "", sexo: "M", anoLectivoId: 0, gradoId: 0, seccionId: 0, colegioId: 0, telefono: "", direccion: "", email: "" };
   let formData: Student = $state({ ...emptyStudent });
 
@@ -234,6 +241,7 @@ async function fetchData(preserveFilters = false) {
       filters = { ...filters, anoLectivoId: activeYearId, colegioId: activeColegioId, gradoId: 0, seccionId: 0 };
     }
     if (!isEditing) formData = { ...formData, anoLectivoId: formData.anoLectivoId || activeYearId, colegioId: formData.colegioId || activeColegioId };
+    checkPromotionEligibility();
     return { students: sData, anos: aData, colegios: colData };
   } catch (error) { console.error("Error fetching data:", error); return null; }
 }
@@ -590,6 +598,67 @@ async function fetchData(preserveFilters = false) {
     }
   }
 
+  async function checkPromotionEligibility() {
+    try {
+      const allAnos = await invoke<CategoryItem[]>("get_anos");
+      const activeAno = allAnos.find(a => a.activo);
+      if (!activeAno) { showPromoteBanner = false; return; }
+
+      const activeNum = parseInt(activeAno.nombre);
+      if (isNaN(activeNum)) { showPromoteBanner = false; return; }
+
+      const nextCandidates = allAnos
+        .filter(a => a.id !== activeAno.id)
+        .map(a => ({ ...a, _num: parseInt(a.nombre) }))
+        .filter(a => !isNaN(a._num) && a._num > activeNum)
+        .sort((a, b) => a._num - b._num);
+      if (nextCandidates.length === 0) { showPromoteBanner = false; return; }
+
+      const nextAno = nextCandidates[0];
+      const activeCount = students.filter(s => s.anoLectivoId === activeAno.id).length;
+
+      if (activeCount > 0) {
+        promoteFromAno = activeAno;
+        promoteToAno = nextAno;
+        promoteStudentCount = activeCount;
+        showPromoteBanner = true;
+      } else {
+        showPromoteBanner = false;
+      }
+    } catch (e) {
+      console.error("Error checking promotion:", e);
+    }
+  }
+
+  async function handlePromoteStudents() {
+    if (!promoteFromAno || !promoteToAno) return;
+    const ok = await ask(
+      `¿Promover ${promoteStudentCount} estudiantes de "${promoteFromAno.nombre}" a "${promoteToAno.nombre}"?\n\nLos estudiantes subirán de grado (1er→2do, 2do→3ro...). Los de 11mo grado se marcarán como graduados.`,
+      { title: "📈 Confirmar promoción", kind: "info", okLabel: "Promover", cancelLabel: "Cancelar" }
+    );
+    if (!ok) return;
+    isPromoting = true;
+    try {
+      const result = await invoke<{ promoted: number; graduated: number }>("promote_students", {
+        fromAnoId: promoteFromAno.id,
+        toAnoId: promoteToAno.id,
+      });
+      let msg = `✅ Promoción completada: ${result.promoted} promovidos`;
+      if (result.graduated > 0) msg += `, ${result.graduated} graduados`;
+      await emit("show-toast", { message: msg, type: "success" });
+      await emit("student-updated", { timestamp: Date.now() });
+      await emit("catalog-updated", { timestamp: Date.now() });
+      onDataChange("estudiante", { immediate: true });
+      showPromoteBanner = false;
+      await fetchData(true);
+    } catch (e) {
+      console.error("Error promoting:", e);
+      await emit("show-toast", { message: "❌ Error al promover: " + e, type: "error" });
+    } finally {
+      isPromoting = false;
+    }
+  }
+
   onMount(() => {
     fetchData();
     const checkMobile = () => { isMobile = window.innerWidth <= 768; };
@@ -667,6 +736,30 @@ async function fetchData(preserveFilters = false) {
           title="Ayuda de importación">?</button>
       </div>
   </FilterContainer>
+
+  {#if showPromoteBanner && promoteFromAno && promoteToAno}
+    <div style="margin-top: 0.75rem; padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(139, 92, 246, 0.12)); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: 12px; {isMobile ? 'margin-left: 0.25rem; margin-right: 0.25rem;' : ''}">
+      <div style="display: flex; align-items: center; gap: 0.75rem; {isMobile ? 'flex-wrap: wrap;' : ''}">
+        <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #8b5cf6); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">📈</div>
+        <div style="flex: 1; min-width: 0;">
+          <div style="font-weight: 700; color: #e0e7ff; font-size: {isMobile ? '0.8rem' : '0.9rem'};">Promover estudiantes</div>
+          <div style="color: #c7d2fe; font-size: {isMobile ? '0.7rem' : '0.8rem'}; margin-top: 2px;">
+            <strong>{promoteStudentCount}</strong> estudiantes en <strong>{promoteFromAno.nombre}</strong> → <strong>{promoteToAno.nombre}</strong>
+          </div>
+        </div>
+        <div style="display: flex; gap: 0.5rem; {isMobile ? 'width: 100%;' : ''}">
+          <button onclick={handlePromoteStudents} disabled={isPromoting}
+            style="{isMobile ? 'flex: 1;' : ''} padding: 0.45rem 1rem; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; font-size: 0.8rem; white-space: nowrap;">
+            {isPromoting ? '⏳ Promoviendo...' : '📈 Promover'}
+          </button>
+          <button onclick={() => showPromoteBanner = false}
+            style="padding: 0.45rem 0.8rem; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: #c7d2fe; font-weight: 600; cursor: pointer; font-size: 0.8rem;">
+            Descartar
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
 
   {#if filteredStudents.length > 0}
     <div class="student-summary-row" style="display: flex; gap: 0.5rem; margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid rgba(255, 255, 255, 0.1); width: 100%; {isMobile ? 'gap: 0.4rem;' : ''}">
