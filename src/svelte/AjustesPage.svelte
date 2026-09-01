@@ -864,11 +864,9 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 <style>
   .ajustes-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
     gap: 1.25rem;
-    max-width: 1200px;
   }
-  @media (max-width: 1100px) { .ajustes-grid { grid-template-columns: 1fr; } }
   .ajustes-ribbon-container {
     display: flex;
     justify-content: center;
