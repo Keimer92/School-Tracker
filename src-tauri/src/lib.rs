@@ -49,7 +49,7 @@ async fn get_all_local_data_json(state: tauri::State<'_, DbState>) -> Result<Str
 
     let table_names = [
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
-        "grado_asignatura", "colegio_asignatura", "indicador", "criterio",
+        "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia", "dia_sin_clases",
         "asistencia", "nota",
     ];
@@ -99,7 +99,7 @@ async fn get_all_local_data_since(state: tauri::State<'_, DbState>, since: Strin
 
     let table_names = [
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
-        "grado_asignatura", "colegio_asignatura", "indicador", "criterio",
+        "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia", "dia_sin_clases",
         "asistencia", "nota",
     ];
@@ -152,7 +152,7 @@ fn has_local_changes(state: tauri::State<'_, DbState>, since: String) -> Result<
 
     let table_names = [
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
-        "grado_asignatura", "colegio_asignatura", "indicador", "criterio",
+        "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia", "dia_sin_clases",
         "asistencia", "nota",
     ];
@@ -1822,6 +1822,9 @@ pub fn run() {
             unassign_subject_from_colegio,
             assign_all_subjects_to_colegio,
             unassign_all_subjects_from_colegio,
+            get_grados_config_by_colegio,
+            set_colegio_grado,
+            delete_colegio_grado,
             get_evaluation_config,
             update_indicador,
             update_criterio,
@@ -1880,6 +1883,8 @@ pub fn run() {
             remove_pending_deletion_grado_asignatura,
             get_pending_deletions_colegio_asignatura,
             remove_pending_deletion_colegio_asignatura,
+            get_pending_deletions_colegio_grado,
+            remove_pending_deletion_colegio_grado,
             delete_record_local,
             print_pdf,
             share_pdf,

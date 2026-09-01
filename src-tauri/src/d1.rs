@@ -209,6 +209,7 @@ fn pk_cols(table: &str) -> &'static [&'static str] {
     match table {
         "grado_asignatura" => &["grado_id", "asignatura_id"],
         "colegio_asignatura" => &["colegio_id", "asignatura_id"],
+        "colegio_grado" => &["colegio_id", "grado_id"],
         "colegio_dias_asistencia" => &["colegio_id"],
         "dia_sin_clases" => &["id"],
         "nota" => &["estudiante_id", "criterio_id", "corte_evaluativo_id", "asignatura_id"],
@@ -241,7 +242,7 @@ fn collect_local_data_since(
 ) -> Result<Value, String> {
     let table_names = [
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
-        "grado_asignatura", "colegio_asignatura", "indicador", "criterio",
+        "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion",
         "colegio_dias_asistencia", "asistencia", "nota",
         "dia_sin_clases",
@@ -359,6 +360,18 @@ fn collect_pending_deletions(conn: &rusqlite::Connection) -> Result<Vec<Value>, 
         .collect();
     for (c, a) in ca {
         deletions.push(json!({ "tabla": "colegio_asignatura", "pk": [c, a] }));
+    }
+
+    let mut stmt = conn
+        .prepare("SELECT colegio_id, grado_id FROM sync_pending_deletions_colegio_grado")
+        .map_err(|e| e.to_string())?;
+    let cg: Vec<(i64, i64)> = stmt
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+    for (c, g) in cg {
+        deletions.push(json!({ "tabla": "colegio_grado", "pk": [c, g] }));
     }
 
     Ok(deletions)
@@ -507,6 +520,9 @@ fn delete_by_pk(conn: &rusqlite::Connection, table: &str, pk: &Value) -> Result<
         "colegio_asignatura" if arr.len() >= 2 => {
             "DELETE FROM colegio_asignatura WHERE colegio_id = ? AND asignatura_id = ?".to_string()
         }
+        "colegio_grado" if arr.len() >= 2 => {
+            "DELETE FROM colegio_grado WHERE colegio_id = ? AND grado_id = ?".to_string()
+        }
         "colegio_dias_asistencia" => "DELETE FROM colegio_dias_asistencia WHERE colegio_id = ?".to_string(),
         _ => format!("DELETE FROM {} WHERE id = ?", table),
     };
@@ -524,6 +540,7 @@ fn clear_all_pending_deletions(conn: &rusqlite::Connection) -> Result<(), String
         "sync_pending_deletions_nota",
         "sync_pending_deletions_grado_asignatura",
         "sync_pending_deletions_colegio_asignatura",
+        "sync_pending_deletions_colegio_grado",
     ] {
         let _ = conn.execute(&format!("DELETE FROM {}", t), []);
     }
@@ -853,12 +870,13 @@ pub async fn d1_restore_from_cloud(
     .map_err(|e| e.to_string())?;
     let tables = [
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
-        "grado_asignatura", "colegio_asignatura", "indicador", "criterio",
+        "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion",
         "colegio_dias_asistencia", "asistencia", "nota", "dia_sin_clases",
         "sync_pending_deletions", "sync_pending_deletions_asistencia",
         "sync_pending_deletions_nota", "sync_pending_deletions_grado_asignatura",
-        "sync_pending_deletions_colegio_asignatura", "sync_recent_pulls",
+        "sync_pending_deletions_colegio_asignatura", "sync_pending_deletions_colegio_grado",
+        "sync_recent_pulls",
     ];
     for t in &tables {
         tx.execute(&format!("DELETE FROM {}", t), [])

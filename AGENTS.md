@@ -537,6 +537,7 @@ con "os error 32". Antes de renombrar, se reemplaza la conexión activa con
 | `multiplicador_calificacion` | `id` (TEXT PK) | `multiplicador REAL NOT NULL DEFAULT 1.0`, `updated_at TEXT` | |
 | `grado_asignatura` | `(grado_id, asignatura_id)` | `updated_at TEXT` | FK CASCADE |
 | `colegio_asignatura` | `(colegio_id, asignatura_id)` | `updated_at TEXT` | FK CASCADE |
+| `colegio_grado` | `(colegio_id, grado_id)` | `activo INTEGER DEFAULT 1`, `cualitativo INTEGER DEFAULT 0`, `updated_at TEXT` | FK CASCADE. Grados que ofrece cada colegio según su tipo |
 | `indicador` | `id` | `grado_id`, `asignatura_id`, `corte_evaluativo_id`, `orden`, `descripcion TEXT DEFAULT ''`, `activo INTEGER DEFAULT 1`, `updated_at TEXT` | |
 | `criterio` | `id` | `indicador_id`, `orden`, `descripcion TEXT DEFAULT ''`, `puntaje_maximo INTEGER`, `updated_at TEXT` | FK CASCADE sobre indicador |
 | `asistencia` | `id` | `estudiante_id`, `fecha TEXT`, `estado TEXT CHECK(P\|A\|J)`, `observacion TEXT`, `updated_at TEXT` | `UNIQUE(estudiante_id, fecha)` |
@@ -548,6 +549,7 @@ con "os error 32". Antes de renombrar, se reemplaza la conexión activa con
 | `sync_pending_deletions_nota` | `id` | `estudiante_id`, `criterio_id`, `corte_evaluativo_id`, `asignatura_id`, `fecha_intento` | |
 | `sync_pending_deletions_grado_asignatura` | `id` | `grado_id`, `asignatura_id`, `fecha_intento` | |
 | `sync_pending_deletions_colegio_asignatura` | `id` | `colegio_id`, `asignatura_id`, `fecha_intento` | |
+| `sync_pending_deletions_colegio_grado` | `id` | `colegio_id`, `grado_id`, `fecha_intento` | |
 | `dia_sin_clases` | `id` (INTEGER PK AUTOINCREMENT) | `colegio_id`, `grado_id NULL`, `seccion_id NULL`, `fecha TEXT`, `descripcion TEXT NOT NULL`, `updated_at` | Feriados/días sin clases. UNIQUE(colegio_id, IFNULL(grado_id,0), IFNULL(seccion_id,0), fecha). grado/seccion NULL = nivel colegio. Sincronizada en D1 |
 
 ### Datos semilla (`seed_default_data` en `db.rs:396`)
@@ -574,6 +576,7 @@ En `migrate_add_columns` (`db.rs:299`):
 - `configuracion_calificacion.nombre TEXT DEFAULT ''` (si no existe) + backfill nombres para ids viejos (`destacado`→`AA` etc.)
 - `colegio.activo INTEGER DEFAULT 0` (si no existe)
 - `multiplicador_calificacion` relleno con valores por defecto (AA=1.0, AS=0.85, AF=0.65, AI=0.40) si la tabla está vacía (siembra retroactiva para bases existentes)
+- `colegio_grado` poblada (backfill) para colegios existentes según su tipo: Primaria → grados 1-6, Secundaria → grados 7-11 (activo=1, cualitativo heredado del grado)
 - `updated_at TEXT DEFAULT (datetime('now'))` en las 16 tablas sincronizables (si no existe)
 
 ### Flujo de llamada
@@ -831,6 +834,63 @@ fn get_secundaria_colegios(conn) -> Result<Vec<ColegioInfo>, String>
 - **Grado compartido entre años**: la tabla `grado` no tiene añolectivo; el año se hereda del `ano_lectivo_id` del estudiante.
 - **Copia de datos**: se copian `nota` y `asistencia` al año destino; los catálogos (grado, seccion, asignatura) son globales.
 - **colegio_destino_map**: parámetro opcional `HashMap<i64, i64>` (colegio_origen → colegio_destino) para resolver la selección del usuario en el modal.
+
+## Grados por tipo de colegio (colegio_grado) — configuración unificada
+
+Desde 2026-08, los grados son **fijos y globales** (1ro-11mo) y cada colegio
+tiene su `tipo` (Primaria/Secundaria) que determina qué grados le corresponden:
+- **Primaria** → grados 1-6
+- **Secundaria** → grados 7-11
+
+### Tabla `colegio_grado`
+
+Relación muchos-a-muchos colegio↔grado con flags propios:
+
+| Columna | Tipo | Notas |
+|---------|------|-------|
+| `colegio_id` | INTEGER | FK colegio, CASCADE |
+| `grado_id` | INTEGER | FK grado, CASCADE |
+| `activo` | INTEGER DEFAULT 1 | El grado está disponible en ese colegio |
+| `cualitativo` | INTEGER DEFAULT 0 | Flag cualitativo POR COLEGIO (independiente del global del grado) |
+| `updated_at` | TEXT | Sync D1 |
+
+**Siembra/backfill**: `seed_colegio_grados(conn, colegio_id, tipo)` inserta
+(INSERT OR IGNORE) los grados del tipo con `activo=1` y cualitativo heredado del
+grado global. Se llama desde:
+- `migrate_add_columns` (backfill de colegios existentes al arrancar)
+- `seed_selected_data` (wizard: por cada colegio según su tipo)
+- `add_colegio` (default Primaria)
+- `update_colegio` (si cambia el `tipo`, re-siembra los grados del nuevo tipo)
+
+### UI — modal unificado de Colegio
+
+- Card **Grado** en Globales quedó **solo lectura**: sin Agregar/Editar/
+  Eliminar/Renombrar ni toggle global de cualitativo. El botón ⚙️ de cada grado
+  solo abre el modal de **asignaturas** (currículo `grado_asignatura`), sin campo
+  de nombre.
+- El modal ⚙️ de **Colegio** ganó una 4ta pestaña **📊 Grados**: lista los grados
+  del colegio con toggle **activo** (switch), toggle **cualitativo** (switch) y
+  botón 🗑 para eliminar el grado de ese colegio (confirma con `ask`, registra
+  pending deletion). Botón "💾 Guardar grados" persiste.
+
+### Comandos Rust
+
+- `get_grados_config_by_colegio(colegioId)` → `[{id, nombre, activo, cualitativo}]`
+  (NO confundir con el `get_grados_by_colegio` existente, que filtra grados de
+  estudiantes de un colegio para los selectores).
+- `set_colegio_grado(colegioId, gradoId, activo, cualitativo)` → upsert.
+- `delete_colegio_grado(colegioId, gradoId)` → elimina + registra
+  `sync_pending_deletions_colegio_grado`.
+- `get_pending_deletions_colegio_grado` / `remove_pending_deletion_colegio_grado`.
+
+Registrados en `generate_handler!` (lib.rs) y `local-commands.toml`.
+
+### Sync
+
+`colegio_grado` es sincronizable (espejo de `colegio_asignatura`): PK compuesta
+`(colegio_id, grado_id)`, en `pk_cols`/`table_names` de `d1.rs`, en `lib.rs`
+(`get_all_local_data_since`/`has_local_changes`), en `dirtyTracker.ts` y en el
+worker (`TABLES`, `ensureSchema`).
 
 ## Limpieza y toggle de asistencia (2026-08)
 

@@ -365,7 +365,7 @@
       {#if hasUnsavedChanges}
         <span title="Cambios sin guardar" style="width:10px;height:10px;border-radius:50%;background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,0.6);flex-shrink:0;"></span>
       {/if}
-      {#if items.length > 0 && config.title !== "Corte Evaluativo"}
+      {#if items.length > 0 && config.title !== "Corte Evaluativo" && config.title !== "Grado"}
         <label class="cat-select-all" class:active={selectedIds.size > 0} onclick={(e) => e.stopPropagation()}>
           <input type="checkbox" class="cat-selectbox-input" checked={items.length > 0 && selectedIds.size === items.length} onchange={toggleSelectAll} />
           <span class="cat-selectbox" class:checked={selectedIds.size === items.length}>
@@ -457,7 +457,7 @@
                 </label>
               </span>
             {/if}
-            {#if (config.title === "Grado" || config.title === "Asignatura")}
+            {#if config.title === "Asignatura"}
               <span class="cat-toggle-slot">
                 <label class="switch" title={item.cualitativo ? "Cambiar a Cuantitativo" : "Cambiar a Cualitativo"}>
                   <input type="checkbox" checked={item.cualitativo || false} onchange={() => handleToggleCualitativo(item)} />
@@ -474,7 +474,7 @@
             {#if config.title !== "Colegio" && !(config.title === "Grado" && onConfigClick)}
               <button onclick={() => handleEdit(item)} title="Editar" style="background:rgba(var(--primary-rgb),0.1);border:1px solid rgba(var(--primary-rgb),0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.1)'}>✎</button>
             {/if}
-            {#if config.title !== "Corte Evaluativo"}
+            {#if config.title !== "Corte Evaluativo" && config.title !== "Grado"}
               <button onclick={() => handleDelete(item)} disabled={isDeleting} title="Eliminar" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}>🗑</button>
             {/if}
           </div>

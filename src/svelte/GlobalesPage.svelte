@@ -21,7 +21,7 @@
     { title: "Corte Evaluativo", table: "corte_evaluativo", endpoints: { get: "get_cortes", add: "add_corte", update: "update_corte", delete: "delete_corte", setActive: "set_active_corte" }, noAdd: true },
     { title: "Asignatura", table: "asignatura", endpoints: { get: "get_asignaturas", add: "add_asignatura", update: "update_asignatura", delete: "delete_asignatura" } },
     { title: "Colegio", table: "colegio", endpoints: { get: "get_colegios", add: "add_colegio", update: "update_colegio", delete: "delete_colegio", setActive: "set_active_colegio", updateOrder: "update_colegio_order" }, hideDefault: true },
-    { title: "Grado", table: "grado", endpoints: { get: "get_grados", add: "add_grado", update: "update_grado", delete: "delete_grado" } },
+    { title: "Grado", table: "grado", endpoints: { get: "get_grados", add: "add_grado", update: "update_grado", delete: "delete_grado" }, noAdd: true },
     { title: "Sección", table: "seccion", endpoints: { get: "get_secciones", add: "add_seccion", update: "update_seccion", delete: "delete_seccion" } },
   ];
 
@@ -79,13 +79,15 @@
 
   // Unificado: modal de configuración de colegio
   let selectedColegioConfig: CategoryItem | null = $state(null);
-  let colegioTab = $state<'tipo' | 'dias' | 'asignaturas'>('tipo');
+  let colegioTab = $state<'tipo' | 'dias' | 'asignaturas' | 'grados'>('tipo');
   let colegioTipo = $state('Primaria');
   let colegioNombreEdit = $state('');
   let colegioConfig: ColegioDiasAsistencia | null = $state(null);
   let colegioConfigOriginal: string = $state('');
   let colegioAsignadasIds: number[] = $state([]);
   let colegioAsignadasOriginal: string = $state('');
+  let colegioGrados: { id: number; nombre: string; activo: boolean; cualitativo: boolean }[] = $state([]);
+  let colegioGradosOriginal: string = $state('');
 
   // ---- Cierre seguro de modales con draft pendiente (ask nativo) ----
   async function cerrarSiSeguro(dirty: boolean, cerrar: () => void) {
@@ -98,7 +100,7 @@
 
   function cerrarGradeModal() { cerrarSiSeguro(gradeDirty, () => { selectedGrade = null; }); }
   function cerrarColegioConfigModal() {
-    const anyDirty = diasDirty || colegioSubjectsDirty;
+    const anyDirty = diasDirty || colegioSubjectsDirty || colegioGradosDirty;
     cerrarSiSeguro(anyDirty, () => { selectedColegioConfig = null; });
   }
 
@@ -130,6 +132,16 @@
       colegioAsignadasIds = assigned.map((s) => s.id);
       colegioAsignadasOriginal = JSON.stringify(colegioAsignadasIds);
     }).catch((error) => console.error("[DEBUG ColegioSubjects] Error fetching colegio subjects:", error));
+  }
+
+  function fetchColegioGrados() {
+    if (!selectedColegioConfig) return;
+    invoke<{ id: number; nombre: string; activo: boolean; cualitativo: boolean }[]>("get_grados_config_by_colegio", { colegioId: selectedColegioConfig.id })
+      .then((grados) => {
+        colegioGrados = grados;
+        colegioGradosOriginal = JSON.stringify(grados);
+      })
+      .catch((error) => console.error("[DEBUG ColegioGrados] Error fetching colegio grados:", error));
   }
 
   // ---- Días de asistencia (buffer + guardar con confirmación nativa) ----
@@ -302,6 +314,51 @@
   $effect(() => { if (selectedGrade) fetchSubjectsData(); });
   $effect(() => { if (selectedColegioConfig) fetchColegioConfig(); });
   $effect(() => { if (selectedColegioConfig) fetchColegioSubjectsData(); });
+  $effect(() => { if (selectedColegioConfig) fetchColegioGrados(); });
+
+  let colegioGradosDirty = $derived(selectedColegioConfig !== null && JSON.stringify(colegioGrados) !== colegioGradosOriginal);
+
+  function toggleColegioGrado(grado: { id: number }) {
+    colegioGrados = colegioGrados.map((g) => g.id === grado.id ? { ...g, activo: !g.activo } : g);
+  }
+  function toggleColegioGradoCualitativo(grado: { id: number }) {
+    colegioGrados = colegioGrados.map((g) => g.id === grado.id ? { ...g, cualitativo: !g.cualitativo } : g);
+  }
+  async function eliminarColegioGrado(grado: { id: number; nombre: string }) {
+    if (!selectedColegioConfig) return;
+    const ok = await ask(`¿Eliminar "${grado.nombre}" de "${selectedColegioConfig.nombre}"?\n\nEl grado dejará de estar disponible en este colegio.`, {
+      title: "Eliminar grado", kind: "warning", okLabel: "Eliminar", cancelLabel: "Cancelar",
+    });
+    if (!ok) return;
+    try {
+      await invoke("delete_colegio_grado", { colegioId: selectedColegioConfig.id, gradoId: grado.id });
+      colegioGrados = colegioGrados.filter((g) => g.id !== grado.id);
+      colegioGradosOriginal = JSON.stringify(colegioGrados);
+      onDataChange('colegio_grado');
+      await emit("catalog-updated");
+      await emit("show-toast", { message: "🗑 Grado eliminado del colegio", type: "success" });
+    } catch (error) {
+      await emit("show-toast", { message: "❌ Error eliminando grado: " + error, type: "error" });
+    }
+  }
+  async function saveColegioGrados() {
+    if (!selectedColegioConfig || !colegioGradosDirty) return;
+    const ok = await ask(`¿Aplicar los grados de "${selectedColegioConfig.nombre}"?`, {
+      title: "Confirmar cambios", kind: "info", okLabel: "Guardar", cancelLabel: "Cancelar",
+    });
+    if (!ok) return;
+    savingModal = true;
+    try {
+      for (const g of colegioGrados) {
+        await invoke("set_colegio_grado", { colegioId: selectedColegioConfig.id, gradoId: g.id, activo: g.activo, cualitativo: g.cualitativo });
+      }
+      colegioGradosOriginal = JSON.stringify(colegioGrados);
+      onDataChange('colegio_grado');
+      await emit("show-toast", { message: "✅ Grados guardados", type: "success" });
+      await emit("catalog-updated");
+    } catch (error) { await emit("show-toast", { message: "❌ Error guardando grados: " + error, type: "error" }); }
+    finally { savingModal = false; }
+  }
 
   function updateGradeConfig(id: string, nombre: string, color: string, minimo: number, oldId?: string) {
     let v = minimo; if (id !== "AI") { if (v < 0) v = 0; if (v > 100) v = 100; } else v = 0;
@@ -638,20 +695,8 @@
     <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) cerrarGradeModal(); }}>
       <div class="modal-content category-card" style="max-width: 480px; width: 95%;">
         <div class="category-header" style="justify-content: space-between;">
-          <h3 style="margin: 0; font-size: 1.1rem;">⚙️ Configurar grado</h3>
+          <h3 style="margin: 0; font-size: 1.1rem;">⚙️ {selectedGrade.nombre} — Asignaturas</h3>
           <button onclick={cerrarGradeModal} style="background: transparent; border: none; color: white; cursor: pointer; font-size: 1.2rem;">✕</button>
-        </div>
-
-        <!-- Editar nombre -->
-        <div style="display:flex;align-items:center;gap:0.5rem;padding:0.5rem 1rem;margin-top:0.5rem;">
-          <input bind:value={gradeNombreEdit} placeholder="Nombre del grado"
-            style="flex:1;padding:0.45rem 0.7rem;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.06);color:#e2e8f0;font-size:0.85rem;outline:none;" />
-          {#if gradeNombreEdit !== selectedGrade.nombre}
-            <button onclick={saveGradeNombre} disabled={savingModal}
-              style="padding:0.45rem 0.8rem;border-radius:8px;border:none;background:linear-gradient(135deg,#818cf8,#6366f1);color:white;font-weight:600;font-size:0.78rem;cursor:pointer;white-space:nowrap;">
-              {savingModal ? '...' : '💾 Renombrar'}
-            </button>
-          {/if}
         </div>
 
         <!-- Asignaturas -->
@@ -709,7 +754,7 @@
 
         <!-- Segmented Control -->
         <div style="display:flex;gap:4px;padding:6px;margin:0.5rem 1rem 0;background:rgba(255,255,255,0.04);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
-          {#each [{id:'tipo',label:'🏫 Tipo'},{id:'dias',label:'📅 Días'},{id:'asignaturas',label:'📚 Asignaturas'}] as tab}
+          {#each [{id:'tipo',label:'🏫 Tipo'},{id:'dias',label:'📅 Días'},{id:'asignaturas',label:'📚 Asignaturas'},{id:'grados',label:'📊 Grados'}] as tab}
             <button onclick={() => colegioTab = tab.id as any}
               style="flex:1;padding:0.45rem 0.5rem;border-radius:8px;border:none;font-size:0.78rem;font-weight:600;cursor:pointer;transition:all 0.2s;{colegioTab === tab.id ? 'background:linear-gradient(135deg,#34d399,#10b981);color:white;box-shadow:0 2px 8px rgba(52,211,153,0.3);' : 'background:transparent;color:#94a3b8;'}">{tab.label}</button>
           {/each}
@@ -784,6 +829,37 @@
                 <button onclick={saveColegioSubjects} disabled={savingModal}
                   style="margin-top:0.5rem;padding:0.6rem 1.25rem;border-radius:10px;border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:white;font-weight:700;font-size:0.85rem;cursor:pointer;box-shadow:0 4px 14px rgba(34,197,94,0.3);">
                   {savingModal ? '⏳ Guardando...' : '💾 Guardar asignaturas'}
+                </button>
+              {/if}
+            </div>
+
+          <!-- TAB: Grados -->
+          {:else if colegioTab === 'grados'}
+            <div style="display:flex;flex-direction:column;gap:0.5rem;">
+              <p style="margin:0;color:#94a3b8;font-size:0.78rem;">Activa o desactiva los grados que este colegio ofrece y marca los cualitativos. Los grados son fijos (según el tipo del colegio).</p>
+              {#each colegioGrados as grado (grado.id)}
+                <div class="item-row" style="display:flex;align-items:center;gap:12px;padding:0.5rem 0.75rem;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);transition:all 0.2s;{!grado.activo ? 'opacity:0.55;' : ''}">
+                  <label class="switch" title={grado.activo ? "Desactivar grado" : "Activar grado"}>
+                    <input type="checkbox" checked={grado.activo} onchange={() => toggleColegioGrado(grado)} />
+                    <span class="slider round"></span>
+                  </label>
+                  <span style="flex:1;font-weight:{grado.activo ? '700' : '500'};color:{grado.activo ? '#e2e8f0' : '#94a3b8'};font-size:0.85rem;">{grado.nombre}</span>
+                  <label class="switch" title={grado.cualitativo ? "Quitar cualitativo" : "Marcar cualitativo"}>
+                    <input type="checkbox" checked={grado.cualitativo} onchange={() => toggleColegioGradoCualitativo(grado)} />
+                    <span class="slider round" style="background-color: {grado.cualitativo ? '#8b5cf6' : undefined};"></span>
+                  </label>
+                  <button onclick={() => eliminarColegioGrado(grado)} title="Eliminar grado del colegio"
+                    style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;"
+                    onmouseenter={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.2)'}
+                    onmouseleave={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}>🗑</button>
+                </div>
+              {:else}
+                <p style="color:#64748b;font-size:0.8rem;text-align:center;padding:1rem;">No hay grados configurados para este colegio.</p>
+              {/each}
+              {#if colegioGradosDirty}
+                <button onclick={saveColegioGrados} disabled={savingModal}
+                  style="margin-top:0.5rem;padding:0.6rem 1.25rem;border-radius:10px;border:none;background:linear-gradient(135deg,#fb923c,#f97316);color:white;font-weight:700;font-size:0.85rem;cursor:pointer;box-shadow:0 4px 14px rgba(251,146,60,0.3);">
+                  {savingModal ? '⏳ Guardando...' : '💾 Guardar grados'}
                 </button>
               {/if}
             </div>

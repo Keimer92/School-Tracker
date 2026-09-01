@@ -208,6 +208,17 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             FOREIGN KEY(colegio_id) REFERENCES colegio(id) ON DELETE CASCADE,
             FOREIGN KEY(asignatura_id) REFERENCES asignatura(id) ON DELETE CASCADE
         );
+
+        CREATE TABLE IF NOT EXISTS colegio_grado (
+            colegio_id INTEGER NOT NULL,
+            grado_id INTEGER NOT NULL,
+            activo INTEGER DEFAULT 1,
+            cualitativo INTEGER DEFAULT 0,
+            updated_at TEXT DEFAULT (datetime('now')),
+            PRIMARY KEY (colegio_id, grado_id),
+            FOREIGN KEY(colegio_id) REFERENCES colegio(id) ON DELETE CASCADE,
+            FOREIGN KEY(grado_id) REFERENCES grado(id) ON DELETE CASCADE
+        );
         "#,
     )
     .map_err(|e| format!("Error creando tablas de relaciones: {}", e))?;
@@ -366,6 +377,13 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             colegio_id INTEGER NOT NULL,
             asignatura_id INTEGER NOT NULL,
+            fecha_intento TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS sync_pending_deletions_colegio_grado (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            colegio_id INTEGER NOT NULL,
+            grado_id INTEGER NOT NULL,
             fecha_intento TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         "#,
@@ -535,7 +553,7 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
         "estudiante", "indicador", "criterio", "asistencia", "colegio_dias_asistencia", "dia_sin_clases",
         "nota", "configuracion_calificacion", "multiplicador_calificacion",
-        "grado_asignatura", "colegio_asignatura",
+        "grado_asignatura", "colegio_asignatura", "colegio_grado",
     ];
     for table in &tables_updated_at {
         let has_col: bool = conn
@@ -608,7 +626,83 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
         }
     }
 
+    // Backfill colegio_grado: asignar grados por tipo a colegios existentes.
+    // Primaria → grados 1-6, Secundaria → grados 7-11 (todos activos, cualitativo heredado del grado).
+    {
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('colegio_grado') WHERE name = 'colegio_id'",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap_or(0);
+        if count > 0 {
+            let colegios: Vec<(i64, String)> = {
+                let mut stmt = conn
+                    .prepare("SELECT id, COALESCE(tipo, 'Primaria') FROM colegio")
+                    .map_err(|e| e.to_string())?;
+                let rows = stmt
+                    .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+                    .map_err(|e| e.to_string())?
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|e| e.to_string())?;
+                drop(stmt);
+                rows
+            };
+            for (colegio_id, tipo) in &colegios {
+                seed_colegio_grados(conn, *colegio_id, tipo)?;
+            }
+            println!("✅ [DB] colegio_grado poblada para {} colegios", colegios.len());
+        }
+    }
+
     Ok(())
+}
+
+/// Siembra los grados correspondientes al tipo de un colegio en `colegio_grado`
+/// (INSERT OR IGNORE: no toca grados ya configurados manualmente).
+fn seed_colegio_grados(conn: &Connection, colegio_id: i64, tipo: &str) -> Result<(), String> {
+    let (min_grado, max_grado) = if tipo == "Secundaria" {
+        (7i64, 11i64)
+    } else {
+        (1i64, 6i64)
+    };
+    let mut stmt = conn
+        .prepare("SELECT id, cualitativo FROM grado")
+        .map_err(|e| e.to_string())?;
+    let grados: Vec<(i64, i64)> = stmt
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    drop(stmt);
+
+    for (grado_id, cualitativo) in grados {
+        let n = parse_grade_number(conn, grado_id);
+        if let Some(num) = n {
+            if num >= min_grado && num <= max_grado {
+                conn.execute(
+                    "INSERT OR IGNORE INTO colegio_grado (colegio_id, grado_id, activo, cualitativo, updated_at) VALUES (?, ?, 1, ?, datetime('now'))",
+                    rusqlite::params![colegio_id, grado_id, cualitativo],
+                )
+                .map_err(|e| e.to_string())?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Parsea el número inicial del nombre del grado ("1er grado" → 1).
+fn parse_grade_number(conn: &Connection, grado_id: i64) -> Option<i64> {
+    let mut stmt = conn
+        .prepare("SELECT nombre FROM grado WHERE id = ?")
+        .ok()?;
+    let name: Option<String> = stmt.query_row([grado_id], |row| row.get(0)).ok();
+    drop(stmt);
+    let nombre = name?;
+    let stripped = nombre.replace(" grado", "").replace("Grado", "");
+    let clean: String = stripped.chars().take_while(|c| c.is_ascii_digit()).collect();
+    clean.parse::<i64>().ok()
 }
 
 /// Elimina criterios duplicados (mantiene solo los primeros 3 por indicador)
@@ -829,6 +923,14 @@ pub struct PendingDeletionColegioAsignatura {
     pub id: i64,
     pub colegio_id: i64,
     pub asignatura_id: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingDeletionColegioGrado {
+    pub id: i64,
+    pub colegio_id: i64,
+    pub grado_id: i64,
 }
 
 #[tauri::command]
@@ -2745,6 +2847,132 @@ pub async fn unassign_all_subjects_from_colegio(
     .map_err(|e| e.to_string())
 }
 
+// ---- Grados por colegio (colegio_grado) ----
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GradoColegioItem {
+    pub id: i64,
+    pub nombre: String,
+    pub activo: bool,
+    pub cualitativo: bool,
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+pub async fn get_grados_config_by_colegio(
+    state: tauri::State<'_, DbState>,
+    colegioId: i64,
+) -> Result<Vec<GradoColegioItem>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT g.id, g.nombre, cg.activo, cg.cualitativo
+              FROM grado g
+              INNER JOIN colegio_grado cg ON g.id = cg.grado_id
+              WHERE cg.colegio_id = ?
+              ORDER BY CAST(SUBSTR(g.nombre, 1, 2) AS INTEGER)",
+        )
+        .map_err(|e| e.to_string())?;
+    let items = stmt
+        .query_map([colegioId], |row| {
+            Ok(GradoColegioItem {
+                id: row.get(0)?,
+                nombre: row.get(1)?,
+                activo: row.get::<_, i64>(2)? == 1,
+                cualitativo: row.get::<_, i64>(3)? == 1,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    Ok(items)
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+pub async fn set_colegio_grado(
+    state: tauri::State<'_, DbState>,
+    colegioId: i64,
+    gradoId: i64,
+    activo: bool,
+    cualitativo: bool,
+) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO colegio_grado (colegio_id, grado_id, activo, cualitativo, updated_at) VALUES (?, ?, ?, ?, datetime('now'))
+         ON CONFLICT(colegio_id, grado_id) DO UPDATE SET activo = excluded.activo, cualitativo = excluded.cualitativo, updated_at = datetime('now')",
+        rusqlite::params![colegioId, gradoId, if activo { 1 } else { 0 }, if cualitativo { 1 } else { 0 }],
+    )
+    .map(|_| ())
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+pub async fn delete_colegio_grado(
+    state: tauri::State<'_, DbState>,
+    colegioId: i64,
+    gradoId: i64,
+) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let exists: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM colegio_grado WHERE colegio_id = ? AND grado_id = ?)",
+        [colegioId, gradoId],
+        |row| row.get(0),
+    ).unwrap_or(false);
+    if exists {
+        conn.execute(
+            "INSERT INTO sync_pending_deletions_colegio_grado (colegio_id, grado_id) VALUES (?, ?)",
+            [colegioId, gradoId],
+        ).map_err(|e| e.to_string())?;
+        conn.execute(
+            "DELETE FROM colegio_grado WHERE colegio_id = ? AND grado_id = ?",
+            [colegioId, gradoId],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_pending_deletions_colegio_grado(
+    state: tauri::State<'_, DbState>,
+) -> Result<Vec<PendingDeletionColegioGrado>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, colegio_id, grado_id FROM sync_pending_deletions_colegio_grado",
+        )
+        .map_err(|e| e.to_string())?;
+    let items = stmt
+        .query_map([], |row| {
+            Ok(PendingDeletionColegioGrado {
+                id: row.get(0)?,
+                colegio_id: row.get(1)?,
+                grado_id: row.get(2)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    Ok(items)
+}
+
+#[tauri::command]
+pub async fn remove_pending_deletion_colegio_grado(
+    state: tauri::State<'_, DbState>,
+    id: i64,
+) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "DELETE FROM sync_pending_deletions_colegio_grado WHERE id = ?",
+        [id],
+    )
+    .map(|_| ())
+    .map_err(|e| e.to_string())
+}
+
 // Generate commands for each category
 create_crud_commands_active!(
     ano_lectivo,
@@ -2800,7 +3028,7 @@ pub async fn add_colegio(state: tauri::State<'_, DbState>, nombre: String) -> Re
         .unwrap_or(0);
 
     conn.execute(
-        "INSERT INTO colegio (nombre, activo, cualitativo, orden) VALUES (?, 0, 0, ?)",
+        "INSERT INTO colegio (nombre, activo, cualitativo, orden, tipo) VALUES (?, 0, 0, ?, 'Primaria')",
         rusqlite::params![nombre, max_order + 1],
     )
     .map_err(|e| e.to_string())?;
@@ -2824,6 +3052,9 @@ pub async fn add_colegio(state: tauri::State<'_, DbState>, nombre: String) -> Re
         .map_err(|e| e.to_string())?;
     }
 
+    // Heredar los grados por defecto (Primaria) para este colegio
+    seed_colegio_grados(&conn, new_id, "Primaria")?;
+
     Ok(new_id)
 }
 
@@ -2836,12 +3067,19 @@ pub async fn update_colegio(
     tipo: String,
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let old_tipo: String = conn
+        .query_row("SELECT COALESCE(tipo, 'Primaria') FROM colegio WHERE id = ?", [id], |row| row.get(0))
+        .unwrap_or_else(|_| "Primaria".to_string());
     conn.execute(
         "UPDATE colegio SET nombre = ?, cualitativo = ?, tipo = ?, updated_at = datetime('now') WHERE id = ?",
         rusqlite::params![nombre, if cualitativo { 1 } else { 0 }, tipo, id],
     )
-    .map(|_| ())
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?;
+    // Si cambió el tipo, re-sembrar grados por defecto del nuevo tipo
+    if old_tipo != tipo {
+        seed_colegio_grados(&conn, id, &tipo)?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -4893,6 +5131,17 @@ pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: Se
         ).map_err(|e| e.to_string())?;
     }
 
+    // 3b. Grados por colegio según su tipo (Primaria → 1-6, Secundaria → 7-11)
+    for c in &selections.colegios {
+        let tipo = if c.tipo == "Secundaria" { "Secundaria" } else { "Primaria" };
+        let colegio_id: Option<i64> = conn
+            .query_row("SELECT id FROM colegio WHERE nombre = ?", [&c.nombre], |row| row.get(0))
+            .ok();
+        if let Some(cid) = colegio_id {
+            seed_colegio_grados(&conn, cid, tipo)?;
+        }
+    }
+
     // 4. Asignaturas seleccionadas (cualitativo definido por el usuario)
     for a in &selections.asignaturas {
         conn.execute(
@@ -5042,7 +5291,7 @@ pub async fn factory_reset(state: tauri::State<'_, DbState>) -> Result<(), Strin
 
     let tables = [
         "asistencia", "nota", "criterio", "indicador",
-        "grado_asignatura", "colegio_asignatura", "estudiante",
+        "grado_asignatura", "colegio_asignatura", "colegio_grado", "estudiante",
         "seccion", "grado", "asignatura", "colegio_dias_asistencia", "dia_sin_clases",
         "colegio", "corte_evaluativo", "ano_lectivo",
         "configuracion_calificacion",
@@ -5050,6 +5299,7 @@ pub async fn factory_reset(state: tauri::State<'_, DbState>) -> Result<(), Strin
         "sync_pending_deletions", "sync_pending_deletions_asistencia",
         "sync_pending_deletions_nota", "sync_pending_deletions_grado_asignatura",
         "sync_pending_deletions_colegio_asignatura",
+        "sync_pending_deletions_colegio_grado",
     ];
 
     conn.execute("PRAGMA foreign_keys = OFF", []).map_err(|e| e.to_string())?;
@@ -5204,7 +5454,7 @@ pub async fn promote_students(
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
     for student in &students {
-        let (id, nombre, codigo, sexo, grado_id, seccion_id, colegio_id, telefono, direccion, email, foto, grado_nombre) =
+        let (id, nombre, codigo, sexo, grado_id, seccion_id, colegio_id, telefono, direccion, email, foto, _grado_nombre) =
             student;
 
         let grado_num = get_grade_number(&tx, *grado_id)?.unwrap_or(0);

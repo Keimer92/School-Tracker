@@ -15,7 +15,7 @@ try {
 
 const ALL_TABLES = [
   'ano_lectivo', 'corte_evaluativo', 'colegio', 'asignatura', 'grado',
-  'seccion', 'grado_asignatura', 'colegio_asignatura', 'indicador',
+  'seccion', 'grado_asignatura', 'colegio_asignatura', 'colegio_grado', 'indicador',
   'criterio', 'estudiante', 'configuracion_calificacion',
   'multiplicador_calificacion',
   'colegio_dias_asistencia', 'asistencia', 'nota',
