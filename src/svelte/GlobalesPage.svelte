@@ -412,12 +412,8 @@
     mql.addEventListener("change", handler);
     invoke<GradeConfig[]>("get_grade_configs").then(d => { gradeConfigs = d.sort((a, b) => GRADE_ORDER.indexOf(a.id) - GRADE_ORDER.indexOf(b.id)); captureOriginals(); }).catch(e => console.error("Error fetching grade configs:", e));
     invoke<MultiplicadorItem[]>("get_multiplicadores").then(d => { multiplicadores = d; captureOriginals(); }).catch(e => console.error("Error fetching multiplicadores:", e));
-    checkPromotionEligibility();
-    const u1 = listen("catalog-updated", () => checkPromotionEligibility());
-    const u2 = listen("student-updated", () => checkPromotionEligibility());
     return () => {
       mql.removeEventListener("change", handler);
-      u1.then(f => f()); u2.then(f => f());
     };
   });
 </script>

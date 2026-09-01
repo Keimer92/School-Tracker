@@ -523,11 +523,13 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
           </div>
           <div style="background: rgba(239, 68, 68, 0.05); padding: 1.25rem; border-radius: 12px; border: 1px solid rgba(239, 68, 68, 0.2);">
             <h5 style="margin: 0 0 0.5rem 0; color: #f87171; font-size: 0.85rem;">⚠️ Zona de Peligro</h5>
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
               <button onclick={handleResetLocalDB} style="padding: 0.45rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; border-radius: 8px; cursor: pointer; font-size: 0.75rem; font-weight: 600;">🗑️ Reset Local</button>
               <button onclick={handleResetRemoteDB} style="padding: 0.45rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; border-radius: 8px; cursor: pointer; font-size: 0.75rem; font-weight: 600;">☁️ Limpiar Nube</button>
+              <button onclick={handleWipeProfileData} disabled={isWipingProfile} style="padding: 0.45rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; border-radius: 8px; cursor: pointer; font-size: 0.75rem; font-weight: 600; opacity: {isWipingProfile ? 0.6 : 1};">{isWipingProfile ? "⏳ Purgando…" : "🧨 Purgar Perfil"}</button>
               <button onclick={handleFactoryReset} style="padding: 0.45rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; border-radius: 8px; cursor: pointer; font-size: 0.75rem; font-weight: 600;">🔄 Fábrica</button>
             </div>
+            <div style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.5rem;">🧨 <strong>Purgar Perfil</strong>: vacía la nube D1 de esta cuenta Y reinicia la base local. Úsalo antes de importar una DB buena.</div>
           </div>
           <div style="margin-top: 1rem; background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;"><span style="font-size: 1rem;">📊</span><h5 style="margin: 0; color: #e2e8f0; font-size: 0.85rem;">Sistema</h5></div>
