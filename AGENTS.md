@@ -688,6 +688,66 @@ colegio o marcados sin clases se ven tachados/no seleccionables (también "Hoy")
   cada rato). Regla: fetch dentro de efectos va en `untrack()` y reasignar estado
   solo si cambió el contenido (comparar JSON).
 
+## Promoción de estudiantes (2026-08)
+
+Sistema automático para copiar estudiantes de un año lectivo al siguiente,
+incrementando su grado (1er→2do, 2do→3ro, ..., 11mo=graduado).
+
+### Diseño
+
+- **Tabla `grado` compartida entre años**: no hay grados por año. El grado se
+  hereda del `ano_lectivo_id` del estudiante.
+- **Orden de grado**: se deriva parseando el número al inicio del nombre
+  (`"1er grado"`→1, `"2do grado"`→2, ..., `"11mo grado"`→11).
+- **Promoción**: estudiantes en 1er-10mo grado se copian al año destino con
+  grado incrementado (+1). Se copian también `nota` y `asistencia`.
+- **Graduación**: estudiantes en 11mo grado NO se promueven (se graduaron).
+
+### Backend (Rust)
+
+**`src-tauri/src/db.rs`**:
+```rust
+struct PromoteResult { promoted: i64, graduated: i64 }
+
+#[tauri::command]
+fn get_grade_order_map(conn) -> Result<HashMap<i64, i64>, String>
+// → HashMap<grado_id, next_grado_id> (11mo → no está en el map)
+
+#[tauri::command]
+fn promote_students(conn, from_ano_id: i64, to_ano_id: i64) -> Result<PromoteResult, String>
+// 1. Valida que los años sean distintos
+// 2. Obtiene todos los estudiantes del año origen
+// 3. Para cada estudiante:
+//    - Si tiene siguiente grado → INSERT en año destino con grado+1
+//    - Copia notas (nota) y asistencia (asistencia)
+//    - Si es 11mo (sin siguiente) → cuenta como graduated
+// 4. Retorna { promoted, graduated }
+```
+
+**`src-tauri/src/lib.rs`**: `promote_students` registrado en `generate_handler!`
+**`src-tauri/permissions/local-commands.toml`**: `promote_students` en `commands.allow`
+
+### Frontend (GlobalesPage.svelte)
+
+**Estado**:
+- `showPromoteBanner`, `promoteFromAno`, `promoteToAno`, `promoteStudentCount`, `isPromoting`
+
+**Lógica**:
+- `checkPromotionEligibility()` — detecta año activo con estudiantes + año nuevo vacío
+- Se ejecuta en `onMount` y reacciona a `catalog-updated` / `student-updated`
+- `handlePromoteStudents()` — confirma con `ask()`, llama `invoke('promote_students')`, toast resultado, `onDataChange('estudiante')`
+- `dismissPromoteBanner()` — oculta el banner
+
+**UI (Mobile + Desktop)**:
+- Banner glassmorphism púrpura: "📚 X estudiantes en {añoOrigen} → {añoDestino}"
+- Botones: **Promover ahora** / **Descartar**
+
+### Gotchas
+
+- **11mo grado = graduados**: no hay grado 12, los estudiantes de 11mo no se promueven.
+- **Grado compartido entre años**: la tabla `grado` no tiene añolectivo; el año se hereda del `ano_lectivo_id` del estudiante.
+- **Copia de datos**: se copian `nota` y `asistencia` al año destino; los catálogos (grado, seccion, asignatura) son globales.
+
 ## Limpieza y toggle de asistencia (2026-08)
 
 - Re-tocar el mismo estado (P/A/J) LIMPIA la marca. En diario los handlers van en
