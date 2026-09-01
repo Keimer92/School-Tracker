@@ -40,6 +40,7 @@
   let promptLabel = $state("");
   let promptValue = $state("");
   let promptOnConfirm: ((val: string) => void) | null = $state(null);
+  let promptPlaceholder = $state("");
 
   function snap(list: CategoryItem[]) {
     return JSON.stringify(list.map(i => ({ id: i.id, nombre: i.nombre, activo: !!i.activo, cualitativo: !!i.cualitativo })));
@@ -149,26 +150,35 @@
   }
 
   // ---- Prompt add/edit (muta el DRAFT, no invoca) ----
-  function openPrompt(title: string, label: string, initialValue: string, onConfirm: (val: string) => void) {
-    promptTitle = title; promptLabel = label; promptValue = initialValue; promptOnConfirm = onConfirm; showPrompt = true;
+  function openPrompt(title: string, label: string, initialValue: string, onConfirm: (val: string) => void, placeholder = "") {
+    promptTitle = title; promptLabel = label; promptValue = initialValue; promptOnConfirm = onConfirm; promptPlaceholder = placeholder; showPrompt = true;
   }
 
   function handleAdd() {
+    const placeholder = config.table === 'ano_lectivo' ? 'Ej: 2027' : '';
     openPrompt(`Nuevo ${config.title.toLowerCase()}`, "Nombre", "", (nombre) => {
       if (!nombre || !nombre.trim()) return;
       const name = nombre.trim();
+      if (config.table === 'ano_lectivo' && !/^\d+$/.test(name)) {
+        emit("show-toast", { message: "⚠️ Solo se permiten números positivos para el año", type: "warning" });
+        return;
+      }
       if ([...items, ...nuevos].some(i => i.nombre.toLowerCase() === name.toLowerCase())) {
         emit("show-toast", { message: "⚠️ Ya existe un elemento con ese nombre", type: "warning" });
         return;
       }
       nuevos = [...nuevos, { tempId: tempCounter--, nombre: name, cualitativo: false }];
-    });
+    }, placeholder);
   }
 
   function handleEdit(item: CategoryItem & { esNuevo?: boolean }) {
     openPrompt(`Editar ${config.title.toLowerCase()}`, "Nombre", item.nombre, (nuevoNombre) => {
       if (!nuevoNombre || !nuevoNombre.trim() || nuevoNombre.trim() === item.nombre) return;
       const name = nuevoNombre.trim();
+      if (config.table === 'ano_lectivo' && !/^\d+$/.test(name)) {
+        emit("show-toast", { message: "⚠️ Solo se permiten números positivos para el año", type: "warning" });
+        return;
+      }
       if (item.esNuevo) {
         nuevos = nuevos.map(n => n.tempId === item.id ? { ...n, nombre: name } : n);
       } else {
@@ -494,7 +504,7 @@
       <h3 style="margin:0 0 0.25rem;color:#f1f5f9;font-size:1.05rem;font-weight:700;">{promptTitle}</h3>
       <div style="margin:1.25rem 0 1.5rem;">
         <label style="display:block;margin-bottom:0.4rem;font-size:0.75rem;color:#94a3b8;font-weight:600;">{promptLabel}</label>
-        <input type="text" bind:value={promptValue} bind:this={promptInput}
+        <input type="text" bind:value={promptValue} bind:this={promptInput} placeholder={promptPlaceholder}
           onkeydown={(e) => { if (e.key === "Enter" && promptOnConfirm) { promptOnConfirm(promptValue); showPrompt = false; } }}
           style="width:100%;padding:0.55rem 0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:rgba(15,23,42,0.5);color:#e2e8f0;font-size:0.9rem;outline:none;box-sizing:border-box;transition:border 0.2s;"
           onfocus={(e) => e.currentTarget.style.borderColor = 'var(--primary-color)'}

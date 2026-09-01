@@ -100,20 +100,25 @@
       const activeAno = anos.find(a => a.activo);
       if (!activeAno) return;
 
-      // Buscar si hay un año más reciente sin estudiantes
-      const allAnos = anos.filter(a => a.id !== activeAno.id).sort((a, b) => (b.nombre || '').localeCompare(a.nombre || ''));
-      if (allAnos.length === 0) return;
+      const activeNum = parseInt(activeAno.nombre);
+      if (isNaN(activeNum)) return;
 
-      const newestAno = allAnos[0];
-      
-      // Contar estudiantes en el año activo
+      const nextCandidates = anos
+        .filter(a => a.id !== activeAno.id)
+        .map(a => ({ ...a, _num: parseInt(a.nombre) }))
+        .filter(a => !isNaN(a._num) && a._num > activeNum)
+        .sort((a, b) => a._num - b._num);
+      if (nextCandidates.length === 0) return;
+
+      const nextAno = nextCandidates[0];
+
       const students = await invoke<{ id: number; ano_lectivo_id: number }[]>("get_students");
       const activeCount = students.filter(s => s.ano_lectivo_id === activeAno.id).length;
-      const newestCount = students.filter(s => s.ano_lectivo_id === newestAno.id).length;
+      const nextCount = students.filter(s => s.ano_lectivo_id === nextAno.id).length;
 
-      if (activeCount > 0 && newestCount === 0) {
+      if (activeCount > 0 && nextCount === 0) {
         promoteFromAno = activeAno;
-        promoteToAno = newestAno;
+        promoteToAno = nextAno;
         promoteStudentCount = activeCount;
         showPromoteBanner = true;
       }
