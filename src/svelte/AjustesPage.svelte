@@ -31,6 +31,8 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     { id: "acercaDe", label: "Info", icon: "📖" },
   ] as const;
 
+  const TAB_COLORS: Record<string, string> = { configuracion: "#60a5fa", notificaciones: "#fbbf24", almacenamiento: "#34d399", debugging: "#ef4444", acercaDe: "#a78bfa" };
+
   const isAndroid = /Android/i.test(navigator.userAgent);
   // Notificaciones de asistencia SOLO Android (usa AlarmManager nativo)
   const tabsVisibles = TABS.filter(t => isAndroid || !("soloAndroid" in t && t.soloAndroid));
@@ -385,15 +387,14 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
       <h1 style="font-size: 1.5rem; font-weight: 700; color: #f1f5f9; margin-bottom: 1.5rem; text-align: center;">Ajustes</h1>
       <div style="display: flex; flex-direction: column; gap: 0.75rem;">
         {#each tabsVisibles as tab (tab.id)}
-          <button onclick={() => activeTab = tab.id} style="display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; background: rgba(51, 65, 85, 0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; cursor: pointer; width: 100%;">
-            <div style="display: flex; align-items: center; gap: 1rem;">
-              <div style="width: 4px; height: 40px; background: linear-gradient(180deg, var(--primary-color) 0%, var(--primary-hover) 100%); border-radius: 2px;"></div>
-              <span style="font-size: 1.25rem;">{tab.icon}</span>
-              <span style="font-size: 1rem; font-weight: 600; color: #e2e8f0; text-align: left;">{tab.label}</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 0.75rem;">
-              <span style="font-size: 1.25rem; color: #64748b;">→</span>
-            </div>
+          {@const color = TAB_COLORS[tab.id] || '#60a5fa'}
+          <button onclick={() => activeTab = tab.id}
+            style="display: flex; align-items: center; gap: 1rem; padding: 1rem 1.25rem; background: rgba(51, 65, 85, 0.5); border: 1px solid rgba(255,255,255,0.08); border-left: 3px solid {color}; border-radius: 12px; cursor: pointer; width: 100%; transition: all 0.2s ease;"
+            onmouseenter={(e) => { e.currentTarget.style.borderColor = color + '44'; e.currentTarget.style.background = color + '0d'; }}
+            onmouseleave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.borderLeftColor = color; e.currentTarget.style.background = 'rgba(51, 65, 85, 0.5)'; }}>
+            <div style="width:40px;height:40px;border-radius:10px;background:{color}18;display:flex;align-items:center;justify-content:center;font-size:1.15rem;flex-shrink:0;">{tab.icon}</div>
+            <span style="font-size: 1rem; font-weight: 600; color: #e2e8f0; text-align: left; flex:1;">{tab.label}</span>
+            <span style="font-size: 1.25rem; color: #64748b;">›</span>
           </button>
         {/each}
       </div>
@@ -505,8 +506,11 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
         <!-- CONFIGURACIÓN -->
         {#if activeTab === "configuracion"}
-          <div class="category-card">
-            <div class="category-header"><h3>⚙️ Configuración del Sistema</h3></div>
+          <div class="category-card" style="border-left: 3px solid {TAB_COLORS.configuracion};">
+            <div class="category-header" style="border-left: none;">
+              <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.configuracion}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">⚙️</div>
+              <h3>Configuración del Sistema</h3>
+            </div>
             <div style="padding: 2rem;">
               <div style="margin-bottom: 2rem;">
                 <h4 style="margin: 0 0 1rem 0; color: #e2e8f0;">Personalización de Tabla de Notas</h4>
@@ -554,8 +558,11 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
         <!-- ALMACENAMIENTO -->
         {#if activeTab === "almacenamiento"}
-          <div class="category-card">
-            <div class="category-header"><h3>📦 Almacenamiento y Reportes</h3></div>
+          <div class="category-card" style="border-left: 3px solid {TAB_COLORS.almacenamiento};">
+            <div class="category-header" style="border-left: none;">
+              <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.almacenamiento}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">📦</div>
+              <h3>Almacenamiento y Reportes</h3>
+            </div>
             <div style="padding: 2rem;">
               <div style="margin-bottom: 2rem;">
                 <h4 style="margin: 0 0 1rem 0; color: #e2e8f0;">Exportar Base de Datos de Estudiantes</h4>
@@ -620,8 +627,11 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
         <!-- DEBUGGING -->
         {#if activeTab === "debugging"}
-          <div class="category-card">
-            <div class="category-header"><h3>🐛 Debugging</h3></div>
+          <div class="category-card" style="border-left: 3px solid {TAB_COLORS.debugging};">
+            <div class="category-header" style="border-left: none;">
+              <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.debugging}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">🐛</div>
+              <h3>Debugging</h3>
+            </div>
             <div style="padding: 2rem;">
               <div style="margin-bottom: 2rem;">
                 <h4 style="color: #e2e8f0;">Gestión de Datos y Configuración</h4>
@@ -674,8 +684,11 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
         <!-- ACERCA DE -->
         {#if activeTab === "acercaDe"}
-          <div class="category-card">
-            <div class="category-header"><h3>📖 Acerca de la Aplicación</h3></div>
+          <div class="category-card" style="border-left: 3px solid {TAB_COLORS.acercaDe};">
+            <div class="category-header" style="border-left: none;">
+              <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.acercaDe}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">📖</div>
+              <h3>Acerca de la Aplicación</h3>
+            </div>
             <div style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem;">
               <div style="text-align: center;">
                 <h2 style="margin: 0 0 0.5rem 0; font-size: 2.5rem; background: linear-gradient(135deg, var(--primary-color) 0%, #a855f7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">📊 GESTIÓN DE NOTAS</h2>

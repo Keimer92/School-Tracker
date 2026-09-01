@@ -164,6 +164,51 @@ Toda la interfaz debe seguir un diseño **glassmorphism minimalista tipo Apple**
 - **Transiciones**: `transition: all 0.2s ease` en elementos interactivos.
 - **Sin sombras fuertes** ni bordes gruesos; priorizar sutileza y claridad visual.
 
+### Acentos por categoría (2026-08)
+
+Cada sección/categoría usa un **color de acento** e **icono** único para
+distinguirse visualmente. Este patrón se aplica en `GlobalesPage` y `AjustesPage`.
+
+**Paleta Pastel Suave (estándar):**
+
+| Categoría | Color | Icono |
+|-----------|-------|-------|
+| Notas | `#fbbf24` | ⭐ |
+| Año Lectivo | `#818cf8` | 📅 |
+| Corte Evaluativo | `#f472b6` | ✂️ |
+| Asignatura | `#60a5fa` | 📚 |
+| Colegio | `#34d399` | 🏫 |
+| Grado | `#fb923c` | 📊 |
+| Sección | `#a78bfa` | 👥 |
+| Configuración | `#60a5fa` | ⚙️ |
+| Notificaciones | `#fbbf24` | 🔔 |
+| Almacenamiento | `#34d399` | 📦 |
+| Debug | `#ef4444` | 🐛 |
+| Info | `#a78bfa` | 📖 |
+
+**Componente `CategoryTabContent` (GlobalesPage):**
+- Props: `accentColor: string`, `accentIcon: string`
+- Header: `border-left: 3px solid {accentColor}` + icono circular `{accentColor}18` bg
+- Botón "Agregar": gradiente `{accentColor}` → `{accentColor}dd`
+- Hover: borde → `{accentColor}44`, sombra → `{accentColor}22`
+
+**Mobile cards (GlobalesPage/AjustesPage):**
+```html
+<button style="border-left: 3px solid {color}; ...">
+  <div class="icon-circle" style="background: {color}18">{icon}</div>
+  <span class="title">{label}</span>
+  <span class="chevron">›</span>
+</button>
+```
+
+**Desktop grid (GlobalesPage):**
+- Grid 3 columnas fijo (`repeat(3, 1fr)`)
+- Responsive: 2 cols ≤1100px, 1 col ≤700px
+- Cada `CategoryTabContent` recibe `accentColor` y `accentIcon`
+
+**Regla**: Al crear una nueva página con secciones/categorías, usar siempre
+el mapa de colores definido y pasar `accentColor`/`accentIcon` a los cards.
+
 ## Flujo de sincronización con Google Drive
 
 ### Visión general
