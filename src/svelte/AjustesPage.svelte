@@ -370,14 +370,144 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 <div class="page-container" style="display: block;">
 
   {#if !isAndroid}
-    <div class="ajustes-ribbon-container">
-      <div class="ajustes-ribbon">
-        {#each tabsVisibles as tab (tab.id)}
-          <button class="ajustes-tab" class:active={activeTab === tab.id} onclick={() => activeTab = tab.id}>
-            <span style="font-size: 1.1rem;">{tab.icon}</span>
-            <span class="tab-label">{tab.label}</span>
-          </button>
-        {/each}
+    <h1 style="font-size: 1.6rem; font-weight: 700; color: #f1f5f9; margin: 0 0 1.25rem;">Ajustes</h1>
+    <div class="ajustes-grid">
+      <!-- CONFIGURACIÓN -->
+      <div class="category-card" style="border-left: 3px solid {TAB_COLORS.configuracion};">
+        <div class="category-header" style="border-left: none;">
+          <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.configuracion}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">⚙️</div>
+          <h3>Configuración</h3>
+        </div>
+        <div style="padding: 1.5rem 2rem;">
+          <h4 style="margin: 0 0 0.75rem 0; color: #e2e8f0; font-size: 0.95rem;">Color de Resaltado</h4>
+          <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1rem;">Color para destacar al estudiante en la tabla de notas.</p>
+          <div style="background: rgba(255,255,255,0.05); padding: 1.25rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 2rem;">
+              <div style="flex: 1;">
+                <h5 style="margin: 0 0 0.4rem 0; color: #e2e8f0; font-size: 0.9rem;">Color de Resaltado</h5>
+                <p style="color: #94a3b8; font-size: 0.8rem; margin: 0;">Este color se usará para destacar al estudiante.</p>
+              </div>
+              <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <div style="width: 40px; height: 40px; border-radius: 8px; background-color: {highlightColor}; border: 2px solid rgba(255,255,255,0.2); cursor: pointer; position: relative; overflow: hidden;" onclick={() => document.getElementById("highlight-color-picker")?.click()}>
+                  <input id="highlight-color-picker" type="color" value={highlightColor} oninput={(e) => handleUpdateHighlightColor((e.target as HTMLInputElement).value)} style="position: absolute; top: -10px; left: -10px; width: 200%; height: 200%; opacity: 0; cursor: pointer;" />
+                </div>
+                <span style="font-family: monospace; color: #94a3b8; font-size: 0.85rem;">{highlightColor.toUpperCase()}</span>
+              </div>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 1rem;">
+              {#each PRESET_COLORS as preset}
+                <button onclick={() => handleUpdateHighlightColor(preset)} style="width: 22px; height: 22px; background-color: {preset}; border: {highlightColor.toLowerCase() === preset.toLowerCase() ? '2px solid white' : '1px solid rgba(255,255,255,0.2)'}; border-radius: 4px; cursor: pointer; padding: 0;" title={preset}></button>
+              {/each}
+            </div>
+          </div>
+          <div style="margin-top: 1rem; padding: 0.75rem; border-radius: 8px; border: 1px dotted rgba(255,255,255,0.1);">
+            <h5 style="margin: 0 0 0.4rem 0; color: #e2e8f0; font-size: 0.85rem;">Vista Previa</h5>
+            <div style="background: rgba(15, 23, 42, 0.5); padding: 0.75rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; gap: 0.75rem;">
+              <div style="padding: 0.3rem 0.6rem; border-radius: 4px; background: {highlightColor}1a; border-left: 4px solid {highlightColor}; color: {highlightColor}; font-weight: bold; font-size: 0.8rem;">Juan Pérez García</div>
+              <div style="color: #64748b; font-size: 0.75rem;">← Ejemplo</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ALMACENAMIENTO -->
+      <div class="category-card" style="border-left: 3px solid {TAB_COLORS.almacenamiento};">
+        <div class="category-header" style="border-left: none;">
+          <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.almacenamiento}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">📦</div>
+          <h3>Almacenamiento y Reportes</h3>
+        </div>
+        <div style="padding: 1.5rem 2rem;">
+          <h4 style="margin: 0 0 0.75rem 0; color: #e2e8f0; font-size: 0.95rem;">Exportar Estudiantes a Excel</h4>
+          <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1rem;">Genera un archivo Excel con el listado de estudiantes.</p>
+          <div style="background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; gap: 1rem;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+              <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+                <label style="font-size: 0.75rem; color: #94a3b8; font-weight: bold;">Año Lectivo</label>
+                <select bind:value={selectedAno} style="padding: 0.6rem; border-radius: 8px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.1); color: white; outline: none; width: 100%; box-sizing: border-box; font-size: 0.85rem;">
+                  <option value={0}>Seleccione año...</option>
+                  {#each anos as a (a.id)}<option value={a.id}>{a.nombre}</option>{/each}
+                </select>
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+                <label style="font-size: 0.75rem; color: #94a3b8; font-weight: bold;">Colegio</label>
+                <select bind:value={selectedColegio} style="padding: 0.6rem; border-radius: 8px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.1); color: white; outline: none; width: 100%; box-sizing: border-box; font-size: 0.85rem;">
+                  <option value={0}>Seleccione colegio...</option>
+                  {#each colegios as c (c.id)}<option value={c.id}>{c.nombre}</option>{/each}
+                </select>
+              </div>
+            </div>
+            <button onclick={handleExportStudentsToExcel} disabled={isExportingExcel || !selectedAno || !selectedColegio} style="padding: 0.8rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; color: white; border-radius: 10px; cursor: pointer; font-size: 0.9rem; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 0.6rem; opacity: {(isExportingExcel || !selectedAno || !selectedColegio) ? 0.6 : 1};">
+              {#if isExportingExcel}<div style="width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.2); border-top: 2px solid white; border-radius: 50%; animation: spin 1s linear infinite;"></div> Generando...{:else}<span style="font-size: 1.1rem;">📊</span> Exportar por Colegio{/if}
+            </button>
+          </div>
+          <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed rgba(255,255,255,0.1);">
+            <h5 style="margin: 0 0 0.5rem 0; color: var(--primary-color); font-size: 0.85rem;">📁 Exportar Todos por Año</h5>
+            <p style="color: #94a3b8; font-size: 0.8rem; margin-bottom: 0.75rem;">Exporta todos los estudiantes de todos los colegios.</p>
+            <button onclick={handleExportStudentsByYear} disabled={isExportingByYear || !selectedAno} style="padding: 0.7rem; background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%); border: none; color: white; border-radius: 10px; cursor: pointer; font-size: 0.85rem; font-weight: bold; width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem; opacity: {(isExportingByYear || !selectedAno) ? 0.6 : 1};">
+              {#if isExportingByYear}<div style="width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.2); border-top: 2px solid white; border-radius: 50%; animation: spin 1s linear infinite;"></div> Generando...{:else}<span style="font-size: 1rem;">📋</span> Exportar Todos ({anos.find(a => a.id === selectedAno)?.nombre || "Año"}){/if}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- DEBUGGING -->
+      <div class="category-card" style="border-left: 3px solid {TAB_COLORS.debugging};">
+        <div class="category-header" style="border-left: none;">
+          <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.debugging}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">🐛</div>
+          <h3>Debugging</h3>
+        </div>
+        <div style="padding: 1.5rem 2rem;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+            <div style="background: rgba(255,255,255,0.05); padding: 1.25rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+              <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;"><span style="font-size: 1.1rem;">📤</span><h5 style="margin: 0; color: #e2e8f0; font-size: 0.9rem;">Exportar</h5></div>
+              <button onclick={handleExportDB} style="padding: 0.5rem 0.8rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; color: white; border-radius: 8px; cursor: pointer; font-size: 0.8rem; font-weight: 600; width: 100%;">📤 Exportar DB</button>
+            </div>
+            <div style="background: rgba(255,255,255,0.05); padding: 1.25rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+              <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;"><span style="font-size: 1.1rem;">📥</span><h5 style="margin: 0; color: #e2e8f0; font-size: 0.9rem;">Importar</h5></div>
+              <button onclick={handleImportDB} style="padding: 0.5rem 0.8rem; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border: none; color: white; border-radius: 8px; cursor: pointer; font-size: 0.8rem; font-weight: 600; width: 100%;">📥 Importar DB</button>
+            </div>
+          </div>
+          <div style="background: rgba(239, 68, 68, 0.05); padding: 1.25rem; border-radius: 12px; border: 1px solid rgba(239, 68, 68, 0.2);">
+            <h5 style="margin: 0 0 0.5rem 0; color: #f87171; font-size: 0.85rem;">⚠️ Zona de Peligro</h5>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem;">
+              <button onclick={handleResetLocalDB} style="padding: 0.45rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; border-radius: 8px; cursor: pointer; font-size: 0.75rem; font-weight: 600;">🗑️ Reset Local</button>
+              <button onclick={handleResetRemoteDB} style="padding: 0.45rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; border-radius: 8px; cursor: pointer; font-size: 0.75rem; font-weight: 600;">☁️ Limpiar Nube</button>
+              <button onclick={handleFactoryReset} style="padding: 0.45rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; border-radius: 8px; cursor: pointer; font-size: 0.75rem; font-weight: 600;">🔄 Fábrica</button>
+            </div>
+          </div>
+          <div style="margin-top: 1rem; background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;"><span style="font-size: 1rem;">📊</span><h5 style="margin: 0; color: #e2e8f0; font-size: 0.85rem;">Sistema</h5></div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+              <div><div style="font-size: 0.7rem; color: #64748b;">Versión</div><div style="color: #e2e8f0; font-weight: 600; font-size: 0.85rem;">1.2.0</div></div>
+              <div><div style="font-size: 0.7rem; color: #64748b;">Ruta DB</div><div style="color: #e2e8f0; font-size: 0.7rem; word-break: break-all;">{dbPath}</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INFO -->
+      <div class="category-card" style="border-left: 3px solid {TAB_COLORS.acercaDe};">
+        <div class="category-header" style="border-left: none;">
+          <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.acercaDe}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">📖</div>
+          <h3>Info</h3>
+        </div>
+        <div style="padding: 1.5rem 2rem;">
+          <div style="text-align: center; margin-bottom: 1rem;">
+            <h2 style="margin: 0 0 0.4rem 0; font-size: 1.8rem; background: linear-gradient(135deg, var(--primary-color) 0%, #a855f7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">📊 School Tracker</h2>
+            <p style="color: #94a3b8; font-size: 0.9rem; margin: 0;">Sistema de Gestión Académica</p>
+            <div style="display: inline-block; margin-top: 0.4rem; padding: 0.15rem 0.6rem; background: rgba(255,255,255,0.05); border-radius: 20px; font-size: 0.7rem; color: var(--primary-color); border: 1px solid var(--primary-color);">v1.2.0</div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; text-align: center;">
+            {#each [{ icon: "📱", title: "Mobile", desc: "Optimizada" }, { icon: "☁️", title: "Cloud", desc: "Sync" }, { icon: "🎨", title: "Temas", desc: "Dinámicos" }, { icon: "🛡️", title: "Local", desc: "Storage" }] as card}
+              <div style="background: rgba(255,255,255,0.05); padding: 0.75rem 0.5rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);">
+                <div style="font-size: 1.5rem; margin-bottom: 0.3rem;">{card.icon}</div>
+                <div style="font-weight: bold; font-size: 0.8rem;">{card.title}</div>
+                <div style="font-size: 0.7rem; color: #94a3b8;">{card.desc}</div>
+              </div>
+            {/each}
+          </div>
+          <div style="margin-top: 1rem; text-align: center; color: #64748b; font-size: 0.8rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 0.75rem;">Desarrollado con ❤️ por Keimer</div>
+        </div>
       </div>
     </div>
   {/if}
@@ -399,8 +529,8 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
         {/each}
       </div>
     </div>
-  {:else if activeTab !== null}
-    <div style="padding: isAndroid ? '1rem' : '0'">
+  {:else if isAndroid && activeTab !== null}
+    <div style="padding: 1rem;">
       <!-- El back nativo de Android ya maneja la vuelta (registerBackHandler) -->
       <div class="settings-content-wrapper">
         <!-- NOTIFICACIONES DE ASISTENCIA (solo Android) -->
@@ -732,6 +862,13 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 </div>
 
 <style>
+  .ajustes-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.25rem;
+    max-width: 1200px;
+  }
+  @media (max-width: 1100px) { .ajustes-grid { grid-template-columns: 1fr; } }
   .ajustes-ribbon-container {
     display: flex;
     justify-content: center;
