@@ -493,11 +493,15 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
           <h3>Info</h3>
         </div>
         <div style="padding: 1.5rem 2rem;">
-          <div style="text-align: center; margin-bottom: 1rem;">
-            <div style="width:80px;height:80px;margin:0 auto 0.75rem;border-radius:20px;overflow:hidden;"><img src={appIcon} alt="School Tracker" style="width:100%;height:100%;object-fit:contain;" /></div>
-            <h2 style="margin: 0 0 0.4rem 0; font-size: 1.8rem; background: linear-gradient(135deg, var(--primary-color) 0%, #a855f7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">School Tracker</h2>
-            <p style="color: #94a3b8; font-size: 0.9rem; margin: 0;">Sistema de Gestión Académica</p>
-            <div style="display: inline-block; margin-top: 0.4rem; padding: 0.15rem 0.6rem; background: rgba(255,255,255,0.05); border-radius: 20px; font-size: 0.7rem; color: var(--primary-color); border: 1px solid var(--primary-color);">v1.2.0</div>
+          <div class="info-hero">
+            <div class="info-hero-icon-wrap">
+              <img src={appIcon} alt="School Tracker" class="info-hero-icon" />
+            </div>
+            <div class="info-hero-text">
+              <h2 class="info-hero-title">School Tracker</h2>
+              <p style="color: #94a3b8; font-size: 0.85rem; margin: 0;">Sistema de Gestión Académica</p>
+              <div style="display: inline-block; margin-top: 0.4rem; padding: 0.15rem 0.6rem; background: rgba(255,255,255,0.05); border-radius: 20px; font-size: 0.7rem; color: var(--primary-color); border: 1px solid var(--primary-color);">v1.2.0</div>
+            </div>
           </div>
           <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; text-align: center;">
             {#each [{ icon: "📱", title: "Mobile", desc: "Optimizada" }, { icon: "☁️", title: "Cloud", desc: "Sync" }, { icon: "🎨", title: "Temas", desc: "Dinámicos" }, { icon: "🛡️", title: "Local", desc: "Storage" }] as card}
@@ -824,10 +828,15 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
               <h3>Acerca de la Aplicación</h3>
             </div>
             <div style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem;">
-              <div style="text-align: center;">
-                <h2 style="margin: 0 0 0.5rem 0; font-size: 2.5rem; background: linear-gradient(135deg, var(--primary-color) 0%, #a855f7 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">📊 GESTIÓN DE NOTAS</h2>
-                <p style="color: #94a3b8; font-size: 1.1rem; margin: 0;">Sistema de Gestión Académica Profesional</p>
-                <div style="display: inline-block; margin-top: 0.5rem; padding: 0.2rem 0.8rem; background: rgba(255,255,255,0.05); border-radius: 20px; font-size: 0.8rem; color: var(--primary-color); border: 1px solid var(--primary-color);">v1.2.0 - Android & Cloud Edition</div>
+              <div class="info-hero">
+                <div class="info-hero-icon-wrap">
+                  <img src={appIcon} alt="School Tracker" class="info-hero-icon" />
+                </div>
+                <div class="info-hero-text">
+                  <h2 class="info-hero-title" style="font-size: 1.6rem;">School Tracker</h2>
+                  <p style="color: #94a3b8; font-size: 0.9rem; margin: 0;">Sistema de Gestión Académica Profesional</p>
+                  <div style="display: inline-block; margin-top: 0.4rem; padding: 0.2rem 0.7rem; background: rgba(255,255,255,0.05); border-radius: 20px; font-size: 0.75rem; color: var(--primary-color); border: 1px solid var(--primary-color);">v1.2.0 - Android & Cloud Edition</div>
+                </div>
               </div>
               <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; text-align: center;">
                 {#each [{ icon: "📱", title: "Mobile First", desc: "Interfaz optimizada" }, { icon: "☁️", title: "Cloud Sync", desc: "Google Drive" }, { icon: "🎨", title: "Personalizable", desc: "Temas dinámicos" }, { icon: "🛡️", title: "Seguridad", desc: "Local Storage" }] as card}
