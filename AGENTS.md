@@ -82,7 +82,9 @@ src-tauri/
                                macros de CRUD, comandos de borrado en cascada + pending deletions
                                + helpers per-account: sanitize_account_id, account_db_path,
                                read/write_active_account, resolve_active_db_path
-src-tauri/gen/               generado (ignorar; no editar a mano)
+src-tauri/gen/               generado (ignorar; no editar a mano — EXCEPCIÓN: archivos
+                             custom en android/app/src/main/java/com/keimer/schooltracker/
+                             que NO son auto-generados, ver GOTCHA "Archivos Android custom")
 ```
 
 ## Arquitectura de datos
@@ -125,6 +127,35 @@ src-tauri/gen/               generado (ignorar; no editar a mano)
   (`school_<email>.db`). El archivo activo se controla via `active_account.txt`
   y helpers `db::read_active_account` / `db::write_active_account`. NO usar
   `Connection::open("school.db")` directamente; usar `resolve_active_db_path()`.
+
+## Archivos Android custom en gen/ (commiteados, NO auto-generados)
+
+`src-tauri/gen/android/app/src/main/java/com/keimer/schooltracker/` contiene archivos
+Kotlin que **NO son generados por Tauri** — son custom y se commitean a git:
+
+| Archivo | Función |
+|---------|---------|
+| `MainActivity.kt` | Activity principal, Google Sign-In nativo, JNI bridge, PDF/share |
+| `AttendancePrefs.kt` | SharedPreferences para alarmas de asistencia |
+| `AttendanceScheduler.kt` | Programación de alarma diaria (AlarmManager) |
+| `AttendanceAlarmReceiver.kt` | BroadcastReceiver que dispara la alarma |
+| `AttendanceDismissReceiver.kt` | Receiver para silenciar notificación del día |
+| `AttendanceBootReceiver.kt` | Reprograma alarma tras reinicio del dispositivo |
+| `SyncOnConnectWorker.kt` | WorkManager worker: sync D1 al recuperar conexión |
+| `AttendanceNative.kt` | Puente JNI → Rust para consultar asistencia pendiente |
+
+**GOTCHA**: al cambiar el `applicationId` (ej. `schooltrackerpro` → `schooltracker`),
+estos archivos se mueven al nuevo paquete. SIEMPRE commitearlos antes de borrar
+el directorio viejo. Si se pierden, hay que recrearlos manualmente (no existen en
+git si no se commitearon). Dependencias en `build.gradle.kts`:
+- `com.google.android.gms:play-services-auth:21.2.0` (Google Sign-In)
+- `androidx.work:work-runtime:2.10.0` (WorkManager para SyncOnConnectWorker)
+
+JNI symbols en `lib.rs` deben usar el package actual:
+- `Java_com_keimer_schooltracker_MainActivity_initNativeBridge`
+- `Java_com_keimer_schooltracker_AttendanceNative_queryAttendancePending`
+
+El directorio `generated/` SÍ es auto-generado por Tauri y NO se commitea.
 
 ## Regla de modales unificados — Filtros en Android (2026-09)
 

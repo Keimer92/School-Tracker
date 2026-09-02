@@ -696,7 +696,7 @@ static NATIVE_BRIDGE: std::sync::Mutex<Option<(usize, jni::objects::GlobalRef)>>
 /// MainActivity.onCreate (Kotlin) para no depender de ndk_context.
 #[cfg(target_os = "android")]
 #[no_mangle]
-pub extern "system" fn Java_com_keimer_schooltrackerpro_MainActivity_initNativeBridge(
+pub extern "system" fn Java_com_keimer_schooltracker_MainActivity_initNativeBridge(
     mut env: jni::JNIEnv,
     activity: jni::objects::JObject,
 ) {
@@ -833,7 +833,7 @@ async fn gd_take_last_native_result() -> Result<Option<String>, String> {
 /// La consulta SQL vive SOLO en Rust (`db::grados_secciones_sin_asistencia`).
 #[cfg(target_os = "android")]
 #[no_mangle]
-pub extern "system" fn Java_com_keimer_schooltrackerpro_AttendanceNative_queryAttendancePending(
+pub extern "system" fn Java_com_keimer_schooltracker_AttendanceNative_queryAttendancePending(
     mut env: jni::JNIEnv,
     _class: jni::objects::JClass,
     db_path: jni::sys::jstring,
