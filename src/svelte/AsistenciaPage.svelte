@@ -1124,15 +1124,7 @@ $effect(() => {
     {#snippet filters()}
       <FilterContainer {isMobile} style="padding:{isAndroidMobile ? '0.5rem' : '0.4rem'}">
         <div style="display:flex;{isAndroidMobile ? 'flex-wrap:wrap' : 'flex-wrap:nowrap'};gap:0.4rem;width:100%;align-items:flex-end">
-          {#if isAndroidMobile}
-            <FilterGroup label="Período:" {isMobile}>
-              <select class="filter-select" bind:value={periodo} style="width:100%">
-                <option value="diario">Diario</option>
-                <option value="semanal">Semanal</option>
-                <option value="mensual">Mensual</option>
-              </select>
-            </FilterGroup>
-          {:else}
+          {#if !isAndroidMobile}
             <FilterGroup label="Período:" {isMobile}>
               <select class="filter-select" bind:value={periodo} style="width:100%">
                 <option value="diario">Diario</option>
@@ -1202,35 +1194,13 @@ $effect(() => {
             {/if}
           {/if}
           {#if isAndroidMobile}
-            <FilterGroup label="Fecha:" {isMobile}>
-              <DatePickerGlass bind:value={selectedFecha} diaHabilitado={esDiaHabilCalendario} />
-            </FilterGroup>
-            {#if periodo === "semanal"}
-              <FilterGroup label="Semana de:" {isMobile}>
-                <div class="pop-wrap" bind:this={popRootEl} style="min-width:0">
-                  <button type="button" class="filter-select pop-trigger" onclick={() => popSemanaAbierta = !popSemanaAbierta} style="min-width:0">
-                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Semana {semanaActiva} · {semanasOpts.find(s => s.n === semanaActiva)?.rango ?? ''}</span>
-                    <span class="pop-caret">▾</span>
-                  </button>
-                </div>
-              </FilterGroup>
-            {/if}
-            {#if periodo === "mensual"}
-              <FilterGroup label="Mes:" {isMobile}>
-                <select class="filter-select filter-select-solid" style="width:100%;min-width:100px"
-                  value={mesSeleccionado} onchange={(e) => mesSeleccionado = Number((e.target as HTMLSelectElement).value)}>
-                  {#each mesesOptions as m}<option value={m.value}>{m.label}</option>{/each}
-                </select>
-              </FilterGroup>
-              <FilterGroup label="Año:" {isMobile}>
-                <select class="filter-select filter-select-solid" style="width:100%;min-width:90px"
-                  value={anoSeleccionado} onchange={(e) => anoSeleccionado = Number((e.target as HTMLSelectElement).value)}>
-                  {#each anosOptions as a}<option value={Number(a.nombre)}>{a.nombre}</option>{/each}
-                </select>
+            {#if periodo === "diario"}
+              <FilterGroup label="Fecha:" {isMobile}>
+                <DatePickerGlass bind:value={selectedFecha} diaHabilitado={esDiaHabilCalendario} />
               </FilterGroup>
             {/if}
             <button type="button" onclick={() => showFiltersModal = true}
-              title="Filtros (Año · Colegio · Grado · Sección · Sexo)"
+              title="Filtros (Período · Año · Colegio · Grado · Sección · Sexo · Semana/Mes)"
               style="height:42px;padding:0 0.9rem;font-size:0.85rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#e2e8f0;border-radius:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all 0.15s;flex-shrink:0;white-space:nowrap">
               <span>🔍</span><span>Filtros</span>
               <span style="font-size:0.65rem;color:#94a3b8;font-weight:600;background:rgba(255,255,255,0.06);padding:0.1rem 0.4rem;border-radius:6px">{colegios.find(c => c.id === selectedColegio)?.nombre?.slice(0, 6) || '—'} · {secciones.find(s => s.id === selectedSeccion)?.nombre || '—'}</span>
@@ -1837,6 +1807,27 @@ $effect(() => {
               <option value="">Todos</option><option value="M">Masculino</option><option value="F">Femenino</option>
             </select>
           </FilterGroup>
+          {#if periodo === "semanal"}
+            <FilterGroup label="Semana de:" {isMobile}>
+              <button type="button" class="filter-select filter-select-solid pop-trigger" onclick={() => { showFiltersModal = false; setTimeout(() => popSemanaAbierta = true, 50); }} style="width:100%;text-align:left;cursor:pointer">
+                <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">Semana {semanaActiva} · {semanasOpts.find(s => s.n === semanaActiva)?.rango ?? ''}</span>
+              </button>
+            </FilterGroup>
+          {/if}
+          {#if periodo === "mensual"}
+            <FilterGroup label="Mes:" {isMobile}>
+              <select class="filter-select filter-select-solid" style="width:100%;min-width:100px"
+                value={mesSeleccionado} onchange={(e) => mesSeleccionado = Number((e.target as HTMLSelectElement).value)}>
+                {#each mesesOptions as m}<option value={m.value}>{m.label}</option>{/each}
+              </select>
+            </FilterGroup>
+            <FilterGroup label="Año:" {isMobile}>
+              <select class="filter-select filter-select-solid" style="width:100%;min-width:90px"
+                value={anoSeleccionado} onchange={(e) => anoSeleccionado = Number((e.target as HTMLSelectElement).value)}>
+                {#each anosOptions as a}<option value={Number(a.nombre)}>{a.nombre}</option>{/each}
+              </select>
+            </FilterGroup>
+          {/if}
         </div>
         <button class="primary" onclick={() => showFiltersModal = false} style="margin-top:1.25rem;width:100%">✓ Aplicar</button>
       </div>
