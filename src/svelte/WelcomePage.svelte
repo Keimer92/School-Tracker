@@ -186,22 +186,42 @@
   /**
    * LOGIN/REGISTRO con Google para el sync Cloudflare.
    * Reutiliza el flujo compartido (src/lib/cloudLogin.ts) que además vincula
-   * Google Drive con la MISMA cuenta. Tras conectar, verifica si la nube ya
-   * tiene datos para saltar el asistente.
+   * Google Drive con la MISMA cuenta. Tras conectar, hace un restore
+   * AUTORITATIVO desde la nube (borra local + aplica nube) en vez de un sync
+   * incremental, porque WelcomePage SOLO se muestra cuando la BD local está
+   * vacía: el sync incremental puede no aplicar nada si los cursores o el
+   * device_id no cuadran, y entonces is_app_initialized devolvería false y
+   * nos mandaría al wizard aunque la nube tenga datos. El restore regenera
+   * el device_id y trae TODAS las filas existentes.
    */
   async function handleCloudLogin(preferredKey?: string) {
     loading = true;
     errorMsg = '';
-    // Si se invoca como handler de click, el primer argumento es un Event;
-    // en ese caso no hay clave prefijada.
     if (preferredKey && typeof preferredKey !== 'string') preferredKey = undefined;
     try {
       const res = await iniciarSesionGoogleConNube({
         onStatus: (m) => { loadingMessage = m; },
         setBackAuth: setBackAuthInProgress,
         preferredKey,
+        skipSync: true,
       });
       if (res.status === 'ok') {
+        loadingMessage = 'Descargando datos de la nube...';
+        let restoreUnlisten: (() => void) | null = null;
+        try {
+          restoreUnlisten = await listen<{ message?: string }>('d1-sync-progress', (e) => {
+            if (e.payload?.message) loadingMessage = e.payload.message;
+          });
+        } catch { /* ignorable */ }
+        try {
+          await invoke('d1_restore_from_cloud');
+        } catch (restoreErr: any) {
+          console.error('[Cloud] restore falló:', restoreErr);
+          // Fallback al sync incremental si el restore falla
+          try { await invoke('d1_sync_all', { full: true }); } catch {}
+        } finally {
+          if (restoreUnlisten) restoreUnlisten();
+        }
         loadingMessage = 'Verificando datos...';
         const hasData = await invoke('is_app_initialized');
         if (hasData) {
