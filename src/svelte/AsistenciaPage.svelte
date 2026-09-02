@@ -10,6 +10,7 @@
   import { ask } from "@tauri-apps/plugin-dialog";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
+  import FiltersModalAndroid from "./FiltersModalAndroid.svelte";
   import SearchFab from "./SearchFab.svelte";
   import PageLayout from "./PageLayout.svelte";
   import ScrollableTable from "./ScrollableTable.svelte";
@@ -1759,105 +1760,55 @@ $effect(() => {
     </div>
   {/if}
 
-  <!-- Modal de filtros (solo Android): agrupa Año/Colegio/Grado/Sección/Sexo.
-       Estilo opaco (NO glassmorphism) para que los selects se lean bien. -->
-  {#if showFiltersModal && isAndroidMobile}
-    <div class="modal-overlay" onclick={() => showFiltersModal = false} style="z-index:2000">
-      <div class="modal-content filters-solid" onclick={(e) => e.stopPropagation()}
-        style="width:{modalCardWidth};max-width:{modalCardWidth};max-height:85vh;overflow-y:auto;padding:1.25rem;text-align:left;position:relative">
-        <button type="button" onclick={() => showFiltersModal = false} title="Cerrar"
-          style="position:absolute;top:.6rem;right:.6rem;width:32px;height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:#1e293b;color:#e2e8f0;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1">✕</button>
-        <h3 style="margin:0 0 1rem;color:#f1f5f9;font-size:1.05rem;padding-right:2.2rem">🔍 Filtros</h3>
-        <div style="display:flex;flex-direction:column;gap:0.75rem">
-          <FilterGroup label="Período:" {isMobile}>
-            <select class="filter-select filter-select-solid" style="width:100%"
-              value={periodo} onchange={(e) => periodo = (e.target as HTMLSelectElement).value as AsistenciaPeriodo}>
-              <option value="diario">Diario</option>
-              <option value="semanal">Semanal</option>
-              <option value="mensual">Mensual</option>
-            </select>
-          </FilterGroup>
-          <FilterGroup label="Año lectivo:" {isMobile}>
-            <select class="filter-select filter-select-solid" style="width:100%"
-              value={selectedAno} onchange={(e) => handleFilterChange((v: number) => selectedAno = v, Number((e.target as HTMLSelectElement).value))}>
-              {#each anos as a}<option value={a.id}>{a.nombre}</option>{/each}
-            </select>
-          </FilterGroup>
-          <FilterGroup label="Colegio:" {isMobile}>
-            <select class="filter-select filter-select-solid" style="width:100%"
-              value={selectedColegio} onchange={(e) => handleFilterChange((v: number) => selectedColegio = v, Number((e.target as HTMLSelectElement).value))}>
-              {#each colegios as c}<option value={c.id}>{c.nombre}</option>{/each}
-            </select>
-          </FilterGroup>
-          <FilterGroup label="Grado:" {isMobile}>
-            <select class="filter-select filter-select-solid" style="width:100%"
-              value={selectedGrado} onchange={(e) => handleFilterChange((v: number) => selectedGrado = v, Number((e.target as HTMLSelectElement).value))}>
-              {#each grados as g}<option value={g.id}>{g.nombre}</option>{/each}
-            </select>
-          </FilterGroup>
-          <FilterGroup label="Sección:" {isMobile}>
-            <select class="filter-select filter-select-solid" style="width:100%"
-              value={selectedSeccion} onchange={(e) => handleFilterChange((v: number) => selectedSeccion = v, Number((e.target as HTMLSelectElement).value))}>
-              {#each secciones as s}<option value={s.id}>{s.nombre}</option>{/each}
-            </select>
-          </FilterGroup>
-          <FilterGroup label="Sexo:" {isMobile}>
-            <select class="filter-select filter-select-solid" style="width:100%"
-              value={selectedSexo} onchange={(e) => handleFilterChange((v: string) => selectedSexo = v, (e.target as HTMLSelectElement).value)}>
-              <option value="">Todos</option><option value="M">Masculino</option><option value="F">Femenino</option>
-            </select>
-          </FilterGroup>
-          {#if periodo === "semanal"}
-            <FilterGroup label="Semana de:" {isMobile}>
-              <button type="button" class="filter-select filter-select-solid pop-trigger" onclick={() => { showFiltersModal = false; setTimeout(() => popSemanaAbierta = true, 50); }} style="width:100%;text-align:left;cursor:pointer">
-                <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">Semana {semanaActiva} · {semanasOpts.find(s => s.n === semanaActiva)?.rango ?? ''}</span>
-              </button>
-            </FilterGroup>
-          {/if}
-          {#if periodo === "mensual"}
-            <FilterGroup label="Mes:" {isMobile}>
-              <select class="filter-select filter-select-solid" style="width:100%;min-width:100px"
-                value={mesSeleccionado} onchange={(e) => mesSeleccionado = Number((e.target as HTMLSelectElement).value)}>
-                {#each mesesOptions as m}<option value={m.value}>{m.label}</option>{/each}
-              </select>
-            </FilterGroup>
-            <FilterGroup label="Año:" {isMobile}>
-              <select class="filter-select filter-select-solid" style="width:100%;min-width:90px"
-                value={anoSeleccionado} onchange={(e) => anoSeleccionado = Number((e.target as HTMLSelectElement).value)}>
-                {#each anosOptions as a}<option value={Number(a.nombre)}>{a.nombre}</option>{/each}
-              </select>
-            </FilterGroup>
-          {/if}
-        </div>
-        <button class="primary" onclick={() => showFiltersModal = false} style="margin-top:1.25rem;width:100%">✓ Aplicar</button>
-      </div>
-    </div>
-  {/if}
+  <!-- Modal de filtros Android: componente reutilizable con extras
+       (Período, Semana, Mes, Año) inyectados vía snippet. -->
+  <FiltersModalAndroid
+    bind:open={showFiltersModal}
+    {isAndroidMobile}
+    {isMobile}
+    {anos} {colegios} {grados} {secciones}
+    {selectedAno} {selectedColegio} {selectedGrado} {selectedSeccion} {selectedSexo}
+    onChangeAno={(v) => handleFilterChange((val) => selectedAno = val, v)}
+    onChangeColegio={(v) => handleFilterChange((val) => selectedColegio = val, v)}
+    onChangeGrado={(v) => handleFilterChange((val) => selectedGrado = val, v)}
+    onChangeSeccion={(v) => handleFilterChange((val) => selectedSeccion = val, v)}
+    onChangeSexo={(v) => handleFilterChange((val) => selectedSexo = val, v)}
+  >
+    {#snippet extras()}
+      <FilterGroup label="Período:" {isMobile}>
+        <select class="filter-select filter-select-solid" style="width:100%"
+          value={periodo} onchange={(e) => periodo = (e.target as HTMLSelectElement).value as AsistenciaPeriodo}>
+          <option value="diario">Diario</option>
+          <option value="semanal">Semanal</option>
+          <option value="mensual">Mensual</option>
+        </select>
+      </FilterGroup>
+      {#if periodo === "semanal"}
+        <FilterGroup label="Semana de:" {isMobile}>
+          <button type="button" class="filter-select filter-select-solid pop-trigger"
+            onclick={() => { showFiltersModal = false; setTimeout(() => popSemanaAbierta = true, 50); }}
+            style="width:100%;text-align:left;cursor:pointer">
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">Semana {semanaActiva} · {semanasOpts.find(s => s.n === semanaActiva)?.rango ?? ''}</span>
+          </button>
+        </FilterGroup>
+      {/if}
+      {#if periodo === "mensual"}
+        <FilterGroup label="Mes:" {isMobile}>
+          <select class="filter-select filter-select-solid" style="width:100%;min-width:100px"
+            value={mesSeleccionado} onchange={(e) => mesSeleccionado = Number((e.target as HTMLSelectElement).value)}>
+            {#each mesesOptions as m}<option value={m.value}>{m.label}</option>{/each}
+          </select>
+        </FilterGroup>
+        <FilterGroup label="Año:" {isMobile}>
+          <select class="filter-select filter-select-solid" style="width:100%;min-width:90px"
+            value={anoSeleccionado} onchange={(e) => anoSeleccionado = Number((e.target as HTMLSelectElement).value)}>
+            {#each anosOptions as a}<option value={Number(a.nombre)}>{a.nombre}</option>{/each}
+          </select>
+        </FilterGroup>
+      {/if}
+    {/snippet}
+  </FiltersModalAndroid>
 </div>
 
 <style>
-  /* Modal de filtros Android: fondo opaco para que los selects se lean bien
-     (el glassmorphism vuelve los dropdowns casi invisibles en WebView Android). */
-  :global(.filters-solid) {
-    background: #1e293b !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-    border: 1px solid rgba(148, 163, 184, 0.35) !important;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6) !important;
-    border-radius: 18px !important;
-  }
-  :global(.filters-solid .filter-select-solid) {
-    background: #0f172a !important;
-    border: 1px solid rgba(148, 163, 184, 0.45) !important;
-    color: #f1f5f9 !important;
-    font-weight: 600 !important;
-  }
-  :global(.filters-solid .filter-select-solid:focus) {
-    border-color: var(--primary-color, #3b82f6) !important;
-    outline: none !important;
-  }
-  :global(.filters-solid .filter-select-solid option) {
-    background: #0f172a !important;
-    color: #f1f5f9 !important;
-  }
 </style>
