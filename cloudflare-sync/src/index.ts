@@ -255,9 +255,13 @@ async function ensureSchema(env: Env): Promise<void> {
   // Reconstruir tablas con UNIQUE globales (una sola vez) ANTES de tocar columnas
   await deUniqueTables(env);
 
-  // Columna `sk` en todas las tablas sincronizadas + índices para pull
+  // Columnas `sk` y `device_id` en todas las tablas sincronizadas + índices.
+  // buildUpsert inserta SIEMPRE `device_id` y `sk`, así que TODAS las tablas
+  // deben tenerlas (incluidas las de catálogo que el CREATE TABLE inicial no
+  // declara, p. ej. colegio_grado).
   for (const table of VALID_TABLES) {
     try { await env.DB.prepare(`ALTER TABLE ${table} ADD COLUMN sk TEXT`).run(); } catch { /* ya existe */ }
+    try { await env.DB.prepare(`ALTER TABLE ${table} ADD COLUMN device_id TEXT`).run(); } catch { /* ya existe */ }
     try { await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_${table}_sk ON ${table}(sk, updated_at)`).run(); } catch { /* índice ya existe */ }
   }
 
