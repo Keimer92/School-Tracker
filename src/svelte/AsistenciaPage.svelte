@@ -222,6 +222,10 @@
   let popSemanaAbierta = $state(false);
   let popRootEl: HTMLElement | null = $state(null);
 
+  // Modal de filtros (solo Android): agrupa Año/Colegio/Grado/Sección/Sexo para
+  // liberar espacio vertical en móvil.
+  let showFiltersModal = $state(false);
+
   let semanaActiva = $derived(
     semanasOpts.find(s => selectedFecha >= s.lunes && selectedFecha <= sumaDiasISO(s.lunes, 6))?.n ?? 1
   );
@@ -256,9 +260,16 @@
     document.addEventListener('pointerdown', fuera, true);
     return () => document.removeEventListener('pointerdown', fuera, true);
   });
+$effect(() => {
+    if (popSemanaAbierta) {
+      return registerBackHandler(() => { cerrarPopSemana(); return true; });
+    }
+  });
+
   $effect(() => {
-    if (!popSemanaAbierta) return;
-    return registerBackHandler(() => { cerrarPopSemana(); return true; });
+    if (showFiltersModal && isAndroidMobile) {
+      return registerBackHandler(() => { showFiltersModal = false; return true; });
+    }
   });
 
   let nombreMesSel = $derived(
@@ -1174,36 +1185,45 @@
               </select>
             </FilterGroup>
           {/if}
-          <FilterGroup label="Año:" {isMobile}>
-            <select class="filter-select" style="width:100%"
-              value={selectedAno} onchange={(e) => handleFilterChange((v: number) => selectedAno = v, Number((e.target as HTMLSelectElement).value))}>
-              {#each anos as a}<option value={a.id}>{a.nombre}</option>{/each}
-            </select>
-          </FilterGroup>
-          <FilterGroup label="Colegio:" {isMobile}>
-            <select class="filter-select" style="width:100%"
-              value={selectedColegio} onchange={(e) => handleFilterChange((v: number) => selectedColegio = v, Number((e.target as HTMLSelectElement).value))}>
-              {#each colegios as c}<option value={c.id}>{c.nombre}</option>{/each}
-            </select>
-          </FilterGroup>
-          <FilterGroup label="Grado:" {isMobile}>
-            <select class="filter-select" style="width:100%"
-              value={selectedGrado} onchange={(e) => handleFilterChange((v: number) => selectedGrado = v, Number((e.target as HTMLSelectElement).value))}>
-              {#each grados as g}<option value={g.id}>{g.nombre}</option>{/each}
-            </select>
-          </FilterGroup>
-          <FilterGroup label="Sección:" {isMobile}>
-            <select class="filter-select" style="width:100%"
-              value={selectedSeccion} onchange={(e) => handleFilterChange((v: number) => selectedSeccion = v, Number((e.target as HTMLSelectElement).value))}>
-              {#each secciones as s}<option value={s.id}>{s.nombre}</option>{/each}
-            </select>
-          </FilterGroup>
-          <FilterGroup label="Sexo:" {isMobile}>
-            <select class="filter-select" style="width:100%"
-              value={selectedSexo} onchange={(e) => handleFilterChange((v: string) => selectedSexo = v, (e.target as HTMLSelectElement).value)}>
-              <option value="">Todos</option><option value="M">Masculino</option><option value="F">Femenino</option>
-            </select>
-          </FilterGroup>
+          {#if isAndroidMobile}
+            <button type="button" onclick={() => showFiltersModal = true}
+              title="Filtros (Año · Colegio · Grado · Sección · Sexo)"
+              style="height:42px;padding:0 0.9rem;font-size:0.85rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#e2e8f0;border-radius:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all 0.15s;flex-shrink:0;white-space:nowrap">
+              <span>🔍</span><span>Filtros</span>
+              <span style="font-size:0.65rem;color:#94a3b8;font-weight:600;background:rgba(255,255,255,0.06);padding:0.1rem 0.4rem;border-radius:6px">{colegios.find(c => c.id === selectedColegio)?.nombre?.slice(0, 6) || '—'} · {secciones.find(s => s.id === selectedSeccion)?.nombre || '—'}</span>
+            </button>
+          {:else}
+            <FilterGroup label="Año:" {isMobile}>
+              <select class="filter-select" style="width:100%"
+                value={selectedAno} onchange={(e) => handleFilterChange((v: number) => selectedAno = v, Number((e.target as HTMLSelectElement).value))}>
+                {#each anos as a}<option value={a.id}>{a.nombre}</option>{/each}
+              </select>
+            </FilterGroup>
+            <FilterGroup label="Colegio:" {isMobile}>
+              <select class="filter-select" style="width:100%"
+                value={selectedColegio} onchange={(e) => handleFilterChange((v: number) => selectedColegio = v, Number((e.target as HTMLSelectElement).value))}>
+                {#each colegios as c}<option value={c.id}>{c.nombre}</option>{/each}
+              </select>
+            </FilterGroup>
+            <FilterGroup label="Grado:" {isMobile}>
+              <select class="filter-select" style="width:100%"
+                value={selectedGrado} onchange={(e) => handleFilterChange((v: number) => selectedGrado = v, Number((e.target as HTMLSelectElement).value))}>
+                {#each grados as g}<option value={g.id}>{g.nombre}</option>{/each}
+              </select>
+            </FilterGroup>
+            <FilterGroup label="Sección:" {isMobile}>
+              <select class="filter-select" style="width:100%"
+                value={selectedSeccion} onchange={(e) => handleFilterChange((v: number) => selectedSeccion = v, Number((e.target as HTMLSelectElement).value))}>
+                {#each secciones as s}<option value={s.id}>{s.nombre}</option>{/each}
+              </select>
+            </FilterGroup>
+            <FilterGroup label="Sexo:" {isMobile}>
+              <select class="filter-select" style="width:100%"
+                value={selectedSexo} onchange={(e) => handleFilterChange((v: string) => selectedSexo = v, (e.target as HTMLSelectElement).value)}>
+                <option value="">Todos</option><option value="M">Masculino</option><option value="F">Femenino</option>
+              </select>
+            </FilterGroup>
+          {/if}
           <div style="display:flex;gap:0.4rem;align-items:stretch;flex-shrink:0;{isAndroidMobile ? 'flex:1 1 100%;width:100%' : ''}">
           {#if periodo !== 'mensual'}
             <div class="pop-wrap" bind:this={popSinClasesEl}>
@@ -1722,6 +1742,51 @@
               style="background:rgba(239,68,68,0.2);border:1px solid #ef4444;border-radius:6px;padding:0.5rem 1rem;color:#ef4444;cursor:pointer">🗑️</button>
           {/if}
         </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Modal de filtros (solo Android): agrupa Año/Colegio/Grado/Sección/Sexo -->
+  {#if showFiltersModal && isAndroidMobile}
+    <div class="modal-overlay" onclick={() => showFiltersModal = false} style="z-index:2000">
+      <div class="modal-content category-card" onclick={(e) => e.stopPropagation()}
+        style="width:{modalCardWidth};max-width:{modalCardWidth};max-height:85vh;overflow-y:auto;padding:1.25rem;text-align:left;position:relative">
+        <button type="button" onclick={() => showFiltersModal = false} title="Cerrar"
+          style="position:absolute;top:.6rem;right:.6rem;width:32px;height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#cbd5e1;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1">✕</button>
+        <h3 style="margin:0 0 1rem;color:var(--primary-color);font-size:1.05rem;padding-right:2.2rem">🔍 Filtros</h3>
+        <div style="display:flex;flex-direction:column;gap:0.75rem">
+          <FilterGroup label="Año lectivo:" {isMobile}>
+            <select class="filter-select" style="width:100%"
+              value={selectedAno} onchange={(e) => handleFilterChange((v: number) => selectedAno = v, Number((e.target as HTMLSelectElement).value))}>
+              {#each anos as a}<option value={a.id}>{a.nombre}</option>{/each}
+            </select>
+          </FilterGroup>
+          <FilterGroup label="Colegio:" {isMobile}>
+            <select class="filter-select" style="width:100%"
+              value={selectedColegio} onchange={(e) => handleFilterChange((v: number) => selectedColegio = v, Number((e.target as HTMLSelectElement).value))}>
+              {#each colegios as c}<option value={c.id}>{c.nombre}</option>{/each}
+            </select>
+          </FilterGroup>
+          <FilterGroup label="Grado:" {isMobile}>
+            <select class="filter-select" style="width:100%"
+              value={selectedGrado} onchange={(e) => handleFilterChange((v: number) => selectedGrado = v, Number((e.target as HTMLSelectElement).value))}>
+              {#each grados as g}<option value={g.id}>{g.nombre}</option>{/each}
+            </select>
+          </FilterGroup>
+          <FilterGroup label="Sección:" {isMobile}>
+            <select class="filter-select" style="width:100%"
+              value={selectedSeccion} onchange={(e) => handleFilterChange((v: number) => selectedSeccion = v, Number((e.target as HTMLSelectElement).value))}>
+              {#each secciones as s}<option value={s.id}>{s.nombre}</option>{/each}
+            </select>
+          </FilterGroup>
+          <FilterGroup label="Sexo:" {isMobile}>
+            <select class="filter-select" style="width:100%"
+              value={selectedSexo} onchange={(e) => handleFilterChange((v: string) => selectedSexo = v, (e.target as HTMLSelectElement).value)}>
+              <option value="">Todos</option><option value="M">Masculino</option><option value="F">Femenino</option>
+            </select>
+          </FilterGroup>
+        </div>
+        <button class="primary" onclick={() => showFiltersModal = false} style="margin-top:1.25rem;width:100%">✓ Aplicar</button>
       </div>
     </div>
   {/if}
