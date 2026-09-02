@@ -65,7 +65,7 @@
     originalMultiplicadores !== JSON.stringify(multiplicadores)
   );
   let hasUnsavedGradeConfigs = $derived(originalGradeConfigs !== JSON.stringify(gradeConfigs));
-  let hasUnsavedMultiplicadores = $derived(multiplicadoresDirty);
+  let hasUnsavedMultiplicadores = $derived(originalMultiplicadores !== JSON.stringify(multiplicadores));
 
   function captureOriginals() {
     originalGradeConfigs = JSON.stringify(gradeConfigs);
@@ -372,6 +372,9 @@
   }
 
   function updateMultiplicador(id: string, multiplicador: number) {
+    if (multiplicador < 0 || multiplicador > 1) {
+      emit("show-toast", { message: `❌ El multiplicador debe estar entre 0 y 1 (recibido: ${multiplicador}). Se ajustó automáticamente.`, type: "error" });
+    }
     const clamped = Math.max(0, Math.min(1, multiplicador));
     multiplicadores = multiplicadores.map(m => m.id === id ? { ...m, multiplicador: clamped } : m);
     multiplicadoresDirty = true;
@@ -412,6 +415,8 @@
         multiplicadoresDirty = false;
         onDataChange('multiplicador_calificacion', { immediate: true });
         await emit("show-toast", { message: "✅ Multiplicadores guardados correctamente", type: "success" });
+      } else {
+        await emit("show-toast", { message: "ℹ️ No hay cambios en los multiplicadores por guardar.", type: "info" });
       }
     } catch (error) {
       console.error("Error saving multiplicadores:", error);
@@ -461,8 +466,15 @@
     isMobile = mql.matches;
     const handler = (e: MediaQueryListEvent) => { isMobile = e.matches; };
     mql.addEventListener("change", handler);
-    invoke<GradeConfig[]>("get_grade_configs").then(d => { gradeConfigs = d.sort((a, b) => GRADE_ORDER.indexOf(a.id) - GRADE_ORDER.indexOf(b.id)); captureOriginals(); }).catch(e => console.error("Error fetching grade configs:", e));
-    invoke<MultiplicadorItem[]>("get_multiplicadores").then(d => { multiplicadores = d; captureOriginals(); }).catch(e => console.error("Error fetching multiplicadores:", e));
+    invoke<GradeConfig[]>("get_grade_configs").then(d => {
+      gradeConfigs = d.sort((a, b) => GRADE_ORDER.indexOf(a.id) - GRADE_ORDER.indexOf(b.id));
+      originalGradeConfigs = JSON.stringify(gradeConfigs);
+    }).catch(e => console.error("Error fetching grade configs:", e));
+    invoke<MultiplicadorItem[]>("get_multiplicadores").then(d => {
+      multiplicadores = d;
+      originalMultiplicadores = JSON.stringify(multiplicadores);
+      multiplicadoresDirty = false;
+    }).catch(e => console.error("Error fetching multiplicadores:", e));
     return () => {
       mql.removeEventListener("change", handler);
     };
@@ -621,8 +633,9 @@
         </div>
       </div>
     {/if}
-    <!-- Mobile Save Button -->
-    {#if hasUnsavedChanges}
+    <!-- Mobile Save Button (solo cuando hay cambios de calificaciones; los multiplicadores
+         tienen su propio botón en la card para evitar solapamiento z-index) -->
+    {#if hasUnsavedGradeConfigs}
       <div style="position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);z-index:100;">
         <button onclick={handleSaveChanges} disabled={saving}
           style="padding:0.75rem 2rem;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;border-radius:12px;color:white;font-size:0.95rem;font-weight:700;cursor:pointer;box-shadow:0 8px 30px rgba(34,197,94,0.4);transition:all 0.2s ease;display:flex;align-items:center;gap:0.5rem;{saving ? 'opacity:0.6;cursor:not-allowed;' : ''}"
