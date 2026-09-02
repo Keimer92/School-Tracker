@@ -144,14 +144,6 @@ import CloudPage from "./svelte/CloudPage.svelte";
   }
 
   function handleTabChange(tab: Tab) {
-    // Pull bilateral al navegar: trae cambios hechos en otros dispositivos
-    // sin esperar al timer periódico.
-    void (async () => {
-      try {
-        console.debug('[D1Debug] sync disparado (navegación)');
-        if (await isD1Configured()) { await ensureWsSync(); await syncService.syncAllSilent(); }
-      } catch {}
-    })();
     // Migración: el quick-action "Reportes" del Dashboard abre la página unificada en su sub-tab Reportes
     if ((tab as string) === "reportes") {
       notasSubTabRequest = "reportes";
