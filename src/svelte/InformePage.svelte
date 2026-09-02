@@ -1245,8 +1245,8 @@
     bind:open={showFiltersModal}
     {isAndroidMobile}
     {isMobile}
-    {anos} {colegios} {grados} {secciones}
-    {selectedAno} {selectedColegio} {selectedGrado} {selectedSeccion} {selectedSexo}
+    bind:anos bind:colegios bind:grados bind:secciones
+    bind:selectedAno bind:selectedColegio bind:selectedGrado bind:selectedSeccion bind:selectedSexo
   >
     {#snippet extras()}
       <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">

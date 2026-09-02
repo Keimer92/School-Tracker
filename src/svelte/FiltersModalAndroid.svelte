@@ -25,22 +25,17 @@
     isMobile = false,
     title = '🔍 Filtros',
 
-    // Selects de catálogo
-    anos = [] as CategoryItem[],
-    colegios = [] as CategoryItem[],
-    grados = [] as CategoryItem[],
-    secciones = [] as CategoryItem[],
-    selectedAno = 0,
-    selectedColegio = 0,
-    selectedGrado = 0,
-    selectedSeccion = 0,
-    selectedSexo = '',
-
-    onChangeAno = (v: number) => { selectedAno = v; },
-    onChangeColegio = (v: number) => { selectedColegio = v; },
-    onChangeGrado = (v: number) => { selectedGrado = v; },
-    onChangeSeccion = (v: number) => { selectedSeccion = v; },
-    onChangeSexo = (v: string) => { selectedSexo = v; },
+    // Selects de catálogo (bindable para que el padre vea los cambios
+    // y los $effect de cascada —fetchGrados, fetchSecciones— se disparen)
+    anos = $bindable([] as CategoryItem[]),
+    colegios = $bindable([] as CategoryItem[]),
+    grados = $bindable([] as CategoryItem[]),
+    secciones = $bindable([] as CategoryItem[]),
+    selectedAno = $bindable(0),
+    selectedColegio = $bindable(0),
+    selectedGrado = $bindable(0),
+    selectedSeccion = $bindable(0),
+    selectedSexo = $bindable(''),
 
     // Slots extra (ej. Período, Semana, Mes/Año)
     extras,
@@ -58,19 +53,11 @@
     selectedGrado: number;
     selectedSeccion: number;
     selectedSexo: string;
-    onChangeAno?: (v: number) => void;
-    onChangeColegio?: (v: number) => void;
-    onChangeGrado?: (v: number) => void;
-    onChangeSeccion?: (v: number) => void;
-    onChangeSexo?: (v: string) => void;
     extras?: import('svelte').Snippet;
   } = $props();
 
   // Dentro del modal siempre mostramos labels (hay espacio) y usamos
   // altura/separación consistentes, independientemente de isMobile.
-  const modalFlex = '1 1 100%';
-  const modalGap = '4px';
-  const modalLabelStyle = 'font-size: 0.7rem; color: #94a3b8; font-weight: 600;';
   const modalSelectStyle = 'height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px';
 
   function close() { open = false; }
@@ -84,46 +71,46 @@
         style="position:absolute;top:.6rem;right:.6rem;width:32px;height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:#1e293b;color:#e2e8f0;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1">✕</button>
       <h3 style="margin:0 0 1rem;color:#f1f5f9;font-size:1.05rem;padding-right:2.2rem">{title}</h3>
       <div style="display:flex;flex-direction:column;gap:0.6rem">
-        <div class="filter-group" style="display:flex;flex-direction:column;gap:{modalGap};flex:{modalFlex}">
-          {#if anos.length > 0}
-            <label style={modalLabelStyle}>Año lectivo:</label>
+        {#if anos.length > 0}
+          <div class="filter-group" style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
+            <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Año lectivo:</label>
             <select class="filter-select filter-select-solid" style="width:100%;{modalSelectStyle}"
-              value={selectedAno} onchange={(e) => onChangeAno(Number((e.target as HTMLSelectElement).value))}>
+              bind:value={selectedAno}>
               {#each anos as a}<option value={a.id}>{a.nombre}</option>{/each}
             </select>
-          {/if}
-        </div>
+          </div>
+        {/if}
         {#if colegios.length > 0}
-          <div class="filter-group" style="display:flex;flex-direction:column;gap:{modalGap};flex:{modalFlex}">
-            <label style={modalLabelStyle}>Colegio:</label>
+          <div class="filter-group" style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
+            <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Colegio:</label>
             <select class="filter-select filter-select-solid" style="width:100%;{modalSelectStyle}"
-              value={selectedColegio} onchange={(e) => onChangeColegio(Number((e.target as HTMLSelectElement).value))}>
+              bind:value={selectedColegio}>
               {#each colegios as c}<option value={c.id}>{c.nombre}</option>{/each}
             </select>
           </div>
         {/if}
         {#if grados.length > 0}
-          <div class="filter-group" style="display:flex;flex-direction:column;gap:{modalGap};flex:{modalFlex}">
-            <label style={modalLabelStyle}>Grado:</label>
+          <div class="filter-group" style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
+            <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Grado:</label>
             <select class="filter-select filter-select-solid" style="width:100%;{modalSelectStyle}"
-              value={selectedGrado} onchange={(e) => onChangeGrado(Number((e.target as HTMLSelectElement).value))}>
+              bind:value={selectedGrado}>
               {#each grados as g}<option value={g.id}>{g.nombre}</option>{/each}
             </select>
           </div>
         {/if}
         {#if secciones.length > 0}
-          <div class="filter-group" style="display:flex;flex-direction:column;gap:{modalGap};flex:{modalFlex}">
-            <label style={modalLabelStyle}>Sección:</label>
+          <div class="filter-group" style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
+            <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Sección:</label>
             <select class="filter-select filter-select-solid" style="width:100%;{modalSelectStyle}"
-              value={selectedSeccion} onchange={(e) => onChangeSeccion(Number((e.target as HTMLSelectElement).value))}>
+              bind:value={selectedSeccion}>
               {#each secciones as s}<option value={s.id}>{s.nombre}</option>{/each}
             </select>
           </div>
         {/if}
-        <div class="filter-group" style="display:flex;flex-direction:column;gap:{modalGap};flex:{modalFlex}">
-          <label style={modalLabelStyle}>Sexo:</label>
+        <div class="filter-group" style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
+          <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Sexo:</label>
           <select class="filter-select filter-select-solid" style="width:100%;{modalSelectStyle}"
-            value={selectedSexo} onchange={(e) => onChangeSexo((e.target as HTMLSelectElement).value)}>
+            bind:value={selectedSexo}>
             <option value="">Todos</option>
             <option value="M">Masculino</option>
             <option value="F">Femenino</option>
@@ -131,7 +118,7 @@
         </div>
         {#if extras}{@render extras()}{/if}
       </div>
-      <button class="primary" onclick={() => open = false} style="margin-top:1.25rem;width:100%">✓ Aplicar</button>
+      <button class="primary" onclick={close} style="margin-top:1.25rem;width:100%">✓ Aplicar</button>
     </div>
   </div>
 {/if}

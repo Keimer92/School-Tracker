@@ -1766,13 +1766,8 @@ $effect(() => {
     bind:open={showFiltersModal}
     {isAndroidMobile}
     {isMobile}
-    {anos} {colegios} {grados} {secciones}
-    {selectedAno} {selectedColegio} {selectedGrado} {selectedSeccion} {selectedSexo}
-    onChangeAno={(v) => handleFilterChange((val) => selectedAno = val, v)}
-    onChangeColegio={(v) => handleFilterChange((val) => selectedColegio = val, v)}
-    onChangeGrado={(v) => handleFilterChange((val) => selectedGrado = val, v)}
-    onChangeSeccion={(v) => handleFilterChange((val) => selectedSeccion = val, v)}
-    onChangeSexo={(v) => handleFilterChange((val) => selectedSexo = val, v)}
+    bind:anos bind:colegios bind:grados bind:secciones
+    bind:selectedAno bind:selectedColegio bind:selectedGrado bind:selectedSeccion bind:selectedSexo
   >
     {#snippet extras()}
       <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
