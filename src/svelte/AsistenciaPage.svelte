@@ -1712,10 +1712,10 @@ $effect(() => {
             <span style="color:#94a3b8">Total:</span><span style="font-size:1.3rem;font-weight:bold;color:#fff">{showSummaryModal.stats?.total}</span>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem">
-            <div style="background:rgba(96,165,250,0.1);padding:0.8rem;border-radius:10px;display:flex;flex-direction:column;gap:4px">
+            <div style="background:rgba(96,165,250,0.1);padding:0.8rem;border-radius:10px;display:flex;flex-direction:column;gap:2px">
               <span style="color:#60a5fa;font-size:0.8rem">Masculino</span><span style="font-size:1.2rem;font-weight:bold;color:#60a5fa">{showSummaryModal.stats?.m}</span>
             </div>
-            <div style="background:rgba(244,114,182,0.1);padding:0.8rem;border-radius:10px;display:flex;flex-direction:column;gap:4px">
+            <div style="background:rgba(244,114,182,0.1);padding:0.8rem;border-radius:10px;display:flex;flex-direction:column;gap:2px">
               <span style="color:#f472b6;font-size:0.8rem">Femenino</span><span style="font-size:1.2rem;font-weight:bold;color:#f472b6">{showSummaryModal.stats?.f}</span>
             </div>
           </div>
@@ -1770,9 +1770,9 @@ $effect(() => {
     bind:selectedAno bind:selectedColegio bind:selectedGrado bind:selectedSeccion bind:selectedSexo
   >
     {#snippet extras()}
-      <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-        <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Período:</label>
-        <select class="filter-select filter-select-solid" style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px"
+      <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
+        <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Período:</label>
+        <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px"
           value={periodo} onchange={(e) => periodo = (e.target as HTMLSelectElement).value as AsistenciaPeriodo}>
           <option value="diario">Diario</option>
           <option value="semanal">Semanal</option>
@@ -1780,26 +1780,26 @@ $effect(() => {
         </select>
       </div>
       {#if periodo === "semanal"}
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-          <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Semana de:</label>
+        <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
+          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Semana de:</label>
           <button type="button" class="filter-select filter-select-solid pop-trigger"
             onclick={() => { showFiltersModal = false; setTimeout(() => popSemanaAbierta = true, 50); }}
-            style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;text-align:left;cursor:pointer">
+            style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px;text-align:left;cursor:pointer">
             <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">Semana {semanaActiva} · {semanasOpts.find(s => s.n === semanaActiva)?.rango ?? ''}</span>
           </button>
         </div>
       {/if}
       {#if periodo === "mensual"}
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-          <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Mes:</label>
-          <select class="filter-select filter-select-solid" style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;min-width:100px"
+        <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
+          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Mes:</label>
+          <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px;min-width:100px"
             value={mesSeleccionado} onchange={(e) => mesSeleccionado = Number((e.target as HTMLSelectElement).value)}>
             {#each mesesOptions as m}<option value={m.value}>{m.label}</option>{/each}
           </select>
         </div>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-          <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Año:</label>
-          <select class="filter-select filter-select-solid" style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;min-width:90px"
+        <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
+          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Año:</label>
+          <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px;min-width:90px"
             value={anoSeleccionado} onchange={(e) => anoSeleccionado = Number((e.target as HTMLSelectElement).value)}>
             {#each anosOptions as a}<option value={Number(a.nombre)}>{a.nombre}</option>{/each}
           </select>

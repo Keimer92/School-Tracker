@@ -1225,11 +1225,11 @@
             <span style="font-size:1.3rem;font-weight:bold;color:#fff">{showSummaryModal.stats?.total}</span>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem">
-            <div style="background:rgba(96,165,250,0.1);padding:0.8rem;border-radius:10px;display:flex;flex-direction:column;gap:4px">
+            <div style="background:rgba(96,165,250,0.1);padding:0.8rem;border-radius:10px;display:flex;flex-direction:column;gap:2px">
               <span style="color:#60a5fa;font-size:0.8rem">Masculino</span>
               <span style="font-size:1.2rem;font-weight:bold;color:#60a5fa">{showSummaryModal.stats?.m}</span>
             </div>
-            <div style="background:rgba(244,114,182,0.1);padding:0.8rem;border-radius:10px;display:flex;flex-direction:column;gap:4px">
+            <div style="background:rgba(244,114,182,0.1);padding:0.8rem;border-radius:10px;display:flex;flex-direction:column;gap:2px">
               <span style="color:#f472b6;font-size:0.8rem">Femenino</span>
               <span style="font-size:1.2rem;font-weight:bold;color:#f472b6">{showSummaryModal.stats?.f}</span>
             </div>
@@ -1249,37 +1249,37 @@
     bind:selectedAno bind:selectedColegio bind:selectedGrado bind:selectedSeccion bind:selectedSexo
   >
     {#snippet extras()}
-      <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-        <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Período:</label>
-        <select class="filter-select filter-select-solid" style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px" bind:value={periodo}>
+      <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
+        <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Período:</label>
+        <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px" bind:value={periodo}>
           <option value="diario">Diario</option>
           <option value="semanal">Semanal</option>
           <option value="mensual">Mensual</option>
         </select>
       </div>
       {#if periodo === "semanal"}
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-          <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Semana de:</label>
+        <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
+          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Semana de:</label>
           <button type="button" class="filter-select filter-select-solid pop-trigger"
             onclick={() => { showFiltersModal = false; setTimeout(() => popSemanaAbierta = true, 50); }}
-            style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;text-align:left;cursor:pointer">
+            style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px;text-align:left;cursor:pointer">
             <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">Semana {semanaActiva} · {semanasOpts.find(s => s.n === semanaActiva)?.rango ?? ''}</span>
           </button>
         </div>
       {/if}
       {#if periodo === "mensual"}
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-          <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Mes:</label>
-          <select class="filter-select filter-select-solid" style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px" bind:value={mesSeleccionado}>
+        <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
+          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Mes:</label>
+          <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px" bind:value={mesSeleccionado}>
             <option value={1}>Enero</option><option value={2}>Febrero</option><option value={3}>Marzo</option>
             <option value={4}>Abril</option><option value={5}>Mayo</option><option value={6}>Junio</option>
             <option value={7}>Julio</option><option value={8}>Agosto</option><option value={9}>Septiembre</option>
             <option value={10}>Octubre</option><option value={11}>Noviembre</option><option value={12}>Diciembre</option>
           </select>
         </div>
-        <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-          <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Año:</label>
-          <select class="filter-select filter-select-solid" style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px" bind:value={anoSeleccionado}>
+        <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
+          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Año:</label>
+          <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px" bind:value={anoSeleccionado}>
             {#each Array(5) as _, i}
               {@const year = new Date().getFullYear() - 2 + i}
               <option value={year}>{year}</option>
