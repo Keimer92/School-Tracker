@@ -94,6 +94,14 @@
   let searchTerm = $state("");
   let isMobile = $state(false);
   const isAndroid = /Android/i.test(navigator.userAgent);
+  const isWindows = /Windows/i.test(navigator.userAgent);
+  const isAndroidMobile = $derived(isAndroid || (isMobile && !isWindows));
+  let showFiltersModal = $state(false);
+  $effect(() => {
+    if (showFiltersModal) {
+      return registerBackHandler(() => { showFiltersModal = false; return true; });
+    }
+  });
   let viewMode = $state<'card' | 'list' | 'grid'>(isAndroid ? 'list' : (localStorage.getItem('estudiantes-view-mode') as 'card' | 'list' | 'grid') || (isMobile ? 'list' : 'grid'));
   let gridSelectedStudent: Student | null = $state(null);
   let isImporting = $state(false);
@@ -729,6 +737,89 @@ async function fetchData(preserveFilters = false) {
 
 
 <div class="page-container" id="estudiantes-page" style="height: 100%; min-height: 0;">
+  {#if isAndroidMobile}
+    <div class="category-card" style="padding: 0.5rem; margin-bottom: 0.4rem; display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
+      <button type="button" onclick={() => { showFiltersModal = true; }}
+        style="height:38px;padding:0 0.8rem;font-size:0.78rem;background:rgba(96,165,250,0.18);color:#bfdbfe;border:1px solid rgba(96,165,250,0.4);border-radius:8px;display:flex;align-items:center;justify-content:center;gap:5px;font-weight:600;cursor:pointer;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+        <span>🔍</span>
+        <span style="overflow:hidden;text-overflow:ellipsis;">
+          {colegios.find(c => c.id === filters.colegioId)?.nombre || 'Colegio'} · {grados.find(g => g.id === filters.gradoId)?.nombre || 'Grado'} · {secciones.find(s => s.id === filters.seccionId)?.nombre || 'Sección'}{filters.sexo ? ` · ${filters.sexo === 'M' ? 'Masc' : 'Fem'}` : ''}
+        </span>
+      </button>
+    </div>
+    <div class="category-card" style="padding: 0.5rem; margin-bottom: 0.4rem; display:flex;gap:0.3rem;align-items:center;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;">
+      <button onclick={openAddModal}
+        style="height:42px;padding:0 0.9rem;font-size:0.75rem;background:linear-gradient(135deg,var(--primary-hover),var(--primary-color));color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:pointer;transition:all 0.2s ease;box-shadow:0 4px 14px rgba(var(--primary-rgb),0.4);flex-shrink:0;white-space:nowrap">
+        <span style="font-size:1rem">👨‍🎓</span>
+      </button>
+      <button onclick={handleImportExcel} disabled={isImporting}
+        style="height:42px;padding:0 0.9rem;font-size:0.75rem;background:linear-gradient(135deg,#059669,#10b981);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{isImporting ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(5,150,105,0.4);flex-shrink:0;white-space:nowrap;opacity:{isImporting ? 0.7 : 1}">
+        <span style="font-size:1rem">{isImporting ? "⌛" : "📗"}</span>
+      </button>
+      <button onclick={handleDownloadTemplate}
+        style="height:42px;padding:0 0.9rem;font-size:0.75rem;border:1px solid rgba(168,85,247,0.3);background:rgba(168,85,247,0.1);color:#c084fc;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:pointer;transition:all 0.2s ease;flex-shrink:0;white-space:nowrap"
+        title="Descargar plantilla Excel">📋</button>
+      <button onclick={() => showImportHelp = true}
+        style="height:42px;width:42px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.1);color:#94a3b8;border-radius:8px;border:1px solid rgba(255,255,255,0.1);cursor:pointer;font-size:1.1rem;font-weight:700;flex-shrink:0;transition:all 0.2s ease"
+        title="Ayuda de importación">?</button>
+    </div>
+
+    {#if showFiltersModal}
+      <div class="modal-overlay" onclick={() => showFiltersModal = false} style="z-index:2000">
+        <div class="modal-content" onclick={(e) => e.stopPropagation()}
+          style="width:min(380px, calc(100vw - 32px));max-width:min(380px, calc(100vw - 32px));max-height:85vh;overflow-y:auto;background:#1e293b;border:1px solid rgba(148,163,184,0.35);border-radius:18px;box-shadow:0 20px 50px rgba(0,0,0,0.6);padding:1.25rem;text-align:left;position:relative">
+          <button type="button" onclick={() => showFiltersModal = false} title="Cerrar"
+            style="position:absolute;top:.6rem;right:.6rem;width:32px;height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:#1e293b;color:#e2e8f0;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1">✕</button>
+          <h3 style="margin:0 0 1rem;color:#f1f5f9;font-size:1.05rem;padding-right:2.2rem">🔍 Filtros</h3>
+          <div style="display:flex;flex-direction:column;gap:0.6rem">
+            <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
+              <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Año lectivo:</label>
+              <select class="filter-select"
+                style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;background:#0f172a;border:1px solid rgba(148,163,184,0.45);color:#f1f5f9;font-weight:600;appearance:none;-webkit-appearance:none;background-image:url(&quot;data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e&quot;);background-repeat:no-repeat;background-position:right 0.6rem center;background-size:14px;padding-right:1.8rem"
+                value={filters.anoLectivoId} onchange={(e) => { filters = { ...filters, anoLectivoId: Number((e.target as HTMLSelectElement).value), gradoId: 0, seccionId: 0 }; }}>
+                {#each anos as a}<option value={a.id}>{a.nombre}{#if a.activo} ✓ (Activo){/if}</option>{/each}
+              </select>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
+              <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Colegio:</label>
+              <select class="filter-select"
+                style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;background:#0f172a;border:1px solid rgba(148,163,184,0.45);color:#f1f5f9;font-weight:600;appearance:none;-webkit-appearance:none;background-image:url(&quot;data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e&quot;);background-repeat:no-repeat;background-position:right 0.6rem center;background-size:14px;padding-right:1.8rem"
+                value={filters.colegioId} onchange={(e) => { filters = { ...filters, colegioId: Number((e.target as HTMLSelectElement).value), gradoId: 0, seccionId: 0 }; }}>
+                {#each colegios as c}<option value={c.id}>{c.nombre}{#if c.activo} ✓ (Activo){/if}</option>{/each}
+              </select>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
+              <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Grado:</label>
+              <select class="filter-select"
+                style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;background:#0f172a;border:1px solid rgba(148,163,184,0.45);color:#f1f5f9;font-weight:600;appearance:none;-webkit-appearance:none;background-image:url(&quot;data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e&quot;);background-repeat:no-repeat;background-position:right 0.6rem center;background-size:14px;padding-right:1.8rem"
+                value={filters.gradoId} onchange={(e) => { filters = { ...filters, gradoId: Number((e.target as HTMLSelectElement).value), seccionId: 0 }; }}>
+                {#each grados as g}<option value={g.id}>{g.nombre}</option>{/each}
+              </select>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
+              <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Sección:</label>
+              <select class="filter-select"
+                style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;background:#0f172a;border:1px solid rgba(148,163,184,0.45);color:#f1f5f9;font-weight:600;appearance:none;-webkit-appearance:none;background-image:url(&quot;data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e&quot;);background-repeat:no-repeat;background-position:right 0.6rem center;background-size:14px;padding-right:1.8rem"
+                value={filters.seccionId} onchange={(e) => { filters = { ...filters, seccionId: Number((e.target as HTMLSelectElement).value) }; }}>
+                {#each secciones as s}<option value={s.id}>{s.nombre}</option>{/each}
+              </select>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
+              <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Sexo:</label>
+              <select class="filter-select"
+                style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;background:#0f172a;border:1px solid rgba(148,163,184,0.45);color:#f1f5f9;font-weight:600;appearance:none;-webkit-appearance:none;background-image:url(&quot;data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e&quot;);background-repeat:no-repeat;background-position:right 0.6rem center;background-size:14px;padding-right:1.8rem"
+                value={filters.sexo} onchange={(e) => { filters = { ...filters, sexo: (e.target as HTMLSelectElement).value }; }}>
+                <option value="">Todos</option>
+                <option value="M">Masculino</option>
+                <option value="F">Femenino</option>
+              </select>
+            </div>
+          </div>
+          <button class="primary" onclick={() => showFiltersModal = false} style="margin-top:1.25rem;width:100%">✓ Aplicar</button>
+        </div>
+      </div>
+    {/if}
+  {:else}
   <FilterContainer {isMobile}>
       <FilterGroup label="Año Lectivo:" {isMobile}>
           <select name="anoLectivoId" onchange={handleFilterChange} value={filters.anoLectivoId} class="filter-select" style="width:100%">
@@ -786,6 +877,7 @@ async function fetchData(preserveFilters = false) {
           title="Ayuda de importación">?</button>
       </div>
   </FilterContainer>
+  {/if}
 
   {#if showPromoteBanner && promoteFromAno && promoteToAno}
     <div style="margin-top: 0.75rem; padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(139, 92, 246, 0.12)); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: 12px; {isMobile ? 'margin-left: 0.25rem; margin-right: 0.25rem;' : ''}">

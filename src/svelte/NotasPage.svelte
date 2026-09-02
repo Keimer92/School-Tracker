@@ -1342,18 +1342,18 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
         bind:selectedAno bind:selectedColegio bind:selectedGrado bind:selectedSeccion bind:selectedSexo
       >
         {#snippet extras()}
-          <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-            <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Corte:</label>
-            <select class="filter-select filter-select-solid" style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px"
+          <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
+            <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Corte:</label>
+            <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px"
               bind:value={selectedCorte}>
               {#each cortes as c}
                 <option value={c.id}>{c.nombre}</option>
               {/each}
             </select>
           </div>
-          <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-            <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Asignatura:</label>
-            <select class="filter-select filter-select-solid" style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px"
+          <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
+            <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Asignatura:</label>
+            <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px"
               value={selectedAsignatura}
               onchange={(e) => { selectedAsignatura = Number(e.target.value); localStorage.setItem('notas-last-asignatura', String(selectedAsignatura)); }}>
               {#each asignaturas as a}

@@ -58,7 +58,7 @@
 
   // Dentro del modal siempre mostramos labels (hay espacio) y usamos
   // altura/separación consistentes, independientemente de isMobile.
-  const modalSelectStyle = 'height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px';
+  const modalSelectStyle = 'height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px';
 
   function close() { open = false; }
 </script>
@@ -66,14 +66,14 @@
 {#if open && isAndroidMobile}
   <div class="modal-overlay" onclick={close} style="z-index:2000">
     <div class="modal-content filters-solid" onclick={(e) => e.stopPropagation()}
-      style="width:min(380px, calc(100vw - 32px));max-width:min(380px, calc(100vw - 32px));max-height:85vh;overflow-y:auto;padding:1.25rem;text-align:left;position:relative">
+      style="width:min(380px, calc(100vw - 32px));max-width:min(380px, calc(100vw - 32px));max-height:85vh;overflow-y:auto;padding:1rem;text-align:left;position:relative">
       <button type="button" onclick={close} title="Cerrar"
-        style="position:absolute;top:.6rem;right:.6rem;width:32px;height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:#1e293b;color:#e2e8f0;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1">✕</button>
-      <h3 style="margin:0 0 1rem;color:#f1f5f9;font-size:1.05rem;padding-right:2.2rem">{title}</h3>
-      <div style="display:flex;flex-direction:column;gap:0.6rem">
+        style="position:absolute;top:.5rem;right:.5rem;width:28px;height:28px;border-radius:7px;border:1px solid rgba(255,255,255,.2);background:#1e293b;color:#e2e8f0;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1">✕</button>
+      <h3 style="margin:0 0 .75rem;color:#f1f5f9;font-size:1rem;padding-right:2rem">{title}</h3>
+      <div style="display:flex;flex-direction:column;gap:0.4rem">
         {#if anos.length > 0}
-          <div class="filter-group" style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-            <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Año lectivo:</label>
+          <div class="filter-group" style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
+            <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Año lectivo:</label>
             <select class="filter-select filter-select-solid" style="width:100%;{modalSelectStyle}"
               bind:value={selectedAno}>
               {#each anos as a}<option value={a.id}>{a.nombre}</option>{/each}
@@ -81,8 +81,8 @@
           </div>
         {/if}
         {#if colegios.length > 0}
-          <div class="filter-group" style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-            <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Colegio:</label>
+          <div class="filter-group" style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
+            <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Colegio:</label>
             <select class="filter-select filter-select-solid" style="width:100%;{modalSelectStyle}"
               bind:value={selectedColegio}>
               {#each colegios as c}<option value={c.id}>{c.nombre}</option>{/each}
@@ -90,8 +90,8 @@
           </div>
         {/if}
         {#if grados.length > 0}
-          <div class="filter-group" style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-            <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Grado:</label>
+          <div class="filter-group" style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
+            <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Grado:</label>
             <select class="filter-select filter-select-solid" style="width:100%;{modalSelectStyle}"
               bind:value={selectedGrado}>
               {#each grados as g}<option value={g.id}>{g.nombre}</option>{/each}
@@ -99,16 +99,16 @@
           </div>
         {/if}
         {#if secciones.length > 0}
-          <div class="filter-group" style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-            <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Sección:</label>
+          <div class="filter-group" style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
+            <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Sección:</label>
             <select class="filter-select filter-select-solid" style="width:100%;{modalSelectStyle}"
               bind:value={selectedSeccion}>
               {#each secciones as s}<option value={s.id}>{s.nombre}</option>{/each}
             </select>
           </div>
         {/if}
-        <div class="filter-group" style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-          <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Sexo:</label>
+        <div class="filter-group" style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
+          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Sexo:</label>
           <select class="filter-select filter-select-solid" style="width:100%;{modalSelectStyle}"
             bind:value={selectedSexo}>
             <option value="">Todos</option>
@@ -118,7 +118,7 @@
         </div>
         {#if extras}{@render extras()}{/if}
       </div>
-      <button class="primary" onclick={close} style="margin-top:1.25rem;width:100%">✓ Aplicar</button>
+      <button class="primary" onclick={close} style="margin-top:.9rem;width:100%;height:36px;font-size:0.85rem">✓ Aplicar</button>
     </div>
   </div>
 {/if}
