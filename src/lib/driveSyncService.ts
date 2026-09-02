@@ -338,6 +338,15 @@ export const driveSyncService = {
 
   listSyncFiles,
 
+  /** Info del respaldo más reciente en Drive para esta cuenta (o null si no hay). */
+  getLatestBackup: async (): Promise<DriveFile | null> => {
+    const token = await getValidToken();
+    if (!token) return null;
+    const files = await listSyncFiles(token);
+    if (files.length === 0) return null;
+    return files.reduce((a, b) => a.createdTime >= b.createdTime ? a : b);
+  },
+
   syncAll: async (): Promise<void> => {
     await driveSyncService.syncAllSilent(true);
   },

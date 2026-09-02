@@ -191,7 +191,7 @@
   /** Detecta errores transitorios del Worker (cuota free agotada, red, rate limit). */
   function isTransientCloudError(msg: string): boolean {
     const m = msg.toLowerCase();
-    return /1106|10000|429|503|502|504|timeout|timed out|exceeded|quota|limit|rate|overloaded|econn|network|fetch failed|cors|invalid request/i.test(m);
+    return /1106|10000|429|503|502|504|timeout|timed out|exceeded|quota|limit|rate|overloaded|econn|network|fetch failed|cors|invalid request|typeerror|failed to fetch|aborterror|nserror|ssl|tls|handshake|certificate/i.test(m);
   }
 
   /** Health check rápido al Worker: ¿está vivo y responde? */
@@ -237,6 +237,8 @@
 
   let showCloudRetry = $state(false);
   let cloudRetryError = $state('');
+  /** Si el restore aplicó datos parciales (algunas tablas, faltan catálogos base). */
+  let partialRestoreApplied = $state(false);
 
   /**
    * LOGIN/REGISTRO con Google para el sync Cloudflare.
@@ -291,14 +293,16 @@
         } catch { /* ignorable */ }
         let restoreErrMsg = '';
         let restorePulled = 0;
+        let restoreDetail: Record<string, number> = {};
         try {
-          const r = await invoke<{ ok?: boolean; pulled?: Record<string, number> }>('d1_restore_from_cloud');
-          const sum = r?.pulled ? Object.values(r.pulled).reduce((a, b) => a + (Number(b) || 0), 0) : 0;
+          const r = await invoke<{ ok?: boolean; pulled?: Record<string, number>; deletedApplied?: number }>('d1_restore_from_cloud');
+          restoreDetail = r?.pulled || {};
+          const sum = Object.values(restoreDetail).reduce((a, b) => a + (Number(b) || 0), 0);
           restorePulled = sum;
+          console.log('[Cloud] restore OK, pulled:', restoreDetail, 'total=', restorePulled);
         } catch (restoreErr: any) {
           restoreErrMsg = typeof restoreErr === 'string' ? restoreErr : (restoreErr?.message || String(restoreErr));
           console.error('[Cloud] restore falló:', restoreErr);
-          // Fallback al sync incremental si el restore falla
           try {
             await invoke('d1_sync_all', { full: true });
             restoreErrMsg = '';
@@ -325,26 +329,29 @@
         }
         loadingMessage = 'Verificando datos...';
         const hasData = await invoke('is_app_initialized');
+        console.log('[Cloud] post-restore hasData=', hasData, 'pulled=', restorePulled, 'detail=', restoreDetail);
         if (hasData) {
           await invoke('set_app_initialized');
           emit('welcome-complete');
           setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
         } else if (restorePulled === 0) {
           // Restore OK sin error pero la nube devolvió 0 filas para esta cuenta.
-          // Mostrar modal informativo: el Worker responde, pero tu namespace está
-          // vacío. NO saltar al wizard a ciegas — la cuota pudo hacer que el
-          // pull se quedara corto. El usuario decide.
-          cloudRetryError = 'La nube responde pero no se encontraron datos para esta cuenta (0 filas aplicadas). Esto puede ocurrir si alcanzaste el límite gratuito de Cloudflare y el pull quedó incompleto, o si la cuenta realmente está vacía.';
+          // Causas: cuenta distinta, schoolKey divergente, namespace vacío, o cuota
+          // free de Cloudflare truncó la respuesta.
+          const detailList = Object.entries(restoreDetail).map(([t, n]) => `${t}:${n}`).join(', ') || '(ninguna tabla)';
+          cloudRetryError = `El Worker respondió correctamente (ping OK) pero el pull autoritativo no devolvió datos para esta cuenta (0 filas aplicadas). Tablas consultadas: ${detailList}.\n\nPosibles causas:\n• Estás usando una cuenta de Google distinta a la que tiene los datos en la nube.\n• Alcanzaste el límite diario del plan gratuito de Cloudflare y la cuota se agotó antes del pull.\n• Esta cuenta nunca subió datos a la nube (es nueva).\n\nCuota free de Cloudflare se reinicia en aprox. ${cloudflareResetInfo()}.`;
           showCloudRetry = true;
           loading = false; loadingMessage = '';
           setBackAuthInProgress(false);
           return;
         } else {
-          // Restore aplicó filas pero is_app_initialized sigue false: raro
-          // (los catálogos seed_default no se ejecutaron). Asumimos vacío y
-          // caemos al wizard normalmente.
+          // Restore aplicó filas pero is_app_initialized sigue false (sin
+          // año_lectivo). El usuario decide: reintentar o configurar manualmente.
+          const detailList = Object.entries(restoreDetail).map(([t, n]) => `${t}:${n}`).join(', ');
+          cloudRetryError = `Se descargaron ${restorePulled} filas de la nube pero faltan catálogos base (año_lectivo, colegio, etc.). Tablas recibidas: ${detailList}.\n\nEsto suele pasar cuando alcanzaste el límite de cuota de Cloudflare a mitad del pull y la respuesta quedó incompleta. Puedes esperar a que se reinicie la cuota (aprox. ${cloudflareResetInfo()}) y reintentar, o configurar manualmente una base local y sincronizarla mañana.`;
+          showCloudRetry = true;
           loading = false; loadingMessage = '';
-          goToWizard();
+          setBackAuthInProgress(false);
           return;
         }
       } else if (res.status === 'cancelled') {
@@ -398,6 +405,92 @@
     showCloudRetry = false;
     cloudRetryError = '';
     goToWizard();
+  }
+
+  /** El usuario quiere continuar al Dashboard con los datos parciales
+   *  que SÍ se descargaron (catálogos base incompletos por cuota). */
+  async function continueWithPartialData() {
+    loading = true;
+    showCloudRetry = false;
+    cloudRetryError = '';
+    loadingMessage = 'Inicializando app con datos parciales...';
+    try {
+      await invoke('set_app_initialized');
+      emit('welcome-complete');
+      setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
+    } catch (e: any) {
+      errorMsg = 'Error: ' + (typeof e === 'string' ? e : (e?.message || String(e)));
+    }
+    loading = false; loadingMessage = '';
+  }
+
+  /** ¿Hay tokens de Google Drive guardados en localStorage? */
+  function isDriveLinked(): boolean {
+    try {
+      const raw = localStorage.getItem('schooltracker-google-drive-settings');
+      if (!raw) return false;
+      const j = JSON.parse(raw);
+      return !!(j?.accessToken);
+    } catch { return false; }
+  }
+
+  /** Restaura el último respaldo de Google Drive (workaround para cuota D1).
+   *  Antes de restaurar: compara la fecha del respaldo con `last_sync` de D1.
+   *  Si Drive es más viejo, advierte porque podría pisar cambios recientes
+   *  sincronizados a D1 (asistencias/notas del desktop). El usuario decide. */
+  async function restoreFromDrive() {
+    loading = true;
+    showCloudRetry = false;
+    cloudRetryError = '';
+    loadingMessage = 'Buscando respaldos en Drive...';
+    try {
+      const { driveSyncService } = await import('../lib/driveSyncService');
+      const latest = await driveSyncService.getLatestBackup();
+      if (!latest) {
+        errorMsg = 'No se encontraron respaldos en Google Drive para esta cuenta.';
+        loading = false; loadingMessage = '';
+        return;
+      }
+      const cfg = await invoke<any>('d1_get_config').catch(() => null);
+      const d1LastSync = cfg?.lastSync || null;
+      const driveTime = Date.parse(latest.createdTime);
+      let warning = '';
+      if (d1LastSync) {
+        const d1Time = Date.parse(d1LastSync.replace(' ', 'T') + 'Z');
+        if (!isNaN(d1Time) && !isNaN(driveTime) && driveTime < d1Time - 60_000) {
+          // Drive es al menos 1 minuto más viejo que D1: hay riesgo real
+          const fmt = (iso: string) => new Date(iso).toLocaleString();
+          warning = `⚠️ El respaldo de Drive es del ${fmt(latest.createdTime)}, más antiguo que la última sincronización D1 (${fmt(d1LastSync.replace(' ', 'T') + 'Z')}).\n\nSi lo restauras, podrías perder asistencias/notas modificadas en el desktop después de esa fecha.`;
+        }
+      }
+      if (warning) {
+        const ok = await ask(warning, {
+          title: 'Restaurar respaldo antiguo',
+          kind: 'warning',
+          okLabel: 'Sí, restaurar de todos modos',
+          cancelLabel: 'Cancelar',
+        });
+        if (!ok) {
+          loading = false; loadingMessage = '';
+          return;
+        }
+      }
+      loadingMessage = 'Descargando respaldo desde Google Drive...';
+      await driveSyncService.pullAll();
+      try { await invoke('gd_reload_database'); } catch {}
+      const hasData = await invoke('is_app_initialized');
+      if (hasData) {
+        await invoke('set_app_initialized');
+        emit('welcome-complete');
+        setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
+        return;
+      }
+      errorMsg = 'Se descargó el respaldo de Drive pero la base quedó vacía. Intenta de nuevo o configura manualmente.';
+    } catch (e: any) {
+      const m = typeof e === 'string' ? e : (e?.message || String(e));
+      errorMsg = 'No se pudo restaurar desde Drive: ' + m;
+    }
+    loading = false; loadingMessage = '';
   }
 
   /** Pide el permiso POST_NOTIFICATIONS (Android 13+) en la primera ejecución. */
@@ -829,10 +922,20 @@
           <button onclick={retryCloudRestore} style="background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;border:none;">
             🔄 Reintentar descarga
           </button>
+          {#if isDriveLinked()}
+            <button onclick={restoreFromDrive} style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;">
+              📥 Restaurar desde Drive
+            </button>
+          {/if}
           <button onclick={forceManualSetup} style="border-color:rgba(148,163,184,0.35);color:#cbd5e1;">
             ⚙️ Configurar manualmente
           </button>
         </div>
+        {#if isDriveLinked()}
+          <p style="margin:0;color:#64748b;font-size:0.7rem;text-align:center;line-height:1.35;">
+            Google Drive está vinculado con tu cuenta. Si tienes respaldos recientes ahí, puedes restaurar sin esperar a que se libere la cuota de Cloudflare.
+          </p>
+        {/if}
       </div>
     </div>
   {/if}

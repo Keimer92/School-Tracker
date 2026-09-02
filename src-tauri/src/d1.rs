@@ -964,10 +964,14 @@ pub async fn d1_restore_from_cloud(
     .await
     .map_err(|e| format!("Error en pull (hilo): {}", e))??;
 
-    // 3) Aplicar en UNA sola transacción: se BORRAN todas las tablas locales
-    // (incluidas las de catálogo con UNIQUE) y se insertan las filas de la
-    // nube. La nube es la fuente de verdad → sin colisiones por ids distintos
-    // (p. ej. corte_evaluativo.nombre) contra la siembra local.
+    // 3) Aplicar en UNA sola transacción: NO se borran las tablas locales.
+    // Modo "acumulativo" — cada pull agrega lo que vino; los reintentos
+    // completan las tablas faltantes (p. ej. si la cuota free de Cloudflare
+    // truncó el primer pull y `ano_lectivo` no llegó, el segundo lo suma).
+    // Esto es seguro porque el upsert usa `updated_at` sellado por el Worker
+    // (LWW por llegada) y los catálogos con UNIQUE(nombre) están
+    // desunicados (DEUNIQUE_TABLES) en el schema remoto, así que no chocan
+    // con ids locales.
     let _ = app.emit("d1-sync-progress", json!({ "message": "Guardando datos localmente…" }));
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute("PRAGMA foreign_keys = OFF", []).map_err(|e| e.to_string())?;
@@ -980,26 +984,25 @@ pub async fn d1_restore_from_cloud(
         );",
     )
     .map_err(|e| e.to_string())?;
-    let tables = [
-        "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
-        "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio",
-        "estudiante", "configuracion_calificacion", "multiplicador_calificacion",
-        "colegio_dias_asistencia", "asistencia", "nota", "dia_sin_clases",
-        "sync_pending_deletions", "sync_pending_deletions_asistencia",
-        "sync_pending_deletions_nota", "sync_pending_deletions_grado_asignatura",
-        "sync_pending_deletions_colegio_asignatura", "sync_pending_deletions_colegio_grado",
-        "sync_recent_pulls",
-    ];
-    for t in &tables {
-        tx.execute(&format!("DELETE FROM {}", t), [])
-            .map_err(|e| format!("Error limpiando {}: {}", t, e))?;
-    }
+    // Limpiar solo la memoria anti re-relevo (no las tablas de datos): cada
+    // pull regenera el device_id, así que las filas pulled no deben re-enviarse.
+    tx.execute("DELETE FROM sync_recent_pulls", [])
+        .map_err(|e| e.to_string())?;
 
     let mut pulled_counts: Map<String, Value> = Map::new();
     if let Some(rows) = pull_resp.get("rows").and_then(|v| v.as_object()) {
         for (table, arr) in rows {
             if let Some(entries) = arr.as_array() {
                 let mut n = 0;
+                // Si la nube trae datos para esta tabla, limpiamos la local
+                // antes de insertar para evitar mezclas con restos de sesiones
+                // anteriores (p. ej. device_id viejo). Si trae 0, NO tocamos
+                // la tabla: los reintentos futuros podrán completarla cuando
+                // la cuota free de Cloudflare se haya reiniciado.
+                if !entries.is_empty() {
+                    tx.execute(&format!("DELETE FROM {}", table), [])
+                        .map_err(|e| format!("Error limpiando {}: {}", table, e))?;
+                }
                 for entry in entries {
                     if let Some(obj) = entry.as_object() {
                         upsert_row(&tx, table, obj)?;
