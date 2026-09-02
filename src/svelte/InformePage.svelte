@@ -63,6 +63,7 @@
 
   let showSummaryModal = $state<{ show: boolean; type: string; stats: { total: number; m: number; f: number } | null }>({ show: false, type: "", stats: null });
   let selectedStudentDetail: AsistenciaReporteItem | null = $state(null);
+  let showFiltersModal = $state(false);
 
   $effect(() => {
     if (!visible) return;
@@ -75,6 +76,12 @@
     if (!visible) return;
     if (showSummaryModal.show) {
       return registerBackHandler(() => { showSummaryModal = { ...showSummaryModal, show: false }; return true; });
+    }
+  });
+
+  $effect(() => {
+    if (showFiltersModal && isAndroidMobile) {
+      return registerBackHandler(() => { showFiltersModal = false; return true; });
     }
   });
 
@@ -724,135 +731,183 @@
     .dsc-th{background:#2b2410!important;color:#fbbf24!important}
     .dsc-col{background:linear-gradient(180deg,rgba(245,158,11,.10),rgba(245,158,11,.02));text-align:center;vertical-align:middle;color:#f59e0b;font-weight:700;padding:.5rem .35rem;min-width:70px}
     .dsc-motivo{display:block;font-size:.62rem;line-height:1.35;word-break:break-word;margin-top:2px}
+    /* Modal de filtros Android: fondo opaco para que los selects se lean bien
+       (el glassmorphism vuelve los dropdowns casi invisibles en WebView Android). */
+    :global(.filters-solid) {
+      background: #1e293b !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+      border: 1px solid rgba(148, 163, 184, 0.35) !important;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6) !important;
+      border-radius: 18px !important;
+    }
+    :global(.filters-solid .filter-select-solid) {
+      background: #0f172a !important;
+      border: 1px solid rgba(148, 163, 184, 0.45) !important;
+      color: #f1f5f9 !important;
+      font-weight: 600 !important;
+    }
+    :global(.filters-solid .filter-select-solid:focus) {
+      border-color: var(--primary-color, #3b82f6) !important;
+      outline: none !important;
+    }
+    :global(.filters-solid .filter-select-solid option) {
+      background: #0f172a !important;
+      color: #f1f5f9 !important;
+    }
   </style>
 
   <PageLayout>
     {#snippet filters()}
-      <FilterContainer {isMobile}>
-        <FilterGroup label="Período:" {isMobile}>
-          <select class="filter-select" bind:value={periodo} style="width:100%">
-            <option value="diario">Diario</option>
-            <option value="semanal">Semanal</option>
-            <option value="mensual">Mensual</option>
-          </select>
-        </FilterGroup>
-
-        {#if periodo === "diario"}
-          <FilterGroup label="Fecha:" {isMobile}>
-            <DatePickerGlass bind:value={fechaBase} diaHabilitado={esDiaHabilCalendario} />
-          </FilterGroup>
-        {:else if periodo === "semanal"}
-          <FilterGroup label="Semana de:" {isMobile}>
-            <div class="pop-wrap" bind:this={popRootEl}>
-              <button type="button" class="filter-select pop-trigger" onclick={() => popSemanaAbierta = !popSemanaAbierta}>
-                <span>Semana {semanaActiva} · {semanasOpts.find(s => s.n === semanaActiva)?.rango ?? ''}</span>
-                <span class="pop-caret">▾</span>
-              </button>
-
-              {#if popSemanaAbierta}
-                <div class="pop-panel" tabindex="-1">
-                  <div class="pop-mes">
-                    <button type="button" class="pop-nav" onclick={() => cambiarMesSemInforme(-1)} title="Mes anterior">‹</button>
-                    <span class="pop-mes-txt">{nombreMes(mesSeleccionado)} {anoSeleccionado}</span>
-                    <button type="button" class="pop-nav" onclick={() => cambiarMesSemInforme(1)} title="Mes siguiente">›</button>
-                  </div>
-
-                  <div class="pop-sems">
-                    {#each semanasOpts as s (s.lunes)}
-                      <button
-                        type="button"
-                        class="pop-sem"
-                        class:sel={semanaActiva === s.n}
-                        onclick={() => elegirSemanaInforme(s)}
-                      >
-                        <span class="pop-sem-n">Semana {s.n}</span>
-                        <span class="pop-sem-rango">{s.rango}</span>
-                      </button>
-                    {/each}
-                  </div>
-                </div>
-              {/if}
-            </div>
-          </FilterGroup>
-        {:else}
-          <FilterGroup label="Mes:" {isMobile}>
-            <select class="filter-select" bind:value={mesSeleccionado} style="width:100%">
-              <option value={1}>Enero</option><option value={2}>Febrero</option><option value={3}>Marzo</option>
-              <option value={4}>Abril</option><option value={5}>Mayo</option><option value={6}>Junio</option>
-              <option value={7}>Julio</option><option value={8}>Agosto</option><option value={9}>Septiembre</option>
-              <option value={10}>Octubre</option><option value={11}>Noviembre</option><option value={12}>Diciembre</option>
-            </select>
-          </FilterGroup>
-          <FilterGroup label="Año:" {isMobile}>
-            <select class="filter-select" bind:value={anoSeleccionado} style="width:100%">
-              {#each Array(5) as _, i}
-                {@const year = new Date().getFullYear() - 2 + i}
-                <option value={year}>{year}</option>
-              {/each}
-            </select>
-          </FilterGroup>
-        {/if}
-
-        <FilterGroup label="Año Lectivo:" {isMobile}>
-          <select class="filter-select" bind:value={selectedAno} style="width:100%">
-            {#each anos as a}
-              <option value={a.id}>{a.nombre}</option>
-            {/each}
-          </select>
-        </FilterGroup>
-
-        <FilterGroup label="Colegio:" {isMobile}>
-          <select class="filter-select" bind:value={selectedColegio} style="width:100%">
-            {#each colegios as c}
-              <option value={c.id}>{c.nombre}</option>
-            {/each}
-          </select>
-        </FilterGroup>
-
-        <FilterGroup label="Grado:" {isMobile}>
-          <select class="filter-select" bind:value={selectedGrado} style="width:100%">
-            {#each grados as g}
-              <option value={g.id}>{g.nombre}</option>
-            {/each}
-          </select>
-        </FilterGroup>
-
-        <FilterGroup label="Sección:" {isMobile}>
-          <select class="filter-select" bind:value={selectedSeccion} style="width:100%">
-            {#each secciones as s}
-              <option value={s.id}>{s.nombre}</option>
-            {/each}
-          </select>
-        </FilterGroup>
-
-        <FilterGroup label="Sexo:" {isMobile}>
-          <select class="filter-select" bind:value={selectedSexo} style="width:100%">
-            <option value="">Todos</option>
-            <option value="M">Masculino</option>
-            <option value="F">Femenino</option>
-          </select>
-        </FilterGroup>
-
-        <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '0 0 auto'}">
-          {#if !isAndroid}
-            <button onclick={handlePrintWithIframe} disabled={reporteFiltrado.length === 0 || loading}
-              style="height:42px;padding:0 1.25rem;font-size:0.85rem;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;flex-shrink:0;gap:6px;border:none;border-radius:8px;color:#fff;font-weight:700;cursor:{reporteFiltrado.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(16,185,129,0.4);letter-spacing:0.3px;white-space:nowrap;opacity:{reporteFiltrado.length === 0 || loading ? 0.7 : 1}"
-              title={isMobile ? "Compartir reporte" : "Imprimir reporte"}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-              Imprimir
-            </button>
+      <FilterContainer {isMobile} style="padding:{isAndroidMobile ? '0.5rem' : ''}">
+        <div style="display:flex;{isAndroidMobile ? 'flex-wrap:wrap' : 'flex-wrap:nowrap'};gap:0.4rem;width:100%;align-items:flex-end">
+          {#if !isAndroidMobile}
+            <FilterGroup label="Período:" {isMobile}>
+              <select class="filter-select" bind:value={periodo} style="width:100%">
+                <option value="diario">Diario</option>
+                <option value="semanal">Semanal</option>
+                <option value="mensual">Mensual</option>
+              </select>
+            </FilterGroup>
           {/if}
-          <button onclick={exportToPDF} disabled={reporteFiltrado.length === 0 || loading}
-            style="height:42px;padding:0 1.25rem;font-size:0.85rem;background:linear-gradient(135deg,#ef4444,#dc2626);display:flex;align-items:center;justify-content:center;flex-shrink:0;gap:8px;border:none;border-radius:8px;color:white;font-weight:700;cursor:pointer;transition:all 0.2s ease;box-shadow:0 2px 8px rgba(239,68,68,0.3);letter-spacing:0.3px;white-space:nowrap;transition:all 0.15s"
-            onmouseenter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
-            onmouseleave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-            onmousedown={(e) => e.currentTarget.style.transform = 'translateY(1px)'}
-            onmouseup={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
-            title="Exportar a PDF">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-            PDF
-          </button>
-          <div style="flex:1;min-width:100px">
+
+          {#if periodo === "diario"}
+            {#if !isAndroidMobile}
+              <FilterGroup label="Fecha:" {isMobile}>
+                <DatePickerGlass bind:value={fechaBase} diaHabilitado={esDiaHabilCalendario} />
+              </FilterGroup>
+            {/if}
+          {:else if periodo === "semanal"}
+            {#if !isAndroidMobile}
+              <FilterGroup label="Semana de:" {isMobile}>
+                <div class="pop-wrap" bind:this={popRootEl}>
+                  <button type="button" class="filter-select pop-trigger" onclick={() => popSemanaAbierta = !popSemanaAbierta}>
+                    <span>Semana {semanaActiva} · {semanasOpts.find(s => s.n === semanaActiva)?.rango ?? ''}</span>
+                    <span class="pop-caret">▾</span>
+                  </button>
+
+                  {#if popSemanaAbierta}
+                    <div class="pop-panel" tabindex="-1">
+                      <div class="pop-mes">
+                        <button type="button" class="pop-nav" onclick={() => cambiarMesSemInforme(-1)} title="Mes anterior">‹</button>
+                        <span class="pop-mes-txt">{nombreMes(mesSeleccionado)} {anoSeleccionado}</span>
+                        <button type="button" class="pop-nav" onclick={() => cambiarMesSemInforme(1)} title="Mes siguiente">›</button>
+                      </div>
+
+                      <div class="pop-sems">
+                        {#each semanasOpts as s (s.lunes)}
+                          <button
+                            type="button"
+                            class="pop-sem"
+                            class:sel={semanaActiva === s.n}
+                            onclick={() => elegirSemanaInforme(s)}
+                          >
+                            <span class="pop-sem-n">Semana {s.n}</span>
+                            <span class="pop-sem-rango">{s.rango}</span>
+                          </button>
+                        {/each}
+                      </div>
+                    </div>
+                  {/if}
+                </div>
+              </FilterGroup>
+            {/if}
+          {:else}
+            {#if !isAndroidMobile}
+              <FilterGroup label="Mes:" {isMobile}>
+                <select class="filter-select" bind:value={mesSeleccionado} style="width:100%">
+                  <option value={1}>Enero</option><option value={2}>Febrero</option><option value={3}>Marzo</option>
+                  <option value={4}>Abril</option><option value={5}>Mayo</option><option value={6}>Junio</option>
+                  <option value={7}>Julio</option><option value={8}>Agosto</option><option value={9}>Septiembre</option>
+                  <option value={10}>Octubre</option><option value={11}>Noviembre</option><option value={12}>Diciembre</option>
+                </select>
+              </FilterGroup>
+              <FilterGroup label="Año:" {isMobile}>
+                <select class="filter-select" bind:value={anoSeleccionado} style="width:100%">
+                  {#each Array(5) as _, i}
+                    {@const year = new Date().getFullYear() - 2 + i}
+                    <option value={year}>{year}</option>
+                  {/each}
+                </select>
+              </FilterGroup>
+            {/if}
+          {/if}
+
+          {#if isAndroidMobile}
+            {#if periodo === "diario"}
+              <FilterGroup label="Fecha:" {isMobile}>
+                <DatePickerGlass bind:value={fechaBase} diaHabilitado={esDiaHabilCalendario} />
+              </FilterGroup>
+            {/if}
+            <button type="button" onclick={() => showFiltersModal = true}
+              title="Filtros (Período · Año · Colegio · Grado · Sección · Sexo · Semana/Mes)"
+              style="height:42px;padding:0 0.9rem;font-size:0.85rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#e2e8f0;border-radius:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all 0.15s;flex-shrink:0;white-space:nowrap">
+              <span>🔍</span><span>Filtros</span>
+              <span style="font-size:0.65rem;color:#94a3b8;font-weight:600;background:rgba(255,255,255,0.06);padding:0.1rem 0.4rem;border-radius:6px">{colegios.find(c => c.id === selectedColegio)?.nombre?.slice(0, 6) || '—'} · {secciones.find(s => s.id === selectedSeccion)?.nombre || '—'}</span>
+            </button>
+          {:else}
+            <FilterGroup label="Año Lectivo:" {isMobile}>
+              <select class="filter-select" bind:value={selectedAno} style="width:100%">
+                {#each anos as a}
+                  <option value={a.id}>{a.nombre}</option>
+                {/each}
+              </select>
+            </FilterGroup>
+
+            <FilterGroup label="Colegio:" {isMobile}>
+              <select class="filter-select" bind:value={selectedColegio} style="width:100%">
+                {#each colegios as c}
+                  <option value={c.id}>{c.nombre}</option>
+                {/each}
+              </select>
+            </FilterGroup>
+
+            <FilterGroup label="Grado:" {isMobile}>
+              <select class="filter-select" bind:value={selectedGrado} style="width:100%">
+                {#each grados as g}
+                  <option value={g.id}>{g.nombre}</option>
+                {/each}
+              </select>
+            </FilterGroup>
+
+            <FilterGroup label="Sección:" {isMobile}>
+              <select class="filter-select" bind:value={selectedSeccion} style="width:100%">
+                {#each secciones as s}
+                  <option value={s.id}>{s.nombre}</option>
+                {/each}
+              </select>
+            </FilterGroup>
+
+            <FilterGroup label="Sexo:" {isMobile}>
+              <select class="filter-select" bind:value={selectedSexo} style="width:100%">
+                <option value="">Todos</option>
+                <option value="M">Masculino</option>
+                <option value="F">Femenino</option>
+              </select>
+            </FilterGroup>
+          {/if}
+
+          <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '0 0 auto'}">
+            {#if !isAndroid}
+              <button onclick={handlePrintWithIframe} disabled={reporteFiltrado.length === 0 || loading}
+                style="height:42px;padding:0 1.25rem;font-size:0.85rem;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;flex-shrink:0;gap:6px;border:none;border-radius:8px;color:#fff;font-weight:700;cursor:{reporteFiltrado.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(16,185,129,0.4);letter-spacing:0.3px;white-space:nowrap;opacity:{reporteFiltrado.length === 0 || loading ? 0.7 : 1}"
+                title={isMobile ? "Compartir reporte" : "Imprimir reporte"}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                Imprimir
+              </button>
+            {/if}
+            <button onclick={exportToPDF} disabled={reporteFiltrado.length === 0 || loading}
+              style="height:42px;padding:0 1.25rem;font-size:0.85rem;background:linear-gradient(135deg,#ef4444,#dc2626);display:flex;align-items:center;justify-content:center;flex-shrink:0;gap:8px;border:none;border-radius:8px;color:white;font-weight:700;cursor:pointer;transition:all 0.2s ease;box-shadow:0 2px 8px rgba(239,68,68,0.3);letter-spacing:0.3px;white-space:nowrap;transition:all 0.15s"
+              onmouseenter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+              onmouseleave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+              onmousedown={(e) => e.currentTarget.style.transform = 'translateY(1px)'}
+              onmouseup={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
+              title="Exportar a PDF">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              PDF
+            </button>
+            <div style="flex:1;min-width:100px">
+            </div>
           </div>
         </div>
       </FilterContainer>
@@ -1204,6 +1259,79 @@
           </div>
         </div>
         <button class="primary" onclick={() => showSummaryModal = { ...showSummaryModal, show: false }} style="margin-top:1.5rem;width:100%">Cerrar</button>
+      </div>
+    </div>
+  {/if}
+
+  {#if showFiltersModal && isAndroidMobile}
+    <div class="modal-overlay" onclick={() => showFiltersModal = false} style="z-index:2000">
+      <div class="modal-content filters-solid" onclick={(e) => e.stopPropagation()}
+        style="width:min(380px, calc(100vw - 32px));max-width:min(380px, calc(100vw - 32px));max-height:85vh;overflow-y:auto;padding:1.25rem;text-align:left;position:relative">
+        <button type="button" onclick={() => showFiltersModal = false} title="Cerrar"
+          style="position:absolute;top:.6rem;right:.6rem;width:32px;height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:#1e293b;color:#e2e8f0;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1">✕</button>
+        <h3 style="margin:0 0 1rem;color:#f1f5f9;font-size:1.05rem;padding-right:2.2rem">🔍 Filtros</h3>
+        <div style="display:flex;flex-direction:column;gap:0.75rem">
+          <FilterGroup label="Período:" {isMobile}>
+            <select class="filter-select filter-select-solid" style="width:100%" bind:value={periodo}>
+              <option value="diario">Diario</option>
+              <option value="semanal">Semanal</option>
+              <option value="mensual">Mensual</option>
+            </select>
+          </FilterGroup>
+          <FilterGroup label="Año Lectivo:" {isMobile}>
+            <select class="filter-select filter-select-solid" style="width:100%" bind:value={selectedAno}>
+              {#each anos as a}<option value={a.id}>{a.nombre}</option>{/each}
+            </select>
+          </FilterGroup>
+          <FilterGroup label="Colegio:" {isMobile}>
+            <select class="filter-select filter-select-solid" style="width:100%" bind:value={selectedColegio}>
+              {#each colegios as c}<option value={c.id}>{c.nombre}</option>{/each}
+            </select>
+          </FilterGroup>
+          <FilterGroup label="Grado:" {isMobile}>
+            <select class="filter-select filter-select-solid" style="width:100%" bind:value={selectedGrado}>
+              {#each grados as g}<option value={g.id}>{g.nombre}</option>{/each}
+            </select>
+          </FilterGroup>
+          <FilterGroup label="Sección:" {isMobile}>
+            <select class="filter-select filter-select-solid" style="width:100%" bind:value={selectedSeccion}>
+              {#each secciones as s}<option value={s.id}>{s.nombre}</option>{/each}
+            </select>
+          </FilterGroup>
+          <FilterGroup label="Sexo:" {isMobile}>
+            <select class="filter-select filter-select-solid" style="width:100%" bind:value={selectedSexo}>
+              <option value="">Todos</option>
+              <option value="M">Masculino</option>
+              <option value="F">Femenino</option>
+            </select>
+          </FilterGroup>
+          {#if periodo === "semanal"}
+            <FilterGroup label="Semana de:" {isMobile}>
+              <button type="button" class="filter-select filter-select-solid pop-trigger" onclick={() => { showFiltersModal = false; setTimeout(() => popSemanaAbierta = true, 50); }} style="width:100%;text-align:left;cursor:pointer">
+                <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">Semana {semanaActiva} · {semanasOpts.find(s => s.n === semanaActiva)?.rango ?? ''}</span>
+              </button>
+            </FilterGroup>
+          {/if}
+          {#if periodo === "mensual"}
+            <FilterGroup label="Mes:" {isMobile}>
+              <select class="filter-select filter-select-solid" style="width:100%" bind:value={mesSeleccionado}>
+                <option value={1}>Enero</option><option value={2}>Febrero</option><option value={3}>Marzo</option>
+                <option value={4}>Abril</option><option value={5}>Mayo</option><option value={6}>Junio</option>
+                <option value={7}>Julio</option><option value={8}>Agosto</option><option value={9}>Septiembre</option>
+                <option value={10}>Octubre</option><option value={11}>Noviembre</option><option value={12}>Diciembre</option>
+              </select>
+            </FilterGroup>
+            <FilterGroup label="Año:" {isMobile}>
+              <select class="filter-select filter-select-solid" style="width:100%" bind:value={anoSeleccionado}>
+                {#each Array(5) as _, i}
+                  {@const year = new Date().getFullYear() - 2 + i}
+                  <option value={year}>{year}</option>
+                {/each}
+              </select>
+            </FilterGroup>
+          {/if}
+        </div>
+        <button class="primary" onclick={() => showFiltersModal = false} style="margin-top:1.25rem;width:100%">✓ Aplicar</button>
       </div>
     </div>
   {/if}
