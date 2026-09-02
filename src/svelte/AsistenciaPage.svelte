@@ -1775,36 +1775,40 @@ $effect(() => {
     onChangeSexo={(v) => handleFilterChange((val) => selectedSexo = val, v)}
   >
     {#snippet extras()}
-      <FilterGroup label="Período:" {isMobile}>
-        <select class="filter-select filter-select-solid" style="width:100%"
+      <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
+        <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Período:</label>
+        <select class="filter-select filter-select-solid" style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px"
           value={periodo} onchange={(e) => periodo = (e.target as HTMLSelectElement).value as AsistenciaPeriodo}>
           <option value="diario">Diario</option>
           <option value="semanal">Semanal</option>
           <option value="mensual">Mensual</option>
         </select>
-      </FilterGroup>
+      </div>
       {#if periodo === "semanal"}
-        <FilterGroup label="Semana de:" {isMobile}>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
+          <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Semana de:</label>
           <button type="button" class="filter-select filter-select-solid pop-trigger"
             onclick={() => { showFiltersModal = false; setTimeout(() => popSemanaAbierta = true, 50); }}
-            style="width:100%;text-align:left;cursor:pointer">
+            style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;text-align:left;cursor:pointer">
             <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">Semana {semanaActiva} · {semanasOpts.find(s => s.n === semanaActiva)?.rango ?? ''}</span>
           </button>
-        </FilterGroup>
+        </div>
       {/if}
       {#if periodo === "mensual"}
-        <FilterGroup label="Mes:" {isMobile}>
-          <select class="filter-select filter-select-solid" style="width:100%;min-width:100px"
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
+          <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Mes:</label>
+          <select class="filter-select filter-select-solid" style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;min-width:100px"
             value={mesSeleccionado} onchange={(e) => mesSeleccionado = Number((e.target as HTMLSelectElement).value)}>
             {#each mesesOptions as m}<option value={m.value}>{m.label}</option>{/each}
           </select>
-        </FilterGroup>
-        <FilterGroup label="Año:" {isMobile}>
-          <select class="filter-select filter-select-solid" style="width:100%;min-width:90px"
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
+          <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Año:</label>
+          <select class="filter-select filter-select-solid" style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;min-width:90px"
             value={anoSeleccionado} onchange={(e) => anoSeleccionado = Number((e.target as HTMLSelectElement).value)}>
             {#each anosOptions as a}<option value={Number(a.nombre)}>{a.nombre}</option>{/each}
           </select>
-        </FilterGroup>
+        </div>
       {/if}
     {/snippet}
   </FiltersModalAndroid>

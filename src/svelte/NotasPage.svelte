@@ -1342,22 +1342,25 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
         {selectedAno} {selectedColegio} {selectedGrado} {selectedSeccion} {selectedSexo}
       >
         {#snippet extras()}
-          <FilterGroup label="Corte:" {isMobile}>
-            <select class="filter-select-solid" style="width:100%" bind:value={selectedCorte}>
+          <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
+            <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Corte:</label>
+            <select class="filter-select filter-select-solid" style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px"
+              bind:value={selectedCorte}>
               {#each cortes as c}
                 <option value={c.id}>{c.nombre}</option>
               {/each}
             </select>
-          </FilterGroup>
-          <FilterGroup label="Asignatura:" {isMobile}>
-            <select class="filter-select-solid" style="width:100%"
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
+            <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Asignatura:</label>
+            <select class="filter-select filter-select-solid" style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px"
               value={selectedAsignatura}
               onchange={(e) => { selectedAsignatura = Number(e.target.value); localStorage.setItem('notas-last-asignatura', String(selectedAsignatura)); }}>
               {#each asignaturas as a}
                 <option value={a.id}>{a.nombre}</option>
               {/each}
             </select>
-          </FilterGroup>
+          </div>
         {/snippet}
       </FiltersModalAndroid>
 
