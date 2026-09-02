@@ -126,6 +126,30 @@ src-tauri/gen/               generado (ignorar; no editar a mano)
   y helpers `db::read_active_account` / `db::write_active_account`. NO usar
   `Connection::open("school.db")` directamente; usar `resolve_active_db_path()`.
 
+## Regla de modales unificados — Filtros en Android (2026-09)
+
+Toda página con selects de catálogo (Año, Colegio, Grado, Sección, Sexo, etc.) en la
+barra de filtros debe moverlos a un **modal dedicado en Android** para ahorrar
+espacio vertical. Patrón (referencia: `src/svelte/AsistenciaPage.svelte`):
+
+1. Detectar Android con `let isAndroidMobile = $derived(isAndroid || (isMobile && !isWindows));`
+   (la variable ya existe en la mayoría de páginas).
+2. Crear `let showFiltersModal = $state(false);`
+3. En el `$effect` de back handlers, registrar el cierre por back de Android
+   cuando el modal está abierto (igual que `popSemanaAbierta`).
+4. En el snippet `filters` (o equivalente): envolver los selects de catálogo
+   en `{#if isAndroidMobile}…botón que abre modal{:else}…selects inline{/if}`.
+   El botón debe mostrar un resumen inline (`{colegio} · {sección}`) para que
+   el usuario vea los filtros activos sin abrir el modal.
+5. El modal usa `class="modal-overlay"` con `style="z-index:2000"` y un
+   `class="modal-content category-card"` con `width:{modalCardWidth}` para
+   mantener el estilo glass consistente con modales existentes. Cerrar con
+   backdrop, botón ✕ y back de Android.
+
+**NO aplica** a: Período (diario/semanal/mensual) ni selectores de fecha —
+esos se quedan inline porque cambian el contenido principal de la página
+y el usuario necesita verlos permanentemente.
+
 ## Comandos
 - `npm run dev` — servidor Vite (frontend) en http://localhost:1420 (usado por Tauri dev).
 - `npm run build` — typecheck (`tsc`) + `vite build` → `dist/`.
