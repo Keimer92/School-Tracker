@@ -9,6 +9,7 @@
   import FilterGroup from "./FilterGroup.svelte";
   import SearchFab from "./SearchFab.svelte";
   import PageLayout from "./PageLayout.svelte";
+  import FiltersModalAndroid from "./FiltersModalAndroid.svelte";
   import { registerBackHandler } from "../lib/androidBack";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
@@ -53,6 +54,14 @@
   let activeSlide = $state<'tabla' | 'estadisticas'>(typeof window !== 'undefined' && window.innerWidth <= 768 ? 'tabla' : 'estadisticas');
   let isMobile = $state(false);
   let isAndroid = $state(false);
+  const isWindows = /Windows/i.test(navigator.userAgent);
+  const isAndroidMobile = $derived(isAndroid || (isMobile && !isWindows));
+  let showFiltersModal = $state(false);
+  $effect(() => {
+    if (showFiltersModal) {
+      return registerBackHandler(() => { showFiltersModal = false; return true; });
+    }
+  });
   let printHtml: string | null = $state(null);
   let exportandoMasivo = $state(false);
   let expandedStudentId = $state(-1);
@@ -981,6 +990,93 @@
           </div>
         {/if}
 
+        <FiltersModalAndroid
+          bind:open={showFiltersModal}
+          {isAndroidMobile} {isMobile}
+          {anos} {colegios} {grados} {secciones}
+          {selectedAno} {selectedColegio} {selectedGrado} {selectedSeccion} {selectedSexo}
+        >
+          {#snippet extras()}
+            <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
+              <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Corte:</label>
+              <select class="filter-select filter-select-solid" style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px"
+                value={specialCorte || selectedCorte}
+                onchange={(e) => {
+                  const val = (e.target as HTMLSelectElement).value;
+                  if (val === "1S" || val === "2S" || val === "NF") { specialCorte = val; selectedCorte = 0; }
+                  else { specialCorte = ""; selectedCorte = Number(val); }
+                }}>
+                <optgroup label="Cortes Individuales">
+                  {#each cortes as c}<option value={c.id}>{c.nombre}</option>{/each}
+                </optgroup>
+                <optgroup label="Promedios">
+                  <option value="1S">1er Semestre</option>
+                  <option value="2S">2do Semestre</option>
+                  <option value="NF">Nota Final</option>
+                </optgroup>
+              </select>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
+              <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Asignatura:</label>
+              <select class="filter-select filter-select-solid" style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px"
+                bind:value={selectedAsignatura} disabled={asignaturas.length === 0}>
+                {#each asignaturas as a}<option value={a.id}>{a.nombre}</option>{/each}
+              </select>
+            </div>
+          {/snippet}
+        </FiltersModalAndroid>
+
+        {#if isAndroidMobile}
+          <div class="category-card" style="padding: 0.5rem; margin-bottom: 0.5rem; display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
+            <button type="button" onclick={() => { showFiltersModal = true; }}
+              style="height:38px;padding:0 0.8rem;font-size:0.78rem;background:rgba(96,165,250,0.18);color:#bfdbfe;border:1px solid rgba(96,165,250,0.4);border-radius:8px;display:flex;align-items:center;justify-content:center;gap:5px;font-weight:600;cursor:pointer;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+              <span>🔍</span>
+              <span style="overflow:hidden;text-overflow:ellipsis;">
+                {colegios.find(c => c.id === selectedColegio)?.nombre || 'Colegio'} · {grados.find(g => g.id === selectedGrado)?.nombre || 'Grado'} · {secciones.find(s => s.id === selectedSeccion)?.nombre || 'Sección'}{selectedSexo ? ` · ${selectedSexo === 'M' ? 'Masc' : 'Fem'}` : ''}
+              </span>
+            </button>
+          </div>
+          <div class="category-card" style="padding: 0.5rem; margin-bottom: 0.5rem; display:flex;gap:0.3rem;align-items:center;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;">
+            {#if !isAndroid}
+              <button onclick={handlePrintWithIframe} disabled={estudiantes.length === 0 || loading}
+                style="height:42px;padding:0 0.4rem;font-size:0.75rem;background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{estudiantes.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(16,185,129,0.4);flex-shrink:0;white-space:nowrap;opacity:{estudiantes.length === 0 || loading ? 0.7 : 1}"
+                title="Imprimir">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+              </button>
+            {/if}
+            <button onclick={exportToPDF} disabled={estudiantes.length === 0 || loading}
+              style="height:42px;padding:0 0.4rem;font-size:0.75rem;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{estudiantes.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(239,68,68,0.4);flex-shrink:0;white-space:nowrap;opacity:{estudiantes.length === 0 || loading ? 0.7 : 1}">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            </button>
+            <button onclick={exportToPDFMasivo} disabled={exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura}
+              style="height:42px;padding:0 0.4rem;font-size:0.75rem;background-color:#6366f1;color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(99,102,241,0.4);flex-shrink:0;white-space:nowrap;opacity:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura ? 0.7 : 1}">
+              📚
+            </button>
+            <div style="position:relative;flex-shrink:0">
+              <button onclick={toggleClipboardMenu} disabled={filteredReporte.length === 0 || loading}
+                style="height:42px;padding:0 0.4rem;font-size:0.75rem;background:linear-gradient(135deg,#a855f7,#9333ea);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{filteredReporte.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(168,85,247,0.4);flex-shrink:0;white-space:nowrap;opacity:{filteredReporte.length === 0 || loading ? 0.7 : 1}"
+                title="Copiar al portapapeles">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              </button>
+              {#if showClipboardMenu}
+                <div onclick={(e) => e.stopPropagation()} style="position:absolute;top:calc(100% + 4px);right:0;min-width:240px;background:rgba(20,24,31,0.85);backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.1);border-radius:12px;box-shadow:0 25px 60px -12px rgba(0,0,0,0.6);padding:0.4rem;z-index:200;overflow:hidden;animation:fadeIn 0.15s ease-out">
+                  <button onclick={copyFullTable}
+                    style="display:flex;align-items:center;gap:8px;width:100%;padding:0.65rem 0.75rem;font-size:0.8rem;background:transparent;color:#e2e8f0;border:none;border-radius:8px;cursor:pointer;transition:all 0.15s ease;white-space:nowrap"
+                    onmouseenter={(e) => e.currentTarget.style.backgroundColor = 'rgba(168,85,247,0.15)'}
+                    onmouseleave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
+                    Estudiantes + Nota Final
+                  </button>
+                  <button onclick={copyFinalGradesOnly}
+                    style="display:flex;align-items:center;gap:8px;width:100%;padding:0.65rem 0.75rem;font-size:0.8rem;background:transparent;color:#e2e8f0;border:none;border-radius:8px;cursor:pointer;transition:all 0.15s ease;white-space:nowrap"
+                    onmouseenter={(e) => e.currentTarget.style.backgroundColor = 'rgba(168,85,247,0.15)'}
+                    onmouseleave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
+                    Solo Nota Final
+                  </button>
+                </div>
+              {/if}
+            </div>
+          </div>
+        {:else}
         <FilterContainer {isMobile} style="padding:0.5rem">
           <FilterGroup label="Año:" {isMobile}>
             <select class="filter-select" bind:value={selectedAno} style="width:100%">
@@ -1036,7 +1132,7 @@
             {#if !isAndroid}
               <button onclick={handlePrintWithIframe} disabled={estudiantes.length === 0 || loading}
                 style="height:42px;padding:0 {isMobile ? '0.4rem' : '1.25rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{estudiantes.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(16,185,129,0.4);flex-shrink:0;white-space:nowrap;opacity:{estudiantes.length === 0 || loading ? 0.7 : 1}"
-                title={(isMobile || isAndroid) ? "Compartir PDF" : "Imprimir"}>
+                title={(isMobile || isAndroid) ? 'Compartir PDF' : 'Imprimir'}>
                 <svg width="{isMobile ? '12' : '14'}" height="{isMobile ? '12' : '14'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                 {#if !isMobile}Imprimir{/if}
               </button>
@@ -1080,6 +1176,7 @@
             </div>
           </div>
         </FilterContainer>
+        {/if}
       </div>
     {/snippet}
 
