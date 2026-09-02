@@ -1077,3 +1077,109 @@ el caché, se recrea la carpeta vía `ensureBackupFolder`, y se reintenta una ve
   marker o si el archivo del marker no existe (backward compat).
 - **Migración solo una vez**: solo ocurre si NO hay ningún `school_*.db` en el dir.
   Si ya existe uno, se crea archivo vacío para la nueva cuenta.
+
+## Reparación de datos dañados en la nube/local (2026-09)
+
+Después de la purga del perfil y al importar una base de datos vieja, aparecieron
+varios problemas combinados. Documentación de síntomas, causas raíz y soluciones:
+
+### Síntoma 1: "no such table: colegio_grado" al sincronizar tras importar una DB vieja
+
+- **Causa**: las migraciones de schema (tablas nuevas `colegio_grado`,
+  `dia_sin_clases`, columnas `tipo`, etc.) solo corrían en el arranque de la app,
+  NUNCA al importar un archivo. El sync D1 arranca en cuanto se guarda y fallaba al
+  leer tablas que la base vieja no tenía.
+- **Solución**: `gd_import_db_from_file` (lib.rs) ahora ejecuta `db::init_database`
+  justo después de reemplazar el archivo y reabrir la conexión, creando tablas
+  faltantes + migraciones antes de que cualquier cosa use la base. En Ajustes,
+  `handleImportDB` hace lo mismo via `gd_reload_database`.
+
+**GOTCHA**: NUNCA olvidar que importar una DB no es "copiar un archivo": al importar
+hay que re-ejecutar `init_database` (schema + migraciones) para bases viejas.
+
+### Síntoma 2: Tombbstones residuales borran los datos recién subidos al refrescar
+
+- **Síntoma**: se importa la base buena, el Dashboard muestra estudiantes/grados/
+  secciones, pero al refrescar TODO desaparece. El archivo local sigue con tamaño
+  grande (SQLite no libera espacio sin `VACUUM`, aunque borre filas lógicamente).
+- **Causa**: la purga dejó ~6.235 tombstones en la nube con `updated_at` avanzado.
+  Al volver a subir (full:true) la base buena, el pull posterior aplicaba esos
+  tombstones residuales (mayores que el cursor) y borraban las filas recién subidas.
+  El pull completo del arranque al refrescar era el que los propagaba.
+- **Solución**: nuevo endpoint **`/reset`** en el worker (`cloudflare-sync/src/index.ts`):
+  borra TODAS las filas Y TODOS los tombstones de un namespace, validado por
+  `X-School-Key` (mismo nivel de auth que push/pull). Comando Rust `d1_reset_remote`
+  (`d1.rs`) que llama a `/reset` y pone ambos cursores a NULL. El flujo de importación
+  y el botón "Sync completo" ahora hacen `d1_reset_remote` → `d1_sync_all { full:true }`.
+
+**GOTCHA**: `d1_reset_remote` extremo cuidado — borra toda la nube de la cuenta. Se usa
+solo en el flujo de importación de una base buena (reset nube → subir todo).
+### Síntoma 3: `HTTP 400: table colegio_grado has no column named device_id`
+
+- **Síntoma**: al hacer sync tras importar: `Worker error (HTTP 400): D1 batch error:
+  D1_ERROR: table colegio_grado has no column named device_id: SQLITE_ERROR`.
+- **Causa**: el esquema remoto (`ensureSchema`) creaba las tablas de catálogo SIN la
+  columna `device_id`, pero `buildUpsert` del worker inserta SIEMPRE `device_id` y `sk`
+  en TODAS las tablas. Solo `dia_sin_clases` y `id`/`sk` tenían esas columnas; al tocar
+  `colegio_grado`, el push intentaba insertar en una columna inexistente → 400.
+- **Solución**: en `ensureSchema`, el bucle que agrega `sk` a todas las tablas
+  sincronizadas ahora TAMBIÉN agrega `device_id` vía `ALTER TABLE ... ADD COLUMN
+  device_id TEXT` envuelto en try/catch. **Requiere redeploy del worker** tras editar:
+  `cd cloudflare-sync; npx wrangler deploy`.
+
+**GOTCHA**: `ensureSchema` usa ALTER tolerante (try/catch) porque no puede crear una
+tabla con columnas que quizá ya existan en bases D1 viejas. Tras cada cambio de
+`cloudflare-sync`, SIEMPRE desplegar con wrangler — un worker viejo contra cliente nuevo
+da fallos mudos.
+
+### Comandos nuevos de este ciclo
+
+| Comando | Archivo | Descripción |
+|---------|---------|-------------|
+| `d1_wipe_remote` | d1.rs | Pull completo con deviceId "probe" → envía todas las PKs como tombstones por `/push` en lotes de 100 → borra toda la nube de la cuenta. Cursores a NULL. |
+| `d1_reset_remote` | d1.rs | Llama al endpoint `/reset` del worker (borra filas + tombstones) y pone cursores a NULL. Usado al importar una DB buena. |
+| `reset_local_database` | db.rs | Borra todo lo local (conserva `d1_config`), re-siembra defaults, inicializa schema + migraciones. |
+
+Todos registrados en `generate_handler!` (lib.rs) y `local-commands.toml`.
+
+### Botón de purga en Ajustes → Debug
+
+- **Escritorio**: "Zona de Peligro" de la card de Depuración (grid de 2 columnas):
+  Reiniciar Local / Limpiar Nube / **🧨 Purgar Perfil** / Fábrica + nota explicativa.
+- **Android**: otra card de Depuración dentro del bloque móvil, mismo `handleWipeProfileData`.
+- `handleWipeProfileData`: confirmación doble → `d1_wipe_remote` (best-effort, si no hay
+  D1 configurado avisa y continúa) → `reset_local_database` → toast.
+- **GOTCHA**: la app tiene DOS cards de Depuración por plataforma (escritorio vs Android).
+  Un botón X agregado a una NO aparece en la otra: hay que editarlos en ambos bloques.
+### Diagnóstico de errores de sync en el frontend
+
+- **`console.debug` es invisible por defecto**: DevTools solo muestra logs de nivel
+  "Verbose" (debug) si activas el filtro. Los logs de ERROR deben usar `console.warn`
+  / `console.error` para ser visibles sin configuración.
+- **Los errores de Tauri llegan como string plano**, no como objeto `Error`: un
+  mensaje largo del Worker podía quedar recortado a un número (p. ej. "error 6233"
+  era en realidad el CONTADOR `del=6233` de tombstones aplicados, no un fallo).
+- En `d1SyncService.ts` los logs se serializan con `JSON.stringify(e, Object.getOwnPropertyNames(e))`
+  para capturar TODO el objeto, y el último error queda en `window.__d1LastError`.
+- **CloudPage card D1**: en estado de error muestra botones "▼ Ver diagnóstico completo"
+  (timestamp, online, mensaje completo, error JSON) y "📋 Copiar diagnóstico".
+
+**GOTCHA conocido**: en la card del sidebar el número es el estado/mensaje recortado;
+el detalle real está en la card Cloudflare de CloudPage o en `window.__d1LastError`.
+
+### Sync completo forzado y auto-sync al importar
+
+- Botón verde **"Sync completo"** en CloudPage: llama `d1_sync_all { full:true }`
+  (ignora los doble-cursores y re-sube TODA la base local a la nube). Antes hacía
+  solo reset; ahora `d1_reset_remote` → `d1_sync_all { full:true }`.
+- `handleImportDB` (Ajustes → Debug → Importar): tras copiar + migrar
+  (`gd_reload_database`), dispara automáticamente `d1_reset_remote` → `d1_sync_all
+  { full:true }`. Toast con conteo: "✅ Base importada, migrada y sincronizada (X
+  filas en la nube)". Si D1 no está configurado o falla, toast de advertencia + recordatorio
+  del botón "Sync completo". Los 3 botones de importación muestran "⏳ Importando +
+  sincronizando…" y se deshabilitan mientras dura. Los `invoke` de migración y sync van
+  en try/catch SEPARADOS: si el sync falla la base ya quedó importada y migrada.
+- **Flujo correcto tras importar una base buena**: importar → (ya migra y hace reset+
+  full sync solo) → refrescar NO debe perder datos porque no hay tombstones residuales.
+  Si algo se pierde al refrescar, el problema son tombstones viejos en la nube (usar
+  `/reset` o `d1_reset_remote`).
