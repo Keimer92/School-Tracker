@@ -15,7 +15,7 @@ object AttendanceNative {
             for (i in 0 until colegiosArr.length()) {
                 val obj = colegiosArr.getJSONObject(i)
                 if (obj.has("id")) {
-                    collegioIds.put(obj.getLong("id"))
+                    colegioIds.put(obj.getLong("id"))
                 }
             }
             filtros.put("colegios", colegioIds)
