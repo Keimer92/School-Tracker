@@ -781,6 +781,9 @@
     if (!ok) return;
     isD1Syncing = true;
     try {
+      // Resetea la nube (filas + tombstones residuales) y re-pushea TODO.
+      // El reset es clave: tombstones viejos de purgas borrarían lo re-subido.
+      await invoke("d1_reset_remote");
       d1LastResult = await invoke<D1SyncResult>("d1_sync_all", { full: true });
       const sub = sumarConteos((d1LastResult as any)?.pushed);
       await emit("show-toast", { message: `✅ Sync completo: ${sub} filas re-subidas a la nube`, type: "success" });

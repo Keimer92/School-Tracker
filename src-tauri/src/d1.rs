@@ -876,6 +876,38 @@ pub async fn d1_wipe_remote(state: tauri::State<'_, DbState>) -> Result<Value, S
 }
 
 // ============================================================================
+// Reseteo TOTAL de la nube D1 del perfil (school key): borra TODAS las filas y
+// TODOS los tombstones (incluidos los residuales de purgas previas). Se usa
+// ANTES de importar un backup completo: sin esto, los tombstones residuales
+// (con updated_at más reciente que los datos restaurados) borrarían en el pull
+// las filas recién subidas → "los datos desaparecen al refrescar".
+// ============================================================================
+#[tauri::command]
+pub async fn d1_reset_remote(state: tauri::State<'_, DbState>) -> Result<Value, String> {
+    let cfg = {
+        let conn = state.conn.lock().map_err(|e| e.to_string())?;
+        read_config(&conn)?.ok_or_else(|| "D1 no está configurado".to_string())?
+    };
+    let resp = tauri::async_runtime::spawn_blocking({
+        let cfg = cfg.clone();
+        move || http_post_json(&cfg.worker_url, &cfg.school_key, "/reset", json!({}))
+    })
+    .await
+    .map_err(|e| format!("Error en reset (hilo): {}", e))??;
+    // Cursores a NULL → el próximo sync será push+pull completos desde época.
+    {
+        let conn = state.conn.lock().map_err(|e| e.to_string())?;
+        conn.execute(
+            "UPDATE d1_config SET last_sync = NULL, last_push_sync = NULL, updated_at = datetime('now') WHERE id = 1",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    println!("[D1] reset FIN: nube purgada (datos + tombstones)");
+    Ok(resp)
+}
+
+// ============================================================================
 // Restauración autoritativa desde la nube (modo "recuperar / cambiar cuenta")
 
 // ============================================================================

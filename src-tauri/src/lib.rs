@@ -1939,6 +1939,7 @@ pub fn run() {
             d1_status,
             d1_sync_all,
             d1_wipe_remote,
+            d1_reset_remote,
             d1_restore_from_cloud,
             d1_reserve_ids,
             promote_students,

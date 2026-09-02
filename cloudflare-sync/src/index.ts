@@ -662,6 +662,29 @@ async function route(req: Request, env: Env): Promise<Response> {
         });
       }
 
+      if (path === '/reset') {
+        // Reseteo TOTAL del namespace del caller (validado por X-School-Key,
+        // igual nivel de acceso que /push y /pull). Borra TODAS las filas y
+        // TODOS los tombstones de este school key. Útil antes de importar un
+        // backup completo: elimina tombstones residuales (de purgas previas)
+        // que de otro modo borrarían las filas recién subidas en el pull.
+        const schoolKey = req.headers.get('X-School-Key') || '';
+        if (!schoolKey) return json({ ok: false, error: 'Falta X-School-Key' }, 403);
+        await routeToDb(env, req);
+        const sk = await skOf(schoolKey);
+        const stmts = [
+          ...[...VALID_TABLES].map(t => ({ sql: `DELETE FROM ${t} WHERE sk = ?1`, params: [sk] })),
+          { sql: `DELETE FROM sync_tombstone WHERE sk = ?1`, params: [sk] },
+        ];
+        let borradas = 0;
+        for (let i = 0; i < stmts.length; i += BATCH_STMT) {
+          const res = await batchExec(env.DB, stmts.slice(i, i + BATCH_STMT));
+          borradas += res.reduce((a, b) => a + b.changes, 0);
+        }
+        console.log(`[reset] namespace ${sk.slice(0, 8)}… purgado: ${borradas} filas + tombstones`);
+        return json({ ok: true, borradas });
+      }
+
       if (path === '/push') {
         const schoolKey = req.headers.get('X-School-Key') || '';
         await routeToDb(env, req);

@@ -284,10 +284,12 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     } catch (error) { await emit("show-toast", { message: "❌ Error al exportar: " + error, type: "error" }); }
   }
 
+  let isImporting = $state(false);
   async function handleImportDB() {
     try {
       const source = await open({ filters: [{ name: "Database File", extensions: ["db"] }], multiple: false });
       if (source && typeof source === "string") {
+        isImporting = true;
         const dbFile = await invoke<string>("get_db_path"); await copyFile(source, dbFile);
         // Reabrir la conexión Y correr migraciones: un backup de una versión
         // anterior puede carecer de tablas nuevas (colegio_grado, dia_sin_clases,
@@ -297,9 +299,33 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
           await emit("catalog-updated");
           await emit("data-updated");
         } catch (e) { console.warn("Post-import migrate/reload:", e); }
-        await emit("show-toast", { message: "✅ Base de datos importada y migrada. Reinicie la app si algo no responde.", type: "success" });
+        // Sync COMPLETO automático tras importar un backup completo:
+        // 1) RESET de la nube: borra filas Y tombstones residuales de purgas
+        //    previas. Sin esto, los tombstones (que persistían en la nube)
+        //    viajan a los dispositivos y borran las filas recién subidas
+        //    ("los datos desaparecen al refrescar").
+        // 2) full=true re-pushea TODAS las filas locales (ignora cursores viejos
+        //    del d1_config importado) y deja la nube = la base importada.
+        // Ambas son seguras/idempotentes (upsert LWW del worker).
+        let sincronizada = 0;
+        let syncErrores = '';
+        try {
+          await invoke("d1_reset_remote");
+          const r = await invoke<any>("d1_sync_all", { full: true });
+          const pushed = r?.pushed || {};
+          sincronizada = typeof pushed === 'number' ? pushed : Object.values(pushed).reduce((a: number, b: any) => a + Number(b || 0), 0);
+        } catch (e) {
+          syncErrores = String(e);
+          console.error("[Import] reset/sync completo automático falló:", e);
+        }
+        if (syncErrores) {
+          await emit("show-toast", { message: `✅ Base importada y migrada. ⚠️ Sync completo no pudo ejecutarse: ${syncErrores}. Usa \u201cSync completo\u201d en Nube.`, type: "warning" });
+        } else {
+          await emit("show-toast", { message: `✅ Base importada, migrada y sincronizada (${sincronizada} filas en la nube). Reinicie la app si algo no responde.`, type: "success" });
+        }
       }
     } catch (error) { await emit("show-toast", { message: "❌ Error al importar: " + error, type: "error" }); }
+    finally { isImporting = false; }
   }
 
   async function handleResetLocalDB() {
@@ -526,7 +552,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
             </div>
             <div style="background: rgba(255,255,255,0.05); padding: 1.25rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
               <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;"><span style="font-size: 1.1rem;">📥</span><h5 style="margin: 0; color: #e2e8f0; font-size: 0.9rem;">Importar</h5></div>
-              <button onclick={handleImportDB} style="padding: 0.5rem 0.8rem; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border: none; color: white; border-radius: 8px; cursor: pointer; font-size: 0.8rem; font-weight: 600; width: 100%;">📥 Importar DB</button>
+              <button onclick={handleImportDB} disabled={isImporting} style="padding: 0.5rem 0.8rem; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border: none; color: white; border-radius: 8px; cursor: pointer; font-size: 0.8rem; font-weight: 600; width: 100%; opacity: {isImporting ? 0.6 : 1};">{isImporting ? '⏳ Importando + sincronizando…' : '📥 Importar DB'}</button>
             </div>
           </div>
           <div style="background: rgba(239, 68, 68, 0.05); padding: 1.25rem; border-radius: 12px; border: 1px solid rgba(239, 68, 68, 0.2);">
@@ -857,7 +883,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
               <div style="background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
                 <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;"><span style="font-size: 1.2rem;">📥</span><h5 style="margin: 0; color: #e2e8f0; font-size: 1rem;">Importación de Datos</h5></div>
                 <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                  <button onclick={handleImportDB} style="padding: 0.6rem 1rem; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border: none; color: white; border-radius: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 600;">📥 Importar Todo</button>
+                  <button onclick={handleImportDB} disabled={isImporting} style="padding: 0.6rem 1rem; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border: none; color: white; border-radius: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 600; opacity: {isImporting ? 0.6 : 1};">{isImporting ? '⏳ Importando + sincronizando…' : '📥 Importar Todo'}</button>
                   <button onclick={handleImportDB} style="padding: 0.6rem 1rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #e2e8f0; border-radius: 8px; cursor: pointer; font-size: 0.9rem;">📊 Base de Datos</button>
                   <button onclick={async () => { await emit("show-toast", { message: "ℹ️ Funcionalidad no implementada.", type: "info" }); }} style="padding: 0.6rem 1rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #e2e8f0; border-radius: 8px; cursor: pointer; font-size: 0.9rem;">⚙️ Configuración</button>
                   <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.5rem;">⚠️ La importación sobrescribirá los datos actuales.</div>
