@@ -15,6 +15,11 @@
   let loadingMessage = $state('');
   let errorMsg = $state('');
 
+  // Detección de plataforma (mismo patrón que AsistenciaPage)
+  let isAndroid = $state(/Android/i.test(navigator.userAgent));
+  let isMobile = $state(/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent));
+  let isAndroidMobile = $derived(isAndroid || (isMobile && !/Windows/i.test(navigator.userAgent)));
+
   // Progreso de descarga de la BD desde Drive (reportado por driveSyncService)
   let downloadProgress = $state<DownloadProgress | null>(null);
   $effect(() => {
@@ -183,6 +188,15 @@
     }
   }
 
+  /** Detecta errores transitorios del Worker (cuota free agotada, red, rate limit). */
+  function isTransientCloudError(msg: string): boolean {
+    const m = msg.toLowerCase();
+    return /1106|10000|429|503|502|504|timeout|timed out|exceeded|quota|limit|rate|overloaded|econn|network|fetch failed|cors|invalid request/i.test(m);
+  }
+
+  let showCloudRetry = $state(false);
+  let cloudRetryError = $state('');
+
   /**
    * LOGIN/REGISTRO con Google para el sync Cloudflare.
    * Reutiliza el flujo compartido (src/lib/cloudLogin.ts) que además vincula
@@ -193,10 +207,17 @@
    * device_id no cuadran, y entonces is_app_initialized devolvería false y
    * nos mandaría al wizard aunque la nube tenga datos. El restore regenera
    * el device_id y trae TODAS las filas existentes.
+   *
+   * Si el restore/sync falla por un error TRANSITORIO (cuota free agotada,
+   * rate limit, red) NO saltamos al wizard: el usuario podría perder sus
+   * datos de la nube si confirma el wizard en local. Mostramos opción de
+   * reintentar o configurar manualmente.
    */
   async function handleCloudLogin(preferredKey?: string) {
     loading = true;
     errorMsg = '';
+    showCloudRetry = false;
+    cloudRetryError = '';
     if (preferredKey && typeof preferredKey !== 'string') preferredKey = undefined;
     try {
       const res = await iniciarSesionGoogleConNube({
@@ -213,14 +234,39 @@
             if (e.payload?.message) loadingMessage = e.payload.message;
           });
         } catch { /* ignorable */ }
+        let restoreErrMsg = '';
         try {
           await invoke('d1_restore_from_cloud');
         } catch (restoreErr: any) {
+          restoreErrMsg = typeof restoreErr === 'string' ? restoreErr : (restoreErr?.message || String(restoreErr));
           console.error('[Cloud] restore falló:', restoreErr);
           // Fallback al sync incremental si el restore falla
-          try { await invoke('d1_sync_all', { full: true }); } catch {}
+          try {
+            await invoke('d1_sync_all', { full: true });
+            restoreErrMsg = '';
+          } catch (syncErr: any) {
+            const m = typeof syncErr === 'string' ? syncErr : (syncErr?.message || String(syncErr));
+            restoreErrMsg = restoreErrMsg ? `${restoreErrMsg} | ${m}` : m;
+            console.error('[Cloud] sync full falló:', syncErr);
+          }
         } finally {
           if (restoreUnlisten) restoreUnlisten();
+        }
+        if (restoreErrMsg) {
+          if (isTransientCloudError(restoreErrMsg)) {
+            // Error transitorio (cuota, red). NO saltar al wizard automáticamente
+            // porque la nube puede tener datos que aún no pudimos descargar.
+            cloudRetryError = restoreErrMsg;
+            showCloudRetry = true;
+            loading = false; loadingMessage = '';
+            setBackAuthInProgress(false);
+            return;
+          }
+          // Error no transitorio: caer al wizard normalmente
+          errorMsg = 'No se pudo descargar datos de la nube: ' + restoreErrMsg;
+          loading = false; loadingMessage = '';
+          goToWizard();
+          return;
         }
         loadingMessage = 'Verificando datos...';
         const hasData = await invoke('is_app_initialized');
@@ -229,6 +275,7 @@
           emit('welcome-complete');
           setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
         } else {
+          // Restore OK pero sin datos: cuenta nueva en la nube → wizard
           loading = false; loadingMessage = '';
           goToWizard();
           return;
@@ -244,6 +291,46 @@
     loading = false;
     loadingMessage = '';
     setBackAuthInProgress(false);
+  }
+
+  /** Reintenta el restore sin volver a pedir login (ya autenticado). */
+  async function retryCloudRestore() {
+    loading = true;
+    showCloudRetry = false;
+    cloudRetryError = '';
+    loadingMessage = 'Reintentando descarga...';
+    try {
+      await invoke('d1_restore_from_cloud');
+      const hasData = await invoke('is_app_initialized');
+      if (hasData) {
+        await invoke('set_app_initialized');
+        emit('welcome-complete');
+        setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
+        loading = false; loadingMessage = '';
+        return;
+      }
+      // Sin datos tras reintento: cuenta nueva en la nube
+      loading = false; loadingMessage = '';
+      goToWizard();
+    } catch (e: any) {
+      const m = typeof e === 'string' ? e : (e?.message || String(e));
+      if (isTransientCloudError(m)) {
+        cloudRetryError = m;
+        showCloudRetry = true;
+      } else {
+        errorMsg = 'No se pudo descargar datos: ' + m;
+        goToWizard();
+      }
+    }
+    loading = false;
+    loadingMessage = '';
+  }
+
+  /** El usuario confirma que quiere crear datos locales aunque la nube no respondió. */
+  function forceManualSetup() {
+    showCloudRetry = false;
+    cloudRetryError = '';
+    goToWizard();
   }
 
   /** Pide el permiso POST_NOTIFICATIONS (Android 13+) en la primera ejecución. */
@@ -423,45 +510,90 @@
     <span class="orb orb-c"></span>
   </div>
   {#if view === 'landing'}
-    <div class="welcome-container">
+    <div class="welcome-container" class:android={isAndroidMobile}>
       <div class="welcome-brand">
-        <img class="welcome-logo" src={appIcon} alt="School Tracker Pro" draggable="false" />
-        <h1 class="welcome-title">School Tracker Pro</h1>
-        <p class="welcome-subtitle">Selecciona cómo quieres iniciar</p>
+        {#if isAndroidMobile}
+          <div class="welcome-brand-row">
+            <img class="welcome-logo welcome-logo-sm" src={appIcon} alt="School Tracker Pro" draggable="false" />
+            <div class="welcome-brand-text">
+              <h1 class="welcome-title welcome-title-sm">School Tracker Pro</h1>
+              <p class="welcome-subtitle">Selecciona cómo quieres iniciar</p>
+            </div>
+          </div>
+        {:else}
+          <img class="welcome-logo" src={appIcon} alt="School Tracker Pro" draggable="false" />
+          <h1 class="welcome-title">School Tracker Pro</h1>
+          <p class="welcome-subtitle">Selecciona cómo quieres iniciar</p>
+        {/if}
       </div>
-      <div class="welcome-cards">
-        <button class="welcome-card card-google" onclick={() => handleCloudLogin()} disabled={loading}>
-          <div class="welcome-card-icon">🔐</div>
-          <div class="welcome-card-body">
-            <h3>Continuar con Google</h3>
-            <p>Crea tu cuenta o inicia sesión para sincronizar en la nube con tu propia base de datos privada.</p>
-          </div>
-          <div class="welcome-card-arrow">→</div>
-        </button>
-        <button class="welcome-card card-manual" onclick={goToWizard} disabled={loading}>
-          <div class="welcome-card-icon">⚙️</div>
-          <div class="welcome-card-body">
-            <h3>Configurar manualmente</h3>
-            <p>Selecciona exactamente qué años, colegios, grados y asignaturas deseas usar.</p>
-          </div>
-          <div class="welcome-card-arrow">→</div>
-        </button>
-        <button class="welcome-card card-key" onclick={importarArchivoConexion} disabled={loading}>
-          <div class="welcome-card-icon">🔑</div>
-          <div class="welcome-card-body">
-            <h3>Tengo un archivo de conexión</h3>
-            <p>Importa tu archivo .key para sincronizar con Cloudflare y recuperar tus datos.</p>
-          </div>
-          <div class="welcome-card-arrow">→</div>
-        </button>
-        <button class="welcome-card card-import" onclick={importarBaseDatos} disabled={loading}>
-          <div class="welcome-card-icon">💾</div>
-          <div class="welcome-card-body">
-            <h3>Importar base de datos (.db)</h3>
-            <p>Restaura tu respaldo de la base de datos y vincúlalo automáticamente a tu cuenta de Google.</p>
-          </div>
-          <div class="welcome-card-arrow">→</div>
-        </button>
+      <div class="welcome-cards" class:android={isAndroidMobile}>
+        {#if isAndroidMobile}
+          <button class="welcome-card card-google android" onclick={() => handleCloudLogin()} disabled={loading}>
+            <div class="welcome-card-icon">🔐</div>
+            <div class="welcome-card-body">
+              <h3>Continuar con Google</h3>
+              <p>Inicia sesión y sincroniza tu base en la nube.</p>
+            </div>
+            <div class="welcome-card-arrow">→</div>
+          </button>
+          <button class="welcome-card card-manual android" onclick={goToWizard} disabled={loading}>
+            <div class="welcome-card-icon">⚙️</div>
+            <div class="welcome-card-body">
+              <h3>Configurar manualmente</h3>
+              <p>Define años, colegios y grados desde cero.</p>
+            </div>
+            <div class="welcome-card-arrow">→</div>
+          </button>
+          <button class="welcome-card card-key android" onclick={importarArchivoConexion} disabled={loading}>
+            <div class="welcome-card-icon">🔑</div>
+            <div class="welcome-card-body">
+              <h3>Importar .key</h3>
+              <p>Recupera tus datos con un archivo de conexión.</p>
+            </div>
+            <div class="welcome-card-arrow">→</div>
+          </button>
+          <button class="welcome-card card-import android" onclick={importarBaseDatos} disabled={loading}>
+            <div class="welcome-card-icon">💾</div>
+            <div class="welcome-card-body">
+              <h3>Importar base (.db)</h3>
+              <p>Restaura un respaldo y vincúlalo a Google.</p>
+            </div>
+            <div class="welcome-card-arrow">→</div>
+          </button>
+        {:else}
+          <button class="welcome-card card-google" onclick={() => handleCloudLogin()} disabled={loading}>
+            <div class="welcome-card-icon">🔐</div>
+            <div class="welcome-card-body">
+              <h3>Continuar con Google</h3>
+              <p>Crea tu cuenta o inicia sesión para sincronizar en la nube con tu propia base de datos privada.</p>
+            </div>
+            <div class="welcome-card-arrow">→</div>
+          </button>
+          <button class="welcome-card card-manual" onclick={goToWizard} disabled={loading}>
+            <div class="welcome-card-icon">⚙️</div>
+            <div class="welcome-card-body">
+              <h3>Configurar manualmente</h3>
+              <p>Selecciona exactamente qué años, colegios, grados y asignaturas deseas usar.</p>
+            </div>
+            <div class="welcome-card-arrow">→</div>
+          </button>
+          <button class="welcome-card card-key" onclick={importarArchivoConexion} disabled={loading}>
+            <div class="welcome-card-icon">🔑</div>
+            <div class="welcome-card-body">
+              <h3>Tengo un archivo de conexión</h3>
+              <p>Importa tu archivo .key para sincronizar con Cloudflare y recuperar tus datos.</p>
+            </div>
+            <div class="welcome-card-arrow">→</div>
+          </button>
+          <button class="welcome-card card-import" onclick={importarBaseDatos} disabled={loading}>
+            <div class="welcome-card-icon">💾</div>
+            <div class="welcome-card-body">
+              <h3>Importar base de datos (.db)</h3>
+              <p>Restaura tu respaldo de la base de datos y vincúlalo automáticamente a tu cuenta de Google.</p>
+            </div>
+            <div class="welcome-card-arrow">→</div>
+          </button>
+        {/if}
       </div>
       {#if errorMsg}
         <div class="welcome-error">{errorMsg}</div>
@@ -609,6 +741,34 @@
       </div>
     </div>
   {/if}
+
+  <!-- Modal: error transitorio de la nube (cuota agotada / red). Permite reintentar. -->
+  {#if showCloudRetry}
+    <div class="loading-overlay">
+      <div class="loading-modal" style="gap:0.6rem;">
+        <div style="font-size:2rem;">☁️⚠️</div>
+        <h3 style="margin:0;color:#f1f5f9;font-size:1.05rem;font-weight:700;">No se pudo conectar con la nube</h3>
+        <p style="margin:0;color:#94a3b8;font-size:0.82rem;text-align:center;line-height:1.4;">
+          Posiblemente alcanzaste el límite diario del plan gratuito de Cloudflare o hay un problema de red.
+          Tus datos siguen a salvo en la nube.
+        </p>
+        {#if cloudRetryError}
+          <details style="width:100%;max-width:320px;">
+            <summary style="cursor:pointer;color:#64748b;font-size:0.72rem;">Ver detalle técnico</summary>
+            <pre style="margin:0.4rem 0 0;color:#94a3b8;font-size:0.7rem;white-space:pre-wrap;word-break:break-word;background:rgba(0,0,0,0.25);padding:0.5rem;border-radius:8px;max-height:120px;overflow:auto;">{cloudRetryError}</pre>
+          </details>
+        {/if}
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center;width:100%;">
+          <button onclick={retryCloudRestore} style="background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;border:none;">
+            🔄 Reintentar descarga
+          </button>
+          <button onclick={forceManualSetup} style="border-color:rgba(148,163,184,0.35);color:#cbd5e1;">
+            ⚙️ Configurar manualmente
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -639,13 +799,18 @@
   }
   .wizard-container { max-width: 580px; }
   .welcome-brand { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
+  /* Compactación Android: header en fila horizontal (logo pequeño + textos)
+     para que las cards quepan sin hacer scroll en pantallas chicas. */
+  .welcome-brand-row { display: flex; align-items: center; gap: 0.85rem; align-self: stretch; }
+  .welcome-brand-text { display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; text-align: left; flex: 1; min-width: 0; }
   .welcome-logo {
     width: 128px; height: 128px; display: flex; align-items: center; justify-content: center;
     border-radius: 32px;
     box-shadow: 0 18px 56px rgba(59,130,246,0.25), inset 0 1px 0 rgba(255,255,255,0.1);
     animation: floatY 6s ease-in-out infinite;
-    user-select: none; -webkit-user-drag: none;
+    user-select: none; -webkit-user-drag: none; flex-shrink: 0;
   }
+  .welcome-logo-sm { width: 56px; height: 56px; border-radius: 14px; box-shadow: 0 8px 24px rgba(59,130,246,0.22), inset 0 1px 0 rgba(255,255,255,0.08); animation: none; }
   .welcome-logo img { width: 100%; height: 100%; object-fit: contain; border-radius: 32px; -webkit-user-drag: none; }
   @keyframes floatY { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
   .welcome-title {
@@ -653,8 +818,12 @@
     background: linear-gradient(135deg, #f8fafc 20%, #cbd5e1 55%, #93c5fd);
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }
+  .welcome-title-sm { font-size: 1.25rem; }
   .welcome-subtitle { margin: 0; color: #64748b; font-size: 0.9rem; }
+  /* Compactación Android: menos gap entre secciones y cards más delgados */
+  .welcome-container.android { gap: 0.85rem; }
   .welcome-cards { display: flex; flex-direction: column; gap: 0.9rem; width: 100%; }
+  .welcome-cards.android { gap: 0.55rem; }
   .welcome-card {
     position: relative; overflow: hidden;
     display: flex; align-items: center; gap: 0.95rem; padding: 1.15rem 1.2rem;
@@ -666,6 +835,13 @@
     box-shadow: 0 12px 32px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06);
     transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
   }
+  /* Cards compactos en Android: padding y gaps menores, fuente reducida */
+  .welcome-card.android { padding: 0.7rem 0.85rem; gap: 0.7rem; border-radius: 14px; box-shadow: 0 6px 18px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.05); }
+  .welcome-card.android .welcome-card-icon { width: 38px; height: 38px; font-size: 1.2rem; border-radius: 11px; }
+  .welcome-card.android .welcome-card-body h3 { font-size: 0.92rem; }
+  .welcome-card.android .welcome-card-body p { font-size: 0.72rem; line-height: 1.3; -webkit-line-clamp: 1; line-clamp: 1; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+  .welcome-card.android .welcome-card-arrow { width: 26px; height: 26px; font-size: 0.85rem; }
+  .welcome-card.android::before { top: 10px; bottom: 10px; width: 2.5px; }
   /* Barra de acento vertical por opción */
   .welcome-card::before {
     content: ''; position: absolute; left: 0; top: 16px; bottom: 16px; width: 3px;
