@@ -34,6 +34,7 @@
   let multiplicadores: MultiplicadorItem[] = $state([]);
   let originalGradeConfigs: string = $state('');
   let originalMultiplicadores: string = $state('');
+  let multiplicadoresDirty = $state(false);
   let saving = $state(false);
   let isMobile = $state(false);
 
@@ -64,11 +65,12 @@
     originalMultiplicadores !== JSON.stringify(multiplicadores)
   );
   let hasUnsavedGradeConfigs = $derived(originalGradeConfigs !== JSON.stringify(gradeConfigs));
-  let hasUnsavedMultiplicadores = $derived(originalMultiplicadores !== JSON.stringify(multiplicadores));
+  let hasUnsavedMultiplicadores = $derived(multiplicadoresDirty);
 
   function captureOriginals() {
     originalGradeConfigs = JSON.stringify(gradeConfigs);
     originalMultiplicadores = JSON.stringify(multiplicadores);
+    multiplicadoresDirty = false;
   }
   let selectedTab = $state(TAB_NAMES[1]);
   let selectedCategory: CategoryConfig | null = $state(null);
@@ -372,6 +374,7 @@
   function updateMultiplicador(id: string, multiplicador: number) {
     const clamped = Math.max(0, Math.min(1, multiplicador));
     multiplicadores = multiplicadores.map(m => m.id === id ? { ...m, multiplicador: clamped } : m);
+    multiplicadoresDirty = true;
   }
 
   async function saveGradeConfigs() {
@@ -406,6 +409,7 @@
           await invoke("update_multiplicador", { id: m.id, multiplicador: m.multiplicador });
         }
         originalMultiplicadores = JSON.stringify(multiplicadores);
+        multiplicadoresDirty = false;
         onDataChange('multiplicador_calificacion', { immediate: true });
         await emit("show-toast", { message: "✅ Multiplicadores guardados correctamente", type: "success" });
       }
@@ -439,6 +443,7 @@
           await invoke("update_multiplicador", { id: m.id, multiplicador: m.multiplicador });
         }
         originalMultiplicadores = JSON.stringify(multiplicadores);
+        multiplicadoresDirty = false;
         onDataChange('multiplicador_calificacion', { immediate: true });
       }
       await emit("grade-configs-updated");
@@ -594,7 +599,7 @@
                         <span style="font-size:0.6rem;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">{m.id} · Ponderación por criterio</span>
                       </div>
                       <input type="number" value={m.multiplicador} step="0.01" min="0" max="1"
-                        oninput={(e) => { const v = parseFloat((e.target as HTMLInputElement).value) || 0; multiplicadores = multiplicadores.map(x => x.id === m.id ? { ...x, multiplicador: Math.max(0, Math.min(1, v)) } : x); }}
+                        oninput={(e) => { const v = parseFloat((e.target as HTMLInputElement).value) || 0; updateMultiplicador(m.id, v); }}
                         style="width:64px;padding:0.3rem 0.35rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:7px;color:#e2e8f0;font-size:0.85rem;font-weight:600;text-align:center;outline:none;flex-shrink:0;" />
                     </div>
                   </div>
@@ -730,7 +735,7 @@
                         <span style="font-size:0.65rem;color:#64748b;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;">{m.id} · Ponderación por criterio</span>
                       </div>
                       <input type="number" value={m.multiplicador} step="0.01" min="0" max="1"
-                        oninput={(e) => { const v = parseFloat((e.target as HTMLInputElement).value) || 0; multiplicadores = multiplicadores.map(x => x.id === m.id ? { ...x, multiplicador: Math.max(0, Math.min(1, v)) } : x); }}
+                        oninput={(e) => { const v = parseFloat((e.target as HTMLInputElement).value) || 0; updateMultiplicador(m.id, v); }}
                         style="width:72px;padding:0.35rem 0.4rem;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#e2e8f0;font-size:0.95rem;font-weight:600;text-align:center;outline:none;transition:border 0.2s;flex-shrink:0;" />
                     </div>
                   </div>
