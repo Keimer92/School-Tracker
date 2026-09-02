@@ -7,6 +7,7 @@
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
   import SearchFab from "./SearchFab.svelte";
+  import FiltersModalAndroid from "./FiltersModalAndroid.svelte";
   import { generarInstrumentoPDF, generarInstrumentosTodosPDF, INSTRUMENTO_OPS, type InstrumentoInput, type InstrumentoTipo } from "../lib/instrumentosPdf";
   import { generarInstrumentoExcel, listarPlantillas, asegurarCarpetaPlantillas, abrirCarpetaPlantillas, plantillasDir, type ExcelInstrumentoInput } from "../lib/instrumentosExcel";
   import { readFile } from "@tauri-apps/plugin-fs";
@@ -101,6 +102,14 @@
 
   let isMobile = $state(false);
   const isAndroid = /Android/i.test(navigator.userAgent);
+  const isWindows = /Windows/i.test(navigator.userAgent);
+  const isAndroidMobile = $derived(isAndroid || (isMobile && !isWindows));
+  let showFiltersModal = $state(false);
+  $effect(() => {
+    if (showFiltersModal) {
+      return registerBackHandler(() => { showFiltersModal = false; return true; });
+    }
+  });
   let currentStudentIdx = $state(0);
   let showStudentList = $state(false);
 
@@ -1326,6 +1335,33 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
 <div class="page-container notas-page-root" style="height: 100%; min-height: 0;">
   <div class="category-grid" style="display: flex; flex-direction: column; height: 100%;">
     <div style="{isAndroid && isMobile ? 'position: sticky; top: 0; z-index: 50; background: #0f172a; padding-bottom: 0.2rem; margin-bottom: 0.3rem;' : ''}">
+      <FiltersModalAndroid
+        bind:open={showFiltersModal}
+        {isAndroidMobile} {isMobile}
+        {anos} {colegios} {grados} {secciones}
+        {selectedAno} {selectedColegio} {selectedGrado} {selectedSeccion} {selectedSexo}
+      >
+        {#snippet extras()}
+          <FilterGroup label="Corte:" {isMobile}>
+            <select class="filter-select-solid" style="width:100%" bind:value={selectedCorte}>
+              {#each cortes as c}
+                <option value={c.id}>{c.nombre}</option>
+              {/each}
+            </select>
+          </FilterGroup>
+          <FilterGroup label="Asignatura:" {isMobile}>
+            <select class="filter-select-solid" style="width:100%"
+              value={selectedAsignatura}
+              onchange={(e) => { selectedAsignatura = Number(e.target.value); localStorage.setItem('notas-last-asignatura', String(selectedAsignatura)); }}>
+              {#each asignaturas as a}
+                <option value={a.id}>{a.nombre}</option>
+              {/each}
+            </select>
+          </FilterGroup>
+        {/snippet}
+      </FiltersModalAndroid>
+
+      {#if !isAndroidMobile}
       <FilterContainer {isMobile}>
         <FilterGroup label="Año Lectivo:" {isMobile}>
           <select class="filter-select" style="width:100%" bind:value={selectedAno}>
@@ -1427,6 +1463,54 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             </button>
           </div>
       </FilterContainer>
+      {/if}
+
+      {#if isAndroidMobile}
+        <div class="category-card" style="padding: 0.5rem; margin-top: 0.4rem; display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
+          <button type="button" onclick={() => { showFiltersModal = true; }}
+            style="height:38px;padding:0 0.8rem;font-size:0.78rem;background:rgba(96,165,250,0.18);color:#bfdbfe;border:1px solid rgba(96,165,250,0.4);border-radius:8px;display:flex;align-items:center;justify-content:center;gap:5px;font-weight:600;cursor:pointer;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            <span>🔍</span>
+            <span style="overflow:hidden;text-overflow:ellipsis;">
+              {colegios.find(c => c.id === selectedColegio)?.nombre || 'Colegio'} · {grados.find(g => g.id === selectedGrado)?.nombre || 'Grado'} · {secciones.find(s => s.id === selectedSeccion)?.nombre || 'Sección'}{selectedSexo ? ` · ${selectedSexo === 'M' ? 'Masc' : 'Fem'}` : ''}
+            </span>
+          </button>
+        </div>
+        <div class="category-card" style="padding: 0.5rem; margin-top: 0.3rem; display:flex;gap:0.3rem;align-items:center;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;">
+          <button onclick={() => { showInstrumentosModal = true; console.debug('[Instrumentos] abrir modal'); }} disabled={activeIndicadores.length === 0}
+            style="height:42px;padding:0 13px;font-size:0.75rem;background-color:{activeIndicadores.length > 0 ? '#0ea5e9' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{activeIndicadores.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{activeIndicadores.length > 0 ? '0 4px 14px rgba(14,165,233,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{activeIndicadores.length > 0 ? 1 : 0.7}"
+            title="Instrumentos de evaluación">
+            <span style="font-size:0.85rem;">📋</span>
+          </button>
+          <button onclick={undo} disabled={history.length === 0}
+            style="height:42px;width:42px;padding:0;font-size:0.85rem;background-color:{history.length > 0 ? '#f59e0b' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;cursor:{history.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{history.length > 0 ? '0 4px 14px rgba(245,158,11,0.4)' : 'none'};flex-shrink:0;opacity:{history.length > 0 ? 1 : 0.7}"
+            title="Deshacer (Ctrl+Z)">
+            <span style="font-size:1rem;">↩️</span>
+          </button>
+          <button onclick={redo} disabled={redoStack.length === 0}
+            style="height:42px;width:42px;padding:0;font-size:0.85rem;background-color:{redoStack.length > 0 ? '#f59e0b' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;cursor:{redoStack.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{redoStack.length > 0 ? '0 4px 14px rgba(245,158,11,0.4)' : 'none'};flex-shrink:0;opacity:{redoStack.length > 0 ? 1 : 0.7}"
+            title="Rehacer (Ctrl+Y)">
+            <span style="font-size:1rem;">↪️</span>
+          </button>
+          <button onclick={() => { distribuirTargets = {}; distribuirOverwrite = true; showDistribuirModal = true; }} disabled={activeIndicadores.length === 0 || filteredNotas.length === 0}
+            style="height:42px;padding:0 0.9rem;font-size:0.75rem;background-color:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? '#8b5cf6' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? '0 4px 14px rgba(139,92,246,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? 1 : 0.7}"
+            title="Distribuir notas automáticamente">
+            <span style="font-size:0.85rem;">✨</span>
+          </button>
+          <button onclick={handleGuardarNotas} disabled={!hasUnsavedChanges || saving || estudiantes.length === 0}
+            style="height:42px;padding:0 0.9rem;font-size:0.75rem;background-color:{!hasUnsavedChanges ? 'rgba(148,163,184,0.5)' : (saving ? '#059669' : '#10b981')};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{(!hasUnsavedChanges || saving || estudiantes.length === 0) ? 'default' : 'pointer'};transition:all 0.3s ease;box-shadow:{hasUnsavedChanges && !saving && estudiantes.length > 0 ? '0 4px 14px rgba(16,185,129,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{(hasUnsavedChanges && !saving && estudiantes.length > 0) ? 1 : 0.7}"
+            title="Guardar Notas (Ctrl+G)">
+            <span style="font-size:0.85rem;">{saving ? '⏳' : '💾'}</span>
+          </button>
+          <button onclick={() => {
+            if (!selectedCorte || !selectedAsignatura) { emit("show-toast", { message: "⚠️ Seleccione un corte y asignatura primero", type: "warning" }); return; }
+            deleteMode = 'all'; deleteStudentId = 0; deleteIndicatorId = 0; showDeleteModal = true;
+          }} disabled={estudiantes.length === 0}
+            style="height:42px;padding:0 0.9rem;font-size:0.75rem;background-color:{estudiantes.length > 0 ? '#ef4444' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{estudiantes.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{estudiantes.length > 0 ? '0 4px 14px rgba(239,68,68,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{estudiantes.length > 0 ? 1 : 0.7}"
+            title="Eliminar notas">
+            <span style="font-size:0.85rem;">🗑️</span>
+          </button>
+        </div>
+      {/if}
 
       <!-- Mobile: Card View -->
       {#if isMobile && !loading && estudiantes.length > 0}
