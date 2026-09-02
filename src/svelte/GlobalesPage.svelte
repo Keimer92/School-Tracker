@@ -511,7 +511,7 @@
           <div style="padding: 1.25rem;">
             <p style="margin:0 0 1rem 0;color:#94a3b8;font-size:0.8rem;">Personaliza las escalas de calificación.</p>
             <div style="display: grid; grid-template-columns: 1fr; gap: 0.85rem;">
-              {#each gradeConfigs as grade (grade.id)}
+              {#each gradeConfigs as grade, gi (gi)}
                 <div style="position:relative;background:rgba(255,255,255,0.03);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:14px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;">
                   <div style="position:absolute;top:0;left:0;width:3px;height:100%;background:{grade.color};border-radius:0 2px 2px 0;"></div>
                   <div style="padding:1rem 1rem 0.85rem 1.25rem;display:flex;flex-direction:column;gap:0.75rem;">
@@ -637,7 +637,7 @@
           <div style="padding: 1.5rem 2rem;">
             <p style="margin:0 0 1.5rem 0;color:#94a3b8;font-size:0.85rem;">Personaliza las escalas de calificación cualitativa, sus colores y puntajes mínimos.</p>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 1rem;">
-              {#each gradeConfigs as grade (grade.id)}
+              {#each gradeConfigs as grade, gi (gi)}
                 <div style="position:relative;background:rgba(255,255,255,0.03);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:16px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;transition:all 0.25s ease"
                   onmouseenter={(e) => { e.currentTarget.style.borderColor = grade.color + '44'; e.currentTarget.style.boxShadow = `0 8px 32px ${grade.color}22`; }}
                   onmouseleave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.boxShadow = 'none'; }}>
