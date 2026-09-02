@@ -509,6 +509,11 @@ async function route(req: Request, env: Env): Promise<Response> {
     const path = url.pathname;
 
     try {
+      // ── Endpoints públicos (no requieren schoolKey) ──
+      if (req.method === 'GET' && path === '/ping') {
+        return jsonCors({ ok: true, serverTime: new Date().toISOString() });
+      }
+
       // ── Auth/registro NO requiere schoolKey ──
       if (path === '/auth') {
         const body: any = await req.json();
@@ -654,6 +659,13 @@ async function route(req: Request, env: Env): Promise<Response> {
         const hubUrl = new URL(url.toString());
         hubUrl.pathname = '/connect';
         return stub.fetch(new Request(hubUrl.toString(), req));
+      }
+
+      if (path === '/ping') {
+        // Health check público (sin school key): devuelve 200 mientras el Worker
+        // esté vivo. Usado por el frontend para detectar rate limit / caídas
+        // ANTES de intentar un restore largo que pueda fallar silencioso.
+        return jsonCors({ ok: true, serverTime: new Date().toISOString() });
       }
 
       if (path === '/hello') {

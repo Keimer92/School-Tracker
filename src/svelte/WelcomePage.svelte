@@ -194,6 +194,47 @@
     return /1106|10000|429|503|502|504|timeout|timed out|exceeded|quota|limit|rate|overloaded|econn|network|fetch failed|cors|invalid request/i.test(m);
   }
 
+  /** Health check rápido al Worker: ¿está vivo y responde? */
+  async function pingWorker(): Promise<{ ok: boolean; ms: number; error?: string }> {
+    const url = (import.meta.env.VITE_D1_WORKER_URL || 'https://schooltracker-d1-sync.pedroluisnfc.workers.dev') + '/ping';
+    const t0 = Date.now();
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 8000);
+      const res = await fetch(url, { method: 'GET', signal: ctrl.signal });
+      clearTimeout(t);
+      return { ok: res.ok, ms: Date.now() - t0 };
+    } catch (e: any) {
+      return { ok: false, ms: Date.now() - t0, error: typeof e === 'string' ? e : (e?.message || String(e)) };
+    }
+  }
+
+  /** Horas/minutos hasta el reinicio de cuota diaria de Cloudflare (00:00 UTC). */
+  function cloudflareResetInfo(): string {
+    const now = new Date();
+    const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0));
+    const ms = next.getTime() - now.getTime();
+    const h = Math.floor(ms / 3600000);
+    const min = Math.floor((ms % 3600000) / 60000);
+    if (h > 0) return `${h}h ${min}min`;
+    return `${min} min`;
+  }
+
+  /** Mensaje amable para errores transitorios (cuota free agotada, etc.). */
+  function friendlyCloudError(msg: string): { title: string; body: string } {
+    const m = msg.toLowerCase();
+    if (/1106|10000|429|quota|exceeded|rate|limit/.test(m)) {
+      return {
+        title: '☁️⚠️ Límite diario de Cloudflare alcanzado',
+        body: `El plan gratuito de Cloudflare Workers tiene un tope diario de ~100.000 solicitudes. Si alcanzaste el límite, la cuota se reinicia a las 00:00 UTC (aprox. ${cloudflareResetInfo()}). Puedes esperar y reintentar, o configurar manualmente y sincronizar mañana cuando la cuota se haya reiniciado.`,
+      };
+    }
+    if (/timeout|econn|network|fetch failed|overloaded/.test(m)) {
+      return { title: 'No se pudo conectar con la nube', body: 'Revisa tu conexión a internet e inténtalo de nuevo en unos minutos.' };
+    }
+    return { title: 'No se pudo conectar con la nube', body: 'Ocurrió un error al hablar con el servidor. Inténtalo de nuevo o configura manualmente.' };
+  }
+
   let showCloudRetry = $state(false);
   let cloudRetryError = $state('');
 
@@ -227,6 +268,20 @@
         skipSync: true,
       });
       if (res.status === 'ok') {
+        // Health check al Worker ANTES del restore: si la cuota free está
+        // agotada, /ping puede responder 1106/429 o devolver error y el
+        // restore "completa" sin aplicar filas. Mejor avisar al usuario ya.
+        loadingMessage = 'Verificando conexión con la nube...';
+        const ping = await pingWorker();
+        if (!ping.ok) {
+          const m = ping.error || `HTTP no OK (${ping.ms}ms)`;
+          cloudRetryError = isTransientCloudError(m) ? m : `ping: ${m}`;
+          showCloudRetry = true;
+          loading = false; loadingMessage = '';
+          setBackAuthInProgress(false);
+          return;
+        }
+
         loadingMessage = 'Descargando datos de la nube...';
         let restoreUnlisten: (() => void) | null = null;
         try {
@@ -235,8 +290,11 @@
           });
         } catch { /* ignorable */ }
         let restoreErrMsg = '';
+        let restorePulled = 0;
         try {
-          await invoke('d1_restore_from_cloud');
+          const r = await invoke<{ ok?: boolean; pulled?: Record<string, number> }>('d1_restore_from_cloud');
+          const sum = r?.pulled ? Object.values(r.pulled).reduce((a, b) => a + (Number(b) || 0), 0) : 0;
+          restorePulled = sum;
         } catch (restoreErr: any) {
           restoreErrMsg = typeof restoreErr === 'string' ? restoreErr : (restoreErr?.message || String(restoreErr));
           console.error('[Cloud] restore falló:', restoreErr);
@@ -254,15 +312,12 @@
         }
         if (restoreErrMsg) {
           if (isTransientCloudError(restoreErrMsg)) {
-            // Error transitorio (cuota, red). NO saltar al wizard automáticamente
-            // porque la nube puede tener datos que aún no pudimos descargar.
             cloudRetryError = restoreErrMsg;
             showCloudRetry = true;
             loading = false; loadingMessage = '';
             setBackAuthInProgress(false);
             return;
           }
-          // Error no transitorio: caer al wizard normalmente
           errorMsg = 'No se pudo descargar datos de la nube: ' + restoreErrMsg;
           loading = false; loadingMessage = '';
           goToWizard();
@@ -274,8 +329,20 @@
           await invoke('set_app_initialized');
           emit('welcome-complete');
           setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
+        } else if (restorePulled === 0) {
+          // Restore OK sin error pero la nube devolvió 0 filas para esta cuenta.
+          // Mostrar modal informativo: el Worker responde, pero tu namespace está
+          // vacío. NO saltar al wizard a ciegas — la cuota pudo hacer que el
+          // pull se quedara corto. El usuario decide.
+          cloudRetryError = 'La nube responde pero no se encontraron datos para esta cuenta (0 filas aplicadas). Esto puede ocurrir si alcanzaste el límite gratuito de Cloudflare y el pull quedó incompleto, o si la cuenta realmente está vacía.';
+          showCloudRetry = true;
+          loading = false; loadingMessage = '';
+          setBackAuthInProgress(false);
+          return;
         } else {
-          // Restore OK pero sin datos: cuenta nueva en la nube → wizard
+          // Restore aplicó filas pero is_app_initialized sigue false: raro
+          // (los catálogos seed_default no se ejecutaron). Asumimos vacío y
+          // caemos al wizard normalmente.
           loading = false; loadingMessage = '';
           goToWizard();
           return;
@@ -742,15 +809,15 @@
     </div>
   {/if}
 
-  <!-- Modal: error transitorio de la nube (cuota agotada / red). Permite reintentar. -->
+  <!-- Modal: error transitorio de la nube (cuota agotada / red / pull vacío). Permite reintentar. -->
   {#if showCloudRetry}
+    {@const info = friendlyCloudError(cloudRetryError)}
     <div class="loading-overlay">
       <div class="loading-modal" style="gap:0.6rem;">
         <div style="font-size:2rem;">☁️⚠️</div>
-        <h3 style="margin:0;color:#f1f5f9;font-size:1.05rem;font-weight:700;">No se pudo conectar con la nube</h3>
+        <h3 style="margin:0;color:#f1f5f9;font-size:1.05rem;font-weight:700;text-align:center;">{info.title}</h3>
         <p style="margin:0;color:#94a3b8;font-size:0.82rem;text-align:center;line-height:1.4;">
-          Posiblemente alcanzaste el límite diario del plan gratuito de Cloudflare o hay un problema de red.
-          Tus datos siguen a salvo en la nube.
+          {info.body}
         </p>
         {#if cloudRetryError}
           <details style="width:100%;max-width:320px;">
