@@ -4,7 +4,8 @@ import { markDirty, markAllDirty, markAllClean, hasDirtyTables } from './dirtyTr
 
 const STORAGE_KEY = 'schooltracker-google-drive-settings';
 const SYNC_FILE_PREFIX = 'SchoolTracker_Sync';
-const MAX_SYNC_FILES = 3;
+// Solo mantenemos el respaldo más reciente en Drive (uno por cuenta).
+const MAX_SYNC_FILES = 1;
 // Carpeta destino en Drive: Keimer Labs/School Tracker MINED
 const DRIVE_FOLDER_PATH = ['Keimer Labs', 'School Tracker MINED'];
 const AUTO_BACKUP_KEY = 'drive_auto_backup_minutes';

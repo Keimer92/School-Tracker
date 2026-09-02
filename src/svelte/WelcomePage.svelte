@@ -478,11 +478,32 @@
       loadingMessage = 'Descargando respaldo desde Google Drive...';
       await driveSyncService.pullAll();
       try { await invoke('gd_reload_database'); } catch {}
+      // CRÍTICO: tras restaurar Drive, sincronizar LIMPIO con D1.
+      // Si D1 está en cuota, el reset+sync falla y dejamos al usuario
+      // trabajando solo con Drive hasta que la cuota se libere (parando
+      // el auto-sync para que no sobrescriba los datos de Drive con un
+      // pull de D1 antiguo).
+      loadingMessage = 'Sincronizando respaldo con la nube...';
+      let d1ResyncOk = false;
+      try {
+        await invoke('d1_reset_remote');
+        await invoke('d1_sync_all', { full: true });
+        d1ResyncOk = true;
+      } catch (resyncErr) {
+        console.warn('[Cloud] resync tras Drive falló (probable cuota):', resyncErr);
+        // Parar auto-sync para evitar pisar datos de Drive con D1 antiguo.
+        try {
+          const { syncService } = await import('../lib/syncService');
+          await syncService.stopPeriodicSync();
+        } catch {}
+      }
       const hasData = await invoke('is_app_initialized');
       if (hasData) {
         await invoke('set_app_initialized');
         emit('welcome-complete');
-        setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
+        if (d1ResyncOk) {
+          setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
+        }
         return;
       }
       errorMsg = 'Se descargó el respaldo de Drive pero la base quedó vacía. Intenta de nuevo o configura manualmente.';
