@@ -63,6 +63,8 @@
     originalGradeConfigs !== JSON.stringify(gradeConfigs) ||
     originalMultiplicadores !== JSON.stringify(multiplicadores)
   );
+  let hasUnsavedGradeConfigs = $derived(originalGradeConfigs !== JSON.stringify(gradeConfigs));
+  let hasUnsavedMultiplicadores = $derived(originalMultiplicadores !== JSON.stringify(multiplicadores));
 
   function captureOriginals() {
     originalGradeConfigs = JSON.stringify(gradeConfigs);
@@ -372,6 +374,49 @@
     multiplicadores = multiplicadores.map(m => m.id === id ? { ...m, multiplicador: clamped } : m);
   }
 
+  async function saveGradeConfigs() {
+    saving = true;
+    try {
+      const curr = JSON.stringify(gradeConfigs);
+      if (originalGradeConfigs !== curr) {
+        for (const gc of gradeConfigs) {
+          await invoke("update_grade_config", {
+            id: gc.id, nombre: gc.nombre, color: gc.color, minimo: gc.minimo, oldId: gc.id
+          });
+        }
+        originalGradeConfigs = JSON.stringify(gradeConfigs);
+        onDataChange('configuracion_calificacion', { immediate: true });
+        await emit("grade-configs-updated");
+        await emit("show-toast", { message: "✅ Calificaciones guardadas correctamente", type: "success" });
+      }
+    } catch (error) {
+      console.error("Error saving grade configs:", error);
+      await emit("show-toast", { message: "❌ Error al guardar calificaciones: " + error, type: "error" });
+    } finally {
+      saving = false;
+    }
+  }
+
+  async function saveMultiplicadores() {
+    saving = true;
+    try {
+      const currMult = JSON.stringify(multiplicadores);
+      if (originalMultiplicadores !== currMult) {
+        for (const m of multiplicadores) {
+          await invoke("update_multiplicador", { id: m.id, multiplicador: m.multiplicador });
+        }
+        originalMultiplicadores = JSON.stringify(multiplicadores);
+        onDataChange('multiplicador_calificacion', { immediate: true });
+        await emit("show-toast", { message: "✅ Multiplicadores guardados correctamente", type: "success" });
+      }
+    } catch (error) {
+      console.error("Error saving multiplicadores:", error);
+      await emit("show-toast", { message: "❌ Error al guardar multiplicadores: " + error, type: "error" });
+    } finally {
+      saving = false;
+    }
+  }
+
   async function handleSaveChanges() {
     saving = true;
     try {
@@ -384,6 +429,7 @@
             id: gc.id, nombre: gc.nombre, color: gc.color, minimo: gc.minimo, oldId: gc.id
           });
         }
+        originalGradeConfigs = JSON.stringify(gradeConfigs);
         onDataChange('configuracion_calificacion', { immediate: true });
       }
       // Guardar multiplicadores modificados
@@ -392,9 +438,9 @@
         for (const m of multiplicadores) {
           await invoke("update_multiplicador", { id: m.id, multiplicador: m.multiplicador });
         }
+        originalMultiplicadores = JSON.stringify(multiplicadores);
         onDataChange('multiplicador_calificacion', { immediate: true });
       }
-      captureOriginals();
       await emit("grade-configs-updated");
       await emit("show-toast", { message: "✅ Cambios guardados correctamente", type: "success" });
     } catch (error) {
@@ -513,6 +559,17 @@
                 </div>
               {/each}
             </div>
+{#if hasUnsavedGradeConfigs}
+              <div style="display:flex;justify-content:flex-end;margin-top:1rem;">
+                <button onclick={saveGradeConfigs} disabled={saving}
+                  style="padding:0.65rem 1.5rem;background:linear-gradient(135deg,#60a5fa,#3b82f6);border:none;border-radius:10px;color:white;font-size:0.85rem;font-weight:700;cursor:pointer;box-shadow:0 6px 22px rgba(59,130,246,0.35);transition:all 0.2s ease;display:flex;align-items:center;gap:0.5rem;{saving ? 'opacity:0.6;cursor:not-allowed;' : ''}"
+                  onmouseenter={(e) => { if (!saving) e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                  onmouseleave={(e) => { if (!saving) e.currentTarget.style.transform = 'translateY(0)'; }}
+                  onmousedown={(e) => { if (!saving) e.currentTarget.style.transform = 'translateY(1px)'; }}>
+                  {saving ? '⏳ Guardando...' : '💾 Guardar calificaciones'}
+                </button>
+              </div>
+            {/if}
           </div>
         </div>
         <!-- Multiplicadores de Criterios (Mobile) -->
@@ -544,6 +601,17 @@
                 {/each}
               {/if}
             </div>
+{#if hasUnsavedMultiplicadores}
+              <div style="display:flex;justify-content:flex-end;margin-top:1rem;">
+                <button onclick={saveMultiplicadores} disabled={saving}
+                  style="padding:0.65rem 1.5rem;background:linear-gradient(135deg,#a78bfa,#8b5cf6);border:none;border-radius:10px;color:white;font-size:0.85rem;font-weight:700;cursor:pointer;box-shadow:0 6px 22px rgba(139,92,246,0.35);transition:all 0.2s ease;display:flex;align-items:center;gap:0.5rem;{saving ? 'opacity:0.6;cursor:not-allowed;' : ''}"
+                  onmouseenter={(e) => { if (!saving) e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                  onmouseleave={(e) => { if (!saving) e.currentTarget.style.transform = 'translateY(0)'; }}
+                  onmousedown={(e) => { if (!saving) e.currentTarget.style.transform = 'translateY(1px)'; }}>
+                  {saving ? '⏳ Guardando...' : '💾 Guardar multiplicadores'}
+                </button>
+              </div>
+            {/if}
           </div>
         </div>
       </div>
@@ -625,6 +693,17 @@
                 </div>
               {/each}
             </div>
+{#if hasUnsavedGradeConfigs}
+            <div style="display:flex;justify-content:flex-end;margin-top:1.25rem;">
+              <button onclick={saveGradeConfigs} disabled={saving}
+                style="padding:0.7rem 1.75rem;background:linear-gradient(135deg,#60a5fa,#3b82f6);border:none;border-radius:11px;color:white;font-size:0.9rem;font-weight:700;cursor:pointer;box-shadow:0 6px 22px rgba(59,130,246,0.3);transition:all 0.2s ease;display:flex;align-items:center;gap:0.5rem;{saving ? 'opacity:0.6;cursor:not-allowed;' : ''}"
+                onmouseenter={(e) => { if (!saving) e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                onmouseleave={(e) => { if (!saving) e.currentTarget.style.transform = 'translateY(0)'; }}
+                onmousedown={(e) => { if (!saving) e.currentTarget.style.transform = 'translateY(1px)'; }}>
+                {saving ? '⏳ Guardando...' : '💾 Guardar calificaciones'}
+              </button>
+            </div>
+          {/if}
           </div>
         </div>
         <!-- Multiplicadores de Criterios (Desktop) -->
@@ -658,6 +737,17 @@
                 {/each}
               {/if}
             </div>
+{#if hasUnsavedMultiplicadores}
+            <div style="display:flex;justify-content:flex-end;margin-top:1.25rem;">
+              <button onclick={saveMultiplicadores} disabled={saving}
+                style="padding:0.7rem 1.75rem;background:linear-gradient(135deg,#a78bfa,#8b5cf6);border:none;border-radius:11px;color:white;font-size:0.9rem;font-weight:700;cursor:pointer;box-shadow:0 6px 22px rgba(139,92,246,0.3);transition:all 0.2s ease;display:flex;align-items:center;gap:0.5rem;{saving ? 'opacity:0.6;cursor:not-allowed;' : ''}"
+                onmouseenter={(e) => { if (!saving) e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                onmouseleave={(e) => { if (!saving) e.currentTarget.style.transform = 'translateY(0)'; }}
+                onmousedown={(e) => { if (!saving) e.currentTarget.style.transform = 'translateY(1px)'; }}>
+                {saving ? '⏳ Guardando...' : '💾 Guardar multiplicadores'}
+              </button>
+            </div>
+          {/if}
           </div>
         </div>
       {#each CATEGORIES as cat (cat.title)}
