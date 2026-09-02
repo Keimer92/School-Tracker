@@ -20,7 +20,7 @@
   interface CategoryItem { id: number; nombre: string; }
 
   let {
-    open = false,
+    open = $bindable(false),
     isAndroidMobile = false,
     isMobile = false,
     title = '🔍 Filtros',
@@ -65,13 +65,15 @@
     onChangeSexo?: (v: string) => void;
     extras?: import('svelte').Snippet;
   } = $props();
+
+  function close() { open = false; }
 </script>
 
 {#if open && isAndroidMobile}
-  <div class="modal-overlay" onclick={() => open = false} style="z-index:2000">
+  <div class="modal-overlay" onclick={close} style="z-index:2000">
     <div class="modal-content filters-solid" onclick={(e) => e.stopPropagation()}
       style="width:min(380px, calc(100vw - 32px));max-width:min(380px, calc(100vw - 32px));max-height:85vh;overflow-y:auto;padding:1.25rem;text-align:left;position:relative">
-      <button type="button" onclick={() => open = false} title="Cerrar"
+      <button type="button" onclick={close} title="Cerrar"
         style="position:absolute;top:.6rem;right:.6rem;width:32px;height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:#1e293b;color:#e2e8f0;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1">✕</button>
       <h3 style="margin:0 0 1rem;color:#f1f5f9;font-size:1.05rem;padding-right:2.2rem">{title}</h3>
       <div style="display:flex;flex-direction:column;gap:0.75rem">
