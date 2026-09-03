@@ -331,6 +331,20 @@ async function downloadAndRestore(token: string, fileId: string): Promise<void> 
   try { await invoke('d1_reset_device_id'); } catch {}
   syncManager.setState({ lastDownload: now() });
   markAllClean();
+  // Refrescar TODAS las páginas con los datos del respaldo recién restaurado.
+  // Sin estos eventos, las páginas ya montadas siguen mostrando la caché/anterior
+  // en memoria y no se enteran de que la base se sobrescribió.
+  try {
+    await emit('catalog-updated', { timestamp: Date.now() });
+    await emit('student-updated', { timestamp: Date.now() });
+    await emit('notas-updated', { timestamp: Date.now() });
+    await emit('asistencia-updated', { timestamp: Date.now() });
+    await emit('subjects-updated', { timestamp: Date.now() });
+    await emit('grade-configs-updated', { timestamp: Date.now() });
+    await emit('data-updated', { timestamp: Date.now() });
+  } catch (e) {
+    console.error('[DriveSync] Error emitiendo eventos post-restore:', e);
+  }
 }
 
 export const driveSyncService = {
