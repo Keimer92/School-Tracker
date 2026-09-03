@@ -21,6 +21,7 @@ import DashboardPage from "./svelte/DashboardPage.svelte";
 import CloudPage from "./svelte/CloudPage.svelte";
   import Sidebar from "./svelte/Sidebar.svelte";
   import WelcomePage from "./svelte/WelcomePage.svelte";
+  import AndroidDrawer from "./svelte/AndroidDrawer.svelte";
 
   type Tab = "dashboard" | "notas" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "cloud";
 
@@ -387,28 +388,13 @@ import CloudPage from "./svelte/CloudPage.svelte";
   style="grid-template-columns: {isMobile ? '0px 0px 1fr' : sidebarWidth + 'px 4px 1fr'}; padding-bottom: {isMobile ? 'env(safe-area-inset-bottom, 0px)' : '0'};"
 >
   {#if isMobile}
-      <div class="mobile-header" class:encima-drawer={drawerOpen}>
-        <!-- El botón queda VISIBLE con el drawer abierto: sirve para cerrarlo -->
-        <button class="mobile-menu-btn {drawerOpen ? 'drawer-abierto' : ''}" onclick={toggleDrawer}><span>{drawerOpen ? '✕' : '☰'}</span></button>
-        <span class="mobile-title">
-          <img class="mobile-title-icon" src={appIcon} alt="" draggable="false" />
-          School Tracker
-        </span>
-        <!-- Card/chip de nube a la derecha del título (tap → pestaña Nube) -->
-        <button
-          class="mobile-sync-chip"
-          class:ok={d1Status === 'success'}
-          class:syncing={d1Status === 'syncing'}
-          class:err={d1Status === 'error'}
-          onclick={() => handleTabChange('cloud')}
-          title="Estado de sincronización — tocar para abrir Nube"
-        >
-          <span class="msc-dot"></span><span>☁️</span>
-        </button>
-      </div>
-  {/if}
-  {#if isMobile}
-    <div class="drawer-backdrop {drawerOpen ? '' : 'closed'}" onclick={closeDrawer}></div>
+    <AndroidDrawer
+      {drawerOpen}
+      {d1Status}
+      {toggleDrawer}
+      {closeDrawer}
+      onNavigate={handleTabChange}
+    />
   {/if}
 
     <Sidebar
