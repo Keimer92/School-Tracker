@@ -303,28 +303,21 @@
         } catch (restoreErr: any) {
           restoreErrMsg = typeof restoreErr === 'string' ? restoreErr : (restoreErr?.message || String(restoreErr));
           console.error('[Cloud] restore falló:', restoreErr);
-          try {
-            await invoke('d1_sync_all', { full: true });
-            restoreErrMsg = '';
-          } catch (syncErr: any) {
-            const m = typeof syncErr === 'string' ? syncErr : (syncErr?.message || String(syncErr));
-            restoreErrMsg = restoreErrMsg ? `${restoreErrMsg} | ${m}` : m;
-            console.error('[Cloud] sync full falló:', syncErr);
-          }
+          // SIN fallback silencioso: si el restore falla mostramos las opciones
+          // (reintentar / Drive / manual) para que el usuario decida. Un
+          // d1_sync_all automático aquí podía descargar datos en mal estado
+          // y saltarse por completo la opción de restaurar desde Drive.
         } finally {
           if (restoreUnlisten) restoreUnlisten();
         }
         if (restoreErrMsg) {
-          if (isTransientCloudError(restoreErrMsg)) {
-            cloudRetryError = restoreErrMsg;
-            showCloudRetry = true;
-            loading = false; loadingMessage = '';
-            setBackAuthInProgress(false);
-            return;
-          }
-          errorMsg = 'No se pudo descargar datos de la nube: ' + restoreErrMsg;
+          // SIEMPRE ofrecer opciones (reintentar / Drive / manual) cuando el
+          // restore falla — también en Android. Nunca descargar automáticamente
+          // ni mandar al wizard sin preguntar.
+          cloudRetryError = restoreErrMsg;
+          showCloudRetry = true;
           loading = false; loadingMessage = '';
-          goToWizard();
+          setBackAuthInProgress(false);
           return;
         }
         loadingMessage = 'Verificando datos...';
@@ -388,13 +381,10 @@
       goToWizard();
     } catch (e: any) {
       const m = typeof e === 'string' ? e : (e?.message || String(e));
-      if (isTransientCloudError(m)) {
-        cloudRetryError = m;
-        showCloudRetry = true;
-      } else {
-        errorMsg = 'No se pudo descargar datos: ' + m;
-        goToWizard();
-      }
+      // Cualquier fallo del reintento ofrece opciones (Drive incluido),
+      // nunca wizard automático ni descarga silenciosa.
+      cloudRetryError = m;
+      showCloudRetry = true;
     }
     loading = false;
     loadingMessage = '';
