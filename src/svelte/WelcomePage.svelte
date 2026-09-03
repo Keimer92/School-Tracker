@@ -687,13 +687,13 @@
           <div class="welcome-brand-row">
             <img class="welcome-logo welcome-logo-sm" src={appIcon} alt="School Tracker Pro" draggable="false" />
             <div class="welcome-brand-text">
-              <h1 class="welcome-title welcome-title-sm">School Tracker Pro</h1>
+              <h1 class="welcome-title welcome-title-sm">School Tracker</h1>
               <p class="welcome-subtitle">Selecciona cómo quieres iniciar</p>
             </div>
           </div>
         {:else}
           <img class="welcome-logo" src={appIcon} alt="School Tracker Pro" draggable="false" />
-          <h1 class="welcome-title">School Tracker Pro</h1>
+          <h1 class="welcome-title">School Tracker</h1>
           <p class="welcome-subtitle">Selecciona cómo quieres iniciar</p>
         {/if}
       </div>
