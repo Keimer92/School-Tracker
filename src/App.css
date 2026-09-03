@@ -785,7 +785,7 @@ body {
   background: none;
   border: none;
   color: var(--text-bright);
-  font-size: 1.5rem;
+  font-size: 1.8rem;
   cursor: pointer;
   padding: 8px;
   transition: opacity 0.15s ease, visibility 0.15s ease;
