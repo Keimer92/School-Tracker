@@ -179,6 +179,16 @@ export async function iniciarSesionGoogleConNube(opts?: {
     // en el archivo de la cuenta anterior (que sigue activo hasta este momento).
     if (email) {
       try {
+        // Antes de cambiar el archivo de BD activo (que invalida la cuenta
+        // saliente en local), subir cualquier cambio pendiente a Drive. Si
+        // falla, logueamos y seguimos — el cambio de cuenta no debe bloquearse
+        // por la nube.
+        try {
+          const { driveAutoBackup } = await import('./driveAutoBackup');
+          await driveAutoBackup.flushBeforeAccountSwap();
+        } catch (e) {
+          console.warn('[CloudLogin] flush Drive antes del swap falló:', e);
+        }
         await invoke('open_account_db', { email, migrateFromDefault: true });
         setCurrentEmail(email);
       } catch (e) {

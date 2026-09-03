@@ -338,6 +338,7 @@ export const driveSyncService = {
   _syncLock: false,
 
   listSyncFiles,
+  hasLocalChanges,
 
   /** Info del respaldo más reciente en Drive para esta cuenta (o null si no hay). */
   getLatestBackup: async (): Promise<DriveFile | null> => {

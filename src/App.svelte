@@ -7,6 +7,7 @@
   import { syncService } from "./lib/syncService";
   import { isD1Configured, d1SyncManager } from "./lib/syncService";
   import { driveSyncService } from "./lib/driveSyncService";
+  import { driveAutoBackup } from "./lib/driveAutoBackup";
   import { ensureWsSync, stopWsSync } from "./lib/wsSyncService";
   import { getLocalDateISOString } from "./lib/dateUtils";
   import appIcon from "./assets/app-icon.png";
@@ -308,6 +309,8 @@ import CloudPage from "./svelte/CloudPage.svelte";
       // Sincronización automática SOLO con Cloudflare D1 (si está configurado).
       // Google Drive: respaldo automático (push) cada N minutos + manual desde CloudPage.
       driveSyncService.ensureAutoBackup();
+      // Scheduler híbrido de Drive (timer inteligente + triggers pasivos + cuenta).
+      driveAutoBackup.start();
 
       // Pull bilateral pasivo: traer cambios de otros dispositivos sin esperar
       // al timer ni generar un cambio local.
@@ -367,6 +370,7 @@ import CloudPage from "./svelte/CloudPage.svelte";
       window.visualViewport.removeEventListener("resize", applySafeAreas);
       window.removeEventListener("resize", applySafeAreas);
     }
+    driveAutoBackup.stop();
   });
 </script>
 

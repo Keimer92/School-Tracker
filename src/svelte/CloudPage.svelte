@@ -447,6 +447,14 @@
   /** Abre la base de datos local de la cuenta (cada cuenta tiene su propio
    *  archivo SQLite). No destruye nada: solo cambia qué archivo usa la app. */
   async function openAccountDb(email: string) {
+    // Antes de cambiar la BD activa, subir los cambios pendientes a Drive de
+    // la cuenta saliente. Si falla, logueamos y seguimos.
+    try {
+      const { driveAutoBackup } = await import('../lib/driveAutoBackup');
+      await driveAutoBackup.flushBeforeAccountSwap();
+    } catch (e) {
+      console.warn('[CloudPage] flush Drive antes del swap falló:', e);
+    }
     await invoke("open_account_db", { email, migrateFromDefault: true });
     setCurrentEmail(email);
   }

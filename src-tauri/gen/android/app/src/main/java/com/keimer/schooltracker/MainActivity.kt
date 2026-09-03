@@ -461,4 +461,95 @@ class MainActivity : TauriActivity() {
       webView?.evaluateJavascript(js, null)
     }
   }
+
+  /**
+   * Devuelve el estado actual de la batería como string "STATUS|LEVEL"
+   * (STATUS = CHARGING | DISCHARGING | FULL | UNKNOWN, LEVEL = 0..100).
+   * Se invoca desde Rust (gd_battery_status) vía JNI.
+   * Cachea el último estado conocido 60 s para no martillar al sistema.
+   */
+  fun currentBatteryStatus(): String {
+    try {
+      val now = System.currentTimeMillis()
+      @Suppress("NAME_SHADOWING")
+      val cached = lastBatteryStatusResult
+      if (cached != null && (now - lastBatteryStatusAt) < 60_000L) {
+        return cached
+      }
+      val intent = registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
+      val status = intent?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
+      val level = intent?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, 100) ?: 100
+      val scale = intent?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, 100) ?: 100
+      val pct = if (scale > 0) (level * 100 / scale) else 100
+      val statusStr = when (status) {
+        android.os.BatteryManager.BATTERY_STATUS_CHARGING -> "CHARGING"
+        android.os.BatteryManager.BATTERY_STATUS_FULL -> "FULL"
+        android.os.BatteryManager.BATTERY_STATUS_DISCHARGING -> "DISCHARGING"
+        android.os.BatteryManager.BATTERY_STATUS_NOT_CHARGING -> "DISCHARGING"
+        else -> "UNKNOWN"
+      }
+      val result = "$statusStr|$pct"
+      lastBatteryStatusResult = result
+      lastBatteryStatusAt = now
+      android.util.Log.d("MainActivity", "Battery status: $result")
+      return result
+    } catch (e: Exception) {
+      android.util.Log.e("MainActivity", "Error leyendo batería: ${e.message}")
+      return "UNKNOWN|100"
+    }
+  }
+
+  @Volatile private var lastBatteryStatusResult: String? = null
+  @Volatile private var lastBatteryStatusAt: Long = 0L
+
+  /**
+   * Muestra una notificación nativa en el canal "drive_backups" para
+   * notificar al usuario sobre el estado del respaldo automático a Drive.
+   * Se invoca desde Rust (gd_show_notification) vía JNI.
+   */
+  fun showDriveBackupNotification(title: String, body: String) {
+    try {
+      val channelId = "drive_backups"
+      val notificationManager = getSystemService(NotificationManager::class.java)
+
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val channel = NotificationChannel(
+          channelId,
+          "Respaldos a Drive",
+          NotificationManager.IMPORTANCE_DEFAULT
+        ).apply {
+          description = "Estado de los respaldos automáticos a Google Drive"
+        }
+        notificationManager.createNotificationChannel(channel)
+      }
+
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+      ) {
+        android.util.Log.w("MainActivity", "Sin permiso POST_NOTIFICATIONS, no se muestra")
+        return
+      }
+
+      val builder: Notification.Builder =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+          Notification.Builder(this, channelId)
+        } else {
+          @Suppress("DEPRECATION")
+          Notification.Builder(this)
+        }
+
+      val notification = builder
+        .setSmallIcon(android.R.drawable.ic_dialog_info)
+        .setContentTitle(title)
+        .setContentText(body)
+        .setAutoCancel(true)
+        .setPriority(Notification.PRIORITY_DEFAULT)
+        .build()
+
+      notificationManager.notify(2002, notification)
+      android.util.Log.d("MainActivity", "Drive notification: $title")
+    } catch (e: Exception) {
+      android.util.Log.e("MainActivity", "Error mostrando drive notification: ${e.message}")
+    }
+  }
 }

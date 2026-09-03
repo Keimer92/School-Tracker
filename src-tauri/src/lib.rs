@@ -798,6 +798,77 @@ async fn gd_request_notification_permission() -> Result<(), String> {
     }
 }
 
+/// Estado de batería leído vía JNI en Android (no depende del WebView).
+/// En desktop devuelve `charging: true, level: 100` para que el scheduler
+/// nunca se bloquee por batería.
+#[derive(serde::Serialize, Clone, Debug)]
+struct BatteryStatus {
+    charging: bool,
+    level: i32,
+    source: &'static str,
+}
+
+#[tauri::command]
+async fn gd_battery_status() -> Result<BatteryStatus, String> {
+    #[cfg(target_os = "android")]
+    {
+        let (vm, activity) = obtain_native_bridge()?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        let j_obj = env
+            .call_method(activity.as_obj(), "currentBatteryStatus", "()Ljava/lang/String;", &[])
+            .map_err(|e| format!("Error JNI currentBatteryStatus: {}", e))?
+            .l()
+            .map_err(|e| e.to_string())?;
+        if j_obj.is_null() {
+            return Ok(BatteryStatus { charging: true, level: 100, source: "jni_null" });
+        }
+        let s: String = env
+            .get_string(&jni::objects::JString::from(j_obj))
+            .map_err(|e| e.to_string())?
+            .into();
+        // Formato esperado: "CHARGING|85" (CHARGING / DISCHARGING / FULL / UNKNOWN)
+        let mut parts = s.splitn(2, '|');
+        let status = parts.next().unwrap_or("UNKNOWN").trim().to_string();
+        let level: i32 = parts
+            .next()
+            .and_then(|lvl| lvl.trim().parse::<i32>().ok())
+            .unwrap_or(100)
+            .clamp(0, 100);
+        let charging = matches!(status.as_str(), "CHARGING" | "FULL");
+        Ok(BatteryStatus { charging, level, source: "jni" })
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        Ok(BatteryStatus { charging: true, level: 100, source: "desktop_default" })
+    }
+}
+
+/// Muestra una notificación nativa Android usando el canal "drive_backups"
+/// (creado en MainActivity.onCreate). En desktop es un no-op silencioso.
+#[tauri::command]
+async fn gd_show_notification(title: String, body: String) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        let (vm, activity) = obtain_native_bridge()?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        let j_title = env.new_string(&title).map_err(|e| e.to_string())?;
+        let j_body = env.new_string(&body).map_err(|e| e.to_string())?;
+        env.call_method(
+            activity.as_obj(),
+            "showDriveBackupNotification",
+            "(Ljava/lang/String;Ljava/lang/String;)V",
+            &[jni::objects::JValueGen::Object(&j_title), jni::objects::JValueGen::Object(&j_body)],
+        )
+        .map_err(|e| format!("Error JNI showDriveBackupNotification: {}", e))?;
+        Ok(())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (title, body);
+        Ok(())
+    }
+}
+
 /// Consulta (y consume) el último resultado del sign-in nativo guardado en
 /// MainActivity. Respaldo por polling para cuando una recarga del WebView
 /// pierde el evento `google-native-auth-result`.
@@ -1924,6 +1995,8 @@ pub fn run() {
             gd_start_native_signin,
             gd_request_notification_permission,
             gd_take_last_native_result,
+            gd_battery_status,
+            gd_show_notification,
             get_monthly_attendance_pct,
             get_seed_options,
             seed_selected_data,
