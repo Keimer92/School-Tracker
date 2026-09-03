@@ -1278,3 +1278,63 @@ el detalle real está en la card Cloudflare de CloudPage o en `window.__d1LastEr
   full sync solo) → refrescar NO debe perder datos porque no hay tombstones residuales.
   Si algo se pierde al refrescar, el problema son tombstones viejos en la nube (usar
   `/reset` o `d1_reset_remote`).
+## GOTCHA: Minify de Android + JNI de Rust (crash en release al iniciar Google Sign-In, 2026-09)
+
+**Síntoma**: la app compilada en **release** quedaba bien al arrancar, pero al tocar
+"Continuar con Google" en WelcomePage **se cerraba sin mensaje� En debug no ocurría.
+
+**Causa raíz**:en `src-tauri/gen/android/app/build.gradle.kts`, el buildType `release`
+tenía `isMinifyEnabled = true` (R8/ProGuard con `proguard-android-optimize`), mientras
+debug usa `false`. R8 **no puede ver** los métodos Java/Kotlin que se invocan **desde Rust
+vía JNI por nombre** (`call_method("startGoogleSignIn", ...)` en `lib.rs`), y los ve como
+"código muerto" → los **elimina o renombra**.Resultado: al tocar el login, el
+`call_method` JNI fallaba y la app crasheaba.Lo mismo rompía `initNativeBridge`,
+`requestNotificationPermissionNow` y los métodos de `AttendanceNative` (todos enlazados a
+símbolos `Java_com_keimer_schooltracker_*`).
+
+**Solución aplicada**:
+- **`isMinifyEnabled = false`** en el bloque `release` de `build.gradle.kts` (igual que debug).
+- **`proguard-rules.pro`**:keep rules de defensa en caso de reactivar minify:
+
+```proguard
+-keep class com.keimer.schooltracker.MainActivity {
+    public void startGoogleSignIn(java.lang.String;
+    public void requestNotificationPermissionNow();
+    void initNativeBridge();
+}
+-keepclasseswithmembernames class * { native <methods>; }
+-keep class com.keimer.schooltracker.AttendanceNative { public *; }
+-keep class com.keimer.schooltracker.AttendancePrefs { public *; }
+```
+
+**GOTCHA**: `gradlew assembleRelease` invocado directo falla con
+`A problem occurred starting process 'command 'npm.bat''` — es un error de **entorno**
+(npm no está en el PATH del proceso Gradle por separado), no del código.El APK release
+debe compilarse con **`npm run tauri android build`** (que configura el PATH y ejecuta
+el bundling completo dela cadena).
+
+## GOTCHA: Cambio de applicationId y el icon del launcher (2026-09)
+
+Tras pasar el `applicationId` de `com.keimer.schooltrackerpro` a
+`com.keimer.schooltracker`, el icono del launcher puede aparecer "en blanco"/genérico
+o quedar el de la versión anterior**:
+
+- **Los recursos de icono están correctos**: `res/mipmap-*/ic_launcher.png` (+ `_round`
+  y `_foreground`) existen en todas las densidades con tamaños válidos,y el
+  `AndroidManifest.xml` los referencia con `android:icon="@mipmap/ic_launcher"`.
+- **Causa real**: al cambiar applicationId, la app se instala como **paquete NUEVO**;el
+  Android Launcher **cachea** el icono de la instalación anterior(id viejo). Además
+  `ic_launcher.png` se genera a partir de `src-tauri/icons/icon.png` (el icon del bundle),
+  no del `label/icono personalizado` del WebView.
+
+- **Fix**:
+  1. Desinstalar la app antigua (`com.keimer.schooltrackerpro`) manualmente primero.
+
+
+  2. Si el icono general no es el deseado editor:reemplazar `src-tauri/icons/icon.png`
+
+
+      (y los `32x32/128x128`) y **re-generar el proyecto Android** para que Tauri
+      cope los PNG a `mipmap` (o copiar manualmente los PNG nuevos a `res/mipmap-*/`).
+  3. Tras reinstalar, refrescar el launcher(reiniciar el dispositivo) para
+      limpiar la caché de iconos.baséiff
