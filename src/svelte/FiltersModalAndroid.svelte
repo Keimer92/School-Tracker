@@ -70,7 +70,7 @@
       <button type="button" onclick={close} title="Cerrar"
         style="position:absolute;top:.5rem;right:.5rem;width:28px;height:28px;border-radius:7px;border:1px solid rgba(255,255,255,.2);background:#1e293b;color:#e2e8f0;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1">✕</button>
       <h3 style="margin:0 0 .75rem;color:#f1f5f9;font-size:1rem;padding-right:2rem">{title}</h3>
-      <div style="display:flex;flex-direction:column;gap:0.4rem">
+      <div class="filters-grid">
         {#if anos.length > 0}
           <div class="filter-group" style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
             <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Año lectivo:</label>
@@ -124,6 +124,33 @@
 {/if}
 
 <style>
+  .filters-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  /* Android en landscape: distribuir los filtros horizontalmente para que
+     el modal use el ancho disponible en vez de apilarse verticalmente. */
+  @media (orientation: landscape) and (max-height: 500px) {
+    :global(.modal-overlay) {
+      align-items: stretch !important;
+      padding: 0.5rem !important;
+    }
+    :global(.modal-content.filters-solid) {
+      width: min(720px, calc(100vw - 24px)) !important;
+      max-width: min(720px, calc(100vw - 24px)) !important;
+      max-height: calc(100vh - 16px) !important;
+    }
+    .filters-grid {
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 0.5rem 0.6rem;
+    }
+    :global(.filters-solid .filter-group) {
+      flex: 1 1 calc(50% - 0.3rem) !important;
+      min-width: 160px;
+    }
+  }
   /* Modal de filtros Android: fondo opaco para que los selects se lean bien
      (el glassmorphism vuelve los dropdowns casi invisibles en WebView Android). */
   :global(.filters-solid) {
