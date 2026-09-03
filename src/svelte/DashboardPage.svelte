@@ -420,12 +420,36 @@
     padding: 1.25rem;
   }
   .grade-card {}
-  .grade-list { display: flex; flex-direction: column; gap: 0.5rem; }
-  .grade-row { display: flex; align-items: center; gap: 0.75rem; }
-  .grade-name { font-size: 0.8rem; color: #cbd5e1; width: auto; min-width: 120px; max-width: 45%; flex-shrink: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .grade-list { display: flex; flex-direction: column; gap: 0.65rem; }
+  .grade-row { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+  .grade-name { font-size: 0.8rem; color: #cbd5e1; width: auto; min-width: 0; max-width: 50%; flex: 0 1 auto; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .grade-seccion { color: #8b5cf6; font-weight: 700; }
   .grade-colegio { color: #64748b; font-weight: 500; font-size: 0.72rem; }
-  .grade-bar-track { flex: 1; height: 20px; background: rgba(255,255,255,0.05); border-radius: 10px; overflow: hidden; }
+  .grade-bar-track { flex: 1 1 auto; min-width: 0; height: 20px; background: rgba(255,255,255,0.05); border-radius: 10px; overflow: hidden; }
   .grade-bar-fill { height: 100%; background: linear-gradient(90deg, var(--primary-color, #8b5cf6), #a78bfa); border-radius: 10px; transition: width 0.5s ease; min-width: 4px; }
-  .grade-count { font-size: 0.8rem; color: #94a3b8; width: 30px; text-align: right; font-weight: 700; }
+  .grade-count { font-size: 0.8rem; color: #94a3b8; width: 30px; flex: 0 0 auto; text-align: right; font-weight: 700; }
+  @media (max-width: 768px) {
+    .dashboard { padding: 0.75rem 0.5rem; gap: 0.85rem; }
+    .cards-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 0.5rem; }
+    .glass-card { padding: 0.9rem 0.7rem; }
+    .grade-card { padding: 0.75rem; }
+    .grade-list { gap: 0.5rem; }
+    .grade-row {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.25rem;
+      width: 100%;
+    }
+    .grade-name {
+      max-width: 100%;
+      min-width: 0;
+      width: 100%;
+      flex: 0 0 auto;
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+    }
+    .grade-bar-track { width: 100%; flex: 0 0 auto; }
+    .grade-count { width: 100%; flex: 0 0 auto; text-align: right; }
+  }
 </style>
