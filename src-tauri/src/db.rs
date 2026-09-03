@@ -4603,12 +4603,22 @@ pub struct DashboardStats {
     pub ausentes_hoy: i64,
     pub justificados_hoy: i64,
     pub estudiantes_por_grado: Vec<GradoCount>,
+    pub estudiantes_por_grado_seccion: Vec<GradoSeccionCount>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct GradoCount {
     pub grado: String,
+    pub count: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct GradoSeccionCount {
+    pub grado: String,
+    pub seccion: String,
+    pub colegio: String,
     pub count: i64,
 }
 
@@ -4781,32 +4791,45 @@ pub async fn get_dashboard_stats(
         conn.query_row("SELECT COALESCE(SUM(CASE WHEN estado = 'P' THEN 1 ELSE 0 END), 0), COALESCE(SUM(CASE WHEN estado = 'A' THEN 1 ELSE 0 END), 0), COALESCE(SUM(CASE WHEN estado = 'J' THEN 1 ELSE 0 END), 0) FROM asistencia WHERE fecha = ?1", rusqlite::params![&fechaHoy], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?))).map_err(|e| e.to_string())?
     };
 
-    // Students per grade — separados por colegio (grados son genéricos compartidos)
-    let mut stmt_students_grade = conn
+    // Estudiantes por grado + sección (cada combo colegio+grado+sección con su
+    // propia barra). Ordenado por colegio, grado y sección.
+    let mut stmt_grado_seccion = conn
         .prepare(
-            "SELECT g.nombre, c.nombre, COUNT(e.id)
+            "SELECT g.nombre, s.nombre, c.nombre, COUNT(e.id)
              FROM estudiante e
              JOIN grado g ON e.grado_id = g.id
+             JOIN seccion s ON e.seccion_id = s.id
              JOIN colegio c ON e.colegio_id = c.id
              WHERE (?1 IS NULL OR e.colegio_id = ?1)
-             GROUP BY e.grado_id, e.colegio_id
-             ORDER BY c.nombre, g.nombre",
+             GROUP BY e.colegio_id, e.grado_id, e.seccion_id
+             ORDER BY c.nombre, g.nombre, s.nombre",
         )
         .map_err(|e| e.to_string())?;
 
-    let estudiantes_por_grado: Vec<GradoCount> = stmt_students_grade
+    let estudiantes_por_grado_seccion: Vec<GradoSeccionCount> = stmt_grado_seccion
         .query_map(rusqlite::params![colegioId], |row| {
-            let grado: String = row.get(0)?;
-            let colegio: String = row.get(1)?;
-            let count: i64 = row.get(2)?;
-            // Con filtro de colegio basta el nombre del grado; con "todos"
-            // se etiqueta con el colegio para distinguir grados homónimos.
-            let label = if colegioId.is_some() { grado } else { format!("{} · {}", grado, colegio) };
-            Ok(GradoCount { grado: label, count })
+            Ok(GradoSeccionCount {
+                grado: row.get(0)?,
+                seccion: row.get(1)?,
+                colegio: row.get(2)?,
+                count: row.get(3)?,
+            })
         })
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
+
+    // Estudiantes por grado (resumen por grado, sumando todas las secciones) —
+    // útil para retro-compatibilidad y para el total por grado.
+    let estudiantes_por_grado: Vec<GradoCount> = {
+        let mut map: std::collections::BTreeMap<String, i64> = std::collections::BTreeMap::new();
+        for gs in &estudiantes_por_grado_seccion {
+            *map.entry(gs.grado.clone()).or_insert(0) += gs.count;
+        }
+        map.into_iter()
+            .map(|(grado, count)| GradoCount { grado, count })
+            .collect()
+    };
 
     Ok(DashboardStats {
         total_estudiantes,
@@ -4823,6 +4846,7 @@ pub async fn get_dashboard_stats(
         ausentes_hoy,
         justificados_hoy,
         estudiantes_por_grado,
+        estudiantes_por_grado_seccion,
     })
 }
 

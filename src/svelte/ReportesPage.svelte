@@ -990,42 +990,6 @@
           </div>
         {/if}
 
-        <FiltersModalAndroid
-          bind:open={showFiltersModal}
-          {isAndroidMobile} {isMobile}
-          bind:anos bind:colegios bind:grados bind:secciones
-          bind:selectedAno bind:selectedColegio bind:selectedGrado bind:selectedSeccion bind:selectedSexo
-        >
-          {#snippet extras()}
-            <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
-              <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Corte:</label>
-              <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px"
-                value={specialCorte || selectedCorte}
-                onchange={(e) => {
-                  const val = (e.target as HTMLSelectElement).value;
-                  if (val === "1S" || val === "2S" || val === "NF") { specialCorte = val; selectedCorte = 0; }
-                  else { specialCorte = ""; selectedCorte = Number(val); }
-                }}>
-                <optgroup label="Cortes Individuales">
-                  {#each cortes as c}<option value={c.id}>{c.nombre}</option>{/each}
-                </optgroup>
-                <optgroup label="Promedios">
-                  <option value="1S">1er Semestre</option>
-                  <option value="2S">2do Semestre</option>
-                  <option value="NF">Nota Final</option>
-                </optgroup>
-              </select>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
-              <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Asignatura:</label>
-              <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px"
-                bind:value={selectedAsignatura} disabled={asignaturas.length === 0}>
-                {#each asignaturas as a}<option value={a.id}>{a.nombre}</option>{/each}
-              </select>
-            </div>
-          {/snippet}
-        </FiltersModalAndroid>
-
         {#if isAndroidMobile}
           <div class="category-card" style="padding: 0.5rem; margin-bottom: 0.5rem; display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
             <button type="button" onclick={() => { showFiltersModal = true; }}
@@ -1360,4 +1324,40 @@
       {/if}
     </div>
   </PageLayout>
+
+  <FiltersModalAndroid
+    bind:open={showFiltersModal}
+    {isAndroidMobile} {isMobile}
+    bind:anos bind:colegios bind:grados bind:secciones
+    bind:selectedAno bind:selectedColegio bind:selectedGrado bind:selectedSeccion bind:selectedSexo
+  >
+    {#snippet extras()}
+      <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
+        <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Corte:</label>
+        <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px"
+          value={specialCorte || selectedCorte}
+          onchange={(e) => {
+            const val = (e.target as HTMLSelectElement).value;
+            if (val === "1S" || val === "2S" || val === "NF") { specialCorte = val; selectedCorte = 0; }
+            else { specialCorte = ""; selectedCorte = Number(val); }
+          }}>
+          <optgroup label="Cortes Individuales">
+            {#each cortes as c}<option value={c.id}>{c.nombre}</option>{/each}
+          </optgroup>
+          <optgroup label="Promedios">
+            <option value="1S">1er Semestre</option>
+            <option value="2S">2do Semestre</option>
+            <option value="NF">Nota Final</option>
+          </optgroup>
+        </select>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
+        <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Asignatura:</label>
+        <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px"
+          bind:value={selectedAsignatura} disabled={asignaturas.length === 0}>
+          {#each asignaturas as a}<option value={a.id}>{a.nombre}</option>{/each}
+        </select>
+      </div>
+    {/snippet}
+  </FiltersModalAndroid>
 </div>

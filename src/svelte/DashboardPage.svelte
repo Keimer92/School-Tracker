@@ -19,6 +19,7 @@
     ausentesHoy: number;
     justificadosHoy: number;
     estudiantesPorGrado: { grado: string; count: number }[];
+    estudiantesPorGradoSeccion: { grado: string; seccion: string; colegio: string; count: number }[];
   }
 
   let { onNavigate }: { onNavigate?: (tab: string) => void } = $props();
@@ -36,11 +37,9 @@
   let error = $state("");
   let isMobile = $state(false);
 
-  let pctP = $derived(stats && stats.estudiantesHoy > 0 ? Math.round((stats.presentesHoy / stats.estudiantesHoy) * 100) : 0);
-  let pctA = $derived(stats && stats.estudiantesHoy > 0 ? Math.round((stats.ausentesHoy / stats.estudiantesHoy) * 100) : 0);
-  let pctJ = $derived(stats && stats.estudiantesHoy > 0 ? Math.round((stats.justificadosHoy / stats.estudiantesHoy) * 100) : 0);
-
-  let maxGradoCount = $derived(stats ? Math.max(...stats.estudiantesPorGrado.map(g => g.count), 1) : 1);
+  let maxGradoSeccionCount = $derived(
+    stats ? Math.max(...stats.estudiantesPorGradoSeccion.map(g => g.count), 1) : 1
+  );
 
   interface DetalleItem { nombre: string; colegio: string | null; actualizado: string; }
   let detalle = $state<{ titulo: string; items: DetalleItem[] } | null>(null);
@@ -212,84 +211,21 @@
       </div>
     </div>
 
-    <!-- Middle row: attendance + quick actions -->
-    <div class="middle-row">
-      <!-- Today's attendance -->
-      <div class="glass-card attendance-card">
-        <h2 class="card-title">Asistencia Hoy</h2>
-        {#if stats.estudiantesHoy > 0}
-          <div class="attendance-bar-container">
-            <div class="attendance-bar">
-              {#if stats.presentesHoy > 0}
-                <div class="bar-segment bar-p" style="flex: {stats.presentesHoy}"><span>P</span></div>
-              {/if}
-              {#if stats.ausentesHoy > 0}
-                <div class="bar-segment bar-a" style="flex: {stats.ausentesHoy}"><span>A</span></div>
-              {/if}
-              {#if stats.justificadosHoy > 0}
-                <div class="bar-segment bar-j" style="flex: {stats.justificadosHoy}"><span>J</span></div>
-              {/if}
-            </div>
-          </div>
-          <div class="attendance-legend">
-            <div class="legend-item"><span class="dot dot-p"></span> Presente: {stats.presentesHoy} ({pctP}%)</div>
-            <div class="legend-item"><span class="dot dot-a"></span> Ausente: {stats.ausentesHoy} ({pctA}%)</div>
-            <div class="legend-item"><span class="dot dot-j"></span> Justificado: {stats.justificadosHoy} ({pctJ}%)</div>
-          </div>
-          <p class="attendance-total">Total: {stats.estudiantesHoy} registros hoy</p>
-        {:else}
-          <div class="empty-state-sm">
-            <span>📭</span>
-            <span>No hay asistencias registradas hoy</span>
-            <button class="action-link" onclick={() => goTo("asistencia")}>Ir a Asistencia</button>
-          </div>
-        {/if}
-      </div>
-
-      <!-- Quick actions -->
-      <div class="glass-card quick-actions-card">
-        <h2 class="card-title">Acceso Rápido</h2>
-        <div class="quick-actions-grid">
-          <button class="quick-action-btn" onclick={() => goTo("asistencia")}>
-            <span class="qa-icon">📅</span>
-            <span class="qa-label">Asistencia</span>
-          </button>
-          <button class="quick-action-btn" onclick={() => goTo("notas")}>
-            <span class="qa-icon">📓</span>
-            <span class="qa-label">Notas</span>
-          </button>
-          <button class="quick-action-btn" onclick={() => goTo("informe")}>
-            <span class="qa-icon">📊</span>
-            <span class="qa-label">Informe</span>
-          </button>
-          <button class="quick-action-btn" onclick={() => goTo("estudiantes")}>
-            <span class="qa-icon">👨‍🎓</span>
-            <span class="qa-label">Estudiantes</span>
-          </button>
-          <button class="quick-action-btn" onclick={() => goTo("reportes")}>
-            <span class="qa-icon">📋</span>
-            <span class="qa-label">Reportes</span>
-          </button>
-          <button class="quick-action-btn" onclick={() => goTo("cloud")}>
-            <span class="qa-icon">☁️</span>
-            <span class="qa-label">Nube</span>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Students per grade -->
+    <!-- Students per grade + section -->
     <div class="glass-card grade-card">
-      <h2 class="card-title">Estudiantes por Grado</h2>
-      {#if stats.estudiantesPorGrado.length > 0}
+      <h2 class="card-title">Estudiantes por Grado y Sección</h2>
+      {#if stats.estudiantesPorGradoSeccion.length > 0}
         <div class="grade-list">
-          {#each stats.estudiantesPorGrado as g}
+          {#each stats.estudiantesPorGradoSeccion as gs}
             <div class="grade-row">
-              <span class="grade-name">{g.grado}</span>
+              <span class="grade-name">
+                {gs.grado} <span class="grade-seccion">· {gs.seccion}</span>
+                {#if !selectedColegio}<span class="grade-colegio"> · {gs.colegio}</span>{/if}
+              </span>
               <div class="grade-bar-track">
-                <div class="grade-bar-fill" style="width: {(g.count / maxGradoCount) * 100}%"></div>
+                <div class="grade-bar-fill" style="width: {(gs.count / maxGradoSeccionCount) * 100}%"></div>
               </div>
-              <span class="grade-count">{g.count}</span>
+              <span class="grade-count">{gs.count}</span>
             </div>
           {/each}
         </div>
@@ -473,8 +409,9 @@
   .card-content { display: flex; flex-direction: column; gap: 0.1rem; }
   .card-value { font-size: 1.4rem; font-weight: 700; color: #f1f5f9; line-height: 1; }
   .card-label { font-size: 0.7rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
-  .middle-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
-  @media (max-width: 768px) { .middle-row { grid-template-columns: 1fr; } }
+  .middle-row { display: none; }
+  .card-title { font-size: 0.85rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 1rem 0; }
+  .empty-state-sm { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; padding: 1.5rem 0; font-size: 0.85rem; color: #64748b; }
   .glass-card {
     background: rgba(255,255,255,0.02);
     backdrop-filter: blur(20px);
@@ -482,46 +419,12 @@
     border-radius: 18px;
     padding: 1.25rem;
   }
-  .card-title { font-size: 0.85rem; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 1rem 0; }
-  .attendance-bar-container { margin-bottom: 0.75rem; }
-  .attendance-bar { display: flex; height: 32px; border-radius: 8px; overflow: hidden; }
-  .bar-segment { display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; color: #fff; transition: flex 0.3s ease; min-width: 0; }
-  .bar-segment span { text-shadow: 0 1px 2px rgba(0,0,0,0.3); }
-  .bar-p { background: linear-gradient(135deg, #10b981, #059669); }
-  .bar-a { background: linear-gradient(135deg, #ef4444, #dc2626); }
-  .bar-j { background: linear-gradient(135deg, #f59e0b, #d97706); }
-  .attendance-legend { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.5rem; }
-  .legend-item { display: flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; color: #cbd5e1; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-  .dot-p { background: #10b981; }
-  .dot-a { background: #ef4444; }
-  .dot-j { background: #f59e0b; }
-  .attendance-total { font-size: 0.7rem; color: #64748b; margin: 0; }
-  .empty-state-sm { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; padding: 1.5rem 0; font-size: 0.85rem; color: #64748b; }
-  .action-link { background: none; border: none; color: var(--primary-color, #8b5cf6); cursor: pointer; font-size: 0.8rem; font-weight: 600; padding: 0; text-decoration: underline; }
-  .quick-actions-card { display: flex; flex-direction: column; }
-  .quick-actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; flex: 1; }
-  .quick-action-btn {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.3rem;
-    padding: 0.8rem 0.5rem;
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 12px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    color: #cbd5e1;
-  }
-  .quick-action-btn:hover { background: rgba(255,255,255,0.06); border-color: var(--primary-color, #8b5cf6); transform: translateY(-1px); }
-  .qa-icon { font-size: 1.3rem; }
-  .qa-label { font-size: 0.75rem; font-weight: 600; }
   .grade-card {}
   .grade-list { display: flex; flex-direction: column; gap: 0.5rem; }
   .grade-row { display: flex; align-items: center; gap: 0.75rem; }
-  .grade-name { font-size: 0.8rem; color: #cbd5e1; width: auto; min-width: 80px; max-width: 45%; flex-shrink: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .grade-name { font-size: 0.8rem; color: #cbd5e1; width: auto; min-width: 120px; max-width: 45%; flex-shrink: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .grade-seccion { color: #8b5cf6; font-weight: 700; }
+  .grade-colegio { color: #64748b; font-weight: 500; font-size: 0.72rem; }
   .grade-bar-track { flex: 1; height: 20px; background: rgba(255,255,255,0.05); border-radius: 10px; overflow: hidden; }
   .grade-bar-fill { height: 100%; background: linear-gradient(90deg, var(--primary-color, #8b5cf6), #a78bfa); border-radius: 10px; transition: width 0.5s ease; min-width: 4px; }
   .grade-count { font-size: 0.8rem; color: #94a3b8; width: 30px; text-align: right; font-weight: 700; }
