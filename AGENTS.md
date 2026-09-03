@@ -1184,6 +1184,46 @@ solo en el flujo de importación de una base buena (reset nube → subir todo).
 
 **GOTCHA**: `ensureSchema` usa ALTER tolerante (try/catch) porque no puede crear una
 tabla con columnas que quizá ya existan en bases D1 viejas. Tras cada cambio de
+
+## Cruce de catálogos entre dispositivos (2026-09) — colegio_grado y relaciones huérfanas
+
+**Síntoma**: los datos descargados de la nube "intercruzan" colegios — un colegio
+aparece con grados/secciones/asignaturas de otro, o un colegio fantasma (id=1)
+hereda la configuración de un colegio real.
+
+**Causa raíz (2 mecanismos combinados)**:
+1. **PKs fantasma por seed/wizard en dispositivos frescos**: la BD histórica del
+   usuario tiene colegios con ids 2 y 3 (hubo otro colegio con id 1 antes). Una
+   BD nueva auto-numera el primer colegio como id=1; si ese device sube sus
+   `colegio_grado`, la nube queda con filas de un colegio que ya no existe, y
+   cualquier device futuro que cree un colegio con id=1 las "hereda" (el upsert
+   del worker es incondicional — LWW por llegada).
+2. **Relaciones huérfanas sin FK enforcement**: el apply del sync no valida FKs;
+   al borrar el usuario asignaturas (p. ej. dejó solo "Ingles"), las filas de
+   `grado_asignatura`/`colegio_asignatura` que las referenciaban quedaron
+   huérfanas y se sincronizaron entre devices.
+
+**Solución aplicada**:
+- **Limpieza de nube vía tombstones directos** (curl/PowerShell contra `/push`,
+  `deletions: [{tabla, pk[]}]`): borrar filas huérfanas de la nube SIN reset
+  completo → los tombstones se propagan por pull a todos los devices.
+  Preferible a `d1_reset_remote` cuando la mayoría de la nube está bien.
+- **`cleanup_orphan_relations` (db.rs, dentro de `init_database`)**: al arrancar,
+  borra localmente `colegio_grado`/`colegio_asignatura`/`grado_asignatura` que
+  apunten a catálogos inexistentes. Higiénico e idempotente.
+- **Gate en `seed_default_data`**: si `d1_config.school_key` está configurada,
+  NO sembrar catálogos instanciados (cortes evaluativos; ya no se siembran
+  colegios/grados/asignaturas desde refactor previo) — la nube aporta la verdad
+  en el primer pull/restore.
+- **Regla de negocio confirmada por el usuario**: ambos colegios = "Primaria";
+  Manuel Ignacio ofrece solo 3er grado (sección C) y 5to grado (secciones C y D);
+  Candelario Sotelo grados 1-6 (sección A); única asignatura "Ingles".
+
+**GOTCHA**: los ids auto-increment de BDs distintas NO son comparables entre
+dispositivos. Nunca asumir que colegio/grado/seccion id=1 significa lo mismo en
+dos devices: la identidad real es la fila sincronizada por PK, y un PK colisionado
+con contenido distinto = mezcla. Si se crea contenido offline en un device nuevo
+con nube configurada, verificar que no reutilice PKs ya ocupadas en la nube.
 `cloudflare-sync`, SIEMPRE desplegar con wrangler — un worker viejo contra cliente nuevo
 da fallos mudos.
 

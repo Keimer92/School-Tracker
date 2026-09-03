@@ -396,8 +396,33 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
     // Esto evita crear datos por defecto cuando ya hay datos guardados.
     migrate_add_columns(conn)?;
     deduplicate_criteria(conn)?;
+    cleanup_orphan_relations(conn)?;
 
     println!("âœ… [DB] Base de datos inicializada correctamente");
+    Ok(())
+}
+
+/// Elimina filas de relación que apuntan a catálogos eliminados (huérfanas).
+///
+/// Los dispositivos pueden recibirlas por pull si la nube tuvo filas de
+/// épocas anteriores (p. ej. `colegio_grado` de un colegio que ya no existe,
+/// o `grado_asignatura` de asignaturas borradas por el usuario). Sin FK
+/// enforcement en la fase de aplicación del sync, estas filas persisten y
+/// los JOIN de selectores pueden "cruzar" colegios/grados/asignaturas.
+/// Es idempotente: tras limpiar la nube, el pull ya no las re-introduce.
+fn cleanup_orphan_relations(conn: &Connection) -> Result<(), String> {
+    conn.execute_batch(
+        r#"
+        DELETE FROM colegio_grado WHERE colegio_id NOT IN (SELECT id FROM colegio);
+        DELETE FROM colegio_asignatura
+            WHERE colegio_id NOT IN (SELECT id FROM colegio)
+               OR asignatura_id NOT IN (SELECT id FROM asignatura);
+        DELETE FROM grado_asignatura
+            WHERE grado_id NOT IN (SELECT id FROM grado)
+               OR asignatura_id NOT IN (SELECT id FROM asignatura);
+        "#,
+    )
+    .map_err(|e| format!("Error limpiando relaciones huérfanas: {}", e))?;
     Ok(())
 }
 
@@ -747,23 +772,42 @@ pub fn seed_default_data(conn: &Connection) -> Result<(), String> {
 
     println!("ðŸŒ± [DB] Base de datos vacÃ­a, sembrando datos iniciales...");
 
+    // Opción 1 (anti-cruce de catálogos): si la nube D1 está configurada,
+    // NO sembrar datos de usuario/instancia — el primer pull/restore trae
+    // la verdad de la nube (colegios, grados, secciones, cortes, etc.).
+    // Sembrarlos aquí crearía filas fantasma con PKs que colisionan con
+    // las sincronizadas y "mezclan" catálogos entre dispositivos.
+    let cloud_configured: bool = conn
+        .query_row(
+            "SELECT COALESCE((SELECT school_key FROM d1_config WHERE id = 1), '') != ''",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .map(|v| v != 0)
+        .unwrap_or(false);
+    if cloud_configured {
+        println!("[DB] Nube D1 configurada: omitiendo siembra de catálogos (los aporta la nube)");
+    }
+
     // Cortes evaluativos (configuración de sistema, no introducida por el usuario)
-    conn.execute(
-        "INSERT INTO corte_evaluativo (nombre) VALUES ('1er corte evaluativo')",
-        [],
-    ).ok();
-    conn.execute(
-        "INSERT INTO corte_evaluativo (nombre) VALUES ('2do corte evaluativo')",
-        [],
-    ).ok();
-    conn.execute(
-        "INSERT INTO corte_evaluativo (nombre) VALUES ('3er corte evaluativo')",
-        [],
-    ).ok();
-    conn.execute(
-        "INSERT INTO corte_evaluativo (nombre) VALUES ('4to corte evaluativo')",
-        [],
-    ).ok();
+    if !cloud_configured {
+        conn.execute(
+            "INSERT INTO corte_evaluativo (nombre) VALUES ('1er corte evaluativo')",
+            [],
+        ).ok();
+        conn.execute(
+            "INSERT INTO corte_evaluativo (nombre) VALUES ('2do corte evaluativo')",
+            [],
+        ).ok();
+        conn.execute(
+            "INSERT INTO corte_evaluativo (nombre) VALUES ('3er corte evaluativo')",
+            [],
+        ).ok();
+        conn.execute(
+            "INSERT INTO corte_evaluativo (nombre) VALUES ('4to corte evaluativo')",
+            [],
+        ).ok();
+    }
 
     // NOTA: Los catálogos de usuario (año lectivo, colegio, asignatura, grado,
     // sección) YA NO se siembran por defecto. Ahora el usuario los crea en el

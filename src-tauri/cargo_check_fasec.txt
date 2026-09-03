@@ -1,0 +1,35 @@
+    Checking school-tracker-pro v1.1.0 (D:\Mis Proyectos\Tauri\School Tracker\src-tauri)
+warning: variable `gradoId` should have a snake case name
+    --> src\db.rs:4475:5
+     |
+4475 |     gradoId: i64,
+     |     ^^^^^^^ help: convert the identifier to snake case: `grado_id`
+     |
+     = note: `#[warn(non_snake_case)]` (part of `#[warn(nonstandard_style)]`) on by default
+
+warning: variable `seccionId` should have a snake case name
+    --> src\db.rs:4476:5
+     |
+4476 |     seccionId: i64,
+     |     ^^^^^^^^^ help: convert the identifier to snake case: `seccion_id`
+
+warning: variable `corteId` should have a snake case name
+    --> src\db.rs:4477:5
+     |
+4477 |     corteId: i64,
+     |     ^^^^^^^ help: convert the identifier to snake case: `corte_id`
+
+warning: variable `asignaturaId` should have a snake case name
+    --> src\db.rs:4478:5
+     |
+4478 |     asignaturaId: i64,
+     |     ^^^^^^^^^^^^ help: convert the identifier to snake case: `asignatura_id`
+
+warning: variable `colegioId` should have a snake case name
+    --> src\db.rs:5024:5
+     |
+5024 |     colegioId: i64,
+     |     ^^^^^^^^^ help: convert the identifier to snake case: `colegio_id`
+
+warning: `school-tracker-pro` (lib) generated 5 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 11.31s
