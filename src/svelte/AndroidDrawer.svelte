@@ -55,8 +55,8 @@
 <style>
   /* Botón hamburger/cierre del drawer móvil: área táctil amplia */
   .mobile-menu-btn {
-    min-width: 44px;
-    min-height: 44px;
+    min-width: 10px;
+    min-height: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -64,12 +64,12 @@
     border: none;
     cursor: pointer;
     padding: 0;
-    margin-right: 4px;
+    margin-right: 1px;
     -webkit-tap-highlight-color: transparent;
   }
 
   .mobile-menu-btn .menu-icon {
-    font-size: 1.35rem;
+    font-size: 1.6rem !important;
     line-height: 1;
     display: block;
   }
