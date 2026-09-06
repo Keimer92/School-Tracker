@@ -132,7 +132,14 @@ async function refreshAccessToken(): Promise<string | null> {
         grant_type: 'refresh_token',
       }),
     });
-    if (!response.ok) { console.error('[DriveSync] Error refrescando token:', await response.text()); return null; }
+    if (!response.ok) {
+      console.error('[DriveSync] Error refrescando token:', await response.text());
+      // Limpiar token expirado para que la UI muestre "desconectado"
+      settings.accessToken = '';
+      settings.tokenExpiry = 0;
+      saveSettings(settings);
+      return null;
+    }
     const data = await response.json();
     settings.accessToken = data.access_token;
     settings.tokenExpiry = Date.now() + (data.expires_in * 1000);

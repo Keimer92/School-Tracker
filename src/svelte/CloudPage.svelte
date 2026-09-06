@@ -265,7 +265,13 @@
           grant_type: 'refresh_token',
         }),
       });
-      if (!resp.ok) return null;
+      if (!resp.ok) {
+        // Limpiar token expirado para que la UI muestre "desconectado"
+        settings.accessToken = '';
+        settings.tokenExpiry = 0;
+        saveSettings();
+        return null;
+      }
       const data = await resp.json();
       settings.accessToken = data.access_token;
       settings.tokenExpiry = Date.now() + (data.expires_in * 1000);

@@ -33,10 +33,12 @@ function idTokenExpMs(idToken: string): number {
 }
 
 /** Guarda la sesión de Google Drive en localStorage (misma cuenta que la nube). */
-function guardarSesionDrive(clientId: string, tokenData: any): void {
-  fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-    headers: { Authorization: `Bearer ${tokenData.access_token}` },
-  }).then((r) => (r.ok ? r.json() : {})).then((userInfo: any) => {
+async function guardarSesionDrive(clientId: string, tokenData: any): Promise<void> {
+  try {
+    const resp = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+    const userInfo: any = resp.ok ? await resp.json() : {};
     localStorage.setItem('schooltracker-google-drive-settings', JSON.stringify({
       clientId,
       accessToken: tokenData.access_token,
@@ -46,7 +48,16 @@ function guardarSesionDrive(clientId: string, tokenData: any): void {
       googleUserName: userInfo.name || null,
       googleUserProfilePic: userInfo.picture || null,
     }));
-  }).catch((e) => console.error('[Drive] userinfo:', e));
+  } catch (e) {
+    console.error('[Drive] userinfo:', e);
+    // Guardar tokens de todos modos aunque falle userinfo
+    localStorage.setItem('schooltracker-google-drive-settings', JSON.stringify({
+      clientId,
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token || null,
+      tokenExpiry: Date.now() + ((tokenData.expires_in || 3600) * 1000),
+    }));
+  }
 }
 
 /** Intercambia un serverAuthCode (Android) por tokens completos (incluye refresh). */
@@ -163,7 +174,7 @@ export async function iniciarSesionGoogleConNube(opts?: {
       accessToken = tokenData.access_token || null;
       refreshToken = tokenData.refresh_token || null;
       if (!idToken) return { status: 'error', error: 'Google no devolvió id_token' };
-      guardarSesionDrive(clientId, tokenData);
+      await guardarSesionDrive(clientId, tokenData);
       // El refresh_token NO expira: permite renovar el id_token sin re-login.
       guardarTokenSesion(idToken, tokenData.refresh_token);
     }
@@ -253,10 +264,26 @@ export async function iniciarSesionGoogleConNube(opts?: {
         opts?.onStatus?.('Vinculando Google Drive...');
         try {
           const tokens = await exchangeServerAuthCode(driveAuthCode);
-          guardarSesionDrive(clientId, tokens);
+          await guardarSesionDrive(clientId, tokens);
           guardarTokenSesion(idToken, tokens.refresh_token);
           accessToken = tokens.access_token || null;
           refreshToken = tokens.refresh_token || null;
+          // Re-guardar el perfil con los tokens de Drive actualizados
+          if (email) {
+            saveProfile({
+              email,
+              schoolKey: effectiveKey,
+              workerUrl: effectiveWorker,
+              nombre: result.perfil?.nombre,
+              foto: result.perfil?.foto,
+              googleIdToken: idToken,
+              googleAccessToken: accessToken,
+              googleRefreshToken: refreshToken,
+              googleIdExpiresAt: idTokenExpMs(idToken),
+              googleDriveExpiresAt: Date.now() + (accessToken ? 3600 * 1000 : 0),
+              googleClientId: clientId,
+            });
+          }
         } catch (e) {
           console.error('[Drive] vinculación android falló:', e);
         }
