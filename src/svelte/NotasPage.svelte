@@ -1433,6 +1433,15 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
               <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">📋</span>
               {#if !isMobile}<span>Instrumentos</span>{/if}
             </button>
+            <button onclick={() => {
+              if (!selectedCorte || !selectedAsignatura) { emit("show-toast", { message: "⚠️ Seleccione un corte y asignatura primero", type: "warning" }); return; }
+              deleteMode = 'all'; deleteStudentId = 0; deleteIndicatorId = 0; showDeleteModal = true;
+            }} disabled={estudiantes.length === 0}
+              style="height:42px;padding:0 {isMobile ? '0.9rem' : '1.25rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:{estudiantes.length > 0 ? '#ef4444' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{estudiantes.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{estudiantes.length > 0 ? '0 4px 14px rgba(239,68,68,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{estudiantes.length > 0 ? 1 : 0.7}"
+              title="Eliminar notas">
+              <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">🗑️</span>
+              {#if !isMobile}<span>Eliminar</span>{/if}
+            </button>
             <button onclick={undo} disabled={history.length === 0}
               style="height:42px;width:42px;padding:0;font-size:{isMobile ? '0.85rem' : '1rem'};background-color:{history.length > 0 ? '#f59e0b' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;cursor:{history.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{history.length > 0 ? '0 4px 14px rgba(245,158,11,0.4)' : 'none'};flex-shrink:0;opacity:{history.length > 0 ? 1 : 0.7}"
               title="Deshacer (Ctrl+Z)">
@@ -1454,15 +1463,6 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
               title="Guardar Notas (Ctrl+G)">
               <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">{saving ? '⏳' : '💾'}</span>
               {#if !isMobile}<span>{saving ? 'Guardando...' : (hasUnsavedChanges ? 'Guardar' : 'Sin cambios')}</span>{/if}
-            </button>
-            <button onclick={() => {
-              if (!selectedCorte || !selectedAsignatura) { emit("show-toast", { message: "⚠️ Seleccione un corte y asignatura primero", type: "warning" }); return; }
-              deleteMode = 'all'; deleteStudentId = 0; deleteIndicatorId = 0; showDeleteModal = true;
-            }} disabled={estudiantes.length === 0}
-              style="height:42px;padding:0 {isMobile ? '0.9rem' : '1.25rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:{estudiantes.length > 0 ? '#ef4444' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{estudiantes.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{estudiantes.length > 0 ? '0 4px 14px rgba(239,68,68,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{estudiantes.length > 0 ? 1 : 0.7}"
-              title="Eliminar notas">
-              <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">🗑️</span>
-              {#if !isMobile}<span>Eliminar</span>{/if}
             </button>
           </div>
       </FilterContainer>
