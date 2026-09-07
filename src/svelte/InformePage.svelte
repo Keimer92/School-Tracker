@@ -7,6 +7,7 @@
   import { openUrl } from "@tauri-apps/plugin-opener";
   import { getLocalDateISOString } from "../lib/dateUtils";
   import { registerBackHandler } from "../lib/androidBack";
+  import { loadAppSettings, onAppSettingsChange } from "../lib/appSettings";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
   import FiltersModalAndroid from "./FiltersModalAndroid.svelte";
@@ -199,6 +200,9 @@
     checkMobile();
     window.addEventListener('resize', checkMobile);
     window.addEventListener('schooltracker-sync', onSync);
+    // Cargar configuraciones syncronizables
+    loadAppSettings().then(s => { showAnoDropdown = s.showAnoDropdown; });
+    const unsubSettings = onAppSettingsChange(s => { showAnoDropdown = s.showAnoDropdown; });
 
     const unsub1 = listen("asistencia-updated", () => { silentRefresh = true; fetchReporte(); });
     const unsub2 = listen("student-updated", () => { silentRefresh = true; fetchReporte(); });
@@ -207,6 +211,7 @@
     fetchCatalogs();
 
     return () => {
+      unsubSettings();
       window.removeEventListener('resize', checkMobile);
       window.removeEventListener('schooltracker-sync', onSync);
       unsub1.then(f => f());

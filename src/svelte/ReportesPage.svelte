@@ -11,6 +11,7 @@
   import PageLayout from "./PageLayout.svelte";
   import FiltersModalAndroid from "./FiltersModalAndroid.svelte";
   import { registerBackHandler } from "../lib/androidBack";
+  import { loadAppSettings, onAppSettingsChange } from "../lib/appSettings";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
   interface Criterio { id: number; orden: number; descripcion: string; puntajeMaximo: number; }
@@ -214,6 +215,9 @@
         activeSlide = activeSlide === 'tabla' ? 'estadisticas' : 'tabla';
       }
     });
+    // Cargar configuraciones syncronizables
+    loadAppSettings().then(s => { showAnoDropdown = s.showAnoDropdown; });
+    const unsubSettings = onAppSettingsChange(s => { showAnoDropdown = s.showAnoDropdown; });
 
     const unsubGradeConfigs = listen("grade-configs-updated", async () => {
       try { gradeConfigs = await invoke<GradeConfig[]>("get_grade_configs"); } catch (e) { console.error("Error refreshing grade configs:", e); }
@@ -226,6 +230,7 @@
     fetchInitialCatalogs();
 
     return () => {
+      unsubSettings();
       window.removeEventListener('resize', checkMobile);
       window.removeEventListener('schooltracker-sync', () => {});
       window.removeEventListener('keydown', () => {});

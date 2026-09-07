@@ -51,7 +51,7 @@ async fn get_all_local_data_json(state: tauri::State<'_, DbState>) -> Result<Str
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
         "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia", "dia_sin_clases",
-        "asistencia", "nota",
+        "asistencia", "nota", "app_settings",
     ];
 
     let mut result = serde_json::Map::new();
@@ -101,7 +101,7 @@ async fn get_all_local_data_since(state: tauri::State<'_, DbState>, since: Strin
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
         "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia", "dia_sin_clases",
-        "asistencia", "nota",
+        "asistencia", "nota", "app_settings",
     ];
 
     let mut result = serde_json::Map::new();
@@ -154,7 +154,7 @@ fn has_local_changes(state: tauri::State<'_, DbState>, since: String) -> Result<
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
         "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia", "dia_sin_clases",
-        "asistencia", "nota",
+        "asistencia", "nota", "app_settings",
     ];
 
     for table in &table_names {
@@ -2017,6 +2017,9 @@ pub fn run() {
             d1_reserve_ids,
             promote_students,
             get_secundaria_colegios,
+            get_app_settings,
+            set_app_settings,
+            migrate_settings_from_localstorage,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

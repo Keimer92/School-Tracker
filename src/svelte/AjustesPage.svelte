@@ -8,6 +8,7 @@
   import { onDataChange } from "../lib/autoSync";
   import { registerBackHandler } from "../lib/androidBack";
   import { getLocalDateISOString } from "../lib/dateUtils";
+  import { loadAppSettings, saveAppSettings, getAppSettings, onAppSettingsChange } from "../lib/appSettings";
   import appIcon from "../assets/app-icon.png";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
@@ -129,6 +130,8 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
       const config = { enabled: notifEnabled && colegios.length > 0, colegios };
       console.log('[NotifUI] Guardando config:', JSON.stringify(config));
       localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(config));
+      // Sincronizar a la tabla app_settings
+      await saveAppSettings({ ...getAppSettings(), notifEnabled, notifCfg });
       const dbPath = await invoke<string>("get_db_path");
       console.log('[NotifUI] dbPath =', dbPath);
       if (config.enabled) {
@@ -233,10 +236,11 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
   function handleThemeChange(mode: string) {
     setThemeMode(mode);
+    saveAppSettings({ ...getAppSettings(), theme: mode });
   }
-  $effect(() => { localStorage.setItem("student-highlight-color", highlightColor); });
+  $effect(() => { saveAppSettings({ ...getAppSettings(), highlightColor }); });
 
-  onMount(() => {
+  onMount(async () => {
     invoke<{ id: string; nombre: string; color: string; minimo: number }[]>("get_grade_configs").then(d => gradeConfigs = d).catch(e => console.error("Error fetching grade configs:", e));
     invoke<string>("get_db_path").then(p => dbPath = p).catch(e => console.error("Error fetching db path:", e));
     Promise.all([invoke<CategoryItem[]>("get_anos"), invoke<CategoryItem[]>("get_colegios")]).then(([aData, cData]) => {
@@ -244,6 +248,14 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
       const activeYear = aData.find(a => a.activo) || aData[0]; if (activeYear) selectedAno = activeYear.id;
       const activeColegio = cData.find(c => c.activo) || cData[0]; if (activeColegio) selectedColegio = activeColegio.id;
     }).catch(e => console.error("Error fetching catalogs:", e));
+    // Cargar configuraciones desde la tabla syncronizable
+    const settings = await loadAppSettings();
+    highlightColor = settings.highlightColor;
+    // Suscribirse a cambios externos (sync desde otro dispositivo)
+    const unsub = onAppSettingsChange((s) => {
+      highlightColor = s.highlightColor;
+    });
+    onDestroy(unsub);
   });
 
   async function handleUpdateGradeConfig(id: string, nombre: string, color: string, minimo: number) {

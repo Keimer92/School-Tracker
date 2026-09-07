@@ -6,6 +6,7 @@
   import { syncService } from "../lib/syncService";
   import { onDataChange } from "../lib/autoSync";
   import { registerBackHandler } from "../lib/androidBack";
+  import { loadAppSettings, saveAppSettings, getAppSettings, onAppSettingsChange } from "../lib/appSettings";
   import CategoryTabContent from "./CategoryTabContent.svelte";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
@@ -111,7 +112,7 @@
 
   function toggleAnoDropdown() {
     showAnoDropdown = !showAnoDropdown;
-    localStorage.setItem('stp_show_ano_dropdown', String(showAnoDropdown));
+    saveAppSettings({ ...getAppSettings(), showAnoDropdown });
   }
 
   function fetchColegioConfig() {
@@ -481,7 +482,11 @@
       originalMultiplicadores = JSON.stringify(multiplicadores);
       multiplicadoresDirty = false;
     }).catch(e => console.error("Error fetching multiplicadores:", e));
+    // Cargar configuraciones syncronizables
+    loadAppSettings().then(s => { showAnoDropdown = s.showAnoDropdown; });
+    const unsubSettings = onAppSettingsChange(s => { showAnoDropdown = s.showAnoDropdown; });
     return () => {
+      unsubSettings();
       mql.removeEventListener("change", handler);
     };
   });

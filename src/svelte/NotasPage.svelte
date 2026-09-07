@@ -4,6 +4,7 @@
   import { emit, listen } from "@tauri-apps/api/event";
   import { syncService } from "../lib/syncService";
   import { onDataChange } from "../lib/autoSync";
+  import { loadAppSettings, onAppSettingsChange } from "../lib/appSettings";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
   import SearchFab from "./SearchFab.svelte";
@@ -1238,6 +1239,15 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
     fetchGradeConfigs();
     fetchMultiplicadores();
     fetchCatalogs();
+    // Cargar configuraciones syncronizables
+    loadAppSettings().then(s => {
+      highlightColor = s.highlightColor;
+      showAnoDropdown = s.showAnoDropdown;
+    });
+    const unsubSettings = onAppSettingsChange(s => {
+      highlightColor = s.highlightColor;
+      showAnoDropdown = s.showAnoDropdown;
+    });
 
     const checkMobile = () => {
       const portrait = window.innerHeight > window.innerWidth;
@@ -1311,6 +1321,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
     window.addEventListener('schooltracker-sync', onSync);
 
     return () => {
+      unsubSettings();
       clearTimeout(forceLoadTimer);
       window.removeEventListener('resize', checkMobile);
       window.removeEventListener('resize', onResizeScrollArea);

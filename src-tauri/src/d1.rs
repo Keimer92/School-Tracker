@@ -214,6 +214,7 @@ fn pk_cols(table: &str) -> &'static [&'static str] {
         "dia_sin_clases" => &["id"],
         "nota" => &["estudiante_id", "criterio_id", "corte_evaluativo_id", "asignatura_id"],
         "asistencia" => &["estudiante_id", "fecha"],
+        "app_settings" => &["key"],
         _ => &["id"],
     }
 }
@@ -245,7 +246,7 @@ fn collect_local_data_since(
         "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion",
         "colegio_dias_asistencia", "asistencia", "nota",
-        "dia_sin_clases",
+        "dia_sin_clases", "app_settings",
     ];
 
     let mut result = Map::new();
@@ -829,7 +830,7 @@ pub async fn d1_wipe_remote(state: tauri::State<'_, DbState>) -> Result<Value, S
         "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion",
         "colegio_dias_asistencia", "asistencia", "nota",
-        "dia_sin_clases",
+        "dia_sin_clases", "app_settings",
     ];
     let mut deletions: Vec<Value> = Vec::new();
     if let Some(rows) = resp.get("rows").and_then(|v| v.as_object()) {

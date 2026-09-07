@@ -7,6 +7,7 @@
   import { onDataChange } from "../lib/autoSync";
   import { registerBackHandler } from "../lib/androidBack";
   import { getLocalDateISOString } from "../lib/dateUtils";
+  import { loadAppSettings, onAppSettingsChange } from "../lib/appSettings";
   import { ask } from "@tauri-apps/plugin-dialog";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
@@ -516,6 +517,9 @@ $effect(() => {
     const checkMobile = () => { isMobile = window.innerWidth <= 768; };
     checkMobile();
     window.addEventListener('resize', checkMobile);
+    // Cargar configuraciones syncronizables
+    loadAppSettings().then(s => { showAnoDropdown = s.showAnoDropdown; });
+    const unsubSettings = onAppSettingsChange(s => { showAnoDropdown = s.showAnoDropdown; });
 
     const onVisibilityChange = () => { pageVisible = !document.hidden; };
     document.addEventListener('visibilitychange', onVisibilityChange);
@@ -540,6 +544,7 @@ $effect(() => {
     const u4 = listen("subjects-updated", () => { if (hasUnsavedChanges) return; fetchColegioConfig(); });
     fetchCatalogs();
     return () => {
+      unsubSettings();
       window.removeEventListener('resize', checkMobile);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('schooltracker-sync', () => {});

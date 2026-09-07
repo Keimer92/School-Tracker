@@ -9,6 +9,7 @@
   import { driveSyncService } from "./lib/driveSyncService";
   import { driveAutoBackup } from "./lib/driveAutoBackup";
   import { ensureWsSync, stopWsSync } from "./lib/wsSyncService";
+  import { loadAppSettings, saveAppSettings, getAppSettings, onAppSettingsChange } from "./lib/appSettings";
   import { getLocalDateISOString } from "./lib/dateUtils";
   import appIcon from "./assets/app-icon.png";
   import AsistenciaMainPage from "./svelte/asistencia/AsistenciaMainPage.svelte";
@@ -74,6 +75,8 @@ import CloudPage from "./svelte/CloudPage.svelte";
   function setThemeMode(mode: string) {
     themeMode = mode;
     applyTheme(mode);
+    // Sync to app_settings table
+    saveAppSettings({ ...getAppSettings(), theme: mode }).catch(() => {});
   }
 
   $effect(() => {
@@ -277,6 +280,20 @@ import CloudPage from "./svelte/CloudPage.svelte";
       const savedMode = localStorage.getItem("app-theme") || "sistema";
       themeMode = savedMode;
       applyTheme(savedMode);
+      // Cargar configuraciones syncronizables y aplicar tema desde la tabla
+      loadAppSettings().then(s => {
+        if (s.theme && s.theme !== savedMode) {
+          themeMode = s.theme;
+          applyTheme(s.theme);
+        }
+      });
+      const unsubSettings = onAppSettingsChange(s => {
+        if (s.theme && s.theme !== themeMode) {
+          themeMode = s.theme;
+          applyTheme(s.theme);
+        }
+      });
+      unlisten.push(unsubSettings);
 
       // Listen for system theme changes
       const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");

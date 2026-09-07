@@ -18,7 +18,7 @@ const ALL_TABLES = [
   'seccion', 'grado_asignatura', 'colegio_asignatura', 'colegio_grado', 'indicador',
   'criterio', 'estudiante', 'configuracion_calificacion',
   'multiplicador_calificacion',
-  'colegio_dias_asistencia', 'asistencia', 'nota',
+  'colegio_dias_asistencia', 'asistencia', 'nota', 'app_settings',
 ];
 
 function loadDirty(): Set<string> {

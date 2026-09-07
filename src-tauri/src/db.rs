@@ -388,7 +388,19 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
         );
         "#,
     )
-    .map_err(|e| format!("Error creando tablas de sincronizaciÃ³n: {}", e))?;
+    .map_err(|e| format!("Error creando tablas de sincronización: {}", e))?;
+
+    // Tabla de configuración de la app (key-value, sincronizable)
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL DEFAULT '{}',
+            updated_at TEXT DEFAULT (datetime('now'))
+        );
+        "#,
+    )
+    .map_err(|e| format!("Error creando tabla app_settings: {}", e))?;
 
 // Migraciones para bases de datos existentes (agregar columnas faltantes)
     // NOTA: Los datos iniciales NO se siembran aquí. Se siembran bajo demanda
@@ -5351,6 +5363,56 @@ pub async fn set_app_initialized(state: tauri::State<'_, DbState>) -> Result<(),
         [],
     ).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Lee todas las configuraciones de la app (key-value JSON).
+#[tauri::command]
+pub async fn get_app_settings(state: tauri::State<'_, DbState>) -> Result<String, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let result: Result<String, _> = conn.query_row(
+        "SELECT value FROM app_settings WHERE key = 'main'",
+        [],
+        |row| row.get(0),
+    );
+    match result {
+        Ok(v) => Ok(v),
+        Err(_) => Ok("{}".to_string()),
+    }
+}
+
+/// Guarda configuraciones de la app (upsert del JSON completo).
+#[tauri::command]
+pub async fn set_app_settings(state: tauri::State<'_, DbState>, settings_json: String) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO app_settings (key, value, updated_at) VALUES ('main', ?1, datetime('now'))
+         ON CONFLICT(key) DO UPDATE SET value = ?1, updated_at = datetime('now')",
+        rusqlite::params![settings_json],
+    ).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Migra configuraciones de localStorage a la tabla app_settings (una sola vez).
+/// Devuelve el JSON migrado para que el frontend actualice su estado.
+#[tauri::command]
+pub async fn migrate_settings_from_localstorage(state: tauri::State<'_, DbState>) -> Result<String, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    // Si ya hay datos, no migrar
+    let count: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM app_settings WHERE key = 'main'",
+        [],
+        |row| row.get(0),
+    ).map_err(|e| e.to_string())?;
+    if count > 0 {
+        let existing: String = conn.query_row(
+            "SELECT value FROM app_settings WHERE key = 'main'",
+            [],
+            |row| row.get(0),
+        ).map_err(|e| e.to_string())?;
+        return Ok(existing);
+    }
+    // Tabla vacía: devolver JSON vacío para que el frontend migre desde localStorage
+    Ok("{}".to_string())
 }
 
 #[tauri::command]
