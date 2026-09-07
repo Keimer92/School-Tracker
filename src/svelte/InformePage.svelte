@@ -36,6 +36,7 @@
   let secciones: CategoryItem[] = $state([]);
 
   let selectedAno = $state(Number(localStorage.getItem("selectedAno")) || 0);
+  let showAnoDropdown = $state(localStorage.getItem('stp_show_ano_dropdown') !== 'false');
   let selectedColegio = $state(Number(localStorage.getItem("selectedColegio")) || 0);
   let selectedGrado = $state(Number(localStorage.getItem("selectedGrado")) || 0);
   let selectedSeccion = $state(Number(localStorage.getItem("selectedSeccion")) || 0);
@@ -823,6 +824,7 @@
               <span style="font-size:0.65rem;color:#94a3b8;font-weight:600;background:rgba(255,255,255,0.06);padding:0.1rem 0.4rem;border-radius:6px">{colegios.find(c => c.id === selectedColegio)?.nombre?.slice(0, 6) || '—'} · {secciones.find(s => s.id === selectedSeccion)?.nombre || '—'}</span>
             </button>
           {:else}
+            {#if showAnoDropdown}
             <FilterGroup label="Año Lectivo:" {isMobile}>
               <select class="filter-select" bind:value={selectedAno} style="width:100%">
                 {#each anos as a}
@@ -830,6 +832,7 @@
                 {/each}
               </select>
             </FilterGroup>
+            {/if}
 
             <FilterGroup label="Colegio:" {isMobile}>
               <select class="filter-select" bind:value={selectedColegio} style="width:100%">
@@ -1245,6 +1248,7 @@
     bind:open={showFiltersModal}
     {isAndroidMobile}
     {isMobile}
+    showAno={showAnoDropdown}
     bind:anos bind:colegios bind:grados bind:secciones
     bind:selectedAno bind:selectedColegio bind:selectedGrado bind:selectedSeccion bind:selectedSexo
   >

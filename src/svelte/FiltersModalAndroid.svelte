@@ -39,6 +39,7 @@
 
     // Slots extra (ej. Período, Semana, Mes/Año)
     extras,
+    showAno = true,
   }: {
     open: boolean;
     isAndroidMobile: boolean;
@@ -54,6 +55,7 @@
     selectedSeccion: number;
     selectedSexo: string;
     extras?: import('svelte').Snippet;
+    showAno?: boolean;
   } = $props();
 
   // Dentro del modal siempre mostramos labels (hay espacio) y usamos
@@ -71,7 +73,7 @@
         style="position:absolute;top:.5rem;right:.5rem;width:28px;height:28px;border-radius:7px;border:1px solid rgba(255,255,255,.2);background:#1e293b;color:#e2e8f0;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1">✕</button>
       <h3 style="margin:0 0 .75rem;color:#f1f5f9;font-size:1rem;padding-right:2rem">{title}</h3>
       <div class="filters-grid">
-        {#if anos.length > 0}
+        {#if showAno && anos.length > 0}
           <div class="filter-group" style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
             <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Año lectivo:</label>
             <select class="filter-select filter-select-solid" style="width:100%;{modalSelectStyle}"

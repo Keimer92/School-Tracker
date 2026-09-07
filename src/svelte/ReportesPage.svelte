@@ -37,6 +37,7 @@
   let gradeConfigs: GradeConfig[] = $state([]);
 
   let selectedAno = $state(0);
+  let showAnoDropdown = $state(localStorage.getItem('stp_show_ano_dropdown') !== 'false');
   let selectedCorte = $state(0);
   let specialCorte = $state("");
   let selectedColegio = $state(0);
@@ -1042,11 +1043,13 @@
           </div>
         {:else}
         <FilterContainer {isMobile} style="padding:0.5rem">
+          {#if showAnoDropdown}
           <FilterGroup label="Año:" {isMobile}>
             <select class="filter-select" bind:value={selectedAno} style="width:100%">
               {#each anos as a}<option value={a.id}>{a.nombre}</option>{/each}
             </select>
           </FilterGroup>
+          {/if}
           <FilterGroup label="Corte:" {isMobile}>
             <select class="filter-select" style="width:100%"
               value={specialCorte || selectedCorte}
@@ -1328,6 +1331,7 @@
   <FiltersModalAndroid
     bind:open={showFiltersModal}
     {isAndroidMobile} {isMobile}
+    showAno={showAnoDropdown}
     bind:anos bind:colegios bind:grados bind:secciones
     bind:selectedAno bind:selectedColegio bind:selectedGrado bind:selectedSeccion bind:selectedSexo
   >

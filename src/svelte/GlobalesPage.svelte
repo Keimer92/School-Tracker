@@ -73,6 +73,7 @@
     multiplicadoresDirty = false;
   }
   let selectedTab = $state(TAB_NAMES[1]);
+  let showAnoDropdown = $state(localStorage.getItem('stp_show_ano_dropdown') !== 'false');
   let selectedCategory: CategoryConfig | null = $state(null);
   let selectedGrade: CategoryItem | null = $state(null);
   let gradeNombreEdit = $state('');
@@ -106,6 +107,11 @@
   function cerrarColegioConfigModal() {
     const anyDirty = diasDirty || colegioSubjectsDirty || colegioGradosDirty;
     cerrarSiSeguro(anyDirty, () => { selectedColegioConfig = null; });
+  }
+
+  function toggleAnoDropdown() {
+    showAnoDropdown = !showAnoDropdown;
+    localStorage.setItem('stp_show_ano_dropdown', String(showAnoDropdown));
   }
 
   function fetchColegioConfig() {
@@ -518,7 +524,22 @@
             if (selectedCategory?.title === "Grado") selectedGrade = item;
             if (selectedCategory?.title === "Colegio") selectedColegioConfig = item;
           }}
-        />
+        >
+          {#if selectedCategory?.title === "Año Lectivo"}
+            {#snippet headerExtra()}
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.15);border-radius:12px;">
+                <div style="display:flex;flex-direction:column;gap:2px;">
+                  <span style="font-size:0.8rem;color:#e2e8f0;font-weight:600;">Mostrar selector en otras páginas</span>
+                  <span style="font-size:0.7rem;color:#94a3b8;">Muestra/oculta el dropdown de Año Lectivo en Notas, Asistencia y Reportes</span>
+                </div>
+                <label class="switch" title={showAnoDropdown ? "Ocultar dropdown" : "Mostrar dropdown"}>
+                  <input type="checkbox" checked={showAnoDropdown} onchange={toggleAnoDropdown} />
+                  <span class="slider round"></span>
+                </label>
+              </div>
+            {/snippet}
+          {/if}
+        </CategoryTabContent>
       </div>
     {:else}
       <div style="padding: 1rem;">
@@ -777,7 +798,22 @@
             if (cat.title === "Grado") selectedGrade = item;
             if (cat.title === "Colegio") selectedColegioConfig = item;
           }}
-        />
+        >
+          {#if cat.title === "Año Lectivo"}
+            {#snippet headerExtra()}
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.15);border-radius:12px;">
+                <div style="display:flex;flex-direction:column;gap:2px;">
+                  <span style="font-size:0.8rem;color:#e2e8f0;font-weight:600;">Mostrar selector en otras páginas</span>
+                  <span style="font-size:0.7rem;color:#94a3b8;">Muestra/oculta el dropdown de Año Lectivo en Notas, Asistencia y Reportes</span>
+                </div>
+                <label class="switch" title={showAnoDropdown ? "Ocultar dropdown" : "Mostrar dropdown"}>
+                  <input type="checkbox" checked={showAnoDropdown} onchange={toggleAnoDropdown} />
+                  <span class="slider round"></span>
+                </label>
+              </div>
+            {/snippet}
+          {/if}
+        </CategoryTabContent>
       {/each}
     </div>
     <!-- Desktop Save Button -->

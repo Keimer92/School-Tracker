@@ -31,6 +31,7 @@
   let secciones: CategoryItem[] = $state([]);
 
   let selectedAno = $state(0);
+  let showAnoDropdown = $state(localStorage.getItem('stp_show_ano_dropdown') !== 'false');
   let selectedCorte = $state(0);
   let selectedColegio = $state(0);
   let selectedAsignatura = $state(Number(localStorage.getItem('notas-last-asignatura')) || 0);
@@ -1338,6 +1339,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
       <FiltersModalAndroid
         bind:open={showFiltersModal}
         {isAndroidMobile} {isMobile}
+        showAno={showAnoDropdown}
         bind:anos bind:colegios bind:grados bind:secciones
         bind:selectedAno bind:selectedColegio bind:selectedGrado bind:selectedSeccion bind:selectedSexo
       >
@@ -1366,6 +1368,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
 
       {#if !isAndroidMobile}
       <FilterContainer {isMobile}>
+        {#if showAnoDropdown}
         <FilterGroup label="Año Lectivo:" {isMobile}>
           <select class="filter-select" style="width:100%" bind:value={selectedAno}>
             {#each anos as a}
@@ -1373,6 +1376,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             {/each}
           </select>
         </FilterGroup>
+        {/if}
 
         <FilterGroup label="Corte:" {isMobile}>
           <select class="filter-select" style="width:100%" bind:value={selectedCorte}>

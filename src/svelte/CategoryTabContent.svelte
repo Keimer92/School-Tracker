@@ -10,11 +10,12 @@
   interface CategoryConfig { title: string; table: string; endpoints: { get: string; add: string; update: string; delete: string; setActive?: string; updateOrder?: string; }; hideDefault?: boolean; noAdd?: boolean; }
   interface DeleteCheckResponse { hasStudents: boolean; hasGrades: boolean; hasNotes: boolean; hasAttendance: boolean; studentCount: number; noteCount: number; attendanceCount: number; }
 
-  let { config, onConfigClick, accentColor = 'var(--primary-color)', accentIcon = '📋' }: {
+  let { config, onConfigClick, accentColor = 'var(--primary-color)', accentIcon = '📋', headerExtra }: {
     config: CategoryConfig;
     onConfigClick?: (item: CategoryItem) => void;
     accentColor?: string;
     accentIcon?: string;
+    headerExtra?: import('svelte').Snippet;
   } = $props();
 
   const isAndroid = /Android/i.test(navigator.userAgent);
@@ -397,6 +398,10 @@
     </button>
     {/if}
   </div>
+
+  {#if headerExtra}
+    <div style="margin-bottom: 1rem;">{@render headerExtra()}</div>
+  {/if}
 
   <div style="display: flex; flex-direction: column; gap: 0.65rem;">
     {#if vista.length === 0}
