@@ -1,5 +1,6 @@
 <script lang="ts">
   import appIcon from "../assets/app-icon.png";
+  import { driveSyncService } from "../lib/driveSyncService";
 
   interface Props {
     drawerOpen: boolean;
@@ -16,6 +17,24 @@
     closeDrawer,
     onNavigate
   }: Props = $props();
+
+  let respaldando = $state(false);
+
+  async function respaldoManualDrive() {
+    if (respaldando) return;
+    let conectado = false;
+    try {
+      const s = localStorage.getItem('schooltracker-google-drive-settings');
+      conectado = !!(s && JSON.parse(s)?.accessToken);
+    } catch {}
+    if (!conectado) { onNavigate('cloud'); return; }
+    respaldando = true;
+    try {
+      await driveSyncService.pushAll();
+    } catch (e) {
+      console.error('Respaldo manual a Drive falló:', e);
+    } finally { respaldando = false; }
+  }
 </script>
 
 <div class="mobile-header" class:encima-drawer={drawerOpen}>
@@ -31,6 +50,20 @@
     <img class="mobile-title-icon" src={appIcon} alt="" draggable="false" />
     School Tracker
   </span>
+  <!-- Botón de respaldo Drive (tap → respaldo directo o va a Nube si no conectado) -->
+  <button
+    class="mobile-drive-btn"
+    class:respaldando
+    onclick={respaldoManualDrive}
+    title={respaldando ? 'Creando respaldo...' : 'Crear respaldo en Drive'}
+  >
+    {#if respaldando}
+      <span class="drive-spinner"></span>
+    {:else}
+      <span class="drive-dot"></span>
+    {/if}
+    <span>Drive</span>
+  </button>
   <!-- Card/chip de nube a la derecha del título (tap → pestaña Nube) -->
   <button
     class="mobile-sync-chip"
@@ -72,5 +105,55 @@
     font-size: 1.9rem; 
     line-height: 1;
     display: block;
+  }
+
+  /* Botón de Drive en el header */
+  .mobile-drive-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(79, 142, 247, 0.3);
+    background: rgba(79, 142, 247, 0.08);
+    color: #93c5fd;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .mobile-drive-btn:hover {
+    background: rgba(79, 142, 247, 0.15);
+    border-color: rgba(79, 142, 247, 0.5);
+  }
+
+  .mobile-drive-btn.respaldando {
+    border-color: rgba(79, 142, 247, 0.5);
+    background: rgba(79, 142, 247, 0.15);
+  }
+
+  .drive-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #4f8ef7;
+    box-shadow: 0 0 6px rgba(79, 142, 247, 0.5);
+  }
+
+  .drive-spinner {
+    width: 10px;
+    height: 10px;
+    border: 2px solid rgba(79, 142, 247, 0.25);
+    border-top-color: #4f8ef7;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 </style>

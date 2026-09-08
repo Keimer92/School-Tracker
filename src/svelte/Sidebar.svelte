@@ -89,12 +89,6 @@ setThemeMode: (mode: string) => void;
     <CloudCards onTabChange={onTabChange} />
   {/if}
 
-  {#if isMobile}
-    <div class="drawer-cloud">
-      <CloudCards ocultarD1 onTabChange={(t) => onTabChange(t as Tab)} />
-    </div>
-  {/if}
-
   <div class="sidebar-section-header" style="padding-top: 6px;">APARIENCIA</div>
   <div class="theme-selector">
     {#each themeOptions as opt}
