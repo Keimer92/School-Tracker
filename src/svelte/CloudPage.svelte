@@ -1308,15 +1308,11 @@
           </div>
         {/if}
 
-        <!-- Push / Pull buttons -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+        <!-- Push button -->
+        <div style="margin-bottom: 0.75rem;">
           <button onclick={async () => { try { await driveSyncService.pushAll(); await refreshFiles(); } catch (e) { await emit("show-toast", { message: "❌ Error al crear respaldo: " + (e?.message || e), type: "error" }); } }} disabled={syncStatus.status === 'syncing'} style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(34,197,94,0.12) 0%, rgba(34,197,94,0.04) 100%); border: 1px solid rgba(34,197,94,0.2); border-radius: 12px; cursor: pointer; opacity: {syncStatus.status === 'syncing' ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             <span style="color: #22c55e; font-weight: 600; font-size: 0.85rem;">Crear respaldo</span>
-          </button>
-          <button onclick={async () => { try { await driveSyncService.pullAll(); await refreshFiles(); } catch (e) { await emit("show-toast", { message: "❌ Error al restaurar: " + (e?.message || e), type: "error" }); } }} disabled={syncStatus.status === 'syncing'} style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.12) 0%, rgba(var(--primary-rgb), 0.04) 100%); border: 1px solid rgba(var(--primary-rgb), 0.2); border-radius: 12px; cursor: pointer; opacity: {syncStatus.status === 'syncing' ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            <span style="color: var(--primary-color); font-weight: 600; font-size: 0.85rem;">Restaurar último</span>
           </button>
         </div>
 
@@ -1337,9 +1333,9 @@
                     <div style="display: flex; align-items: center; gap: 6px; color: #64748b; font-size: 0.65rem;">
                       <span>{fmtDate(file.createdTime)} · {fmtSize(file.size)}</span>
                       {#if filePlatform(file.name) === 'Android'}
-                        <span style="padding: 1px 6px; border-radius: 999px; background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.25); color: #7dd3fc;">🤖 Android</span>
+                        <span style="padding: 1px 6px; border-radius: 999px; background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.25); color: #7dd3fc; font-size: 20px; line-height: 1;">🤖</span>
                       {:else if filePlatform(file.name) === 'Windows'}
-                        <span style="padding: 1px 6px; border-radius: 999px; background: rgba(167,139,250,0.12); border: 1px solid rgba(167,139,250,0.25); color: #c4b5fd;">🪟 Windows</span>
+                        <span style="padding: 1px 6px; border-radius: 999px; background: rgba(167,139,250,0.12); border: 1px solid rgba(167,139,250,0.25); color: #c4b5fd; font-size: 20px; line-height: 1;">🪟</span>
                       {/if}
                     </div>
                   </div>
