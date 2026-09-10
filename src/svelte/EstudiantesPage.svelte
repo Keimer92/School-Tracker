@@ -747,7 +747,7 @@ async function fetchData(preserveFilters = false) {
         style="height:38px;padding:0 0.8rem;font-size:0.78rem;background:rgba(96,165,250,0.18);color:#bfdbfe;border:1px solid rgba(96,165,250,0.4);border-radius:8px;display:flex;align-items:center;justify-content:center;gap:5px;font-weight:600;cursor:pointer;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
         <span>🔍</span>
         <span style="overflow:hidden;text-overflow:ellipsis;">
-          {colegios.find(c => c.id === filters.colegioId)?.nombre || 'Colegio'} · {grados.find(g => g.id === filters.gradoId)?.nombre || 'Grado'} · {secciones.find(s => s.id === filters.seccionId)?.nombre || 'Sección'}{filters.sexo ? ` · ${filters.sexo === 'M' ? 'Masc' : 'Fem'}` : ''}
+          {(colegios.find(c => c.id === filters.colegioId)?.nombre)?.split(' ')[0] || 'Colegio'} · {grados.find(g => g.id === filters.gradoId)?.nombre || 'Grado'} · {secciones.find(s => s.id === filters.seccionId)?.nombre || 'Sección'}{filters.sexo ? ` · ${filters.sexo === 'M' ? 'Masc' : 'Fem'}` : ''}
         </span>
       </button>
     </div>
