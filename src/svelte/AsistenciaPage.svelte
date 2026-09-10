@@ -228,6 +228,9 @@
   // Modal de filtros (solo Android): agrupa Año/Colegio/Grado/Sección/Sexo para
   // liberar espacio vertical en móvil.
   let showFiltersModal = $state(false);
+  // Calendario abierto: la fila de acciones pasa de overflow-x:auto a visible
+  // para que el panel del DatePicker no quede recortado por el contenedor.
+  let dpAbierto = $state(false);
 
   let semanaActiva = $derived(
     semanasOpts.find(s => selectedFecha >= s.lunes && selectedFecha <= sumaDiasISO(s.lunes, 6))?.n ?? 1
@@ -273,6 +276,12 @@ $effect(() => {
     if (showFiltersModal && isAndroidMobile) {
       return registerBackHandler(() => { showFiltersModal = false; return true; });
     }
+  });
+
+  // Si el DatePicker deja de estar montado (cambio de período), el bindable
+  // quedaría en true y la fila perdería su overflow scroll.
+  $effect(() => {
+    if (!(isAndroidMobile && periodo === "diario")) dpAbierto = false;
   });
 
   let nombreMesSel = $derived(
@@ -1245,10 +1254,10 @@ $effect(() => {
               </select>
             </FilterGroup>
           {/if}
-          <div style="display:flex;gap:0.3rem;align-items:stretch;flex-shrink:0;{isAndroidMobile ? 'flex-wrap:nowrap;overflow:auto;-webkit-overflow-scrolling:touch;min-width:0;' : 'overflow:visible'}">
+          <div class="android-actions" style="display:flex;gap:{isAndroidMobile ? '2px' : '0.3rem'};align-items:stretch;flex-shrink:0;{isAndroidMobile ? 'flex-wrap:nowrap;min-width:0;width:100%;max-width:100%;-webkit-overflow-scrolling:touch;' : 'overflow:visible'}overflow-x:{isAndroidMobile && dpAbierto ? 'visible' : isAndroidMobile ? 'auto' : 'visible'}">
           {#if isAndroidMobile && periodo === "diario"}
-            <div style="flex:0 0 auto;width:104px;flex-shrink:0;">
-              <DatePickerGlass bind:value={selectedFecha} diaHabilitado={esDiaHabilCalendario} />
+            <div style="flex:1 1 40%;min-width:130px;max-width:180px;align-self:stretch;">
+              <DatePickerGlass bind:value={selectedFecha} bind:abierto={dpAbierto} diaHabilitado={esDiaHabilCalendario} />
             </div>
           {/if}
           {#if periodo !== 'mensual'}
@@ -1825,4 +1834,16 @@ $effect(() => {
 </div>
 
 <style>
+  /* Android: DatePicker + Sin Clases + Limpiar + P/A/J + Guardar en UNA sola
+     fila. La fila ocupa todo el ancho y, si el equipo es muy angosto, hace
+     scroll horizontal suave (sin scrollbar visible) en vez de romperse. */
+  .android-actions{scrollbar-width:none;-ms-overflow-style:none;flex-shrink:0;}
+  .android-actions::-webkit-scrollbar{display:none;width:0;height:0;}
+  /* pop-wrap/dg-root traen width:100% (pensados para filtros verticales);
+     dentro de la fila nowrap deben medir lo justo para no empujar al resto. */
+  .android-actions .pop-wrap{width:auto;}
+  /* El DatePicker ocupa el mismo alto/ancho que el de InformePage:
+     trigger a tamaño natural, estirado a la altura de la fila. */
+  .android-actions :global(.dg-root) { height: 100%; }
+  .android-actions :global(.dg-trigger) { height: 100%; }
 </style>

@@ -15,6 +15,9 @@
     invalid = false,
     zIndex = 1200,
     diaHabilitado,
+    // Panel expuesto como bindable para que el padre pueda reaccionar a la
+    // apertura (p. ej. quitar overflow-x:auto del contenedor y evitar recorte).
+    abierto = $bindable(false),
   }: {
     value?: string;
     disabled?: boolean;
@@ -22,6 +25,7 @@
     zIndex?: number;
     /** Predicado opcional: los días que devuelven false se muestran tachados y no seleccionables. */
     diaHabilitado?: (iso: string) => boolean;
+    abierto?: boolean;
   } = $props();
 
   const habilitado = (iso: string): boolean => (diaHabilitado ? !!diaHabilitado(iso) : true);
@@ -31,7 +35,6 @@
   const ACCENTO1 = '#f472b6';
   const ACCENTO2 = '#22d3ee';
 
-  let abierto = $state(false);
   let abrirAbajo = $state(true);
   let alinearDerecha = $state(false);
   let verAno = $state(new Date().getFullYear());
