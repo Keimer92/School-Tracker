@@ -1484,6 +1484,10 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
       {/if}
 
       {#if isAndroidMobile}
+        <div class="category-card" style="padding: 0.4rem 0.5rem; margin-top: 0.4rem;">
+          <input bind:value={searchTerm} placeholder="🔍 Buscar estudiante o nota..."
+            style="width:100%;height:38px;padding:0 0.8rem;font-size:0.82rem;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#e2e8f0;outline:none;box-sizing:border-box;" />
+        </div>
         <div class="category-card" style="padding: 0.5rem; margin-top: 0.4rem; display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
           <button type="button" onclick={() => { showFiltersModal = true; }}
             style="height:38px;padding:0 0.8rem;font-size:0.78rem;background:rgba(96,165,250,0.18);color:#bfdbfe;border:1px solid rgba(96,165,250,0.4);border-radius:8px;display:flex;align-items:center;justify-content:center;gap:5px;font-weight:600;cursor:pointer;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
@@ -2209,6 +2213,6 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
 
 
 
-    <SearchFab bind:value={searchTerm} placeholder="Buscar estudiante o nota..." />
+    {#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder="Buscar estudiante o nota..." />{/if}
   </div>
 </div>

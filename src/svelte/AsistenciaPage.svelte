@@ -1049,7 +1049,7 @@ $effect(() => {
     return { total, m, f };
   }
 </script>
-<SearchFab bind:value={searchTerm} placeholder="Buscar..." />
+{#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder="Buscar..." />{/if}
 
 
 <div class="page-container" style="height:100%;min-height:0">
@@ -1201,6 +1201,10 @@ $effect(() => {
             {/if}
           {/if}
           {#if isAndroidMobile}
+            <div style="width:100%;padding:0.1rem 0 0.3rem;">
+              <input bind:value={searchTerm} placeholder="🔍 Buscar..."
+                style="width:100%;height:38px;padding:0 0.8rem;font-size:0.82rem;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#e2e8f0;outline:none;box-sizing:border-box;" />
+            </div>
             {#if periodo === "diario"}
               <FilterGroup label="Fecha:" {isMobile}>
                 <DatePickerGlass bind:value={selectedFecha} diaHabilitado={esDiaHabilCalendario} />

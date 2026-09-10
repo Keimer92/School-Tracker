@@ -112,6 +112,30 @@
   let selectMode = $state(false);
   let isDeletingSelected = $state(false);
 
+  // Long-press para editar estudiante
+  let longPressTimer: ReturnType<typeof setTimeout> | null = $state(null);
+  let longPressFired = $state(false);
+
+  function startLongPress(student: Student, e: PointerEvent) {
+    if ((e.target as HTMLElement).closest('.item-actions, [onclick*="toggleSelect"]')) return;
+    longPressFired = false;
+    longPressTimer = setTimeout(() => {
+      longPressFired = true;
+      openEditModal(student);
+      if (navigator.vibrate) navigator.vibrate(30);
+    }, 3000);
+  }
+
+  function cancelLongPress() {
+    if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+  }
+
+  function onRowClick(e: MouseEvent, student: Student) {
+    if (longPressFired) { e.preventDefault(); return; }
+  }
+
+  function onContextMenu(e: MouseEvent) { e.preventDefault(); }
+
   let filters = $state({ anoLectivoId: 0, colegioId: 0, gradoId: 0, seccionId: 0, sexo: "" });
 
   // Promoción de estudiantes
@@ -733,11 +757,15 @@ async function fetchData(preserveFilters = false) {
     };
   });
 </script>
-<SearchFab bind:value={searchTerm} placeholder="Nombre o codigo..." />
+{#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder="Nombre o codigo..." />{/if}
 
 
 <div class="page-container" id="estudiantes-page" style="height: 100%; min-height: 0;">
   {#if isAndroidMobile}
+    <div class="category-card" style="padding: 0.4rem 0.5rem; margin-bottom: 0.4rem;">
+      <input bind:value={searchTerm} placeholder="🔍 Buscar nombre o código..."
+        style="width:100%;height:38px;padding:0 0.8rem;font-size:0.82rem;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#e2e8f0;outline:none;box-sizing:border-box;" />
+    </div>
     <div class="category-card" style="padding: 0.5rem; margin-bottom: 0.4rem; display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
       <button type="button" onclick={() => { showFiltersModal = true; }}
         style="height:38px;padding:0 0.8rem;font-size:0.78rem;background:rgba(96,165,250,0.18);color:#bfdbfe;border:1px solid rgba(96,165,250,0.4);border-radius:8px;display:flex;align-items:center;justify-content:center;gap:5px;font-weight:600;cursor:pointer;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
@@ -1074,7 +1102,9 @@ async function fetchData(preserveFilters = false) {
     {:else if viewMode === 'card'}
       <div style="display: grid; grid-template-columns: {isMobile ? 'minmax(0, 1fr)' : 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))'}; gap: {isMobile ? '0.5rem' : '0.75rem'}; padding: {isMobile ? '0 0.25rem' : '0'}; width: 100%; min-width: 0; box-sizing: border-box; align-content: flex-start;">
         {#each filteredStudents as st, index}
-          <div class="category-card" style="margin: 0; padding: 0.6rem 0.8rem; border: {selectedIds.has(st.id!) ? '1.5px solid #ef4444' : '1px solid rgba(255,255,255,0.05)'};">
+          <div class="category-card" style="margin: 0; padding: 0.6rem 0.8rem; border: {selectedIds.has(st.id!) ? '1.5px solid #ef4444' : '1px solid rgba(255,255,255,0.05)'}; touch-action: manipulation; -webkit-touch-callout: none; user-select: none;"
+            onpointerdown={(e) => startLongPress(st, e)} onpointerup={cancelLongPress} onpointerleave={cancelLongPress} onpointercancel={cancelLongPress}
+            onclick={(e) => onRowClick(e, st)} oncontextmenu={onContextMenu}>
             <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
               <div style="display: flex; align-items: center; gap: 0.6rem; flex: 1; min-width: 0;">
                 <div onclick={(e) => { e.stopPropagation(); toggleSelect(st.id!); }} style="cursor: pointer; width: 20px; height: 20px; border-radius: 4px; border: 2px solid {selectedIds.has(st.id!) ? '#ef4444' : 'rgba(255,255,255,0.2)'}; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.2)' : 'transparent'}; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">{selectedIds.has(st.id!) ? '✓' : ''}</div>
@@ -1087,8 +1117,8 @@ async function fetchData(preserveFilters = false) {
                 <span style="flex: 1; min-width: 0; font-size: 0.9rem; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{st.nombre}</span>
               </div>
               <div class="item-actions" style="display: flex; gap: 0.2rem; flex-shrink: 0;">
-                <button class="icon-button edit" onclick={() => openEditModal(st)} style="width: 30px; height: 30px; font-size: 0.8rem;">✏️</button>
-                <button class="icon-button delete" onclick={() => handleDelete(st.id!)} style="width: 30px; height: 30px; font-size: 0.8rem;">🗑</button>
+                <button class="icon-button delete" onclick={(e) => { e.stopPropagation(); handleDelete(st.id!); }}
+                  style="width: 36px; height: 36px; font-size: 1rem; background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.25); border-radius: 8px; color: #f87171; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;">🗑</button>
               </div>
             </div>
           </div>
@@ -1097,7 +1127,9 @@ async function fetchData(preserveFilters = false) {
     {:else if viewMode === 'list'}
       <div style="display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05);">
         {#each filteredStudents as st, index}
-          <div style="content-visibility: auto; contain-intrinsic-size: auto 48px; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-bottom: {index < filteredStudents.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none'}; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.08)' : index % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent'}; transition: background 0.15s;">
+          <div style="content-visibility: auto; contain-intrinsic-size: auto 48px; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-bottom: {index < filteredStudents.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none'}; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.08)' : index % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent'}; transition: background 0.15s; touch-action: manipulation; -webkit-touch-callout: none; user-select: none;"
+            onpointerdown={(e) => startLongPress(st, e)} onpointerup={cancelLongPress} onpointerleave={cancelLongPress} onpointercancel={cancelLongPress}
+            onclick={(e) => onRowClick(e, st)} oncontextmenu={onContextMenu}>
             <div onclick={(e) => { e.stopPropagation(); toggleSelect(st.id!); }} style="cursor: pointer; width: 18px; height: 18px; border-radius: 3px; border: 2px solid {selectedIds.has(st.id!) ? '#ef4444' : 'rgba(255,255,255,0.2)'}; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.2)' : 'transparent'}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.6rem; color: #ef4444;">{selectedIds.has(st.id!) ? '✓' : ''}</div>
             {#if st.foto}
               <img src={st.foto} alt={st.nombre} style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(56, 189, 248, 0.2); flex-shrink: 0;" />
@@ -1107,8 +1139,8 @@ async function fetchData(preserveFilters = false) {
             <span style="font-size: 0.65rem; font-weight: bold; flex-shrink: 0; min-width: 26px; text-align: center; background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 1px 5px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.2);">{index + 1}</span>
             <span style="font-size: 0.85rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;">{st.nombre}</span>
             <div style="display: flex; gap: 0.15rem; flex-shrink: 0;">
-              <button class="icon-button edit" onclick={() => openEditModal(st)} style="width: 26px; height: 26px; font-size: 0.7rem;">✏️</button>
-              <button class="icon-button delete" onclick={() => handleDelete(st.id!)} style="width: 26px; height: 26px; font-size: 0.7rem;">🗑</button>
+              <button class="icon-button delete" onclick={(e) => { e.stopPropagation(); handleDelete(st.id!); }}
+                style="width: 36px; height: 36px; font-size: 1rem; background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.25); border-radius: 8px; color: #f87171; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;">🗑</button>
             </div>
           </div>
         {/each}
