@@ -1245,16 +1245,16 @@ $effect(() => {
               </select>
             </FilterGroup>
           {/if}
-          <div style="display:flex;gap:0.3rem;align-items:stretch;flex-shrink:0;{isAndroidMobile ? 'width:100%;flex-wrap:wrap' : ''}">
+          <div style="display:flex;gap:0.3rem;align-items:stretch;flex-shrink:0;{isAndroidMobile ? 'flex-wrap:nowrap;overflow:auto;-webkit-overflow-scrolling:touch;min-width:0;' : 'overflow:visible'}">
           {#if isAndroidMobile && periodo === "diario"}
-            <div style="flex:1 1 0;min-width:120px;max-width:160px;">
+            <div style="flex:0 0 auto;width:104px;flex-shrink:0;">
               <DatePickerGlass bind:value={selectedFecha} diaHabilitado={esDiaHabilCalendario} />
             </div>
           {/if}
           {#if periodo !== 'mensual'}
             <div class="pop-wrap" bind:this={popSinClasesEl} style="flex:0 0 auto;">
               <button type="button" onclick={handleSinClasesClick} disabled={sinClasesGuardando || !selectedSeccion}
-                style="height:42px;padding:0 {isAndroidMobile ? '0.6rem' : '1rem'};font-size:{isAndroidMobile ? '0.8rem' : '0.85rem'};background:{sinClasesActivo ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.03)'};border:1px solid {sinClasesActivo ? '#f59e0b' : 'rgba(255,255,255,0.08)'};color:{sinClasesActivo ? '#f59e0b' : '#94a3b8'};border-radius:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px;transition:all 0.15s;white-space:nowrap;opacity:{sinClasesGuardando ? 0.6 : 1}">
+                style="height:42px;padding:0 {isAndroidMobile ? '0.5rem' : '1rem'};font-size:{isAndroidMobile ? '0.8rem' : '0.85rem'};flex-shrink:0;background:{sinClasesActivo ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.03)'};border:1px solid {sinClasesActivo ? '#f59e0b' : 'rgba(255,255,255,0.08)'};color:{sinClasesActivo ? '#f59e0b' : '#94a3b8'};border-radius:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px;transition:all 0.15s;white-space:nowrap;opacity:{sinClasesGuardando ? 0.6 : 1}">
                 <span>{sinClasesActivo ? '🏫' : '🚫'}</span>{#if !isAndroidMobile}<span>Sin Clases</span>{/if}
               </button>
 
@@ -1285,26 +1285,28 @@ $effect(() => {
             </div>
           {/if}
           <button onclick={limpiarAsistencia} disabled={getActiveStudentCount() === 0}
-            style="height:42px;padding:0 1.25rem;font-size:0.85rem;background-color:{getActiveStudentCount() > 0 ? '#ef4444' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:{getActiveStudentCount() > 0 ? 'pointer' : 'not-allowed'};transition:all 0.3s ease;box-shadow:{getActiveStudentCount() > 0 ? '0 4px 14px rgba(239,68,68,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{getActiveStudentCount() > 0 ? 1 : 0.7}">
-            <span>🧹</span><span>{isAndroidMobile ? '' : 'Limpiar'}</span>
+            style="height:42px;padding:0 {isAndroidMobile ? '0.5rem' : '1.25rem'};font-size:{isAndroidMobile ? '0.8rem' : '0.85rem'};flex-shrink:0;background-color:{getActiveStudentCount() > 0 ? '#ef4444' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{getActiveStudentCount() > 0 ? 'pointer' : 'not-allowed'};transition:all 0.3s ease;box-shadow:{getActiveStudentCount() > 0 ? '0 4px 14px rgba(239,68,68,0.4)' : 'none'};white-space:nowrap;opacity:{getActiveStudentCount() > 0 ? 1 : 0.7}">
+            <span>🧹</span>{#if !isAndroidMobile}<span>Limpiar</span>{/if}
           </button>
           <div style="display:flex;gap:2px;align-items:stretch;flex-shrink:0">
             <button onclick={() => marcarTodos('P')} disabled={getActiveStudentCount() === 0}
-              style="padding:0.4rem 0.7rem;font-size:0.8rem;height:42px;background:{getActiveStudentCount() > 0 ? 'rgba(16,185,129,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {getActiveStudentCount() > 0 ? 'rgba(16,185,129,0.3)' : 'transparent'};color:#10b981;border-radius:8px;cursor:{getActiveStudentCount() > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{getActiveStudentCount() > 0 ? 1 : 0.5}"
+              style="padding:{isAndroidMobile ? '0.4rem 0.45rem' : '0.4rem 0.7rem'};font-size:{isAndroidMobile ? '0.75rem' : '0.8rem'};height:42px;background:{getActiveStudentCount() > 0 ? 'rgba(16,185,129,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {getActiveStudentCount() > 0 ? 'rgba(16,185,129,0.3)' : 'transparent'};color:#10b981;border-radius:8px;cursor:{getActiveStudentCount() > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{getActiveStudentCount() > 0 ? 1 : 0.5}"
               title="Marcar todos como Presente">P</button>
             <button onclick={() => marcarTodos('A')} disabled={getActiveStudentCount() === 0}
-              style="padding:0.4rem 0.7rem;font-size:0.8rem;height:42px;background:{getActiveStudentCount() > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {getActiveStudentCount() > 0 ? 'rgba(239,68,68,0.3)' : 'transparent'};color:#ef4444;border-radius:8px;cursor:{getActiveStudentCount() > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{getActiveStudentCount() > 0 ? 1 : 0.5}"
+              style="padding:{isAndroidMobile ? '0.4rem 0.45rem' : '0.4rem 0.7rem'};font-size:{isAndroidMobile ? '0.75rem' : '0.8rem'};height:42px;background:{getActiveStudentCount() > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {getActiveStudentCount() > 0 ? 'rgba(239,68,68,0.3)' : 'transparent'};color:#ef4444;border-radius:8px;cursor:{getActiveStudentCount() > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{getActiveStudentCount() > 0 ? 1 : 0.5}"
               title="Marcar todos como Ausente">A</button>
             <button onclick={() => marcarTodos('J')} disabled={getActiveStudentCount() === 0}
-              style="padding:0.4rem 0.7rem;font-size:0.8rem;height:42px;background:{getActiveStudentCount() > 0 ? 'rgba(245,158,11,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {getActiveStudentCount() > 0 ? 'rgba(245,158,11,0.3)' : 'transparent'};color:#f59e0b;border-radius:8px;cursor:{getActiveStudentCount() > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{getActiveStudentCount() > 0 ? 1 : 0.5}"
+              style="padding:{isAndroidMobile ? '0.4rem 0.45rem' : '0.4rem 0.7rem'};font-size:{isAndroidMobile ? '0.75rem' : '0.8rem'};height:42px;background:{getActiveStudentCount() > 0 ? 'rgba(245,158,11,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {getActiveStudentCount() > 0 ? 'rgba(245,158,11,0.3)' : 'transparent'};color:#f59e0b;border-radius:8px;cursor:{getActiveStudentCount() > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{getActiveStudentCount() > 0 ? 1 : 0.5}"
               title="Marcar todos como Justificado">J</button>
           </div>
           <button onclick={handleManualSave} disabled={!hasUnsavedChanges || saving}
-            style="height:42px;padding:0 {isAndroidMobile ? '0.9rem' : '1.25rem'};font-size:0.85rem;background-color:{hasUnsavedChanges && !saving ? 'var(--primary-color)' : (saving ? '#059669' : 'rgba(148,163,184,0.5)')};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:{hasUnsavedChanges && !saving ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{hasUnsavedChanges && !saving ? '0 4px 14px rgba(var(--primary-rgb), 0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{hasUnsavedChanges || saving ? 1 : 0.7}">
-            {#if saving}<span class="saving-dot"></span><span>{isAndroidMobile ? '' : 'Guardando'}</span>{:else}<span>💾</span><span>{isAndroidMobile ? '' : 'Guardar'}</span>{/if}
+            style="height:42px;padding:0 {isAndroidMobile ? '0.5rem' : '1.25rem'};font-size:{isAndroidMobile ? '0.8rem' : '0.85rem'};background-color:{hasUnsavedChanges && !saving ? 'var(--primary-color)' : (saving ? '#059669' : 'rgba(148,163,184,0.5)')};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{hasUnsavedChanges && !saving ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{hasUnsavedChanges && !saving ? '0 4px 14px rgba(var(--primary-rgb), 0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{hasUnsavedChanges || saving ? 1 : 0.7}">
+            {#if saving}<span class="saving-dot"></span><span>{isAndroidMobile ? '' : 'Guardando'}</span>{:else}<span>💾</span>{#if !isAndroidMobile}<span>Guardar</span>{/if}{/if}
           </button>
-          <div style="flex:1;min-width:{isAndroidMobile ? '0' : '100px'};{isAndroidMobile ? 'flex-basis:56px;max-width:40vw' : ''}">
+          {#if !isAndroidMobile}
+          <div style="flex:1;min-width:100px">
           </div>
+          {/if}
           </div>
         </div>
       </FilterContainer>
