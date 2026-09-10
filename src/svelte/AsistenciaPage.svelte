@@ -1214,11 +1214,12 @@ $effect(() => {
               <input bind:value={searchTerm} placeholder="🔍 Buscar..."
                 style="width:100%;height:38px;padding:0 0.8rem;font-size:0.82rem;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#e2e8f0;outline:none;box-sizing:border-box;" />
             </div>
-            <button type="button" onclick={() => showFiltersModal = true}
-              title="Filtros (Período · Año · Colegio · Grado · Sección · Sexo · Semana/Mes)"
-              style="width:100%;height:42px;padding:0 0.9rem;font-size:0.85rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#e2e8f0;border-radius:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all 0.15s;white-space:nowrap;margin-bottom:0.3rem">
-              <span>🔍</span><span>Filtros</span>
-              <span style="font-size:0.65rem;color:#94a3b8;font-weight:600;background:rgba(255,255,255,0.06);padding:0.1rem 0.4rem;border-radius:6px">{colegios.find(c => c.id === selectedColegio)?.nombre?.slice(0, 6) || '—'} · {secciones.find(s => s.id === selectedSeccion)?.nombre || '—'}</span>
+            <button onclick={() => showFiltersModal = true} title="Filtros (Período · Año · Colegio · Grado · Sección · Sexo · Semana/Mes)"
+              style="width:100%;height:42px;padding:0 0.9rem;font-size:0.85rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#e2e8f0;border-radius:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all 0.15s;white-space:nowrap;margin-bottom:0.3rem"
+              onmouseenter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.08)'; }}
+              onmouseleave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}>
+              <span>🔍</span>
+              <span style="overflow:hidden;text-overflow:ellipsis;">{colegios.find(c => c.id === selectedColegio)?.nombre || 'Colegio'} · {grados.find(g => g.id === selectedGrado)?.nombre || 'Grado'} · {secciones.find(s => s.id === selectedSeccion)?.nombre || 'Sección'}</span>
             </button>
           {:else}
             {#if showAnoDropdown}
