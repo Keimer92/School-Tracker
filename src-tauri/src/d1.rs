@@ -483,6 +483,31 @@ fn upsert_row(conn: &rusqlite::Connection, table: &str, row: &Map<String, Value>
         .map_err(|e| e.to_string())
 }
 
+// Inserta filas durante un restore autoritativo conservando los IDs remotos.
+// La BD local se limpia antes, así que no hace falta reconciliar por nombre y
+// las relaciones con claves compuestas conservan sus referencias originales.
+fn insert_restore_row(conn: &rusqlite::Connection, table: &str, row: &Map<String, Value>) -> Result<(), String> {
+    let cols: Vec<String> = row.keys().cloned().collect();
+    if cols.is_empty() {
+        return Ok(());
+    }
+    let placeholders = cols.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+    let sql = format!(
+        "INSERT OR REPLACE INTO {} ({}) VALUES ({})",
+        table,
+        cols.join(", "),
+        placeholders
+    );
+    let vals: Vec<rusqlite::types::Value> = cols
+        .iter()
+        .map(|c| sqlite_value_to_json(&row.get(c).unwrap_or(&Value::Null)))
+        .collect();
+    let refs: Vec<&dyn rusqlite::types::ToSql> = vals.iter().map(|v| v as &dyn rusqlite::types::ToSql).collect();
+    conn.execute(&sql, refs.as_slice())
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 // Upsert de asistencia por clave de negocio (estudiante_id, fecha).
 // Si el registro remoto ya existe localmente con otro id, se actualiza la fila existente
 // (estado/observación/updated_at) en lugar de insertar un id duplicado.
@@ -965,18 +990,24 @@ pub async fn d1_restore_from_cloud(
     .await
     .map_err(|e| format!("Error en pull (hilo): {}", e))??;
 
-    // 3) Aplicar en UNA sola transacción: NO se borran las tablas locales.
-    // Modo "acumulativo" — cada pull agrega lo que vino; los reintentos
-    // completan las tablas faltantes (p. ej. si la cuota free de Cloudflare
-    // truncó el primer pull y `ano_lectivo` no llegó, el segundo lo suma).
-    // Esto es seguro porque el upsert usa `updated_at` sellado por el Worker
-    // (LWW por llegada) y los catálogos con UNIQUE(nombre) están
-    // desunicados (DEUNIQUE_TABLES) en el schema remoto, así que no chocan
-    // con ids locales.
+    // 3) Aplicar en UNA sola transacción como restore autoritativo. Se limpian
+    // los datos locales antes de insertar y se conservan los IDs remotos;
+    // así las relaciones (colegio_grado, estudiantes, notas, etc.) siguen
+    // apuntando a los mismos catálogos que en la nube.
     let _ = app.emit("d1-sync-progress", json!({ "message": "Guardando datos localmente…" }));
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute("PRAGMA foreign_keys = OFF", []).map_err(|e| e.to_string())?;
     let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    for table in [
+        "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
+        "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio",
+        "estudiante", "configuracion_calificacion", "multiplicador_calificacion",
+        "colegio_dias_asistencia", "asistencia", "nota", "dia_sin_clases", "app_settings",
+    ] {
+        tx.execute(&format!("DELETE FROM {}", table), [])
+            .map_err(|e| format!("Error limpiando {}: {}", table, e))?;
+    }
 
     tx.execute_batch(
         "CREATE TABLE IF NOT EXISTS sync_recent_pulls (
@@ -995,18 +1026,9 @@ pub async fn d1_restore_from_cloud(
         for (table, arr) in rows {
             if let Some(entries) = arr.as_array() {
                 let mut n = 0;
-                // Si la nube trae datos para esta tabla, limpiamos la local
-                // antes de insertar para evitar mezclas con restos de sesiones
-                // anteriores (p. ej. device_id viejo). Si trae 0, NO tocamos
-                // la tabla: los reintentos futuros podrán completarla cuando
-                // la cuota free de Cloudflare se haya reiniciado.
-                if !entries.is_empty() {
-                    tx.execute(&format!("DELETE FROM {}", table), [])
-                        .map_err(|e| format!("Error limpiando {}: {}", table, e))?;
-                }
                 for entry in entries {
                     if let Some(obj) = entry.as_object() {
-                        upsert_row(&tx, table, obj)?;
+                        insert_restore_row(&tx, table, obj)?;
                         tx.execute(
                             "INSERT INTO sync_recent_pulls (tabla, pk, updated_at, ts)
                              VALUES (?1, ?2, ?3, ?4)
