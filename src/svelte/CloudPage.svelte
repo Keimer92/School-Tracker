@@ -228,7 +228,11 @@
   function sumarConteos(o: any): number {
     if (typeof o === 'number') return o;
     if (!o) return 0;
-    return Object.values(o as Record<string, unknown>).reduce((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+    return Object.values(o as Record<string, unknown>).reduce<number>((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+  }
+
+  function mensajeError(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 
   $effect(() => { if (settings.googleUserProfilePic) imgError = false; });
@@ -666,7 +670,7 @@
         await driveSyncService.pullById(file.id);
         await emit("show-toast", { message: "✅ Respaldo restaurado", type: "success" });
       } catch (e) {
-        await emit("show-toast", { message: "❌ Error al restaurar: " + (e?.message || e), type: "error" });
+        await emit("show-toast", { message: "❌ Error al restaurar: " + mensajeError(e), type: "error" });
       }
     });
   }
@@ -750,7 +754,7 @@
         await emit("show-toast", { message: "✅ Conexión importada correctamente", type: "success" });
       } finally { isD1Saving = false; }
     } catch (e) {
-      await emit("show-toast", { message: "❌ " + (typeof e === 'string' ? e : e?.message || String(e)), type: "error" });
+      await emit("show-toast", { message: "❌ " + mensajeError(e), type: "error" });
     }
   }
 
@@ -839,32 +843,34 @@
     );
   }
 
-  onMount(async () => {
+  onMount(() => {
     const unsub = syncManager.subscribe((state) => { syncStatus = state; });
     loadSettings();
-    if (settings.accessToken) await refreshFiles();
-    await loadD1Config();
     d1SyncManager.subscribe((s) => { d1SyncState = s; if (s.status === 'error') refreshD1ErrorDetalle(); });
     refreshLinkedAccounts();
-    // Auto-detect pending OAuth code (por si la página recargó durante el flujo)
-    if (!settings.accessToken && !isAuthLoading) {
-      try {
-        const hasCode = await invoke<boolean>("gd_has_pending_oauth_code");
-        if (hasCode) {
-          isAuthLoading = true;
-          setBackAuthInProgress(true);
-          const code = await invoke<string>("gd_wait_oauth_code", { timeoutSecs: 10 });
-          const port = 51733;
-          const pendingRedirect = `${isAndroid ? 'http://127.0.0.1' : 'http://localhost'}:${port}/callback`;
-          if (code && !authHandled) {
-            authHandled = true;
-            await exchangeCode(code, pendingRedirect);
+    void (async () => {
+      if (settings.accessToken) await refreshFiles();
+      await loadD1Config();
+      // Auto-detect pending OAuth code (por si la página recargó durante el flujo)
+      if (!settings.accessToken && !isAuthLoading) {
+        try {
+          const hasCode = await invoke<boolean>("gd_has_pending_oauth_code");
+          if (hasCode) {
+            isAuthLoading = true;
+            setBackAuthInProgress(true);
+            const code = await invoke<string>("gd_wait_oauth_code", { timeoutSecs: 10 });
+            const port = 51733;
+            const pendingRedirect = `${isAndroid ? 'http://127.0.0.1' : 'http://localhost'}:${port}/callback`;
+            if (code && !authHandled) {
+              authHandled = true;
+              await exchangeCode(code, pendingRedirect);
+            }
+            isAuthLoading = false;
+            setBackAuthInProgress(false);
           }
-          isAuthLoading = false;
-          setBackAuthInProgress(false);
-        }
-      } catch {}
-    }
+        } catch {}
+      }
+    })();
     return unsub;
   });
 
@@ -1063,7 +1069,7 @@
     </div>
   {/if}
 
-  <div class="cloud-cols" class:mobile={isAndroid}
+  <div class="cloud-cols" class:mobile={isAndroid} role="region" aria-label="Paneles de sincronización"
     ontouchstart={isAndroid ? onCloudTouchStart : undefined}
     ontouchend={isAndroid ? onCloudTouchEnd : undefined}>
   <div class="cloud-card" style={isAndroid && activeCloudTab !== 0 ? 'display:none;' : 'margin-bottom: 1.25rem;'}>
@@ -1239,7 +1245,7 @@
                 </button>
               </div>
             {:else}
-              <button onclick={initGoogleAuth} style="padding: 0.8rem 2rem; background: linear-gradient(135deg, #4285F4, #34A853); border: none; color: white; border-radius: 12px; font-weight: 600; font-size: 1rem; cursor: pointer; box-shadow: 0 4px 16px rgba(66,133,244,0.3);">
+              <button onclick={() => initGoogleAuth()} style="padding: 0.8rem 2rem; background: linear-gradient(135deg, #4285F4, #34A853); border: none; color: white; border-radius: 12px; font-weight: 600; font-size: 1rem; cursor: pointer; box-shadow: 0 4px 16px rgba(66,133,244,0.3);">
                 🔗 Vincular Google Drive
               </button>
             {/if}
@@ -1310,7 +1316,7 @@
 
         <!-- Push button -->
         <div style="margin-bottom: 0.75rem;">
-          <button onclick={async () => { try { await driveSyncService.pushAll(); await refreshFiles(); } catch (e) { await emit("show-toast", { message: "❌ Error al crear respaldo: " + (e?.message || e), type: "error" }); } }} disabled={syncStatus.status === 'syncing'} style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(34,197,94,0.12) 0%, rgba(34,197,94,0.04) 100%); border: 1px solid rgba(34,197,94,0.2); border-radius: 12px; cursor: pointer; opacity: {syncStatus.status === 'syncing' ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;">
+          <button onclick={async () => { try { await driveSyncService.pushAll(); await refreshFiles(); } catch (e) { await emit("show-toast", { message: "❌ Error al crear respaldo: " + mensajeError(e), type: "error" }); } }} disabled={syncStatus.status === 'syncing'} style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(34,197,94,0.12) 0%, rgba(34,197,94,0.04) 100%); border: 1px solid rgba(34,197,94,0.2); border-radius: 12px; cursor: pointer; opacity: {syncStatus.status === 'syncing' ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             <span style="color: #22c55e; font-weight: 600; font-size: 0.85rem;">Crear respaldo</span>
           </button>
@@ -1374,8 +1380,7 @@
   .cloud-tabs {
     display: none;
   }
-  .cloud-page > .cloud-tabs,
-  .cloud-cols.mobile ~ .cloud-tabs {
+  .cloud-page > .cloud-tabs {
     display: flex;
     flex-direction: row;
     gap: 0.5rem;
