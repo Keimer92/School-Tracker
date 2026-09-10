@@ -428,7 +428,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
       const excelData = filtered.map(s => ({
         "Nombre Completo": s.nombre, Sexo: s.sexo === "F" ? "Femenino" : "Masculino",
         Grado: grados.find(g => g.id === s.gradoId)?.nombre || "N/A", Sección: secciones.find(sec => sec.id === s.seccionId)?.nombre || "N/A",
-        Teléfono: s.telefono || "", Email: s.email || "", Dirección: s.direccion || "",
       }));
       excelData.sort((a, b) => { const g = a.Grado.localeCompare(b.Grado, undefined, { numeric: true, sensitivity: "base" }); if (g) return g; const se = a.Sección.localeCompare(b.Sección, undefined, { numeric: true, sensitivity: "base" }); return se || a["Nombre Completo"].localeCompare(b["Nombre Completo"], undefined, { sensitivity: "base" }); });
       const ws = XLSX.utils.json_to_sheet(excelData); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Estudiantes");
@@ -454,7 +453,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
       const wb = XLSX.utils.book_new();
       Object.entries(byColegio).forEach(([sheetName, colegioStudents]) => {
         (colegioStudents as any[]).sort((a, b) => { const ga = grados.find(g => g.id === a.gradoId)?.nombre || ""; const gb = grados.find(g => g.id === b.gradoId)?.nombre || ""; const gs = ga.localeCompare(gb, undefined, { numeric: true, sensitivity: "base" }); if (gs) return gs; const sa = secciones.find(sec => sec.id === a.seccionId)?.nombre || ""; const sb = secciones.find(sec => sec.id === b.seccionId)?.nombre || ""; return sa.localeCompare(sb, undefined, { numeric: true, sensitivity: "base" }) || a.nombre.localeCompare(b.nombre, undefined, { sensitivity: "base" }); });
-        const data = (colegioStudents as any[]).map(s => ({ "Nombre Completo": s.nombre, Sexo: s.sexo === "F" ? "Femenino" : "Masculino", Grado: grados.find(g => g.id === s.gradoId)?.nombre || "N/A", Sección: secciones.find(sec => sec.id === s.seccionId)?.nombre || "N/A", Teléfono: s.telefono || "", Email: s.email || "", Dirección: s.direccion || "" }));
+        const data = (colegioStudents as any[]).map(s => ({ "Nombre Completo": s.nombre, Sexo: s.sexo === "F" ? "Femenino" : "Masculino", Grado: grados.find(g => g.id === s.gradoId)?.nombre || "N/A", Sección: secciones.find(sec => sec.id === s.seccionId)?.nombre || "N/A" }));
         const ws = XLSX.utils.json_to_sheet(data); ws['!cols'] = [{ wch: 35 }, { wch: 12 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 30 }, { wch: 30 }];
         XLSX.utils.book_append_sheet(wb, ws, sheetName.length > 31 ? sheetName.substring(0, 31) : sheetName);
       });
@@ -853,7 +852,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                   <ul style="color: #94a3b8; font-size: 0.85rem; padding-left: 1.2rem; margin: 0; line-height: 1.6;">
                     <li><strong style="color: #e2e8f0;">Exportar por Colegio:</strong> Genera un Excel con una sola hoja conteniendo los estudiantes de un colegio específico.</li>
                     <li><strong style="color: #e2e8f0;">Exportar por Año Lectivo:</strong> Genera un Excel con múltiples hojas, una por cada colegio.</li>
-                    <li>Cada hoja incluye: Nombre, Sexo, Grado, Sección, Teléfono, Email y Dirección.</li>
+                    <li>Cada hoja incluye: Nombre, Sexo, Grado y Sección.</li>
                     <li>Los datos se ordenan automáticamente: Grado (orden natural), Sección, y luego Nombre.</li>
                     <li>Ideal para auditorías de fin de año, imprimir listados por colegio, o enviar reportes específicos.</li>
                   </ul>

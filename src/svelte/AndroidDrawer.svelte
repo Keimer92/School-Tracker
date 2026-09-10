@@ -102,7 +102,7 @@
   }
 
   .mobile-menu-btn .menu-icon {
-    font-size: 1.9rem; 
+    font-size: 2.5rem;
     line-height: 1;
     display: block;
   }

@@ -268,7 +268,7 @@ fn get_all_local_data(
 
     // Estudiantes
     let mut stmt = conn
-        .prepare("SELECT id, nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, coalesce(colegio_id, 0), telefono, direccion, email FROM estudiante")
+        .prepare("SELECT id, nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, coalesce(colegio_id, 0) FROM estudiante")
         .map_err(|e| format!("Error preparando consulta para estudiante: {}", e))?;
 
     let rows = stmt
@@ -281,10 +281,7 @@ fn get_all_local_data(
                 "ano_lectivo_id": row.get::<_, i64>(4)?,
                 "grado_id": row.get::<_, i64>(5)?,
                 "seccion_id": row.get::<_, i64>(6)?,
-                "colegio_id": row.get::<_, i64>(7)?,
-                "telefono": row.get::<_, String>(8)?,
-                "direccion": row.get::<_, String>(9)?,
-                "email": row.get::<_, String>(10)?
+                "colegio_id": row.get::<_, i64>(7)?
             }))
         })
         .map_err(|e| format!("Error ejecutando consulta para estudiante: {}", e))?;

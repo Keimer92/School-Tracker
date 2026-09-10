@@ -64,9 +64,6 @@ CREATE TABLE IF NOT EXISTS estudiante (
     grado_id INTEGER NOT NULL,
     seccion_id INTEGER NOT NULL,
     colegio_id INTEGER NOT NULL,
-    telefono TEXT,
-    direccion TEXT,
-    email TEXT,
     foto TEXT,
     updated_at TEXT DEFAULT (datetime('now')),
     device_id TEXT

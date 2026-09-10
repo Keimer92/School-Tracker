@@ -24,9 +24,6 @@ pub struct Student {
     pub grado_id: i64,
     pub seccion_id: i64,
     pub colegio_id: i64,
-    pub telefono: Option<String>,
-    pub direccion: Option<String>,
-    pub email: Option<String>,
     pub foto: Option<String>,
 }
 
@@ -174,9 +171,6 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             grado_id INTEGER NOT NULL,
             seccion_id INTEGER NOT NULL,
             colegio_id INTEGER NOT NULL,
-            telefono TEXT,
-            direccion TEXT,
-            email TEXT,
             foto TEXT,
             updated_at TEXT DEFAULT (datetime('now')),
             FOREIGN KEY(ano_lectivo_id) REFERENCES ano_lectivo(id),
@@ -2170,7 +2164,7 @@ pub async fn get_secciones_by_grado_colegio(
 pub async fn get_students(state: tauri::State<'_, DbState>) -> Result<Vec<Student>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
-        .prepare("SELECT id, nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, colegio_id, telefono, direccion, email, foto FROM estudiante")
+        .prepare("SELECT id, nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, colegio_id, foto FROM estudiante")
         .map_err(|e| e.to_string())?;
 
     let students = stmt
@@ -2184,10 +2178,7 @@ pub async fn get_students(state: tauri::State<'_, DbState>) -> Result<Vec<Studen
                 grado_id: row.get(5)?,
                 seccion_id: row.get(6)?,
                 colegio_id: row.get(7)?,
-                telefono: row.get(8)?,
-                direccion: row.get(9)?,
-                email: row.get(10)?,
-                foto: row.get(11)?,
+                foto: row.get(8)?,
             })
         })
         .map_err(|e| e.to_string())?
@@ -2201,7 +2192,7 @@ pub async fn get_students(state: tauri::State<'_, DbState>) -> Result<Vec<Studen
 pub async fn add_student(state: tauri::State<'_, DbState>, student: Student) -> Result<i64, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
-        "INSERT INTO estudiante (nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, colegio_id, telefono, direccion, email, foto) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO estudiante (nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, colegio_id, foto) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         rusqlite::params![
             student.nombre,
             student.codigo,
@@ -2210,9 +2201,6 @@ pub async fn add_student(state: tauri::State<'_, DbState>, student: Student) -> 
             student.grado_id,
             student.seccion_id,
             student.colegio_id,
-            student.telefono,
-            student.direccion,
-            student.email,
             student.foto
         ],
     )
@@ -2225,7 +2213,7 @@ pub async fn add_student(state: tauri::State<'_, DbState>, student: Student) -> 
 pub async fn update_student(state: tauri::State<'_, DbState>, student: Student) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
-        "UPDATE estudiante SET nombre = ?, codigo = ?, sexo = ?, ano_lectivo_id = ?, grado_id = ?, seccion_id = ?, colegio_id = ?, telefono = ?, direccion = ?, email = ?, foto = ?, updated_at = datetime('now') WHERE id = ?",
+        "UPDATE estudiante SET nombre = ?, codigo = ?, sexo = ?, ano_lectivo_id = ?, grado_id = ?, seccion_id = ?, colegio_id = ?, foto = ?, updated_at = datetime('now') WHERE id = ?",
         rusqlite::params![
             student.nombre,
             student.codigo,
@@ -2234,9 +2222,6 @@ pub async fn update_student(state: tauri::State<'_, DbState>, student: Student) 
             student.grado_id,
             student.seccion_id,
             student.colegio_id,
-            student.telefono,
-            student.direccion,
-            student.email,
             student.foto,
             student.id
         ],
@@ -5545,7 +5530,7 @@ pub async fn promote_students(
 
     let mut stmt = conn
         .prepare(
-            "SELECT e.id, e.nombre, e.codigo, e.sexo, e.grado_id, e.seccion_id, e.colegio_id, e.telefono, e.direccion, e.email, e.foto, g.nombre as grado_nombre
+            "SELECT e.id, e.nombre, e.codigo, e.sexo, e.grado_id, e.seccion_id, e.colegio_id, e.foto, g.nombre as grado_nombre
              FROM estudiante e
              JOIN grado g ON e.grado_id = g.id
              WHERE e.ano_lectivo_id = ?",
@@ -5553,7 +5538,7 @@ pub async fn promote_students(
         .map_err(|e| e.to_string())?;
 
     let students: Vec<(
-        i64, String, String, String, i64, i64, i64, Option<String>, Option<String>, Option<String>, Option<String>, String,
+        i64, String, String, String, i64, i64, i64, Option<String>, String,
     )> = stmt
         .query_map([from_ano_id], |row| {
             Ok((
@@ -5565,10 +5550,7 @@ pub async fn promote_students(
                 row.get(5)?,
                 row.get(6)?,
                 row.get::<_, Option<String>>(7)?,
-                row.get::<_, Option<String>>(8)?,
-                row.get::<_, Option<String>>(9)?,
-                row.get::<_, Option<String>>(10)?,
-                row.get(11)?,
+                row.get(8)?,
             ))
         })
         .map_err(|e| e.to_string())?
@@ -5584,7 +5566,7 @@ pub async fn promote_students(
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
     for student in &students {
-        let (id, nombre, codigo, sexo, grado_id, seccion_id, colegio_id, telefono, direccion, email, foto, _grado_nombre) =
+        let (id, nombre, codigo, sexo, grado_id, seccion_id, colegio_id, foto, _grado_nombre) =
             student;
 
         let grado_num = get_grade_number(&tx, *grado_id)?.unwrap_or(0);
@@ -5647,8 +5629,8 @@ pub async fn promote_students(
 
             let new_id = tx
                 .execute(
-                    "INSERT INTO estudiante (nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, colegio_id, telefono, direccion, email, foto, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
-                    rusqlite::params![nombre, codigo, sexo, to_ano_id, next_grade_id, seccion_id, destino_id, telefono, direccion, email, foto],
+                    "INSERT INTO estudiante (nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, colegio_id, foto, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+                    rusqlite::params![nombre, codigo, sexo, to_ano_id, next_grade_id, seccion_id, destino_id, foto],
                 )
                 .map_err(|e| e.to_string())?;
 
@@ -5673,8 +5655,8 @@ pub async fn promote_students(
         if let Some(&next_grade_id) = grade_map.get(grado_id) {
             let new_id = tx
                 .execute(
-                    "INSERT INTO estudiante (nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, colegio_id, telefono, direccion, email, foto, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
-                    rusqlite::params![nombre, codigo, sexo, to_ano_id, next_grade_id, seccion_id, colegio_id, telefono, direccion, email, foto],
+                    "INSERT INTO estudiante (nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, colegio_id, foto, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
+                    rusqlite::params![nombre, codigo, sexo, to_ano_id, next_grade_id, seccion_id, colegio_id, foto],
                 )
                 .map_err(|e| e.to_string())?;
 

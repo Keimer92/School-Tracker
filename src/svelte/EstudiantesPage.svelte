@@ -11,7 +11,7 @@
   import SearchFab from "./SearchFab.svelte";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
-  interface Student { id?: number; nombre: string; codigo: string; sexo: string; anoLectivoId: number; gradoId: number; seccionId: number; colegioId: number; telefono?: string; direccion?: string; email?: string; foto?: string | null; }
+  interface Student { id?: number; nombre: string; codigo: string; sexo: string; anoLectivoId: number; gradoId: number; seccionId: number; colegioId: number; foto?: string | null; }
 
   // Camera state
   let photoPreview: string | null = $state(null);
@@ -125,7 +125,7 @@
   let pendingSixthGraders: { estudianteId: number; nombre: string; colegioOrigenId: number; colegioOrigenNombre: string }[] = $state([]);
   let selectedColegioId = $state(0);
 
-  const emptyStudent: Student = { nombre: "", codigo: "", sexo: "M", anoLectivoId: 0, gradoId: 0, seccionId: 0, colegioId: 0, telefono: "", direccion: "", email: "" };
+  const emptyStudent: Student = { nombre: "", codigo: "", sexo: "M", anoLectivoId: 0, gradoId: 0, seccionId: 0, colegioId: 0 };
   let formData: Student = $state({ ...emptyStudent });
 
   let filteredStudents = $derived.by(() => {
@@ -318,9 +318,6 @@ async function fetchData(preserveFilters = false) {
             const sexo = rawSexo.startsWith("F") || rawSexo === "MUJER" || rawSexo === "FEMENINO" ? "F" : "M";
             const newStudent: Student = {
               nombre: toTitleCase(String(nombre)), codigo: String(codigo).trim(), sexo, anoLectivoId: Number(anoId), gradoId: Number(gradoId), seccionId: Number(seccionId), colegioId: Number(colegioId),
-              telefono: String(row.Telefono || row.telefono || row["TELEFONO"] || row["Teléfono"] || "").trim(),
-              direccion: String(row.Direccion || row.direccion || row["DIRECCION"] || row["Dirección"] || "").trim(),
-              email: String(row.Email || row.email || row["EMAIL"] || "").trim(),
             };
             const studentId = await invoke<number>("add_student", { student: newStudent });
             const studentWithId = { ...newStudent, id: studentId };
@@ -345,8 +342,8 @@ async function fetchData(preserveFilters = false) {
   async function handleDownloadTemplate() {
     const XLSX = await import("xlsx");
     const wb = XLSX.utils.book_new();
-    const headers = ['Nombre', 'Sexo', 'Año Lectivo', 'Colegio', 'Grado', 'Sección', 'Teléfono', 'Dirección', 'Email'];
-    const sampleRow = ['Juan Pérez', 'M', '2026', 'San José', '1ro', 'A', '04141234567', 'Calle Principal', 'juan@email.com'];
+    const headers = ['Nombre', 'Sexo', 'Año Lectivo', 'Colegio', 'Grado', 'Sección'];
+    const sampleRow = ['Juan Pérez', 'M', '2026', 'San José', '1ro', 'A'];
     const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
     ws['!cols'] = headers.map(() => ({ wch: 20 }));
     XLSX.utils.book_append_sheet(wb, ws, 'Estudiantes');
@@ -405,7 +402,7 @@ async function fetchData(preserveFilters = false) {
   function handleFormChange(e: Event) {
     const target = e.target as HTMLInputElement | HTMLSelectElement;
     const { name, value } = target;
-    const val = (name === 'nombre' || name === 'codigo' || name === 'sexo' || name === 'telefono' || name === 'direccion' || name === 'email') ? value : Number(value);
+    const val = (name === 'nombre' || name === 'codigo' || name === 'sexo') ? value : Number(value);
     const newData = { ...formData, [name]: val };
     if (name === 'colegioId' || name === 'anoLectivoId') { newData.gradoId = 0; newData.seccionId = 0; }
     else if (name === 'gradoId') newData.seccionId = 0;
@@ -1017,7 +1014,6 @@ async function fetchData(preserveFilters = false) {
           <ul style="color: #94a3b8; padding-left: 1.2rem;">
             <li style="margin-bottom: 0.5rem;"><strong>Sección:</strong> Grupo (A, B, Unica). Si está vacío, usa "Unica".</li>
             <li style="margin-bottom: 0.5rem;"><strong>Sexo:</strong> M (Masculino) o F (Femenino).</li>
-            <li style="margin-bottom: 0.5rem;"><strong>Teléfono, Dirección, Email:</strong> Opcionales.</li>
             <li style="margin-bottom: 0.5rem;"><strong>Duplicados:</strong> Se ignoran estudiantes que ya existan.</li>
           </ul>
         </div>
