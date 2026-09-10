@@ -9,6 +9,8 @@
    * Opcional: zIndex, onopen callback.
    * Al expandirse registra un back-handler en Android: Back limpia el texto
    * y si ya está vacío colapsa el buscador.
+   * Se oculta automáticamente al hacer scroll hacia abajo y reaparece
+   * al hacer scroll hacia arriba o al detener el scroll.
    */
 
   let {
@@ -19,6 +21,7 @@
 
   let abierto = $state(false);
   let inputEl: HTMLInputElement | null = $state(null);
+  let oculto = $state(false);
 
   export function abrir() {
     abierto = true;
@@ -60,9 +63,58 @@
   $effect(() => {
     if (abierto) tick().then(() => inputEl?.focus());
   });
+
+  // Auto-hide on scroll: detectar el contenedor scrolleable y ocultar/mostrar el FAB
+  let stopTimer: ReturnType<typeof setTimeout> | null = null;
+
+  $effect(() => {
+    // Buscar el contenedor scrolleable más cercano hacia arriba
+    const wrap = document.querySelector('.sfab-wrap');
+    let scrollParent: Element | null = null;
+
+    if (wrap) {
+      let el: Element | null = wrap.parentElement;
+      while (el && el !== document.body && el !== document.documentElement) {
+        const style = getComputedStyle(el);
+        const overflowY = style.overflowY;
+        if ((overflowY === 'auto' || overflowY === 'scroll') && el.scrollHeight > el.clientHeight) {
+          scrollParent = el;
+          break;
+        }
+        el = el.parentElement;
+      }
+    }
+
+    // Fallback: viewport/window scroll (Android WebView scrollea el viewport)
+    const target: Element | Window = scrollParent || window;
+    let lastScrollTop = scrollParent ? scrollParent.scrollTop : window.scrollY;
+
+    function onScroll() {
+      if (abierto) return; // No ocultar si el buscador está abierto
+      const st = scrollParent ? scrollParent.scrollTop : window.scrollY;
+      if (st > lastScrollTop && st > 60) {
+        // Scroll hacia abajo → ocultar
+        oculto = true;
+      } else {
+        // Scroll hacia arriba → mostrar
+        oculto = false;
+      }
+      lastScrollTop = st <= 0 ? 0 : st;
+
+      // Reaparecer tras 400ms sin scroll
+      if (stopTimer) clearTimeout(stopTimer);
+      stopTimer = setTimeout(() => { oculto = false; }, 400);
+    }
+
+    target.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      target.removeEventListener('scroll', onScroll);
+      if (stopTimer) clearTimeout(stopTimer);
+    };
+  });
 </script>
 
-<div class="sfab-wrap" style="z-index:{zIndex}">
+<div class="sfab-wrap" class:sfab-oculto={oculto && !abierto} style="z-index:{zIndex}">
   {#if abierto}
     <div class="sfab-bar">
       <span class="sfab-icon">🔍</span>
@@ -96,8 +148,14 @@
     justify-content: flex-end;
     align-items: center;
     pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
   }
-  .sfab-wrap > :global(*) { pointer-events: auto; }
+  .sfab-wrap.sfab-oculto {
+    opacity: 0;
+    transform: scale(0.7);
+    pointer-events: none !important;
+  }
+  .sfab-wrap.sfab-oculto > :global(*) { pointer-events: none !important; }
 
   .sfab-btn {
     width: 54px;
