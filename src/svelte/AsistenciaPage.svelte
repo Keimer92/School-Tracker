@@ -1205,14 +1205,9 @@ $effect(() => {
               <input bind:value={searchTerm} placeholder="🔍 Buscar..."
                 style="width:100%;height:38px;padding:0 0.8rem;font-size:0.82rem;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#e2e8f0;outline:none;box-sizing:border-box;" />
             </div>
-            {#if periodo === "diario"}
-              <FilterGroup label="Fecha:" {isMobile}>
-                <DatePickerGlass bind:value={selectedFecha} diaHabilitado={esDiaHabilCalendario} />
-              </FilterGroup>
-            {/if}
             <button type="button" onclick={() => showFiltersModal = true}
               title="Filtros (Período · Año · Colegio · Grado · Sección · Sexo · Semana/Mes)"
-              style="height:42px;padding:0 0.9rem;font-size:0.85rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#e2e8f0;border-radius:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all 0.15s;flex-shrink:0;white-space:nowrap">
+              style="width:100%;height:42px;padding:0 0.9rem;font-size:0.85rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#e2e8f0;border-radius:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all 0.15s;white-space:nowrap;margin-bottom:0.3rem">
               <span>🔍</span><span>Filtros</span>
               <span style="font-size:0.65rem;color:#94a3b8;font-weight:600;background:rgba(255,255,255,0.06);padding:0.1rem 0.4rem;border-radius:6px">{colegios.find(c => c.id === selectedColegio)?.nombre?.slice(0, 6) || '—'} · {secciones.find(s => s.id === selectedSeccion)?.nombre || '—'}</span>
             </button>
@@ -1250,12 +1245,17 @@ $effect(() => {
               </select>
             </FilterGroup>
           {/if}
-          <div style="display:flex;gap:0.4rem;align-items:stretch;flex-shrink:0;{isAndroidMobile ? 'flex:1 1 100%;width:100%' : ''}">
+          <div style="display:flex;gap:0.3rem;align-items:stretch;flex-shrink:0;{isAndroidMobile ? 'width:100%;flex-wrap:wrap' : ''}">
+          {#if isAndroidMobile && periodo === "diario"}
+            <div style="flex:1 1 0;min-width:120px;max-width:160px;">
+              <DatePickerGlass bind:value={selectedFecha} diaHabilitado={esDiaHabilCalendario} />
+            </div>
+          {/if}
           {#if periodo !== 'mensual'}
-            <div class="pop-wrap" bind:this={popSinClasesEl}>
+            <div class="pop-wrap" bind:this={popSinClasesEl} style="flex:0 0 auto;">
               <button type="button" onclick={handleSinClasesClick} disabled={sinClasesGuardando || !selectedSeccion}
-                style="height:42px;padding:0 1rem;font-size:0.85rem;background:{sinClasesActivo ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.03)'};border:1px solid {sinClasesActivo ? '#f59e0b' : 'rgba(255,255,255,0.08)'};color:{sinClasesActivo ? '#f59e0b' : '#94a3b8'};border-radius:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all 0.15s;white-space:nowrap;opacity:{sinClasesGuardando ? 0.6 : 1}">
-                <span>{sinClasesActivo ? '🏫' : '🚫'}</span><span>{isAndroidMobile ? '' : 'Sin Clases'}</span>
+                style="height:42px;padding:0 {isAndroidMobile ? '0.6rem' : '1rem'};font-size:{isAndroidMobile ? '0.8rem' : '0.85rem'};background:{sinClasesActivo ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.03)'};border:1px solid {sinClasesActivo ? '#f59e0b' : 'rgba(255,255,255,0.08)'};color:{sinClasesActivo ? '#f59e0b' : '#94a3b8'};border-radius:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px;transition:all 0.15s;white-space:nowrap;opacity:{sinClasesGuardando ? 0.6 : 1}">
+                <span>{sinClasesActivo ? '🏫' : '🚫'}</span>{#if !isAndroidMobile}<span>Sin Clases</span>{/if}
               </button>
 
               {#if popSinClasesAbierta}
