@@ -112,30 +112,6 @@
   let selectMode = $state(false);
   let isDeletingSelected = $state(false);
 
-  // Long-press para editar estudiante
-  let longPressTimer: ReturnType<typeof setTimeout> | null = $state(null);
-  let longPressFired = $state(false);
-
-  function startLongPress(student: Student, e: PointerEvent) {
-    if ((e.target as HTMLElement).closest('.item-actions, [onclick*="toggleSelect"]')) return;
-    longPressFired = false;
-    longPressTimer = setTimeout(() => {
-      longPressFired = true;
-      openEditModal(student);
-      if (navigator.vibrate) navigator.vibrate(30);
-    }, 3000);
-  }
-
-  function cancelLongPress() {
-    if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
-  }
-
-  function onRowClick(e: MouseEvent, student: Student) {
-    if (longPressFired) { e.preventDefault(); return; }
-  }
-
-  function onContextMenu(e: MouseEvent) { e.preventDefault(); }
-
   let filters = $state({ anoLectivoId: 0, colegioId: 0, gradoId: 0, seccionId: 0, sexo: "" });
 
   // Promoción de estudiantes
@@ -1102,9 +1078,8 @@ async function fetchData(preserveFilters = false) {
     {:else if viewMode === 'card'}
       <div style="display: grid; grid-template-columns: {isMobile ? 'minmax(0, 1fr)' : 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))'}; gap: {isMobile ? '0.5rem' : '0.75rem'}; padding: {isMobile ? '0 0.25rem' : '0'}; width: 100%; min-width: 0; box-sizing: border-box; align-content: flex-start;">
         {#each filteredStudents as st, index}
-          <div class="category-card" style="margin: 0; padding: 0.6rem 0.8rem; border: {selectedIds.has(st.id!) ? '1.5px solid #ef4444' : '1px solid rgba(255,255,255,0.05)'}; touch-action: manipulation; -webkit-touch-callout: none; user-select: none;"
-            onpointerdown={(e) => startLongPress(st, e)} onpointerup={cancelLongPress} onpointerleave={cancelLongPress} onpointercancel={cancelLongPress}
-            onclick={(e) => onRowClick(e, st)} oncontextmenu={onContextMenu}>
+          <div class="category-card" style="margin: 0; padding: 0.6rem 0.8rem; border: {selectedIds.has(st.id!) ? '1.5px solid #ef4444' : '1px solid rgba(255,255,255,0.05)'}; cursor: pointer;"
+            onclick={() => openEditModal(st)}>
             <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
               <div style="display: flex; align-items: center; gap: 0.6rem; flex: 1; min-width: 0;">
                 <div onclick={(e) => { e.stopPropagation(); toggleSelect(st.id!); }} style="cursor: pointer; width: 20px; height: 20px; border-radius: 4px; border: 2px solid {selectedIds.has(st.id!) ? '#ef4444' : 'rgba(255,255,255,0.2)'}; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.2)' : 'transparent'}; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">{selectedIds.has(st.id!) ? '✓' : ''}</div>
@@ -1127,9 +1102,8 @@ async function fetchData(preserveFilters = false) {
     {:else if viewMode === 'list'}
       <div style="display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05);">
         {#each filteredStudents as st, index}
-          <div style="content-visibility: auto; contain-intrinsic-size: auto 48px; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-bottom: {index < filteredStudents.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none'}; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.08)' : index % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent'}; transition: background 0.15s; touch-action: manipulation; -webkit-touch-callout: none; user-select: none;"
-            onpointerdown={(e) => startLongPress(st, e)} onpointerup={cancelLongPress} onpointerleave={cancelLongPress} onpointercancel={cancelLongPress}
-            onclick={(e) => onRowClick(e, st)} oncontextmenu={onContextMenu}>
+          <div style="content-visibility: auto; contain-intrinsic-size: auto 48px; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-bottom: {index < filteredStudents.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none'}; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.08)' : index % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent'}; transition: background 0.15s; cursor: pointer;"
+            onclick={() => openEditModal(st)}>
             <div onclick={(e) => { e.stopPropagation(); toggleSelect(st.id!); }} style="cursor: pointer; width: 18px; height: 18px; border-radius: 3px; border: 2px solid {selectedIds.has(st.id!) ? '#ef4444' : 'rgba(255,255,255,0.2)'}; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.2)' : 'transparent'}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.6rem; color: #ef4444;">{selectedIds.has(st.id!) ? '✓' : ''}</div>
             {#if st.foto}
               <img src={st.foto} alt={st.nombre} style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(56, 189, 248, 0.2); flex-shrink: 0;" />
@@ -1168,8 +1142,8 @@ async function fetchData(preserveFilters = false) {
 
   <!-- Modal: Add/Edit Student -->
   {#if isModalOpen}
-    <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) isModalOpen = false; }} style="position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);">
-      <div class="modal-content category-card" style="width: 450px; max-width: 95%; max-height: 90vh; overflow-y: auto; position: relative; background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98)); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; box-shadow: 0 25px 60px -12px rgba(0,0,0,0.6);">
+    <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) isModalOpen = false; }} style="position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6);">
+      <div class="modal-content category-card" style="width: 450px; max-width: 95%; max-height: 90vh; overflow-y: auto; position: relative; background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98)); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; box-shadow: 0 25px 60px -12px rgba(0,0,0,0.6); animation: slideUp 0.15s ease-out;">
         <div class="category-header" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.06);">
           <h3 style="margin: 0; font-size: 1.1rem; color: #f1f5f9;">{isEditing ? "Editar Estudiante" : "Registrar Estudiante"}</h3>
           <button onclick={() => isModalOpen = false} style="background: transparent; border: none; color: #94a3b8; font-size: 1.2rem; cursor: pointer;">✕</button>
@@ -1204,15 +1178,6 @@ async function fetchData(preserveFilters = false) {
               <option value="M">Masculino</option>
               <option value="F">Femenino</option>
             </select>
-          </div>
-          <div class="input-container" style="margin-bottom: 0;">
-            <input name="telefono" placeholder="Teléfono" value={formData.telefono} oninput={handleFormChange} style="width: 100%; padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,23,42,0.6); color: #e2e8f0; font-size: 0.9rem; outline: none; box-sizing: border-box;" />
-          </div>
-          <div class="input-container" style="margin-bottom: 0;">
-            <input name="email" placeholder="Email" value={formData.email} oninput={handleFormChange} style="width: 100%; padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,23,42,0.6); color: #e2e8f0; font-size: 0.9rem; outline: none; box-sizing: border-box;" />
-          </div>
-          <div class="input-container" style="grid-column: span 2; margin-bottom: 0;">
-            <input name="direccion" placeholder="Dirección" value={formData.direccion} oninput={handleFormChange} style="width: 100%; padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,23,42,0.6); color: #e2e8f0; font-size: 0.9rem; outline: none; box-sizing: border-box;" />
           </div>
           <div class="input-container" style="margin-bottom: 0;">
             <label style="display: block; margin-bottom: 0.3rem; font-size: 0.7rem; color: #94a3b8; font-weight: 600;">Año Lectivo</label>
