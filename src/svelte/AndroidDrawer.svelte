@@ -104,7 +104,7 @@
   /* Con !important porque en <640px una regla global de App.css
      (p, span, div... { font-size: 0.95rem !important }) recorta el glyph. */
   .mobile-menu-btn .menu-icon {
-    font-size: 2.0rem !important;
+    font-size: 1.9rem !important;
     line-height: 1;
     display: block;
   }
