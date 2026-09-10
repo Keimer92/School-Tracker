@@ -791,6 +791,12 @@ body {
   transition: opacity 0.15s ease, visibility 0.15s ease;
 }
 
+/* Con !important: en <640px una regla global (p, span, div... { font-size:
+   0.95rem !important }) estaba fijando elglyph ☰/✕ a ese tamaño. */
+.mobile-menu-btn .menu-icon {
+  font-size: 2.5rem !important;
+}
+
 .mobile-menu-btn.hidden {
   opacity: 0;
   visibility: hidden;
