@@ -20,17 +20,18 @@
 import AjustesPage from "./svelte/AjustesPage.svelte";
 import DashboardPage from "./svelte/DashboardPage.svelte";
 import CloudPage from "./svelte/CloudPage.svelte";
+  import AccountPage from "./svelte/AccountPage.svelte";
   import Sidebar from "./svelte/Sidebar.svelte";
   import WelcomePage from "./svelte/WelcomePage.svelte";
   import AndroidDrawer from "./svelte/AndroidDrawer.svelte";
 
-  type Tab = "dashboard" | "notas" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "cloud";
+  type Tab = "dashboard" | "notas" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "cloud" | "account";
 
   let initialized = $state<boolean | null>(null);
   let isMobile = $state(false);
   let isAndroid = $state(false);
   let activeTab = $state<Tab>("dashboard");
-  let visitedTabs = $state<Set<Tab>>(new Set(["dashboard", "notas", "estudiantes", "evaluaciones", "globales", "ajustes", "asistencia", "cloud"]));
+  let visitedTabs = $state<Set<Tab>>(new Set(["dashboard", "notas", "estudiantes", "evaluaciones", "globales", "ajustes", "asistencia", "cloud", "account"]));
   let sidebarWidth = $state(Math.min(Math.max(220, Math.floor(window.innerWidth * 0.16)), 260));
   let drawerOpen = $state(false);
   let isResizing = $state(false);
@@ -454,6 +455,9 @@ import CloudPage from "./svelte/CloudPage.svelte";
     {/if}
     {#if visitedTabs.has('cloud')}
       <div style="display: {activeTab === 'cloud' ? 'block' : 'none'}; width: 100%; height: 100%; overflow-y: auto;"><CloudPage onNavigate={handleTabChange} /></div>
+    {/if}
+    {#if visitedTabs.has('account')}
+      <div style="display: {activeTab === 'account' ? 'block' : 'none'}; width: 100%; height: 100%; overflow-y: auto;"><AccountPage onNavigate={handleTabChange} /></div>
     {/if}
   </main>
 

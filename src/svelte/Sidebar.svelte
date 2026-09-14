@@ -2,7 +2,7 @@
   import CloudCards from './CloudCards.svelte';
   import appIcon from '../assets/app-icon.png';
 
-  export type Tab = "dashboard" | "notas" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "cloud";
+  export type Tab = "dashboard" | "notas" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "cloud" | "account";
 
   let {
     activeTab,
@@ -81,6 +81,9 @@ setThemeMode: (mode: string) => void;
     </button>
     <button class="sidebar-button {activeTab === 'cloud' ? 'active' : ''}" onclick={() => onTabChange('cloud')} type="button">
       <span>☁️</span><span>Nube</span>
+    </button>
+    <button class="sidebar-button {activeTab === 'account' ? 'active' : ''}" onclick={() => onTabChange('account')} type="button">
+      <span>👤</span><span>Cuentas</span>
     </button>
   </div>
 
