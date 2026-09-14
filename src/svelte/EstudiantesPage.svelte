@@ -75,14 +75,22 @@
     }
   });
   $effect(() => {
-    if (gridSelectedStudent) {
-      return registerBackHandler(() => { gridSelectedStudent = null; return true; });
-    }
-  });
-  $effect(() => {
     if (showImportHelp) {
       return registerBackHandler(() => { showImportHelp = false; return true; });
     }
+  });
+  $effect(() => {
+    if (openMenuStudentId !== null) {
+      return registerBackHandler(() => { openMenuStudentId = null; return true; });
+    }
+  });
+  $effect(() => {
+    if (openMenuStudentId === null) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') openMenuStudentId = null; };
+    const onClick = () => { openMenuStudentId = null; };
+    window.addEventListener('keydown', onKey);
+    setTimeout(() => window.addEventListener('click', onClick), 0);
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('click', onClick); };
   });
   // Cierre garantizado con Escape (desktop), autónomo y sin depender de la pila de back-handlers.
   $effect(() => {
@@ -102,8 +110,7 @@
       return registerBackHandler(() => { showFiltersModal = false; return true; });
     }
   });
-  let viewMode = $state<'card' | 'list' | 'grid'>(isAndroid ? 'list' : (localStorage.getItem('estudiantes-view-mode') as 'card' | 'list' | 'grid') || (isMobile ? 'list' : 'grid'));
-  let gridSelectedStudent: Student | null = $state(null);
+  let openMenuStudentId: number | null = $state(null);
   let isImporting = $state(false);
   let showImportHelp = $state(false);
   let isDeleting = $state(false);
@@ -594,8 +601,6 @@ async function fetchData(preserveFilters = false) {
     } finally { isDeletingSelected = false; }
   }
 
-  $effect(() => { if (!isAndroid) localStorage.setItem('estudiantes-view-mode', viewMode); });
-
   // Refresca lista y dropdowns (grado/sección) ante cualquier cambio de catálogo, estudiante o sync
   async function refreshAll() {
     await fetchData(true);
@@ -1044,18 +1049,6 @@ async function fetchData(preserveFilters = false) {
           </button>
         {/if}
       </div>
-      {#if !isAndroid}
-      <div style="display: flex; gap: 2px; background: rgba(255,255,255,0.04); border-radius: 10px; padding: 3px; border: 1px solid rgba(255,255,255,0.06);">
-        {#each ['grid', 'list', 'card'] as mode}
-          <button onclick={() => viewMode = mode}
-            style="padding: {isMobile ? '4px 8px' : '5px 12px'}; font-size: {isMobile ? '0.75rem' : '0.8rem'}; font-weight: {viewMode === mode ? '700' : '500'}; border-radius: 8px; border: none; background: {viewMode === mode ? 'linear-gradient(135deg, rgba(56,189,248,0.25), rgba(99,102,241,0.25))' : 'transparent'}; color: {viewMode === mode ? '#38bdf8' : '#64748b'}; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s; white-space: nowrap;"
-            title={mode === 'card' ? 'Vista tarjetas' : mode === 'list' ? 'Vista lista' : 'Vista avatares'}>
-            <span>{mode === 'card' ? '▦' : mode === 'list' ? '☰' : '⊞'}</span>
-            {#if !isMobile}<span>{mode === 'card' ? 'Cards' : mode === 'list' ? 'Lista' : 'Grid'}</span>{/if}
-          </button>
-        {/each}
-      </div>
-      {/if}
     </div>
   {/if}
 
@@ -1071,65 +1064,57 @@ async function fetchData(preserveFilters = false) {
           <button class="secondary" onclick={() => searchTerm = ""} style="margin-top: 1.5rem; padding: 0.5rem 1rem;">Limpiar búsqueda</button>
         {/if}
       </div>
-    {:else if viewMode === 'card'}
-      <div style="display: grid; grid-template-columns: {isMobile ? 'minmax(0, 1fr)' : 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))'}; gap: {isMobile ? '0.5rem' : '0.75rem'}; padding: {isMobile ? '0 0.25rem' : '0'}; width: 100%; min-width: 0; box-sizing: border-box; align-content: flex-start;">
-        {#each filteredStudents as st, index}
-          <div class="category-card" style="margin: 0; padding: 0.6rem 0.8rem; border: {selectedIds.has(st.id!) ? '1.5px solid #ef4444' : '1px solid rgba(255,255,255,0.05)'}; cursor: pointer;"
-            onclick={() => openEditModal(st)}>
-            <div style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;">
-              <div style="display: flex; align-items: center; gap: 0.6rem; flex: 1; min-width: 0;">
-                <div onclick={(e) => { e.stopPropagation(); toggleSelect(st.id!); }} style="cursor: pointer; width: 20px; height: 20px; border-radius: 4px; border: 2px solid {selectedIds.has(st.id!) ? '#ef4444' : 'rgba(255,255,255,0.2)'}; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.2)' : 'transparent'}; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">{selectedIds.has(st.id!) ? '✓' : ''}</div>
-                {#if st.foto}
-                  <img src={st.foto} alt={st.nombre} style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(56, 189, 248, 0.3); flex-shrink: 0;" />
-                {:else}
-                  <div style="width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0;">👤</div>
-                {/if}
-                <span style="font-size: 0.7rem; background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 1px 5px; border-radius: 4px; font-weight: bold; flex-shrink: 0; border: 1px solid rgba(56, 189, 248, 0.2);">#{index + 1}</span>
-                <span style="flex: 1; min-width: 0; font-size: 0.9rem; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{st.nombre}</span>
-              </div>
-              <div class="item-actions" style="display: flex; gap: 0.2rem; flex-shrink: 0;">
-                <button class="icon-button delete" onclick={(e) => { e.stopPropagation(); handleDelete(st.id!); }}
-                  style="width: 36px; height: 36px; font-size: 1rem; background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.25); border-radius: 8px; color: #f87171; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;">🗑</button>
-              </div>
-            </div>
-          </div>
-        {/each}
-      </div>
-    {:else if viewMode === 'list'}
-      <div style="display: flex; flex-direction: column; border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05);">
-        {#each filteredStudents as st, index}
-          <div style="content-visibility: auto; contain-intrinsic-size: auto 48px; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border-bottom: {index < filteredStudents.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none'}; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.08)' : index % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent'}; transition: background 0.15s; cursor: pointer;"
-            onclick={() => openEditModal(st)}>
-            <div onclick={(e) => { e.stopPropagation(); toggleSelect(st.id!); }} style="cursor: pointer; width: 18px; height: 18px; border-radius: 3px; border: 2px solid {selectedIds.has(st.id!) ? '#ef4444' : 'rgba(255,255,255,0.2)'}; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.2)' : 'transparent'}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.6rem; color: #ef4444;">{selectedIds.has(st.id!) ? '✓' : ''}</div>
-            {#if st.foto}
-              <img src={st.foto} alt={st.nombre} style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(56, 189, 248, 0.2); flex-shrink: 0;" />
-            {:else}
-              <div style="width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: center; font-size: 0.8rem; flex-shrink: 0;">👤</div>
-            {/if}
-            <span style="font-size: 0.65rem; font-weight: bold; flex-shrink: 0; min-width: 26px; text-align: center; background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 1px 5px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.2);">{index + 1}</span>
-            <span style="font-size: 0.85rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;">{st.nombre}</span>
-            <div style="display: flex; gap: 0.15rem; flex-shrink: 0;">
-              <button class="icon-button delete" onclick={(e) => { e.stopPropagation(); handleDelete(st.id!); }}
-                style="width: 36px; height: 36px; font-size: 1rem; background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.25); border-radius: 8px; color: #f87171; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;">🗑</button>
-            </div>
-          </div>
-        {/each}
-      </div>
     {:else}
-      <div style="display: grid; grid-template-columns: {isMobile ? 'repeat(4, 1fr)' : 'repeat(6, 1fr)'}; gap: {isMobile ? '0.6rem' : '0.8rem'}; padding: 0.25rem 0;">
+      <div style="display: grid; grid-template-columns: {isMobile ? 'minmax(0, 1fr)' : 'repeat(auto-fill, minmax(min(100%, 340px), 1fr))'}; gap: {isMobile ? '0.5rem' : '0.6rem'}; padding: {isMobile ? '0 0.25rem' : '0'}; width: 100%; min-width: 0; box-sizing: border-box; align-content: flex-start;">
         {#each filteredStudents as st, index}
-          <div onclick={() => { if (!selectedIds.has(st.id!)) gridSelectedStudent = st; }}
-            style="content-visibility: auto; contain-intrinsic-size: auto 96px; display: flex; flex-direction: column; align-items: center; gap: 0.25rem; cursor: pointer; padding: 0.6rem 0.4rem; border-radius: 12px; transition: background 0.2s; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.02)'}; border: 1px solid {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.04)'};">
-            <div onclick={(e) => { e.stopPropagation(); toggleSelect(st.id!); }} style="cursor: pointer; width: 22px; height: 22px; border-radius: 4px; border: 2px solid {selectedIds.has(st.id!) ? '#ef4444' : 'rgba(255,255,255,0.2)'}; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.2)' : 'transparent'}; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; color: #ef4444; margin-bottom: 2px;">{selectedIds.has(st.id!) ? '✓' : ''}</div>
-            <div style="position: relative; display: inline-flex;">
+          {@const gradoName = allGrados.find(g => g.id === st.gradoId)?.nombre || ''}
+          {@const seccionName = allSecciones.find(s => s.id === st.seccionId)?.nombre || ''}
+          {@const colegioName = colegios.find(c => c.id === st.colegioId)?.nombre || ''}
+          <div class="category-card" style="margin: 0; padding: {isMobile ? '0.6rem 0.7rem' : '0.7rem 0.9rem'}; border: {selectedIds.has(st.id!) ? '1.5px solid #ef4444' : '1px solid rgba(255,255,255,0.05)'}; cursor: default; transition: border-color 0.15s, background 0.15s; position: relative; z-index: {openMenuStudentId === st.id! ? 50 : 'auto'};"
+            onmouseenter={(e) => { if (!selectedIds.has(st.id!)) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; }}
+            onmouseleave={(e) => { if (!selectedIds.has(st.id!)) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)'; }}>
+            <div style="display: flex; align-items: center; gap: {isMobile ? '0.6rem' : '0.75rem'};">
+              <!-- Checkbox -->
+              <div onclick={() => toggleSelect(st.id!)} style="cursor: pointer; width: 20px; height: 20px; border-radius: 5px; border: 2px solid {selectedIds.has(st.id!) ? '#ef4444' : 'rgba(255,255,255,0.18)'}; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.2)' : 'transparent'}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.65rem; color: #ef4444; transition: all 0.15s;">{selectedIds.has(st.id!) ? '✓' : ''}</div>
+              <!-- Avatar -->
               {#if st.foto}
-                <img src={st.foto} alt={st.nombre} style="width: {isMobile ? '52px' : '64px'}; height: {isMobile ? '52px' : '64px'}; border-radius: 50%; object-fit: cover; border: 2px solid rgba(56, 189, 248, 0.25); box-shadow: 0 2px 8px rgba(0,0,0,0.3);" />
+                <img src={st.foto} alt={st.nombre} style="width: {isMobile ? '40px' : '44px'}; height: {isMobile ? '40px' : '44px'}; border-radius: 50%; object-fit: cover; border: 2px solid rgba(56, 189, 248, 0.25); flex-shrink: 0;" />
               {:else}
-                <div style="width: {isMobile ? '52px' : '64px'}; height: {isMobile ? '52px' : '64px'}; border-radius: 50%; background: linear-gradient(135deg, rgba(56,189,248,0.15), rgba(168,85,247,0.15)); display: flex; align-items: center; justify-content: center; font-size: {isMobile ? '1.3rem' : '1.6rem'}; border: 2px solid rgba(56, 189, 248, 0.15);">👤</div>
+                <div style="width: {isMobile ? '40px' : '44px'}; height: {isMobile ? '40px' : '44px'}; border-radius: 50%; background: linear-gradient(135deg, rgba(56,189,248,0.12), rgba(168,85,247,0.12)); display: flex; align-items: center; justify-content: center; font-size: {isMobile ? '1rem' : '1.15rem'}; flex-shrink: 0; border: 2px solid rgba(255,255,255,0.06);">👤</div>
               {/if}
-              <span style="position: absolute; top: -4px; right: -4px; font-size: 0.6rem; font-weight: bold; background: linear-gradient(135deg, #38bdf8, #6366f1); color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.4); border: 2px solid rgba(15,23,42,0.8);">{index + 1}</span>
+              <!-- Info -->
+              <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
+                <div style="display: flex; align-items: center; gap: 0.4rem; min-width: 0;">
+                  <span style="font-size: {isMobile ? '0.7rem' : '0.75rem'}; font-weight: bold; background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 1px 5px; border-radius: 4px; flex-shrink: 0; border: 1px solid rgba(56, 189, 248, 0.2);">#{index + 1}</span>
+                  <span style="font-size: {isMobile ? '0.85rem' : '0.9rem'}; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #f1f5f9;">{st.nombre}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; min-width: 0;">
+                  {#if gradoName}
+                    <span style="font-size: 0.7rem; color: #94a3b8; white-space: nowrap;">📊 {gradoName}{#if seccionName} · {seccionName}{/if}</span>
+                  {/if}
+                  {#if colegioName}
+                    <span style="font-size: 0.7rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">🏫 {colegioName}</span>
+                  {/if}
+                </div>
+              </div>
+              <!-- Menú 3 puntos -->
+              <div style="position: relative; flex-shrink: 0;">
+                <button onclick={(e) => { e.stopPropagation(); openMenuStudentId = openMenuStudentId === st.id! ? null : st.id!; }}
+                  style="width: 32px; height: 32px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: {openMenuStudentId === st.id! ? 'rgba(255,255,255,0.1)' : 'transparent'}; color: #94a3b8; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; letter-spacing: 2px;">⋮</button>
+                {#if openMenuStudentId === st.id!}
+                  <div onclick={(e) => e.stopPropagation()} style="position: absolute; top: 100%; right: 0; z-index: 100; min-width: 140px; background: rgba(30, 41, 59, 0.97); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; box-shadow: 0 12px 32px -8px rgba(0,0,0,0.5); padding: 4px; overflow: hidden;">
+                    <button onclick={() => { openMenuStudentId = null; openEditModal(st); }}
+                      style="width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.7rem; border: none; background: transparent; color: #e2e8f0; font-size: 0.8rem; border-radius: 6px; cursor: pointer; transition: background 0.12s; text-align: left;"
+                      onmouseenter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                      onmouseleave={(e) => e.currentTarget.style.background = 'transparent'}>✏️ Editar</button>
+                    <button onclick={() => { openMenuStudentId = null; handleDelete(st.id!); }}
+                      style="width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.7rem; border: none; background: transparent; color: #f87171; font-size: 0.8rem; border-radius: 6px; cursor: pointer; transition: background 0.12s; text-align: left;"
+                      onmouseenter={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
+                      onmouseleave={(e) => e.currentTarget.style.background = 'transparent'}>🗑 Eliminar</button>
+                  </div>
+                {/if}
+              </div>
             </div>
-            <span style="font-size: {isMobile ? '0.7rem' : '0.8rem'}; color: #e2e8f0; text-align: center; overflow: hidden; text-overflow: ellipsis; max-width: 100%; white-space: nowrap; font-weight: 600; margin-top: 3px;">{st.nombre}</span>
           </div>
         {/each}
       </div>
@@ -1214,41 +1199,6 @@ async function fetchData(preserveFilters = false) {
             <button type="submit" style="padding: 0.5rem 1.25rem; font-size: 0.85rem; border-radius: 8px; border: none; background: linear-gradient(135deg, var(--primary-hover), var(--primary-color)); color: white; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(var(--primary-rgb), 0.4);">Guardar</button>
           </div>
         </form>
-      </div>
-    </div>
-  {/if}
-
-  <!-- Grid Student Detail Modal -->
-  {#if gridSelectedStudent}
-    <div class="modal-overlay" style="position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);" onclick={() => gridSelectedStudent = null}>
-      <div class="modal-content category-card" onclick={(e) => e.stopPropagation()} style="width: 380px; max-width: 90%; padding: 1.5rem; position: relative; background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98)); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; box-shadow: 0 25px 60px -12px rgba(0,0,0,0.6);">
-        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
-          {#if gridSelectedStudent.foto}
-            <img src={gridSelectedStudent.foto} alt={gridSelectedStudent.nombre} style="width: 56px; height: 56px; border-radius: 50%; object-fit: cover; border: 2px solid rgba(56, 189, 248, 0.3);" />
-          {:else}
-            <div style="width: 56px; height: 56px; border-radius: 50%; background: rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">👤</div>
-          {/if}
-          <div style="flex: 1; min-width: 0;">
-            <div style="font-size: 1.1rem; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #f1f5f9;">{gridSelectedStudent.nombre}</div>
-            <div style="font-size: 0.8rem; color: #94a3b8; margin-top: 2px;">Código: {gridSelectedStudent.codigo}</div>
-          </div>
-          <button onclick={() => gridSelectedStudent = null} style="background: transparent; border: none; color: #94a3b8; font-size: 1.2rem; cursor: pointer; padding: 4px;">✕</button>
-        </div>
-        <div style="display: flex; flex-wrap: wrap; gap: 0.4rem; font-size: 0.75rem; margin-bottom: 1rem;">
-          <span style="background: rgba(56, 189, 248, 0.1); color: #38bdf8; padding: 2px 8px; border-radius: 4px;">
-            {allGrados.find(g => g.id === gridSelectedStudent.gradoId)?.nombre || 'Grado'}
-          </span>
-          <span style="background: rgba(168, 85, 247, 0.1); color: #a855f7; padding: 2px 8px; border-radius: 4px;">
-            {allSecciones.find(s => s.id === gridSelectedStudent.seccionId)?.nombre || 'Sección'}
-          </span>
-          <span style="background: {gridSelectedStudent.sexo === 'M' ? 'rgba(96, 165, 250, 0.1)' : 'rgba(244, 114, 182, 0.1)'}; color: {gridSelectedStudent.sexo === 'M' ? '#60a5fa' : '#f472b6'}; padding: 2px 8px; border-radius: 4px;">
-            {gridSelectedStudent.sexo === 'M' ? 'Masculino' : 'Femenino'}
-          </span>
-        </div>
-        <div style="display: flex; gap: 0.5rem;">
-          <button onclick={() => { openEditModal(gridSelectedStudent); gridSelectedStudent = null; }} style="flex: 1; justify-content: center; padding: 0.6rem; font-size: 0.85rem; border-radius: 8px; border: none; background: linear-gradient(135deg, var(--primary-hover), var(--primary-color)); color: white; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(var(--primary-rgb), 0.4);">✏️ Editar</button>
-          <button onclick={() => { handleDelete(gridSelectedStudent.id!); gridSelectedStudent = null; }} style="flex: 1; justify-content: center; padding: 0.6rem; font-size: 0.85rem; border-radius: 8px; border: 1px solid rgba(239,68,68,0.4); background: rgba(239,68,68,0.15); color: #fca5a5; font-weight: 600; cursor: pointer;">🗑 Eliminar</button>
-        </div>
       </div>
     </div>
   {/if}

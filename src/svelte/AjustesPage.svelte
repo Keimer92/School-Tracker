@@ -278,7 +278,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   async function pedirPermisoNotificaciones() {
     try {
       await invoke('gd_request_notification_permission');
-      await emit("show-toast", { message: "🔔 Si no viste el diálogo, actívalo en Sistema → Apps → School Tracker Pro → Notificaciones", type: "info" });
+       await emit("show-toast", { message: "🔔 Si no viste el diálogo, actívalo en Sistema → Apps → School Tracker → Notificaciones", type: "info" });
     } catch (e) {
       await emit("show-toast", { message: "❌ Error solicitando permiso: " + e, type: "error" });
     }
@@ -733,7 +733,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
               {/if}
 
               <div class="notif-nota">
-                ⚠️ En Android 12+ la precisión exacta requiere el permiso "Alarmas y recordatorios exactos" (Sistema → Apps → School Tracker Pro).
+                 ⚠️ En Android 12+ la precisión exacta requiere el permiso "Alarmas y recordatorios exactos" (Sistema → Apps → School Tracker).
               </div>
             {:else}
               <div class="empty-state-sm"><span>🔕</span><span>Las notificaciones están desactivadas</span></div>

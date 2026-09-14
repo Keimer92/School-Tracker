@@ -38,12 +38,11 @@ setThemeMode: (mode: string) => void;
 >
   <div class="sidebar-header-integrated">
     <div class="mode-badge">
-      <img class="sidebar-app-icon" src={appIcon} alt="School Tracker Pro" draggable="false" />
+      <img class="sidebar-app-icon" src={appIcon} alt="School Tracker" draggable="false" />
       <div class="mode-info">
         <span class="mode-label">SCHOOL</span>
         <div class="mode-name-line">
           <span class="mode-name">TRACKER</span>
-          <span class="mode-pro">PRO</span>
         </div>
       </div>
     </div>

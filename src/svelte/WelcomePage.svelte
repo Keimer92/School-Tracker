@@ -706,14 +706,14 @@
       <div class="welcome-brand">
         {#if isAndroidMobile}
           <div class="welcome-brand-row">
-            <img class="welcome-logo welcome-logo-sm" src={appIcon} alt="School Tracker Pro" draggable="false" />
+            <img class="welcome-logo welcome-logo-sm" src={appIcon} alt="School Tracker" draggable="false" />
             <div class="welcome-brand-text">
               <h1 class="welcome-title welcome-title-sm">School Tracker</h1>
               <p class="welcome-subtitle">Selecciona cómo quieres iniciar</p>
             </div>
           </div>
         {:else}
-          <img class="welcome-logo" src={appIcon} alt="School Tracker Pro" draggable="false" />
+          <img class="welcome-logo" src={appIcon} alt="School Tracker" draggable="false" />
           <h1 class="welcome-title">School Tracker</h1>
           <p class="welcome-subtitle">Selecciona cómo quieres iniciar</p>
         {/if}

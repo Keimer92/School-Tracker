@@ -1015,7 +1015,7 @@
   }
 
   const AYUDA_PLANTILLA_XLSX = `OBJETIVO
-Crear una plantilla Excel (.xlsx) que la app School Tracker Pro rellenará
+ Crear una plantilla Excel (.xlsx) que la app School Tracker rellenará
 automáticamente con los datos reales (encabezado, indicador, criterios y
 estudiantes con sus notas cualitativas), conservando TODO tu diseño.
 
