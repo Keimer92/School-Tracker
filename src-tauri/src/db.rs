@@ -501,8 +501,16 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
         ).ok();
     }
 
-    // Also, for any indicators still stuck at ano_lectivo_id=0 (e.g. default on fresh inserts),
-    // migrate them to the active year so they don't create duplicates.
+    // Deduplicate: if there are indicators with the same (grado, asignatura, corte, orden)
+    // at both ano_lectivo_id=0 and a real year, delete the ano_lectivo_id=0 ones.
+    // These are artifacts created by seed before catalogs loaded.
+    conn.execute(
+        "DELETE FROM indicador WHERE ano_lectivo_id = 0 AND (grado_id, asignatura_id, corte_evaluativo_id, orden) IN (SELECT grado_id, asignatura_id, corte_evaluativo_id, orden FROM indicador WHERE ano_lectivo_id != 0)",
+        [],
+    ).ok();
+
+    // Also remove any remaining orphan indicators at ano_lectivo_id=0
+    // that have no counterpart at a real year — move them to the active year.
     conn.execute(
         "UPDATE indicador SET ano_lectivo_id = (SELECT id FROM ano_lectivo WHERE activo = 1 LIMIT 1) WHERE ano_lectivo_id = 0 AND EXISTS (SELECT 1 FROM ano_lectivo WHERE activo = 1)",
         [],
