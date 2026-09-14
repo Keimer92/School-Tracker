@@ -227,25 +227,25 @@
   <div class="category-grid" style="display: block;">
     <div class="ev-sticky-header" style="{isMobile ? 'position: sticky; top: 0; z-index: 60; background: rgba(10, 14, 20, 0.95); border-radius: 0 0 12px 12px; padding-bottom: 0.1rem;' : ''}">
       <FilterContainer {isMobile}>
-        <FilterGroup label="Año:" {isMobile} flex={isMobile ? '1 1 0' : undefined}>
+        <FilterGroup label="Año:" {isMobile} flex={isMobile ? '1 1 0' : '1 1 0'}>
           <select class="filter-select" bind:value={selectedAno} aria-label="Seleccionar año lectivo"
-            style="width:100%">
+            style="width:100%; min-width: 140px">
             {#each anos as a}
               <option value={a.id}>{a.nombre}</option>
             {/each}
           </select>
         </FilterGroup>
-        <FilterGroup label="Grado:" {isMobile} flex={isMobile ? '1 1 0' : undefined}>
+        <FilterGroup label="Grado:" {isMobile} flex={isMobile ? '1 1 0' : '1 1 0'}>
           <select class="filter-select" bind:value={selectedGrado} aria-label="Seleccionar grado"
-            style="width:100%">
+            style="width:100%; min-width: 140px">
             {#each grados as g}
               <option value={g.id}>{g.nombre}</option>
             {/each}
           </select>
         </FilterGroup>
-        <FilterGroup label="Asignatura:" {isMobile} flex={isMobile ? '1 1 0' : undefined}>
+        <FilterGroup label="Asignatura:" {isMobile} flex={isMobile ? '1 1 0' : '1 1 0'}>
           <select class="filter-select" bind:value={selectedAsignatura} disabled={asignaturas.length === 0} aria-label="Seleccionar asignatura"
-            style="width:100%">
+            style="width:100%; min-width: 140px">
             {#if asignaturas.length === 0}
               <option value="0">Sin asignaturas</option>
             {/if}
@@ -254,9 +254,9 @@
             {/each}
           </select>
         </FilterGroup>
-        <FilterGroup label="Corte:" {isMobile} flex={isMobile ? '1 1 0' : undefined}>
+        <FilterGroup label="Corte:" {isMobile} flex={isMobile ? '1 1 0' : '1 1 0'}>
           <select class="filter-select" bind:value={selectedCorte} aria-label="Seleccionar corte evaluativo"
-            style="width:100%">
+            style="width:100%; min-width: 140px">
             {#each cortes as c}
               <option value={c.id}>{c.nombre}</option>
             {/each}
@@ -264,8 +264,8 @@
         </FilterGroup>
         {#if !isMobile}
           <FilterActions>
-            <button class="primary" onclick={handleSaveConfig} disabled={loading || asignaturas.length === 0} style="padding: 0.5rem 1rem; font-size: 0.85rem;">
-              {loading ? '⏳...' : '💾'}
+            <button class="primary" onclick={handleSaveConfig} disabled={loading || asignaturas.length === 0} style="padding: 0.6rem 1.4rem; font-size: 0.9rem; font-weight: 700;">
+              {loading ? '⏳...' : '💾 Guardar'}
             </button>
           </FilterActions>
         {/if}
@@ -520,16 +520,17 @@
   }
   @media (max-width: 640px) {
     :global(.sticky-filters) {
-      padding: 0.2rem !important;
+      padding: 0.5rem !important;
       margin-bottom: 0.1rem !important;
     }
     :global(.filters-row) {
-      gap: 0.15rem !important;
-      padding: 0.05rem !important;
+      gap: 0.4rem !important;
+      padding: 0.4rem !important;
     }
     :global(.filter-select) {
-      padding: 0.3rem 0.4rem !important;
-      font-size: 0.8rem !important;
+      padding: 0.5rem 0.8rem !important;
+      font-size: 0.85rem !important;
+      min-height: 38px !important;
     }
     :global(.ev-view-toggle) {
       padding: 0.2rem !important;
