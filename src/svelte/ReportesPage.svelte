@@ -357,7 +357,7 @@
       if (cortesIds.length === 0) throw new Error("No se pudieron determinar los cortes evaluativos.");
 
       const indicadoresArrays = await Promise.all(cortesIds.map(cId =>
-        invoke<Indicador[]>("get_evaluation_config", { gradoId: selectedGrado, asignaturaId: selectedAsignatura, corteEvaluativoId: cId })
+        invoke<Indicador[]>("get_evaluation_config", { gradoId: selectedGrado, asignaturaId: selectedAsignatura, corteEvaluativoId: cId, anoLectivoId: selectedAno })
       ));
       if (lid !== loadId) return;
 
@@ -679,7 +679,7 @@
         });
 
         const indicadoresArrays = await Promise.all(cortesIds.map(cId =>
-          invoke<any[]>("get_evaluation_config", { gradoId: pair.gradoId, asignaturaId: selectedAsignatura, corteEvaluativoId: cId })
+          invoke<any[]>("get_evaluation_config", { gradoId: pair.gradoId, asignaturaId: selectedAsignatura, corteEvaluativoId: cId, anoLectivoId: selectedAno })
         ));
         const indicadores: any[] = [];
         const seenInd = new Set<number>();

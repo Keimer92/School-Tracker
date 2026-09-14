@@ -716,7 +716,7 @@
     if (!isActuallySilent) loading = true;
     const { corte, asignatura, grado } = filtersRef;
     try {
-      const data = await invoke<Indicador[]>("get_evaluation_config", { gradoId: grado, asignaturaId: asignatura, corteEvaluativoId: corte });
+      const data = await invoke<Indicador[]>("get_evaluation_config", { gradoId: grado, asignaturaId: asignatura, corteEvaluativoId: corte, anoLectivoId: filtersRef.ano });
       indicadores = data;
       return data;
     } catch (error) {

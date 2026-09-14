@@ -492,7 +492,21 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
             [],
         )
         .map_err(|e| format!("Error agregando columna ano_lectivo_id: {}", e))?;
+
+        // Backfill: indicators with ano_lectivo_id = 0 belong to the active year.
+        // Move them so get_evaluation_config finds them when filtering by real ano_id.
+        conn.execute(
+            "UPDATE indicador SET ano_lectivo_id = (SELECT id FROM ano_lectivo WHERE activo = 1 LIMIT 1) WHERE ano_lectivo_id = 0",
+            [],
+        ).ok();
     }
+
+    // Also, for any indicators still stuck at ano_lectivo_id=0 (e.g. default on fresh inserts),
+    // migrate them to the active year so they don't create duplicates.
+    conn.execute(
+        "UPDATE indicador SET ano_lectivo_id = (SELECT id FROM ano_lectivo WHERE activo = 1 LIMIT 1) WHERE ano_lectivo_id = 0 AND EXISTS (SELECT 1 FROM ano_lectivo WHERE activo = 1)",
+        [],
+    ).ok();
 
     // Agregar columna 'minimo' a configuracion_calificacion si no existe
     let has_minimo: bool = conn
