@@ -170,6 +170,7 @@
     justify-content: center;
     cursor: pointer;
     position: relative;
+    pointer-events: auto;
     box-shadow: 0 8px 24px rgba(59, 130, 246, 0.45);
     transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
     -webkit-tap-highlight-color: transparent;
@@ -202,6 +203,7 @@
     border: 1px solid rgba(255, 255, 255, 0.14);
     box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
     width: min(88vw, 380px);
+    pointer-events: auto;
     animation: sfab-expand 0.22s cubic-bezier(0.34, 1.3, 0.64, 1);
   }
   @keyframes sfab-expand {

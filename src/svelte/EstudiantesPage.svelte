@@ -1070,12 +1070,11 @@ async function fetchData(preserveFilters = false) {
           {@const gradoName = allGrados.find(g => g.id === st.gradoId)?.nombre || ''}
           {@const seccionName = allSecciones.find(s => s.id === st.seccionId)?.nombre || ''}
           {@const colegioName = colegios.find(c => c.id === st.colegioId)?.nombre || ''}
-          <div class="category-card" style="margin: 0; padding: {isMobile ? '0.6rem 0.7rem' : '0.7rem 0.9rem'}; border: {selectedIds.has(st.id!) ? '1.5px solid #ef4444' : '1px solid rgba(255,255,255,0.05)'}; cursor: default; transition: border-color 0.15s, background 0.15s; position: relative; z-index: {openMenuStudentId === st.id! ? 50 : 'auto'};"
-            onmouseenter={(e) => { if (!selectedIds.has(st.id!)) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; }}
-            onmouseleave={(e) => { if (!selectedIds.has(st.id!)) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.05)'; }}>
+          <div class="category-card" style="margin: 0; padding: {isMobile ? '0.6rem 0.7rem' : '0.7rem 0.9rem'}; border: {selectedIds.has(st.id!) ? '1.5px solid #ef4444' : openMenuStudentId === st.id! ? '1px solid rgba(56,189,248,0.4)' : '1px solid rgba(255,255,255,0.05)'}; cursor: pointer; transition: border-color 0.15s, background 0.15s; position: relative; z-index: {openMenuStudentId === st.id! ? 50 : 'auto'};"
+            onclick={() => { openMenuStudentId = openMenuStudentId === st.id! ? null : st.id!; }}>
             <div style="display: flex; align-items: center; gap: {isMobile ? '0.6rem' : '0.75rem'};">
               <!-- Checkbox -->
-              <div onclick={() => toggleSelect(st.id!)} style="cursor: pointer; width: 20px; height: 20px; border-radius: 5px; border: 2px solid {selectedIds.has(st.id!) ? '#ef4444' : 'rgba(255,255,255,0.18)'}; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.2)' : 'transparent'}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.65rem; color: #ef4444; transition: all 0.15s;">{selectedIds.has(st.id!) ? '✓' : ''}</div>
+              <div onclick={(e) => { e.stopPropagation(); toggleSelect(st.id!); }} style="cursor: pointer; width: 20px; height: 20px; border-radius: 5px; border: 2px solid {selectedIds.has(st.id!) ? '#ef4444' : 'rgba(255,255,255,0.18)'}; background: {selectedIds.has(st.id!) ? 'rgba(239,68,68,0.2)' : 'transparent'}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.65rem; color: #ef4444; transition: all 0.15s;">{selectedIds.has(st.id!) ? '✓' : ''}</div>
               <!-- Avatar -->
               {#if st.foto}
                 <img src={st.foto} alt={st.nombre} style="width: {isMobile ? '40px' : '44px'}; height: {isMobile ? '40px' : '44px'}; border-radius: 50%; object-fit: cover; border: 2px solid rgba(56, 189, 248, 0.25); flex-shrink: 0;" />
@@ -1097,24 +1096,20 @@ async function fetchData(preserveFilters = false) {
                   {/if}
                 </div>
               </div>
-              <!-- Menú 3 puntos -->
-              <div style="position: relative; flex-shrink: 0;">
-                <button onclick={(e) => { e.stopPropagation(); openMenuStudentId = openMenuStudentId === st.id! ? null : st.id!; }}
-                  style="width: 32px; height: 32px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: {openMenuStudentId === st.id! ? 'rgba(255,255,255,0.1)' : 'transparent'}; color: #94a3b8; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; letter-spacing: 2px;">⋮</button>
-                {#if openMenuStudentId === st.id!}
-                  <div onclick={(e) => e.stopPropagation()} style="position: absolute; top: 100%; right: 0; z-index: 100; min-width: 140px; background: rgba(30, 41, 59, 0.97); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; box-shadow: 0 12px 32px -8px rgba(0,0,0,0.5); padding: 4px; overflow: hidden;">
-                    <button onclick={() => { openMenuStudentId = null; openEditModal(st); }}
-                      style="width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.7rem; border: none; background: transparent; color: #e2e8f0; font-size: 0.8rem; border-radius: 6px; cursor: pointer; transition: background 0.12s; text-align: left;"
-                      onmouseenter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
-                      onmouseleave={(e) => e.currentTarget.style.background = 'transparent'}>✏️ Editar</button>
-                    <button onclick={() => { openMenuStudentId = null; handleDelete(st.id!); }}
-                      style="width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.7rem; border: none; background: transparent; color: #f87171; font-size: 0.8rem; border-radius: 6px; cursor: pointer; transition: background 0.12s; text-align: left;"
-                      onmouseenter={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
-                      onmouseleave={(e) => e.currentTarget.style.background = 'transparent'}>🗑 Eliminar</button>
-                  </div>
-                {/if}
-              </div>
             </div>
+            <!-- Popover de acciones -->
+            {#if openMenuStudentId === st.id!}
+              <div onclick={(e) => e.stopPropagation()} style="position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); z-index: 100; display: flex; gap: 6px; background: rgba(30, 41, 59, 0.97); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; box-shadow: 0 12px 32px -8px rgba(0,0,0,0.5); padding: 6px;">
+                <button onclick={() => { openMenuStudentId = null; openEditModal(st); }}
+                  style="display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.9rem; border: none; background: rgba(56,189,248,0.12); color: #38bdf8; font-size: 0.8rem; border-radius: 8px; cursor: pointer; font-weight: 600; transition: background 0.12s; white-space: nowrap;"
+                  onmouseenter={(e) => e.currentTarget.style.background = 'rgba(56,189,248,0.22)'}
+                  onmouseleave={(e) => e.currentTarget.style.background = 'rgba(56,189,248,0.12)'}>✏️ Editar</button>
+                <button onclick={() => { openMenuStudentId = null; handleDelete(st.id!); }}
+                  style="display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.9rem; border: none; background: rgba(239,68,68,0.12); color: #f87171; font-size: 0.8rem; border-radius: 8px; cursor: pointer; font-weight: 600; transition: background 0.12s; white-space: nowrap;"
+                  onmouseenter={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.22)'}
+                  onmouseleave={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.12)'}>🗑 Eliminar</button>
+              </div>
+            {/if}
           </div>
         {/each}
       </div>
