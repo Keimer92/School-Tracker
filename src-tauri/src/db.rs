@@ -70,6 +70,7 @@ pub struct Indicador {
     pub grado_id: i64,
     pub asignatura_id: i64,
     pub corte_evaluativo_id: i64,
+    pub ano_lectivo_id: i64,
     pub orden: i64,
     pub descripcion: String,
     pub activo: bool,
@@ -225,6 +226,7 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             grado_id INTEGER NOT NULL,
             asignatura_id INTEGER NOT NULL,
             corte_evaluativo_id INTEGER NOT NULL,
+            ano_lectivo_id INTEGER NOT NULL DEFAULT 0,
             orden INTEGER NOT NULL,
             descripcion TEXT DEFAULT '',
             activo INTEGER DEFAULT 1,
@@ -232,7 +234,8 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             updated_at TEXT DEFAULT (datetime('now')),
             FOREIGN KEY(grado_id) REFERENCES grado(id),
             FOREIGN KEY(asignatura_id) REFERENCES asignatura(id),
-            FOREIGN KEY(corte_evaluativo_id) REFERENCES corte_evaluativo(id)
+            FOREIGN KEY(corte_evaluativo_id) REFERENCES corte_evaluativo(id),
+            FOREIGN KEY(ano_lectivo_id) REFERENCES ano_lectivo(id)
         );
 
         CREATE TABLE IF NOT EXISTS criterio (
@@ -473,6 +476,23 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
         [],
     )
     .map_err(|e| e.to_string())?;
+
+    // Agregar columna 'ano_lectivo_id' a indicador si no existe
+    let has_ano_lectivo: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('indicador') WHERE name = 'ano_lectivo_id'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(0) > 0;
+
+    if !has_ano_lectivo {
+        conn.execute(
+            "ALTER TABLE indicador ADD COLUMN ano_lectivo_id INTEGER NOT NULL DEFAULT 0",
+            [],
+        )
+        .map_err(|e| format!("Error agregando columna ano_lectivo_id: {}", e))?;
+    }
 
     // Agregar columna 'minimo' a configuracion_calificacion si no existe
     let has_minimo: bool = conn
@@ -3193,6 +3213,7 @@ pub async fn get_evaluation_config(
     gradoId: i64,
     asignaturaId: i64,
     corteEvaluativoId: i64,
+    anoLectivoId: i64,
 ) -> Result<Vec<Indicador>, String> {
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
     let tx = conn.transaction().map_err(|e| e.to_string())?;
@@ -3201,8 +3222,8 @@ pub async fn get_evaluation_config(
         // Check if config exists
         let count: i64 = tx
             .query_row(
-                "SELECT COUNT(*) FROM indicador WHERE grado_id = ? AND asignatura_id = ? AND corte_evaluativo_id = ?",
-                [gradoId, asignaturaId, corteEvaluativoId],
+                "SELECT COUNT(*) FROM indicador WHERE grado_id = ? AND asignatura_id = ? AND corte_evaluativo_id = ? AND ano_lectivo_id = ?",
+                [gradoId, asignaturaId, corteEvaluativoId, anoLectivoId],
                 |row| row.get(0),
             )
             .map_err(|e| e.to_string())?;
@@ -3211,8 +3232,8 @@ pub async fn get_evaluation_config(
             // Seed 8 indicators — all active by default
             for i in 1..=8 {
                 tx.execute(
-                    "INSERT INTO indicador (grado_id, asignatura_id, corte_evaluativo_id, orden, descripcion, activo) VALUES (?, ?, ?, ?, ?, ?)",
-                    rusqlite::params![gradoId, asignaturaId, corteEvaluativoId, i, "", 1],
+                    "INSERT INTO indicador (grado_id, asignatura_id, corte_evaluativo_id, ano_lectivo_id, orden, descripcion, activo) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    rusqlite::params![gradoId, asignaturaId, corteEvaluativoId, anoLectivoId, i, "", 1],
                 )
                 .map_err(|e| e.to_string())?;
 
@@ -3230,11 +3251,11 @@ pub async fn get_evaluation_config(
                 }
             }
         } else {
-            // Check if there are any active indicators, if not, activate the first 5
+            // Check if there are any active indicators, if not, activate all 8
             let active_count: i64 = tx
                 .query_row(
-                    "SELECT COUNT(*) FROM indicador WHERE grado_id = ? AND asignatura_id = ? AND corte_evaluativo_id = ? AND activo = 1",
-                    [gradoId, asignaturaId, corteEvaluativoId],
+                    "SELECT COUNT(*) FROM indicador WHERE grado_id = ? AND asignatura_id = ? AND corte_evaluativo_id = ? AND ano_lectivo_id = ? AND activo = 1",
+                    [gradoId, asignaturaId, corteEvaluativoId, anoLectivoId],
                     |row| row.get(0),
                 )
                 .map_err(|e| e.to_string())?;
@@ -3242,8 +3263,8 @@ pub async fn get_evaluation_config(
             if active_count == 0 {
                 // Activate all 8 indicators by default
                 tx.execute(
-                    "UPDATE indicador SET activo = 1 WHERE grado_id = ? AND asignatura_id = ? AND corte_evaluativo_id = ?",
-                    [gradoId, asignaturaId, corteEvaluativoId],
+                    "UPDATE indicador SET activo = 1 WHERE grado_id = ? AND asignatura_id = ? AND corte_evaluativo_id = ? AND ano_lectivo_id = ?",
+                    [gradoId, asignaturaId, corteEvaluativoId, anoLectivoId],
                 )
                 .map_err(|e| e.to_string())?;
             }
@@ -3253,18 +3274,17 @@ pub async fn get_evaluation_config(
     tx.commit().map_err(|e| e.to_string())?;
 
     // Now fetch the full tree
-    // Note: We use the existing locked connection 'conn'
 
     let mut stmt = conn
         .prepare(
             "SELECT id, orden, descripcion, activo, COALESCE(instrumento,'general') FROM indicador
-             WHERE grado_id = ? AND asignatura_id = ? AND corte_evaluativo_id = ?
+             WHERE grado_id = ? AND asignatura_id = ? AND corte_evaluativo_id = ? AND ano_lectivo_id = ?
              ORDER BY orden",
         )
         .map_err(|e| e.to_string())?;
 
     let indicadores = stmt
-        .query_map([gradoId, asignaturaId, corteEvaluativoId], |row| {
+        .query_map([gradoId, asignaturaId, corteEvaluativoId, anoLectivoId], |row| {
             let id: i64 = row.get(0)?;
             let orden: i64 = row.get(1)?;
             let descripcion: String = row.get(2)?;
@@ -3276,6 +3296,7 @@ pub async fn get_evaluation_config(
                 grado_id: gradoId,
                 asignatura_id: asignaturaId,
                 corte_evaluativo_id: corteEvaluativoId,
+                ano_lectivo_id: anoLectivoId,
                 orden,
                 descripcion,
                 activo,
@@ -4365,7 +4386,7 @@ pub async fn delete_asistencia_rango(
 pub async fn get_indicadores_all(state: tauri::State<'_, DbState>) -> Result<Vec<Indicador>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
-        .prepare("SELECT id, grado_id, asignatura_id, corte_evaluativo_id, orden, descripcion, activo, COALESCE(instrumento,'general') FROM indicador")
+        .prepare("SELECT id, grado_id, asignatura_id, corte_evaluativo_id, COALESCE(ano_lectivo_id, 0), orden, descripcion, activo, COALESCE(instrumento,'general') FROM indicador")
         .map_err(|e| e.to_string())?;
 
     let indicadores = stmt
@@ -4375,11 +4396,12 @@ pub async fn get_indicadores_all(state: tauri::State<'_, DbState>) -> Result<Vec
                 grado_id: row.get(1)?,
                 asignatura_id: row.get(2)?,
                 corte_evaluativo_id: row.get(3)?,
-                orden: row.get(4)?,
-                descripcion: row.get(5)?,
-                activo: row.get::<_, i64>(6)? == 1,
-                instrumento: row.get(7)?,
-                criterios: vec![], // No necesitamos cargar criterios aquÃ­ para sync simple
+                ano_lectivo_id: row.get(4)?,
+                orden: row.get(5)?,
+                descripcion: row.get(6)?,
+                activo: row.get::<_, i64>(7)? == 1,
+                instrumento: row.get(8)?,
+                criterios: vec![],
             })
         })
         .map_err(|e| e.to_string())?

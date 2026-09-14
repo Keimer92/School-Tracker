@@ -11,12 +11,11 @@
   interface Criterio { id: number; orden: number; descripcion: string; puntajeMaximo: number; }
   interface Indicador { id: number; orden: number; descripcion: string; activo: boolean; instrumento?: string; criterios: Criterio[]; }
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
-  type ViewMode = "modern-cards" | "accordion" | "split-panel";
+  type ViewMode = "modern-cards" | "split-panel";
 
   const VIEW_MODES: { key: ViewMode; label: string; icon: string }[] = [
     { key: "split-panel", label: "Panel", icon: "⛶" },
     { key: "modern-cards", label: "Moderno", icon: "🎴" },
-    { key: "accordion", label: "Acordeón", icon: "📋" },
   ];
 
   let grados: CategoryItem[] = $state([]);
@@ -54,7 +53,7 @@
 
   onMount(() => {
     const saved = localStorage.getItem("evaluaciones-view-mode") as ViewMode | null;
-    if (saved === "refined") { viewMode = "split-panel"; localStorage.setItem("evaluaciones-view-mode", "split-panel"); }
+    if (saved === "refined" || saved === "accordion") { viewMode = "split-panel"; localStorage.setItem("evaluaciones-view-mode", "split-panel"); }
     else if (saved) viewMode = saved;
     if (isAndroid) viewMode = "modern-cards";
     const checkMobile = () => { isMobile = window.innerWidth <= 768; };
@@ -80,7 +79,7 @@
   });
 
   $effect(() => {
-    if (selectedGrado && selectedAsignatura && selectedCorte) { fetchConfig(); }
+    if (selectedGrado && selectedAsignatura && selectedCorte && selectedAno) { fetchConfig(); }
     else { indicadores = []; }
   });
 
@@ -134,7 +133,7 @@
   async function fetchConfig() {
     loading = true;
     try {
-      indicadores = await invoke<Indicador[]>("get_evaluation_config", { gradoId: selectedGrado, asignaturaId: selectedAsignatura, corteEvaluativoId: selectedCorte });
+      indicadores = await invoke<Indicador[]>("get_evaluation_config", { gradoId: selectedGrado, asignaturaId: selectedAsignatura, corteEvaluativoId: selectedCorte, anoLectivoId: selectedAno });
     } catch (error) {
       await emit("show-toast", { message: "❌ Error al cargar configuración: " + error, type: "error" });
     } finally { loading = false; }
@@ -376,46 +375,6 @@
                     </div>
                   {/each}
                 </div>
-            </div>
-          {/each}
-        </div>
-      {:else if viewMode === "accordion"}
-        <div class="accordion-container">
-          {#each indicadores as ind (ind.id)}
-            {@const expanded = accordionOpen.has(ind.id)}
-            <div id="indicador-{ind.id}" class="accordion-item" class:active={ind.activo} class:inactive={!ind.activo} class:expanded>
-              <div class="accordion-header" onclick={() => { const next = new Set(accordionOpen); if (next.has(ind.id)) next.delete(ind.id); else next.add(ind.id); accordionOpen = next; }}>
-                <div class="accordion-header-left">
-                  <label class="switch" title={ind.activo ? "Desactivar" : (activeCount >= 5 ? "Límite de 5 activos" : "Activar")}>
-                    <input type="checkbox" checked={ind.activo} onclick={(e) => { e.stopPropagation(); handleToggleClick(e, ind); }} onchange={(e) => { e.stopPropagation(); handleToggleIndicador(ind); }} />
-                    <span class="slider round"></span>
-                  </label>
-                  <div class="indicador-badge" class:active={ind.activo} class:inactive={!ind.activo}>{ind.orden}</div>
-                  <input type="text" value={ind.descripcion} oninput={(e) => handleUpdateIndicadorDesc(ind.id, (e.target as HTMLInputElement).value)} onblur={() => handleBlurIndicador(ind)} placeholder="Descripción..." class="indicador-desc-input" onclick={(e) => e.stopPropagation()} />
-                </div>
-                <div class="accordion-header-right">
-                  {#if !ind.activo}
-                    <span class="status-tag inactive">Inactivo</span>
-                  {:else}
-                    <span class="status-tag" class:qualitative={isQualitative} class:quantitative={!isQualitative}>{isQualitative ? 'Cualitativo' : '20 pts'}</span>
-                  {/if}
-                  <span class="accordion-chevron" class:open={expanded}>▶</span>
-                </div>
-              </div>
-              {#if expanded}
-                <div class="accordion-body">
-                  {#each ind.criterios as crit (crit.id)}
-                    <div class="criterio-row">
-                      <span class="criterio-label">Crit. {crit.orden}</span>
-                      <input type="text" value={crit.descripcion} oninput={(e) => handleUpdateCriterio(ind.id, crit.id, "descripcion", (e.target as HTMLInputElement).value)} onblur={() => handleBlurCriterio(crit)} placeholder="Descripción..." class="criterio-input" />
-                      <div class="criterio-score">
-                        <input type="number" value={crit.puntajeMaximo} oninput={(e) => handleUpdateCriterio(ind.id, crit.id, "puntajeMaximo", Number((e.target as HTMLInputElement).value))} onblur={() => handleBlurCriterio(crit)} disabled={isQualitative} class="criterio-puntaje" />
-                        <span class="criterio-pts">pts</span>
-                      </div>
-                    </div>
-                  {/each}
-                </div>
-              {/if}
             </div>
           {/each}
         </div>

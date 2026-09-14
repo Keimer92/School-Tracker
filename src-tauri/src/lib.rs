@@ -357,7 +357,7 @@ fn get_all_local_data(
 
     // Indicadores
     let mut stmt_ind = conn
-        .prepare("SELECT id, grado_id, asignatura_id, coalesce(corte_evaluativo_id, 0), orden, descripcion, activo FROM indicador")
+        .prepare("SELECT id, grado_id, asignatura_id, coalesce(corte_evaluativo_id, 0), coalesce(ano_lectivo_id, 0), orden, descripcion, activo FROM indicador")
         .map_err(|e| format!("Error preparando consulta para indicador: {}", e))?;
 
     let rows_ind = stmt_ind
@@ -367,9 +367,10 @@ fn get_all_local_data(
                 "grado_id": row.get::<_, i64>(1)?,
                 "asignatura_id": row.get::<_, i64>(2)?,
                 "corte_evaluativo_id": row.get::<_, i64>(3)?,
-                "orden": row.get::<_, i64>(4)?,
-                "descripcion": row.get::<_, String>(5)?,
-                "activo": row.get::<_, i64>(6)? != 0
+                "ano_lectivo_id": row.get::<_, i64>(4)?,
+                "orden": row.get::<_, i64>(5)?,
+                "descripcion": row.get::<_, String>(6)?,
+                "activo": row.get::<_, i64>(7)? != 0
             }))
         })
         .map_err(|e| format!("Error ejecutando consulta para indicador: {}", e))?;

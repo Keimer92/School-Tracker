@@ -107,7 +107,7 @@ const TABLES: Record<string, { pk: string[]; cols: string[] }> = {
   },
   indicador: {
     pk: ['id'],
-    cols: ['id', 'grado_id', 'asignatura_id', 'corte_evaluativo_id', 'orden', 'descripcion', 'activo', 'instrumento', 'updated_at'],
+    cols: ['id', 'grado_id', 'asignatura_id', 'corte_evaluativo_id', 'ano_lectivo_id', 'orden', 'descripcion', 'activo', 'instrumento', 'updated_at'],
   },
   criterio: {
     pk: ['id'],
@@ -187,7 +187,7 @@ async function ensureSchema(env: Env): Promise<void> {
     `CREATE TABLE IF NOT EXISTS grado_asignatura (grado_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, updated_at TEXT, PRIMARY KEY (grado_id, asignatura_id))`,
     `CREATE TABLE IF NOT EXISTS colegio_asignatura (colegio_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, updated_at TEXT, PRIMARY KEY (colegio_id, asignatura_id))`,
     `CREATE TABLE IF NOT EXISTS colegio_grado (colegio_id INTEGER NOT NULL, grado_id INTEGER NOT NULL, activo INTEGER DEFAULT 1, cualitativo INTEGER DEFAULT 0, updated_at TEXT, PRIMARY KEY (colegio_id, grado_id))`,
-    `CREATE TABLE IF NOT EXISTS indicador (id INTEGER PRIMARY KEY AUTOINCREMENT, grado_id INTEGER, asignatura_id INTEGER, corte_evaluativo_id INTEGER, orden INTEGER, descripcion TEXT DEFAULT '', activo INTEGER DEFAULT 1, instrumento TEXT, updated_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS indicador (id INTEGER PRIMARY KEY AUTOINCREMENT, grado_id INTEGER, asignatura_id INTEGER, corte_evaluativo_id INTEGER, ano_lectivo_id INTEGER DEFAULT 0, orden INTEGER, descripcion TEXT DEFAULT '', activo INTEGER DEFAULT 1, instrumento TEXT, updated_at TEXT)`,
     `CREATE TABLE IF NOT EXISTS criterio (id INTEGER PRIMARY KEY AUTOINCREMENT, indicador_id INTEGER, orden INTEGER, descripcion TEXT DEFAULT '', puntaje_maximo INTEGER, updated_at TEXT)`,
     `CREATE TABLE IF NOT EXISTS estudiante (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, codigo TEXT, sexo TEXT, ano_lectivo_id INTEGER, grado_id INTEGER, seccion_id INTEGER, colegio_id INTEGER, foto TEXT, updated_at TEXT)`,
     `CREATE TABLE IF NOT EXISTS configuracion_calificacion (id TEXT PRIMARY KEY, nombre TEXT, color TEXT, minimo INTEGER, updated_at TEXT)`,
@@ -250,6 +250,15 @@ async function ensureSchema(env: Env): Promise<void> {
     if (colegioCols.length > 0 && !colegioCols.some((c: any) => c.name === 'tipo')) {
       await env.DB.prepare("ALTER TABLE colegio ADD COLUMN tipo TEXT DEFAULT 'Primaria'").run();
       console.log('[migración] colegio: columna tipo agregada');
+    }
+  } catch { /* best effort */ }
+
+  // Migración: agregar columna 'ano_lectivo_id' a indicador si no existe
+  try {
+    const indicadorCols = await queryRows(env.DB, "SELECT name FROM pragma_table_info('indicador')");
+    if (indicadorCols.length > 0 && !indicadorCols.some((c: any) => c.name === 'ano_lectivo_id')) {
+      await env.DB.prepare("ALTER TABLE indicador ADD COLUMN ano_lectivo_id INTEGER DEFAULT 0").run();
+      console.log('[migración] indicador: columna ano_lectivo_id agregada');
     }
   } catch { /* best effort */ }
 
