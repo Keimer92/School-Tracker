@@ -67,9 +67,9 @@
   <!-- Card/chip de nube a la derecha del título (tap → pestaña Nube) -->
   <button
     class="mobile-sync-chip"
-    class:connected={d1Status === 'connected' || d1Status === 'pushing' || d1Status === 'pulling'}
-    class:syncing={d1Status === 'pushing' || d1Status === 'pulling'}
-    class:error={d1Status === 'error'}
+    class:ok={d1Status === 'success' || d1Status === 'idle'}
+    class:syncing={d1Status === 'syncing'}
+    class:err={d1Status === 'error' || d1Status === 'offline'}
     onclick={() => onNavigate('cloud')}
     title="Estado Sincronización Nube D1"
   >
