@@ -22,6 +22,8 @@
   let grados: CategoryItem[] = $state([]);
   let asignaturas: CategoryItem[] = $state([]);
   let cortes: CategoryItem[] = $state([]);
+  let anos: CategoryItem[] = $state([]);
+  let selectedAno = $state(0);
   let selectedGrado = $state(0);
   let selectedAsignatura = $state(0);
   let selectedCorte = $state(0);
@@ -108,13 +110,20 @@
 
   async function fetchCatalogs() {
     try {
-      const [gData, cData] = await Promise.all([
+      const [gData, cData, aData] = await Promise.all([
         invoke<CategoryItem[]>("get_grados"),
         invoke<CategoryItem[]>("get_cortes"),
+        invoke<CategoryItem[]>("get_anos"),
       ]);
       grados = gData;
       cortes = cData;
-      if (cData.length > 0) selectedCorte = cData[0].id;
+      anos = aData;
+      const activeCorte = cData.find(c => c.activo);
+      if (activeCorte) selectedCorte = activeCorte.id;
+      else if (cData.length > 0) selectedCorte = cData[0].id;
+      const activeAno = aData.find(a => a.activo);
+      if (activeAno) selectedAno = activeAno.id;
+      else if (aData.length > 0) selectedAno = aData[0].id;
       if (gData.length > 0) { selectedGrado = gData[0].id; isQualitative = gData[0].cualitativo || false; }
     } catch (error) {
       console.error("Error fetching catalogs:", error);
@@ -219,6 +228,14 @@
   <div class="category-grid" style="display: block;">
     <div class="ev-sticky-header" style="{isMobile ? 'position: sticky; top: 0; z-index: 60; background: rgba(10, 14, 20, 0.95); border-radius: 0 0 12px 12px; padding-bottom: 0.1rem;' : ''}">
       <FilterContainer {isMobile}>
+        <FilterGroup label="Año:" {isMobile} flex={isMobile ? '1 1 0' : undefined}>
+          <select class="filter-select" bind:value={selectedAno} aria-label="Seleccionar año lectivo"
+            style="width:100%">
+            {#each anos as a}
+              <option value={a.id}>{a.nombre}</option>
+            {/each}
+          </select>
+        </FilterGroup>
         <FilterGroup label="Grado:" {isMobile} flex={isMobile ? '1 1 0' : undefined}>
           <select class="filter-select" bind:value={selectedGrado} aria-label="Seleccionar grado"
             style="width:100%">
@@ -347,8 +364,7 @@
                   {/if}
                 </div>
               </div>
-              {#if ind.activo}
-                <div class="indicador-body">
+              <div class="indicador-body">
                   {#each ind.criterios as crit (crit.id)}
                     <div class="criterio-row">
                       <span class="criterio-label">Crit. {crit.orden}</span>
@@ -360,7 +376,6 @@
                     </div>
                   {/each}
                 </div>
-              {/if}
             </div>
           {/each}
         </div>
@@ -389,20 +404,16 @@
               </div>
               {#if expanded}
                 <div class="accordion-body">
-                  {#if ind.activo}
-                    {#each ind.criterios as crit (crit.id)}
-                      <div class="criterio-row">
-                        <span class="criterio-label">Crit. {crit.orden}</span>
-                        <input type="text" value={crit.descripcion} oninput={(e) => handleUpdateCriterio(ind.id, crit.id, "descripcion", (e.target as HTMLInputElement).value)} onblur={() => handleBlurCriterio(crit)} placeholder="Descripción..." class="criterio-input" />
-                        <div class="criterio-score">
-                          <input type="number" value={crit.puntajeMaximo} oninput={(e) => handleUpdateCriterio(ind.id, crit.id, "puntajeMaximo", Number((e.target as HTMLInputElement).value))} onblur={() => handleBlurCriterio(crit)} disabled={isQualitative} class="criterio-puntaje" />
-                          <span class="criterio-pts">pts</span>
-                        </div>
+                  {#each ind.criterios as crit (crit.id)}
+                    <div class="criterio-row">
+                      <span class="criterio-label">Crit. {crit.orden}</span>
+                      <input type="text" value={crit.descripcion} oninput={(e) => handleUpdateCriterio(ind.id, crit.id, "descripcion", (e.target as HTMLInputElement).value)} onblur={() => handleBlurCriterio(crit)} placeholder="Descripción..." class="criterio-input" />
+                      <div class="criterio-score">
+                        <input type="number" value={crit.puntajeMaximo} oninput={(e) => handleUpdateCriterio(ind.id, crit.id, "puntajeMaximo", Number((e.target as HTMLInputElement).value))} onblur={() => handleBlurCriterio(crit)} disabled={isQualitative} class="criterio-puntaje" />
+                        <span class="criterio-pts">pts</span>
                       </div>
-                    {/each}
-                  {:else}
-                    <div class="accordion-empty">Indicador inactivo — activa el switch para editar criterios</div>
-                  {/if}
+                    </div>
+                  {/each}
                 </div>
               {/if}
             </div>
@@ -432,6 +443,20 @@
                     <span class="accordion-chevron" class:open={expanded}>▶</span>
                   </div>
                 </div>
+                {#if expanded}
+                  <div class="accordion-body">
+                    {#each ind.criterios as crit (crit.id)}
+                      <div class="criterio-row">
+                        <span class="criterio-label">Crit. {crit.orden}</span>
+                        <input type="text" value={crit.descripcion} oninput={(e) => handleUpdateCriterio(ind.id, crit.id, "descripcion", (e.target as HTMLInputElement).value)} onblur={() => handleBlurCriterio(crit)} placeholder="Descripción..." class="criterio-input" />
+                        <div class="criterio-score">
+                          <input type="number" value={crit.puntajeMaximo} oninput={(e) => handleUpdateCriterio(ind.id, crit.id, "puntajeMaximo", Number((e.target as HTMLInputElement).value))} onblur={() => handleBlurCriterio(crit)} disabled={isQualitative} class="criterio-puntaje" />
+                          <span class="criterio-pts">pts</span>
+                        </div>
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
               </div>
             {/each}
           </div>
@@ -475,20 +500,16 @@
                 </div>
                 <input type="text" value={selected.descripcion} oninput={(e) => handleUpdateIndicadorDesc(selected.id, (e.target as HTMLInputElement).value)} onblur={() => handleBlurIndicador(selected)} placeholder="Descripción del indicador..." class="split-detail-desc" />
                 <div class="split-detail-criterios">
-                  {#if selected.activo}
-                    {#each selected.criterios as crit (crit.id)}
-                      <div class="criterio-row">
-                        <span class="criterio-label">Crit. {crit.orden}</span>
-                        <input type="text" value={crit.descripcion} oninput={(e) => handleUpdateCriterio(selected.id, crit.id, "descripcion", (e.target as HTMLInputElement).value)} onblur={() => handleBlurCriterio(crit)} placeholder="Descripción..." class="criterio-input" />
-                        <div class="criterio-score">
-                          <input type="number" value={crit.puntajeMaximo} oninput={(e) => handleUpdateCriterio(selected.id, crit.id, "puntajeMaximo", Number((e.target as HTMLInputElement).value))} onblur={() => handleBlurCriterio(crit)} disabled={isQualitative} class="criterio-puntaje" />
-                          <span class="criterio-pts">pts</span>
-                        </div>
+                  {#each selected.criterios as crit (crit.id)}
+                    <div class="criterio-row">
+                      <span class="criterio-label">Crit. {crit.orden}</span>
+                      <input type="text" value={crit.descripcion} oninput={(e) => handleUpdateCriterio(selected.id, crit.id, "descripcion", (e.target as HTMLInputElement).value)} onblur={() => handleBlurCriterio(crit)} placeholder="Descripción..." class="criterio-input" />
+                      <div class="criterio-score">
+                        <input type="number" value={crit.puntajeMaximo} oninput={(e) => handleUpdateCriterio(selected.id, crit.id, "puntajeMaximo", Number((e.target as HTMLInputElement).value))} onblur={() => handleBlurCriterio(crit)} disabled={isQualitative} class="criterio-puntaje" />
+                        <span class="criterio-pts">pts</span>
                       </div>
-                    {/each}
-                  {:else}
-                    <div class="accordion-empty">Indicador inactivo — activa el switch para editar criterios</div>
-                  {/if}
+                    </div>
+                  {/each}
                 </div>
               {:else}
                 <div class="accordion-empty">Selecciona un indicador de la lista</div>

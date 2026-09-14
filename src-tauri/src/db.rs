@@ -3208,12 +3208,11 @@ pub async fn get_evaluation_config(
             .map_err(|e| e.to_string())?;
 
         if count == 0 {
-            // Seed 8 indicators
+            // Seed 8 indicators — all active by default
             for i in 1..=8 {
-                let activo = if i <= 5 { 1 } else { 0 }; // First 5 active by default
                 tx.execute(
                     "INSERT INTO indicador (grado_id, asignatura_id, corte_evaluativo_id, orden, descripcion, activo) VALUES (?, ?, ?, ?, ?, ?)",
-                    rusqlite::params![gradoId, asignaturaId, corteEvaluativoId, i, "", activo],
+                    rusqlite::params![gradoId, asignaturaId, corteEvaluativoId, i, "", 1],
                 )
                 .map_err(|e| e.to_string())?;
 
@@ -3241,9 +3240,9 @@ pub async fn get_evaluation_config(
                 .map_err(|e| e.to_string())?;
 
             if active_count == 0 {
-                // Activate first 5 indicators by default
+                // Activate all 8 indicators by default
                 tx.execute(
-                    "UPDATE indicador SET activo = 1 WHERE grado_id = ? AND asignatura_id = ? AND corte_evaluativo_id = ? AND orden <= 5",
+                    "UPDATE indicador SET activo = 1 WHERE grado_id = ? AND asignatura_id = ? AND corte_evaluativo_id = ?",
                     [gradoId, asignaturaId, corteEvaluativoId],
                 )
                 .map_err(|e| e.to_string())?;
