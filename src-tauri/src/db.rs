@@ -501,10 +501,10 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
         ).ok();
     }
 
-    // Deduplicate indicators: keep only the first (by id) for each unique
-    // (grado, asignatura, corte, ano, orden) combination.
+    // Migrate indicators stuck at ano_lectivo_id=0 to the active year.
+    // This is a safe, idempotent UPDATE — no DELETEs, no re-parenting.
     conn.execute(
-        "DELETE FROM indicador WHERE id NOT IN (SELECT MIN(id) FROM indicador GROUP BY grado_id, asignatura_id, corte_evaluativo_id, ano_lectivo_id, orden)",
+        "UPDATE indicador SET ano_lectivo_id = (SELECT id FROM ano_lectivo WHERE activo = 1 LIMIT 1) WHERE ano_lectivo_id = 0 AND EXISTS (SELECT 1 FROM ano_lectivo WHERE activo = 1)",
         [],
     ).ok();
 
@@ -3233,7 +3233,13 @@ pub async fn get_evaluation_config(
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
     {
-        // Check if config exists
+        // Safety: if anoLectivoId is 0 (before catalogs load), don't seed.
+        // The frontend guards should prevent this, but just in case.
+        if anoLectivoId == 0 {
+            return Ok(vec![]);
+        }
+
+        // Check if config exists for the requested year
         let count: i64 = tx
             .query_row(
                 "SELECT COUNT(*) FROM indicador WHERE grado_id = ? AND asignatura_id = ? AND corte_evaluativo_id = ? AND ano_lectivo_id = ?",
@@ -3243,25 +3249,44 @@ pub async fn get_evaluation_config(
             .map_err(|e| e.to_string())?;
 
         if count == 0 {
-            // Seed 8 indicators — all active by default
-            for i in 1..=8 {
+            // Before seeding, check if there are indicators at ano_lectivo_id=0
+            // for the same combo — migrate them instead of creating duplicates.
+            let orphan_count: i64 = tx
+                .query_row(
+                    "SELECT COUNT(*) FROM indicador WHERE grado_id = ? AND asignatura_id = ? AND corte_evaluativo_id = ? AND ano_lectivo_id = 0",
+                    [gradoId, asignaturaId, corteEvaluativoId],
+                    |row| row.get(0),
+                )
+                .unwrap_or(0);
+
+            if orphan_count > 0 {
+                // Migrate orphans to the correct year
                 tx.execute(
-                    "INSERT INTO indicador (grado_id, asignatura_id, corte_evaluativo_id, ano_lectivo_id, orden, descripcion, activo) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    rusqlite::params![gradoId, asignaturaId, corteEvaluativoId, anoLectivoId, i, "", 1],
+                    "UPDATE indicador SET ano_lectivo_id = ? WHERE grado_id = ? AND asignatura_id = ? AND corte_evaluativo_id = ? AND ano_lectivo_id = 0",
+                    rusqlite::params![anoLectivoId, gradoId, asignaturaId, corteEvaluativoId],
                 )
                 .map_err(|e| e.to_string())?;
-
-                let indicador_id = tx.last_insert_rowid();
-
-                // Seed 3 criteria per indicator
-                // Default scores: 7, 7, 6 = 20 pts
-                let scores = [7, 7, 6];
-                for (j, score) in scores.iter().enumerate() {
+            } else {
+                // Seed 8 indicators — all active by default
+                for i in 1..=8 {
                     tx.execute(
-                        "INSERT INTO criterio (indicador_id, orden, descripcion, puntaje_maximo) VALUES (?, ?, ?, ?)",
-                        rusqlite::params![indicador_id, (j + 1) as i64, "", score],
+                        "INSERT INTO indicador (grado_id, asignatura_id, corte_evaluativo_id, ano_lectivo_id, orden, descripcion, activo) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        rusqlite::params![gradoId, asignaturaId, corteEvaluativoId, anoLectivoId, i, "", 1],
                     )
                     .map_err(|e| e.to_string())?;
+
+                    let indicador_id = tx.last_insert_rowid();
+
+                    // Seed 3 criteria per indicator
+                    // Default scores: 7, 7, 6 = 20 pts
+                    let scores = [7, 7, 6];
+                    for (j, score) in scores.iter().enumerate() {
+                        tx.execute(
+                            "INSERT INTO criterio (indicador_id, orden, descripcion, puntaje_maximo) VALUES (?, ?, ?, ?)",
+                            rusqlite::params![indicador_id, (j + 1) as i64, "", score],
+                        )
+                        .map_err(|e| e.to_string())?;
+                    }
                 }
             }
         } else {
