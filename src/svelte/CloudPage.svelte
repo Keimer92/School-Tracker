@@ -17,7 +17,7 @@
     DEFAULT_WORKER_URL,
   } from "../lib/cloudAuth";
   import {
-    saveProfile, setCurrentEmail,
+    saveProfile,
   } from "../lib/accountProfiles";
 
   let { onNavigate }: { onNavigate?: (tab: string) => void } = $props();
@@ -42,6 +42,9 @@
       await emit("show-toast", { message: "❌ Error al exportar la clave: " + e, type: "error" });
     }
   }
+
+  const DEFAULT_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
+  const STORAGE_KEY = 'schooltracker-google-drive-settings';
 
   interface DriveSettings {
     clientId: string;
@@ -546,7 +549,6 @@
     const unsub = syncManager.subscribe((state) => { syncStatus = state; });
     loadSettings();
     d1SyncManager.subscribe((s) => { d1SyncState = s; if (s.status === 'error') refreshD1ErrorDetalle(); });
-    refreshLinkedAccounts();
     void (async () => {
       if (settings.accessToken) await refreshFiles();
       await loadD1Config();

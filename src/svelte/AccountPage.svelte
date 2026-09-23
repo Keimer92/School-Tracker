@@ -4,7 +4,7 @@
   import { emit } from "@tauri-apps/api/event";
   import { ask } from "@tauri-apps/plugin-dialog";
   import {
-    getPerfilLocal, clearPerfilLocal,
+    getPerfilLocal, setPerfilLocal, clearPerfilLocal,
     getValidAuthToken, getAuthToken,
     fetchAdminUsers, suspendUser, deleteUserData,
     DEFAULT_WORKER_URL,
