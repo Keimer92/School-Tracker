@@ -455,6 +455,12 @@ fn upsert_row(conn: &rusqlite::Connection, table: &str, row: &Map<String, Value>
     if table == "asistencia" {
         return upsert_asistencia(conn, row);
     }
+    // criterio: la clave de negocio es (indicador_id, orden). El PK `id` puede
+    // divergir entre dispositivos; insertar por id creaba DUPLICADOS (mismo
+    // indicador/orden con dos ids) al hacer pull tras un import/restore.
+    if table == "criterio" {
+        return upsert_criterio(conn, row);
+    }
     // Catálogo/entidades: reconciliar por la clave de negocio (nombre/codigo) y
     // conservar el id local para no romper los FK que las referencian.
     for (t, bk) in BUSINESS_KEY_TABLES {
@@ -512,7 +518,7 @@ fn insert_restore_row(conn: &rusqlite::Connection, table: &str, row: &Map<String
 // Si el registro remoto ya existe localmente con otro id, se actualiza la fila existente
 // (estado/observación/updated_at) en lugar de insertar un id duplicado.
 fn upsert_asistencia(conn: &rusqlite::Connection, row: &Map<String, Value>) -> Result<(), String> {
-    let get = |k: &str| sqlite_value_to_json(&row.get(k).cloned().unwrap_or(Value::Null));
+    let get = |k: &str| sqlite_value_to_json(row.get(k).unwrap_or(&Value::Null));
     let (est, fecha) = (get("estudiante_id"), get("fecha"));
     let estado = get("estado");
     let observacion = get("observacion");
@@ -525,6 +531,28 @@ fn upsert_asistencia(conn: &rusqlite::Connection, row: &Map<String, Value>) -> R
            observacion = excluded.observacion,
            updated_at = excluded.updated_at",
         rusqlite::params![est, fecha, estado, observacion, updated_at],
+    )
+    .map(|_| ())
+    .map_err(|e| e.to_string())
+}
+
+// Upsert de criterio por clave de negocio (indicador_id, orden).
+// Conserva el id local (las notas referencian criterio_id) y solo actualiza
+// los campos editables. Evita duplicados "mismo orden, dos ids" en el pull.
+fn upsert_criterio(conn: &rusqlite::Connection, row: &Map<String, Value>) -> Result<(), String> {
+    let get = |k: &str| sqlite_value_to_json(row.get(k).unwrap_or(&Value::Null));
+    let (ind, orden) = (get("indicador_id"), get("orden"));
+    let desc = get("descripcion");
+    let puntaje = get("puntaje_maximo");
+    let updated_at = get("updated_at");
+    conn.execute(
+        "INSERT INTO criterio (indicador_id, orden, descripcion, puntaje_maximo, updated_at, id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(indicador_id, orden) DO UPDATE SET
+           descripcion = excluded.descripcion,
+           puntaje_maximo = excluded.puntaje_maximo,
+           updated_at = excluded.updated_at",
+        rusqlite::params![ind, orden, desc, puntaje, updated_at, get("id")],
     )
     .map(|_| ())
     .map_err(|e| e.to_string())

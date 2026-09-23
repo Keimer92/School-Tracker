@@ -245,7 +245,8 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             descripcion TEXT DEFAULT '',
             puntaje_maximo INTEGER NOT NULL,
             updated_at TEXT DEFAULT (datetime('now')),
-            FOREIGN KEY(indicador_id) REFERENCES indicador(id) ON DELETE CASCADE
+            FOREIGN KEY(indicador_id) REFERENCES indicador(id) ON DELETE CASCADE,
+            UNIQUE(indicador_id, orden)
         );
         "#,
     )
@@ -770,29 +771,214 @@ fn parse_grade_number(conn: &Connection, grado_id: i64) -> Option<i64> {
     clean.parse::<i64>().ok()
 }
 
-/// Elimina criterios duplicados (mantiene solo los primeros 3 por indicador)
-fn deduplicate_criteria(conn: &Connection) -> Result<(), String> {
-    let mut stmt = conn
-        .prepare("SELECT id FROM indicador WHERE (SELECT COUNT(*) FROM criterio WHERE indicador_id = indicador.id) > 3")
-        .map_err(|e| format!("Error buscando indicadores con criterios duplicados: {}", e))?;
-
-    let indicador_ids: Vec<i64> = stmt
-        .query_map([], |row| row.get::<_, i64>(0))
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
-
-    for id in &indicador_ids {
-        // Mantener solo los 3 criterios con orden mÃ¡s bajo
-        conn.execute(
-            "DELETE FROM criterio WHERE indicador_id = ? AND id NOT IN (SELECT id FROM criterio WHERE indicador_id = ? ORDER BY orden LIMIT 3)",
-            rusqlite::params![id, id],
+/// Indicador con criterios anómalos (COUNT<>3, órdenes duplicados o gaps).
+fn criteria_need_repair(conn: &Connection, ind_id: i64) -> Result<bool, String> {
+    let (cnt, distinct_o, in_range, distinct_in_range, dup_groups) = conn
+        .query_row(
+            "SELECT
+               (SELECT COUNT(*) FROM criterio WHERE indicador_id = ?1),
+               (SELECT COUNT(DISTINCT orden) FROM criterio WHERE indicador_id = ?1),
+               (SELECT COUNT(*) FROM criterio WHERE indicador_id = ?1 AND orden BETWEEN 1 AND 3),
+               (SELECT COUNT(DISTINCT orden) FROM criterio WHERE indicador_id = ?1 AND orden BETWEEN 1 AND 3),
+               (SELECT COUNT(*) FROM (SELECT orden FROM criterio WHERE indicador_id = ?1 GROUP BY orden HAVING COUNT(*) > 1))",
+            [ind_id],
+            |r| {
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, i64>(1)?,
+                    r.get::<_, i64>(2)?,
+                    r.get::<_, i64>(3)?,
+                    r.get::<_, i64>(4)?,
+                ))
+            },
         )
-        .map_err(|e| format!("Error eliminando criterios duplicados para indicador {}: {}", id, e))?;
+        .map_err(|e| e.to_string())?;
+    Ok(cnt != 3 || dup_groups > 0 || in_range != distinct_in_range || distinct_o != cnt)
+}
+
+/// Repara UN indicador a la secuencia canónica 1,2,3 (ver deduplicate_criteria).
+fn repair_one_indicator_criteria(conn: &Connection, ind_id: i64) -> Result<(), String> {
+    // Cargar filas con conteo de notas para elegir cuál conservar.
+    let rows: Vec<(i64, i64, i64)> = {
+        let mut c_stmt = conn
+            .prepare(
+                "SELECT c.id, c.orden, COALESCE((SELECT COUNT(*) FROM nota n WHERE n.criterio_id = c.id), 0)
+                 FROM criterio c WHERE c.indicador_id = ?1 ORDER BY c.orden, c.id",
+            )
+            .map_err(|e| e.to_string())?;
+        let v = c_stmt
+            .query_map([ind_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        v
+    };
+
+    // ── 1. Deduplicar por orden: conservar la fila preferente ──
+    let mut by_orden: std::collections::BTreeMap<i64, Vec<(i64, i64)>> =
+        std::collections::BTreeMap::new();
+    for (id, orden, notas) in &rows {
+        by_orden.entry(*orden).or_default().push((*id, *notas));
+    }
+    for (_orden, mut group) in by_orden {
+        if group.len() <= 1 {
+            continue;
+        }
+        // Preferir la fila con más notas; empate → id más bajo (la original).
+        group.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+        for (dup_id, _) in group.iter().skip(1) {
+            conn.execute(
+                "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES ('criterio', ?1)",
+                [*dup_id],
+            )
+            .map_err(|e| e.to_string())?;
+            conn.execute("DELETE FROM criterio WHERE id = ?1", [*dup_id])
+                .map_err(|e| e.to_string())?;
+        }
     }
 
-    if !indicador_ids.is_empty() {
-        println!("ðŸ§¹ [DB] Eliminados criterios duplicados para {} indicador(es)", indicador_ids.len());
+    // ── 2. Borrar órdenes fuera de 1..=3 (con tombstone) ──
+    {
+        let garbage: Vec<i64> = {
+            let mut s = conn
+                .prepare(
+                    "SELECT id FROM criterio WHERE indicador_id = ?1 AND orden NOT BETWEEN 1 AND 3",
+                )
+                .map_err(|e| e.to_string())?;
+            let v = s
+                .query_map([ind_id], |r| r.get(0))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
+            v
+        };
+        for id in garbage {
+            conn.execute(
+                "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES ('criterio', ?1)",
+                [id],
+            )
+            .map_err(|e| e.to_string())?;
+            conn.execute("DELETE FROM criterio WHERE id = ?1", [id])
+                .map_err(|e| e.to_string())?;
+        }
+    }
+
+    // ── 3. Rellenar huecos 1..=3 ──
+    let present: Vec<i64> = {
+        let mut c_stmt = conn
+            .prepare("SELECT orden FROM criterio WHERE indicador_id = ?1")
+            .map_err(|e| e.to_string())?;
+        let v = c_stmt
+            .query_map([ind_id], |r| r.get::<_, i64>(0))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        v
+    };
+    let scores = [7, 7, 6];
+    for orden in 1i64..=3 {
+        if !present.contains(&orden) {
+            let score = scores[(orden - 1) as usize];
+            conn.execute(
+                "INSERT INTO criterio (indicador_id, orden, descripcion, puntaje_maximo, updated_at)
+                 VALUES (?1, ?2, '', ?3, datetime('now'))",
+                rusqlite::params![ind_id, orden, score],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+    }
+
+    // ── 4. Si quedaron más de 3 filas, borrar extras (con tombstone) ──
+    let count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM criterio WHERE indicador_id = ?1",
+            [ind_id],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    if count > 3 {
+        let extras: Vec<i64> = {
+            let mut d_stmt = conn
+                .prepare(
+                    "SELECT id FROM criterio WHERE indicador_id = ?1
+                     ORDER BY orden DESC, id DESC LIMIT ?2",
+                )
+                .map_err(|e| e.to_string())?;
+            let v = d_stmt
+                .query_map(rusqlite::params![ind_id, count - 3], |r| r.get(0))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
+            v
+        };
+        for id in extras {
+            conn.execute(
+                "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES ('criterio', ?1)",
+                [id],
+            )
+            .map_err(|e| e.to_string())?;
+            conn.execute("DELETE FROM criterio WHERE id = ?1", [id])
+                .map_err(|e| e.to_string())?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Repara criterios de cada indicador a la secuencia canónica 1,2,3.
+///
+/// Cubre dos fallos reales:
+/// 1. Duplicados de `orden` con COUNT=3 (patrón 1,1,2): los dedup viejos solo
+///    miraban COUNT>3, así que este patrón era invisible.
+/// 2. El self-heal de `get_evaluation_config` (sort+split_at(3)) BORRABA el
+///    `orden=3` legítimo al haber un duplicado de `orden=1` (4 filas → 1,1,2).
+///
+/// Estrategia idempotente y segura para sync:
+/// - Por cada `orden` duplicado, conserva la fila con más notas (o el id más
+///   bajo si ambas no tienen); registra pending deletion de las demás para que
+///   la nube reciba el tombstone.
+/// - Si falta algún `orden` en 1..=3, lo inserta con el score por defecto.
+/// - Si sobran órdenes fuera de 1..=3 o de más de 3 filas, los borra con
+///   pending deletion.
+/// - NO renumerar filas existentes: eso rompería la semántica de las notas.
+fn deduplicate_criteria(conn: &Connection) -> Result<(), String> {
+    let indicador_ids: Vec<i64> = {
+        let mut stmt = conn
+            .prepare(
+                "SELECT DISTINCT i.id FROM indicador i
+                 LEFT JOIN criterio c ON c.indicador_id = i.id
+                 GROUP BY i.id
+                 HAVING COUNT(c.id) <> 3
+                    OR COUNT(c.id) <> COUNT(DISTINCT c.orden)
+                    OR SUM(CASE WHEN c.orden BETWEEN 1 AND 3 THEN 1 ELSE 0 END) <>
+                        COUNT(DISTINCT CASE WHEN c.orden BETWEEN 1 AND 3 THEN c.orden END)",
+            )
+            .map_err(|e| format!("Error buscando indicadores con criterios a reparar: {}", e))?;
+        let v = stmt
+            .query_map([], |row| row.get::<_, i64>(0))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        v
+    };
+
+    let mut fixed = 0usize;
+    for ind_id in &indicador_ids {
+        repair_one_indicator_criteria(conn, *ind_id)?;
+        fixed += 1;
+    }
+
+    // UNIQUE(indicador_id, orden) para bases existentes (CREATE TABLE solo aplica
+    // a DBs nuevas). Tras la reparación no puede fallar por duplicados.
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_criterio_indicador_orden
+         ON criterio(indicador_id, orden)",
+        [],
+    )
+    .map_err(|e| format!("Error creando índice UNIQUE de criterio: {e}"))?;
+
+    if fixed > 0 {
+        println!("🧩 [DB] Criterios reparados en {} indicador(es)", fixed);
     }
 
     Ok(())
@@ -3368,44 +3554,40 @@ pub async fn get_evaluation_config(
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
 
-        // Self-heal: if criteria are empty (shouldn't happen), create defaults
-        // If more than 3 (duplicates), keep only first 3 by orden and delete extras
-        if criterios.is_empty() {
-            let scores = [7, 7, 6];
-            for (j, score) in scores.iter().enumerate() {
-                conn.execute(
-                    "INSERT INTO criterio (indicador_id, orden, descripcion, puntaje_maximo) VALUES (?, ?, ?, ?)",
-                    rusqlite::params![ind.id, (j + 1) as i64, "", score],
-                )
-                .map_err(|e| e.to_string())?;
-            }
-            let criterios_recargados = c_stmt
-                .query_map([ind.id], |row| {
-                    Ok(Criterio {
-                        id: Some(row.get(0)?),
-                        indicador_id: ind.id,
-                        orden: row.get(1)?,
-                        descripcion: row.get(2)?,
-                        puntaje_maximo: row.get(3)?,
-                    })
-                })
-                .map_err(|e| e.to_string())?
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| e.to_string())?;
-            ind.criterios = criterios_recargados;
-        } else if criterios.len() > 3 {
-            let mut sorted = criterios;
-            sorted.sort_by_key(|c| c.orden);
-            let (keep, extra) = sorted.split_at(3);
-            for dup in extra {
-                if let Some(did) = dup.id {
-                    conn.execute("DELETE FROM criterio WHERE id = ?", [did])
+        // Self-heal de criterios: usar la MISMA reparación que al arrancar.
+        // La versión vieja (sort + split_at(3)) borraba el orden=3 legítimo
+        // cuando había un duplicado de orden=1 (4 filas → se quedaba 1,1,2).
+        {
+            drop(c_stmt);
+            if let Some(ind_id) = ind.id {
+                if criteria_need_repair(&conn, ind_id)? {
+                    repair_one_indicator_criteria(&conn, ind_id)?;
+                    let mut s = conn
+                        .prepare(
+                            "SELECT id, orden, descripcion, puntaje_maximo FROM criterio WHERE indicador_id = ?1 ORDER BY orden",
+                        )
                         .map_err(|e| e.to_string())?;
+                    let recargados = s
+                        .query_map([ind_id], |row| {
+                            Ok(Criterio {
+                                id: Some(row.get(0)?),
+                                indicador_id: ind.id,
+                                orden: row.get(1)?,
+                                descripcion: row.get(2)?,
+                                puntaje_maximo: row.get(3)?,
+                            })
+                        })
+                        .map_err(|e| e.to_string())?
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(|e| e.to_string())?;
+                    drop(s);
+                    ind.criterios = recargados;
+                } else {
+                    ind.criterios = criterios;
                 }
+            } else {
+                ind.criterios = criterios;
             }
-            ind.criterios = keep.to_vec();
-        } else {
-            ind.criterios = criterios;
         }
     }
 

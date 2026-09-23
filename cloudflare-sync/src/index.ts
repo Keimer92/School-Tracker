@@ -162,6 +162,9 @@ const BUSINESS_KEY: Record<string, string> = {
   grado: 'nombre',
   seccion: 'nombre',
   estudiante: 'codigo',
+  // Clave de negocio de criterio: el id autoincrement diverge entre devices
+  // tras import/restore; upsert por (indicador_id, orden) evita duplicados.
+  criterio: 'indicador_id, orden',
 };
 
 // ── Hash corto del school key → namespace de filas (`sk`) ──
@@ -188,7 +191,7 @@ async function ensureSchema(env: Env): Promise<void> {
     `CREATE TABLE IF NOT EXISTS colegio_asignatura (colegio_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, updated_at TEXT, PRIMARY KEY (colegio_id, asignatura_id))`,
     `CREATE TABLE IF NOT EXISTS colegio_grado (colegio_id INTEGER NOT NULL, grado_id INTEGER NOT NULL, activo INTEGER DEFAULT 1, cualitativo INTEGER DEFAULT 0, updated_at TEXT, PRIMARY KEY (colegio_id, grado_id))`,
     `CREATE TABLE IF NOT EXISTS indicador (id INTEGER PRIMARY KEY AUTOINCREMENT, grado_id INTEGER, asignatura_id INTEGER, corte_evaluativo_id INTEGER, ano_lectivo_id INTEGER DEFAULT 0, orden INTEGER, descripcion TEXT DEFAULT '', activo INTEGER DEFAULT 1, instrumento TEXT, updated_at TEXT)`,
-    `CREATE TABLE IF NOT EXISTS criterio (id INTEGER PRIMARY KEY AUTOINCREMENT, indicador_id INTEGER, orden INTEGER, descripcion TEXT DEFAULT '', puntaje_maximo INTEGER, updated_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS criterio (id INTEGER PRIMARY KEY AUTOINCREMENT, indicador_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', puntaje_maximo INTEGER NOT NULL, updated_at TEXT, UNIQUE(indicador_id, orden))`,
     `CREATE TABLE IF NOT EXISTS estudiante (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, codigo TEXT, sexo TEXT, ano_lectivo_id INTEGER, grado_id INTEGER, seccion_id INTEGER, colegio_id INTEGER, foto TEXT, updated_at TEXT)`,
     `CREATE TABLE IF NOT EXISTS configuracion_calificacion (id TEXT PRIMARY KEY, nombre TEXT, color TEXT, minimo INTEGER, updated_at TEXT)`,
     `CREATE TABLE IF NOT EXISTS multiplicador_calificacion (id TEXT PRIMARY KEY, multiplicador REAL, updated_at TEXT)`,
@@ -261,6 +264,28 @@ async function ensureSchema(env: Env): Promise<void> {
       console.log('[migración] indicador: columna ano_lectivo_id agregada');
     }
   } catch { /* best effort */ }
+
+  // Migración: UNIQUE(indicador_id, orden) en criterio (tablas viejas).
+  // Antes de crear el índice, deduplicar en la nube: si dos ids comparten
+  // (indicador_id, orden), conservar el que tenga más notas (empate → id menor).
+  // Sin esto, CREATE UNIQUE falla y el ON CONFLICT del upsert tampoco funciona.
+  try {
+    await env.DB.prepare(`
+      DELETE FROM criterio WHERE id NOT IN (
+        SELECT id FROM (
+          SELECT id, ROW_NUMBER() OVER (
+            PARTITION BY indicador_id, orden
+            ORDER BY (SELECT COUNT(*) FROM nota n WHERE n.criterio_id = criterio.id) DESC, id ASC
+          ) AS rn
+          FROM criterio
+        ) WHERE rn = 1
+      )
+    `).run();
+    await env.DB.prepare(
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_criterio_indicador_orden ON criterio(indicador_id, orden)"
+    ).run();
+    console.log('[migración] criterio: dedup + índice UNIQUE(indicador_id, orden)');
+  } catch (e) { console.warn('[migración] criterio UNIQUE (best effort):', e); }
 
   for (const sql of stmts) {
     try { await env.DB.prepare(sql).run(); } catch { /* ya existe */ }

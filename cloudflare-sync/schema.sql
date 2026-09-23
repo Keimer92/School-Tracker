@@ -105,7 +105,8 @@ CREATE TABLE IF NOT EXISTS criterio (
     descripcion TEXT DEFAULT '',
     puntaje_maximo INTEGER NOT NULL,
     updated_at TEXT DEFAULT (datetime('now')),
-    device_id TEXT
+    device_id TEXT,
+    UNIQUE(indicador_id, orden)
 );
 
 CREATE TABLE IF NOT EXISTS asistencia (
