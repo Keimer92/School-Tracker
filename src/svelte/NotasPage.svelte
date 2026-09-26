@@ -1956,9 +1956,9 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
 
     <!-- Distribuir Modal -->
     {#if showDistribuirModal}
-      <div style="position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; padding: 1rem;">
+      <div class="distribuir-wrap" style="position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; padding: 1rem;">
         <div onclick={() => showDistribuirModal = false} style="position: absolute; inset: 0; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(4px);"></div>
-        <div style="position: relative; background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98)); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 20px; padding: 1.5rem; max-width: 640px; width: 100%; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.6);">
+        <div class="distribuir-modal" style="position: relative; background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98)); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 20px; padding: 1.25rem; width: min(1240px, 97vw); max-width: 97vw; max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.6);">
           <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
             <div style="width: 44px; height: 44px; border-radius: 14px; background: rgba(139, 92, 246, 0.12); border: 1px solid rgba(139, 92, 246, 0.2); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0;">✨</div>
             <div>
@@ -2006,44 +2006,44 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             {/if}
           </div>
           <div style="overflow: auto; flex: 1; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px;">
-            <table style="width: 100%; min-width: 540px; border-collapse: collapse; font-size: 0.78rem;">
+            <table class="tabla-distribuir" style="width: 100%; border-collapse: collapse; font-size: 0.78rem;">
               <thead>
                 <tr style="position: sticky; top: 0; z-index: 1;">
-                  <th style="width: 30px; text-align: left; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">#</th>
-                  <th style="width: 100%; min-width: 180px; text-align: left; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Estudiante</th>
+                  <th class="col-idx" style="width: 30px; text-align: left; padding: 0.4rem 0.5rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">#</th>
+                  <th style="width: 100%; min-width: 150px; text-align: left; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Estudiante</th>
                   {#if mostrarComparacion}
                     {#each cortesPrecios as corte (corte.id)}
-                      <th title={corte.nombre} style="min-width: 52px; text-align: center; padding: 0.3rem 0.35rem; background: rgba(15, 23, 42, 0.95); border-bottom: 1px solid rgba(167,139,250,0.15);">
-                        <div style="font-size: 0.68rem; color: #a78bfa; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 66px;">{nombreCortoCorte(corte.nombre)}</div>
-                        <div style="font-size: 0.5rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px;">corte</div>
+                      <th class="col-num" title={corte.nombre} style="text-align: center; padding: 0.3rem 0.3rem; background: rgba(15, 23, 42, 0.95); border-bottom: 1px solid rgba(167,139,250,0.15);">
+                        <div style="font-size: 0.66rem; color: #a78bfa; font-weight: 700; white-space: nowrap;">{nombreCortoCorte(corte.nombre)}</div>
+                        <div style="font-size: 0.5rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px;">corte</div>
                       </th>
                     {/each}
                   {/if}
-                  <th title="Corte que se está distribuyendo: {corteActualNombre}" style="min-width: 74px; text-align: center; padding: 0.3rem 0.4rem; background: rgba(244,114,182,0.16); border-bottom: 2px solid rgba(244,114,182,0.5); border-left: 1px solid rgba(244,114,182,0.2); border-right: 1px solid rgba(244,114,182,0.2);">
-                    <div style="font-size: 0.7rem; color: #fbcfe8; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 110px;">{nombreCortoCorte(corteActualNombre)}</div>
-                    <div style="font-size: 0.5rem; color: #f472b6; text-transform: uppercase; letter-spacing: 0.4px;">corte actual</div>
+                  <th class="col-num" title="Corte que se está distribuyendo: {corteActualNombre}" style="text-align: center; padding: 0.3rem 0.3rem; background: rgba(244,114,182,0.16); border-bottom: 2px solid rgba(244,114,182,0.5); border-left: 1px solid rgba(244,114,182,0.2); border-right: 1px solid rgba(244,114,182,0.2);">
+                    <div style="font-size: 0.68rem; color: #fbcfe8; font-weight: 700; white-space: nowrap;">{nombreCortoCorte(corteActualNombre)}</div>
+                    <div style="font-size: 0.5rem; color: #f472b6; text-transform: uppercase; letter-spacing: 0.3px;">corte actual</div>
                   </th>
                   {#if isQualitative}
-                    <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Meta</th>
+                    <th class="col-num" style="text-align: center; padding: 0.4rem 0.4rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Meta</th>
                   {/if}
-                  <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #a78bfa; font-weight: 600; white-space: nowrap; border-bottom: 1px solid rgba(139,92,246,0.15);">→ Resultante</th>
-                  <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; white-space: nowrap; border-bottom: 1px solid rgba(255,255,255,0.06);">{isQualitative ? 'Nota objetivo' : 'Nuevo total (0-100)'}</th>
+                  <th class="col-num" style="text-align: center; padding: 0.4rem 0.4rem; background: rgba(15, 23, 42, 0.95); color: #a78bfa; font-weight: 600; white-space: nowrap; border-bottom: 1px solid rgba(139,92,246,0.15);">→ Resultante</th>
+                  <th class="col-num" style="text-align: center; padding: 0.4rem 0.4rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; white-space: nowrap; border-bottom: 1px solid rgba(255,255,255,0.06);">{isQualitative ? 'Nota objetivo' : 'Nuevo total (0-100)'}</th>
                 </tr>
               </thead>
               <tbody>
                 {#each filteredNotas as est, idx}
                   <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
-                    <td style="padding: 0.3rem 0.6rem; color: #64748b; text-align: left;">{idx + 1}</td>
-                    <td title={est.estudianteNombre} style="padding: 0.3rem 0.6rem; color: #e2e8f0; font-weight: 500; white-space: nowrap; max-width: 0; width: 100%; overflow: hidden; text-overflow: ellipsis;">{est.estudianteNombre}</td>
+                    <td class="col-idx" style="padding: 0.3rem 0.5rem; color: #64748b; text-align: left;">{idx + 1}</td>
+                    <td title={est.estudianteNombre} style="padding: 0.3rem 0.6rem; color: #e2e8f0; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{est.estudianteNombre}</td>
                     {#if mostrarComparacion}
                       {#each cortesPrecios as corte (corte.id)}
                         {@const pctPrevCorte = comparacionCortes[corte.id]?.[est.estudianteId] ?? null}
-                        <td title="{corte.nombre}: {pctPrevCorte === null ? 'sin notas' : pctPrevCorte + '%'}" style="padding: 0.3rem 0.35rem; text-align: center; white-space: nowrap; font-size: 0.75rem; font-weight: 600; color: {colorPctAnterior(pctPrevCorte)};">
+                        <td class="col-num" title="{corte.nombre}: {pctPrevCorte === null ? 'sin notas' : pctPrevCorte + '%'}" style="padding: 0.3rem 0.3rem; text-align: center; white-space: nowrap; font-size: 0.74rem; font-weight: 600; color: {colorPctAnterior(pctPrevCorte)};">
                           {pctPrevCorte === null ? '—' : pctPrevCorte + '%'}
                         </td>
                       {/each}
                     {/if}
-                    <td title="Nota final actual ({corteActualNombre})" style="padding: 0.3rem 0.4rem; text-align: center; white-space: nowrap; background: rgba(244,114,182,0.07); border-left: 1px solid rgba(244,114,182,0.2); border-right: 1px solid rgba(244,114,182,0.2);">
+                    <td class="col-num" title="Nota final actual ({corteActualNombre})" style="padding: 0.3rem 0.3rem; text-align: center; white-space: nowrap; background: rgba(244,114,182,0.07); border-left: 1px solid rgba(244,114,182,0.2); border-right: 1px solid rgba(244,114,182,0.2);">
                       {#if isQualitative}
                         {@const qualValues = allCriterios.map(c => notasCualitativas[`${est.estudianteId}-${c.id}`] || '')}
                         {@const gradeActual = calcularNotaCualitativaFinal(qualValues) || getGradeFromScore(calcularPctActual(est.estudianteId))?.id || ''}
@@ -2057,7 +2057,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                       {/if}
                     </td>
                     {#if isQualitative}
-                      <td style="padding: 0.3rem 0.6rem; text-align: center; color: #94a3b8; font-weight: 600;">
+                      <td class="col-num" style="padding: 0.3rem 0.4rem; text-align: center; white-space: nowrap; color: #94a3b8; font-weight: 600;">
                         {#if distribuirTargets[est.estudianteId] && ['AA','AS','AF','AI'].includes(distribuirTargets[est.estudianteId]!.trim().toUpperCase())}
                           {getMidPctForGrade(distribuirTargets[est.estudianteId]!.trim().toUpperCase())}%
                         {:else}
@@ -2065,7 +2065,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                         {/if}
                       </td>
                     {/if}
-                    <td style="padding: 0.3rem 0.6rem; text-align: center; font-weight: 600; white-space: nowrap;">
+                    <td class="col-num" style="padding: 0.3rem 0.4rem; text-align: center; font-weight: 600; white-space: nowrap;">
                       {#if isQualitative && distribuirTargets[est.estudianteId] && ['AA','AS','AF','AI'].includes(distribuirTargets[est.estudianteId]!.trim().toUpperCase())}
                         {@const gradePrev = previewQualitativeGrade(distribuirTargets[est.estudianteId]!.trim().toUpperCase()) || ''}
                         {@const pctPrev = gradePrev ? getMidPctForGrade(gradePrev) : 0}
@@ -2077,27 +2077,28 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                         <span style="color: {gradePrev ? getGradeColor(gradePrev) : '#a78bfa'}">{pctPrev}%</span>
                       {/if}
                     </td>
-                    <td style="padding: 0.15rem 0.3rem; text-align: center;">
+                    <td class="col-num" style="padding: 0.15rem 0.3rem; text-align: center; white-space: nowrap;">
                       {#if isQualitative}
                         <div style="display:flex;gap:3px;justify-content:center;flex-wrap:nowrap">
                            {#each allowedQualitativeGrades as grade}
                              {@const isSelected = distribuirTargets[est.estudianteId]?.trim().toUpperCase() === grade}
                             {@const gradeColor = getGradeColor(grade)}
                             <button
+                              class="btn-grade"
                               onclick={() => {
                                 distribuirTargets[est.estudianteId] = isSelected ? '' : grade;
                                 distribuirTargets = distribuirTargets;
                               }}
-                              style="width:36px;padding:0.2rem 0;border-radius:6px;border:2px solid {gradeColor};background:{isSelected ? gradeColor : 'transparent'};color:{isSelected ? '#fff' : gradeColor};font-weight:bold;font-size:0.72rem;cursor:pointer;text-align:center;transition:all 0.15s ease;"
+                              style="width:34px;padding:0.2rem 0;border-radius:6px;border:2px solid {gradeColor};background:{isSelected ? gradeColor : 'transparent'};color:{isSelected ? '#fff' : gradeColor};font-weight:bold;font-size:0.72rem;cursor:pointer;text-align:center;transition:all 0.15s ease;"
                             >{grade}</button>
                           {/each}
                         </div>
                       {:else}
-                        <input type="number" min="0" max="100" value={distribuirTargets[est.estudianteId] ?? ''}
+                        <input class="input-total" type="number" min="0" max="100" value={distribuirTargets[est.estudianteId] ?? ''}
                           use:regDistInput={est.estudianteId}
                           oninput={(e) => { const v = (e.target as HTMLInputElement).value; distribuirTargets[est.estudianteId] = v; distribuirTargets = distribuirTargets; }}
                           onkeydown={(e) => { if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); const dir = e.key === 'ArrowUp' ? -1 : 1; const next = filteredNotas[idx + dir]; if (next) distribuirInputs.get(next.estudianteId)?.focus(); } }}
-                          style="width:65px;padding:0.25rem 0.4rem;border-radius:6px;border:1px solid rgba(139,92,246,0.3);background:rgba(15,23,42,0.6);color:#e2e8f0;font-size:0.8rem;text-align:center;outline:none;" />
+                          style="width:62px;padding:0.25rem 0.3rem;border-radius:6px;border:1px solid rgba(139,92,246,0.3);background:rgba(15,23,42,0.6);color:#e2e8f0;font-size:0.78rem;text-align:center;outline:none;" />
                       {/if}
                     </td>
                   </tr>

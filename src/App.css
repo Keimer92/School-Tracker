@@ -2900,3 +2900,26 @@ input:checked + .slider:before {
 @keyframes app-spin {
   to { transform: rotate(360deg); }
 }
+
+/* ── Modal "Distribuir notas": la tabla se compacta para que SIEMPREN quepan
+      todas las columnas (Estudiante, cortes previos, corte actual, resultante
+      y nota objetivo) sin scroll horizontal, incluso en móvil. ── */
+@media (max-width: 900px) {
+  .distribuir-wrap { padding: 0.3rem !important; }
+  .distribuir-modal { padding: 0.7rem !important; border-radius: 14px; }
+  .tabla-distribuir { font-size: 0.7rem; }
+  .tabla-distribuir th,
+  .tabla-distribuir td { padding-left: 0.2rem !important; padding-right: 0.2rem !important; }
+  .tabla-distribuir .col-num { font-size: 0.68rem; }
+  .tabla-distribuir .btn-grade { width: 30px !important; font-size: 0.64rem !important; }
+  .tabla-distribuir .input-total { width: 54px !important; font-size: 0.72rem !important; }
+}
+
+@media (max-width: 620px) {
+  .tabla-distribuir { font-size: 0.64rem; }
+  .tabla-distribuir th,
+  .tabla-distribuir td { padding: 0.2rem 0.12rem !important; }
+  .tabla-distribuir .col-num { font-size: 0.62rem; }
+  .tabla-distribuir .btn-grade { width: 26px !important; font-size: 0.58rem !important; border-width: 1px !important; }
+  .tabla-distribuir .input-total { width: 46px !important; font-size: 0.66rem !important; }
+}
