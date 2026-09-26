@@ -61,7 +61,8 @@
   let showDistribuirModal = $state(false);
 
   // ── Comparación con cortes previos (solo lectura, dentro del modal de distribuir) ──
-  let expandirComparacion = $state<number | null>(null);
+  // Global: al activarlo se añade una columna por cada corte anterior, en la misma fila.
+  let mostrarComparacion = $state(false);
   let comparacionCortes = $state<Record<number, Record<number, number | null>>>({});
   let cargandoComparacion = $state(false);
 
@@ -77,8 +78,11 @@
     return getGradeColor(getGradeFromScore(pct)?.id || '');
   }
 
-  function toggleComparacion(estudianteId: number) {
-    expandirComparacion = expandirComparacion === estudianteId ? null : estudianteId;
+  /** Etiqueta corta para la cabecera de columna: "1er corte evaluativo" -> "1er". */
+  function nombreCortoCorte(nombre: string): string {
+    const n = nombre.trim();
+    const m = n.match(/^(\S+)\s+corte\b/i) || n.match(/^corte\s+(\S+)/i);
+    return m ? m[1] : n;
   }
 
   /**
@@ -114,10 +118,9 @@
     } finally { cargandoComparacion = false; }
   }
 
-  // Al abrir el modal: colapsar cualquier fila y cargar el histórico (perezoso)
+  // El histórico se carga al activar la comparación (perezoso), no al abrir el modal
   $effect(() => {
-    if (!showDistribuirModal) return;
-    expandirComparacion = null;
+    if (!showDistribuirModal || !mostrarComparacion) return;
     untrack(() => void cargarComparacionCortes());
   });
 
@@ -184,12 +187,7 @@
   });
   $effect(() => {
     if (showDistribuirModal) {
-      return registerBackHandler(() => {
-        // Primero colapsa la fila de cortes anteriores; si no hay ninguna, cierra.
-        if (expandirComparacion !== null) { expandirComparacion = null; return true; }
-        showDistribuirModal = false;
-        return true;
-      });
+      return registerBackHandler(() => { showDistribuirModal = false; return true; });
     }
   });
   $effect(() => {
@@ -1989,21 +1987,40 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                <p style="margin: 0.2rem 0 0; color: #94a3b8; font-size: 0.75rem;">{isQualitative ? 'C1 y C2 = nota objetivo, C3 = AA. Solo AA, AS, AF disponibles.' : 'Ingrese el porcentaje total deseado (0-100). C1/2/3 se calculan automáticamente.'}</p>
             </div>
           </div>
-          <div style="display: flex; align-items: center; gap: 0.5rem; margin: 0.5rem 0 0.75rem;">
+          <div style="display: flex; align-items: center; gap: 0.5rem; margin: 0.5rem 0 0.75rem; flex-wrap: wrap;">
             <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-size: 0.8rem; color: #cbd5e1;">
               <input type="checkbox" checked={distribuirOverwrite} onchange={() => distribuirOverwrite = !distribuirOverwrite} style="accent-color: #8b5cf6;" />
               Sobrescribir notas existentes
             </label>
             <span style="color: #64748b; font-size: 0.75rem;">|</span>
             <span style="color: {distribuirOverwrite ? '#64748b' : '#22c55e'}; font-size: 0.75rem;">{distribuirOverwrite ? 'Se reemplazarán todas las notas' : 'Solo se llenarán criterios vacíos'}</span>
+            {#if cortesPrecios.length > 0}
+              <span style="color: #64748b; font-size: 0.75rem;">|</span>
+              <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-size: 0.8rem; color: #cbd5e1; user-select: none;">
+                <input type="checkbox" checked={mostrarComparacion} onchange={() => mostrarComparacion = !mostrarComparacion} style="accent-color: #a78bfa;" />
+                Comparar con cortes previos
+              </label>
+              {#if mostrarComparacion}
+                <span style="font-size: 0.72rem; color: {cargandoComparacion ? '#a78bfa' : '#64748b'};">
+                  {cargandoComparacion ? '⏳ Cargando…' : `${cortesPrecios.length} columna${cortesPrecios.length > 1 ? 's' : ''} con la nota final de cada corte anterior`}
+                </span>
+              {/if}
+            {/if}
           </div>
           <div style="overflow: auto; flex: 1; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px;">
             <table style="width: 100%; border-collapse: collapse; font-size: 0.78rem;">
               <thead>
                 <tr style="position: sticky; top: 0; z-index: 1;">
-                  <th style="width: 30px; padding: 0.4rem 0.3rem; background: rgba(15, 23, 42, 0.95); border-bottom: 1px solid rgba(255,255,255,0.06);"></th>
                   <th style="text-align: left; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">#</th>
                   <th style="text-align: left; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Estudiante</th>
+                  {#if mostrarComparacion}
+                    {#each cortesPrecios as corte (corte.id)}
+                      <th title={corte.nombre} style="min-width: 52px; text-align: center; padding: 0.3rem 0.35rem; background: rgba(15, 23, 42, 0.95); border-bottom: 1px solid rgba(167,139,250,0.15);">
+                        <div style="font-size: 0.68rem; color: #a78bfa; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 66px;">{nombreCortoCorte(corte.nombre)}</div>
+                        <div style="font-size: 0.5rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.4px;">corte</div>
+                      </th>
+                    {/each}
+                  {/if}
                   <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Actual</th>
                   {#if isQualitative}
                     <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Meta</th>
@@ -2015,15 +2032,16 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
               <tbody>
                 {#each filteredNotas as est, idx}
                   <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
-                    <td style="padding: 0.2rem 0.3rem; text-align: center;">
-                      <button
-                        onclick={() => toggleComparacion(est.estudianteId)}
-                        title="Comparar con cortes anteriores"
-                        aria-label="Comparar {est.estudianteNombre} con cortes anteriores"
-                        style="width:22px;height:22px;border-radius:6px;border:1px solid rgba(148,163,184,0.25);background:transparent;color:{expandirComparacion === est.estudianteId ? '#a78bfa' : '#64748b'};cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:0.72rem;line-height:1;transition:all 0.15s ease;transform:rotate({expandirComparacion === est.estudianteId ? 90 : 0}deg);">▸</button>
-                    </td>
                     <td style="padding: 0.3rem 0.6rem; color: #64748b; text-align: left;">{idx + 1}</td>
                     <td style="padding: 0.3rem 0.6rem; color: #e2e8f0; font-weight: 500;">{est.estudianteNombre}</td>
+                    {#if mostrarComparacion}
+                      {#each cortesPrecios as corte (corte.id)}
+                        {@const pctPrevCorte = comparacionCortes[corte.id]?.[est.estudianteId] ?? null}
+                        <td title="{corte.nombre}: {pctPrevCorte === null ? 'sin notas' : pctPrevCorte + '%'}" style="padding: 0.3rem 0.35rem; text-align: center; white-space: nowrap; font-size: 0.75rem; font-weight: 600; color: {colorPctAnterior(pctPrevCorte)};">
+                          {pctPrevCorte === null ? '—' : pctPrevCorte + '%'}
+                        </td>
+                      {/each}
+                    {/if}
                     <td style="padding: 0.3rem 0.6rem; text-align: center; white-space: nowrap;">
                       {#if isQualitative}
                         {@const qualValues = allCriterios.map(c => notasCualitativas[`${est.estudianteId}-${c.id}`] || '')}
@@ -2082,34 +2100,6 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                       {/if}
                     </td>
                   </tr>
-                  {#if expandirComparacion === est.estudianteId}
-                    <tr>
-                      <td colspan={isQualitative ? 7 : 6} style="padding: 0.1rem 0.6rem 0.6rem 0.6rem;">
-                        <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(167,139,250,0.18); border-left: 3px solid #a78bfa; border-radius: 10px; padding: 0.6rem 0.7rem;">
-                          {#if cortesPrecios.length === 0}
-                            <div style="font-size: 0.72rem; color: #64748b;">No hay cortes anteriores a este.</div>
-                          {:else if cargandoComparacion}
-                            <div style="font-size: 0.72rem; color: #64748b;">⏳ Cargando notas de cortes anteriores…</div>
-                          {:else}
-                            <div style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-bottom: 0.4rem;">Nota final en cortes anteriores</div>
-                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                              {#each cortesPrecios as corte (corte.id)}
-                                {@const pct = comparacionCortes[corte.id]?.[est.estudianteId] ?? null}
-                                {@const color = colorPctAnterior(pct)}
-                                <div style="flex: 1 1 110px; min-width: 100px; background: rgba(15,23,42,0.5); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 0.45rem 0.55rem;">
-                                  <div style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.4px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{corte.nombre}</div>
-                                  <div style="font-size: 1rem; font-weight: 700; color: {color}; margin-top: 0.15rem;">{pct === null ? '—' : pct + '%'}</div>
-                                  <div style="margin-top: 0.3rem; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.06); overflow: hidden;">
-                                    <div style="width: {Math.min(pct ?? 0, 100)}%; height: 100%; background: {color}; border-radius: 2px; transition: width 0.2s ease;"></div>
-                                  </div>
-                                </div>
-                              {/each}
-                            </div>
-                          {/if}
-                        </div>
-                      </td>
-                    </tr>
-                  {/if}
                 {/each}
               </tbody>
             </table>
