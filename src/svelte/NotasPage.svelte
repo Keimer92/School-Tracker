@@ -2006,11 +2006,11 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             {/if}
           </div>
           <div style="overflow: auto; flex: 1; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px;">
-            <table style="width: 100%; border-collapse: collapse; font-size: 0.78rem;">
+            <table style="width: 100%; min-width: 540px; border-collapse: collapse; font-size: 0.78rem;">
               <thead>
                 <tr style="position: sticky; top: 0; z-index: 1;">
-                  <th style="text-align: left; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">#</th>
-                  <th style="text-align: left; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Estudiante</th>
+                  <th style="width: 30px; text-align: left; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">#</th>
+                  <th style="width: 100%; min-width: 180px; text-align: left; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Estudiante</th>
                   {#if mostrarComparacion}
                     {#each cortesPrecios as corte (corte.id)}
                       <th title={corte.nombre} style="min-width: 52px; text-align: center; padding: 0.3rem 0.35rem; background: rgba(15, 23, 42, 0.95); border-bottom: 1px solid rgba(167,139,250,0.15);">
@@ -2026,15 +2026,15 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                   {#if isQualitative}
                     <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Meta</th>
                   {/if}
-                  <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #a78bfa; font-weight: 600; border-bottom: 1px solid rgba(139,92,246,0.15);">→ Resultante</th>
-                  <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">{isQualitative ? 'Nota objetivo' : 'Nuevo total (0-100)'}</th>
+                  <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #a78bfa; font-weight: 600; white-space: nowrap; border-bottom: 1px solid rgba(139,92,246,0.15);">→ Resultante</th>
+                  <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; white-space: nowrap; border-bottom: 1px solid rgba(255,255,255,0.06);">{isQualitative ? 'Nota objetivo' : 'Nuevo total (0-100)'}</th>
                 </tr>
               </thead>
               <tbody>
                 {#each filteredNotas as est, idx}
                   <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
                     <td style="padding: 0.3rem 0.6rem; color: #64748b; text-align: left;">{idx + 1}</td>
-                    <td style="padding: 0.3rem 0.6rem; color: #e2e8f0; font-weight: 500;">{est.estudianteNombre}</td>
+                    <td title={est.estudianteNombre} style="padding: 0.3rem 0.6rem; color: #e2e8f0; font-weight: 500; white-space: nowrap; max-width: 0; width: 100%; overflow: hidden; text-overflow: ellipsis;">{est.estudianteNombre}</td>
                     {#if mostrarComparacion}
                       {#each cortesPrecios as corte (corte.id)}
                         {@const pctPrevCorte = comparacionCortes[corte.id]?.[est.estudianteId] ?? null}
