@@ -464,14 +464,17 @@
       }
       const cfg = await invoke<any>('d1_get_config').catch(() => null);
       const d1LastSync = cfg?.lastSync || null;
-      const driveTime = Date.parse(latest.createdTime);
+      // El archivo "_latest" se actualiza en cada guardado: para saber su
+      // antigüedad real hay que mirar modifiedTime, no createdTime.
+      const backupIso = latest.modifiedTime || latest.createdTime;
+      const driveTime = Date.parse(backupIso);
       let warning = '';
       if (d1LastSync) {
         const d1Time = Date.parse(d1LastSync.replace(' ', 'T') + 'Z');
         if (!isNaN(d1Time) && !isNaN(driveTime) && driveTime < d1Time - 60_000) {
           // Drive es al menos 1 minuto más viejo que D1: hay riesgo real
           const fmt = (iso: string) => new Date(iso).toLocaleString();
-          warning = `⚠️ El respaldo de Drive es del ${fmt(latest.createdTime)}, más antiguo que la última sincronización D1 (${fmt(d1LastSync.replace(' ', 'T') + 'Z')}).\n\nSi lo restauras, podrías perder asistencias/notas modificadas en el desktop después de esa fecha.`;
+          warning = `⚠️ El respaldo de Drive es del ${fmt(backupIso)}, más antiguo que la última sincronización D1 (${fmt(d1LastSync.replace(' ', 'T') + 'Z')}).\n\nSi lo restauras, podrías perder asistencias/notas modificadas en el desktop después de esa fecha.`;
         }
       }
       if (warning) {

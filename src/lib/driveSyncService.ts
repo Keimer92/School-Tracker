@@ -4,8 +4,13 @@ import { markDirty, markAllDirty, markAllClean, hasDirtyTables } from './dirtyTr
 
 const STORAGE_KEY = 'schooltracker-google-drive-settings';
 const SYNC_FILE_PREFIX = 'SchoolTracker_Sync';
-// Solo mantenemos el respaldo más reciente en Drive (uno por cuenta).
+// Total de archivos de respaldo que se conservan en Drive por cuenta:
+//   1) el archivo estable "_latest" (se ACTUALIZA en cada guardado) y
+//   2) el snapshot con timestamp más reciente.
+// Los que sobran se borran (Drive los manda a la papelera, por eso el total
+// se mantiene en 2: crear un archivo por cada guardado llenaría la cuota).
 const MAX_SYNC_FILES = 2;
+const LATEST_SUFFIX = 'latest';
 // Carpeta destino en Drive: Keimer Labs/School Tracker MINED
 const DRIVE_FOLDER_PATH = ['Keimer Labs', 'School Tracker MINED'];
 const AUTO_BACKUP_KEY = 'drive_auto_backup_minutes';
@@ -28,6 +33,8 @@ export interface DriveFile {
   name: string;
   size: number;
   createdTime: string;
+  /** Última modificación en Drive: para el archivo "_latest" es el backup real. */
+  modifiedTime?: string;
 }
 
 export interface DownloadProgress {
@@ -182,6 +189,23 @@ function timestampFileName(): string {
   return `${SYNC_FILE_PREFIX}_${accountTag()}_${devicePlatform()}_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.db`;
 }
 
+/**
+ * Nombre ESTABLE del archivo de respaldo instantáneo. No lleva timestamp: se
+ * sobrescribe en cada guardado (PATCH) en vez de crear un archivo nuevo, para
+ * que la cuota de Drive no se llene de copias en la papelera.
+ */
+function latestFileName(): string {
+  return `${SYNC_FILE_PREFIX}_${accountTag()}_${devicePlatform()}_${LATEST_SUFFIX}.db`;
+}
+
+function isLatestFile(f: DriveFile): boolean {
+  return f.name === latestFileName();
+}
+
+function recencyOf(f: DriveFile): string {
+  return f.modifiedTime || f.createdTime || '';
+}
+
 let cachedFolderId: string | null = localStorage.getItem('drive_backup_folder_id') || null;
 
 /** Busca una carpeta por nombre dentro de parentId (o la raíz); la crea si no existe. */
@@ -223,48 +247,78 @@ async function ensureBackupFolder(token: string): Promise<string | null> {
   return parentId;
 }
 
-async function listSyncFiles(token: string): Promise<DriveFile[]> {
+async function listSyncFilesRaw(token: string): Promise<DriveFile[]> {
   // Solo los respaldos de ESTA cuenta (prefijo por tag), en la carpeta destino
-  // o en cualquier otro sitio por si la carpeta cambió. Se podan aquí mismo los
-  // que excedan MAX_SYNC_FILES para que la lista nunca muestre de más.
+  // o en cualquier otro sitio por si la carpeta cambió. Sin podar.
   const tag = accountTag();
   const q = `name contains '${SYNC_FILE_PREFIX}_${tag}_' and trashed=false`;
   const resp = await fetch(
-    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&orderBy=createdTime desc&fields=files(id,name,size,createdTime)`,
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&orderBy=createdTime desc&fields=files(id,name,size,createdTime,modifiedTime)`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
   if (!resp.ok) return [];
   const data = await resp.json();
-  const files: DriveFile[] = (data.files || []).map((f: any) => ({
-    id: f.id, name: f.name, size: f.size || 0, createdTime: f.createdTime || '',
+  return (data.files || []).map((f: any) => ({
+    id: f.id, name: f.name, size: f.size || 0,
+    createdTime: f.createdTime || '', modifiedTime: f.modifiedTime || '',
   }));
-  if (files.length > MAX_SYNC_FILES) {
-    const extras = files.slice(MAX_SYNC_FILES);
+}
+
+/** Busca un respaldo por nombre exacto (sin podar). */
+async function findSyncFileByName(token: string, name: string): Promise<DriveFile | null> {
+  const q = `name='${name.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' and trashed=false`;
+  const resp = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,size,createdTime,modifiedTime)`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!resp.ok) return null;
+  const data = await resp.json();
+  const f = (data.files || [])[0];
+  return f ? { id: f.id, name: f.name, size: f.size || 0, createdTime: f.createdTime || '', modifiedTime: f.modifiedTime || '' } : null;
+}
+
+/**
+ * Conserva el archivo "_latest" (respaldo instantáneo) y, si queda espacio, el
+ * snapshot más reciente; borra el resto. Devuelve la lista ya podada, ordenada
+ * por más reciente primero (modifiedTime: en "_latest" es el backup real).
+ */
+async function pruneSyncFiles(token: string, files: DriveFile[]): Promise<DriveFile[]> {
+  const byRecent = [...files].sort((a, b) => recencyOf(b).localeCompare(recencyOf(a)));
+  const keep: DriveFile[] = [];
+  const latest = byRecent.find(isLatestFile);
+  if (latest) keep.push(latest);
+  for (const f of byRecent) {
+    if (keep.length >= MAX_SYNC_FILES) break;
+    if (f === latest) continue;
+    keep.push(f);
+  }
+  const keepIds = new Set(keep.map(f => f.id));
+  const toDelete = files.filter(f => !keepIds.has(f.id));
+  if (toDelete.length > 0) {
+    console.debug(`[DriveSync] Podando ${toDelete.length} respaldo(es) antiguo(s) de Drive`);
     await Promise.allSettled(
-      extras.map(f =>
-        fetch(`https://www.googleapis.com/drive/v3/files/${f.id}`, {
+      toDelete.map(f =>
+        fetch(`https://www.googleapis.com/drive/v3/files/${f.id}?supportsAllDrives=true`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` },
         }).catch(() => {})
       )
     );
-    return files.slice(0, MAX_SYNC_FILES);
   }
-  return files;
+  return keep.sort((a, b) => recencyOf(b).localeCompare(recencyOf(a)));
+}
+
+async function listSyncFiles(token: string): Promise<DriveFile[]> {
+  const files = await listSyncFilesRaw(token);
+  if (files.length <= MAX_SYNC_FILES) {
+    return [...files].sort((a, b) => recencyOf(b).localeCompare(recencyOf(a)));
+  }
+  return pruneSyncFiles(token, files);
 }
 
 async function deleteOldSyncVersions(token: string): Promise<void> {
-  const files = await listSyncFiles(token);
-  if (files.length <= MAX_SYNC_FILES) return;
-  const toDelete = files.slice(MAX_SYNC_FILES);
-  await Promise.allSettled(
-    toDelete.map(f =>
-      fetch(`https://www.googleapis.com/drive/v3/files/${f.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      }).catch(() => {})
-    )
-  );
+  const files = await listSyncFilesRaw(token);
+  if (files.length > MAX_SYNC_FILES) await pruneSyncFiles(token, files);
 }
 
 function now() {
@@ -365,20 +419,104 @@ async function downloadAndRestore(token: string, fileId: string): Promise<void> 
   }
 }
 
+/**
+ * Sube la base (base64) a Drive. Con `fileId` actualiza el archivo existente
+ * (PATCH, no crea otro); sin él crea uno nuevo (POST) en `folderId`.
+ */
+async function uploadDbFile(
+  token: string,
+  dbBase64: string,
+  fileName: string,
+  folderId: string | null,
+  fileId: string | null
+): Promise<{ status: number }> {
+  const metadata: any = {
+    name: fileName,
+    mimeType: 'application/octet-stream',
+    appProperties: { devicePlatform: devicePlatform(), backupAt: now() },
+  };
+  // Al actualizar NO se envía parents: no queremos mover el archivo de carpeta.
+  if (!fileId && folderId) metadata.parents = [folderId];
+  const boundary = 'schooltracker_sync_boundary';
+  const multipartBody =
+    `--${boundary}\r\n` +
+    `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
+    `${JSON.stringify(metadata)}\r\n` +
+    `--${boundary}\r\n` +
+    `Content-Type: application/octet-stream\r\n` +
+    `Content-Transfer-Encoding: base64\r\n\r\n` +
+    `${dbBase64}\r\n` +
+    `--${boundary}--`;
+  const url = fileId
+    ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart&supportsAllDrives=true`
+    : `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true`;
+  return await new Promise<{ status: number }>((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open(fileId ? 'PATCH' : 'POST', url);
+    x.setRequestHeader('Authorization', `Bearer ${token}`);
+    x.setRequestHeader('Content-Type', `multipart/related; boundary=${boundary}`);
+    x.onload = () => resolve({ status: x.status });
+    x.onerror = () => reject(new Error('Network error'));
+    x.send(multipartBody);
+  });
+}
+
+/**
+ * Respaldo instantáneo: actualiza en Drive el archivo estable "..._latest.db"
+ * con el contenido actual de la base. Se dispara tras cada guardado (notas,
+ * asistencia, estudiantes, catálogos...) a través de autoSync.
+ *
+ * Se ACTUALIZA en lugar de crear un archivo por guardado a propósito: Drive
+ * manda a la papelera todo lo que se borra y la papelera sigue contando contra
+ * la cuota (15 GB), así que crear cientos de copias de ~1 MB terminaría
+ * bloqueando la sincronización. Los snapshots con timestamp los sigue creando
+ * el planificador (driveAutoBackup) y la retención mantiene 2 archivos en total.
+ */
+async function pushLatestBackup(): Promise<{ ok: boolean; reason?: string; created?: boolean }> {
+  if (!navigator.onLine) return { ok: false, reason: 'offline' };
+  const token = await getValidToken();
+  if (!token) return { ok: false, reason: 'no_drive' };
+  const fileName = latestFileName();
+  const existente = await findSyncFileByName(token, fileName);
+  const localBackupPath = await invoke<string>('gd_create_backup');
+  try {
+    const dbBase64 = await invoke<string>('gd_read_file_base64', { path: localBackupPath });
+    const folderId = await ensureBackupFolder(token);
+    let res = await uploadDbFile(token, dbBase64, fileName, folderId, existente?.id ?? null);
+    if ((res.status === 404 || res.status === 410) && existente?.id) {
+      // El archivo se borró desde Drive: se recrea.
+      res = await uploadDbFile(token, dbBase64, fileName, folderId, null);
+    }
+    if (res.status < 200 || res.status >= 300) {
+      throw new Error(`HTTP ${res.status} al actualizar el respaldo en Drive`);
+    }
+  } finally {
+    try { await invoke('gd_delete_backup', { path: localBackupPath }); } catch (_) {}
+  }
+  await deleteOldSyncVersions(token);
+  syncManager.setState({ lastUpload: now() });
+  markAllClean();
+  return { ok: true, created: !existente };
+}
+
 export const driveSyncService = {
   _periodicTimer: null as ReturnType<typeof setInterval> | null,
   _syncLock: false,
 
   listSyncFiles,
   hasLocalChanges,
+  pushLatestBackup,
+  latestFileName,
 
-  /** Info del respaldo más reciente en Drive para esta cuenta (o null si no hay). */
+  /** Info del respaldo más reciente en Drive para esta cuenta (o null si no hay).
+   *  Se mide por modifiedTime: el archivo "_latest" se actualiza en cada guardado
+   *  sin recrearse, así que su createdTime es antiguo pero su contenido es el fresco. */
   getLatestBackup: async (): Promise<DriveFile | null> => {
     const token = await getValidToken();
     if (!token) return null;
     const files = await listSyncFiles(token);
     if (files.length === 0) return null;
-    return files.reduce((a, b) => a.createdTime >= b.createdTime ? a : b);
+    return files.reduce((a, b) => recencyOf(b) >= recencyOf(a) ? b : a);
   },
 
   syncAll: async (): Promise<void> => {
@@ -437,33 +575,10 @@ export const driveSyncService = {
       const localBackupPath = await invoke<string>('gd_create_backup');
       const dbBase64 = await invoke<string>('gd_read_file_base64', { path: localBackupPath });
       let folderId = await ensureBackupFolder(token);
+      const fileName = timestampFileName();
       const send = async (fid: string | null) => {
-        const fileName = timestampFileName();
-        const metadata: any = {
-          name: fileName, mimeType: 'application/octet-stream',
-          appProperties: { devicePlatform: devicePlatform() },
-        };
-        if (fid) metadata.parents = [fid];
-        const boundary = 'schooltracker_sync_boundary';
-        const multipartBody =
-          `--${boundary}\r\n` +
-          `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
-          `${JSON.stringify(metadata)}\r\n` +
-          `--${boundary}\r\n` +
-          `Content-Type: application/octet-stream\r\n` +
-          `Content-Transfer-Encoding: base64\r\n\r\n` +
-          `${dbBase64}\r\n` +
-          `--${boundary}--`;
-        const xhr = await new Promise<{ status: number }>((resolve, reject) => {
-          const x = new XMLHttpRequest();
-          x.open('POST', 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart');
-          x.setRequestHeader('Authorization', `Bearer ${token}`);
-          x.setRequestHeader('Content-Type', `multipart/related; boundary=${boundary}`);
-          x.onload = () => resolve({ status: x.status });
-          x.onerror = () => reject(new Error('Network error'));
-          x.send(multipartBody);
-        });
-        return { xhr, fileName };
+        const res = await uploadDbFile(token, dbBase64, fileName, fid, null);
+        return { xhr: res, fileName };
       };
       let ok = false;
       for (let attempt = 0; attempt < 2 && !ok; attempt++) {
@@ -521,7 +636,9 @@ export const driveSyncService = {
         console.debug('[DriveSync] No hay archivos de sync en Drive');
         return;
       }
-      const newest = files.reduce((a, b) => a.createdTime >= b.createdTime ? a : b);
+      // Por modifiedTime: el archivo "_latest" se actualiza en cada guardado y su
+      // createdTime es antiguo, pero su contenido es el más fresco.
+      const newest = files.reduce((a, b) => recencyOf(b) >= recencyOf(a) ? b : a);
       await downloadAndRestore(token, newest.id);
       console.debug('[DriveSync] Archivo descargado y restaurado correctamente');
     })(), 'descargar desde Google Drive');

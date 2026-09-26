@@ -1,5 +1,6 @@
 import { syncService } from "./syncService";
 import { markDirty, markClean, getDirtyTables } from "./dirtyTracker";
+import { scheduleInstantBackup } from "./driveInstantBackup";
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingTables = new Set<string>();
@@ -22,6 +23,11 @@ async function flush() {
     console.warn('[AutoSync] Error en sync:', e);
   } finally {
     isFlushing = false;
+    // Respaldo instantáneo a Google Drive: se dispara desde aquí para que TODAS
+    // las escrituras de la BD (notas, asistencia, estudiantes, catálogos,
+    // indicadores, días sin clases, calificaciones...) acaben respaldadas en
+    // Drive. Va en `finally` para que también se dispare si el sync D1 falló.
+    scheduleInstantBackup();
     if (pendingTables.size > 0 && !debounceTimer) {
       debounceTimer = setTimeout(flush, 300);
     }

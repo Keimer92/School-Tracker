@@ -7,6 +7,7 @@
   import { invalidateD1Cache } from "../lib/syncService";
   import type { DriveFile } from "../lib/driveSyncService";
   import { driveSyncService } from "../lib/driveSyncService";
+  import { isInstantBackupEnabled, setInstantBackupEnabled } from "../lib/driveInstantBackup";
   import { ensureWsSync, stopWsSync } from "../lib/wsSyncService";
   import { registerBackHandler, setBackAuthInProgress } from "../lib/androidBack";
   import { save as saveDialog, open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -81,6 +82,8 @@
   let isFetchingFiles = $state(false);
   let isTesting = $state(false);
   let syncFiles: DriveFile[] = $state([]);
+  // Respaldo instantáneo: se actualiza en Drive el archivo "_latest" tras cada guardado.
+  let instantBackupOn = $state(isInstantBackupEnabled());
   let imgError = $state(false);
 
   // Estado D1
@@ -360,6 +363,19 @@
 
   function fmtSize(bytes: number): string {
     return (bytes / 1024).toFixed(1) + ' KB';
+  }
+
+  /** Activa/desactiva el respaldo instantáneo a Drive tras cada guardado. */
+  async function toggleInstantBackup() {
+    const next = !instantBackupOn;
+    instantBackupOn = next;
+    setInstantBackupEnabled(next);
+    await emit("show-toast", {
+      message: next
+        ? "✅ Respaldo instantáneo activado: se sube a Drive tras cada guardado"
+        : "ℹ️ Respaldo instantáneo desactivado (siguen los manuales y programados)",
+      type: next ? "success" : "info",
+    });
   }
 
   function fmtDate(iso: string): string {
@@ -889,6 +905,20 @@
           </button>
         </div>
 
+        <!-- Respaldo instantáneo tras cada guardado -->
+        <label style="display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.75rem; margin-bottom: 0.75rem; background: rgba(34,197,94,0.05); border: 1px solid rgba(34,197,94,0.15); border-radius: 12px; cursor: pointer; transition: all 0.2s ease;" title="Actualiza en Drive el archivo de respaldo cada vez que guardes notas, asistencia, estudiantes o cualquier catálogo. Los borrados van a la papelera de Drive, por eso se actualiza el mismo archivo en vez de crear uno nuevo.">
+          <span class="switch" style="margin: 0; flex-shrink: 0;">
+            <input type="checkbox" checked={instantBackupOn} onchange={() => toggleInstantBackup()} />
+            <span class="slider round" style="background: {instantBackupOn ? 'linear-gradient(135deg, #22c55e, #16a34a)' : 'rgba(255,255,255,0.12)'}; border-color: {instantBackupOn ? 'transparent' : 'rgba(255,255,255,0.18)'};"></span>
+          </span>
+          <span style="line-height: 1.25; min-width: 0;">
+            <span style="display: block; font-size: 0.8rem; color: #e2e8f0; font-weight: 600;">Respaldar con cada guardado</span>
+            <span style="display: block; font-size: 0.68rem; color: {instantBackupOn ? '#22c55e' : '#94a3b8'};">
+              {instantBackupOn ? 'Se sube a Drive ~12 s después de guardar' : 'Desactivado: solo respaldos manuales y programados'}
+            </span>
+          </span>
+        </label>
+
         <!-- Sync files -->
         <div>
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem;">
@@ -904,8 +934,10 @@
                   <div style="flex: 1; min-width: 0;">
                     <div style="color: #e2e8f0; font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{file.name}</div>
                     <div style="display: flex; align-items: center; gap: 6px; color: #64748b; font-size: 0.65rem;">
-                      <span>{fmtDate(file.createdTime)} · {fmtSize(file.size)}</span>
-                      {#if filePlatform(file.name) === 'Android'}
+                      <span>{fmtDate(file.modifiedTime || file.createdTime)} · {fmtSize(file.size)}</span>
+                      {#if file.name.endsWith('_latest.db')}
+                        <span style="padding: 1px 6px; border-radius: 999px; background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.25); color: #4ade80; font-size: 0.6rem; font-weight: 600;">⚡ se actualiza al guardar</span>
+                      {:else if filePlatform(file.name) === 'Android'}
                         <span style="padding: 1px 6px; border-radius: 999px; background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.25); color: #7dd3fc; font-size: 20px; line-height: 1;">🤖</span>
                       {:else if filePlatform(file.name) === 'Windows'}
                         <span style="padding: 1px 6px; border-radius: 999px; background: rgba(167,139,250,0.12); border: 1px solid rgba(167,139,250,0.25); color: #c4b5fd; font-size: 20px; line-height: 1;">🪟</span>
@@ -920,7 +952,7 @@
               {/each}
             </div>
             <div style="margin-top: 0.5rem; display: flex; align-items: center; gap: 6px; color: #64748b; font-size: 0.7rem;">
-              <span>💾 Se conservan los últimos 2 respaldos. Los más antiguos se eliminan automáticamente.</span>
+              <span>💾 Se conservan 2 respaldos: el que se actualiza al guardar y el snapshot más reciente.</span>
             </div>
           {/if}
         </div>
