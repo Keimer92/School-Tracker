@@ -20,7 +20,7 @@
     saveProfile,
   } from "../lib/accountProfiles";
 
-  let { onNavigate }: { onNavigate?: (tab: string) => void } = $props();
+  let { onNavigate, pageActive = false }: { onNavigate?: (tab: string) => void; pageActive?: boolean } = $props();
 
   // ── Iniciar sesión con Google (solo para Drive) ──
 
@@ -347,8 +347,16 @@
     try {
       const token = await getValidToken();
       if (token) syncFiles = await driveSyncService.listSyncFiles(token);
-    } catch {} finally { isFetchingFiles = false; }
+    } catch (e) {
+      await emit("show-toast", { message: "❌ No se pudo refrescar la lista de respaldos: " + mensajeError(e), type: "error" });
+    } finally { isFetchingFiles = false; }
   }
+
+  // La página queda montada (display:none) al cambiar de pestaña: refrescar la
+  // lista cada vez que la pestaña Nube se hace visible, para no mostrar datos viejos.
+  $effect(() => {
+    if (pageActive && settings.accessToken) void refreshFiles();
+  });
 
   function fmtSize(bytes: number): string {
     return (bytes / 1024).toFixed(1) + ' KB';
@@ -912,7 +920,7 @@
               {/each}
             </div>
             <div style="margin-top: 0.5rem; display: flex; align-items: center; gap: 6px; color: #64748b; font-size: 0.7rem;">
-              <span>💾 Se conservan los últimos 3 respaldos. Los más antiguos se eliminan automáticamente.</span>
+              <span>💾 Se conservan los últimos 2 respaldos. Los más antiguos se eliminan automáticamente.</span>
             </div>
           {/if}
         </div>

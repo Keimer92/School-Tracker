@@ -5,7 +5,7 @@ import { markDirty, markAllDirty, markAllClean, hasDirtyTables } from './dirtyTr
 const STORAGE_KEY = 'schooltracker-google-drive-settings';
 const SYNC_FILE_PREFIX = 'SchoolTracker_Sync';
 // Solo mantenemos el respaldo más reciente en Drive (uno por cuenta).
-const MAX_SYNC_FILES = 1;
+const MAX_SYNC_FILES = 2;
 // Carpeta destino en Drive: Keimer Labs/School Tracker MINED
 const DRIVE_FOLDER_PATH = ['Keimer Labs', 'School Tracker MINED'];
 const AUTO_BACKUP_KEY = 'drive_auto_backup_minutes';
@@ -224,22 +224,33 @@ async function ensureBackupFolder(token: string): Promise<string | null> {
 }
 
 async function listSyncFiles(token: string): Promise<DriveFile[]> {
-  // Archivos en la carpeta destino + legacy en raíz (para restaurar/limpiar),
-  // filtrados por la etiqueta de la cuenta para no mezclar respaldos de distintas cuentas.
+  // Solo los respaldos de ESTA cuenta (prefijo por tag), en la carpeta destino
+  // o en cualquier otro sitio por si la carpeta cambió. Se podan aquí mismo los
+  // que excedan MAX_SYNC_FILES para que la lista nunca muestre de más.
   const tag = accountTag();
-  const inner = cachedFolderId
-    ? `'${cachedFolderId}' in parents or name contains '${SYNC_FILE_PREFIX}_${tag}_'`
-    : `name contains '${SYNC_FILE_PREFIX}_${tag}_'`;
-  const q = `(${inner}) and trashed=false`;
+  const q = `name contains '${SYNC_FILE_PREFIX}_${tag}_' and trashed=false`;
   const resp = await fetch(
     `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&orderBy=createdTime desc&fields=files(id,name,size,createdTime)`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
   if (!resp.ok) return [];
   const data = await resp.json();
-  return (data.files || []).map((f: any) => ({
+  const files: DriveFile[] = (data.files || []).map((f: any) => ({
     id: f.id, name: f.name, size: f.size || 0, createdTime: f.createdTime || '',
   }));
+  if (files.length > MAX_SYNC_FILES) {
+    const extras = files.slice(MAX_SYNC_FILES);
+    await Promise.allSettled(
+      extras.map(f =>
+        fetch(`https://www.googleapis.com/drive/v3/files/${f.id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => {})
+      )
+    );
+    return files.slice(0, MAX_SYNC_FILES);
+  }
+  return files;
 }
 
 async function deleteOldSyncVersions(token: string): Promise<void> {

@@ -454,7 +454,7 @@ import CloudPage from "./svelte/CloudPage.svelte";
       <div style="display: {activeTab === 'ajustes' ? 'block' : 'none'}; width: 100%; height: 100%;"><AjustesPage pageActive={activeTab === 'ajustes'} tabRequest={ajustesTabRequest} {themeMode} {setThemeMode} /></div>
     {/if}
     {#if visitedTabs.has('cloud')}
-      <div style="display: {activeTab === 'cloud' ? 'block' : 'none'}; width: 100%; height: 100%; overflow-y: auto;"><CloudPage onNavigate={handleTabChange} /></div>
+      <div style="display: {activeTab === 'cloud' ? 'block' : 'none'}; width: 100%; height: 100%; overflow-y: auto;"><CloudPage onNavigate={handleTabChange} pageActive={activeTab === 'cloud'} /></div>
     {/if}
     {#if visitedTabs.has('account')}
       <div style="display: {activeTab === 'account' ? 'block' : 'none'}; width: 100%; height: 100%; overflow-y: auto;"><AccountPage onNavigate={handleTabChange} /></div>

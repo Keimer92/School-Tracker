@@ -1,5 +1,6 @@
 <script lang="ts">
   import appIcon from "../assets/app-icon.png";
+  import { emit } from "@tauri-apps/api/event";
   import { driveSyncService } from "../lib/driveSyncService";
 
   interface Props {
@@ -31,8 +32,10 @@
     respaldando = true;
     try {
       await driveSyncService.pushAll();
+      await emit("show-toast", { message: "✅ Respaldo subido a Google Drive", type: "success" });
     } catch (e) {
       console.error('Respaldo manual a Drive falló:', e);
+      await emit("show-toast", { message: "❌ Error al crear respaldo: " + (e instanceof Error ? e.message : String(e)), type: "error" });
     } finally { respaldando = false; }
   }
 </script>

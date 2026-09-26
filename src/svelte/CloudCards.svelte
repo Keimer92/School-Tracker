@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { emit } from '@tauri-apps/api/event';
   import { d1SyncManager, syncManager } from '../lib/syncService';
   import { driveSyncService } from '../lib/driveSyncService';
   import type { D1Status } from '../lib/syncService';
@@ -29,6 +30,13 @@
   let d1 = $state<CloudD1State>(d1SyncManager.getState() as CloudD1State);
   let drive = $state<CloudDriveState>({ lastUpload: null, lastDownload: null });
   let respaldando = $state(false);
+  let justSubido = $state(false);
+
+  /** Relee el estado del singleton (refuerzo si la suscripción no notificó). */
+  function refrescarEstadoDrive() {
+    const s = syncManager.getState();
+    drive = { lastUpload: s.lastUpload ?? null, lastDownload: s.lastDownload ?? null };
+  }
 
   /** Respaldo manual a Drive. Si Drive no está vinculado, lleva a la pestaña Nube. */
   async function respaldoManualDrive() {
@@ -42,8 +50,14 @@
     respaldando = true;
     try {
       await driveSyncService.pushAll();
+      refrescarEstadoDrive();
+      justSubido = true;
+      setTimeout(() => { justSubido = false; }, 2500);
+      await emit("show-toast", { message: "✅ Respaldo subido a Google Drive", type: "success" });
     } catch (e) {
       console.error('Respaldo manual a Drive falló:', e);
+      refrescarEstadoDrive();
+      await emit("show-toast", { message: "❌ Error al crear respaldo: " + (e instanceof Error ? e.message : String(e)), type: "error" });
     } finally { respaldando = false; }
   }
 
@@ -156,7 +170,7 @@
   {/if}
 
   <div
-    class="cloud-card drive-card {respaldando ? 'respaldando' : ''}"
+    class="cloud-card drive-card {respaldando ? 'respaldando' : ''} {justSubido ? 'flash' : ''}"
     onclick={respaldoManualDrive}
     onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); respaldoManualDrive(); } }}
     role="button"
