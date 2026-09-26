@@ -401,9 +401,17 @@
    * total objetivo. Si `incluirC3` es false, C3 queda fijo en AA (comportamiento
    * anterior, donde solo C1 y C2 eran distribuibles). El error se acumula entre
    * indicadores para que la suma global sea lo más cercana posible a la meta.
+   *
+   * Desempate: se recorre primero el combo "preferido" (C1 con la letra más
+   * baja y C2/C3 con las más altas) y la comparación es estricta, así que si
+   * varias combinaciones dan la misma diferencia se queda con esa. Es
+   * exactamente "C1 baja, C2 y C3 altas, siempre que se pueda" sin perder
+   * precisión sobre la nota pedida.
    */
   function elegirCombos(indInfos: IndDist[], maxTotal: number, targetRaw: number, incluirC3: boolean) {
     const opcionesC3 = incluirC3 ? GRADES : ['AA'];
+    // C1 de menor a mayor valor; C2/C3 de mayor a menor.
+    const ordenC1 = [...GRADES].reverse();
     const elegidos: { ind: IndDist; combo: [string, string, string] }[] = [];
     let predictedTotal = 0;
     let runningError = 0;
@@ -411,7 +419,7 @@
       const indTarget = (ii.weight / maxTotal) * targetRaw + runningError;
       let bestCombo: [string, string, string] | null = null;
       let bestDiff = Infinity;
-      for (const g1 of GRADES) {
+      for (const g1 of ordenC1) {
         for (const g2 of GRADES) {
           for (const g3 of opcionesC3) {
             const total = valorCriterio(ii.c1, g1) + valorCriterio(ii.c2, g2) + valorCriterio(ii.c3, g3);
