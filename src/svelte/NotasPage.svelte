@@ -1667,11 +1667,13 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           {#if filteredNotas[currentStudentIdx]}
             {@const est = filteredNotas[currentStudentIdx]}
             <div>
-              {#each activeIndicadores as ind}
-                <div style="margin-bottom: 0.5rem; border-radius: 12px; border: 1px solid rgba(var(--primary-rgb), 0.25); background: rgba(30, 41, 59, 0.5);">
-                  <div style="padding: 0.4rem 0.6rem; background: rgba(30, 41, 59, 0.95); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(var(--primary-rgb), 0.15); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; border-top-left-radius: 11px; border-top-right-radius: 11px;">
-                    <div style="color: var(--text-secondary); font-weight: bold; font-size: 0.8rem;">Indicador {ind.orden}</div>
-                    <div style="color: {(() => {
+              {#each indicadores as ind}
+                <div style="margin-bottom: 0.5rem; border-radius: 12px; border: 1px solid {ind.activo ? 'rgba(var(--primary-rgb), 0.25)' : 'rgba(100,116,139,0.3)'}; background: {ind.activo ? 'rgba(30, 41, 59, 0.5)' : 'rgba(30, 41, 59, 0.28)'};">
+                  <div style="padding: 0.4rem 0.6rem; background: rgba(30, 41, 59, 0.95); backdrop-filter: blur(8px); border-bottom: 1px solid {ind.activo ? 'rgba(var(--primary-rgb), 0.15)' : 'rgba(100,116,139,0.2)'}; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; border-top-left-radius: 11px; border-top-right-radius: 11px;">
+                    <div style="color: {ind.activo ? 'var(--text-secondary)' : '#64748b'}; font-weight: bold; font-size: 0.8rem;">
+                      Indicador {ind.orden}{#if !ind.activo}<span style="font-size: 0.6rem; color: #64748b;"> · no suma</span>{/if}
+                    </div>
+                    <div style="color: {ind.activo ? (() => {
                       const totalInd = ind.criterios.reduce((sum, c) => {
                         const qv = notasCualitativas[`${est.estudianteId}-${c.id}`];
                         if (qv && ['AA','AS','AF','AI'].includes(qv)) return sum + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
@@ -1681,7 +1683,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                       const esc = maxInd > 0 ? (totalInd / maxInd) * 100 : 0;
                       const qualGrade = isQualitative ? calcularNotaCualitativaFinal(ind.criterios.map(c => notasCualitativas[`${est.estudianteId}-${c.id}`] || '')) : (getGradeFromScore(esc)?.id || 'AI');
                       return qualGrade ? getGradeColor(qualGrade) : '#94a3b8';
-                    })()}; font-weight: bold; font-size: 0.75rem;">
+                    })() : '#64748b'}; font-weight: bold; font-size: 0.75rem; {ind.activo ? '' : 'opacity: 0.75;'}">
                       {(() => {
                         const totalInd = ind.criterios.reduce((sum, c) => {
                           const qv = notasCualitativas[`${est.estudianteId}-${c.id}`];
@@ -1785,6 +1787,9 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           <div style="font-size: 0.9rem; color: #94a3b8; display: flex; align-items: center; gap: 0.35rem;">
             <span>Indicadores Activos:</span>
             <span style="font-weight: bold; color: {activeIndicadores.length > 5 ? '#fbbf24' : '#fff'};">{activeIndicadores.length}/5</span>
+            {#if indicadores.length > activeIndicadores.length}
+              <span title="Los indicadores inactivos también se muestran y se pueden calificar, pero sus notas NO suman al total de 100 pts ni los toca el modal de distribución." style="font-size: 0.7rem; color: #64748b;">· {indicadores.length - activeIndicadores.length} inactivos (no suman)</span>
+            {/if}
             {#if maxPuntosTotales !== 100}
               <span title="Con {activeIndicadores.length} indicadores el máximo real es {maxPuntosTotales} pts. La columna Final se muestra en escala 0-100." style="font-size: 0.7rem; color: #fbbf24;">· máx real {maxPuntosTotales} pts</span>
             {/if}
@@ -1797,10 +1802,10 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
               <tr style="background: #1e293b;">
                 <th style="padding: 0.3rem; text-align: center; font-weight: bold; color: #94a3b8; position: sticky; left: 0; z-index: 110; background: #1e293b; border-bottom: 2px solid rgba(255,255,255,0.1); width: 35px;">Nº</th>
                 <th style="padding: 0.3rem; text-align: left; font-weight: bold; color: #94a3b8; position: sticky; left: 35px; z-index: 110; background: #1e293b; border-bottom: 2px solid rgba(255,255,255,0.1); min-width: 130px; max-width: 150px;">Estudiante</th>
-                {#each activeIndicadores as ind}
-                  <th colspan={ind.criterios.length + 1} style="padding: 0.2rem; text-align: center; font-weight: bold; border-bottom: 2px solid rgba(255,255,255,0.1);">
-                    <div title={ind.descripcion} style="background: rgba(var(--primary-rgb), 0.15); padding: 0.2rem; border-radius: 4px; border: 1px solid rgba(var(--primary-rgb), 0.4); color: var(--text-secondary); cursor: help;">
-                      <div style="font-weight: bold; font-size: 0.7rem;">Ind. {ind.orden}</div>
+                {#each indicadores as ind}
+                  <th colspan={ind.criterios.length + 1} style="padding: 0.2rem; text-align: center; font-weight: bold; border-bottom: 2px solid {ind.activo ? 'rgba(255,255,255,0.1)' : 'rgba(100,116,139,0.25)'};">
+                    <div title={ind.activo ? (ind.descripcion || `Indicador ${ind.orden}`) : `${ind.descripcion || `Indicador ${ind.orden}`} · INACTIVO: sus notas no suman al total de 100 pts`} style="background: {ind.activo ? 'rgba(var(--primary-rgb), 0.15)' : 'rgba(100,116,139,0.08)'}; padding: 0.2rem; border-radius: 4px; border: 1px solid {ind.activo ? 'rgba(var(--primary-rgb), 0.4)' : 'rgba(100,116,139,0.3)'}; color: {ind.activo ? 'var(--text-secondary)' : '#64748b'}; cursor: help; {ind.activo ? '' : 'border-style: dashed;'}">
+                      <div style="font-weight: bold; font-size: 0.7rem;">Ind. {ind.orden}{ind.activo ? '' : ' ·'}</div>
                     </div>
                   </th>
                 {/each}
@@ -1812,15 +1817,15 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
               <tr style="background: #1e293b;">
                 <th style="position: sticky; left: 0; z-index: 110; background: #1e293b; border-bottom: 1px solid rgba(255,255,255,0.1);"></th>
                 <th style="position: sticky; left: 35px; z-index: 110; background: #1e293b; border-bottom: 1px solid rgba(255,255,255,0.1);"></th>
-                {#each activeIndicadores as ind}
+                {#each indicadores as ind}
                   {#each ind.criterios as crit}
-                    <th title={crit.descripcion} style="padding: 0.2rem; text-align: center; color: #94a3b8; font-size: 0.65rem; border-bottom: 1px solid rgba(255,255,255,0.1); cursor: help;">
+                    <th title={crit.descripcion} style="padding: 0.2rem; text-align: center; color: {ind.activo ? '#94a3b8' : '#64748b'}; font-size: 0.65rem; border-bottom: 1px solid rgba(255,255,255,0.1); cursor: help;">
                       <div style="font-weight: bold;">C{crit.orden}</div>
-                      {#if !isQualitative}<div style="font-size: 0.55rem; color: #4ade80;">{crit.puntajeMaximo}</div>{/if}
+                      {#if !isQualitative}<div style="font-size: 0.55rem; color: {ind.activo ? '#4ade80' : '#64748b'};">{crit.puntajeMaximo}</div>{/if}
                     </th>
                   {/each}
-                  <th style="padding: 0.2rem; text-align: center; color: #94a3b8; font-weight: bold; background: rgba(var(--primary-rgb), 0.08); border-bottom: 1px solid rgba(255,255,255,0.1);">
-                    <div style="color: #4ade80; font-size: 0.65rem;">{isQualitative ? 'Cual.' : 'Tot'}</div>
+                  <th style="padding: 0.2rem; text-align: center; color: {ind.activo ? '#94a3b8' : '#64748b'}; font-weight: bold; background: {ind.activo ? 'rgba(var(--primary-rgb), 0.08)' : 'rgba(100,116,139,0.06)'}; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                    <div style="color: {ind.activo ? '#4ade80' : '#64748b'}; font-size: 0.6rem;">{ind.activo ? (isQualitative ? 'Cual.' : 'Tot') : 'no suma'}</div>
                   </th>
                 {/each}
                 <th style="padding: 0.2rem; text-align: center; color: #94a3b8; font-weight: bold; background: #1e293b; position: sticky; right: 0; z-index: 110; border-bottom: 1px solid rgba(34, 197, 94, 0.4);">
@@ -1835,7 +1840,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                   <td class="sticky-cell student-name" style="padding: 0.3rem; position: sticky; left: 35px; z-index: 5; border-bottom: 1px solid rgba(255,255,255,0.05);">
                     <div style="font-weight: bold; font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px;">{est.estudianteNombre}</div>
                   </td>
-                  {#each activeIndicadores as ind}
+                  {#each indicadores as ind}
                     {#each ind.criterios as crit}
                       {@const criterioIndex = criterioIndexMap.get(crit.id) ?? 0}
                       {@const inputKey = `row-${est.estudianteId}-col-${criterioIndex}`}
@@ -1909,8 +1914,13 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                         {@const gradeConfig = getGradeFromScore(totalEscalado)}
                         {@const qualitativeGrade = isQualitative ? calcularNotaCualitativaFinal(indicador.criterios.map(c => notasCualitativas[`${est.estudianteId}-${c.id}`] || '')) : (gradeConfig?.id || 'AI')}
                         {@const displayColor = indicador.activo ? (qualitativeGrade ? getGradeColor(qualitativeGrade) : '#94a3b8') : '#64748b'}
-                        <div style="color: {displayColor}; font-size: 0.75rem; font-weight: bold;">
-                          {isQualitative ? qualitativeGrade : `${totalIndicadorRedondeado}${qualitativeGrade ? ` (${qualitativeGrade})` : ''}`}
+                        <div title={indicador.activo ? `Suma al total: ${totalIndicadorRedondeado} de ${maximoIndicador} pts` : `Indicador inactivo: ${totalIndicadorRedondeado} de ${maximoIndicador} pts — NO suma al total`} style="color: {displayColor}; font-size: 0.75rem; font-weight: bold; {indicador.activo ? '' : 'opacity: 0.75;'}">
+                          {#if indicador.activo}
+                            {isQualitative ? qualitativeGrade : `${totalIndicadorRedondeado}${qualitativeGrade ? ` (${qualitativeGrade})` : ''}`}
+                          {:else}
+                            <span style="font-size: 0.7rem;">{isQualitative ? qualitativeGrade || '—' : totalIndicadorRedondeado}</span>
+                            <span style="display: block; font-size: 0.5rem; font-weight: 400; color: #64748b;">no suma</span>
+                          {/if}
                         </div>
                       {/each}
                     </td>
