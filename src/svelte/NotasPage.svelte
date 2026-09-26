@@ -1987,24 +1987,33 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                <p style="margin: 0.2rem 0 0; color: #94a3b8; font-size: 0.75rem;">{isQualitative ? 'C1 y C2 = nota objetivo, C3 = AA. Solo AA, AS, AF disponibles.' : 'Ingrese el porcentaje total deseado (0-100). C1/2/3 se calculan automáticamente.'}</p>
             </div>
           </div>
-          <div style="display: flex; align-items: center; gap: 0.5rem; margin: 0.5rem 0 0.75rem; flex-wrap: wrap;">
-            <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-size: 0.8rem; color: #cbd5e1;">
-              <input type="checkbox" checked={distribuirOverwrite} onchange={() => distribuirOverwrite = !distribuirOverwrite} style="accent-color: #8b5cf6;" />
-              Sobrescribir notas existentes
+          <!-- Opciones: toggles (switch global de App.css) con su texto de estado -->
+          <div style="display: flex; align-items: stretch; gap: 0.75rem; margin: 0.6rem 0 0.8rem; flex-wrap: wrap;">
+            <label style="display: flex; align-items: center; gap: 0.55rem; padding: 0.4rem 0.75rem 0.4rem 0.55rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; cursor: pointer; transition: all 0.2s ease;">
+              <span class="switch" style="margin: 0;">
+                <input type="checkbox" checked={distribuirOverwrite} onchange={() => distribuirOverwrite = !distribuirOverwrite} />
+                <span class="slider round" style="background: {distribuirOverwrite ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)' : 'rgba(255,255,255,0.12)'}; border-color: {distribuirOverwrite ? 'transparent' : 'rgba(255,255,255,0.18)'};"></span>
+              </span>
+              <span style="line-height: 1.2;">
+                <span style="display: block; font-size: 0.78rem; color: #cbd5e1; font-weight: 500;">Sobrescribir notas existentes</span>
+                <span style="display: block; font-size: 0.68rem; color: {distribuirOverwrite ? '#a78bfa' : '#22c55e'};">{distribuirOverwrite ? 'Se reemplazarán todas las notas' : 'Solo se llenarán criterios vacíos'}</span>
+              </span>
             </label>
-            <span style="color: #64748b; font-size: 0.75rem;">|</span>
-            <span style="color: {distribuirOverwrite ? '#64748b' : '#22c55e'}; font-size: 0.75rem;">{distribuirOverwrite ? 'Se reemplazarán todas las notas' : 'Solo se llenarán criterios vacíos'}</span>
             {#if cortesPrecios.length > 0}
-              <span style="color: #64748b; font-size: 0.75rem;">|</span>
-              <label style="display: flex; align-items: center; gap: 0.4rem; cursor: pointer; font-size: 0.8rem; color: #cbd5e1; user-select: none;">
-                <input type="checkbox" checked={mostrarComparacion} onchange={() => mostrarComparacion = !mostrarComparacion} style="accent-color: #a78bfa;" />
-                Comparar con cortes previos
-              </label>
-              {#if mostrarComparacion}
-                <span style="font-size: 0.72rem; color: {cargandoComparacion ? '#a78bfa' : '#64748b'};">
-                  {cargandoComparacion ? '⏳ Cargando…' : `${cortesPrecios.length} columna${cortesPrecios.length > 1 ? 's' : ''} con la nota final de cada corte anterior`}
+              <label style="display: flex; align-items: center; gap: 0.55rem; padding: 0.4rem 0.75rem 0.4rem 0.55rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; cursor: pointer; transition: all 0.2s ease;">
+                <span class="switch" style="margin: 0;">
+                  <input type="checkbox" checked={mostrarComparacion} onchange={() => mostrarComparacion = !mostrarComparacion} />
+                  <span class="slider round" style="background: {mostrarComparacion ? 'linear-gradient(135deg, #a78bfa, #7c3aed)' : 'rgba(255,255,255,0.12)'}; border-color: {mostrarComparacion ? 'transparent' : 'rgba(255,255,255,0.18)'};"></span>
                 </span>
-              {/if}
+                <span style="line-height: 1.2;">
+                  <span style="display: block; font-size: 0.78rem; color: #cbd5e1; font-weight: 500;">Comparar cortes previos</span>
+                  <span style="display: block; font-size: 0.68rem; color: {cargandoComparacion ? '#a78bfa' : '#64748b'};">
+                    {#if cargandoComparacion}⏳ Cargando notas anteriores…
+                    {:else if mostrarComparacion}{cortesPrecios.length} columna{cortesPrecios.length > 1 ? 's' : ''} con la nota final
+                    {:else}Nota final de cada corte anterior{/if}
+                  </span>
+                </span>
+              </label>
             {/if}
           </div>
           <div style="overflow: auto; flex: 1; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px;">
