@@ -23,6 +23,8 @@
   interface Indicador { id: number; orden: number; descripcion: string; activo: boolean; instrumento: string; criterios: Criterio[]; }
   interface Estudiante { id: number; nombre: string; gradoId: number; seccionId: number; grado: string; seccion: string; }
   interface NotaEstudiante { estudianteId: number; estudianteNombre: string; notas: Record<number, number>; }
+  /** Primeras 3 letras distribuibles de un indicador (C1, C2, C3) y su peso. */
+  interface IndDist { weight: number; c1: Criterio; c2: Criterio; c3: Criterio; }
 
   let anos: CategoryItem[] = $state([]);
   let cortes: CategoryItem[] = $state([]);
@@ -62,7 +64,7 @@
 
   // ── Comparación con cortes previos (solo lectura, dentro del modal de distribuir) ──
   // Global: al activarlo se añade una columna por cada corte anterior, en la misma fila.
-  let mostrarComparacion = $state(false);
+  let mostrarComparacion = $state(true);
   let comparacionCortes = $state<Record<number, Record<number, number | null>>>({});
   let cargandoComparacion = $state(false);
 
@@ -159,6 +161,8 @@
 
   let distribuirTargets: Record<number, string> = $state({});
   let distribuirOverwrite = $state(true);
+  /** true (por defecto) = C1, C2 y C3 se distribuyen. false = C3 queda fijo en AA. */
+  let distribuirC3 = $state(true);
   let distribuirInputs = new Map<number, HTMLInputElement>();
 
   function regDistInput(node: HTMLInputElement, id: number) {
@@ -356,139 +360,114 @@
     return Math.round((rawTotal / maxTotal) * 100);
   }
 
+  const GRADES: string[] = ['AA', 'AS', 'AF', 'AI'];
+
+  function valorCriterio(c: Criterio, g: string): number {
+    return Math.round(c.puntajeMaximo * (notaMapping[g] || 0));
+  }
+
+  /** Toma los 3 primeros criterios de cada indicador activo y el máximo total global. */
+  function construirIndInfos(): { indInfos: IndDist[]; maxTotal: number } {
+    const indInfos: IndDist[] = [];
+    let maxTotal = 0;
+    for (const ind of activeIndicadores) {
+      const c1 = ind.criterios[0];
+      const c2 = ind.criterios[1];
+      const c3 = ind.criterios[2];
+      if (!c1 || !c2 || !c3) continue;
+      const w = c1.puntajeMaximo + c2.puntajeMaximo + c3.puntajeMaximo;
+      maxTotal += w;
+      indInfos.push({ weight: w, c1, c2, c3 });
+    }
+    return { indInfos, maxTotal };
+  }
+
+  /**
+   * Elige, por indicador, el combo de letras (C1, C2 y C3) que más se acerca al
+   * total objetivo. Si `incluirC3` es false, C3 queda fijo en AA (comportamiento
+   * anterior, donde solo C1 y C2 eran distribuibles). El error se acumula entre
+   * indicadores para que la suma global sea lo más cercana posible a la meta.
+   */
+  function elegirCombos(indInfos: IndDist[], maxTotal: number, targetRaw: number, incluirC3: boolean) {
+    const opcionesC3 = incluirC3 ? GRADES : ['AA'];
+    const elegidos: { ind: IndDist; combo: [string, string, string] }[] = [];
+    let predictedTotal = 0;
+    let runningError = 0;
+    for (const ii of indInfos) {
+      const indTarget = (ii.weight / maxTotal) * targetRaw + runningError;
+      let bestCombo: [string, string, string] | null = null;
+      let bestDiff = Infinity;
+      for (const g1 of GRADES) {
+        for (const g2 of GRADES) {
+          for (const g3 of opcionesC3) {
+            const total = valorCriterio(ii.c1, g1) + valorCriterio(ii.c2, g2) + valorCriterio(ii.c3, g3);
+            const diff = Math.abs(total - indTarget);
+            if (diff < bestDiff) { bestDiff = diff; bestCombo = [g1, g2, g3]; }
+          }
+        }
+      }
+      if (!bestCombo) continue;
+      const total = valorCriterio(ii.c1, bestCombo[0]) + valorCriterio(ii.c2, bestCombo[1]) + valorCriterio(ii.c3, bestCombo[2]);
+      elegidos.push({ ind: ii, combo: bestCombo });
+      predictedTotal += total;
+      runningError += indTarget - total;
+    }
+    return { elegidos, predictedTotal };
+  }
+
+  /** Escribe la letra de un criterio respetando "solo llenar vacíos" si no se sobrescribe. */
+  function aplicarNotaCriterio(estudianteId: number, criterio: Criterio, grade: string) {
+    const key = `${estudianteId}-${criterio.id}`;
+    if (distribuirOverwrite) notasCualitativas[key] = grade;
+    else if (!notasCualitativas[key]) notasCualitativas[key] = grade;
+  }
+
   function calcularPctPreview(estudianteId: number, targetStr: string | undefined): number {
     if (!targetStr || targetStr.trim() === '') return calcularPctActual(estudianteId);
     let targetPct: number;
-    if (isQualitative && ['AA', 'AS', 'AF', 'AI'].includes(targetStr.trim().toUpperCase())) {
+    if (isQualitative && GRADES.includes(targetStr.trim().toUpperCase())) {
       targetPct = getMidPctForGrade(targetStr.trim().toUpperCase());
     } else {
       targetPct = parseFloat(targetStr);
       if (isNaN(targetPct) || targetPct < 0) return calcularPctActual(estudianteId);
     }
     if (activeIndicadores.length === 0) return 0;
-    const indInfos: { weight: number; c1: Criterio; c2: Criterio; c3: Criterio }[] = [];
-    let maxTotal = 0;
-    for (const ind of activeIndicadores) {
-      const c1 = ind.criterios[0];
-      const c2 = ind.criterios[1];
-      const c3 = ind.criterios[2];
-      if (!c1 || !c2 || !c3) continue;
-      const w = c1.puntajeMaximo + c2.puntajeMaximo + c3.puntajeMaximo;
-      maxTotal += w;
-      indInfos.push({ weight: w, c1, c2, c3 });
-    }
+    const { indInfos, maxTotal } = construirIndInfos();
     if (maxTotal === 0) return 0;
-    const grades = ['AA', 'AS', 'AF', 'AI'];
-    const gs = (c: Criterio, g: string) => Math.round(c.puntajeMaximo * (notaMapping[g] || 0));
-    // c3 siempre es AA. Solo buscar mejor (c1, c2)
-    const valCombos: [string, string][] = [];
-    for (const g1 of grades) {
-      for (const g2 of grades) {
-        valCombos.push([g1, g2]);
-      }
-    }
     const targetRaw = Math.round((Math.min(targetPct, 100) / 100) * maxTotal);
-    let predictedTotal = 0;
-    let runningError = 0;
-    for (const ii of indInfos) {
-      const { c1, c2, c3 } = ii;
-      const c3Fixed = Math.round(c3.puntajeMaximo * (notaMapping.AA || 1.0));
-      const indTarget = (ii.weight / maxTotal) * targetRaw + runningError;
-      const targetC12 = indTarget - c3Fixed;
-      let bestCombo: [string, string] | null = null;
-      let bestDiff = Infinity;
-      for (const [g1, g2] of valCombos) {
-        const diff = Math.abs(gs(c1, g1) + gs(c2, g2) - targetC12);
-        if (diff < bestDiff) { bestDiff = diff; bestCombo = [g1, g2]; }
-      }
-      if (!bestCombo) continue;
-      const [chosen1, chosen2] = bestCombo;
-      const actualTotal = gs(c1, chosen1) + gs(c2, chosen2) + c3Fixed;
-      predictedTotal += actualTotal;
-      runningError += indTarget - actualTotal;
-    }
+    const { predictedTotal } = elegirCombos(indInfos, maxTotal, targetRaw, distribuirC3);
     return Math.round((predictedTotal / maxTotal) * 100);
   }
 
   function distribuirNotas() {
     if (activeIndicadores.length === 0 || filteredNotas.length === 0) return;
-    const indInfos: { weight: number; c1: Criterio; c2: Criterio; c3: Criterio }[] = [];
-    let maxTotal = 0;
-    for (const ind of activeIndicadores) {
-      const c1 = ind.criterios[0];
-      const c2 = ind.criterios[1];
-      const c3 = ind.criterios[2];
-      if (!c1 || !c2 || !c3) continue;
-      const w = c1.puntajeMaximo + c2.puntajeMaximo + c3.puntajeMaximo;
-      maxTotal += w;
-      indInfos.push({ weight: w, c1, c2, c3 });
-    }
+    const { indInfos, maxTotal } = construirIndInfos();
     if (maxTotal === 0) return;
-    const grades = ['AA', 'AS', 'AF', 'AI'];
-    const gs = (c: Criterio, g: string) => Math.round(c.puntajeMaximo * (notaMapping[g] || 0));
-    // c3 siempre AA. Buscar mejor (c1, c2)
-    const valCombos: [string, string][] = [];
-    for (const g1 of grades) {
-      for (const g2 of grades) {
-        valCombos.push([g1, g2]);
-      }
-    }
     let updatedCount = 0;
-    let errorMessages: string[] = [];
     for (const estNota of filteredNotas) {
       const targetStr = distribuirTargets[estNota.estudianteId];
       if (!targetStr || targetStr.trim() === '') continue;
-      if (isQualitative && ['AA', 'AS', 'AF', 'AI'].includes(targetStr.trim().toUpperCase())) {
+      // Cualitativo: se reparte la letra objetivo entre C1 y C2 (y C3 si está activo)
+      if (isQualitative && GRADES.includes(targetStr.trim().toUpperCase())) {
         const grade = targetStr.trim().toUpperCase();
+        const g3 = distribuirC3 ? grade : 'AA';
         for (const ii of indInfos) {
-          const { c1, c2, c3 } = ii;
-          const k1 = `${estNota.estudianteId}-${c1.id}`;
-          const k2 = `${estNota.estudianteId}-${c2.id}`;
-          const k3 = `${estNota.estudianteId}-${c3.id}`;
-          if (distribuirOverwrite) {
-            notasCualitativas[k1] = grade;
-            notasCualitativas[k2] = grade;
-            notasCualitativas[k3] = 'AA';
-          } else {
-            if (!notasCualitativas[k1]) notasCualitativas[k1] = grade;
-            if (!notasCualitativas[k2]) notasCualitativas[k2] = grade;
-            if (!notasCualitativas[k3]) notasCualitativas[k3] = 'AA';
-          }
+          aplicarNotaCriterio(estNota.estudianteId, ii.c1, grade);
+          aplicarNotaCriterio(estNota.estudianteId, ii.c2, grade);
+          aplicarNotaCriterio(estNota.estudianteId, ii.c3, g3);
         }
         updatedCount++;
         continue;
       }
+      // Cuantitativo: se busca el combo de letras más cercano al % objetivo
       const targetPct = parseFloat(targetStr);
       if (isNaN(targetPct) || targetPct < 0) continue;
       const targetRaw = Math.round((Math.min(targetPct, 100) / 100) * maxTotal);
-      let runningError = 0;
-      for (const ii of indInfos) {
-        const { c1, c2, c3 } = ii;
-        const c3Fixed = Math.round(c3.puntajeMaximo * (notaMapping.AA || 1.0));
-        const indTarget = (ii.weight / maxTotal) * targetRaw + runningError;
-        const targetC12 = indTarget - c3Fixed;
-        let bestCombo: [string, string] | null = null;
-        let bestDiff = Infinity;
-        for (const [g1, g2] of valCombos) {
-          const diff = Math.abs(gs(c1, g1) + gs(c2, g2) - targetC12);
-          if (diff < bestDiff) { bestDiff = diff; bestCombo = [g1, g2]; }
-        }
-        if (!bestCombo) continue;
-        const [chosen1, chosen2] = bestCombo;
-        const actualTotal = gs(c1, chosen1) + gs(c2, chosen2) + c3Fixed;
-        runningError += indTarget - actualTotal;
-        const k1 = `${estNota.estudianteId}-${c1.id}`;
-        const k2 = `${estNota.estudianteId}-${c2.id}`;
-        const k3 = `${estNota.estudianteId}-${c3.id}`;
-        if (distribuirOverwrite) {
-          notasCualitativas[k1] = chosen1;
-          notasCualitativas[k2] = chosen2;
-          notasCualitativas[k3] = 'AA';
-        } else {
-          if (!notasCualitativas[k1]) notasCualitativas[k1] = chosen1;
-          if (!notasCualitativas[k2]) notasCualitativas[k2] = chosen2;
-          if (!notasCualitativas[k3]) notasCualitativas[k3] = 'AA';
-        }
+      const { elegidos } = elegirCombos(indInfos, maxTotal, targetRaw, distribuirC3);
+      for (const { ind: ii, combo } of elegidos) {
+        aplicarNotaCriterio(estNota.estudianteId, ii.c1, combo[0]);
+        aplicarNotaCriterio(estNota.estudianteId, ii.c2, combo[1]);
+        aplicarNotaCriterio(estNota.estudianteId, ii.c3, combo[2]);
       }
       updatedCount++;
     }
@@ -496,9 +475,6 @@
       hasUnsavedChanges = true;
       hasUnsavedRef = true;
       emit("show-toast", { message: `✅ Notas distribuidas para ${updatedCount} estudiante(s)`, type: 'success' });
-    }
-    if (errorMessages.length > 0) {
-      emit("show-toast", { message: errorMessages.join(' | '), type: 'warning' });
     }
     showDistribuirModal = false;
     distribuirTargets = {};
@@ -520,11 +496,12 @@
   }
 
   function previewQualitativeGrade(targetGrade: string): string {
+    const g3 = distribuirC3 ? targetGrade : 'AA';
     const values: string[] = [];
     for (const ind of activeIndicadores) {
       if (ind.criterios[0]) values.push(targetGrade);
       if (ind.criterios[1]) values.push(targetGrade);
-      if (ind.criterios[2]) values.push('AA');
+      if (ind.criterios[2]) values.push(g3);
     }
     return calcularNotaCualitativaFinal(values) || targetGrade;
   }
@@ -1984,7 +1961,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             <div style="width: 44px; height: 44px; border-radius: 14px; background: rgba(139, 92, 246, 0.12); border: 1px solid rgba(139, 92, 246, 0.2); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0;">✨</div>
             <div>
               <h3 style="margin: 0; color: #f1f5f9; font-size: 1.15rem; font-weight: 700;">Distribuir notas automáticamente</h3>
-               <p style="margin: 0.2rem 0 0; color: #94a3b8; font-size: 0.75rem;">{isQualitative ? 'C1 y C2 = nota objetivo, C3 = AA. Solo AA, AS, AF disponibles.' : 'Ingrese el porcentaje total deseado (0-100). C1/2/3 se calculan automáticamente.'}</p>
+               <p style="margin: 0.2rem 0 0; color: #94a3b8; font-size: 0.75rem;">{isQualitative ? `C1, C2${distribuirC3 ? ' y C3' : ''} = nota objetivo${distribuirC3 ? '' : ', C3 = AA'}. Solo AA, AS, AF disponibles.` : `Ingrese el porcentaje total deseado (0-100). C1, C2${distribuirC3 ? ' y C3' : ''} se calculan automáticamente.`}</p>
             </div>
           </div>
           <!-- Opciones: toggles (switch global de App.css) con su texto de estado -->
@@ -1997,6 +1974,16 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
               <span style="line-height: 1.2;">
                 <span style="display: block; font-size: 0.78rem; color: #cbd5e1; font-weight: 500;">Sobrescribir notas existentes</span>
                 <span style="display: block; font-size: 0.68rem; color: {distribuirOverwrite ? '#a78bfa' : '#22c55e'};">{distribuirOverwrite ? 'Se reemplazarán todas las notas' : 'Solo se llenarán criterios vacíos'}</span>
+              </span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.55rem; padding: 0.4rem 0.75rem 0.4rem 0.55rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; cursor: pointer; transition: all 0.2s ease;">
+              <span class="switch" style="margin: 0;">
+                <input type="checkbox" checked={distribuirC3} onchange={() => distribuirC3 = !distribuirC3} />
+                <span class="slider round" style="background: {distribuirC3 ? 'linear-gradient(135deg, #f472b6, #db2777)' : 'rgba(255,255,255,0.12)'}; border-color: {distribuirC3 ? 'transparent' : 'rgba(255,255,255,0.18)'};"></span>
+              </span>
+              <span style="line-height: 1.2;">
+                <span style="display: block; font-size: 0.78rem; color: #cbd5e1; font-weight: 500;">Modificar también el C3</span>
+                <span style="display: block; font-size: 0.68rem; color: {distribuirC3 ? '#f472b6' : '#f59e0b'};">{distribuirC3 ? 'C1, C2 y C3 se distribuyen' : 'C3 siempre será AA'}</span>
               </span>
             </label>
             {#if cortesPrecios.length > 0}
