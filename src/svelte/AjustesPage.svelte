@@ -284,14 +284,22 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     }
   }
 
+  function backupFileName(ext: string): string {
+    const d = new Date();
+    const p = (n: number) => String(n).padStart(2, "0");
+    const fecha = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    const hora = `${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
+    return `Backup_SchoolTracker_${fecha}_${hora}.${ext}`;
+  }
+
   async function handleExportDB() {
     try {
       const dbFile = await invoke<string>("get_db_path");
       if (isAndroid) {
-        await copyFile(dbFile, `backup_notas_${Date.now()}.sqlite`, { toPathBaseDir: BaseDirectory.Download });
+        await copyFile(dbFile, backupFileName("sqlite"), { toPathBaseDir: BaseDirectory.Download });
         await emit("show-toast", { message: "✅ Base de datos exportada a Descargas", type: "success" }); return;
       }
-      const dest = await save({ filters: [{ name: "Database File", extensions: ["db"] }], defaultPath: "backup_notas.db" });
+      const dest = await save({ filters: [{ name: "Database File", extensions: ["db"] }], defaultPath: backupFileName("db") });
       if (dest) { await copyFile(dbFile, dest); await emit("show-toast", { message: "✅ Base de datos exportada", type: "success" }); }
     } catch (error) { await emit("show-toast", { message: "❌ Error al exportar: " + error, type: "error" }); }
   }
