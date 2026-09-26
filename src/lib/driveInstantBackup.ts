@@ -15,21 +15,74 @@
  *     el archivo estable "..._latest.db" en Drive. Los snapshots con timestamp
  *     los crea el planificador `driveAutoBackup` (cada 60 min, adaptativo) y la
  *     retención mantiene 2 archivos en total por cuenta.
- *   - Silencioso: no muestra toasts (un toast por guardado sería ruido); el
- *     tiempo de "Último respaldo" de la card de Drive se actualiza solo.
+ *   - Notificación visual: avisa con un toast al terminar (momento + MB) y al
+ *     fallar. Con anti-spam: como se dispara tras cada guardado, los avisos se
+ *     agrupan (máx. 1 cada 45 s) y si hubo varios se resume "N respaldos".
  *   - Se puede apagar desde Ajustes: `drive_instant_backup_enabled` = 'false'.
  */
-import { driveSyncService } from './driveSyncService';
+import { emit } from '@tauri-apps/api/event';
+import { driveSyncService, syncManager } from './driveSyncService';
 
 const ENABLED_KEY = 'drive_instant_backup_enabled';
 /** Espera de inactividad antes de subir (agrupa guardados seguidos). */
 const DEBOUNCE_MS = 12_000;
+/** Separación mínima entre dos toasts de "respaldo actualizado". */
+const TOAST_MIN_GAP_MS = 45_000;
+/** Separación mínima entre dos avisos de error. */
+const TOAST_ERROR_GAP_MS = 150_000;
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let isRunning = false;
 let queued = false;
 /** Último resultado, para diagnóstico desde consola. */
 let lastResult: { at: string; ok: boolean; reason?: string } | null = null;
+
+// ── Avisos (toast) ──
+let ultimoToastAt = 0;
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+let respaldosDesdeToast = 0;
+let ultimoErrorToastAt = 0;
+
+function fmtBytes(n: number): string {
+  if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+  if (n >= 1024) return (n / 1024).toFixed(0) + ' KB';
+  return n + ' B';
+}
+
+function horaActual(): string {
+  return new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+}
+
+function mostrarToastExito() {
+  const n = respaldosDesdeToast;
+  respaldosDesdeToast = 0;
+  ultimoToastAt = Date.now();
+  const bytes = syncManager.getState().lastUploadBytes;
+  const tam = bytes ? ` · ${fmtBytes(bytes)}` : '';
+  const mensaje = n > 1
+    ? `☁️ ${n} respaldos actualizados en Google Drive${tam}`
+    : `☁️ Respaldo actualizado en Google Drive${tam} · ${horaActual()}`;
+  void emit('show-toast', { message: mensaje, type: 'success' });
+}
+
+/** Avisa del respaldo automatico, sin spamear si se guardó varias veces seguidas. */
+function notificarExito() {
+  respaldosDesdeToast++;
+  if (toastTimer) return; // ya hay un aviso consolidado programado
+  const gap = Date.now() - ultimoToastAt;
+  if (gap >= TOAST_MIN_GAP_MS) {
+    mostrarToastExito();
+    return;
+  }
+  toastTimer = setTimeout(() => { toastTimer = null; mostrarToastExito(); }, TOAST_MIN_GAP_MS - gap);
+}
+
+function notificarError(motivo: string) {
+  const now = Date.now();
+  if (now - ultimoErrorToastAt < TOAST_ERROR_GAP_MS) return;
+  ultimoErrorToastAt = now;
+  void emit('show-toast', { message: `⚠️ No se pudo respaldar en Drive: ${motivo}`, type: 'error' });
+}
 
 function isEnabled(): boolean {
   try {
@@ -88,12 +141,20 @@ async function run(): Promise<void> {
       console.debug(
         `[DriveInstant] respaldo ${res.created ? 'creado' : 'actualizado'} en ${Date.now() - t0} ms`
       );
+      notificarExito();
     } else {
+      // 'offline' / 'no_drive' no son fallos: no se avisa para no molestar.
       console.debug(`[DriveInstant] omitido: ${res.reason}`);
+      if (res.reason === 'no_drive') {
+        // Se quedó sin token: el usuario debe vincular Drive otra vez.
+        notificarError('vuelve a vincular tu cuenta de Google');
+      }
     }
   } catch (e) {
-    lastResult = { at: new Date().toISOString(), ok: false, reason: String((e as Error)?.message || e) };
+    const motivo = String((e as Error)?.message || e);
+    lastResult = { at: new Date().toISOString(), ok: false, reason: motivo };
     console.warn('[DriveInstant] falló el respaldo instantáneo:', e);
+    notificarError(motivo);
   } finally {
     isRunning = false;
     if (queued) {
