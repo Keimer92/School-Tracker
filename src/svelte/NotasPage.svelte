@@ -87,6 +87,8 @@
     return m ? m[1] : n;
   }
 
+  let corteActualNombre = $derived(cortes.find(c => c.id === selectedCorte)?.nombre || 'Corte actual');
+
   /**
    * Carga la nota final (%) de cada estudiante en los cortes anteriores al actual.
    * Usa `get_pcts_por_corte`, que es SOLO LECTURA: no siembra indicadores ni
@@ -2017,7 +2019,10 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                       </th>
                     {/each}
                   {/if}
-                  <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Actual</th>
+                  <th title="Corte que se está distribuyendo: {corteActualNombre}" style="min-width: 74px; text-align: center; padding: 0.3rem 0.4rem; background: rgba(244,114,182,0.16); border-bottom: 2px solid rgba(244,114,182,0.5); border-left: 1px solid rgba(244,114,182,0.2); border-right: 1px solid rgba(244,114,182,0.2);">
+                    <div style="font-size: 0.7rem; color: #fbcfe8; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 110px;">{nombreCortoCorte(corteActualNombre)}</div>
+                    <div style="font-size: 0.5rem; color: #f472b6; text-transform: uppercase; letter-spacing: 0.4px;">corte actual</div>
+                  </th>
                   {#if isQualitative}
                     <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Meta</th>
                   {/if}
@@ -2038,7 +2043,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                         </td>
                       {/each}
                     {/if}
-                    <td style="padding: 0.3rem 0.6rem; text-align: center; white-space: nowrap;">
+                    <td title="Nota final actual ({corteActualNombre})" style="padding: 0.3rem 0.4rem; text-align: center; white-space: nowrap; background: rgba(244,114,182,0.07); border-left: 1px solid rgba(244,114,182,0.2); border-right: 1px solid rgba(244,114,182,0.2);">
                       {#if isQualitative}
                         {@const qualValues = allCriterios.map(c => notasCualitativas[`${est.estudianteId}-${c.id}`] || '')}
                         {@const gradeActual = calcularNotaCualitativaFinal(qualValues) || getGradeFromScore(calcularPctActual(est.estudianteId))?.id || ''}
