@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { emit, listen } from "@tauri-apps/api/event";
   import { syncService } from "../lib/syncService";
@@ -59,6 +59,67 @@
   let deleting = $state(false);
 
   let showDistribuirModal = $state(false);
+
+  // ── Comparación con cortes previos (solo lectura, dentro del modal de distribuir) ──
+  let expandirComparacion = $state<number | null>(null);
+  let comparacionCortes = $state<Record<number, Record<number, number | null>>>({});
+  let cargandoComparacion = $state(false);
+
+  /** Cortes anteriores al seleccionado, en orden de creación (id ascendente). */
+  let cortesPrecios = $derived.by(() => {
+    const ordenados = [...cortes].sort((a, b) => a.id - b.id);
+    const idx = ordenados.findIndex(c => c.id === selectedCorte);
+    return idx <= 0 ? [] : ordenados.slice(0, idx);
+  });
+
+  function colorPctAnterior(pct: number | null): string {
+    if (pct === null) return '#64748b';
+    return getGradeColor(getGradeFromScore(pct)?.id || '');
+  }
+
+  function toggleComparacion(estudianteId: number) {
+    expandirComparacion = expandirComparacion === estudianteId ? null : estudianteId;
+  }
+
+  /**
+   * Carga la nota final (%) de cada estudiante en los cortes anteriores al actual.
+   * Usa `get_pcts_por_corte`, que es SOLO LECTURA: no siembra indicadores ni
+   * configuración (a diferencia de `get_evaluation_config`, que sí lo hace).
+   */
+  async function cargarComparacionCortes() {
+    const previas = cortesPrecios;
+    comparacionCortes = {};
+    if (previas.length === 0 || selectedGrado === 0) return;
+    cargandoComparacion = true;
+    try {
+      const filas = await invoke<{ corteId: number; estudianteId: number; pct: number }[]>(
+        'get_pcts_por_corte',
+        {
+          gradoId: selectedGrado,
+          seccionId: selectedSeccion,
+          asignaturaId: selectedAsignatura,
+          cortesIds: previas.map(c => c.id),
+        }
+      );
+      const mapa: Record<number, Record<number, number | null>> = {};
+      for (const c of previas) mapa[c.id] = {};
+      for (const f of filas) {
+        if (!mapa[f.corteId]) mapa[f.corteId] = {};
+        mapa[f.corteId][f.estudianteId] = f.pct;
+      }
+      comparacionCortes = mapa;
+    } catch (e) {
+      console.error('[Comparación cortes] Error cargando cortes anteriores:', e);
+      await emit('show-toast', { message: '❌ No se pudieron cargar las notas de cortes anteriores: ' + (e instanceof Error ? e.message : String(e)), type: 'error' });
+    } finally { cargandoComparacion = false; }
+  }
+
+  // Al abrir el modal: colapsar cualquier fila y cargar el histórico (perezoso)
+  $effect(() => {
+    if (!showDistribuirModal) return;
+    expandirComparacion = null;
+    untrack(() => void cargarComparacionCortes());
+  });
 
   // ── Instrumentos de evaluación ──
   let showInstrumentosModal = $state(false);
@@ -123,7 +184,12 @@
   });
   $effect(() => {
     if (showDistribuirModal) {
-      return registerBackHandler(() => { showDistribuirModal = false; return true; });
+      return registerBackHandler(() => {
+        // Primero colapsa la fila de cortes anteriores; si no hay ninguna, cierra.
+        if (expandirComparacion !== null) { expandirComparacion = null; return true; }
+        showDistribuirModal = false;
+        return true;
+      });
     }
   });
   $effect(() => {
@@ -1935,6 +2001,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             <table style="width: 100%; border-collapse: collapse; font-size: 0.78rem;">
               <thead>
                 <tr style="position: sticky; top: 0; z-index: 1;">
+                  <th style="width: 30px; padding: 0.4rem 0.3rem; background: rgba(15, 23, 42, 0.95); border-bottom: 1px solid rgba(255,255,255,0.06);"></th>
                   <th style="text-align: left; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">#</th>
                   <th style="text-align: left; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Estudiante</th>
                   <th style="text-align: center; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Actual</th>
@@ -1948,6 +2015,13 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
               <tbody>
                 {#each filteredNotas as est, idx}
                   <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                    <td style="padding: 0.2rem 0.3rem; text-align: center;">
+                      <button
+                        onclick={() => toggleComparacion(est.estudianteId)}
+                        title="Comparar con cortes anteriores"
+                        aria-label="Comparar {est.estudianteNombre} con cortes anteriores"
+                        style="width:22px;height:22px;border-radius:6px;border:1px solid rgba(148,163,184,0.25);background:transparent;color:{expandirComparacion === est.estudianteId ? '#a78bfa' : '#64748b'};cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:0.72rem;line-height:1;transition:all 0.15s ease;transform:rotate({expandirComparacion === est.estudianteId ? 90 : 0}deg);">▸</button>
+                    </td>
                     <td style="padding: 0.3rem 0.6rem; color: #64748b; text-align: left;">{idx + 1}</td>
                     <td style="padding: 0.3rem 0.6rem; color: #e2e8f0; font-weight: 500;">{est.estudianteNombre}</td>
                     <td style="padding: 0.3rem 0.6rem; text-align: center; white-space: nowrap;">
@@ -2008,6 +2082,34 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                       {/if}
                     </td>
                   </tr>
+                  {#if expandirComparacion === est.estudianteId}
+                    <tr>
+                      <td colspan={isQualitative ? 7 : 6} style="padding: 0.1rem 0.6rem 0.6rem 0.6rem;">
+                        <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(167,139,250,0.18); border-left: 3px solid #a78bfa; border-radius: 10px; padding: 0.6rem 0.7rem;">
+                          {#if cortesPrecios.length === 0}
+                            <div style="font-size: 0.72rem; color: #64748b;">No hay cortes anteriores a este.</div>
+                          {:else if cargandoComparacion}
+                            <div style="font-size: 0.72rem; color: #64748b;">⏳ Cargando notas de cortes anteriores…</div>
+                          {:else}
+                            <div style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-bottom: 0.4rem;">Nota final en cortes anteriores</div>
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                              {#each cortesPrecios as corte (corte.id)}
+                                {@const pct = comparacionCortes[corte.id]?.[est.estudianteId] ?? null}
+                                {@const color = colorPctAnterior(pct)}
+                                <div style="flex: 1 1 110px; min-width: 100px; background: rgba(15,23,42,0.5); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 0.45rem 0.55rem;">
+                                  <div style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.4px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{corte.nombre}</div>
+                                  <div style="font-size: 1rem; font-weight: 700; color: {color}; margin-top: 0.15rem;">{pct === null ? '—' : pct + '%'}</div>
+                                  <div style="margin-top: 0.3rem; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.06); overflow: hidden;">
+                                    <div style="width: {Math.min(pct ?? 0, 100)}%; height: 100%; background: {color}; border-radius: 2px; transition: width 0.2s ease;"></div>
+                                  </div>
+                                </div>
+                              {/each}
+                            </div>
+                          {/if}
+                        </div>
+                      </td>
+                    </tr>
+                  {/if}
                 {/each}
               </tbody>
             </table>

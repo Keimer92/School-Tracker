@@ -4155,6 +4155,83 @@ pub async fn get_notas_by_filters(
     Ok(notas)
 }
 
+/// Porcentaje final (nota final del corte) por estudiante para varios cortes.
+/// SOLO LECTURA: no siembra indicadores ni configuración (a diferencia de
+/// `get_evaluation_config`, que crea 8 indicadores si el corte no tiene config).
+/// Se usa en NotasPage para comparar el rendimiento de cortes anteriores.
+/// Suma solo criterios con nota de indicadores activos del mismo grado/asignatura,
+/// replicando la regla de cálculo de ReportesPage.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CortePctRow {
+    pub corte_id: i64,
+    pub estudiante_id: i64,
+    pub total: f64,
+    pub maximo: f64,
+    pub pct: i64,
+}
+
+#[tauri::command]
+pub async fn get_pcts_por_corte(
+    state: tauri::State<'_, DbState>,
+    gradoId: i64,
+    seccionId: i64,
+    asignaturaId: i64,
+    cortesIds: Vec<i64>,
+) -> Result<Vec<CortePctRow>, String> {
+    if cortesIds.is_empty() {
+        return Ok(vec![]);
+    }
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let ids = cortesIds
+        .iter()
+        .map(|id| id.to_string())
+        .collect::<Vec<_>>()
+        .join(",");
+    let sql = format!(
+        "SELECT n.corte_evaluativo_id, n.estudiante_id, SUM(n.valor), SUM(c.puntaje_maximo)
+         FROM nota n
+         INNER JOIN criterio c ON c.id = n.criterio_id
+         INNER JOIN indicador i ON i.id = c.indicador_id
+         INNER JOIN estudiante e ON e.id = n.estudiante_id
+         WHERE i.activo = 1
+         AND i.asignatura_id = n.asignatura_id
+         AND i.grado_id = e.grado_id
+         AND e.grado_id = {grado}
+         AND e.seccion_id = {seccion}
+         AND n.asignatura_id = {asignatura}
+         AND n.corte_evaluativo_id IN ({ids})
+         GROUP BY n.corte_evaluativo_id, n.estudiante_id",
+        grado = gradoId,
+        seccion = seccionId,
+        asignatura = asignaturaId,
+        ids = ids
+    );
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            let total: f64 = row.get(2)?;
+            let maximo: f64 = row.get(3)?;
+            let pct = if maximo > 0.0 {
+                ((total / maximo) * 100.0).round() as i64
+            } else {
+                0
+            };
+            Ok(CortePctRow {
+                corte_id: row.get(0)?,
+                estudiante_id: row.get(1)?,
+                total,
+                maximo,
+                pct,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    Ok(rows)
+}
+
 /// Normaliza un email de cuenta para usarlo como sufijo de archivo de BD.
 /// Ej: "Plbarostegui92@gmail.com" -> "plbarostegui92_gmail_com"
 pub fn sanitize_account_id(email: &str) -> String {

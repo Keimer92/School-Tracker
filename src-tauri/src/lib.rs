@@ -1906,6 +1906,7 @@ pub fn run() {
             save_notas_estudiantes,
             delete_notas,
             get_notas_by_filters,
+            get_pcts_por_corte,
             get_db_path,
             open_account_db,
             get_grade_configs,
