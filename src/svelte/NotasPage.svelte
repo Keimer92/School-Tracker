@@ -1998,6 +1998,11 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             <div style="min-width: 0;">
               <h3 style="margin: 0; color: #f1f5f9; font-size: 1.15rem; font-weight: 700;">Distribuir notas automáticamente</h3>
                <p style="margin: 0.2rem 0 0; color: #94a3b8; font-size: 0.75rem;">{isQualitative ? `C1, C2${distribuirC3 ? ' y C3' : ''} = nota objetivo${distribuirC3 ? '' : ', C3 = AA'}. Solo AA, AS, AF disponibles.` : `Ingrese el porcentaje total deseado (0-100). C1, C2${distribuirC3 ? ' y C3' : ''} se calculan automáticamente.`}</p>
+              {#if !isQualitative}
+                <p style="margin: 0.25rem 0 0; color: #64748b; font-size: 0.68rem;">
+                  💡 La letra más baja se asigna al <strong style="color:#a78bfa;">C1</strong> y las más altas al <strong style="color:#a78bfa;">C2 y C3</strong>, siempre que se alcance la nota pedida (en metas muy altas el C1 necesita una letra alta para llegar).
+                </p>
+              {/if}
               {#if contextoChips.some(c => c.label)}
                 <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.4rem;">
                   {#each contextoChips as chip (chip.icon)}
