@@ -1162,10 +1162,10 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
   }
 
   async function generarTodosInstrumentos() {
-    if (activeIndicadores.length === 0) return;
+    if (indicadores.length === 0) return;
     generatingPdf = true;
     try {
-      const inputs = activeIndicadores.map(buildInstrumentoInput);
+      const inputs = indicadores.map(buildInstrumentoInput);
       await generarInstrumentosTodosPDF(inputs);
       await emit("show-toast", { message: `✅ ${inputs.length} instrumentos generados`, type: "success" });
     } catch (e) {
@@ -1497,7 +1497,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
         </FilterGroup>
 
           <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '0 0 auto'};{isMobile ? 'overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;' : ''}">
-            <button onclick={() => { showInstrumentosModal = true; console.debug('[Instrumentos] abrir modal'); }} disabled={activeIndicadores.length === 0}
+            <button onclick={() => { showInstrumentosModal = true; console.debug('[Instrumentos] abrir modal'); }} disabled={indicadores.length === 0}
               style="height:42px;padding:0 {isMobile ? '13px' : '5px'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:{activeIndicadores.length > 0 ? '#0ea5e9' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{activeIndicadores.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{activeIndicadores.length > 0 ? '0 4px 14px rgba(14,165,233,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{activeIndicadores.length > 0 ? 1 : 0.7}"
               title="Instrumentos de evaluación">
               <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">📋</span>
@@ -1553,7 +1553,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           </button>
         </div>
         <div class="category-card" style="padding: 0.5rem; margin-top: 0.3rem; display:flex;gap:0.3rem;align-items:center;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;">
-          <button onclick={() => { showInstrumentosModal = true; console.debug('[Instrumentos] abrir modal'); }} disabled={activeIndicadores.length === 0}
+          <button onclick={() => { showInstrumentosModal = true; console.debug('[Instrumentos] abrir modal'); }} disabled={indicadores.length === 0}
             style="height:42px;padding:0 13px;font-size:0.75rem;background-color:{activeIndicadores.length > 0 ? '#0ea5e9' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{activeIndicadores.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{activeIndicadores.length > 0 ? '0 4px 14px rgba(14,165,233,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{activeIndicadores.length > 0 ? 1 : 0.7}"
             title="Instrumentos de evaluación">
             <span style="font-size:0.85rem;">📋</span>
@@ -2211,13 +2211,13 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             </div>
           {/if}
 
-          {#each activeIndicadores as ind (ind.id)}
+          {#each indicadores as ind (ind.id)}
             {@const tipoActual = normTipo((ind as any).instrumento)}
             {@const disponibles = INSTRUMENTO_TIPOS.filter(t => plantillas.some(p => p.tipo === t.id))}
-            <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.7rem; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; margin-bottom: 0.45rem; flex-wrap: wrap;">
-              <span style="width: 26px; height: 26px; border-radius: 8px; background: rgba(14,165,233,0.15); color: #7dd3fc; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.72rem; flex-shrink: 0;">{ind.orden}</span>
+            <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.7rem; background: {ind.activo ? 'rgba(255,255,255,0.03)' : 'rgba(100,116,139,0.06)'}; border: 1px solid {ind.activo ? 'rgba(255,255,255,0.06)' : 'rgba(100,116,139,0.22)'}; border-radius: 12px; margin-bottom: 0.45rem; flex-wrap: wrap;">
+              <span style="width: 26px; height: 26px; border-radius: 8px; background: {ind.activo ? 'rgba(14,165,233,0.15)' : 'rgba(100,116,139,0.15)'}; color: {ind.activo ? '#7dd3fc' : '#94a3b8'}; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.72rem; flex-shrink: 0;">{ind.orden}</span>
               <div style="flex: 1; min-width: 140px;">
-                <div style="color: #e2e8f0; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{ind.descripcion || '(Sin descripción)'}</div>
+                <div style="color: {ind.activo ? '#e2e8f0' : '#94a3b8'}; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{ind.descripcion || '(Sin descripción)'}{#if !ind.activo}<span style="font-size: 0.62rem; color: #64748b;"> · no suma al total</span>{/if}</div>
                 <div style="color: #64748b; font-size: 0.65rem;">{ind.criterios.length} criterio(s)</div>
               </div>
               <select value={disponibles.some(t => t.id === tipoActual) ? tipoActual : (disponibles[0]?.id ?? tipoActual)}
@@ -2237,7 +2237,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                 style="padding: 0.35rem 0.55rem; border-radius: 8px; border: 1px solid rgba(34,197,94,0.4); background: rgba(34,197,94,0.12); color: #86efac; cursor: pointer; font-size: 0.68rem; font-weight: 700; flex-shrink: 0;">XLS</button>
             </div>
           {:else}
-            <div style="text-align: center; padding: 1rem; color: #64748b; font-size: 0.8rem;">No hay indicadores activos</div>
+            <div style="text-align: center; padding: 1rem; color: #64748b; font-size: 0.8rem;">No hay indicadores configurados</div>
           {/each}
 
           <p style="margin: 0.75rem 0 0; color: #64748b; font-size: 0.68rem; text-align: center;">
