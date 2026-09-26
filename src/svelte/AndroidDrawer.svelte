@@ -1,7 +1,8 @@
 <script lang="ts">
   import appIcon from "../assets/app-icon.png";
   import { emit } from "@tauri-apps/api/event";
-  import { driveSyncService } from "../lib/driveSyncService";
+  import { onMount } from "svelte";
+  import { driveSyncService, syncManager } from "../lib/driveSyncService";
 
   interface Props {
     drawerOpen: boolean;
@@ -20,6 +21,26 @@
   }: Props = $props();
 
   let respaldando = $state(false);
+  // Progreso del respaldo instantáneo/automático (barra del chip del header)
+  let driveUp = $state<{ loaded: number; total: number; pct: number } | null>(null);
+  let driveUltimo = $state<{ when: string | null; bytes: number | null }>({ when: null, bytes: null });
+
+  function fmtBytes(n: number): string {
+    if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+    if (n >= 1024) return (n / 1024).toFixed(0) + ' KB';
+    return n + ' B';
+  }
+  function fmtMomento(iso: string | null): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  }
+
+  onMount(() => syncManager.subscribe((s) => {
+    driveUp = s.uploadProgress ?? null;
+    driveUltimo = { when: s.lastUpload ?? null, bytes: s.lastUploadBytes ?? null };
+  }));
 
   async function respaldoManualDrive() {
     if (respaldando) return;
@@ -32,7 +53,8 @@
     respaldando = true;
     try {
       await driveSyncService.pushAll();
-      await emit("show-toast", { message: "✅ Respaldo subido a Google Drive", type: "success" });
+      const mb = syncManager.getState().lastUploadBytes;
+      await emit("show-toast", { message: `✅ Respaldo subido a Google Drive${mb ? ` · ${fmtBytes(mb)}` : ''}`, type: "success" });
     } catch (e) {
       console.error('Respaldo manual a Drive falló:', e);
       await emit("show-toast", { message: "❌ Error al crear respaldo: " + (e instanceof Error ? e.message : String(e)), type: "error" });
@@ -56,16 +78,28 @@
   <!-- Botón de respaldo Drive (tap → respaldo directo o va a Nube si no conectado) -->
   <button
     class="mobile-drive-btn"
-    class:respaldando
+    class:respaldando={respaldando || !!driveUp}
     onclick={respaldoManualDrive}
-    title={respaldando ? 'Creando respaldo...' : 'Crear respaldo en Drive'}
+    title={driveUp
+      ? `Subiendo a Drive: ${fmtBytes(driveUp.loaded)} / ${fmtBytes(driveUp.total)} (${driveUp.pct}%)`
+      : (driveUltimo.when ? `Último respaldo: ${fmtMomento(driveUltimo.when)}${driveUltimo.bytes ? ` · ${fmtBytes(driveUltimo.bytes)}` : ''}` : 'Crear respaldo en Drive')}
   >
-    {#if respaldando}
+    {#if driveUp}
+      <span class="drive-ring" style="--pct: {driveUp.pct}"></span>
+      <span class="drive-pct">{driveUp.pct}%</span>
+    {:else if respaldando}
       <span class="drive-spinner"></span>
+      <span>Drive</span>
     {:else}
-      <span class="drive-dot"></span>
+      <span class="drive-dot" class:ok={!!driveUltimo.when}></span>
+      <span>Drive</span>
+      {#if driveUltimo.when}
+        <span class="drive-meta">{fmtMomento(driveUltimo.when)}{driveUltimo.bytes ? ` · ${fmtBytes(driveUltimo.bytes)}` : ''}</span>
+      {/if}
     {/if}
-    <span>Drive</span>
+    {#if driveUp}
+      <span class="drive-bar"><span style="width: {driveUp.pct}%;"></span></span>
+    {/if}
   </button>
   <!-- Card/chip de nube a la derecha del título (tap → pestaña Nube) -->
   <button
@@ -114,6 +148,7 @@
 
   /* Botón de Drive en el header */
   .mobile-drive-btn {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 4px;
@@ -147,6 +182,49 @@
     border-radius: 50%;
     background: #4f8ef7;
     box-shadow: 0 0 6px rgba(79, 142, 247, 0.5);
+  }
+  .drive-dot.ok {
+    background: #22c55e;
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.55);
+  }
+  .drive-meta {
+    font-size: 0.5rem;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    color: #64748b;
+  }
+  /* Anillo + barra de progreso de la subida a Drive */
+  .drive-ring {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: conic-gradient(#38bdf8 calc(var(--pct) * 1%), rgba(255, 255, 255, 0.12) 0);
+    -webkit-mask: radial-gradient(circle, transparent 45%, #000 47%);
+    mask: radial-gradient(circle, transparent 45%, #000 47%);
+    flex-shrink: 0;
+  }
+  .drive-pct {
+    font-size: 0.55rem;
+    color: #7dd3fc;
+    font-weight: 700;
+  }
+  .drive-bar {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    bottom: 3px;
+    height: 2px;
+    border-radius: 1px;
+    background: rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+  }
+  .drive-bar > span {
+    display: block;
+    height: 100%;
+    border-radius: 1px;
+    background: linear-gradient(90deg, #38bdf8, #818cf8);
+    transition: width 0.2s ease;
   }
 
   .drive-spinner {

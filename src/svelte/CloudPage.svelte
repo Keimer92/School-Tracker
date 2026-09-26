@@ -63,11 +63,27 @@
     googleUserEmail: null, googleUserName: null, googleUserProfilePic: null,
   });
 
-  let syncStatus = $state<{ status: SyncStatus; lastSync: string | null; lastSyncDetails: string | null; message: string | null; downloadProgress?: { loaded: number; total: number; pct: number } | null; }>({ status: "idle", lastSync: null, lastSyncDetails: null, message: null });
+  let syncStatus = $state<{ status: SyncStatus; lastSync: string | null; lastSyncDetails: string | null; message: string | null; downloadProgress?: { loaded: number; total: number; pct: number } | null; uploadProgress?: { loaded: number; total: number; pct: number } | null; lastUpload?: string | null; lastUploadBytes?: number | null; lastUploadFile?: { when: string | null; bytes: number | null; name: string | null } | null; }>({ status: "idle", lastSync: null, lastSyncDetails: null, message: null });
+  let showDrivePopover = $state(false);
   function fmtBytes(n: number): string {
     if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
     if (n >= 1024) return (n / 1024).toFixed(0) + ' KB';
     return n + ' B';
+  }
+  /** Momento del último respaldo: el confirmado en la nube si existe, si no el local. */
+  let driveUltimoRespaldo = $derived.by(() => {
+    const f = syncStatus.lastUploadFile;
+    if (f?.when) return { when: f.when, bytes: f.bytes, name: f.name };
+    return { when: syncStatus.lastUpload ?? null, bytes: syncStatus.lastUploadBytes ?? null, name: null };
+  });
+  function fmtMomento(iso: string | null | undefined): string {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '—';
+    const hoy = new Date();
+    const mismoDia = d.toDateString() === hoy.toDateString();
+    const hora = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return mismoDia ? `Hoy ${hora}` : d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }
   const storedSyncSeconds = parseInt(localStorage.getItem('periodic_sync_interval_seconds') || '300', 10);
   let syncInterval = $state(Math.round((storedSyncSeconds || 300) / 60));
@@ -349,7 +365,13 @@
     isFetchingFiles = true;
     try {
       const token = await getValidToken();
-      if (token) syncFiles = await driveSyncService.listSyncFiles(token);
+      if (token) {
+        syncFiles = await driveSyncService.listSyncFiles(token);
+        // La lista viene ordenada por más reciente (modifiedTime): el primero es
+        // el último respaldo real en la nube. Se refleja en el estado global para
+        // que la card y el chip del sidebar muestren momento + tamaño.
+        driveSyncService.setLastUploadFromDrive(syncFiles[0] ?? null);
+      }
     } catch (e) {
       await emit("show-toast", { message: "❌ No se pudo refrescar la lista de respaldos: " + mensajeError(e), type: "error" });
     } finally { isFetchingFiles = false; }
@@ -801,7 +823,53 @@
           Google Drive <span style="font-size: 0.65rem; font-weight: 400; color: #64748b;">(Respaldo automático)</span>
         </span>
       </h3>
+      {#if isConnected}
+        <button onclick={() => showDrivePopover = !showDrivePopover} title="Ver details del último respaldo"
+          style="display: inline-flex; align-items: center; gap: 5px; padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #94a3b8; cursor: pointer; font-size: 0.7rem; flex-shrink: 0;">
+          <span style="width: 6px; height: 6px; border-radius: 50%; background: {syncStatus.uploadProgress ? '#38bdf8' : driveUltimoRespaldo.when ? '#22c55e' : '#64748b'}; box-shadow: 0 0 6px {syncStatus.uploadProgress ? 'rgba(56,189,248,0.6)' : 'rgba(34,197,94,0.5)'};"></span>
+          {syncStatus.uploadProgress ? `${syncStatus.uploadProgress.pct}%` : fmtMomento(driveUltimoRespaldo.when).replace('Hoy ', '')}
+        </button>
+      {/if}
     </div>
+
+    <!-- Popover: momento del respaldo + tamaño enviado + progreso -->
+    {#if showDrivePopover && isConnected}
+      <div style="margin: 0 1.5rem 1rem; padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(15,23,42,0.7), rgba(30,41,59,0.6)); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.6rem;">
+          <span style="font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; color: #94a3b8;">☁️ Último respaldo en Drive</span>
+          <button onclick={refreshFiles} disabled={isFetchingFiles} style="padding: 0.25rem 0.6rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-size: 0.68rem;">{isFetchingFiles ? 'Actualizando…' : '↻ Refrescar'}</button>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.6rem;">
+          <div style="padding: 0.5rem 0.6rem; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px;">
+            <div style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.4px; color: #64748b;">Momento</div>
+            <div style="font-size: 0.9rem; font-weight: 700; color: #e2e8f0; margin-top: 2px;">{fmtMomento(driveUltimoRespaldo.when)}</div>
+          </div>
+          <div style="padding: 0.5rem 0.6rem; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px;">
+            <div style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.4px; color: #64748b;">Enviado a la nube</div>
+            <div style="font-size: 0.9rem; font-weight: 700; color: #e2e8f0; margin-top: 2px;">{driveUltimoRespaldo.bytes ? fmtBytes(driveUltimoRespaldo.bytes) : '—'}</div>
+          </div>
+          <div style="padding: 0.5rem 0.6rem; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; grid-column: 1 / -1;">
+            <div style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.4px; color: #64748b;">Archivo</div>
+            <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{driveUltimoRespaldo.name || '—'}</div>
+          </div>
+        </div>
+        {#if syncStatus.uploadProgress}
+          {@const up = syncStatus.uploadProgress}
+          <div style="margin-top: 0.7rem;">
+            <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.68rem; color: #7dd3fc; margin-bottom: 0.3rem;">
+              <span>⇪ Subiendo a Drive…</span>
+              <span style="font-family: monospace;">{fmtBytes(up.loaded)} / {fmtBytes(up.total)} · {up.pct}%</span>
+            </div>
+            <div style="height: 6px; border-radius: 3px; background: rgba(255,255,255,0.06); overflow: hidden;">
+              <div style="width: {up.pct}%; height: 100%; background: linear-gradient(90deg, #38bdf8, #818cf8); border-radius: 3px; transition: width 0.2s ease;"></div>
+            </div>
+          </div>
+        {/if}
+        <p style="margin: 0.7rem 0 0; font-size: 0.66rem; color: #64748b; line-height: 1.45;">
+          El archivo <span style="color:#94a3b8;">_latest.db</span> se sobrescribe tras cada guardado (no crea copias nuevas); los demás son snapshots programados. Pulsa <span style="color:#94a3b8;">↻ Refrescar</span> para leer de Drive el momento y el tamaño reales.
+        </p>
+      </div>
+    {/if}
 
     <div style="padding: 0 1.5rem 1.5rem;">
       {#if syncStatus.status === 'error' && syncStatus.message}
@@ -853,8 +921,8 @@
             </div>
             <div style="color: #64748b; font-size: 0.75rem;">
               {settings.googleUserEmail || ''}
-              {#if syncStatus.lastSync}
-                · Último respaldo: {new Date(syncStatus.lastSync).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+              {#if driveUltimoRespaldo.when}
+                · Último respaldo: {fmtMomento(driveUltimoRespaldo.when)}{driveUltimoRespaldo.bytes ? ` · ${fmtBytes(driveUltimoRespaldo.bytes)}` : ''}
               {/if}
             </div>
           </div>
@@ -899,7 +967,7 @@
 
         <!-- Push button -->
         <div style="margin-bottom: 0.75rem;">
-          <button onclick={async () => { try { await driveSyncService.pushAll(); await refreshFiles(); } catch (e) { await emit("show-toast", { message: "❌ Error al crear respaldo: " + mensajeError(e), type: "error" }); } }} disabled={syncStatus.status === 'syncing'} style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(34,197,94,0.12) 0%, rgba(34,197,94,0.04) 100%); border: 1px solid rgba(34,197,94,0.2); border-radius: 12px; cursor: pointer; opacity: {syncStatus.status === 'syncing' ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;">
+          <button onclick={async () => { try { await driveSyncService.pushAll(); await refreshFiles(); } catch (e) { await emit("show-toast", { message: "❌ Error al crear respaldo: " + mensajeError(e), type: "error" }); } }} disabled={syncStatus.status === 'syncing'} title="Crea un respaldo con fecha y hora en Google Drive" style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(34,197,94,0.12) 0%, rgba(34,197,94,0.04) 100%); border: 1px solid rgba(34,197,94,0.2); border-radius: 12px; cursor: pointer; opacity: {syncStatus.status === 'syncing' ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             <span style="color: #22c55e; font-weight: 600; font-size: 0.85rem;">Crear respaldo</span>
           </button>

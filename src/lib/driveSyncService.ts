@@ -43,6 +43,13 @@ export interface DownloadProgress {
   pct: number;
 }
 
+/** Progreso de subida a Drive (bytes reales del .db, no del base64). */
+export interface UploadProgress {
+  loaded: number;
+  total: number;
+  pct: number;
+}
+
 interface SyncState {
   status: SyncStatus;
   lastSync: string | null;
@@ -51,6 +58,12 @@ interface SyncState {
   lastUpload: string | null;
   lastDownload: string | null;
   downloadProgress: DownloadProgress | null;
+  /** Progreso de la subida en curso (null si no hay ninguna). */
+  uploadProgress: UploadProgress | null;
+  /** Tamaño (bytes) del último archivo de respaldo enviado a Drive. */
+  lastUploadBytes: number | null;
+  /** Momento + tamaño del último respaldo confirmado en Drive (lo fija el refresco de la lista). */
+  lastUploadFile: { when: string | null; bytes: number | null; name: string | null } | null;
 }
 
 type SyncListener = (state: SyncState) => void;
@@ -64,6 +77,9 @@ class SyncManager {
     lastUpload: localStorage.getItem('drive_last_upload'),
     lastDownload: localStorage.getItem('drive_last_download'),
     downloadProgress: null,
+    uploadProgress: null,
+    lastUploadBytes: parseInt(localStorage.getItem('drive_last_upload_bytes') || '', 10) || null,
+    lastUploadFile: null,
   };
   private listeners: SyncListener[] = [];
 
@@ -81,6 +97,7 @@ class SyncManager {
     if (newState.lastSyncDetails) localStorage.setItem('drive_last_sync_details', newState.lastSyncDetails);
     if (newState.lastUpload) localStorage.setItem('drive_last_upload', newState.lastUpload);
     if (newState.lastDownload) localStorage.setItem('drive_last_download', newState.lastDownload);
+    if (newState.lastUploadBytes) localStorage.setItem('drive_last_upload_bytes', String(newState.lastUploadBytes));
     this.listeners.forEach(l => l(this.state));
   }
 
@@ -419,16 +436,25 @@ async function downloadAndRestore(token: string, fileId: string): Promise<void> 
   }
 }
 
+/** Tamaño real (bytes) del .db a partir de su base64 (4 chars base64 = 3 bytes). */
+function bytesFromBase64(b64: string): number {
+  const clean = b64.replace(/[^A-Za-z0-9+/=]/g, '');
+  const padding = (clean.match(/=+$/) || [''])[0].length;
+  return Math.max(0, Math.floor((clean.length * 3) / 4) - padding);
+}
+
 /**
  * Sube la base (base64) a Drive. Con `fileId` actualiza el archivo existente
  * (PATCH, no crea otro); sin él crea uno nuevo (POST) en `folderId`.
+ * `onProgress` reporta bytes REALES del .db (el body va en base64).
  */
 async function uploadDbFile(
   token: string,
   dbBase64: string,
   fileName: string,
   folderId: string | null,
-  fileId: string | null
+  fileId: string | null,
+  onProgress?: (p: UploadProgress) => void
 ): Promise<{ status: number }> {
   const metadata: any = {
     name: fileName,
@@ -455,6 +481,15 @@ async function uploadDbFile(
     x.open(fileId ? 'PATCH' : 'POST', url);
     x.setRequestHeader('Authorization', `Bearer ${token}`);
     x.setRequestHeader('Content-Type', `multipart/related; boundary=${boundary}`);
+    if (onProgress) {
+      const dbBytes = bytesFromBase64(dbBase64);
+      x.upload.onprogress = (e: ProgressEvent) => {
+        // e.loaded/e.total son bytes del BODY (base64 + cabeceras): escala a bytes del .db
+        const ratio = e.total > 0 ? e.loaded / e.total : 0;
+        const loaded = Math.min(dbBytes, Math.round(dbBytes * ratio));
+        onProgress({ loaded, total: dbBytes, pct: Math.min(100, Math.round(ratio * 100)) });
+      };
+    }
     x.onload = () => resolve({ status: x.status });
     x.onerror = () => reject(new Error('Network error'));
     x.send(multipartBody);
@@ -479,22 +514,26 @@ async function pushLatestBackup(): Promise<{ ok: boolean; reason?: string; creat
   const fileName = latestFileName();
   const existente = await findSyncFileByName(token, fileName);
   const localBackupPath = await invoke<string>('gd_create_backup');
+  let dbBytes = 0;
   try {
     const dbBase64 = await invoke<string>('gd_read_file_base64', { path: localBackupPath });
+    dbBytes = bytesFromBase64(dbBase64);
     const folderId = await ensureBackupFolder(token);
-    let res = await uploadDbFile(token, dbBase64, fileName, folderId, existente?.id ?? null);
+    const onProgress = (p: UploadProgress) => syncManager.setState({ uploadProgress: p });
+    let res = await uploadDbFile(token, dbBase64, fileName, folderId, existente?.id ?? null, onProgress);
     if ((res.status === 404 || res.status === 410) && existente?.id) {
       // El archivo se borró desde Drive: se recrea.
-      res = await uploadDbFile(token, dbBase64, fileName, folderId, null);
+      res = await uploadDbFile(token, dbBase64, fileName, folderId, null, onProgress);
     }
     if (res.status < 200 || res.status >= 300) {
       throw new Error(`HTTP ${res.status} al actualizar el respaldo en Drive`);
     }
   } finally {
+    syncManager.setState({ uploadProgress: null });
     try { await invoke('gd_delete_backup', { path: localBackupPath }); } catch (_) {}
   }
   await deleteOldSyncVersions(token);
-  syncManager.setState({ lastUpload: now() });
+  syncManager.setState({ lastUpload: now(), lastUploadBytes: dbBytes || null });
   markAllClean();
   return { ok: true, created: !existente };
 }
@@ -507,6 +546,21 @@ export const driveSyncService = {
   hasLocalChanges,
   pushLatestBackup,
   latestFileName,
+
+  /**
+   * Registra el último respaldo **confirmado en la nube** (tras listar los
+   * archivos). El botón "Refrescar" lo usa para que la card de Drive y el chip
+   * del sidebar muestren el momento y el tamaño reales, no el estado local.
+   */
+  setLastUploadFromDrive: (file: DriveFile | null): void => {
+    if (!file) return;
+    const when = file.modifiedTime || file.createdTime || null;
+    syncManager.setState({
+      lastUpload: when,
+      lastUploadBytes: file.size || null,
+      lastUploadFile: { when, bytes: file.size || null, name: file.name },
+    });
+  },
 
   /** Info del respaldo más reciente en Drive para esta cuenta (o null si no hay).
    *  Se mide por modifiedTime: el archivo "_latest" se actualiza en cada guardado
@@ -574,10 +628,12 @@ export const driveSyncService = {
     await syncManager.wrapSync((async () => {
       const localBackupPath = await invoke<string>('gd_create_backup');
       const dbBase64 = await invoke<string>('gd_read_file_base64', { path: localBackupPath });
+      const dbBytes = bytesFromBase64(dbBase64);
       let folderId = await ensureBackupFolder(token);
       const fileName = timestampFileName();
+      const onProgress = (p: UploadProgress) => syncManager.setState({ uploadProgress: p });
       const send = async (fid: string | null) => {
-        const res = await uploadDbFile(token, dbBase64, fileName, fid, null);
+        const res = await uploadDbFile(token, dbBase64, fileName, fid, null, onProgress);
         return { xhr: res, fileName };
       };
       let ok = false;
@@ -593,14 +649,14 @@ export const driveSyncService = {
         }
         try { await invoke('gd_delete_backup', { path: localBackupPath }); } catch (_) {}
         await deleteOldSyncVersions(token);
-        syncManager.setState({ lastUpload: now() });
+        syncManager.setState({ lastUpload: now(), lastUploadBytes: dbBytes || null });
         markAllClean();
         ok = true;
       }
       if (!ok) {
         throw new Error('La carpeta de respaldo desapareció; reintenta para recrearla');
       }
-    })(), 'subir a Google Drive');
+    })(), 'subir a Google Drive').finally(() => syncManager.setState({ uploadProgress: null }));
   },
 
   pushAllSilent: async (force: boolean = false): Promise<void> => {

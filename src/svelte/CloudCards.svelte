@@ -25,17 +25,30 @@
   interface CloudDriveState {
     lastUpload: string | null;
     lastDownload: string | null;
+    uploadProgress: { loaded: number; total: number; pct: number } | null;
+    lastUploadBytes: number | null;
   }
 
   let d1 = $state<CloudD1State>(d1SyncManager.getState() as CloudD1State);
-  let drive = $state<CloudDriveState>({ lastUpload: null, lastDownload: null });
+  let drive = $state<CloudDriveState>({ lastUpload: null, lastDownload: null, uploadProgress: null, lastUploadBytes: null });
   let respaldando = $state(false);
   let justSubido = $state(false);
 
   /** Relee el estado del singleton (refuerzo si la suscripción no notificó). */
   function refrescarEstadoDrive() {
     const s = syncManager.getState();
-    drive = { lastUpload: s.lastUpload ?? null, lastDownload: s.lastDownload ?? null };
+    drive = {
+      lastUpload: s.lastUpload ?? null,
+      lastDownload: s.lastDownload ?? null,
+      uploadProgress: s.uploadProgress ?? null,
+      lastUploadBytes: s.lastUploadBytes ?? null,
+    };
+  }
+
+  function fmtBytes(n: number): string {
+    if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+    if (n >= 1024) return (n / 1024).toFixed(0) + ' KB';
+    return n + ' B';
   }
 
   /** Respaldo manual a Drive. Si Drive no está vinculado, lleva a la pestaña Nube. */
@@ -53,7 +66,8 @@
       refrescarEstadoDrive();
       justSubido = true;
       setTimeout(() => { justSubido = false; }, 2500);
-      await emit("show-toast", { message: "✅ Respaldo subido a Google Drive", type: "success" });
+      const mb = drive.lastUploadBytes ? ` · ${fmtBytes(drive.lastUploadBytes)}` : '';
+      await emit("show-toast", { message: `✅ Respaldo subido a Google Drive${mb}`, type: "success" });
     } catch (e) {
       console.error('Respaldo manual a Drive falló:', e);
       refrescarEstadoDrive();
@@ -92,7 +106,14 @@
 
   onMount(() => {
     unsubD1 = d1SyncManager.subscribe((s) => { d1 = s as CloudD1State; });
-    unsubDrive = syncManager.subscribe((s) => { drive = { lastUpload: s.lastUpload ?? null, lastDownload: s.lastDownload ?? null }; });
+    unsubDrive = syncManager.subscribe((s) => {
+      drive = {
+        lastUpload: s.lastUpload ?? null,
+        lastDownload: s.lastDownload ?? null,
+        uploadProgress: s.uploadProgress ?? null,
+        lastUploadBytes: s.lastUploadBytes ?? null,
+      };
+    });
   });
 
   onDestroy(() => {
@@ -170,22 +191,36 @@
   {/if}
 
   <div
-    class="cloud-card drive-card {respaldando ? 'respaldando' : ''} {justSubido ? 'flash' : ''}"
+    class="cloud-card drive-card {respaldando || drive.uploadProgress ? 'respaldando' : ''} {justSubido ? 'flash' : ''}"
     onclick={respaldoManualDrive}
     onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); respaldoManualDrive(); } }}
     role="button"
     tabindex="0"
-    title={driveCardTitle()}
+    title={drive.uploadProgress
+      ? `Subiendo a Drive: ${fmtBytes(drive.uploadProgress.loaded)} / ${fmtBytes(drive.uploadProgress.total)} (${drive.uploadProgress.pct}%)`
+      : (drive.lastUploadBytes ? `Último respaldo: ${fmtBytes(drive.lastUploadBytes)} · ` : '') + driveCardTitle()}
   >
     <div class="cloud-head">
       <span class="cloud-dot drive" class:active={!!drive.lastUpload}></span>
       <span class="cloud-title">{respaldando ? 'Subiendo…' : (compact || ocultarD1 ? 'Drive' : 'Respaldo Drive')}</span>
-      {#if respaldando}
+      {#if drive.uploadProgress}
+        <span class="cloud-time-inline" style="color:#7dd3fc;">{drive.uploadProgress.pct}%</span>
+        <span class="mini-spinner"></span>
+      {:else if respaldando}
         <span class="mini-spinner"></span>
       {:else}
-        <span class="cloud-time-inline">{drive.lastUpload ? fmtTime(drive.lastUpload) : ''}</span>
+        <span class="cloud-time-inline">
+          {drive.lastUpload ? fmtTime(drive.lastUpload) : ''}
+          {#if drive.lastUploadBytes}<span style="opacity:0.75;">· {fmtBytes(drive.lastUploadBytes)}</span>{/if}
+        </span>
       {/if}
     </div>
+    {#if drive.uploadProgress}
+      <div class="drive-progress" title="{fmtBytes(drive.uploadProgress.loaded)} de {fmtBytes(drive.uploadProgress.total)}">
+        <div class="drive-progress-bar" style="width: {drive.uploadProgress.pct}%;"></div>
+      </div>
+      <div class="drive-progress-label">{fmtBytes(drive.uploadProgress.loaded)} / {fmtBytes(drive.uploadProgress.total)} → Drive</div>
+    {/if}
   </div>
 </div>
 
@@ -487,5 +522,29 @@
     .cloud-widget.compact .cloud-time-inline {
       font-size: 0.44rem;
     }
+  }
+
+  /* ── Progreso de subida a Drive (chip del sidebar) ── */
+  .drive-progress {
+    margin-top: 0.4rem;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.07);
+    overflow: hidden;
+  }
+  .drive-progress-bar {
+    height: 100%;
+    border-radius: 2px;
+    background: linear-gradient(90deg, #38bdf8, #818cf8);
+    transition: width 0.2s ease;
+  }
+  .drive-progress-label {
+    margin-top: 0.2rem;
+    font-size: 0.55rem;
+    color: #7dd3fc;
+    white-space: nowrap;
+  }
+  .cloud-widget.compact .drive-progress-label {
+    font-size: 0.45rem;
   }
 </style>
