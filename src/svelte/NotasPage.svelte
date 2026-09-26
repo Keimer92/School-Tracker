@@ -274,6 +274,10 @@
   let totalColumns = $derived(allCriterios.length);
   let studentIndexMap = $derived(new Map(estudiantes.map((e, i) => [e.id, i])));
   let activeIndicadores = $derived(indicadores.filter(i => i.activo));
+  /** Máximo real de puntos = suma de los criterios de los indicadores ACTIVOS (8 indicadores = 160, no 100). */
+  let maxPuntosTotales = $derived(
+    activeIndicadores.reduce((s, i) => s + i.criterios.reduce((a, c) => a + (c.puntajeMaximo || 0), 0), 0)
+  );
 
   let filteredNotas = $derived.by(() => {
     if (!searchTerm) return notas;
@@ -1610,13 +1614,14 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                   <div style="color: #94a3b8; font-weight: bold; font-size: 0.85rem;">Nota Final</div>
                   <div style="display: flex; align-items: center; gap: 0.4rem;">
                     {#if !isQualitative}
-                      <span style="font-size: 0.9rem; color: #e2e8f0;">{(() => {
+                      <span title="Escala 0-100" style="font-size: 0.9rem; color: #e2e8f0;">{(() => {
                         const rawFinal = activeIndicadores.reduce((sum, ind) => sum + ind.criterios.reduce((s, c) => {
                           const qv = notasCualitativas[`${est.estudianteId}-${c.id}`];
                           if (qv && ['AA','AS','AF','AI'].includes(qv)) return s + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
                           return s;
                         }, 0), 0);
-                        return Math.round(rawFinal);
+                        const maxTotal = activeIndicadores.reduce((sum, i) => sum + i.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0), 0);
+                        return maxTotal > 0 ? Math.round((rawFinal / maxTotal) * 100) : 0;
                       })()}</span>
                     {/if}
                     <div style="color: {(() => {
@@ -1777,9 +1782,12 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           <h3 style="margin: 0; font-size: 1.2rem; display: flex; align-items: center; gap: 0.5rem;">
             📝 Estudiantes <span style="opacity: 0.7; font-size: 0.8em;">({filteredNotas.length})</span>
           </h3>
-          <div style="font-size: 0.9rem; color: #94a3b8; display: flex; align-items: center; gap: 0.2rem;">
+          <div style="font-size: 0.9rem; color: #94a3b8; display: flex; align-items: center; gap: 0.35rem;">
             <span>Indicadores Activos:</span>
-            <span style="font-weight: bold; color: #fff;">{activeIndicadores.length}/5</span>
+            <span style="font-weight: bold; color: {activeIndicadores.length > 5 ? '#fbbf24' : '#fff'};">{activeIndicadores.length}/5</span>
+            {#if maxPuntosTotales !== 100}
+              <span title="Con {activeIndicadores.length} indicadores el máximo real es {maxPuntosTotales} pts. La columna Final se muestra en escala 0-100." style="font-size: 0.7rem; color: #fbbf24;">· máx real {maxPuntosTotales} pts</span>
+            {/if}
           </div>
         </div>
 
@@ -1796,7 +1804,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                     </div>
                   </th>
                 {/each}
-                <th style="padding: 0.3rem; text-align: center; font-weight: bold; color: #4ade80; background: #1e293b; border-bottom: 2px solid rgba(34, 197, 94, 0.4); position: sticky; right: 0; z-index: 110; width: 60px;">
+                <th title="Escala 0-100 (igual que el modal de distribución). Pasa el cursor sobre la nota para ver los puntos crudos." style="padding: 0.3rem; text-align: center; font-weight: bold; color: #4ade80; background: #1e293b; border-bottom: 2px solid rgba(34, 197, 94, 0.4); position: sticky; right: 0; z-index: 110; width: 60px;">
                   <div style="font-weight: bold; font-size: 0.7rem;">Final</div>
                   <div style="font-size: 0.55rem; color: #94a3b8;">{isQualitative ? 'Cual.' : '100'}</div>
                 </th>
@@ -1920,8 +1928,8 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                       {@const gradeConfig = getGradeFromScore(totalEscaladoFinal)}
                       {@const qualitativeFinal = isQualitative ? calcularNotaCualitativaFinal(activeIndicadores.map(i => calcularNotaCualitativaFinal(i.criterios.map(c => notasCualitativas[`${est.estudianteId}-${c.id}`] || '')))) : (gradeConfig?.id || 'AI')}
                       {@const displayColor = qualitativeFinal ? getGradeColor(qualitativeFinal) : '#94a3b8'}
-                      <div style="color: {displayColor}; font-size: 0.8rem; font-weight: bold; padding: 0.15rem 0.3rem; border-radius: 4px; display: inline-block;">
-                        {isQualitative ? qualitativeFinal : `${totalFinal}${qualitativeFinal ? ` (${qualitativeFinal})` : ''}`}
+                      <div title="{totalFinal} de {maximoTotal} pts" style="color: {displayColor}; font-size: 0.8rem; font-weight: bold; padding: 0.15rem 0.3rem; border-radius: 4px; display: inline-block;">
+                        {isQualitative ? qualitativeFinal : `${Math.round(totalEscaladoFinal)}${qualitativeFinal ? ` (${qualitativeFinal})` : ''}`}
                       </div>
                     {/each}
                   </td>
