@@ -2923,3 +2923,15 @@ input:checked + .slider:before {
   .tabla-distribuir .btn-grade { width: 26px !important; font-size: 0.58rem !important; border-width: 1px !important; }
   .tabla-distribuir .input-total { width: 46px !important; font-size: 0.66rem !important; }
 }
+
+@media (max-width: 480px) {
+  .tabla-distribuir { font-size: 0.6rem; }
+  .tabla-distribuir th,
+  .tabla-distribuir td { padding: 0.15rem 0.08rem !important; }
+  .tabla-distribuir .col-idx { width: 22px !important; }
+  .tabla-distribuir .col-num { font-size: 0.58rem; }
+  .tabla-distribuir th:nth-child(2),
+  .tabla-distribuir td:nth-child(2) { min-width: 0 !important; max-width: 104px; overflow: hidden; text-overflow: ellipsis; }
+  .tabla-distribuir .btn-grade { width: 24px !important; font-size: 0.54rem !important; }
+  .tabla-distribuir .input-total { width: 42px !important; font-size: 0.62rem !important; }
+}

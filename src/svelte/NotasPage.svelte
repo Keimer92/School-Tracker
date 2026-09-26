@@ -89,6 +89,14 @@
 
   let corteActualNombre = $derived(cortes.find(c => c.id === selectedCorte)?.nombre || 'Corte actual');
 
+  /** Chips de contexto del header del modal: colegio, grado, sección y asignatura (con el color de acento de cada categoría). */
+  let contextoChips = $derived([
+    { icon: '🏫', color: '#34d399', titulo: 'Colegio', label: colegios.find(c => c.id === selectedColegio)?.nombre || '' },
+    { icon: '📊', color: '#fb923c', titulo: 'Grado', label: grados.find(g => g.id === selectedGrado)?.nombre || '' },
+    { icon: '👥', color: '#a78bfa', titulo: 'Sección', label: secciones.find(s => s.id === selectedSeccion)?.nombre || '' },
+    { icon: '📚', color: '#60a5fa', titulo: 'Asignatura', label: asignaturas.find(a => a.id === selectedAsignatura)?.nombre || '' },
+  ]);
+
   /**
    * Carga la nota final (%) de cada estudiante en los cortes anteriores al actual.
    * Usa `get_pcts_por_corte`, que es SOLO LECTURA: no siembra indicadores ni
@@ -1958,12 +1966,23 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
     {#if showDistribuirModal}
       <div class="distribuir-wrap" style="position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; padding: 1rem;">
         <div onclick={() => showDistribuirModal = false} style="position: absolute; inset: 0; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(4px);"></div>
-        <div class="distribuir-modal" style="position: relative; background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98)); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 20px; padding: 1.25rem; width: min(1240px, 97vw); max-width: 97vw; max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.6);">
-          <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+        <div class="distribuir-modal" style="position: relative; background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98)); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: 20px; padding: 1.25rem; width: auto; max-width: min(1240px, 97vw); max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.6);">
+          <div style="display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 0.5rem;">
             <div style="width: 44px; height: 44px; border-radius: 14px; background: rgba(139, 92, 246, 0.12); border: 1px solid rgba(139, 92, 246, 0.2); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0;">✨</div>
-            <div>
+            <div style="min-width: 0;">
               <h3 style="margin: 0; color: #f1f5f9; font-size: 1.15rem; font-weight: 700;">Distribuir notas automáticamente</h3>
                <p style="margin: 0.2rem 0 0; color: #94a3b8; font-size: 0.75rem;">{isQualitative ? `C1, C2${distribuirC3 ? ' y C3' : ''} = nota objetivo${distribuirC3 ? '' : ', C3 = AA'}. Solo AA, AS, AF disponibles.` : `Ingrese el porcentaje total deseado (0-100). C1, C2${distribuirC3 ? ' y C3' : ''} se calculan automáticamente.`}</p>
+              {#if contextoChips.some(c => c.label)}
+                <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.4rem;">
+                  {#each contextoChips as chip (chip.icon)}
+                    {#if chip.label}
+                      <span title="{chip.titulo}: {chip.label}" style="display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.18rem 0.5rem; border-radius: 999px; background: {chip.color}14; border: 1px solid {chip.color}33; font-size: 0.7rem; color: #e2e8f0; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis;">
+                        <span style="font-size: 0.75rem;">{chip.icon}</span>{chip.label}
+                      </span>
+                    {/if}
+                  {/each}
+                </div>
+              {/if}
             </div>
           </div>
           <!-- Opciones: toggles (switch global de App.css) con su texto de estado -->
@@ -2006,11 +2025,11 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             {/if}
           </div>
           <div style="overflow: auto; flex: 1; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px;">
-            <table class="tabla-distribuir" style="width: 100%; border-collapse: collapse; font-size: 0.78rem;">
+            <table class="tabla-distribuir" style="width: auto; max-width: 100%; margin: 0 auto; border-collapse: collapse; font-size: 0.78rem;">
               <thead>
                 <tr style="position: sticky; top: 0; z-index: 1;">
                   <th class="col-idx" style="width: 30px; text-align: left; padding: 0.4rem 0.5rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">#</th>
-                  <th style="width: 100%; min-width: 150px; text-align: left; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Estudiante</th>
+                  <th style="min-width: 150px; text-align: left; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Estudiante</th>
                   {#if mostrarComparacion}
                     {#each cortesPrecios as corte (corte.id)}
                       <th class="col-num" title={corte.nombre} style="text-align: center; padding: 0.3rem 0.3rem; background: rgba(15, 23, 42, 0.95); border-bottom: 1px solid rgba(167,139,250,0.15);">
@@ -2034,7 +2053,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                 {#each filteredNotas as est, idx}
                   <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
                     <td class="col-idx" style="padding: 0.3rem 0.5rem; color: #64748b; text-align: left;">{idx + 1}</td>
-                    <td title={est.estudianteNombre} style="padding: 0.3rem 0.6rem; color: #e2e8f0; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{est.estudianteNombre}</td>
+                    <td title={est.estudianteNombre} style="padding: 0.3rem 0.6rem; color: #e2e8f0; font-weight: 500; white-space: nowrap;">{est.estudianteNombre}</td>
                     {#if mostrarComparacion}
                       {#each cortesPrecios as corte (corte.id)}
                         {@const pctPrevCorte = comparacionCortes[corte.id]?.[est.estudianteId] ?? null}
