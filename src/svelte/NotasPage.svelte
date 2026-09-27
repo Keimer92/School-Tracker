@@ -436,7 +436,13 @@
     if (!ok) return;
     procesandoAccion = true;
     try {
-      const borradas = await invoke<number>('reset_indicadores_seccion', { seccionId: selectedSeccion });
+      const borradas = await invoke<number>('reset_indicadores_seccion', {
+        seccionId: selectedSeccion,
+        gradoId: selectedGrado,
+        asignaturaId: selectedAsignatura,
+        corteEvaluativoId: selectedCorte
+      });
+
       await cargarActivosDeSeccion(selectedSeccion);
       await emit("show-toast", { message: `↩ ${borradas} excepción(es) borrada(s). La sección usa los valores globales.`, type: 'success' });
       emit("indicadores-updated");
@@ -621,7 +627,12 @@
   async function cargarActivosDeSeccion(seccionId: number) {
     if (seccionId <= 0) { idsActivosSeccion = null; return; }
     try {
-      const ids = await invoke<number[]>('get_indicadores_activos_seccion', { seccionId });
+      const ids = await invoke<number[]>('get_indicadores_activos_seccion', {
+        seccionId,
+        gradoId: selectedGrado,
+        asignaturaId: selectedAsignatura,
+        corteEvaluativoId: selectedCorte
+      });
       idsActivosSeccion = ids;
     } catch (e) {
       console.error('[Notas] No se pudieron cargar los activos de la sección:', e);

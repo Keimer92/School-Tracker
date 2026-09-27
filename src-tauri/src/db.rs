@@ -3827,13 +3827,20 @@ pub async fn delete_criterio(
 /// tabla `indicador_seccion_activo`: si la seccion tiene fila para un indicador,
 /// manda esa; si no, manda el global. Asi una seccion puede activar/desactivar
 /// sin tocar la configuracion global que ven los demas.
+///
+/// Se filtra por grado/asignatura/corte porque las excepciones son de una sola
+/// combinacion a la vez (igual que la tabla `indicador`).
 #[tauri::command]
+#[allow(non_snake_case)]
 pub async fn get_indicadores_activos_seccion(
     state: tauri::State<'_, DbState>,
     seccionId: i64,
+    gradoId: i64,
+    asignaturaId: i64,
+    corteEvaluativoId: i64,
 ) -> Result<Vec<i64>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    if seccionId <= 0 {
+    if seccionId <= 0 || gradoId <= 0 || asignaturaId <= 0 || corteEvaluativoId <= 0 {
         return Ok(Vec::new());
     }
     let mut stmt = conn
@@ -3842,12 +3849,16 @@ pub async fn get_indicadores_activos_seccion(
              FROM indicador i
              LEFT JOIN indicador_seccion_activo s
                     ON s.indicador_id = i.id AND s.seccion_id = ?1
-             WHERE COALESCE(s.activo, i.activo) = 1
+             WHERE i.grado_id = ?2 AND i.asignatura_id = ?3 AND i.corte_evaluativo_id = ?4
+               AND COALESCE(s.activo, i.activo) = 1
              ORDER BY i.orden",
         )
         .map_err(|e| e.to_string())?;
     let ids = stmt
-        .query_map([seccionId], |row| row.get::<_, i64>(0))
+        .query_map(
+            rusqlite::params![seccionId, gradoId, asignaturaId, corteEvaluativoId],
+            |row| row.get::<_, i64>(0),
+        )
         .map_err(|e| e.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
@@ -3885,18 +3896,31 @@ pub async fn set_indicador_seccion_activo(
 }
 
 /// Deja la seccion otra vez con los valores globales (borra sus excepciones).
+/// Solo borra las de la combinacion grado/asignatura/corte indicada: las
+/// excepciones de otros grados de la misma seccion se respetan.
 #[tauri::command]
 #[allow(non_snake_case)]
 pub async fn reset_indicadores_seccion(
     state: tauri::State<'_, DbState>,
     seccionId: i64,
+    gradoId: i64,
+    asignaturaId: i64,
+    corteEvaluativoId: i64,
 ) -> Result<usize, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    if seccionId <= 0 {
+    if seccionId <= 0 || gradoId <= 0 || asignaturaId <= 0 || corteEvaluativoId <= 0 {
         return Ok(0);
     }
     let n = conn
-        .execute("DELETE FROM indicador_seccion_activo WHERE seccion_id = ?", [seccionId])
+        .execute(
+            "DELETE FROM indicador_seccion_activo
+             WHERE seccion_id = ?1
+               AND indicador_id IN (
+                   SELECT id FROM indicador
+                   WHERE grado_id = ?2 AND asignatura_id = ?3 AND corte_evaluativo_id = ?4
+               )",
+            rusqlite::params![seccionId, gradoId, asignaturaId, corteEvaluativoId],
+        )
         .map_err(|e| e.to_string())?;
     Ok(n)
 }
