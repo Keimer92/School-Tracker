@@ -951,7 +951,11 @@
         } else if (!qualValue) {
           // Celda vacia: si tenia algo guardado, la fila se borra de verdad. Antes
           // el upsert la dejaba intacta y la nota reaparecia al recargar.
-          if (savedBaseline[key] || notaEst.notas[crit.id] !== undefined) borrados.push(crit.id);
+          if (savedBaseline[key] || notaEst.notas[crit.id] !== undefined) {
+            borrados.push(crit.id);
+            // Si se enviara en `notas`, el upsert volveria a insertarla.
+            delete updatedNotas[crit.id];
+          }
         }
       }); });
       return { ...notaEst, notas: updatedNotas, borrados };
@@ -978,8 +982,10 @@
     try {
       const notasParaGuardar = notasActualizadas.map(notaEst => ({
         estudianteId: notaEst.estudianteId,
-        notas: Object.entries(notaEst.notas).map(([criterioId, valor]) => ({ criterioId: parseInt(criterioId), valor }))
+        notas: Object.entries(notaEst.notas).map(([criterioId, valor]) => ({ criterioId: parseInt(criterioId), valor })),
+        borrados: notaEst.borrados
       }));
+      const totalBorrados = notasActualizadas.reduce((a, n) => a + n.borrados.length, 0);
       await invoke("save_notas_estudiantes", { notas: notasParaGuardar, corteId: saveCorteId, asignaturaId: saveAsignaturaId });
       savedBaseline = { ...notasCualitativas };
       history = [];
@@ -987,8 +993,14 @@
       hasUnsavedRef = false;
       if (pendingRefreshOnSave) { pendingRefreshOnSave = false; nextRefreshSilent = true; refreshTrigger++; }
       saving = false;
-      await emit("show-toast", { message: "✅ Notas guardadas localmente", type: "success" });
+      await emit("show-toast", {
+        message: totalBorrados > 0
+          ? `✅ Notas guardadas · ${totalBorrados} nota(s) borrada(s)`
+          : `✅ Notas guardadas localmente`,
+        type: 'success'
+      });
       onDataChange('nota', { immediate: true });
+
       setTimeout(() => fetchEstudiantes(undefined, true), 200);
     } catch (error) {
       console.error("Error saving notes:", error);
