@@ -278,6 +278,8 @@
     tipo: PopoverTipo;
     indicadorId: number;
     criterioId: number;
+    /** 'menu' = opciones del indicador; 'elegir' = selector de a quién desplazar. */
+    modo: 'menu' | 'elegir';
     x: number;
     y: number;
     ancho: number;
@@ -301,7 +303,7 @@
     }
     popoverTriggerEl = el;
     popover = {
-      tipo, indicadorId: indId, criterioId: critId,
+      tipo, indicadorId: indId, criterioId: critId, modo: 'menu',
       x: r ? Math.round(r.left) : 0,
       y: r ? Math.round(r.bottom + 4) : 0,
       ancho: r ? Math.round(r.width) : 80
@@ -349,9 +351,31 @@
     return ind ? (ind.criterios.find(c => c.id === popover!.criterioId) || null) : null;
   }
 
-  /** Marcar el indicador como activo/inactivo (no destructivo, igual pide confirmación). */
+  /**
+   * Máximo de indicadores que pueden estar ACTIVOS a la vez. Al superarlo se
+   * pide elegir a cuál desactivar (intercambio), nunca se borra nada.
+   */
+  const MAX_INDICADORES_ACTIVOS = 5;
+
+  /** Estudiantes con al menos una nota en los criterios de este indicador. */
+  function estudiantesConNota(ind: Indicador): number {
+    return notas.filter(n => ind.criterios.some(c => notasCualitativas[`${n.estudianteId}-${c.id}`])).length;
+  }
+
+  /** Marcar el indicador como activo/inactivo (no destructivo, siempre pide confirmación). */
   async function alternarActivoIndicador(ind: Indicador) {
-    const nuevoEstado = !ind.activo;
+    if (!ind.activo && activeIndicadores.length >= MAX_INDICADORES_ACTIVOS) {
+      // Ya está el cupo: en vez de activar y pasarse del límite, se pregunta
+      // qué indicador activo se desactiva a cambio. El popover se transforma
+      // en el selector en el mismo sitio.
+      if (popover) popover = { ...popover, modo: 'elegir' };
+      return;
+    }
+    aplicarActivo(ind, !ind.activo);
+  }
+
+  /** Ejecuta el cambio de estado (con confirmación) o el intercambio completo. */
+  async function aplicarActivo(ind: Indicador, nuevoEstado: boolean) {
     cerrarPopover();
     const ok = await ask(
       nuevoEstado
@@ -368,6 +392,39 @@
       emit("indicadores-updated");
     } catch (e) {
       await emit("show-toast", { message: "❌ Error: " + e, type: "error" });
+    } finally { procesandoAccion = false; }
+  }
+
+  /**
+   * Intercambio: activa el indicador elegido y desactiva otro que ya estaba
+   * activo. NUNCA se borra nada — el indicador que sale conserva sus notas y
+   * sus criterios, solo deja de sumar al total.
+   */
+  async function intercambiarActivo(nuevo: Indicador, saliente: Indicador) {
+    cerrarPopover();
+    const conNotaSaliente = estudiantesConNota(saliente);
+    const ok = await ask(
+      `Intercambio de indicadores:\n\n` +
+      `✔ Activar: Indicador ${nuevo.orden} "${nuevo.descripcion || ''}"\n` +
+      `👁 Desactivar: Indicador ${saliente.orden} "${saliente.descripcion || ''}"${conNotaSaliente > 0 ? ` (conserva sus ${conNotaSaliente} nota(s))` : ''}\n\n` +
+      `El indicador desactivado NO se borra: sigue con sus notas y criterios,\n` +
+      `solo deja de sumar al total. Puedes volver a activarlo cuando quieras.`,
+      { title: '🔄 Intercambiar indicadores', kind: 'info', okLabel: 'Hacer cambio', cancelLabel: 'Cancelar' }
+    );
+    if (!ok) return;
+    procesandoAccion = true;
+    try {
+      await invoke('update_indicador', { id: saliente.id, descripcion: saliente.descripcion, activo: false, instrumento: saliente.instrumento });
+      await invoke('update_indicador', { id: nuevo.id, descripcion: nuevo.descripcion, activo: true, instrumento: nuevo.instrumento });
+      indicadores = indicadores.map(i => {
+        if (i.id === saliente.id) return { ...i, activo: false };
+        if (i.id === nuevo.id) return { ...i, activo: true };
+        return i;
+      });
+      await emit("show-toast", { message: `🔄 Indicador ${nuevo.orden} activo · ${saliente.orden} desactivado (conserva sus notas)`, type: 'success' });
+      emit("indicadores-updated");
+    } catch (e) {
+      await emit("show-toast", { message: "❌ Error en el intercambio: " + e, type: "error" });
     } finally { procesandoAccion = false; }
   }
 
@@ -2064,7 +2121,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           </h3>
           <div style="font-size: 0.9rem; color: #94a3b8; display: flex; align-items: center; gap: 0.35rem;">
             <span>Indicadores Activos:</span>
-            <span style="font-weight: bold; color: {activeIndicadores.length > 5 ? '#fbbf24' : '#fff'};">{activeIndicadores.length}/5</span>
+            <span style="font-weight: bold; color: {activeIndicadores.length > MAX_INDICADORES_ACTIVOS ? '#fbbf24' : '#fff'};">{activeIndicadores.length}/{MAX_INDICADORES_ACTIVOS}</span>
             {#if indicadores.length > activeIndicadores.length}
               <span title="Los indicadores inactivos también se muestran y se pueden calificar, pero sus notas NO suman al total de 100 pts ni los toca el modal de distribución." style="font-size: 0.7rem; color: #64748b;">· {indicadores.length - activeIndicadores.length} inactivos (no suman)</span>
             {/if}
@@ -2276,7 +2333,34 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
         bind:this={popoverPanelEl}
         role="dialog" aria-label="Opciones"
         style="position: fixed; z-index: 99995; left: {Math.max(8, Math.min(popover.x, (typeof window !== 'undefined' ? window.innerWidth : 1920) - Math.max(228, popover.ancho + 12)))}px; top: {popover.y}px; min-width: 220px; max-width: 280px; background: rgba(20,24,31,0.97); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; box-shadow: 0 18px 40px -10px rgba(0,0,0,0.65); padding: 0.45rem; box-sizing: border-box;">
-        {#if popover.tipo === 'indicador' && indPop}
+        {#if popover.tipo === 'indicador' && indPop && popover.modo === 'elegir'}
+          <div style="padding: 0.35rem 0.5rem 0.45rem; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 0.3rem;">
+            <div style="font-size: 0.78rem; font-weight: 700; color: #f1f5f9;">Ya hay {MAX_INDICADORES_ACTIVOS} indicadores activos</div>
+            <div style="font-size: 0.66rem; color: #64748b; line-height: 1.35;">Para activar el Indicador {indPop.orden}, elige cuál se desactiva. <strong style="color:#94a3b8;">No se borra nada:</strong> el que salga conserva sus notas.</div>
+          </div>
+          <div style="max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;">
+            {#each activeIndicadores as cand (cand.id)}
+              {@const nConNota = estudiantesConNota(cand)}
+              <button
+                onclick={() => intercambiarActivo(indPop, cand)}
+                disabled={procesandoAccion}
+                title="Desactivar el Indicador {cand.orden} y activar el {indPop.orden}"
+                style="width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.45rem 0.5rem; border-radius: 9px; border: 1px solid rgba(251,191,36,0.28); background: rgba(251,191,36,0.07); color: #fde68a; font-size: 0.74rem; cursor: pointer; text-align: left; transition: all 0.15s ease;">
+                <span style="font-size: 0.85rem;">🔄</span>
+                <span style="flex: 1; min-width: 0;">
+                  <span style="display: block; font-weight: 700; font-size: 0.74rem;">Indicador {cand.orden}</span>
+                  <span style="display: block; font-size: 0.62rem; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{cand.descripcion || 'Sin descripción'}</span>
+                </span>
+                <span style="font-size: 0.6rem; padding: 0.1rem 0.3rem; border-radius: 5px; background: {nConNota > 0 ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.06)'}; color: {nConNota > 0 ? '#4ade80' : '#64748b'}; white-space: nowrap; flex-shrink: 0;" title={nConNota > 0 ? `Conserva ${nConNota} nota(s)` : 'Sin notas cargadas'}>
+                  {nConNota > 0 ? `${nConNota} nota(s)` : 'vacío'}
+                </span>
+              </button>
+            {/each}
+          </div>
+          <button
+            onclick={cerrarPopover}
+            style="width: 100%; margin-top: 0.35rem; padding: 0.4rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; font-size: 0.72rem; font-weight: 600; cursor: pointer;">Cancelar</button>
+        {:else if popover.tipo === 'indicador' && indPop}
           <div style="padding: 0.35rem 0.5rem 0.45rem; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 0.3rem;">
             <div style="font-size: 0.78rem; font-weight: 700; color: #f1f5f9;">Indicador {indPop.orden}</div>
             <div style="font-size: 0.66rem; color: #64748b;">{indPop.descripcion || 'Sin descripción'} · {indPop.criterios.length} criterio(s)</div>
@@ -2288,7 +2372,15 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             <span style="font-size: 0.9rem;">{indPop.activo ? '👁' : '✔'}</span>
             <span>{indPop.activo ? 'Marcar como inactivo' : 'Marcar como activo'}</span>
           </button>
-          <div style="font-size: 0.62rem; color: #64748b; padding: 0.2rem 0.55rem 0.35rem; line-height: 1.3;">Inactivo = sus notas no suman al total, pero conserva las notas.</div>
+          <div style="font-size: 0.62rem; color: #64748b; padding: 0.2rem 0.55rem 0.35rem; line-height: 1.3;">
+            {#if indPop.activo}
+              Inactivo = sus notas no suman al total, pero conserva las notas.
+            {:else if activeIndicadores.length >= MAX_INDICADORES_ACTIVOS}
+              Ya hay {MAX_INDICADORES_ACTIVOS} activos ({activeIndicadores.length}). Te pediré cuál desactivar para hacer el cambio.
+            {:else}
+              Sumará sus notas al total ({activeIndicadores.length} de {MAX_INDICADORES_ACTIVOS} activos).
+            {/if}
+          </div>
           <button
             onclick={() => vaciarNotasIndicador(indPop)}
             disabled={procesandoAccion}
