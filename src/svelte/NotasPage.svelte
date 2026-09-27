@@ -372,24 +372,33 @@
   }
 
   /**
-   * Vacía las notas de todos los criterios del indicador, dejándolas listas para
-   * volver a llenar. El indicador y sus criterios NO se borran nunca.
+   * Vacía las notas de todos los criterios del indicador **en el corte y
+   * asignatura actuales**, dejándolas listas para volver a llenar. El indicador
+   * y sus criterios NO se borran nunca, y los demás cortes no se tocan.
    */
   async function vaciarNotasIndicador(ind: Indicador) {
     cerrarPopover();
+    if (selectedCorte <= 0 || selectedAsignatura <= 0) {
+      await emit("show-toast", { message: "⚠️ Selecciona corte y asignatura antes de vaciar", type: 'warning' });
+      return;
+    }
+    const nombreCorte = cortes.find(c => c.id === selectedCorte)?.nombre || 'corte actual';
     const conNota = notas.filter(n => ind.criterios.some(c => notasCualitativas[`${n.estudianteId}-${c.id}`])).length;
     const ok = await ask(
       `Se borrarán las notas de los ${ind.criterios.length} criterio(s) del Indicador ${ind.orden} "${ind.descripcion || ''}".\n\n` +
+      `· Solo en "${nombreCorte}" (${asignaturas.find(a => a.id === selectedAsignatura)?.nombre || 'la asignatura actual'}).\n` +
       `· ${conNota} estudiante(s) de esta vista quedan con las celdas vacías.\n` +
-      `· También se borran las notas de ESTE indicador en los demás cortes evaluativos.\n\n` +
+      `· Los demás cortes evaluativos NO se modifican.\n\n` +
       `El indicador y sus criterios se conservan; solo se vacían las notas.\nEsta acción no se puede deshacer.`,
-      { title: '🧹 Vaciar notas del indicador', kind: 'warning', okLabel: 'Sí, vaciar', cancelLabel: 'Cancelar' }
+      { title: '🧹 Vaciar notas del indicador', kind: 'warning', okLabel: 'Sí, vaciar este corte', cancelLabel: 'Cancelar' }
     );
     if (!ok) return;
     procesandoAccion = true;
     try {
-      const borradas = await invoke<number>('vaciar_notas_indicador', { id: ind.id });
-      await emit("show-toast", { message: `🧹 Indicador ${ind.orden}: ${borradas} nota(s) vaciada(s)`, type: 'success' });
+      const corteId = selectedCorte;
+      const asignaturaId = selectedAsignatura;
+      const borradas = await invoke<number>('vaciar_notas_indicador', { id: ind.id, corteId, asignaturaId });
+      await emit("show-toast", { message: `🧹 Indicador ${ind.orden}: ${borradas} nota(s) vaciada(s) en ${nombreCorte}`, type: 'success' });
       await recargarIndicadoresYNotas();
     } catch (e) {
       await emit("show-toast", { message: "❌ Error al vaciar: " + e, type: "error" });
@@ -2287,7 +2296,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             <span style="font-size: 0.9rem;">🧹</span>
             <span>Vaciar notas del indicador</span>
           </button>
-          <div style="font-size: 0.62rem; color: #64748b; padding: 0.2rem 0.55rem 0.1rem; line-height: 1.3;">Deja las {indPop.criterios.length} columnas vacías para volver a llenarlas. El indicador no se borra.</div>
+          <div style="font-size: 0.62rem; color: #64748b; padding: 0.2rem 0.55rem 0.1rem; line-height: 1.3;">Deja las {indPop.criterios.length} columnas vacías para volver a llenarlas, solo en {cortes.find(c => c.id === selectedCorte)?.nombre || 'este corte'}. El indicador no se borra.</div>
         {:else if popover.tipo === 'criterio' && indPop && critPop}
           <div style="padding: 0.35rem 0.5rem 0.45rem; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 0.3rem;">
             <div style="font-size: 0.78rem; font-weight: 700; color: #f1f5f9;">Criterio {critPop.orden} · Indicador {indPop.orden}</div>

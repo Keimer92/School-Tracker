@@ -3625,15 +3625,19 @@ pub async fn update_indicador(
     Ok(())
 }
 
-/// Vacía TODAS las notas de los criterios de un indicador, sin borrar el
-/// indicador ni sus criterios: las celdas quedan listas para volver a llenarse.
-/// Los indicadores jamas se eliminan, por eso esta es la via para "empezar de
-/// cero" con un indicador. Registra tombstones para que el vaciado llegue al
-/// resto de dispositivos por el sync de D1. Devuelve cuantas notas borro.
+/// Vacía las notas de los criterios de un indicador **de un solo corte y
+/// asignatura**, sin borrar el indicador ni sus criterios: las celdas quedan
+/// listas para volver a llenarse. Los indicadores jamas se eliminan, por eso
+/// esta es la via para "empezar de cero" con un indicador. Registra tombstones
+/// para que el vaciado llegue al resto de dispositivos por el sync de D1.
+/// Devuelve cuantas notas borro.
 #[tauri::command]
+#[allow(non_snake_case)]
 pub async fn vaciar_notas_indicador(
     state: tauri::State<'_, DbState>,
     id: i64,
+    corteId: i64,
+    asignaturaId: i64,
 ) -> Result<usize, String> {
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
     let tx = conn.transaction().map_err(|e| e.to_string())?;
@@ -3644,6 +3648,10 @@ pub async fn vaciar_notas_indicador(
     if existe == 0 {
         let _ = tx.rollback();
         return Err(format!("Indicador {} no encontrado", id));
+    }
+    if corteId <= 0 {
+        let _ = tx.rollback();
+        return Err("No hay corte evaluativo seleccionado".to_string());
     }
 
     let criterios: Vec<i64> = {
@@ -3659,18 +3667,19 @@ pub async fn vaciar_notas_indicador(
         ids
     };
 
-    // Notas de esos criterios (de todos los cortes/asignaturas) + sus tombstones.
+    // Solo las notas de ESTE corte y asignatura: los demas cortes no se tocan.
     let mut total_notas = 0usize;
     for crit_id in &criterios {
         let notas: Vec<(i64, i64, i64, i64)> = {
             let mut stmt = tx
                 .prepare(
                     "SELECT estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id
-                     FROM nota WHERE criterio_id = ?",
+                     FROM nota
+                     WHERE criterio_id = ?1 AND corte_evaluativo_id = ?2 AND asignatura_id = ?3",
                 )
                 .map_err(|e| e.to_string())?;
             let filas = stmt
-                .query_map([crit_id], |row| {
+                .query_map(rusqlite::params![crit_id, corteId, asignaturaId], |row| {
                     Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
                 })
                 .map_err(|e| e.to_string())?
@@ -3688,7 +3697,11 @@ pub async fn vaciar_notas_indicador(
             .map_err(|e| e.to_string())?;
         }
         total_notas += tx
-            .execute("DELETE FROM nota WHERE criterio_id = ?", [crit_id])
+            .execute(
+                "DELETE FROM nota
+                 WHERE criterio_id = ?1 AND corte_evaluativo_id = ?2 AND asignatura_id = ?3",
+                rusqlite::params![crit_id, corteId, asignaturaId],
+            )
             .map_err(|e| e.to_string())?;
     }
 
