@@ -121,6 +121,224 @@
 
   let filters = $state({ anoLectivoId: 0, colegioId: 0, gradoId: 0, seccionId: 0, sexo: "" });
 
+  // ── Exportar estudiantes a Excel (1 libro por colegio) ──
+  let showExportModal = $state(false);
+  let exportAno = $state(0);
+  /** Vacío = todos los colegios. */
+  let exportColegioIds = $state<number[]>([]);
+  let exportIncluirGradosVacios = $state(false);
+  let exportando = $state(false);
+  let exportUltimaCarpeta = $state("");
+
+  interface GrupoSeccion { seccionId: number; nombre: string; estudiantes: Student[]; }
+  interface GrupoGrado { gradoId: number; nombre: string; secciones: GrupoSeccion[]; total: number; }
+
+  $effect(() => {
+    if (showExportModal) {
+      return registerBackHandler(() => { showExportModal = false; return true; });
+    }
+  });
+
+  function cmpNombre(a: string, b: string): number {
+    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+  }
+
+  function safeSheetName(nombre: string, usados: Set<string>): string {
+    let base = nombre.replace(/[\[\]:*?\/\\]/g, ' ').trim().slice(0, 31) || 'Hoja';
+    let candidato = base;
+    let n = 2;
+    while (usados.has(candidato.toLowerCase())) {
+      const sufijo = ` (${n})`;
+      candidato = base.slice(0, 31 - sufijo.length) + sufijo;
+      n++;
+    }
+    usados.add(candidato.toLowerCase());
+    return candidato;
+  }
+
+  function safeFileName(nombre: string): string {
+    return nombre.replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim();
+  }
+
+  /** Colegios a exportar: todos o los marcados en el modal. */
+  function colegiosExportables(): CategoryItem[] {
+    if (exportColegioIds.length === 0) return [...colegios];
+    return colegios.filter(c => exportColegioIds.includes(c.id));
+  }
+
+  /** Estudiantes del año lectivo indicado, agrupados por colegio → grado → sección. */
+  function agruparParaExportar(anoId: number, colegioId: number, gradosCatalogo: CategoryItem[]): GrupoGrado[] {
+    const delColegio = students.filter(s => Number(s.anoLectivoId) === Number(anoId) && Number(s.colegioId) === Number(colegioId));
+    const idsGrado = new Set<number>();
+    delColegio.forEach(s => idsGrado.add(Number(s.gradoId)));
+    // Si se piden grados vacíos, se incluyen los del catálogo que no tengan estudiantes
+    if (exportIncluirGradosVacios) gradosCatalogo.forEach(g => idsGrado.add(Number(g.id)));
+    const orden = (a: number, b: number) => {
+      const na = allGrados.find(g => g.id === a)?.nombre || '';
+      const nb = allGrados.find(g => g.id === b)?.nombre || '';
+      return cmpNombre(na, nb);
+    };
+    return [...idsGrado].sort(orden).map(gid => {
+      const nombre = allGrados.find(g => g.id === gid)?.nombre || gradosCatalogo.find(g => g.id === gid)?.nombre || `Grado ${gid}`;
+      const estGrado = delColegio.filter(s => Number(s.gradoId) === gid);
+      const idsSeccion = new Set<number>();
+      estGrado.forEach(s => idsSeccion.add(Number(s.seccionId)));
+      const ordenSec = (a: number, b: number) => {
+        const sa = allSecciones.find(s => s.id === a)?.nombre || '';
+        const sb = allSecciones.find(s => s.id === b)?.nombre || '';
+        return cmpNombre(sa, sb);
+      };
+      const secciones: GrupoSeccion[] = [...idsSeccion].sort(ordenSec).map(sid => ({
+        seccionId: sid,
+        nombre: allSecciones.find(s => s.id === sid)?.nombre || `Sección ${sid}`,
+        estudiantes: estGrado
+          .filter(s => Number(s.seccionId) === sid)
+          .sort((a, b) => a.nombre.localeCompare(b.nombre, undefined, { sensitivity: 'base' })),
+      }));
+      return { gradoId: gid, nombre, secciones, total: estGrado.length };
+    });
+  }
+
+  function abrirModalExport() {
+    const activo = anos.find(a => a.activo) || anos[0];
+    exportAno = filters.anoLectivoId || activo?.id || 0;
+    exportColegioIds = [];
+    exportIncluirGradosVacios = false;
+    exportUltimaCarpeta = "";
+    showExportModal = true;
+  }
+
+  function toggleExportColegio(id: number) {
+    exportColegioIds = exportColegioIds.includes(id)
+      ? exportColegioIds.filter(x => x !== id)
+      : [...exportColegioIds, id];
+  }
+
+  /** Conteo por colegio para la vista previa del modal. */
+  let exportResumen = $derived.by(() => {
+    const ano = exportAno || 0;
+    return colegiosExportables().map(c => {
+      const n = students.filter(s => Number(s.anoLectivoId) === ano && Number(s.colegioId) === c.id).length;
+      const grados = new Set(students.filter(s => Number(s.anoLectivoId) === ano && Number(s.colegioId) === c.id).map(s => Number(s.gradoId)));
+      return { colegio: c, estudiantes: n, grados: grados.size };
+    });
+  });
+  let exportTotal = $derived(exportResumen.reduce((a, b) => a + b.estudiantes, 0));
+
+  /**
+   * Genera un archivo .xlsx POR COLEGIO en la carpeta elegida.
+   * Cada libro trae: hoja "Resumen" + una hoja por grado con las secciones
+   * agrupadas (bloque por sección con su propio encabezado y tabla).
+   */
+  async function exportarEstudiantesExcel() {
+    if (exportando) return;
+    const anoSel = anos.find(a => a.id === exportAno);
+    if (!anoSel) { await emit("show-toast", { message: "⚠️ Selecciona un año lectivo", type: "warning" }); return; }
+    const lista = colegiosExportables();
+    if (lista.length === 0) { await emit("show-toast", { message: "⚠️ No hay colegios seleccionados", type: "warning" }); return; }
+    const conDatos = lista.filter(c => students.some(s => Number(s.anoLectivoId) === Number(anoSel.id) && Number(s.colegioId) === c.id));
+    if (conDatos.length === 0) { await emit("show-toast", { message: `⚠️ No hay estudiantes en ${anoSel.nombre}`, type: "warning" }); return; }
+
+    const ok = await ask(
+      `Se generarán ${conDatos.length} archivo(s) Excel (uno por colegio) con los estudiantes de ${anoSel.nombre}.\n\nElige la carpeta donde guardarlos.`,
+      { title: "📊 Exportar estudiantes", kind: "info", okLabel: "Elegir carpeta", cancelLabel: "Cancelar" }
+    );
+    if (!ok) return;
+
+    let carpeta: string | null = null;
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const sel = await open({ directory: true, multiple: false, title: "Carpeta destino para los archivos Excel" });
+      if (!sel || Array.isArray(sel)) return;
+      carpeta = String(sel);
+    } catch (e) {
+      console.error("Error abriendo selector de carpeta:", e);
+      await emit("show-toast", { message: "❌ No se pudo elegir la carpeta", type: "error" });
+      return;
+    }
+
+    exportando = true;
+    try {
+      const XLSX = await import("xlsx");
+      const { writeFile } = await import("@tauri-apps/plugin-fs");
+      const { openUrl } = await import("@tauri-apps/plugin-opener");
+      const sep = carpeta.includes("\\") ? "\\" : "/";
+      const archivos: string[] = [];
+      let total = 0;
+
+      for (const col of conDatos) {
+        // invoke directo (sin tocar el estado del modal de alta/edición)
+        let gradosCatalogo: CategoryItem[] = [];
+        try {
+          gradosCatalogo = await invoke<CategoryItem[]>("get_grados_by_colegio", { colegioId: col.id, anoLectivoId: anoSel.id });
+        } catch (_) { gradosCatalogo = []; }
+        const grupos = agruparParaExportar(anoSel.id, col.id, gradosCatalogo);
+        const wb = XLSX.utils.book_new();
+        const usados = new Set<string>();
+
+        // ── Hoja Resumen ──
+        const resumen: any[][] = [
+          [`COLEGIO: ${col.nombre}`],
+          [`Año lectivo: ${anoSel.nombre}`],
+          [`Total de estudiantes: ${students.filter(s => Number(s.anoLectivoId) === Number(anoSel.id) && Number(s.colegioId) === col.id).length}`],
+          [],
+          ["Grado", "Sección", "Masculino", "Femenino", "Total"],
+        ];
+        for (const g of grupos) {
+          if (g.secciones.length === 0) {
+            resumen.push([g.nombre, "—", 0, 0, 0]);
+            continue;
+          }
+          for (const s of g.secciones) {
+            const m = s.estudiantes.filter(e => e.sexo === 'M').length;
+            const f = s.estudiantes.filter(e => e.sexo === 'F').length;
+            resumen.push([g.nombre, s.nombre, m, f, s.estudiantes.length]);
+          }
+        }
+        const wsResumen = XLSX.utils.aoa_to_sheet(resumen);
+        wsResumen['!cols'] = [{ wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 8 }];
+        XLSX.utils.book_append_sheet(wb, wsResumen, safeSheetName('Resumen', usados));
+
+        // ── Una hoja por grado, con las secciones agrupadas ──
+        for (const g of grupos) {
+          const rows: any[][] = [
+            [`GRADO: ${g.nombre}`],
+            [`${col.nombre} · Año lectivo ${anoSel.nombre}`],
+            [`Total: ${g.total} estudiante(s)`],
+            [],
+          ];
+          if (g.secciones.length === 0) {
+            rows.push(["(Sin estudiantes en este grado)"]);
+          }
+          for (const s of g.secciones) {
+            rows.push([`SECCIÓN ${s.nombre}`, '', '', `(${s.estudiantes.length} estudiante/s)`]);
+            rows.push(["Nº", "Código", "Nombre", "Sexo"]);
+            s.estudiantes.forEach((e, i) => rows.push([i + 1, e.codigo, e.nombre, e.sexo === 'F' ? 'Femenino' : 'Masculino']));
+            rows.push([]);
+          }
+          const ws = XLSX.utils.aoa_to_sheet(rows);
+          ws['!cols'] = [{ wch: 6 }, { wch: 12 }, { wch: 36 }, { wch: 13 }];
+          XLSX.utils.book_append_sheet(wb, ws, safeSheetName(g.nombre, usados));
+        }
+
+        const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const ruta = `${carpeta}${sep}Estudiantes_${safeFileName(anoSel.nombre)}_${safeFileName(col.nombre)}.xlsx`;
+        await writeFile(ruta, out);
+        archivos.push(ruta);
+        total += grupos.reduce((a, g) => a + g.total, 0);
+      }
+
+      exportUltimaCarpeta = carpeta;
+      await emit("show-toast", { message: `✅ ${archivos.length} archivo(s) exportados · ${total} estudiantes`, type: "success" });
+      try { openUrl(carpeta); } catch (_) {}
+    } catch (e) {
+      console.error("Error exportando Excel:", e);
+      await emit("show-toast", { message: "❌ Error al exportar: " + ((e as Error)?.message || e), type: "error" });
+    } finally {
+      exportando = false;
+    }
+  }
+
   // Promoción de estudiantes
   let showPromoteBanner = $state(false);
   let promoteFromAno: CategoryItem | null = $state(null);
@@ -765,6 +983,9 @@ async function fetchData(preserveFilters = false) {
       <button onclick={handleDownloadTemplate}
         style="height:42px;padding:0 0.9rem;font-size:0.75rem;border:1px solid rgba(168,85,247,0.3);background:rgba(168,85,247,0.1);color:#c084fc;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:pointer;transition:all 0.2s ease;flex-shrink:0;white-space:nowrap"
         title="Descargar plantilla Excel">📋</button>
+      <button onclick={abrirModalExport} disabled={exportando}
+        style="height:42px;padding:0 0.9rem;font-size:0.75rem;border:1px solid rgba(14,165,233,0.35);background:rgba(14,165,233,0.12);color:#7dd3fc;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{exportando ? 'default' : 'pointer'};transition:all 0.2s ease;flex-shrink:0;white-space:nowrap;opacity:{exportando ? 0.7 : 1}"
+        title="Exportar todos los colegios a Excel (un libro por colegio)">📊</button>
       <button onclick={() => showImportHelp = true}
         style="height:42px;width:42px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.1);color:#94a3b8;border-radius:8px;border:1px solid rgba(255,255,255,0.1);cursor:pointer;font-size:1.1rem;font-weight:700;flex-shrink:0;transition:all 0.2s ease"
         title="Ayuda de importación">?</button>
@@ -878,6 +1099,9 @@ async function fetchData(preserveFilters = false) {
         <button onclick={handleDownloadTemplate}
           style="height:42px;padding:0 1.25rem;font-size:0.85rem;border:1px solid rgba(168,85,247,0.3);background:rgba(168,85,247,0.1);color:#c084fc;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:pointer;transition:all 0.2s ease;flex-shrink:0;white-space:nowrap"
           title="Descargar plantilla Excel">📋 {#if !isMobile}<span>Plantilla</span>{/if}</button>
+        <button onclick={abrirModalExport} disabled={exportando}
+          style="height:42px;padding:0 1.25rem;font-size:0.85rem;border:1px solid rgba(14,165,233,0.35);background:rgba(14,165,233,0.12);color:#7dd3fc;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:{exportando ? 'default' : 'pointer'};transition:all 0.2s ease;flex-shrink:0;white-space:nowrap;box-shadow:0 4px 14px rgba(14,165,233,0.25);opacity:{exportando ? 0.7 : 1}"
+          title="Exportar todos los colegios a Excel (un libro por colegio)">📊 {#if !isMobile}<span>{exportando ? "Exportando..." : "Exportar Excel"}</span>{/if}</button>
         <button onclick={() => showImportHelp = true}
           style="height:42px;width:42px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.1);color:#94a3b8;border-radius:8px;border:1px solid rgba(255,255,255,0.1);cursor:pointer;font-size:1.1rem;font-weight:700;flex-shrink:0;transition:all 0.2s ease"
           title="Ayuda de importación">?</button>
@@ -1194,6 +1418,82 @@ async function fetchData(preserveFilters = false) {
             <button type="submit" style="padding: 0.5rem 1.25rem; font-size: 0.85rem; border-radius: 8px; border: none; background: linear-gradient(135deg, var(--primary-hover), var(--primary-color)); color: white; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(var(--primary-rgb), 0.4);">Guardar</button>
           </div>
         </form>
+      </div>
+    </div>
+  {/if}
+
+  <!-- Modal: Exportar estudiantes a Excel (un libro por colegio) -->
+  {#if showExportModal}
+    <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget && !exportando) showExportModal = false; }}
+      style="position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); padding: 1rem;">
+      <div class="modal-content category-card"
+        style="width: min(620px, 95vw); max-height: 92vh; overflow-y: auto; position: relative; background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98)); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 20px; box-shadow: 0 25px 60px -12px rgba(0,0,0,0.6);">
+        <div class="category-header" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.06);">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(14,165,233,0.14); border: 1px solid rgba(14,165,233,0.28); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">📊</div>
+            <div>
+              <h3 style="margin: 0; font-size: 1.05rem; color: #f1f5f9;">Exportar estudiantes a Excel</h3>
+              <p style="margin: 2px 0 0; font-size: 0.7rem; color: #64748b;">Un archivo .xlsx por colegio, con sus grados y secciones agrupadas</p>
+            </div>
+          </div>
+          <button onclick={() => showExportModal = false} disabled={exportando} style="background: transparent; border: none; color: #94a3b8; font-size: 1.2rem; cursor: pointer;">✕</button>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 0.9rem; padding: 1rem 1.25rem;">
+          <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+            <label style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Año lectivo</label>
+            <select value={exportAno} disabled={exportando}
+              onchange={(e) => exportAno = Number((e.target as HTMLSelectElement).value)}
+              style="width: 100%; padding: 0.55rem 0.7rem; border-radius: 8px; background: rgba(15,23,42,0.7); border: 1px solid rgba(255,255,255,0.1); color: #e2e8f0; font-size: 0.85rem; outline: none;">
+              {#each anos as a}<option value={a.id}>{a.nombre}{#if a.activo} ✓ (Activo){/if}</option>{/each}
+            </select>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <label style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Colegios a exportar</label>
+              <div style="display: flex; gap: 0.35rem;">
+                <button onclick={() => exportColegioIds = []} disabled={exportando}
+                  style="padding: 0.2rem 0.55rem; border-radius: 6px; border: 1px solid {exportColegioIds.length === 0 ? 'rgba(14,165,233,0.5)' : 'rgba(255,255,255,0.12)'}; background: {exportColegioIds.length === 0 ? 'rgba(14,165,233,0.15)' : 'transparent'}; color: {exportColegioIds.length === 0 ? '#7dd3fc' : '#94a3b8'}; font-size: 0.68rem; cursor: pointer;">Todos</button>
+                <button onclick={() => exportColegioIds = colegios.map(c => c.id)} disabled={exportando}
+                  style="padding: 0.2rem 0.55rem; border-radius: 6px; border: 1px solid {exportColegioIds.length === colegios.length ? 'rgba(14,165,233,0.5)' : 'rgba(255,255,255,0.12)'}; background: {exportColegioIds.length === colegios.length ? 'rgba(14,165,233,0.15)' : 'transparent'}; color: {exportColegioIds.length === colegios.length ? '#7dd3fc' : '#94a3b8'}; font-size: 0.68rem; cursor: pointer;">Todos marcados</button>
+              </div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.35rem; max-height: 190px; overflow-y: auto;">
+              {#each exportResumen as r (r.colegio.id)}
+                <button onclick={() => toggleExportColegio(r.colegio.id)} disabled={exportando}
+                  style="display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.7rem; border-radius: 10px; cursor: pointer; text-align: left; width: 100%; font-family: inherit; transition: all 0.2s ease; background: {exportColegioIds.includes(r.colegio.id) ? 'rgba(14,165,233,0.14)' : 'rgba(255,255,255,0.03)'}; border: 1px solid {exportColegioIds.includes(r.colegio.id) ? 'rgba(14,165,233,0.5)' : 'rgba(255,255,255,0.06)'}">
+                  <span style="font-size: 1rem;">🏫</span>
+                  <span style="flex: 1; min-width: 0; color: #e2e8f0; font-size: 0.82rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{r.colegio.nombre}</span>
+                  <span style="color: #64748b; font-size: 0.7rem; white-space: nowrap;">{r.estudiantes} est. · {r.grados} grado{r.grados === 1 ? '' : 's'}</span>
+                </button>
+              {/each}
+            </div>
+          </div>
+
+          <label style="display: flex; align-items: center; gap: 0.55rem; padding: 0.5rem 0.7rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; cursor: pointer;">
+            <input type="checkbox" checked={exportIncluirGradosVacios} disabled={exportando}
+              onchange={() => exportIncluirGradosVacios = !exportIncluirGradosVacios} style="accent-color:#0ea5e9;" />
+            <span style="font-size: 0.78rem; color: #cbd5e1;">Incluir grados sin estudiantes</span>
+          </label>
+
+          <div style="display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.75rem; background: linear-gradient(135deg, rgba(14,165,233,0.1), rgba(14,165,233,0.03)); border: 1px solid rgba(14,165,233,0.22); border-radius: 10px;">
+            <span style="font-size: 1rem;">📁</span>
+            <div style="font-size: 0.75rem; color: #bae6fd; line-height: 1.4;">
+              Se generarán <strong>{exportResumen.filter(r => r.estudiantes > 0).length}</strong> archivo(s) con <strong>{exportTotal}</strong> estudiante(s) de {anos.find(a => a.id === exportAno)?.nombre || '—'}.
+              {#if exportUltimaCarpeta}<span style="display: block; color: #64748b; font-size: 0.68rem; margin-top: 2px;">Última carpeta: {exportUltimaCarpeta}</span>{/if}
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 0.6rem; padding: 0.85rem 1.25rem 1.1rem; border-top: 1px solid rgba(255,255,255,0.06);">
+          <button onclick={() => showExportModal = false} disabled={exportando}
+            style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-weight: 600;">Cancelar</button>
+          <button onclick={exportarEstudiantesExcel} disabled={exportando || exportTotal === 0}
+            style="padding: 0.5rem 1.25rem; font-size: 0.85rem; border-radius: 8px; border: none; background: linear-gradient(135deg, #0284c7, #0ea5e9); color: white; font-weight: 700; cursor: {exportando || exportTotal === 0 ? 'default' : 'pointer'}; box-shadow: 0 4px 14px rgba(14,165,233,0.4); opacity: {exportando || exportTotal === 0 ? 0.5 : 1};">
+            {exportando ? '⏳ Generando...' : '📊 Exportar Excel'}
+          </button>
+        </div>
       </div>
     </div>
   {/if}
