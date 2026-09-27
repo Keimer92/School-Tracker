@@ -396,17 +396,26 @@
     return { indInfos, maxTotal };
   }
 
+  /** Índice de calidad: 0 = AA (más alto) … 3 = AI (más bajo). */
+  function pesoLetra(g: string): number {
+    const i = GRADES.indexOf(g);
+    return i === -1 ? 0 : i;
+  }
+
   /**
    * Elige, por indicador, el combo de letras (C1, C2 y C3) que más se acerca al
    * total objetivo. Si `incluirC3` es false, C3 queda fijo en AA (comportamiento
    * anterior, donde solo C1 y C2 eran distribuibles). El error se acumula entre
    * indicadores para que la suma global sea lo más cercana posible a la meta.
    *
+   * Monotonía: el desempeño nunca retrocede, siempre valor(C1) <= valor(C2) <=
+   * valor(C3) entre los criterios que se distribuyen. Por eso una meta de 65
+   * con pesos 7/7/6 resuelve AI/AF/AS y no AI/AS/AF: ambos suman 13, pero el
+   * segundo dejaba al C2 por encima del C3.
+   *
    * Desempate: se recorre primero el combo "preferido" (C1 con la letra más
    * baja y C2/C3 con las más altas) y la comparación es estricta, así que si
-   * varias combinaciones dan la misma diferencia se queda con esa. Es
-   * exactamente "C1 baja, C2 y C3 altas, siempre que se pueda" sin perder
-   * precisión sobre la nota pedida.
+   * varias combinaciones dan la misma diferencia se queda con esa.
    */
   function elegirCombos(indInfos: IndDist[], maxTotal: number, targetRaw: number, incluirC3: boolean) {
     const opcionesC3 = incluirC3 ? GRADES : ['AA'];
@@ -422,6 +431,9 @@
       for (const g1 of ordenC1) {
         for (const g2 of GRADES) {
           for (const g3 of opcionesC3) {
+            // Solo combos monótonos: el C2 no puede superar al C1, ni el C3 al C2.
+            if (pesoLetra(g2) > pesoLetra(g1)) continue;
+            if (incluirC3 && pesoLetra(g3) > pesoLetra(g2)) continue;
             const total = valorCriterio(ii.c1, g1) + valorCriterio(ii.c2, g2) + valorCriterio(ii.c3, g3);
             const diff = Math.abs(total - indTarget);
             if (diff < bestDiff) { bestDiff = diff; bestCombo = [g1, g2, g3]; }
@@ -2000,7 +2012,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                <p style="margin: 0.2rem 0 0; color: #94a3b8; font-size: 0.75rem;">{isQualitative ? `C1, C2${distribuirC3 ? ' y C3' : ''} = nota objetivo${distribuirC3 ? '' : ', C3 = AA'}. Solo AA, AS, AF disponibles.` : `Ingrese el porcentaje total deseado (0-100). C1, C2${distribuirC3 ? ' y C3' : ''} se calculan automáticamente.`}</p>
               {#if !isQualitative}
                 <p style="margin: 0.25rem 0 0; color: #64748b; font-size: 0.68rem;">
-                  💡 La letra más baja se asigna al <strong style="color:#a78bfa;">C1</strong> y las más altas al <strong style="color:#a78bfa;">C2 y C3</strong>, siempre que se alcance la nota pedida (en metas muy altas el C1 necesita una letra alta para llegar).
+                  💡 El desempeño nunca retrocede: siempre <strong style="color:#a78bfa;">C1 ≤ C2 ≤ C3</strong>. Cuando se puede, la letra más baja va al C1 y las más altas al C3, sin perder la nota pedida.
                 </p>
               {/if}
               {#if contextoChips.some(c => c.label)}
