@@ -195,10 +195,13 @@
    * El botón Guardar se habilita solo mientras el estado actual difiere de aquí.
    */
   function snapshotConfig(lista: Indicador[]): string {
-    return JSON.stringify(lista.map(i => ({
+    // Se ordena por id para que un simple cambio de orden de la consulta
+    // (por ejemplo tras numerar de nuevo los criterios) NO cuente como cambio.
+    const porId = (a: { id: number }, b: { id: number }) => a.id - b.id;
+    return JSON.stringify([...lista].sort(porId).map(i => ({
       id: i.id,
       d: i.descripcion,
-      c: i.criterios.map(c => [c.id, c.descripcion, Number(c.puntajeMaximo) || 0])
+      c: [...i.criterios].sort(porId).map(c => [c.id, c.descripcion, Number(c.puntajeMaximo) || 0])
     })));
   }
   let configBaseline = $state('');
