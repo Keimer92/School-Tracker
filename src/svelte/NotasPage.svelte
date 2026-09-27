@@ -51,7 +51,6 @@
 
   let loading = $state(false);
   let saving = $state(false);
-  let hasUnsavedChanges = $state(false);
   let highlightColor = $state(localStorage.getItem('student-highlight-color') || '#4ade80');
 
   let showDeleteModal = $state(false);
@@ -245,6 +244,31 @@
 
   let notasCualitativas: Record<string, string> = $state({});
   let notasCuantitativas: Record<string, number> = {};
+
+  /** Estado que coincide con lo guardado en la BD (se actualiza al cargar y al guardar). */
+  let savedBaseline: Record<string, string> = $state({});
+
+  /** Compara dos mapas de notas ignorando el orden y las claves vacías. */
+  function notasIguales(a: Record<string, string>, b: Record<string, string>): boolean {
+    const sinVacias = (m: Record<string, string>) => {
+      const out: Record<string, string> = {};
+      for (const k in m) { if (m[k]) out[k] = m[k]; }
+      return out;
+    };
+    const ca = sinVacias(a);
+    const cb = sinVacias(b);
+    const ka = Object.keys(ca);
+    if (ka.length !== Object.keys(cb).length) return false;
+    return ka.every(k => ca[k] === cb[k]);
+  }
+
+  /**
+   * Derivado: hay cambios SOLO si el estado actual difiere del guardado. Así
+   * Guardar se deshabilita solo cuando se deshace un cambio o cuando se borra
+   * lo que se había escrito en un input.
+   */
+  let hasUnsavedChanges = $derived.by(() => !notasIguales(notasCualitativas, savedBaseline));
+
   let inputsRef = new Map<string, HTMLInputElement>();
   let cellSnapshot: Record<string, string> | null = null;
   let hasUnsavedRef = false;
@@ -506,7 +530,6 @@
       updatedCount++;
     }
     if (updatedCount > 0) {
-      hasUnsavedChanges = true;
       hasUnsavedRef = true;
       emit("show-toast", { message: `✅ Notas distribuidas para ${updatedCount} estudiante(s)`, type: 'success' });
     }
@@ -567,6 +590,7 @@
     redoStack = currentRedoStack;
     history = newHistory;
     isUndoRedoAction = true;
+    cellSnapshot = null;
     updateInputsUI(previousState);
     const newNotas = estudiantes.map(est => {
       const studentNotas: Record<number, number> = {};
@@ -583,7 +607,6 @@
       return { estudianteId: est.id, estudianteNombre: est.nombre, notas: studentNotas };
     });
     notas = newNotas;
-    hasUnsavedChanges = true;
   }
 
   function redo() {
@@ -592,6 +615,7 @@
     redoStack = redoStack.slice(1);
     history = [...history, { ...notasCualitativas }];
     isUndoRedoAction = true;
+    cellSnapshot = null;
     updateInputsUI(nextState);
     const newNotas = estudiantes.map(est => {
       const studentNotas: Record<number, number> = {};
@@ -608,7 +632,6 @@
       return { estudianteId: est.id, estudianteNombre: est.nombre, notas: studentNotas };
     });
     notas = newNotas;
-    hasUnsavedChanges = true;
   }
 
   // Input handlers
@@ -630,11 +653,38 @@
       numValue = 0;
     }
     notasCuantitativas[key] = Math.round(numValue);
-    if (!hasUnsavedRef) { hasUnsavedRef = true; hasUnsavedChanges = true; }
+    hasUnsavedRef = true;
   }
 
   function handleInputFocus() {
     if (!cellSnapshot) cellSnapshot = { ...notasCualitativas };
+  }
+
+  /** Agrega un snapshot al historial (máx 50) y vacía el redo. */
+  function pushHistory(snapshot: Record<string, string>) {
+    const newHistory = [...history, snapshot];
+    if (newHistory.length > 50) newHistory.shift();
+    history = newHistory;
+    redoStack = [];
+    hasUnsavedRef = true;
+  }
+
+  /**
+   * Cierra la edición en curso de una celda (blur o Ctrl+Z): compara el valor
+   * actual contra el snapshot del focus y, si cambió, guarda el estado previo
+   * en el historial. Si el valor quedó igual, no hay nada que deshacer.
+   */
+  function commitCellEdit(estudianteId: number, criterioIndex: number, value?: string) {
+    if (!cellSnapshot) return;
+    const criterio = allCriterios[criterioIndex];
+    if (!criterio) { cellSnapshot = null; return; }
+    const key = `${estudianteId}-${criterio.id}`;
+    const inputEl = inputsRef.get(`row-${estudianteId}-col-${criterioIndex}`);
+    const current = value !== undefined ? value : (inputEl ? inputEl.value : (notasCualitativas[key] || ''));
+    const newValue = (current || '').toUpperCase();
+    const oldValue = (cellSnapshot[key] || '').toUpperCase();
+    if (oldValue !== newValue) pushHistory({ ...cellSnapshot });
+    cellSnapshot = null;
   }
 
   function handleInputBlur(estudianteId: number, criterioId: number, value: string) {
@@ -642,19 +692,20 @@
     const key = `${estudianteId}-${criterioId}`;
     const oldValue = cellSnapshot[key] || '';
     const newValue = value.toUpperCase();
-    if (oldValue !== newValue) {
-      const newSnapshot = { ...cellSnapshot };
-      const newHistory = [...history, newSnapshot];
-      if (newHistory.length > 50) newHistory.shift();
-      history = newHistory;
-      redoStack = [];
-      if (!hasUnsavedRef) { hasUnsavedRef = true; hasUnsavedChanges = true; }
-    }
+    if (oldValue !== newValue) pushHistory({ ...cellSnapshot });
     cellSnapshot = null;
   }
 
   // Keyboard navigation
   function handleKeyDown(e: KeyboardEvent, estudianteId: number, criterioIndex: number) {
+    // Ctrl+Z / Ctrl+Y dentro del input: lo maneja la app, no el navegador, para
+    // que el texto del input y el estado no se desincronicen.
+    if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+      const k = e.key.toLowerCase();
+      if (k === 'z' && !e.shiftKey) { e.preventDefault(); commitCellEdit(estudianteId, criterioIndex); undo(); return; }
+      if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); commitCellEdit(estudianteId, criterioIndex); redo(); return; }
+      return;
+    }
     const rowIndex = studentIndexMap.get(estudianteId);
     if (rowIndex === undefined) return;
     let nextRow = rowIndex;
@@ -850,7 +901,7 @@
         }
         if (cuantitativasMap[n.estudianteId]) cuantitativasMap[n.estudianteId][n.criterioId] = n.valor;
       });
-      if (isActuallySilent) { history = []; redoStack = []; hasUnsavedChanges = false; hasUnsavedRef = false; }
+      if (isActuallySilent) { history = []; redoStack = []; savedBaseline = { ...notasMap }; hasUnsavedRef = false; }
       // Preservar el estudiante que el usuario está viendo durante refrescos
       const keepIdx = Math.min(currentStudentIdx, Math.max(0, data.length - 1));
       notas = data.map(est => ({
@@ -927,10 +978,10 @@
         notas: Object.entries(notaEst.notas).map(([criterioId, valor]) => ({ criterioId: parseInt(criterioId), valor }))
       }));
       await invoke("save_notas_estudiantes", { notas: notasParaGuardar, corteId: saveCorteId, asignaturaId: saveAsignaturaId });
+      savedBaseline = { ...notasCualitativas };
       history = [];
       redoStack = [];
       hasUnsavedRef = false;
-      hasUnsavedChanges = false;
       if (pendingRefreshOnSave) { pendingRefreshOnSave = false; nextRefreshSilent = true; refreshTrigger++; }
       saving = false;
       await emit("show-toast", { message: "✅ Notas guardadas localmente", type: "success" });
@@ -968,9 +1019,9 @@
       });
       showDeleteModal = false;
       await emit("show-toast", { message: `✅ Notas eliminadas`, type: "success" });
+      savedBaseline = {};
       history = [];
       redoStack = [];
-      hasUnsavedChanges = false;
       hasUnsavedRef = false;
       if (pendingRefreshOnSave) { pendingRefreshOnSave = false; nextRefreshSilent = true; refreshTrigger++; }
       onDataChange('nota', { immediate: true });
@@ -1731,17 +1782,10 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                           {@const gradeColor = getGradeColor(grade)}
                           <button
                             onclick={() => {
-                              if (!cellSnapshot) cellSnapshot = { ...notasCualitativas };
-                              handleNotaChange(est.estudianteId, crit.id, isSelected ? '' : grade);
-                              const oldVal = cellSnapshot[currentKey] || '';
+                              const oldVal = notasCualitativas[currentKey] || '';
                               const newVal = isSelected ? '' : grade;
-                              if (oldVal !== newVal) {
-                                const snap = { ...cellSnapshot };
-                                const newHist = [...history, snap];
-                                if (newHist.length > 50) newHist.shift();
-                                history = newHist;
-                                redoStack = [];
-                              }
+                              if (oldVal !== newVal) pushHistory({ ...notasCualitativas });
+                              handleNotaChange(est.estudianteId, crit.id, newVal);
                               cellSnapshot = null;
                               rowVersionTick++;
                             }}
@@ -1871,7 +1915,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                           type="text"
                           value={currentQualitativeValue}
                           oninput={(e) => {
-                            if (!hasUnsavedRef) { hasUnsavedRef = true; hasUnsavedChanges = true; }
+                            hasUnsavedRef = true;
                             let rawVal = (e.target as HTMLInputElement).value.toUpperCase();
                             const val = rawVal.slice(0, 2);
                             const firstChar = val.charAt(0);
