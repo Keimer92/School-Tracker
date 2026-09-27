@@ -356,6 +356,13 @@
    * pide elegir a cuál desactivar (intercambio), nunca se borra nada.
    */
   const MAX_INDICADORES_ACTIVOS = 5;
+  /** Regla de la evaluación: 5 indicadores activos × 20 pts = 100 pts. */
+  const MAX_PTS_POR_INDICADOR = 20;
+
+  /** Suma de puntos de los criterios de un indicador. */
+  function puntosDeIndicador(ind: Indicador): number {
+    return ind.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0);
+  }
 
   /** Estudiantes con al menos una nota en los criterios de este indicador. */
   function estudiantesConNota(ind: Indicador): number {
@@ -376,6 +383,16 @@
 
   /** Ejecuta el cambio de estado (con confirmación) o el intercambio completo. */
   async function aplicarActivo(ind: Indicador, nuevoEstado: boolean) {
+    if (nuevoEstado) {
+      const pts = puntosDeIndicador(ind);
+      if (!isQualitative && pts > MAX_PTS_POR_INDICADOR) {
+        await emit("show-toast", {
+          message: `❌ El Indicador ${ind.orden} suma ${pts} pts y el máximo por indicador es ${MAX_PTS_POR_INDICADOR}.\nCorrige los puntos en Evaluaciones (pestaña Global → Evaluaciones) antes de activarlo.`,
+          type: 'error'
+        });
+        return;
+      }
+    }
     cerrarPopover();
     const ok = await ask(
       nuevoEstado

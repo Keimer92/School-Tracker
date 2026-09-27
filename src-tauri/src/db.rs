@@ -3453,11 +3453,15 @@ pub async fn get_evaluation_config(
                 )
                 .map_err(|e| e.to_string())?;
             } else {
-                // Seed 8 indicators — all active by default
+                // Seed 8 indicadores: solo los 5 primeros quedan ACTIVOS, porque
+                // la evaluación usa 100 pts y cada indicador activo vale 20
+                // (8 x 20 = 160 pts no cabe). Los 3 últimos nacen inactivos y el
+                // usuario decide el intercambio desde NotasPage.
                 for i in 1..=8 {
+                    let activo = if i <= 5 { 1 } else { 0 };
                     tx.execute(
                         "INSERT INTO indicador (grado_id, asignatura_id, corte_evaluativo_id, ano_lectivo_id, orden, descripcion, activo) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        rusqlite::params![gradoId, asignaturaId, corteEvaluativoId, anoLectivoId, i, "", 1],
+                        rusqlite::params![gradoId, asignaturaId, corteEvaluativoId, anoLectivoId, i, "", activo],
                     )
                     .map_err(|e| e.to_string())?;
 

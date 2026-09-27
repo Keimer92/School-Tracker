@@ -44,6 +44,40 @@
     }, 0)
   );
 
+  /** Máximo de indicadores que pueden sumar: 5 x 20 pts = 100 pts de evaluación. */
+  const MAX_ACTIVOS = 5;
+  const MAX_PTS_POR_INDICADOR = 20;
+
+  /** Suma de puntos de un indicador (sus criterios). */
+  function puntosDe(ind: Indicador): number {
+    return ind.criterios.reduce((s, c) => s + Number(c.puntajeMaximo || 0), 0);
+  }
+
+  /**
+   * Etiqueta de solo lectura: el activo/inactivo se decide desde NotasPage.
+   * Aquí solo se informa si el indicador suma y cuántos puntos vale.
+   */
+  function etiquetaEstado(ind: Indicador): { texto: string; color: string; fondo: string; title: string } {
+    const pts = puntosDe(ind);
+    if (ind.activo) {
+      const excede = !isQualitative && pts > MAX_PTS_POR_INDICADOR;
+      return {
+        texto: `🟢 Sumando · ${isQualitative ? 'Cualitativo' : pts + ' pts'}`,
+        color: excede ? '#fca5a5' : '#4ade80',
+        fondo: excede ? 'rgba(239,68,68,0.12)' : 'rgba(74,222,128,0.12)',
+        title: excede
+          ? `Este indicador activo suma ${pts} pts y el máximo por indicador es ${MAX_PTS_POR_INDICADOR}. Corrígelo antes de calificar.`
+          : `Indicador activo: sus notas suman al total de la evaluación. Se cambia desde NotasPage.`
+      };
+    }
+    return {
+      texto: `⚪ Inactivo · ${isQualitative ? 'no suma' : pts + ' pts'}`,
+      color: '#94a3b8',
+      fondo: 'rgba(148,163,184,0.1)',
+      title: `Indicador inactivo: sus notas NO suman al total, pero se conservan. Se activa desde NotasPage.`
+    };
+  }
+
   function handleViewModeChange(mode: ViewMode) {
     viewMode = mode;
     localStorage.setItem("evaluaciones-view-mode", mode);
@@ -139,24 +173,6 @@
     } finally { loading = false; }
   }
 
-  function handleToggleClick(e: Event, indicador: Indicador) {
-    if (!indicador.activo && activeCount >= 5) {
-      e.preventDefault();
-      emit("show-toast", { message: "❌ Límite alcanzado: solo pueden haber 5 indicadores activos. Desactive uno antes de activar otro.", type: "error" });
-    }
-  }
-
-  async function handleToggleIndicador(indicador: Indicador) {
-    try {
-      await invoke("update_indicador", { id: indicador.id, descripcion: indicador.descripcion, activo: !indicador.activo });
-      indicadores = indicadores.map(i => i.id === indicador.id ? { ...i, activo: !i.activo } : i);
-      onDataChange('indicador');
-      await emit("notas-updated", { timestamp: Date.now() });
-    } catch (error) {
-      await emit("show-toast", { message: "❌ Error al actualizar: " + error, type: "error" });
-    }
-  }
-
   function handleUpdateIndicadorDesc(id: number, desc: string) {
     indicadores = indicadores.map(i => i.id === id ? { ...i, descripcion: desc } : i);
   }
@@ -196,11 +212,14 @@
     if (!isQualitative) {
       for (const ind of indicadores) {
         if (!ind.activo) continue;
-        const total = ind.criterios.reduce((sum, crit) => sum + Number(crit.puntajeMaximo), 0);
-        if (total > 20) {
-          problemas.push(`Indicador ${ind.orden}: ${total} pts (máximo 20)`);
+        const total = puntosDe(ind);
+        if (total > MAX_PTS_POR_INDICADOR) {
+          problemas.push(`Indicador ${ind.orden}: ${total} pts (máximo ${MAX_PTS_POR_INDICADOR})`);
           if (!primerIndicadorConProblema) primerIndicadorConProblema = ind;
         }
+      }
+      if (activeCount > MAX_ACTIVOS) {
+        problemas.push(`Hay ${activeCount} indicadores summing y el máximo es ${MAX_ACTIVOS} (${MAX_ACTIVOS} × ${MAX_PTS_POR_INDICADOR} = 100 pts). Desactiva uno desde NotasPage.`);
       }
     }
     if (problemas.length > 0) {
@@ -327,13 +346,15 @@
       {@const maxScore = isQualitative ? activeCount * 20 : 100}
       {@const scoreRatio = maxScore > 0 ? Math.min(puntosActivos / maxScore, 1) : 0}
       {#if !isMobile}
-        <div class="ev-score-summary">
+          <div class="ev-score-summary">
           <div class="ev-score-text">
-            <span>Activos: <strong>{activeCount}</strong> / 5</span>
+            <span>Indicadores que suman: <strong>{activeCount}</strong> / {MAX_ACTIVOS}</span>
             {#if !isQualitative}
               <span style="margin-left: 1rem;">Puntaje: <strong>{puntosActivos}</strong> / {maxScore} pts</span>
             {/if}
+            <span style="margin-left: 1rem; font-size: 0.72rem; color: #64748b;">Editable aquí: descripciones y puntos. Cuáles suman se decide en NotasPage.</span>
           </div>
+
           {#if !isQualitative}
             <div class="ev-score-bar">
               <div class="ev-score-fill" style="width: {scoreRatio * 100}%;"></div>
@@ -345,22 +366,16 @@
       {#if viewMode === "modern-cards"}
         <div class="ev-cards-container">
           {#each indicadores as ind (ind.id)}
+            {@const est = etiquetaEstado(ind)}
             <div id="indicador-{ind.id}" class="indicador-card" class:active={ind.activo} class:inactive={!ind.activo}>
               <div class="indicador-header">
                 <div class="indicador-header-left">
-                    <label class="switch" title={ind.activo ? "Desactivar" : (activeCount >= 5 ? "Límite de 5 activos" : "Activar")}>
-                    <input type="checkbox" checked={ind.activo} onclick={(e) => handleToggleClick(e, ind)} onchange={() => handleToggleIndicador(ind)} />
-                    <span class="slider round"></span>
-                  </label>
-                  <div class="indicador-badge" class:active={ind.activo} class:inactive={!ind.activo}>{ind.orden}</div>
-                  <input type="text" value={ind.descripcion} oninput={(e) => handleUpdateIndicadorDesc(ind.id, (e.target as HTMLInputElement).value)} onblur={() => handleBlurIndicador(ind)} placeholder="Descripción del indicador..." class="indicador-desc-input" />
+                    <span title={est.title} style="display: inline-flex; align-items: center; padding: 0.15rem 0.45rem; border-radius: 999px; background: {est.fondo}; color: {est.color}; font-size: 0.62rem; font-weight: 700; white-space: nowrap; flex-shrink: 0; border: 1px solid {est.color}33;">{est.texto}</span>
+                    <div class="indicador-badge" class:active={ind.activo} class:inactive={!ind.activo}>{ind.orden}</div>
+                    <input type="text" value={ind.descripcion} oninput={(e) => handleUpdateIndicadorDesc(ind.id, (e.target as HTMLInputElement).value)} onblur={() => handleBlurIndicador(ind)} placeholder="Descripción del indicador..." class="indicador-desc-input" />
                 </div>
                 <div class="indicador-header-right">
-                  {#if !ind.activo}
-                    <span class="status-tag inactive">Inactivo</span>
-                  {:else}
-                    <span class="status-tag" class:qualitative={isQualitative} class:quantitative={!isQualitative}>{isQualitative ? 'Cualitativo' : '20 pts'}</span>
-                  {/if}
+                    <span class="status-tag" class:qualitative={isQualitative} class:quantitative={!isQualitative} title="Puntos que suman sus criterios">{isQualitative ? 'Cualitativo' : puntosDe(ind) + ' pts'}</span>
                 </div>
               </div>
               <div class="indicador-body">
@@ -383,22 +398,16 @@
           <div class="accordion-container">
             {#each indicadores as ind (ind.id)}
               {@const expanded = accordionOpen.has(ind.id)}
+              {@const est = etiquetaEstado(ind)}
               <div id="indicador-{ind.id}" class="accordion-item" class:active={ind.activo} class:inactive={!ind.activo} class:expanded>
                 <div class="accordion-header" onclick={() => { const next = new Set(accordionOpen); if (next.has(ind.id)) next.delete(ind.id); else next.add(ind.id); accordionOpen = next; }}>
                   <div class="accordion-header-left">
-<label class="switch">
-                        <input type="checkbox" checked={ind.activo} onclick={(e) => { e.stopPropagation(); handleToggleClick(e, ind); }} onchange={(e) => { e.stopPropagation(); handleToggleIndicador(ind); }} />
-                        <span class="slider round"></span>
-                      </label>
-                      <div class="indicador-badge" class:active={ind.activo} class:inactive={!ind.activo}>{ind.orden}</div>
-                      <span>{ind.descripcion || `Indicador ${ind.orden}`}</span>
+                    <span title={est.title} style="display: inline-flex; align-items: center; padding: 0.1rem 0.35rem; border-radius: 999px; background: {est.fondo}; color: {est.color}; font-size: 0.6rem; font-weight: 700; white-space: nowrap; flex-shrink: 0;">{est.texto}</span>
+                    <div class="indicador-badge" class:active={ind.activo} class:inactive={!ind.activo}>{ind.orden}</div>
+                    <span>{ind.descripcion || `Indicador ${ind.orden}`}</span>
                   </div>
                   <div class="accordion-header-right">
-                    {#if !ind.activo}
-                      <span class="status-tag inactive">Inactivo</span>
-                    {:else}
-                      <span class="status-tag" class:qualitative={isQualitative} class:quantitative={!isQualitative}>{isQualitative ? 'Cualitativo' : '20 pts'}</span>
-                    {/if}
+                    <span class="status-tag" class:qualitative={isQualitative} class:quantitative={!isQualitative}>{isQualitative ? 'Cualitativo' : puntosDe(ind) + ' pts'}</span>
                     <span class="accordion-chevron" class:open={expanded}>▶</span>
                   </div>
                 </div>
@@ -424,37 +433,26 @@
           <div class="split-layout">
             <div class="split-list">
               {#each indicadores as ind (ind.id)}
+                {@const est = etiquetaEstado(ind)}
                 <div id="indicador-{ind.id}" class="split-item" class:active={ind.activo} class:inactive={!ind.activo} class:selected={expandedIndicador === ind.id} onclick={() => expandedIndicador = ind.id}>
                   <div class="split-item-row">
-                    <label class="switch">
-                      <input type="checkbox" checked={ind.activo} onclick={(e) => { e.stopPropagation(); handleToggleClick(e, ind); }} onchange={(e) => { e.stopPropagation(); handleToggleIndicador(ind); }} />
-                      <span class="slider round"></span>
-                    </label>
+                    <span title={est.title} style="display: inline-flex; align-items: center; padding: 0.1rem 0.4rem; border-radius: 999px; background: {est.fondo}; color: {est.color}; font-size: 0.62rem; font-weight: 700; white-space: nowrap; flex-shrink: 0;">{est.texto}</span>
                     <div class="indicador-badge" class:active={ind.activo} class:inactive={!ind.activo}>{ind.orden}</div>
                     <span class="split-item-desc">{ind.descripcion || `Indicador ${ind.orden}`}</span>
-                    {#if !ind.activo}
-                      <span class="status-tag inactive">Inactivo</span>
-                    {:else}
-                      <span class="status-tag" class:qualitative={isQualitative} class:quantitative={!isQualitative}>{isQualitative ? 'Cualitativo' : '20 pts'}</span>
-                    {/if}
+                    <span class="status-tag" class:qualitative={isQualitative} class:quantitative={!isQualitative}>{isQualitative ? 'Cualitativo' : puntosDe(ind) + ' pts'}</span>
                   </div>
                 </div>
               {/each}
             </div>
             <div class="split-detail">
               {#if selected}
+                {@const estSel = etiquetaEstado(selected)}
                 <div class="split-detail-header">
                   <h3>Indicador {selected.orden}</h3>
-                  <div style="display: flex; align-items: center; gap: 0.75rem;">
-<label class="switch">
-                        <input type="checkbox" checked={selected.activo} onclick={(e) => handleToggleClick(e, selected)} onchange={() => handleToggleIndicador(selected)} />
-                        <span class="slider round"></span>
-                      </label>
-                    {#if !selected.activo}
-                      <span class="status-tag inactive">Inactivo</span>
-                    {:else}
-                      <span class="status-tag" class:qualitative={isQualitative} class:quantitative={!isQualitative}>{isQualitative ? 'Cualitativo' : '20 pts'}</span>
-                    {/if}
+                  <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                    <span title={estSel.title} style="display: inline-flex; align-items: center; padding: 0.2rem 0.55rem; border-radius: 999px; background: {estSel.fondo}; color: {estSel.color}; font-size: 0.7rem; font-weight: 700; border: 1px solid {estSel.color}33;">{estSel.texto}</span>
+                    <span class="status-tag" class:qualitative={isQualitative} class:quantitative={!isQualitative}>{isQualitative ? 'Cualitativo' : puntosDe(selected) + ' pts'}</span>
+                    <span style="font-size: 0.62rem; color: #64748b;">Se activa o desactiva desde NotasPage</span>
                   </div>
                 </div>
                 <input type="text" value={selected.descripcion} oninput={(e) => handleUpdateIndicadorDesc(selected.id, (e.target as HTMLInputElement).value)} onblur={() => handleBlurIndicador(selected)} placeholder="Descripción del indicador..." class="split-detail-desc" />
