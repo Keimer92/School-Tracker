@@ -3625,6 +3625,175 @@ pub async fn update_indicador(
     Ok(())
 }
 
+/// Elimina un indicador con sus criterios y todas las notas de esos criterios.
+/// Registra los tombstones correspondientes para que el borrado llegue al resto
+/// de dispositivos por el sync de D1.
+#[tauri::command]
+pub async fn delete_indicador(
+    state: tauri::State<'_, DbState>,
+    id: i64,
+) -> Result<(), String> {
+    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    let criterios: Vec<i64> = {
+        let mut stmt = tx
+            .prepare("SELECT id FROM criterio WHERE indicador_id = ?")
+            .map_err(|e| e.to_string())?;
+        let ids = stmt
+            .query_map([id], |row| row.get(0))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        drop(stmt);
+        ids
+    };
+
+    // Notas de esos criterios (de todos los cortes/asignaturas) + sus tombstones.
+    for crit_id in &criterios {
+        let notas: Vec<(i64, i64, i64, i64)> = {
+            let mut stmt = tx
+                .prepare(
+                    "SELECT estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id
+                     FROM nota WHERE criterio_id = ?",
+                )
+                .map_err(|e| e.to_string())?;
+            let filas = stmt
+                .query_map([crit_id], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+                })
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
+            drop(stmt);
+            filas
+        };
+        for (est_id, c_id, corte_id, asig_id) in notas {
+            tx.execute(
+                "INSERT INTO sync_pending_deletions_nota (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id)
+                 VALUES (?, ?, ?, ?)",
+                rusqlite::params![est_id, c_id, corte_id, asig_id],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+        tx.execute("DELETE FROM nota WHERE criterio_id = ?", [crit_id])
+            .map_err(|e| e.to_string())?;
+        tx.execute(
+            "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES ('criterio', ?)",
+            [crit_id],
+        )
+        .map_err(|e| e.to_string())?;
+        tx.execute("DELETE FROM criterio WHERE id = ?", [crit_id])
+            .map_err(|e| e.to_string())?;
+    }
+
+    let borrados = tx
+        .execute("DELETE FROM indicador WHERE id = ?", [id])
+        .map_err(|e| e.to_string())?;
+    if borrados == 0 {
+        let _ = tx.rollback();
+        return Err(format!("Indicador {} no encontrado", id));
+    }
+    tx.execute(
+        "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES ('indicador', ?)",
+        [id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Elimina un criterio (una columna de la tabla) y todas sus notas.
+/// Al borrar un criterio se renumeran los `orden` restantes de su indicador para
+/// que no queden huecos en C1, C2, C3.
+#[tauri::command]
+pub async fn delete_criterio(
+    state: tauri::State<'_, DbState>,
+    id: i64,
+) -> Result<(), String> {
+    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    let indicador_id: Option<i64> = tx
+        .query_row("SELECT indicador_id FROM criterio WHERE id = ?", [id], |row| row.get(0))
+        .ok();
+
+    let notas: Vec<(i64, i64, i64, i64)> = {
+        let mut stmt = tx
+            .prepare(
+                "SELECT estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id
+                 FROM nota WHERE criterio_id = ?",
+            )
+            .map_err(|e| e.to_string())?;
+        let filas = stmt
+            .query_map([id], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        drop(stmt);
+        filas
+    };
+    for (est_id, c_id, corte_id, asig_id) in notas {
+        tx.execute(
+            "INSERT INTO sync_pending_deletions_nota (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id)
+             VALUES (?, ?, ?, ?)",
+            rusqlite::params![est_id, c_id, corte_id, asig_id],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    tx.execute("DELETE FROM nota WHERE criterio_id = ?", [id])
+        .map_err(|e| e.to_string())?;
+
+    let borrados = tx
+        .execute("DELETE FROM criterio WHERE id = ?", [id])
+        .map_err(|e| e.to_string())?;
+    if borrados == 0 {
+        let _ = tx.rollback();
+        return Err(format!("Criterio {} no encontrado", id));
+    }
+    tx.execute(
+        "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES ('criterio', ?)",
+        [id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    // Renumerar el orden de los criterios restantes del indicador (sin UNIQUE clash).
+    if let Some(ind_id) = indicador_id {
+        let restantes: Vec<i64> = {
+            let mut stmt = tx
+                .prepare("SELECT id FROM criterio WHERE indicador_id = ? ORDER BY orden, id")
+                .map_err(|e| e.to_string())?;
+            let ids = stmt
+                .query_map([ind_id], |row| row.get(0))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| e.to_string())?;
+            drop(stmt);
+            ids
+        };
+        for (i, crit_id) in restantes.iter().enumerate() {
+            tx.execute(
+                "UPDATE criterio SET orden = ? WHERE id = ?",
+                rusqlite::params![-((i + 1) as i64), crit_id],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+        for (i, crit_id) in restantes.iter().enumerate() {
+            tx.execute(
+                "UPDATE criterio SET orden = ? WHERE id = ?",
+                rusqlite::params![(i + 1) as i64, crit_id],
+            )
+            .map_err(|e| e.to_string())?;
+        }
+    }
+
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[tauri::command]
 #[allow(non_snake_case)]
 pub async fn update_criterio(

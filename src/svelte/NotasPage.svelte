@@ -271,6 +271,185 @@
 
   let inputsRef = new Map<string, HTMLInputElement>();
   let cellSnapshot: Record<string, string> | null = null;
+
+  // ── Popovers de indicador y criterio (clic en la cabecera) ──
+  type PopoverTipo = 'indicador' | 'criterio';
+  interface PopoverAbierto {
+    tipo: PopoverTipo;
+    indicadorId: number;
+    criterioId: number;
+    x: number;
+    y: number;
+    ancho: number;
+  }
+  let popover = $state<PopoverAbierto | null>(null);
+  /** Elemento que abrió el popover y el panel, para no cerrarlo al pulsarlos. */
+  let popoverTriggerEl = $state<HTMLElement | null>(null);
+  let popoverPanelEl = $state<HTMLDivElement | null>(null);
+  /** Cuando está activo, la nota masiva solo rellena celdas vacías. */
+  let aplicarSoloVacias = $state(false);
+  let procesandoAccion = $state(false);
+
+  function abrirPopover(tipo: PopoverTipo, indId: number, critId: number, e: MouseEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    const el = e.currentTarget as HTMLElement | null;
+    const r = el?.getBoundingClientRect();
+    if (popover && popover.tipo === tipo && popover.indicadorId === indId && popover.criterioId === critId) {
+      popover = null;
+      return;
+    }
+    popoverTriggerEl = el;
+    popover = {
+      tipo, indicadorId: indId, criterioId: critId,
+      x: r ? Math.round(r.left) : 0,
+      y: r ? Math.round(r.bottom + 4) : 0,
+      ancho: r ? Math.round(r.width) : 80
+    };
+  }
+
+  function cerrarPopover() {
+    popover = null;
+    popoverTriggerEl = null;
+  }
+
+  // Cierra al pulsar fuera, en pointerdown para no bloquear el clic siguiente:
+  // así se pasa de una cabecera a otra con un solo clic.
+  $effect(() => {
+    if (!popover) return;
+    const onPointerDown = (ev: PointerEvent) => {
+      const t = ev.target as Node | null;
+      if (t && (popoverPanelEl?.contains(t) || popoverTriggerEl?.contains(t))) return;
+      cerrarPopover();
+    };
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') cerrarPopover(); };
+    window.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('resize', cerrarPopover);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', cerrarPopover);
+    };
+  });
+
+  $effect(() => {
+    if (!popover) return;
+    return registerBackHandler(() => { cerrarPopover(); return true; });
+  });
+
+  /** Indicador/criterio sobre el que está abierto el popover. */
+  function popoverIndicador() {
+    if (!popover) return null;
+    return indicadores.find(i => i.id === popover!.indicadorId) || null;
+  }
+  function popoverCriterio() {
+    if (!popover) return null;
+    const ind = popoverIndicador();
+    return ind ? (ind.criterios.find(c => c.id === popover!.criterioId) || null) : null;
+  }
+
+  /** Marcar el indicador como activo/inactivo (no destructivo, igual pide confirmación). */
+  async function alternarActivoIndicador(ind: Indicador) {
+    const nuevoEstado = !ind.activo;
+    cerrarPopover();
+    const ok = await ask(
+      nuevoEstado
+        ? `¿Marcar el Indicador ${ind.orden} como ACTIVO?\n\nVolvrá a sumar sus notas al total de la evaluación.`
+        : `¿Marcar el Indicador ${ind.orden} como INACTIVO?\n\nSus notas dejarán de sumar al total, pero no se borra nada.`,
+      { title: nuevoEstado ? '✔ Activar indicador' : '👁 Desactivar indicador', kind: 'info', okLabel: nuevoEstado ? 'Activar' : 'Desactivar', cancelLabel: 'Cancelar' }
+    );
+    if (!ok) return;
+    procesandoAccion = true;
+    try {
+      await invoke('update_indicador', { id: ind.id, descripcion: ind.descripcion, activo: nuevoEstado, instrumento: ind.instrumento });
+      indicadores = indicadores.map(i => i.id === ind.id ? { ...i, activo: nuevoEstado } : i);
+      await emit("show-toast", { message: `✅ Indicador ${ind.orden} ${nuevoEstado ? 'activado' : 'desactivado'}`, type: 'success' });
+      emit("indicadores-updated");
+    } catch (e) {
+      await emit("show-toast", { message: "❌ Error: " + e, type: "error" });
+    } finally { procesandoAccion = false; }
+  }
+
+  /** Elimina el indicador completo: sus criterios y todas sus notas (de todos los cortes). */
+  async function eliminarIndicador(ind: Indicador) {
+    cerrarPopover();
+    const nCriterios = ind.criterios.length;
+    const nEst = filteredNotas.length;
+    const ok = await ask(
+      `Se eliminará el Indicador ${ind.orden} "${ind.descripcion || ''}".\n\n` +
+      `· ${nCriterios} criterio(s) y sus notas se borrarán de TODOS los cortes evaluativos.\n` +
+      `· En esta vista afecta a ${nEst} estudiante(s).\n\nEsta acción no se puede deshacer.`,
+      { title: '🗑 Eliminar indicador', kind: 'warning', okLabel: 'Sí, eliminar', cancelLabel: 'Cancelar' }
+    );
+    if (!ok) return;
+    procesandoAccion = true;
+    try {
+      await invoke('delete_indicador', { id: ind.id });
+      await emit("show-toast", { message: `🗑 Indicador ${ind.orden} eliminado`, type: 'success' });
+      await recargarIndicadoresYNotas();
+    } catch (e) {
+      await emit("show-toast", { message: "❌ Error al eliminar: " + e, type: "error" });
+    } finally { procesandoAccion = false; }
+  }
+
+  /** Elimina un solo criterio (una columna) con todas sus notas. */
+  async function eliminarCriterio(ind: Indicador, crit: Criterio) {
+    cerrarPopover();
+    const conNota = notas.filter(n => notasCualitativas[`${n.estudianteId}-${crit.id}`]).length;
+    const ok = await ask(
+      `Se eliminará el Criterio ${crit.orden} del Indicador ${ind.orden}.\n\n` +
+      `· ${conNota} nota(s) se borrarán de TODOS los cortes evaluativos.\n` +
+      `· En esta vista afecta a ${filteredNotas.length} estudiante(s).\n\nEsta acción no se puede deshacer.`,
+      { title: '🗑 Eliminar criterio', kind: 'warning', okLabel: 'Sí, eliminar', cancelLabel: 'Cancelar' }
+    );
+    if (!ok) return;
+    procesandoAccion = true;
+    try {
+      await invoke('delete_criterio', { id: crit.id });
+      await emit("show-toast", { message: `🗑 Criterio ${crit.orden} eliminado`, type: 'success' });
+      await recargarIndicadoresYNotas();
+    } catch (e) {
+      await emit("show-toast", { message: "❌ Error al eliminar: " + e, type: "error" });
+    } finally { procesandoAccion = false; }
+  }
+
+  /**
+   * Aplica una letra a un criterio de todos los estudiantes visibles (el filtro
+   * de búsqueda también cuenta). Con `aplicarSoloVacias` solo rellena las
+   * celdas vacías. Es un solo paso de historial: se puede deshacer con Ctrl+Z.
+   */
+  async function aplicarNotaMasiva(ind: Indicador, crit: Criterio, letra: string) {
+    const soloVacias = aplicarSoloVacias;
+    cerrarPopover();
+    const destino = notas.filter(n => soloVacias ? !notasCualitativas[`${n.estudianteId}-${crit.id}`] : true);
+    if (destino.length === 0) {
+      await emit("show-toast", { message: `ℹ️ No hay celdas vacías en C${crit.orden}`, type: 'info' });
+      return;
+    }
+    const ok = await ask(
+      `Se aplicará ${letra} al Criterio ${crit.orden} del Indicador ${ind.orden} ` +
+      `a ${destino.length} estudiante(s)${soloVacias ? ' (solo celdas vacías)' : ' (sobrescribe)'}.\n\n` +
+      `Recuerda que aún debes pulsar Guardar para escribirlo en la base de datos.`,
+      { title: `✍ Nota masiva ${letra}`, kind: 'info', okLabel: `Aplicar ${letra}`, cancelLabel: 'Cancelar' }
+    );
+    if (!ok) return;
+    pushHistory({ ...notasCualitativas });
+    for (const n of destino) handleNotaChange(n.estudianteId, crit.id, letra);
+    rowVersionTick++;
+    await emit("show-toast", { message: `✍ ${letra} aplicado a ${destino.length} estudiante(s) en C${crit.orden}`, type: 'success' });
+  }
+
+  /** Recarga indicadores + notas del filtro actual (tras borrar estructura). */
+  async function recargarIndicadoresYNotas() {
+    savedBaseline = {};
+    history = [];
+    redoStack = [];
+    hasUnsavedRef = false;
+    const nuevos = await fetchConfiguracionEvaluacion(true);
+    await fetchEstudiantes(nuevos, true);
+  }
+
   let hasUnsavedRef = false;
   let pendingRefreshOnSave = $state(false);
   let nextRefreshSilent = false;
@@ -1756,8 +1935,12 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
               {#each indicadores as ind}
                 <div style="margin-bottom: 0.5rem; border-radius: 12px; border: 1px solid {ind.activo ? 'rgba(var(--primary-rgb), 0.25)' : 'rgba(100,116,139,0.3)'}; background: {ind.activo ? 'rgba(30, 41, 59, 0.5)' : 'rgba(30, 41, 59, 0.28)'};">
                   <div style="padding: 0.4rem 0.6rem; background: rgba(30, 41, 59, 0.95); backdrop-filter: blur(8px); border-bottom: 1px solid {ind.activo ? 'rgba(var(--primary-rgb), 0.15)' : 'rgba(100,116,139,0.2)'}; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; border-top-left-radius: 11px; border-top-right-radius: 11px;">
-                    <div style="color: {ind.activo ? 'var(--text-secondary)' : '#64748b'}; font-weight: bold; font-size: 0.8rem;">
-                      Indicador {ind.orden}{#if !ind.activo}<span style="font-size: 0.6rem; color: #64748b;"> · no suma</span>{/if}
+                    <div
+                      role="button" tabindex="0"
+                      onclick={(e) => abrirPopover('indicador', ind.id, 0, e)}
+                      onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirPopover('indicador', ind.id, 0, e as unknown as MouseEvent); } }}
+                      style="color: {ind.activo ? 'var(--text-secondary)' : '#64748b'}; font-weight: bold; font-size: 0.8rem; cursor: pointer;">
+                      Indicador {ind.orden} ⚙{#if !ind.activo}<span style="font-size: 0.6rem; color: #64748b;"> · no suma</span>{/if}
                     </div>
                     <div style="color: {ind.activo ? (() => {
                       const totalInd = ind.criterios.reduce((sum, c) => {
@@ -1785,8 +1968,12 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                   </div>
                   {#each ind.criterios as crit}
                     <div style="padding: 0.4rem 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.04); display: flex; flex-direction: column;">
-                      <div style="font-size: 0.7rem; color: #94a3b8; margin-bottom: 0.3rem; display: flex; justify-content: space-between;">
-                        <span>Criterio {crit.orden}{crit.descripcion ? ': ' + crit.descripcion : ''}</span>
+                      <div style="font-size: 0.7rem; color: #94a3b8; margin-bottom: 0.3rem; display: flex; justify-content: space-between; align-items: center; gap: 0.4rem;">
+                        <span
+                          role="button" tabindex="0"
+                          onclick={(e) => abrirPopover('criterio', ind.id, crit.id, e)}
+                          onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirPopover('criterio', ind.id, crit.id, e as unknown as MouseEvent); } }}
+                          style="cursor: pointer; text-align: left;">Criterio {crit.orden} ⚙{crit.descripcion ? ': ' + crit.descripcion : ''}</span>
                         {#if !isQualitative}<span style="color: #4ade80;">máx {crit.puntajeMaximo}</span>{/if}
                       </div>
                       <div style="display: flex; gap: 4px; flex-wrap: wrap;">
@@ -1883,8 +2070,13 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                 <th style="padding: 0.3rem; text-align: left; font-weight: bold; color: #94a3b8; position: sticky; left: 35px; z-index: 110; background: #1e293b; border-bottom: 2px solid rgba(255,255,255,0.1); min-width: 130px; max-width: 150px;">Estudiante</th>
                 {#each indicadores as ind}
                   <th colspan={ind.criterios.length + 1} style="padding: 0.2rem; text-align: center; font-weight: bold; border-bottom: 2px solid {ind.activo ? 'rgba(255,255,255,0.1)' : 'rgba(100,116,139,0.25)'};">
-                    <div title={ind.activo ? (ind.descripcion || `Indicador ${ind.orden}`) : `${ind.descripcion || `Indicador ${ind.orden}`} · INACTIVO: sus notas no suman al total de 100 pts`} style="background: {ind.activo ? 'rgba(var(--primary-rgb), 0.15)' : 'rgba(100,116,139,0.08)'}; padding: 0.2rem; border-radius: 4px; border: 1px solid {ind.activo ? 'rgba(var(--primary-rgb), 0.4)' : 'rgba(100,116,139,0.3)'}; color: {ind.activo ? 'var(--text-secondary)' : '#64748b'}; cursor: help; {ind.activo ? '' : 'border-style: dashed;'}">
-                      <div style="font-weight: bold; font-size: 0.7rem;">Ind. {ind.orden}{ind.activo ? '' : ' ·'}</div>
+                    <div
+                      role="button" tabindex="0"
+                      onclick={(e) => abrirPopover('indicador', ind.id, 0, e)}
+                      onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirPopover('indicador', ind.id, 0, e as unknown as MouseEvent); } }}
+                      title={ind.activo ? (ind.descripcion || `Indicador ${ind.orden}`) : `${ind.descripcion || `Indicador ${ind.orden}`} · INACTIVO: sus notas no suman al total de 100 pts`}
+                      style="background: {ind.activo ? 'rgba(var(--primary-rgb), 0.15)' : 'rgba(100,116,139,0.08)'}; padding: 0.2rem; border-radius: 4px; border: 1px solid {ind.activo ? 'rgba(var(--primary-rgb), 0.4)' : 'rgba(100,116,139,0.3)'}; color: {ind.activo ? 'var(--text-secondary)' : '#64748b'}; cursor: pointer; {ind.activo ? '' : 'border-style: dashed;'} transition: all 0.15s ease;">
+                      <div style="font-weight: bold; font-size: 0.7rem;">Ind. {ind.orden}{ind.activo ? '' : ' ·'} ⚙</div>
                     </div>
                   </th>
                 {/each}
@@ -1898,8 +2090,13 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                 <th style="position: sticky; left: 35px; z-index: 110; background: #1e293b; border-bottom: 1px solid rgba(255,255,255,0.1);"></th>
                 {#each indicadores as ind}
                   {#each ind.criterios as crit}
-                    <th title={crit.descripcion} style="padding: 0.2rem; text-align: center; color: {ind.activo ? '#94a3b8' : '#64748b'}; font-size: 0.65rem; border-bottom: 1px solid rgba(255,255,255,0.1); cursor: help;">
-                      <div style="font-weight: bold;">C{crit.orden}</div>
+                    <th
+                      role="button" tabindex="0"
+                      onclick={(e) => abrirPopover('criterio', ind.id, crit.id, e)}
+                      onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirPopover('criterio', ind.id, crit.id, e as unknown as MouseEvent); } }}
+                      title="{crit.descripcion || 'Sin descripción'} — clic para ver opciones del criterio"
+                      style="padding: 0.2rem; text-align: center; color: {ind.activo ? '#94a3b8' : '#64748b'}; font-size: 0.65rem; border-bottom: 1px solid rgba(255,255,255,0.1); cursor: pointer;">
+                      <div style="font-weight: bold;">C{crit.orden} ⚙</div>
                       {#if !isQualitative}<div style="font-size: 0.55rem; color: {ind.activo ? '#4ade80' : '#64748b'};">{crit.puntajeMaximo}</div>{/if}
                     </th>
                   {/each}
@@ -2057,6 +2254,71 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           </p>
         </div>
       {/if}
+    {/if}
+
+    <!-- Popover de indicador / criterio (anclado a la cabecera pulsada) -->
+    {#if popover && popoverIndicador()}
+      {@const indPop = popoverIndicador()}
+      {@const critPop = popoverCriterio()}
+      <div
+        bind:this={popoverPanelEl}
+        role="dialog" aria-label="Opciones"
+        style="position: fixed; z-index: 99995; left: {Math.max(8, Math.min(popover.x, (typeof window !== 'undefined' ? window.innerWidth : 1920) - Math.max(228, popover.ancho + 12)))}px; top: {popover.y}px; min-width: 220px; max-width: 280px; background: rgba(20,24,31,0.97); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; box-shadow: 0 18px 40px -10px rgba(0,0,0,0.65); padding: 0.45rem; box-sizing: border-box;">
+        {#if popover.tipo === 'indicador' && indPop}
+          <div style="padding: 0.35rem 0.5rem 0.45rem; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 0.3rem;">
+            <div style="font-size: 0.78rem; font-weight: 700; color: #f1f5f9;">Indicador {indPop.orden}</div>
+            <div style="font-size: 0.66rem; color: #64748b;">{indPop.descripcion || 'Sin descripción'} · {indPop.criterios.length} criterio(s)</div>
+          </div>
+          <button
+            onclick={() => alternarActivoIndicador(indPop)}
+            disabled={procesandoAccion}
+            style="width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.55rem; border-radius: 9px; border: 1px solid {indPop.activo ? 'rgba(251,191,36,0.3)' : 'rgba(34,197,94,0.3)'}; background: {indPop.activo ? 'rgba(251,191,36,0.1)' : 'rgba(34,197,94,0.1)'}; color: {indPop.activo ? '#fbbf24' : '#4ade80'}; font-size: 0.78rem; font-weight: 600; cursor: pointer; text-align: left; transition: all 0.15s ease;">
+            <span style="font-size: 0.9rem;">{indPop.activo ? '👁' : '✔'}</span>
+            <span>{indPop.activo ? 'Marcar como inactivo' : 'Marcar como activo'}</span>
+          </button>
+          <div style="font-size: 0.62rem; color: #64748b; padding: 0.2rem 0.55rem 0.35rem; line-height: 1.3;">Inactivo = sus notas no suman al total, pero conserva las notas.</div>
+          <button
+            onclick={() => eliminarIndicador(indPop)}
+            disabled={procesandoAccion}
+            style="width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.55rem; border-radius: 9px; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); color: #fca5a5; font-size: 0.78rem; font-weight: 600; cursor: pointer; text-align: left; transition: all 0.15s ease;">
+            <span style="font-size: 0.9rem;">🗑</span>
+            <span>Eliminar indicador</span>
+          </button>
+          <div style="font-size: 0.62rem; color: #64748b; padding: 0.2rem 0.55rem 0.1rem; line-height: 1.3;">Borra el indicador, sus {indPop.criterios.length} criterio(s) y todas sus notas en todos los cortes.</div>
+        {:else if popover.tipo === 'criterio' && indPop && critPop}
+          <div style="padding: 0.35rem 0.5rem 0.45rem; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 0.3rem;">
+            <div style="font-size: 0.78rem; font-weight: 700; color: #f1f5f9;">Criterio {critPop.orden} · Indicador {indPop.orden}</div>
+            <div style="font-size: 0.66rem; color: #64748b;">{critPop.descripcion || 'Sin descripción'}{!isQualitative ? ' · máx ' + critPop.puntajeMaximo + ' pts' : ''}</div>
+          </div>
+          <div style="font-size: 0.68rem; color: #a78bfa; font-weight: 700; padding: 0.15rem 0.55rem 0.35rem; text-transform: uppercase; letter-spacing: 0.4px;">Aplicar nota a todos</div>
+          <label style="display: flex; align-items: center; gap: 0.45rem; padding: 0.3rem 0.5rem 0.4rem 0.35rem; cursor: pointer;">
+            <span class="switch" style="margin: 0;">
+              <input type="checkbox" checked={aplicarSoloVacias} onchange={() => aplicarSoloVacias = !aplicarSoloVacias} />
+              <span class="slider round" style="background: {aplicarSoloVacias ? 'linear-gradient(135deg, #38bdf8, #0284c7)' : 'rgba(255,255,255,0.12)'}; border-color: {aplicarSoloVacias ? 'transparent' : 'rgba(255,255,255,0.18)'};"></span>
+            </span>
+            <span style="line-height: 1.2;">
+              <span style="display: block; font-size: 0.7rem; color: #cbd5e1; font-weight: 500;">Solo celdas vacías</span>
+              <span style="display: block; font-size: 0.62rem; color: {aplicarSoloVacias ? '#38bdf8' : '#94a3b8'};">{aplicarSoloVacias ? 'No sobrescribe lo escrito' : 'Sobrescribe todas'}</span>
+            </span>
+          </label>
+          <div style="display: flex; gap: 4px; padding: 0 0.5rem 0.4rem;">
+            {#each allowedQualitativeGrades as letra}
+              <button
+                onclick={() => aplicarNotaMasiva(indPop, critPop, letra)}
+                disabled={procesandoAccion}
+                style="flex: 1; padding: 0.32rem 0; border-radius: 7px; border: 2px solid {getGradeColor(letra)}; background: transparent; color: {getGradeColor(letra)}; font-weight: 800; font-size: 0.72rem; cursor: pointer; transition: all 0.15s ease;">{letra}</button>
+            {/each}
+          </div>
+          <button
+            onclick={() => eliminarCriterio(indPop, critPop)}
+            disabled={procesandoAccion}
+            style="width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.55rem; border-radius: 9px; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); color: #fca5a5; font-size: 0.78rem; font-weight: 600; cursor: pointer; text-align: left; transition: all 0.15s ease; margin-top: 0.15rem;">
+            <span style="font-size: 0.9rem;">🗑</span>
+            <span>Eliminar este criterio</span>
+          </button>
+          <div style="font-size: 0.62rem; color: #64748b; padding: 0.2rem 0.55rem 0.1rem; line-height: 1.3;">Borra solo C{critPop.orden} de este indicador y todas sus notas en todos los cortes.</div>
+        {/if}
+      </div>
     {/if}
 
     <!-- Distribuir Modal -->

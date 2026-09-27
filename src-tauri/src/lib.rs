@@ -1900,8 +1900,11 @@ pub fn run() {
             set_colegio_grado,
             delete_colegio_grado,
             get_evaluation_config,
-            update_indicador,
-            update_criterio,
+        update_indicador,
+        delete_indicador,
+        update_criterio,
+        delete_criterio,
+
             get_estudiantes_by_filters,
             save_notas_estudiantes,
             delete_notas,
