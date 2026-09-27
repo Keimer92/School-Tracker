@@ -940,18 +940,21 @@
     const saveAsignaturaId = selectedAsignatura;
     const notasActualizadas = notas.map(notaEst => {
       const updatedNotas: Record<number, number> = { ...notaEst.notas };
+      /** Criterios que quedaron vacios y hay que borrar de la BD. */
+      const borrados: number[] = [];
       indicadores.forEach(ind => { ind.criterios.forEach(crit => {
         const key = `${notaEst.estudianteId}-${crit.id}`;
         const qualValue = notasCualitativas[key];
         if (qualValue && ['AA', 'AS', 'AF', 'AI'].includes(qualValue)) {
           const percentage = notaMapping[qualValue];
           updatedNotas[crit.id] = Math.round(crit.puntajeMaximo * percentage);
-        } else {
-          const refValue = notasCuantitativas[key];
-          if (refValue !== undefined) updatedNotas[crit.id] = refValue;
+        } else if (!qualValue) {
+          // Celda vacia: si tenia algo guardado, la fila se borra de verdad. Antes
+          // el upsert la dejaba intacta y la nota reaparecia al recargar.
+          if (savedBaseline[key] || notaEst.notas[crit.id] !== undefined) borrados.push(crit.id);
         }
       }); });
-      return { ...notaEst, notas: updatedNotas };
+      return { ...notaEst, notas: updatedNotas, borrados };
     });
     const hasIncomplete = Object.values(notasCualitativas).some(v => v === 'A');
     if (hasIncomplete) {

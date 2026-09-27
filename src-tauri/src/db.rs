@@ -3727,6 +3727,29 @@ pub async fn save_notas_estudiantes(
             )
             .map_err(|e| e.to_string())?;
         }
+
+        // Criterios que el usuario dejo vacios: la fila se borra de verdad (antes
+        // el upsert la dejaba intacta y la nota reaparecia al recargar). El
+        // tombstone se registra en la misma transaccion para que el sync D1
+        // propague el borrado al resto de dispositivos.
+        for criterio_id in &nota_est.borrados {
+            let filas = tx
+                .execute(
+                    "DELETE FROM nota
+                     WHERE estudiante_id = ?1 AND criterio_id = ?2
+                       AND corte_evaluativo_id = ?3 AND asignatura_id = ?4",
+                    rusqlite::params![nota_est.estudianteId, *criterio_id, corteId, asignaturaId],
+                )
+                .map_err(|e| e.to_string())?;
+            if filas > 0 {
+                tx.execute(
+                    "INSERT INTO sync_pending_deletions_nota (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id)
+                     VALUES (?, ?, ?, ?)",
+                    rusqlite::params![nota_est.estudianteId, *criterio_id, corteId, asignaturaId],
+                )
+                .map_err(|e| e.to_string())?;
+            }
+        }
     }
 
     tx.commit().map_err(|e| e.to_string())?;
@@ -3934,6 +3957,9 @@ pub async fn set_dias_sin_clases(
 pub struct NotaEstudianteRequest {
     pub estudianteId: i64,
     pub notas: Vec<NotaRequest>,
+    /// Criterios que el usuario dejo vacios y hay que borrar de `nota`.
+    #[serde(default)]
+    pub borrados: Vec<i64>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
