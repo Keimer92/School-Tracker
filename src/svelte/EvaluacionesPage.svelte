@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { emit, listen } from "@tauri-apps/api/event";
+  import { ask } from "@tauri-apps/plugin-dialog";
   import { syncService } from "../lib/syncService";
   import { onDataChange } from "../lib/autoSync";
   import FilterContainer from "./FilterContainer.svelte";
@@ -165,9 +166,21 @@
   }
 
   async function fetchConfig() {
+    const combo = `${selectedAno}-${selectedGrado}-${selectedAsignatura}-${selectedCorte}`;
+    // Cambiar de grado/asignatura/corte/año con ediciones sin guardar las perdería:
+    // se pregunta antes de cargar otra combinación.
+    if (hayCambios && comboCargado !== '' && combo !== comboCargado) {
+      const ok = await ask(
+        "Tienes cambios sin guardar en esta configuración.\n\nSi continúas se perderán.",
+        { title: '💾 Cambios sin guardar', kind: 'warning', okLabel: 'Guardar y continuar', cancelLabel: 'Descartar y continuar' }
+      );
+      if (ok) await handleSaveConfig();
+    }
     loading = true;
     try {
       indicadores = await invoke<Indicador[]>("get_evaluation_config", { gradoId: selectedGrado, asignaturaId: selectedAsignatura, corteEvaluativoId: selectedCorte, anoLectivoId: selectedAno });
+      configBaseline = snapshotConfig(indicadores);
+      comboCargado = combo;
     } catch (error) {
       await emit("show-toast", { message: "❌ Error al cargar configuración: " + error, type: "error" });
     } finally { loading = false; }
@@ -177,16 +190,22 @@
     indicadores = indicadores.map(i => i.id === id ? { ...i, descripcion: desc } : i);
   }
 
-  async function handleBlurIndicador(indicador: Indicador) {
-    try {
-      await invoke("update_indicador", { id: indicador.id, descripcion: indicador.descripcion, activo: indicador.activo });
-      onDataChange('indicador');
-      await emit("notas-updated", { timestamp: Date.now() });
-    } catch (error) {
-      console.error("Error saving description", error);
-      await emit("show-toast", { message: "❌ Error al guardar: " + error, type: "error" });
-    }
+  /**
+   * Instantánea de lo que está guardado en la BD (descripciones y puntos).
+   * El botón Guardar se habilita solo mientras el estado actual difiere de aquí.
+   */
+  function snapshotConfig(lista: Indicador[]): string {
+    return JSON.stringify(lista.map(i => ({
+      id: i.id,
+      d: i.descripcion,
+      c: i.criterios.map(c => [c.id, c.descripcion, Number(c.puntajeMaximo) || 0])
+    })));
   }
+  let configBaseline = $state('');
+  let comboCargado = $state('');
+  let hayCambios = $derived(configBaseline !== '' && snapshotConfig(indicadores) !== configBaseline);
+  let recienGuardado = $state(false);
+  let guardando = $state(false);
 
   function handleUpdateCriterio(indicadorId: number, criterioId: number, field: "descripcion" | "puntajeMaximo", value: string | number) {
     indicadores = indicadores.map(ind => {
@@ -195,37 +214,26 @@
     });
   }
 
-  async function handleBlurCriterio(criterio: Criterio) {
-    try {
-      await invoke("update_criterio", { id: criterio.id, descripcion: criterio.descripcion, puntajeMaximo: Number(criterio.puntajeMaximo) });
-      onDataChange('indicador');
-      await emit("notas-updated", { timestamp: Date.now() });
-    } catch (error) {
-      console.error("Error saving criterio", error);
-      await emit("show-toast", { message: "❌ Error al guardar criterio: " + error, type: "error" });
-    }
-  }
-
   async function handleSaveConfig() {
+    if (!hayCambios || guardando) return;
     const problemas: string[] = [];
-    let primerIndicadorConProblema: Indicador | null = null;
     if (!isQualitative) {
       for (const ind of indicadores) {
         if (!ind.activo) continue;
         const total = puntosDe(ind);
         if (total > MAX_PTS_POR_INDICADOR) {
           problemas.push(`Indicador ${ind.orden}: ${total} pts (máximo ${MAX_PTS_POR_INDICADOR})`);
-          if (!primerIndicadorConProblema) primerIndicadorConProblema = ind;
         }
       }
       if (activeCount > MAX_ACTIVOS) {
-        problemas.push(`Hay ${activeCount} indicadores summing y el máximo es ${MAX_ACTIVOS} (${MAX_ACTIVOS} × ${MAX_PTS_POR_INDICADOR} = 100 pts). Desactiva uno desde NotasPage.`);
+        problemas.push(`Hay ${activeCount} indicadores sumando y el máximo es ${MAX_ACTIVOS} (${MAX_ACTIVOS} × ${MAX_PTS_POR_INDICADOR} = 100 pts). Desactiva uno desde NotasPage.`);
       }
     }
     if (problemas.length > 0) {
-      await emit("show-toast", { message: `⚠️ Errores:\n${problemas.join('\n')}`, type: "error" });
+      await emit("show-toast", { message: `⚠️ No se guardó:\n${problemas.join('\n')}`, type: "error" });
       return;
     }
+    guardando = true;
     try {
       for (const ind of indicadores) {
         await invoke("update_indicador", { id: ind.id, descripcion: ind.descripcion, activo: ind.activo });
@@ -233,12 +241,15 @@
           await invoke("update_criterio", { id: crit.id, descripcion: crit.descripcion, puntajeMaximo: Number(crit.puntajeMaximo) });
         }
       }
+      configBaseline = snapshotConfig(indicadores);
+      recienGuardado = true;
+      setTimeout(() => { recienGuardado = false; }, 1600);
       onDataChange('indicador');
       await emit("notas-updated", { timestamp: Date.now() });
       await emit("show-toast", { message: "✅ Configuración guardada", type: "success" });
     } catch (error) {
       await emit("show-toast", { message: "❌ Error al guardar: " + error, type: "error" });
-    }
+    } finally { guardando = false; }
   }
 </script>
 
@@ -283,15 +294,29 @@
         </FilterGroup>
         {#if !isMobile}
           <FilterActions>
-            <button class="primary" onclick={handleSaveConfig} disabled={loading || asignaturas.length === 0} style="padding: 0.6rem 1.4rem; font-size: 0.9rem; font-weight: 700;">
-              {loading ? '⏳...' : '💾 Guardar'}
+            {#if hayCambios}
+              <span title="Hay cambios sin guardar" style="display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0.5rem; border-radius: 999px; background: rgba(251,191,36,0.14); border: 1px solid rgba(251,191,36,0.35); color: #fbbf24; font-size: 0.7rem; font-weight: 700; white-space: nowrap;">
+                <span style="width: 6px; height: 6px; border-radius: 50%; background: #fbbf24;"></span>Sin guardar
+              </span>
+            {/if}
+            <button
+              class="primary"
+              onclick={handleSaveConfig}
+              disabled={!hayCambios || loading || guardando || asignaturas.length === 0}
+              style="padding: 0.6rem 1.4rem; font-size: 0.9rem; font-weight: 700; background: {hayCambios ? (recienGuardado ? 'linear-gradient(135deg, #059669, #10b981)' : 'linear-gradient(135deg, #16a34a, #22c55e)') : 'rgba(148,163,184,0.5)'}; color: #fff; border: none; border-radius: 10px; cursor: {hayCambios ? 'pointer' : 'default'}; opacity: {hayCambios ? 1 : 0.65}; box-shadow: {hayCambios ? '0 4px 14px rgba(34,197,94,0.35)' : 'none'}; transition: all 0.2s ease; white-space: nowrap;">
+              {loading ? '⏳...' : guardando ? '💾 Guardando...' : recienGuardado ? '✓ Guardado' : hayCambios ? '💾 Guardar cambios' : 'Sin cambios'}
             </button>
           </FilterActions>
         {/if}
         {#if isMobile}
           <div style="flex: 1 1 100%; display: flex; justify-content: flex-end; align-items: center; gap: 0.4rem; margin-top: 0.15rem;">
-            <button class="primary" onclick={handleSaveConfig} disabled={loading || asignaturas.length === 0} style="padding: 0.35rem 0.75rem; font-size: 0.75rem; flex-shrink: 0; white-space: nowrap;">
-              {loading ? '⏳...' : '💾'}
+            <button
+              class="primary"
+              onclick={handleSaveConfig}
+              disabled={!hayCambios || loading || guardando || asignaturas.length === 0}
+              title={hayCambios ? 'Guardar cambios' : 'No hay cambios que guardar'}
+              style="padding: 0.35rem 0.75rem; font-size: 0.75rem; flex-shrink: 0; white-space: nowrap; background: {hayCambios ? (recienGuardado ? 'linear-gradient(135deg, #059669, #10b981)' : 'linear-gradient(135deg, #16a34a, #22c55e)') : 'rgba(148,163,184,0.5)'}; color: #fff; border: none; border-radius: 8px; font-weight: 700; cursor: {hayCambios ? 'pointer' : 'default'}; opacity: {hayCambios ? 1 : 0.65}; transition: all 0.2s ease;">
+              {loading ? '⏳' : guardando ? '💾' : recienGuardado ? '✓' : '💾'}
             </button>
             {#if !isAndroid}
               <div class="ev-view-toggle">
@@ -353,6 +378,11 @@
               <span style="margin-left: 1rem;">Puntaje: <strong>{puntosActivos}</strong> / {maxScore} pts</span>
             {/if}
             <span style="margin-left: 1rem; font-size: 0.72rem; color: #64748b;">Editable aquí: descripciones y puntos. Cuáles suman se decide en NotasPage.</span>
+            {#if hayCambios}
+              <span style="margin-left: 1rem; font-size: 0.72rem; color: #fbbf24; font-weight: 700;">· ⚠️ Cambios sin guardar</span>
+            {:else if recienGuardado}
+              <span style="margin-left: 1rem; font-size: 0.72rem; color: #4ade80; font-weight: 700;">· ✓ Guardado</span>
+            {/if}
           </div>
 
           {#if !isQualitative}
@@ -372,7 +402,7 @@
                 <div class="indicador-header-left">
                     <span title={est.title} style="display: inline-flex; align-items: center; padding: 0.15rem 0.45rem; border-radius: 999px; background: {est.fondo}; color: {est.color}; font-size: 0.62rem; font-weight: 700; white-space: nowrap; flex-shrink: 0; border: 1px solid {est.color}33;">{est.texto}</span>
                     <div class="indicador-badge" class:active={ind.activo} class:inactive={!ind.activo}>{ind.orden}</div>
-                    <input type="text" value={ind.descripcion} oninput={(e) => handleUpdateIndicadorDesc(ind.id, (e.target as HTMLInputElement).value)} onblur={() => handleBlurIndicador(ind)} placeholder="Descripción del indicador..." class="indicador-desc-input" />
+                    <input type="text" value={ind.descripcion} oninput={(e) => handleUpdateIndicadorDesc(ind.id, (e.target as HTMLInputElement).value)} placeholder="Descripción del indicador..." class="indicador-desc-input" />
                 </div>
                 <div class="indicador-header-right">
                     <span class="status-tag" class:qualitative={isQualitative} class:quantitative={!isQualitative} title="Puntos que suman sus criterios">{isQualitative ? 'Cualitativo' : puntosDe(ind) + ' pts'}</span>
@@ -382,9 +412,9 @@
                   {#each ind.criterios as crit (crit.id)}
                     <div class="criterio-row">
                       <span class="criterio-label">Crit. {crit.orden}</span>
-                      <input type="text" value={crit.descripcion} oninput={(e) => handleUpdateCriterio(ind.id, crit.id, "descripcion", (e.target as HTMLInputElement).value)} onblur={() => handleBlurCriterio(crit)} placeholder="Descripción del criterio..." class="criterio-input" />
+                      <input type="text" value={crit.descripcion} oninput={(e) => handleUpdateCriterio(ind.id, crit.id, "descripcion", (e.target as HTMLInputElement).value)} placeholder="Descripción del criterio..." class="criterio-input" />
                       <div class="criterio-score">
-                        <input type="number" value={crit.puntajeMaximo} oninput={(e) => handleUpdateCriterio(ind.id, crit.id, "puntajeMaximo", Number((e.target as HTMLInputElement).value))} onblur={() => handleBlurCriterio(crit)} disabled={isQualitative} class="criterio-puntaje" />
+                        <input type="number" value={crit.puntajeMaximo} oninput={(e) => handleUpdateCriterio(ind.id, crit.id, "puntajeMaximo", Number((e.target as HTMLInputElement).value))} disabled={isQualitative} class="criterio-puntaje" />
                         <span class="criterio-pts">pts</span>
                       </div>
                     </div>
@@ -416,9 +446,9 @@
                     {#each ind.criterios as crit (crit.id)}
                       <div class="criterio-row">
                         <span class="criterio-label">Crit. {crit.orden}</span>
-                        <input type="text" value={crit.descripcion} oninput={(e) => handleUpdateCriterio(ind.id, crit.id, "descripcion", (e.target as HTMLInputElement).value)} onblur={() => handleBlurCriterio(crit)} placeholder="Descripción..." class="criterio-input" />
+                        <input type="text" value={crit.descripcion} oninput={(e) => handleUpdateCriterio(ind.id, crit.id, "descripcion", (e.target as HTMLInputElement).value)} placeholder="Descripción..." class="criterio-input" />
                         <div class="criterio-score">
-                          <input type="number" value={crit.puntajeMaximo} oninput={(e) => handleUpdateCriterio(ind.id, crit.id, "puntajeMaximo", Number((e.target as HTMLInputElement).value))} onblur={() => handleBlurCriterio(crit)} disabled={isQualitative} class="criterio-puntaje" />
+                          <input type="number" value={crit.puntajeMaximo} oninput={(e) => handleUpdateCriterio(ind.id, crit.id, "puntajeMaximo", Number((e.target as HTMLInputElement).value))} disabled={isQualitative} class="criterio-puntaje" />
                           <span class="criterio-pts">pts</span>
                         </div>
                       </div>
@@ -455,14 +485,14 @@
                     <span style="font-size: 0.62rem; color: #64748b;">Se activa o desactiva desde NotasPage</span>
                   </div>
                 </div>
-                <input type="text" value={selected.descripcion} oninput={(e) => handleUpdateIndicadorDesc(selected.id, (e.target as HTMLInputElement).value)} onblur={() => handleBlurIndicador(selected)} placeholder="Descripción del indicador..." class="split-detail-desc" />
+                <input type="text" value={selected.descripcion} oninput={(e) => handleUpdateIndicadorDesc(selected.id, (e.target as HTMLInputElement).value)} placeholder="Descripción del indicador..." class="split-detail-desc" />
                 <div class="split-detail-criterios">
                   {#each selected.criterios as crit (crit.id)}
                     <div class="criterio-row">
                       <span class="criterio-label">Crit. {crit.orden}</span>
-                      <input type="text" value={crit.descripcion} oninput={(e) => handleUpdateCriterio(selected.id, crit.id, "descripcion", (e.target as HTMLInputElement).value)} onblur={() => handleBlurCriterio(crit)} placeholder="Descripción..." class="criterio-input" />
+                      <input type="text" value={crit.descripcion} oninput={(e) => handleUpdateCriterio(selected.id, crit.id, "descripcion", (e.target as HTMLInputElement).value)} placeholder="Descripción..." class="criterio-input" />
                       <div class="criterio-score">
-                        <input type="number" value={crit.puntajeMaximo} oninput={(e) => handleUpdateCriterio(selected.id, crit.id, "puntajeMaximo", Number((e.target as HTMLInputElement).value))} onblur={() => handleBlurCriterio(crit)} disabled={isQualitative} class="criterio-puntaje" />
+                        <input type="number" value={crit.puntajeMaximo} oninput={(e) => handleUpdateCriterio(selected.id, crit.id, "puntajeMaximo", Number((e.target as HTMLInputElement).value))} disabled={isQualitative} class="criterio-puntaje" />
                         <span class="criterio-pts">pts</span>
                       </div>
                     </div>
