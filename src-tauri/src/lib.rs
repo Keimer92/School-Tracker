@@ -1901,7 +1901,7 @@ pub fn run() {
             delete_colegio_grado,
             get_evaluation_config,
         update_indicador,
-        delete_indicador,
+        vaciar_notas_indicador,
         update_criterio,
         delete_criterio,
 

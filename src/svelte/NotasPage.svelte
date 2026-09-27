@@ -371,25 +371,28 @@
     } finally { procesandoAccion = false; }
   }
 
-  /** Elimina el indicador completo: sus criterios y todas sus notas (de todos los cortes). */
-  async function eliminarIndicador(ind: Indicador) {
+  /**
+   * Vacía las notas de todos los criterios del indicador, dejándolas listas para
+   * volver a llenar. El indicador y sus criterios NO se borran nunca.
+   */
+  async function vaciarNotasIndicador(ind: Indicador) {
     cerrarPopover();
-    const nCriterios = ind.criterios.length;
-    const nEst = filteredNotas.length;
+    const conNota = notas.filter(n => ind.criterios.some(c => notasCualitativas[`${n.estudianteId}-${c.id}`])).length;
     const ok = await ask(
-      `Se eliminará el Indicador ${ind.orden} "${ind.descripcion || ''}".\n\n` +
-      `· ${nCriterios} criterio(s) y sus notas se borrarán de TODOS los cortes evaluativos.\n` +
-      `· En esta vista afecta a ${nEst} estudiante(s).\n\nEsta acción no se puede deshacer.`,
-      { title: '🗑 Eliminar indicador', kind: 'warning', okLabel: 'Sí, eliminar', cancelLabel: 'Cancelar' }
+      `Se borrarán las notas de los ${ind.criterios.length} criterio(s) del Indicador ${ind.orden} "${ind.descripcion || ''}".\n\n` +
+      `· ${conNota} estudiante(s) de esta vista quedan con las celdas vacías.\n` +
+      `· También se borran las notas de ESTE indicador en los demás cortes evaluativos.\n\n` +
+      `El indicador y sus criterios se conservan; solo se vacían las notas.\nEsta acción no se puede deshacer.`,
+      { title: '🧹 Vaciar notas del indicador', kind: 'warning', okLabel: 'Sí, vaciar', cancelLabel: 'Cancelar' }
     );
     if (!ok) return;
     procesandoAccion = true;
     try {
-      await invoke('delete_indicador', { id: ind.id });
-      await emit("show-toast", { message: `🗑 Indicador ${ind.orden} eliminado`, type: 'success' });
+      const borradas = await invoke<number>('vaciar_notas_indicador', { id: ind.id });
+      await emit("show-toast", { message: `🧹 Indicador ${ind.orden}: ${borradas} nota(s) vaciada(s)`, type: 'success' });
       await recargarIndicadoresYNotas();
     } catch (e) {
-      await emit("show-toast", { message: "❌ Error al eliminar: " + e, type: "error" });
+      await emit("show-toast", { message: "❌ Error al vaciar: " + e, type: "error" });
     } finally { procesandoAccion = false; }
   }
 
@@ -2278,13 +2281,13 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           </button>
           <div style="font-size: 0.62rem; color: #64748b; padding: 0.2rem 0.55rem 0.35rem; line-height: 1.3;">Inactivo = sus notas no suman al total, pero conserva las notas.</div>
           <button
-            onclick={() => eliminarIndicador(indPop)}
+            onclick={() => vaciarNotasIndicador(indPop)}
             disabled={procesandoAccion}
-            style="width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.55rem; border-radius: 9px; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); color: #fca5a5; font-size: 0.78rem; font-weight: 600; cursor: pointer; text-align: left; transition: all 0.15s ease;">
-            <span style="font-size: 0.9rem;">🗑</span>
-            <span>Eliminar indicador</span>
+            style="width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.55rem; border-radius: 9px; border: 1px solid rgba(245,158,11,0.3); background: rgba(245,158,11,0.1); color: #fbbf24; font-size: 0.78rem; font-weight: 600; cursor: pointer; text-align: left; transition: all 0.15s ease;">
+            <span style="font-size: 0.9rem;">🧹</span>
+            <span>Vaciar notas del indicador</span>
           </button>
-          <div style="font-size: 0.62rem; color: #64748b; padding: 0.2rem 0.55rem 0.1rem; line-height: 1.3;">Borra el indicador, sus {indPop.criterios.length} criterio(s) y todas sus notas en todos los cortes.</div>
+          <div style="font-size: 0.62rem; color: #64748b; padding: 0.2rem 0.55rem 0.1rem; line-height: 1.3;">Deja las {indPop.criterios.length} columnas vacías para volver a llenarlas. El indicador no se borra.</div>
         {:else if popover.tipo === 'criterio' && indPop && critPop}
           <div style="padding: 0.35rem 0.5rem 0.45rem; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 0.3rem;">
             <div style="font-size: 0.78rem; font-weight: 700; color: #f1f5f9;">Criterio {critPop.orden} · Indicador {indPop.orden}</div>

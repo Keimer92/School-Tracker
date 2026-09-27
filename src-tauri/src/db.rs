@@ -3625,16 +3625,26 @@ pub async fn update_indicador(
     Ok(())
 }
 
-/// Elimina un indicador con sus criterios y todas las notas de esos criterios.
-/// Registra los tombstones correspondientes para que el borrado llegue al resto
-/// de dispositivos por el sync de D1.
+/// Vacía TODAS las notas de los criterios de un indicador, sin borrar el
+/// indicador ni sus criterios: las celdas quedan listas para volver a llenarse.
+/// Los indicadores jamas se eliminan, por eso esta es la via para "empezar de
+/// cero" con un indicador. Registra tombstones para que el vaciado llegue al
+/// resto de dispositivos por el sync de D1. Devuelve cuantas notas borro.
 #[tauri::command]
-pub async fn delete_indicador(
+pub async fn vaciar_notas_indicador(
     state: tauri::State<'_, DbState>,
     id: i64,
-) -> Result<(), String> {
+) -> Result<usize, String> {
     let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
     let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    let existe: i64 = tx
+        .query_row("SELECT COUNT(*) FROM indicador WHERE id = ?", [id], |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+    if existe == 0 {
+        let _ = tx.rollback();
+        return Err(format!("Indicador {} no encontrado", id));
+    }
 
     let criterios: Vec<i64> = {
         let mut stmt = tx
@@ -3650,6 +3660,7 @@ pub async fn delete_indicador(
     };
 
     // Notas de esos criterios (de todos los cortes/asignaturas) + sus tombstones.
+    let mut total_notas = 0usize;
     for crit_id in &criterios {
         let notas: Vec<(i64, i64, i64, i64)> = {
             let mut stmt = tx
@@ -3676,32 +3687,13 @@ pub async fn delete_indicador(
             )
             .map_err(|e| e.to_string())?;
         }
-        tx.execute("DELETE FROM nota WHERE criterio_id = ?", [crit_id])
-            .map_err(|e| e.to_string())?;
-        tx.execute(
-            "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES ('criterio', ?)",
-            [crit_id],
-        )
-        .map_err(|e| e.to_string())?;
-        tx.execute("DELETE FROM criterio WHERE id = ?", [crit_id])
+        total_notas += tx
+            .execute("DELETE FROM nota WHERE criterio_id = ?", [crit_id])
             .map_err(|e| e.to_string())?;
     }
-
-    let borrados = tx
-        .execute("DELETE FROM indicador WHERE id = ?", [id])
-        .map_err(|e| e.to_string())?;
-    if borrados == 0 {
-        let _ = tx.rollback();
-        return Err(format!("Indicador {} no encontrado", id));
-    }
-    tx.execute(
-        "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES ('indicador', ?)",
-        [id],
-    )
-    .map_err(|e| e.to_string())?;
 
     tx.commit().map_err(|e| e.to_string())?;
-    Ok(())
+    Ok(total_notas)
 }
 
 /// Elimina un criterio (una columna de la tabla) y todas sus notas.
