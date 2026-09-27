@@ -49,7 +49,7 @@ async fn get_all_local_data_json(state: tauri::State<'_, DbState>) -> Result<Str
 
     let table_names = [
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
-        "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio", "indicador_seccion_activo",
+        "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio", "indicador_colegio_seccion_activo",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia", "dia_sin_clases",
         "asistencia", "nota", "app_settings",
     ];
@@ -99,7 +99,7 @@ async fn get_all_local_data_since(state: tauri::State<'_, DbState>, since: Strin
 
     let table_names = [
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
-        "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio", "indicador_seccion_activo",
+        "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio", "indicador_colegio_seccion_activo",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia", "dia_sin_clases",
         "asistencia", "nota", "app_settings",
     ];
@@ -152,7 +152,7 @@ fn has_local_changes(state: tauri::State<'_, DbState>, since: String) -> Result<
 
     let table_names = [
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
-        "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio", "indicador_seccion_activo",
+        "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio", "indicador_colegio_seccion_activo",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia", "dia_sin_clases",
         "asistencia", "nota", "app_settings",
     ];
@@ -1901,9 +1901,9 @@ pub fn run() {
             delete_colegio_grado,
             get_evaluation_config,
         update_indicador,
-        get_indicadores_activos_seccion,
-        set_indicador_seccion_activo,
-        reset_indicadores_seccion,
+        get_indicadores_activos_colegio_seccion,
+        set_indicador_colegio_seccion_activo,
+        reset_indicadores_colegio_seccion,
         vaciar_notas_indicador,
         update_criterio,
         delete_criterio,

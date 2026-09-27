@@ -113,10 +113,10 @@ const TABLES: Record<string, { pk: string[]; cols: string[] }> = {
     pk: ['id'],
     cols: ['id', 'indicador_id', 'orden', 'descripcion', 'puntaje_maximo', 'updated_at'],
   },
-  // Bandera de "suma al total" por seccion (excepcion al indicador global).
-  indicador_seccion_activo: {
-    pk: ['seccion_id', 'indicador_id'],
-    cols: ['seccion_id', 'indicador_id', 'activo', 'updated_at'],
+  // Bandera de "suma al total" por colegio y seccion (excepcion al global).
+  indicador_colegio_seccion_activo: {
+    pk: ['colegio_id', 'seccion_id', 'indicador_id'],
+    cols: ['colegio_id', 'seccion_id', 'indicador_id', 'activo', 'updated_at'],
   },
   estudiante: {
     pk: ['id'],

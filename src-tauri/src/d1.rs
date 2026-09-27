@@ -213,7 +213,7 @@ fn pk_cols(table: &str) -> &'static [&'static str] {
         "colegio_dias_asistencia" => &["colegio_id"],
         "dia_sin_clases" => &["id"],
         "nota" => &["estudiante_id", "criterio_id", "corte_evaluativo_id", "asignatura_id"],
-        "indicador_seccion_activo" => &["seccion_id", "indicador_id"],
+        "indicador_colegio_seccion_activo" => &["colegio_id", "seccion_id", "indicador_id"],
         "asistencia" => &["estudiante_id", "fecha"],
         "app_settings" => &["key"],
         _ => &["id"],
@@ -244,7 +244,7 @@ fn collect_local_data_since(
 ) -> Result<Value, String> {
     let table_names = [
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
-        "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio", "indicador_seccion_activo",
+        "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio", "indicador_colegio_seccion_activo",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion",
         "colegio_dias_asistencia", "asistencia", "nota",
         "dia_sin_clases", "app_settings",
@@ -881,7 +881,7 @@ pub async fn d1_wipe_remote(state: tauri::State<'_, DbState>) -> Result<Value, S
     // ── 2. Construir la lista de borrados [{tabla, pk}] con PKs en orden ──
     let table_names = [
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
-        "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio", "indicador_seccion_activo",
+        "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio", "indicador_colegio_seccion_activo",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion",
         "colegio_dias_asistencia", "asistencia", "nota",
         "dia_sin_clases", "app_settings",
@@ -1030,7 +1030,7 @@ pub async fn d1_restore_from_cloud(
 
     for table in [
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
-        "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio", "indicador_seccion_activo",
+        "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio", "indicador_colegio_seccion_activo",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion",
         "colegio_dias_asistencia", "asistencia", "nota", "dia_sin_clases", "app_settings",
     ] {
