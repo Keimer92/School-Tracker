@@ -418,12 +418,22 @@
    * sus criterios, solo deja de sumar al total.
    */
   async function intercambiarActivo(nuevo: Indicador, saliente: Indicador) {
+    const ptsNuevo = puntosDeIndicador(nuevo);
+    if (!isQualitative && ptsNuevo > MAX_PTS_POR_INDICADOR) {
+      cerrarPopover();
+      await emit("show-toast", {
+        message: `❌ El Indicador ${nuevo.orden} suma ${ptsNuevo} pts y el máximo por indicador es ${MAX_PTS_POR_INDICADOR}.\nCorrige sus puntos en Evaluaciones antes de activarlo.`,
+        type: 'error'
+      });
+      return;
+    }
     cerrarPopover();
     const conNotaSaliente = estudiantesConNota(saliente);
     const ok = await ask(
       `Intercambio de indicadores:\n\n` +
-      `✔ Activar: Indicador ${nuevo.orden} "${nuevo.descripcion || ''}"\n` +
+      `✔ Activar: Indicador ${nuevo.orden} "${nuevo.descripcion || ''}" (${isQualitative ? 'cualitativo' : ptsNuevo + ' pts'})\n` +
       `👁 Desactivar: Indicador ${saliente.orden} "${saliente.descripcion || ''}"${conNotaSaliente > 0 ? ` (conserva sus ${conNotaSaliente} nota(s))` : ''}\n\n` +
+      `Los ${MAX_INDICADORES_ACTIVOS} activos seguirán sumando ${isQualitative ? '' : MAX_INDICADORES_ACTIVOS * MAX_PTS_POR_INDICADOR + ' pts'}.\n` +
       `El indicador desactivado NO se borra: sigue con sus notas y criterios,\n` +
       `solo deja de sumar al total. Puedes volver a activarlo cuando quieras.`,
       { title: '🔄 Intercambiar indicadores', kind: 'info', okLabel: 'Hacer cambio', cancelLabel: 'Cancelar' }
@@ -2358,6 +2368,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           <div style="max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;">
             {#each activeIndicadores as cand (cand.id)}
               {@const nConNota = estudiantesConNota(cand)}
+              {@const ptsCand = puntosDeIndicador(cand)}
               <button
                 onclick={() => intercambiarActivo(indPop, cand)}
                 disabled={procesandoAccion}
@@ -2365,7 +2376,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                 style="width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.45rem 0.5rem; border-radius: 9px; border: 1px solid rgba(251,191,36,0.28); background: rgba(251,191,36,0.07); color: #fde68a; font-size: 0.74rem; cursor: pointer; text-align: left; transition: all 0.15s ease;">
                 <span style="font-size: 0.85rem;">🔄</span>
                 <span style="flex: 1; min-width: 0;">
-                  <span style="display: block; font-weight: 700; font-size: 0.74rem;">Indicador {cand.orden}</span>
+                  <span style="display: block; font-weight: 700; font-size: 0.74rem;">Indicador {cand.orden} · {isQualitative ? 'cualitativo' : ptsCand + ' pts'}</span>
                   <span style="display: block; font-size: 0.62rem; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{cand.descripcion || 'Sin descripción'}</span>
                 </span>
                 <span style="font-size: 0.6rem; padding: 0.1rem 0.3rem; border-radius: 5px; background: {nConNota > 0 ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.06)'}; color: {nConNota > 0 ? '#4ade80' : '#64748b'}; white-space: nowrap; flex-shrink: 0;" title={nConNota > 0 ? `Conserva ${nConNota} nota(s)` : 'Sin notas cargadas'}>
@@ -2373,6 +2384,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                 </span>
               </button>
             {/each}
+
           </div>
           <button
             onclick={cerrarPopover}
