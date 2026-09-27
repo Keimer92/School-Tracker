@@ -44,6 +44,16 @@
   let searchTerm = $state("");
 
   let indicadores: Indicador[] = $state([]);
+  /**
+   * Indicadores tal como los ve la SECCION actual: `activo` ya viene resuelto
+   * (excepción de la sección si existe, si no el global). Todo el template y los
+   * cálculos de notas leen este derivado, así que el cambio por sección es
+   * automático en la tabla, los totales, la distribución y el guardado.
+   */
+  let indicadoresSeccion = $derived.by(() => {
+    if (idsActivosSeccion === null) return indicadores;
+    return indicadores.map(i => i.activo === idsActivos.includes(i.id) ? i : { ...i, activo: idsActivos.includes(i.id) });
+  });
   let estudiantes: Estudiante[] = $state([]);
   let notas: NotaEstudiante[] = $state([]);
   let gradeConfigs: { id: string; nombre: string; color: string; minimo: number }[] = $state([]);
@@ -343,7 +353,7 @@
   /** Indicador/criterio sobre el que está abierto el popover. */
   function popoverIndicador() {
     if (!popover) return null;
-    return indicadores.find(i => i.id === popover!.indicadorId) || null;
+    return indicadoresSeccion.find(i => i.id === popover!.indicadorId) || null;
   }
   function popoverCriterio() {
     if (!popover) return null;
@@ -369,16 +379,17 @@
     return notas.filter(n => ind.criterios.some(c => notasCualitativas[`${n.estudianteId}-${c.id}`])).length;
   }
 
-  /** Marcar el indicador como activo/inactivo (no destructivo, siempre pide confirmación). */
+  /** Marcar el indicador como activo/inactivo **en esta sección** (no afecta a las demás). */
   async function alternarActivoIndicador(ind: Indicador) {
-    if (!ind.activo && activeIndicadores.length >= MAX_INDICADORES_ACTIVOS) {
+    const activoEnSeccion = idsActivos.includes(ind.id);
+    if (!activoEnSeccion && activeIndicadores.length >= MAX_INDICADORES_ACTIVOS) {
       // Ya está el cupo: en vez de activar y pasarse del límite, se pregunta
       // qué indicador activo se desactiva a cambio. El popover se transforma
       // en el selector en el mismo sitio.
       if (popover) popover = { ...popover, modo: 'elegir' };
       return;
     }
-    aplicarActivo(ind, !ind.activo);
+    aplicarActivo(ind, !activoEnSeccion);
   }
 
   /** Ejecuta el cambio de estado (con confirmación) o el intercambio completo. */
@@ -394,18 +405,40 @@
       }
     }
     cerrarPopover();
+    const nombreSeccion = secciones.find(s => s.id === selectedSeccion)?.nombre || 'esta sección';
     const ok = await ask(
       nuevoEstado
-        ? `¿Marcar el Indicador ${ind.orden} como ACTIVO?\n\nVolvrá a sumar sus notas al total de la evaluación.`
-        : `¿Marcar el Indicador ${ind.orden} como INACTIVO?\n\nSus notas dejarán de sumar al total, pero no se borra nada.`,
+        ? `¿Sumar el Indicador ${ind.orden} en la sección ${nombreSeccion}?\n\nSolo cambia en esta sección; las demás no se tocan.`
+        : `¿Dejar de sumar el Indicador ${ind.orden} en la sección ${nombreSeccion}?\n\nSus notas dejan de sumar al total de esta sección, pero no se borra nada.`,
       { title: nuevoEstado ? '✔ Activar indicador' : '👁 Desactivar indicador', kind: 'info', okLabel: nuevoEstado ? 'Activar' : 'Desactivar', cancelLabel: 'Cancelar' }
     );
     if (!ok) return;
     procesandoAccion = true;
     try {
-      await invoke('update_indicador', { id: ind.id, descripcion: ind.descripcion, activo: nuevoEstado, instrumento: ind.instrumento });
-      indicadores = indicadores.map(i => i.id === ind.id ? { ...i, activo: nuevoEstado } : i);
-      await emit("show-toast", { message: `✅ Indicador ${ind.orden} ${nuevoEstado ? 'activado' : 'desactivado'}`, type: 'success' });
+      await invoke('set_indicador_seccion_activo', { seccionId: selectedSeccion, indicadorId: ind.id, activo: nuevoEstado });
+      await cargarActivosDeSeccion(selectedSeccion);
+      await emit("show-toast", { message: `✅ Indicador ${ind.orden} ${nuevoEstado ? 'suma' : 'no suma'} en la sección ${nombreSeccion}`, type: 'success' });
+      emit("indicadores-updated");
+    } catch (e) {
+      await emit("show-toast", { message: "❌ Error: " + e, type: "error" });
+    } finally { procesandoAccion = false; }
+  }
+
+  /** Vuelve a que esta sección use los indicadores globales por defecto. */
+  async function restablecerActivosSeccion() {
+    const n = seccionTieneExcepciones ? activeIndicadores.length : 0;
+    const ok = await ask(
+      `La sección volverá a usar los indicadores globales por defecto.\n\n` +
+      `Se borran sus excepciones (quedan ${n} activo(s) en la BD local para esta sección).\n` +
+      `Los indicadores, sus notas y los criterios NO se borran.`,
+      { title: '↩ Restablecer a valores globales', kind: 'info', okLabel: 'Restablecer', cancelLabel: 'Cancelar' }
+    );
+    if (!ok) return;
+    procesandoAccion = true;
+    try {
+      const borradas = await invoke<number>('reset_indicadores_seccion', { seccionId: selectedSeccion });
+      await cargarActivosDeSeccion(selectedSeccion);
+      await emit("show-toast", { message: `↩ ${borradas} excepción(es) borrada(s). La sección usa los valores globales.`, type: 'success' });
       emit("indicadores-updated");
     } catch (e) {
       await emit("show-toast", { message: "❌ Error: " + e, type: "error" });
@@ -441,14 +474,10 @@
     if (!ok) return;
     procesandoAccion = true;
     try {
-      await invoke('update_indicador', { id: saliente.id, descripcion: saliente.descripcion, activo: false, instrumento: saliente.instrumento });
-      await invoke('update_indicador', { id: nuevo.id, descripcion: nuevo.descripcion, activo: true, instrumento: nuevo.instrumento });
-      indicadores = indicadores.map(i => {
-        if (i.id === saliente.id) return { ...i, activo: false };
-        if (i.id === nuevo.id) return { ...i, activo: true };
-        return i;
-      });
-      await emit("show-toast", { message: `🔄 Indicador ${nuevo.orden} activo · ${saliente.orden} desactivado (conserva sus notas)`, type: 'success' });
+      await invoke('set_indicador_seccion_activo', { seccionId: selectedSeccion, indicadorId: saliente.id, activo: false });
+      await invoke('set_indicador_seccion_activo', { seccionId: selectedSeccion, indicadorId: nuevo.id, activo: true });
+      await cargarActivosDeSeccion(selectedSeccion);
+      await emit("show-toast", { message: `🔄 En esta sección: {nuevo.orden} suma · {saliente.orden} no suma (conserva sus notas)`, type: 'success' });
       emit("indicadores-updated");
     } catch (e) {
       await emit("show-toast", { message: "❌ Error en el intercambio: " + e, type: "error" });
@@ -568,11 +597,37 @@
     : ['AA', 'AS', 'AF', 'AI']
   );
 
-  let allCriterios = $derived(indicadores.flatMap(ind => ind.criterios));
+  let allCriterios = $derived(indicadoresSeccion.flatMap(ind => ind.criterios));
   let criterioIndexMap = $derived(new Map(allCriterios.map((c, i) => [c.id, i])));
   let totalColumns = $derived(allCriterios.length);
   let studentIndexMap = $derived(new Map(estudiantes.map((e, i) => [e.id, i])));
-  let activeIndicadores = $derived(indicadores.filter(i => i.activo));
+
+  /**
+   * IDs de indicadores que suman **en la seccion seleccionada**. Viene del
+   * backend, que ya aplica la herencia: si la seccion no tiene excepcion para
+   * un indicador, manda el `indicador.activo` global. Mientras no haya
+   * respuesta usamos el global, para que la tabla nunca se quede vacia.
+   */
+  let idsActivosSeccion = $state<number[] | null>(null);
+  let idsActivosPorDefecto = $derived(indicadores.filter(i => i.activo).map(i => i.id));
+  let idsActivos = $derived(idsActivosSeccion ?? idsActivosPorDefecto);
+  /** true = esta seccion tiene excepciones propias sobre el global. */
+  let seccionTieneExcepciones = $derived(
+    indicadores.some(i => i.activo !== idsActivos.includes(i.id))
+  );
+
+  let activeIndicadores = $derived(indicadoresSeccion.filter(i => i.activo));
+
+  async function cargarActivosDeSeccion(seccionId: number) {
+    if (seccionId <= 0) { idsActivosSeccion = null; return; }
+    try {
+      const ids = await invoke<number[]>('get_indicadores_activos_seccion', { seccionId });
+      idsActivosSeccion = ids;
+    } catch (e) {
+      console.error('[Notas] No se pudieron cargar los activos de la sección:', e);
+      idsActivosSeccion = null;
+    }
+  }
   /** Máximo real de puntos = suma de los criterios de los indicadores ACTIVOS (8 indicadores = 160, no 100). */
   let maxPuntosTotales = $derived(
     activeIndicadores.reduce((s, i) => s + i.criterios.reduce((a, c) => a + (c.puntajeMaximo || 0), 0), 0)
@@ -659,7 +714,7 @@
 
   function calcularTotalFinal(estudianteNotas: Record<number, number>): number {
     if (isQualitative) return 0;
-    return indicadores.filter(i => i.activo).reduce((sum, ind) => sum + calcularTotalIndicador(estudianteNotas, ind), 0);
+    return indicadoresSeccion.filter(i => i.activo).reduce((sum, ind) => sum + calcularTotalIndicador(estudianteNotas, ind), 0);
   }
 
   function calcularPctActual(estudianteId: number): number {
@@ -869,7 +924,7 @@
     updateInputsUI(previousState);
     const newNotas = estudiantes.map(est => {
       const studentNotas: Record<number, number> = {};
-      indicadores.forEach(ind => { ind.criterios.forEach(crit => {
+      indicadoresSeccion.forEach(ind => { ind.criterios.forEach(crit => {
         const key = `${est.id}-${crit.id}`;
         const qualValue = previousState[key] || '';
         let numValue = 0;
@@ -894,7 +949,7 @@
     updateInputsUI(nextState);
     const newNotas = estudiantes.map(est => {
       const studentNotas: Record<number, number> = {};
-      indicadores.forEach(ind => { ind.criterios.forEach(crit => {
+      indicadoresSeccion.forEach(ind => { ind.criterios.forEach(crit => {
         const key = `${est.id}-${crit.id}`;
         const qualValue = nextState[key] || '';
         let numValue = 0;
@@ -1108,6 +1163,7 @@
         if (!stillExists) selectedSeccion = data[0].id;
       } else selectedSeccion = 0;
       filtersRef = { ano: selectedAno, corte: selectedCorte, colegio: selectedColegio, asignatura: selectedAsignatura, grado: selectedGrado, seccion: selectedSeccion, sexo: selectedSexo };
+      await cargarActivosDeSeccion(selectedSeccion);
       await loadNotas(selectedAno, selectedCorte, selectedColegio, selectedAsignatura, selectedGrado, selectedSeccion);
     } catch (error) { console.error("Error fetching secciones:", error); }
   }
@@ -1217,7 +1273,7 @@
       const updatedNotas: Record<number, number> = { ...notaEst.notas };
       /** Criterios que quedaron vacios y hay que borrar de la BD. */
       const borrados: number[] = [];
-      indicadores.forEach(ind => { ind.criterios.forEach(crit => {
+      indicadoresSeccion.forEach(ind => { ind.criterios.forEach(crit => {
         const key = `${notaEst.estudianteId}-${crit.id}`;
         const qualValue = notasCualitativas[key];
         if (qualValue && ['AA', 'AS', 'AF', 'AI'].includes(qualValue)) {
@@ -1241,7 +1297,7 @@
       return;
     }
     for (const notaEst of notasActualizadas) {
-      for (const indicador of indicadores) {
+      for (const indicador of indicadoresSeccion) {
         if (!indicador.activo) continue;
         if (isQualitative) continue;
         const totalIndicador = calcularTotalIndicador(notaEst.notas, indicador);
@@ -2028,7 +2084,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           {#if filteredNotas[currentStudentIdx]}
             {@const est = filteredNotas[currentStudentIdx]}
             <div>
-              {#each indicadores as ind}
+              {#each indicadoresSeccion as ind}
                 <div style="margin-bottom: 0.5rem; border-radius: 12px; border: 1px solid {ind.activo ? 'rgba(var(--primary-rgb), 0.25)' : 'rgba(100,116,139,0.3)'}; background: {ind.activo ? 'rgba(30, 41, 59, 0.5)' : 'rgba(30, 41, 59, 0.28)'};">
                   <div style="padding: 0.4rem 0.6rem; background: rgba(30, 41, 59, 0.95); backdrop-filter: blur(8px); border-bottom: 1px solid {ind.activo ? 'rgba(var(--primary-rgb), 0.15)' : 'rgba(100,116,139,0.2)'}; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; border-top-left-radius: 11px; border-top-right-radius: 11px;">
                     <div
@@ -2147,10 +2203,13 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             📝 Estudiantes <span style="opacity: 0.7; font-size: 0.8em;">({filteredNotas.length})</span>
           </h3>
           <div style="font-size: 0.9rem; color: #94a3b8; display: flex; align-items: center; gap: 0.35rem;">
-            <span>Indicadores Activos:</span>
+            <span title="Indicadores que suman en esta sección. Se cambia con el ⚙ de cada indicador." style="cursor: help;">Suman en esta sección:</span>
             <span style="font-weight: bold; color: {activeIndicadores.length > MAX_INDICADORES_ACTIVOS ? '#fbbf24' : '#fff'};">{activeIndicadores.length}/{MAX_INDICADORES_ACTIVOS}</span>
-            {#if indicadores.length > activeIndicadores.length}
-              <span title="Los indicadores inactivos también se muestran y se pueden calificar, pero sus notas NO suman al total de 100 pts ni los toca el modal de distribución." style="font-size: 0.7rem; color: #64748b;">· {indicadores.length - activeIndicadores.length} inactivos (no suman)</span>
+            {#if seccionTieneExcepciones}
+              <span title="Esta sección tiene indicadores distintos a los globales. Usa ⚙ → Restablecer para volver a los valores por defecto." style="font-size: 0.7rem; color: #a78bfa; cursor: help;">· 📌 config propia de la sección</span>
+            {/if}
+            {#if indicadoresSeccion.length > activeIndicadores.length}
+              <span title="Los indicadores inactivos también se muestran y se pueden calificar, pero sus notas NO suman al total de 100 pts ni los toca el modal de distribución." style="font-size: 0.7rem; color: #64748b;">· {indicadoresSeccion.length - activeIndicadores.length} no suman</span>
             {/if}
             {#if maxPuntosTotales !== 100}
               <span title="Con {activeIndicadores.length} indicadores el máximo real es {maxPuntosTotales} pts. La columna Final se muestra en escala 0-100." style="font-size: 0.7rem; color: #fbbf24;">· máx real {maxPuntosTotales} pts</span>
@@ -2164,7 +2223,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
               <tr style="background: #1e293b;">
                 <th style="padding: 0.3rem; text-align: center; font-weight: bold; color: #94a3b8; position: sticky; left: 0; z-index: 110; background: #1e293b; border-bottom: 2px solid rgba(255,255,255,0.1); width: 35px;">Nº</th>
                 <th style="padding: 0.3rem; text-align: left; font-weight: bold; color: #94a3b8; position: sticky; left: 35px; z-index: 110; background: #1e293b; border-bottom: 2px solid rgba(255,255,255,0.1); min-width: 130px; max-width: 150px;">Estudiante</th>
-                {#each indicadores as ind}
+                {#each indicadoresSeccion as ind}
                   <th colspan={ind.criterios.length + 1} style="padding: 0.2rem; text-align: center; font-weight: bold; border-bottom: 2px solid {ind.activo ? 'rgba(255,255,255,0.1)' : 'rgba(100,116,139,0.25)'};">
                     <div
                       role="button" tabindex="0"
@@ -2184,7 +2243,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
               <tr style="background: #1e293b;">
                 <th style="position: sticky; left: 0; z-index: 110; background: #1e293b; border-bottom: 1px solid rgba(255,255,255,0.1);"></th>
                 <th style="position: sticky; left: 35px; z-index: 110; background: #1e293b; border-bottom: 1px solid rgba(255,255,255,0.1);"></th>
-                {#each indicadores as ind}
+                {#each indicadoresSeccion as ind}
                   {#each ind.criterios as crit}
                     <th
                       role="button" tabindex="0"
@@ -2212,7 +2271,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                   <td class="sticky-cell student-name" style="padding: 0.3rem; position: sticky; left: 35px; z-index: 5; border-bottom: 1px solid rgba(255,255,255,0.05);">
                     <div style="font-weight: bold; font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px;">{est.estudianteNombre}</div>
                   </td>
-                  {#each indicadores as ind}
+                  {#each indicadoresSeccion as ind}
                     {#each ind.criterios as crit}
                       {@const criterioIndex = criterioIndexMap.get(crit.id) ?? 0}
                       {@const inputKey = `row-${est.estudianteId}-col-${criterioIndex}`}
@@ -2390,26 +2449,38 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             onclick={cerrarPopover}
             style="width: 100%; margin-top: 0.35rem; padding: 0.4rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; font-size: 0.72rem; font-weight: 600; cursor: pointer;">Cancelar</button>
         {:else if popover.tipo === 'indicador' && indPop}
+          {@const sumaEnSeccion = idsActivos.includes(indPop.id)}
           <div style="padding: 0.35rem 0.5rem 0.45rem; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 0.3rem;">
             <div style="font-size: 0.78rem; font-weight: 700; color: #f1f5f9;">Indicador {indPop.orden}</div>
-            <div style="font-size: 0.66rem; color: #64748b;">{indPop.descripcion || 'Sin descripción'} · {indPop.criterios.length} criterio(s)</div>
+            <div style="font-size: 0.66rem; color: #64748b;">{indPop.descripcion || 'Sin descripción'} · {indPop.criterios.length} criterio(s) · {isQualitative ? 'cualitativo' : puntosDeIndicador(indPop) + ' pts'}</div>
+            <div style="font-size: 0.62rem; color: #64748b; margin-top: 0.15rem;">Sección <strong style="color:#94a3b8;">{secciones.find(s => s.id === selectedSeccion)?.nombre || '—'}</strong> · {sumaEnSeccion ? 'suma' : 'no suma'} aquí</div>
           </div>
           <button
             onclick={() => alternarActivoIndicador(indPop)}
             disabled={procesandoAccion}
-            style="width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.55rem; border-radius: 9px; border: 1px solid {indPop.activo ? 'rgba(251,191,36,0.3)' : 'rgba(34,197,94,0.3)'}; background: {indPop.activo ? 'rgba(251,191,36,0.1)' : 'rgba(34,197,94,0.1)'}; color: {indPop.activo ? '#fbbf24' : '#4ade80'}; font-size: 0.78rem; font-weight: 600; cursor: pointer; text-align: left; transition: all 0.15s ease;">
-            <span style="font-size: 0.9rem;">{indPop.activo ? '👁' : '✔'}</span>
-            <span>{indPop.activo ? 'Marcar como inactivo' : 'Marcar como activo'}</span>
+            style="width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.55rem; border-radius: 9px; border: 1px solid {sumaEnSeccion ? 'rgba(251,191,36,0.3)' : 'rgba(34,197,94,0.3)'}; background: {sumaEnSeccion ? 'rgba(251,191,36,0.1)' : 'rgba(34,197,94,0.1)'}; color: {sumaEnSeccion ? '#fbbf24' : '#4ade80'}; font-size: 0.78rem; font-weight: 600; cursor: pointer; text-align: left; transition: all 0.15s ease;">
+            <span style="font-size: 0.9rem;">{sumaEnSeccion ? '👁' : '✔'}</span>
+            <span>{sumaEnSeccion ? 'Dejar de sumar aquí' : 'Sumar en esta sección'}</span>
           </button>
           <div style="font-size: 0.62rem; color: #64748b; padding: 0.2rem 0.55rem 0.35rem; line-height: 1.3;">
-            {#if indPop.activo}
-              Inactivo = sus notas no suman al total, pero conserva las notas.
+            {#if sumaEnSeccion}
+              Deja de sumar en esta sección, pero conserva sus notas.
             {:else if activeIndicadores.length >= MAX_INDICADORES_ACTIVOS}
-              Ya hay {MAX_INDICADORES_ACTIVOS} activos ({activeIndicadores.length}). Te pediré cuál desactivar para hacer el cambio.
+              Ya hay {MAX_INDICADORES_ACTIVOS} que suman aquí ({activeIndicadores.length}). Te pediré cuál dejar de sumar.
             {:else}
-              Sumará sus notas al total ({activeIndicadores.length} de {MAX_INDICADORES_ACTIVOS} activos).
+              Sumará sus notas en esta sección ({activeIndicadores.length} de {MAX_INDICADORES_ACTIVOS}).
             {/if}
           </div>
+          {#if seccionTieneExcepciones}
+            <button
+              onclick={restablecerActivosSeccion}
+              disabled={procesandoAccion}
+              title="Borrar las excepciones de esta sección y volver a los valores globales"
+              style="width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.45rem 0.55rem; border-radius: 9px; border: 1px solid rgba(148,163,184,0.3); background: rgba(148,163,184,0.08); color: #cbd5e1; font-size: 0.74rem; font-weight: 600; cursor: pointer; text-align: left; transition: all 0.15s ease; margin-bottom: 0.3rem;">
+              <span style="font-size: 0.85rem;">↩</span>
+              <span>Restablecer a valores globales</span>
+            </button>
+          {/if}
           <button
             onclick={() => vaciarNotasIndicador(indPop)}
             disabled={procesandoAccion}
@@ -2690,7 +2761,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             </div>
           {/if}
 
-          {#each indicadores as ind (ind.id)}
+          {#each indicadoresSeccion as ind (ind.id)}
             {@const tipoActual = normTipo((ind as any).instrumento)}
             {@const disponibles = INSTRUMENTO_TIPOS.filter(t => plantillas.some(p => p.tipo === t.id))}
             <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.7rem; background: {ind.activo ? 'rgba(255,255,255,0.03)' : 'rgba(100,116,139,0.06)'}; border: 1px solid {ind.activo ? 'rgba(255,255,255,0.06)' : 'rgba(100,116,139,0.22)'}; border-radius: 12px; margin-bottom: 0.45rem; flex-wrap: wrap;">
@@ -2800,7 +2871,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                   <select value={deleteIndicatorId} onchange={(e) => deleteIndicatorId = Number(e.target.value)} onclick={(e) => e.stopPropagation()}
                     style="width: 100%; margin-top: 0.5rem; padding: 0.5rem 0.75rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15, 23, 42, 0.6); color: #e2e8f0; font-size: 0.82rem; cursor: pointer; outline: none;">
                     <option value={0}>Seleccione indicador...</option>
-                    {#each indicadores.filter(i => i.activo) as ind}
+                    {#each indicadoresSeccion.filter(i => i.activo) as ind}
                       <option value={ind.id}>Indicador {ind.orden}: {ind.descripcion || `Indicador ${ind.orden}`}</option>
                     {/each}
                   </select>
