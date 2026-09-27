@@ -130,95 +130,16 @@
   let exportando = $state(false);
   let exportUltimaCarpeta = $state("");
 
-  interface GrupoSeccion { seccionId: number; nombre: string; estudiantes: Student[]; }
-  interface GrupoGrado { gradoId: number; nombre: string; secciones: GrupoSeccion[]; total: number; }
-
   $effect(() => {
     if (showExportModal) {
       return registerBackHandler(() => { showExportModal = false; return true; });
     }
   });
 
-  function cmpNombre(a: string, b: string): number {
-    return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
-  }
-
-  function safeSheetName(nombre: string, usados: Set<string>): string {
-    let base = nombre.replace(/[\[\]:*?\/\\]/g, ' ').trim().slice(0, 31) || 'Hoja';
-    let candidato = base;
-    let n = 2;
-    while (usados.has(candidato.toLowerCase())) {
-      const sufijo = ` (${n})`;
-      candidato = base.slice(0, 31 - sufijo.length) + sufijo;
-      n++;
-    }
-    usados.add(candidato.toLowerCase());
-    return candidato;
-  }
-
-  function safeFileName(nombre: string): string {
-    return nombre.replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim();
-  }
-
-  /** Borde fino gris para todas las celdas de una tabla. */
-  const BORDE = {
-    top: { style: 'thin', color: { rgb: 'CBD5E1' } },
-    bottom: { style: 'thin', color: { rgb: 'CBD5E1' } },
-    left: { style: 'thin', color: { rgb: 'CBD5E1' } },
-    right: { style: 'thin', color: { rgb: 'CBD5E1' } },
-  };
-
-  /**
-   * Aplica un estilo a un rango de celdas (inclusivas, base 0) creando las que
-   * no existan. Requiere xlsx-js-style: el SheetJS community ignora los estilos.
-   */
-  function setRango(XLSX: any, ws: any, r1: number, c1: number, r2: number, c2: number, estilo: any) {
-    for (let r = r1; r <= r2; r++) {
-      for (let c = c1; c <= c2; c++) {
-        const addr = XLSX.utils.encode_cell({ r, c });
-        if (!ws[addr]) ws[addr] = { t: 's', v: '' };
-        ws[addr].s = { ...(ws[addr].s || {}), ...estilo };
-      }
-    }
-  }
-
   /** Colegios a exportar: todos o los marcados en el modal. */
   function colegiosExportables(): CategoryItem[] {
     if (exportColegioIds.length === 0) return [...colegios];
     return colegios.filter(c => exportColegioIds.includes(c.id));
-  }
-
-  /** Estudiantes del año lectivo indicado, agrupados por colegio → grado → sección. */
-  function agruparParaExportar(anoId: number, colegioId: number, gradosCatalogo: CategoryItem[]): GrupoGrado[] {
-    const delColegio = students.filter(s => Number(s.anoLectivoId) === Number(anoId) && Number(s.colegioId) === Number(colegioId));
-    const idsGrado = new Set<number>();
-    delColegio.forEach(s => idsGrado.add(Number(s.gradoId)));
-    // Si se piden grados vacíos, se incluyen los del catálogo que no tengan estudiantes
-    if (exportIncluirGradosVacios) gradosCatalogo.forEach(g => idsGrado.add(Number(g.id)));
-    const orden = (a: number, b: number) => {
-      const na = allGrados.find(g => g.id === a)?.nombre || '';
-      const nb = allGrados.find(g => g.id === b)?.nombre || '';
-      return cmpNombre(na, nb);
-    };
-    return [...idsGrado].sort(orden).map(gid => {
-      const nombre = allGrados.find(g => g.id === gid)?.nombre || gradosCatalogo.find(g => g.id === gid)?.nombre || `Grado ${gid}`;
-      const estGrado = delColegio.filter(s => Number(s.gradoId) === gid);
-      const idsSeccion = new Set<number>();
-      estGrado.forEach(s => idsSeccion.add(Number(s.seccionId)));
-      const ordenSec = (a: number, b: number) => {
-        const sa = allSecciones.find(s => s.id === a)?.nombre || '';
-        const sb = allSecciones.find(s => s.id === b)?.nombre || '';
-        return cmpNombre(sa, sb);
-      };
-      const secciones: GrupoSeccion[] = [...idsSeccion].sort(ordenSec).map(sid => ({
-        seccionId: sid,
-        nombre: allSecciones.find(s => s.id === sid)?.nombre || `Sección ${sid}`,
-        estudiantes: estGrado
-          .filter(s => Number(s.seccionId) === sid)
-          .sort((a, b) => a.nombre.localeCompare(b.nombre, undefined, { sensitivity: 'base' })),
-      }));
-      return { gradoId: gid, nombre, secciones, total: estGrado.length };
-    });
   }
 
   function abrirModalExport() {
@@ -281,12 +202,9 @@
 
     exportando = true;
     try {
-      // xlsx-js-style: mismo API que xlsx pero ADMITEN estilos (colores, bordes,
-      // combinación de celdas). El SheetJS "community" ignora las hojas de estilo.
-      const XLSX: any = await import("xlsx-js-style");
-      const { writeFile } = await import("@tauri-apps/plugin-fs");
-      const { openUrl } = await import("@tauri-apps/plugin-opener");
-      const sep = carpeta.includes("\\") ? "\\" : "/";
+      // Módulo compartido: ExcelJS con estilos reales (colores, bordes, merges,
+      // panel congelado y autofiltro). El SheetJS "community" ignora los estilos.
+      const { crearLibroEstudiantes, escribirLibroEnCarpeta, nombreArchivoSeguro } = await import("../lib/excel");
       const archivos: string[] = [];
       let total = 0;
 
@@ -296,126 +214,33 @@
         try {
           gradosCatalogo = await invoke<CategoryItem[]>("get_grados_by_colegio", { colegioId: col.id, anoLectivoId: anoSel.id });
         } catch (_) { gradosCatalogo = []; }
-        const grupos = agruparParaExportar(anoSel.id, col.id, gradosCatalogo);
-        const totalColegio = grupos.reduce((a, g) => a + g.total, 0);
-        const wb = XLSX.utils.book_new();
-        const usados = new Set<string>();
 
-        // ── Hoja Resumen ──
-        const resumen: any[][] = [
-          [`COLEGIO: ${col.nombre}`],
-          [`Año lectivo: ${anoSel.nombre}`],
-          [`Total de estudiantes: ${totalColegio}`],
-          [],
-          ["Grado", "Sección", "Masculino", "Femenino", "Total"],
-        ];
-        for (const g of grupos) {
-          if (g.secciones.length === 0) {
-            resumen.push([g.nombre, "—", 0, 0, 0]);
-            continue;
-          }
-          for (const s of g.secciones) {
-            const m = s.estudiantes.filter(e => e.sexo === 'M').length;
-            const f = s.estudiantes.filter(e => e.sexo === 'F').length;
-            resumen.push([g.nombre, s.nombre, m, f, s.estudiantes.length]);
-          }
-        }
-        const nRes = resumen.length;
-        resumen.push([]);
-        resumen.push(["TOTAL GENERAL", "", totalColegio ? resumen.slice(5, nRes).reduce((a, r) => a + (Number(r[2]) || 0), 0) : 0, totalColegio ? resumen.slice(5, nRes).reduce((a, r) => a + (Number(r[3]) || 0), 0) : 0, totalColegio]);
-        const wsResumen = XLSX.utils.aoa_to_sheet(resumen);
-        wsResumen['!cols'] = [{ wch: 20 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 9 }];
-        wsResumen['!merges'] = [
-          XLSX.utils.decode_range('A1:E1'), XLSX.utils.decode_range('A2:E2'), XLSX.utils.decode_range('A3:E3'),
-        ];
-        // Estilos
-        setRango(XLSX, wsResumen, 0, 0, 0, 4, { font: { bold: true, sz: 15, color: { rgb: 'FFFFFF' } }, fill: { patternType: 'solid', fgColor: { rgb: '0F172A' } }, alignment: { horizontal: 'left', vertical: 'center' } });
-        setRango(XLSX, wsResumen, 1, 0, 2, 4, { font: { italic: true, sz: 10, color: { rgb: '64748B' } }, alignment: { horizontal: 'left' } });
-        setRango(XLSX, wsResumen, 4, 0, 4, 4, { font: { bold: true, sz: 11, color: { rgb: 'FFFFFF' } }, fill: { patternType: 'solid', fgColor: { rgb: '0EA5E9' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: BORDE });
-        for (let r = 5; r < nRes; r++) {
-          const esPar = (r - 5) % 2 === 1;
-          setRango(XLSX, wsResumen, r, 0, r, 4, {
-            font: { sz: 10, color: { rgb: '334155' } },
-            fill: { patternType: 'solid', fgColor: { rgb: esPar ? 'F1F5F9' : 'FFFFFF' } },
-            alignment: { horizontal: 'center', vertical: 'center' },
-            border: BORDE,
-          });
-          setRango(XLSX, wsResumen, r, 0, r, 0, { font: { sz: 10, bold: true, color: { rgb: 'FB923C' } }, alignment: { horizontal: 'left' } });
-        }
-        setRango(XLSX, wsResumen, resumen.length - 1, 0, resumen.length - 1, 4, { font: { bold: true, sz: 11, color: { rgb: 'FFFFFF' } }, fill: { patternType: 'solid', fgColor: { rgb: '0284C7' } }, alignment: { horizontal: 'center' }, border: BORDE });
-        wsResumen['!rows'] = [{ hpt: 26 }, { hpt: 16 }, { hpt: 16 }];
-        XLSX.utils.book_append_sheet(wb, wsResumen, safeSheetName('Resumen', usados));
+        const delColegio = students.filter(s => Number(s.anoLectivoId) === Number(anoSel.id) && Number(s.colegioId) === col.id);
+        const { libro, total: totalColegio } = await crearLibroEstudiantes({
+          estudiantes: delColegio,
+          colegios: [col],
+          grados: allGrados,
+          secciones: allSecciones,
+          anoNombre: anoSel.nombre,
+          gradosPorColegio: { [col.id]: gradosCatalogo },
+          incluirGradosVacios: exportIncluirGradosVacios,
+        });
 
-        // ── Una hoja por grado, con las secciones agrupadas ──
-        for (const g of grupos) {
-          const rows: any[][] = [
-            [`GRADO: ${g.nombre}`],
-            [`${col.nombre} · Año lectivo ${anoSel.nombre}`],
-            [`Total: ${g.total} estudiante(s)`],
-            [],
-          ];
-          /** Filas (0-based) de encabezado de sección y de tabla, para pintar después. */
-          const filasSeccion: number[] = [];
-          const filasTabla: number[] = [];
-          if (g.secciones.length === 0) {
-            rows.push(["(Sin estudiantes en este grado)"]);
-          }
-          for (const s of g.secciones) {
-            rows.push([`SECCIÓN ${s.nombre}`, '', '', `(${s.estudiantes.length} estudiante/s)`]);
-            filasSeccion.push(rows.length - 1);
-            rows.push(["Nº", "Código", "Nombre", "Sexo"]);
-            filasTabla.push(rows.length - 1);
-            s.estudiantes.forEach((e, i) => rows.push([i + 1, e.codigo, e.nombre, e.sexo === 'F' ? 'Femenino' : 'Masculino']));
-            rows.push([]);
-          }
-          const ws = XLSX.utils.aoa_to_sheet(rows);
-          ws['!cols'] = [{ wch: 6 }, { wch: 13 }, { wch: 38 }, { wch: 14 }];
-          const merges: any[] = [XLSX.utils.decode_range('A1:D1'), XLSX.utils.decode_range('A2:D2'), XLSX.utils.decode_range('A3:D3')];
-          // Portada del grado
-          setRango(XLSX, ws, 0, 0, 0, 3, { font: { bold: true, sz: 15, color: { rgb: 'FFFFFF' } }, fill: { patternType: 'solid', fgColor: { rgb: '0F172A' } }, alignment: { horizontal: 'left', vertical: 'center' } });
-          setRango(XLSX, ws, 1, 0, 2, 3, { font: { italic: true, sz: 10, color: { rgb: '64748B' } }, alignment: { horizontal: 'left' } });
-          if (g.secciones.length === 0) {
-            setRango(XLSX, ws, 4, 0, 4, 3, { font: { italic: true, sz: 10, color: { rgb: '94A3B8' } }, alignment: { horizontal: 'center' } });
-            merges.push(XLSX.utils.decode_range('A5:D5'));
-          }
-          // Secciones + tablas
-          for (let k = 0; k < filasSeccion.length; k++) {
-            const rSec = filasSeccion[k];
-            const rTab = filasTabla[k];
-            setRango(XLSX, ws, rSec, 0, rSec, 3, { font: { bold: true, sz: 11, color: { rgb: 'FFFFFF' } }, fill: { patternType: 'solid', fgColor: { rgb: '0284C7' } }, alignment: { horizontal: 'left', vertical: 'center' } });
-            merges.push(XLSX.utils.decode_range(`A${rSec + 1}:D${rSec + 1}`));
-            setRango(XLSX, ws, rTab, 0, rTab, 3, { font: { bold: true, sz: 10, color: { rgb: 'FFFFFF' } }, fill: { patternType: 'solid', fgColor: { rgb: '0EA5E9' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: BORDE });
-            // Datos: filas con banda alterna + color por sexo
-            let r = rTab + 1;
-            const s = g.secciones[k];
-            s.estudiantes.forEach((e, i) => {
-              const esPar = i % 2 === 1;
-              setRango(XLSX, ws, r, 0, r, 3, {
-                font: { sz: 10, color: { rgb: '1E293B' } },
-                fill: { patternType: 'solid', fgColor: { rgb: esPar ? 'F8FAFC' : 'FFFFFF' } },
-                alignment: { horizontal: 'center', vertical: 'center' },
-                border: BORDE,
-              });
-              setRango(XLSX, ws, r, 2, r, 2, { font: { sz: 10, color: { rgb: '0F172A' } }, alignment: { horizontal: 'left', vertical: 'center' } });
-              setRango(XLSX, ws, r, 3, r, 3, { font: { sz: 10, bold: true, color: { rgb: e.sexo === 'F' ? 'DB2777' : '2563EB' } } });
-              r++;
-            });
-          }
-          ws['!merges'] = merges;
-          ws['!rows'] = [{ hpt: 26 }, { hpt: 16 }, { hpt: 16 }];
-          XLSX.utils.book_append_sheet(wb, ws, safeSheetName(g.nombre, usados));
-        }
-
-        const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-        const ruta = `${carpeta}${sep}Estudiantes_${safeFileName(anoSel.nombre)}_${safeFileName(col.nombre)}.xlsx`;
-        await writeFile(ruta, out);
+        const ruta = await escribirLibroEnCarpeta(
+          libro,
+          carpeta,
+          `Estudiantes_${nombreArchivoSeguro(anoSel.nombre)}_${nombreArchivoSeguro(col.nombre)}`
+        );
         archivos.push(ruta);
         total += totalColegio;
       }
 
       exportUltimaCarpeta = carpeta;
       await emit("show-toast", { message: `✅ ${archivos.length} archivo(s) exportados · ${total} estudiantes`, type: "success" });
-      try { openUrl(carpeta); } catch (_) {}
+      try {
+        const { openUrl } = await import("@tauri-apps/plugin-opener");
+        openUrl(carpeta);
+      } catch (_) { /* abrir la carpeta no es crítico */ }
     } catch (e) {
       console.error("Error exportando Excel:", e);
       await emit("show-toast", { message: "❌ Error al exportar: " + ((e as Error)?.message || e), type: "error" });
