@@ -248,6 +248,21 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             FOREIGN KEY(indicador_id) REFERENCES indicador(id) ON DELETE CASCADE,
             UNIQUE(indicador_id, orden)
         );
+
+        -- Bandera de "suma al total" POR SECCION. El indicador (descripcion y
+        -- puntos) es global por grado/asignatura/corte/ano; esta tabla solo
+        -- guarda la excepcion por seccion. Si no hay fila para una seccion,
+        -- manda el `indicador.activo` global como valor por defecto.
+        CREATE TABLE IF NOT EXISTS indicador_seccion_activo (
+            seccion_id INTEGER NOT NULL,
+            indicador_id INTEGER NOT NULL,
+            activo INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT DEFAULT (datetime('now')),
+            PRIMARY KEY (seccion_id, indicador_id),
+            FOREIGN KEY(indicador_id) REFERENCES indicador(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_ind_seccion_activo
+            ON indicador_seccion_activo(seccion_id, indicador_id);
         "#,
     )
     .map_err(|e| format!("Error creando tablas de evaluaciones: {}", e))?;
@@ -430,6 +445,9 @@ fn cleanup_orphan_relations(conn: &Connection) -> Result<(), String> {
         DELETE FROM grado_asignatura
             WHERE grado_id NOT IN (SELECT id FROM grado)
                OR asignatura_id NOT IN (SELECT id FROM asignatura);
+        DELETE FROM indicador_seccion_activo
+            WHERE indicador_id NOT IN (SELECT id FROM indicador)
+               OR seccion_id NOT IN (SELECT id FROM seccion);
         "#,
     )
     .map_err(|e| format!("Error limpiando relaciones huérfanas: {}", e))?;
@@ -3801,6 +3819,86 @@ pub async fn delete_criterio(
 
     tx.commit().map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Indicadores que suman al total **para una seccion** concreta.
+///
+/// Hereda del global (`indicador.activo`) y aplica encima las excepciones de la
+/// tabla `indicador_seccion_activo`: si la seccion tiene fila para un indicador,
+/// manda esa; si no, manda el global. Asi una seccion puede activar/desactivar
+/// sin tocar la configuracion global que ven los demas.
+#[tauri::command]
+pub async fn get_indicadores_activos_seccion(
+    state: tauri::State<'_, DbState>,
+    seccionId: i64,
+) -> Result<Vec<i64>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    if seccionId <= 0 {
+        return Ok(Vec::new());
+    }
+    let mut stmt = conn
+        .prepare(
+            "SELECT i.id
+             FROM indicador i
+             LEFT JOIN indicador_seccion_activo s
+                    ON s.indicador_id = i.id AND s.seccion_id = ?1
+             WHERE COALESCE(s.activo, i.activo) = 1
+             ORDER BY i.orden",
+        )
+        .map_err(|e| e.to_string())?;
+    let ids = stmt
+        .query_map([seccionId], |row| row.get::<_, i64>(0))
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    Ok(ids)
+}
+
+/// Fija si un indicador suma al total para una seccion (no toca el global).
+#[tauri::command]
+#[allow(non_snake_case)]
+pub async fn set_indicador_seccion_activo(
+    state: tauri::State<'_, DbState>,
+    seccionId: i64,
+    indicadorId: i64,
+    activo: bool,
+) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    if seccionId <= 0 {
+        return Err("No hay sección seleccionada".to_string());
+    }
+    let existe: i64 = conn
+        .query_row("SELECT COUNT(*) FROM indicador WHERE id = ?", [indicadorId], |row| row.get(0))
+        .map_err(|e| e.to_string())?;
+    if existe == 0 {
+        return Err(format!("Indicador {} no encontrado", indicadorId));
+    }
+    conn.execute(
+        "INSERT INTO indicador_seccion_activo (seccion_id, indicador_id, activo, updated_at)
+         VALUES (?, ?, ?, datetime('now'))
+         ON CONFLICT(seccion_id, indicador_id)
+         DO UPDATE SET activo = excluded.activo, updated_at = datetime('now')",
+        rusqlite::params![seccionId, indicadorId, if activo { 1 } else { 0 }],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Deja la seccion otra vez con los valores globales (borra sus excepciones).
+#[tauri::command]
+#[allow(non_snake_case)]
+pub async fn reset_indicadores_seccion(
+    state: tauri::State<'_, DbState>,
+    seccionId: i64,
+) -> Result<usize, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    if seccionId <= 0 {
+        return Ok(0);
+    }
+    let n = conn
+        .execute("DELETE FROM indicador_seccion_activo WHERE seccion_id = ?", [seccionId])
+        .map_err(|e| e.to_string())?;
+    Ok(n)
 }
 
 #[tauri::command]
