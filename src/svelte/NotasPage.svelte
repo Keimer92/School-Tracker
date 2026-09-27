@@ -415,7 +415,7 @@
     if (!ok) return;
     procesandoAccion = true;
     try {
-      await invoke('set_indicador_seccion_activo', { seccionId: selectedSeccion, indicadorId: ind.id, activo: nuevoEstado });
+      await invoke('set_indicador_colegio_seccion_activo', { colegioId: selectedColegio, seccionId: selectedSeccion, indicadorId: ind.id, activo: nuevoEstado });
       await cargarActivosDeSeccion(selectedSeccion);
       await emit("show-toast", { message: `✅ Indicador ${ind.orden} ${nuevoEstado ? 'suma' : 'no suma'} en la sección ${nombreSeccion}`, type: 'success' });
       emit("indicadores-updated");
@@ -436,7 +436,8 @@
     if (!ok) return;
     procesandoAccion = true;
     try {
-      const borradas = await invoke<number>('reset_indicadores_seccion', {
+      const borradas = await invoke<number>('reset_indicadores_colegio_seccion', {
+        colegioId: selectedColegio,
         seccionId: selectedSeccion,
         gradoId: selectedGrado,
         asignaturaId: selectedAsignatura,
@@ -480,8 +481,8 @@
     if (!ok) return;
     procesandoAccion = true;
     try {
-      await invoke('set_indicador_seccion_activo', { seccionId: selectedSeccion, indicadorId: saliente.id, activo: false });
-      await invoke('set_indicador_seccion_activo', { seccionId: selectedSeccion, indicadorId: nuevo.id, activo: true });
+      await invoke('set_indicador_colegio_seccion_activo', { colegioId: selectedColegio, seccionId: selectedSeccion, indicadorId: saliente.id, activo: false });
+      await invoke('set_indicador_colegio_seccion_activo', { colegioId: selectedColegio, seccionId: selectedSeccion, indicadorId: nuevo.id, activo: true });
       await cargarActivosDeSeccion(selectedSeccion);
       await emit("show-toast", { message: `🔄 En esta sección: {nuevo.orden} suma · {saliente.orden} no suma (conserva sus notas)`, type: 'success' });
       emit("indicadores-updated");
@@ -625,9 +626,10 @@
   let activeIndicadores = $derived(indicadoresSeccion.filter(i => i.activo));
 
   async function cargarActivosDeSeccion(seccionId: number) {
-    if (seccionId <= 0) { idsActivosSeccion = null; return; }
+    if (seccionId <= 0 || selectedColegio <= 0) { idsActivosSeccion = null; return; }
     try {
-      const ids = await invoke<number[]>('get_indicadores_activos_seccion', {
+      const ids = await invoke<number[]>('get_indicadores_activos_colegio_seccion', {
+        colegioId: selectedColegio,
         seccionId,
         gradoId: selectedGrado,
         asignaturaId: selectedAsignatura,
@@ -635,7 +637,7 @@
       });
       idsActivosSeccion = ids;
     } catch (e) {
-      console.error('[Notas] No se pudieron cargar los activos de la sección:', e);
+      console.error('[Notas] No se pudieron cargar los activos del colegio/sección:', e);
       idsActivosSeccion = null;
     }
   }
@@ -2464,7 +2466,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           <div style="padding: 0.35rem 0.5rem 0.45rem; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 0.3rem;">
             <div style="font-size: 0.78rem; font-weight: 700; color: #f1f5f9;">Indicador {indPop.orden}</div>
             <div style="font-size: 0.66rem; color: #64748b;">{indPop.descripcion || 'Sin descripción'} · {indPop.criterios.length} criterio(s) · {isQualitative ? 'cualitativo' : puntosDeIndicador(indPop) + ' pts'}</div>
-            <div style="font-size: 0.62rem; color: #64748b; margin-top: 0.15rem;">Sección <strong style="color:#94a3b8;">{secciones.find(s => s.id === selectedSeccion)?.nombre || '—'}</strong> · {sumaEnSeccion ? 'suma' : 'no suma'} aquí</div>
+            <div style="font-size: 0.62rem; color: #64748b; margin-top: 0.15rem;">{colegios.find(c => c.id === selectedColegio)?.nombre || '—'} · Sección <strong style="color:#94a3b8;">{secciones.find(s => s.id === selectedSeccion)?.nombre || '—'}</strong> · {sumaEnSeccion ? 'suma' : 'no suma'} aquí</div>
           </div>
           <button
             onclick={() => alternarActivoIndicador(indPop)}

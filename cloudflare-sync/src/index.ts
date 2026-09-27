@@ -203,7 +203,7 @@ async function ensureSchema(env: Env): Promise<void> {
     `CREATE TABLE IF NOT EXISTS colegio_dias_asistencia (colegio_id INTEGER PRIMARY KEY, lunes INTEGER DEFAULT 1, martes INTEGER DEFAULT 1, miercoles INTEGER DEFAULT 1, jueves INTEGER DEFAULT 1, viernes INTEGER DEFAULT 1, sabado INTEGER DEFAULT 1, domingo INTEGER DEFAULT 1, updated_at TEXT)`,
     `CREATE TABLE IF NOT EXISTS asistencia (estudiante_id INTEGER NOT NULL, fecha TEXT NOT NULL, estado TEXT, observacion TEXT, id INTEGER, updated_at TEXT, PRIMARY KEY (estudiante_id, fecha))`,
     `CREATE TABLE IF NOT EXISTS nota (estudiante_id INTEGER NOT NULL, criterio_id INTEGER NOT NULL, corte_evaluativo_id INTEGER NOT NULL, asignatura_id INTEGER NOT NULL, valor REAL, updated_at TEXT, PRIMARY KEY (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id))`,
-    `CREATE TABLE IF NOT EXISTS indicador_seccion_activo (seccion_id INTEGER NOT NULL, indicador_id INTEGER NOT NULL, activo INTEGER NOT NULL DEFAULT 0, updated_at TEXT, PRIMARY KEY (seccion_id, indicador_id))`,
+    `CREATE TABLE IF NOT EXISTS indicador_colegio_seccion_activo (colegio_id INTEGER NOT NULL, seccion_id INTEGER NOT NULL, indicador_id INTEGER NOT NULL, activo INTEGER NOT NULL DEFAULT 0, updated_at TEXT, PRIMARY KEY (colegio_id, seccion_id, indicador_id))`,
     `CREATE TABLE IF NOT EXISTS sync_tombstone (
       tabla TEXT NOT NULL,
       pk TEXT NOT NULL,
