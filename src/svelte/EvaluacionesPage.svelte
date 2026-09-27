@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { emit, listen } from "@tauri-apps/api/event";
   import { ask } from "@tauri-apps/plugin-dialog";
@@ -114,7 +114,13 @@
   });
 
   $effect(() => {
-    if (selectedGrado && selectedAsignatura && selectedCorte && selectedAno) { fetchConfig(); }
+    // untrack es OBLIGATORIO aquí: fetchConfig es async y antes de su primer
+    // await lee `hayCambios` / `comboCargado`, que dependen de `indicadores`.
+    // Sin untrack, escribir un caracter en un descriptor cambiaría esos valores
+    // -> el efecto se re-ejecutaría -> recargaría desde la BD y pisaría el texto.
+    if (selectedGrado && selectedAsignatura && selectedCorte && selectedAno) {
+      untrack(() => { void fetchConfig(); });
+    }
     else { indicadores = []; }
   });
 
