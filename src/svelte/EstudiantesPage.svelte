@@ -160,6 +160,28 @@
     return nombre.replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim();
   }
 
+  /** Borde fino gris para todas las celdas de una tabla. */
+  const BORDE = {
+    top: { style: 'thin', color: { rgb: 'CBD5E1' } },
+    bottom: { style: 'thin', color: { rgb: 'CBD5E1' } },
+    left: { style: 'thin', color: { rgb: 'CBD5E1' } },
+    right: { style: 'thin', color: { rgb: 'CBD5E1' } },
+  };
+
+  /**
+   * Aplica un estilo a un rango de celdas (inclusivas, base 0) creando las que
+   * no existan. Requiere xlsx-js-style: el SheetJS community ignora los estilos.
+   */
+  function setRango(XLSX: any, ws: any, r1: number, c1: number, r2: number, c2: number, estilo: any) {
+    for (let r = r1; r <= r2; r++) {
+      for (let c = c1; c <= c2; c++) {
+        const addr = XLSX.utils.encode_cell({ r, c });
+        if (!ws[addr]) ws[addr] = { t: 's', v: '' };
+        ws[addr].s = { ...(ws[addr].s || {}), ...estilo };
+      }
+    }
+  }
+
   /** Colegios a exportar: todos o los marcados en el modal. */
   function colegiosExportables(): CategoryItem[] {
     if (exportColegioIds.length === 0) return [...colegios];
@@ -259,7 +281,9 @@
 
     exportando = true;
     try {
-      const XLSX = await import("xlsx");
+      // xlsx-js-style: mismo API que xlsx pero ADMITEN estilos (colores, bordes,
+      // combinación de celdas). El SheetJS "community" ignora las hojas de estilo.
+      const XLSX: any = await import("xlsx-js-style");
       const { writeFile } = await import("@tauri-apps/plugin-fs");
       const { openUrl } = await import("@tauri-apps/plugin-opener");
       const sep = carpeta.includes("\\") ? "\\" : "/";
@@ -273,6 +297,7 @@
           gradosCatalogo = await invoke<CategoryItem[]>("get_grados_by_colegio", { colegioId: col.id, anoLectivoId: anoSel.id });
         } catch (_) { gradosCatalogo = []; }
         const grupos = agruparParaExportar(anoSel.id, col.id, gradosCatalogo);
+        const totalColegio = grupos.reduce((a, g) => a + g.total, 0);
         const wb = XLSX.utils.book_new();
         const usados = new Set<string>();
 
@@ -280,7 +305,7 @@
         const resumen: any[][] = [
           [`COLEGIO: ${col.nombre}`],
           [`Año lectivo: ${anoSel.nombre}`],
-          [`Total de estudiantes: ${students.filter(s => Number(s.anoLectivoId) === Number(anoSel.id) && Number(s.colegioId) === col.id).length}`],
+          [`Total de estudiantes: ${totalColegio}`],
           [],
           ["Grado", "Sección", "Masculino", "Femenino", "Total"],
         ];
@@ -295,8 +320,30 @@
             resumen.push([g.nombre, s.nombre, m, f, s.estudiantes.length]);
           }
         }
+        const nRes = resumen.length;
+        resumen.push([]);
+        resumen.push(["TOTAL GENERAL", "", totalColegio ? resumen.slice(5, nRes).reduce((a, r) => a + (Number(r[2]) || 0), 0) : 0, totalColegio ? resumen.slice(5, nRes).reduce((a, r) => a + (Number(r[3]) || 0), 0) : 0, totalColegio]);
         const wsResumen = XLSX.utils.aoa_to_sheet(resumen);
-        wsResumen['!cols'] = [{ wch: 18 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 8 }];
+        wsResumen['!cols'] = [{ wch: 20 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 9 }];
+        wsResumen['!merges'] = [
+          XLSX.utils.decode_range('A1:E1'), XLSX.utils.decode_range('A2:E2'), XLSX.utils.decode_range('A3:E3'),
+        ];
+        // Estilos
+        setRango(XLSX, wsResumen, 0, 0, 0, 4, { font: { bold: true, sz: 15, color: { rgb: 'FFFFFF' } }, fill: { patternType: 'solid', fgColor: { rgb: '0F172A' } }, alignment: { horizontal: 'left', vertical: 'center' } });
+        setRango(XLSX, wsResumen, 1, 0, 2, 4, { font: { italic: true, sz: 10, color: { rgb: '64748B' } }, alignment: { horizontal: 'left' } });
+        setRango(XLSX, wsResumen, 4, 0, 4, 4, { font: { bold: true, sz: 11, color: { rgb: 'FFFFFF' } }, fill: { patternType: 'solid', fgColor: { rgb: '0EA5E9' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: BORDE });
+        for (let r = 5; r < nRes; r++) {
+          const esPar = (r - 5) % 2 === 1;
+          setRango(XLSX, wsResumen, r, 0, r, 4, {
+            font: { sz: 10, color: { rgb: '334155' } },
+            fill: { patternType: 'solid', fgColor: { rgb: esPar ? 'F1F5F9' : 'FFFFFF' } },
+            alignment: { horizontal: 'center', vertical: 'center' },
+            border: BORDE,
+          });
+          setRango(XLSX, wsResumen, r, 0, r, 0, { font: { sz: 10, bold: true, color: { rgb: 'FB923C' } }, alignment: { horizontal: 'left' } });
+        }
+        setRango(XLSX, wsResumen, resumen.length - 1, 0, resumen.length - 1, 4, { font: { bold: true, sz: 11, color: { rgb: 'FFFFFF' } }, fill: { patternType: 'solid', fgColor: { rgb: '0284C7' } }, alignment: { horizontal: 'center' }, border: BORDE });
+        wsResumen['!rows'] = [{ hpt: 26 }, { hpt: 16 }, { hpt: 16 }];
         XLSX.utils.book_append_sheet(wb, wsResumen, safeSheetName('Resumen', usados));
 
         // ── Una hoja por grado, con las secciones agrupadas ──
@@ -307,17 +354,55 @@
             [`Total: ${g.total} estudiante(s)`],
             [],
           ];
+          /** Filas (0-based) de encabezado de sección y de tabla, para pintar después. */
+          const filasSeccion: number[] = [];
+          const filasTabla: number[] = [];
           if (g.secciones.length === 0) {
             rows.push(["(Sin estudiantes en este grado)"]);
           }
           for (const s of g.secciones) {
             rows.push([`SECCIÓN ${s.nombre}`, '', '', `(${s.estudiantes.length} estudiante/s)`]);
+            filasSeccion.push(rows.length - 1);
             rows.push(["Nº", "Código", "Nombre", "Sexo"]);
+            filasTabla.push(rows.length - 1);
             s.estudiantes.forEach((e, i) => rows.push([i + 1, e.codigo, e.nombre, e.sexo === 'F' ? 'Femenino' : 'Masculino']));
             rows.push([]);
           }
           const ws = XLSX.utils.aoa_to_sheet(rows);
-          ws['!cols'] = [{ wch: 6 }, { wch: 12 }, { wch: 36 }, { wch: 13 }];
+          ws['!cols'] = [{ wch: 6 }, { wch: 13 }, { wch: 38 }, { wch: 14 }];
+          const merges: any[] = [XLSX.utils.decode_range('A1:D1'), XLSX.utils.decode_range('A2:D2'), XLSX.utils.decode_range('A3:D3')];
+          // Portada del grado
+          setRango(XLSX, ws, 0, 0, 0, 3, { font: { bold: true, sz: 15, color: { rgb: 'FFFFFF' } }, fill: { patternType: 'solid', fgColor: { rgb: '0F172A' } }, alignment: { horizontal: 'left', vertical: 'center' } });
+          setRango(XLSX, ws, 1, 0, 2, 3, { font: { italic: true, sz: 10, color: { rgb: '64748B' } }, alignment: { horizontal: 'left' } });
+          if (g.secciones.length === 0) {
+            setRango(XLSX, ws, 4, 0, 4, 3, { font: { italic: true, sz: 10, color: { rgb: '94A3B8' } }, alignment: { horizontal: 'center' } });
+            merges.push(XLSX.utils.decode_range('A5:D5'));
+          }
+          // Secciones + tablas
+          for (let k = 0; k < filasSeccion.length; k++) {
+            const rSec = filasSeccion[k];
+            const rTab = filasTabla[k];
+            setRango(XLSX, ws, rSec, 0, rSec, 3, { font: { bold: true, sz: 11, color: { rgb: 'FFFFFF' } }, fill: { patternType: 'solid', fgColor: { rgb: '0284C7' } }, alignment: { horizontal: 'left', vertical: 'center' } });
+            merges.push(XLSX.utils.decode_range(`A${rSec + 1}:D${rSec + 1}`));
+            setRango(XLSX, ws, rTab, 0, rTab, 3, { font: { bold: true, sz: 10, color: { rgb: 'FFFFFF' } }, fill: { patternType: 'solid', fgColor: { rgb: '0EA5E9' } }, alignment: { horizontal: 'center', vertical: 'center' }, border: BORDE });
+            // Datos: filas con banda alterna + color por sexo
+            let r = rTab + 1;
+            const s = g.secciones[k];
+            s.estudiantes.forEach((e, i) => {
+              const esPar = i % 2 === 1;
+              setRango(XLSX, ws, r, 0, r, 3, {
+                font: { sz: 10, color: { rgb: '1E293B' } },
+                fill: { patternType: 'solid', fgColor: { rgb: esPar ? 'F8FAFC' : 'FFFFFF' } },
+                alignment: { horizontal: 'center', vertical: 'center' },
+                border: BORDE,
+              });
+              setRango(XLSX, ws, r, 2, r, 2, { font: { sz: 10, color: { rgb: '0F172A' } }, alignment: { horizontal: 'left', vertical: 'center' } });
+              setRango(XLSX, ws, r, 3, r, 3, { font: { sz: 10, bold: true, color: { rgb: e.sexo === 'F' ? 'DB2777' : '2563EB' } } });
+              r++;
+            });
+          }
+          ws['!merges'] = merges;
+          ws['!rows'] = [{ hpt: 26 }, { hpt: 16 }, { hpt: 16 }];
           XLSX.utils.book_append_sheet(wb, ws, safeSheetName(g.nombre, usados));
         }
 
@@ -325,7 +410,7 @@
         const ruta = `${carpeta}${sep}Estudiantes_${safeFileName(anoSel.nombre)}_${safeFileName(col.nombre)}.xlsx`;
         await writeFile(ruta, out);
         archivos.push(ruta);
-        total += grupos.reduce((a, g) => a + g.total, 0);
+        total += totalColegio;
       }
 
       exportUltimaCarpeta = carpeta;
@@ -1461,9 +1546,14 @@ async function fetchData(preserveFilters = false) {
             </div>
             <div style="display: flex; flex-direction: column; gap: 0.35rem; max-height: 190px; overflow-y: auto;">
               {#each exportResumen as r (r.colegio.id)}
+                {@const marcado = exportColegioIds.includes(r.colegio.id)}
                 <button onclick={() => toggleExportColegio(r.colegio.id)} disabled={exportando}
-                  style="display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0.7rem; border-radius: 10px; cursor: pointer; text-align: left; width: 100%; font-family: inherit; transition: all 0.2s ease; background: {exportColegioIds.includes(r.colegio.id) ? 'rgba(14,165,233,0.14)' : 'rgba(255,255,255,0.03)'}; border: 1px solid {exportColegioIds.includes(r.colegio.id) ? 'rgba(14,165,233,0.5)' : 'rgba(255,255,255,0.06)'}">
-                  <span style="font-size: 1rem;">🏫</span>
+                  title={marcado ? 'Quitar de la exportación' : 'Añadir a la exportación'}
+                  style="display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.7rem 0.4rem 0.55rem; border-radius: 12px; cursor: pointer; text-align: left; width: 100%; font-family: inherit; transition: all 0.2s ease; background: {marcado ? 'rgba(14,165,233,0.14)' : 'rgba(255,255,255,0.03)'}; border: 1px solid {marcado ? 'rgba(14,165,233,0.5)' : 'rgba(255,255,255,0.06)'}">
+                  <span class="switch" style="margin: 0; pointer-events: none;">
+                    <input type="checkbox" checked={marcado} tabindex="-1" readonly />
+                    <span class="slider round" style="background: {marcado ? 'linear-gradient(135deg, #38bdf8, #0284c7)' : 'rgba(255,255,255,0.12)'}; border-color: {marcado ? 'transparent' : 'rgba(255,255,255,0.18)'};"></span>
+                  </span>
                   <span style="flex: 1; min-width: 0; color: #e2e8f0; font-size: 0.82rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{r.colegio.nombre}</span>
                   <span style="color: #64748b; font-size: 0.7rem; white-space: nowrap;">{r.estudiantes} est. · {r.grados} grado{r.grados === 1 ? '' : 's'}</span>
                 </button>
@@ -1471,10 +1561,18 @@ async function fetchData(preserveFilters = false) {
             </div>
           </div>
 
-          <label style="display: flex; align-items: center; gap: 0.55rem; padding: 0.5rem 0.7rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; cursor: pointer;">
-            <input type="checkbox" checked={exportIncluirGradosVacios} disabled={exportando}
-              onchange={() => exportIncluirGradosVacios = !exportIncluirGradosVacios} style="accent-color:#0ea5e9;" />
-            <span style="font-size: 0.78rem; color: #cbd5e1;">Incluir grados sin estudiantes</span>
+          <label style="display: flex; align-items: center; gap: 0.55rem; padding: 0.4rem 0.75rem 0.4rem 0.55rem; background: rgba(255,255,255,0.02); border: 1px solid {exportIncluirGradosVacios ? 'rgba(14,165,233,0.35)' : 'rgba(255,255,255,0.06)'}; border-radius: 12px; cursor: pointer; transition: all 0.2s ease;">
+            <span class="switch" style="margin: 0;">
+              <input type="checkbox" checked={exportIncluirGradosVacios} disabled={exportando}
+                onchange={() => exportIncluirGradosVacios = !exportIncluirGradosVacios} />
+              <span class="slider round" style="background: {exportIncluirGradosVacios ? 'linear-gradient(135deg, #38bdf8, #0284c7)' : 'rgba(255,255,255,0.12)'}; border-color: {exportIncluirGradosVacios ? 'transparent' : 'rgba(255,255,255,0.18)'};"></span>
+            </span>
+            <span style="line-height: 1.2;">
+              <span style="display: block; font-size: 0.78rem; color: #cbd5e1; font-weight: 500;">Incluir grados sin estudiantes</span>
+              <span style="display: block; font-size: 0.68rem; color: {exportIncluirGradosVacios ? '#7dd3fc' : '#64748b'};">
+                {exportIncluirGradosVacios ? 'Se incluyen hojas de grados vacíos' : 'Solo grados con estudiantes'}
+              </span>
+            </span>
           </label>
 
           <div style="display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.75rem; background: linear-gradient(135deg, rgba(14,165,233,0.1), rgba(14,165,233,0.03)); border: 1px solid rgba(14,165,233,0.22); border-radius: 10px;">
