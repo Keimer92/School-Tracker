@@ -35,6 +35,8 @@ export interface TablaAsistenciaPdf {
   headers: string[];
   body: CeldaPdf[][];
   combinada?: { indice: number; texto: string };
+  /** Chip propio de esta hoja (p. ej. la sección que le corresponde). */
+  chip?: string;
   nota?: string;
 }
 
@@ -249,6 +251,7 @@ export async function generarPdfAsistencia(
     meta.lineas.forEach((linea, idx) => {
       chips.push({ texto: linea, estilo: idx === 0 ? CHIP_PRINCIPAL : CHIP_NEUTRO });
     });
+    if (t.chip) chips.push({ texto: t.chip, estilo: CHIP_NEUTRO });
     if (t.nota) chips.push({ texto: `Sin clases: ${t.nota}`, estilo: CHIP_ALERTA });
 
     const y = dibujarChips(doc, chips, margins.left, 21, anchoUtil);

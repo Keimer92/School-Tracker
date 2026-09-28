@@ -156,14 +156,20 @@
   function nombreMes(m: number): string {
     return MESES[m - 1] ?? '';
   }
-  /** Rango del período ya formateado, para los encabezados. */
-  let encabezadoPeriodo = $derived.by(() => {
-    if (periodo === 'mensual') {
-      const hasta = fechaFin >= getLocalDateISOString() ? 'hoy' : fmtDMY(fechaFin);
-      return `${nombreMes(mesSeleccionado)} ${anoSeleccionado} (del ${fmtDMY(fechaInicio)} al ${hasta})`;
-    }
-    return `Semana ${semanaActiva} (del ${fmtDMY(fechaInicio)} al ${fmtDMY(fechaFin)})`;
-  });
+  /** Fecha en texto largo: "01 de Septiembre". */
+  function fechaLarga(iso: string): string {
+    if (!iso || iso.length < 10) return iso || '';
+    return `${iso.slice(8, 10)} de ${nombreMes(Number(iso.slice(5, 7)))}`;
+  }
+  /**
+   * Rango del período para los encabezados, entre paréntesis y con el mes en
+   * texto: "(01 de Septiembre al 30 de Septiembre)". Se usan las fechas reales
+   * del período, así que en el mes en curso termina el día de hoy y no el último
+   * día del mes: no se anuncian días que aún no tienen asistencia registrada.
+   */
+  let encabezadoPeriodo = $derived(
+    `(${fechaLarga(fechaInicio)} al ${fechaLarga(fechaFin)})`
+  );
 
   /** Etiqueta del período: "Septiembre" (mensual) o "Semana 3 Septiembre" (semanal). */
   let periodoEtiqueta = $derived.by(() => {
@@ -490,6 +496,7 @@
       exportandoMasivo = true;
       progresoMasivo = 'Preparando...';
 
+      const anoNombre = anos.find(a => a.id === selectedAno)?.nombre || String(selectedAno);
       const colegiosScope: CategoryItem[] = colegios;
       if (colegiosScope.length === 0) {
         await emit("show-toast", { message: "⚠️ No hay colegios para exportar", type: 'warning' });
@@ -547,7 +554,7 @@
         const fechasCols = columnasDePeriodo(cfg, sinClases);
         tablas.push({
           titulo: `${p.gradoNombre} - Sección ${p.seccionNombre}`,
-          subtitulo: p.colegioNombre,
+          subtitulo: `${p.colegioNombre} · Año lectivo ${anoNombre}`,
           layout: 'fechas',
           headers: ["Estudiante", "Sexo", ...fechasCols.map(f => f.split('-').slice(1).reverse().join('/')), "P", "A", "J"],
           body: filas.map(est => {
@@ -556,6 +563,7 @@
             return [est.nombre, est.sexo, ...estados, cuenta('P'), cuenta('A'), cuenta('J')];
           }),
           nota: notaSinClases || undefined,
+          chip: `Sección: ${p.gradoNombre} - ${p.seccionNombre}`,
         });
       }
 
@@ -566,14 +574,13 @@
       }
 
       progresoMasivo = 'Generando PDF...';
-      const anoNombre = anos.find(a => a.id === selectedAno)?.nombre || String(selectedAno);
       const sanitize = (s: string) => s.replace(/[<>:"/\\|?*]/g, '_');
-      const lineas = [`Período: ${encabezadoPeriodo}`];
+
+      const lineas = [`Período ${encabezadoPeriodo}`];
       if (selectedSexo) lineas.push(`Sexo: ${selectedSexo === 'M' ? 'Masculino' : 'Femenino'}`);
-      lineas.push(`Secciones: ${tablas.length} · Año lectivo: ${anoNombre}`);
 
       const bytes = await generarPdfAsistencia(
-        { titulo: 'Reporte de Asistencia · Todos los colegios', lineas },
+        { titulo: 'Reporte de Asistencia', lineas },
         tablas
       );
 
@@ -584,7 +591,7 @@
       const baseDir = docsPath + sep + folderName + sep + subfolder;
       await mkdir(baseDir, { recursive: true }).catch(e => console.log("mkdir:", e));
 
-      const fileName = `Asistencia_${sanitize(periodoEtiqueta)}_${sanitize(anoNombre)}.pdf`;
+      const fileName = `Asistencia ${sanitize(periodoEtiqueta)} ${sanitize(anoNombre)}.pdf`;
       const filePath = baseDir + sep + fileName;
       await writeFile(filePath, bytes);
 
@@ -671,7 +678,7 @@
         <h2>Reporte de Asistencia</h2>
         <div class="subtitulo">${colegioNombre} · ${gradoNombre} · Sección ${seccionNombre}</div>
         <div class="info">
-          <span class="chip">Período: ${encabezadoPeriodo}</span>
+          <span class="chip">${encabezadoPeriodo}</span>
           ${selectedSexo ? `<span class="chip">Sexo: ${selectedSexo === 'M' ? 'Masculino' : 'Femenino'}</span>` : ''}
           ${diasSinClasesNota ? `<span class="chip chip-alerta">${diasSinClasesNota}</span>` : ''}
         </div>
