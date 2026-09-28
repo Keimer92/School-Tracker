@@ -18,7 +18,7 @@
     hideDefault?: boolean; noAdd?: boolean;
   }
 
-  let { pageActive = true, seccion = $bindable('ano-lectivo'), themeMode = 'sistema', setThemeMode = () => {} }: {
+  let { pageActive = true, seccion = $bindable('notas'), themeMode = 'sistema', setThemeMode = () => {} }: {
     pageActive?: boolean;
     seccion?: string;
     themeMode?: string;
@@ -43,7 +43,7 @@
     id: string; label: string; icono: string; color: string; grupo: string;
     cat?: CategoryConfig; contador?: string; soloAndroid?: boolean;
   }
-  const GRUPOS = ['Académico', 'Evaluación', 'Aplicación', 'Sistema'] as const;
+  const GRUPOS = ['Académico', 'Aplicación', 'Sistema'] as const;
 
   /** Una línea que explica qué hace cada sección, bajo el título. */
   const DESCRIPCIONES: Record<string, string> = {
@@ -64,13 +64,13 @@
   };
 
   const SECCIONES: Seccion[] = [
+    { id: 'notas', label: 'Notas', icono: '⭐', color: '#fbbf24', grupo: 'Académico', contador: 'get_grade_configs' },
     { id: 'ano-lectivo', label: 'Año Lectivo', icono: '📅', color: '#818cf8', grupo: 'Académico', cat: CATEGORIES[0], contador: 'get_anos' },
     { id: 'corte', label: 'Corte Evaluativo', icono: '✂️', color: '#f472b6', grupo: 'Académico', cat: CATEGORIES[1], contador: 'get_cortes' },
     { id: 'asignaturas', label: 'Asignatura', icono: '📚', color: '#60a5fa', grupo: 'Académico', cat: CATEGORIES[2], contador: 'get_asignaturas' },
     { id: 'colegios', label: 'Colegio', icono: '🏫', color: '#34d399', grupo: 'Académico', cat: CATEGORIES[3], contador: 'get_colegios' },
     { id: 'grados', label: 'Grado', icono: '📊', color: '#fb923c', grupo: 'Académico', cat: CATEGORIES[4], contador: 'get_grados' },
     { id: 'secciones', label: 'Sección', icono: '👥', color: '#a78bfa', grupo: 'Académico', cat: CATEGORIES[5], contador: 'get_secciones' },
-    { id: 'notas', label: 'Notas', icono: '⭐', color: '#fbbf24', grupo: 'Evaluación', contador: 'get_grade_configs' },
     { id: 'evaluaciones', label: 'Evaluaciones', icono: '✏️', color: '#c084fc', grupo: 'Aplicación' },
     { id: 'general', label: 'General', icono: '⚙️', color: '#60a5fa', grupo: 'Aplicación' },
     { id: 'notificaciones', label: 'Notif. Asistencia', icono: '🔔', color: '#fbbf24', grupo: 'Aplicación', soloAndroid: true },
@@ -81,9 +81,11 @@
   ];
 
   const seccionesVisibles = $derived(SECCIONES.filter(s => !s.soloAndroid || isAndroid));
-  // En escritorio se abre directamente la sección pedida (por defecto Año
-  // Lectivo): el rail es navegación secundaria, no una pantalla de bienvenida.
-  let activa = $state<Seccion | null>(isAndroidMobile ? null : SECCIONES[0]);
+  /** Sección que se abre siempre que se entra a Ajustes Generales. */
+  const SECCION_POR_DEFECTO = 'notas';
+  // En escritorio se abre directamente la sección pedida (por defecto Notas):
+  // el rail es navegación secundaria, no una pantalla de bienvenida.
+  let activa = $state<Seccion | null>(isAndroidMobile ? null : SECCIONES.find(s => s.id === SECCION_POR_DEFECTO) ?? null);
   let busqueda = $state('');
   let railExpandido = $state(false);
   let railFijado = $state(false);

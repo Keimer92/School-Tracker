@@ -41,7 +41,10 @@
   let toast: { message: string; type: string; isOpen: boolean } = $state({ message: "", type: "info", isOpen: false });
   let unlisten: (() => void)[] = [];
   /** Sección de Ajustes Generales abierta (deep-link). */
-  let ajustesSeccion = $state<string>('ano-lectivo');
+  let ajustesSeccion = $state<string>('notas');
+
+  /** Sección que se abre al entrar a Ajustes sin deep-link. */
+  const SECCION_AJUSTES_POR_DEFECTO = 'notas';
 
   /** Tabs que se reubicaron como secciones del rail de Ajustes. */
   const TAB_A_SECCION_AJUSTES: Record<string, string> = {
@@ -183,6 +186,9 @@
       if (isMobile) drawerOpen = false;
       return;
     }
+    // Entrada normal a Ajustes (barra lateral): se abre la sección por defecto.
+    // Los deep-links llegan por otra vía y conservan la sección pedida.
+    if ((tab as string) === "ajustes") ajustesSeccion = SECCION_AJUSTES_POR_DEFECTO;
     asistenciaSubTabRequest = null;
     notasSubTabRequest = null;
     setActiveTab(tab);

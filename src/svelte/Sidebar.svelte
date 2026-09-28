@@ -62,17 +62,13 @@ setThemeMode: (mode: string) => void;
     {/if}
   </div>
   <div class="sidebar-nav">
-    <div class="sidebar-section-header">INICIO</div>
+    <div class="sidebar-section-header">PRINCIPAL</div>
     <button class="sidebar-button {activeTab === 'dashboard' ? 'active' : ''}" onclick={() => onTabChange('dashboard')} type="button">
       <span>🏠</span><span>Inicio</span>
     </button>
-
-    <div class="sidebar-section-header">ASISTENCIA</div>
     <button class="sidebar-button {activeTab === 'asistencia' ? 'active' : ''}" onclick={() => onTabChange('asistencia')} type="button">
       <span>📅</span><span>Asistencia</span>
     </button>
-
-    <div class="sidebar-section-header">NOTAS</div>
     <button class="sidebar-button {activeTab === 'notas' ? 'active' : ''}" onclick={() => onTabChange('notas')} type="button">
       <span>📓</span><span>Notas</span>
     </button>
