@@ -1425,7 +1425,7 @@ $effect(() => {
           </div>
           {#if popSinClasesAbierta}
             <div use:portalToBody class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) cerrarPopSinClases(); }}
-              style="z-index:2000;{isAndroidMobile ? '' : 'background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;align-items:flex-start;justify-content:flex-end;padding-top:12vh;padding-right:16vw;'}">
+              style="z-index:2000;{isAndroidMobile ? '' : 'background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;align-items:center;justify-content:center;padding-top:14vh;'}">
               <div bind:this={popModalSinClasesEl} class="pop-panel" tabindex="-1"
                 style="position:relative;top:auto;left:auto;right:auto;bottom:auto;width:{modalCardWidth};max-width:{modalCardWidth};max-height:85vh;overflow-y:auto;{isAndroidMobile ? '' : 'box-shadow:0 25px 60px -12px rgba(0,0,0,0.7);'}">
                 <button type="button" onclick={cerrarPopSinClases} title="Cerrar" style="position:absolute;top:.6rem;right:.6rem;width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#cbd5e1;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1">✕</button>
