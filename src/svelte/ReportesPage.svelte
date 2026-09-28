@@ -647,9 +647,19 @@
     }
   }
 
-  async function exportToPDFMasivo() {
-    if (!selectedColegio || !selectedAno || !selectedAsignatura) {
-      await emit("show-toast", { message: "⚠️ Seleccione colegio, año y asignatura para exportación masiva", type: 'warning' });
+  /**
+   * Genera un PDF por cada combinacion grado x seccion.
+   *
+   * - alcance 'colegio' (boton PDF): todos los grados del colegio filtrado.
+   * - alcance 'todos'   (boton Exportar Todo): todos los colegios del ano y corte
+   *   seleccionados, ignorando el filtro de colegio.
+   */
+  async function exportarPdfs(alcance: 'colegio' | 'todos') {
+    const esTodos = alcance === 'todos';
+    if (!selectedAno || !selectedAsignatura || (!esTodos && !selectedColegio)) {
+      await emit("show-toast", { message: esTodos
+        ? "⚠️ Seleccione año, asignatura y corte para exportar todo"
+        : "⚠️ Seleccione colegio, año y asignatura", type: 'warning' });
       return;
     }
     let cortesIds: number[] = [];
@@ -680,23 +690,34 @@
       const baseDir = docsPath + sep + folderName + sep + subfolder;
       await mkdir(baseDir, { recursive: true });
 
-      const gradosList: CategoryItem[] = await invoke("get_grados_by_colegio", { colegioId: selectedColegio, anoLectivoId: selectedAno });
-      if (!gradosList || gradosList.length === 0) {
-        await emit("show-toast", { message: "⚠️ No se encontraron grados para este colegio", type: 'warning' });
+      // Colegios a recorrer: el filtrado, o todos los del catalogo.
+      const colegiosScope: CategoryItem[] = esTodos
+        ? colegios
+        : colegios.filter(c => c.id === selectedColegio);
+      if (colegiosScope.length === 0) {
+        await emit("show-toast", { message: "⚠️ No hay colegios para exportar", type: 'warning' });
         exportandoMasivo = false;
         return;
       }
 
-      const pairs: { gradoId: number; gradoNombre: string; seccionId: number; seccionNombre: string }[] = [];
-      for (const grado of gradosList) {
-        const seccionesList: CategoryItem[] = await invoke("get_secciones_by_grado_colegio", { gradoId: grado.id, colegioId: selectedColegio, anoLectivoId: selectedAno });
-        for (const sec of seccionesList) {
-          pairs.push({ gradoId: grado.id!, gradoNombre: grado.nombre, seccionId: sec.id!, seccionNombre: sec.nombre });
+      const pares: { colegioId: number; colegioNombre: string; gradoId: number; gradoNombre: string; seccionId: number; seccionNombre: string; cualitativo: boolean }[] = [];
+      for (const col of colegiosScope) {
+        const gradosList: CategoryItem[] = await invoke("get_grados_by_colegio", { colegioId: col.id, anoLectivoId: selectedAno });
+        for (const grado of gradosList) {
+          const seccionesList: CategoryItem[] = await invoke("get_secciones_by_grado_colegio", { gradoId: grado.id, colegioId: col.id, anoLectivoId: selectedAno });
+          for (const sec of seccionesList) {
+            pares.push({
+              colegioId: col.id, colegioNombre: col.nombre,
+              gradoId: grado.id!, gradoNombre: grado.nombre,
+              seccionId: sec.id!, seccionNombre: sec.nombre,
+              cualitativo: grado.cualitativo || false
+            });
+          }
         }
       }
 
-      if (pairs.length === 0) {
-        await emit("show-toast", { message: "⚠️ No se encontraron secciones con estudiantes", type: 'warning' });
+      if (pares.length === 0) {
+        await emit("show-toast", { message: "⚠️ No se encontraron grados con secciones", type: 'warning' });
         exportandoMasivo = false;
         return;
       }
@@ -704,9 +725,13 @@
       let processed = 0;
       let copiados = 0;
       let fallaronDescargas = 0;
-      for (const pair of pairs) {
+
+      let processed = 0;
+      let copiados = 0;
+      let fallaronDescargas = 0;
+      for (const pair of pares) {
         processed++;
-        progresoMasivo = `${processed}/${pairs.length} - ${pair.gradoNombre} Seccion ${pair.seccionNombre}`;
+        progresoMasivo = `${processed}/${pares.length} - ${pair.colegioNombre} ${pair.gradoNombre} Seccion ${pair.seccionNombre}`;
 
         const listaEstudiantes: any[] = await invoke("get_estudiantes_by_filters", { gradoId: pair.gradoId, seccionId: pair.seccionId });
         if (!listaEstudiantes || listaEstudiantes.length === 0) continue;
@@ -738,13 +763,13 @@
 
         // SOLO los indicadores que suman en este colegio + seccion. Antes se
         // sumaban los 8 y el maximo de pts salia mal (160 en vez de 100).
-        const idsSec = await idsActivosDe(selectedColegio, pair.seccionId, pair.gradoId);
+        const idsSec = await idsActivosDe(pair.colegioId, pair.seccionId, pair.gradoId);
         const indicadores = (idsSec && idsSec.length > 0)
           ? todosIndicadores.filter(i => idsSec.includes(i.id))
           : todosIndicadores.filter(i => i.activo);
         if (indicadores.length === 0) continue;
 
-        const esCualitativo = gradosList.find(g => g.id === pair.gradoId)?.cualitativo || false;
+        const esCualitativo = pair.cualitativo;
         /** Maximo real de pts de ESTE par (no el del grado seleccionado arriba). */
         const maxPtsPar = esCualitativo ? 0 : indicadores.reduce((t: number, i: any) =>
           t + (i.criterios || []).reduce((s: number, c: any) => s + (c.puntajeMaximo || 0), 0), 0);
@@ -781,7 +806,7 @@
         const date = new Date().toLocaleDateString();
         const margins = { top: 10, bottom: 10, left: 10, right: 10 };
         doc.setFont("helvetica", "bold"); doc.setFontSize(16);
-        doc.text(`Notas ${names.colegio}`, doc.internal.pageSize.getWidth() / 2, 15, { align: "center" });
+        doc.text(`Notas ${pair.colegioNombre}`, doc.internal.pageSize.getWidth() / 2, 15, { align: "center" });
         doc.setFontSize(10); doc.setTextColor(0);
         const filterInfo = [
           ["Grado:", pair.gradoNombre, "Sección:", pair.seccionNombre],
@@ -838,7 +863,7 @@
         doc.text(`Promedio Grupal: ${promedioText}`, doc.internal.pageSize.getWidth() / 2 + 15, finalY);
 
         const pdfData = doc.output('arraybuffer');
-        const fileName = `Notas ${sanitize(names.colegio)} ${sanitize(pair.gradoNombre)} - Seccion ${sanitize(pair.seccionNombre)}.pdf`;
+        const fileName = `Notas ${sanitize(pair.colegioNombre)} ${sanitize(pair.gradoNombre)} - Seccion ${sanitize(pair.seccionNombre)}.pdf`;
         const fullPath = baseDir + sep + fileName;
         await writeFile(fullPath, new Uint8Array(pdfData));
         if (isAndroid) {
@@ -853,10 +878,13 @@
 
       exportandoMasivo = false;
       const destino = isAndroid ? "Descargas/School Tracker" : "Documents/School Tracker";
-      if (isAndroid && fallaronDescargas > 0) {
-        await emit("show-toast", { message: `⚠️ ${copiados} de ${processed} PDFs en ${destino}/${subfolder} (${fallaronDescargas} solo en la app)`, type: 'warning' });
+      const alcanceTxt = esTodos ? "todos los colegios" : colegios.find(c => c.id === selectedColegio)?.nombre || "el colegio";
+      if (processed === 0) {
+        await emit("show-toast", { message: `⚠️ No se encontraron grados con estudiantes en ${alcanceTxt}`, type: 'warning' });
+      } else if (isAndroid && fallaronDescargas > 0) {
+        await emit("show-toast", { message: `⚠️ ${copiados} PDFs en ${destino}/${subfolder} · ${fallaronDescargas} quedaron solo en la app`, type: 'warning' });
       } else {
-        await emit("show-toast", { message: `✅ ${isAndroid ? copiados : processed} PDFs generados en ${destino}/${subfolder}`, type: 'success' });
+        await emit("show-toast", { message: `✅ ${isAndroid ? copiados : processed} PDFs de ${alcanceTxt} en ${destino}/${subfolder}`, type: 'success' });
       }
       if (!isAndroid) { try { await openUrl("file:///" + baseDir.replace(/\\/g, '/')); } catch {} }
     } catch (error) {
@@ -1090,12 +1118,14 @@
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
               </button>
             {/if}
-            <button onclick={exportToPDF} disabled={estudiantes.length === 0 || loading}
-              style="height:42px;padding:0 0.4rem;font-size:0.75rem;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{estudiantes.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(239,68,68,0.4);flex-shrink:0;white-space:nowrap;opacity:{estudiantes.length === 0 || loading ? 0.7 : 1}">
+            <button onclick={() => exportarPdfs('colegio')} disabled={exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura || !selectedCorte}
+              style="height:42px;padding:0 0.4rem;font-size:0.75rem;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura || !selectedCorte ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(239,68,68,0.4);flex-shrink:0;white-space:nowrap;opacity:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura || !selectedCorte ? 0.7 : 1}"
+              title="PDF de todos los grados del colegio filtrado">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
             </button>
-            <button onclick={exportToPDFMasivo} disabled={exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura}
-              style="height:42px;padding:0 0.4rem;font-size:0.75rem;background-color:#6366f1;color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(99,102,241,0.4);flex-shrink:0;white-space:nowrap;opacity:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura ? 0.7 : 1}">
+            <button onclick={() => exportarPdfs('todos')} disabled={exportandoMasivo || !selectedAno || !selectedAsignatura || !selectedCorte}
+              style="height:42px;padding:0 0.4rem;font-size:0.75rem;background-color:#6366f1;color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{exportandoMasivo || !selectedAno || !selectedAsignatura || !selectedCorte ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(99,102,241,0.4);flex-shrink:0;white-space:nowrap;opacity:{exportandoMasivo || !selectedAno || !selectedAsignatura || !selectedCorte ? 0.7 : 1}"
+              title="PDF de todos los colegios del año y corte">
               📚
             </button>
             <div style="position:relative;flex-shrink:0">
@@ -1185,13 +1215,15 @@
                 {#if !isMobile}Imprimir{/if}
               </button>
             {/if}
-            <button onclick={exportToPDF} disabled={estudiantes.length === 0 || loading}
-              style="height:42px;padding:0 {isMobile ? '0.4rem' : '1.25rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{estudiantes.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(239,68,68,0.4);flex-shrink:0;white-space:nowrap;opacity:{estudiantes.length === 0 || loading ? 0.7 : 1}">
+            <button onclick={() => exportarPdfs('colegio')} disabled={exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura || !selectedCorte}
+              title="PDF de todos los grados del colegio filtrado"
+              style="height:42px;padding:0 {isMobile ? '0.4rem' : '1.25rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura || !selectedCorte ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(239,68,68,0.4);flex-shrink:0;white-space:nowrap;opacity:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura || !selectedCorte ? 0.7 : 1}">
               <svg width="{isMobile ? '12' : '14'}" height="{isMobile ? '12' : '14'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-              {#if !isMobile}PDF{/if}
+              {#if !isMobile}PDF colegio{/if}
             </button>
-            <button onclick={exportToPDFMasivo} disabled={exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura}
-              style="height:42px;padding:0 {isMobile ? '0.4rem' : '1.25rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:#6366f1;color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(99,102,241,0.4);flex-shrink:0;white-space:nowrap;opacity:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura ? 0.7 : 1}">
+            <button onclick={() => exportarPdfs('todos')} disabled={exportandoMasivo || !selectedAno || !selectedAsignatura || !selectedCorte}
+              title="PDF de todos los colegios del año y corte"
+              style="height:42px;padding:0 {isMobile ? '0.4rem' : '1.25rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:#6366f1;color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{exportandoMasivo || !selectedAno || !selectedAsignatura || !selectedCorte ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(99,102,241,0.4);flex-shrink:0;white-space:nowrap;opacity:{exportandoMasivo || !selectedAno || !selectedAsignatura || !selectedCorte ? 0.7 : 1}">
               {exportandoMasivo ? progresoMasivo : '📚 Exportar Todo'}
             </button>
             <div style="position:relative;flex-shrink:0">
