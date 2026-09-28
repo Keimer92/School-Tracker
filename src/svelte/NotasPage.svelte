@@ -278,6 +278,31 @@
    * lo que se había escrito en un input.
    */
   let hasUnsavedChanges = $derived.by(() => !notasIguales(notasCualitativas, savedBaseline));
+  /** Cuántas notas difieren de la BD: alimenta el subtítulo del botón Guardar. */
+  let cambiosPendientes = $derived.by(() => {
+    let n = 0;
+    for (const k in notasCualitativas) {
+      if ((notasCualitativas[k] ?? '') !== (savedBaseline[k] ?? '')) n++;
+    }
+    for (const k in savedBaseline) {
+      if (!(k in notasCualitativas)) n++;
+    }
+    return n;
+  });
+
+  /** Paletas de los botones (glass): cada acción conserva su color de acento. */
+  const TONO = {
+    azul: { a: 'rgba(14,165,233,0.5)', bg: 'linear-gradient(135deg,rgba(14,165,233,0.26),rgba(56,189,248,0.2))', txt: '#e0f2fe', chip: 'rgba(14,165,233,0.4)', chitxt: '#bae6fd', sub: '#7dd3fc', sh: '0 6px 18px rgba(14,165,233,0.26)' },
+    rojo: { a: 'rgba(248,113,113,0.5)', bg: 'linear-gradient(135deg,rgba(244,63,94,0.26),rgba(251,146,60,0.2))', txt: '#ffe4e6', chip: 'rgba(244,63,94,0.4)', chitxt: '#fecdd3', sub: '#fda4af', sh: '0 6px 18px rgba(225,29,72,0.26)' },
+    ambar: { a: 'rgba(251,191,36,0.5)', bg: 'linear-gradient(135deg,rgba(245,158,11,0.26),rgba(251,191,36,0.18))', txt: '#fef3c7', chip: 'rgba(245,158,11,0.4)', chitxt: '#fde68a', sub: '#fcd34d', sh: '0 6px 18px rgba(245,158,11,0.26)' },
+    violeta: { a: 'rgba(167,139,250,0.5)', bg: 'linear-gradient(135deg,rgba(139,92,246,0.26),rgba(56,189,248,0.2))', txt: '#ede9fe', chip: 'rgba(139,92,246,0.4)', chitxt: '#ddd6fe', sub: '#c4b5fd', sh: '0 6px 18px rgba(139,92,246,0.26)' },
+    verde: { a: 'rgba(52,211,153,0.5)', bg: 'linear-gradient(135deg,rgba(16,185,129,0.26),rgba(34,197,94,0.2))', txt: '#d1fae5', chip: 'rgba(16,185,129,0.4)', chitxt: '#a7f3d0', sub: '#6ee7b7', sh: '0 6px 18px rgba(16,185,129,0.26)' },
+  } as const;
+  type Tono = keyof typeof TONO;
+  function tonoBoton(t: Tono): string {
+    const c = TONO[t];
+    return `--b-accent:${c.a};--b-bg:${c.bg};--b-txt:${c.txt};--b-chip:${c.chip};--b-chitxt:${c.chitxt};--b-sub:${c.sub};--b-shadow:${c.sh}`;
+  }
 
   let inputsRef = new Map<string, HTMLInputElement>();
   let cellSnapshot: Record<string, string> | null = null;
@@ -1831,6 +1856,16 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
 
 <div class="page-container notas-page-root" style="height: 100%; min-height: 0;">
   <div class="category-grid" style="display: flex; flex-direction: column; height: 100%;">
+    {#snippet botonNota(o: { onclick: () => void; disabled: boolean; icono: string; etiqueta: string; sub: string; tono: Tono; title: string; compacto?: boolean })}
+      <button type="button" class="btn-mod" onclick={o.onclick} disabled={o.disabled} title={o.title}
+        style={tonoBoton(o.tono) + (o.compacto || isMobile ? ';padding:0 0.55rem' : '')}>
+        <span class="chip">{o.icono}</span>
+        <span class="txt">
+          <span>{o.etiqueta}</span>
+          <span class="sub">{o.sub}</span>
+        </span>
+      </button>
+    {/snippet}
     <div style="{isAndroid && isMobile ? 'position: sticky; top: 0; z-index: 50; background: #0f172a; padding-bottom: 0.2rem; margin-bottom: 0.3rem;' : ''}">
       <FiltersModalAndroid
         bind:open={showFiltersModal}
@@ -1927,44 +1962,51 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
         </FilterGroup>
 
           <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '0 0 auto'};{isMobile ? 'overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;' : ''}">
-            <button onclick={() => { showInstrumentosModal = true; console.debug('[Instrumentos] abrir modal'); }} disabled={indicadores.length === 0}
-              style="height:42px;padding:0 {isMobile ? '13px' : '5px'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:{activeIndicadores.length > 0 ? '#0ea5e9' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{activeIndicadores.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{activeIndicadores.length > 0 ? '0 4px 14px rgba(14,165,233,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{activeIndicadores.length > 0 ? 1 : 0.7}"
-              title="Instrumentos de evaluación">
-              <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">📋</span>
-              {#if !isMobile}<span>Instrumentos</span>{/if}
-            </button>
-            <button onclick={() => {
-              if (!selectedCorte || !selectedAsignatura) { emit("show-toast", { message: "⚠️ Seleccione un corte y asignatura primero", type: "warning" }); return; }
-              deleteMode = 'all'; deleteStudentId = 0; deleteIndicatorId = 0; showDeleteModal = true;
-            }} disabled={estudiantes.length === 0}
-              style="height:42px;padding:0 {isMobile ? '0.9rem' : '1.25rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:{estudiantes.length > 0 ? '#ef4444' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{estudiantes.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{estudiantes.length > 0 ? '0 4px 14px rgba(239,68,68,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{estudiantes.length > 0 ? 1 : 0.7}"
-              title="Eliminar notas">
-              <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">🗑️</span>
-              {#if !isMobile}<span>Eliminar</span>{/if}
-            </button>
-            <button onclick={undo} disabled={history.length === 0}
-              style="height:42px;width:42px;padding:0;font-size:{isMobile ? '0.85rem' : '1rem'};background-color:{history.length > 0 ? '#f59e0b' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;cursor:{history.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{history.length > 0 ? '0 4px 14px rgba(245,158,11,0.4)' : 'none'};flex-shrink:0;opacity:{history.length > 0 ? 1 : 0.7}"
-              title="Deshacer (Ctrl+Z)">
-              <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">↩️</span>
-            </button>
-            <button onclick={redo} disabled={redoStack.length === 0}
-              style="height:42px;width:42px;padding:0;font-size:{isMobile ? '0.85rem' : '1rem'};background-color:{redoStack.length > 0 ? '#f59e0b' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;cursor:{redoStack.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{redoStack.length > 0 ? '0 4px 14px rgba(245,158,11,0.4)' : 'none'};flex-shrink:0;opacity:{redoStack.length > 0 ? 1 : 0.7}"
-              title="Rehacer (Ctrl+Y)">
-              <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">↪️</span>
-            </button>
-            <button onclick={() => { distribuirTargets = {}; distribuirOverwrite = true; showDistribuirModal = true; }} disabled={activeIndicadores.length === 0 || filteredNotas.length === 0}
-              style="height:42px;padding:0 {isMobile ? '0.9rem' : '1.25rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? '#8b5cf6' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? '0 4px 14px rgba(139,92,246,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? 1 : 0.7}"
-              title="Distribuir notas automáticamente">
-              <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">✨</span>
-              {#if !isMobile}<span>Distribuir</span>{/if}
-            </button>
-            <button onclick={handleGuardarNotas} disabled={!hasUnsavedChanges || saving || estudiantes.length === 0}
-              style="height:42px;padding:0 {isMobile ? '0.9rem' : '1.25rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:{!hasUnsavedChanges ? 'rgba(148,163,184,0.5)' : (saving ? '#059669' : '#10b981')};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{(!hasUnsavedChanges || saving || estudiantes.length === 0) ? 'default' : 'pointer'};transition:all 0.3s ease;box-shadow:{hasUnsavedChanges && !saving && estudiantes.length > 0 ? '0 4px 14px rgba(16,185,129,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{(hasUnsavedChanges && !saving && estudiantes.length > 0) ? 1 : 0.7}"
-              title="Guardar Notas (Ctrl+G)">
-              <span style="font-size:{isMobile ? '0.85rem' : '1rem'};">{saving ? '⏳' : '💾'}</span>
-              {#if !isMobile}<span>{saving ? 'Guardando...' : (hasUnsavedChanges ? 'Guardar' : 'Sin cambios')}</span>{/if}
-            </button>
+            {@render botonNota({
+              onclick: () => { showInstrumentosModal = true; console.debug('[Instrumentos] abrir modal'); },
+              disabled: indicadores.length === 0,
+              icono: '📋', etiqueta: 'Instrumentos', tono: 'azul',
+              sub: `${activeIndicadores.length} de ${indicadores.length} activos`,
+              title: 'Instrumentos de evaluación',
+            })}
+            {@render botonNota({
+              onclick: () => {
+                if (!selectedCorte || !selectedAsignatura) { emit("show-toast", { message: "⚠️ Seleccione un corte y asignatura primero", type: "warning" }); return; }
+                deleteMode = 'all'; deleteStudentId = 0; deleteIndicatorId = 0; showDeleteModal = true;
+              },
+              disabled: estudiantes.length === 0,
+              icono: '🗑️', etiqueta: 'Eliminar', tono: 'rojo',
+              sub: `${filteredNotas.length} notas`,
+              title: 'Eliminar notas',
+            })}
+            {@render botonNota({
+              onclick: undo, disabled: history.length === 0,
+              icono: '↩️', etiqueta: 'Deshacer', tono: 'ambar',
+              sub: history.length === 0 ? 'Sin cambios' : `${history.length} en historial`,
+              title: 'Deshacer (Ctrl+Z)',
+            })}
+            {@render botonNota({
+              onclick: redo, disabled: redoStack.length === 0,
+              icono: '↪️', etiqueta: 'Rehacer', tono: 'ambar',
+              sub: redoStack.length === 0 ? 'Nada que rehacer' : `${redoStack.length} por rehacer`,
+              title: 'Rehacer (Ctrl+Y)',
+            })}
+            {@render botonNota({
+              onclick: () => { distribuirTargets = {}; distribuirOverwrite = true; showDistribuirModal = true; },
+              disabled: activeIndicadores.length === 0 || filteredNotas.length === 0,
+              icono: '✨', etiqueta: 'Distribuir', tono: 'violeta',
+              sub: `Reparto de ${activeIndicadores.length} activos`,
+              title: 'Distribuir notas automáticamente',
+            })}
+            {@render botonNota({
+              onclick: handleGuardarNotas,
+              disabled: !hasUnsavedChanges || saving || estudiantes.length === 0,
+              icono: saving ? '⏳' : '💾', etiqueta: saving ? 'Guardando' : 'Guardar', tono: 'verde',
+              sub: saving ? 'Escribiendo en la BD' : (hasUnsavedChanges ? `${cambiosPendientes} cambios` : 'Sin cambios'),
+              title: 'Guardar Notas (Ctrl+G)',
+            })}
           </div>
+
       </FilterContainer>
       {/if}
 
@@ -1983,39 +2025,49 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           </button>
         </div>
         <div class="category-card" style="padding: 0.5rem; margin-top: 0.3rem; display:flex;gap:0.3rem;align-items:center;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;">
-          <button onclick={() => { showInstrumentosModal = true; console.debug('[Instrumentos] abrir modal'); }} disabled={indicadores.length === 0}
-            style="height:42px;padding:0 13px;font-size:0.75rem;background-color:{activeIndicadores.length > 0 ? '#0ea5e9' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{activeIndicadores.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{activeIndicadores.length > 0 ? '0 4px 14px rgba(14,165,233,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{activeIndicadores.length > 0 ? 1 : 0.7}"
-            title="Instrumentos de evaluación">
-            <span style="font-size:0.85rem;">📋</span>
-          </button>
-          <button onclick={() => {
-            if (!selectedCorte || !selectedAsignatura) { emit("show-toast", { message: "⚠️ Seleccione un corte y asignatura primero", type: "warning" }); return; }
-            deleteMode = 'all'; deleteStudentId = 0; deleteIndicatorId = 0; showDeleteModal = true;
-          }} disabled={estudiantes.length === 0}
-            style="height:42px;padding:0 0.9rem;font-size:0.75rem;background-color:{estudiantes.length > 0 ? '#ef4444' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{estudiantes.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{estudiantes.length > 0 ? '0 4px 14px rgba(239,68,68,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{estudiantes.length > 0 ? 1 : 0.7}"
-            title="Eliminar notas">
-            <span style="font-size:0.85rem;">🗑️</span>
-          </button>
-          <button onclick={undo} disabled={history.length === 0}
-            style="height:42px;width:42px;padding:0;font-size:0.85rem;background-color:{history.length > 0 ? '#f59e0b' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;cursor:{history.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{history.length > 0 ? '0 4px 14px rgba(245,158,11,0.4)' : 'none'};flex-shrink:0;opacity:{history.length > 0 ? 1 : 0.7}"
-            title="Deshacer (Ctrl+Z)">
-            <span style="font-size:1rem;">↩️</span>
-          </button>
-          <button onclick={redo} disabled={redoStack.length === 0}
-            style="height:42px;width:42px;padding:0;font-size:0.85rem;background-color:{redoStack.length > 0 ? '#f59e0b' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;cursor:{redoStack.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{redoStack.length > 0 ? '0 4px 14px rgba(245,158,11,0.4)' : 'none'};flex-shrink:0;opacity:{redoStack.length > 0 ? 1 : 0.7}"
-            title="Rehacer (Ctrl+Y)">
-            <span style="font-size:1rem;">↪️</span>
-          </button>
-          <button onclick={() => { distribuirTargets = {}; distribuirOverwrite = true; showDistribuirModal = true; }} disabled={activeIndicadores.length === 0 || filteredNotas.length === 0}
-            style="height:42px;padding:0 0.9rem;font-size:0.75rem;background-color:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? '#8b5cf6' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? '0 4px 14px rgba(139,92,246,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{activeIndicadores.length > 0 && filteredNotas.length > 0 ? 1 : 0.7}"
-            title="Distribuir notas automáticamente">
-            <span style="font-size:0.85rem;">✨</span>
-          </button>
-          <button onclick={handleGuardarNotas} disabled={!hasUnsavedChanges || saving || estudiantes.length === 0}
-            style="height:42px;padding:0 0.9rem;font-size:0.75rem;background-color:{!hasUnsavedChanges ? 'rgba(148,163,184,0.5)' : (saving ? '#059669' : '#10b981')};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{(!hasUnsavedChanges || saving || estudiantes.length === 0) ? 'default' : 'pointer'};transition:all 0.3s ease;box-shadow:{hasUnsavedChanges && !saving && estudiantes.length > 0 ? '0 4px 14px rgba(16,185,129,0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{(hasUnsavedChanges && !saving && estudiantes.length > 0) ? 1 : 0.7}"
-            title="Guardar Notas (Ctrl+G)">
-            <span style="font-size:0.85rem;">{saving ? '⏳' : '💾'}</span>
-          </button>
+          {@render botonNota({
+            onclick: () => { showInstrumentosModal = true; console.debug('[Instrumentos] abrir modal'); },
+            disabled: indicadores.length === 0,
+            icono: '📋', etiqueta: 'Instrumentos', tono: 'azul',
+            sub: `${activeIndicadores.length}/${indicadores.length} activos`,
+            title: 'Instrumentos de evaluación', compacto: true,
+          })}
+          {@render botonNota({
+            onclick: () => {
+              if (!selectedCorte || !selectedAsignatura) { emit("show-toast", { message: "⚠️ Seleccione un corte y asignatura primero", type: "warning" }); return; }
+              deleteMode = 'all'; deleteStudentId = 0; deleteIndicatorId = 0; showDeleteModal = true;
+            },
+            disabled: estudiantes.length === 0,
+            icono: '🗑️', etiqueta: 'Eliminar', tono: 'rojo',
+            sub: `${filteredNotas.length} notas`,
+            title: 'Eliminar notas', compacto: true,
+          })}
+          {@render botonNota({
+            onclick: undo, disabled: history.length === 0,
+            icono: '↩️', etiqueta: 'Deshacer', tono: 'ambar',
+            sub: history.length === 0 ? 'Sin cambios' : `${history.length} en historial`,
+            title: 'Deshacer (Ctrl+Z)', compacto: true,
+          })}
+          {@render botonNota({
+            onclick: redo, disabled: redoStack.length === 0,
+            icono: '↪️', etiqueta: 'Rehacer', tono: 'ambar',
+            sub: redoStack.length === 0 ? 'Nada que rehacer' : `${redoStack.length} por rehacer`,
+            title: 'Rehacer (Ctrl+Y)', compacto: true,
+          })}
+          {@render botonNota({
+            onclick: () => { distribuirTargets = {}; distribuirOverwrite = true; showDistribuirModal = true; },
+            disabled: activeIndicadores.length === 0 || filteredNotas.length === 0,
+            icono: '✨', etiqueta: 'Distribuir', tono: 'violeta',
+            sub: `Reparto de ${activeIndicadores.length} activos`,
+            title: 'Distribuir notas automáticamente', compacto: true,
+          })}
+          {@render botonNota({
+            onclick: handleGuardarNotas,
+            disabled: !hasUnsavedChanges || saving || estudiantes.length === 0,
+            icono: saving ? '⏳' : '💾', etiqueta: saving ? 'Guardando' : 'Guardar', tono: 'verde',
+            sub: saving ? 'Escribiendo en la BD' : (hasUnsavedChanges ? `${cambiosPendientes} cambios` : 'Sin cambios'),
+            title: 'Guardar Notas (Ctrl+G)', compacto: true,
+          })}
         </div>
       {/if}
 

@@ -2935,3 +2935,64 @@ input:checked + .slider:before {
   .tabla-distribuir .btn-grade { width: 24px !important; font-size: 0.54rem !important; }
   .tabla-distribuir .input-total { width: 42px !important; font-size: 0.62rem !important; }
 }
+
+/* ==========================================================================
+   Botón glass "moderno e informativo" (Notas, Asistencia, Informe, Reportes)
+   Cada acción conserva su color de acento vía variables CSS:
+     --b-accent (borde) · --b-bg (gradiente) · --b-txt · --b-chip (fondo del
+     icono) · --b-chitxt · --b-sub (subtítulo) · --b-shadow
+   Etiqueta de dos líneas: acción + dato útil del estado actual.
+   ========================================================================== */
+.btn-mod {
+  height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.95rem;
+  border-radius: 10px;
+  border: 1px solid var(--b-accent, rgba(255, 255, 255, 0.12));
+  background: var(--b-bg, rgba(255, 255, 255, 0.05));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--b-txt, #e2e8f0);
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px var(--b-shadow, transparent);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.btn-mod:not(:disabled):hover { transform: translateY(-1px); }
+.btn-mod:not(:disabled):active { transform: translateY(1px); }
+.btn-mod:disabled { opacity: 0.5; cursor: default; }
+.btn-mod .chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--b-chip, rgba(255, 255, 255, 0.08));
+  color: var(--b-chitxt, #e2e8f0);
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+.btn-mod .txt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.15;
+  gap: 1px;
+  min-width: 0;
+}
+.btn-mod .sub {
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--b-sub, #94a3b8);
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
