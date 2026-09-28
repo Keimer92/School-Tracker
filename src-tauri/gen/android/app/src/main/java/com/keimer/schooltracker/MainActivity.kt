@@ -9,7 +9,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
-import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.media.AudioAttributes
 import android.media.RingtoneManager
@@ -22,7 +21,6 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import android.print.PrintAttributes
 import android.print.PrintManager
-import android.provider.MediaStore
 import android.view.View
 import android.window.OnBackInvokedCallback
 import android.webkit.WebView
@@ -287,87 +285,38 @@ class MainActivity : TauriActivity() {
   }
 
   /**
-   * Copia un archivo ya escrito por la app a Descargas/DE_DESCANZAS usando
-   * MediaStore (Android 10+), que NO necesita ningun permiso porque el
-   * "almacenamiento por ambito" no cubre archivos newly-created por la app.
-   * En Android 9 o menos cae a la copia directa (ahi si aplica el permiso).
-   *
+   * Copia un archivo ya escrito por la app a Descargas/DE_CARPETA usando
+   * MediaStore en Android 10+ (sin permisos) y copia directa en Android 9 o menos.
    * Devuelve la ruta publica donde quedo, o cadena vacia si fallo.
    */
-  @Suppress("SetWorldReadable")
   fun saveToDownloads(sourcePath: String, mime: String, folder: String, displayName: String): String {
     return try {
-      val source = File(sourcePath)
-      if (!source.exists() || !source.isFile) {
+      val origen = File(sourcePath)
+      if (!origen.exists() || !origen.isFile) {
         android.util.Log.e("MainActivity", "saveToDownloads: origen no existe: $sourcePath")
         return ""
       }
-      // Nombre unico por si ya existe uno con el mismo nombre.
-      var finalName = displayName
-      var n = 1
-      fun targetExists(name: String): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-          contentResolver.query(
-            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-            arrayOf(MediaStore.Downloads.COLUMN_DISPLAY_NAME),
-            "${MediaStore.Downloads.COLUMN_DISPLAY_NAME} = ? AND " +
-              "${MediaStore.Downloads.COLUMN_RELATIVE_PATH} = ?",
-            arrayOf(name, "Download/$folder/"),
-            null
-          )?.use { c -> c.count > 0 } ?: false
-        } else {
-          File(File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), folder), name).exists()
-        }
-      }
-      while (targetExists(finalName)) {
-        finalName = if (displayName.contains('.')) {
-          val base = displayName.substringBeforeLast('.')
-          val ext = displayName.substringAfterLast('.')
-          "$base ($n).$ext"
-        } else {
-          "$displayName ($n)"
-        }
-        n++
-      }
-
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        val values = ContentValues().apply {
-          put(MediaStore.Downloads.DISPLAY_NAME, finalName)
-          put(MediaStore.Downloads.MIME_TYPE, mime)
-          // Crea las carpetas intermedias (Download/School Tracker/2026 - ...).
-          put(MediaStore.Downloads.RELATIVE_PATH, "Download/$folder/")
-          put(MediaStore.Downloads.IS_PENDING, 1)
-        }
-        val resolver = contentResolver
-        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-        if (uri == null) {
-          android.util.Log.e("MainActivity", "saveToDownloads: MediaStore devolvio null")
-          return ""
-        }
-        try {
-          resolver.openOutputStream(uri)?.use { out ->
-            source.inputStream().use { input -> input.copyTo(out) }
-          } ?: run {
-            resolver.delete(uri, null, null)
-            return ""
-          }
-          values.clear()
-          values.put(MediaStore.Downloads.IS_PENDING, 0)
-          resolver.update(uri, values, null, null)
-        } catch (e: Exception) {
-          resolver.delete(uri, null, null)
-          throw e
-        }
-        val publicPath = "${Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)}/$folder/$finalName"
-        android.util.Log.i("MainActivity", "saveToDownloads OK: $publicPath")
-        publicPath
+        DescargasSaver.guardar(contentResolver, sourcePath, mime, folder, displayName)
       } else {
+        // Android 9 o menos: hay WRITE_EXTERNAL_STORAGE (maxSdkVersion=28).
         val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), folder)
         dir.mkdirs()
-        val dest = File(dir, finalName)
-        source.copyTo(dest, overwrite = true)
-        android.util.Log.i("MainActivity", "saveToDownloads (legacy) OK: ${dest.absolutePath}")
-        dest.absolutePath
+        var finalName = displayName
+        var n = 1
+        while (File(dir, finalName).exists()) {
+          finalName = if (displayName.contains('.')) {
+            val base = displayName.substringBeforeLast('.')
+            "$base ($n).${displayName.substringAfterLast('.')}"
+          } else {
+            "$displayName ($n)"
+          }
+          n++
+        }
+        val destino = File(dir, finalName)
+        origen.copyTo(destino, overwrite = true)
+        android.util.Log.i("MainActivity", "saveToDownloads (legacy) OK: ${destino.absolutePath}")
+        destino.absolutePath
       }
     } catch (e: Exception) {
       android.util.Log.e("MainActivity", "saveToDownloads error: ${e.message}")
