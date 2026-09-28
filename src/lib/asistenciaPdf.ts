@@ -136,7 +136,7 @@ function dibujarChip(doc: any, x: number, y: number, texto: string, estilo: Esti
   const ancho = doc.getTextWidth(texto) + RELLENO_CHIP * 2;
   doc.setFillColor(estilo.bg[0], estilo.bg[1], estilo.bg[2]);
   doc.setDrawColor(estilo.border[0], estilo.border[1], estilo.border[2]);
-  doc.setLineWidth(0.3);
+  doc.setLineWidth(GROSOR_LINEA_CHIP);
   doc.roundedRect(x, y, ancho, ALTO_CHIP, 1.8, 1.8, "FD");
   doc.setTextColor(estilo.text[0], estilo.text[1], estilo.text[2]);
   doc.text(texto, x + RELLENO_CHIP, y + ALTO_CHIP / 2, { baseline: "middle" });
@@ -299,7 +299,7 @@ export async function generarPdfAsistencia(
         valign: "middle",
         minCellWidth: 0,
         lineColor: COLOR_BORDE,
-        lineWidth: 0.2,
+        lineWidth: GROSOR_LINEA_TABLA,
         textColor: [0, 0, 0],
       },
       headStyles: {
@@ -309,7 +309,7 @@ export async function generarPdfAsistencia(
         halign: "center",
         valign: "middle",
         lineColor: COLOR_BORDE,
-        lineWidth: 0.25,
+        lineWidth: GROSOR_LINEA_TABLA,
         minCellHeight: 6,
       },
       alternateRowStyles: { fillColor: [247, 253, 250] },
