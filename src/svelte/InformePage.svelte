@@ -660,15 +660,15 @@
         body{font-family:Helvetica,Arial,sans-serif;padding:12px;color:#111827}
         .cab{display:flex;gap:7px;align-items:flex-start;margin-bottom:5px}
         .barra{width:4px;align-self:stretch;min-height:26px;background:#10b981;border-radius:2px}
-        .titulo{font-size:16px;font-weight:700;color:#111827;line-height:1.15}
-        .subtitulo{font-size:10px;color:#4b5563;font-weight:600;margin-top:2px}
+        .titulo{font-size:18px;font-weight:700;color:#111827;line-height:1.15}
+        .subtitulo{font-size:11px;color:#4b5563;font-weight:600;margin-top:2px}
         .chips{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 8px}
-        .chip{background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;border-radius:5px;padding:3px 7px;font-size:8.5px;font-weight:600;white-space:nowrap}
+        .chip{background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;border-radius:5px;padding:3px 8px;font-size:9.5px;font-weight:600;white-space:nowrap}
         .chip-neutro{background:#f9fafb;border-color:#d1d5db;color:#374151}
         .chip-alerta{background:#fffbeb;border-color:#fcd34d;color:#92400e}
-        table{border-collapse:collapse;width:100%;font-size:7px;table-layout:auto}
+        table{border-collapse:collapse;width:100%;font-size:8.5px;table-layout:auto}
         thead{display:table-header-group}
-        th,td{border:1.4px solid #111827;padding:2.5px 3px;text-align:center;line-height:1.1}
+        th,td{border:1.4px solid #111827;padding:3px 4px;text-align:center;line-height:1.15}
         th{background:#d1fae5;color:#064e3b;font-weight:700;white-space:nowrap}
         th:first-child{text-align:left}
         td.nombre{color:#000;font-weight:700;text-align:left;white-space:nowrap}

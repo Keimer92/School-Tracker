@@ -71,22 +71,22 @@ interface EstiloAdaptado {
  * `dd/mm` cabe en una sola línea, igual que en la vista de impresión. Por eso
  * `anchoFecha` se mantiene holgado en vez de quedarse en 5mm.
  *
- * El piso de 5.5pt es deliberado: por debajo el texto queda ilegible, y es
+ * El piso de 6.5pt es deliberado: por debajo el texto queda ilegible, y es
  * preferible que una sección enorme (60+ estudiantes en mensual) continue en
  * una segunda hoja antes que imprimir un PDF que no se puede leer.
  */
 function estiloPara(nCols: number, nFilas: number): EstiloAdaptado {
-  const porFilas = nFilas > 40 ? 0.78 : nFilas > 26 ? 0.88 : 1;
+  const porFilas = nFilas > 44 ? 0.8 : nFilas >= 32 ? 0.86 : nFilas >= 26 ? 0.9 : 1;
   const base = nCols <= 8
-    ? { fontSize: 9, cellPadding: 1.2, anchoFecha: 14 }
+    ? { fontSize: 10, cellPadding: 1.4, anchoFecha: 15 }
     : nCols <= 14
-      ? { fontSize: 8, cellPadding: 0.9, anchoFecha: 11 }
+      ? { fontSize: 9, cellPadding: 1.1, anchoFecha: 12 }
       : nCols <= 20
-        ? { fontSize: 7, cellPadding: 0.7, anchoFecha: 8.5 }
-        : { fontSize: 6.5, cellPadding: 0.6, anchoFecha: 7.5 };
+        ? { fontSize: 8, cellPadding: 0.9, anchoFecha: 9.5 }
+        : { fontSize: 7.5, cellPadding: 0.8, anchoFecha: 8.5 };
   return {
-    fontSize: Math.max(5.5, Math.round(base.fontSize * porFilas * 10) / 10),
-    cellPadding: Math.max(0.5, Math.round(base.cellPadding * porFilas * 10) / 10),
+    fontSize: Math.max(6.5, Math.round(base.fontSize * porFilas * 10) / 10),
+    cellPadding: Math.max(0.7, Math.round(base.cellPadding * porFilas * 10) / 10),
     anchoFecha: base.anchoFecha,
   };
 }
