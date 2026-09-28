@@ -107,6 +107,7 @@
 
   // ── Modo semanal: popover mes + semanas ──
   const pad2 = (n: number) => String(n).padStart(2, '0');
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
   function lunesDeISO(iso: string): string {
     const b = new Date(iso + 'T12:00:00');
     const off = (b.getDay() + 6) % 7;
@@ -147,9 +148,22 @@
   function fmtDM(iso: string): string {
     return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
   }
-  function nombreMes(m: number): string {
-    return ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][m] ?? '';
+  /** Fecha completa dd/mm/aaaa para los encabezados de PDF e impresión. */
+  function fmtDMY(iso: string): string {
+    if (!iso || iso.length < 10) return iso || '';
+    return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
   }
+  function nombreMes(m: number): string {
+    return MESES[m - 1] ?? '';
+  }
+  /** Rango del período ya formateado, para los encabezados. */
+  let encabezadoPeriodo = $derived.by(() => {
+    if (periodo === 'mensual') {
+      const hasta = fechaFin >= getLocalDateISOString() ? 'hoy' : fmtDMY(fechaFin);
+      return `${nombreMes(mesSeleccionado)} ${anoSeleccionado} (del ${fmtDMY(fechaInicio)} al ${hasta})`;
+    }
+    return `Semana ${semanaActiva} (del ${fmtDMY(fechaInicio)} al ${fmtDMY(fechaFin)})`;
+  });
 
   let semanaActiva = $derived.by(() => {
     const lu = lunesDeISO(fechaBase);
@@ -547,7 +561,7 @@
       progresoMasivo = 'Generando PDF...';
       const anoNombre = anos.find(a => a.id === selectedAno)?.nombre || String(selectedAno);
       const sanitize = (s: string) => s.replace(/[<>:"/\\|?*]/g, '_');
-      const lineas = [`Periodo: ${periodo.toUpperCase()} (${fechaInicio} al ${fechaFin})`];
+      const lineas = [`Período: ${encabezadoPeriodo}`];
       if (selectedSexo) lineas.push(`Sexo: ${selectedSexo === 'M' ? 'Masculino' : 'Femenino'}`);
       lineas.push(`Secciones: ${tablas.length} · Año lectivo: ${anoNombre}`);
 
@@ -622,29 +636,40 @@
         const p = est.fechas.filter(f => f.endsWith(':P')).length;
         const a = est.fechas.filter(f => f.endsWith(':A')).length;
         const j = est.fechas.filter(f => f.endsWith(':J')).length;
-        return `<tr><td>${est.nombre}</td><td>${est.sexo}</td>${fechasCols.map(f => {
+        return `<tr><td class="nombre">${est.nombre}</td><td>${est.sexo}</td>${fechasCols.map(f => {
           const estado = getEstadoEnFecha(est, f);
           const cls = estado === 'P' ? 'estado-P' : estado === 'A' ? 'estado-A' : estado === 'J' ? 'estado-J' : '';
           return `<td class="${cls}">${estado}</td>`;
         }).join('')}<td class="estado-P">${p}</td><td class="estado-A">${a}</td><td class="estado-J">${j}</td></tr>`;
       }).join('');
       printHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-        body{font-family:Arial,sans-serif;padding:20px}h2{margin:0 0 10px 0}.info{margin-bottom:15px;font-size:12px}
-        table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid #ddd;padding:6px;text-align:center}
-        th{background-color:#10b981;color:white}tr:nth-child(even){background-color:#f9f9f9}
-        .estado-P{color:#10b981;font-weight:bold}.estado-A{color:#ef4444;font-weight:bold}.estado-J{color:#f59e0b;font-weight:bold}
+        body{font-family:-apple-system,'Segoe UI',Arial,sans-serif;padding:22px;color:#111827}
+        h2{margin:0 0 4px 0;font-size:19px;letter-spacing:-.2px}
+        .subtitulo{font-size:13px;color:#4b5563;font-weight:600;margin-bottom:12px}
+        .info{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+        .chip{background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;border-radius:8px;padding:4px 9px;font-size:11px;font-weight:600}
+        .chip-alerta{background:#fffbeb;border-color:#fcd34d;color:#92400e}
+        table{border-collapse:collapse;width:100%;font-size:10px;table-layout:auto}
+        th,td{border:1px solid #111827;padding:4px 5px;text-align:center}
+        th{background:#d1fae5;color:#064e3b;font-weight:700;white-space:nowrap}
+        th.izq,td.izq{text-align:left}
+        td.nombre{color:#000;font-weight:600;text-align:left;white-space:nowrap}
+        tbody tr:nth-child(even){background:#f7fdfa}
+        .estado-P{color:#047857;font-weight:700}
+        .estado-A{color:#b91c1c;font-weight:700}
+        .estado-J{color:#a16207;font-weight:700}
         @media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-        th{background-color:#10b981!important}tr:nth-child(even){background-color:#f9f9f9!important}
-        .estado-P{color:#10b981!important}.estado-A{color:#ef4444!important}.estado-J{color:#f59e0b!important}}
+        th{background:#d1fae5!important}tbody tr:nth-child(even){background:#f7fdfa!important}
+        .estado-P{color:#047857!important}.estado-A{color:#b91c1c!important}.estado-J{color:#a16207!important}}
       </style></head><body>
         <h2>Reporte de Asistencia</h2>
+        <div class="subtitulo">${colegioNombre} · ${gradoNombre} · Sección ${seccionNombre}</div>
         <div class="info">
-          <p><strong>Colegio:</strong> ${colegioNombre}</p>
-          <p><strong>Grado:</strong> ${gradoNombre} - Sección: ${seccionNombre}</p>
-          <p><strong>Período:</strong> ${periodo.toUpperCase()} (${fechaInicio} al ${fechaFin})${selectedSexo ? ` - Sexo: ${selectedSexo === 'M' ? 'Masculino' : 'Femenino'}` : ''}</p>
-          ${diasSinClasesNota ? `<p><strong>🚫 ${diasSinClasesNota}</strong></p>` : ''}
+          <span class="chip">Período: ${encabezadoPeriodo}</span>
+          ${selectedSexo ? `<span class="chip">Sexo: ${selectedSexo === 'M' ? 'Masculino' : 'Femenino'}</span>` : ''}
+          ${diasSinClasesNota ? `<span class="chip chip-alerta">${diasSinClasesNota}</span>` : ''}
         </div>
-        <table><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
+        <table><thead><tr>${headers.map((h, i) => `<th class="${i === 0 ? 'izq' : ''}">${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
       </body></html>`;
     } catch (error) {
       console.error("Error generando reporte:", error);
@@ -875,8 +900,7 @@
         <div><strong>Colegio:</strong> {colegioNombre}</div>
         <div><strong>Grado:</strong> {gradoNombre}</div>
         <div><strong>Sección:</strong> {seccionNombre}</div>
-        <div><strong>Período:</strong> {periodo}</div>
-        <div><strong>Fecha:</strong> {fechaInicio} al {fechaFin}</div>
+        <div><strong>Período:</strong> {encabezadoPeriodo}</div>
       </div>
     </div>
 
