@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tonoBoton, type Tono } from "../lib/botones";
 
-  let { opts, ref = undefined }: {
+  let { opts, ref = $bindable(null) }: {
     opts: {
       onclick: () => void;
       disabled?: boolean;
@@ -16,6 +16,8 @@
      * Referencia al <button> real. Necesaria cuando el consumidor ancla un
      * popover a su botón: `onclick` no recibe el evento, así que sin esto no
      * habría forma de conocer la posición en pantalla.
+     * `$bindable` es obligatorio: sin él la asignación de `bind:this` se
+     * descarta en silencio y el anclaje cae a (0,0).
      */
     ref?: HTMLElement | null;
   } = $props();

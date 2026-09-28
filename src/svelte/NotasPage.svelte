@@ -297,35 +297,33 @@
   // ── Popover de acciones (Instrumentos / Eliminar / Distribuir) ──
   // La barra de acciones quedaba muy apretada en horizontal, así que las tres
   // acciones de infrequently se agruparon tras un único botón. Sigue el mismo
-  // patrón que el popover de indicador/criterio: anclaje por coordenadas,
-  // cierre al pulsar fuera (pointerdown), Escape, resize y back de Android.
+  // patrón que el popover de indicador/criterio: anclaje por coordenadas del
+  // botón, cierre al pulsar fuera, Escape, resize y back de Android.
   let popAcciones = $state<{ x: number; y: number; arriba: boolean } | null>(null);
-  let popAccionesTriggerEl = $state<HTMLElement | null>(null);
   let popAccionesPanelEl = $state<HTMLDivElement | null>(null);
-
   let popAccionesBtn = $state<HTMLElement | null>(null);
 
-  /**
-   * BotonMod invoca `onclick` sin argumentos, así que el anclaje se saca del
-   * botón enlazado con bind:this en lugar de del evento.
-   */
+  /** Se pone a true si el pointerdown ya cerró el popover, para que el click
+   *  que viene después (el del propio botón) no lo vuelva a abrir. */
+  let cerradoPorEsteClick = false;
+
   function togglePopAcciones() {
+    if (cerradoPorEsteClick) { cerradoPorEsteClick = false; return; }
     if (popAcciones) { cerrarPopAcciones(); return; }
-    popAccionesTriggerEl = popAccionesBtn;
     const r = popAccionesBtn?.getBoundingClientRect();
+    if (!r) { console.warn('[Acciones] botón sin referencia; no se puede anclar el popover'); return; }
     // Si no cabe abajo (p. ej. barra pegada al borde inferior), abre hacia arriba.
     const altoEstimado = 190;
-    const abreArriba = !!r && r.bottom + altoEstimado > window.innerHeight && r.top > altoEstimado;
+    const abreArriba = r.bottom + altoEstimado > window.innerHeight && r.top > altoEstimado;
     popAcciones = {
-      x: r ? Math.round(r.left) : 0,
-      y: r ? Math.round(abreArriba ? r.top - altoEstimado - 4 : r.bottom + 4) : 0,
+      x: Math.max(8, Math.min(Math.round(r.left), window.innerWidth - 250)),
+      y: Math.round(abreArriba ? r.top - altoEstimado - 4 : r.bottom + 4),
       arriba: abreArriba,
     };
   }
 
   function cerrarPopAcciones() {
     popAcciones = null;
-    popAccionesTriggerEl = null;
   }
 
   /** Ejecuta una acción del popover y lo cierra. */
@@ -338,8 +336,13 @@
     if (!popAcciones) return;
     const onPointerDown = (ev: PointerEvent) => {
       const t = ev.target as Node | null;
-      if (t && (popAccionesPanelEl?.contains(t) || popAccionesTriggerEl?.contains(t))) return;
+      // Clic sobre el propio disparador: no cerrar aquí, lo hace su onclick.
+      if (t && popAccionesBtn?.contains(t)) return;
+      if (t && popAccionesPanelEl?.contains(t)) return;
+      cerradoPorEsteClick = true;
       cerrarPopAcciones();
+      // Se libera tras el click para no swallow-ear el siguiente clic real.
+      setTimeout(() => { cerradoPorEsteClick = false; }, 0);
     };
     const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') cerrarPopAcciones(); };
     window.addEventListener('pointerdown', onPointerDown, true);
@@ -2002,7 +2005,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
         </FilterGroup>
 
           <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '0 0 auto'};{isMobile ? 'overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;' : ''}">
-            <BotonMod ref={popAccionesBtn} opts={{
+            <BotonMod bind:ref={popAccionesBtn} opts={{
               onclick: togglePopAcciones,
               icono: popAcciones ? '✕' : '⋯', etiqueta: 'Acciones', tono: 'violeta',
               sub: `${activeIndicadores.length} activos · ${filteredNotas.length} notas`,
@@ -2048,7 +2051,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           </button>
         </div>
         <div class="category-card" style="padding: 0.5rem; margin-top: 0.3rem; display:flex;gap:0.3rem;align-items:center;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;">
-          <BotonMod ref={popAccionesBtn} opts={{
+          <BotonMod bind:ref={popAccionesBtn} opts={{
             onclick: togglePopAcciones,
             icono: popAcciones ? '✕' : '⋯', etiqueta: 'Acciones', tono: 'violeta',
             sub: `${activeIndicadores.length}/${indicadores.length} · ${filteredNotas.length}`,
@@ -2487,7 +2490,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
       <div
         bind:this={popAccionesPanelEl}
         role="menu"
-        style="position: fixed; z-index: 99995; left: {Math.max(8, Math.min(popAcciones.x, (typeof window !== 'undefined' ? window.innerWidth : 1920) - 250))}px; top: {popAcciones.y}px; width: 242px; background: rgba(20,24,31,0.97); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; box-shadow: 0 18px 40px -10px rgba(0,0,0,0.65); padding: 0.4rem; box-sizing: border-box; display: flex; flex-direction: column; gap: 3px;">
+        style="position: fixed; z-index: 99995; left: {popAcciones.x}px; top: {popAcciones.y}px; width: 242px; background: rgba(20,24,31,0.97); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; box-shadow: 0 18px 40px -10px rgba(0,0,0,0.65); padding: 0.4rem; box-sizing: border-box; display: flex; flex-direction: column; gap: 3px;">
 
         <button
           role="menuitem" disabled={indicadores.length === 0}
