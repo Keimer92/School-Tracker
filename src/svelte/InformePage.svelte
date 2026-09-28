@@ -643,6 +643,7 @@
     if (reporteFiltrado.length === 0) { await emit("show-toast", { message: "⚠️ No hay datos para imprimir", type: 'warning' }); return; }
     try {
       await emit("show-toast", { message: "✅ Preparando reporte...", type: 'success' });
+      const anoNombrePrint = anos.find(a => a.id === selectedAno)?.nombre || String(selectedAno);
       const fechasCols = getFechasUnicas();
       const headers = ["Estudiante", "Sexo", ...fechasCols.map(f => f.split('-').slice(1).reverse().join('/')), "P", "A", "J"];
       const rows = reporteFiltrado.map(est => {
@@ -656,33 +657,46 @@
         }).join('')}<td class="estado-P">${p}</td><td class="estado-A">${a}</td><td class="estado-J">${j}</td></tr>`;
       }).join('');
       printHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
-        body{font-family:-apple-system,'Segoe UI',Arial,sans-serif;padding:22px;color:#111827}
-        h2{margin:0 0 4px 0;font-size:19px;letter-spacing:-.2px}
-        .subtitulo{font-size:13px;color:#4b5563;font-weight:600;margin-bottom:12px}
-        .info{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
-        .chip{background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;border-radius:8px;padding:4px 9px;font-size:11px;font-weight:600}
+        body{font-family:Helvetica,Arial,sans-serif;padding:12px;color:#111827}
+        .cab{display:flex;gap:7px;align-items:flex-start;margin-bottom:5px}
+        .barra{width:4px;align-self:stretch;min-height:26px;background:#10b981;border-radius:2px}
+        .titulo{font-size:16px;font-weight:700;color:#111827;line-height:1.15}
+        .subtitulo{font-size:10px;color:#4b5563;font-weight:600;margin-top:2px}
+        .chips{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 8px}
+        .chip{background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;border-radius:5px;padding:3px 7px;font-size:8.5px;font-weight:600;white-space:nowrap}
+        .chip-neutro{background:#f9fafb;border-color:#d1d5db;color:#374151}
         .chip-alerta{background:#fffbeb;border-color:#fcd34d;color:#92400e}
-        table{border-collapse:collapse;width:100%;font-size:10px;table-layout:auto}
-        th,td{border:1px solid #111827;padding:4px 5px;text-align:center}
+        table{border-collapse:collapse;width:100%;font-size:7px;table-layout:auto}
+        thead{display:table-header-group}
+        th,td{border:1.4px solid #111827;padding:2.5px 3px;text-align:center;line-height:1.1}
         th{background:#d1fae5;color:#064e3b;font-weight:700;white-space:nowrap}
-        th.izq,td.izq{text-align:left}
-        td.nombre{color:#000;font-weight:600;text-align:left;white-space:nowrap}
+        th:first-child{text-align:left}
+        td.nombre{color:#000;font-weight:700;text-align:left;white-space:nowrap}
         tbody tr:nth-child(even){background:#f7fdfa}
         .estado-P{color:#047857;font-weight:700}
         .estado-A{color:#b91c1c;font-weight:700}
         .estado-J{color:#a16207;font-weight:700}
+        @page{size:letter landscape;margin:8mm}
         @media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
         th{background:#d1fae5!important}tbody tr:nth-child(even){background:#f7fdfa!important}
-        .estado-P{color:#047857!important}.estado-A{color:#b91c1c!important}.estado-J{color:#a16207!important}}
+        .estado-P{color:#047857!important}.estado-A{color:#b91c1c!important}.estado-J{color:#a16207!important}
+        tr{page-break-inside:avoid}}
       </style></head><body>
-        <h2>Reporte de Asistencia</h2>
-        <div class="subtitulo">${colegioNombre} · ${gradoNombre} · Sección ${seccionNombre}</div>
-        <div class="info">
-          <span class="chip">${encabezadoPeriodo}</span>
-          ${selectedSexo ? `<span class="chip">Sexo: ${selectedSexo === 'M' ? 'Masculino' : 'Femenino'}</span>` : ''}
+        <div class="cab">
+          <div class="barra"></div>
+          <div>
+            <div class="titulo">${gradoNombre} - Sección ${seccionNombre}</div>
+            <div class="subtitulo">${colegioNombre} · Año lectivo ${anoNombrePrint}</div>
+          </div>
+        </div>
+        <div class="chips">
+          <span class="chip">Reporte de Asistencia</span>
+          <span class="chip">Período ${encabezadoPeriodo}</span>
+          <span class="chip chip-neutro">Sección: ${gradoNombre} - ${seccionNombre}</span>
+          ${selectedSexo ? `<span class="chip chip-neutro">Sexo: ${selectedSexo === 'M' ? 'Masculino' : 'Femenino'}</span>` : ''}
           ${diasSinClasesNota ? `<span class="chip chip-alerta">${diasSinClasesNota}</span>` : ''}
         </div>
-        <table><thead><tr>${headers.map((h, i) => `<th class="${i === 0 ? 'izq' : ''}">${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
+        <table><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
       </body></html>`;
     } catch (error) {
       console.error("Error generando reporte:", error);
