@@ -10,7 +10,8 @@
     "dev:android:hot": "npx tauri android dev",
     "dev:android:hmr": "node scripts/android-hmr.mjs",
     "dev:android:device": "node scripts/android-hmr.mjs --device",
-    "build": "tsc && vite build",
+    "check:components": "node scripts/check-components.mjs",
+    "build": "npm run check:components && tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri"
   },

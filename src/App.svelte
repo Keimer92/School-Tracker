@@ -242,24 +242,16 @@ import CloudPage from "./svelte/CloudPage.svelte";
   }
 
   /**
-   * Traza del arranque. Además de la consola, acumula en `window.__initLog`
-   * para poder inspeccionarla desde DevTools aunque el log se pierda.
+   * Un fallo en cualquier await del arranque dejaba `initialized` en null y la
+   * ventana girando en el splash para siempre, sin decir nada. Este catch
+   * garantiza que la app entre igual y registre la causa.
    */
-  function logInit(msg: string) {
-    const linea = `[Init] ${msg}`;
-    console.log(linea);
-    try {
-      (window as any).__initLog = [...((window as any).__initLog || []), linea];
-    } catch {}
-  }
-
   onMount(() => {
     void iniciar();
   });
 
   async function iniciar() {
    try {
-    logInit('1 onMount: registrando atajos de teclado');
     window.addEventListener('keydown', handleKeyDown);
     onDestroy(() => window.removeEventListener('keydown', handleKeyDown));
     checkMobile();
@@ -276,14 +268,11 @@ import CloudPage from "./svelte/CloudPage.svelte";
     }
 
     // Check if app has been initialized (welcomed)
-    logInit('2 consultando is_app_initialized…');
     let init = false;
     try {
       init = await invoke('is_app_initialized');
-      logInit('3 is_app_initialized = ' + String(init));
     } catch (e) {
       console.error('[Init] is_app_initialized falló', e);
-      logInit('3 is_app_initialized ERROR: ' + String(e));
     }
     initialized = init;
 
@@ -330,7 +319,6 @@ import CloudPage from "./svelte/CloudPage.svelte";
       }
       // Si la tab activa quedó sin bloque renderizable, se cae a dashboard.
       if (!DEFAULT_TABS.includes(activeTab)) activeTab = "dashboard";
-      logInit('4 tab activa = ' + String(activeTab) + ' · visited = ' + Array.from(visitedTabs).join(','));
       const savedMode = localStorage.getItem("app-theme") || "sistema";
       themeMode = savedMode;
       applyTheme(savedMode);
@@ -388,8 +376,6 @@ import CloudPage from "./svelte/CloudPage.svelte";
       }).then(u => unlisten.push(u));
 
       // Sincronización automática SOLO con Cloudflare D1 (si está configurado).
-      logInit('5 registrando sincronización D1…');
-      logInit('6 arrancando backup de Drive y scheduler…');
       // Google Drive: respaldo automático (push) cada N minutos + manual desde CloudPage.
       driveSyncService.ensureAutoBackup();
       // Scheduler híbrido de Drive (timer inteligente + triggers pasivos + cuenta).
@@ -424,7 +410,6 @@ import CloudPage from "./svelte/CloudPage.svelte";
       // y los avisos en tiempo real del otro dispositivo se perdían.
       void d1TrySync('startup');
 
-      logInit('7 sembrando datos por defecto (en segundo plano)…');
       invoke("seed_defaults_now");
 
       // Notificación Android: grados/secciones sin asistencia hoy (solo si colegio laborable).
@@ -443,10 +428,10 @@ import CloudPage from "./svelte/CloudPage.svelte";
       }
     });
     welcomeListener.then(u => unlisten.push(u));
-    logInit('9 arranque completado · initialized=' + String(initialized));
    } catch (e) {
-    console.error('[Init] error fatal en el arranque', e);
-    logInit('ERROR FATAL en el arranque: ' + String(e));
+    // Sin esto la ventana queda en el splash para siempre: un `await` que
+    // rechaza deja `initialized` en null y nadie ve la causa.
+    console.error('[App] error fatal en el arranque', e);
     initialized = true;
    }
   }
