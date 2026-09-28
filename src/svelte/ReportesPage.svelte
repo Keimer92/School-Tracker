@@ -275,6 +275,28 @@
     refreshTrigger++;
   });
 
+  /**
+   * Indicadores que suman en el colegio + seccion indicados (con la herencia
+   * del global que aplica el backend). Devuelve null si el backend no
+   * responde, para poder seguir con el `activo` global en vez de vaciar el
+   * reporte. OJO: no usar `untrack` fuera de un efecto; aqui es una lectura normal.
+   */
+  async function idsActivosDe(colegioId: number, seccionId: number, gradoId: number): Promise<number[] | null> {
+    if (colegioId <= 0 || seccionId <= 0 || gradoId <= 0) return null;
+    try {
+      return await invoke<number[]>('get_indicadores_activos_colegio_seccion', {
+        colegioId,
+        seccionId,
+        gradoId,
+        asignaturaId: selectedAsignatura,
+        corteEvaluativoId: selectedCorte
+      });
+    } catch (e) {
+      console.error('[Reportes] No se pudieron cargar los indicadores activos:', e);
+      return null;
+    }
+  }
+
   async function fetchInitialCatalogs() {
     try {
       const [anosData, cortesData, colegiosData, configsData] = await Promise.all([
@@ -375,16 +397,24 @@
           }
         }
       }
-      const indicadores: Indicador[] = Array.from(mergedMap.values()).map(entry => ({
+      const indicadoresBase: Indicador[] = Array.from(mergedMap.values()).map(entry => ({
         ...entry.ind,
         criterios: Array.from(entry.criteriaMap.values())
       }));
 
-      if (indicadores.length === 0) {
+      if (indicadoresBase.length === 0) {
         configIndicadores = []; estudiantes = [];
         await emit("show-toast", { message: "⚠️ No hay indicadores configurados.", type: "warning" });
         return;
       }
+
+      // Que indicators suman depende del COLEGIO y la SECCION: se resuelve aqui
+      // y se sobrescribe `activo` para que todo lo de abajo (totales, colores,
+      // columnas) use el mismo criterio que NotasPage.
+      const idsSec = await idsActivosDe(selectedColegio, selectedSeccion, selectedGrado);
+      const indicadores: Indicador[] = (idsSec && idsSec.length > 0)
+        ? indicadoresBase.map(i => ({ ...i, activo: idsSec.includes(i.id) }))
+        : indicadoresBase;
       configIndicadores = indicadores.filter(ind => ind.activo);
 
       const results = await Promise.all([
@@ -585,17 +615,32 @@
       const pdfData = doc.output('arraybuffer');
       const sanitize = (s: string) => s.replace(/[<>:"/\\|?*]/g, '_');
       const fileName = `Notas ${sanitize(names.colegio)} ${sanitize(names.grado)} - Seccion ${sanitize(names.seccion)}.pdf`;
-      const docsPath = await documentDir(); const folderName = "School Tracker";
+      const folderName = "School Tracker";
       const subfolder = `${sanitize(names.ano)} - ${sanitize(names.corte)} - ${sanitize(names.asignatura)}`;
       const sep = isAndroid ? '/' : '\\';
-      const fp = docsPath + sep + folderName + sep + subfolder;
+      // En Android se escribe primero en la carpeta privada de la app y luego se
+      // copia a Descargas/School Tracker con MediaStore (sin permisos).
+      const destinoBase = await documentDir();
+      const fp = destinoBase + sep + folderName + sep + subfolder;
       const fullPath = fp + sep + fileName;
       await mkdir(fp, { recursive: true }).catch(e => console.log("mkdir:", e));
       await writeFile(fullPath, new Uint8Array(pdfData));
-      const folderPath = fp.replace(/\\/g, '/');
-      if (isAndroid) { try { await invoke('share_pdf', { path: fullPath.replace(/\\/g, '/') }); } catch {} }
-      else { try { await openUrl("file:///" + folderPath); } catch {} }
-      await emit("show-toast", { message: "✅ PDF guardado en Documents/School Tracker/" + subfolder, type: 'success' });
+
+      if (isAndroid) {
+        const ruta = await invoke<string>('guardar_en_descargas', {
+          path: fullPath, mime: 'application/pdf', carpeta: folderName, nombre: fileName
+        }).catch(() => "");
+        if (ruta) {
+          await emit("show-toast", { message: "✅ PDF guardado en Descargas/School Tracker/" + subfolder, type: 'success' });
+          try { await invoke('share_pdf', { path: ruta }); } catch {}
+        } else {
+          await emit("show-toast", { message: "⚠️ No se pudo escribir en Descargas. Se guardó solo en la app.", type: 'warning' });
+          try { await invoke('share_pdf', { path: fullPath.replace(/\\/g, '/') }); } catch {}
+        }
+      } else {
+        try { await openUrl("file:///" + fp.replace(/\\/g, '/')); } catch {}
+        await emit("show-toast", { message: "✅ PDF guardado en Documents/School Tracker/" + subfolder, type: 'success' });
+      }
     } catch (error) {
       console.error("Error al generar PDF:", error);
       await emit("show-toast", { message: "❌ Error al generar el PDF: " + (error instanceof Error ? error.message : String(error)), type: 'error' });
@@ -657,6 +702,8 @@
       }
 
       let processed = 0;
+      let copiados = 0;
+      let fallaronDescargas = 0;
       for (const pair of pairs) {
         processed++;
         progresoMasivo = `${processed}/${pairs.length} - ${pair.gradoNombre} Seccion ${pair.seccionNombre}`;
@@ -681,15 +728,26 @@
         const indicadoresArrays = await Promise.all(cortesIds.map(cId =>
           invoke<any[]>("get_evaluation_config", { gradoId: pair.gradoId, asignaturaId: selectedAsignatura, corteEvaluativoId: cId, anoLectivoId: selectedAno })
         ));
-        const indicadores: any[] = [];
+        const todosIndicadores: any[] = [];
         const seenInd = new Set<number>();
         for (const arr of indicadoresArrays) {
           for (const ind of arr) {
-            if (!seenInd.has(ind.id)) { seenInd.add(ind.id); indicadores.push(ind); }
+            if (!seenInd.has(ind.id)) { seenInd.add(ind.id); todosIndicadores.push(ind); }
           }
         }
 
+        // SOLO los indicadores que suman en este colegio + seccion. Antes se
+        // sumaban los 8 y el maximo de pts salia mal (160 en vez de 100).
+        const idsSec = await idsActivosDe(selectedColegio, pair.seccionId, pair.gradoId);
+        const indicadores = (idsSec && idsSec.length > 0)
+          ? todosIndicadores.filter(i => idsSec.includes(i.id))
+          : todosIndicadores.filter(i => i.activo);
+        if (indicadores.length === 0) continue;
+
         const esCualitativo = gradosList.find(g => g.id === pair.gradoId)?.cualitativo || false;
+        /** Maximo real de pts de ESTE par (no el del grado seleccionado arriba). */
+        const maxPtsPar = esCualitativo ? 0 : indicadores.reduce((t: number, i: any) =>
+          t + (i.criterios || []).reduce((s: number, c: any) => s + (c.puntajeMaximo || 0), 0), 0);
 
         const reporteData = listaEstudiantes.map((est: any) => {
           let totalSuma = 0, totalMaximo = 0, haIngresado = false;
@@ -757,7 +815,7 @@
             if (data.section === 'body' && data.column.index === 2) {
               const est = reporteData[data.row.index];
               const colorHex = (!est.notaFinalQual || est.notaFinalQual === "-") ? "#64748b"
-                : getNoteColor(est.notaFinal, est.notaFinalQual, totalPuntajeMaximoConfig);
+                : getNoteColor(est.notaFinal, est.notaFinalQual, maxPtsPar);
               const [r, g, b] = hexToRgb(colorHex);
               data.cell.styles.textColor = [r, g, b];
               data.cell.styles.fontStyle = 'bold';
@@ -772,7 +830,8 @@
           if (esCualitativo) { promedioText = calcularNotaCualitativaFinal(conNotas.map((e: any) => e.notaFinalQual || 'AI')); }
           else {
             const prom = conNotas.reduce((s: number, e: any) => s + e.notaFinal, 0) / conNotas.length;
-            promedioText = `${Math.round(prom)}${getQualitativeLabel(prom) ? ` (${getQualitativeLabel(prom)})` : ''}`;
+            const lblProm = getQualitativeLabel(getPorcentajeFinal(prom, maxPtsPar));
+            promedioText = `${Math.round(prom)}${lblProm ? ` (${lblProm})` : ''}`;
           }
         }
         doc.setFontSize(11); doc.text(`Total Estudiantes: ${reporteData.length}`, margins.left + 10, finalY);
@@ -782,10 +841,23 @@
         const fileName = `Notas ${sanitize(names.colegio)} ${sanitize(pair.gradoNombre)} - Seccion ${sanitize(pair.seccionNombre)}.pdf`;
         const fullPath = baseDir + sep + fileName;
         await writeFile(fullPath, new Uint8Array(pdfData));
+        if (isAndroid) {
+          // Copia a Descargas/School Tracker (carpeta publica) con MediaStore.
+          const ruta = await invoke<string>('guardar_en_descargas', {
+            path: fullPath, mime: 'application/pdf', carpeta: folderName, nombre: fileName
+          }).catch(() => "");
+          if (!ruta) fallaronDescargas++;
+        }
+        copiados++;
       }
 
       exportandoMasivo = false;
-      await emit("show-toast", { message: `✅ ${processed} PDFs generados en Documents/School Tracker/${subfolder}`, type: 'success' });
+      const destino = isAndroid ? "Descargas/School Tracker" : "Documents/School Tracker";
+      if (isAndroid && fallaronDescargas > 0) {
+        await emit("show-toast", { message: `⚠️ ${copiados} de ${processed} PDFs en ${destino}/${subfolder} (${fallaronDescargas} solo en la app)`, type: 'warning' });
+      } else {
+        await emit("show-toast", { message: `✅ ${isAndroid ? copiados : processed} PDFs generados en ${destino}/${subfolder}`, type: 'success' });
+      }
       if (!isAndroid) { try { await openUrl("file:///" + baseDir.replace(/\\/g, '/')); } catch {} }
     } catch (error) {
       console.error("Error en exportación masiva:", error);

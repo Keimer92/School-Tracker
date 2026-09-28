@@ -549,6 +549,60 @@ async fn save_file_android(
     Ok(())
 }
 
+/// Guarda un archivo ya escrito por la app en Descargas/carpeta, usando
+/// MediaStore en Android (sin permisos). Devuelve la ruta publica donde quedo.
+/// En desktop no hace nada y devuelve cadena vacia.
+#[tauri::command]
+async fn guardar_en_descargas(
+    _app_handle: tauri::AppHandle,
+    _path: String,
+    _mime: String,
+    _carpeta: String,
+    _nombre: String,
+) -> Result<String, String> {
+    #[cfg(target_os = "android")]
+    {
+        use jni::objects::JValue;
+        let clean_path = _path.replace("file://", "");
+        // OJO: ndk_context NO esta inicializado en este setup. Usar el puente propio.
+        let (vm, activity) = obtain_native_bridge()?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        let j_path = env.new_string(&clean_path).map_err(|e| e.to_string())?;
+        let j_mime = env.new_string(&_mime).map_err(|e| e.to_string())?;
+        let j_carpeta = env.new_string(&_carpeta).map_err(|e| e.to_string())?;
+        let j_nombre = env.new_string(&_nombre).map_err(|e| e.to_string())?;
+        let j_obj = env
+            .call_method(
+                activity.as_obj(),
+                "saveToDownloads",
+                "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+                &[
+                    JValue::Object(&j_path),
+                    JValue::Object(&j_mime),
+                    JValue::Object(&j_carpeta),
+                    JValue::Object(&j_nombre),
+                ],
+            )
+            .map_err(|e| format!("Error JNI saveToDownloads: {}", e))?
+            .l()
+            .map_err(|e| e.to_string())?;
+        if j_obj.is_null() {
+            return Ok(String::new());
+        }
+        let ruta: String = env
+            .get_string(&jni::objects::JString::from(j_obj))
+            .map_err(|e| e.to_string())?
+            .into();
+        println!("[Android] guardar_en_descargas -> {}", if ruta.is_empty() { "(fallo)" } else { &ruta });
+        Ok(ruta)
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (_path, _mime, _carpeta, _nombre);
+        Ok(String::new())
+    }
+}
+
 #[tauri::command]
 async fn notify_attendance_reminder(_app_handle: tauri::AppHandle, _title: String, _body: String) -> Result<(), String> {
     #[cfg(target_os = "android")]
@@ -1968,8 +2022,10 @@ pub fn run() {
             remove_pending_deletion_colegio_grado,
             delete_record_local,
             print_pdf,
-            share_pdf,
-            save_file_android,
+        share_pdf,
+        save_file_android,
+        guardar_en_descargas,
+
             gd_read_file_base64,
             gd_write_file_base64,
             gd_reload_database,

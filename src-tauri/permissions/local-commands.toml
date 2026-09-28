@@ -87,8 +87,10 @@ commands.allow = [
     "get_secciones_by_grado_colegio",
     "delete_record_local",
     "print_pdf",
-    "share_pdf",
-    "save_file_android",
+        "share_pdf",
+        "save_file_android",
+        "guardar_en_descargas",
+
     "get_colegio_dias_asistencia_all",
     "delete_asistencia_batch",
     "get_grado_asignatura",
