@@ -1095,6 +1095,17 @@ $effect(() => {
     .asistencia-opt:active{transform:scale(0.92)}
     .obs-toggle-btn{width:34px!important;height:34px!important;min-width:34px!important;font-size:0.9rem!important;border-radius:8px!important}
     .custom-table thead th{position:sticky;top:0;z-index:10;background:#1e293b!important}
+    /* Los tres estados aparecen flotando al pasar el cursor sobre la celda
+       (que incluye el input de observación), sin apretar el diseño de la tabla */
+    .celda-estado{position:relative;display:flex;flex-direction:column;gap:0.15rem}
+    .rapido-overlay{position:absolute;left:50%;bottom:calc(100% + 4px);transform:translateX(-50%);display:none;gap:3px;padding:4px;border-radius:9px;background:rgba(17,24,39,0.94);border:1px solid rgba(255,255,255,0.14);box-shadow:0 10px 24px rgba(0,0,0,0.55);z-index:40;white-space:nowrap}
+    .celda-estado:hover .rapido-overlay,.celda-estado:focus-within .rapido-overlay{display:flex}
+    .rapido-btn{min-width:30px;height:26px;padding:0 6px;border-radius:7px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:#94a3b8;font-size:0.7rem;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.12s ease;font-family:inherit}
+    .rapido-btn:hover{background:rgba(255,255,255,0.12);color:#fff}
+    .rapido-btn:focus-visible{outline:2px solid var(--primary-color);outline-offset:1px}
+    .rapido-btn.p.on{background:rgba(16,185,129,0.3);border-color:#10b981;color:#6ee7b7}
+    .rapido-btn.a.on{background:rgba(239,68,68,0.3);border-color:#ef4444;color:#fca5a5}
+    .rapido-btn.j.on{background:rgba(245,158,11,0.3);border-color:#f59e0b;color:#fcd34d}
     .ciclo-cell{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:700;cursor:pointer;transition:all 0.15s ease;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:#64748b;margin:0 auto}
     .ciclo-cell:hover{border-color:rgba(255,255,255,0.2);background:rgba(255,255,255,0.06)}
     .ciclo-cell:active{transform:scale(0.92)}
@@ -1147,6 +1158,17 @@ $effect(() => {
     .fch-th:hover{filter:brightness(1.35)}
     .dsc-col{background:linear-gradient(180deg,rgba(245,158,11,.10),rgba(245,158,11,.02));text-align:center;vertical-align:middle;color:#f59e0b;font-weight:700;padding:.5rem .35rem;min-width:70px}
   </style>
+
+  {#snippet overlayEstados(estId: number, fecha: string, actual: string | null)}
+    <div class="rapido-overlay">
+      <button class="rapido-btn p" class:on={actual === 'P'} title="Marcar Presente" aria-label="Marcar Presente" aria-pressed={actual === 'P'}
+        onclick={() => handleEstadoChangeMulti(estId, fecha, 'P')}>P</button>
+      <button class="rapido-btn a" class:on={actual === 'A'} title="Marcar Ausente" aria-label="Marcar Ausente" aria-pressed={actual === 'A'}
+        onclick={() => handleEstadoChangeMulti(estId, fecha, 'A')}>A</button>
+      <button class="rapido-btn j" class:on={actual === 'J'} title="Marcar Justificado" aria-label="Marcar Justificado" aria-pressed={actual === 'J'}
+        onclick={() => handleEstadoChangeMulti(estId, fecha, 'J')}>J</button>
+    </div>
+  {/snippet}
 
   <PageLayout>
     {#snippet filters()}
@@ -1658,14 +1680,28 @@ $effect(() => {
                       {@const draftD = draftMulti[est.id]?.[fv.fecha]}
                       {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
                       <td style="text-align:center;padding:0.15rem;min-width:105px">
-                        <div class="semanal-status" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
-                          onclick={() => cicloEstado(est.id, fv.fecha)}
-                          title={effectiveEstado === 'P' ? 'Presente' : effectiveEstado === 'A' ? 'Ausente' : effectiveEstado === 'J' ? 'Justificado' : 'Sin marcar'}>
-                          {effectiveEstado === 'P' ? 'Presente' : effectiveEstado === 'A' ? 'Ausente' : effectiveEstado === 'J' ? 'Justificado' : '—'}
-                        </div>
-                        <input type="text" placeholder="Obs..." class="semanal-obs"
-                          value={getObsMulti(est.id, fv.fecha)}
-                          oninput={(e) => handleObservacionChangeMulti(est.id, fv.fecha, (e.target as HTMLInputElement).value)} />
+                        {#if isWindows}
+                          <div class="celda-estado">
+                            <div class="semanal-status" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
+                              onclick={() => cicloEstado(est.id, fv.fecha)}
+                              title="Clic para rotar · pasa el cursor sobre la observación para elegir el estado">
+                              {effectiveEstado === 'P' ? 'Presente' : effectiveEstado === 'A' ? 'Ausente' : effectiveEstado === 'J' ? 'Justificado' : '—'}
+                            </div>
+                            <input type="text" placeholder="Obs..." class="semanal-obs"
+                              value={getObsMulti(est.id, fv.fecha)}
+                              oninput={(e) => handleObservacionChangeMulti(est.id, fv.fecha, (e.target as HTMLInputElement).value)} />
+                            {@render overlayEstados(est.id, fv.fecha, effectiveEstado)}
+                          </div>
+                        {:else}
+                          <div class="semanal-status" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
+                            onclick={() => cicloEstado(est.id, fv.fecha)}
+                            title={effectiveEstado === 'P' ? 'Presente' : effectiveEstado === 'A' ? 'Ausente' : effectiveEstado === 'J' ? 'Justificado' : 'Sin marcar'}>
+                            {effectiveEstado === 'P' ? 'Presente' : effectiveEstado === 'A' ? 'Ausente' : effectiveEstado === 'J' ? 'Justificado' : '—'}
+                          </div>
+                          <input type="text" placeholder="Obs..." class="semanal-obs"
+                            value={getObsMulti(est.id, fv.fecha)}
+                            oninput={(e) => handleObservacionChangeMulti(est.id, fv.fecha, (e.target as HTMLInputElement).value)} />
+                        {/if}
                       </td>
                     {/if}
                   {/each}
@@ -1718,11 +1754,22 @@ $effect(() => {
                       {@const draftD = draftMulti[est.id]?.[fv.fecha]}
                       {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
                       <td style="text-align:center;padding:0.15rem">
-                        <div class="ciclo-cell" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
-                          onclick={() => cicloEstado(est.id, fv.fecha)}
-                          title={new Date(fv.fecha + "T12:00:00").toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) + ': ' + (effectiveEstado === 'P' ? 'Presente' : effectiveEstado === 'A' ? 'Ausente' : effectiveEstado === 'J' ? 'Justificado' : 'Sin marcar')}>
-                          {effectiveEstado ?? '-'}
-                        </div>
+                        {#if isWindows}
+                          <div class="celda-estado">
+                            <div class="ciclo-cell" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
+                              onclick={() => cicloEstado(est.id, fv.fecha)}
+                              title="Clic para rotar · pasa el cursor aquí para elegir el estado">
+                              {effectiveEstado ?? '-'}
+                            </div>
+                            {@render overlayEstados(est.id, fv.fecha, effectiveEstado)}
+                          </div>
+                        {:else}
+                          <div class="ciclo-cell" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
+                            onclick={() => cicloEstado(est.id, fv.fecha)}
+                            title={new Date(fv.fecha + "T12:00:00").toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) + ': ' + (effectiveEstado === 'P' ? 'Presente' : effectiveEstado === 'A' ? 'Ausente' : effectiveEstado === 'J' ? 'Justificado' : 'Sin marcar')}>
+                            {effectiveEstado ?? '-'}
+                          </div>
+                        {/if}
                       </td>
                     {/if}
                   {/each}
