@@ -165,6 +165,17 @@
     return `Semana ${semanaActiva} (del ${fmtDMY(fechaInicio)} al ${fmtDMY(fechaFin)})`;
   });
 
+  /** Etiqueta del período: "Septiembre" (mensual) o "Semana 3 Septiembre" (semanal). */
+  let periodoEtiqueta = $derived.by(() => {
+    if (periodo === 'semanal') return `Semana ${semanaActiva} ${nombreMes(mesSeleccionado)}`;
+    return nombreMes(mesSeleccionado);
+  });
+
+  /** Etiqueta corta del período, para mostrar en el botón. */
+  let resumenPeriodo = $derived(
+    periodo === 'semanal' ? `Semana ${semanaActiva}` : `${nombreMes(mesSeleccionado)} ${anoSeleccionado}`
+  );
+
   let semanaActiva = $derived.by(() => {
     const lu = lunesDeISO(fechaBase);
     const match = semanasOpts.find(s => s.lunes === lu);
@@ -464,18 +475,14 @@
   let progresoMasivo = $state('');
 
   /**
-   * Un solo PDF con una hoja por cada grado/seccion.
-   * - alcance 'colegio' (boton PDF): todos los grados del colegio filtrado.
-   * - alcance 'todos'   (boton Exportar Todo): todos los colegios del ano lectivo.
+   * Un solo PDF con una hoja por cada grado/seccion de TODOS los colegios del
+   * año lectivo seleccionado. El nombre del archivo lleva el período:
+   * `Asistencia_Septiembre_2026.pdf` (mensual) o
+   * `Asistencia_Semana3_Septiembre_2026.pdf` (semanal).
    */
-  async function exportarPdfAsistencia(alcance: 'colegio' | 'todos') {
-    const esTodos = alcance === 'todos';
+  async function exportarPdfAsistencia() {
     if (!selectedAno || !fechaInicio || !fechaFin) {
       await emit("show-toast", { message: "⚠️ Seleccione año y período", type: 'warning' });
-      return;
-    }
-    if (!esTodos && !selectedColegio) {
-      await emit("show-toast", { message: "⚠️ Seleccione un colegio", type: 'warning' });
       return;
     }
 
@@ -483,7 +490,7 @@
       exportandoMasivo = true;
       progresoMasivo = 'Preparando...';
 
-      const colegiosScope: CategoryItem[] = esTodos ? colegios : colegios.filter(c => c.id === selectedColegio);
+      const colegiosScope: CategoryItem[] = colegios;
       if (colegiosScope.length === 0) {
         await emit("show-toast", { message: "⚠️ No hay colegios para exportar", type: 'warning' });
         exportandoMasivo = false;
@@ -566,19 +573,18 @@
       lineas.push(`Secciones: ${tablas.length} · Año lectivo: ${anoNombre}`);
 
       const bytes = await generarPdfAsistencia(
-        { titulo: esTodos ? 'Reporte de Asistencia - Todos los colegios' : 'Reporte de Asistencia', lineas },
+        { titulo: 'Reporte de Asistencia · Todos los colegios', lineas },
         tablas
       );
 
       const docsPath = await documentDir();
       const folderName = "School Tracker";
-      const subfolder = `${sanitize(anoNombre)} - Asistencia ${sanitize(periodo.toUpperCase())}`;
+      const subfolder = `${sanitize(anoNombre)} - Asistencia ${sanitize(periodoEtiqueta)}`;
       const sep = isAndroid ? '/' : '\\';
       const baseDir = docsPath + sep + folderName + sep + subfolder;
       await mkdir(baseDir, { recursive: true }).catch(e => console.log("mkdir:", e));
 
-      const alcanceNombre = esTodos ? 'Todos_Colegios' : sanitize(colegios.find(c => c.id === selectedColegio)?.nombre || 'Colegio');
-      const fileName = `Asistencia_${alcanceNombre}_${periodo}_${fechaInicio}.pdf`;
+      const fileName = `Asistencia_${sanitize(periodoEtiqueta)}_${sanitize(anoNombre)}.pdf`;
       const filePath = baseDir + sep + fileName;
       await writeFile(filePath, bytes);
 
@@ -875,17 +881,24 @@
                 Imprimir
               </button>
             {/if}
-            <button onclick={() => exportarPdfAsistencia('colegio')} disabled={exportandoMasivo || !selectedColegio || !selectedAno}
-              style="height:42px;padding:0 {isMobile ? '0.4rem' : '1rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background:linear-gradient(135deg,#ef4444,#dc2626);display:flex;align-items:center;justify-content:center;flex-shrink:0;gap:6px;border:none;border-radius:8px;color:white;font-weight:700;cursor:{exportandoMasivo || !selectedColegio || !selectedAno ? 'default' : 'pointer'};box-shadow:0 2px 8px rgba(239,68,68,0.3);white-space:nowrap;opacity:{exportandoMasivo || !selectedColegio || !selectedAno ? 0.7 : 1}"
-              title="PDF con una hoja por grado/sección del colegio filtrado">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-              {#if !isMobile}{exportandoMasivo ? progresoMasivo : 'PDF'}{/if}
-            </button>
-            <button onclick={() => exportarPdfAsistencia('todos')} disabled={exportandoMasivo || !selectedAno}
-              style="height:42px;padding:0 {isMobile ? '0.4rem' : '1rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:#6366f1;display:flex;align-items:center;justify-content:center;flex-shrink:0;gap:6px;border:none;border-radius:8px;color:#fff;font-weight:700;cursor:{exportandoMasivo || !selectedAno ? 'default' : 'pointer'};box-shadow:0 4px 14px rgba(99,102,241,0.4);white-space:nowrap;opacity:{exportandoMasivo || !selectedAno ? 0.7 : 1}"
-              title="PDF con una hoja por grado/sección de todos los colegios del año">
-              📚
-              {#if !isMobile}Exportar Todo{/if}
+            <button onclick={exportarPdfAsistencia} disabled={exportandoMasivo || !selectedAno}
+              title="Genera un único PDF con una hoja por cada grado y sección de todos los colegios del año lectivo, para el período y la asignatura seleccionados"
+              style="height:42px;padding:0 {isMobile ? '0.55rem' : '0.95rem'};display:flex;align-items:center;gap:0.5rem;flex-shrink:0;border:1px solid rgba(129,140,248,0.5);border-radius:10px;background:linear-gradient(135deg,rgba(99,102,241,0.28),rgba(56,189,248,0.22));backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:#e0e7ff;font-weight:700;font-size:{isMobile ? '0.78rem' : '0.8rem'};cursor:{exportandoMasivo || !selectedAno ? 'default' : 'pointer'};box-shadow:0 6px 18px rgba(79,70,229,0.28);white-space:nowrap;opacity:{exportandoMasivo || !selectedAno ? 0.65 : 1};transition:transform 0.15s ease,box-shadow 0.2s ease,background 0.2s ease"
+              onmouseenter={(e) => { if (!exportandoMasivo) e.currentTarget.style.transform = 'translateY(-1px)'; }}
+              onmouseleave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+              onmousedown={(e) => e.currentTarget.style.transform = 'translateY(1px)'}
+              onmouseup={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}>
+              <span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:rgba(99,102,241,0.45);color:#c7d2fe;flex-shrink:0">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              </span>
+              {#if isMobile}
+                <span>{exportandoMasivo ? progresoMasivo : 'PDF'}</span>
+              {:else}
+                <span style="display:flex;flex-direction:column;align-items:flex-start;line-height:1.15;gap:1px;min-width:0">
+                  <span>{exportandoMasivo ? progresoMasivo : 'Exportar Todo'}</span>
+                  <span style="font-size:0.6rem;font-weight:600;color:#a5b4fc;letter-spacing:0.2px;max-width:150px;overflow:hidden;text-overflow:ellipsis">{exportandoMasivo ? 'Generando PDF' : resumenPeriodo}</span>
+                </span>
+              {/if}
             </button>
             <div style="flex:1;min-width:100px">
             </div>
