@@ -451,8 +451,33 @@
   }
 
   let fechasColumnas = $derived(getFechasUnicas());
-  /** Todas las días hábiles del período (incluye los sin clases, para pintarlos). */
+  /** Días hábiles del período para pintar la tabla (incluye los sin clases, para pintarlos). */
   let fechasVisibles = $derived(getFechasUnicas(true));
+
+  /**
+   * Semanas del mes agrupadas por el primer día hábil del colegio, numeradas
+   * correlativamente dentro del período visible. Coincide con el separador
+   * vertical de la tabla, así el número del header y la semana son lo mismo.
+   */
+  let semanasMes = $derived.by(() => {
+    const out: { numero: number; fechas: string[] }[] = [];
+    let actual: string[] = [];
+    fechasVisibles.forEach((f, i) => {
+      if (esInicioSemana(f, i) && actual.length > 0) {
+        out.push({ numero: out.length + 1, fechas: actual });
+        actual = [];
+      }
+      actual.push(f);
+    });
+    if (actual.length > 0) out.push({ numero: out.length + 1, fechas: actual });
+    return out;
+  });
+
+  /** Número de semana al que pertenece una fecha, o null si no está en la tabla. */
+  function numeroSemanaDe(iso: string): number | null {
+    const s = semanasMes.find(w => w.fechas.includes(iso));
+    return s ? s.numero : null;
+  }
   /** Todo el período quedó marcado sin clases: no hay ninguna columna de asistencia. */
   let dscPeriodoVacio = $derived(
     fechasColumnas.length === 0 && diasSinClases.some(d => d.fecha >= fechaInicio && d.fecha <= fechaFin)
@@ -773,6 +798,8 @@
     .table-container::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.3)}
     /* Separador de semanas en la vista mensual: línea vertical antes del lunes */
     .sep-semana{border-left:2px solid rgba(148,163,184,0.5)!important}
+    /* Número de semana en la cabecera, legible de un vistazo */
+    .semana-badge{display:inline-block;font-size:0.6rem;font-weight:800;letter-spacing:.4px;color:#c7d2fe;background:rgba(99,102,241,0.32);border:1px solid rgba(129,140,248,0.45);border-radius:5px;padding:1px 5px;margin-bottom:2px;line-height:1.25}
     .custom-table thead th{position:sticky;top:0;z-index:10;background:#1e293b!important}
     .pop-wrap{position:relative;display:block;width:100%}
     .pop-trigger{display:flex;align-items:center;justify-content:space-between;gap:.4rem;text-align:left;cursor:pointer}
@@ -1154,7 +1181,10 @@
               {#each fechasVisibles as f, iFecha}
                 <th class:dsc-th={esSinClases(f)} class:sep-semana={esInicioSemana(f, iFecha)}
                   style="font-size:0.7rem;white-space:nowrap;position:sticky;top:0;background:#1e293b;z-index:10;min-width:48px;padding:0.35rem 0.45rem"
-                  title={esSinClases(f) ? motivoSinClasesEn(f) : undefined}>
+                  title="{esSinClases(f) ? motivoSinClasesEn(f) : ''}{numeroSemanaDe(f) ? `Semana ${numeroSemanaDe(f)}` : ''}">
+                  {#if esInicioSemana(f, iFecha) && numeroSemanaDe(f)}
+                    <div class="semana-badge">S{numeroSemanaDe(f)}</div>
+                  {/if}
                   <div style="font-size:0.6rem;opacity:0.7">{esSinClases(f) ? '🚫 ' : ''}{new Date(f + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short' })}</div>
                   {f.split('-').slice(1).reverse().join('/')}
                 </th>

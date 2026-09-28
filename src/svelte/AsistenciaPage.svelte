@@ -394,10 +394,24 @@ $effect(() => {
   let sinClasesGuardando = $state(false);
   // Si viene de un click en el encabezado de una fecha concreta (semanal/mensual)
   let colFechaObjetivo = $state<string | null>(null);
+  // Semana elegida en el selector de "Sin Clases" cuando el período es mensual.
+  let semanaSeleccionada = $state<number | null>(null);
+  // Semana señalada con el cursor en el selector: se resalta en la tabla.
+  let semanaHover = $state<number | null>(null);
+
+  /** Primer y último día de la semana señalada, para dibujar el contorno. */
+  let semanaHoverRango = $derived.by(() => {
+    if (semanaHover === null) return null;
+    const s = semanasMes.find(w => w.numero === semanaHover);
+    if (!s || s.fechas.length === 0) return null;
+    return { ini: s.fechas[0], fin: s.fechas[s.fechas.length - 1] };
+  });
 
   function cerrarPopSinClases() {
     popSinClasesAbierta = false;
     colFechaObjetivo = null;
+    semanaSeleccionada = null;
+    semanaHover = null;
   }
 
   /** Click en el encabezado de una fecha: marca o desmarca solo ese día. */
@@ -464,6 +478,41 @@ $effect(() => {
       sinClases: esDiaSinClases(f),
     }));
   });
+
+  /**
+   * Semanas del mes agrupadas por el primer día hábil del colegio, numeradas
+   * correlativamente (1..n) dentro del período visible. Es la misma agrupación
+   * que dibuja el separador vertical de la tabla, así que el número del header
+   * y el selector de "Sin Clases" siempre coinciden.
+   */
+  let semanasMes = $derived.by(() => {
+    const out: { numero: number; fechas: string[] }[] = [];
+    let actual: string[] = [];
+    fechasVisibles.forEach((fv, i) => {
+      if (esInicioSemana(fv.fecha, i) && actual.length > 0) {
+        out.push({ numero: out.length + 1, fechas: actual });
+        actual = [];
+      }
+      actual.push(fv.fecha);
+    });
+    if (actual.length > 0) out.push({ numero: out.length + 1, fechas: actual });
+    return out;
+  });
+
+  /** Número de semana al que pertenece una fecha, o null si no está en la tabla. */
+  function numeroSemanaDe(iso: string): number | null {
+    const s = semanasMes.find(w => w.fechas.includes(iso));
+    return s ? s.numero : null;
+  }
+
+  /** Rango legible de una semana: "01/09 al 04/09". */
+  function rangoSemana(s: { numero: number; fechas: string[] }): string {
+    if (s.fechas.length === 0) return '';
+    return `${fmtDM(s.fechas[0])} al ${fmtDM(s.fechas[s.fechas.length - 1])}`;
+  }
+  function semanaSinClasesTotal(s: { numero: number; fechas: string[] }): boolean {
+    return s.fechas.length > 0 && s.fechas.every(f => esDiaSinClases(f));
+  }
   function motivoSinClasesEn(fecha: string): string {
     return coberturaSinClases(fecha)?.descripcion || 'Sin clases';
   }
@@ -479,17 +528,35 @@ $effect(() => {
   function handleSinClasesClick() {
     if (sinClasesActivo) { desactivarSinClases(); return; }
     sinClasesDescripcion = '';
+    semanaSeleccionada = null;
+    colFechaObjetivo = null;
     popSinClasesAbierta = !popSinClasesAbierta;
+  }
+
+  /** Fechas que se marcarán según el contexto: día concreto, semana elegida o período. */
+  function objetivosSinClases(): { fechas: string[]; etiqueta: string } | null {
+    if (colFechaObjetivo) return { fechas: [colFechaObjetivo], etiqueta: 'ese día' };
+    if (periodo === 'mensual') {
+      const sel = semanasMes.find(w => w.numero === semanaSeleccionada);
+      if (!sel) return null;
+      return { fechas: sel.fechas, etiqueta: `la semana ${sel.numero}` };
+    }
+    return { fechas: fechasObjetivoSinClases(), etiqueta: 'el período actual' };
   }
 
   async function activarSinClases(nivelColegio: boolean) {
     const motivo = sinClasesDescripcion.trim();
     if (!motivo) { emit("show-toast", { message: "⚠️ El motivo es obligatorio", type: "warning" }); return; }
-    const objetivos = colFechaObjetivo ? [colFechaObjetivo] : fechasObjetivoSinClases();
+    const obj = objetivosSinClases();
+    if (!obj) {
+      emit("show-toast", { message: "⚠️ Seleccione la semana que quedará sin clases", type: 'warning' });
+      return;
+    }
+    const objetivos = obj.fechas;
     if (objetivos.length === 0) return;
     const alcanceTxt = nivelColegio ? 'TODO el colegio' : 'solo esta sección';
     const rangoTxt = objetivos.length === 1 ? objetivos[0].split('-').reverse().join('/') : `${objetivos[0].split('-').reverse().join('/')} al ${objetivos[objetivos.length - 1].split('-').reverse().join('/')}`;
-    const ok = await ask(`¿Marcar ${rangoTxt} como día(s) sin clases?\n\nAlcance: ${alcanceTxt}\nMotivo: ${motivo}`, { title: 'Marcar sin clases', kind: 'warning', okLabel: 'Sí, marcar', cancelLabel: 'Cancelar' });
+    const ok = await ask(`¿Marcar ${rangoTxt} como día(s) sin clases?\n\nAlcance: ${alcanceTxt}\nAfecta: ${obj.etiqueta}\nMotivo: ${motivo}`, { title: 'Marcar sin clases', kind: 'warning', okLabel: 'Sí, marcar', cancelLabel: 'Cancelar' });
     if (!ok) return;
     sinClasesGuardando = true;
     try {
@@ -1129,6 +1196,12 @@ $effect(() => {
     .obs-toggle-btn{width:34px!important;height:34px!important;min-width:34px!important;font-size:0.9rem!important;border-radius:8px!important}
     /* Separador de semanas en la vista mensual: línea vertical antes del lunes */
     .sep-semana{border-left:2px solid rgba(148,163,184,0.5)!important}
+    /* Número de semana en la cabecera, legible de un vistazo */
+    .semana-badge{display:inline-block;font-size:0.6rem;font-weight:800;letter-spacing:.4px;color:#c7d2fe;background:rgba(99,102,241,0.32);border:1px solid rgba(129,140,248,0.45);border-radius:5px;padding:1px 5px;margin-bottom:2px;line-height:1.25}
+    /* Semana señalada desde el modal de Sin Clases */
+    .custom-table thead th.semana-hl{background:rgba(99,102,241,0.5)!important}
+    .semana-hl-ini{border-left:2px solid #818cf8!important}
+    .semana-hl-fin{border-right:2px solid #818cf8!important}
     .custom-table thead th{position:sticky;top:0;z-index:10;background:#1e293b!important}
     /* Los tres estados aparecen flotando al pasar el cursor sobre la celda
        (que incluye el input de observación), sin apretar el diseño de la tabla */
@@ -1330,31 +1403,55 @@ $effect(() => {
               <DatePickerGlass bind:value={selectedFecha} bind:abierto={dpAbierto} diaHabilitado={esDiaHabilCalendario} />
             </div>
           {/if}
-          {#if periodo !== 'mensual'}
-            <div class="pop-wrap" bind:this={popSinClasesEl} style="flex:0 0 auto;">
-              <button type="button" onclick={handleSinClasesClick} disabled={sinClasesGuardando || !selectedSeccion}
-                style="height:42px;padding:0 {isAndroidMobile ? '0.5rem' : '1rem'};font-size:{isAndroidMobile ? '0.8rem' : '0.85rem'};flex-shrink:0;background:{sinClasesActivo ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.03)'};border:1px solid {sinClasesActivo ? '#f59e0b' : 'rgba(255,255,255,0.08)'};color:{sinClasesActivo ? '#f59e0b' : '#94a3b8'};border-radius:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px;transition:all 0.15s;white-space:nowrap;opacity:{sinClasesGuardando ? 0.6 : 1}">
-                <span>{sinClasesActivo ? '🏫' : '🚫'}</span>{#if !isAndroidMobile}<span>Sin Clases</span>{/if}
-              </button>
-            </div>
-          {/if}
+          <div class="pop-wrap" bind:this={popSinClasesEl} style="flex:0 0 auto;">
+            <button type="button" onclick={handleSinClasesClick} disabled={sinClasesGuardando || !selectedSeccion}
+              style="height:42px;padding:0 {isAndroidMobile ? '0.5rem' : '1rem'};font-size:{isAndroidMobile ? '0.8rem' : '0.85rem'};flex-shrink:0;background:{sinClasesActivo ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.03)'};border:1px solid {sinClasesActivo ? '#f59e0b' : 'rgba(255,255,255,0.08)'};color:{sinClasesActivo ? '#f59e0b' : '#94a3b8'};border-radius:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px;transition:all 0.15s;white-space:nowrap;opacity:{sinClasesGuardando ? 0.6 : 1}"
+              title={periodo === 'mensual' ? 'Dejar una semana del mes sin clases' : 'Marcar el período actual sin clases'}>
+              <span>{sinClasesActivo ? '🏫' : '🚫'}</span>{#if !isAndroidMobile}<span>Sin Clases</span>{/if}
+            </button>
+          </div>
           {#if popSinClasesAbierta}
-            <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) cerrarPopSinClases(); }} style="z-index:2000">
-              <div bind:this={popModalSinClasesEl} class="pop-panel" tabindex="-1" style="position:relative;top:auto;left:auto;right:auto;bottom:auto;width:{modalCardWidth};max-width:{modalCardWidth};max-height:85vh;overflow-y:auto;">
+            <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) cerrarPopSinClases(); }}
+              style="z-index:2000;{isAndroidMobile ? '' : 'background:transparent;align-items:center;justify-content:flex-end;padding-right:24px;'}">
+              <div bind:this={popModalSinClasesEl} class="pop-panel" tabindex="-1"
+                style="position:relative;top:auto;left:auto;right:auto;bottom:auto;width:{modalCardWidth};max-width:{modalCardWidth};max-height:85vh;overflow-y:auto;{isAndroidMobile ? '' : 'box-shadow:0 25px 60px -12px rgba(0,0,0,0.7);'}">
                 <button type="button" onclick={cerrarPopSinClases} title="Cerrar" style="position:absolute;top:.6rem;right:.6rem;width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#cbd5e1;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1">✕</button>
-                <div class="pop-mes"><span class="pop-mes-txt">{colFechaObjetivo ? `Marcar ${fmtDM(colFechaObjetivo)} sin clases` : 'Motivo del día(s) sin clases'}</span></div>
+                <div class="pop-mes"><span class="pop-mes-txt">{colFechaObjetivo ? `Marcar ${fmtDM(colFechaObjetivo)} sin clases` : periodo === 'mensual' ? 'Semana sin clases' : 'Motivo del día(s) sin clases'}</span></div>
                 {#if colFechaObjetivo}
                   <div style="font-size:.65rem;color:#94a3b8;margin:-.3rem 0 .5rem">Solo afecta esa fecha específica</div>
+                {:else if periodo === 'mensual'}
+                  <div style="font-size:.65rem;color:#94a3b8;margin:-.3rem 0 .4rem">Pasa el cursor sobre una semana para verla resaltada en la tabla</div>
+                  <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:.55rem">
+                    {#each semanasMes as s (s.numero)}
+                      {@const todas = semanaSinClasesTotal(s)}
+                      <button type="button" class="pop-sem" class:sel={semanaSeleccionada === s.numero}
+                        style="justify-content:space-between;border-radius:10px;padding:.5rem .6rem"
+                        onclick={() => semanaSeleccionada = s.numero}
+                        onmouseenter={() => semanaHover = s.numero}
+                        onmouseleave={() => semanaHover = null}
+                        onfocus={() => semanaHover = s.numero}
+                        onblur={() => semanaHover = null}>
+                        <span class="pop-sem-n">Semana {s.numero}</span>
+                        <span class="pop-sem-rango">{rangoSemana(s)}{todas ? ' · 🚫' : ''}</span>
+                      </button>
+                    {/each}
+                  </div>
                 {/if}
                 <input class="obs-inline" placeholder="Ej: Feriado nacional (obligatorio)"
                   bind:value={sinClasesDescripcion}
                   onkeydown={(e) => { if (e.key === 'Enter' && sinClasesDescripcion.trim()) activarSinClases(false); }} />
                 <div style="display:flex;flex-direction:column;gap:3px;margin-top:.55rem">
-                  <button type="button" class="pop-sem sel" style="justify-content:center;border-radius:10px" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando}
+                  {#if periodo === 'mensual' && semanaSeleccionada && semanaSinClasesTotal(semanasMes.find(w => w.numero === semanaSeleccionada)!)}
+                    <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #10b981" disabled={sinClasesGuardando}
+                      onclick={() => { const s = semanasMes.find(w => w.numero === semanaSeleccionada); if (s) { cerrarPopSinClases(); desactivarSinClases(s.fechas); } }}>
+                      ♻️ Reactivar las clases de la semana {semanaSeleccionada}
+                    </button>
+                  {/if}
+                  <button type="button" class="pop-sem sel" style="justify-content:center;border-radius:10px" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || (periodo === 'mensual' && !semanaSeleccionada)}
                     onclick={() => activarSinClases(false)}>
                     🚪 Marcar solo esta sección
                   </button>
-                  <button type="button" class="pop-sem sel" style="justify-content:center;border-radius:10px" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando}
+                  <button type="button" class="pop-sem sel" style="justify-content:center;border-radius:10px" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || (periodo === 'mensual' && !semanaSeleccionada)}
                     onclick={() => activarSinClases(true)}>
                     🏫 Marcar todo el colegio
                   </button>
@@ -1751,9 +1848,15 @@ $effect(() => {
               <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;min-width:200px">Estudiante</th>
               {#each fechasVisibles as fv, iFecha (fv.fecha)}
                 <th class:dsc-th={fv.sinClases} class:fch-th={true} class:sep-semana={esInicioSemana(fv.fecha, iFecha)}
+                  class:semana-hl={semanaHover !== null && numeroSemanaDe(fv.fecha) === semanaHover}
+                  class:semana-hl-ini={semanaHoverRango?.ini === fv.fecha}
+                  class:semana-hl-fin={semanaHoverRango?.fin === fv.fecha}
                   style="font-size:0.7rem;white-space:nowrap;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;min-width:48px;padding:0.35rem 0.45rem"
-                  title={fv.sinClases ? `${motivoSinClasesEn(fv.fecha)} — Click para reactivar clases` : 'Click para marcar este día sin clases'}
+                  title="{fv.sinClases ? motivoSinClasesEn(fv.fecha) + ' — Click para reactivar clases' : 'Click para marcar este día sin clases'}{numeroSemanaDe(fv.fecha) ? ` · Semana ${numeroSemanaDe(fv.fecha)}` : ''}"
                   onclick={() => clickHeaderFecha(fv.fecha)}>
+                  {#if esInicioSemana(fv.fecha, iFecha) && numeroSemanaDe(fv.fecha)}
+                    <div class="semana-badge">S{numeroSemanaDe(fv.fecha)}</div>
+                  {/if}
                   <div style="font-size:0.6rem;opacity:0.7">{fv.sinClases ? '🚫 ' : ''}{new Date(fv.fecha + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short' })}</div>
                   {fv.fecha.split('-').slice(1).reverse().join('/')}
                 </th>
@@ -1788,7 +1891,10 @@ $effect(() => {
                       {@const d = est.dias[fv.fecha]}
                       {@const draftD = draftMulti[est.id]?.[fv.fecha]}
                       {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
-                        <td class:sep-semana={esInicioSemana(fv.fecha, iFecha)} style="text-align:center;padding:0.15rem">
+                        <td class:sep-semana={esInicioSemana(fv.fecha, iFecha)}
+                          class:semana-hl-ini={semanaHoverRango?.ini === fv.fecha}
+                          class:semana-hl-fin={semanaHoverRango?.fin === fv.fecha}
+                          style="text-align:center;padding:0.15rem">
                           {#if isWindows}
                             <div class="celda-estado">
 
