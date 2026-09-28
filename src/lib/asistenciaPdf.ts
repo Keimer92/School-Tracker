@@ -93,6 +93,81 @@ const ANCHO_NOMBRE_MIN = 50;
 const ANCHO_SEXO = 9;
 const ANCHO_TOTAL = 9;
 const EM_ANCHO_DDMM = 2.502;
+const ALTO_CHIP = 6.4;
+const SEPARACION_CHIP = 2.2;
+const RELLENO_CHIP = 2.6;
+const GROSOR_LINEA_CHIP = 0.25;
+/**
+ * Un solo grosor para TODOS los bordes de la tabla. Si el encabezado y el
+ * cuerpo tuvieran grosores distintos, la línea que los separa se dibuja una vez
+ * con cada valor y se ve más marcada que el resto.
+ */
+const GROSOR_LINEA_TABLA = 0.2;
+
+interface EstiloChip {
+  bg: readonly number[];
+  border: readonly number[];
+  text: readonly number[];
+}
+
+/** Chip verde claro: mismo lenguaje visual que el header de Imprimir. */
+const CHIP_PRINCIPAL: EstiloChip = {
+  bg: [236, 253, 245],
+  border: [110, 231, 183],
+  text: [6, 95, 70],
+};
+const CHIP_NEUTRO: EstiloChip = {
+  bg: [249, 250, 251],
+  border: [209, 213, 219],
+  text: [55, 65, 81],
+};
+const CHIP_ALERTA: EstiloChip = {
+  bg: [255, 251, 235],
+  border: [252, 211, 77],
+  text: [146, 64, 14],
+};
+
+/**
+ * Dibuja una etiqueta redondeada y devuelve su ancho. El texto se mide DESPUÉS
+ * de fijar el cuerpo de fuente, porque getTextWidth depende del tamaño activo.
+ */
+function dibujarChip(doc: any, x: number, y: number, texto: string, estilo: EstiloChip, fontSize = 8): number {
+  doc.setFontSize(fontSize);
+  const ancho = doc.getTextWidth(texto) + RELLENO_CHIP * 2;
+  doc.setFillColor(estilo.bg[0], estilo.bg[1], estilo.bg[2]);
+  doc.setDrawColor(estilo.border[0], estilo.border[1], estilo.border[2]);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(x, y, ancho, ALTO_CHIP, 1.8, 1.8, "FD");
+  doc.setTextColor(estilo.text[0], estilo.text[1], estilo.text[2]);
+  doc.text(texto, x + RELLENO_CHIP, y + ALTO_CHIP / 2, { baseline: "middle" });
+  return ancho;
+}
+
+/**
+ * Coloca una lista de chips en filas, saltando de línea cuando se acaba el
+ * ancho. Devuelve la coordenada Y donde puede empezar la tabla.
+ */
+function dibujarChips(
+  doc: any,
+  chips: { texto: string; estilo: EstiloChip }[],
+  x0: number,
+  y0: number,
+  anchoUtil: number
+): number {
+  let x = x0;
+  let y = y0;
+  for (const chip of chips) {
+    doc.setFontSize(8);
+    const ancho = doc.getTextWidth(chip.texto) + RELLENO_CHIP * 2;
+    if (x + ancho > x0 + anchoUtil && x > x0) {
+      x = x0;
+      y += ALTO_CHIP + 1.8;
+    }
+    dibujarChip(doc, x, y, chip.texto, chip.estilo);
+    x += ancho + SEPARACION_CHIP;
+  }
+  return y + ALTO_CHIP + 4;
+}
 
 /**
  * Ancho de cada columna de fecha. Se reparte el espacio que dejan el nombre
@@ -159,28 +234,21 @@ export async function generarPdfAsistencia(
 
     doc.setFontSize(15);
     doc.setTextColor(COLOR_TITULO[0], COLOR_TITULO[1], COLOR_TITULO[2]);
-    doc.text(t.titulo, margins.left + 2, 12.5, { maxWidth: anchoUtil });
+    doc.setFillColor(16, 185, 129);
+    doc.roundedRect(margins.left, 8.5, 1.8, 11, 0.9, 0.9, "F");
+    doc.text(t.titulo, margins.left + 4.4, 12.5, { maxWidth: anchoUtil - 4.4 });
     doc.setFontSize(9.5);
     doc.setTextColor(COLOR_SUBDITULO[0], COLOR_SUBDITULO[1], COLOR_SUBDITULO[2]);
-    doc.text(t.subtitulo, margins.left + 2, 18, { maxWidth: anchoUtil });
+    doc.text(t.subtitulo, margins.left + 4.4, 18, { maxWidth: anchoUtil - 4.4 });
 
-    let y = 22.5;
-    doc.setFontSize(8);
-    doc.setTextColor(COLOR_SUBDITULO[0], COLOR_SUBDITULO[1], COLOR_SUBDITULO[2]);
-    doc.text(meta.titulo, margins.left + 2, y, { maxWidth: anchoUtil });
-    y += 4.2;
-    for (const linea of meta.lineas) {
-      doc.text(linea, margins.left + 2, y, { maxWidth: anchoUtil });
-      y += 4.2;
-    }
-    if (t.nota) {
-      doc.setDrawColor(COLOR_ALERTA[0], COLOR_ALERTA[1], COLOR_ALERTA[2]);
-      doc.setLineWidth(0.6);
-      doc.line(margins.left, y - 2.4, margins.left + anchoUtil, y - 2.4);
-      doc.setTextColor(COLOR_AMBAR[0], COLOR_AMBAR[1], COLOR_AMBAR[2]);
-      doc.text(`Sin clases: ${t.nota}`, margins.left + 2, y + 1.2, { maxWidth: anchoUtil });
-      y += 6;
-    }
+    const chips: { texto: string; estilo: EstiloChip }[] = [];
+    chips.push({ texto: meta.titulo, estilo: CHIP_PRINCIPAL });
+    meta.lineas.forEach((linea, idx) => {
+      chips.push({ texto: linea, estilo: idx === 0 ? CHIP_PRINCIPAL : CHIP_NEUTRO });
+    });
+    if (t.nota) chips.push({ texto: `Sin clases: ${t.nota}`, estilo: CHIP_ALERTA });
+
+    const y = dibujarChips(doc, chips, margins.left, 21, anchoUtil);
 
     const n = t.body.length;
     const body: CeldaPdf[][] = t.body.map((fila, idx) => {
