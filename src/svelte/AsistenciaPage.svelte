@@ -152,7 +152,17 @@
   let draft: Record<number, { estado: string | null; observacion: string | null }> = {};
 
   type AsistenciaPeriodo = "diario" | "semanal" | "mensual";
-  let periodo = $state<AsistenciaPeriodo>((localStorage.getItem("asistencia_periodo") as AsistenciaPeriodo) || "diario");
+  /**
+   * En Windows el filtro Diario no se ofrece: la pantalla es lo bastante ancha
+   * para que Semanal y Mensual Sean más útiles. Si quedó persistido "diario"
+   * desde Android o de una versión anterior, se migra a Mensual en vez de dejar
+   * el <select> sin opción coincidente.
+   */
+  let periodo = $state<AsistenciaPeriodo>((() => {
+    const guardado = localStorage.getItem("asistencia_periodo") as AsistenciaPeriodo | null;
+    if (guardado === "diario" && /Windows/i.test(navigator.userAgent)) return "mensual";
+    return guardado || "diario";
+  })());
 
   let estudiantesMulti: Array<{ id: number; nombre: string; codigo: string; sexo: string; dias: Record<string, DiaEstado> }> = $state([]);
   let fechasPeriodo: string[] = $state([]);
@@ -346,6 +356,7 @@ $effect(() => {
   let diasSinClases = $state<DiaSinClase[]>([]);
   let popSinClasesAbierta = $state(false);
   let popSinClasesEl: HTMLElement | null = $state(null);
+  let popModalSinClasesEl: HTMLElement | null = $state(null);
   let sinClasesDescripcion = $state('');
   let sinClasesGuardando = $state(false);
   // Si viene de un click en el encabezado de una fecha concreta (semanal/mensual)
@@ -494,11 +505,16 @@ $effect(() => {
     } finally { sinClasesGuardando = false; }
   }
 
-  // Cierre por clic fuera + Back de Android para el popover de sin clases
+  // Cierre por clic fuera + Back de Android para el popover de sin clases.
+  // El modal puede abrirse desde el botón (semanal/diario) o desde el click en
+  // el encabezado de una columna (mensual), así que se aceptan clics en ambos.
   $effect(() => {
     if (!popSinClasesAbierta) return;
     const fuera = (e: Event) => {
-      if (popSinClasesEl && !popSinClasesEl.contains(e.target as Node)) cerrarPopSinClases();
+      const t = e.target as Node;
+      if (popSinClasesEl && popSinClasesEl.contains(t)) return;
+      if (popModalSinClasesEl && popModalSinClasesEl.contains(t)) return;
+      cerrarPopSinClases();
     };
     document.addEventListener('pointerdown', fuera, true);
     return () => document.removeEventListener('pointerdown', fuera, true);
@@ -506,10 +522,6 @@ $effect(() => {
   $effect(() => {
     if (!popSinClasesAbierta) return;
     return registerBackHandler(() => { cerrarPopSinClases(); return true; });
-  });
-  $effect(() => {
-    if (!popSinClasesAbierta) return;
-    return registerBackHandler(() => { popSinClasesAbierta = false; return true; });
   });
 
   onMount(() => {
@@ -1143,7 +1155,7 @@ $effect(() => {
           {#if !isAndroidMobile}
             <FilterGroup label="Período:" {isMobile}>
               <select class="filter-select" bind:value={periodo} style="width:100%">
-                <option value="diario">Diario</option>
+                {#if !isWindows}<option value="diario">Diario</option>{/if}
                 <option value="semanal">Semanal</option>
                 <option value="mensual">Mensual</option>
               </select>
@@ -1267,31 +1279,30 @@ $effect(() => {
                 style="height:42px;padding:0 {isAndroidMobile ? '0.5rem' : '1rem'};font-size:{isAndroidMobile ? '0.8rem' : '0.85rem'};flex-shrink:0;background:{sinClasesActivo ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.03)'};border:1px solid {sinClasesActivo ? '#f59e0b' : 'rgba(255,255,255,0.08)'};color:{sinClasesActivo ? '#f59e0b' : '#94a3b8'};border-radius:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px;transition:all 0.15s;white-space:nowrap;opacity:{sinClasesGuardando ? 0.6 : 1}">
                 <span>{sinClasesActivo ? '🏫' : '🚫'}</span>{#if !isAndroidMobile}<span>Sin Clases</span>{/if}
               </button>
-
-              {#if popSinClasesAbierta}
-                <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) cerrarPopSinClases(); }} style="z-index:2000">
-                  <div class="pop-panel" tabindex="-1" style="position:relative;top:auto;left:auto;right:auto;bottom:auto;width:{modalCardWidth};max-width:{modalCardWidth};max-height:85vh;overflow-y:auto;">
-                    <button type="button" onclick={cerrarPopSinClases} title="Cerrar" style="position:absolute;top:.6rem;right:.6rem;width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#cbd5e1;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1">✕</button>
-                    <div class="pop-mes"><span class="pop-mes-txt">{colFechaObjetivo ? `Marcar ${fmtDM(colFechaObjetivo)} sin clases` : 'Motivo del día(s) sin clases'}</span></div>
-                    {#if colFechaObjetivo}
-                      <div style="font-size:.65rem;color:#94a3b8;margin:-.3rem 0 .5rem">Solo afecta esa fecha específica</div>
-                    {/if}
-                    <input class="obs-inline" placeholder="Ej: Feriado nacional (obligatorio)"
-                      bind:value={sinClasesDescripcion}
-                      onkeydown={(e) => { if (e.key === 'Enter' && sinClasesDescripcion.trim()) activarSinClases(false); }} />
-                    <div style="display:flex;flex-direction:column;gap:3px;margin-top:.55rem">
-                      <button type="button" class="pop-sem sel" style="justify-content:center;border-radius:10px" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando}
-                        onclick={() => activarSinClases(false)}>
-                        🚪 Marcar solo esta sección
-                      </button>
-                      <button type="button" class="pop-sem sel" style="justify-content:center;border-radius:10px" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando}
-                        onclick={() => activarSinClases(true)}>
-                        🏫 Marcar todo el colegio
-                      </button>
-                    </div>
-                  </div>
+            </div>
+          {/if}
+          {#if popSinClasesAbierta}
+            <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) cerrarPopSinClases(); }} style="z-index:2000">
+              <div bind:this={popModalSinClasesEl} class="pop-panel" tabindex="-1" style="position:relative;top:auto;left:auto;right:auto;bottom:auto;width:{modalCardWidth};max-width:{modalCardWidth};max-height:85vh;overflow-y:auto;">
+                <button type="button" onclick={cerrarPopSinClases} title="Cerrar" style="position:absolute;top:.6rem;right:.6rem;width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#cbd5e1;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1">✕</button>
+                <div class="pop-mes"><span class="pop-mes-txt">{colFechaObjetivo ? `Marcar ${fmtDM(colFechaObjetivo)} sin clases` : 'Motivo del día(s) sin clases'}</span></div>
+                {#if colFechaObjetivo}
+                  <div style="font-size:.65rem;color:#94a3b8;margin:-.3rem 0 .5rem">Solo afecta esa fecha específica</div>
+                {/if}
+                <input class="obs-inline" placeholder="Ej: Feriado nacional (obligatorio)"
+                  bind:value={sinClasesDescripcion}
+                  onkeydown={(e) => { if (e.key === 'Enter' && sinClasesDescripcion.trim()) activarSinClases(false); }} />
+                <div style="display:flex;flex-direction:column;gap:3px;margin-top:.55rem">
+                  <button type="button" class="pop-sem sel" style="justify-content:center;border-radius:10px" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando}
+                    onclick={() => activarSinClases(false)}>
+                    🚪 Marcar solo esta sección
+                  </button>
+                  <button type="button" class="pop-sem sel" style="justify-content:center;border-radius:10px" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando}
+                    onclick={() => activarSinClases(true)}>
+                    🏫 Marcar todo el colegio
+                  </button>
                 </div>
-              {/if}
+              </div>
             </div>
           {/if}
           <button onclick={limpiarAsistencia} disabled={getActiveStudentCount() === 0}
