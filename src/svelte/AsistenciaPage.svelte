@@ -153,16 +153,21 @@
 
   type AsistenciaPeriodo = "diario" | "semanal" | "mensual";
   /**
+   * El período predeterminado es Mensual (se abre el mes en curso, que es lo que
+   * se usa a diario). Solo si no hay nada guardado se aplica ese valor: la
+   * preferencia del usuario se respeta.
+   *
    * En Windows el filtro Diario no se ofrece: la pantalla es lo bastante ancha
-   * para que Semanal y Mensual Sean más útiles. Si quedó persistido "diario"
+   * para que Semanal y Mensual sean más útiles. Si quedó persistido "diario"
    * desde Android o de una versión anterior, se migra a Mensual en vez de dejar
    * el <select> sin opción coincidente.
    */
   let periodo = $state<AsistenciaPeriodo>((() => {
     const guardado = localStorage.getItem("asistencia_periodo") as AsistenciaPeriodo | null;
     if (guardado === "diario" && /Windows/i.test(navigator.userAgent)) return "mensual";
-    return guardado || "diario";
+    return guardado || "mensual";
   })());
+
 
   let estudiantesMulti: Array<{ id: number; nombre: string; codigo: string; sexo: string; dias: Record<string, DiaEstado> }> = $state([]);
   let fechasPeriodo: string[] = $state([]);
