@@ -61,7 +61,16 @@ src/
                               encabezado; pie dibujado al final con el total
                               real de páginas. jspdf lazy + interop de export
                               (ver sección dedicated).
-    excel.ts                 export .xlsx con ExcelJS (compartido por páginas)
+    excel.ts                 MÓDULO COMPARTIDO de exportación .xlsx con **ExcelJS**
+                              (no SheetJS: la versión Community no escribe
+                              estilos/anchos/color; ExcelJS sí y además trae
+                              paneles congelados, autofiltro e imágenes). Se
+                              carga LAZILY. Helpers: `crearLibroEstudiantes`,
+                              `guardarLibro`, `agregarHoja`, `escribirPortada`,
+                              `escribirCabecera`, `escribirFila` (filas 1-based,
+                              Devuelven la primera fila libre siguiente).
+                              `xlsx-js-style` fue ELIMINADO del proyecto;
+                              `xlsx` se mantiene solo para leer/plantillas.
     instrumentosPdf.ts       PDFs de instrumentos (jspdf lazy)
     instrumentosExcel.ts      export xlsx de instrumentos
     exceljs-style.ts         helpers de estilo compartidos de Excel
@@ -1350,7 +1359,7 @@ el detalle real está en la card Cloudflare de CloudPage o en `window.__d1LastEr
 ## GOTCHA: Minify de Android + JNI de Rust (crash en release al iniciar Google Sign-In, 2026-09)
 
 **Síntoma**: la app compilada en **release** quedaba bien al arrancar, pero al tocar
-"Continuar con Google" en WelcomePage **se cerraba sin mensaje� En debug no ocurría.
+"Continuar con Google" en WelcomePage **se cerraba sin mensaje**. En debug no ocurría.
 
 **Causa raíz**:en `src-tauri/gen/android/app/build.gradle.kts`, el buildType `release`
 tenía `isMinifyEnabled = true` (R8/ProGuard con `proguard-android-optimize`), mientras
@@ -1407,6 +1416,25 @@ o quedar el de la versión anterior**:
       cope los PNG a `mipmap` (o copiar manualmente los PNG nuevos a `res/mipmap-*/`).
   3. Tras reinstalar, refrescar el launcher(reiniciar el dispositivo) para
       limpiar la caché de iconos.
+
+## NotasPage: distribución, deshacer y guardado (2026-09)
+
+- **Distribución monótona**: `pesoLetra(nota)` reparte un presupuesto de puntos en
+  los 3 indicadores activos y devuelve `C1 <= C2 <= C3` (nunca al revés). Con meta
+  65 y pesos 7/7/6 produce `AI/AF/AS`, no `AI/AS/AF`. Es el orden natural
+  (más fácil de arriba hacia abajo).
+- Regla de puntaje: máximo **5 indicadores activos**, máximo **20 puntos** cada uno,
+  total **100**.
+- Los indicadores/criterios **no se borran** desde el flujo normal de notas (el
+  borrado real va por `vaciar_notas_indicador` / `delete_criterio` en GlobalesPage)
+  para no perder notas ya escritas.
+- **Estado sucio vs BD**: `savedBaseline` guarda un snapshot al abrir/guardar y
+  `notasIguales()` decide si hay cambios. El botón Guardar se habilita solo con
+  diferencias reales (borrar una nota cuenta como cambio).
+- Deshacer/rehacer con Ctrl+Z / Ctrl+Y, con limpieza de snapshots para no
+  arrastrar historial infinito.
+- Al guardar se envían también los `borrados` (notas que estaban en BD y se
+  borraron), que generan tombstones de sync.
 
 ## Indicadores activos por colegio + sección (2026-09)
 
