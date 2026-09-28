@@ -837,6 +837,15 @@ $effect(() => {
     {#snippet filters()}
       <FilterContainer {isMobile} style="padding:{isAndroidMobile ? '0.5rem' : ''}">
         <div style="display:flex;{isAndroidMobile ? 'flex-wrap:wrap' : 'flex-wrap:nowrap'};gap:0.4rem;width:100%;align-items:flex-end">
+          {#if !isAndroidMobile && showAnoDropdown}
+            <FilterGroup label="Año Lectivo:" {isMobile}>
+              <select class="filter-select" bind:value={selectedAno} style="width:100%">
+                {#each anos as a}
+                  <option value={a.id}>{a.nombre}</option>
+                {/each}
+              </select>
+            </FilterGroup>
+          {/if}
           {#if !isAndroidMobile}
             <FilterGroup label="Período:" {isMobile}>
               <select class="filter-select" bind:value={periodo} style="width:100%">
@@ -907,17 +916,8 @@ $effect(() => {
               <span style="overflow:hidden;text-overflow:ellipsis;">{(colegios.find(c => c.id === selectedColegio)?.nombre)?.split(' ')[0] || 'Colegio'} · {grados.find(g => g.id === selectedGrado)?.nombre || 'Grado'} · {secciones.find(s => s.id === selectedSeccion)?.nombre || 'Sección'}</span>
             </button>
           {:else}
-            {#if showAnoDropdown}
-            <FilterGroup label="Año Lectivo:" {isMobile}>
-              <select class="filter-select" bind:value={selectedAno} style="width:100%">
-                {#each anos as a}
-                  <option value={a.id}>{a.nombre}</option>
-                {/each}
-              </select>
-            </FilterGroup>
-            {/if}
-
             <FilterGroup label="Colegio:" {isMobile}>
+
               <select class="filter-select" bind:value={selectedColegio} style="width:100%">
                 {#each colegios as c}
                   <option value={c.id}>{c.nombre}</option>

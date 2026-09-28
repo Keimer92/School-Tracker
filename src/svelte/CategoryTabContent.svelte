@@ -154,13 +154,23 @@
     promptTitle = title; promptLabel = label; promptValue = initialValue; promptOnConfirm = onConfirm; promptPlaceholder = placeholder; showPrompt = true;
   }
 
+  /**
+   * REGLA: el año lectivo SIEMPRE se ingresa como año calendario de 4 dígitos
+   * (2026, 2027, …), nunca como rango ("2026-2027"). El sistema usa el año
+   * lectivo como año calendario: si vale 2026, la vista mensual muestra 2026.
+   */
+  function esAnioLectivoValido(name: string): boolean {
+    return /^(19|20)\d{2}$/.test(name);
+  }
+  const AVISO_ANIO = "⚠️ El año lectivo debe ser un año calendario de 4 dígitos (Ej: 2026, 2027)";
+
   function handleAdd() {
     const placeholder = config.table === 'ano_lectivo' ? 'Ej: 2027' : '';
     openPrompt(`Nuevo ${config.title.toLowerCase()}`, "Nombre", "", (nombre) => {
       if (!nombre || !nombre.trim()) return;
       const name = nombre.trim();
-      if (config.table === 'ano_lectivo' && !/^\d+$/.test(name)) {
-        emit("show-toast", { message: "⚠️ Solo se permiten números positivos para el año", type: "warning" });
+      if (config.table === 'ano_lectivo' && !esAnioLectivoValido(name)) {
+        emit("show-toast", { message: AVISO_ANIO, type: "warning" });
         return;
       }
       if ([...items, ...nuevos].some(i => i.nombre.toLowerCase() === name.toLowerCase())) {
@@ -175,8 +185,8 @@
     openPrompt(`Editar ${config.title.toLowerCase()}`, "Nombre", item.nombre, (nuevoNombre) => {
       if (!nuevoNombre || !nuevoNombre.trim() || nuevoNombre.trim() === item.nombre) return;
       const name = nuevoNombre.trim();
-      if (config.table === 'ano_lectivo' && !/^\d+$/.test(name)) {
-        emit("show-toast", { message: "⚠️ Solo se permiten números positivos para el año", type: "warning" });
+      if (config.table === 'ano_lectivo' && !esAnioLectivoValido(name)) {
+        emit("show-toast", { message: AVISO_ANIO, type: "warning" });
         return;
       }
       if (item.esNuevo) {
@@ -512,6 +522,11 @@
           style="width:100%;padding:0.55rem 0.75rem;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:rgba(15,23,42,0.5);color:#e2e8f0;font-size:0.9rem;outline:none;box-sizing:border-box;transition:border 0.2s;"
           onfocus={(e) => e.currentTarget.style.borderColor = 'var(--primary-color)'}
           onblur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'} />
+        {#if config.table === 'ano_lectivo'}
+          <div style="margin-top:0.5rem;padding:0.5rem 0.6rem;border-radius:8px;background:rgba(129,140,248,0.12);border:1px solid rgba(129,140,248,0.3);font-size:0.7rem;color:#c7d2fe;line-height:1.4">
+            📅 Se ingresa como <strong>año calendario</strong> de 4 dígitos (Ej: 2026, 2027), no como rango. El sistema lo usa como año calendario: si es 2026, la vista mensual muestra 2026.
+          </div>
+        {/if}
       </div>
       <div style="display:flex;justify-content:flex-end;gap:0.75rem;">
         <button onclick={() => showPrompt = false} style="padding:0.5rem 1rem;font-size:0.8rem;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);color:#94a3b8;cursor:pointer;font-weight:600;transition:all 0.15s;">Cancelar</button>
