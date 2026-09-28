@@ -358,13 +358,31 @@ $effect(() => {
   }
 
   /**
-   * Marca el primer día (lunes) de cada semana en la vista mensual, para dibujar
-   * el separador vertical entre semanas. La primera columna nunca lleva línea:
-   * aunque el mes empiece en lunes, una línea al borde izquierdo sobra.
+   * Primer día hábil de la semana según la configuración del colegio, en el
+   * formato de `Date.getDay()` (0 = domingo). Un colegio que trabaja de martes a
+   * sábado tiene su semana empezando el martes, no el lunes.
+   */
+  const DIAS_SEMANA = [
+    { clave: 'lunes', getDay: 1 }, { clave: 'martes', getDay: 2 },
+    { clave: 'miercoles', getDay: 3 }, { clave: 'jueves', getDay: 4 },
+    { clave: 'viernes', getDay: 5 }, { clave: 'sabado', getDay: 6 },
+    { clave: 'domingo', getDay: 0 },
+  ] as const;
+  let primerDiaSemana = $derived.by(() => {
+    if (!colegioConfig) return 1;
+    const d = DIAS_SEMANA.find(x => (colegioConfig as any)[x.clave] !== false);
+    return d ? d.getDay : 1;
+  });
+
+  /**
+   * Marca el primer día de cada semana en la vista mensual, para dibujar el
+   * separador vertical entre semanas. Se usa el primer día hábil del colegio
+   * (no siempre lunes) y la primera columna nunca lleva línea: aunque el mes
+   * empiece en ese día, una línea al borde izquierdo sobra.
    */
   function esInicioSemana(iso: string, indice: number): boolean {
     if (indice <= 0) return false;
-    return new Date(iso + 'T12:00:00').getDay() === 1;
+    return new Date(iso + 'T12:00:00').getDay() === primerDiaSemana;
   }
 
   // ── Días sin clases (feriados / sin actividad) por sección o colegio ──
