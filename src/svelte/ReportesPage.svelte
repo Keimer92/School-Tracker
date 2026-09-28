@@ -205,6 +205,13 @@
     };
   });
 
+  /** Subtítulo del botón "PDF colegio": a qué colegio aplica. */
+  let subtituloColegio = $derived(selectedNames.colegio || 'Todos los grados');
+  /** Subtítulo del botón "Exportar Todo": cuántos colegios entran. */
+  let subtituloTodos = $derived(
+    colegios.length > 0 ? `${colegios.length} colegio${colegios.length === 1 ? '' : 's'}` : 'Todos los colegios'
+  );
+
   onMount(() => {
     const checkMobile = () => { isMobile = window.innerWidth <= 768; isAndroid = /Android/i.test(navigator.userAgent); };
     checkMobile();
@@ -1000,14 +1007,18 @@
               </button>
             {/if}
             <button onclick={() => exportarPdfs('colegio')} disabled={exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura || !selectedCorte}
-              style="height:42px;padding:0 0.4rem;font-size:0.75rem;background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura || !selectedCorte ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(239,68,68,0.4);flex-shrink:0;white-space:nowrap;opacity:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura || !selectedCorte ? 0.7 : 1}"
-              title="PDF de todos los grados del colegio filtrado">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              style="height:42px;padding:0 0.55rem;display:flex;align-items:center;gap:0.45rem;flex-shrink:0;border:1px solid rgba(248,113,113,0.5);border-radius:10px;background:linear-gradient(135deg,rgba(244,63,94,0.26),rgba(251,146,60,0.2));backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:#ffe4e6;font-weight:700;font-size:0.75rem;cursor:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura || !selectedCorte ? 'default' : 'pointer'};box-shadow:0 6px 18px rgba(225,29,72,0.26);white-space:nowrap;opacity:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura || !selectedCorte ? 0.65 : 1};transition:transform 0.15s ease,box-shadow 0.2s ease"
+              title="Un PDF por cada grado y sección del colegio filtrado">
+              <span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:rgba(244,63,94,0.4);color:#fecdd3;flex-shrink:0">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              </span>
+              {exportandoMasivo ? progresoMasivo : 'PDF'}
             </button>
             <button onclick={() => exportarPdfs('todos')} disabled={exportandoMasivo || !selectedAno || !selectedAsignatura || !selectedCorte}
-              style="height:42px;padding:0 0.4rem;font-size:0.75rem;background-color:#6366f1;color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{exportandoMasivo || !selectedAno || !selectedAsignatura || !selectedCorte ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(99,102,241,0.4);flex-shrink:0;white-space:nowrap;opacity:{exportandoMasivo || !selectedAno || !selectedAsignatura || !selectedCorte ? 0.7 : 1}"
-              title="PDF de todos los colegios del año y corte">
-              📚
+              style="height:42px;padding:0 0.55rem;display:flex;align-items:center;gap:0.45rem;flex-shrink:0;border:1px solid rgba(129,140,248,0.5);border-radius:10px;background:linear-gradient(135deg,rgba(99,102,241,0.28),rgba(56,189,248,0.22));backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:#e0e7ff;font-weight:700;font-size:0.75rem;cursor:{exportandoMasivo || !selectedAno || !selectedAsignatura || !selectedCorte ? 'default' : 'pointer'};box-shadow:0 6px 18px rgba(79,70,229,0.28);white-space:nowrap;opacity:{exportandoMasivo || !selectedAno || !selectedAsignatura || !selectedCorte ? 0.65 : 1};transition:transform 0.15s ease,box-shadow 0.2s ease"
+              title="Un PDF por cada grado y sección de todos los colegios del año lectivo">
+              <span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:rgba(99,102,241,0.45);color:#c7d2fe;flex-shrink:0">📚</span>
+              {exportandoMasivo ? progresoMasivo : 'Todo'}
             </button>
             <div style="position:relative;flex-shrink:0">
               <button onclick={toggleClipboardMenu} disabled={filteredReporte.length === 0 || loading}
@@ -1097,15 +1108,40 @@
               </button>
             {/if}
             <button onclick={() => exportarPdfs('colegio')} disabled={exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura || !selectedCorte}
-              title="PDF de todos los grados del colegio filtrado"
-              style="height:42px;padding:0 {isMobile ? '0.4rem' : '1.25rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura || !selectedCorte ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(239,68,68,0.4);flex-shrink:0;white-space:nowrap;opacity:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura || !selectedCorte ? 0.7 : 1}">
-              <svg width="{isMobile ? '12' : '14'}" height="{isMobile ? '12' : '14'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-              {#if !isMobile}PDF colegio{/if}
+              title="Un PDF por cada grado y sección del colegio filtrado"
+              style="height:42px;padding:0 {isMobile ? '0.55rem' : '0.95rem'};display:flex;align-items:center;gap:0.5rem;flex-shrink:0;border:1px solid rgba(248,113,113,0.5);border-radius:10px;background:linear-gradient(135deg,rgba(244,63,94,0.26),rgba(251,146,60,0.2));backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:#ffe4e6;font-weight:700;font-size:{isMobile ? '0.78rem' : '0.8rem'};cursor:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura || !selectedCorte ? 'default' : 'pointer'};box-shadow:0 6px 18px rgba(225,29,72,0.26);white-space:nowrap;opacity:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura || !selectedCorte ? 0.65 : 1};transition:transform 0.15s ease,box-shadow 0.2s ease"
+              onmouseenter={(e) => { if (!exportandoMasivo) e.currentTarget.style.transform = 'translateY(-1px)'; }}
+              onmouseleave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+              onmousedown={(e) => e.currentTarget.style.transform = 'translateY(1px)'}
+              onmouseup={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}>
+              <span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:rgba(244,63,94,0.4);color:#fecdd3;flex-shrink:0">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              </span>
+              {#if isMobile}
+                <span>{exportandoMasivo ? progresoMasivo : 'PDF'}</span>
+              {:else}
+                <span style="display:flex;flex-direction:column;align-items:flex-start;line-height:1.15;gap:1px;min-width:0">
+                  <span>{exportandoMasivo ? progresoMasivo : 'PDF colegio'}</span>
+                  <span style="font-size:0.6rem;font-weight:600;color:#fda4af;letter-spacing:0.2px;max-width:150px;overflow:hidden;text-overflow:ellipsis">{exportandoMasivo ? 'Generando PDF' : subtituloColegio}</span>
+                </span>
+              {/if}
             </button>
             <button onclick={() => exportarPdfs('todos')} disabled={exportandoMasivo || !selectedAno || !selectedAsignatura || !selectedCorte}
-              title="PDF de todos los colegios del año y corte"
-              style="height:42px;padding:0 {isMobile ? '0.4rem' : '1.25rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:#6366f1;color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{exportandoMasivo || !selectedAno || !selectedAsignatura || !selectedCorte ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(99,102,241,0.4);flex-shrink:0;white-space:nowrap;opacity:{exportandoMasivo || !selectedAno || !selectedAsignatura || !selectedCorte ? 0.7 : 1}">
-              {exportandoMasivo ? progresoMasivo : '📚 Exportar Todo'}
+              title="Un PDF por cada grado y sección de todos los colegios del año lectivo"
+              style="height:42px;padding:0 {isMobile ? '0.55rem' : '0.95rem'};display:flex;align-items:center;gap:0.5rem;flex-shrink:0;border:1px solid rgba(129,140,248,0.5);border-radius:10px;background:linear-gradient(135deg,rgba(99,102,241,0.28),rgba(56,189,248,0.22));backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:#e0e7ff;font-weight:700;font-size:{isMobile ? '0.78rem' : '0.8rem'};cursor:{exportandoMasivo || !selectedAno || !selectedAsignatura || !selectedCorte ? 'default' : 'pointer'};box-shadow:0 6px 18px rgba(79,70,229,0.28);white-space:nowrap;opacity:{exportandoMasivo || !selectedAno || !selectedAsignatura || !selectedCorte ? 0.65 : 1};transition:transform 0.15s ease,box-shadow 0.2s ease"
+              onmouseenter={(e) => { if (!exportandoMasivo) e.currentTarget.style.transform = 'translateY(-1px)'; }}
+              onmouseleave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+              onmousedown={(e) => e.currentTarget.style.transform = 'translateY(1px)'}
+              onmouseup={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}>
+              <span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:rgba(99,102,241,0.45);color:#c7d2fe;flex-shrink:0">📚</span>
+              {#if isMobile}
+                <span>{exportandoMasivo ? progresoMasivo : 'Todo'}</span>
+              {:else}
+                <span style="display:flex;flex-direction:column;align-items:flex-start;line-height:1.15;gap:1px;min-width:0">
+                  <span>{exportandoMasivo ? progresoMasivo : 'Exportar Todo'}</span>
+                  <span style="font-size:0.6rem;font-weight:600;color:#a5b4fc;letter-spacing:0.2px;max-width:150px;overflow:hidden;text-overflow:ellipsis">{exportandoMasivo ? 'Generando PDF' : subtituloTodos}</span>
+                </span>
+              {/if}
             </button>
             <div style="position:relative;flex-shrink:0">
               <button onclick={toggleClipboardMenu} disabled={filteredReporte.length === 0 || loading}
