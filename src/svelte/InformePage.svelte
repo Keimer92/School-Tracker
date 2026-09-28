@@ -1,4 +1,4 @@
-﻿<script lang="ts">
+<script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { emit, listen } from "@tauri-apps/api/event";
@@ -16,7 +16,6 @@
   import FilterActions from "./FilterActions.svelte";
   import SearchFab from "./SearchFab.svelte";
   import PageLayout from "./PageLayout.svelte";
-  import DatePickerGlass from "./DatePickerGlass.svelte";
   import ScrollableTable from "./ScrollableTable.svelte";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
@@ -50,7 +49,7 @@
   let isWindows = $state(false);
   let isAndroidMobile = $derived(isAndroid || (isMobile && !isWindows));
 
-  let periodo = $state<"diario" | "semanal" | "mensual">("diario");
+  let periodo = $state<"semanal" | "mensual">("mensual");
   let fechaBase = $state(sessionStorage.getItem("asistencia_selectedFecha_v2") || getLocalDateISOString());
   let mesSeleccionado = $state(new Date().getMonth() + 1);
   let anoSeleccionado = $state(new Date().getFullYear());
@@ -249,15 +248,6 @@
     if (marcados.length === 0) return '';
     return 'Sin clases: ' + marcados.map(d => `${fmtDM(d.fecha)} (${d.descripcion})`).join(', ');
   });
-  let hoySinClases = $derived(periodo === 'diario' && esSinClases(fechaBase));
-
-  /** Días seleccionables en el calendario: hábiles del colegio y no marcados sin clases. */
-  function esDiaHabilCalendario(iso: string): boolean {
-    if (!colegioConfig) return true;
-    const dayNames = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
-    if ((colegioConfig as any)[dayNames[new Date(iso + 'T12:00:00').getDay()]] === false) return false;
-    return !esSinClases(iso);
-  }
   function motivoSinClases(fecha: string): string {
     return diasSinClases.find(d => d.fecha === fecha)?.descripcion || 'Sin clases';
   }
@@ -265,11 +255,8 @@
 
   $effect(() => {
     const hoy = new Date();
-    const base = new Date(fechaBase + "T12:00:00");
-    if (periodo === "diario") {
-      fechaInicio = fechaBase;
-      fechaFin = fechaBase;
-    } else if (periodo === "semanal") {
+    if (periodo === "semanal") {
+      const base = new Date(fechaBase + "T12:00:00");
       const day = base.getDay();
       const diff = base.getDate() - day + (day === 0 ? -6 : 1);
       const lunes = new Date(base.setDate(diff));
@@ -277,7 +264,7 @@
       domingo.setDate(lunes.getDate() + 6);
       fechaInicio = getLocalDateISOString(lunes);
       fechaFin = getLocalDateISOString(domingo);
-    } else if (periodo === "mensual") {
+    } else {
       const primerDia = new Date(anoSeleccionado, mesSeleccionado - 1, 1);
       fechaInicio = getLocalDateISOString(primerDia);
       if (anoSeleccionado === hoy.getFullYear() && mesSeleccionado === hoy.getMonth() + 1) {
@@ -384,7 +371,7 @@
 
   function getFechasUnicas(incluirSinClases = false) {
     const fechasSet = new Set<string>();
-    if (colegioConfig && (periodo === "semanal" || periodo === "mensual")) {
+    if (colegioConfig) {
       const inicio = new Date(fechaInicio + "T12:00:00");
       const fin = new Date(fechaFin + "T12:00:00");
       const temp = new Date(inicio);
@@ -400,14 +387,17 @@
       }
     } else {
       reporte.forEach(item => { item.fechas.forEach(f => { const [fecha] = f.split(':'); fechasSet.add(fecha); }); });
-      if (periodo === "diario" && fechasSet.size === 0) fechasSet.add(fechaBase);
     }
     return Array.from(fechasSet).sort();
   }
 
   let fechasColumnas = $derived(getFechasUnicas());
   /** Todas las días hábiles del período (incluye los sin clases, para pintarlos). */
-  let fechasVisibles = $derived(periodo === 'diario' ? [] : getFechasUnicas(true));
+  let fechasVisibles = $derived(getFechasUnicas(true));
+  /** Todo el período quedó marcado sin clases: no hay ninguna columna de asistencia. */
+  let dscPeriodoVacio = $derived(
+    fechasColumnas.length === 0 && diasSinClases.some(d => d.fecha >= fechaInicio && d.fecha <= fechaFin)
+  );
 
   let reporteFiltrado = $derived.by(() => {
     let f = reporte;
@@ -533,37 +523,19 @@
           .filter(d => d.fecha >= fechaInicio && d.fecha <= fechaFin)
           .map(d => `${fmtDM(d.fecha)} (${d.descripcion})`).join(', ');
 
-        if (periodo === 'diario') {
-          const sinClasesHoy = sinClases.some(d => d.fecha === fechaInicio);
-          const motivo = sinClases.find(d => d.fecha === fechaInicio)?.descripcion || 'Sin clases';
-          tablas.push({
-            titulo: `${p.gradoNombre} - Sección ${p.seccionNombre}`,
-            subtitulo: p.colegioNombre,
-            layout: 'diario',
-            headers: ["Estudiante", "Sexo", "Estado", "Observación"],
-            body: filas.map(est => [
-              est.nombre,
-              est.sexo,
-              sinClasesHoy ? '' : (getEstadoEnFecha(est, fechaInicio) === '-' ? 'Sin registro' : getEstadoEnFecha(est, fechaInicio)),
-              getObservacionEnFecha(est, fechaInicio),
-            ]),
-            combinada: sinClasesHoy ? { indice: 2, texto: `SIN CLASES\n${motivo}` } : undefined,
-          });
-        } else {
-          const fechasCols = columnasDePeriodo(cfg, sinClases);
-          tablas.push({
-            titulo: `${p.gradoNombre} - Sección ${p.seccionNombre}`,
-            subtitulo: p.colegioNombre,
-            layout: 'fechas',
-            headers: ["Estudiante", "Sexo", ...fechasCols.map(f => f.split('-').slice(1).reverse().join('/')), "P", "A", "J"],
-            body: filas.map(est => {
-              const estados = fechasCols.map(f => getEstadoEnFecha(est, f));
-              const cuenta = (e: string) => estados.filter(x => x === e).length;
-              return [est.nombre, est.sexo, ...estados, cuenta('P'), cuenta('A'), cuenta('J')];
-            }),
-            nota: notaSinClases || undefined,
-          });
-        }
+        const fechasCols = columnasDePeriodo(cfg, sinClases);
+        tablas.push({
+          titulo: `${p.gradoNombre} - Sección ${p.seccionNombre}`,
+          subtitulo: p.colegioNombre,
+          layout: 'fechas',
+          headers: ["Estudiante", "Sexo", ...fechasCols.map(f => f.split('-').slice(1).reverse().join('/')), "P", "A", "J"],
+          body: filas.map(est => {
+            const estados = fechasCols.map(f => getEstadoEnFecha(est, f));
+            const cuenta = (e: string) => estados.filter(x => x === e).length;
+            return [est.nombre, est.sexo, ...estados, cuenta('P'), cuenta('A'), cuenta('J')];
+          }),
+          nota: notaSinClases || undefined,
+        });
       }
 
       if (tablas.length === 0) {
@@ -624,7 +596,6 @@
    * colegio y excluye los marcados como sin clases (no cuentan P/A/J).
    */
   function columnasDePeriodo(cfg: ColegioDiasAsistencia | null, sinClases: DiaSinClase[]): string[] {
-    if (periodo === 'diario') return [fechaBase];
     const diasMap: Record<number, boolean> = {
       0: cfg?.domingo ?? true, 1: cfg?.lunes ?? true, 2: cfg?.martes ?? true,
       3: cfg?.miercoles ?? true, 4: cfg?.jueves ?? true, 5: cfg?.viernes ?? true, 6: cfg?.sabado ?? true,
@@ -645,36 +616,18 @@
     if (reporteFiltrado.length === 0) { await emit("show-toast", { message: "⚠️ No hay datos para imprimir", type: 'warning' }); return; }
     try {
       await emit("show-toast", { message: "✅ Preparando reporte...", type: 'success' });
-      let headers: string[], rows: string;
-      if (periodo === "diario") {
-        headers = ["Estudiante", "Sexo", "Estado", "Observación"];
-        const n = reporteFiltrado.length;
-        rows = reporteFiltrado.map((est, i) => {
-          const estado = getEstadoEnFecha(est, fechaInicio);
-          const obs = getObservacionEnFecha(est, fechaInicio);
-          const estadoClass = estado === 'P' ? 'estado-P' : estado === 'A' ? 'estado-A' : estado === 'J' ? 'estado-J' : '';
-          // Día sin clases: columna Estado combinada (rowspan) con el motivo
-          const estadoCell = hoySinClases
-            ? (i === 0 && n > 0
-                ? `<td rowspan="${n}" style="color:#f59e0b;font-weight:bold;vertical-align:middle">SIN CLASES<br>${motivoSinClases(fechaInicio)}</td>`
-                : '')
-            : `<td class="${estadoClass}">${estado === '-' ? '' : estado}</td>`;
-          return `<tr><td>${est.nombre}</td><td>${est.sexo}</td>${estadoCell}<td>${obs}</td></tr>`;
-        }).join('');
-      } else {
-        const fechasCols = getFechasUnicas();
-        headers = ["Estudiante", "Sexo", ...fechasCols.map(f => f.split('-').slice(1).reverse().join('/')), "P", "A", "J"];
-        rows = reporteFiltrado.map(est => {
-          const p = est.fechas.filter(f => f.endsWith(':P')).length;
-          const a = est.fechas.filter(f => f.endsWith(':A')).length;
-          const j = est.fechas.filter(f => f.endsWith(':J')).length;
-          return `<tr><td>${est.nombre}</td><td>${est.sexo}</td>${fechasCols.map(f => {
-            const estado = getEstadoEnFecha(est, f);
-            const cls = estado === 'P' ? 'estado-P' : estado === 'A' ? 'estado-A' : estado === 'J' ? 'estado-J' : '';
-            return `<td class="${cls}">${estado}</td>`;
-          }).join('')}<td class="estado-P">${p}</td><td class="estado-A">${a}</td><td class="estado-J">${j}</td></tr>`;
-        }).join('');
-      }
+      const fechasCols = getFechasUnicas();
+      const headers = ["Estudiante", "Sexo", ...fechasCols.map(f => f.split('-').slice(1).reverse().join('/')), "P", "A", "J"];
+      const rows = reporteFiltrado.map(est => {
+        const p = est.fechas.filter(f => f.endsWith(':P')).length;
+        const a = est.fechas.filter(f => f.endsWith(':A')).length;
+        const j = est.fechas.filter(f => f.endsWith(':J')).length;
+        return `<tr><td>${est.nombre}</td><td>${est.sexo}</td>${fechasCols.map(f => {
+          const estado = getEstadoEnFecha(est, f);
+          const cls = estado === 'P' ? 'estado-P' : estado === 'A' ? 'estado-A' : estado === 'J' ? 'estado-J' : '';
+          return `<td class="${cls}">${estado}</td>`;
+        }).join('')}<td class="estado-P">${p}</td><td class="estado-A">${a}</td><td class="estado-J">${j}</td></tr>`;
+      }).join('');
       printHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
         body{font-family:Arial,sans-serif;padding:20px}h2{margin:0 0 10px 0}.info{margin-bottom:15px;font-size:12px}
         table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid #ddd;padding:6px;text-align:center}
@@ -699,96 +652,6 @@
     }
   }
 
-  async function handlePrint() {
-    if (reporteFiltrado.length === 0) { await emit("show-toast", { message: "⚠️ No hay datos para imprimir", type: 'warning' }); return; }
-    try {
-      await emit("show-toast", { message: "✅ Preparando impresión...", type: 'success' });
-      const { default: jsPDF } = await import("jspdf");
-      const { default: autoTable } = await import("jspdf-autotable");
-      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
-      const margins = { top: 10, bottom: 10, left: 10, right: 10 };
-      doc.setFontSize(16);
-      doc.text("Reporte", margins.left + 4, 15);
-      doc.setFontSize(10);
-      doc.text(`Colegio: ${colegioNombre}`, margins.left + 4, 22);
-      doc.text(`Grado: ${gradoNombre} - Sección: ${seccionNombre}`, margins.left + 4, 27);
-      doc.text(`Periodo: ${periodo.toUpperCase()} (${fechaInicio} al ${fechaFin})${diasSinClasesNota ? ' — ' + diasSinClasesNota : ''}`, margins.left + 4, 32);
-      if (selectedSexo) doc.text(`Filtro Sexo: ${selectedSexo === 'M' ? 'Masculino' : 'Femenino'}`, margins.left + 4, 37);
-
-      let headers: string[], body: any[][];
-      if (periodo === "diario") {
-        headers = ["Estudiante", "Sexo", "Estado", "Observación"];
-        const n = reporteFiltrado.length;
-        body = reporteFiltrado.map((est, i) => {
-          // Día sin clases: la columna Estado se combina en una sola celda
-          // con el motivo, en vez de repetirlo por estudiante.
-          let estadoCell: any;
-          if (hoySinClases) {
-            estadoCell = i === 0 && n > 0
-              ? { content: `SIN CLASES\n${motivoSinClases(fechaInicio)}`, rowSpan: n, styles: { halign: 'center', valign: 'middle', fontStyle: 'bold', textColor: [245, 158, 11], minCellHeight: 10 } }
-              : '';
-          } else {
-            estadoCell = getEstadoEnFecha(est, fechaInicio) === '-' ? 'Sin registro' : getEstadoEnFecha(est, fechaInicio);
-          }
-          return [est.nombre, est.sexo, estadoCell, getObservacionEnFecha(est, fechaInicio)];
-        });
-      } else {
-        const fechasCols = getFechasUnicas();
-        headers = ["Estudiante", "Sexo", ...fechasCols.map(f => f.split('-').slice(1).reverse().join('/')), "P", "A", "J"];
-        body = reporteFiltrado.map(est => {
-          const p = est.fechas.filter(f => f.endsWith(':P')).length;
-          const a = est.fechas.filter(f => f.endsWith(':A')).length;
-          const j = est.fechas.filter(f => f.endsWith(':J')).length;
-          return [est.nombre, est.sexo, ...fechasCols.map(f => getEstadoEnFecha(est, f)), p, a, j];
-        });
-      }
-
-      autoTable(doc, {
-        startY: selectedSexo ? 42 : 37,
-        margin: { top: margins.top, bottom: margins.bottom, left: margins.left, right: margins.right },
-        head: [headers], body,
-        styles: { fontSize: 8, cellPadding: 1 },
-        headStyles: { fillColor: [16, 185, 129] },
-        didParseCell: (data: any) => {
-          if (data.section === 'body') {
-            const val = String(data.cell.raw);
-            if (val === 'P') data.cell.styles.textColor = [16, 185, 129];
-            if (val === 'A') data.cell.styles.textColor = [239, 68, 68];
-            if (val === 'J') data.cell.styles.textColor = [155, 89, 182];
-          }
-        }
-      });
-
-      const pdfBuf = doc.output('arraybuffer');
-      const dir = await tempDir();
-      const pth = await join(dir, `reporte_asistencia_${Date.now()}.pdf`);
-      await writeFile(pth, new Uint8Array(pdfBuf));
-      const fPath = pth.replace(/\\/g, '/');
-      const fileUrl = fPath.startsWith('/') ? `file://${fPath}` : `file:///${fPath}`;
-      try {
-        if (isAndroid || isMobile) {
-          try {
-            if (isAndroid) { await invoke('share_pdf', { path: fPath }); await emit("show-toast", { message: "✅ Abriendo opciones...", type: 'success' }); }
-            else throw new Error("Plataforma móvil no soportada");
-          } catch (shareError) {
-            console.error("Error en share_pdf:", shareError);
-            await emit("show-toast", { message: "⚠️ Error nativo: " + String(shareError), type: 'error' });
-            return;
-          }
-        } else {
-          await invoke('print_pdf', { path: fPath });
-          await emit("show-toast", { message: "✅ Enviado a impresora", type: 'success' });
-        }
-      } catch (error) {
-        if (isAndroid) { await emit("show-toast", { message: "❌ Error al imprimir en Android: " + String(error), type: 'error' }); return; }
-        await openUrl(fileUrl);
-        await emit("show-toast", { message: "✅ Reporte generado. Abriendo visor de PDF...", type: 'success' });
-      }
-    } catch (error) {
-      console.error("Error al imprimir:", error);
-      await emit("show-toast", { message: "❌ Error al imprimir: " + (error instanceof Error ? error.message : String(error)), type: 'error' });
-    }
-  }
 </script>
 {#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder="Buscar..." />{/if}
 
@@ -860,20 +723,13 @@
           {#if !isAndroidMobile}
             <FilterGroup label="Período:" {isMobile}>
               <select class="filter-select" bind:value={periodo} style="width:100%">
-                <option value="diario">Diario</option>
-                <option value="semanal">Semanal</option>
                 <option value="mensual">Mensual</option>
+                <option value="semanal">Semanal</option>
               </select>
             </FilterGroup>
           {/if}
 
-          {#if periodo === "diario"}
-            {#if !isAndroidMobile}
-              <FilterGroup label="Fecha:" {isMobile}>
-                <DatePickerGlass bind:value={fechaBase} diaHabilitado={esDiaHabilCalendario} />
-              </FilterGroup>
-            {/if}
-          {:else if periodo === "semanal"}
+          {#if periodo === "semanal"}
             {#if !isAndroidMobile}
               <FilterGroup label="Semana de:" {isMobile}>
                 <div class="pop-wrap" bind:this={popRootEl}>
@@ -934,11 +790,6 @@
               <input bind:value={searchTerm} placeholder="🔍 Buscar..."
                 style="width:100%;height:38px;padding:0 0.8rem;font-size:0.82rem;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#e2e8f0;outline:none;box-sizing:border-box;" />
             </div>
-            {#if periodo === "diario"}
-              <FilterGroup label="Fecha:" {isMobile}>
-                <DatePickerGlass bind:value={fechaBase} diaHabilitado={esDiaHabilCalendario} />
-              </FilterGroup>
-            {/if}
             <button onclick={() => showFiltersModal = true} title="Filtros (Período · Año · Colegio · Grado · Sección · Sexo · Semana/Mes)"
               style="width:100%;height:42px;padding:0 0.9rem;font-size:0.85rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#e2e8f0;border-radius:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all 0.15s;white-space:nowrap;margin-bottom:0.3rem"
               onmouseenter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.08)'; }}
@@ -1095,15 +946,15 @@
       </div>
     {/if}
 
-    {#if periodo === 'diario' && hoySinClases}
+    {#if dscPeriodoVacio}
       <div class="dsc-banner">
         <div class="dsc-icon">🚫</div>
         <div style="flex:1;min-width:0;text-align:left">
-          <h3 style="margin:0 0 .25rem;color:#fbbf24;font-size:1.05rem">No hubo clases este día</h3>
-          <p style="margin:0;color:#e2e8f0;font-size:.88rem;font-weight:600">{motivoSinClases(fechaBase)}</p>
-          <p style="margin:.25rem 0 0;color:#94a3b8;font-size:.75rem;text-transform:capitalize">{new Date(fechaBase + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+          <h3 style="margin:0 0 .25rem;color:#fbbf24;font-size:1.05rem">No hubo clases en todo el período</h3>
+          <p style="margin:0;color:#e2e8f0;font-size:.88rem;font-weight:600">{diasSinClasesNota.replace('Sin clases: ', '')}</p>
+          <p style="margin:.25rem 0 0;color:#94a3b8;font-size:.75rem;text-transform:capitalize">{fechaInicio} al {fechaFin}</p>
         </div>
-        <span class="dsc-badge">{(() => { const cov = diasSinClases.find(d => d.fecha === fechaBase); return cov ? (cov.grado_id === null ? '🏫 Todo el colegio' : '🚪 Esta sección') : ''; })()}</span>
+        <span class="dsc-badge">{(() => { const c = diasSinClases.find(d => d.fecha >= fechaInicio && d.fecha <= fechaFin); return c ? (c.grado_id === null ? '🏫 Todo el colegio' : '🚪 Esta sección') : ''; })()}</span>
       </div>
     {/if}
 
@@ -1121,84 +972,6 @@
             <button class="secondary" onclick={() => searchTerm = ""} style="margin-top:1.5rem;padding:0.5rem 1rem">Limpiar búsqueda</button>
           {/if}
         </div>
-      {:else if periodo === "diario"}
-        {#if isAndroidMobile}
-          <div style="display:flex;flex-direction:column;gap:0.5rem;padding:0.4rem 0">
-            {#each reporteFiltrado as item, index}
-              {@const estado = getEstadoEnFecha(item, fechaInicio)}
-              {@const obs = getObservacionEnFecha(item, fechaInicio)}
-              <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:0.5rem 0.6rem">
-                <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.4rem">
-                  <span style="font-size:0.7rem;color:#64748b;font-weight:bold;min-width:20px">{index + 1}</span>
-                  <span style="font-size:1rem;flex-shrink:0">{item.sexo === 'F' ? '👩' : '👨'}</span>
-                  <span style="flex:1;font-weight:bold;font-size:0.85rem;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick={() => selectedStudentDetail = item}>{item.nombre}</span>
-                  <button class="obs-toggle-btn" class:has-obs={!!obs} onclick={() => obs ? emit("show-toast", { message: `Observación de ${item.nombre}: ${obs}`, type: 'info' }) : undefined}
-                    title={obs ? "Ver observación" : "Sin observaciones"} disabled={!obs}
-                    style="width:30px;height:30px;min-width:30px;font-size:0.9rem;flex-shrink:0;opacity:{obs ? 1 : 0.3}">
-                    {obs ? '📝' : '💬'}
-                  </button>
-                </div>
-                <div style="display:flex;gap:0.4rem;margin-bottom:0.3rem">
-                  <label style="flex:1;height:36px;font-size:0.78rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:700;background:{estado === 'P' ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.05)'};border:{estado === 'P' ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.1)'};color:{estado === 'P' ? '#10b981' : '#94a3b8'}">
-                    <input type="radio" name={`asist-${item.id}`} checked={estado === 'P'} onchange={() => {}} style="display:none" /><span>Presente</span>
-                  </label>
-                  <label style="flex:1;height:36px;font-size:0.78rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:700;background:{estado === 'A' ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.05)'};border:{estado === 'A' ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.1)'};color:{estado === 'A' ? '#ef4444' : '#94a3b8'}">
-                    <input type="radio" name={`asist-${item.id}`} checked={estado === 'A'} onchange={() => {}} style="display:none" /><span>Ausente</span>
-                  </label>
-                  <label style="flex:1;height:36px;font-size:0.78rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:700;background:{estado === 'J' ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.05)'};border:{estado === 'J' ? '1px solid #f59e0b' : '1px solid rgba(255,255,255,0.1)'};color:{estado === 'J' ? '#f59e0b' : '#94a3b8'}">
-                    <input type="radio" name={`asist-${item.id}`} checked={estado === 'J'} onchange={() => {}} style="display:none" /><span>Justificado</span>
-                  </label>
-                </div>
-              </div>
-            {/each}
-          </div>
-        {:else}
-          <table class="custom-table" style="width:100%;margin:0;overflow:visible">
-            <thead>
-              <tr>
-                <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
-                <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10">Estudiante</th>
-                <th style="width:100px;position:sticky;top:0;background:#1e293b;z-index:10">Asistencia</th>
-                <th style="width:65px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10">Obs</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each reporteFiltrado as item, index}
-                {@const estado = getEstadoEnFecha(item, fechaInicio)}
-                <tr>
-                  <td><span class="student-number-badge">{index + 1}</span></td>
-                  <td style="text-align:left;overflow:hidden">
-                    <div style="font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:6px;width:100%" onclick={() => selectedStudentDetail = item}>
-                      <span style="font-size:1.1rem;flex-shrink:0">{item.sexo === 'F' ? '👩' : '👨'}</span>
-                      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{item.nombre}</span>
-                    </div>
-                    <div style="font-size:0.7rem;opacity:0.6;margin-left:22px">{item.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
-                  </td>
-                  <td>
-              <div style="display:flex;gap:6px;justify-content:center">
-                  <label class="asistencia-btn" class:p={estado === 'P'}>
-                    <input type="radio" name={`asist-${item.id}`} checked={estado === 'P'} onchange={() => {}} style="display:none" />Presente
-                  </label>
-                  <label class="asistencia-btn" class:a={estado === 'A'}>
-                    <input type="radio" name={`asist-${item.id}`} checked={estado === 'A'} onchange={() => {}} style="display:none" />Ausente
-                  </label>
-                  <label class="asistencia-btn" class:j={estado === 'J'}>
-                    <input type="radio" name={`asist-${item.id}`} checked={estado === 'J'} onchange={() => {}} style="display:none" />Justificado
-                  </label>
-              </div>
-                  </td>
-                  <td style="text-align:center;padding:0.2rem">
-                    {#if getObservacionEnFecha(item, fechaInicio)}
-                      <button class="obs-toggle-btn has-obs" onclick={() => emit("show-toast", { message: `Observación de ${item.nombre}: ${getObservacionEnFecha(item, fechaInicio)}`, type: 'info' })} title="Ver observación">📝</button>
-                    {:else}
-                      <button class="obs-toggle-btn" disabled style="opacity:0.3;cursor:default;background:transparent;box-shadow:none;border:1px solid rgba(255,255,255,0.05)" title="Sin observaciones">💬</button>
-                    {/if}
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        {/if}
       {:else if isAndroidMobile}
         <div style="display:flex;flex-direction:column;gap:0.5rem;padding:0.4rem 0">
           {#each reporteFiltrado as item, index}
@@ -1381,9 +1154,8 @@
       <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
         <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Período:</label>
         <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px" bind:value={periodo}>
-          <option value="diario">Diario</option>
-          <option value="semanal">Semanal</option>
           <option value="mensual">Mensual</option>
+          <option value="semanal">Semanal</option>
         </select>
       </div>
       {#if periodo === "semanal"}
