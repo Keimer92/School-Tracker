@@ -9,6 +9,7 @@
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
   import SearchFab from "./SearchFab.svelte";
+  import BotonMod from "./BotonMod.svelte";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
   interface Student { id?: number; nombre: string; codigo: string; sexo: string; anoLectivoId: number; gradoId: number; seccionId: number; colegioId: number; foto?: string | null; }
@@ -882,23 +883,32 @@ async function fetchData(preserveFilters = false) {
       </button>
     </div>
     <div class="category-card" style="padding: 0.5rem; margin-bottom: 0.4rem; display:flex;gap:0.3rem;align-items:center;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;">
-      <button onclick={openAddModal}
-        style="height:42px;padding:0 0.9rem;font-size:0.75rem;background:linear-gradient(135deg,var(--primary-hover),var(--primary-color));color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:pointer;transition:all 0.2s ease;box-shadow:0 4px 14px rgba(var(--primary-rgb),0.4);flex-shrink:0;white-space:nowrap">
-        <span style="font-size:1rem">👨‍🎓</span>
-      </button>
-      <button onclick={handleImportExcel} disabled={isImporting}
-        style="height:42px;padding:0 0.9rem;font-size:0.75rem;background:linear-gradient(135deg,#059669,#10b981);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{isImporting ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(5,150,105,0.4);flex-shrink:0;white-space:nowrap;opacity:{isImporting ? 0.7 : 1}">
-        <span style="font-size:1rem">{isImporting ? "⌛" : "📗"}</span>
-      </button>
-      <button onclick={handleDownloadTemplate}
-        style="height:42px;padding:0 0.9rem;font-size:0.75rem;border:1px solid rgba(168,85,247,0.3);background:rgba(168,85,247,0.1);color:#c084fc;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:pointer;transition:all 0.2s ease;flex-shrink:0;white-space:nowrap"
-        title="Descargar plantilla Excel">📋</button>
-      <button onclick={abrirModalExport} disabled={exportando}
-        style="height:42px;padding:0 0.9rem;font-size:0.75rem;border:1px solid rgba(14,165,233,0.35);background:rgba(14,165,233,0.12);color:#7dd3fc;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{exportando ? 'default' : 'pointer'};transition:all 0.2s ease;flex-shrink:0;white-space:nowrap;opacity:{exportando ? 0.7 : 1}"
-        title="Exportar todos los colegios a Excel (un libro por colegio)">📊</button>
-      <button onclick={() => showImportHelp = true}
-        style="height:42px;width:42px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.1);color:#94a3b8;border-radius:8px;border:1px solid rgba(255,255,255,0.1);cursor:pointer;font-size:1.1rem;font-weight:700;flex-shrink:0;transition:all 0.2s ease"
-        title="Ayuda de importación">?</button>
+      <BotonMod opts={{
+        onclick: openAddModal,
+        icono: '👨‍🎓', etiqueta: 'Nuevo', tono: 'azul',
+        sub: `${stats.total} en filtro`, title: 'Agregar estudiante', compacto: true
+      }} />
+      <BotonMod opts={{
+        onclick: handleImportExcel, disabled: isImporting,
+        icono: isImporting ? '⏳' : '📗',
+        etiqueta: isImporting ? 'Importando' : 'Importar', tono: 'verde',
+        sub: `${students.length} en base`, title: 'Importar estudiantes desde Excel', compacto: true
+      }} />
+      <BotonMod opts={{
+        onclick: handleDownloadTemplate,
+        icono: '📋', etiqueta: 'Plantilla', tono: 'violeta',
+        sub: '.xlsx', title: 'Descargar plantilla Excel', compacto: true
+      }} />
+      <BotonMod opts={{
+        onclick: abrirModalExport, disabled: exportando,
+        icono: '📊', etiqueta: exportando ? 'Exportando' : 'Exportar', tono: 'azul',
+        sub: `${stats.total} estud.`, title: 'Exportar todos los colegios a Excel', compacto: true
+      }} />
+      <BotonMod opts={{
+        onclick: () => showImportHelp = true,
+        icono: '❓', etiqueta: 'Ayuda', tono: 'ambar',
+        sub: 'Formato', title: 'Ayuda de importación', compacto: true
+      }} />
     </div>
 
     {#if showFiltersModal}
@@ -996,25 +1006,38 @@ async function fetchData(preserveFilters = false) {
       <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '0 0 auto'}">
         <div style="flex:1;min-width:100px">
         </div>
-        <button onclick={openAddModal}
-          style="height:42px;padding:0 1.25rem;font-size:0.85rem;background:linear-gradient(135deg,var(--primary-hover),var(--primary-color));color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:pointer;transition:all 0.2s ease;box-shadow:0 4px 14px rgba(var(--primary-rgb),0.4);flex-shrink:0;white-space:nowrap">
-          <span style="font-size:1.1rem">👨‍🎓</span>
-          {#if !isMobile}<span>Nuevo</span>{/if}
-        </button>
-        <button onclick={handleImportExcel} disabled={isImporting}
-          style="height:42px;padding:0 1.25rem;font-size:0.85rem;background:linear-gradient(135deg,#059669,#10b981);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:{isImporting ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(5,150,105,0.4);flex-shrink:0;white-space:nowrap;opacity:{isImporting ? 0.7 : 1}">
-          <span style="font-size:1.1rem">{isImporting ? "⌛" : "📗"}</span>
-          {#if !isMobile}<span>{isImporting ? "Importando..." : "Excel"}</span>{/if}
-        </button>
-        <button onclick={handleDownloadTemplate}
-          style="height:42px;padding:0 1.25rem;font-size:0.85rem;border:1px solid rgba(168,85,247,0.3);background:rgba(168,85,247,0.1);color:#c084fc;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:pointer;transition:all 0.2s ease;flex-shrink:0;white-space:nowrap"
-          title="Descargar plantilla Excel">📋 {#if !isMobile}<span>Plantilla</span>{/if}</button>
-        <button onclick={abrirModalExport} disabled={exportando}
-          style="height:42px;padding:0 1.25rem;font-size:0.85rem;border:1px solid rgba(14,165,233,0.35);background:rgba(14,165,233,0.12);color:#7dd3fc;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:700;cursor:{exportando ? 'default' : 'pointer'};transition:all 0.2s ease;flex-shrink:0;white-space:nowrap;box-shadow:0 4px 14px rgba(14,165,233,0.25);opacity:{exportando ? 0.7 : 1}"
-          title="Exportar todos los colegios a Excel (un libro por colegio)">📊 {#if !isMobile}<span>{exportando ? "Exportando..." : "Exportar Excel"}</span>{/if}</button>
-        <button onclick={() => showImportHelp = true}
-          style="height:42px;width:42px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.1);color:#94a3b8;border-radius:8px;border:1px solid rgba(255,255,255,0.1);cursor:pointer;font-size:1.1rem;font-weight:700;flex-shrink:0;transition:all 0.2s ease"
-          title="Ayuda de importación">?</button>
+        <BotonMod opts={{
+          onclick: openAddModal,
+          icono: '👨‍🎓', etiqueta: 'Nuevo', tono: 'azul',
+          sub: `${stats.total} en el filtro`,
+          title: 'Agregar estudiante',
+        }} />
+        <BotonMod opts={{
+          onclick: handleImportExcel, disabled: isImporting,
+          icono: isImporting ? '⏳' : '📗',
+          etiqueta: isImporting ? 'Importando' : 'Importar Excel', tono: 'verde',
+          sub: isImporting ? 'Leyendo filas' : `${students.length} en la base`,
+          title: 'Importar estudiantes desde un archivo Excel',
+        }} />
+        <BotonMod opts={{
+          onclick: handleDownloadTemplate,
+          icono: '📋', etiqueta: 'Plantilla', tono: 'violeta',
+          sub: 'Formato .xlsx',
+          title: 'Descargar plantilla Excel',
+        }} />
+        <BotonMod opts={{
+          onclick: abrirModalExport, disabled: exportando,
+          icono: '📊',
+          etiqueta: exportando ? 'Exportando' : 'Exportar', tono: 'azul',
+          sub: exportando ? 'Generando libros' : `${stats.total} estudiantes`,
+          title: 'Exportar todos los colegios a Excel (un libro por colegio)',
+        }} />
+        <BotonMod opts={{
+          onclick: () => showImportHelp = true,
+          icono: '❓', etiqueta: 'Ayuda', tono: 'ambar',
+          sub: 'Formato del Excel',
+          title: 'Ayuda de importación',
+        }} />
       </div>
   </FilterContainer>
   {/if}
@@ -1170,17 +1193,31 @@ async function fetchData(preserveFilters = false) {
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; margin-top: 0.2rem; flex-wrap: wrap; gap: 0.4rem;">
       <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
         {#if selectedIds.size > 0}
-          <button onclick={deleteSelected} disabled={isDeletingSelected} style="padding: 0.4rem 1rem; font-size: 0.8rem; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.15); color: #fca5a5; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 0.4rem;">
-            🗑 Eliminar ({selectedIds.size})
-          </button>
-          <button onclick={clearSelection} style="padding: 0.3rem 0.7rem; font-size: 0.75rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer;">Deseleccionar</button>
+          <BotonMod opts={{
+            onclick: deleteSelected, disabled: isDeletingSelected,
+            icono: isDeletingSelected ? '⏳' : '🗑️', etiqueta: 'Eliminar', tono: 'rojo',
+            sub: `${selectedIds.size} de ${stats.total} seleccionados`,
+            title: 'Eliminar los estudiantes seleccionados', compacto: true
+          }} />
+          <BotonMod opts={{
+            onclick: clearSelection,
+            icono: '☐', etiqueta: 'Deseleccionar', tono: 'ambar',
+            sub: 'Quitar la selección',
+            title: 'Deseleccionar todos', compacto: true
+          }} />
         {:else}
-          <button onclick={selectAllFiltered} style="padding: 0.4rem 0.8rem; font-size: 0.75rem; border-radius: 8px; border: 1px solid rgba(100, 116, 139, 0.3); background: rgba(100, 116, 139, 0.1); color: #94a3b8; cursor: pointer; display: flex; align-items: center; gap: 0.3rem;">
-            ☐ Seleccionar
-          </button>
-          <button onclick={handleBatchDelete} disabled={isDeleting} style="padding: 0.4rem 0.8rem; font-size: 0.75rem; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.1); color: #fca5a5; cursor: pointer; display: flex; align-items: center; gap: 0.3rem;">
-            🗑 Todos ({filteredStudents.length})
-          </button>
+          <BotonMod opts={{
+            onclick: selectAllFiltered,
+            icono: '☑️', etiqueta: 'Seleccionar', tono: 'azul',
+            sub: `${stats.total} en el filtro`,
+            title: 'Seleccionar todos los estudiantes del filtro', compacto: true
+          }} />
+          <BotonMod opts={{
+            onclick: handleBatchDelete, disabled: isDeleting,
+            icono: isDeleting ? '⏳' : '🗑️', etiqueta: 'Eliminar todos', tono: 'rojo',
+            sub: `${filteredStudents.length} del filtro`,
+            title: 'Eliminar todos los estudiantes del filtro actual', compacto: true
+          }} />
         {/if}
       </div>
     </div>
