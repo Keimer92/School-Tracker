@@ -1,4 +1,4 @@
-<script lang="ts">
+﻿<script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { emit, listen } from "@tauri-apps/api/event";
@@ -6,6 +6,8 @@
   import { writeFile, mkdir } from "@tauri-apps/plugin-fs";
   import { openUrl } from "@tauri-apps/plugin-opener";
   import { getLocalDateISOString } from "../lib/dateUtils";
+  import { generarPdfAsistencia } from "../lib/asistenciaPdf";
+  import type { TablaAsistenciaPdf } from "../lib/asistenciaPdf";
   import { registerBackHandler } from "../lib/androidBack";
   import { loadAppSettings, onAppSettingsChange } from "../lib/appSettings";
   import FilterContainer from "./FilterContainer.svelte";
@@ -447,85 +449,196 @@
   let statsA = $derived(getAsistenciaStats('A'));
   let statsJ = $derived(getAsistenciaStats('J'));
 
-  async function exportToPDF() {
-    try {
-      const { default: jsPDF } = await import("jspdf");
-      const { default: autoTable } = await import("jspdf-autotable");
-      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
-      const margins = { top: 10, bottom: 10, left: 10, right: 10 };
-      doc.setFontSize(16);
-      doc.text("Reporte", margins.left + 4, 15);
-      doc.setFontSize(10);
-      doc.text(`Colegio: ${colegioNombre}`, margins.left + 4, 22);
-      doc.text(`Grado: ${gradoNombre} - Sección: ${seccionNombre}`, margins.left + 4, 27);
-      doc.text(`Periodo: ${periodo.toUpperCase()} (${fechaInicio} al ${fechaFin})${diasSinClasesNota ? ' — ' + diasSinClasesNota : ''}`, margins.left + 4, 32);
-      if (selectedSexo) doc.text(`Filtro Sexo: ${selectedSexo === 'M' ? 'Masculino' : 'Femenino'}`, margins.left + 4, 37);
 
-      let headers: string[], body: any[][];
-      if (periodo === "diario") {
-        headers = ["Estudiante", "Sexo", "Estado", "Observación"];
-        const n = reporteFiltrado.length;
-        body = reporteFiltrado.map((est, i) => {
-          // Día sin clases: la columna Estado se combina en una sola celda
-          // con el motivo, en vez de repetirlo por estudiante.
-          let estadoCell: any;
-          if (hoySinClases) {
-            estadoCell = i === 0 && n > 0
-              ? { content: `SIN CLASES\n${motivoSinClases(fechaInicio)}`, rowSpan: n, styles: { halign: 'center', valign: 'middle', fontStyle: 'bold', textColor: [245, 158, 11], minCellHeight: 10 } }
-              : '';
-          } else {
-            estadoCell = getEstadoEnFecha(est, fechaInicio) === '-' ? 'Sin registro' : getEstadoEnFecha(est, fechaInicio);
-          }
-          return [est.nombre, est.sexo, estadoCell, getObservacionEnFecha(est, fechaInicio)];
-        });
-      } else {
-        const fechasCols = getFechasUnicas();
-        headers = ["Estudiante", "Sexo", ...fechasCols.map(f => f.split('-').slice(1).reverse().join('/')), "P", "A", "J"];
-        body = reporteFiltrado.map(est => {
-          const p = est.fechas.filter(f => f.endsWith(':P')).length;
-          const a = est.fechas.filter(f => f.endsWith(':A')).length;
-          const j = est.fechas.filter(f => f.endsWith(':J')).length;
-          return [est.nombre, est.sexo, ...fechasCols.map(f => getEstadoEnFecha(est, f)), p, a, j];
-        });
+  interface ParAsistencia {
+    colegioId: number; colegioNombre: string;
+    gradoId: number; gradoNombre: string;
+    seccionId: number; seccionNombre: string;
+  }
+
+  let exportandoMasivo = $state(false);
+  let progresoMasivo = $state('');
+
+  /**
+   * Un solo PDF con una hoja por cada grado/seccion.
+   * - alcance 'colegio' (boton PDF): todos los grados del colegio filtrado.
+   * - alcance 'todos'   (boton Exportar Todo): todos los colegios del ano lectivo.
+   */
+  async function exportarPdfAsistencia(alcance: 'colegio' | 'todos') {
+    const esTodos = alcance === 'todos';
+    if (!selectedAno || !fechaInicio || !fechaFin) {
+      await emit("show-toast", { message: "⚠️ Seleccione año y período", type: 'warning' });
+      return;
+    }
+    if (!esTodos && !selectedColegio) {
+      await emit("show-toast", { message: "⚠️ Seleccione un colegio", type: 'warning' });
+      return;
+    }
+
+    try {
+      exportandoMasivo = true;
+      progresoMasivo = 'Preparando...';
+
+      const colegiosScope: CategoryItem[] = esTodos ? colegios : colegios.filter(c => c.id === selectedColegio);
+      if (colegiosScope.length === 0) {
+        await emit("show-toast", { message: "⚠️ No hay colegios para exportar", type: 'warning' });
+        exportandoMasivo = false;
+        return;
       }
 
-      autoTable(doc, {
-        startY: selectedSexo ? 42 : 37,
-        margin: { top: margins.top, bottom: margins.bottom, left: margins.left, right: margins.right },
-        head: [headers], body,
-        styles: { fontSize: 8, cellPadding: 1 },
-        headStyles: { fillColor: [16, 185, 129] },
-        didParseCell: (data: any) => {
-          if (data.section === 'body') {
-            const val = String(data.cell.raw);
-            if (val === 'P') data.cell.styles.textColor = [16, 185, 129];
-            if (val === 'A') data.cell.styles.textColor = [239, 68, 68];
-            if (val === 'J') data.cell.styles.textColor = [155, 89, 182];
+      const pares: ParAsistencia[] = [];
+      for (const col of colegiosScope) {
+        const gradosList: CategoryItem[] = await invoke("get_grados_by_colegio", { colegioId: col.id, anoLectivoId: Number(selectedAno) });
+        for (const grado of gradosList) {
+          const seccionesList: CategoryItem[] = await invoke("get_secciones_by_grado_colegio", { gradoId: grado.id, colegioId: col.id, anoLectivoId: Number(selectedAno) });
+          for (const sec of seccionesList) {
+            pares.push({
+              colegioId: col.id, colegioNombre: col.nombre,
+              gradoId: grado.id!, gradoNombre: grado.nombre,
+              seccionId: sec.id!, seccionNombre: sec.nombre,
+            });
           }
         }
-      });
+      }
+      if (pares.length === 0) {
+        await emit("show-toast", { message: "⚠️ No se encontraron grados con secciones", type: 'warning' });
+        exportandoMasivo = false;
+        return;
+      }
 
-      const pdfData = doc.output('arraybuffer');
-      const fileName = `Asistencia_${gradoNombre}_${seccionNombre}_${fechaInicio}.pdf`;
+      const configCache = new Map<number, ColegioDiasAsistencia | null>();
+      const tablas: TablaAsistenciaPdf[] = [];
+
+      for (let i = 0; i < pares.length; i++) {
+        const p = pares[i];
+        progresoMasivo = `${i + 1}/${pares.length} - ${p.gradoNombre} Seccion ${p.seccionNombre}`;
+
+        if (!configCache.has(p.colegioId)) {
+          try { configCache.set(p.colegioId, await invoke<ColegioDiasAsistencia>("get_colegio_dias_asistencia", { colegioId: p.colegioId })); }
+          catch { configCache.set(p.colegioId, null); }
+        }
+        const cfg = configCache.get(p.colegioId) || null;
+        const sinClases: DiaSinClase[] = await invoke<DiaSinClase[]>("get_dias_sin_clases", {
+          colegioId: p.colegioId, gradoId: p.gradoId, seccionId: p.seccionId, fechaInicio, fechaFin,
+        }).catch(() => [] as DiaSinClase[]);
+
+        const estudiantes: AsistenciaReporteItem[] = await invoke("get_asistencia_rango", {
+          fechaInicio, fechaFin, anoLectivoId: Number(selectedAno),
+          colegioId: p.colegioId, gradoId: p.gradoId, seccionId: p.seccionId,
+        });
+        const filas = selectedSexo ? estudiantes.filter(e => e.sexo === selectedSexo) : estudiantes;
+        if (filas.length === 0) continue;
+
+        const notaSinClases = sinClases
+          .filter(d => d.fecha >= fechaInicio && d.fecha <= fechaFin)
+          .map(d => `${fmtDM(d.fecha)} (${d.descripcion})`).join(', ');
+
+        if (periodo === 'diario') {
+          const sinClasesHoy = sinClases.some(d => d.fecha === fechaInicio);
+          const motivo = sinClases.find(d => d.fecha === fechaInicio)?.descripcion || 'Sin clases';
+          tablas.push({
+            titulo: `${p.gradoNombre} - Sección ${p.seccionNombre}`,
+            subtitulo: p.colegioNombre,
+            layout: 'diario',
+            headers: ["Estudiante", "Sexo", "Estado", "Observación"],
+            body: filas.map(est => [
+              est.nombre,
+              est.sexo,
+              sinClasesHoy ? '' : (getEstadoEnFecha(est, fechaInicio) === '-' ? 'Sin registro' : getEstadoEnFecha(est, fechaInicio)),
+              getObservacionEnFecha(est, fechaInicio),
+            ]),
+            combinada: sinClasesHoy ? { indice: 2, texto: `SIN CLASES\n${motivo}` } : undefined,
+          });
+        } else {
+          const fechasCols = columnasDePeriodo(cfg, sinClases);
+          tablas.push({
+            titulo: `${p.gradoNombre} - Sección ${p.seccionNombre}`,
+            subtitulo: p.colegioNombre,
+            layout: 'fechas',
+            headers: ["Estudiante", "Sexo", ...fechasCols.map(f => f.split('-').slice(1).reverse().join('/')), "P", "A", "J"],
+            body: filas.map(est => {
+              const estados = fechasCols.map(f => getEstadoEnFecha(est, f));
+              const cuenta = (e: string) => estados.filter(x => x === e).length;
+              return [est.nombre, est.sexo, ...estados, cuenta('P'), cuenta('A'), cuenta('J')];
+            }),
+            nota: notaSinClases || undefined,
+          });
+        }
+      }
+
+      if (tablas.length === 0) {
+        await emit("show-toast", { message: "⚠️ No se encontraron estudiantes en el período", type: 'warning' });
+        exportandoMasivo = false;
+        return;
+      }
+
+      progresoMasivo = 'Generando PDF...';
+      const anoNombre = anos.find(a => a.id === selectedAno)?.nombre || String(selectedAno);
+      const sanitize = (s: string) => s.replace(/[<>:"/\\|?*]/g, '_');
+      const lineas = [`Periodo: ${periodo.toUpperCase()} (${fechaInicio} al ${fechaFin})`];
+      if (selectedSexo) lineas.push(`Sexo: ${selectedSexo === 'M' ? 'Masculino' : 'Femenino'}`);
+      lineas.push(`Secciones: ${tablas.length} · Año lectivo: ${anoNombre}`);
+
+      const bytes = await generarPdfAsistencia(
+        { titulo: esTodos ? 'Reporte de Asistencia - Todos los colegios' : 'Reporte de Asistencia', lineas },
+        tablas
+      );
+
       const docsPath = await documentDir();
-      const folderName = "SchoolTrackerPro";
+      const folderName = "School Tracker";
+      const subfolder = `${sanitize(anoNombre)} - Asistencia ${sanitize(periodo.toUpperCase())}`;
       const sep = isAndroid ? '/' : '\\';
-      const folderPath = docsPath + sep + folderName;
-      const filePath = folderPath + sep + fileName;
-      await mkdir(folderPath, { recursive: true }).catch(e => console.log("mkdir:", e));
-      await writeFile(filePath, new Uint8Array(pdfData));
-      const fPath = filePath.replace(/\\/g, '/');
+      const baseDir = docsPath + sep + folderName + sep + subfolder;
+      await mkdir(baseDir, { recursive: true }).catch(e => console.log("mkdir:", e));
+
+      const alcanceNombre = esTodos ? 'Todos_Colegios' : sanitize(colegios.find(c => c.id === selectedColegio)?.nombre || 'Colegio');
+      const fileName = `Asistencia_${alcanceNombre}_${periodo}_${fechaInicio}.pdf`;
+      const filePath = baseDir + sep + fileName;
+      await writeFile(filePath, bytes);
+
+      exportandoMasivo = false;
+      const destino = isAndroid ? "Descargas/School Tracker" : "Documents/School Tracker";
       if (isAndroid) {
-        try { await invoke('share_pdf', { path: fPath }); } catch { }
-        await emit("show-toast", { message: "✅ PDF guardado en Documents/SchoolTrackerPro", type: 'success' });
+        const ruta = await invoke<string>('guardar_en_descargas', {
+          path: filePath, mime: 'application/pdf', carpeta: `${folderName}/${subfolder}`, nombre: fileName,
+        }).catch(() => "");
+        if (ruta) {
+          try { await invoke('share_pdf', { path: ruta }); } catch { }
+          await emit("show-toast", { message: `✅ ${tablas.length} hojas en ${destino}/${subfolder}`, type: 'success' });
+        } else {
+          await emit("show-toast", { message: `✅ PDF en la app (no se pudo copiar a Descargas)`, type: 'warning' });
+        }
       } else {
-        await openUrl("file:///" + folderPath.replace(/\\/g, "/"));
-        await emit("show-toast", { message: "✅ PDF guardado en Documents/SchoolTrackerPro", type: 'success' });
+        await openUrl("file:///" + baseDir.replace(/\\/g, "/"));
+        await emit("show-toast", { message: `✅ ${tablas.length} hojas en ${destino}/${subfolder}`, type: 'success' });
       }
     } catch (error) {
-      console.error("Error al exportar PDF:", error);
+      console.error("Error al exportar PDF de asistencia:", error);
+      exportandoMasivo = false;
       await emit("show-toast", { message: "❌ Error al generar el PDF: " + (error instanceof Error ? error.message : String(error)), type: 'error' });
     }
+  }
+
+  /**
+   * Columnas de fechas del período para un grado/seccion: solo días hábiles del
+   * colegio y excluye los marcados como sin clases (no cuentan P/A/J).
+   */
+  function columnasDePeriodo(cfg: ColegioDiasAsistencia | null, sinClases: DiaSinClase[]): string[] {
+    if (periodo === 'diario') return [fechaBase];
+    const diasMap: Record<number, boolean> = {
+      0: cfg?.domingo ?? true, 1: cfg?.lunes ?? true, 2: cfg?.martes ?? true,
+      3: cfg?.miercoles ?? true, 4: cfg?.jueves ?? true, 5: cfg?.viernes ?? true, 6: cfg?.sabado ?? true,
+    };
+    const marcadas = new Set(sinClases.map(d => d.fecha));
+    const out: string[] = [];
+    const temp = new Date(fechaInicio + "T12:00:00");
+    const fin = new Date(fechaFin + "T12:00:00");
+    while (temp <= fin) {
+      const iso = getLocalDateISOString(temp);
+      if (diasMap[temp.getDay()] && !marcadas.has(iso)) out.push(iso);
+      temp.setDate(temp.getDate() + 1);
+    }
+    return out;
   }
 
   async function handlePrintWithIframe() {
@@ -886,15 +999,17 @@
                 Imprimir
               </button>
             {/if}
-            <button onclick={exportToPDF} disabled={reporteFiltrado.length === 0 || loading}
-              style="height:42px;padding:0 1.25rem;font-size:0.85rem;background:linear-gradient(135deg,#ef4444,#dc2626);display:flex;align-items:center;justify-content:center;flex-shrink:0;gap:8px;border:none;border-radius:8px;color:white;font-weight:700;cursor:pointer;transition:all 0.2s ease;box-shadow:0 2px 8px rgba(239,68,68,0.3);letter-spacing:0.3px;white-space:nowrap;transition:all 0.15s"
-              onmouseenter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
-              onmouseleave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-              onmousedown={(e) => e.currentTarget.style.transform = 'translateY(1px)'}
-              onmouseup={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
-              title="Exportar a PDF">
+            <button onclick={() => exportarPdfAsistencia('colegio')} disabled={exportandoMasivo || !selectedColegio || !selectedAno}
+              style="height:42px;padding:0 {isMobile ? '0.4rem' : '1rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background:linear-gradient(135deg,#ef4444,#dc2626);display:flex;align-items:center;justify-content:center;flex-shrink:0;gap:6px;border:none;border-radius:8px;color:white;font-weight:700;cursor:{exportandoMasivo || !selectedColegio || !selectedAno ? 'default' : 'pointer'};box-shadow:0 2px 8px rgba(239,68,68,0.3);white-space:nowrap;opacity:{exportandoMasivo || !selectedColegio || !selectedAno ? 0.7 : 1}"
+              title="PDF con una hoja por grado/sección del colegio filtrado">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-              PDF
+              {#if !isMobile}{exportandoMasivo ? progresoMasivo : 'PDF'}{/if}
+            </button>
+            <button onclick={() => exportarPdfAsistencia('todos')} disabled={exportandoMasivo || !selectedAno}
+              style="height:42px;padding:0 {isMobile ? '0.4rem' : '1rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background-color:#6366f1;display:flex;align-items:center;justify-content:center;flex-shrink:0;gap:6px;border:none;border-radius:8px;color:#fff;font-weight:700;cursor:{exportandoMasivo || !selectedAno ? 'default' : 'pointer'};box-shadow:0 4px 14px rgba(99,102,241,0.4);white-space:nowrap;opacity:{exportandoMasivo || !selectedAno ? 0.7 : 1}"
+              title="PDF con una hoja por grado/sección de todos los colegios del año">
+              📚
+              {#if !isMobile}Exportar Todo{/if}
             </button>
             <div style="flex:1;min-width:100px">
             </div>
