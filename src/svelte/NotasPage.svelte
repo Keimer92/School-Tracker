@@ -6,6 +6,7 @@
   import { onDataChange } from "../lib/autoSync";
   import { loadAppSettings, onAppSettingsChange } from "../lib/appSettings";
   import FilterContainer from "./FilterContainer.svelte";
+  import BotonMod from "./BotonMod.svelte";
   import FilterGroup from "./FilterGroup.svelte";
   import SearchFab from "./SearchFab.svelte";
   import FiltersModalAndroid from "./FiltersModalAndroid.svelte";
@@ -289,20 +290,6 @@
     }
     return n;
   });
-
-  /** Paletas de los botones (glass): cada acción conserva su color de acento. */
-  const TONO = {
-    azul: { a: 'rgba(14,165,233,0.5)', bg: 'linear-gradient(135deg,rgba(14,165,233,0.26),rgba(56,189,248,0.2))', txt: '#e0f2fe', chip: 'rgba(14,165,233,0.4)', chitxt: '#bae6fd', sub: '#7dd3fc', sh: '0 6px 18px rgba(14,165,233,0.26)' },
-    rojo: { a: 'rgba(248,113,113,0.5)', bg: 'linear-gradient(135deg,rgba(244,63,94,0.26),rgba(251,146,60,0.2))', txt: '#ffe4e6', chip: 'rgba(244,63,94,0.4)', chitxt: '#fecdd3', sub: '#fda4af', sh: '0 6px 18px rgba(225,29,72,0.26)' },
-    ambar: { a: 'rgba(251,191,36,0.5)', bg: 'linear-gradient(135deg,rgba(245,158,11,0.26),rgba(251,191,36,0.18))', txt: '#fef3c7', chip: 'rgba(245,158,11,0.4)', chitxt: '#fde68a', sub: '#fcd34d', sh: '0 6px 18px rgba(245,158,11,0.26)' },
-    violeta: { a: 'rgba(167,139,250,0.5)', bg: 'linear-gradient(135deg,rgba(139,92,246,0.26),rgba(56,189,248,0.2))', txt: '#ede9fe', chip: 'rgba(139,92,246,0.4)', chitxt: '#ddd6fe', sub: '#c4b5fd', sh: '0 6px 18px rgba(139,92,246,0.26)' },
-    verde: { a: 'rgba(52,211,153,0.5)', bg: 'linear-gradient(135deg,rgba(16,185,129,0.26),rgba(34,197,94,0.2))', txt: '#d1fae5', chip: 'rgba(16,185,129,0.4)', chitxt: '#a7f3d0', sub: '#6ee7b7', sh: '0 6px 18px rgba(16,185,129,0.26)' },
-  } as const;
-  type Tono = keyof typeof TONO;
-  function tonoBoton(t: Tono): string {
-    const c = TONO[t];
-    return `--b-accent:${c.a};--b-bg:${c.bg};--b-txt:${c.txt};--b-chip:${c.chip};--b-chitxt:${c.chitxt};--b-sub:${c.sub};--b-shadow:${c.sh}`;
-  }
 
   let inputsRef = new Map<string, HTMLInputElement>();
   let cellSnapshot: Record<string, string> | null = null;
@@ -1856,16 +1843,6 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
 
 <div class="page-container notas-page-root" style="height: 100%; min-height: 0;">
   <div class="category-grid" style="display: flex; flex-direction: column; height: 100%;">
-    {#snippet botonNota(o: { onclick: () => void; disabled: boolean; icono: string; etiqueta: string; sub: string; tono: Tono; title: string; compacto?: boolean })}
-      <button type="button" class="btn-mod" onclick={o.onclick} disabled={o.disabled} title={o.title}
-        style={tonoBoton(o.tono) + (o.compacto || isMobile ? ';padding:0 0.55rem' : '')}>
-        <span class="chip">{o.icono}</span>
-        <span class="txt">
-          <span>{o.etiqueta}</span>
-          <span class="sub">{o.sub}</span>
-        </span>
-      </button>
-    {/snippet}
     <div style="{isAndroid && isMobile ? 'position: sticky; top: 0; z-index: 50; background: #0f172a; padding-bottom: 0.2rem; margin-bottom: 0.3rem;' : ''}">
       <FiltersModalAndroid
         bind:open={showFiltersModal}
@@ -1962,14 +1939,14 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
         </FilterGroup>
 
           <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '0 0 auto'};{isMobile ? 'overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;' : ''}">
-            {@render botonNota({
+            <BotonMod opts={{
               onclick: () => { showInstrumentosModal = true; console.debug('[Instrumentos] abrir modal'); },
               disabled: indicadores.length === 0,
               icono: '📋', etiqueta: 'Instrumentos', tono: 'azul',
               sub: `${activeIndicadores.length} de ${indicadores.length} activos`,
               title: 'Instrumentos de evaluación',
-            })}
-            {@render botonNota({
+            }} />
+            <BotonMod opts={{
               onclick: () => {
                 if (!selectedCorte || !selectedAsignatura) { emit("show-toast", { message: "⚠️ Seleccione un corte y asignatura primero", type: "warning" }); return; }
                 deleteMode = 'all'; deleteStudentId = 0; deleteIndicatorId = 0; showDeleteModal = true;
@@ -1978,33 +1955,33 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
               icono: '🗑️', etiqueta: 'Eliminar', tono: 'rojo',
               sub: `${filteredNotas.length} notas`,
               title: 'Eliminar notas',
-            })}
-            {@render botonNota({
+            }} />
+            <BotonMod opts={{
               onclick: undo, disabled: history.length === 0,
               icono: '↩️', etiqueta: 'Deshacer', tono: 'ambar',
               sub: history.length === 0 ? 'Sin cambios' : `${history.length} en historial`,
               title: 'Deshacer (Ctrl+Z)',
-            })}
-            {@render botonNota({
+            }} />
+            <BotonMod opts={{
               onclick: redo, disabled: redoStack.length === 0,
               icono: '↪️', etiqueta: 'Rehacer', tono: 'ambar',
               sub: redoStack.length === 0 ? 'Nada que rehacer' : `${redoStack.length} por rehacer`,
               title: 'Rehacer (Ctrl+Y)',
-            })}
-            {@render botonNota({
+            }} />
+            <BotonMod opts={{
               onclick: () => { distribuirTargets = {}; distribuirOverwrite = true; showDistribuirModal = true; },
               disabled: activeIndicadores.length === 0 || filteredNotas.length === 0,
               icono: '✨', etiqueta: 'Distribuir', tono: 'violeta',
               sub: `Reparto de ${activeIndicadores.length} activos`,
               title: 'Distribuir notas automáticamente',
-            })}
-            {@render botonNota({
+            }} />
+            <BotonMod opts={{
               onclick: handleGuardarNotas,
               disabled: !hasUnsavedChanges || saving || estudiantes.length === 0,
               icono: saving ? '⏳' : '💾', etiqueta: saving ? 'Guardando' : 'Guardar', tono: 'verde',
               sub: saving ? 'Escribiendo en la BD' : (hasUnsavedChanges ? `${cambiosPendientes} cambios` : 'Sin cambios'),
               title: 'Guardar Notas (Ctrl+G)',
-            })}
+            }} />
           </div>
 
       </FilterContainer>
@@ -2025,14 +2002,14 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           </button>
         </div>
         <div class="category-card" style="padding: 0.5rem; margin-top: 0.3rem; display:flex;gap:0.3rem;align-items:center;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;">
-          {@render botonNota({
+          <BotonMod opts={{
             onclick: () => { showInstrumentosModal = true; console.debug('[Instrumentos] abrir modal'); },
             disabled: indicadores.length === 0,
             icono: '📋', etiqueta: 'Instrumentos', tono: 'azul',
             sub: `${activeIndicadores.length}/${indicadores.length} activos`,
-            title: 'Instrumentos de evaluación', compacto: true,
-          })}
-          {@render botonNota({
+            title: 'Instrumentos de evaluación', compacto: true
+          }} />
+          <BotonMod opts={{
             onclick: () => {
               if (!selectedCorte || !selectedAsignatura) { emit("show-toast", { message: "⚠️ Seleccione un corte y asignatura primero", type: "warning" }); return; }
               deleteMode = 'all'; deleteStudentId = 0; deleteIndicatorId = 0; showDeleteModal = true;
@@ -2040,34 +2017,34 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             disabled: estudiantes.length === 0,
             icono: '🗑️', etiqueta: 'Eliminar', tono: 'rojo',
             sub: `${filteredNotas.length} notas`,
-            title: 'Eliminar notas', compacto: true,
-          })}
-          {@render botonNota({
+            title: 'Eliminar notas', compacto: true
+          }} />
+          <BotonMod opts={{
             onclick: undo, disabled: history.length === 0,
             icono: '↩️', etiqueta: 'Deshacer', tono: 'ambar',
             sub: history.length === 0 ? 'Sin cambios' : `${history.length} en historial`,
-            title: 'Deshacer (Ctrl+Z)', compacto: true,
-          })}
-          {@render botonNota({
+            title: 'Deshacer (Ctrl+Z)', compacto: true
+          }} />
+          <BotonMod opts={{
             onclick: redo, disabled: redoStack.length === 0,
             icono: '↪️', etiqueta: 'Rehacer', tono: 'ambar',
             sub: redoStack.length === 0 ? 'Nada que rehacer' : `${redoStack.length} por rehacer`,
-            title: 'Rehacer (Ctrl+Y)', compacto: true,
-          })}
-          {@render botonNota({
+            title: 'Rehacer (Ctrl+Y)', compacto: true
+          }} />
+          <BotonMod opts={{
             onclick: () => { distribuirTargets = {}; distribuirOverwrite = true; showDistribuirModal = true; },
             disabled: activeIndicadores.length === 0 || filteredNotas.length === 0,
             icono: '✨', etiqueta: 'Distribuir', tono: 'violeta',
             sub: `Reparto de ${activeIndicadores.length} activos`,
-            title: 'Distribuir notas automáticamente', compacto: true,
-          })}
-          {@render botonNota({
+            title: 'Distribuir notas automáticamente', compacto: true
+          }} />
+          <BotonMod opts={{
             onclick: handleGuardarNotas,
             disabled: !hasUnsavedChanges || saving || estudiantes.length === 0,
             icono: saving ? '⏳' : '💾', etiqueta: saving ? 'Guardando' : 'Guardar', tono: 'verde',
             sub: saving ? 'Escribiendo en la BD' : (hasUnsavedChanges ? `${cambiosPendientes} cambios` : 'Sin cambios'),
-            title: 'Guardar Notas (Ctrl+G)', compacto: true,
-          })}
+            title: 'Guardar Notas (Ctrl+G)', compacto: true
+          }} />
         </div>
       {/if}
 
