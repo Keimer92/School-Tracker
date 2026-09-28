@@ -5,6 +5,7 @@
   import { join, tempDir, documentDir } from "@tauri-apps/api/path";
   import { writeFile, mkdir } from "@tauri-apps/plugin-fs";
   import { openUrl } from "@tauri-apps/plugin-opener";
+  import { generarPdfNotas } from "../lib/notasPdf";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
   import SearchFab from "./SearchFab.svelte";
@@ -185,11 +186,6 @@
     return getNoteColor(score, label, totalPuntajeMaximoConfig);
   }
 
-  function hexToRgb(hex: string): [number, number, number] {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)] : [0, 0, 0];
-  }
-
   let selectedNames = $derived.by(() => {
     let corteNombre = cortes.find(c => c.id === selectedCorte)?.nombre || "";
     if (specialCorte === "1S") corteNombre = "1er Semestre";
@@ -287,21 +283,73 @@
    * del global que aplica el backend). Devuelve null si el backend no
    * responde, para poder seguir con el `activo` global en vez de vaciar el
    * reporte. OJO: no usar `untrack` fuera de un efecto; aqui es una lectura normal.
+   *
+   * `corteId` es EXPLICITO a propósito. Antes usaba `selectedCorte`, que vale 0
+   * cuando hay un corte agregado seleccionado (1S/2S/NF): la consulta volvía
+   * vacía y el reporte sumaba todos los indicadores en vez de los activos,
+   * descuadrando el máximo de puntos.
    */
-  async function idsActivosDe(colegioId: number, seccionId: number, gradoId: number): Promise<number[] | null> {
+  async function idsActivosDe(colegioId: number, seccionId: number, gradoId: number, corteId: number): Promise<number[] | null> {
     if (colegioId <= 0 || seccionId <= 0 || gradoId <= 0) return null;
+    if (corteId <= 0) return null;
     try {
       return await invoke<number[]>('get_indicadores_activos_colegio_seccion', {
         colegioId,
         seccionId,
         gradoId,
         asignaturaId: selectedAsignatura,
-        corteEvaluativoId: selectedCorte
+        corteEvaluativoId: corteId
       });
     } catch (e) {
       console.error('[Reportes] No se pudieron cargar los indicadores activos:', e);
       return null;
     }
+  }
+
+  /**
+   * Unión de los indicadores activos de los cortes que cubre el reporte.
+   *
+   * Cada corte tiene sus PROPIOS indicadores (ids distintos), así que en un
+   * semestre entran los activos del 1er más los del 2do. El máximo de puntos
+   * del reporte se recalcula a partir de ese conjunto (ver `maxPtsPar`), por
+   * lo que un semestre puede legítimamente sumar 200 pts.
+   *
+   * Si ningún corte devuelve datos, se mantiene null para que el llamador use
+   * el fallback por el flag `activo` global, como antes.
+   */
+  async function idsActivosDeCortes(
+    colegioId: number, seccionId: number, gradoId: number, cortesIds: number[]
+  ): Promise<number[] | null> {
+    if (cortesIds.length === 1) return idsActivosDe(colegioId, seccionId, gradoId, cortesIds[0]);
+    const porCorte = await Promise.all(
+      cortesIds.map(cId => idsActivosDe(colegioId, seccionId, gradoId, cId))
+    );
+    if (porCorte.every(r => r === null)) return null;
+    const union = new Set<number>();
+    for (const r of porCorte) if (r) for (const id of r) union.add(id);
+    return Array.from(union);
+  }
+
+  /**
+   * Cortes que abarca el reporte: uno solo, o los que componen el agregado
+   * elegido (1S = 1er+2do, 2S = 3er+4to, NF = todos).
+   *
+   * Estaba duplicado literalmente en `fetchReporte` y en `exportarPdfs`; ahora
+   * hay una sola definición y ambos caminos comparten la misma lógica.
+   */
+  function resolverCortesIds(): number[] {
+    if (specialCorte === "1S") {
+      const c1 = cortes.find(c => c.nombre.toLowerCase().includes("1er"))?.id;
+      const c2 = cortes.find(c => c.nombre.toLowerCase().includes("2do"))?.id;
+      return [c1, c2].filter((x): x is number => !!x);
+    }
+    if (specialCorte === "2S") {
+      const c3 = cortes.find(c => c.nombre.toLowerCase().includes("3er"))?.id;
+      const c4 = cortes.find(c => c.nombre.toLowerCase().includes("4to"))?.id;
+      return [c3, c4].filter((x): x is number => !!x);
+    }
+    if (specialCorte === "NF") return cortes.map(c => c.id);
+    return selectedCorte > 0 ? [selectedCorte] : [];
   }
 
   async function fetchInitialCatalogs() {
@@ -372,17 +420,7 @@
 
   async function fetchReporte(lid: number) {
     try {
-      let cortesIds: number[] = [];
-      if (specialCorte === "1S") {
-        const c1 = cortes.find(c => c.nombre.toLowerCase().includes("1er"))?.id;
-        const c2 = cortes.find(c => c.nombre.toLowerCase().includes("2do"))?.id;
-        if (c1) cortesIds.push(c1); if (c2) cortesIds.push(c2);
-      } else if (specialCorte === "2S") {
-        const c3 = cortes.find(c => c.nombre.toLowerCase().includes("3er"))?.id;
-        const c4 = cortes.find(c => c.nombre.toLowerCase().includes("4to"))?.id;
-        if (c3) cortesIds.push(c3); if (c4) cortesIds.push(c4);
-      } else if (specialCorte === "NF") { cortesIds = cortes.map(c => c.id); }
-      else { cortesIds = [selectedCorte]; }
+      const cortesIds = resolverCortesIds();
       if (cortesIds.length === 0) throw new Error("No se pudieron determinar los cortes evaluativos.");
 
       const indicadoresArrays = await Promise.all(cortesIds.map(cId =>
@@ -415,10 +453,11 @@
         return;
       }
 
-      // Que indicators suman depende del COLEGIO y la SECCION: se resuelve aqui
-      // y se sobrescribe `activo` para que todo lo de abajo (totales, colores,
-      // columnas) use el mismo criterio que NotasPage.
-      const idsSec = await idsActivosDe(selectedColegio, selectedSeccion, selectedGrado);
+      // Que indicators suman depende del COLEGIO, la SECCION y el CORTE. Con un
+      // corte agregado se resuelve la unión de los activos de cada corte (ver
+      // `idsActivosDeCortes`) y se sobrescribe `activo` para que todo lo de abajo
+      // (totales, colores, columnas) use el mismo criterio que NotasPage.
+      const idsSec = await idsActivosDeCortes(selectedColegio, selectedSeccion, selectedGrado, cortesIds);
       const indicadores: Indicador[] = (idsSec && idsSec.length > 0)
         ? indicadoresBase.map(i => ({ ...i, activo: idsSec.includes(i.id) }))
         : indicadoresBase;
@@ -554,18 +593,8 @@
         : "⚠️ Seleccione colegio, año y asignatura", type: 'warning' });
       return;
     }
-    let cortesIds: number[] = [];
-    if (specialCorte === "1S") {
-      const c1 = cortes.find(c => c.nombre.toLowerCase().includes("1er"))?.id;
-      const c2 = cortes.find(c => c.nombre.toLowerCase().includes("2do"))?.id;
-      if (c1) cortesIds.push(c1); if (c2) cortesIds.push(c2);
-    } else if (specialCorte === "2S") {
-      const c3 = cortes.find(c => c.nombre.toLowerCase().includes("3er"))?.id;
-      const c4 = cortes.find(c => c.nombre.toLowerCase().includes("4to"))?.id;
-      if (c3) cortesIds.push(c3); if (c4) cortesIds.push(c4);
-    } else if (specialCorte === "NF") { cortesIds = cortes.map(c => c.id); }
-    else { cortesIds = [selectedCorte]; }
-    if (cortesIds.length === 0 || (cortesIds.length === 1 && cortesIds[0] === 0)) {
+    let cortesIds = resolverCortesIds();
+    if (cortesIds.length === 0) {
       await emit("show-toast", { message: "⚠️ Seleccione un corte evaluativo", type: 'warning' });
       return;
     }
@@ -649,9 +678,11 @@
           }
         }
 
-        // SOLO los indicadores que suman en este colegio + seccion. Antes se
-        // sumaban los 8 y el maximo de pts salia mal (160 en vez de 100).
-        const idsSec = await idsActivosDe(pair.colegioId, pair.seccionId, pair.gradoId);
+        // SOLO los indicadores que suman en este colegio + seccion (+ los de
+        // cada corte cuando el reporte es un agregado). Antes se sumaban los 8 y
+        // el maximo de pts salia mal (160 en vez de 100); con cortes agregados
+        // además se consultaba `selectedCorte`, que vale 0 en 1S/2S/NF.
+        const idsSec = await idsActivosDeCortes(pair.colegioId, pair.seccionId, pair.gradoId, cortesIds);
         const indicadores = (idsSec && idsSec.length > 0)
           ? todosIndicadores.filter(i => idsSec.includes(i.id))
           : todosIndicadores.filter(i => i.activo);
@@ -688,55 +719,13 @@
           return { ...est, notaFinal, notaFinalQual };
         });
 
-        const { default: jsPDF } = await import("jspdf");
-        const { default: autoTable } = await import("jspdf-autotable");
-        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
-        const date = new Date().toLocaleDateString();
-        const margins = { top: 10, bottom: 10, left: 10, right: 10 };
-        doc.setFont("helvetica", "bold"); doc.setFontSize(16);
-        doc.text(`Notas ${pair.colegioNombre}`, doc.internal.pageSize.getWidth() / 2, 15, { align: "center" });
-        doc.setFontSize(10); doc.setTextColor(0);
-        const filterInfo = [
-          ["Grado:", pair.gradoNombre, "Sección:", pair.seccionNombre],
-          ["Asignatura:", names.asignatura, "Corte:", names.corte],
-          ["Año Lectivo:", names.ano, "Fecha:", date],
-        ];
-        let yPos = 25;
-        filterInfo.forEach(row => {
-          doc.setFont("helvetica", "bold"); doc.text(row[0], margins.left + 10, yPos);
-          doc.setFont("helvetica", "normal"); doc.text(row[1], margins.left + 35, yPos);
-          doc.setFont("helvetica", "bold"); doc.text(row[2], doc.internal.pageSize.getWidth() / 2 + 5, yPos);
-          doc.setFont("helvetica", "normal"); doc.text(row[3], doc.internal.pageSize.getWidth() / 2 + 30, yPos);
-          yPos += 6;
-        });
+        const colorDeFila = (i: number) => {
+          const est = reporteData[i];
+          const colorHex = (!est.notaFinalQual || est.notaFinalQual === "-") ? undefined
+            : getNoteColor(est.notaFinal, est.notaFinalQual, maxPtsPar);
+          return colorHex;
+        };
 
-        const tableHeaders = ["Estudiante", "Sexo", "Nota Final"];
-        const tableRows = reporteData.map((est: any) => [
-          est.nombre, est.sexo,
-          (!est.notaFinalQual || est.notaFinalQual === "-") ? "-"
-            : esCualitativo ? est.notaFinalQual
-              : `${Math.round(est.notaFinal)}${est.notaFinalQual ? ` (${est.notaFinalQual})` : ''}`
-        ]);
-
-        autoTable(doc, {
-          startY: yPos + 5, margin: { top: margins.top, bottom: margins.bottom, left: margins.left, right: margins.right },
-          head: [tableHeaders], body: tableRows, theme: 'grid',
-          headStyles: { fillColor: [107, 114, 128], textColor: 255, fontStyle: 'bold' },
-          styles: { fontSize: 8, cellPadding: 2 },
-          columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 15, halign: 'center' } },
-          didParseCell: (data: any) => {
-            if (data.section === 'body' && data.column.index === 2) {
-              const est = reporteData[data.row.index];
-              const colorHex = (!est.notaFinalQual || est.notaFinalQual === "-") ? "#64748b"
-                : getNoteColor(est.notaFinal, est.notaFinalQual, maxPtsPar);
-              const [r, g, b] = hexToRgb(colorHex);
-              data.cell.styles.textColor = [r, g, b];
-              data.cell.styles.fontStyle = 'bold';
-            }
-          }
-        });
-
-        const finalY = (doc as any).lastAutoTable.finalY + 10;
         const conNotas = reporteData.filter((e: any) => e.notaFinal >= 0);
         let promedioText = "-";
         if (conNotas.length > 0) {
@@ -747,10 +736,28 @@
             promedioText = `${Math.round(prom)}${lblProm ? ` (${lblProm})` : ''}`;
           }
         }
-        doc.setFontSize(11); doc.text(`Total Estudiantes: ${reporteData.length}`, margins.left + 10, finalY);
-        doc.text(`Promedio Grupal: ${promedioText}`, doc.internal.pageSize.getWidth() / 2 + 15, finalY);
 
-        const pdfData = doc.output('arraybuffer');
+        // Generador COMPARTIDO con el reporte de asistencia: mismo lenguaje
+        // visual (barra de acento, chips, encabezados verdes, pie paginado).
+        const pdfData = await generarPdfNotas({
+          colegio: pair.colegioNombre,
+          grado: pair.gradoNombre,
+          seccion: pair.seccionNombre,
+          asignatura: names.asignatura,
+          corte: names.corte,
+          ano: names.ano,
+          cualitativo: esCualitativo,
+          totalEstudiantes: reporteData.length,
+          promedio: promedioText,
+          filas: reporteData.map((est: any, i: number) => ({
+            nombre: est.nombre,
+            sexo: est.sexo,
+            nota: (!est.notaFinalQual || est.notaFinalQual === "-") ? "-"
+              : esCualitativo ? est.notaFinalQual
+                : `${Math.round(est.notaFinal)}${est.notaFinalQual ? ` (${est.notaFinalQual})` : ''}`,
+            color: colorDeFila(i),
+          })),
+        });
         const fileName = `Notas ${sanitize(pair.colegioNombre)} ${sanitize(pair.gradoNombre)} - Seccion ${sanitize(pair.seccionNombre)}.pdf`;
         const fullPath = baseDir + sep + fileName;
         await writeFile(fullPath, new Uint8Array(pdfData));
