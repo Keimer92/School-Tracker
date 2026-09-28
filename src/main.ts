@@ -27,6 +27,23 @@ const init = async () => {
     document.addEventListener("touchmove", bloquearMultitouch, { passive: false, capture: true });
   }
 
+  // Bloquea la selección/copia accidental en la interfaz. El CSS (App.css)
+  // desactiva la selección, pero no el menú contextual del clic derecho ni el
+  // arrastre de texto, que hay que cortar por JS. Se exceptúan los campos
+  // editables para no impedir pegar un valor con Ctrl+V.
+  const esEditable = (el: EventTarget | null) =>
+    !!(el as HTMLElement | null)?.closest?.('input, textarea, [contenteditable="true"]');
+
+  document.addEventListener("selectstart", (e) => {
+    if (!esEditable(e.target)) e.preventDefault();
+  });
+  document.addEventListener("contextmenu", (e) => {
+    if (!esEditable(e.target)) e.preventDefault();
+  });
+  document.addEventListener("dragstart", (e) => {
+    if (!esEditable(e.target)) e.preventDefault();
+  });
+
   if (currentWindow.label === 'google-login') {
     document.getElementById("root")!.innerHTML = `
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#0f172a;color:white;font-family:sans-serif;text-align:center;padding:20px;">

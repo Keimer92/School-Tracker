@@ -294,6 +294,69 @@
   let inputsRef = new Map<string, HTMLInputElement>();
   let cellSnapshot: Record<string, string> | null = null;
 
+  // ── Popover de acciones (Instrumentos / Eliminar / Distribuir) ──
+  // La barra de acciones quedaba muy apretada en horizontal, así que las tres
+  // acciones de infrequently se agruparon tras un único botón. Sigue el mismo
+  // patrón que el popover de indicador/criterio: anclaje por coordenadas,
+  // cierre al pulsar fuera (pointerdown), Escape, resize y back de Android.
+  let popAcciones = $state<{ x: number; y: number; arriba: boolean } | null>(null);
+  let popAccionesTriggerEl = $state<HTMLElement | null>(null);
+  let popAccionesPanelEl = $state<HTMLDivElement | null>(null);
+
+  let popAccionesBtn = $state<HTMLElement | null>(null);
+
+  /**
+   * BotonMod invoca `onclick` sin argumentos, así que el anclaje se saca del
+   * botón enlazado con bind:this en lugar de del evento.
+   */
+  function togglePopAcciones() {
+    if (popAcciones) { cerrarPopAcciones(); return; }
+    popAccionesTriggerEl = popAccionesBtn;
+    const r = popAccionesBtn?.getBoundingClientRect();
+    // Si no cabe abajo (p. ej. barra pegada al borde inferior), abre hacia arriba.
+    const altoEstimado = 190;
+    const abreArriba = !!r && r.bottom + altoEstimado > window.innerHeight && r.top > altoEstimado;
+    popAcciones = {
+      x: r ? Math.round(r.left) : 0,
+      y: r ? Math.round(abreArriba ? r.top - altoEstimado - 4 : r.bottom + 4) : 0,
+      arriba: abreArriba,
+    };
+  }
+
+  function cerrarPopAcciones() {
+    popAcciones = null;
+    popAccionesTriggerEl = null;
+  }
+
+  /** Ejecuta una acción del popover y lo cierra. */
+  function accionPop(fn: () => void) {
+    cerrarPopAcciones();
+    fn();
+  }
+
+  $effect(() => {
+    if (!popAcciones) return;
+    const onPointerDown = (ev: PointerEvent) => {
+      const t = ev.target as Node | null;
+      if (t && (popAccionesPanelEl?.contains(t) || popAccionesTriggerEl?.contains(t))) return;
+      cerrarPopAcciones();
+    };
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') cerrarPopAcciones(); };
+    window.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('resize', cerrarPopAcciones);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', cerrarPopAcciones);
+    };
+  });
+
+  $effect(() => {
+    if (!popAcciones) return;
+    return registerBackHandler(() => { cerrarPopAcciones(); return true; });
+  });
+
   // ── Popovers de indicador y criterio (clic en la cabecera) ──
   type PopoverTipo = 'indicador' | 'criterio';
   interface PopoverAbierto {
@@ -1939,23 +2002,13 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
         </FilterGroup>
 
           <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '0 0 auto'};{isMobile ? 'overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;' : ''}">
-            <BotonMod opts={{
-              onclick: () => { showInstrumentosModal = true; console.debug('[Instrumentos] abrir modal'); },
-              disabled: indicadores.length === 0,
-              icono: '📋', etiqueta: 'Instrumentos', tono: 'azul',
-              sub: `${activeIndicadores.length} de ${indicadores.length} activos`,
-              title: 'Instrumentos de evaluación',
+            <BotonMod ref={popAccionesBtn} opts={{
+              onclick: togglePopAcciones,
+              icono: popAcciones ? '✕' : '⋯', etiqueta: 'Acciones', tono: 'violeta',
+              sub: `${activeIndicadores.length} activos · ${filteredNotas.length} notas`,
+              title: 'Instrumentos, distribuir y eliminar notas',
             }} />
-            <BotonMod opts={{
-              onclick: () => {
-                if (!selectedCorte || !selectedAsignatura) { emit("show-toast", { message: "⚠️ Seleccione un corte y asignatura primero", type: "warning" }); return; }
-                deleteMode = 'all'; deleteStudentId = 0; deleteIndicatorId = 0; showDeleteModal = true;
-              },
-              disabled: estudiantes.length === 0,
-              icono: '🗑️', etiqueta: 'Eliminar', tono: 'rojo',
-              sub: `${filteredNotas.length} notas`,
-              title: 'Eliminar notas',
-            }} />
+
             <BotonMod opts={{
               onclick: undo, disabled: history.length === 0,
               icono: '↩️', etiqueta: 'Deshacer', tono: 'ambar',
@@ -1967,13 +2020,6 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
               icono: '↪️', etiqueta: 'Rehacer', tono: 'ambar',
               sub: redoStack.length === 0 ? 'Nada que rehacer' : `${redoStack.length} por rehacer`,
               title: 'Rehacer (Ctrl+Y)',
-            }} />
-            <BotonMod opts={{
-              onclick: () => { distribuirTargets = {}; distribuirOverwrite = true; showDistribuirModal = true; },
-              disabled: activeIndicadores.length === 0 || filteredNotas.length === 0,
-              icono: '✨', etiqueta: 'Distribuir', tono: 'violeta',
-              sub: `Reparto de ${activeIndicadores.length} activos`,
-              title: 'Distribuir notas automáticamente',
             }} />
             <BotonMod opts={{
               onclick: handleGuardarNotas,
@@ -2002,23 +2048,13 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           </button>
         </div>
         <div class="category-card" style="padding: 0.5rem; margin-top: 0.3rem; display:flex;gap:0.3rem;align-items:center;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;">
-          <BotonMod opts={{
-            onclick: () => { showInstrumentosModal = true; console.debug('[Instrumentos] abrir modal'); },
-            disabled: indicadores.length === 0,
-            icono: '📋', etiqueta: 'Instrumentos', tono: 'azul',
-            sub: `${activeIndicadores.length}/${indicadores.length} activos`,
-            title: 'Instrumentos de evaluación', compacto: true
+          <BotonMod ref={popAccionesBtn} opts={{
+            onclick: togglePopAcciones,
+            icono: popAcciones ? '✕' : '⋯', etiqueta: 'Acciones', tono: 'violeta',
+            sub: `${activeIndicadores.length}/${indicadores.length} · ${filteredNotas.length}`,
+            title: 'Instrumentos, distribuir y eliminar notas', compacto: true
           }} />
-          <BotonMod opts={{
-            onclick: () => {
-              if (!selectedCorte || !selectedAsignatura) { emit("show-toast", { message: "⚠️ Seleccione un corte y asignatura primero", type: "warning" }); return; }
-              deleteMode = 'all'; deleteStudentId = 0; deleteIndicatorId = 0; showDeleteModal = true;
-            },
-            disabled: estudiantes.length === 0,
-            icono: '🗑️', etiqueta: 'Eliminar', tono: 'rojo',
-            sub: `${filteredNotas.length} notas`,
-            title: 'Eliminar notas', compacto: true
-          }} />
+
           <BotonMod opts={{
             onclick: undo, disabled: history.length === 0,
             icono: '↩️', etiqueta: 'Deshacer', tono: 'ambar',
@@ -2030,13 +2066,6 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             icono: '↪️', etiqueta: 'Rehacer', tono: 'ambar',
             sub: redoStack.length === 0 ? 'Nada que rehacer' : `${redoStack.length} por rehacer`,
             title: 'Rehacer (Ctrl+Y)', compacto: true
-          }} />
-          <BotonMod opts={{
-            onclick: () => { distribuirTargets = {}; distribuirOverwrite = true; showDistribuirModal = true; },
-            disabled: activeIndicadores.length === 0 || filteredNotas.length === 0,
-            icono: '✨', etiqueta: 'Distribuir', tono: 'violeta',
-            sub: `Reparto de ${activeIndicadores.length} activos`,
-            title: 'Distribuir notas automáticamente', compacto: true
           }} />
           <BotonMod opts={{
             onclick: handleGuardarNotas,
@@ -2451,6 +2480,60 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           </p>
         </div>
       {/if}
+    {/if}
+
+    <!-- Popover de acciones (Instrumentos / Eliminar / Distribuir) -->
+    {#if popAcciones}
+      <div
+        bind:this={popAccionesPanelEl}
+        role="menu"
+        style="position: fixed; z-index: 99995; left: {Math.max(8, Math.min(popAcciones.x, (typeof window !== 'undefined' ? window.innerWidth : 1920) - 250))}px; top: {popAcciones.y}px; width: 242px; background: rgba(20,24,31,0.97); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; box-shadow: 0 18px 40px -10px rgba(0,0,0,0.65); padding: 0.4rem; box-sizing: border-box; display: flex; flex-direction: column; gap: 3px;">
+
+        <button
+          role="menuitem" disabled={indicadores.length === 0}
+          onclick={() => accionPop(() => { showInstrumentosModal = true; })}
+          title="Instrumentos de evaluación"
+          style="width:100%;display:flex;align-items:center;gap:0.55rem;padding:0.5rem 0.55rem;border-radius:9px;border:1px solid rgba(96,165,250,0.22);background:rgba(96,165,250,0.08);color:#bfdbfe;cursor:pointer;text-align:left;transition:all 0.15s ease;opacity:{indicadores.length === 0 ? 0.45 : 1};"
+          onmouseenter={(e) => { e.currentTarget.style.background = 'rgba(96,165,250,0.16)'; }}
+          onmouseleave={(e) => { e.currentTarget.style.background = 'rgba(96,165,250,0.08)'; }}>
+          <span style="font-size:0.9rem;">📋</span>
+          <span style="flex:1;min-width:0;">
+            <span style="display:block;font-weight:700;font-size:0.76rem;">Instrumentos</span>
+            <span style="display:block;font-size:0.62rem;color:#94a3b8;">PDF y XLSX de los {activeIndicadores.length} de {indicadores.length} activos</span>
+          </span>
+        </button>
+
+        <button
+          role="menuitem" disabled={activeIndicadores.length === 0 || filteredNotas.length === 0}
+          onclick={() => accionPop(() => { distribuirTargets = {}; distribuirOverwrite = true; showDistribuirModal = true; })}
+          title="Distribuir notas automáticamente"
+          style="width:100%;display:flex;align-items:center;gap:0.55rem;padding:0.5rem 0.55rem;border-radius:9px;border:1px solid rgba(168,85,247,0.22);background:rgba(168,85,247,0.08);color:#e9d5ff;cursor:pointer;text-align:left;transition:all 0.15s ease;opacity:{activeIndicadores.length === 0 || filteredNotas.length === 0 ? 0.45 : 1};"
+          onmouseenter={(e) => { e.currentTarget.style.background = 'rgba(168,85,247,0.16)'; }}
+          onmouseleave={(e) => { e.currentTarget.style.background = 'rgba(168,85,247,0.08)'; }}>
+          <span style="font-size:0.9rem;">✨</span>
+          <span style="flex:1;min-width:0;">
+            <span style="display:block;font-weight:700;font-size:0.76rem;">Distribuir</span>
+            <span style="display:block;font-size:0.62rem;color:#94a3b8;">Reparto automático de {activeIndicadores.length} activos</span>
+          </span>
+        </button>
+
+        <button
+          role="menuitem" disabled={estudiantes.length === 0}
+          onclick={() => accionPop(() => {
+            if (!selectedCorte || !selectedAsignatura) { emit("show-toast", { message: "⚠️ Seleccione un corte y asignatura primero", type: "warning" }); return; }
+            deleteMode = 'all'; deleteStudentId = 0; deleteIndicatorId = 0; showDeleteModal = true;
+          })}
+          title="Eliminar notas"
+          style="width:100%;display:flex;align-items:center;gap:0.55rem;padding:0.5rem 0.55rem;border-radius:9px;border:1px solid rgba(239,68,68,0.22);background:rgba(239,68,68,0.08);color:#fecaca;cursor:pointer;text-align:left;transition:all 0.15s ease;opacity:{estudiantes.length === 0 ? 0.45 : 1};"
+          onmouseenter={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.16)'; }}
+          onmouseleave={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; }}>
+          <span style="font-size:0.9rem;">🗑️</span>
+          <span style="flex:1;min-width:0;">
+            <span style="display:block;font-weight:700;font-size:0.76rem;">Eliminar notas</span>
+            <span style="display:block;font-size:0.62rem;color:#94a3b8;">Borra las {filteredNotas.length} notas del filtro actual</span>
+          </span>
+        </button>
+      </div>
     {/if}
 
     <!-- Popover de indicador / criterio (anclado a la cabecera pulsada) -->

@@ -41,10 +41,10 @@
   let toast: { message: string; type: string; isOpen: boolean } = $state({ message: "", type: "info", isOpen: false });
   let unlisten: (() => void)[] = [];
   /** Sección de Ajustes Generales abierta (deep-link). */
-  let ajustesSeccion = $state<string>('notas');
+  let ajustesSeccion = $state<string>('evaluaciones');
 
   /** Sección que se abre al entrar a Ajustes sin deep-link. */
-  const SECCION_AJUSTES_POR_DEFECTO = 'notas';
+  const SECCION_AJUSTES_POR_DEFECTO = 'evaluaciones';
 
   /** Tabs que se reubicaron como secciones del rail de Ajustes. */
   const TAB_A_SECCION_AJUSTES: Record<string, string> = {

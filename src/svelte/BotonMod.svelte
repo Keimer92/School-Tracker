@@ -1,7 +1,7 @@
 <script lang="ts">
   import { tonoBoton, type Tono } from "../lib/botones";
 
-  let { opts }: {
+  let { opts, ref = undefined }: {
     opts: {
       onclick: () => void;
       disabled?: boolean;
@@ -12,6 +12,12 @@
       title?: string;
       compacto?: boolean;
     };
+    /**
+     * Referencia al <button> real. Necesaria cuando el consumidor ancla un
+     * popover a su botón: `onclick` no recibe el evento, así que sin esto no
+     * habría forma de conocer la posición en pantalla.
+     */
+    ref?: HTMLElement | null;
   } = $props();
 </script>
 
@@ -24,6 +30,7 @@
 <button
   type="button"
   class="btn-mod"
+  bind:this={ref}
   onclick={opts.onclick}
   disabled={opts.disabled ?? false}
   title={opts.title ?? ''}

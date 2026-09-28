@@ -499,7 +499,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
             <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;"><span style="font-size: 1rem;">📊</span><h5 style="margin: 0; color: #e2e8f0; font-size: 0.85rem;">Sistema</h5></div>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
               <div><div style="font-size: 0.7rem; color: #64748b;">Versión</div><div style="color: #e2e8f0; font-weight: 600; font-size: 0.85rem;">1.2.0</div></div>
-              <div><div style="font-size: 0.7rem; color: #64748b;">Ruta DB</div><div style="color: #e2e8f0; font-size: 0.7rem; word-break: break-all;">{dbPath}</div></div>
+              <div><div style="font-size: 0.7rem; color: #64748b;">Ruta DB</div><div class="selectable" style="color: #e2e8f0; font-size: 0.7rem; word-break: break-all;">{dbPath}</div></div>
             </div>
           </div>
         </div>
@@ -765,7 +765,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                 <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;"><span style="font-size: 1.2rem;">📊</span><h5 style="margin: 0; color: #e2e8f0; font-size: 1rem;">Información del Sistema</h5></div>
                 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
                   <div><div style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.25rem;">Versión App</div><div style="color: #e2e8f0; font-weight: 600;">1.2.0</div></div>
-                  <div><div style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.25rem;">Ruta DB</div><div style="color: #e2e8f0; font-size: 0.8rem; word-break: break-all;">{dbPath}</div></div>
+                  <div><div style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.25rem;">Ruta DB</div><div class="selectable" style="color: #e2e8f0; font-size: 0.8rem; word-break: break-all;">{dbPath}</div></div>
                 </div>
               </div>
             </div>

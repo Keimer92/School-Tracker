@@ -18,6 +18,37 @@
   box-sizing: inherit;
 }
 
+/* Bloqueo de selección/copia accidental en toda la interfaz.
+   Sin esto, arrastrar el mouse o mantener el dedo elige texto de botones y
+   etiquetas y deja la UI "sucedida" con el resaltado azul del sistema.
+   -webkit-touch-callout:none es lo que en Android WebView suprime el menú de
+   copiar/seleccionar al mantener pulsado.
+   Se EXCEPTA todo lo editable (inputs, textareas, contenteditable) porque ahí
+   el usuario necesita posicionar el cursor y corregir texto. Los botones de
+   "copiar" usan navigator.clipboard y no dependen de la selección. */
+*,
+*::before,
+*::after {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+input,
+textarea,
+select,
+[contenteditable],
+[contenteditable="true"],
+.selectable {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
 /* Android (gama baja): el blur de fondo es carísimo en WebView y causa jank en
    scroll, drawer y modales. Se apaga en TODOS los elementos con un solo override
    (gana a los estilos inline porque estos no usan !important). */
