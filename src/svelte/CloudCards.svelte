@@ -16,6 +16,20 @@
     onTabChange: (tab: string) => void;
   }>();
 
+  /**
+   * Nube ya no es un tab: es una sección del rail de Ajustes Generales.
+   * Se sigue usando onTabChange como fallback por si el consumidor no escucha
+   * el evento, pero la vía principal es `open-ajustes`.
+   */
+  async function abrirNube() {
+    try {
+      await emit('open-ajustes', { section: 'nube' });
+    } catch (e) {
+      console.warn('[CloudCards] no se pudo abrir la sección Nube:', e);
+      onTabChange('cloud');
+    }
+  }
+
   interface CloudD1State {
     status: D1Status;
     lastSync: string | null;
@@ -59,7 +73,7 @@
       const s = localStorage.getItem('schooltracker-google-drive-settings');
       conectado = !!(s && JSON.parse(s)?.accessToken);
     } catch {}
-    if (!conectado) { onTabChange('cloud'); return; }
+    if (!conectado) { await abrirNube(); return; }
     respaldando = true;
     try {
       await driveSyncService.pushAll();
@@ -161,8 +175,8 @@
   <div
     class="cloud-card {justSynced ? 'flash' : ''}"
     class:d1-ok={d1.status === 'success' || d1.status === 'idle'}
-    onclick={() => onTabChange('cloud')}
-    onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTabChange('cloud'); } }}
+    onclick={() => { void abrirNube(); }}
+    onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); void abrirNube(); } }}
     role="button"
     tabindex="0"
     title="Ir a Nube"

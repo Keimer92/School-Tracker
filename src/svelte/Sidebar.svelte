@@ -1,8 +1,19 @@
 <script lang="ts">
   import CloudCards from './CloudCards.svelte';
   import appIcon from '../assets/app-icon.png';
+  import { emit } from '@tauri-apps/api/event';
 
-  export type Tab = "dashboard" | "notas" | "estudiantes" | "evaluaciones" | "ajustes" | "asistencia" | "cloud" | "account";
+  // Nube, Cuenta y Evaluaciones ya no son tabs: son secciones del rail de
+  // Ajustes Generales, a las que se llega con el evento `open-ajustes`.
+  export type Tab = "dashboard" | "notas" | "estudiantes" | "ajustes" | "asistencia";
+
+  const SECCION_AJUSTES: Record<string, string> = { cloud: 'nube', account: 'cuenta', evaluaciones: 'evaluaciones' };
+
+  /** Traduce un destino heredado (p. ej. desde CloudCards) a una sección del rail. */
+  async function irAAjustes(destino: string) {
+    const seccion = SECCION_AJUSTES[destino];
+    if (seccion) await emit('open-ajustes', { section: seccion });
+  }
 
   let {
     activeTab,
@@ -65,9 +76,6 @@ setThemeMode: (mode: string) => void;
     <button class="sidebar-button {activeTab === 'notas' ? 'active' : ''}" onclick={() => onTabChange('notas')} type="button">
       <span>📓</span><span>Notas</span>
     </button>
-    <button class="sidebar-button {activeTab === 'evaluaciones' ? 'active' : ''}" onclick={() => onTabChange('evaluaciones')} type="button">
-      <span>📝</span><span>Evaluaciones</span>
-    </button>
     <button class="sidebar-button {activeTab === 'estudiantes' ? 'active' : ''}" onclick={() => onTabChange('estudiantes')} type="button">
       <span>👨‍🎓</span><span>Estudiantes</span>
     </button>
@@ -75,12 +83,6 @@ setThemeMode: (mode: string) => void;
     <div class="sidebar-section-header">GENERALES</div>
     <button class="sidebar-button {activeTab === 'ajustes' ? 'active' : ''}" onclick={() => onTabChange('ajustes')} type="button">
       <span>⚙️</span><span>Ajustes Generales</span>
-    </button>
-    <button class="sidebar-button {activeTab === 'cloud' ? 'active' : ''}" onclick={() => onTabChange('cloud')} type="button">
-      <span>☁️</span><span>Nube</span>
-    </button>
-    <button class="sidebar-button {activeTab === 'account' ? 'active' : ''}" onclick={() => onTabChange('account')} type="button">
-      <span>👤</span><span>Cuentas</span>
     </button>
   </div>
 

@@ -7,6 +7,9 @@
   import CategoryTabContent from "./CategoryTabContent.svelte";
   import NotasConfig from "./globales/NotasConfig.svelte";
   import AjustesPage from "./AjustesPage.svelte";
+  import EvaluacionesPage from "./EvaluacionesPage.svelte";
+  import CloudPage from "./CloudPage.svelte";
+  import AccountPage from "./AccountPage.svelte";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
   interface CategoryConfig {
@@ -51,8 +54,11 @@
     'grados': 'Grados disponibles. Se comparten entre años lectivos; se configuran por colegio desde su ficha.',
     'secciones': 'Secciones de cada grado. Se comparten entre grados, por eso cada ficha las asocia a un grado concreto.',
     'notas': 'Calificaciones cualitativas (color y mínimo) y sus multiplicadores para el cálculo automático de la nota final.',
+    'evaluaciones': 'Creación de los indicadores y criterios de evaluación: aquí se define qué se evalúa y con cuántos puntos.',
     'general': 'Color de resaltado, valores por defecto de año lectivo y colegio, y comportamiento de la sincronización.',
     'notificaciones': 'Avisos cuando un colegio tiene grados sin asistencia, dentro de su ventana horaria y con la app cerrada.',
+    'nube': 'Conexión con Cloudflare D1 y respaldo en Google Drive. Estado de la sincronización y recuperación de datos.',
+    'cuenta': 'Cuentas de Google vinculadas, cambio de perfil y datos de la cuenta activa.',
     'debug': 'Herramientas de diagnóstico y purga. Actúa sobre la base local y la nube: usá con precaución.',
     'info': 'Versión de la app, ruta de la base de datos y detalle de las funciones disponibles.',
   };
@@ -65,8 +71,11 @@
     { id: 'grados', label: 'Grado', icono: '📊', color: '#fb923c', grupo: 'Académico', cat: CATEGORIES[4], contador: 'get_grados' },
     { id: 'secciones', label: 'Sección', icono: '👥', color: '#a78bfa', grupo: 'Académico', cat: CATEGORIES[5], contador: 'get_secciones' },
     { id: 'notas', label: 'Notas', icono: '⭐', color: '#fbbf24', grupo: 'Evaluación', contador: 'get_grade_configs' },
+    { id: 'evaluaciones', label: 'Evaluaciones', icono: '✏️', color: '#c084fc', grupo: 'Aplicación' },
     { id: 'general', label: 'General', icono: '⚙️', color: '#60a5fa', grupo: 'Aplicación' },
     { id: 'notificaciones', label: 'Notif. Asistencia', icono: '🔔', color: '#fbbf24', grupo: 'Aplicación', soloAndroid: true },
+    { id: 'nube', label: 'Nube', icono: '☁️', color: '#38bdf8', grupo: 'Aplicación' },
+    { id: 'cuenta', label: 'Cuenta', icono: '👤', color: '#f472b6', grupo: 'Aplicación' },
     { id: 'debug', label: 'Debug', icono: '🐛', color: '#ef4444', grupo: 'Sistema' },
     { id: 'info', label: 'Info', icono: '📖', color: '#a78bfa', grupo: 'Sistema' },
   ];
@@ -110,6 +119,19 @@
   function abrirPorId(id: string) {
     const s = SECCIONES.find(x => x.id === id);
     if (s) abrir(s);
+  }
+
+  /**
+   * Navegación desde dentro del shell (CloudPage, AccountPage). Antes estas
+   * páginas vivían en tabs propios y pedían un cambio de tab; ahora que están
+   * dentro del rail, la traducción es abrir la sección equivalente.
+   */
+  function irAjustes(destino: string) {
+    if (destino === 'cloud') { abrirPorId('nube'); return; }
+    if (destino === 'account') { abrirPorId('cuenta'); return; }
+    if (destino === 'evaluaciones') { abrirPorId('evaluaciones'); return; }
+    // Cualquier otro destino (p. ej. "welcome") no aplica dentro del shell.
+    console.warn('[Ajustes] destino de navegación no soportado:', destino);
   }
 
   // Al volver a la página: en Android se muestra la lista; en escritorio se
@@ -186,6 +208,22 @@
   </div>
 {/snippet}
 
+{#snippet contenidoSeccion()}
+  {#if activa.cat}
+    <CategoryTabContent config={activa.cat} accentColor={activa.color} accentIcon={activa.icono} headerExtra={activa.id === 'ano-lectivo' ? anoLectivoHeader : undefined} />
+  {:else if activa.id === 'notas'}
+    <NotasConfig />
+  {:else if activa.id === 'evaluaciones'}
+    <div style="width:100%;height:100%;"><EvaluacionesPage /></div>
+  {:else if activa.id === 'nube'}
+    <div style="width:100%;height:100%;overflow-y:auto;"><CloudPage onNavigate={irAjustes} pageActive={pageActive} /></div>
+  {:else if activa.id === 'cuenta'}
+    <div style="width:100%;height:100%;overflow-y:auto;"><AccountPage onNavigate={irAjustes} /></div>
+  {:else}
+    <AjustesPage seccion={activa.id} pageActive={pageActive} soloContenido {themeMode} {setThemeMode} />
+  {/if}
+{/snippet}
+
 {#if isAndroidMobile}
   <div class="page-container">
     {#if !activa}
@@ -213,13 +251,7 @@
       </div>
     {:else}
       <div style="padding:1rem;">
-        {#if activa.cat}
-          <CategoryTabContent config={activa.cat} accentColor={activa.color} accentIcon={activa.icono} headerExtra={activa.id === 'ano-lectivo' ? anoLectivoHeader : undefined} />
-        {:else if activa.id === 'notas'}
-          <NotasConfig />
-        {:else}
-          <AjustesPage seccion={activa.id} pageActive={pageActive} soloContenido {themeMode} {setThemeMode} />
-        {/if}
+        {@render contenidoSeccion()}
       </div>
     {/if}
   </div>
@@ -269,13 +301,7 @@
         </header>
 
         <div class="cont-body">
-          {#if activa.cat}
-            <CategoryTabContent config={activa.cat} accentColor={activa.color} accentIcon={activa.icono} headerExtra={activa.id === 'ano-lectivo' ? anoLectivoHeader : undefined} />
-          {:else if activa.id === 'notas'}
-            <NotasConfig />
-          {:else}
-            <AjustesPage seccion={activa.id} pageActive={pageActive} soloContenido {themeMode} {setThemeMode} />
-          {/if}
+          {@render contenidoSeccion()}
         </div>
       {:else}
         <div class="cont-placeholder">Elegí una sección del menú</div>

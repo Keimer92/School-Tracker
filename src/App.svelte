@@ -14,23 +14,21 @@
   import appIcon from "./assets/app-icon.png";
   import AsistenciaMainPage from "./svelte/asistencia/AsistenciaMainPage.svelte";
   import NotasMainPage from "./svelte/notas/NotasMainPage.svelte";
-  import EvaluacionesPage from "./svelte/EvaluacionesPage.svelte";
   import EstudiantesPage from "./svelte/EstudiantesPage.svelte";
   import AjustesGenerales from "./svelte/AjustesGenerales.svelte";
 
-import DashboardPage from "./svelte/DashboardPage.svelte";
-import CloudPage from "./svelte/CloudPage.svelte";
-  import AccountPage from "./svelte/AccountPage.svelte";
+  import DashboardPage from "./svelte/DashboardPage.svelte";
   import Sidebar from "./svelte/Sidebar.svelte";
   import WelcomePage from "./svelte/WelcomePage.svelte";
   import AndroidDrawer from "./svelte/AndroidDrawer.svelte";
 
-  type Tab = "dashboard" | "notas" | "estudiantes" | "evaluaciones" | "ajustes" | "asistencia" | "cloud" | "account";
+  type Tab = "dashboard" | "notas" | "estudiantes" | "ajustes" | "asistencia";
 
   // Todas las páginas se montan desde el arranque; `visitedTabs` solo conserva
   // el historial para rehidratarlo sin parpadeo. Debe incluir siempre la tab
   // activa o su bloque no se renderiza y el área de contenido queda vacía.
-  const DEFAULT_TABS: Tab[] = ["dashboard", "notas", "estudiantes", "evaluaciones", "ajustes", "asistencia", "cloud", "account"];
+  // Nube, Cuenta y Evaluaciones ya no son tabs: son secciones del rail de Ajustes.
+  const DEFAULT_TABS: Tab[] = ["dashboard", "notas", "estudiantes", "ajustes", "asistencia"];
 
   let initialized = $state<boolean | null>(null);
   let isMobile = $state(false);
@@ -44,6 +42,11 @@ import CloudPage from "./svelte/CloudPage.svelte";
   let unlisten: (() => void)[] = [];
   /** Sección de Ajustes Generales abierta (deep-link). */
   let ajustesSeccion = $state<string>('ano-lectivo');
+
+  /** Tabs que se reubicaron como secciones del rail de Ajustes. */
+  const TAB_A_SECCION_AJUSTES: Record<string, string> = {
+    cloud: 'nube', account: 'cuenta', evaluaciones: 'evaluaciones',
+  };
 
   // Estado de sync D1 para el chip del header móvil
   let d1Status = $state<string>((d1SyncManager.getState() as { status?: string })?.status ?? 'idle');
@@ -170,6 +173,16 @@ import CloudPage from "./svelte/CloudPage.svelte";
       if (isMobile) drawerOpen = false;
       return;
     }
+    // Nube, Cuenta y Evaluaciones ya no son tabs: son secciones del rail de
+    // Ajustes. Cualquier llamador legado (CloudCards, drawer, páginas) que
+    // aún pida esos destinos aterriza en Ajustes con la sección equivalente.
+    const seccionAjustes = TAB_A_SECCION_AJUSTES[tab as string];
+    if (seccionAjustes) {
+      ajustesSeccion = seccionAjustes;
+      setActiveTab("ajustes");
+      if (isMobile) drawerOpen = false;
+      return;
+    }
     asistenciaSubTabRequest = null;
     notasSubTabRequest = null;
     setActiveTab(tab);
@@ -289,6 +302,14 @@ import CloudPage from "./svelte/CloudPage.svelte";
         activeTab = "ajustes";
         localStorage.setItem("active-tab", "ajustes");
       }
+      // Nube, Cuenta y Evaluaciones dejaron de ser tabs: ahora son secciones
+      // del rail de Ajustes. Quien las tenía abiertas cae en Ajustes y se le
+      // remembers la sección equivalente para no perder el contexto.
+      else if (saved === "cloud" || saved === "account" || saved === "evaluaciones") {
+        activeTab = "ajustes";
+        ajustesSeccion = TAB_A_SECCION_AJUSTES[saved];
+        localStorage.setItem("active-tab", "ajustes");
+      }
       else if (saved) activeTab = saved;
       const w = localStorage.getItem("sidebar-width");
       if (w) sidebarWidth = parseInt(w);
@@ -304,6 +325,9 @@ import CloudPage from "./svelte/CloudPage.svelte";
             "informe": "asistencia",
             "reportes": "notas",
             "globales": "ajustes",
+            "cloud": "ajustes",
+            "account": "ajustes",
+            "evaluaciones": "ajustes",
           };
           const migrados = new Set<Tab>(DEFAULT_TABS);
           for (const t of parsed) {
@@ -497,20 +521,11 @@ import CloudPage from "./svelte/CloudPage.svelte";
     {#if visitedTabs.has('notas')}
       <div style="display: {activeTab === 'notas' ? 'block' : 'none'}; width: 100%; height: 100%;"><NotasMainPage pageActive={activeTab === 'notas'} subTabRequest={notasSubTabRequest} /></div>
     {/if}
-    {#if visitedTabs.has('evaluaciones')}
-      <div style="display: {activeTab === 'evaluaciones' ? 'block' : 'none'}; width: 100%; height: 100%;"><EvaluacionesPage /></div>
-    {/if}
     {#if visitedTabs.has('estudiantes')}
       <div style="display: {activeTab === 'estudiantes' ? 'block' : 'none'}; width: 100%; height: 100%;"><EstudiantesPage /></div>
     {/if}
     {#if visitedTabs.has('ajustes')}
       <div style="display: {activeTab === 'ajustes' ? 'block' : 'none'}; width: 100%; height: 100%;"><AjustesGenerales pageActive={activeTab === 'ajustes'} bind:seccion={ajustesSeccion} {themeMode} {setThemeMode} /></div>
-    {/if}
-    {#if visitedTabs.has('cloud')}
-      <div style="display: {activeTab === 'cloud' ? 'block' : 'none'}; width: 100%; height: 100%; overflow-y: auto;"><CloudPage onNavigate={handleTabChange} pageActive={activeTab === 'cloud'} /></div>
-    {/if}
-    {#if visitedTabs.has('account')}
-      <div style="display: {activeTab === 'account' ? 'block' : 'none'}; width: 100%; height: 100%; overflow-y: auto;"><AccountPage onNavigate={handleTabChange} /></div>
     {/if}
   </main>
 

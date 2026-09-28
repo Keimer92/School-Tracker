@@ -42,6 +42,16 @@
     driveUltimo = { when: s.lastUpload ?? null, bytes: s.lastUploadBytes ?? null };
   }));
 
+  /** Nube es sección del rail de Ajustes, no un tab. */
+  async function abrirNube() {
+    try {
+      await emit("open-ajustes", { section: "nube" });
+    } catch (e) {
+      console.warn("[Drawer] no se pudo abrir la sección Nube:", e);
+      onNavigate("cloud");
+    }
+  }
+
   async function respaldoManualDrive() {
     if (respaldando) return;
     let conectado = false;
@@ -49,7 +59,7 @@
       const s = localStorage.getItem('schooltracker-google-drive-settings');
       conectado = !!(s && JSON.parse(s)?.accessToken);
     } catch {}
-    if (!conectado) { onNavigate('cloud'); return; }
+    if (!conectado) { await abrirNube(); return; }
     respaldando = true;
     try {
       await driveSyncService.pushAll();
@@ -107,7 +117,7 @@
     class:ok={d1Status === 'success' || d1Status === 'idle'}
     class:syncing={d1Status === 'syncing'}
     class:err={d1Status === 'error' || d1Status === 'offline'}
-    onclick={() => onNavigate('cloud')}
+    onclick={() => { void abrirNube(); }}
     title="Estado Sincronización Nube D1"
   >
     <span class="msc-dot"></span><span>☁️</span>
