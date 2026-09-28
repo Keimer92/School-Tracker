@@ -16,6 +16,7 @@
   import PageLayout from "./PageLayout.svelte";
   import ScrollableTable from "./ScrollableTable.svelte";
   import DatePickerGlass from "./DatePickerGlass.svelte";
+  import BotonMod from "./BotonMod.svelte";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
   interface EstudianteAsistencia { id: number; nombre: string; codigo: string; sexo: string; estado: string | null; observacion: string | null; }
@@ -1484,11 +1485,16 @@ $effect(() => {
             </div>
           {/if}
           <div class="pop-wrap" bind:this={popSinClasesEl} style="flex:0 0 auto;">
-            <button type="button" onclick={handleSinClasesClick} disabled={sinClasesGuardando || !selectedSeccion}
-              style="height:42px;padding:0 {isAndroidMobile ? '0.5rem' : '1rem'};font-size:{isAndroidMobile ? '0.8rem' : '0.85rem'};flex-shrink:0;background:{sinClasesActivo ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.03)'};border:1px solid {sinClasesActivo ? '#f59e0b' : 'rgba(255,255,255,0.08)'};color:{sinClasesActivo ? '#f59e0b' : '#94a3b8'};border-radius:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px;transition:all 0.15s;white-space:nowrap;opacity:{sinClasesGuardando ? 0.6 : 1}"
-              title={periodo === 'mensual' ? 'Dejar una semana del mes sin clases' : 'Marcar el período actual sin clases'}>
-              <span>{sinClasesActivo ? '🏫' : '🚫'}</span>{#if !isAndroidMobile}<span>Sin Clases</span>{/if}
-            </button>
+            <BotonMod opts={{
+              onclick: handleSinClasesClick,
+              disabled: sinClasesGuardando || !selectedSeccion,
+              icono: sinClasesActivo ? '🏫' : '🚫',
+              etiqueta: 'Sin Clases',
+              tono: sinClasesActivo ? 'ambar' : 'pizarra',
+              sub: sinClasesActivo ? 'Todo el período' : (periodo === 'mensual' ? 'Elegir semana' : periodo === 'semanal' ? `Semana ${semanaActiva}` : fmtDM(selectedFecha)),
+              title: periodo === 'mensual' ? 'Dejar una semana del mes sin clases' : 'Marcar el período actual sin clases',
+              compacto: isAndroidMobile,
+            }} />
           </div>
           {#if popSinClasesAbierta}
             <div use:portalToBody class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) cerrarPopSinClases(); }}
@@ -1552,25 +1558,38 @@ $effect(() => {
               </div>
             </div>
           {/if}
-          <button onclick={limpiarAsistencia} disabled={getActiveStudentCount() === 0}
-            style="height:42px;padding:0 {isAndroidMobile ? '0.5rem' : '1.25rem'};font-size:{isAndroidMobile ? '0.8rem' : '0.85rem'};flex-shrink:0;background-color:{getActiveStudentCount() > 0 ? '#ef4444' : 'rgba(148,163,184,0.5)'};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{getActiveStudentCount() > 0 ? 'pointer' : 'not-allowed'};transition:all 0.3s ease;box-shadow:{getActiveStudentCount() > 0 ? '0 4px 14px rgba(239,68,68,0.4)' : 'none'};white-space:nowrap;opacity:{getActiveStudentCount() > 0 ? 1 : 0.7}">
-            <span>🧹</span>{#if !isAndroidMobile}<span>Limpiar</span>{/if}
-          </button>
+          <BotonMod opts={{
+            onclick: limpiarAsistencia,
+            disabled: getActiveStudentCount() === 0,
+            icono: '🧹', etiqueta: 'Limpiar', tono: 'pizarra',
+            sub: getActiveStudentCount() === 0 ? 'Nada que borrar' : `${getActiveStudentCount()} con estado`,
+            title: 'Limpiar la asistencia del período',
+            compacto: isAndroidMobile,
+          }} />
           <div style="display:flex;gap:2px;align-items:stretch;flex-shrink:0">
-            <button onclick={() => marcarTodos('P')} disabled={getActiveStudentCount() === 0}
-              style="padding:{isAndroidMobile ? '0.4rem 0.45rem' : '0.4rem 0.7rem'};font-size:{isAndroidMobile ? '0.75rem' : '0.8rem'};height:42px;background:{getActiveStudentCount() > 0 ? 'rgba(16,185,129,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {getActiveStudentCount() > 0 ? 'rgba(16,185,129,0.3)' : 'transparent'};color:#10b981;border-radius:8px;cursor:{getActiveStudentCount() > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{getActiveStudentCount() > 0 ? 1 : 0.5}"
-              title="Marcar todos como Presente">P</button>
-            <button onclick={() => marcarTodos('A')} disabled={getActiveStudentCount() === 0}
-              style="padding:{isAndroidMobile ? '0.4rem 0.45rem' : '0.4rem 0.7rem'};font-size:{isAndroidMobile ? '0.75rem' : '0.8rem'};height:42px;background:{getActiveStudentCount() > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {getActiveStudentCount() > 0 ? 'rgba(239,68,68,0.3)' : 'transparent'};color:#ef4444;border-radius:8px;cursor:{getActiveStudentCount() > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{getActiveStudentCount() > 0 ? 1 : 0.5}"
-              title="Marcar todos como Ausente">A</button>
-            <button onclick={() => marcarTodos('J')} disabled={getActiveStudentCount() === 0}
-              style="padding:{isAndroidMobile ? '0.4rem 0.45rem' : '0.4rem 0.7rem'};font-size:{isAndroidMobile ? '0.75rem' : '0.8rem'};height:42px;background:{getActiveStudentCount() > 0 ? 'rgba(245,158,11,0.15)' : 'rgba(148,163,184,0.3)'};border:1px solid {getActiveStudentCount() > 0 ? 'rgba(245,158,11,0.3)' : 'transparent'};color:#f59e0b;border-radius:8px;cursor:{getActiveStudentCount() > 0 ? 'pointer' : 'not-allowed'};font-weight:700;white-space:nowrap;transition:all 0.15s;opacity:{getActiveStudentCount() > 0 ? 1 : 0.5}"
-              title="Marcar todos como Justificado">J</button>
+            <BotonMod opts={{ onclick: () => marcarTodos('P'), disabled: getActiveStudentCount() === 0,
+              icono: '✅', etiqueta: 'Todos P', tono: 'verde',
+              sub: isAndroidMobile ? 'Presentes' : 'Marcar presentes',
+              title: 'Marcar todos como Presente', compacto: true }} />
+            <BotonMod opts={{ onclick: () => marcarTodos('A'), disabled: getActiveStudentCount() === 0,
+              icono: '❌', etiqueta: 'Todos A', tono: 'rojo',
+              sub: isAndroidMobile ? 'Ausentes' : 'Marcar ausentes',
+              title: 'Marcar todos como Ausente', compacto: true }} />
+            <BotonMod opts={{ onclick: () => marcarTodos('J'), disabled: getActiveStudentCount() === 0,
+              icono: '📝', etiqueta: 'Todos J', tono: 'ambar',
+              sub: isAndroidMobile ? 'Justific.' : 'Marcar justificados',
+              title: 'Marcar todos como Justificado', compacto: true }} />
           </div>
-          <button onclick={handleManualSave} disabled={!hasUnsavedChanges || saving}
-            style="height:42px;padding:0 {isAndroidMobile ? '0.5rem' : '1.25rem'};font-size:{isAndroidMobile ? '0.8rem' : '0.85rem'};background-color:{hasUnsavedChanges && !saving ? 'var(--primary-color)' : (saving ? '#059669' : 'rgba(148,163,184,0.5)')};color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{hasUnsavedChanges && !saving ? 'pointer' : 'default'};transition:all 0.3s ease;box-shadow:{hasUnsavedChanges && !saving ? '0 4px 14px rgba(var(--primary-rgb), 0.4)' : 'none'};flex-shrink:0;white-space:nowrap;opacity:{hasUnsavedChanges || saving ? 1 : 0.7}">
-            {#if saving}<span class="saving-dot"></span><span>{isAndroidMobile ? '' : 'Guardando'}</span>{:else}<span>💾</span>{#if !isAndroidMobile}<span>Guardar</span>{/if}{/if}
-          </button>
+          <BotonMod opts={{
+            onclick: handleManualSave,
+            disabled: !hasUnsavedChanges || saving,
+            icono: saving ? '⏳' : '💾',
+            etiqueta: saving ? 'Guardando' : 'Guardar',
+            tono: 'verde',
+            sub: saving ? 'Escribiendo en la BD' : (hasUnsavedChanges ? 'Cambios sin guardar' : 'Sin cambios'),
+            title: 'Guardar asistencia',
+            compacto: isAndroidMobile,
+          }} />
           {#if !isAndroidMobile}
           <div style="flex:1;min-width:100px">
           </div>
