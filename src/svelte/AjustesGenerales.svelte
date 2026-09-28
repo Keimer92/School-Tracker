@@ -3,6 +3,7 @@
   import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
   import { registerBackHandler } from "../lib/androidBack";
+  import { getAppSettings, saveAppSettings, loadAppSettings, onAppSettingsChange } from "../lib/appSettings";
   import CategoryTabContent from "./CategoryTabContent.svelte";
   import NotasConfig from "./globales/NotasConfig.svelte";
   import AjustesPage from "./AjustesPage.svelte";
@@ -147,10 +148,42 @@
 
   const railAncho = $derived(railExpandido || railFijado || !!busqueda.trim() ? '252px' : '64px');
 
+  // Estado del toggle "Mostrar selector de Año Lectivo" en otras páginas.
+  let showAnoDropdown = $state(true);
+
   onMount(() => {
     console.log('[Init] AjustesGenerales montado · seccion=' + seccion + ' · androidMobile=' + isAndroidMobile);
+    // El toggle del selector de año vive en AjustesGlobales, pero lo muestra
+    // este shell (sección Año Lectivo): hay que suscribirse a los ajustes.
+    loadAppSettings().then(s => { showAnoDropdown = s.showAnoDropdown; });
+    const unsub = onAppSettingsChange(s => { showAnoDropdown = s.showAnoDropdown; });
+    return unsub;
   });
+
+  function toggleAnoDropdown() {
+    showAnoDropdown = !showAnoDropdown;
+    void saveAppSettings({ ...getAppSettings(), showAnoDropdown });
+  }
 </script>
+
+{#snippet anoLectivoHeader()}
+  <div style="display:flex;align-items:center;gap:0.6rem;padding:0.75rem 1rem;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.15);border-radius:12px;">
+    <span style="font-size:1rem;line-height:1">📅</span>
+    <span style="font-size:0.75rem;color:#c7d2fe;line-height:1.4">
+      El año lectivo se ingresa como <strong>año calendario</strong> de 4 dígitos (Ej: 2026, 2027), no como rango. El sistema lo trata como año calendario: si es 2026, la vista mensual muestra 2026.
+    </span>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.15);border-radius:12px;margin-top:0.5rem">
+    <div style="display:flex;flex-direction:column;gap:2px;">
+      <span style="font-size:0.8rem;color:#e2e8f0;font-weight:600;">Mostrar selector en otras páginas</span>
+      <span style="font-size:0.7rem;color:#94a3b8;">Muestra/oculta el dropdown de Año Lectivo en Notas, Asistencia y Reportes</span>
+    </div>
+    <label class="switch" title={showAnoDropdown ? "Ocultar dropdown" : "Mostrar dropdown"}>
+      <input type="checkbox" checked={showAnoDropdown} onchange={toggleAnoDropdown} />
+      <span class="slider round"></span>
+    </label>
+  </div>
+{/snippet}
 
 {#if isAndroidMobile}
   <div class="page-container">
@@ -180,7 +213,7 @@
     {:else}
       <div style="padding:1rem;">
         {#if activa.cat}
-          <CategoryTabContent config={activa.cat} accentColor={activa.color} accentIcon={activa.icono} />
+          <CategoryTabContent config={activa.cat} accentColor={activa.color} accentIcon={activa.icono} headerExtra={activa.id === 'ano-lectivo' ? anoLectivoHeader : undefined} />
         {:else if activa.id === 'notas'}
           <NotasConfig />
         {:else}
@@ -236,7 +269,7 @@
 
         <div class="cont-body">
           {#if activa.cat}
-            <CategoryTabContent config={activa.cat} accentColor={activa.color} accentIcon={activa.icono} />
+            <CategoryTabContent config={activa.cat} accentColor={activa.color} accentIcon={activa.icono} headerExtra={activa.id === 'ano-lectivo' ? anoLectivoHeader : undefined} />
           {:else if activa.id === 'notas'}
             <NotasConfig />
           {:else}

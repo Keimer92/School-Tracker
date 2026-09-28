@@ -27,11 +27,16 @@ import CloudPage from "./svelte/CloudPage.svelte";
 
   type Tab = "dashboard" | "notas" | "estudiantes" | "evaluaciones" | "ajustes" | "asistencia" | "cloud" | "account";
 
+  // Todas las páginas se montan desde el arranque; `visitedTabs` solo conserva
+  // el historial para rehidratarlo sin parpadeo. Debe incluir siempre la tab
+  // activa o su bloque no se renderiza y el área de contenido queda vacía.
+  const DEFAULT_TABS: Tab[] = ["dashboard", "notas", "estudiantes", "evaluaciones", "ajustes", "asistencia", "cloud", "account"];
+
   let initialized = $state<boolean | null>(null);
   let isMobile = $state(false);
   let isAndroid = $state(false);
   let activeTab = $state<Tab>("dashboard");
-  let visitedTabs = $state<Set<Tab>>(new Set(["dashboard", "notas", "estudiantes", "evaluaciones", "ajustes", "asistencia", "cloud", "account"]));
+  let visitedTabs = $state<Set<Tab>>(new Set(DEFAULT_TABS));
   let sidebarWidth = $state(Math.min(Math.max(220, Math.floor(window.innerWidth * 0.16)), 260));
   let drawerOpen = $state(false);
   let isResizing = $state(false);
@@ -296,20 +301,36 @@ import CloudPage from "./svelte/CloudPage.svelte";
         localStorage.setItem("active-tab", "ajustes");
       }
       else if (saved) activeTab = saved;
-      logInit('4 tab activa = ' + String(activeTab) + ' · visited = ' + Array.from(visitedTabs).join(','));
       const w = localStorage.getItem("sidebar-width");
       if (w) sidebarWidth = parseInt(w);
       const visits = localStorage.getItem("visited-tabs");
       if (visits) {
         try {
           const parsed = JSON.parse(visits) as string[];
-          // Migración de visited-tabs históricos
-          if (parsed.includes("informe")) { visitedTabs.add("asistencia"); }
-          if (parsed.includes("reportes")) { visitedTabs.add("notas"); }
-          if (parsed.includes("globales")) { visitedTabs.add("ajustes"); }
-          visitedTabs = new Set(parsed.filter(t => t !== "informe" && t !== "reportes" && t !== "globales"));
-        } catch {}
+          // Migración de visited-tabs históricos: sub-tabs fusionados y
+          // Globales→Ajustes Generales. Se RECONSTRUYE el Set partiendo de los
+          // valores migrados + los por defecto, en vez de filtrar `parsed` pelado
+          // (eso descartaba las migraciones y podía dejar el Set vacío).
+          const LegacyTabMapeo: Record<string, Tab> = {
+            "informe": "asistencia",
+            "reportes": "notas",
+            "globales": "ajustes",
+          };
+          const migrados = new Set<Tab>(DEFAULT_TABS);
+          for (const t of parsed) {
+            if (typeof t !== "string") continue;
+            const destino = LegacyTabMapeo[t] ?? (t as Tab);
+            if (DEFAULT_TABS.includes(destino as Tab)) migrados.add(destino as Tab);
+          }
+          visitedTabs = migrados;
+          localStorage.setItem("visited-tabs", JSON.stringify(Array.from(visitedTabs)));
+        } catch (e) {
+          console.warn("[Init] visited-tabs ilegibles, se usan los valores por defecto:", e);
+        }
       }
+      // Si la tab activa quedó sin bloque renderizable, se cae a dashboard.
+      if (!DEFAULT_TABS.includes(activeTab)) activeTab = "dashboard";
+      logInit('4 tab activa = ' + String(activeTab) + ' · visited = ' + Array.from(visitedTabs).join(','));
       const savedMode = localStorage.getItem("app-theme") || "sistema";
       themeMode = savedMode;
       applyTheme(savedMode);

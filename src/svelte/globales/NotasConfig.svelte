@@ -135,7 +135,7 @@
                       onclick={() => document.getElementById(`color-input-${grade.id}`)?.click()}
                       onmouseenter={(e) => e.currentTarget.style.boxShadow = `0 0 12px ${grade.color}44`}
                       onmouseleave={(e) => e.currentTarget.style.boxShadow = 'none'}>
-                      <input id="color-input-{grade.id}" type="color" value={grade.color} oninput={(e) => updateGradeConfig(grade.id, grade.nombre, (e.target as HTMLInputElement).value, grade.minimo, grade.id)} style="position:absolute;top:-12px;left:-12px;width:200%;height:200%;opacity:0;cursor:pointer;" />
+                      <input id={`color-input-${grade.id}`} type="color" value={grade.color} oninput={(e) => updateGradeConfig(grade.id, grade.nombre, (e.target as HTMLInputElement).value, grade.minimo, grade.id)} style="position:absolute;top:-12px;left:-12px;width:200%;height:200%;opacity:0;cursor:pointer;" />
                     </div>
                     <span style="font-family:monospace;font-size:0.7rem;color:#64748b;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{grade.color.toUpperCase()}</span>
                   </div>
