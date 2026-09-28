@@ -1,4 +1,4 @@
-<script lang="ts">
+﻿<script lang="ts">
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { emit, listen } from "@tauri-apps/api/event";
@@ -531,121 +531,6 @@
     }
   }
 
-  async function exportToPDF() {
-    if (estudiantes.length === 0) return;
-    try {
-      const { default: jsPDF } = await import("jspdf");
-      const { default: autoTable } = await import("jspdf-autotable");
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
-      const names = selectedNames;
-      const date = new Date().toLocaleDateString();
-      const margins = { top: 10, bottom: 10, left: 10, right: 10 };
-      doc.setFont("helvetica", "bold"); doc.setFontSize(18); doc.text("Reporte de Notas", doc.internal.pageSize.getWidth() / 2, 15, { align: "center" });
-      doc.setFontSize(10); doc.setTextColor(0);
-      const filterInfo = [
-        ["Colegio:", names.colegio, "Año Lectivo:", names.ano],
-        ["Grado:", names.grado, "Sección:", names.seccion],
-        ["Asignatura:", names.asignatura, "Corte:", names.corte],
-        ["Fecha:", date, "Sexo:", selectedSexo === "M" ? "Masculino" : selectedSexo === "F" ? "Femenino" : "Todos"]
-      ];
-      let yPos = 25;
-      filterInfo.forEach(row => {
-        doc.setFont("helvetica", "bold"); doc.text(row[0], margins.left + 10, yPos);
-        doc.setFont("helvetica", "normal"); doc.text(row[1], margins.left + 35, yPos);
-        doc.setFont("helvetica", "bold"); doc.text(row[2], doc.internal.pageSize.getWidth() / 2 + 5, yPos);
-        doc.setFont("helvetica", "normal"); doc.text(row[3], doc.internal.pageSize.getWidth() / 2 + 30, yPos);
-        yPos += 6;
-      });
-
-      const mostrarIndicadores = false;
-      const tableHeaders = ["Estudiante", "Sexo", ...(mostrarIndicadores ? configIndicadores.map(ind => `Ind. ${ind.orden}`) : []), "Nota Final"];
-      const tableRows = estudiantes.map(est => [
-        est.nombre, est.sexo,
-        ...(mostrarIndicadores ? configIndicadores.map(ind => {
-          const nota = est.notasIndicadores[ind.id] || 0;
-          const label = est.notasCualitativasIndicadores[ind.id] || "";
-          if (label === "-" || label === "") return "-";
-          if (isQualitative) return label;
-          return `${nota}${label ? ` ${label}` : ''}`;
-        }) : []),
-        (est.notaFinalCualitativa === "-" || !est.notaFinalCualitativa) ? "-" : (isQualitative ? (est.notaFinalCualitativa || '-') : `${est.notaFinal}${est.notaFinalCualitativa ? ` ${est.notaFinalCualitativa}` : ''}`)
-      ]);
-
-      autoTable(doc, {
-        startY: yPos + 5, margin: { top: margins.top, bottom: margins.bottom, left: margins.left, right: margins.right },
-        head: [tableHeaders], body: tableRows, theme: 'grid',
-        headStyles: { fillColor: [107, 114, 128], textColor: 255, fontStyle: 'bold' },
-        styles: { fontSize: 8, cellPadding: 2 },
-        columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 15, halign: 'center' } },
-        didParseCell: (data: any) => {
-          if (data.section === 'body' && data.column.index >= 2) {
-            const est = estudiantes[data.row.index];
-            let colorHex = "";
-            if (data.column.index === tableHeaders.length - 1) {
-              colorHex = est.notaFinalCualitativa === "-" ? "#64748b" : getNoteColor(est.notaFinal, est.notaFinalCualitativa, totalPuntajeMaximoConfig);
-            } else if (mostrarIndicadores) {
-              const indicator = configIndicadores[data.column.index - 2];
-              if (!indicator.activo) { colorHex = "#64748b"; } else {
-                const label = est.notasCualitativasIndicadores[indicator.id] || (isQualitative ? 'AI' : '');
-                if (label === "-") { colorHex = "#64748b"; } else {
-                  colorHex = getNoteColor(isQualitative ? 0 : (est.notasIndicadores[indicator.id] || 0), label, getIndicatorMaxScore(indicator.id));
-                }
-              }
-            }
-            const [r, g, b] = hexToRgb(colorHex);
-            data.cell.styles.textColor = [r, g, b];
-            data.cell.styles.fontStyle = 'bold';
-          }
-        }
-      });
-
-      const finalY = (doc as any).lastAutoTable.finalY + 10;
-      const conNotas = estudiantes.filter(e => e.notaFinal >= 0);
-      let promedioText = "-";
-      if (conNotas.length > 0) {
-        if (isQualitative) { promedioText = calcularNotaCualitativaFinal(conNotas.map(e => e.notaFinalCualitativa || 'AI')); }
-        else {
-          const promedio = conNotas.reduce((s, e) => s + e.notaFinal, 0) / conNotas.length;
-          promedioText = `${Math.round(promedio)}${getQualitativeLabel(getPorcentajeFinal(promedio, totalPuntajeMaximoConfig)) ? ` (${getQualitativeLabel(getPorcentajeFinal(promedio, totalPuntajeMaximoConfig))})` : ''}`;
-        }
-      }
-      doc.setFontSize(11); doc.text(`Total Estudiantes: ${estudiantes.length}`, margins.left + 10, finalY);
-      doc.text(`Promedio Grupal: ${promedioText}`, doc.internal.pageSize.getWidth() / 2 + 15, finalY);
-
-      const pdfData = doc.output('arraybuffer');
-      const sanitize = (s: string) => s.replace(/[<>:"/\\|?*]/g, '_');
-      const fileName = `Notas ${sanitize(names.colegio)} ${sanitize(names.grado)} - Seccion ${sanitize(names.seccion)}.pdf`;
-      const folderName = "School Tracker";
-      const subfolder = `${sanitize(names.ano)} - ${sanitize(names.corte)} - ${sanitize(names.asignatura)}`;
-      const sep = isAndroid ? '/' : '\\';
-      // En Android se escribe primero en la carpeta privada de la app y luego se
-      // copia a Descargas/School Tracker con MediaStore (sin permisos).
-      const destinoBase = await documentDir();
-      const fp = destinoBase + sep + folderName + sep + subfolder;
-      const fullPath = fp + sep + fileName;
-      await mkdir(fp, { recursive: true }).catch(e => console.log("mkdir:", e));
-      await writeFile(fullPath, new Uint8Array(pdfData));
-
-      if (isAndroid) {
-        const ruta = await invoke<string>('guardar_en_descargas', {
-          path: fullPath, mime: 'application/pdf', carpeta: folderName, nombre: fileName
-        }).catch(() => "");
-        if (ruta) {
-          await emit("show-toast", { message: "✅ PDF guardado en Descargas/School Tracker/" + subfolder, type: 'success' });
-          try { await invoke('share_pdf', { path: ruta }); } catch {}
-        } else {
-          await emit("show-toast", { message: "⚠️ No se pudo escribir en Descargas. Se guardó solo en la app.", type: 'warning' });
-          try { await invoke('share_pdf', { path: fullPath.replace(/\\/g, '/') }); } catch {}
-        }
-      } else {
-        try { await openUrl("file:///" + fp.replace(/\\/g, '/')); } catch {}
-        await emit("show-toast", { message: "✅ PDF guardado en Documents/School Tracker/" + subfolder, type: 'success' });
-      }
-    } catch (error) {
-      console.error("Error al generar PDF:", error);
-      await emit("show-toast", { message: "❌ Error al generar el PDF: " + (error instanceof Error ? error.message : String(error)), type: 'error' });
-    }
-  }
 
   /**
    * Genera un PDF por cada combinacion grado x seccion.
@@ -721,10 +606,6 @@
         exportandoMasivo = false;
         return;
       }
-
-      let processed = 0;
-      let copiados = 0;
-      let fallaronDescargas = 0;
 
       let processed = 0;
       let copiados = 0;
@@ -869,7 +750,7 @@
         if (isAndroid) {
           // Copia a Descargas/School Tracker (carpeta publica) con MediaStore.
           const ruta = await invoke<string>('guardar_en_descargas', {
-            path: fullPath, mime: 'application/pdf', carpeta: folderName, nombre: fileName
+            path: fullPath, mime: 'application/pdf', carpeta: `${folderName}/${subfolder}`, nombre: fileName
           }).catch(() => "");
           if (!ruta) fallaronDescargas++;
         }
