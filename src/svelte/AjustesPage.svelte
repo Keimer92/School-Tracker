@@ -42,7 +42,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   let activeTab: typeof TABS[number]["id"] | null = $state(isAndroid ? null : "configuracion");
 
   $effect(() => {
-    if (!pageActive || !isAndroid || activeTab === null) return;
+    if (!pageActive || !isAndroid || soloContenido || activeTab === null) return;
     const dispose = registerBackHandler(() => { activeTab = null; return true; });
     return () => dispose();
   });
@@ -225,7 +225,27 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     }
   });
 
-  let { themeMode = "sistema", setThemeMode = () => {}, pageActive = false, tabRequest = null as string | null } = $props();
+  let { themeMode = "sistema", setThemeMode = () => {}, pageActive = false, tabRequest = null as string | null, seccion = null as string | null, soloContenido = false } = $props();
+
+  /**
+   * Cuando la página se monta dentro de Ajustes Generales, `soloContenido`
+   * oculta la navegación propia (rail, lista de cards y grid) y muestra solo
+   * la sección pedida. Fuera de ese contenedor el comportamiento no cambia:
+   * escritorio muestra todas las tarjetas y Android la lista de secciones.
+   */
+  /**
+   * `seccion` usa los ids públicos del shell (general, debug, info…); acá las
+   * secciones tienen nombres propios. Esta tabla traduce entre ambos.
+   */
+  const MAP_SECCION: Record<string, string> = {
+    general: "configuracion", notificaciones: "notificaciones",
+    almacenamiento: "almacenamiento", debug: "debugging", info: "acercaDe",
+  };
+  const seccionInterna = $derived(soloContenido && seccion ? (MAP_SECCION[seccion] ?? seccion) : null);
+  const filtro = $derived(soloContenido ? (seccionInterna ?? activeTab) : null);
+
+  // Dentro del shell la navegación la maneja el shell, no esta página.
+  $effect(() => { if (seccionInterna) activeTab = seccionInterna as any; });
 
   $effect(() => {
     if (tabRequest) {
@@ -462,12 +482,15 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
 </script>
 
-<div class="page-container" style="display: block;">
+<div class="page-container" style="display: block;{(soloContenido ? ';padding:0' : '')}">
 
   {#if !isAndroid}
-    <h1 style="font-size: 1.6rem; font-weight: 700; color: #f1f5f9; margin: 0 0 1.25rem;">Ajustes</h1>
+    {#if !soloContenido}
+      <h1 style="font-size: 1.6rem; font-weight: 700; color: #f1f5f9; margin: 0 0 1.25rem;">Ajustes</h1>
+    {/if}
     <div class="ajustes-grid">
       <!-- CONFIGURACIÓN -->
+      {#if !filtro || filtro === "configuracion"}
       <div class="category-card" style="border-left: 3px solid {TAB_COLORS.configuracion};">
         <div class="category-header" style="border-left: none;">
           <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.configuracion}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">⚙️</div>
@@ -504,8 +527,10 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
           </div>
         </div>
       </div>
+      {/if}
 
       <!-- ALMACENAMIENTO -->
+      {#if !filtro || filtro === "almacenamiento"}
       <div class="category-card" style="border-left: 3px solid {TAB_COLORS.almacenamiento};">
         <div class="category-header" style="border-left: none;">
           <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.almacenamiento}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">📦</div>
@@ -544,8 +569,10 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
           </div>
         </div>
       </div>
+      {/if}
 
       <!-- DEBUGGING -->
+      {#if !filtro || filtro === "debugging"}
       <div class="category-card" style="border-left: 3px solid {TAB_COLORS.debugging};">
         <div class="category-header" style="border-left: none;">
           <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.debugging}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">🐛</div>
@@ -579,8 +606,10 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
           </div>
         </div>
       </div>
+      {/if}
 
       <!-- INFO -->
+      {#if !filtro || filtro === "acercaDe"}
       <div class="category-card" style="border-left: 3px solid {TAB_COLORS.acercaDe};">
         <div class="category-header" style="border-left: none;">
           <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.acercaDe}18;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><img src={appIcon} alt="" style="width:24px;height:24px;border-radius:6px;object-fit:contain;" /></div>
@@ -608,10 +637,11 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
           <div style="margin-top: 1rem; text-align: center; color: #64748b; font-size: 0.8rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 0.75rem;">Desarrollado con ❤️ por Keimer</div>
         </div>
       </div>
+      {/if}
     </div>
   {/if}
 
-  {#if isAndroid && activeTab === null}
+  {#if isAndroid && !soloContenido && activeTab === null}
     <div style="padding: 1rem;">
       <h1 style="font-size: 1.5rem; font-weight: 700; color: #f1f5f9; margin-bottom: 1.5rem; text-align: center;">Ajustes</h1>
       <div style="display: flex; flex-direction: column; gap: 0.75rem;">
@@ -630,7 +660,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
         {/each}
       </div>
     </div>
-  {:else if isAndroid && activeTab !== null}
+  {:else if isAndroid && (soloContenido || activeTab !== null)}
     <div style="padding: 1rem;">
       <!-- El back nativo de Android ya maneja la vuelta (registerBackHandler) -->
       <div class="settings-content-wrapper">

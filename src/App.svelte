@@ -16,8 +16,8 @@
   import NotasMainPage from "./svelte/notas/NotasMainPage.svelte";
   import EvaluacionesPage from "./svelte/EvaluacionesPage.svelte";
   import EstudiantesPage from "./svelte/EstudiantesPage.svelte";
-  import GlobalesPage from "./svelte/GlobalesPage.svelte";
-import AjustesPage from "./svelte/AjustesPage.svelte";
+  import AjustesGenerales from "./svelte/AjustesGenerales.svelte";
+
 import DashboardPage from "./svelte/DashboardPage.svelte";
 import CloudPage from "./svelte/CloudPage.svelte";
   import AccountPage from "./svelte/AccountPage.svelte";
@@ -25,19 +25,20 @@ import CloudPage from "./svelte/CloudPage.svelte";
   import WelcomePage from "./svelte/WelcomePage.svelte";
   import AndroidDrawer from "./svelte/AndroidDrawer.svelte";
 
-  type Tab = "dashboard" | "notas" | "estudiantes" | "evaluaciones" | "globales" | "ajustes" | "asistencia" | "cloud" | "account";
+  type Tab = "dashboard" | "notas" | "estudiantes" | "evaluaciones" | "ajustes" | "asistencia" | "cloud" | "account";
 
   let initialized = $state<boolean | null>(null);
   let isMobile = $state(false);
   let isAndroid = $state(false);
   let activeTab = $state<Tab>("dashboard");
-  let visitedTabs = $state<Set<Tab>>(new Set(["dashboard", "notas", "estudiantes", "evaluaciones", "globales", "ajustes", "asistencia", "cloud", "account"]));
+  let visitedTabs = $state<Set<Tab>>(new Set(["dashboard", "notas", "estudiantes", "evaluaciones", "ajustes", "asistencia", "cloud", "account"]));
   let sidebarWidth = $state(Math.min(Math.max(220, Math.floor(window.innerWidth * 0.16)), 260));
   let drawerOpen = $state(false);
   let isResizing = $state(false);
   let toast: { message: string; type: string; isOpen: boolean } = $state({ message: "", type: "info", isOpen: false });
   let unlisten: (() => void)[] = [];
-  let ajustesTabRequest = $state<string | null>(null);
+  /** Sección de Ajustes Generales abierta (deep-link). */
+  let ajustesSeccion = $state<string>('ano-lectivo');
 
   // Estado de sync D1 para el chip del header móvil
   let d1Status = $state<string>((d1SyncManager.getState() as { status?: string })?.status ?? 'idle');
@@ -164,7 +165,6 @@ import CloudPage from "./svelte/CloudPage.svelte";
       if (isMobile) drawerOpen = false;
       return;
     }
-    ajustesTabRequest = null;
     asistenciaSubTabRequest = null;
     notasSubTabRequest = null;
     setActiveTab(tab);
@@ -236,7 +236,25 @@ import CloudPage from "./svelte/CloudPage.svelte";
     }
   }
 
-  onMount(async () => {
+  /**
+   * Traza del arranque. Además de la consola, acumula en `window.__initLog`
+   * para poder inspeccionarla desde DevTools aunque el log se pierda.
+   */
+  function logInit(msg: string) {
+    const linea = `[Init] ${msg}`;
+    console.log(linea);
+    try {
+      (window as any).__initLog = [...((window as any).__initLog || []), linea];
+    } catch {}
+  }
+
+  onMount(() => {
+    void iniciar();
+  });
+
+  async function iniciar() {
+   try {
+    logInit('1 onMount: registrando atajos de teclado');
     window.addEventListener('keydown', handleKeyDown);
     onDestroy(() => window.removeEventListener('keydown', handleKeyDown));
     checkMobile();
@@ -253,19 +271,32 @@ import CloudPage from "./svelte/CloudPage.svelte";
     }
 
     // Check if app has been initialized (welcomed)
-    const init = await invoke('is_app_initialized');
+    logInit('2 consultando is_app_initialized…');
+    let init = false;
+    try {
+      init = await invoke('is_app_initialized');
+      logInit('3 is_app_initialized = ' + String(init));
+    } catch (e) {
+      console.error('[Init] is_app_initialized falló', e);
+      logInit('3 is_app_initialized ERROR: ' + String(e));
+    }
     initialized = init;
 
     if (init) {
       // Existing init logic only runs if already initialized
       const saved = localStorage.getItem("active-tab") as Tab | null;
-      // Migraciones: páginas fusionadas como sub-tabs
+      // Migraciones: páginas fusionadas como sub-tabs, y Globales→Ajustes Generales
       if (saved === "informe" || saved === "reportes") {
         const merged = saved === "informe" ? "asistencia" : "notas";
         activeTab = merged as Tab;
         localStorage.setItem("active-tab", merged);
       }
+      else if (saved === "globales") {
+        activeTab = "ajustes";
+        localStorage.setItem("active-tab", "ajustes");
+      }
       else if (saved) activeTab = saved;
+      logInit('4 tab activa = ' + String(activeTab) + ' · visited = ' + Array.from(visitedTabs).join(','));
       const w = localStorage.getItem("sidebar-width");
       if (w) sidebarWidth = parseInt(w);
       const visits = localStorage.getItem("visited-tabs");
@@ -275,7 +306,8 @@ import CloudPage from "./svelte/CloudPage.svelte";
           // Migración de visited-tabs históricos
           if (parsed.includes("informe")) { visitedTabs.add("asistencia"); }
           if (parsed.includes("reportes")) { visitedTabs.add("notas"); }
-          visitedTabs = new Set(parsed.filter(t => t !== "informe" && t !== "reportes"));
+          if (parsed.includes("globales")) { visitedTabs.add("ajustes"); }
+          visitedTabs = new Set(parsed.filter(t => t !== "informe" && t !== "reportes" && t !== "globales"));
         } catch {}
       }
       const savedMode = localStorage.getItem("app-theme") || "sistema";
@@ -325,7 +357,18 @@ import CloudPage from "./svelte/CloudPage.svelte";
         showToast(event.payload.message, event.payload.type);
       }).then(u => unlisten.push(u));
 
+      // Deep-link: cualquier página pide abrir una sección de Ajustes Generales.
+      listen("open-ajustes", (event: any) => {
+        const seccion = event.payload?.section;
+        if (!seccion) return;
+        ajustesSeccion = seccion;
+        setActiveTab("ajustes");
+        if (isMobile) drawerOpen = false;
+      }).then(u => unlisten.push(u));
+
       // Sincronización automática SOLO con Cloudflare D1 (si está configurado).
+      logInit('5 registrando sincronización D1…');
+      logInit('6 arrancando backup de Drive y scheduler…');
       // Google Drive: respaldo automático (push) cada N minutos + manual desde CloudPage.
       driveSyncService.ensureAutoBackup();
       // Scheduler híbrido de Drive (timer inteligente + triggers pasivos + cuenta).
@@ -360,6 +403,7 @@ import CloudPage from "./svelte/CloudPage.svelte";
       // y los avisos en tiempo real del otro dispositivo se perdían.
       void d1TrySync('startup');
 
+      logInit('7 sembrando datos por defecto (en segundo plano)…');
       invoke("seed_defaults_now");
 
       // Notificación Android: grados/secciones sin asistencia hoy (solo si colegio laborable).
@@ -378,7 +422,13 @@ import CloudPage from "./svelte/CloudPage.svelte";
       }
     });
     welcomeListener.then(u => unlisten.push(u));
-  });
+    logInit('9 arranque completado · initialized=' + String(initialized));
+   } catch (e) {
+    console.error('[Init] error fatal en el arranque', e);
+    logInit('ERROR FATAL en el arranque: ' + String(e));
+    initialized = true;
+   }
+  }
 
   onDestroy(() => {
     unlisten.forEach(u => u());
@@ -447,11 +497,8 @@ import CloudPage from "./svelte/CloudPage.svelte";
     {#if visitedTabs.has('estudiantes')}
       <div style="display: {activeTab === 'estudiantes' ? 'block' : 'none'}; width: 100%; height: 100%;"><EstudiantesPage /></div>
     {/if}
-    {#if visitedTabs.has('globales')}
-      <div style="display: {activeTab === 'globales' ? 'block' : 'none'}; width: 100%; height: 100%;"><GlobalesPage pageActive={activeTab === 'globales'} /></div>
-    {/if}
     {#if visitedTabs.has('ajustes')}
-      <div style="display: {activeTab === 'ajustes' ? 'block' : 'none'}; width: 100%; height: 100%;"><AjustesPage pageActive={activeTab === 'ajustes'} tabRequest={ajustesTabRequest} {themeMode} {setThemeMode} /></div>
+      <div style="display: {activeTab === 'ajustes' ? 'block' : 'none'}; width: 100%; height: 100%;"><AjustesGenerales pageActive={activeTab === 'ajustes'} bind:seccion={ajustesSeccion} {themeMode} {setThemeMode} /></div>
     {/if}
     {#if visitedTabs.has('cloud')}
       <div style="display: {activeTab === 'cloud' ? 'block' : 'none'}; width: 100%; height: 100%; overflow-y: auto;"><CloudPage onNavigate={handleTabChange} pageActive={activeTab === 'cloud'} /></div>

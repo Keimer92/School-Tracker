@@ -8,6 +8,16 @@ const init = async () => {
   const currentWindow = getCurrentWebviewWindow();
   console.log("Iniciando aplicación en ventana:", currentWindow.label);
 
+  // Captura global de errores: un fallo de render en cualquier página dejaba la
+  // ventana en negro sin decir nada. Se loguea con prefijo [Init] para que se
+  // distinga de los errores de Tauri en la consola.
+  window.addEventListener("error", (e) => {
+    console.error("[Init] ERROR NO CAPTURADO:", e.error ?? e.message);
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    console.error("[Init] PROMESA RECHAZADA:", e.reason);
+  });
+
   // Android: bloquear gestos de pinch-zoom (2+ dedos) en cualquier página
   if (/Android/i.test(navigator.userAgent)) {
     const bloquearMultitouch = (e: TouchEvent) => {
@@ -50,7 +60,11 @@ const init = async () => {
     return;
   }
 
-  mount(App, { target: document.getElementById("root")! });
+  try {
+    mount(App, { target: document.getElementById("root")! });
+  } catch (e) {
+    console.error("[Init] falló el montaje de la app:", e);
+  }
 };
 
 init();

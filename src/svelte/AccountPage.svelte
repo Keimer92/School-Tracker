@@ -115,7 +115,7 @@
     ensureWsSync();
     if (empty && seedIfEmpty) {
       try { await invoke("seed_defaults_now"); } catch (e) { console.warn("[cambiarCuenta] seed falló:", e); }
-      onNavigate?.("globales");
+      onNavigate?.("ajustes");
     }
     return !empty;
   }
@@ -240,7 +240,7 @@
         ? { workerUrl: DEFAULT_WORKER_URL, schoolKey: res.result.schoolKey }
         : null;
       const notEmpty = await finalizeAccountSwitch({ email: newEmail, cloud, seedIfEmpty: true });
-      if (!notEmpty) onNavigate?.('globales');
+      if (!notEmpty) onNavigate?.('ajustes');
       refreshLinkedAccounts();
       await emit("show-toast", { message: `✅ Ahora usando la cuenta ${newEmail}`, type: "success" });
     } catch (e) {
