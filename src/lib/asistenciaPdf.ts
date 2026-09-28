@@ -96,7 +96,7 @@ const EM_ANCHO_DDMM = 2.502;
 const ALTO_CHIP = 6.4;
 const SEPARACION_CHIP = 2.2;
 const RELLENO_CHIP = 2.6;
-const GROSOR_LINEA_CHIP = 0.25;
+const GROSOR_LINEA_CHIP = GROSOR_LINEA_TABLA;
 /**
  * Un solo grosor para TODOS los bordes de la tabla. Si el encabezado y el
  * cuerpo tuvieran grosores distintos, la línea que los separa se dibuja una vez
@@ -313,6 +313,7 @@ export async function generarPdfAsistencia(
         minCellHeight: 6,
       },
       alternateRowStyles: { fillColor: [247, 253, 250] },
+      tableLineWidth: GROSOR_LINEA_TABLA,
       columnStyles,
       rowPageBreak: "avoid",
       didParseCell: (data: any) => {
