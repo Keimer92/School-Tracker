@@ -46,9 +46,27 @@ src/
   svelte/                    páginas UI (*Page.svelte) y componentes reutilizables
     asistencia/              AsistenciaMainPage.svelte (wrapper sub-tabs: AsistenciaPage + InformePage)
     notas/                   NotasMainPage.svelte (wrapper sub-tabs: NotasPage + ReportesPage)
-    CloudCards.svelte        cards Nube D1 / Respaldo Drive (drawer móvil + header desktop)
+     CloudCards.svelte        cards Nube D1 / Respaldo Drive (drawer móvil + header desktop)
+     CategoryTabContent.svelte  card/config de cada categoría en GlobalesPage
+                              (modales add/edit, switch activo, savebar)
+     DatePickerGlass.svelte   selector de fecha con dias no habiles tachados
+     FiltersModalAndroid.svelte modal unico de filtros en Android (año lectivo
+                              primero, luego el slot `extras` de cada página)
   lib/
+    asistenciaPdf.ts         generador COMPARTIDO de PDFs de asistencia
+                              multipágina (una hoja por grado/sección). Escala
+                              tipografía por nº de columnas Y de filas; bordes
+                              únicos de 0.5mm (sub-píxel se ve irregular);
+                              encabezados de fecha NUNCA rotados; chips de
+                              encabezado; pie dibujado al final con el total
+                              real de páginas. jspdf lazy + interop de export
+                              (ver sección dedicated).
+    excel.ts                 export .xlsx con ExcelJS (compartido por páginas)
+    instrumentosPdf.ts       PDFs de instrumentos (jspdf lazy)
+    instrumentosExcel.ts      export xlsx de instrumentos
+    exceljs-style.ts         helpers de estilo compartidos de Excel
     driveSyncService.ts      Respaldo por ARCHIVO COMPLETO school.db en Google Drive.
+
                              SyncManager (status, lastUpload/Download, lastSync,
                              downloadProgress) con subscribe(). Carpeta destino:
                              Keimer Labs/School Tracker MINED (máx 3 respaldos,
@@ -127,6 +145,36 @@ src-tauri/gen/               generado (ignorar; no editar a mano — EXCEPCIÓN:
   (`school_<email>.db`). El archivo activo se controla via `active_account.txt`
   y helpers `db::read_active_account` / `db::write_active_account`. NO usar
   `Connection::open("school.db")` directamente; usar `resolve_active_db_path()`.
+- **Año lectivo = año calendario (REGLA)**: el año lectivo se ingresa SIEMPRE como
+  año calendario de 4 dígitos (2026, 2027…), nunca como rango ("2026-2027").
+  Validado en `CategoryTabContent.svelte` con `/^(19|20)\d{2}$/` (alta y edición)
+  y explicado en la UI de GlobalesPage.   Consecuencia asumida: el selector de año calendario del mes desapareció de
+  AsistenciaPage/InformePage; `anoSeleccionado` se deriva
+  del año lectivo por `$effect`. Si el año lectivo es 2026, el mes se ve en 2026.
+- **`position: fixed` dentro de contenedores glass**: cualquier ancestro con
+  `backdrop-filter` o `transform` se convierte en bloque contenedor de sus
+  descendientes `fixed`, así que un modal `position:fixed` embebido en un panel
+  glass se confines y se sale de la pantalla. Solución: montarlo en `<body>` con
+  una acción tipo `portalToBody` (ver modal de Sin Clases en AsistenciaPage).
+- **Interop de jspdf fuera de Vite**: `const { default: jsPDF } = await import("jspdf")`
+  funciona en Vite, pero al correr un `.ts` suelto en Node el constructor queda en
+  `mod.default.default`. `asistenciaPdf.ts` resuelve las dos formas con
+  `resolverExport()`, lo que además permite testear PDFs en Node (ver abajo).
+- **Pruebas de PDF en Node**: los generadores se pueden ejercitar sin Tauri con
+  `npx esbuild <test.ts> --bundle --platform=node --format=esm --external:jspdf
+  --external:jspdf-autotable` y ejecutando el `.mjs` desde la raíz del proyecto
+  (necesita resolver `jspdf`). Contar páginas con `/\/Type\s*\/Page[^s]/g` sobre el
+  buffer, y descomprimir los streams con `zlib.inflateSync` para verificar que los
+  textos se emiten como un token (ej. que `dd/mm` NO se parte en dos líneas).
+  **Borrar el `.mjs` generado en la raíz**: el hook de auto-commit lo commitea.
+- **Bordes de tabla PDF**: autoTable dibuja los bordes como rectángulos rellenos
+  (`re`) del grosor en mm, NO como trazos. Con 0.2mm caen en SUB-PÍXEL y cada
+  visor los rasteriza a 1 o 2 píxeles según dónde caigan → unas líneas se ven más
+  gruesas que otras. De ahí `GROSOR_LINEA_TABLA = 0.5` (≈1.4px a 96dpi) y un
+  único valor para tabla, encabezado y chips.
+- **Pie de página del PDF**: dibujarlo dentro de `didDrawPage` da "Hoja 1/1" en
+  cada página, porque las hojas siguientes aún no existen. Registrar el rango de
+  páginas de cada tabla y pintar el pie al final, ya con `getNumberOfPages()` real.
 
 ## Archivos Android custom en gen/ (commiteados, NO auto-generados)
 
@@ -135,7 +183,8 @@ Kotlin que **NO son generados por Tauri** — son custom y se commitean a git:
 
 | Archivo | Función |
 |---------|---------|
-| `MainActivity.kt` | Activity principal, Google Sign-In nativo, JNI bridge, PDF/share |
+| `MainActivity.kt` | Activity principal, Google Sign-In nativo, JNI bridge, PDF/share, `saveToDownloads()` |
+| `DescargasSaver.kt` | Guarda archivos en Descargas PÚBLICAS vía `MediaStore.Downloads` (API 29+) sin permisos; API ≤28 copia directa |
 | `AttendancePrefs.kt` | SharedPreferences para alarmas de asistencia |
 | `AttendanceScheduler.kt` | Programación de alarma diaria (AlarmManager) |
 | `AttendanceAlarmReceiver.kt` | BroadcastReceiver que dispara la alarma |
@@ -808,22 +857,42 @@ pending deletions al borrar). Registrados en generate_handler + local-commands.t
 **Alcances**: `grado_id`+`seccion_id` con valor = solo esa sección DE ese grado
 (las secciones son catálogos compartidos entre grados: sin `grado_id`, una marca
 "A" afectaría a todos los grados); ambos NULL = todo el colegio.
+**No existe un nivel "todos los colegios"**: `colegio_id` es NOT NULL, así que
+para aplicar a todos hay que ITERAR el catálogo de colegios llamando a
+`set_dias_sin_clases` una vez por colegio, siempre con `gradoId`/`seccionId` en
+`null` (ver `aplicarEnTodosLosColegios()` en AsistenciaPage).
 
 **UI (AsistenciaPage)**:
-- Botón "🚫 Sin Clases" junto a Limpiar (solo diario/semanal). Popover con MOTIVO
-  OBLIGATORIO + alcance (sección / colegio) y confirmación nativa (`ask`);
-  desmarcar también confirma.
+- Botón "🚫 Sin Clases" junto a Limpiar, disponible en **diario, semanal Y
+  mensual**. Popover con MOTIVO OBLIGATORIO + alcance y confirmación nativa
+  (`ask`); desmarcar también confirma. En mensual el popover abre con un
+  **selector de semana** (`semanasMes`) porque "todo el mes" no aplica.
+- Alcances del popover: sección / colegio / **TODOS los colegios** (y el espejo
+  "reactivar en todos los colegios" cuando ya está marcado).
 - Diario marcado → banner ámbar glass + lista vacía. Semanal/mensual: los días
   marcados NO desaparecen; encabezado de columna ámbar 🚫 y celda combinada
   (`rowspan`) con el motivo vertical.
 - Click en el ENCABEZADO de una fecha (semanal/mensual) marca/desmarca esa
   fecha puntual (popover contextual, `colFechaObjetivo`).
+- El popover va montado en `<body>` con una acción `portalToBody` (GOTCHA de
+  `position: fixed` en contenedores glass). En escritorio: centrado con
+  `padding-top:14vh`, fondo transparente y SIN blur para que la tabla siga
+  viéndose; en Android: modal centrado con blur.
 - `fechasPeriodo` excluye los días sin clases (no cuentan P/A/J ni %);
   `fechasVisibles` los incluye para pintarlos.
 
+**Semanas en la vista mensual** (`semanasMes`, ambas páginas): las columnas se
+agrupan por el PRIMER DÍA HÁBIL DEL COLEGIO (`primerDiaSemana`, derivado de
+`colegioConfig` lunes→domingo), no por lunes: un colegio martes-sábado tiene su
+semana empezando el martes. Cada bloque lleva separador vertical (`.sep-semana`),
+píldora `S1`/`S2`… en su primera columna, y "Semana N" en el tooltip de cada fecha.
+Al pasar el cursor por una semana en el popover de Sin Clases, esa semana se
+resalta en la tabla (`semanaHover`, `semanaHoverRango`).
+
 **InformePage**: columnas omitidas de reportes; nota en PDF/impresión
-("Sin clases: dd/mm (motivo)"); diario muestra "SIN CLASES" en la columna
-Estado COMBINADA (rowSpan autoTable / rowspan HTML); banner on-screen.
+("Sin clases: dd/mm (motivo)"); en mensual/semanal el día marcado lleva celda
+combinada (rowSpan autoTable / rowspan HTML); banner on-screen cuando el período
+entero está marcado (`dscPeriodoVacio`).
 
 **DatePickerGlass inteligente**: prop `diaHabilitado(iso)` — días no hábiles del
 colegio o marcados sin clases se ven tachados/no seleccionables (también "Hoy").
@@ -1337,4 +1406,71 @@ o quedar el de la versión anterior**:
       (y los `32x32/128x128`) y **re-generar el proyecto Android** para que Tauri
       cope los PNG a `mipmap` (o copiar manualmente los PNG nuevos a `res/mipmap-*/`).
   3. Tras reinstalar, refrescar el launcher(reiniciar el dispositivo) para
-      limpiar la caché de iconos.baséiff
+      limpiar la caché de iconos.
+
+## Indicadores activos por colegio + sección (2026-09)
+
+La **descripción y los puntos** de un indicador son GLOBALES (por
+grado/asignatura/corte/año); solo el **activo** se personaliza por colegio/sección.
+
+- Tabla `indicador_colegio_seccion_activo` (`colegio_id`, `indicador_id`, `activo`,
+  `updated_at`), PK compuesta. Reemplaza a la antigua `indicador_seccion_activo`
+  (eliminada de local y nube).
+- Comandos: `get_indicadores_activos_colegio_seccion(colegioId, gradoId, seccionId,
+  asignaturaId, corteEvaluativoId, anoLectivoId)`, `set_indicador_colegio_seccion_activo`
+  y `reset_indicadores_colegio_seccion`. Registrados en `generate_handler!` +
+  `local-commands.toml`; sincronizada en D1 (`d1.rs`, `lib.rs`, `dirtyTracker.ts`,
+  worker `TABLES`/`ensureSchema`).
+- `NotasPage.svelte` es la ÚNICA página con el switch de activo (por fila, para
+  colegio+sección). `EvaluacionesPage` edita solo descripción y puntos (labels
+  informativos, sin switch) con botón Guardar explícito + chip "Sin guardar".
+- Regla de evaluación: máximo 5 indicadores activos, máximo 20 puntos cada uno,
+  total 100.
+- `ReportesPage` debe filtrar por estos activos: `idsActivosDe(colegioId, seccionId,
+  gradoId)` resuelve el set y los reportes lo usan en la tabla, en el PDF normal y
+  en el PDF masivo (si no, el total sale sobre 8 indicadores).
+
+## Filtro de período en Asistencia/Informe (2026-09)
+
+- **Mensual es el predeterminado** en ambas páginas (`periodo` inicial `"mensual"`).
+  En InformePage el filtro "Diario" **se eliminó por completo**; en AsistenciaPage
+  solo se oculta en **Windows** (`{#if !isWindows}`), porque la pantalla es lo
+  bastante ancha para Semanal/Mensual.
+- Si queda persistido `"diario"` en `localStorage['asistencia_periodo']` y se abre
+  en Windows, se migra a `"mensual"` al arrancar (si no, el `<select>` queda sin
+  opción coincidente). La preferencia guardada del usuario siempre se respeta.
+- Orden de los filtros en escritorio: **Año Lectivo → Período → control del
+  período** (Fecha / Semana de / Mes) → Colegio, Grado, Sección, Sexo. En Android
+  el año ya lo renderiza `FiltersModalAndroid` antes del slot `extras`.
+- En mensual NO hay selector de año calendario: se deriva del año lectivo.
+
+## Export PDF (2026-09)
+
+### Notas (ReportesPage)
+- Dos botones con alcance distinto, ambos unificados en `exportarPdfs(alcance)`:
+  - 🔴 **PDF colegio** → un PDF por grado×sección del colegio filtrado
+  - 📚 **Exportar Todo** → todos los colegios del año lectivo
+- Cada par lleva su propio `colegioId` en el array `pares`; si no, al exportar
+  todo se mezclarían configuración y datos de un colegio con los de otro.
+- En Android se copian a Descargas vía `guardar_en_descargas` (ver abajo).
+
+### Asistencia (InformePage) — `src/lib/asistenciaPdf.ts`
+- Un solo PDF con **una hoja por grado/sección** de TODOS los colegios.
+  Alcance único (se quitó el botón por colegio); el nombre del archivo es
+  `Asistencia_<Mes o Semana N>_<Año>.pdf` (con espacios, SIN guiones bajos) y la
+  subcarpeta `Documents/School Tracker/<año> - Asistencia <etiqueta>/`.
+- El módulo escala tipografía por nº de columnas **y** de filas para que cada
+  sección entre en una hoja; con 45+ estudiantes en mensual se acepta una 2ª hoja
+  antes que letra ilegible (piso 6.5pt).
+- Encabezado en CHIPS redondeados (verde claro / gris / ámbar) con barra de acento,
+  igual que la vista de impresión. El chip de sección es **por hoja**, no la lista
+  completa; la lista de todas vive en el pie (`Sección N de M`).
+
+### Guardado en Android (MediaStore)
+- Comando Rust `guardar_en_descargas(path, mime, carpeta, nombre)` (registrado en
+  `generate_handler!` + `local-commands.toml`) → JNI → `MainActivity.saveToDownloads`
+  → `DescargasSaver.guardar` con `MediaStore.Downloads` (API 29+) e
+  `RELATIVE_PATH = "Download/<carpeta>/"`. Sin permisos de almacenamiento.
+- `carpeta` acepta ruta anidada: se pasa `School Tracker/<subcarpeta>` para no
+  dejar los archivos sueltos en `Download/School Tracker/`.
+- En desktop el mismo comando devuelve `""` (no-op) y se abre la carpeta.
