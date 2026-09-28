@@ -3,7 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { emit } from "@tauri-apps/api/event";
   import { open, save, ask } from "@tauri-apps/plugin-dialog";
-  import { copyFile, writeFile, BaseDirectory } from "@tauri-apps/plugin-fs";
+  import { copyFile, BaseDirectory } from "@tauri-apps/plugin-fs";
   import { syncService } from "../lib/syncService";
   import { onDataChange } from "../lib/autoSync";
   import { registerBackHandler } from "../lib/androidBack";
@@ -28,12 +28,11 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   const TABS = [
     { id: "configuracion", label: "General", icon: "⚙️" },
     { id: "notificaciones", label: "Notif. Asistencia", icon: "🔔", soloAndroid: true },
-    { id: "almacenamiento", label: "Almacén", icon: "📦" },
     { id: "debugging", label: "Debug", icon: "🐛" },
     { id: "acercaDe", label: "Info", icon: "📖" },
   ] as const;
 
-  const TAB_COLORS: Record<string, string> = { configuracion: "#60a5fa", notificaciones: "#fbbf24", almacenamiento: "#34d399", debugging: "#ef4444", acercaDe: "#a78bfa" };
+  const TAB_COLORS: Record<string, string> = { configuracion: "#60a5fa", notificaciones: "#fbbf24", debugging: "#ef4444", acercaDe: "#a78bfa" };
 
   const isAndroid = /Android/i.test(navigator.userAgent);
   // Notificaciones de asistencia SOLO Android (usa AlarmManager nativo)
@@ -51,12 +50,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   let highlightColor = $state(localStorage.getItem("student-highlight-color") || "#4ade80");
   let currentUserId = $state("");
   let showUserIdBox = $state(false);
-  let anos: CategoryItem[] = $state([]);
-  let colegios: CategoryItem[] = $state([]);
-  let selectedAno = $state(0);
-  let selectedColegio = $state(0);
-  let isExportingExcel = $state(false);
-  let isExportingByYear = $state(false);
   let selectedFeature = $state<{ icon: string; title: string; desc: string } | null>(null);
 
   const FEATURES = [
@@ -239,7 +232,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
    */
   const MAP_SECCION: Record<string, string> = {
     general: "configuracion", notificaciones: "notificaciones",
-    almacenamiento: "almacenamiento", debug: "debugging", info: "acercaDe",
+    debug: "debugging", info: "acercaDe",
   };
   const seccionInterna = $derived(soloContenido && seccion ? (MAP_SECCION[seccion] ?? seccion) : null);
   const filtro = $derived(soloContenido ? (seccionInterna ?? activeTab) : null);
@@ -263,11 +256,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   onMount(async () => {
     invoke<{ id: string; nombre: string; color: string; minimo: number }[]>("get_grade_configs").then(d => gradeConfigs = d).catch(e => console.error("Error fetching grade configs:", e));
     invoke<string>("get_db_path").then(p => dbPath = p).catch(e => console.error("Error fetching db path:", e));
-    Promise.all([invoke<CategoryItem[]>("get_anos"), invoke<CategoryItem[]>("get_colegios")]).then(([aData, cData]) => {
-      anos = aData; colegios = cData;
-      const activeYear = aData.find(a => a.activo) || aData[0]; if (activeYear) selectedAno = activeYear.id;
-      const activeColegio = cData.find(c => c.activo) || cData[0]; if (activeColegio) selectedColegio = activeColegio.id;
-    }).catch(e => console.error("Error fetching catalogs:", e));
     // Cargar configuraciones desde la tabla syncronizable
     const settings = await loadAppSettings();
     highlightColor = settings.highlightColor;
@@ -432,54 +420,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     catch (error) { console.error("Error al seleccionar carpeta:", error); }
   }
 
-  async function handleExportStudentsToExcel() {
-    if (!selectedAno || !selectedColegio) { await emit("show-toast", { message: "⚠️ Seleccione año y colegio", type: "warning" }); return; }
-    isExportingExcel = true;
-    try {
-      const XLSX = await import("xlsx");
-      const students = await invoke<any[]>("get_students");
-      const filtered = students.filter(s => Number(s.anoLectivoId) === Number(selectedAno) && Number(s.colegioId) === Number(selectedColegio));
-      if (filtered.length === 0) { await emit("show-toast", { message: "ℹ️ No hay estudiantes para exportar", type: "info" }); isExportingExcel = false; return; }
-      const [grados, secciones] = await Promise.all([invoke<CategoryItem[]>("get_grados"), invoke<CategoryItem[]>("get_secciones")]);
-      const excelData = filtered.map(s => ({
-        "Nombre Completo": s.nombre, Sexo: s.sexo === "F" ? "Femenino" : "Masculino",
-        Grado: grados.find(g => g.id === s.gradoId)?.nombre || "N/A", Sección: secciones.find(sec => sec.id === s.seccionId)?.nombre || "N/A",
-      }));
-      excelData.sort((a, b) => { const g = a.Grado.localeCompare(b.Grado, undefined, { numeric: true, sensitivity: "base" }); if (g) return g; const se = a.Sección.localeCompare(b.Sección, undefined, { numeric: true, sensitivity: "base" }); return se || a["Nombre Completo"].localeCompare(b["Nombre Completo"], undefined, { sensitivity: "base" }); });
-      const ws = XLSX.utils.json_to_sheet(excelData); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Estudiantes");
-      const colegioName = colegios.find(c => c.id === selectedColegio)?.nombre || "Colegio";
-      const anoName = anos.find(a => a.id === selectedAno)?.nombre || "Año";
-      const fileName = `Estudiantes_${colegioName.replace(/\s+/g, "_")}_${anoName}.xlsx`;
-      const dest = await save({ filters: [{ name: "Excel Workbook", extensions: ["xlsx"] }], defaultPath: fileName });
-      if (dest) { const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" }); await writeFile(dest, new Uint8Array(buf)); await emit("show-toast", { message: "✅ Exportación exitosa", type: "success" }); }
-    } catch (error) { await emit("show-toast", { message: "❌ Error al exportar: " + error, type: "error" }); }
-    finally { isExportingExcel = false; }
-  }
-
-  async function handleExportStudentsByYear() {
-    if (!selectedAno) { await emit("show-toast", { message: "⚠️ Seleccione un año lectivo", type: "warning" }); return; }
-    isExportingByYear = true;
-    try {
-      const XLSX = await import("xlsx");
-      const students = await invoke<any[]>("get_students");
-      const filtered = students.filter(s => Number(s.anoLectivoId) === Number(selectedAno));
-      if (filtered.length === 0) { await emit("show-toast", { message: "ℹ️ No hay estudiantes para exportar", type: "info" }); isExportingByYear = false; return; }
-      const [grados, secciones, colegiosList] = await Promise.all([invoke<CategoryItem[]>("get_grados"), invoke<CategoryItem[]>("get_secciones"), invoke<CategoryItem[]>("get_colegios")]);
-      const byColegio = filtered.reduce((acc, s) => { const n = colegiosList.find(c => c.id === s.colegioId)?.nombre || "Sin_Colegio"; const safe = n.replace(/[\\/*?:\[\]]/g, "_"); if (!acc[safe]) acc[safe] = []; acc[safe].push({ ...s, colegioNombre: n }); return acc; }, {} as Record<string, any[]>);
-      const wb = XLSX.utils.book_new();
-      Object.entries(byColegio).forEach(([sheetName, colegioStudents]) => {
-        (colegioStudents as any[]).sort((a, b) => { const ga = grados.find(g => g.id === a.gradoId)?.nombre || ""; const gb = grados.find(g => g.id === b.gradoId)?.nombre || ""; const gs = ga.localeCompare(gb, undefined, { numeric: true, sensitivity: "base" }); if (gs) return gs; const sa = secciones.find(sec => sec.id === a.seccionId)?.nombre || ""; const sb = secciones.find(sec => sec.id === b.seccionId)?.nombre || ""; return sa.localeCompare(sb, undefined, { numeric: true, sensitivity: "base" }) || a.nombre.localeCompare(b.nombre, undefined, { sensitivity: "base" }); });
-        const data = (colegioStudents as any[]).map(s => ({ "Nombre Completo": s.nombre, Sexo: s.sexo === "F" ? "Femenino" : "Masculino", Grado: grados.find(g => g.id === s.gradoId)?.nombre || "N/A", Sección: secciones.find(sec => sec.id === s.seccionId)?.nombre || "N/A" }));
-        const ws = XLSX.utils.json_to_sheet(data); ws['!cols'] = [{ wch: 35 }, { wch: 12 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 30 }, { wch: 30 }];
-        XLSX.utils.book_append_sheet(wb, ws, sheetName.length > 31 ? sheetName.substring(0, 31) : sheetName);
-      });
-      const anoName = anos.find(a => a.id === selectedAno)?.nombre || "Año";
-      const dest = await save({ filters: [{ name: "Excel Workbook", extensions: ["xlsx"] }], defaultPath: `Todos_Estudiantes_${anoName.replace(/\s+/g, "_")}.xlsx` });
-      if (dest) { const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" }); await writeFile(dest, new Uint8Array(buf)); await emit("show-toast", { message: `✅ Exportación exitosa de ${filtered.length} estudiantes en ${Object.keys(byColegio).length} colegios`, type: "success" }); }
-    } catch (error) { await emit("show-toast", { message: "❌ Error al exportar: " + error, type: "error" }); }
-    finally { isExportingByYear = false; }
-  }
-
 </script>
 
 <div class="page-container" style="display: block;{(soloContenido ? ';padding:0' : '')}">
@@ -524,48 +464,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
               <div style="padding: 0.3rem 0.6rem; border-radius: 4px; background: {highlightColor}1a; border-left: 4px solid {highlightColor}; color: {highlightColor}; font-weight: bold; font-size: 0.8rem;">Juan Pérez García</div>
               <div style="color: #64748b; font-size: 0.75rem;">← Ejemplo</div>
             </div>
-          </div>
-        </div>
-      </div>
-      {/if}
-
-      <!-- ALMACENAMIENTO -->
-      {#if !filtro || filtro === "almacenamiento"}
-      <div class="category-card" style="border-left: 3px solid {TAB_COLORS.almacenamiento};">
-        <div class="category-header" style="border-left: none;">
-          <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.almacenamiento}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">📦</div>
-          <h3>Almacenamiento y Reportes</h3>
-        </div>
-        <div style="padding: 1.5rem 2rem;">
-          <h4 style="margin: 0 0 0.75rem 0; color: #e2e8f0; font-size: 0.95rem;">Exportar Estudiantes a Excel</h4>
-          <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1rem;">Genera un archivo Excel con el listado de estudiantes.</p>
-          <div style="background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; gap: 1rem;">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-              <div style="display: flex; flex-direction: column; gap: 0.4rem;">
-                <label style="font-size: 0.75rem; color: #94a3b8; font-weight: bold;">Año Lectivo</label>
-                <select bind:value={selectedAno} style="padding: 0.6rem; border-radius: 8px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.1); color: white; outline: none; width: 100%; box-sizing: border-box; font-size: 0.85rem;">
-                  <option value={0}>Seleccione año...</option>
-                  {#each anos as a (a.id)}<option value={a.id}>{a.nombre}</option>{/each}
-                </select>
-              </div>
-              <div style="display: flex; flex-direction: column; gap: 0.4rem;">
-                <label style="font-size: 0.75rem; color: #94a3b8; font-weight: bold;">Colegio</label>
-                <select bind:value={selectedColegio} style="padding: 0.6rem; border-radius: 8px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.1); color: white; outline: none; width: 100%; box-sizing: border-box; font-size: 0.85rem;">
-                  <option value={0}>Seleccione colegio...</option>
-                  {#each colegios as c (c.id)}<option value={c.id}>{c.nombre}</option>{/each}
-                </select>
-              </div>
-            </div>
-            <button onclick={handleExportStudentsToExcel} disabled={isExportingExcel || !selectedAno || !selectedColegio} style="padding: 0.8rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; color: white; border-radius: 10px; cursor: pointer; font-size: 0.9rem; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 0.6rem; opacity: {(isExportingExcel || !selectedAno || !selectedColegio) ? 0.6 : 1};">
-              {#if isExportingExcel}<div style="width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.2); border-top: 2px solid white; border-radius: 50%; animation: spin 1s linear infinite;"></div> Generando...{:else}<span style="font-size: 1.1rem;">📊</span> Exportar por Colegio{/if}
-            </button>
-          </div>
-          <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed rgba(255,255,255,0.1);">
-            <h5 style="margin: 0 0 0.5rem 0; color: var(--primary-color); font-size: 0.85rem;">📁 Exportar Todos por Año</h5>
-            <p style="color: #94a3b8; font-size: 0.8rem; margin-bottom: 0.75rem;">Exporta todos los estudiantes de todos los colegios.</p>
-            <button onclick={handleExportStudentsByYear} disabled={isExportingByYear || !selectedAno} style="padding: 0.7rem; background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%); border: none; color: white; border-radius: 10px; cursor: pointer; font-size: 0.85rem; font-weight: bold; width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem; opacity: {(isExportingByYear || !selectedAno) ? 0.6 : 1};">
-              {#if isExportingByYear}<div style="width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.2); border-top: 2px solid white; border-radius: 50%; animation: spin 1s linear infinite;"></div> Generando...{:else}<span style="font-size: 1rem;">📋</span> Exportar Todos ({anos.find(a => a.id === selectedAno)?.nombre || "Año"}){/if}
-            </button>
           </div>
         </div>
       </div>
@@ -817,75 +715,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
           </div>
         {/if}
 
-        <!-- ALMACENAMIENTO -->
-        {#if activeTab === "almacenamiento"}
-          <div class="category-card" style="border-left: 3px solid {TAB_COLORS.almacenamiento};">
-            <div class="category-header" style="border-left: none;">
-              <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.almacenamiento}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">📦</div>
-              <h3>Almacenamiento y Reportes</h3>
-            </div>
-            <div style="padding: 2rem;">
-              <div style="margin-bottom: 2rem;">
-                <h4 style="margin: 0 0 1rem 0; color: #e2e8f0;">Exportar Base de Datos de Estudiantes</h4>
-                <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 1.5rem;">Genera un archivo Excel profesional con el listado completo de estudiantes filtrado por colegio y año lectivo.</p>
-                <div style="background: rgba(255,255,255,0.05); padding: 2rem; border-radius: 16px; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; gap: 1.5rem;">
-                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                      <label style="font-size: 0.8rem; color: #94a3b8; font-weight: bold;">Año Lectivo</label>
-                      <select bind:value={selectedAno} style="padding: 0.8rem; border-radius: 8px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.1); color: white; outline: none; width: 100%; box-sizing: border-box;">
-                        <option value={0}>Seleccione año...</option>
-                        {#each anos as a (a.id)}<option value={a.id}>{a.nombre}</option>{/each}
-                      </select>
-                    </div>
-                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                      <label style="font-size: 0.8rem; color: #94a3b8; font-weight: bold;">Colegio</label>
-                      <select bind:value={selectedColegio} style="padding: 0.8rem; border-radius: 8px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.1); color: white; outline: none; width: 100%; box-sizing: border-box;">
-                        <option value={0}>Seleccione colegio...</option>
-                        {#each colegios as c (c.id)}<option value={c.id}>{c.nombre}</option>{/each}
-                      </select>
-                    </div>
-                  </div>
-                  <button onclick={handleExportStudentsToExcel} disabled={isExportingExcel || !selectedAno || !selectedColegio} style="margin-top: 1rem; padding: 1rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; color: white; border-radius: 12px; cursor: pointer; font-size: 1rem; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 0.8rem; opacity: {(isExportingExcel || !selectedAno || !selectedColegio) ? 0.6 : 1};">
-                    {#if isExportingExcel}
-                      <div style="width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.2); border-top: 2px solid white; border-radius: 50%; animation: spin 1s linear infinite;"></div> Generando Excel...
-                    {:else}<span style="font-size: 1.2rem;">📊</span> Exportar Listado de Estudiantes a Excel{/if}
-                  </button>
-                </div>
-
-                <div style="margin-top: 1rem; padding-top: 1.5rem; border-top: 1px dashed rgba(255,255,255,0.15);">
-                  <h5 style="margin: 0 0 1rem 0; color: var(--primary-color); font-size: 0.95rem; font-weight: 600;">📁 Exportar Todos los Estudiantes por Año Lectivo</h5>
-                  <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1rem;">Exporta todos los estudiantes de todos los colegios para un año lectivo específico.</p>
-                  <div style="display: flex; flex-direction: column; gap: 1rem;">
-                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                      <label style="font-size: 0.8rem; color: #94a3b8; font-weight: bold;">Año Lectivo</label>
-                      <select bind:value={selectedAno} style="padding: 0.8rem; border-radius: 8px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.1); color: white; outline: none; width: 100%; box-sizing: border-box;">
-                        <option value={0}>Seleccione año...</option>
-                        {#each anos as a (a.id)}<option value={a.id}>{a.nombre}</option>{/each}
-                      </select>
-                    </div>
-                    <button onclick={handleExportStudentsByYear} disabled={isExportingByYear || !selectedAno} style="padding: 1rem; background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%); border: none; color: white; border-radius: 12px; cursor: pointer; font-size: 1rem; font-weight: bold; display: flex; align-items: center; justify-content: center; gap: 0.8rem; opacity: {(isExportingByYear || !selectedAno) ? 0.6 : 1};">
-                      {#if isExportingByYear}
-                        <div style="width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.2); border-top: 2px solid white; border-radius: 50%; animation: spin 1s linear infinite;"></div> Generando Excel...
-                      {:else}<span style="font-size: 1.2rem;">📋</span> Exportar Todos los Estudiantes ({anos.find(a => a.id === selectedAno)?.nombre || "Año"}){/if}
-                    </button>
-                  </div>
-                </div>
-
-                <div style="margin-top: 2rem; padding: 1.5rem; background: rgba(var(--primary-rgb), 0.05); border-radius: 12px; border: 1px solid rgba(var(--primary-rgb), 0.2);">
-                  <h5 style="margin: 0 0 0.5rem 0; color: var(--primary-color);">💡 Consejos Pro</h5>
-                  <ul style="color: #94a3b8; font-size: 0.85rem; padding-left: 1.2rem; margin: 0; line-height: 1.6;">
-                    <li><strong style="color: #e2e8f0;">Exportar por Colegio:</strong> Genera un Excel con una sola hoja conteniendo los estudiantes de un colegio específico.</li>
-                    <li><strong style="color: #e2e8f0;">Exportar por Año Lectivo:</strong> Genera un Excel con múltiples hojas, una por cada colegio.</li>
-                    <li>Cada hoja incluye: Nombre, Sexo, Grado y Sección.</li>
-                    <li>Los datos se ordenan automáticamente: Grado (orden natural), Sección, y luego Nombre.</li>
-                    <li>Ideal para auditorías de fin de año, imprimir listados por colegio, o enviar reportes específicos.</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        {/if}
-
         <!-- DEBUGGING -->
         {#if activeTab === "debugging"}
           <div class="category-card" style="border-left: 3px solid {TAB_COLORS.debugging};">
@@ -1012,8 +841,11 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 <style>
   .ajustes-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+    /* auto-fit (no auto-fill): colapsa las columnas vacías para que una card
+       sola ocupe todo el ancho. Con auto-fill quedaba en 1/3 del ancho. */
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
     gap: 1.25rem;
+    align-items: start;
   }
   .info-hero {
     display: flex;

@@ -53,7 +53,6 @@
     'notas': 'Calificaciones cualitativas (color y mínimo) y sus multiplicadores para el cálculo automático de la nota final.',
     'general': 'Color de resaltado, valores por defecto de año lectivo y colegio, y comportamiento de la sincronización.',
     'notificaciones': 'Avisos cuando un colegio tiene grados sin asistencia, dentro de su ventana horaria y con la app cerrada.',
-    'almacenamiento': 'Copias de seguridad, purgas y estado de la base de datos local.',
     'debug': 'Herramientas de diagnóstico y purga. Actúa sobre la base local y la nube: usá con precaución.',
     'info': 'Versión de la app, ruta de la base de datos y detalle de las funciones disponibles.',
   };
@@ -68,13 +67,14 @@
     { id: 'notas', label: 'Notas', icono: '⭐', color: '#fbbf24', grupo: 'Evaluación', contador: 'get_grade_configs' },
     { id: 'general', label: 'General', icono: '⚙️', color: '#60a5fa', grupo: 'Aplicación' },
     { id: 'notificaciones', label: 'Notif. Asistencia', icono: '🔔', color: '#fbbf24', grupo: 'Aplicación', soloAndroid: true },
-    { id: 'almacenamiento', label: 'Almacén', icono: '📦', color: '#34d399', grupo: 'Aplicación' },
     { id: 'debug', label: 'Debug', icono: '🐛', color: '#ef4444', grupo: 'Sistema' },
     { id: 'info', label: 'Info', icono: '📖', color: '#a78bfa', grupo: 'Sistema' },
   ];
 
   const seccionesVisibles = $derived(SECCIONES.filter(s => !s.soloAndroid || isAndroid));
-  let activa = $state<Seccion | null>(null);
+  // En escritorio se abre directamente la sección pedida (por defecto Año
+  // Lectivo): el rail es navegación secundaria, no una pantalla de bienvenida.
+  let activa = $state<Seccion | null>(isAndroidMobile ? null : SECCIONES[0]);
   let busqueda = $state('');
   let railExpandido = $state(false);
   let railFijado = $state(false);
@@ -152,11 +152,12 @@
   let showAnoDropdown = $state(true);
 
   onMount(() => {
-    console.log('[Init] AjustesGenerales montado · seccion=' + seccion + ' · androidMobile=' + isAndroidMobile);
     // El toggle del selector de año vive en AjustesGlobales, pero lo muestra
     // este shell (sección Año Lectivo): hay que suscribirse a los ajustes.
     loadAppSettings().then(s => { showAnoDropdown = s.showAnoDropdown; });
     const unsub = onAppSettingsChange(s => { showAnoDropdown = s.showAnoDropdown; });
+    // Contador de la sección inicial.
+    if (activa?.contador) cargarContador(activa);
     return unsub;
   });
 
@@ -224,11 +225,11 @@
   </div>
 {:else}
   <div class="aj-gen">
-    <nav class="rail" style="width:{railAncho}"
+    <nav class="rail" class:expandido={railExpandido || railFijado || !!busqueda.trim()} style="width:{railAncho}"
       onmouseenter={() => railExpandido = true}
       onmouseleave={() => { railExpandido = false; if (!busqueda.trim()) railFijado = false; }}>
       <div class="rail-busca">
-        <span class="lupa">🔍</span>
+        <span class="lupa" onclick={() => { railExpandido = true; railFijado = true; }} title="Buscar sección">🔍</span>
         <input placeholder="Buscar sección" bind:value={busqueda} onfocus={() => railFijado = true} onkeydown={onSearchKey} />
       </div>
 
@@ -292,13 +293,15 @@
   .rail-busca input{flex:1;min-width:0;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:0.35rem 0.5rem;color:#e2e8f0;font-size:0.78rem;outline:none}
   .rail-busca input::placeholder{color:#64748b}
   .rail-busca input:focus{border-color:var(--primary-color)}
+  /* Colapsado no hay ancho para el input: se muestra solo la lupa (abre al expandir). */
+  .rail:not(.expandido) .rail-busca input{display:none}
+  .rail:not(.expandido) .rail-busca{justify-content:center;padding:0.6rem 0}
 
   .rail-scroll{flex:1;overflow-y:auto;overflow-x:hidden;padding:0.4rem 0.3rem 1rem}
   .rail-scroll::-webkit-scrollbar{width:5px}
   .rail-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.16);border-radius:3px}
 
-  .rail-grupo{font-size:0.55rem;letter-spacing:0.5px;text-transform:uppercase;color:#64748b;font-weight:700;padding:0.6rem 0.6rem 0.25rem;white-space:nowrap}
-  .rail-item{display:flex;align-items:center;gap:0.55rem;width:100%;padding:0.45rem;border:none;background:transparent;border-radius:9px;cursor:pointer;color:#94a3b8;position:relative;transition:background 0.15s,color 0.15s;white-space:nowrap}
+  .rail-item{display:flex;align-items:center;gap:0.55rem;width:100%;padding:0.45rem;border:none;background:transparent;border-radius:9px;cursor:pointer;color:#94a3b8;position:relative;transition:background 0.15s,color 0.15s}
   .rail-item:hover{background:rgba(255,255,255,0.06);color:#e2e8f0}
   .rail-item.activo{background:var(--acento)1f;color:#f1f5f9}
   .rail-item.activo::before{content:'';position:absolute;left:-0.3rem;top:0.35rem;bottom:0.35rem;width:3px;border-radius:2px;background:var(--acento)}
@@ -306,9 +309,19 @@
 
   .rail-icono{position:relative;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:0.95rem;flex-shrink:0}
   .rail-badge{position:absolute;top:-3px;right:-4px;min-width:14px;height:14px;padding:0 3px;border-radius:7px;background:var(--acento);color:#0f172a;font-size:0.55rem;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1}
-  .rail-label{flex:1;min-width:0;font-size:0.8rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;text-align:left;opacity:0;transition:opacity 0.15s}
-  .rail-count{font-size:0.68rem;font-weight:800;color:var(--acento);opacity:0;transition:opacity 0.15s}
-  .rail-item.activo .rail-label,.rail-item:hover .rail-label,.rail-item.activo .rail-count,.rail-item:hover .rail-count{opacity:1}
+  .rail-label{flex:1;min-width:0;font-size:0.8rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+  .rail-count{font-size:0.68rem;font-weight:800;color:var(--acento);flex-shrink:0}
+
+  /* Colapsado (64px): solo icono + badge sobre el icono. Al expandir, el
+     contador aparece a la derecha del texto (sin hover) y el badge se oculta
+     para no duplicar el número. */
+  .rail:not(.expandido) .rail-label,
+  .rail:not(.expandido) .rail-count{display:none}
+  .rail.expandido .rail-badge{display:none}
+
+  .rail-grupo{font-size:0.55rem;letter-spacing:0.5px;text-transform:uppercase;color:#64748b;font-weight:700;padding:0.6rem 0.6rem 0.25rem;white-space:nowrap;overflow:hidden}
+  .rail:not(.expandido) .rail-grupo{font-size:0;padding:0.55rem 0.25rem 0.1rem;border-top:1px solid rgba(255,255,255,0.07);margin:0.25rem 0.15rem}
+  .rail:not(.expandido) .rail-grupo:first-child{border-top:none;margin-top:0;padding-top:0.2rem}
 
   .rail-vacio{padding:0.8rem 0.6rem;font-size:0.75rem;color:#64748b;white-space:nowrap}
 
