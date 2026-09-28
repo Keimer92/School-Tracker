@@ -279,6 +279,16 @@
     if (marcados.length === 0) return '';
     return 'Sin clases: ' + marcados.map(d => `${fmtDM(d.fecha)} (${d.descripcion})`).join(', ');
   });
+  /**
+   * Marca el primer día (lunes) de cada semana en la vista mensual, para dibujar
+   * el separador vertical entre semanas. La primera columna nunca lleva línea:
+   * aunque el mes empiece en lunes, una línea al borde izquierdo sobra.
+   */
+  function esInicioSemana(iso: string, indice: number): boolean {
+    if (indice <= 0) return false;
+    return new Date(iso + 'T12:00:00').getDay() === 1;
+  }
+
   function motivoSinClases(fecha: string): string {
     return diasSinClases.find(d => d.fecha === fecha)?.descripcion || 'Sin clases';
   }
@@ -743,6 +753,8 @@
     .table-container::-webkit-scrollbar-track{background:rgba(255,255,255,0.05);border-radius:3px}
     .table-container::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.2);border-radius:3px}
     .table-container::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,0.3)}
+    /* Separador de semanas en la vista mensual: línea vertical antes del lunes */
+    .sep-semana{border-left:2px solid rgba(148,163,184,0.5)!important}
     .custom-table thead th{position:sticky;top:0;z-index:10;background:#1e293b!important}
     .pop-wrap{position:relative;display:block;width:100%}
     .pop-trigger{display:flex;align-items:center;justify-content:space-between;gap:.4rem;text-align:left;cursor:pointer}
@@ -1121,8 +1133,8 @@
             <tr>
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
               <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;min-width:200px">Estudiante</th>
-              {#each fechasVisibles as f}
-                <th class:dsc-th={esSinClases(f)}
+              {#each fechasVisibles as f, iFecha}
+                <th class:dsc-th={esSinClases(f)} class:sep-semana={esInicioSemana(f, iFecha)}
                   style="font-size:0.7rem;white-space:nowrap;position:sticky;top:0;background:#1e293b;z-index:10;min-width:48px;padding:0.35rem 0.45rem"
                   title={esSinClases(f) ? motivoSinClasesEn(f) : undefined}>
                   <div style="font-size:0.6rem;opacity:0.7">{esSinClases(f) ? '🚫 ' : ''}{new Date(f + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short' })}</div>
@@ -1148,7 +1160,7 @@
                   </div>
                   <div style="font-size:0.7rem;opacity:0.6;margin-left:22px">{item.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                 </td>
-                {#each fechasVisibles as f}
+                {#each fechasVisibles as f, iFecha}
                   {#if esSinClases(f)}
                     {#if index === 0}
                       <td class="dsc-col" rowspan={reporteFiltrado.length} style="min-width:48px">
@@ -1158,7 +1170,7 @@
                     {/if}
                   {:else}
                     {@const est = getEstadoEnFecha(item, f)}
-                    <td>
+                    <td class:sep-semana={esInicioSemana(f, iFecha)}>
                       <div class="ciclo-cell" class:estado-p={est === 'P'} class:estado-a={est === 'A'} class:estado-j={est === 'J'}>{est}</div>
                     </td>
                   {/if}

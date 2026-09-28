@@ -357,6 +357,16 @@ $effect(() => {
     });
   }
 
+  /**
+   * Marca el primer día (lunes) de cada semana en la vista mensual, para dibujar
+   * el separador vertical entre semanas. La primera columna nunca lleva línea:
+   * aunque el mes empiece en lunes, una línea al borde izquierdo sobra.
+   */
+  function esInicioSemana(iso: string, indice: number): boolean {
+    if (indice <= 0) return false;
+    return new Date(iso + 'T12:00:00').getDay() === 1;
+  }
+
   // ── Días sin clases (feriados / sin actividad) por sección o colegio ──
   let diasSinClases = $state<DiaSinClase[]>([]);
   let popSinClasesAbierta = $state(false);
@@ -1099,6 +1109,8 @@ $effect(() => {
     .asistencia-opt.j{background:rgba(245,158,11,0.15)!important;border-color:#f59e0b!important;color:#f59e0b!important}
     .asistencia-opt:active{transform:scale(0.92)}
     .obs-toggle-btn{width:34px!important;height:34px!important;min-width:34px!important;font-size:0.9rem!important;border-radius:8px!important}
+    /* Separador de semanas en la vista mensual: línea vertical antes del lunes */
+    .sep-semana{border-left:2px solid rgba(148,163,184,0.5)!important}
     .custom-table thead th{position:sticky;top:0;z-index:10;background:#1e293b!important}
     /* Los tres estados aparecen flotando al pasar el cursor sobre la celda
        (que incluye el input de observación), sin apretar el diseño de la tabla */
@@ -1719,8 +1731,8 @@ $effect(() => {
             <thead><tr>
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
               <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;min-width:200px">Estudiante</th>
-              {#each fechasVisibles as fv (fv.fecha)}
-                <th class:dsc-th={fv.sinClases} class:fch-th={true}
+              {#each fechasVisibles as fv, iFecha (fv.fecha)}
+                <th class:dsc-th={fv.sinClases} class:fch-th={true} class:sep-semana={esInicioSemana(fv.fecha, iFecha)}
                   style="font-size:0.7rem;white-space:nowrap;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;min-width:48px;padding:0.35rem 0.45rem"
                   title={fv.sinClases ? `${motivoSinClasesEn(fv.fecha)} — Click para reactivar clases` : 'Click para marcar este día sin clases'}
                   onclick={() => clickHeaderFecha(fv.fecha)}>
@@ -1746,7 +1758,7 @@ $effect(() => {
                     </div>
                     <div style="font-size:0.7rem;opacity:0.6;margin-left:22px">{est.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                   </td>
-                  {#each fechasVisibles as fv (fv.fecha)}
+                  {#each fechasVisibles as fv, iFecha (fv.fecha)}
                     {#if fv.sinClases}
                       {#if index === 0}
                         <td class="dsc-col" rowspan={filteredEstudiantesMulti.length} style="min-width:48px">
@@ -1758,9 +1770,10 @@ $effect(() => {
                       {@const d = est.dias[fv.fecha]}
                       {@const draftD = draftMulti[est.id]?.[fv.fecha]}
                       {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
-                      <td style="text-align:center;padding:0.15rem">
-                        {#if isWindows}
-                          <div class="celda-estado">
+                        <td class:sep-semana={esInicioSemana(fv.fecha, iFecha)} style="text-align:center;padding:0.15rem">
+                          {#if isWindows}
+                            <div class="celda-estado">
+
                             <div class="ciclo-cell" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
                               onclick={() => cicloEstado(est.id, fv.fecha)}
                               title="Clic para rotar · pasa el cursor aquí para elegir el estado">
