@@ -96,13 +96,16 @@ const EM_ANCHO_DDMM = 2.502;
 const ALTO_CHIP = 6.4;
 const SEPARACION_CHIP = 2.2;
 const RELLENO_CHIP = 2.6;
-const GROSOR_LINEA_CHIP = GROSOR_LINEA_TABLA;
 /**
- * Un solo grosor para TODOS los bordes de la tabla. Si el encabezado y el
- * cuerpo tuvieran grosores distintos, la línea que los separa se dibuja una vez
- * con cada valor y se ve más marcada que el resto.
+ * Un solo grosor para TODOS los bordes (tabla, encabezado y chips).
+ *
+ * autoTable no dibuja líneas sino rectángulos rellenos de `lineWidth` mm. Con un
+ * grosor de 0.2mm la línea queda en SUB-PÍXEL y cada visor la rasteriza a 1 o
+ * 2 píxeles según dónde caiga, así que unas líneas se ven más gruesas que
+ * otras aunque todas midan lo mismo. A 0.5mm (~1.4px a 96dpi) cada borde cae
+ * siempre en un píxel completo y se ve uniforme de verdad.
  */
-const GROSOR_LINEA_TABLA = 0.2;
+const GROSOR_LINEA_TABLA = 0.5;
 
 interface EstiloChip {
   bg: readonly number[];
@@ -136,7 +139,7 @@ function dibujarChip(doc: any, x: number, y: number, texto: string, estilo: Esti
   const ancho = doc.getTextWidth(texto) + RELLENO_CHIP * 2;
   doc.setFillColor(estilo.bg[0], estilo.bg[1], estilo.bg[2]);
   doc.setDrawColor(estilo.border[0], estilo.border[1], estilo.border[2]);
-  doc.setLineWidth(GROSOR_LINEA_CHIP);
+  doc.setLineWidth(GROSOR_LINEA_TABLA);
   doc.roundedRect(x, y, ancho, ALTO_CHIP, 1.8, 1.8, "FD");
   doc.setTextColor(estilo.text[0], estilo.text[1], estilo.text[2]);
   doc.text(texto, x + RELLENO_CHIP, y + ALTO_CHIP / 2, { baseline: "middle" });
