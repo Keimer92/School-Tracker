@@ -174,11 +174,18 @@
   let draftMulti: Record<number, Record<string, DiaEstado>> = $state({});
   let mesSeleccionado = $state(new Date().getMonth() + 1);
   let anoSeleccionado = $state(new Date().getFullYear());
+  /**
+   * El año calendario del mes sigue al año lectivo: ya no hay un segundo
+   * selector de año, el de "Año Lectivo" es el único que se elige.
+   */
+  $effect(() => {
+    const n = Number(anos.find(a => a.id === selectedAno)?.nombre);
+    if (Number.isFinite(n) && n > 1900) anoSeleccionado = n;
+  });
   let mesesOptions = $derived(Array.from({ length: 12 }, (_, i) => {
     const raw = new Date(2000, i, 1).toLocaleDateString('es-ES', { month: 'long' });
     return { value: i + 1, label: raw.charAt(0).toUpperCase() + raw.slice(1) };
   }));
-  let anosOptions = $derived(anos.length > 0 ? anos.filter(a => a.activo || Number(a.nombre) >= 2020) : [{ id: new Date().getFullYear(), nombre: String(new Date().getFullYear()) }]);
 
   let totalEstudiantes = $derived(estudiantes.length);
   let totalM = $derived(estudiantes.filter(e => e.sexo === 'M').length);
@@ -587,6 +594,72 @@ $effect(() => {
     } catch (e) {
       console.error('Error marcando días sin clases:', e);
       await emit("show-toast", { message: "❌ Error al marcar días sin clases: " + e, type: "error" });
+    } finally { sinClasesGuardando = false; }
+  }
+
+  /**
+   * Aplica la misma fecha/semana/período a TODOS los colegios del catálogo.
+   * `dia_sin_clases` no tiene un nivel "global": se guarda por colegio, así que
+   * se itera llamando al comando una vez por colegio, siempre a nivel colegio
+   * (grado y sección en null) para que la marca aplique a todas sus secciones.
+   */
+  async function aplicarEnTodosLosColegios(fechas: string[], motivo: string, activo: boolean) {
+    if (colegios.length === 0) {
+      await emit("show-toast", { message: "⚠️ No hay colegios registrados", type: 'warning' });
+      return;
+    }
+    for (const col of colegios) {
+      await invoke('set_dias_sin_clases', {
+        colegioId: col.id, gradoId: null, seccionId: null,
+        fechas, descripcion: motivo, activo,
+      });
+    }
+    onDataChange('dia_sin_clases');
+    await fetchDiasSinClases();
+    if (periodo !== 'diario') { refreshingSilent = true; fetchEstudiantesMulti(); }
+  }
+
+  async function activarSinClasesTodosColegios() {
+    const motivo = sinClasesDescripcion.trim();
+    if (!motivo) { emit("show-toast", { message: "⚠️ El motivo es obligatorio", type: "warning" }); return; }
+    const obj = objetivosSinClases();
+    if (!obj) {
+      emit("show-toast", { message: "⚠️ Seleccione la semana que quedará sin clases", type: 'warning' });
+      return;
+    }
+    const objetivos = obj.fechas;
+    if (objetivos.length === 0) return;
+    const rangoTxt = objetivos.length === 1 ? objetivos[0].split('-').reverse().join('/') : `${objetivos[0].split('-').reverse().join('/')} al ${objetivos[objetivos.length - 1].split('-').reverse().join('/')}`;
+    const ok = await ask(`¿Marcar ${rangoTxt} sin clases en los ${colegios.length} colegio(s)?\n\nAlcance: TODOS los colegios\nAfecta: ${obj.etiqueta}\nMotivo: ${motivo}`, { title: 'Marcar en todos los colegios', kind: 'warning', okLabel: 'Sí, marcar todos', cancelLabel: 'Cancelar' });
+    if (!ok) return;
+    sinClasesGuardando = true;
+    try {
+      await aplicarEnTodosLosColegios(objetivos, motivo, true);
+      cerrarPopSinClases();
+      sinClasesDescripcion = '';
+      emit("show-toast", { message: `🌐 ${objetivos.length} día(s) sin clases en ${colegios.length} colegio(s) (${motivo})`, type: "success" });
+    } catch (e) {
+      console.error('Error marcando días sin clases en todos los colegios:', e);
+      await emit("show-toast", { message: "❌ Error al marcar en todos los colegios: " + e, type: "error" });
+    } finally { sinClasesGuardando = false; }
+  }
+
+  async function desactivarSinClasesTodosColegios() {
+    const obj = objetivosSinClases();
+    if (!obj) return;
+    const objetivos = obj.fechas.filter(f => esDiaSinClases(f));
+    if (objetivos.length === 0) return;
+    const rangoTxt = objetivos.length === 1 ? objetivos[0].split('-').reverse().join('/') : `${objetivos[0].split('-').reverse().join('/')} al ${objetivos[objetivos.length - 1].split('-').reverse().join('/')}`;
+    const ok = await ask(`¿Reactivar las clases del ${rangoTxt} en los ${colegios.length} colegio(s)?\n\nSe quitará la marca en todos los colegios.`, { title: 'Reactivar en todos los colegios', kind: 'info', okLabel: 'Sí, reactivar', cancelLabel: 'Cancelar' });
+    if (!ok) return;
+    sinClasesGuardando = true;
+    try {
+      await aplicarEnTodosLosColegios(objetivos, '', false);
+      cerrarPopSinClases();
+      emit("show-toast", { message: "✅ Clases reactivadas en todos los colegios", type: "success" });
+    } catch (e) {
+      console.error('Error reactivando días sin clases en todos los colegios:', e);
+      await emit("show-toast", { message: "❌ Error al reactivar en todos los colegios: " + e, type: "error" });
     } finally { sinClasesGuardando = false; }
   }
 
@@ -1351,15 +1424,9 @@ $effect(() => {
           {:else}
             {#if !isAndroidMobile}
               <FilterGroup label="Mes:" {isMobile}>
-                <select class="filter-select" style="width:100%;min-width:100px"
+                <select class="filter-select" style="width:100%;min-width:110px"
                   value={mesSeleccionado} onchange={(e) => mesSeleccionado = Number((e.target as HTMLSelectElement).value)}>
                   {#each mesesOptions as m}<option value={m.value}>{m.label}</option>{/each}
-                </select>
-              </FilterGroup>
-              <FilterGroup label="Año:" {isMobile}>
-                <select class="filter-select" style="width:100%;min-width:90px"
-                  value={anoSeleccionado} onchange={(e) => anoSeleccionado = Number((e.target as HTMLSelectElement).value)}>
-                  {#each anosOptions as a}<option value={Number(a.nombre)}>{a.nombre}</option>{/each}
                 </select>
               </FilterGroup>
             {/if}
@@ -1378,7 +1445,7 @@ $effect(() => {
             </button>
           {:else}
             {#if showAnoDropdown}
-            <FilterGroup label="Año:" {isMobile}>
+            <FilterGroup label="Año Lectivo:" {isMobile}>
               <select class="filter-select" style="width:100%"
                 value={selectedAno} onchange={(e) => handleFilterChange((v: number) => selectedAno = v, Number((e.target as HTMLSelectElement).value))}>
                 {#each anos as a}<option value={a.id}>{a.nombre}</option>{/each}
@@ -1459,6 +1526,15 @@ $effect(() => {
                       onclick={() => { const s = semanasMes.find(w => w.numero === semanaSeleccionada); if (s) { cerrarPopSinClases(); desactivarSinClases(s.fechas); } }}>
                       ♻️ Reactivar las clases de la semana {semanaSeleccionada}
                     </button>
+                    <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #10b981" disabled={sinClasesGuardando}
+                      onclick={desactivarSinClasesTodosColegios}>
+                      ♻️ Reactivar en todos los colegios
+                    </button>
+                  {:else if periodo !== 'mensual' && sinClasesActivo}
+                    <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #10b981" disabled={sinClasesGuardando}
+                      onclick={desactivarSinClasesTodosColegios}>
+                      ♻️ Reactivar en todos los colegios
+                    </button>
                   {/if}
                   <button type="button" class="pop-sem sel" style="justify-content:center;border-radius:10px" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || (periodo === 'mensual' && !semanaSeleccionada)}
                     onclick={() => activarSinClases(false)}>
@@ -1466,7 +1542,11 @@ $effect(() => {
                   </button>
                   <button type="button" class="pop-sem sel" style="justify-content:center;border-radius:10px" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || (periodo === 'mensual' && !semanaSeleccionada)}
                     onclick={() => activarSinClases(true)}>
-                    🏫 Marcar todo el colegio
+                    🏫 Marcar todo este colegio
+                  </button>
+                  <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #818cf8" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || (periodo === 'mensual' && !semanaSeleccionada)}
+                    onclick={activarSinClasesTodosColegios}>
+                    🌐 Marcar en TODOS los colegios
                   </button>
                 </div>
               </div>
@@ -2033,13 +2113,6 @@ $effect(() => {
           <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px;min-width:100px"
             value={mesSeleccionado} onchange={(e) => mesSeleccionado = Number((e.target as HTMLSelectElement).value)}>
             {#each mesesOptions as m}<option value={m.value}>{m.label}</option>{/each}
-          </select>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
-          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Año:</label>
-          <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px;min-width:90px"
-            value={anoSeleccionado} onchange={(e) => anoSeleccionado = Number((e.target as HTMLSelectElement).value)}>
-            {#each anosOptions as a}<option value={Number(a.nombre)}>{a.nombre}</option>{/each}
           </select>
         </div>
       {/if}

@@ -53,6 +53,14 @@
   let fechaBase = $state(sessionStorage.getItem("asistencia_selectedFecha_v2") || getLocalDateISOString());
   let mesSeleccionado = $state(new Date().getMonth() + 1);
   let anoSeleccionado = $state(new Date().getFullYear());
+/**
+ * El año calendario del mes sigue al año lectivo: ya no hay un segundo
+ * selector de año, el de "Año Lectivo" es el único que se elige.
+ */
+$effect(() => {
+  const n = Number(anos.find(a => a.id === selectedAno)?.nombre);
+  if (Number.isFinite(n) && n > 1900) anoSeleccionado = n;
+});
   let searchTerm = $state("");
   let fechaInicio = $state("");
   let fechaFin = $state("");
@@ -883,14 +891,6 @@
                   <option value={10}>Octubre</option><option value={11}>Noviembre</option><option value={12}>Diciembre</option>
                 </select>
               </FilterGroup>
-              <FilterGroup label="Año:" {isMobile}>
-                <select class="filter-select" bind:value={anoSeleccionado} style="width:100%">
-                  {#each Array(5) as _, i}
-                    {@const year = new Date().getFullYear() - 2 + i}
-                    <option value={year}>{year}</option>
-                  {/each}
-                </select>
-              </FilterGroup>
             {/if}
           {/if}
 
@@ -1294,15 +1294,6 @@
             <option value={4}>Abril</option><option value={5}>Mayo</option><option value={6}>Junio</option>
             <option value={7}>Julio</option><option value={8}>Agosto</option><option value={9}>Septiembre</option>
             <option value={10}>Octubre</option><option value={11}>Noviembre</option><option value={12}>Diciembre</option>
-          </select>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
-          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Año:</label>
-          <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px" bind:value={anoSeleccionado}>
-            {#each Array(5) as _, i}
-              {@const year = new Date().getFullYear() - 2 + i}
-              <option value={year}>{year}</option>
-            {/each}
           </select>
         </div>
       {/if}
