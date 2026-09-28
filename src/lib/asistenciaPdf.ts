@@ -228,10 +228,12 @@ export async function generarPdfAsistencia(
   const autoTable = resolverExport(modAutoTable, "autoTable");
   const doc = new JsPDF({ orientation: "landscape", unit: "mm", format: "letter" });
   const margins = { top: 10, bottom: 12, left: 10, right: 10 };
+  const rangos: { inicio: number; fin: number }[] = [];
 
   for (let i = 0; i < tablas.length; i++) {
     const t = tablas[i];
     if (i > 0) doc.addPage();
+    const paginaInicio = doc.internal.getCurrentPageInfo().pageNumber;
     const est = estiloPara(t.headers.length, t.body.length);
 
     const anchoPagina = doc.internal.pageSize.getWidth();
@@ -340,15 +342,32 @@ export async function generarPdfAsistencia(
           }
         }
       },
-      didDrawPage: () => {
-        const paginas = doc.getNumberOfPages();
-        const actual = doc.getCurrentPageInfo().pageNumber;
-        doc.setFontSize(7.5);
-        doc.setTextColor(COLOR_SUBDITULO[0], COLOR_SUBDITULO[1], COLOR_SUBDITULO[2]);
-        doc.text(`Hoja ${actual}/${paginas} · Sección ${i + 1} de ${tablas.length}`, margins.left + 2, doc.internal.pageSize.getHeight() - 4);
-        doc.setTextColor(0, 0, 0);
-      },
+      didDrawPage: undefined,
     });
+
+    rangos.push({ inicio: paginaInicio, fin: doc.getNumberOfPages() });
+  }
+
+  /**
+   * El pie se dibuja al final, ya con el total real de páginas. Dibujarlo
+   * dentro de didDrawPage daba "Hoja 1/1" en cada hoja, porque en ese momento
+   * las hojas siguientes todavía no existían.
+   */
+  const total = doc.getNumberOfPages();
+  for (let p = 1; p <= total; p++) {
+    doc.setPage(p);
+    const idx = rangos.findIndex(r => p >= r.inicio && p <= r.fin);
+    const rango = idx >= 0 ? rangos[idx] : { inicio: p, fin: p };
+    const hojasDeSeccion = rango.fin - rango.inicio + 1;
+    const dentro = p - rango.inicio + 1;
+    const sufijo = hojasDeSeccion > 1 ? ` · hoja ${dentro} de ${hojasDeSeccion}` : "";
+    doc.setFontSize(7.5);
+    doc.setTextColor(COLOR_SUBDITULO[0], COLOR_SUBDITULO[1], COLOR_SUBDITULO[2]);
+    doc.text(
+      `Página ${p} de ${total} · Sección ${idx + 1} de ${tablas.length}${sufijo}`,
+      margins.left + 2,
+      doc.internal.pageSize.getHeight() - 4
+    );
   }
 
   return new Uint8Array(doc.output("arraybuffer"));
