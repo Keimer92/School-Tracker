@@ -2,6 +2,9 @@ import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
 import { markDirty, markAllDirty, markAllClean, getDirtyTables } from './dirtyTracker';
 
+/** Minutos entre sincronizaciones periódicas. Fijo, sin ajuste en la UI. */
+export const SYNC_PERIODICO_MIN = 20;
+
 export type D1Status = 'idle' | 'syncing' | 'error' | 'success' | 'offline';
 
 export interface D1Config {
@@ -228,9 +231,14 @@ export const d1SyncService = {
     d1SyncService.startPeriodicSync();
   },
 
-  startPeriodicSync: () => {
-    const intervalStr = localStorage.getItem('periodic_sync_interval_seconds');
-    const interval = Math.max(30, Math.min(3600, parseInt(intervalStr || '300') || 300)) * 1000;
+      startPeriodicSync: () => {
+        // Intervalo FIJO de 20 minutos. Antes se leía de localStorage y había un
+        // control en CloudPage para cambiarlo; el sync es crítico y una ventana
+        // más corta solo gasta cuota de D1 (que ya es el límite que se está
+        // topando). La clave vieja se limpia para que un valor previo no sobreviva.
+        localStorage.removeItem('periodic_sync_interval_seconds');
+        const interval = SYNC_PERIODICO_MIN * 60 * 1000;
+
     if ((d1SyncService as any)._periodicTimer) clearInterval((d1SyncService as any)._periodicTimer);
     (d1SyncService as any)._periodicTimer = setInterval(async () => {
       const cfg = await getConfig();

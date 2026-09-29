@@ -30,10 +30,15 @@ GOOGLE_CLIENT_ID = "495262715252-gd84mfbdqg8b32h4ppplfal50m772v8t.apps.googleuse
 # login reclama todas las filas legacy (sk NULL) como propias.
 ADMIN_EMAILS = "pedroluisnfc@gmail.com"
 # Cuentas Google autorizadas a INICIAR SESIÓN en la nube.
-# Vacío = se permite CUALQUIER cuenta Google (cada una con su propio namespace;
-# sólo ADMIN_EMAILS es administrador). Para restringir, pon la lista separada por
-# coma, p. ej.: "a@gmail.com, b@gmail.com".
-ALLOWED_EMAILS = ""
+# Lista cerrada a propósito: esta instancia es la del administrador. Los demás
+# profesores que distributed la app usan su PROPIO despliegue (su cuenta de
+# Cloudflare + su D1), así que acá no se registran.
+# Con la lista vacía se permitiría CUALQUIER cuenta de Google: cada una
+# entraba en su namespace, pero todos consumiendo la cuota de D1 de esta
+# instancia, que ya es el recurso que se está topando.
+# Para sumar a alguien: agregá el correo acá y redesplegá con `wrangler deploy`.
+ALLOWED_EMAILS = "pedroluisnfc@gmail.com"
+
 # -- Push en tiempo real ---------------------------------------------
 # Hub de WebSockets por colegio. DO con backend SQLite = disponible en plan gratuito.
 [durable_objects]
