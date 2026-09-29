@@ -90,15 +90,32 @@
     return () => dispose();
   });
 
+  /**
+   * Identidad de la última carga. El rail de Ajustes abre por hover, así que al
+   * recorrerlo se encadenan varias cargas y sus respuestas pueden llegar
+   * desordenadas: sin este control, una respuesta lenta de la sección ANTERIOR
+   * escribiría encima de la actual y la lista mostraría los datos equivocados.
+   */
+  let pedidoSeq = 0;
+  function claveSeccion() { return `${config.table}|${config.endpoints.get}`; }
+
   async function fetchItems() {
+    const clave = claveSeccion();
+    const miPedido = ++pedidoSeq;
     try {
       const data: CategoryItem[] = await invoke(config.endpoints.get);
+      // Descarte si meanwhile se lanzó otra carga o se cambió de sección.
+      if (miPedido !== pedidoSeq || clave !== claveSeccion()) return;
       items = data;
       original = JSON.parse(JSON.stringify(data));
       nuevos = [];
     }
-    catch (error) { console.error(`Error fetching ${config.title}:`, error); }
+    catch (error) {
+      if (miPedido !== pedidoSeq || clave !== claveSeccion()) return;
+      console.error(`Error fetching ${config.title}:`, error);
+    }
   }
+
 
   function captureOriginal() {
     original = JSON.parse(JSON.stringify(items));

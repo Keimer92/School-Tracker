@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import { registerBackHandler } from "../lib/androidBack";
   import { getAppSettings, saveAppSettings, loadAppSettings, onAppSettingsChange } from "../lib/appSettings";
   import CategoryTabContent from "./CategoryTabContent.svelte";
@@ -100,12 +100,38 @@
   const activaVisible = $derived(!!activa && filtradas.some(s => s.id === activa!.id));
 
   function abrir(s: Seccion) {
+    cancelarHover();
     activa = s;
     seccion = s.id;
     busqueda = '';
     if (s.contador && !contadoresCargados.has(s.id)) cargarContador(s);
   }
   function cerrar() { activa = null; }
+
+  /**
+   * Abrir al pasar el cursor por el rail. Va con retardo a propósito: sin él,
+   * recorrer el rail de punta a punta abría las quince secciones y disparaba una
+   * carga de datos por cada una. En táctil no se activa: no hay hover real y un
+   * toque dispararía `mouseenter`, abriendo de a una mientras se navega.
+   */
+  const PUEDE_HOVER = typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  const HOVER_ABIERTO_MS = 200;
+  let hoverTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function hoverAbrir(s: Seccion) {
+    if (!PUEDE_HOVER) return;
+    if (activa?.id === s.id) return;
+    cancelarHover();
+    hoverTimer = setTimeout(() => { hoverTimer = null; abrir(s); }, HOVER_ABIERTO_MS);
+  }
+
+  function cancelarHover() {
+    if (hoverTimer) { clearTimeout(hoverTimer); hoverTimer = null; }
+  }
+
+  onDestroy(cancelarHover);
 
   async function cargarContador(s: Seccion) {
     if (!s.contador) return;
@@ -297,7 +323,9 @@
             <div class="rail-grupo">{grupo}</div>
             {#each delGrupo as s (s.id)}
               <button class="rail-item" class:activo={activa?.id === s.id} class:invisible={!activaVisible && activa?.id !== s.id}
-                style="--acento:{s.color}" onclick={() => abrir(s)} title={s.label}>
+                style="--acento:{s.color}" onclick={() => abrir(s)}
+                onmouseenter={() => hoverAbrir(s)} onmouseleave={cancelarHover}
+                title={s.label}>
                 <span class="rail-icono">{s.icono}
                   {#if contadores[s.id] !== undefined}<span class="rail-badge">{contadores[s.id]}</span>{/if}
                 </span>

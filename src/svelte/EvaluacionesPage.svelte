@@ -13,12 +13,6 @@ import SelectChip from "./SelectChip.svelte";
   interface Criterio { id: number; orden: number; descripcion: string; puntajeMaximo: number; }
   interface Indicador { id: number; orden: number; descripcion: string; activo: boolean; instrumento?: string; criterios: Criterio[]; }
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
-  type ViewMode = "modern-cards" | "split-panel";
-
-  const VIEW_MODES: { key: ViewMode; label: string; icon: string }[] = [
-    { key: "split-panel", label: "Panel", icon: "⛶" },
-    { key: "modern-cards", label: "Moderno", icon: "🎴" },
-  ];
 
   let grados: CategoryItem[] = $state([]);
   let asignaturas: CategoryItem[] = $state([]);
@@ -33,7 +27,6 @@ import SelectChip from "./SelectChip.svelte";
   let isQualitative = $state(false);
   let isMobile = $state(false);
   const isAndroid = /Android/i.test(navigator.userAgent);
-  let viewMode = $state<ViewMode>("split-panel");
   let expandedIndicador = $state<number | null>(null);
   let accordionOpen = $state<Set<number>>(new Set());
 
@@ -80,22 +73,10 @@ import SelectChip from "./SelectChip.svelte";
     };
   }
 
-  function handleViewModeChange(mode: ViewMode) {
-    viewMode = mode;
-    localStorage.setItem("evaluaciones-view-mode", mode);
-    expandedIndicador = null;
-    accordionOpen = new Set();
-  }
-
   onMount(() => {
-    // El valor persistido puede venir de una versión anterior con otros nombres
-    // de modo ("refined"/"accordion"): se compara como string y cualquier valor
-    // que no sea un modo vigente vuelve al de por defecto.
-    const previo = localStorage.getItem("evaluaciones-view-mode");
-    const esModoValido = !!previo && VIEW_MODES.some(v => v.key === previo);
-    viewMode = esModoValido ? (previo as ViewMode) : "split-panel";
-    if (!esModoValido && previo) localStorage.setItem("evaluaciones-view-mode", viewMode);
-    if (isAndroid) viewMode = "modern-cards";
+    // La preferencia `evaluaciones-view-mode` quedó sin uso: ahora la vista de
+    // panel es la única. Se limpia la clave vieja para no dejar basura persistida.
+    localStorage.removeItem("evaluaciones-view-mode");
     const checkMobile = () => { isMobile = window.innerWidth <= 768; };
     checkMobile();
     window.addEventListener("resize", checkMobile);
@@ -460,7 +441,6 @@ import SelectChip from "./SelectChip.svelte";
             </div>
           </div>
         {/if}
-      {/if}
     {/if}
   </div>
 </div>
@@ -471,25 +451,6 @@ import SelectChip from "./SelectChip.svelte";
   }
   :global(.filters-row) {
     overflow: visible !important;
-  }
-  :global(.ev-view-toggle) {
-    display: inline-flex; padding: 0.4rem; gap: 0.3rem;
-    background: var(--bg-elevated); border-radius: 14px;
-    border: 1px solid var(--border);
-  }
-  :global(.ev-view-btn) {
-    display: flex; align-items: center; gap: 0.3rem;
-    padding: 0.4rem 0.8rem; font-size: 0.8rem; border-radius: 10px;
-    border: none; background: transparent;
-    color: var(--text-muted); cursor: pointer; font-weight: 600;
-    transition: all 0.2s ease; white-space: nowrap;
-  }
-  :global(.ev-view-btn:hover) {
-    background: var(--bg-hover); color: var(--text-primary);
-  }
-  :global(.ev-view-btn.active) {
-    background: var(--bg-active); color: var(--text-bright);
-    box-shadow: 0 0 8px rgba(var(--primary-rgb), 0.08);
   }
   :global(.ev-score-pill) {
     display: flex; align-items: center; gap: 0.3rem;
@@ -515,17 +476,6 @@ import SelectChip from "./SelectChip.svelte";
       padding: 0.5rem 0.8rem !important;
       font-size: 0.85rem !important;
       min-height: 38px !important;
-    }
-    :global(.ev-view-toggle) {
-      padding: 0.2rem !important;
-      gap: 0.15rem !important;
-    }
-    :global(.ev-view-btn) {
-      padding: 0.3rem 0.45rem !important;
-      font-size: 0.7rem !important;
-    }
-    :global(.ev-view-icon) {
-      font-size: 0.8rem !important;
     }
     :global(.ev-score-pill) {
       padding: 0.2rem 0.5rem !important;
