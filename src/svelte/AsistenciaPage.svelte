@@ -506,20 +506,23 @@ $effect(() => {
    * porque acá no hay nada que revisar, la escritura es inmediata.
    */
   async function aplicarMasivos() {
-    if (!popMasivos?.estado) return;
-    const fechas = [...popMasivos.fechas];
+    const estadoElegido = popMasivos?.estado;
+    if (!estadoElegido) return;
+    const fechas = [...popMasivos!.fechas];
     if (fechas.length === 0) return;
     const registros: Array<{ estudianteId: number; fecha: string; estado: string; observacion: string }> = [];
+    // Celdas efectivamente rellenadas, para dejar el borrador consistente.
+    const escritas: Array<{ estId: number; fecha: string; observacion: string }> = [];
     for (const fecha of fechas) {
       for (const est of estudiantesMulti) {
         const actual = est.dias[fecha]?.estado || null;
         if (actual && actual !== '-') continue; // ya tiene estado: no se pisa
-        registros.push({
-          estudianteId: est.id,
-          fecha,
-          estado: popMasivos.estado,
-          observacion: est.dias[fecha]?.observacion || '',
-        });
+        // La observación sale del borrador si hay algo escrito sin guardar: si se
+        // usara la del servidor, escribir acá borraría lo que el usuario escribió.
+        const obsDraft = draftMulti[est.id]?.[fecha]?.observacion;
+        const observacion = obsDraft !== undefined ? obsDraft : (est.dias[fecha]?.observacion || '');
+        registros.push({ estudianteId: est.id, fecha, estado: estadoElegido, observacion: observacion || '' });
+        escritas.push({ estId: est.id, fecha, observacion: observacion || '' });
       }
     }
     if (registros.length === 0) {
@@ -529,9 +532,9 @@ $effect(() => {
     const rango = fechas.length === 1
       ? fmtDM(fechas[0])
       : `${fmtDM(fechas[0])} al ${fmtDM(fechas[fechas.length - 1])}`;
-    const etiqueta = popMasivos.estado === 'P' ? 'Presente' : popMasivos.estado === 'A' ? 'Ausente' : 'Justificado';
+    const etiqueta = estadoElegido === 'P' ? 'Presente' : estadoElegido === 'A' ? 'Ausente' : 'Justificado';
     const ok = await ask(
-      `¿Marcar ${registros.length} asistencia(s) como "${etiqueta}" (${popMasivos.estado})?\n\n` +
+      `¿Marcar ${registros.length} asistencia(s) como "${etiqueta}" (${estadoElegido})?\n\n` +
       `Fechas: ${rango} (${fechas.length})\n` +
       `Estudiantes: ${estudiantesMulti.length}\n\n` +
       `Solo se rellenan las que están vacías; las que ya tienen estado no se tocan.`,
@@ -541,7 +544,6 @@ $effect(() => {
     masivosGuardando = true;
     try {
       await invoke('save_asistencia', { records: registros });
-      draftMulti = {}; syncDraftMultiToStorage();
       // Reflejar en memoria para que la tabla muestre el resultado sin recargar.
       const porFecha = new Set(fechas);
       estudiantesMulti = estudiantesMulti.map(est => {
@@ -549,10 +551,19 @@ $effect(() => {
         for (const fecha of porFecha) {
           const actual = dias[fecha]?.estado || null;
           if (actual && actual !== '-') continue;
-          dias[fecha] = { ...dias[fecha], estado: popMasivos!.estado, observacion: dias[fecha]?.observacion || '' };
+          dias[fecha] = { ...dias[fecha], estado: estadoElegido, observacion: dias[fecha]?.observacion || '' };
         }
         return { ...est, dias };
       });
+      // Sincronizar SOLO las celdas escritas. No se vacía el borrador entero: ahí
+      // pueden quedar marcas manuales de otros días que todavía no se guardaron, y
+      // borrarlas las perdería. Al dejar el borrador igual a lo recién guardado, un
+      // Guardar posterior no intenta borrar estas filas.
+      for (const w of escritas) {
+        if (!draftMulti[w.estId]) draftMulti[w.estId] = {};
+        draftMulti[w.estId][w.fecha] = { estado: estadoElegido, observacion: w.observacion };
+      }
+      syncDraftMultiToStorage();
       capturarOriginalMulti();
       await emit('show-toast', { message: `✅ ${registros.length} asistencia(s) guardadas (${etiqueta})`, type: 'success' });
       onDataChange('asistencia', { immediate: true });
@@ -1911,10 +1922,16 @@ $effect(() => {
           }} />
           <BotonMod bind:ref={popMasivosBtnEl} opts={{
             onclick: () => { if (popMasivosBtnEl) togglePopMasivos(popMasivosBtnEl); },
-            disabled: getActiveStudentCount() === 0 || !hayFechasConFaltantes,
-            icono: popMasivos ? '✕' : '👥', etiqueta: 'Rellenar', tono: 'violeta',
-            sub: !hayFechasConFaltantes ? 'Todo completo' : `${totalFaltantesPeriodo} sin marcar`,
-            title: 'Rellenar solo las asistencias vacías de los días que elijas, y guardarlas',
+            disabled: getActiveStudentCount() === 0 || (isWindows && !hayFechasConFaltantes),
+            icono: popMasivos ? '✕' : '👥',
+            etiqueta: isWindows ? 'Rellenar' : 'Marcar todos',
+            tono: 'violeta',
+            sub: isWindows
+              ? (!hayFechasConFaltantes ? 'Todo completo' : `${totalFaltantesPeriodo} sin marcar`)
+              : `${getActiveStudentCount()} estudiante(s)`,
+            title: isWindows
+              ? 'Rellenar solo las asistencias vacías de los días que elijas, y guardarlas'
+              : 'Marcar a todos los estudiantes del día',
             compacto: isAndroidMobile,
           }} />
           <BotonMod opts={{
@@ -2411,7 +2428,29 @@ $effect(() => {
       aria-label="Marcar asistencias masivamente"
       style="position:fixed; z-index:99995; left:{popMasivos.x}px; top:{popMasivos.y}px; bottom:{popMasivos.abajo}; width:{ANCHO_POP_MASIVOS}px; max-height:min(420px, calc(100vh - 32px)); overflow-y:auto; background:rgba(20,24,31,0.97); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); border:1px solid rgba(255,255,255,0.1); border-radius:14px; box-shadow:0 18px 40px -10px rgba(0,0,0,0.65); padding:0.4rem; box-sizing:border-box; display:flex; flex-direction:column; gap:3px;"
     >
-      {#if popMasivos.paso === 'estado'}
+      {#if !isWindows}
+        <!-- Android trabaja con período DIARIO: no hay semana ni mes que elegir,
+             así que va el marcado directo de todo el día (el que usa `marcarTodos`
+             y deja el cambio en el borrador, para revisarlo antes de Guardar). -->
+        {#each ESTADOS_PAJ as e (e.id)}
+          {@const sub = e.id === 'P' ? 'Marcar presentes' : e.id === 'A' ? 'Marcar ausentes' : 'Marcar justificados'}
+          <button
+            role="menuitem"
+            disabled={getActiveStudentCount() === 0 || masivosGuardando}
+            onclick={() => { const est = e.id; cerrarPopMasivos(); marcarTodos(est); }}
+            title={`${sub} · el día completo`}
+            style="width:100%; display:flex; align-items:center; gap:0.55rem; padding:0.5rem 0.55rem; border-radius:9px; border:1px solid {e.borde}; background:{e.suave}; color:{e.color}; cursor:pointer; text-align:left; transition:all 0.15s ease; opacity:{getActiveStudentCount() === 0 ? 0.45 : 1};"
+            onmouseenter={(ev) => { ev.currentTarget.style.background = e.suave.replace('0.10', '0.2'); }}
+            onmouseleave={(ev) => { ev.currentTarget.style.background = e.suave; }}
+          >
+            <span style="font-size:0.9rem;">{e.id === 'P' ? '✅' : e.id === 'A' ? '❌' : '📝'}</span>
+            <span style="flex:1; min-width:0;">
+              <span style="display:block; font-weight:700; font-size:0.76rem;">Marcar {e.label}</span>
+              <span style="display:block; font-size:0.62rem; color:#94a3b8;">{sub} · el día completo</span>
+            </span>
+          </button>
+        {/each}
+      {:else if popMasivos.paso === 'estado'}
         {#each ESTADOS_PAJ as e (e.id)}
           {@const sub = e.id === 'P' ? 'Marcar presentes' : e.id === 'A' ? 'Marcar ausentes' : 'Marcar justificados'}
           <button
@@ -2436,7 +2475,11 @@ $effect(() => {
           </div>
         {/if}
       {:else if popMasivos.estado}
-        {@const eSel = ESTADOS_PAJ.find(x => x.id === popMasivos.estado)!}
+        <!-- `estadoSel` / `fechasSel` se capturan acá porque TypeScript pierde el
+             estrechamiento de `popMasivos` dentro de los `{#each}` anidados. -->
+        {@const estadoSel = popMasivos.estado}
+        {@const fechasSel = popMasivos.fechas}
+        {@const eSel = ESTADOS_PAJ.find(x => x.id === estadoSel)!}
         <!-- Encabezado: estado elegido + volver atrás -->
         <div style="display:flex; align-items:center; gap:0.4rem; padding:0.25rem 0.3rem 0.45rem; border-bottom:1px solid rgba(255,255,255,0.08); margin-bottom:0.25rem;">
           <button type="button" onclick={volverAEstado} title="Elegir otro estado"
@@ -2457,7 +2500,7 @@ $effect(() => {
           {/if}
           {#each g.fechas as f (f)}
             {@const faltan = faltantesDe(f)}
-            {@const sel = popMasivos.fechas.has(f)}
+            {@const sel = fechasSel.has(f)}
             <button
               role="menuitemcheckbox"
               aria-checked={sel}
