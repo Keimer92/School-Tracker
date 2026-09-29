@@ -387,33 +387,182 @@ $effect(() => {
   // ancla un panel `fixed` con las acciones dentro. Antes eran 3 BotonMod
   // sueltos en la cinta de filtros y, con todos los chips desplegables, la fila
   // se iba de ancho.
-  const ANCHO_POP_MASIVOS = 242;
-  let popMasivos = $state<{ x: number; y: number; abajo: string } | null>(null);
+  //
+  // Va en dos pasos a propósito: primero el estado, después QUÉ DÍAS. El
+  // relleno es selectivo (solo celdas vacías) y escribe directo en la base, así
+  // que hace falta que el usuario vea el alcance real antes de confirmar.
+  const ANCHO_POP_MASIVOS = 268;
+  type PopMasivos = {
+    x: number;
+    y: number;
+    abajo: string;
+    paso: 'estado' | 'fechas';
+    estado: 'P' | 'A' | 'J' | null;
+    /** Fechas elegidas en el paso 2. */
+    fechas: Set<string>;
+  };
+  let popMasivos = $state<PopMasivos | null>(null);
   let popMasivosPanelEl = $state<HTMLDivElement | null>(null);
   let popMasivosBtn = $state<HTMLElement | null>(null);
   /** Ref del BotonMod disparador, para anclar el panel. */
   let popMasivosBtnEl = $state<HTMLElement | null>(null);
+  let masivosGuardando = $state(false);
 
   function togglePopMasivos(btn: HTMLElement) {
     if (popMasivos) { cerrarPopMasivos(); return; }
     const r = btn.getBoundingClientRect();
     if (!r) { console.warn('[Masivos] botón sin referencia; no se puede anclar el popover'); return; }
-    const altoEstimado = 3 * 52 + 12;
+    const altoEstimado = 220;
     const abreArriba = r.bottom + altoEstimado > window.innerHeight && r.top > altoEstimado;
     popMasivosBtn = btn;
     popMasivos = {
       x: Math.max(8, Math.min(Math.round(r.left), window.innerWidth - ANCHO_POP_MASIVOS - 8)),
       y: abreArriba ? 0 : Math.round(r.bottom + 4),
       abajo: abreArriba ? `${Math.round(window.innerHeight - r.top + 4)}px` : 'auto',
+      paso: 'estado',
+      estado: null,
+      fechas: new Set(),
     };
   }
 
   function cerrarPopMasivos() { popMasivos = null; popMasivosBtn = null; }
 
-  /** Ejecuta una acción del popover y lo cierra. */
-  function accionMasivos(fn: () => void) {
-    cerrarPopMasivos();
-    fn();
+  /** Pasa al paso 2 con el estado elegido. */
+  function pasoFechas(estado: 'P' | 'A' | 'J') {
+    if (!popMasivos) return;
+    popMasivos = { ...popMasivos, paso: 'fechas', estado, fechas: new Set() };
+  }
+
+  function volverAEstado() {
+    if (!popMasivos) return;
+    popMasivos = { ...popMasivos, paso: 'estado', estado: null, fechas: new Set() };
+  }
+
+  function alternarFecha(fecha: string) {
+    if (!popMasivos) return;
+    const fechas = new Set(popMasivos.fechas);
+    if (fechas.has(fecha)) fechas.delete(fecha); else fechas.add(fecha);
+    popMasivos = { ...popMasivos, fechas };
+  }
+
+  function elegirTodasLasFechas() {
+    if (!popMasivos) return;
+    popMasivos = { ...popMasivos, fechas: new Set(fechasPeriodo) };
+  }
+
+  function elegirNinguna() {
+    if (!popMasivos) return;
+    popMasivos = { ...popMasivos, fechas: new Set() };
+  }
+
+  /**
+   * Días del período agrupados por semana (mismo criterio que la tabla, con el
+   * primer día hábil del colegio). En mensual son bloques de 5-6 días; en
+   * semanal, un solo bloque. Se muestran los días YA marcados como completos
+   * deshabilitados, para que se vea de un vistazo que no hay nada que rellenar.
+   */
+  let gruposSemanaMasivos = $derived.by(() => {
+    const out: { numero: number; fechas: string[] }[] = [];
+    let actual: string[] = [];
+    fechasPeriodo.forEach((fecha, i) => {
+      if (esInicioSemana(fecha, i) && actual.length > 0) {
+        out.push({ numero: out.length + 1, fechas: actual });
+        actual = [];
+      }
+      actual.push(fecha);
+    });
+    if (actual.length > 0) out.push({ numero: out.length + 1, fechas: actual });
+    return out;
+  });
+
+  /** Cuántas asistencias se van a CREAR para un estado en las fechas dadas. */
+  function faltantesDe(fecha: string): number {
+    return estudiantesMulti.filter(est => {
+      const actual = est.dias[fecha]?.estado || null;
+      return !actual || actual === '-';
+    }).length;
+  }
+
+  /** Total de celdas a rellenar con la selección actual. */
+  let totalAMarcar = $derived.by(() => {
+    if (!popMasivos) return 0;
+    let total = 0;
+    popMasivos.fechas.forEach(f => { total += faltantesDe(f); });
+    return total;
+  });
+
+  let hayFechasConFaltantes = $derived(fechasPeriodo.some(f => faltantesDe(f) > 0));
+
+  /** Total de celdas vacías en todo el período (sub del botón disparador). */
+  let totalFaltantesPeriodo = $derived.by(() => {
+    let total = 0;
+    for (const fecha of fechasPeriodo) total += faltantesDe(fecha);
+    return total;
+  });
+
+  /**
+   * Rellena SOLO las celdas sin estado en las fechas elegidas y guarda en la
+   * base de una sola vez. No toca el borrador: no se pasa por `draftMulti`
+   * porque acá no hay nada que revisar, la escritura es inmediata.
+   */
+  async function aplicarMasivos() {
+    if (!popMasivos?.estado) return;
+    const fechas = [...popMasivos.fechas];
+    if (fechas.length === 0) return;
+    const registros: Array<{ estudianteId: number; fecha: string; estado: string; observacion: string }> = [];
+    for (const fecha of fechas) {
+      for (const est of estudiantesMulti) {
+        const actual = est.dias[fecha]?.estado || null;
+        if (actual && actual !== '-') continue; // ya tiene estado: no se pisa
+        registros.push({
+          estudianteId: est.id,
+          fecha,
+          estado: popMasivos.estado,
+          observacion: est.dias[fecha]?.observacion || '',
+        });
+      }
+    }
+    if (registros.length === 0) {
+      await emit("show-toast", { message: "⚠️ No hay asistencias vacías en esas fechas", type: 'warning' });
+      return;
+    }
+    const rango = fechas.length === 1
+      ? fmtDM(fechas[0])
+      : `${fmtDM(fechas[0])} al ${fmtDM(fechas[fechas.length - 1])}`;
+    const etiqueta = popMasivos.estado === 'P' ? 'Presente' : popMasivos.estado === 'A' ? 'Ausente' : 'Justificado';
+    const ok = await ask(
+      `¿Marcar ${registros.length} asistencia(s) como "${etiqueta}" (${popMasivos.estado})?\n\n` +
+      `Fechas: ${rango} (${fechas.length})\n` +
+      `Estudiantes: ${estudiantesMulti.length}\n\n` +
+      `Solo se rellenan las que están vacías; las que ya tienen estado no se tocan.`,
+      { title: `Marcar ${etiqueta} masivamente`, kind: 'info', okLabel: 'Sí, marcar y guardar', cancelLabel: 'Cancelar' }
+    );
+    if (!ok) return;
+    masivosGuardando = true;
+    try {
+      await invoke('save_asistencia', { records: registros });
+      draftMulti = {}; syncDraftMultiToStorage();
+      // Reflejar en memoria para que la tabla muestre el resultado sin recargar.
+      const porFecha = new Set(fechas);
+      estudiantesMulti = estudiantesMulti.map(est => {
+        const dias = { ...est.dias };
+        for (const fecha of porFecha) {
+          const actual = dias[fecha]?.estado || null;
+          if (actual && actual !== '-') continue;
+          dias[fecha] = { ...dias[fecha], estado: popMasivos!.estado, observacion: dias[fecha]?.observacion || '' };
+        }
+        return { ...est, dias };
+      });
+      capturarOriginalMulti();
+      await emit('show-toast', { message: `✅ ${registros.length} asistencia(s) guardadas (${etiqueta})`, type: 'success' });
+      onDataChange('asistencia', { immediate: true });
+      skipNextRefresh = true;
+      await emit('asistencia-updated');
+      cerrarPopMasivos();
+    } catch (error) {
+      console.error('Error marcando asistencias masivamente:', error);
+      await emit('show-toast', { message: '❌ Error al guardar: ' + error, type: 'error' });
+    } finally { masivosGuardando = false; }
   }
 
   $effect(() => {
@@ -438,17 +587,6 @@ $effect(() => {
     if (popMasivos) {
       return registerBackHandler(() => { cerrarPopMasivos(); return true; });
     }
-  });
-
-  /** Cuántos estudiantes de la lista activa hay en cada estado (sub del popover). */
-  let conteoEstados = $derived.by(() => {
-    const lista = periodo === "diario" ? estudiantes : estudiantesMulti.flatMap(e =>
-      fechasPeriodo.map(f => ({ ...e, fecha: f, estado: e.dias[f]?.estado ?? null })));
-    return {
-      P: lista.filter(e => e.estado === 'P').length,
-      A: lista.filter(e => e.estado === 'A').length,
-      J: lista.filter(e => e.estado === 'J').length,
-    };
   });
 
   // Si el DatePicker deja de estar montado (cambio de período), el bindable
@@ -1773,12 +1911,10 @@ $effect(() => {
           }} />
           <BotonMod bind:ref={popMasivosBtnEl} opts={{
             onclick: () => { if (popMasivosBtnEl) togglePopMasivos(popMasivosBtnEl); },
-            disabled: getActiveStudentCount() === 0,
-            icono: popMasivos ? '✕' : '👥', etiqueta: 'Marcar todos', tono: 'violeta',
-            sub: getActiveStudentCount() === 0
-              ? 'Sin estudiantes'
-              : `${conteoEstados.P}P · ${conteoEstados.A}A · ${conteoEstados.J}J`,
-            title: 'Marcar todo el período como Presente, Ausente o Justificado',
+            disabled: getActiveStudentCount() === 0 || !hayFechasConFaltantes,
+            icono: popMasivos ? '✕' : '👥', etiqueta: 'Rellenar', tono: 'violeta',
+            sub: !hayFechasConFaltantes ? 'Todo completo' : `${totalFaltantesPeriodo} sin marcar`,
+            title: 'Rellenar solo las asistencias vacías de los días que elijas, y guardarlas',
             compacto: isAndroidMobile,
           }} />
           <BotonMod opts={{
@@ -2272,27 +2408,89 @@ $effect(() => {
       bind:this={popMasivosPanelEl}
       use:portalToBody
       role="menu"
-      aria-label="Marcar todo el período"
-      style="position:fixed; z-index:99995; left:{popMasivos.x}px; top:{popMasivos.y}px; bottom:{popMasivos.abajo}; width:{ANCHO_POP_MASIVOS}px; background:rgba(20,24,31,0.97); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); border:1px solid rgba(255,255,255,0.1); border-radius:14px; box-shadow:0 18px 40px -10px rgba(0,0,0,0.65); padding:0.4rem; box-sizing:border-box; display:flex; flex-direction:column; gap:3px;"
+      aria-label="Marcar asistencias masivamente"
+      style="position:fixed; z-index:99995; left:{popMasivos.x}px; top:{popMasivos.y}px; bottom:{popMasivos.abajo}; width:{ANCHO_POP_MASIVOS}px; max-height:min(420px, calc(100vh - 32px)); overflow-y:auto; background:rgba(20,24,31,0.97); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); border:1px solid rgba(255,255,255,0.1); border-radius:14px; box-shadow:0 18px 40px -10px rgba(0,0,0,0.65); padding:0.4rem; box-sizing:border-box; display:flex; flex-direction:column; gap:3px;"
     >
-      {#each ESTADOS_PAJ as e (e.id)}
-        {@const sub = e.id === 'P' ? 'Marcar presentes' : e.id === 'A' ? 'Marcar ausentes' : 'Marcar justificados'}
-        <button
-          role="menuitem"
-          disabled={getActiveStudentCount() === 0}
-          onclick={() => accionMasivos(() => { marcarTodos(e.id); })}
-          title={`Marcar todo el período como ${e.label}`}
-          style="width:100%; display:flex; align-items:center; gap:0.55rem; padding:0.5rem 0.55rem; border-radius:9px; border:1px solid {e.borde}; background:{e.suave}; color:{e.color}; cursor:pointer; text-align:left; transition:all 0.15s ease; opacity:{getActiveStudentCount() === 0 ? 0.45 : 1};"
-          onmouseenter={(ev) => { ev.currentTarget.style.background = e.suave.replace('0.10', '0.2'); }}
-          onmouseleave={(ev) => { ev.currentTarget.style.background = e.suave; }}
-        >
-          <span style="font-size:0.9rem;">{e.id === 'P' ? '✅' : e.id === 'A' ? '❌' : '📝'}</span>
-          <span style="flex:1; min-width:0;">
-            <span style="display:block; font-weight:700; font-size:0.76rem;">Todos {e.id}</span>
-            <span style="display:block; font-size:0.62rem; color:#94a3b8;">{sub} · hoy hay {conteoEstados[e.id]}</span>
+      {#if popMasivos.paso === 'estado'}
+        {#each ESTADOS_PAJ as e (e.id)}
+          {@const sub = e.id === 'P' ? 'Marcar presentes' : e.id === 'A' ? 'Marcar ausentes' : 'Marcar justificados'}
+          <button
+            role="menuitem"
+            disabled={!hayFechasConFaltantes || masivosGuardando}
+            onclick={() => pasoFechas(e.id)}
+            title={`${sub} · después elegís los días`}
+            style="width:100%; display:flex; align-items:center; gap:0.55rem; padding:0.5rem 0.55rem; border-radius:9px; border:1px solid {e.borde}; background:{e.suave}; color:{e.color}; cursor:pointer; text-align:left; transition:all 0.15s ease; opacity:{!hayFechasConFaltantes ? 0.45 : 1};"
+            onmouseenter={(ev) => { ev.currentTarget.style.background = e.suave.replace('0.10', '0.2'); }}
+            onmouseleave={(ev) => { ev.currentTarget.style.background = e.suave; }}
+          >
+            <span style="font-size:0.9rem;">{e.id === 'P' ? '✅' : e.id === 'A' ? '❌' : '📝'}</span>
+            <span style="flex:1; min-width:0;">
+              <span style="display:block; font-weight:700; font-size:0.76rem;">Marcar {e.label}</span>
+              <span style="display:block; font-size:0.62rem; color:#94a3b8;">{sub} · elegí los días</span>
+            </span>
+          </button>
+        {/each}
+        {#if !hayFechasConFaltantes}
+          <div style="padding:0.5rem 0.4rem 0.2rem; font-size:0.66rem; color:#94a3b8; text-align:center; line-height:1.35;">
+            Ya están marcadas todas las asistencias del período.
+          </div>
+        {/if}
+      {:else if popMasivos.estado}
+        {@const eSel = ESTADOS_PAJ.find(x => x.id === popMasivos.estado)!}
+        <!-- Encabezado: estado elegido + volver atrás -->
+        <div style="display:flex; align-items:center; gap:0.4rem; padding:0.25rem 0.3rem 0.45rem; border-bottom:1px solid rgba(255,255,255,0.08); margin-bottom:0.25rem;">
+          <button type="button" onclick={volverAEstado} title="Elegir otro estado"
+            style="flex-shrink:0; display:flex; align-items:center; gap:0.3rem; padding:0.25rem 0.4rem; border-radius:7px; border:1px solid {eSel.borde}; background:{eSel.suave}; color:{eSel.color}; font-size:0.68rem; font-weight:700; cursor:pointer; font-family:inherit;">
+            ‹ {eSel.id}
+          </button>
+          <span style="flex:1; min-width:0; font-size:0.68rem; color:#94a3b8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">¿Qué días marcar?</span>
+          <button type="button" onclick={elegirTodasLasFechas} title="Seleccionar todos los días con faltas"
+            style="flex-shrink:0; padding:0.2rem 0.35rem; border-radius:6px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.04); color:#cbd5e1; font-size:0.62rem; font-weight:600; cursor:pointer; font-family:inherit;">Todas</button>
+          <button type="button" onclick={elegirNinguna} title="Quitar la selección"
+            style="flex-shrink:0; padding:0.2rem 0.35rem; border-radius:6px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.04); color:#cbd5e1; font-size:0.62rem; font-weight:600; cursor:pointer; font-family:inherit;">Ninguna</button>
+        </div>
+
+        <!-- Días, agrupados por semana como las columnas de la tabla -->
+        {#each gruposSemanaMasivos as g (g.numero)}
+          {#if gruposSemanaMasivos.length > 1}
+            <div style="padding:0.4rem 0.5rem 0.15rem; font-size:0.58rem; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:#64748b;">Semana {g.numero}</div>
+          {/if}
+          {#each g.fechas as f (f)}
+            {@const faltan = faltantesDe(f)}
+            {@const sel = popMasivos.fechas.has(f)}
+            <button
+              role="menuitemcheckbox"
+              aria-checked={sel}
+              disabled={faltan === 0 || masivosGuardando}
+              onclick={() => alternarFecha(f)}
+              title={faltan === 0 ? 'Sin asistencias vacías este día' : `Marcar ${faltan} asistencia(s) el ${fmtDM(f)}`}
+              style="width:100%; display:flex; align-items:center; justify-content:space-between; gap:0.5rem; padding:0.4rem 0.5rem; border-radius:8px; border:1px solid {sel ? eSel.borde : 'transparent'}; background:{sel ? eSel.suave : 'transparent'}; color:{faltan === 0 ? '#475569' : sel ? eSel.color : '#cbd5e1'}; font-size:0.74rem; font-weight:{sel ? 700 : 500}; cursor:{faltan === 0 ? 'not-allowed' : 'pointer'}; text-align:left; transition:all 0.15s ease; opacity:{faltan === 0 ? 0.5 : 1};"
+              onmouseenter={(ev) => { if (faltan > 0 && !sel) ev.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+              onmouseleave={(ev) => { if (faltan > 0 && !sel) ev.currentTarget.style.background = 'transparent'; }}
+            >
+              <span style="display:flex; align-items:center; gap:0.4rem; min-width:0;">
+                <span style="width:14px; flex-shrink:0; text-align:center; color:{sel ? eSel.color : '#475569'};">{sel ? '✓' : '○'}</span>
+                <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{fmtDM(f)}</span>
+              </span>
+              <span style="flex-shrink:0; font-size:0.62rem; color:{faltan === 0 ? '#475569' : '#94a3b8'};">{faltan === 0 ? 'completo' : `${faltan} vacías`}</span>
+            </button>
+          {/each}
+        {/each}
+
+        <div style="display:flex; align-items:center; gap:0.45rem; padding:0.5rem 0.35rem 0.15rem; margin-top:0.25rem; border-top:1px solid rgba(255,255,255,0.08);">
+          <span style="flex:1; min-width:0; font-size:0.66rem; color:#94a3b8; line-height:1.3;">
+            {totalAMarcar === 0 ? 'Elegí al menos un día' : `Se van a marcar <strong style="color:${eSel.color}">${totalAMarcar}</strong> asistencia(s) y guardar`}
           </span>
-        </button>
-      {/each}
+          <button
+            type="button"
+            disabled={totalAMarcar === 0 || masivosGuardando}
+            onclick={aplicarMasivos}
+            title="Rellenar las vacías de los días elegidos y guardar en la base"
+            style="flex-shrink:0; padding:0.45rem 0.7rem; border-radius:9px; border:1px solid {eSel.borde}; background:{totalAMarcar === 0 ? 'rgba(255,255,255,0.04)' : `linear-gradient(135deg, ${eSel.color}, ${eSel.color}dd)`}; color:{totalAMarcar === 0 ? '#475569' : '#0b1220'}; font-size:0.72rem; font-weight:800; cursor:{totalAMarcar === 0 ? 'not-allowed' : 'pointer'}; font-family:inherit; transition:all 0.15s ease; white-space:nowrap;">
+            {masivosGuardando ? '⏳ Guardando' : 'Marcar y guardar'}
+          </button>
+        </div>
+      {/if}
     </div>
   {/if}
 
