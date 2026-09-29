@@ -2742,7 +2742,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                     <th class="col-num" style="text-align: center; padding: 0.4rem 0.4rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Meta</th>
                   {/if}
                   <th class="col-num" style="text-align: center; padding: 0.4rem 0.4rem; background: rgba(15, 23, 42, 0.95); color: #a78bfa; font-weight: 600; white-space: nowrap; border-bottom: 1px solid rgba(139,92,246,0.15);">→ Resultante</th>
-                  <th class="col-num" style="text-align: center; padding: 0.4rem 0.4rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; white-space: nowrap; border-bottom: 1px solid rgba(255,255,255,0.06);">{isQualitative ? 'Nota objetivo' : 'Nuevo total (0-100)'}</th>
+                  <th class="col-num" style="text-align: center; padding: 0.4rem 0.4rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; white-space: nowrap; border-bottom: 1px solid rgba(255,255,255,0.06);">{isQualitative ? 'Nota objetivo' : 'Nuevo total'}</th>
                 </tr>
               </thead>
               <tbody>
@@ -2754,13 +2754,13 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                       {#each cortesPrecios as corte (corte.id)}
                         {@const pctPrevCorte = comparacionCortes[corte.id]?.[est.estudianteId] ?? null}
                         {@const gradePrevCorte = pctPrevCorte === null ? '' : (getGradeFromScore(pctPrevCorte)?.id || '')}
-                        <td class="col-num" title="{corte.name}: {pctPrevCorte === null ? 'sin notas' : isQualitative ? gradePrevCorte : pctPrevCorte + '%'}" style="padding: 0.3rem 0.3rem; text-align: center; white-space: nowrap; font-size: 0.74rem; font-weight: 600; color: {isQualitative ? (gradePrevCorte ? getGradeColor(gradePrevCorte) : '#94a3b8') : colorPctAnterior(pctPrevCorte)};">
+                        <td class="col-num" title="{corte.name}: {pctPrevCorte === null ? 'sin notas' : isQualitative ? gradePrevCorte : pctPrevCorte}" style="padding: 0.3rem 0.3rem; text-align: center; white-space: nowrap; font-size: 0.74rem; font-weight: 600; color: {isQualitative ? (gradePrevCorte ? getGradeColor(gradePrevCorte) : '#94a3b8') : colorPctAnterior(pctPrevCorte)};">
                           {#if pctPrevCorte === null}
                             —
                           {:else if isQualitative}
                             {gradePrevCorte || '—'}
                           {:else}
-                            {pctPrevCorte}%
+                            {pctPrevCorte}
                           {/if}
                         </td>
                       {/each}
@@ -2773,7 +2773,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                       {:else}
                         {@const pctActual = calcularPctActual(est.estudianteId)}
                         {@const gradeActual = getGradeFromScore(pctActual)?.id || ''}
-                        <span style="color: {gradeActual ? getGradeColor(gradeActual) : '#94a3b8'}; font-weight: 600;">{pctActual}%</span>
+                        <span style="color: {gradeActual ? getGradeColor(gradeActual) : '#94a3b8'}; font-weight: 600;">{pctActual}</span>
                       {/if}
                     </td>
                     {#if isQualitative}
@@ -2795,7 +2795,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                       {:else}
                         {@const pctPrev = calcularPctPreview(est.estudianteId, distribuirTargets[est.estudianteId])}
                         {@const gradePrev = getGradeFromScore(pctPrev)?.id || ''}
-                        <span style="color: {gradePrev ? getGradeColor(gradePrev) : '#a78bfa'}">{pctPrev}%</span>
+                        <span style="color: {gradePrev ? getGradeColor(gradePrev) : '#a78bfa'}">{pctPrev}</span>
                       {/if}
                     </td>
                     <td class="col-num" style="padding: 0.15rem 0.3rem; text-align: center; white-space: nowrap;">
