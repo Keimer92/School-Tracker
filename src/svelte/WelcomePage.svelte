@@ -2,18 +2,32 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
    import { emit, listen } from "@tauri-apps/api/event";
-  import { open as openDialog, ask } from "@tauri-apps/plugin-dialog";
-  import { readTextFile } from "@tauri-apps/plugin-fs";
+  import { ask } from "@tauri-apps/plugin-dialog";
   import { syncManager, type DownloadProgress } from "../lib/driveSyncService";
   import { setBackAuthInProgress, registerBackHandler } from "../lib/androidBack";
   import { iniciarSesionGoogleConNube } from "../lib/cloudLogin";
   import appIcon from "../assets/app-icon.png";
 
-  let view: 'landing' | 'cloud' | 'wizard' = $state('landing');
+  let view: 'landing' | 'cloud' | 'wizard' | 'drive' = $state('landing');
   let step = $state(1);
   let loading = $state(false);
   let loadingMessage = $state('');
   let errorMsg = $state('');
+
+  // ── Opción 1: Google + restaurar Drive ──
+  // El "código" es el schoolKey de la nube (el que viene dentro del .key).
+  let driveCode = $state('');
+  let driveCodeError = $state('');
+  function goToDrive() {
+    view = 'drive';
+    errorMsg = '';
+    driveCodeError = '';
+  }
+  function goToLanding() {
+    view = 'landing';
+    errorMsg = '';
+    driveCodeError = '';
+  }
 
   // Detección de plataforma (mismo patrón que AsistenciaPage)
   let isAndroid = $state(/Android/i.test(navigator.userAgent));
@@ -39,6 +53,13 @@
 
   const gradosPrimaria = ['1er grado', '2do grado', '3er grado', '4to grado', '5to grado', '6to grado'];
   const gradosSecundaria = ['7mo grado', '8vo grado', '9no grado', '10mo grado', '11mo grado'];
+  /** Catálogo completo de grados para los toggles del wizard. */
+  const GRADOS_CATALOGO: { nombre: string; n: number; nivel: 'Primaria' | 'Secundaria' }[] = [
+    ...gradosPrimaria.map((nombre, i) => ({ nombre, n: i + 1, nivel: 'Primaria' as const })),
+    ...gradosSecundaria.map((nombre, i) => ({ nombre, n: i + 7, nivel: 'Secundaria' as const })),
+  ];
+  /** Secciones precargadas para marcar (decisión 2026-09: solo A-D). */
+  const SECCIONES_CATALOGO = ['A', 'B', 'C', 'D'];
 
   let inputAnos = $state<string[]>([]);
   let inputColegios = $state<ColegioItem[]>([]);
@@ -46,14 +67,65 @@
   let inputSecciones = $state<string[]>([]);
   let inputAsignaturas = $state<GradItem[]>([]);
   let currentInput = $state('');
-  let nuevoColegioTipo = $state<'Primaria' | 'Secundaria'>('Primaria');
+
+  /**
+   * Toggles de grados y secciones. El estado vive en arrays (NO en atributos
+   * del DOM) para que Svelte 5 lo rastree al re-renderizar.
+   */
+  let gradosMarcados = $state<string[]>([]);
+  let seccionesMarcadas = $state<string[]>([]);
+
+  function toggleGrado(nombre: string) {
+    gradosMarcados = gradosMarcados.includes(nombre)
+      ? gradosMarcados.filter(g => g !== nombre)
+      : [...gradosMarcados, nombre];
+  }
+  function toggleSeccion(nombre: string) {
+    seccionesMarcadas = seccionesMarcadas.includes(nombre)
+      ? seccionesMarcadas.filter(s => s !== nombre)
+      : [...seccionesMarcadas, nombre];
+  }
+  function toggleTodosGrados(nivel: 'Primaria' | 'Secundaria') {
+    const delNivel = GRADOS_CATALOGO.filter(g => g.nivel === nivel).map(g => g.nombre);
+    const todosPuestos = delNivel.every(g => gradosMarcados.includes(g));
+    gradosMarcados = todosPuestos
+      ? gradosMarcados.filter(g => !delNivel.includes(g))
+      : Array.from(new Set([...gradosMarcados, ...delNivel]));
+  }
+  function toggleTodasSecciones() {
+    seccionesMarcadas = seccionesMarcadas.length === SECCIONES_CATALOGO.length
+      ? []
+      : [...SECCIONES_CATALOGO];
+  }
+
+  /**
+   * Tipo del colegio deducido de los grados marcados: si hay algún grado de
+   * Secundaria (7mo-11mo) el colegio es Secundaria, aunque también ofrezca
+   * primaria. Es la misma convención que usa `seed_colegio_grados` en Rust
+   * (Primaria 1-6, Secundaria 7-11).
+   */
+  const tipoDesdeGrados = $derived<'Primaria' | 'Secundaria'>(
+    gradosMarcados.some(g => gradosSecundaria.includes(g)) ? 'Secundaria' : 'Primaria'
+  );
+  const cantidadPrimaria = $derived(gradosMarcados.filter(g => gradosPrimaria.includes(g)).length);
+  const cantidadSecundaria = $derived(gradosMarcados.filter(g => gradosSecundaria.includes(g)).length);
+
+  /** Aplica los toggles a los arrays que consume el backend. */
+  function sincronizarToggles() {
+    inputGrados = gradosMarcados.map(n => ({
+      nombre,
+      // 1er y 2do grado son cualitativos por defecto en el modelo.
+      cualitativo: n === '1er grado' || n === '2do grado',
+    }));
+    inputSecciones = [...seccionesMarcadas];
+  }
 
   const steps = [
     { title: 'Años Lectivos', icon: '📅', key: 'anos' },
     { title: 'Asignaturas', icon: '📚', key: 'asignaturas' },
-    { title: 'Colegios', icon: '🏫', key: 'colegios' },
     { title: 'Grados', icon: '📊', key: 'grados' },
     { title: 'Secciones', icon: '👥', key: 'secciones' },
+    { title: 'Colegios', icon: '🏫', key: 'colegios' },
     { title: 'Resumen', icon: '✅', key: 'resumen' },
   ];
 
@@ -63,6 +135,42 @@
     loading = false;
     loadingMessage = '';
     errorMsg = '';
+  }
+
+  /**
+   * Opción 1: login con Google y restauración del último respaldo de Drive.
+   *
+   * El código es el `schoolKey` de la nube (el mismo que viaja dentro del
+   * archivo .key). Se guarda ANTES de restaurar para que el schoolKey no se
+   * regenere: el Worker solo devuelve el mismo si existe el registro
+   * `user:<email>` en su KV, y una cuenta creada vía Drive puede no tenerlo.
+   */
+  async function iniciarDriveConCodigo() {
+    const codigo = driveCode.trim();
+    if (!codigo) {
+      driveCodeError = 'Pega el código de conexión para continuar.';
+      return;
+    }
+    driveCodeError = '';
+    loading = true;
+    errorMsg = '';
+    try {
+      loadingMessage = 'Iniciando sesión con Google...';
+      await iniciarSesionGoogleConNube();
+      // Vincular la nube ANTES de restaurar: si el pull de D1 corriera con la
+      // config vacía crearía un schoolKey nuevo y perderíamos el vínculo con
+      // los datos. La URL sale de la misma env que usa el resto de la app.
+      const workerUrl = import.meta.env.VITE_D1_WORKER_URL
+        || 'https://schooltracker-d1-sync.pedroluisnfc.workers.dev';
+      await conectarConCredenciales(workerUrl, codigo);
+      loadingMessage = 'Buscando tu último respaldo en Google Drive...';
+      await restoreFromDrive();
+    } catch (e: any) {
+      errorMsg = e?.message || String(e);
+    } finally {
+      loading = false;
+      loadingMessage = '';
+    }
   }
 
   function goToWizard() {
@@ -120,72 +228,6 @@
     }
     loading = false;
     loadingMessage = '';
-  }
-
-  /**
-   * Importa un archivo .key (exportado desde otro dispositivo en CloudPage)
-   * con {workerUrl, schoolKey}. Los valores pasan una sola vez a Rust y quedan
-   * guardados SOLO en la BD local (d1_config), nunca en localStorage/bundle.
-   */
-  async function importarArchivoConexion() {
-    try {
-      const ruta = await openDialog({
-        title: 'Selecciona tu archivo de conexión',
-        filters: [{ name: 'Conexión School Tracker', extensions: ['key', 'json'] }],
-        multiple: false,
-      });
-      if (!ruta || typeof ruta !== 'string') return;
-      loading = true;
-      errorMsg = '';
-      loadingMessage = 'Importando conexión...';
-      const txt = await readTextFile(ruta);
-      let cfg: any;
-      try { cfg = JSON.parse(txt); } catch { throw new Error('El archivo no es un .key válido'); }
-      if (!cfg.workerUrl || !cfg.schoolKey) throw new Error('El archivo no contiene workerUrl/schoolKey');
-      await conectarConCredenciales(cfg.workerUrl, cfg.schoolKey);
-    } catch (e: any) {
-      errorMsg = 'Error importando conexión: ' + (typeof e === 'string' ? e : e?.message || String(e));
-    }
-    loading = false;
-    loadingMessage = '';
-  }
-
-  /**
-   * Importa una base de datos local en formato .db (respaldo) y, tras cargarla,
-   * salta automáticamente al flujo "Continuar con Google" para vincular esa base
-   * a la cuenta elegida. Si la cuenta tiene la nube de Cloudflare VACÍA, el
-   * primer sync sube los datos importados (la nube deja de estar vacía).
-   */
-  async function importarBaseDatos() {
-    try {
-      const ruta = await openDialog({
-        title: 'Selecciona tu base de datos (.db)',
-        filters: [{ name: 'Base de datos School Tracker', extensions: ['db'] }],
-        multiple: false,
-      });
-      if (!ruta || typeof ruta !== 'string') return;
-      loading = true;
-      errorMsg = '';
-      loadingMessage = 'Importando base de datos...';
-      await invoke('gd_import_db_from_file', { sourcePath: ruta });
-      await invoke('gd_reload_database');
-      loadingMessage = 'Vinculando con tu cuenta de Google...';
-      // Desvincular la nube anterior que pudiera venir dentro del respaldo
-      // (d1_config de otro dispositivo) para reconectar LIMPIO con la cuenta
-      // de Google elegida en el siguiente paso.
-      try { await invoke('d1_clear_config'); } catch {}
-      // IMPORTANTE: NO usamos la school_key embebida en el .db (importedKey).
-      // El Worker KV (user:email -> schoolKey) es la fuente de verdad; si
-      // vinculamos con la clave del archivo, los datos quedarían en un namespace
-      // distinto al de la cuenta y cada login/switch los vería vacíos. Al no
-      // pasar preferredKey, iniciarSesionGoogleConNube usa result.schoolKey
-      // (autoritativo) y sube el .db importado a la nube de la cuenta real.
-      await handleCloudLogin();
-    } catch (e: any) {
-      errorMsg = 'Error importando base de datos: ' + (typeof e === 'string' ? e : e?.message || String(e));
-      loading = false;
-      loadingMessage = '';
-    }
   }
 
   /** Detecta errores transitorios del Worker (cuota free agotada, red, rate limit). */
@@ -538,6 +580,7 @@
   }
 
   async function handleWizardComplete() {
+    sincronizarToggles();
     if (inputAnos.length === 0 || inputColegios.length === 0 || inputGrados.length === 0 ||
         inputSecciones.length === 0 || inputAsignaturas.length === 0) {
       errorMsg = 'Debes agregar al menos un elemento en cada categoría.';
@@ -556,7 +599,9 @@
       await invoke('seed_selected_data', {
         selections: {
           anos: inputAnos.map((a) => a.trim()),
-          colegios: inputColegios.map((c) => ({ nombre: c.nombre.trim(), tipo: c.tipo, dias: c.dias, asignaturas: c.asignaturas })),
+          // El tipo del colegio lo decide la lógica de los toggles: si hay
+          // algún grado de Secundaria marcado, el colegio es Secundaria.
+          colegios: inputColegios.map((c) => ({ ...c, tipo: tipoDesdeGrados })),
           grados,
           secciones: inputSecciones.map((s) => s.trim()),
           asignaturas,
@@ -573,6 +618,12 @@
 
   function nextStep() { if (step < steps.length) step++; }
   function prevStep() { if (step > 1) step--; }
+
+  /** Valida el paso actual. `currentItems()` ya refleja los toggles de grados
+   *  y secciones, así que no hace falta un caso especial por paso. */
+  function puedeAvanzar(): boolean {
+    return currentItems().length > 0;
+  }
 
   type StepKey = 'anos' | 'colegios' | 'grados' | 'secciones' | 'asignaturas';
   function stepKey(): StepKey {
@@ -604,9 +655,14 @@
     const k = stepKey();
     if (k === 'anos') return inputAnos;
     if (k === 'colegios') return inputColegios;
-    if (k === 'grados') return inputGrados;
-    if (k === 'secciones') return inputSecciones;
-    return inputAsignaturas;
+    if (k === 'asignaturas') return inputAsignaturas;
+    // Grados y secciones salen de los toggles. Se derivan SIN mutar estado:
+    // `sincronizarToggles()` solo se invoca al finalizar, para no tener efectos
+    // secundarios dentro de una función que el markup llama en cada render.
+    if (k === 'grados') return gradosMarcados.map(nombre => ({
+      nombre, cualitativo: nombre === '1er grado' || nombre === '2do grado',
+    }));
+    return [...seccionesMarcadas];
   }
   function setItems(arr: string[]) {
     const k = stepKey();
@@ -634,13 +690,10 @@
       }
     } else if (k === 'colegios') {
       if (!inputColegios.some((c) => c.nombre.toLowerCase() === v.toLowerCase())) {
-        inputColegios = [...inputColegios, { nombre: v, tipo: nuevoColegioTipo, dias: defaultDias(), asignaturas: [] }];
-        // Auto-agregar grados correspondientes al tipo del colegio
-        const gradosTipo = nuevoColegioTipo === 'Primaria' ? gradosPrimaria : gradosSecundaria;
-        const nuevosGrados = gradosTipo.filter(g => !inputGrados.some(eg => eg.nombre.toLowerCase() === g.toLowerCase()));
-        if (nuevosGrados.length > 0) {
-          inputGrados = [...inputGrados, ...nuevosGrados.map(g => ({ nombre: g, cualitativo: false }))];
-        }
+        // El tipo lo deducen los toggles de grados (ver `tipoDesdeGrados`), así
+        // que aquí no se fuerza nada. Tampoco se auto-agrean grados: si se
+        // hicieran aquí pisarían lo que el usuario marcó a mano.
+        inputColegios = [...inputColegios, { nombre: v, tipo: 'Primaria', dias: defaultDias(), asignaturas: [] }];
       }
     } else {
       const items = [...(currentItems() as string[])];
@@ -681,15 +734,17 @@
   }
 
   function getResumenItems() {
-    const gradosResumen = inputGrados.map((g) => {
-      const t = g.nombre.trim();
+    // Grados y secciones salen de los TOGGLES, no del array de entrada: ese
+    // array solo se llena en `sincronizarToggles()` al finalizar.
+    const gradosResumen = gradosMarcados.map((g) => {
+      const t = g.trim();
       return /grado\s*$/i.test(t) ? t : t + ' grado';
     });
     return [
       { label: 'Años Lectivos', items: inputAnos.join(', '), icon: '📅' },
-      { label: 'Colegios', items: inputColegios.map((c) => c.nombre).join(', '), icon: '🏫' },
       { label: 'Grados', items: gradosResumen.join(', '), icon: '📊' },
-      { label: 'Secciones', items: inputSecciones.join(', '), icon: '👥' },
+      { label: 'Secciones', items: seccionesMarcadas.join(', '), icon: '👥' },
+      { label: 'Colegios', items: inputColegios.map((c) => c.nombre).join(', '), icon: '🏫' },
       { label: 'Asignaturas', items: inputAsignaturas.map((a) => a.nombre).join(', '), icon: '📚' },
     ];
   }
@@ -722,74 +777,112 @@
         {/if}
       </div>
       <div class="welcome-cards" class:android={isAndroidMobile}>
+        <!-- 1. Google + restaurar el último respaldo de Drive (con código) -->
+        <button class="welcome-card card-google" class:android={isAndroidMobile} onclick={goToDrive} disabled={loading}>
+          <div class="welcome-card-icon">📥</div>
+          <div class="welcome-card-body">
+            <h3>Continuar con Google</h3>
+            <p>Entra con tu cuenta y recupera el último respaldo de Google Drive usando tu código de conexión.</p>
+            <span class="welcome-card-tags"><span class="welcome-tag">Drive</span><span class="welcome-tag">Requiere código</span></span>
+          </div>
+          <div class="welcome-card-arrow">→</div>
+        </button>
+
+        <!-- 2. Iniciar sesión y descargar los datos desde Cloudflare -->
+        <button class="welcome-card card-cloud" class:android={isAndroidMobile} onclick={() => handleCloudLogin()} disabled={loading}>
+          <div class="welcome-card-icon">☁️</div>
+          <div class="welcome-card-body">
+            <h3>Iniciar sesión y sincronizar</h3>
+            <p>Accede a tu nube de Cloudflare y baja todos tus datos a este dispositivo. Ideal si ya usas la app.</p>
+            <span class="welcome-card-tags"><span class="welcome-tag">Cloudflare D1</span><span class="welcome-tag">Tiempo real</span></span>
+          </div>
+          <div class="welcome-card-arrow">→</div>
+        </button>
+
+        <!-- 3. Base limpia con asistente de instalación -->
+        <button class="welcome-card card-manual" class:android={isAndroidMobile} onclick={goToWizard} disabled={loading}>
+          <div class="welcome-card-icon">✨</div>
+          <div class="welcome-card-body">
+            <h3>Empezar de cero</h3>
+            <p>Crea una base de datos limpia y marca con toggles los grados y secciones que vas a usar.</p>
+            <span class="welcome-card-tags"><span class="welcome-tag">Catálogo precargado</span><span class="welcome-tag">Sin nube</span></span>
+          </div>
+          <div class="welcome-card-arrow">→</div>
+        </button>
+
+      </div>
+      {#if errorMsg}
+        <div class="welcome-error">{errorMsg}</div>
+      {/if}
+    </div>
+
+  {:else if view === 'drive'}
+    <div class="welcome-container drive-container">
+      <button class="welcome-back" onclick={goToLanding}>← Volver</button>
+
+      <div class="welcome-brand">
         {#if isAndroidMobile}
-          <button class="welcome-card card-google android" onclick={() => handleCloudLogin()} disabled={loading}>
-            <div class="welcome-card-icon">🔐</div>
-            <div class="welcome-card-body">
-              <h3>Continuar con Google</h3>
-              <p>Inicia sesión y sincroniza tu base en la nube.</p>
+          <div class="welcome-brand-row">
+            <img class="welcome-logo welcome-logo-sm" src={appIcon} alt="School Tracker" draggable="false" />
+            <div class="welcome-brand-text">
+              <h1 class="welcome-title welcome-title-sm">Restaurar desde Drive</h1>
+              <p class="welcome-subtitle">Recupera tu último respaldo de Google</p>
             </div>
-            <div class="welcome-card-arrow">→</div>
-          </button>
-          <button class="welcome-card card-manual android" onclick={goToWizard} disabled={loading}>
-            <div class="welcome-card-icon">⚙️</div>
-            <div class="welcome-card-body">
-              <h3>Configurar manualmente</h3>
-              <p>Define años, colegios y grados desde cero.</p>
-            </div>
-            <div class="welcome-card-arrow">→</div>
-          </button>
-          <button class="welcome-card card-key android" onclick={importarArchivoConexion} disabled={loading}>
-            <div class="welcome-card-icon">🔑</div>
-            <div class="welcome-card-body">
-              <h3>Importar .key</h3>
-              <p>Recupera tus datos con un archivo de conexión.</p>
-            </div>
-            <div class="welcome-card-arrow">→</div>
-          </button>
-          <button class="welcome-card card-import android" onclick={importarBaseDatos} disabled={loading}>
-            <div class="welcome-card-icon">💾</div>
-            <div class="welcome-card-body">
-              <h3>Importar base (.db)</h3>
-              <p>Restaura un respaldo y vincúlalo a Google.</p>
-            </div>
-            <div class="welcome-card-arrow">→</div>
-          </button>
+          </div>
         {:else}
-          <button class="welcome-card card-google" onclick={() => handleCloudLogin()} disabled={loading}>
-            <div class="welcome-card-icon">🔐</div>
-            <div class="welcome-card-body">
-              <h3>Continuar con Google</h3>
-              <p>Crea tu cuenta o inicia sesión para sincronizar en la nube con tu propia base de datos privada.</p>
-            </div>
-            <div class="welcome-card-arrow">→</div>
-          </button>
-          <button class="welcome-card card-manual" onclick={goToWizard} disabled={loading}>
-            <div class="welcome-card-icon">⚙️</div>
-            <div class="welcome-card-body">
-              <h3>Configurar manualmente</h3>
-              <p>Selecciona exactamente qué años, colegios, grados y asignaturas deseas usar.</p>
-            </div>
-            <div class="welcome-card-arrow">→</div>
-          </button>
-          <button class="welcome-card card-key" onclick={importarArchivoConexion} disabled={loading}>
-            <div class="welcome-card-icon">🔑</div>
-            <div class="welcome-card-body">
-              <h3>Tengo un archivo de conexión</h3>
-              <p>Importa tu archivo .key para sincronizar con Cloudflare y recuperar tus datos.</p>
-            </div>
-            <div class="welcome-card-arrow">→</div>
-          </button>
-          <button class="welcome-card card-import" onclick={importarBaseDatos} disabled={loading}>
-            <div class="welcome-card-icon">💾</div>
-            <div class="welcome-card-body">
-              <h3>Importar base de datos (.db)</h3>
-              <p>Restaura tu respaldo de la base de datos y vincúlalo automáticamente a tu cuenta de Google.</p>
-            </div>
-            <div class="welcome-card-arrow">→</div>
-          </button>
+          <img class="welcome-logo" src={appIcon} alt="School Tracker" draggable="false" />
+          <h1 class="welcome-title">Restaurar desde Drive</h1>
+          <p class="welcome-subtitle">Recupera tu último respaldo de Google Drive</p>
         {/if}
       </div>
+
+      <div class="drive-steps">
+        <div class="drive-step">
+          <span class="drive-step-num">1</span>
+          <div class="drive-step-text">
+            <strong>Inicia sesión con Google</strong>
+            <span>Se abrirá el selector de cuenta para vincular Drive.</span>
+          </div>
+        </div>
+        <div class="drive-step">
+          <span class="drive-step-num">2</span>
+          <div class="drive-step-text">
+            <strong>Pega tu código de conexión</strong>
+            <span>Es el <code>schoolKey</code> que viene dentro de tu archivo <code>.key</code>. Sin él se crearía una nube nueva y vacía.</span>
+          </div>
+        </div>
+        <div class="drive-step">
+          <span class="drive-step-num">3</span>
+          <div class="drive-step-text">
+            <strong>Se descarga el último respaldo</strong>
+            <span>Buscamos el archivo más reciente de tu carpeta de Drive y lo restauramos.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="drive-form">
+        <label class="drive-label" for="drive-code">Código de conexión</label>
+        <input
+          id="drive-code"
+          class="drive-input"
+          class:error={!!driveCodeError}
+          type="text"
+          placeholder="Pega aquí tu schoolKey"
+          bind:value={driveCode}
+          autocomplete="off"
+          spellcheck="false"
+          onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void iniciarDriveConCodigo(); } }} />
+        {#if driveCodeError}
+          <p class="drive-error">{driveCodeError}</p>
+        {:else}
+          <p class="drive-hint">¿No tienes el código? Pide el archivo <code>.key</code> a quien configuró la nube.</p>
+        {/if}
+
+        <button class="drive-submit" onclick={() => iniciarDriveConCodigo()} disabled={loading}>
+          {loading ? 'Restaurando...' : '📥  Iniciar sesión y restaurar'}
+        </button>
+      </div>
+
       {#if errorMsg}
         <div class="welcome-error">{errorMsg}</div>
       {/if}
@@ -810,7 +903,7 @@
       </div>
       <div class="wizard-step-label">{steps[step - 1].icon} {steps[step - 1].title}</div>
 
-      {#if step === 6}
+      {#if step === steps.length}
         <div class="wizard-resumen">
           {#each getResumenItems() as item}
             <div class="resumen-row">
@@ -821,68 +914,138 @@
               </div>
             </div>
           {/each}
+          <div class="resumen-row" style="border-top:1px solid rgba(255,255,255,0.08);margin-top:0.5rem;padding-top:0.75rem;">
+            <span class="resumen-icon">{tipoDesdeGrados === 'Primaria' ? '🏫' : '🏛️'}</span>
+            <div class="resumen-body">
+              <span class="resumen-label">Tipo de colegio</span>
+              <span class="resumen-value">{tipoDesdeGrados} · {cantidadPrimaria} primaria / {cantidadSecundaria} secundaria</span>
+            </div>
+          </div>
           <p style="color:#64748b;font-size:0.8rem;text-align:center;margin-top:1rem;">
             Los cortes evaluativos y la configuración de calificaciones se incluirán automáticamente.
           </p>
         </div>
       {:else}
         <div class="wizard-items">
-          {#if stepKey() === 'colegios'}
+          {#if stepKey() === 'grados'}
+            <!-- GRADOS: catálogo precargado con toggles (sin checkboxes) -->
             <div class="wizard-tipo-row">
               <span class="wizard-tipo-label">Tipo:</span>
               <div class="wizard-tipo-segmented">
-                <button class="wizard-tipo-btn" class:active={nuevoColegioTipo === 'Primaria'} onclick={() => nuevoColegioTipo = 'Primaria'}>🏫 Primaria</button>
-                <button class="wizard-tipo-btn" class:active={nuevoColegioTipo === 'Secundaria'} onclick={() => nuevoColegioTipo = 'Secundaria'}>🏛️ Secundaria</button>
+                <button class="wizard-tipo-btn" class:active={tipoDesdeGrados === 'Primaria'} onclick={() => { gradosMarcados = gradosPrimaria; }}>🏫 Primaria</button>
+                <button class="wizard-tipo-btn" class:active={tipoDesdeGrados === 'Secundaria'} onclick={() => { gradosMarcados = gradosSecundaria; }}>🏛️ Secundaria</button>
               </div>
             </div>
-          {/if}
-          <div class="wizard-input-row">
-            <input class="wizard-input" type="text" placeholder={stepKey() === 'colegios' ? 'Ej: Colegio Central' : inputPlaceholder()}
-              bind:value={currentInput}
-              onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCurrentItem(); } }} />
-            <button class="wizard-add-btn" onclick={addCurrentItem}>Agregar</button>
-          </div>
-          {#if currentItems().length === 0}
-            <p class="wizard-empty">Aún no has agregado {stepLabel()}. Escribe uno arriba y pulsa “Agregar”.</p>
-          {:else if stepKey() === 'colegios'}
-            <div class="wizard-colegios">
-              {#each inputColegios as col, ci}
-                <div class="wizard-colegio-card">
-                  <div class="wizard-colegio-head">
-                    <span class="wizard-colegio-name">{col.nombre}</span>
-                    <span class="wizard-colegio-tipo-badge" class:secundaria={col.tipo === 'Secundaria'}>
-                      {col.tipo === 'Primaria' ? '🏫 Primaria' : '🏛️ Secundaria'}
-                    </span>
-                    <button class="wizard-chip-x" onclick={() => removeItem(ci)} aria-label="Eliminar">×</button>
-                  </div>
-                  <div class="wizard-colegio-label">Días de clases</div>
-                  <div class="wizard-dias">
-                    {#each diasKeys as dk}
-                      <button class="wizard-dia" class:active={col.dias[dk]} onclick={() => toggleDia(ci, dk)}>{diaShort(dk)}</button>
-                    {/each}
-                  </div>
-                  <div class="wizard-colegio-label">Asignaturas que imparte</div>
-                  <div class="wizard-asig">
-                    {#each inputAsignaturas as a}
-                      <button class="wizard-asig-chip" class:active={col.asignaturas.includes(a.nombre)} onclick={() => toggleAsignaturaColegio(ci, a.nombre)}>{a.nombre}</button>
-                    {/each}
-                  </div>
-                </div>
+            <p class="wizard-hint">
+              Marca los grados que vas a usar. El tipo del colegio se deduce solo:
+              con un grado de 7mo en adelante será Secundaria.
+            </p>
+
+            {#each ['Primaria', 'Secundaria'] as nivel}
+              {@const lista = GRADOS_CATALOGO.filter(g => g.nivel === nivel)}
+              {@const marcadosDelNivel = lista.filter(g => gradosMarcados.includes(g.nombre)).length}
+              <div class="wizard-grupo-head">
+                <span class="wizard-grupo-titulo" class:secundaria={nivel === 'Secundaria'}>
+                  {nivel === 'Primaria' ? '🏫 Primaria' : '🏛️ Secundaria'}
+                </span>
+                <span class="wizard-grupo-cont">{marcadosDelNivel}/{lista.length}</span>
+                <button class="wizard-grupo-all" class:active={marcadosDelNivel === lista.length} onclick={() => toggleTodosGrados(nivel as 'Primaria' | 'Secundaria')}>
+                  {marcadosDelNivel === lista.length ? 'Quitar todos' : 'Todos'}
+                </button>
+              </div>
+              <div class="wizard-toggle-grid">
+                {#each lista as g (g.nombre)}
+                  <button class="wizard-toggle-card" class:active={gradosMarcados.includes(g.nombre)} onclick={() => toggleGrado(g.nombre)}>
+                    <span class="wizard-toggle-check">{#if gradosMarcados.includes(g.nombre)}✓{/if}</span>
+                    <span class="wizard-toggle-name">{g.nombre}</span>
+                  </button>
+                {/each}
+              </div>
+            {/each}
+          {:else if stepKey() === 'secciones'}
+            <!-- SECCIONES: catálogo precargado con toggles -->
+            <div class="wizard-grupo-head">
+              <span class="wizard-grupo-titulo">👥 Secciones</span>
+              <span class="wizard-grupo-cont">{seccionesMarcadas.length}/{SECCIONES_CATALOGO.length}</span>
+              <button class="wizard-grupo-all" class:active={seccionesMarcadas.length === SECCIONES_CATALOGO.length} onclick={toggleTodasSecciones}>
+                {seccionesMarcadas.length === SECCIONES_CATALOGO.length ? 'Quitar todas' : 'Todas'}
+              </button>
+            </div>
+            <p class="wizard-hint">Marca las secciones que vas a usar. Se comparten entre todos los grados.</p>
+            <div class="wizard-toggle-grid" style="grid-template-columns:repeat(auto-fill,minmax(84px,1fr));">
+              {#each SECCIONES_CATALOGO as s (s)}
+                <button class="wizard-toggle-card" class:active={seccionesMarcadas.includes(s)} onclick={() => toggleSeccion(s)}>
+                  <span class="wizard-toggle-check">{#if seccionesMarcadas.includes(s)}✓{/if}</span>
+                  <span class="wizard-toggle-name">Sección {s}</span>
+                </button>
               {/each}
             </div>
+          {:else if stepKey() === 'colegios'}
+            <div class="wizard-hint">
+              {#if tipoDesdeGrados === 'Secundaria'}
+                Tipo que se aplicará: 🏛️ <strong>Secundaria</strong> (detectado por los grados marcados).
+              {:else}
+                Tipo que se aplicará: 🏫 <strong>Primaria</strong> (detectado por los grados marcados).
+              {/if}
+            </div>
+            <div class="wizard-input-row">
+              <input class="wizard-input" type="text" placeholder="Ej: Colegio Central"
+                bind:value={currentInput}
+                onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCurrentItem(); } }} />
+              <button class="wizard-add-btn" onclick={addCurrentItem}>Agregar</button>
+            </div>
+            {#if inputColegios.length === 0}
+              <p class="wizard-empty">Aún no has agregado colegios. Escribe uno arriba y pulsa “Agregar”.</p>
+            {:else}
+              <div class="wizard-colegios">
+                {#each inputColegios as col, ci}
+                  <div class="wizard-colegio-card">
+                    <div class="wizard-colegio-head">
+                      <span class="wizard-colegio-name">{col.nombre}</span>
+                      <span class="wizard-colegio-tipo-badge" class:secundaria={tipoDesdeGrados === 'Secundaria'}>
+                        {tipoDesdeGrados === 'Primaria' ? '🏫 Primaria' : '🏛️ Secundaria'}
+                      </span>
+                      <button class="wizard-chip-x" onclick={() => removeItem(ci)} aria-label="Eliminar">×</button>
+                    </div>
+                    <div class="wizard-colegio-label">Días de clases</div>
+                    <div class="wizard-dias">
+                      {#each diasKeys as dk}
+                        <button class="wizard-dia" class:active={col.dias[dk]} onclick={() => toggleDia(ci, dk)}>{diaShort(dk)}</button>
+                      {/each}
+                    </div>
+                    <div class="wizard-colegio-label">Asignaturas que imparte</div>
+                    <div class="wizard-asig">
+                      {#each inputAsignaturas as a}
+                        <button class="wizard-asig-chip" class:active={col.asignaturas.includes(a.nombre)} onclick={() => toggleAsignaturaColegio(ci, a.nombre)}>{a.nombre}</button>
+                      {/each}
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {/if}
           {:else}
-            <div class="wizard-chips">
+            <div class="wizard-input-row">
+              <input class="wizard-input" type="text" placeholder={inputPlaceholder()}
+                bind:value={currentInput}
+                onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCurrentItem(); } }} />
+              <button class="wizard-add-btn" onclick={addCurrentItem}>Agregar</button>
+            </div>
+            {#if currentItems().length === 0}
+              <p class="wizard-empty">Aún no has agregado {stepLabel()}. Escribe uno arriba y pulsa “Agregar”.</p>
+            {:else}
+              <div class="wizard-chips">
               {#each currentItems() as item, i}
                 <div class="wizard-chip">
                   <span>{chipLabel(item)}</span>
-                  {#if stepKey() === 'grados' || stepKey() === 'asignaturas'}
+                  {#if stepKey() === 'asignaturas'}
                     <button class="wizard-chip-toggle" class:active={chipCualitativo(item)}
-                      onclick={() => toggleCualitativo(i)} title="Solo cualitativo">C</button>
+                      onclick={() => toggleCualitativo(i)} title="Marcar como cualitativa">C</button>
                   {/if}
                   <button class="wizard-chip-x" onclick={() => removeItem(i)} aria-label="Eliminar">×</button>
                 </div>
               {/each}
-            </div>
+              </div>
+            {/if}
           {/if}
         </div>
       {/if}
@@ -894,8 +1057,8 @@
       <div class="wizard-nav">
         <button class="wizard-btn" onclick={prevStep} disabled={step === 1}>← Anterior</button>
         <div class="wizard-step-counter">{step} / {steps.length}</div>
-        {#if step < 6}
-          <button class="wizard-btn primary" onclick={nextStep} disabled={currentItems().length === 0}>Siguiente →</button>
+        {#if step < steps.length}
+          <button class="wizard-btn primary" onclick={nextStep} disabled={!puedeAvanzar()}>Siguiente →</button>
         {:else}
           <button class="wizard-btn primary" onclick={handleWizardComplete} disabled={loading}>
             {loading ? 'Guardando...' : 'Comenzar'}
@@ -1158,8 +1321,121 @@
 
   .wizard-items { width: 100%; }
   .wizard-select-all { margin-bottom: 0.75rem; }
-  .wizard-toggle-all { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.8rem; color: #94a3b8; padding: 0.4rem; border-radius: 8px; background: rgba(255,255,255,0.02); }
-  .wizard-toggle-all input { accent-color: var(--primary-color, #3b82f6); }
+  /* ── Portada: 3 opciones + accesos secundarios ── */
+  .welcome-card-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.5rem; }
+  .welcome-tag {
+    font-size: 0.6rem; font-weight: 700; letter-spacing: 0.3px;
+    padding: 0.14rem 0.45rem; border-radius: 6px;
+    background: rgba(255,255,255,0.06); color: #94a3b8;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .card-cloud { --accent-from: #38bdf8; --accent-to: #6366f1; }
+  .card-manual { --accent-from: #f472b6; --accent-to: #a78bfa; }
+
+  /* ── Vista Drive: pasos + formulario de código ── */
+  .drive-container { max-width: 520px; }
+  .drive-steps { display: flex; flex-direction: column; gap: 0.6rem; width: 100%; margin: 0.5rem 0 1.25rem; }
+  .drive-step {
+    display: flex; align-items: flex-start; gap: 0.7rem;
+    padding: 0.7rem 0.85rem; border-radius: 12px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .drive-step-num {
+    width: 22px; height: 22px; flex-shrink: 0; border-radius: 50%;
+    background: rgba(56,189,248,0.15); color: #7dd3fc;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.68rem; font-weight: 800;
+  }
+  .drive-step-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .drive-step-text strong { font-size: 0.82rem; color: #e2e8f0; font-weight: 700; }
+  .drive-step-text span { font-size: 0.72rem; color: #64748b; line-height: 1.45; }
+  .drive-step-text code {
+    font-family: ui-monospace, monospace; font-size: 0.68rem;
+    background: rgba(255,255,255,0.07); padding: 0.05rem 0.25rem; border-radius: 4px; color: #94a3b8;
+  }
+  .drive-form { width: 100%; display: flex; flex-direction: column; gap: 0.4rem; }
+  .drive-label {
+    font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.5px;
+    color: #64748b; font-weight: 700;
+  }
+  .drive-input {
+    width: 100%; box-sizing: border-box;
+    padding: 0.7rem 0.85rem; border-radius: 10px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #e2e8f0; font-size: 0.85rem; outline: none;
+    font-family: ui-monospace, monospace;
+    transition: all 0.18s ease;
+  }
+  .drive-input:focus { border-color: var(--primary-color, #3b82f6); box-shadow: 0 0 0 3px rgba(59,130,246,0.12); }
+  .drive-input.error { border-color: rgba(239,68,68,0.5); }
+  .drive-hint { font-size: 0.7rem; color: #64748b; margin: 0.15rem 0 0; line-height: 1.4; }
+  .drive-error { font-size: 0.72rem; color: #fca5a5; margin: 0.15rem 0 0; }
+  .drive-submit {
+    margin-top: 0.6rem; padding: 0.85rem 1.25rem; border: none; border-radius: 12px;
+    background: linear-gradient(135deg, #3b82f6, #6366f1); color: #fff;
+    font-size: 0.88rem; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+    box-shadow: 0 6px 18px rgba(59,130,246,0.3);
+    transition: all 0.2s ease;
+  }
+  .drive-submit:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(59,130,246,0.4); }
+  .drive-submit:active:not(:disabled) { transform: translateY(1px); }
+  .drive-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  /* ── Toggles de catálogo (grados / secciones) ──
+     Reemplazan a los checkboxes: tarjetas clicables con estado visible.
+     Ver "Regla de Toggles" en AGENTS.md. */
+  .wizard-hint {
+    color: #94a3b8; font-size: 0.78rem; line-height: 1.5;
+    margin: 0 0 0.9rem; text-align: center;
+  }
+  .wizard-grupo-head { display: flex; align-items: center; gap: 0.6rem; margin: 1rem 0 0.6rem; }
+  .wizard-grupo-titulo {
+    font-size: 0.8rem; font-weight: 700; color: #e2e8f0;
+    display: flex; align-items: center; gap: 0.35rem;
+  }
+  .wizard-grupo-titulo.secundaria { color: #c4b5fd; }
+  .wizard-grupo-cont {
+    font-size: 0.68rem; font-weight: 700; color: #64748b;
+    background: rgba(255,255,255,0.05); padding: 0.1rem 0.4rem; border-radius: 10px;
+  }
+  .wizard-grupo-all {
+    margin-left: auto; padding: 0.28rem 0.7rem; font-size: 0.7rem; font-weight: 700;
+    border-radius: 8px; border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.04); color: #94a3b8;
+    cursor: pointer; transition: all 0.18s ease;
+  }
+  .wizard-grupo-all:hover { background: rgba(255,255,255,0.08); color: #e2e8f0; }
+  .wizard-grupo-all.active {
+    background: rgba(239,68,68,0.14); border-color: rgba(239,68,68,0.35); color: #fca5a5;
+  }
+  .wizard-toggle-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 0.5rem;
+  }
+  .wizard-toggle-card {
+    display: flex; align-items: center; gap: 0.45rem; padding: 0.6rem 0.55rem;
+    border-radius: 11px; border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.04); color: #94a3b8;
+    cursor: pointer; font-size: 0.76rem; font-weight: 600; text-align: left;
+    transition: all 0.18s ease;
+  }
+  .wizard-toggle-card:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.14); }
+  .wizard-toggle-card.active {
+    background: rgba(59,130,246,0.18); border-color: var(--primary-color, #3b82f6); color: #dbeafe;
+  }
+  .wizard-toggle-check {
+    width: 18px; height: 18px; flex-shrink: 0; border-radius: 6px;
+    border: 1.5px solid rgba(255,255,255,0.22);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.65rem; color: transparent; transition: all 0.18s ease;
+  }
+  .wizard-toggle-card.active .wizard-toggle-check {
+    background: var(--primary-color, #3b82f6);
+    border-color: var(--primary-color, #3b82f6); color: #fff;
+  }
+  .wizard-toggle-name { min-width: 0; word-break: break-word; line-height: 1.25; }
 
   /* Inputs libres del asistente manual */
   .wizard-input-row { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }

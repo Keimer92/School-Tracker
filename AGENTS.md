@@ -255,6 +255,77 @@ y el usuario necesita verlos permanentemente.
 - **Agregar tabla sincronizable**: crearla en `db.rs` (schema SQLite), y si debe
   participar en sync (pending deletions), definir su estrategia en `db.rs`.
 
+## WelcomePage: 3 opciones de entrada + wizard con toggles (2026-09)
+
+La portada quedó con **tres** tarjetas y nada más:
+
+| # | Opción | Vista | Acción |
+|---|--------|-------|--------|
+| 1 | 📥 Continuar con Google | `view === 'drive'` | Login Google → `conectarConCredenciales(workerUrl, codigo)` → `restoreFromDrive()` |
+| 2 | ☁️ Iniciar sesión y sincronizar | `view === 'cloud'` | `handleCloudLogin()` (restore autoritativo desde D1) |
+| 3 | ✨ Empezar de cero | `view === 'wizard'` | Asistente de instalación |
+
+⚠️ Se ELIMINARON los accesos secundarios de importar `.key` y `.db` de la
+portada (2026-09, decisión del usuario). Consecuencia: un usuario que solo tenga
+un `.key` o un `.db` ya no tiene salida desde el Welcome; si vuelve a hacer
+falta, restaurar `importarArchivoConexion` / `importarBaseDatos` (se borraron
+junto con sus imports `openDialog` y `readTextFile`).
+
+**Opción 1 (Drive)**: pide el `schoolKey` (el "código" que viaja dentro del
+`.key`) en un input monoespaciado. El orden importa: se configura D1 **antes**
+de restaurar, porque si el pull corriera con la config vacía el Worker crearía
+un schoolKey nuevo y se perdería el vínculo con los datos. La URL del worker sale
+de `import.meta.env.VITE_D1_WORKER_URL` con el fallback que ya usa `pingWorker()`.
+
+### Wizard: pasos y toggles
+
+Orden: **Años → Asignaturas → Grados → Secciones → Colegios → Resumen**.
+(Grados y Secciones se movieron antes de Colegios porque el tipo del colegio se
+deduce de los grados marcados: si se pregunta colegio primero no hay con qué
+deducirlo.)
+
+- **Grados**: catálogo precargado 1er-11mo (`GRADOS_CATALOGO`), agrupado en
+  Primaria (1-6) y Secundaria (7-11), con toggle "Todos" por grupo.
+- **Secciones**: catálogo precargado `['A','B','C','D']` (decisión del usuario;
+  antes se escribían a mano).
+- Estado en `gradosMarcados` / `seccionesMarcadas` (arrays, ver Regla de Toggles).
+  `currentItems()` los DERIVA para el resumen y la validación de avance, sin
+  mutar estado durante el render.
+- `tipoDesdeGrados` = `Secundaria` si algún grado marcado es de 7mo en adelante.
+  Se aplica en `handleWizardComplete` como `colegios: inputColegios.map(c => ({...c, tipo: tipoDesdeGrados}))`.
+- `sincronizarToggles()` refleja los toggles en `inputGrados`/`inputSecciones`
+  justo antes de llamar a `seed_selected_data`.
+- ⚠️ Se eliminó el auto-agregado de grados al crear un colegio: pisaba lo que el
+  usuario había marcado a mano. El tipo ya no se elige con un segmented control.
+
+## Regla de Toggles (2026-09) — NUNCA checkboxes
+
+**Toda selección múltiple se hace con toggles, nunca con `<input type="checkbox">`.**
+Un checkbox es un control de formulario: se hace clic, no se arrastra, ocupa poco y
+no comunica su estado a un vistazo. Un toggle es un botón con estado visible (activo
+= encendido con color de acento), que además se puede usar como chip, como tarjeta o
+como píldora.
+
+**Dónde SÍ se usa checkbox**: dentro de inputs de texto, para "mostrar contraseña",
+o donde el control conventionally sea una casilla diminuta y el contexto sea claro.
+En cualquier otro caso, toggle.
+
+**Patrones que Replace al checkbox:**
+| Contexto | Patrón |
+|---|---|
+| Catálogo con pocos elementos (secciones, grades) | Grid de tarjetas con toggle; la tarjeta entera es clicable y muestra el estado |
+| Many items (asignaturas) | Chips toggle (`wizard-asig-chip`) con `class:active` |
+| Opción única de un grupo | Segmented control (`wizard-tipo-segmented`) |
+| Encabezado de un grupo | Toggle "todo" que prende/apaga el grupo completo |
+
+**Implementación**: `class:active` + el estado en un array/objeto. Nunca
+`bind:checked` con un checkbox. Estilo visual: `background` y `border-color` con el
+color de acento cuando está activo; apagado con `rgba(255,255,255,0.04)`.
+
+**GOTCHA**: el estado debe vivir en un array/objeto (p. ej. `seccionesMarcadas`) y no
+en un atributo del DOM, para que Svelte 5 lo rastree. Con checkbox + `bind:checked` a
+una variable suelta, los toggles quedan desincronizados al re-renderizar.
+
 ## Regla de modales unificados
 Cuando una entidad (ej. Colegio, Grado) tenga **múltiples acciones de configuración**
 (editar nombre, asignar días, asignar asignaturas, cambiar tipo, etc.), se usa **UN
