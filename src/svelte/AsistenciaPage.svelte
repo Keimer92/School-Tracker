@@ -1740,16 +1740,23 @@ $effect(() => {
                       ♻️ Reactivar en todos los colegios
                     </button>
                   {/if}
-                  <button type="button" class="pop-sem sel" style="justify-content:center;border-radius:10px" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || (periodo === 'mensual' && !semanaSeleccionada)}
-                    onclick={() => activarSinClases(false)}>
+                  <!-- Los tres alcances llevan color propio y escalan con el
+                       tamaño de lo que tocan: la sección es la más suave y la que
+                       abarca todos los colegios la más llamativa, que es justo el
+                       aviso de "esto toca todo". -->
+                  <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #f472b6;background:linear-gradient(135deg,rgba(244,114,182,.20),rgba(236,113,182,.10));color:#fbcfe8" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || (periodo === 'mensual' && !semanaSeleccionada)}
+                    onclick={() => activarSinClases(false)}
+                    title="Solo afecta a {secciones.find(s => s.id === selectedSeccion)?.nombre || 'esta sección'} de {grados.find(g => g.id === selectedGrado)?.nombre || 'este grado'}">
                     🚪 Marcar solo esta sección
                   </button>
-                  <button type="button" class="pop-sem sel" style="justify-content:center;border-radius:10px" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || (periodo === 'mensual' && !semanaSeleccionada)}
-                    onclick={() => activarSinClases(true)}>
+                  <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #34d399;background:linear-gradient(135deg,rgba(52,211,153,.20),rgba(16,185,129,.10));color:#a7f3d0" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || (periodo === 'mensual' && !semanaSeleccionada)}
+                    onclick={() => activarSinClases(true)}
+                    title="Afecta a todas las secciones de {colegios.find(c => c.id === selectedColegio)?.nombre || 'este colegio'}">
                     🏫 Marcar todo este colegio
                   </button>
-                  <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #818cf8" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || (periodo === 'mensual' && !semanaSeleccionada)}
-                    onclick={activarSinClasesTodosColegios}>
+                  <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #fbbf24;background:linear-gradient(135deg,rgba(251,191,36,.22),rgba(245,158,11,.10));color:#fde68a" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || (periodo === 'mensual' && !semanaSeleccionada)}
+                    onclick={activarSinClasesTodosColegios}
+                    title="Afecta a los {colegios.length} colegio(s) del catálogo, en la semana o el período visible">
                     🌐 Marcar en TODOS los colegios
                   </button>
                 </div>
