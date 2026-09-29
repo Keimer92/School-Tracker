@@ -327,15 +327,6 @@ import SelectChip from "./SelectChip.svelte";
               style="padding: 0.35rem 0.75rem; font-size: 0.75rem; flex-shrink: 0; white-space: nowrap; background: {hayCambios ? (recienGuardado ? 'linear-gradient(135deg, #059669, #10b981)' : 'linear-gradient(135deg, #16a34a, #22c55e)') : 'rgba(148,163,184,0.5)'}; color: #fff; border: none; border-radius: 8px; font-weight: 700; cursor: {hayCambios ? 'pointer' : 'default'}; opacity: {hayCambios ? 1 : 0.65}; transition: all 0.2s ease;">
               {loading ? '⏳' : guardando ? '💾' : recienGuardado ? '✓' : '💾'}
             </button>
-            {#if !isAndroid}
-              <div class="ev-view-toggle">
-                {#each VIEW_MODES as { key, label, icon }}
-                  <button class="ev-view-btn" class:active={viewMode === key} onclick={() => handleViewModeChange(key)} title={label}>
-                    <span class="ev-view-icon">{icon}</span>
-                  </button>
-                {/each}
-              </div>
-            {/if}
             {#if indicadores.length > 0}
               <div class="ev-score-pill">
                 <span>Activos:</span>
@@ -346,19 +337,6 @@ import SelectChip from "./SelectChip.svelte";
         {/if}
       </FilterContainer>
     </div>
-
-    {#if !isMobile && !isAndroid}
-      <div style="display:flex;justify-content:center;margin-bottom:0.75rem">
-        <div class="ev-view-toggle">
-          {#each VIEW_MODES as { key, label, icon }}
-            <button class="ev-view-btn" class:active={viewMode === key} onclick={() => handleViewModeChange(key)} title={label}>
-              <span class="ev-view-icon">{icon}</span>
-              <span class="ev-view-label">{label}</span>
-            </button>
-          {/each}
-        </div>
-      </div>
-    {/if}
 
     {#if loading}
       <div class="ev-loading">
@@ -402,39 +380,8 @@ import SelectChip from "./SelectChip.svelte";
         </div>
       {/if}
 
-      {#if viewMode === "modern-cards"}
-        <div class="ev-cards-container">
-          {#each indicadores as ind (ind.id)}
-            {@const est = etiquetaEstado(ind)}
-            <div id="indicador-{ind.id}" class="indicador-card" class:active={ind.activo} class:inactive={!ind.activo}>
-              <div class="indicador-header">
-                <div class="indicador-header-left">
-                    <span title={est.title} style="display: inline-flex; align-items: center; padding: 0.15rem 0.45rem; border-radius: 999px; background: {est.fondo}; color: {est.color}; font-size: 0.62rem; font-weight: 700; white-space: nowrap; flex-shrink: 0; border: 1px solid {est.color}33;">{est.texto}</span>
-                    <div class="indicador-badge" class:active={ind.activo} class:inactive={!ind.activo}>{ind.orden}</div>
-                    <input type="text" value={ind.descripcion} oninput={(e) => handleUpdateIndicadorDesc(ind.id, (e.target as HTMLInputElement).value)} placeholder="Descripción del indicador..." class="indicador-desc-input" />
-                </div>
-                <div class="indicador-header-right">
-                    <span class="status-tag" class:qualitative={isQualitative} class:quantitative={!isQualitative} title="Puntos que suman sus criterios">{isQualitative ? 'Cualitativo' : puntosDe(ind) + ' pts'}</span>
-                </div>
-              </div>
-              <div class="indicador-body">
-                  {#each ind.criterios as crit (crit.id)}
-                    <div class="criterio-row">
-                      <span class="criterio-label">Crit. {crit.orden}</span>
-                      <input type="text" value={crit.descripcion} oninput={(e) => handleUpdateCriterio(ind.id, crit.id, "descripcion", (e.target as HTMLInputElement).value)} placeholder="Descripción del criterio..." class="criterio-input" />
-                      <div class="criterio-score">
-                        <input type="number" value={crit.puntajeMaximo} oninput={(e) => handleUpdateCriterio(ind.id, crit.id, "puntajeMaximo", Number((e.target as HTMLInputElement).value))} disabled={isQualitative} class="criterio-puntaje" />
-                        <span class="criterio-pts">pts</span>
-                      </div>
-                    </div>
-                  {/each}
-                </div>
-            </div>
-          {/each}
-        </div>
-      {:else if viewMode === "split-panel"}
-        {#if isMobile}
-          <div class="accordion-container">
+      {#if isMobile}
+        <div class="accordion-container">
             {#each indicadores as ind (ind.id)}
               {@const expanded = accordionOpen.has(ind.id)}
               {@const est = etiquetaEstado(ind)}
