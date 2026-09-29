@@ -552,12 +552,8 @@
             </div>
             <p style="margin: 0; padding: 0.6rem 0.7rem; border-radius: 10px; background: rgba(239,68,68,0.1); color: #fecaca; font-size: 0.74rem; line-height: 1.5; border-left: 3px solid #ef4444; word-break: break-word;">{d1SyncState.message}</p>
             <div style="display: flex; gap: 6px; margin-top: 0.5rem;">
-              <button onclick={() => { refreshD1ErrorDetalle(); showD1ErrorDetalle = !showD1ErrorDetalle; }} style="padding: 0.3rem 0.7rem; border-radius: 6px; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); color: #fca5a5; cursor: pointer; font-size: 0.68rem; font-weight: 600;">{showD1ErrorDetalle ? '▲ Ocultar diagnóstico' : '▼ Ver diagnóstico completo'}</button>
               <button onclick={copiarD1Error} style="padding: 0.3rem 0.7rem; border-radius: 6px; border: 1px solid rgba(59,130,246,0.3); background: rgba(59,130,246,0.1); color: #93c5fd; cursor: pointer; font-size: 0.68rem; font-weight: 600;">📋 Copiar diagnóstico</button>
             </div>
-            {#if showD1ErrorDetalle && d1ErrorDetalle}
-              <pre style="margin: 0.5rem 0 0; padding: 0.7rem; border-radius: 10px; background: rgba(0,0,0,0.45); border: 1px solid rgba(239,68,68,0.2); color: #fca5a5; font-size: 0.62rem; line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 260px; overflow-y: auto; font-family: monospace;">{d1ErrorDetalle}</pre>
-            {/if}
           </div>
         {/if}
       {:else}

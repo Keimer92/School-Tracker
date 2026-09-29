@@ -160,10 +160,17 @@ export async function authWithGoogleIdToken(idToken: string, workerUrl = DEFAULT
       body: JSON.stringify({ idToken }),
       signal: controller.signal,
     });
-    const data = await res.json();
-    if (!res.ok || !data.ok) throw new Error(data.error || `Error HTTP ${res.status}`);
-    setPerfilLocal(data.perfil);
-    return data as AuthResult;
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          // Se adjunta el status para que el llamador distinga "no autorizado"
+          // (403 por lista ALLOWED_EMAILS) de una caída de red o del Worker.
+          const err = new Error(data.error || `Error HTTP ${res.status}`) as Error & { status?: number };
+          err.status = res.status;
+          throw err;
+        }
+        setPerfilLocal(data.perfil);
+        return data as AuthResult;
+
   } finally {
     clearTimeout(timeout);
   }

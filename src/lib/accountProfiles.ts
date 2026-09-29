@@ -16,8 +16,14 @@ const CURRENT_KEY = "stp_current_account";
 
 export interface AccountProfile {
   email: string;
-  schoolKey: string;
-  workerUrl: string;
+  /**
+   * Contenedor de datos en la nube. Ausentes cuando la cuenta NO tiene acceso a
+   * la nube D1 (403 del Worker): esa cuenta se usa solo con Drive. Opcionales a
+   * propósito, porque `saveProfile` hace merge y escribirlos vacíos borraría el
+   * vínculo con la nube de quien ya lo tenía.
+   */
+  schoolKey?: string;
+  workerUrl?: string;
   nombre?: string;
   foto?: string;
   // Credenciales guardadas para alternar de cuenta SIN re-autorizar

@@ -22,6 +22,8 @@ export interface CloudLoginTokens {
 export type CloudLoginResult =
   | { status: 'ok'; result: AuthResult; schoolKey: string; tokens?: CloudLoginTokens }
   | { status: 'cancelled' }
+  /** La cuenta se vinculó a Drive pero NO tiene acceso a esta nube D1 (403). */
+  | { status: 'sin-nube'; motivo: string; email?: string; tokens?: CloudLoginTokens }
   | { status: 'error'; error: string };
 
 /** Decode exp (ms) de un id_token sin verificar firma (solo para refresh). */
@@ -105,6 +107,66 @@ async function conectarConCredenciales(workerUrl: string, schoolKey: string, opt
 }
 
 /**
+ * Email de la sesión de Drive ya guardada. Si `userinfo` falló al vincular
+ * (típico en WebView Android), se decodifica el claim del id_token: solo sirve
+ * para nombrar el archivo local de la cuenta, porque el acceso a Drive lo sigue
+ * dando el token que emitió Google, no este string.
+ */
+function leerEmailSesionDrive(idToken: string): string {
+  try {
+    const s = JSON.parse(localStorage.getItem('schooltracker-google-drive-settings') || '{}');
+    const guardado = (s?.googleUserEmail || '').toLowerCase();
+    if (guardado) return guardado;
+  } catch { /* ignorable */ }
+  try {
+    const payload = JSON.parse(atob(idToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return (payload?.email || '').toLowerCase();
+  } catch { return ''; }
+}
+
+/**
+ * Cierre del login cuando la cuenta NO tiene acceso a esta nube D1 (403 de
+ * `/auth`). Deja lo mismo que un login exitoso salvo la config de nube:
+ *  - remembers la cuenta con sus tokens, para no volver a loguearse;
+ *  - abre el archivo de BD propio de esa cuenta;
+ *  - NO guarda `schoolKey` ni `workerUrl`: sin ellos el sync D1 y el WebSocket
+ *    quedan apagados solos (`ensureWsSync` sale temprano si falta la config).
+ */
+async function finalizarSoloDrive(
+  clientId: string,
+  idToken: string,
+  accessToken: string | null,
+  refreshToken: string | null,
+  motivo: string,
+) {
+  const email = leerEmailSesionDrive(idToken);
+  if (!email) {
+    console.warn('[CloudLogin] sin email disponible; se omite el archivo por cuenta');
+    return;
+  }
+  saveProfile({
+    email,
+    googleIdToken: idToken,
+    googleAccessToken: accessToken,
+    googleRefreshToken: refreshToken,
+    googleIdExpiresAt: idTokenExpMs(idToken),
+    googleDriveExpiresAt: Date.now() + (accessToken ? 3600 * 1000 : 0),
+    googleClientId: clientId,
+  });
+  setCurrentEmail(email);
+  try {
+    const { driveAutoBackup } = await import('./driveAutoBackup');
+    await driveAutoBackup.flushBeforeAccountSwap();
+  } catch (e) { /* el cambio de cuenta no debe bloquearse por la nube */ }
+  try {
+    await invoke('open_account_db', { email, migrateFromDefault: true });
+  } catch (e) {
+    console.error('[CloudLogin] no se pudo abrir la BD de la cuenta:', e);
+  }
+  console.info('[CloudLogin] acceso a la nube denegado, usuario solo con Drive:', motivo);
+}
+
+/**
  * LOGIN/REGISTRO con Google para el sync Cloudflare + vinculación de Drive
  * con la MISMA cuenta. Reutilizable desde WelcomePage y CloudPage.
  *  - Android: selector nativo (idToken + serverAuthCode con scope drive.file).
@@ -180,7 +242,34 @@ export async function iniciarSesionGoogleConNube(opts?: {
     }
 
     opts?.onStatus?.('Ingresando a la nube...');
-    const result = await authWithGoogleIdToken(idToken);
+    /**
+     * El login de Drive ya quedó guardado ANTES de este punto (guardarSesionDrive
+     * en ambas ramas). Por eso un 403 de `/auth` —la lista ALLOWED_EMAILS del
+     * Worker no incluye a esta cuenta— no debe frenar el flujo: el usuario puede
+     * seguir usando su propio Drive con normalidad, solo que sin nube D1. Es el
+     * caso de los profesores que reciben la app y restauran desde Drive.
+     *
+     * Cualquier OTRO error (Worker caído, sin red) sí se propaga: ahí no sabemos
+     * nada del estado y conviene no entrar a ciegas.
+     */
+    let result: AuthResult;
+    try {
+      result = await authWithGoogleIdToken(idToken);
+    } catch (e: any) {
+      const status = e?.status;
+      const msg = String(e?.message || e || '');
+      const noAutorizado = status === 403 || /no est[áa] autorizada/i.test(msg);
+      if (!noAutorizado) throw e;
+      console.warn('[CloudLogin] sin acceso a la nube; se continúa solo con Drive:', msg);
+      guardarTokenSesion(idToken, getRefreshToken());
+      await finalizarSoloDrive(clientId, idToken, accessToken, refreshToken, msg);
+      return {
+        status: 'sin-nube',
+        motivo: msg,
+        email: leerEmailSesionDrive(idToken),
+        tokens: { idToken, accessToken, refreshToken },
+      };
+    }
     guardarTokenSesion(idToken, getRefreshToken());
     opts?.onStatus?.(result.creado ? 'Cuenta creada. Preparando tu nube...' : 'Bienvenido de nuevo...');
 

@@ -194,6 +194,15 @@
         setBackAuth: setBackAuthInProgress,
         skipSync: true,
       });
+      if (res.status === 'sin-nube') {
+        // La cuenta no está en la lista ALLOWED_EMAILS del Worker, pero Drive
+        // ya quedó vinculado. Se sigue igual: esta opción restaura desde Drive,
+        // que es un servicio aparte. Solo se pierde el sync con D1.
+        await emit("show-toast", { message: "ℹ️ Tu cuenta no tiene acceso a la nube de este desarrollador. Seguimos con tu Google Drive.", type: "info" });
+        loadingMessage = 'Buscando tu último respaldo en Google Drive...';
+        await restoreFromDrive();
+        return;
+      }
       if (res.status !== 'ok') {
         // `CloudLoginResult` marca la cancelación con `status`, no con una
         // propiedad `cancelled`: preguntar por `res.cancelled` daba siempre
@@ -420,6 +429,10 @@
         }
       } else if (res.status === 'cancelled') {
         errorMsg = 'Autenticación cancelada';
+      } else if (res.status === 'sin-nube') {
+        // Esta opción SÍ necesita la nube: sin autorización no hay de dónde
+        // restaurar, así que se explica en vez de entrar a una pantalla vacía.
+        errorMsg = 'Tu cuenta de Google no está autorizada para usar esta nube. Podés usar la opción 1 (restaurar desde tu Google Drive).';
       } else {
         errorMsg = res.error;
       }

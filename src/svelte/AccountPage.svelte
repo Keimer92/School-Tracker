@@ -56,6 +56,8 @@
         });
       } else if (res.status === 'cancelled') {
         await emit("show-toast", { message: "Autenticación cancelada", type: "info" });
+      } else if (res.status === 'sin-nube') {
+        await emit("show-toast", { message: "🔑 Sesión iniciada, pero tu cuenta no está autorizada en esta nube. Drive funciona igual; la nube D1 no.", type: "info" });
       } else {
         await emit("show-toast", { message: "❌ " + res.error, type: "error" });
       }
@@ -212,6 +214,29 @@
       }
       if (res.status === 'error') {
         await emit("show-toast", { message: "❌ " + res.error, type: "error" });
+        return;
+      }
+      if (res.status === 'sin-nube') {
+        // La cuenta se guardó y su BD se abrió dentro del login. Entra igual, pero
+        // sin nube: `finalizeAccountSwitch` con `cloud: null` no configura D1.
+        const emailSinNube = (res.email || '').toLowerCase();
+        if (emailSinNube) {
+          applyAccountStores({
+            idToken: res.tokens?.idToken || '',
+            accessToken: res.tokens?.accessToken ?? null,
+            refreshToken: res.tokens?.refreshToken ?? null,
+            idExpiresAt: res.tokens?.idToken ? parseIdTokenExp(res.tokens.idToken) : undefined,
+            driveExpiresAt: res.tokens?.accessToken ? Date.now() + 3600 * 1000 : undefined,
+            clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || "",
+            email: emailSinNube,
+          });
+          const notEmpty = await finalizeAccountSwitch({ email: emailSinNube, cloud: null, seedIfEmpty: true });
+          if (!notEmpty) onNavigate?.('ajustes');
+          refreshLinkedAccounts();
+          await emit("show-toast", { message: `✅ Ahora usando la cuenta ${emailSinNube} (sin nube D1)`, type: "success" });
+        } else {
+          await emit("show-toast", { message: "🔑 Sesión iniciada sin acceso a la nube. No se pudo identificar la cuenta.", type: "info" });
+        }
         return;
       }
       const newEmail = (res.result?.perfil?.email || '').toLowerCase();
