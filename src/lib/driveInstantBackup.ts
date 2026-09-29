@@ -7,8 +7,8 @@
  * notificaciones de cambios del proyecto: `onDataChange()` en `autoSync.ts`.
  *
  * Diseño:
- *   - Debounce de 12 s: agrupa ráfagas de guardados (p. ej. several estudiantes
- *     followed en seconds) en UNA sola subida.
+ *   - Debounce de 5 s: agrupa ráfagas de guardados (p. ej. several estudiantes
+ *     followed en seconds) en UNA sola subida. Bajado de 12 s a 5 s (2026-09).
  *   - Sin push en curso: si llega un cambio mientras sube, se encola para
  *     repetir al terminar (nunca se pierde un cambio).
  *   - No crea archivos nuevos: `driveSyncService.pushLatestBackup()` actualiza
@@ -25,7 +25,7 @@ import { driveSyncService, syncManager } from './driveSyncService';
 
 const ENABLED_KEY = 'drive_instant_backup_enabled';
 /** Espera de inactividad antes de subir (agrupa guardados seguidos). */
-const DEBOUNCE_MS = 12_000;
+const DEBOUNCE_MS = 5_000;
 /** Separación mínima entre dos toasts de "respaldo actualizado". */
 const TOAST_MIN_GAP_MS = 45_000;
 /** Separación mínima entre dos avisos de error. */

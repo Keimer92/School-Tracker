@@ -14,7 +14,9 @@ const LATEST_SUFFIX = 'latest';
 // Carpeta destino en Drive: Keimer Labs/School Tracker MINED
 const DRIVE_FOLDER_PATH = ['Keimer Labs', 'School Tracker MINED'];
 const AUTO_BACKUP_KEY = 'drive_auto_backup_minutes';
-const AUTO_BACKUP_DEFAULT_MIN = 180; // cada 3 horas
+const AUTO_BACKUP_DEFAULT_MIN = 180; // cada 3 horas (temporizador desactivado)
+/** El temporizador periódico solo corre si esta clave está en 'true'. */
+const AUTO_BACKUP_ENABLED_KEY = 'drive_auto_backup_enabled';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'success' | 'offline';
 
@@ -809,8 +811,24 @@ export const driveSyncService = {
     console.debug(`[DriveSync] Respaldo automático activo cada ${mins} min`);
   },
 
-  /** Arranca el respaldo automático con el intervalo guardado (default: 180 min). */
+  /**
+   * Arranca el respaldo automático periódico.
+   *
+   * DESACTIVADO por decisión del usuario (2026-09): el respaldo queda a cargo
+   * de `driveInstantBackup`, que sube 5 s después de cada guardado. Este
+   * temporizador solo mantenía una segunda vía cada 3 h que subía la base
+   * aunque no hubiera cambios, gastando cuota de Drive/D1 a la nada.
+   *
+   * Se conserva la función (y `setAutoBackupInterval`) por si alguna vez se
+   * quiere reactivar desde Ajustes; para que no se dispare solo, se ignora el
+   * intervalo salvo que esté explícitamente habilitado con la clave
+   * `drive_auto_backup_enabled`.
+   */
   ensureAutoBackup: (): void => {
+    if (localStorage.getItem(AUTO_BACKUP_ENABLED_KEY) !== 'true') {
+      console.debug('[DriveSync] Temporizador de respaldo automático desactivado');
+      return;
+    }
     if ((driveSyncService as any)._autoBackupTimer) return;
     const stored = parseInt(localStorage.getItem(AUTO_BACKUP_KEY) || '', 10);
     const mins = Number.isFinite(stored) && stored > 0 ? stored : AUTO_BACKUP_DEFAULT_MIN;
