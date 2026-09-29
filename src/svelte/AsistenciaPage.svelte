@@ -479,16 +479,28 @@ $effect(() => {
    * deshabilitados, para que se vea de un vistazo que no hay nada que rellenar.
    */
   let gruposSemanaMasivos = $derived.by(() => {
+    const rellenables = new Set(diasRellenables);
     const out: { numero: number; fechas: string[] }[] = [];
     let actual: string[] = [];
-    diasRellenables.forEach((fecha, i) => {
-      if (esInicioSemana(fecha, i) && actual.length > 0) {
-        out.push({ numero: out.length + 1, fechas: actual });
-        actual = [];
-      }
-      actual.push(fecha);
+    // Se recorre `fechasVisibles` (que INCLUYE los días marcados sin clases) y no
+    // `diasRellenables`, porque la numeración tiene que ser la misma que la de las
+    // columnas de la tabla: `semanasMes` cuenta una semana aunque entera esté sin
+    // clases. Armando los grupos sobre los días rellenables, una semana sin
+    // clases no generaba grupo y la siguiente se renumeraba (la 5 se veía como 3).
+    // Después se descartan, de cada semana, los días que no hay que rellenar.
+    let numero = 0;
+    const cerrar = () => {
+      if (actual.length === 0) return;
+      numero++;
+      const fechas = actual.filter(f => rellenables.has(f));
+      if (fechas.length > 0) out.push({ numero, fechas });
+      actual = [];
+    };
+    fechasVisibles.forEach((fv, i) => {
+      if (esInicioSemana(fv.fecha, i)) cerrar();
+      actual.push(fv.fecha);
     });
-    if (actual.length > 0) out.push({ numero: out.length + 1, fechas: actual });
+    cerrar();
     return out;
   });
 
