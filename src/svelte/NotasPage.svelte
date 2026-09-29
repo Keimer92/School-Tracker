@@ -2753,8 +2753,15 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                     {#if mostrarComparacion}
                       {#each cortesPrecios as corte (corte.id)}
                         {@const pctPrevCorte = comparacionCortes[corte.id]?.[est.estudianteId] ?? null}
-                        <td class="col-num" title="{corte.nombre}: {pctPrevCorte === null ? 'sin notas' : pctPrevCorte + '%'}" style="padding: 0.3rem 0.3rem; text-align: center; white-space: nowrap; font-size: 0.74rem; font-weight: 600; color: {colorPctAnterior(pctPrevCorte)};">
-                          {pctPrevCorte === null ? '—' : pctPrevCorte + '%'}
+                        {@const gradePrevCorte = pctPrevCorte === null ? '' : (getGradeFromScore(pctPrevCorte)?.id || '')}
+                        <td class="col-num" title="{corte.name}: {pctPrevCorte === null ? 'sin notas' : isQualitative ? gradePrevCorte : pctPrevCorte + '%'}" style="padding: 0.3rem 0.3rem; text-align: center; white-space: nowrap; font-size: 0.74rem; font-weight: 600; color: {isQualitative ? (gradePrevCorte ? getGradeColor(gradePrevCorte) : '#94a3b8') : colorPctAnterior(pctPrevCorte)};">
+                          {#if pctPrevCorte === null}
+                            —
+                          {:else if isQualitative}
+                            {gradePrevCorte || '—'}
+                          {:else}
+                            {pctPrevCorte}%
+                          {/if}
                         </td>
                       {/each}
                     {/if}
@@ -2762,9 +2769,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                       {#if isQualitative}
                         {@const qualValues = allCriterios.map(c => notasCualitativas[`${est.estudianteId}-${c.id}`] || '')}
                         {@const gradeActual = calcularNotaCualitativaFinal(qualValues) || getGradeFromScore(calcularPctActual(est.estudianteId))?.id || ''}
-                        {@const pctActual = gradeActual ? getMidPctForGrade(gradeActual) : 0}
-                        <span style="color: {gradeActual ? getGradeColor(gradeActual) : '#94a3b8'}; font-weight: 600;">{gradeActual}</span>
-                        <span style="font-size:0.7rem;color:#64748b;margin-left:2px;">({pctActual}%)</span>
+                        <span style="color: {gradeActual ? getGradeColor(gradeActual) : '#94a3b8'}; font-weight: 600;">{gradeActual || '—'}</span>
                       {:else}
                         {@const pctActual = calcularPctActual(est.estudianteId)}
                         {@const gradeActual = getGradeFromScore(pctActual)?.id || ''}
@@ -2772,20 +2777,21 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                       {/if}
                     </td>
                     {#if isQualitative}
-                      <td class="col-num" style="padding: 0.3rem 0.4rem; text-align: center; white-space: nowrap; color: #94a3b8; font-weight: 600;">
-                        {#if distribuirTargets[est.estudianteId] && ['AA','AS','AF','AI'].includes(distribuirTargets[est.estudianteId]!.trim().toUpperCase())}
-                          {getMidPctForGrade(distribuirTargets[est.estudianteId]!.trim().toUpperCase())}%
-                        {:else}
-                          -
-                        {/if}
-                      </td>
+                      {#if isQualitative}
+                        {@const objActual = distribuirTargets[est.estudianteId]?.trim().toUpperCase() || ''}
+                        <td class="col-num" style="padding: 0.3rem 0.4rem; text-align: center; white-space: nowrap; color: #94a3b8; font-weight: 600;">
+                          {#if ['AA','AS','AF','AI'].includes(objActual)}
+                            <span style="color: {getGradeColor(objActual)};">{objActual}</span>
+                          {:else}
+                            -
+                          {/if}
+                        </td>
+                      {/if}
                     {/if}
                     <td class="col-num" style="padding: 0.3rem 0.4rem; text-align: center; font-weight: 600; white-space: nowrap;">
                       {#if isQualitative && distribuirTargets[est.estudianteId] && ['AA','AS','AF','AI'].includes(distribuirTargets[est.estudianteId]!.trim().toUpperCase())}
                         {@const gradePrev = previewQualitativeGrade(distribuirTargets[est.estudianteId]!.trim().toUpperCase()) || ''}
-                        {@const pctPrev = gradePrev ? getMidPctForGrade(gradePrev) : 0}
-                        <span style="color: {gradePrev ? getGradeColor(gradePrev) : '#a78bfa'}">{gradePrev}</span>
-                        <span style="font-size:0.7rem;color:#64748b;margin-left:2px;">({pctPrev}%)</span>
+                        <span style="color: {gradePrev ? getGradeColor(gradePrev) : '#a78bfa'}; font-size:0.9rem;">{gradePrev || '—'}</span>
                       {:else}
                         {@const pctPrev = calcularPctPreview(est.estudianteId, distribuirTargets[est.estudianteId])}
                         {@const gradePrev = getGradeFromScore(pctPrev)?.id || ''}
