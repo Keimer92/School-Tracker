@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { emit, listen } from "@tauri-apps/api/event";
   import { ask, message } from "@tauri-apps/plugin-dialog";
@@ -345,8 +345,36 @@
 
   $effect(() => { if (showPrompt && promptInput) promptInput.focus(); });
 
+  /**
+   * Recarga cuando cambia la sección. El componente se REUTILIZA al moverme por
+   * el rail de Ajustes: sin esto seguía mostrando los ítems de la sección
+   * anterior (los datos se cargaban solo en `onMount`) y el encabezado ya decía
+   * otra cosa. Se resets el estado local porque es de la sección que se estaba
+   * viendo: la selección, las altas pendientes y el prompt abierto.
+   */
+  $effect(() => {
+    // Dependencia de la recarga: leer la config reejecuta el efecto cuando el
+    // rail cambia de sección. `untrack` evita que el fetch lea más estado y
+    // dispare el efecto otra vez.
+    void config.table;
+    void config.endpoints.get;
+    untrack(() => {
+      nuevos = [];
+      tempCounter = -1;
+      selectedIds = new Set();
+      draggedItem = null;
+      globalCualitativo = null;
+      showPrompt = false;
+      promptOnConfirm = null;
+      isDeleting = false;
+      saving = false;
+      items = [];
+      original = [];
+      fetchItems();
+    });
+  });
+
   onMount(() => {
-    fetchItems();
     const u1 = listen("subjects-updated", async () => { await fetchItems(); });
     const onSync = () => { fetchItems(); };
     window.addEventListener('schooltracker-sync', onSync);
