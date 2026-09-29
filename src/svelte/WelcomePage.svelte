@@ -6,7 +6,12 @@
   import { syncManager, type DownloadProgress } from "../lib/driveSyncService";
   import { setBackAuthInProgress, registerBackHandler } from "../lib/androidBack";
   import { iniciarSesionGoogleConNube } from "../lib/cloudLogin";
+  import { getProfile, getCurrentEmail } from "../lib/accountProfiles";
   import appIcon from "../assets/app-icon.png";
+
+  /** Misma fuente que usa cloudLogin.ts para no divergir. */
+  const DEFAULT_WORKER = import.meta.env.VITE_D1_WORKER_URL
+    || 'https://schooltracker-d1-sync.pedroluisnfc.workers.dev';
 
   let view: 'landing' | 'cloud' | 'wizard' = $state('landing');
   let step = $state(1);
@@ -240,6 +245,18 @@
   let cloudRetryError = $state('');
   /** Si el restore aplicó datos parciales (algunas tablas, faltan catálogos base). */
   let partialRestoreApplied = $state(false);
+  /**
+   * La opción 1 (Drive) puede quedarse sin nada que restaurar: la cuenta no
+   * tiene respaldos, o el respaldo veio vacío. Antes eso dejaba al usuario
+   * atrapado en el Welcome sin salida, así que acá se ofrecen las dos
+   * alternativas reales: probar la nube o arrancar de cero.
+   */
+  let driveSinRespaldo = $state(false);
+  /** Diagnóstico visible del fallo: cuenta y cuántos respaldos encontró. */
+  let driveAccount = $state('');
+  let driveFilesCount = $state<number | null>(null);
+  /** Detalle de la última restauración fallida (archivo + contenido). */
+  let driveDiag = $state<{ dbPath: string; nAnos: number; nEst: number } | null>(null);
 
   /**
    * LOGIN/REGISTRO con Google para el sync Cloudflare.
@@ -436,12 +453,24 @@
     loading = true;
     showCloudRetry = false;
     cloudRetryError = '';
+    driveSinRespaldo = false;
     loadingMessage = 'Buscando respaldos en Drive...';
     try {
       const { driveSyncService } = await import('../lib/driveSyncService');
+      // Diagnóstico: los respaldos se filtran por el email de la cuenta, así que
+      // saber QUÉ cuenta se conectó y cuántos archivos hay es lo primero para
+      // entender un "no encontró respaldos".
+      try {
+        const s = JSON.parse(localStorage.getItem('schooltracker-google-drive-settings') || '{}');
+        driveAccount = s?.googleUserEmail || '(sin email en ajustes)';
+      } catch {}
       const latest = await driveSyncService.getLatestBackup();
+      driveFilesCount = latest ? 1 : 0;
       if (!latest) {
-        errorMsg = 'No se encontraron respaldos en Google Drive para esta cuenta.';
+        // No es un error: es el caso "esta cuenta no tiene respaldos". Se
+        // ofrecen alternativas en vez de dejar al usuario sin salida.
+        driveSinRespaldo = true;
+        errorMsg = 'Esta cuenta de Google no tiene respaldos guardados en Drive.';
         loading = false; loadingMessage = '';
         return;
       }
@@ -473,13 +502,33 @@
         }
       }
       loadingMessage = 'Descargando respaldo desde Google Drive...';
-      await driveSyncService.pullAll();
+      // `pullById` y no `pullAll`: ya tenemos el archivo elegido, y `pullAll`
+      // retorna EN SILENCIO si su listado viene vacío (sin avisar), dejando que
+      // el flujo siguiera como si hubiera restaurado. Con `pullById` cualquier
+      // fallo lanza y se muestra el motivo.
+      await driveSyncService.pullById(latest.id);
       try { await invoke('gd_reload_database'); } catch {}
       // CRÍTICO: tras restaurar Drive, sincronizar LIMPIO con D1.
       // Si D1 está en cuota, el reset+sync falla y dejamos al usuario
       // trabajando solo con Drive hasta que la cuota se libere (parando
       // el auto-sync para que no sobrescriba los datos de Drive con un
       // pull de D1 antiguo).
+      // ⚠️ ORDEN CRÍTICO: restaurar Drive SOBRESCRIBE el archivo .db completo,
+      // y con él la tabla `d1_config` que se guardó en el login. Si no se
+      // vuelve a guardar después, el resync falla con "D1 no está configurado"
+      // y la cuenta queda sin nube. La key se lee del perfil de la cuenta
+      // activa (guardado en localStorage), no se pasa por parámetro.
+      const perfil = getProfile(getCurrentEmail());
+      if (perfil?.schoolKey) {
+        try {
+          await invoke('d1_save_config', { workerUrl: perfil.workerUrl || DEFAULT_WORKER, schoolKey: perfil.schoolKey });
+          console.log('[Drive] config de nube re-aplicada tras restaurar');
+        } catch (e) {
+          console.warn('[Drive] no se pudo re-aplicar d1_config:', e);
+        }
+      } else {
+        console.warn('[Drive] sin perfil de cuenta: d1_config puede quedar vacía tras restaurar');
+      }
       loadingMessage = 'Sincronizando respaldo con la nube...';
       let d1ResyncOk = false;
       try {
@@ -503,7 +552,21 @@
         }
         return;
       }
-      errorMsg = 'Se descargó el respaldo de Drive pero la base quedó vacía. Intenta de nuevo o configura manualmente.';
+      // ── Diagnóstico: la base quedó vacía tras restaurar ──
+      // Se consulta el archivo ACTIVO y su contenido: si los años lectivos
+      // están pero `is_app_initialized` dio falso, o si el archivo tiene todo
+      // en cero, el problema es distinto en cada caso (archivo equivocado,
+      // restore que no se aplicó, o respaldo vacío).
+      let dbPath = '(desconocida)';
+      let nAnos = -1;
+      let nEst = -1;
+      try { dbPath = await invoke<string>('get_db_path'); } catch {}
+      try { nAnos = (await invoke<any[]>('get_anos'))?.length ?? -1; } catch (e) { nAnos = -2; }
+      try { nEst = (await invoke<any[]>('get_students'))?.length ?? -1; } catch (e) { nEst = -2; }
+      console.error('[Drive] restore dejó la base vacía', { dbPath, nAnos, nEst, d1ResyncOk });
+      driveDiag = { dbPath, nAnos, nEst };
+      errorMsg = 'Se descargó el respaldo de Drive pero la base quedó vacía.';
+      driveSinRespaldo = true;
     } catch (e: any) {
       const m = typeof e === 'string' ? e : (e?.message || String(e));
       errorMsg = 'No se pudo restaurar desde Drive: ' + m;
@@ -755,6 +818,27 @@
       {#if errorMsg}
         <div class="welcome-error">{errorMsg}</div>
       {/if}
+      {#if driveSinRespaldo}
+        <!-- Sin salida natural: se ofrecen las dos alternativas reales. -->
+        <div class="drive-fallback">
+          <button class="welcome-card card-cloud" onclick={() => { driveSinRespaldo = false; errorMsg = ''; handleCloudLogin(); }} disabled={loading}>
+            <div class="welcome-card-icon">☁️</div>
+            <div class="welcome-card-body">
+              <h3>Probar con la nube</h3>
+              <p>Busca tus datos en Cloudflare. Si ya usaste la app en otro dispositivo, están ahí.</p>
+            </div>
+            <div class="welcome-card-arrow">→</div>
+          </button>
+          <button class="welcome-card card-manual" onclick={() => { driveSinRespaldo = false; errorMsg = ''; goToWizard(); }} disabled={loading}>
+            <div class="welcome-card-icon">✨</div>
+            <div class="welcome-card-body">
+              <h3>Empezar de cero</h3>
+              <p>Crea una base limpia con el asistente de instalación.</p>
+            </div>
+            <div class="welcome-card-arrow">→</div>
+          </button>
+        </div>
+      {/if}
     </div>
 
   {:else if view === 'wizard'}
@@ -921,6 +1005,14 @@
 
       {#if errorMsg}
         <div class="welcome-error">{errorMsg}</div>
+        <p class="welcome-diag">
+          Diagnóstico: cuenta <code>{driveAccount || '—'}</code> ·
+          respaldo encontrado: <code>{driveFilesCount === null ? '?' : (driveFilesCount > 0 ? 'sí' : 'ninguno')}</code>
+          {#if driveDiag}
+            <br />archivo: <code>{driveDiag.dbPath.split('\\').pop() || driveDiag.dbPath}</code> ·
+            años: <code>{driveDiag.nAnos}</code> · estudiantes: <code>{driveDiag.nEst}</code>
+          {/if}
+        </p>
       {/if}
 
       <div class="wizard-nav">
@@ -1200,6 +1292,18 @@
   }
   .card-cloud { --accent-from: #38bdf8; --accent-to: #6366f1; }
   .card-manual { --accent-from: #f472b6; --accent-to: #a78bfa; }
+
+  /* Sin respaldo en Drive: se ofrecen nube o instalación en limpio. */
+  .drive-fallback { display: flex; flex-direction: column; gap: 0.6rem; width: 100%; margin-top: 0.75rem; }
+  .welcome-diag {
+    font-size: 0.68rem; color: #64748b; text-align: center;
+    margin: 0.4rem 0 0; line-height: 1.5;
+  }
+  .welcome-diag code {
+    font-family: ui-monospace, monospace;
+    background: rgba(255,255,255,0.06); padding: 0.05rem 0.3rem;
+    border-radius: 4px; color: #94a3b8;
+  }
 
   /* ── Toggles de catálogo (grados / secciones) ──
      Reemplazan a los checkboxes: tarjetas clicables con estado visible.

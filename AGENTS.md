@@ -305,6 +305,29 @@ deducirlo.)
 - ⚠️ Se eliminó el auto-agregado de grados al crear un colegio: pisaba lo que el
   usuario había marcado a mano. El tipo ya no se elige con un segmented control.
 
+## GOTCHA: el email de Drive NO puede depender de `userinfo` (2026-09)
+
+`guardarSesionDrive` (cloudLogin.ts) consulta `oauth2/v2/userinfo` para guardar
+`googleUserEmail`. **Si ese fetch falla** (típico en WebView Android, o cuando
+el dev server de Vite se cae y recarga la página a mitad del flujo), los tokens
+se guardan SIN email.
+
+Consecuencia silenciosa: `accountTag()` (driveSyncService.ts) hace
+`email || 'default'` → el tag queda `default` → `listSyncFiles` busca
+`SchoolTracker_Sync_default_*` y **no encuentra los respaldos reales**, que se
+llaman `SchoolTracker_Sync_<email_tag>_*`. El usuario ve "no hay respaldos" con
+su backup intacto en Drive.
+
+**Solución**: `iniciarSesionGoogleConNube` completa el perfil DESPUÉS de
+`/auth`, usando `result.perfil.email` (que ya viene en la respuesta del Worker:
+`perfil: { nombre, foto, email, rol }`). No depender de una segunda llamada de
+red para algo que ya se sabe.
+
+**GOTCHA relacionado**: `driveSyncService.pullAll()` retorna **en silencio** si
+`listSyncFiles` viene vacío, sin lanzar error. Un caller que lo use como
+"restauré bien" sigue adelante con la BD vacía. En WelcomePage se usa `pullById`
+con el id del archivo ya elegido, que sí propaga el fallo.
+
 ## Regla de Toggles (2026-09) — NUNCA checkboxes
 
 **Toda selección múltiple se hace con toggles, nunca con `<input type="checkbox">`.**

@@ -185,6 +185,31 @@ export async function iniciarSesionGoogleConNube(opts?: {
     opts?.onStatus?.(result.creado ? 'Cuenta creada. Preparando tu nube...' : 'Bienvenido de nuevo...');
 
     const email = (result.perfil?.email || '').toLowerCase();
+    /**
+     * `guardarSesionDrive` deja el email fuera si falla el fetch a
+     * `oauth2/v2/userinfo` (típico en WebView Android, donde esa llamada suele
+     * morir por red). Sin `googleUserEmail`, `accountTag()` cae a 'default' y
+     * `listSyncFiles` busca respaldos con el prefijo equivocado: el usuario
+     * tiene su backup en Drive pero la app dice que no encuentra nada.
+     *
+     * El email ya está disponible acá (viene en el perfil que devolvió `/auth`),
+     * así que se completa el registro sin depender de otra llamada de red.
+     */
+    if (email) {
+      try {
+        const key = 'schooltracker-google-drive-settings';
+        const prev = JSON.parse(localStorage.getItem(key) || '{}');
+        localStorage.setItem(key, JSON.stringify({
+          ...prev,
+          googleUserEmail: prev.googleUserEmail || email,
+          // El Worker devuelve `perfil: { nombre, foto, email, rol }`.
+          googleUserName: prev.googleUserName || result.perfil?.nombre || null,
+          googleUserProfilePic: prev.googleUserProfilePic || result.perfil?.foto || null,
+        }));
+      } catch (e) {
+        console.warn('[CloudLogin] no se pudo completar el perfil de Drive:', e);
+      }
+    }
     // Abrir el archivo de BD propio de esta cuenta ANTES de guardar la
     // configuración de nube, para no escribir la config de la cuenta nueva
     // en el archivo de la cuenta anterior (que sigue activo hasta este momento).
