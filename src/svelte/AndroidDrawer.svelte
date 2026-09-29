@@ -52,24 +52,8 @@
     }
   }
 
-  async function respaldoManualDrive() {
-    if (respaldando) return;
-    let conectado = false;
-    try {
-      const s = localStorage.getItem('schooltracker-google-drive-settings');
-      conectado = !!(s && JSON.parse(s)?.accessToken);
-    } catch {}
-    if (!conectado) { await abrirNube(); return; }
-    respaldando = true;
-    try {
-      await driveSyncService.pushAll();
-      const mb = syncManager.getState().lastUploadBytes;
-      await emit("show-toast", { message: `✅ Respaldo subido a Google Drive${mb ? ` · ${fmtBytes(mb)}` : ''}`, type: "success" });
-    } catch (e) {
-      console.error('Respaldo manual a Drive falló:', e);
-      await emit("show-toast", { message: "❌ Error al crear respaldo: " + (e instanceof Error ? e.message : String(e)), type: "error" });
-    } finally { respaldando = false; }
-  }
+  // El respaldo de Drive ya NO se dispara desde acá: el botón es informativo
+  // y el guardado corre por el temporizador automático (o desde CloudPage).
 </script>
 
 <div class="mobile-header" class:encima-drawer={drawerOpen}>
@@ -85,14 +69,13 @@
     <img class="mobile-title-icon" src={appIcon} alt="" draggable="false" />
     School Tracker
   </span>
-  <!-- Botón de respaldo Drive (tap → respaldo directo o va a Nube si no conectado) -->
-  <button
+  <!-- Indicador de Drive (solo informativo: no dispara respaldo al tocar) -->
+  <div
     class="mobile-drive-btn"
     class:respaldando={respaldando || !!driveUp}
-    onclick={respaldoManualDrive}
     title={driveUp
       ? `Subiendo a Drive: ${fmtBytes(driveUp.loaded)} / ${fmtBytes(driveUp.total)} (${driveUp.pct}%)`
-      : (driveUltimo.when ? `Último respaldo: ${fmtMomento(driveUltimo.when)}${driveUltimo.bytes ? ` · ${fmtBytes(driveUltimo.bytes)}` : ''}` : 'Crear respaldo en Drive')}
+      : (driveUltimo.when ? `Último respaldo: ${fmtMomento(driveUltimo.when)}${driveUltimo.bytes ? ` · ${fmtBytes(driveUltimo.bytes)}` : ''}` : 'Respaldo automático de Google Drive')}
   >
     {#if driveUp}
       <span class="drive-ring" style="--pct: {driveUp.pct}"></span>
@@ -110,7 +93,7 @@
     {#if driveUp}
       <span class="drive-bar"><span style="width: {driveUp.pct}%;"></span></span>
     {/if}
-  </button>
+  </div>
   <!-- Card/chip de nube a la derecha del título (tap → pestaña Nube) -->
   <button
     class="mobile-sync-chip"

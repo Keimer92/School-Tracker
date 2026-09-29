@@ -46,7 +46,6 @@
   let d1 = $state<CloudD1State>(d1SyncManager.getState() as CloudD1State);
   let drive = $state<CloudDriveState>({ lastUpload: null, lastDownload: null, uploadProgress: null, lastUploadBytes: null });
   let respaldando = $state(false);
-  let justSubido = $state(false);
 
   /** Relee el estado del singleton (refuerzo si la suscripción no notificó). */
   function refrescarEstadoDrive() {
@@ -65,38 +64,14 @@
     return n + ' B';
   }
 
-  /** Respaldo manual a Drive. Si Drive no está vinculado, lleva a la pestaña Nube. */
-  async function respaldoManualDrive() {
-    if (respaldando) return;
-    let conectado = false;
-    try {
-      const s = localStorage.getItem('schooltracker-google-drive-settings');
-      conectado = !!(s && JSON.parse(s)?.accessToken);
-    } catch {}
-    if (!conectado) { await abrirNube(); return; }
-    respaldando = true;
-    try {
-      await driveSyncService.pushAll();
-      refrescarEstadoDrive();
-      justSubido = true;
-      setTimeout(() => { justSubido = false; }, 2500);
-      const mb = drive.lastUploadBytes ? ` · ${fmtBytes(drive.lastUploadBytes)}` : '';
-      await emit("show-toast", { message: `✅ Respaldo subido a Google Drive${mb}`, type: "success" });
-    } catch (e) {
-      console.error('Respaldo manual a Drive falló:', e);
-      refrescarEstadoDrive();
-      await emit("show-toast", { message: "❌ Error al crear respaldo: " + (e instanceof Error ? e.message : String(e)), type: "error" });
-    } finally { respaldando = false; }
-  }
-
+  /** La card es informativa: el texto explica el estado, no ofrece acción. */
   function driveCardTitle(): string {
-    if (respaldando) return 'Creando respaldo en Drive...';
     let conectado = false;
     try {
       const s = localStorage.getItem('schooltracker-google-drive-settings');
       conectado = !!(s && JSON.parse(s)?.accessToken);
     } catch {}
-    return conectado ? 'Crear respaldo en Drive ahora' : 'Vincula Drive en la pestaña Nube';
+    return conectado ? 'Respaldo automático activo' : 'Drive sin vincular';
   }
 
   let lastSyncSeen: string | null = null;
@@ -173,7 +148,7 @@
 <div class="cloud-widget {compact ? 'compact' : ''}">
   {#if !ocultarD1}
   <div
-    class="cloud-card {justSynced ? 'flash' : ''}"
+    class="cloud-card clickable {justSynced ? 'flash' : ''}"
     class:d1-ok={d1.status === 'success' || d1.status === 'idle'}
     onclick={() => { void abrirNube(); }}
     onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); void abrirNube(); } }}
@@ -204,12 +179,14 @@
   </div>
   {/if}
 
+  <!--
+    Card de Drive SOLO informativa (decisión 2026-09): ya no dispara el
+    respaldo manual al hacer clic. El respaldo corre por el temporizador
+    automático y, si se quiere forzar uno, se hace desde CloudPage.
+    Se conserva el progreso de subida en vivo cuando hay una en curso.
+  -->
   <div
-    class="cloud-card drive-card {respaldando || drive.uploadProgress ? 'respaldando' : ''} {justSubido ? 'flash' : ''}"
-    onclick={respaldoManualDrive}
-    onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); respaldoManualDrive(); } }}
-    role="button"
-    tabindex="0"
+    class="cloud-card drive-card {respaldando || drive.uploadProgress ? 'respaldando' : ''}"
     title={drive.uploadProgress
       ? `Subiendo a Drive: ${fmtBytes(drive.uploadProgress.loaded)} / ${fmtBytes(drive.uploadProgress.total)} (${drive.uploadProgress.pct}%)`
       : (drive.lastUploadBytes ? `Último respaldo: ${fmtBytes(drive.lastUploadBytes)} · ` : '') + driveCardTitle()}
@@ -260,14 +237,14 @@
     overflow: hidden;
   }
 
-  .cloud-card:hover {
+  /* Solo las cards accionables cambian el borde al pasar el cursor. La de Drive
+     es informativa desde 2026-09: sin cursor ni hover, para no sugerir un clic
+     que ya no hace nada. */
+  .cloud-card.clicable:hover {
     border-color: rgba(var(--primary-rgb), 0.35);
     background: rgba(255, 255, 255, 0.045);
   }
 
-  .cloud-card.drive-card {
-    cursor: pointer;
-  }
   .cloud-card.respaldando {
     border-color: rgba(var(--primary-rgb), 0.45);
     background: rgba(var(--primary-rgb), 0.05);
