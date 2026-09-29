@@ -382,6 +382,75 @@ $effect(() => {
     }
   });
 
+  // ── Popover "Marcar todos" (Todos P / A / J) ──
+  // Mismo patrón que el popover de Acciones de NotasPage: un BotonMod que
+  // ancla un panel `fixed` con las acciones dentro. Antes eran 3 BotonMod
+  // sueltos en la cinta de filtros y, con todos los chips desplegables, la fila
+  // se iba de ancho.
+  const ANCHO_POP_MASIVOS = 242;
+  let popMasivos = $state<{ x: number; y: number; abajo: string } | null>(null);
+  let popMasivosPanelEl = $state<HTMLDivElement | null>(null);
+  let popMasivosBtn = $state<HTMLElement | null>(null);
+  /** Ref del BotonMod disparador, para anclar el panel. */
+  let popMasivosBtnEl = $state<HTMLElement | null>(null);
+
+  function togglePopMasivos(btn: HTMLElement) {
+    if (popMasivos) { cerrarPopMasivos(); return; }
+    const r = btn.getBoundingClientRect();
+    if (!r) { console.warn('[Masivos] botón sin referencia; no se puede anclar el popover'); return; }
+    const altoEstimado = 3 * 52 + 12;
+    const abreArriba = r.bottom + altoEstimado > window.innerHeight && r.top > altoEstimado;
+    popMasivosBtn = btn;
+    popMasivos = {
+      x: Math.max(8, Math.min(Math.round(r.left), window.innerWidth - ANCHO_POP_MASIVOS - 8)),
+      y: abreArriba ? 0 : Math.round(r.bottom + 4),
+      abajo: abreArriba ? `${Math.round(window.innerHeight - r.top + 4)}px` : 'auto',
+    };
+  }
+
+  function cerrarPopMasivos() { popMasivos = null; popMasivosBtn = null; }
+
+  /** Ejecuta una acción del popover y lo cierra. */
+  function accionMasivos(fn: () => void) {
+    cerrarPopMasivos();
+    fn();
+  }
+
+  $effect(() => {
+    if (!popMasivos) return;
+    const onPointerDown = (ev: PointerEvent) => {
+      const t = ev.target as Node | null;
+      if (t && (popMasivosPanelEl?.contains(t) || popMasivosBtn?.contains(t))) return;
+      cerrarPopMasivos();
+    };
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') cerrarPopMasivos(); };
+    window.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('resize', cerrarPopMasivos);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', cerrarPopMasivos);
+    };
+  });
+
+  $effect(() => {
+    if (popMasivos) {
+      return registerBackHandler(() => { cerrarPopMasivos(); return true; });
+    }
+  });
+
+  /** Cuántos estudiantes de la lista activa hay en cada estado (sub del popover). */
+  let conteoEstados = $derived.by(() => {
+    const lista = periodo === "diario" ? estudiantes : estudiantesMulti.flatMap(e =>
+      fechasPeriodo.map(f => ({ ...e, fecha: f, estado: e.dias[f]?.estado ?? null })));
+    return {
+      P: lista.filter(e => e.estado === 'P').length,
+      A: lista.filter(e => e.estado === 'A').length,
+      J: lista.filter(e => e.estado === 'J').length,
+    };
+  });
+
   // Si el DatePicker deja de estar montado (cambio de período), el bindable
   // quedaría en true y la fila perdería su overflow scroll.
   $effect(() => {
@@ -1656,20 +1725,16 @@ $effect(() => {
             title: 'Limpiar la asistencia del período',
             compacto: isAndroidMobile,
           }} />
-          <div style="display:flex;gap:2px;align-items:stretch;flex-shrink:0">
-            <BotonMod opts={{ onclick: () => marcarTodos('P'), disabled: getActiveStudentCount() === 0,
-              icono: '✅', etiqueta: 'Todos P', tono: 'verde',
-              sub: isAndroidMobile ? 'Presentes' : 'Marcar presentes',
-              title: 'Marcar todos como Presente', compacto: true }} />
-            <BotonMod opts={{ onclick: () => marcarTodos('A'), disabled: getActiveStudentCount() === 0,
-              icono: '❌', etiqueta: 'Todos A', tono: 'rojo',
-              sub: isAndroidMobile ? 'Ausentes' : 'Marcar ausentes',
-              title: 'Marcar todos como Ausente', compacto: true }} />
-            <BotonMod opts={{ onclick: () => marcarTodos('J'), disabled: getActiveStudentCount() === 0,
-              icono: '📝', etiqueta: 'Todos J', tono: 'ambar',
-              sub: isAndroidMobile ? 'Justific.' : 'Marcar justificados',
-              title: 'Marcar todos como Justificado', compacto: true }} />
-          </div>
+          <BotonMod bind:ref={popMasivosBtnEl} opts={{
+            onclick: () => { if (popMasivosBtnEl) togglePopMasivos(popMasivosBtnEl); },
+            disabled: getActiveStudentCount() === 0,
+            icono: popMasivos ? '✕' : '👥', etiqueta: 'Marcar todos', tono: 'violeta',
+            sub: getActiveStudentCount() === 0
+              ? 'Sin estudiantes'
+              : `${conteoEstados.P}P · ${conteoEstados.A}A · ${conteoEstados.J}J`,
+            title: 'Marcar todo el período como Presente, Ausente o Justificado',
+            compacto: isAndroidMobile,
+          }} />
           <BotonMod opts={{
             onclick: handleManualSave,
             disabled: !hasUnsavedChanges || saving,
@@ -2151,6 +2216,35 @@ $effect(() => {
           <span style="width:22px; height:22px; flex-shrink:0; display:flex; align-items:center; justify-content:center; border-radius:6px; font-size:0.7rem; font-weight:800; background:{activo ? e.suave : 'rgba(255,255,255,0.05)'}; border:1px solid {activo ? e.borde : 'rgba(255,255,255,0.1)'}; color:{e.color};">{e.id}</span>
           <span style="flex:1; min-width:0; font-size:0.78rem; font-weight:{activo ? 700 : 500};">{e.label}</span>
           {#if activo}<span style="color:{e.color}; font-size:0.7rem; flex-shrink:0;">✓</span>{/if}
+        </button>
+      {/each}
+    </div>
+  {/if}
+
+  {#if popMasivos}
+    <div
+      bind:this={popMasivosPanelEl}
+      use:portalToBody
+      role="menu"
+      aria-label="Marcar todo el período"
+      style="position:fixed; z-index:99995; left:{popMasivos.x}px; top:{popMasivos.y}px; bottom:{popMasivos.abajo}; width:{ANCHO_POP_MASIVOS}px; background:rgba(20,24,31,0.97); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); border:1px solid rgba(255,255,255,0.1); border-radius:14px; box-shadow:0 18px 40px -10px rgba(0,0,0,0.65); padding:0.4rem; box-sizing:border-box; display:flex; flex-direction:column; gap:3px;"
+    >
+      {#each ESTADOS_PAJ as e (e.id)}
+        {@const sub = e.id === 'P' ? 'Marcar presentes' : e.id === 'A' ? 'Marcar ausentes' : 'Marcar justificados'}
+        <button
+          role="menuitem"
+          disabled={getActiveStudentCount() === 0}
+          onclick={() => accionMasivos(() => { marcarTodos(e.id); })}
+          title={`Marcar todo el período como ${e.label}`}
+          style="width:100%; display:flex; align-items:center; gap:0.55rem; padding:0.5rem 0.55rem; border-radius:9px; border:1px solid {e.borde}; background:{e.suave}; color:{e.color}; cursor:pointer; text-align:left; transition:all 0.15s ease; opacity:{getActiveStudentCount() === 0 ? 0.45 : 1};"
+          onmouseenter={(ev) => { ev.currentTarget.style.background = e.suave.replace('0.10', '0.2'); }}
+          onmouseleave={(ev) => { ev.currentTarget.style.background = e.suave; }}
+        >
+          <span style="font-size:0.9rem;">{e.id === 'P' ? '✅' : e.id === 'A' ? '❌' : '📝'}</span>
+          <span style="flex:1; min-width:0;">
+            <span style="display:block; font-weight:700; font-size:0.76rem;">Todos {e.id}</span>
+            <span style="display:block; font-size:0.62rem; color:#94a3b8;">{sub} · hoy hay {conteoEstados[e.id]}</span>
+          </span>
         </button>
       {/each}
     </div>
