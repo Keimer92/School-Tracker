@@ -8,25 +8,15 @@
   import { iniciarSesionGoogleConNube } from "../lib/cloudLogin";
   import appIcon from "../assets/app-icon.png";
 
-  let view: 'landing' | 'cloud' | 'wizard' | 'drive' = $state('landing');
+  let view: 'landing' | 'cloud' | 'wizard' = $state('landing');
   let step = $state(1);
   let loading = $state(false);
   let loadingMessage = $state('');
   let errorMsg = $state('');
 
-  // ── Opción 1: Google + restaurar Drive ──
-  // El "código" es el schoolKey de la nube (el que viene dentro del .key).
-  let driveCode = $state('');
-  let driveCodeError = $state('');
-  function goToDrive() {
-    view = 'drive';
-    errorMsg = '';
-    driveCodeError = '';
-  }
   function goToLanding() {
     view = 'landing';
     errorMsg = '';
-    driveCodeError = '';
   }
 
   // Detección de plataforma (mismo patrón que AsistenciaPage)
@@ -140,29 +130,34 @@
   /**
    * Opción 1: login con Google y restauración del último respaldo de Drive.
    *
-   * El código es el `schoolKey` de la nube (el mismo que viaja dentro del
-   * archivo .key). Se guarda ANTES de restaurar para que el schoolKey no se
-   * regenere: el Worker solo devuelve el mismo si existe el registro
-   * `user:<email>` en su KV, y una cuenta creada vía Drive puede no tenerlo.
+   * El `schoolKey` NO se lo pide al usuario: lo devuelve el propio Worker en
+   * `/auth` tras verificar el ID token, igual que hace la opción 2. La única
+   * diferencia entre ambas es de dónde vienen los datos (Drive vs D1), no cómo
+   * se obtiene la conexión.
+   *
+   * `skipSync: true` porque no queremos un sync con D1 todavía: si la nube
+   * estuviera vacía, el pull no traería nada y sólo alimentaría el `last_sync`.
+   * Lo que se restaura es el archivo de Drive.
    */
-  async function iniciarDriveConCodigo() {
-    const codigo = driveCode.trim();
-    if (!codigo) {
-      driveCodeError = 'Pega el código de conexión para continuar.';
-      return;
-    }
-    driveCodeError = '';
+  async function handleDriveLogin() {
     loading = true;
     errorMsg = '';
     try {
-      loadingMessage = 'Iniciando sesión con Google...';
-      await iniciarSesionGoogleConNube();
-      // Vincular la nube ANTES de restaurar: si el pull de D1 corriera con la
-      // config vacía crearía un schoolKey nuevo y perderíamos el vínculo con
-      // los datos. La URL sale de la misma env que usa el resto de la app.
-      const workerUrl = import.meta.env.VITE_D1_WORKER_URL
-        || 'https://schooltracker-d1-sync.pedroluisnfc.workers.dev';
-      await conectarConCredenciales(workerUrl, codigo);
+      const res = await iniciarSesionGoogleConNube({
+        onStatus: (m) => { loadingMessage = m; },
+        setBackAuth: setBackAuthInProgress,
+        skipSync: true,
+      });
+      if (res.status !== 'ok') {
+        const motivo = res.cancelled
+          ? 'Iniciá sesión con Google para continuar.'
+          : friendlyCloudError(String((res as any).error || 'error desconocido')).body;
+        errorMsg = motivo;
+        return;
+      }
+      // La nube queda configurada con la key autoritativa del Worker antes de
+      // restaurar: si el resync posterior corriera con la config vacía crearía
+      // un namespace nuevo y el vínculo con los datos se perdería.
       loadingMessage = 'Buscando tu último respaldo en Google Drive...';
       await restoreFromDrive();
     } catch (e: any) {
@@ -777,13 +772,13 @@
         {/if}
       </div>
       <div class="welcome-cards" class:android={isAndroidMobile}>
-        <!-- 1. Google + restaurar el último respaldo de Drive (con código) -->
-        <button class="welcome-card card-google" class:android={isAndroidMobile} onclick={goToDrive} disabled={loading}>
+        <!-- 1. Google + restaurar el último respaldo de Drive -->
+        <button class="welcome-card card-google" class:android={isAndroidMobile} onclick={() => handleDriveLogin()} disabled={loading}>
           <div class="welcome-card-icon">📥</div>
           <div class="welcome-card-body">
             <h3>Continuar con Google</h3>
-            <p>Entra con tu cuenta y recupera el último respaldo de Google Drive usando tu código de conexión.</p>
-            <span class="welcome-card-tags"><span class="welcome-tag">Drive</span><span class="welcome-tag">Requiere código</span></span>
+            <p>Entra con tu cuenta y recupera el último respaldo guardado en Google Drive.</p>
+            <span class="welcome-card-tags"><span class="welcome-tag">Google Drive</span><span class="welcome-tag">Sin código</span></span>
           </div>
           <div class="welcome-card-arrow">→</div>
         </button>
@@ -793,7 +788,7 @@
           <div class="welcome-card-icon">☁️</div>
           <div class="welcome-card-body">
             <h3>Iniciar sesión y sincronizar</h3>
-            <p>Accede a tu nube de Cloudflare y baja todos tus datos a este dispositivo. Ideal si ya usas la app.</p>
+            <p>Accede a tu nube de Cloudflare y baja todos tus datos a este dispositivo.</p>
             <span class="welcome-card-tags"><span class="welcome-tag">Cloudflare D1</span><span class="welcome-tag">Tiempo real</span></span>
           </div>
           <div class="welcome-card-arrow">→</div>
@@ -811,78 +806,6 @@
         </button>
 
       </div>
-      {#if errorMsg}
-        <div class="welcome-error">{errorMsg}</div>
-      {/if}
-    </div>
-
-  {:else if view === 'drive'}
-    <div class="welcome-container drive-container">
-      <button class="welcome-back" onclick={goToLanding}>← Volver</button>
-
-      <div class="welcome-brand">
-        {#if isAndroidMobile}
-          <div class="welcome-brand-row">
-            <img class="welcome-logo welcome-logo-sm" src={appIcon} alt="School Tracker" draggable="false" />
-            <div class="welcome-brand-text">
-              <h1 class="welcome-title welcome-title-sm">Restaurar desde Drive</h1>
-              <p class="welcome-subtitle">Recupera tu último respaldo de Google</p>
-            </div>
-          </div>
-        {:else}
-          <img class="welcome-logo" src={appIcon} alt="School Tracker" draggable="false" />
-          <h1 class="welcome-title">Restaurar desde Drive</h1>
-          <p class="welcome-subtitle">Recupera tu último respaldo de Google Drive</p>
-        {/if}
-      </div>
-
-      <div class="drive-steps">
-        <div class="drive-step">
-          <span class="drive-step-num">1</span>
-          <div class="drive-step-text">
-            <strong>Inicia sesión con Google</strong>
-            <span>Se abrirá el selector de cuenta para vincular Drive.</span>
-          </div>
-        </div>
-        <div class="drive-step">
-          <span class="drive-step-num">2</span>
-          <div class="drive-step-text">
-            <strong>Pega tu código de conexión</strong>
-            <span>Es el <code>schoolKey</code> que viene dentro de tu archivo <code>.key</code>. Sin él se crearía una nube nueva y vacía.</span>
-          </div>
-        </div>
-        <div class="drive-step">
-          <span class="drive-step-num">3</span>
-          <div class="drive-step-text">
-            <strong>Se descarga el último respaldo</strong>
-            <span>Buscamos el archivo más reciente de tu carpeta de Drive y lo restauramos.</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="drive-form">
-        <label class="drive-label" for="drive-code">Código de conexión</label>
-        <input
-          id="drive-code"
-          class="drive-input"
-          class:error={!!driveCodeError}
-          type="text"
-          placeholder="Pega aquí tu schoolKey"
-          bind:value={driveCode}
-          autocomplete="off"
-          spellcheck="false"
-          onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void iniciarDriveConCodigo(); } }} />
-        {#if driveCodeError}
-          <p class="drive-error">{driveCodeError}</p>
-        {:else}
-          <p class="drive-hint">¿No tienes el código? Pide el archivo <code>.key</code> a quien configuró la nube.</p>
-        {/if}
-
-        <button class="drive-submit" onclick={() => iniciarDriveConCodigo()} disabled={loading}>
-          {loading ? 'Restaurando...' : '📥  Iniciar sesión y restaurar'}
-        </button>
-      </div>
-
       {#if errorMsg}
         <div class="welcome-error">{errorMsg}</div>
       {/if}
@@ -1331,58 +1254,6 @@
   }
   .card-cloud { --accent-from: #38bdf8; --accent-to: #6366f1; }
   .card-manual { --accent-from: #f472b6; --accent-to: #a78bfa; }
-
-  /* ── Vista Drive: pasos + formulario de código ── */
-  .drive-container { max-width: 520px; }
-  .drive-steps { display: flex; flex-direction: column; gap: 0.6rem; width: 100%; margin: 0.5rem 0 1.25rem; }
-  .drive-step {
-    display: flex; align-items: flex-start; gap: 0.7rem;
-    padding: 0.7rem 0.85rem; border-radius: 12px;
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.06);
-  }
-  .drive-step-num {
-    width: 22px; height: 22px; flex-shrink: 0; border-radius: 50%;
-    background: rgba(56,189,248,0.15); color: #7dd3fc;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 0.68rem; font-weight: 800;
-  }
-  .drive-step-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .drive-step-text strong { font-size: 0.82rem; color: #e2e8f0; font-weight: 700; }
-  .drive-step-text span { font-size: 0.72rem; color: #64748b; line-height: 1.45; }
-  .drive-step-text code {
-    font-family: ui-monospace, monospace; font-size: 0.68rem;
-    background: rgba(255,255,255,0.07); padding: 0.05rem 0.25rem; border-radius: 4px; color: #94a3b8;
-  }
-  .drive-form { width: 100%; display: flex; flex-direction: column; gap: 0.4rem; }
-  .drive-label {
-    font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.5px;
-    color: #64748b; font-weight: 700;
-  }
-  .drive-input {
-    width: 100%; box-sizing: border-box;
-    padding: 0.7rem 0.85rem; border-radius: 10px;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.1);
-    color: #e2e8f0; font-size: 0.85rem; outline: none;
-    font-family: ui-monospace, monospace;
-    transition: all 0.18s ease;
-  }
-  .drive-input:focus { border-color: var(--primary-color, #3b82f6); box-shadow: 0 0 0 3px rgba(59,130,246,0.12); }
-  .drive-input.error { border-color: rgba(239,68,68,0.5); }
-  .drive-hint { font-size: 0.7rem; color: #64748b; margin: 0.15rem 0 0; line-height: 1.4; }
-  .drive-error { font-size: 0.72rem; color: #fca5a5; margin: 0.15rem 0 0; }
-  .drive-submit {
-    margin-top: 0.6rem; padding: 0.85rem 1.25rem; border: none; border-radius: 12px;
-    background: linear-gradient(135deg, #3b82f6, #6366f1); color: #fff;
-    font-size: 0.88rem; font-weight: 700; cursor: pointer;
-    display: flex; align-items: center; justify-content: center; gap: 0.5rem;
-    box-shadow: 0 6px 18px rgba(59,130,246,0.3);
-    transition: all 0.2s ease;
-  }
-  .drive-submit:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(59,130,246,0.4); }
-  .drive-submit:active:not(:disabled) { transform: translateY(1px); }
-  .drive-submit:disabled { opacity: 0.6; cursor: not-allowed; }
 
   /* ── Toggles de catálogo (grados / secciones) ──
      Reemplazan a los checkboxes: tarjetas clicables con estado visible.
