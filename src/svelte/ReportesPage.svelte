@@ -8,6 +8,7 @@
   import { generarPdfNotas } from "../lib/notasPdf";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
+import SelectChip from "./SelectChip.svelte";
   import SearchFab from "./SearchFab.svelte";
   import PageLayout from "./PageLayout.svelte";
   import FiltersModalAndroid from "./FiltersModalAndroid.svelte";
@@ -1055,55 +1056,61 @@
         <FilterContainer {isMobile} style="padding:0.5rem">
           {#if showAnoDropdown}
           <FilterGroup label="Año:" {isMobile}>
-            <select class="filter-select" bind:value={selectedAno} style="width:100%">
-              {#each anos as a}<option value={a.id}>{a.nombre}</option>{/each}
-            </select>
+            <SelectChip
+              value={selectedAno}
+              onchange={(v) => { selectedAno = Number(v); }}
+              options={anos.map(a => ({ value: a.id, label: a.nombre }))} />
           </FilterGroup>
           {/if}
           <FilterGroup label="Corte:" {isMobile}>
-            <select class="filter-select" style="width:100%"
+            <SelectChip
               value={specialCorte || selectedCorte}
-              onchange={(e) => {
-                const val = (e.target as HTMLSelectElement).value;
+              onchange={(v) => {
+                const val = String(v);
                 if (val === "1S" || val === "2S" || val === "NF") { specialCorte = val; selectedCorte = 0; }
                 else { specialCorte = ""; selectedCorte = Number(val); }
-              }}>
-              <optgroup label="Cortes Individuales">
-                {#each cortes as c}<option value={c.id}>{c.nombre}</option>{/each}
-              </optgroup>
-              <optgroup label="Promedios">
-                <option value="1S">1er Semestre</option>
-                <option value="2S">2do Semestre</option>
-                <option value="NF">Nota Final</option>
-              </optgroup>
-            </select>
+              }}
+              options={[
+                ...cortes.map(c => ({ value: c.id as string | number, label: c.nombre, grupo: 'Cortes individuales' })),
+                { value: '1S', label: '1er Semestre', grupo: 'Promedios' },
+                { value: '2S', label: '2do Semestre', grupo: 'Promedios' },
+                { value: 'NF', label: 'Nota Final', grupo: 'Promedios' },
+              ]} />
           </FilterGroup>
           <FilterGroup label="Colegio:" {isMobile}>
-            <select class="filter-select" bind:value={selectedColegio} style="width:100%">
-              {#each colegios as c}<option value={c.id}>{c.nombre}</option>{/each}
-            </select>
+            <SelectChip
+              value={selectedColegio}
+              onchange={(v) => { selectedColegio = Number(v); }}
+              options={colegios.map(c => ({ value: c.id, label: c.nombre }))} />
           </FilterGroup>
           <FilterGroup label="Grado:" {isMobile}>
-            <select class="filter-select" bind:value={selectedGrado} style="width:100%">
-              {#each grados as g}<option value={g.id}>{g.nombre}</option>{/each}
-            </select>
+            <SelectChip
+              value={selectedGrado}
+              onchange={(v) => { selectedGrado = Number(v); }}
+              options={grados.map(g => ({ value: g.id, label: g.nombre }))} />
           </FilterGroup>
           <FilterGroup label="Sección:" {isMobile}>
-            <select class="filter-select" bind:value={selectedSeccion} style="width:100%">
-              {#each secciones as s}<option value={s.id}>{s.nombre}</option>{/each}
-            </select>
+            <SelectChip
+              value={selectedSeccion}
+              onchange={(v) => { selectedSeccion = Number(v); }}
+              options={secciones.map(s => ({ value: s.id, label: s.nombre }))} />
           </FilterGroup>
           <FilterGroup label="Sexo:" {isMobile}>
-            <select class="filter-select" bind:value={selectedSexo} style="width:100%">
-              <option value="">Todos</option>
-              <option value="M">Masculino</option>
-              <option value="F">Femenino</option>
-            </select>
+            <SelectChip
+              value={selectedSexo}
+              onchange={(v) => { selectedSexo = String(v); }}
+              options={[
+                { value: '', label: 'Todos' },
+                { value: 'M', label: 'Masculino' },
+                { value: 'F', label: 'Femenino' },
+              ]} />
           </FilterGroup>
           <FilterGroup label="Asignatura:" {isMobile}>
-            <select class="filter-select" bind:value={selectedAsignatura} disabled={asignaturas.length === 0} style="width:100%">
-              {#each asignaturas as a}<option value={a.id}>{a.nombre}</option>{/each}
-            </select>
+            <SelectChip
+              value={selectedAsignatura}
+              onchange={(v) => { selectedAsignatura = Number(v); }}
+              placeholder={asignaturas.length === 0 ? 'Sin asignaturas' : '—'}
+              options={asignaturas.map(a => ({ value: a.id, label: a.nombre }))} />
           </FilterGroup>
           <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '0 0 auto'};{isMobile ? 'overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;' : ''}">
             {#if !isAndroid}

@@ -11,6 +11,8 @@
   import { ask } from "@tauri-apps/plugin-dialog";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
+import SelectChip from "./SelectChip.svelte";
+import { portalToBody } from "../lib/portalToBody";
   import FiltersModalAndroid from "./FiltersModalAndroid.svelte";
   import SearchFab from "./SearchFab.svelte";
   import PageLayout from "./PageLayout.svelte";
@@ -415,19 +417,7 @@ $effect(() => {
     return { ini: s.fechas[0], fin: s.fechas[s.fechas.length - 1] };
   });
 
-  /**
-   * Portal a <body>. El overlay usa `position: fixed`, pero cualquier ancestro
-   * con `backdrop-filter` o `transform` se convierte en bloque contenedor y lo
-   * confina dentro del panel de filtros, así que el modal se salía de la
-   * pantalla. Montándolo en `body` el fixed es real.
-   */
-  function portalToBody(node: HTMLElement) {
-    document.body.appendChild(node);
-    return {
-      destroy() { node.remove(); }
-    };
-  }
-
+  /** Portal a <body>: ver `src/lib/portalToBody.ts` (gotcha de backdrop-filter). */
   function cerrarPopSinClases() {
     popSinClasesAbierta = false;
     colFechaObjetivo = null;
@@ -1371,19 +1361,22 @@ $effect(() => {
         <div style="display:flex;{isAndroidMobile ? 'flex-wrap:wrap' : 'flex-wrap:nowrap'};gap:0.4rem;width:100%;align-items:flex-end">
           {#if !isAndroidMobile && showAnoDropdown}
             <FilterGroup label="Año Lectivo:" {isMobile}>
-              <select class="filter-select" style="width:100%"
-                value={selectedAno} onchange={(e) => handleFilterChange((v: number) => selectedAno = v, Number((e.target as HTMLSelectElement).value))}>
-                {#each anos as a}<option value={a.id}>{a.nombre}</option>{/each}
-              </select>
+              <SelectChip
+                value={selectedAno}
+                onchange={(v) => handleFilterChange((n: number) => selectedAno = n, Number(v))}
+                options={anos.map(a => ({ value: a.id, label: a.nombre }))} />
             </FilterGroup>
           {/if}
           {#if !isAndroidMobile}
             <FilterGroup label="Período:" {isMobile}>
-              <select class="filter-select" bind:value={periodo} style="width:100%">
-                {#if !isWindows}<option value="diario">Diario</option>{/if}
-                <option value="semanal">Semanal</option>
-                <option value="mensual">Mensual</option>
-              </select>
+              <SelectChip
+                value={periodo}
+                onchange={(v) => { periodo = String(v) as typeof periodo; }}
+                options={[
+                  ...(!isWindows ? [{ value: 'diario', label: 'Diario' }] : []),
+                  { value: 'semanal', label: 'Semanal' },
+                  { value: 'mensual', label: 'Mensual' },
+                ]} />
             </FilterGroup>
           {/if}
           {#if periodo === "diario"}
@@ -1433,10 +1426,10 @@ $effect(() => {
           {:else}
             {#if !isAndroidMobile}
               <FilterGroup label="Mes:" {isMobile}>
-                <select class="filter-select" style="width:100%;min-width:110px"
-                  value={mesSeleccionado} onchange={(e) => mesSeleccionado = Number((e.target as HTMLSelectElement).value)}>
-                  {#each mesesOptions as m}<option value={m.value}>{m.label}</option>{/each}
-                </select>
+                <SelectChip
+                  value={mesSeleccionado}
+                  onchange={(v) => { mesSeleccionado = Number(v); }}
+                  options={mesesOptions.map(m => ({ value: m.value, label: m.label }))} />
               </FilterGroup>
             {/if}
           {/if}
@@ -1454,28 +1447,32 @@ $effect(() => {
             </button>
           {:else}
             <FilterGroup label="Colegio:" {isMobile}>
-              <select class="filter-select" style="width:100%"
-                value={selectedColegio} onchange={(e) => handleFilterChange((v: number) => selectedColegio = v, Number((e.target as HTMLSelectElement).value))}>
-                {#each colegios as c}<option value={c.id}>{c.nombre}</option>{/each}
-              </select>
+              <SelectChip
+                value={selectedColegio}
+                onchange={(v) => handleFilterChange((n: number) => selectedColegio = n, Number(v))}
+                options={colegios.map(c => ({ value: c.id, label: c.nombre }))} />
             </FilterGroup>
             <FilterGroup label="Grado:" {isMobile}>
-              <select class="filter-select" style="width:100%"
-                value={selectedGrado} onchange={(e) => handleFilterChange((v: number) => selectedGrado = v, Number((e.target as HTMLSelectElement).value))}>
-                {#each grados as g}<option value={g.id}>{g.nombre}</option>{/each}
-              </select>
+              <SelectChip
+                value={selectedGrado}
+                onchange={(v) => handleFilterChange((n: number) => selectedGrado = n, Number(v))}
+                options={grados.map(g => ({ value: g.id, label: g.nombre }))} />
             </FilterGroup>
             <FilterGroup label="Sección:" {isMobile}>
-              <select class="filter-select" style="width:100%"
-                value={selectedSeccion} onchange={(e) => handleFilterChange((v: number) => selectedSeccion = v, Number((e.target as HTMLSelectElement).value))}>
-                {#each secciones as s}<option value={s.id}>{s.nombre}</option>{/each}
-              </select>
+              <SelectChip
+                value={selectedSeccion}
+                onchange={(v) => handleFilterChange((n: number) => selectedSeccion = n, Number(v))}
+                options={secciones.map(s => ({ value: s.id, label: s.nombre }))} />
             </FilterGroup>
             <FilterGroup label="Sexo:" {isMobile}>
-              <select class="filter-select" style="width:100%"
-                value={selectedSexo} onchange={(e) => handleFilterChange((v: string) => selectedSexo = v, (e.target as HTMLSelectElement).value)}>
-                <option value="">Todos</option><option value="M">Masculino</option><option value="F">Femenino</option>
-              </select>
+              <SelectChip
+                value={selectedSexo}
+                onchange={(v) => handleFilterChange((s: string) => selectedSexo = s, String(v))}
+                options={[
+                  { value: '', label: 'Todos' },
+                  { value: 'M', label: 'Masculino' },
+                  { value: 'F', label: 'Femenino' },
+                ]} />
             </FilterGroup>
           {/if}
           <div class="android-actions" style="display:flex;gap:{isAndroidMobile ? '2px' : '0.3rem'};align-items:stretch;flex-shrink:0;{isAndroidMobile ? 'flex-wrap:nowrap;min-width:0;width:100%;max-width:100%;-webkit-overflow-scrolling:touch;' : 'overflow:visible'}overflow-x:{isAndroidMobile && dpAbierto ? 'visible' : isAndroidMobile ? 'auto' : 'visible'}">

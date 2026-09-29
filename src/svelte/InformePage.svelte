@@ -12,6 +12,7 @@
   import { loadAppSettings, onAppSettingsChange } from "../lib/appSettings";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
+import SelectChip from "./SelectChip.svelte";
   import FiltersModalAndroid from "./FiltersModalAndroid.svelte";
   import FilterActions from "./FilterActions.svelte";
   import SearchFab from "./SearchFab.svelte";
@@ -839,19 +840,21 @@ $effect(() => {
         <div style="display:flex;{isAndroidMobile ? 'flex-wrap:wrap' : 'flex-wrap:nowrap'};gap:0.4rem;width:100%;align-items:flex-end">
           {#if !isAndroidMobile && showAnoDropdown}
             <FilterGroup label="Año Lectivo:" {isMobile}>
-              <select class="filter-select" bind:value={selectedAno} style="width:100%">
-                {#each anos as a}
-                  <option value={a.id}>{a.nombre}</option>
-                {/each}
-              </select>
+              <SelectChip
+                value={selectedAno}
+                onchange={(v) => { selectedAno = Number(v); }}
+                options={anos.map(a => ({ value: a.id, label: a.nombre }))} />
             </FilterGroup>
           {/if}
           {#if !isAndroidMobile}
             <FilterGroup label="Período:" {isMobile}>
-              <select class="filter-select" bind:value={periodo} style="width:100%">
-                <option value="mensual">Mensual</option>
-                <option value="semanal">Semanal</option>
-              </select>
+              <SelectChip
+                value={periodo}
+                onchange={(v) => { periodo = String(v) as typeof periodo; }}
+                options={[
+                  { value: 'mensual', label: 'Mensual' },
+                  { value: 'semanal', label: 'Semanal' },
+                ]} />
             </FilterGroup>
           {/if}
 
@@ -893,12 +896,15 @@ $effect(() => {
           {:else}
             {#if !isAndroidMobile}
               <FilterGroup label="Mes:" {isMobile}>
-                <select class="filter-select" bind:value={mesSeleccionado} style="width:100%">
-                  <option value={1}>Enero</option><option value={2}>Febrero</option><option value={3}>Marzo</option>
-                  <option value={4}>Abril</option><option value={5}>Mayo</option><option value={6}>Junio</option>
-                  <option value={7}>Julio</option><option value={8}>Agosto</option><option value={9}>Septiembre</option>
-                  <option value={10}>Octubre</option><option value={11}>Noviembre</option><option value={12}>Diciembre</option>
-                </select>
+                <SelectChip
+                  value={mesSeleccionado}
+                  onchange={(v) => { mesSeleccionado = Number(v); }}
+                  options={[
+                    { value: 1, label: 'Enero' }, { value: 2, label: 'Febrero' }, { value: 3, label: 'Marzo' },
+                    { value: 4, label: 'Abril' }, { value: 5, label: 'Mayo' }, { value: 6, label: 'Junio' },
+                    { value: 7, label: 'Julio' }, { value: 8, label: 'Agosto' }, { value: 9, label: 'Septiembre' },
+                    { value: 10, label: 'Octubre' }, { value: 11, label: 'Noviembre' }, { value: 12, label: 'Diciembre' },
+                  ]} />
               </FilterGroup>
             {/if}
           {/if}
@@ -917,36 +923,35 @@ $effect(() => {
             </button>
           {:else}
             <FilterGroup label="Colegio:" {isMobile}>
-
-              <select class="filter-select" bind:value={selectedColegio} style="width:100%">
-                {#each colegios as c}
-                  <option value={c.id}>{c.nombre}</option>
-                {/each}
-              </select>
+              <SelectChip
+                value={selectedColegio}
+                onchange={(v) => { selectedColegio = Number(v); }}
+                options={colegios.map(c => ({ value: c.id, label: c.nombre }))} />
             </FilterGroup>
 
             <FilterGroup label="Grado:" {isMobile}>
-              <select class="filter-select" bind:value={selectedGrado} style="width:100%">
-                {#each grados as g}
-                  <option value={g.id}>{g.nombre}</option>
-                {/each}
-              </select>
+              <SelectChip
+                value={selectedGrado}
+                onchange={(v) => { selectedGrado = Number(v); }}
+                options={grados.map(g => ({ value: g.id, label: g.nombre }))} />
             </FilterGroup>
 
             <FilterGroup label="Sección:" {isMobile}>
-              <select class="filter-select" bind:value={selectedSeccion} style="width:100%">
-                {#each secciones as s}
-                  <option value={s.id}>{s.nombre}</option>
-                {/each}
-              </select>
+              <SelectChip
+                value={selectedSeccion}
+                onchange={(v) => { selectedSeccion = Number(v); }}
+                options={secciones.map(s => ({ value: s.id, label: s.nombre }))} />
             </FilterGroup>
 
             <FilterGroup label="Sexo:" {isMobile}>
-              <select class="filter-select" bind:value={selectedSexo} style="width:100%">
-                <option value="">Todos</option>
-                <option value="M">Masculino</option>
-                <option value="F">Femenino</option>
-              </select>
+              <SelectChip
+                value={selectedSexo}
+                onchange={(v) => { selectedSexo = String(v); }}
+                options={[
+                  { value: '', label: 'Todos' },
+                  { value: 'M', label: 'Masculino' },
+                  { value: 'F', label: 'Femenino' },
+                ]} />
             </FilterGroup>
           {/if}
 

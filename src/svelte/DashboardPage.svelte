@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+import SelectChip from "./SelectChip.svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { registerBackHandler } from "../lib/androidBack";
@@ -150,12 +151,14 @@
         </p>
       </div>
       <div class="header-right">
-        <select class="dashboard-select" bind:value={selectedColegio} onchange={() => loadStats()}>
-          <option value={null}>Todos los colegios</option>
-          {#each colegios as c}
-            <option value={c.id}>{c.nombre}</option>
-          {/each}
-        </select>
+        <SelectChip
+          clase="dashboard-select"
+          value={selectedColegio}
+          onchange={(v) => { selectedColegio = v === null ? null : Number(v); loadStats(); }}
+          options={[
+            { value: null, label: 'Todos los colegios' },
+            ...colegios.map(c => ({ value: c.id as string | number | null, label: c.nombre })),
+          ]} />
       </div>
     </div>
 

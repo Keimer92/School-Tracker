@@ -7,6 +7,7 @@
   import { onDataChange } from "../lib/autoSync";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
+import SelectChip from "./SelectChip.svelte";
   import FilterActions from "./FilterActions.svelte";
 
   interface Criterio { id: number; orden: number; descripcion: string; puntajeMaximo: number; }
@@ -267,39 +268,34 @@
     <div class="ev-sticky-header" style="{isMobile ? 'position: sticky; top: 0; z-index: 60; background: rgba(10, 14, 20, 0.95); border-radius: 0 0 12px 12px; padding-bottom: 0.1rem;' : ''}">
       <FilterContainer {isMobile}>
         <FilterGroup label="Año:" {isMobile} flex={isMobile ? '1 1 0' : '1 1 0'}>
-          <select class="filter-select" bind:value={selectedAno} aria-label="Seleccionar año lectivo"
-            style="width:100%; min-width: 140px">
-            {#each anos as a}
-              <option value={a.id}>{a.nombre}</option>
-            {/each}
-          </select>
+          <SelectChip
+            label="Seleccionar año lectivo"
+            value={selectedAno}
+            onchange={(v) => { selectedAno = Number(v); }}
+            options={anos.map(a => ({ value: a.id, label: a.nombre }))} />
         </FilterGroup>
         <FilterGroup label="Grado:" {isMobile} flex={isMobile ? '1 1 0' : '1 1 0'}>
-          <select class="filter-select" bind:value={selectedGrado} aria-label="Seleccionar grado"
-            style="width:100%; min-width: 140px">
-            {#each grados as g}
-              <option value={g.id}>{g.nombre}</option>
-            {/each}
-          </select>
+          <SelectChip
+            label="Seleccionar grado"
+            value={selectedGrado}
+            onchange={(v) => { selectedGrado = Number(v); }}
+            options={grados.map(g => ({ value: g.id, label: g.nombre }))} />
         </FilterGroup>
         <FilterGroup label="Asignatura:" {isMobile} flex={isMobile ? '1 1 0' : '1 1 0'}>
-          <select class="filter-select" bind:value={selectedAsignatura} disabled={asignaturas.length === 0} aria-label="Seleccionar asignatura"
-            style="width:100%; min-width: 140px">
-            {#if asignaturas.length === 0}
-              <option value="0">Sin asignaturas</option>
-            {/if}
-            {#each asignaturas as a}
-              <option value={a.id}>{a.nombre}</option>
-            {/each}
-          </select>
+          <SelectChip
+            label="Seleccionar asignatura"
+            value={selectedAsignatura}
+            onchange={(v) => { selectedAsignatura = Number(v); }}
+            disabled={asignaturas.length === 0}
+            placeholder="Sin asignaturas"
+            options={asignaturas.map(a => ({ value: a.id, label: a.nombre }))} />
         </FilterGroup>
         <FilterGroup label="Corte:" {isMobile} flex={isMobile ? '1 1 0' : '1 1 0'}>
-          <select class="filter-select" bind:value={selectedCorte} aria-label="Seleccionar corte evaluativo"
-            style="width:100%; min-width: 140px">
-            {#each cortes as c}
-              <option value={c.id}>{c.nombre}</option>
-            {/each}
-          </select>
+          <SelectChip
+            label="Seleccionar corte evaluativo"
+            value={selectedCorte}
+            onchange={(v) => { selectedCorte = Number(v); }}
+            options={cortes.map(c => ({ value: c.id, label: c.nombre }))} />
         </FilterGroup>
         {#if !isMobile}
           <FilterActions>

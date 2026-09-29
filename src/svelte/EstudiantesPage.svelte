@@ -8,6 +8,7 @@
   import { ask } from "@tauri-apps/plugin-dialog";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
+import SelectChip from "./SelectChip.svelte";
   import SearchFab from "./SearchFab.svelte";
   import BotonMod from "./BotonMod.svelte";
 
@@ -505,15 +506,14 @@ async function fetchData(preserveFilters = false) {
     }
   }
 
-  function handleFilterChange(e: Event) {
-    const target = e.target as HTMLSelectElement;
-    const { name, value } = target;
-    const val = name === 'sexo' ? value : Number(value);
-    const newFilters = { ...filters, [name]: val };
-    if (name === 'colegioId' || name === 'anoLectivoId') { newFilters.gradoId = 0; newFilters.seccionId = 0; }
-    else if (name === 'gradoId') newFilters.seccionId = 0;
-    filters = newFilters;
-  }
+function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId' | 'sexo', valor: string | number) {
+  const val = campo === 'sexo' ? String(valor) : Number(valor);
+  const newFilters = { ...filters, [campo]: val };
+  if (campo === 'colegioId' || campo === 'anoLectivoId') { newFilters.gradoId = 0; newFilters.seccionId = 0; }
+  else if (campo === 'gradoId') newFilters.seccionId = 0;
+  filters = newFilters;
+}
+
 
   $effect(() => {
     if (filters.colegioId > 0 && filters.anoLectivoId > 0) {
@@ -969,39 +969,38 @@ async function fetchData(preserveFilters = false) {
   {:else}
   <FilterContainer {isMobile}>
       <FilterGroup label="Año Lectivo:" {isMobile}>
-          <select name="anoLectivoId" onchange={handleFilterChange} value={filters.anoLectivoId} class="filter-select" style="width:100%">
-            {#each anos as a}
-              <option value={a.id}>{a.nombre}{#if a.activo} ✓ (Activo){/if}</option>
-            {/each}
-          </select>
+          <SelectChip
+            value={filters.anoLectivoId}
+            onchange={(v) => setFilter('anoLectivoId', v)}
+            options={anos.map(a => ({ value: a.id, label: a.nombre, sub: a.activo ? 'Activo' : undefined }))} />
       </FilterGroup>
       <FilterGroup label="Colegio:" {isMobile}>
-          <select name="colegioId" onchange={handleFilterChange} value={filters.colegioId} class="filter-select" style="width:100%">
-            {#each colegios as c}
-              <option value={c.id}>{c.nombre}{#if c.activo} ✓ (Activo){/if}</option>
-            {/each}
-          </select>
+          <SelectChip
+            value={filters.colegioId}
+            onchange={(v) => setFilter('colegioId', v)}
+            options={colegios.map(c => ({ value: c.id, label: c.nombre, sub: c.activo ? 'Activo' : undefined }))} />
       </FilterGroup>
       <FilterGroup label="Grado:" {isMobile}>
-          <select name="gradoId" onchange={handleFilterChange} value={filters.gradoId} class="filter-select" style="width:100%">
-            {#each grados as g}
-              <option value={g.id}>{g.nombre}</option>
-            {/each}
-          </select>
+          <SelectChip
+            value={filters.gradoId}
+            onchange={(v) => setFilter('gradoId', v)}
+            options={grados.map(g => ({ value: g.id, label: g.nombre }))} />
       </FilterGroup>
   <FilterGroup label="Sección:" {isMobile}>
-    <select name="seccionId" onchange={handleFilterChange} value={filters.seccionId} class="filter-select" style="width:100%" key={secciones.length}>
-      {#each secciones as s}
-      <option value={s.id}>{s.nombre}</option>
-      {/each}
-    </select>
+    <SelectChip
+      value={filters.seccionId}
+      onchange={(v) => setFilter('seccionId', v)}
+      options={secciones.map(s => ({ value: s.id, label: s.nombre }))} />
   </FilterGroup>
       <FilterGroup label="Sexo:" {isMobile}>
-          <select name="sexo" onchange={handleFilterChange} value={filters.sexo} class="filter-select" style="width:100%">
-            <option value="">Todos</option>
-            <option value="M">Masculino</option>
-            <option value="F">Femenino</option>
-          </select>
+          <SelectChip
+            value={filters.sexo}
+            onchange={(v) => setFilter('sexo', v)}
+            options={[
+              { value: '', label: 'Todos' },
+              { value: 'M', label: 'Masculino' },
+              { value: 'F', label: 'Femenino' },
+            ]} />
       </FilterGroup>
       <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '0 0 auto'}">
         <div style="flex:1;min-width:100px">
