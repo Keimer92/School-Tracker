@@ -382,34 +382,41 @@ $effect(() => {
     }
   });
 
-  // ── Popover "Marcar todos" (Todos P / A / J) ──
-  // Mismo patrón que el popover de Acciones de NotasPage: un BotonMod que
-  // ancla un panel `fixed` con las acciones dentro. Antes eran 3 BotonMod
-  // sueltos en la cinta de filtros y, con todos los chips desplegables, la fila
-  // se iba de ancho.
+  // ── Popover de acciones masivas sobre el período (Rellenar / Limpiar) ──
+  // Mismo patrón que el popover de Acciones de NotasPage: un BotonMod que ancla
+  // un panel `fixed` con las acciones dentro. Antes eran varios BotonMod sueltos
+  // en la cinta de filtros y, con todos los chips desplegables, la fila se iba de
+  // ancho.
   //
-  // Va en dos pasos a propósito: primero el estado, después QUÉ DÍAS. El
-  // relleno es selectivo (solo celdas vacías) y escribe directo en la base, así
-  // que hace falta que el usuario vea el alcance real antes de confirmar.
+  // "Rellenar" va en dos pasos (estado y después QUÉ DÍAS) porque es selectivo:
+  // solo celdas vacías. "Limpiar" entra directo a la lista de días, que es lo
+  // único que hay que decidir. Ambos escriben directo en la base, sin pasar por
+  // el borrador.
+  //
+  // Solo en Windows. Android trabaja con período DIARIO: no hay semana ni mes que
+  // elegir, así que conserva el comportamiento directo del día completo.
   const ANCHO_POP_MASIVOS = 268;
-  type PopMasivos = {
+  type PopSel = {
     x: number;
     y: number;
     abajo: string;
+    modo: 'rellenar' | 'limpiar';
     paso: 'estado' | 'fechas';
     estado: 'P' | 'A' | 'J' | null;
     /** Fechas elegidas en el paso 2. */
     fechas: Set<string>;
   };
-  let popSel = $state<PopMasivos | null>(null);
+  let popSel = $state<PopSel | null>(null);
   let popSelPanelEl = $state<HTMLDivElement | null>(null);
   let popSelBtn = $state<HTMLElement | null>(null);
   /** Ref del BotonMod disparador, para anclar el panel. */
   let popSelBtnEl = $state<HTMLElement | null>(null);
+  /** Ref del BotonMod "Limpiar", que abre el mismo panel en modo limpiar. */
+  let popLimpiarBtnEl = $state<HTMLElement | null>(null);
   let masivosGuardando = $state(false);
 
-  function togglePopMasivos(btn: HTMLElement) {
-    if (popSel) { cerrarPopMasivos(); return; }
+  function togglePopSel(btn: HTMLElement, modo: 'rellenar' | 'limpiar') {
+    if (popSel) { cerrarPopSel(); return; }
     const r = btn.getBoundingClientRect();
     if (!r) { console.warn('[Masivos] botón sin referencia; no se puede anclar el popover'); return; }
     const altoEstimado = 220;
@@ -419,13 +426,14 @@ $effect(() => {
       x: Math.max(8, Math.min(Math.round(r.left), window.innerWidth - ANCHO_POP_MASIVOS - 8)),
       y: abreArriba ? 0 : Math.round(r.bottom + 4),
       abajo: abreArriba ? `${Math.round(window.innerHeight - r.top + 4)}px` : 'auto',
-      paso: 'estado',
+      modo,
+      paso: modo === 'limpiar' ? 'fechas' : 'estado',
       estado: null,
       fechas: new Set(),
     };
   }
 
-  function cerrarPopMasivos() { popSel = null; popSelBtn = null; }
+  function cerrarPopSel() { popSel = null; popSelBtn = null; }
 
   /** Pasa al paso 2 con el estado elegido. */
   function pasoFechas(estado: 'P' | 'A' | 'J') {
@@ -513,15 +521,51 @@ $effect(() => {
     }).length;
   }
 
-  /** Total de celdas a rellenar con la selección actual. */
+  /** Cuántas asistencias tienen estado (y por lo tanto se pueden limpiar). */
+  function celdasConEstado(fecha: string): number {
+    return estudiantesMulti.filter(est => {
+      const actual = est.dias[fecha]?.estado || null;
+      return !!actual && actual !== '-';
+    }).length;
+  }
+
+  /** Celdas que tocaría el modo abierto: vacías para rellenar, con estado para limpiar. */
+  function celdasObjetivo(fecha: string): number {
+    return popSel?.modo === 'limpiar' ? celdasConEstado(fecha) : celdasVacias(fecha);
+  }
+
+  /** Texto del contador de un día, según el modo. */
+  function resumenCelda(fecha: string): string {
+    const n = celdasObjetivo(fecha);
+    if (popSel?.modo === 'limpiar') return n === 0 ? 'vacío' : `${n} marcadas`;
+    return n === 0 ? 'completo' : `${n} vacías`;
+  }
+
+  /** ¿Ese día tiene algo que hacer en el modo abierto? */
+  function diaAccionable(fecha: string): boolean {
+    return celdasObjetivo(fecha) > 0;
+  }
+
+  /** Total de celdas a tocar con la selección actual. */
   let totalAMarcar = $derived.by(() => {
     if (!popSel) return 0;
     let total = 0;
-    popSel.fechas.forEach(f => { total += celdasVacias(f); });
+    popSel.fechas.forEach(f => { total += celdasObjetivo(f); });
     return total;
   });
 
+  /** Hay algo que rellenar en el período (sub del botón "Rellenar"). */
   let hayPendientes = $derived(diasSeleccionables.some(f => celdasVacias(f) > 0));
+
+  /** Hay algo que limpiar en el período (sub del botón "Limpiar"). */
+  let hayLimpables = $derived(diasSeleccionables.some(f => celdasConEstado(f) > 0));
+
+  /** Total de asistencias marcadas en el período. */
+  let totalMarcadasPeriodo = $derived.by(() => {
+    let total = 0;
+    for (const fecha of diasSeleccionables) total += celdasConEstado(fecha);
+    return total;
+  });
 
   /** Total de celdas vacías en todo el período (sub del botón disparador). */
   let totalPendientes = $derived.by(() => {
@@ -599,10 +643,88 @@ $effect(() => {
       onDataChange('asistencia', { immediate: true });
       skipNextRefresh = true;
       await emit('asistencia-updated');
-      cerrarPopMasivos();
+      cerrarPopSel();
     } catch (error) {
       console.error('Error marcando asistencias masivamente:', error);
       await emit('show-toast', { message: '❌ Error al guardar: ' + error, type: 'error' });
+    } finally { masivosGuardando = false; }
+  }
+
+  /**
+   * Vacía las celdas marcadas de los días elegidos y borra esas filas de la
+   * base, en una sola pasada.
+   *
+   * `asistencia.estado` es NOT NULL con CHECK, así que no existe una fila sin
+   * estado: vaciar una celda implica borrar la fila, y con ella se va también la
+   * observación de ese día. Por eso el diálogo lo dice explícitamente.
+   *
+   * Solo se borra lo que estaba en el servidor (`originalMulti`, que es el
+   * snapshot previo al borrador). Una marca hecha a mano y todavía sin guardar
+   * no tiene fila: se quita del borrador y de la memoria, sin tocar la base.
+   */
+  async function aplicarLimpiar() {
+    const fechas = [...(popSel?.fechas ?? [])];
+    if (fechas.length === 0) return;
+    // Ids a borrar por fecha, y celdas a vaciar en memoria.
+    const borrarPorFecha: Record<string, number[]> = {};
+    const aVaciar: Array<{ estId: number; fecha: string }> = [];
+    for (const fecha of fechas) {
+      for (const est of estudiantesMulti) {
+        const efectivo = est.dias[fecha]?.estado || null;
+        if (!efectivo || efectivo === '-') continue; // ya vacía
+        const snap = originalMulti[`${est.id}|${fecha}`];
+        const enServidor = !!snap?.estado && snap.estado !== '-';
+        if (enServidor) (borrarPorFecha[fecha] ||= []).push(est.id);
+        aVaciar.push({ estId: est.id, fecha });
+      }
+    }
+    if (aVaciar.length === 0) {
+      await emit('show-toast', { message: '⚠️ No hay asistencias marcadas en esos días', type: 'warning' });
+      return;
+    }
+    const rango = fechas.length === 1
+      ? fmtDM(fechas[0])
+      : `${fmtDM(fechas[0])} al ${fmtDM(fechas[fechas.length - 1])}`;
+    const enServidor = aVaciar.filter(v => !!originalMulti[`${v.estId}|${v.fecha}`]?.estado).length;
+    const ok = await ask(
+      `¿Vaciar ${aVaciar.length} asistencia(s) marcadas?\n\n` +
+      `Fechas: ${rango} (${fechas.length})\n` +
+      `Estudiantes: ${estudiantesMulti.length}\n\n` +
+      (enServidor > 0
+        ? `⚠️ Se borran ${enServidor} registro(s) de la base, y con ellos la observación de esos días.\n\n`
+        : '') +
+      `Solo se limpian los días elegidos; el resto del período no se toca.`,
+      { title: 'Limpiar asistencias', kind: 'warning', okLabel: 'Sí, limpiar', cancelLabel: 'Cancelar' }
+    );
+    if (!ok) return;
+    masivosGuardando = true;
+    try {
+      for (const [fecha, ids] of Object.entries(borrarPorFecha)) {
+        await invoke('delete_asistencia_batch', { estudianteIds: ids, fecha });
+      }
+      const porPareja = new Set(aVaciar.map(v => `${v.estId}|${v.fecha}`));
+      estudiantesMulti = estudiantesMulti.map(est => {
+        const dias = { ...est.dias };
+        for (const fecha of fechas) {
+          if (!porPareja.has(`${est.id}|${fecha}`)) continue;
+          dias[fecha] = { estado: null, observacion: null };
+        }
+        return { ...est, dias };
+      });
+      for (const v of aVaciar) {
+        if (!draftMulti[v.estId]) draftMulti[v.estId] = {};
+        draftMulti[v.estId][v.fecha] = { estado: null, observacion: null };
+      }
+      syncDraftMultiToStorage();
+      capturarOriginalMulti();
+      await emit('show-toast', { message: `🧹 ${aVaciar.length} asistencia(s) limpiadas`, type: 'success' });
+      onDataChange('asistencia', { immediate: true });
+      skipNextRefresh = true;
+      await emit('asistencia-updated');
+      cerrarPopSel();
+    } catch (error) {
+      console.error('Error limpiando asistencias:', error);
+      await emit('show-toast', { message: '❌ Error al limpiar: ' + error, type: 'error' });
     } finally { masivosGuardando = false; }
   }
 
@@ -611,22 +733,22 @@ $effect(() => {
     const onPointerDown = (ev: PointerEvent) => {
       const t = ev.target as Node | null;
       if (t && (popSelPanelEl?.contains(t) || popSelBtn?.contains(t))) return;
-      cerrarPopMasivos();
+      cerrarPopSel();
     };
-    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') cerrarPopMasivos(); };
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') cerrarPopSel(); };
     window.addEventListener('pointerdown', onPointerDown, true);
     window.addEventListener('keydown', onKey);
-    window.addEventListener('resize', cerrarPopMasivos);
+    window.addEventListener('resize', cerrarPopSel);
     return () => {
       window.removeEventListener('pointerdown', onPointerDown, true);
       window.removeEventListener('keydown', onKey);
-      window.removeEventListener('resize', cerrarPopMasivos);
+      window.removeEventListener('resize', cerrarPopSel);
     };
   });
 
   $effect(() => {
     if (popSel) {
-      return registerBackHandler(() => { cerrarPopMasivos(); return true; });
+      return registerBackHandler(() => { cerrarPopSel(); return true; });
     }
   });
 
@@ -1942,16 +2064,27 @@ $effect(() => {
               </div>
             </div>
           {/if}
-          <BotonMod opts={{
-            onclick: limpiarAsistencia,
-            disabled: getActiveStudentCount() === 0,
-            icono: '🧹', etiqueta: 'Limpiar', tono: 'pizarra',
-            sub: getActiveStudentCount() === 0 ? 'Nada que borrar' : `${getActiveStudentCount()} con estado`,
-            title: 'Limpiar la asistencia del período',
-            compacto: isAndroidMobile,
-          }} />
+          {#if isWindows}
+            <BotonMod bind:ref={popLimpiarBtnEl} opts={{
+              onclick: () => { if (popLimpiarBtnEl) togglePopSel(popLimpiarBtnEl, 'limpiar'); },
+              disabled: getActiveStudentCount() === 0 || !hayLimpables,
+              icono: popSel?.modo === 'limpiar' ? '✕' : '🧹', etiqueta: 'Limpiar', tono: 'pizarra',
+              sub: !hayLimpables ? 'Nada que borrar' : `${totalMarcadasPeriodo} marcadas`,
+              title: 'Vaciar las asistencias marcadas de los días que elijas',
+              compacto: false,
+            }} />
+          {:else}
+            <BotonMod opts={{
+              onclick: limpiarAsistencia,
+              disabled: getActiveStudentCount() === 0,
+              icono: '🧹', etiqueta: 'Limpiar', tono: 'pizarra',
+              sub: getActiveStudentCount() === 0 ? 'Nada que borrar' : `${getActiveStudentCount()} con estado`,
+              title: 'Limpiar la asistencia del día',
+              compacto: isAndroidMobile,
+            }} />
+          {/if}
           <BotonMod bind:ref={popSelBtnEl} opts={{
-            onclick: () => { if (popSelBtnEl) togglePopMasivos(popSelBtnEl); },
+            onclick: () => { if (popSelBtnEl) togglePopSel(popSelBtnEl, 'rellenar'); },
             disabled: getActiveStudentCount() === 0 || (isWindows && !hayPendientes),
             icono: popSel ? '✕' : '👥',
             etiqueta: isWindows ? 'Rellenar' : 'Marcar todos',
@@ -2467,7 +2600,7 @@ $effect(() => {
           <button
             role="menuitem"
             disabled={getActiveStudentCount() === 0 || masivosGuardando}
-            onclick={() => { const est = e.id; cerrarPopMasivos(); marcarTodos(est); }}
+            onclick={() => { const est = e.id; cerrarPopSel(); marcarTodos(est); }}
             title={`${sub} · el día completo`}
             style="width:100%; display:flex; align-items:center; gap:0.55rem; padding:0.5rem 0.55rem; border-radius:9px; border:1px solid {e.borde}; background:{e.suave}; color:{e.color}; cursor:pointer; text-align:left; transition:all 0.15s ease; opacity:{getActiveStudentCount() === 0 ? 0.45 : 1};"
             onmouseenter={(ev) => { ev.currentTarget.style.background = e.suave.replace('0.10', '0.2'); }}
@@ -2504,20 +2637,29 @@ $effect(() => {
             Ya están marcadas todas las asistencias del período.
           </div>
         {/if}
-      {:else if popSel.estado}
-        <!-- `estadoSel` / `fechasSel` se capturan acá porque TypeScript pierde el
-             estrechamiento de `popSel` dentro de los `{#each}` anidados. -->
-        {@const estadoSel = popSel.estado}
+      {:else}
+        <!-- Llega acá con `isWindows` y `paso === 'fechas'`: en Rellenar ya se eligió
+             estado, en Limpiar entra directo. `fechasSel` / `acento` se capturan acá
+             porque TypeScript pierde el estrechamiento de `popSel` dentro de los
+             `{#each}` anidados. "Limpiar" no tiene estado: usa un acento neutro. -->
+        {@const esLimpiar = popSel.modo === 'limpiar'}
         {@const fechasSel = popSel.fechas}
-        {@const eSel = ESTADOS_PAJ.find(x => x.id === estadoSel)!}
-        <!-- Encabezado: estado elegido + volver atrás -->
+        {@const acento = esLimpiar
+          ? { id: '🧹', borde: 'rgba(203,213,225,0.35)', suave: 'rgba(203,213,225,0.10)', color: '#e2e8f0' }
+          : ESTADOS_PAJ.find(x => x.id === popSel.estado)!}
+        <!-- Encabezado: en Rellenar se puede volver a elegir el estado; en Limpiar
+             solo muestra qué se está limpiando. -->
         <div style="display:flex; align-items:center; gap:0.4rem; padding:0.25rem 0.3rem 0.45rem; border-bottom:1px solid rgba(255,255,255,0.08); margin-bottom:0.25rem;">
-          <button type="button" onclick={volverAEstado} title="Elegir otro estado"
-            style="flex-shrink:0; display:flex; align-items:center; gap:0.3rem; padding:0.25rem 0.4rem; border-radius:7px; border:1px solid {eSel.borde}; background:{eSel.suave}; color:{eSel.color}; font-size:0.68rem; font-weight:700; cursor:pointer; font-family:inherit;">
-            ‹ {eSel.id}
-          </button>
-          <span style="flex:1; min-width:0; font-size:0.68rem; color:#94a3b8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">¿Qué días marcar?</span>
-          <button type="button" onclick={elegirTodasLasFechas} title="Seleccionar todos los días con faltas"
+          {#if !esLimpiar}
+            <button type="button" onclick={volverAEstado} title="Elegir otro estado"
+              style="flex-shrink:0; display:flex; align-items:center; gap:0.3rem; padding:0.25rem 0.4rem; border-radius:7px; border:1px solid {acento.borde}; background:{acento.suave}; color:{acento.color}; font-size:0.68rem; font-weight:700; cursor:pointer; font-family:inherit;">
+              ‹ {acento.id}
+            </button>
+          {:else}
+            <span style="flex-shrink:0; padding:0.25rem 0.4rem; border-radius:7px; border:1px solid {acento.borde}; background:{acento.suave}; color:{acento.color}; font-size:0.68rem; font-weight:700;">🧹</span>
+          {/if}
+          <span style="flex:1; min-width:0; font-size:0.68rem; color:#94a3b8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{esLimpiar ? '¿Qué días limpiar?' : '¿Qué días marcar?'}</span>
+          <button type="button" onclick={elegirTodasLasFechas} title="Seleccionar todos los días con pendientes"
             style="flex-shrink:0; padding:0.2rem 0.35rem; border-radius:6px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.04); color:#cbd5e1; font-size:0.62rem; font-weight:600; cursor:pointer; font-family:inherit;">Todas</button>
           <button type="button" onclick={elegirNinguna} title="Quitar la selección"
             style="flex-shrink:0; padding:0.2rem 0.35rem; border-radius:6px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.04); color:#cbd5e1; font-size:0.62rem; font-weight:600; cursor:pointer; font-family:inherit;">Ninguna</button>
@@ -2529,38 +2671,43 @@ $effect(() => {
             <div style="padding:0.4rem 0.5rem 0.15rem; font-size:0.58rem; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:#64748b;">Semana {g.numero}</div>
           {/if}
           {#each g.fechas as f (f)}
-            {@const faltan = celdasVacias(f)}
+            {@const n = celdasObjetivo(f)}
+            {@const accionable = diaAccionable(f)}
             {@const sel = fechasSel.has(f)}
             <button
               role="menuitemcheckbox"
               aria-checked={sel}
-              disabled={faltan === 0 || masivosGuardando}
+              disabled={!accionable || masivosGuardando}
               onclick={() => alternarFecha(f)}
-              title={faltan === 0 ? 'Sin asistencias vacías este día' : `Marcar ${faltan} asistencia(s) el ${fmtDM(f)}`}
-              style="width:100%; display:flex; align-items:center; justify-content:space-between; gap:0.5rem; padding:0.4rem 0.5rem; border-radius:8px; border:1px solid {sel ? eSel.borde : 'transparent'}; background:{sel ? eSel.suave : 'transparent'}; color:{faltan === 0 ? '#475569' : sel ? eSel.color : '#cbd5e1'}; font-size:0.74rem; font-weight:{sel ? 700 : 500}; cursor:{faltan === 0 ? 'not-allowed' : 'pointer'}; text-align:left; transition:all 0.15s ease; opacity:{faltan === 0 ? 0.5 : 1};"
-              onmouseenter={(ev) => { if (faltan > 0 && !sel) ev.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
-              onmouseleave={(ev) => { if (faltan > 0 && !sel) ev.currentTarget.style.background = 'transparent'; }}
+              title={!accionable ? `Nada que ${esLimpiar ? 'limpiar' : 'marcar'} este día` : `${esLimpiar ? 'Vaciar' : 'Marcar'} ${n} asistencia(s) el ${fmtDM(f)}`}
+              style="width:100%; display:flex; align-items:center; justify-content:space-between; gap:0.5rem; padding:0.4rem 0.5rem; border-radius:8px; border:1px solid {sel ? acento.borde : 'transparent'}; background:{sel ? acento.suave : 'transparent'}; color:{!accionable ? '#475569' : sel ? acento.color : '#cbd5e1'}; font-size:0.74rem; font-weight:{sel ? 700 : 500}; cursor:{!accionable ? 'not-allowed' : 'pointer'}; text-align:left; transition:all 0.15s ease; opacity:{!accionable ? 0.5 : 1};"
+              onmouseenter={(ev) => { if (accionable && !sel) ev.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+              onmouseleave={(ev) => { if (accionable && !sel) ev.currentTarget.style.background = 'transparent'; }}
             >
               <span style="display:flex; align-items:center; gap:0.4rem; min-width:0;">
-                <span style="width:14px; flex-shrink:0; text-align:center; color:{sel ? eSel.color : '#475569'};">{sel ? '✓' : '○'}</span>
+                <span style="width:14px; flex-shrink:0; text-align:center; color:{sel ? acento.color : '#475569'};">{sel ? '✓' : '○'}</span>
                 <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{fmtDM(f)}</span>
               </span>
-              <span style="flex-shrink:0; font-size:0.62rem; color:{faltan === 0 ? '#475569' : '#94a3b8'};">{faltan === 0 ? 'completo' : `${faltan} vacías`}</span>
+              <span style="flex-shrink:0; font-size:0.62rem; color:{!accionable ? '#475569' : '#94a3b8'};">{resumenCelda(f)}</span>
             </button>
           {/each}
         {/each}
 
         <div style="display:flex; align-items:center; gap:0.45rem; padding:0.5rem 0.35rem 0.15rem; margin-top:0.25rem; border-top:1px solid rgba(255,255,255,0.08);">
           <span style="flex:1; min-width:0; font-size:0.66rem; color:#94a3b8; line-height:1.3;">
-            {totalAMarcar === 0 ? 'Elegí al menos un día' : `Se van a marcar <strong style="color:${eSel.color}">${totalAMarcar}</strong> asistencia(s) y guardar`}
+            {#if totalAMarcar === 0}
+              Elegí al menos un día
+            {:else}
+              Se van a {esLimpiar ? 'vaciar' : 'marcar'} <strong style="color:{acento.color}">{totalAMarcar}</strong> asistencia(s) y guardar
+            {/if}
           </span>
           <button
             type="button"
             disabled={totalAMarcar === 0 || masivosGuardando}
-            onclick={aplicarMasivos}
-            title="Rellenar las vacías de los días elegidos y guardar en la base"
-            style="flex-shrink:0; padding:0.45rem 0.7rem; border-radius:9px; border:1px solid {eSel.borde}; background:{totalAMarcar === 0 ? 'rgba(255,255,255,0.04)' : `linear-gradient(135deg, ${eSel.color}, ${eSel.color}dd)`}; color:{totalAMarcar === 0 ? '#475569' : '#0b1220'}; font-size:0.72rem; font-weight:800; cursor:{totalAMarcar === 0 ? 'not-allowed' : 'pointer'}; font-family:inherit; transition:all 0.15s ease; white-space:nowrap;">
-            {masivosGuardando ? '⏳ Guardando' : 'Marcar y guardar'}
+            onclick={esLimpiar ? aplicarLimpiar : aplicarMasivos}
+            title={esLimpiar ? 'Vaciar las celdas marcadas de los días elegidos y borrarlas de la base' : 'Rellenar las vacías de los días elegidos y guardar en la base'}
+            style="flex-shrink:0; padding:0.45rem 0.7rem; border-radius:9px; border:1px solid {acento.borde}; background:{totalAMarcar === 0 ? 'rgba(255,255,255,0.04)' : `linear-gradient(135deg, ${acento.color}, ${acento.color}dd)`}; color:{totalAMarcar === 0 ? '#475569' : '#0b1220'}; font-size:0.72rem; font-weight:800; cursor:{totalAMarcar === 0 ? 'not-allowed' : 'pointer'}; font-family:inherit; transition:all 0.15s ease; white-space:nowrap;">
+            {masivosGuardando ? '⏳ Guardando' : (esLimpiar ? 'Limpiar y guardar' : 'Marcar y guardar')}
           </button>
         </div>
       {/if}
