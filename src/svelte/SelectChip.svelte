@@ -53,18 +53,22 @@
 
   const isAndroid = /Android/i.test(navigator.userAgent);
 
+  /** Alto estimado de un ítem, usado para decidir si abre hacia arriba. */
+  const ALTO_ITEM = 34;
+  const SEPARACION = 4;
+  /** Ancho mínimo del panel: cabe un nombre de colegio largo sin cortar. */
+  const ANCHO_MIN = 300;
+
   let abierto = $state(false);
   let triggerEl = $state<HTMLElement | null>(null);
   let panelEl = $state<HTMLElement | null>(null);
   let pos = $state({ x: 0, y: 0, arriba: false });
   let maxiAlto = $state(320);
+  let anchoPanelActivo = $state(ANCHO_MIN);
 
   const textoActual = $derived(
     options.find(o => String(o.value) === String(value))?.label ?? placeholder
   );
-  /** Alto estimado de un ítem, usado para decidir si abre hacia arriba. */
-  const ALTO_ITEM = 34;
-  const SEPARACION = 4;
 
   function abrir() {
     if (disabled) return;
@@ -76,11 +80,20 @@
     const abreArriba = r.bottom + alto > window.innerHeight && r.top > alto;
     const disponible = abreArriba ? r.top - SEPARACION : window.innerHeight - r.bottom - SEPARACION;
     maxiAlto = Math.max(140, Math.min(alto, disponible));
+    // El panel nunca es más angosto que ANCHO_MIN: los chips de la barra de
+    // filtros son angostos por la grilla y con el ancho del chip los nombres
+    // largos (colegios) quedaban con ellipsis. Crece a lo que haga falta y se
+    // recorta al viewport.
+    const anchoPanel = Math.min(
+      Math.max(ancho || 0, r.width, ANCHO_MIN),
+      window.innerWidth - 16
+    );
     pos = {
-      x: Math.max(8, Math.min(Math.round(r.left), window.innerWidth - (ancho || r.width) - 8)),
+      x: Math.max(8, Math.min(Math.round(r.left), window.innerWidth - anchoPanel - 8)),
       y: Math.round(abreArriba ? r.top - maxiAlto - SEPARACION : r.bottom + SEPARACION),
       arriba: abreArriba,
     };
+    anchoPanelActivo = Math.round(anchoPanel);
     abierto = true;
   }
 
@@ -125,7 +138,7 @@
     class:chip-abierto={abierto}
     onclick={alternar}
     {disabled}
-    title={titulo || label}
+    title={titulo || textoActual || label}
     aria-label={label || undefined}
     aria-haspopup="listbox"
     aria-expanded={abierto}
@@ -141,7 +154,7 @@
     bind:this={panelEl}
     use:portalToBody
     role="listbox"
-        style="position:fixed; z-index:99990; left:{pos.x}px; top:{pos.y}px; width:{ancho || Math.round(triggerEl?.getBoundingClientRect().width || 160)}px; max-height:{maxiAlto}px; overflow-y:auto; padding:0.5rem; box-sizing:border-box; border-radius:16px; background:rgba(13,20,36,0.975); backdrop-filter:blur(24px) saturate(1.3); -webkit-backdrop-filter:blur(24px) saturate(1.3); border:1px solid rgba(255,255,255,0.16); box-shadow:0 24px 60px -12px rgba(0,0,0,0.7); outline:none; animation:pop-in .18s cubic-bezier(.34,1.3,.64,1);"
+    style="position:fixed; z-index:99990; left:{pos.x}px; top:{pos.y}px; width:{anchoPanelActivo}px; max-height:{maxiAlto}px; overflow-y:auto; padding:0.5rem; box-sizing:border-box; border-radius:16px; background:rgba(13,20,36,0.975); backdrop-filter:blur(24px) saturate(1.3); -webkit-backdrop-filter:blur(24px) saturate(1.3); border:1px solid rgba(255,255,255,0.16); box-shadow:0 24px 60px -12px rgba(0,0,0,0.7); outline:none; animation:pop-in .18s cubic-bezier(.34,1.3,.64,1);"
 >
     {#each options as o, i (o.value)}
       {@const nuevoGrupo = i === 0 || o.grupo !== options[i - 1].grupo}
@@ -153,13 +166,13 @@
         role="option"
         aria-selected={activo}
         onclick={() => elegir(o.value)}
-        style="width:100%; display:flex; align-items:center; justify-content:space-between; gap:0.5rem; padding:0.45rem 0.55rem; border-radius:8px; border:1px solid {activo ? 'rgba(129,140,248,0.35)' : 'transparent'}; background:{activo ? 'rgba(99,102,241,0.16)' : 'transparent'}; color:{activo ? '#e0e7ff' : '#cbd5e1'}; font-size:0.78rem; font-weight:{activo ? 700 : 500}; cursor:pointer; text-align:left; transition:all 0.15s ease;"
+        style="width:100%; display:flex; align-items:flex-start; justify-content:space-between; gap:0.5rem; padding:0.45rem 0.55rem; border-radius:8px; border:1px solid {activo ? 'rgba(129,140,248,0.35)' : 'transparent'}; background:{activo ? 'rgba(99,102,241,0.16)' : 'transparent'}; color:{activo ? '#e0e7ff' : '#cbd5e1'}; font-size:0.78rem; font-weight:{activo ? 700 : 500}; cursor:pointer; text-align:left; transition:all 0.15s ease;"
         onmouseenter={(e) => { if (!activo) e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
         onmouseleave={(e) => { if (!activo) e.currentTarget.style.background = 'transparent'; }}
       >
-        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{o.label}</span>
-        {#if o.sub}<span style="font-size:0.62rem; color:#64748b; flex-shrink:0;">{o.sub}</span>{/if}
-        {#if activo}<span style="color:#a5b4fc; flex-shrink:0;">✓</span>{/if}
+        <span style="flex:1; min-width:0; line-height:1.35; overflow-wrap:anywhere;">{o.label}</span>
+        {#if o.sub}<span style="font-size:0.62rem; color:#64748b; flex-shrink:0; padding-top:0.1rem;">{o.sub}</span>{/if}
+        {#if activo}<span style="color:#a5b4fc; flex-shrink:0; padding-top:0.05rem;">✓</span>{/if}
       </button>
     {/each}
     {#if options.length === 0}

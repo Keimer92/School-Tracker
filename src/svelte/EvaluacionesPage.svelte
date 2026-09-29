@@ -267,21 +267,21 @@ import SelectChip from "./SelectChip.svelte";
   <div class="category-grid" style="display: block;">
     <div class="ev-sticky-header" style="{isMobile ? 'position: sticky; top: 0; z-index: 60; background: rgba(10, 14, 20, 0.95); border-radius: 0 0 12px 12px; padding-bottom: 0.1rem;' : ''}">
       <FilterContainer {isMobile}>
-        <FilterGroup label="Año:" {isMobile} flex={isMobile ? '1 1 0' : '1 1 0'}>
+        <FilterGroup label="Año:" {isMobile} flex={isMobile ? '1 1 0' : '0 1 auto'}>
           <SelectChip
             label="Seleccionar año lectivo"
             value={selectedAno}
             onchange={(v) => { selectedAno = Number(v); }}
             options={anos.map(a => ({ value: a.id, label: a.nombre }))} />
         </FilterGroup>
-        <FilterGroup label="Grado:" {isMobile} flex={isMobile ? '1 1 0' : '1 1 0'}>
+        <FilterGroup label="Grado:" {isMobile} flex={isMobile ? '1 1 0' : '0 1 auto'}>
           <SelectChip
             label="Seleccionar grado"
             value={selectedGrado}
             onchange={(v) => { selectedGrado = Number(v); }}
             options={grados.map(g => ({ value: g.id, label: g.nombre }))} />
         </FilterGroup>
-        <FilterGroup label="Asignatura:" {isMobile} flex={isMobile ? '1 1 0' : '1 1 0'}>
+        <FilterGroup label="Asignatura:" {isMobile} flex={isMobile ? '1 1 0' : '0 1 auto'}>
           <SelectChip
             label="Seleccionar asignatura"
             value={selectedAsignatura}
@@ -290,7 +290,7 @@ import SelectChip from "./SelectChip.svelte";
             placeholder="Sin asignaturas"
             options={asignaturas.map(a => ({ value: a.id, label: a.nombre }))} />
         </FilterGroup>
-        <FilterGroup label="Corte:" {isMobile} flex={isMobile ? '1 1 0' : '1 1 0'}>
+        <FilterGroup label="Corte:" {isMobile} flex={isMobile ? '1 1 0' : '0 1 auto'}>
           <SelectChip
             label="Seleccionar corte evaluativo"
             value={selectedCorte}
