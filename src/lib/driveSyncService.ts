@@ -573,6 +573,19 @@ export const driveSyncService = {
     return files.reduce((a, b) => recencyOf(b) >= recencyOf(a) ? b : a);
   },
 
+  /**
+   * Todos los respaldos de la cuenta, del más reciente al más viejo.
+   *
+   * Útil cuando el más nuevo está corrupto o vacío (p. ej. si un respaldo
+   * automático corrió con la base ya purgada y sobrescribió el "_latest"):
+   * se puede probar el siguiente en vez de quedarse sin datos.
+   */
+  listBackups: async (): Promise<DriveFile[]> => {
+    const token = await getValidToken();
+    if (!token) return [];
+    return listSyncFiles(token);
+  },
+
   syncAll: async (): Promise<void> => {
     await driveSyncService.syncAllSilent(true);
   },

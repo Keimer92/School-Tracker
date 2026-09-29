@@ -255,8 +255,14 @@
   /** Diagnóstico visible del fallo: cuenta y cuántos respaldos encontró. */
   let driveAccount = $state('');
   let driveFilesCount = $state<number | null>(null);
-  /** Detalle de la última restauración fallida (archivo + contenido). */
-  let driveDiag = $state<{ dbPath: string; nAnos: number; nEst: number } | null>(null);
+  /** Archivo de Drive que terminó restaurándose con datos. */
+  let driveBackupInfo = $state<DriveFileInfo | null>(null);
+  /** Respaldos descartados por venir con la base vacía o fallar la descarga. */
+  let driveDescartados = $state<string[]>([]);
+  /** Archivo que se está probando/descargando, para mostrarlo en el modal. */
+  let loadingMessageFile = $state('');
+  type DriveFileInfo = { name: string; size: number; modified: string };
+
 
   /**
    * LOGIN/REGISTRO con Google para el sync Cloudflare.
@@ -464,9 +470,9 @@
         const s = JSON.parse(localStorage.getItem('schooltracker-google-drive-settings') || '{}');
         driveAccount = s?.googleUserEmail || '(sin email en ajustes)';
       } catch {}
-      const latest = await driveSyncService.getLatestBackup();
-      driveFilesCount = latest ? 1 : 0;
-      if (!latest) {
+      const backups = await driveSyncService.listBackups();
+      driveFilesCount = backups.length;
+      if (backups.length === 0) {
         // No es un error: es el caso "esta cuenta no tiene respaldos". Se
         // ofrecen alternativas en vez de dejar al usuario sin salida.
         driveSinRespaldo = true;
@@ -474,39 +480,55 @@
         loading = false; loadingMessage = '';
         return;
       }
+      // Se recorren del más nuevo al más viejo y se corta en el primero que
+      // traiga datos: el "_latest" puede estar vacío si un respaldo automático
+      // corrió con la base ya purgada y lo sobrescribió con una copia en cero.
+      const descartados: string[] = [];
+      let restaurado: DriveFileInfo | null = null;
+      for (const b of backups) {
+        const tam = ((b.size || 0) / 1024).toFixed(1);
+        // El nombre va aparte (`loadingMessageFile`): metido en el mensaje se
+        // partía en varias líneas y empujaba el modal.
+        loadingMessage = 'Descargando respaldo…';
+        loadingMessageFile = `${b.name} · ${tam} KB`;
+        try {
+          await driveSyncService.pullById(b.id);
+        } catch (e) {
+          console.warn(`[Drive] no se pudo restaurar ${b.name}:`, e);
+          descartados.push(`${b.name} (falló la descarga)`);
+          continue;
+        }
+        const ok = await invoke<boolean>('is_app_initialized');
+        if (ok) { restaurado = { name: b.name, size: b.size || 0, modified: b.modifiedTime || b.createdTime || '' }; break; }
+        descartados.push(`${b.name} (base vacía)`);
+        console.warn(`[Drive] ${b.name} restauró una base vacía; pruebo el siguiente`);
+      }
+      driveBackupInfo = restaurado;
+      driveDescartados = descartados;
+      loadingMessageFile = '';
+      if (!restaurado) {
+        // Todos los respaldos restauraron una base vacía.
+        driveSinRespaldo = true;
+        errorMsg = 'Se descargaron los respaldos de Drive pero todos vinieron con la base vacía.';
+        loading = false; loadingMessage = '';
+        return;
+      }
+      console.log('[Drive] restaurado desde', restaurado.name);
+      // Aviso si el respaldo quedó más viejo que la última sincronización D1.
       const cfg = await invoke<any>('d1_get_config').catch(() => null);
       const d1LastSync = cfg?.lastSync || null;
-      // El archivo "_latest" se actualiza en cada guardado: para saber su
-      // antigüedad real hay que mirar modifiedTime, no createdTime.
-      const backupIso = latest.modifiedTime || latest.createdTime;
-      const driveTime = Date.parse(backupIso);
-      let warning = '';
-      if (d1LastSync) {
+      if (d1LastSync && restaurado.modified) {
+        const driveTime = Date.parse(restaurado.modified);
         const d1Time = Date.parse(d1LastSync.replace(' ', 'T') + 'Z');
         if (!isNaN(d1Time) && !isNaN(driveTime) && driveTime < d1Time - 60_000) {
-          // Drive es al menos 1 minuto más viejo que D1: hay riesgo real
           const fmt = (iso: string) => new Date(iso).toLocaleString();
-          warning = `⚠️ El respaldo de Drive es del ${fmt(backupIso)}, más antiguo que la última sincronización D1 (${fmt(d1LastSync.replace(' ', 'T') + 'Z')}).\n\nSi lo restauras, podrías perder asistencias/notas modificadas en el desktop después de esa fecha.`;
+          const ok = await ask(
+            `⚠️ El respaldo de Drive es del ${fmt(restaurado.modified)}, más antiguo que la última sincronización D1 (${fmt(d1LastSync.replace(' ', 'T') + 'Z')}).\n\nSi lo restauras, podrías perder asistencias/notas modificadas en el desktop después de esa fecha.`,
+            { title: 'Restaurar respaldo antiguo', kind: 'warning', okLabel: 'Sí, restaurar de todos modos', cancelLabel: 'Cancelar' }
+          );
+          if (!ok) { loading = false; loadingMessage = ''; driveSinRespaldo = true; errorMsg = 'Restauración cancelada.'; return; }
         }
       }
-      if (warning) {
-        const ok = await ask(warning, {
-          title: 'Restaurar respaldo antiguo',
-          kind: 'warning',
-          okLabel: 'Sí, restaurar de todos modos',
-          cancelLabel: 'Cancelar',
-        });
-        if (!ok) {
-          loading = false; loadingMessage = '';
-          return;
-        }
-      }
-      loadingMessage = 'Descargando respaldo desde Google Drive...';
-      // `pullById` y no `pullAll`: ya tenemos el archivo elegido, y `pullAll`
-      // retorna EN SILENCIO si su listado viene vacío (sin avisar), dejando que
-      // el flujo siguiera como si hubiera restaurado. Con `pullById` cualquier
-      // fallo lanza y se muestra el motivo.
-      await driveSyncService.pullById(latest.id);
       try { await invoke('gd_reload_database'); } catch {}
       // CRÍTICO: tras restaurar Drive, sincronizar LIMPIO con D1.
       // Si D1 está en cuota, el reset+sync falla y dejamos al usuario
@@ -543,33 +565,18 @@
           await syncService.stopPeriodicSync();
         } catch {}
       }
-      const hasData = await invoke('is_app_initialized');
-      if (hasData) {
-        await invoke('set_app_initialized');
-        emit('welcome-complete');
-        if (d1ResyncOk) {
-          setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
-        }
-        return;
+      // El respaldo ya trajo datos (se validó arriba), así que solo queda
+      // marcar la app como inicializada y entrar.
+      await invoke('set_app_initialized');
+      emit('welcome-complete');
+      if (d1ResyncOk) {
+        setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
       }
-      // ── Diagnóstico: la base quedó vacía tras restaurar ──
-      // Se consulta el archivo ACTIVO y su contenido: si los años lectivos
-      // están pero `is_app_initialized` dio falso, o si el archivo tiene todo
-      // en cero, el problema es distinto en cada caso (archivo equivocado,
-      // restore que no se aplicó, o respaldo vacío).
-      let dbPath = '(desconocida)';
-      let nAnos = -1;
-      let nEst = -1;
-      try { dbPath = await invoke<string>('get_db_path'); } catch {}
-      try { nAnos = (await invoke<any[]>('get_anos'))?.length ?? -1; } catch (e) { nAnos = -2; }
-      try { nEst = (await invoke<any[]>('get_students'))?.length ?? -1; } catch (e) { nEst = -2; }
-      console.error('[Drive] restore dejó la base vacía', { dbPath, nAnos, nEst, d1ResyncOk });
-      driveDiag = { dbPath, nAnos, nEst };
-      errorMsg = 'Se descargó el respaldo de Drive pero la base quedó vacía.';
-      driveSinRespaldo = true;
+      return;
     } catch (e: any) {
       const m = typeof e === 'string' ? e : (e?.message || String(e));
       errorMsg = 'No se pudo restaurar desde Drive: ' + m;
+      driveSinRespaldo = true;
     }
     loading = false; loadingMessage = '';
   }
@@ -819,7 +826,9 @@
         <div class="welcome-error">{errorMsg}</div>
       {/if}
       {#if driveSinRespaldo}
-        <!-- Sin salida natural: se ofrecen las dos alternativas reales. -->
+        <!-- Sin salida natural: se ofrece la nube. "Empezar de cero" NO se
+             repite acá porque ya es la tercera tarjeta de la portada; alcanza
+             con volver atrás para elegirla. -->
         <div class="drive-fallback">
           <button class="welcome-card card-cloud" onclick={() => { driveSinRespaldo = false; errorMsg = ''; handleCloudLogin(); }} disabled={loading}>
             <div class="welcome-card-icon">☁️</div>
@@ -829,14 +838,7 @@
             </div>
             <div class="welcome-card-arrow">→</div>
           </button>
-          <button class="welcome-card card-manual" onclick={() => { driveSinRespaldo = false; errorMsg = ''; goToWizard(); }} disabled={loading}>
-            <div class="welcome-card-icon">✨</div>
-            <div class="welcome-card-body">
-              <h3>Empezar de cero</h3>
-              <p>Crea una base limpia con el asistente de instalación.</p>
-            </div>
-            <div class="welcome-card-arrow">→</div>
-          </button>
+          <button class="welcome-link" onclick={() => { driveSinRespaldo = false; errorMsg = ''; }}>← Volver a las opciones</button>
         </div>
       {/if}
     </div>
@@ -1007,10 +1009,13 @@
         <div class="welcome-error">{errorMsg}</div>
         <p class="welcome-diag">
           Diagnóstico: cuenta <code>{driveAccount || '—'}</code> ·
-          respaldo encontrado: <code>{driveFilesCount === null ? '?' : (driveFilesCount > 0 ? 'sí' : 'ninguno')}</code>
-          {#if driveDiag}
-            <br />archivo: <code>{driveDiag.dbPath.split('\\').pop() || driveDiag.dbPath}</code> ·
-            años: <code>{driveDiag.nAnos}</code> · estudiantes: <code>{driveDiag.nEst}</code>
+          respaldos en Drive: <code>{driveFilesCount === null ? '?' : driveFilesCount}</code>
+          {#if driveBackupInfo}
+            <br />restaurado: <code>{driveBackupInfo.name}</code> ·
+            tamaño: <code>{(driveBackupInfo.size / 1024).toFixed(1)} KB</code>
+          {/if}
+          {#if driveDescartados.length > 0}
+            <br />descartados: {#each driveDescartados as d, i}<code>{d}</code>{i < driveDescartados.length - 1 ? ' · ' : ''}{/each}
           {/if}
         </p>
       {/if}
@@ -1056,6 +1061,9 @@
           </div>
         {/if}
         <p class="welcome-loading-text">{loadingMessage}</p>
+        {#if loadingMessageFile}
+          <p class="dl-file-name" title={loadingMessageFile}>{loadingMessageFile}</p>
+        {/if}
         <button onclick={cancelAuth}>Cancelar</button>
       </div>
     </div>
@@ -1248,12 +1256,21 @@
   }
   @keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
   .loading-modal {
-    width: min(360px, 88vw); padding: 1.75rem 1.5rem 1.4rem;
+    /* `min()` solo acota el ancho, pero sin `box-sizing` el padding suma y el
+       modal queda más ancho que su contenedor: por eso el texto se salía. */
+    box-sizing: border-box;
+    width: min(420px, 92vw); max-width: 92vw;
+    padding: 1.75rem 1.5rem 1.4rem;
     display: flex; flex-direction: column; align-items: center; gap: 0.9rem;
     background: rgba(20,24,31,0.88); backdrop-filter: blur(28px); -webkit-backdrop-filter: blur(28px);
     border: 1px solid rgba(255,255,255,0.1); border-radius: 22px;
     box-shadow: 0 25px 60px -12px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.06);
+    /* Nada puede desbordar el modal: los nombres de archivo son larguísimos. */
+    overflow: hidden;
+    max-height: 90vh;
   }
+  /* Hijos que pueden ocupar todo el ancho útil sin empujar al modal. */
+  .loading-modal > * { max-width: 100%; box-sizing: border-box; }
   .loading-spin { animation: floatY 2.6s ease-in-out infinite; width: 72px !important; height: 72px !important; border-radius: 18px !important; }
   .loading-spin img { border-radius: 18px !important; }
   .loading-modal button {
@@ -1265,8 +1282,22 @@
   .loading-modal button:hover { background: rgba(239,68,68,0.08); }
   .welcome-loading-bar { width: 100%; max-width: 320px; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
   .welcome-loading-bar-inner { width: 100%; height: 100%; background: linear-gradient(90deg, var(--primary-color, #3b82f6), #a78bfa); border-radius: 2px; animation: loadingBar 1.5s ease-in-out infinite; }
-  .welcome-loading-text { margin: 0; color: #64748b; font-size: 0.8rem; }
-  .dl-progress-wrap { width: 100%; max-width: 320px; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+  .welcome-loading-text {
+    margin: 0; color: #64748b; font-size: 0.8rem;
+    /* El mensaje puede traer un nombre de archivo largo: se parte por palabras
+       y se recorta en vez de desbordar el modal. */
+    max-width: 100%; text-align: center;
+    line-height: 1.45;
+    overflow-wrap: anywhere; word-break: break-word;
+  }
+  /* Nombre del archivo: se muestra entero en su propia línea, con wrap. */
+  .dl-file-name {
+    max-width: 100%; margin: 0;
+    font-family: ui-monospace, monospace; font-size: 0.68rem; line-height: 1.4;
+    color: #94a3b8; text-align: center;
+    overflow-wrap: anywhere; word-break: break-all;
+  }
+  .dl-progress-wrap { width: 100%; max-width: 320px; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
   .dl-progress-bar { width: 100%; height: 8px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden; border: 1px solid rgba(255,255,255,0.06); }
   .dl-progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary-color, #3b82f6), #a78bfa); border-radius: 4px; transition: width 0.2s ease; box-shadow: 0 0 12px rgba(59,130,246,0.35); }
   @keyframes loadingBar { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
@@ -1293,8 +1324,20 @@
   .card-cloud { --accent-from: #38bdf8; --accent-to: #6366f1; }
   .card-manual { --accent-from: #f472b6; --accent-to: #a78bfa; }
 
-  /* Sin respaldo en Drive: se ofrecen nube o instalación en limpio. */
-  .drive-fallback { display: flex; flex-direction: column; gap: 0.6rem; width: 100%; margin-top: 0.75rem; }
+  .welcome-link {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    padding: 0.5rem 0.85rem; border-radius: 9px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.07);
+    color: #64748b; font-size: 0.75rem; font-weight: 600;
+    cursor: pointer; transition: all 0.18s ease;
+  }
+  .welcome-link:hover:not(:disabled) {
+    background: rgba(255,255,255,0.05); color: #94a3b8; border-color: rgba(255,255,255,0.12);
+  }
+  .welcome-link:disabled { opacity: 0.4; cursor: not-allowed; }
+  /* Sin respaldo en Drive: se ofrece la nube (el wizard ya está en la portada). */
+  .drive-fallback { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; width: 100%; margin-top: 0.75rem; }
   .welcome-diag {
     font-size: 0.68rem; color: #64748b; text-align: center;
     margin: 0.4rem 0 0; line-height: 1.5;
