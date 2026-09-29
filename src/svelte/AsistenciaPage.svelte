@@ -401,21 +401,21 @@ $effect(() => {
     /** Fechas elegidas en el paso 2. */
     fechas: Set<string>;
   };
-  let popMasivos = $state<PopMasivos | null>(null);
-  let popMasivosPanelEl = $state<HTMLDivElement | null>(null);
-  let popMasivosBtn = $state<HTMLElement | null>(null);
+  let popSel = $state<PopMasivos | null>(null);
+  let popSelPanelEl = $state<HTMLDivElement | null>(null);
+  let popSelBtn = $state<HTMLElement | null>(null);
   /** Ref del BotonMod disparador, para anclar el panel. */
-  let popMasivosBtnEl = $state<HTMLElement | null>(null);
+  let popSelBtnEl = $state<HTMLElement | null>(null);
   let masivosGuardando = $state(false);
 
   function togglePopMasivos(btn: HTMLElement) {
-    if (popMasivos) { cerrarPopMasivos(); return; }
+    if (popSel) { cerrarPopMasivos(); return; }
     const r = btn.getBoundingClientRect();
     if (!r) { console.warn('[Masivos] botón sin referencia; no se puede anclar el popover'); return; }
     const altoEstimado = 220;
     const abreArriba = r.bottom + altoEstimado > window.innerHeight && r.top > altoEstimado;
-    popMasivosBtn = btn;
-    popMasivos = {
+    popSelBtn = btn;
+    popSel = {
       x: Math.max(8, Math.min(Math.round(r.left), window.innerWidth - ANCHO_POP_MASIVOS - 8)),
       y: abreArriba ? 0 : Math.round(r.bottom + 4),
       abajo: abreArriba ? `${Math.round(window.innerHeight - r.top + 4)}px` : 'auto',
@@ -425,34 +425,34 @@ $effect(() => {
     };
   }
 
-  function cerrarPopMasivos() { popMasivos = null; popMasivosBtn = null; }
+  function cerrarPopMasivos() { popSel = null; popSelBtn = null; }
 
   /** Pasa al paso 2 con el estado elegido. */
   function pasoFechas(estado: 'P' | 'A' | 'J') {
-    if (!popMasivos) return;
-    popMasivos = { ...popMasivos, paso: 'fechas', estado, fechas: new Set() };
+    if (!popSel) return;
+    popSel = { ...popSel, paso: 'fechas', estado, fechas: new Set() };
   }
 
   function volverAEstado() {
-    if (!popMasivos) return;
-    popMasivos = { ...popMasivos, paso: 'estado', estado: null, fechas: new Set() };
+    if (!popSel) return;
+    popSel = { ...popSel, paso: 'estado', estado: null, fechas: new Set() };
   }
 
   function alternarFecha(fecha: string) {
-    if (!popMasivos) return;
-    const fechas = new Set(popMasivos.fechas);
+    if (!popSel) return;
+    const fechas = new Set(popSel.fechas);
     if (fechas.has(fecha)) fechas.delete(fecha); else fechas.add(fecha);
-    popMasivos = { ...popMasivos, fechas };
+    popSel = { ...popSel, fechas };
   }
 
   function elegirTodasLasFechas() {
-    if (!popMasivos) return;
-    popMasivos = { ...popMasivos, fechas: new Set(diasRellenables) };
+    if (!popSel) return;
+    popSel = { ...popSel, fechas: new Set(diasSeleccionables) };
   }
 
   function elegirNinguna() {
-    if (!popMasivos) return;
-    popMasivos = { ...popMasivos, fechas: new Set() };
+    if (!popSel) return;
+    popSel = { ...popSel, fechas: new Set() };
   }
 
   /**
@@ -470,7 +470,7 @@ $effect(() => {
    * días que YA tienen registro, así que una celda vacía no aparece ahí. Cruzar
    * dejaría la lista vacía justo cuando es cuando hay algo que rellenar.
    */
-  let diasRellenables = $derived(getDiasHabilitados(getFechasPeriodo()));
+  let diasSeleccionables = $derived(getDiasHabilitados(getFechasPeriodo()));
 
   /**
    * Días del período agrupados por semana (mismo criterio que la tabla, con el
@@ -478,12 +478,12 @@ $effect(() => {
    * semanal, un solo bloque. Se muestran los días YA marcados como completos
    * deshabilitados, para que se vea de un vistazo que no hay nada que rellenar.
    */
-  let gruposSemanaMasivos = $derived.by(() => {
-    const rellenables = new Set(diasRellenables);
+  let gruposSemanaSel = $derived.by(() => {
+    const rellenables = new Set(diasSeleccionables);
     const out: { numero: number; fechas: string[] }[] = [];
     let actual: string[] = [];
     // Se recorre `fechasVisibles` (que INCLUYE los días marcados sin clases) y no
-    // `diasRellenables`, porque la numeración tiene que ser la misma que la de las
+    // `diasSeleccionables`, porque la numeración tiene que ser la misma que la de las
     // columnas de la tabla: `semanasMes` cuenta una semana aunque entera esté sin
     // clases. Armando los grupos sobre los días rellenables, una semana sin
     // clases no generaba grupo y la siguiente se renumeraba (la 5 se veía como 3).
@@ -505,7 +505,7 @@ $effect(() => {
   });
 
   /** Cuántas asistencias se van a CREAR para un estado en un día dado. */
-  function faltantesDe(fecha: string): number {
+  function celdasVacias(fecha: string): number {
     return estudiantesMulti.filter(est => {
       // Un día sin registro no está en `est.dias`, y eso ES una celda vacía.
       const actual = est.dias[fecha]?.estado || null;
@@ -515,18 +515,18 @@ $effect(() => {
 
   /** Total de celdas a rellenar con la selección actual. */
   let totalAMarcar = $derived.by(() => {
-    if (!popMasivos) return 0;
+    if (!popSel) return 0;
     let total = 0;
-    popMasivos.fechas.forEach(f => { total += faltantesDe(f); });
+    popSel.fechas.forEach(f => { total += celdasVacias(f); });
     return total;
   });
 
-  let hayFechasConFaltantes = $derived(diasRellenables.some(f => faltantesDe(f) > 0));
+  let hayPendientes = $derived(diasSeleccionables.some(f => celdasVacias(f) > 0));
 
   /** Total de celdas vacías en todo el período (sub del botón disparador). */
-  let totalFaltantesPeriodo = $derived.by(() => {
+  let totalPendientes = $derived.by(() => {
     let total = 0;
-    for (const fecha of diasRellenables) total += faltantesDe(fecha);
+    for (const fecha of diasSeleccionables) total += celdasVacias(fecha);
     return total;
   });
 
@@ -536,9 +536,9 @@ $effect(() => {
    * porque acá no hay nada que revisar, la escritura es inmediata.
    */
   async function aplicarMasivos() {
-    const estadoElegido = popMasivos?.estado;
+    const estadoElegido = popSel?.estado;
     if (!estadoElegido) return;
-    const fechas = [...popMasivos!.fechas];
+    const fechas = [...popSel!.fechas];
     if (fechas.length === 0) return;
     const registros: Array<{ estudianteId: number; fecha: string; estado: string; observacion: string }> = [];
     // Celdas efectivamente rellenadas, para dejar el borrador consistente.
@@ -607,10 +607,10 @@ $effect(() => {
   }
 
   $effect(() => {
-    if (!popMasivos) return;
+    if (!popSel) return;
     const onPointerDown = (ev: PointerEvent) => {
       const t = ev.target as Node | null;
-      if (t && (popMasivosPanelEl?.contains(t) || popMasivosBtn?.contains(t))) return;
+      if (t && (popSelPanelEl?.contains(t) || popSelBtn?.contains(t))) return;
       cerrarPopMasivos();
     };
     const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') cerrarPopMasivos(); };
@@ -625,7 +625,7 @@ $effect(() => {
   });
 
   $effect(() => {
-    if (popMasivos) {
+    if (popSel) {
       return registerBackHandler(() => { cerrarPopMasivos(); return true; });
     }
   });
@@ -1950,14 +1950,14 @@ $effect(() => {
             title: 'Limpiar la asistencia del período',
             compacto: isAndroidMobile,
           }} />
-          <BotonMod bind:ref={popMasivosBtnEl} opts={{
-            onclick: () => { if (popMasivosBtnEl) togglePopMasivos(popMasivosBtnEl); },
-            disabled: getActiveStudentCount() === 0 || (isWindows && !hayFechasConFaltantes),
-            icono: popMasivos ? '✕' : '👥',
+          <BotonMod bind:ref={popSelBtnEl} opts={{
+            onclick: () => { if (popSelBtnEl) togglePopMasivos(popSelBtnEl); },
+            disabled: getActiveStudentCount() === 0 || (isWindows && !hayPendientes),
+            icono: popSel ? '✕' : '👥',
             etiqueta: isWindows ? 'Rellenar' : 'Marcar todos',
             tono: 'violeta',
             sub: isWindows
-              ? (!hayFechasConFaltantes ? 'Todo completo' : `${totalFaltantesPeriodo} sin marcar`)
+              ? (!hayPendientes ? 'Todo completo' : `${totalPendientes} sin marcar`)
               : `${getActiveStudentCount()} estudiante(s)`,
             title: isWindows
               ? 'Rellenar solo las asistencias vacías de los días que elijas, y guardarlas'
@@ -2450,13 +2450,13 @@ $effect(() => {
     </div>
   {/if}
 
-  {#if popMasivos}
+  {#if popSel}
     <div
-      bind:this={popMasivosPanelEl}
+      bind:this={popSelPanelEl}
       use:portalToBody
       role="menu"
       aria-label="Marcar asistencias masivamente"
-      style="position:fixed; z-index:99995; left:{popMasivos.x}px; top:{popMasivos.y}px; bottom:{popMasivos.abajo}; width:{ANCHO_POP_MASIVOS}px; max-height:min(420px, calc(100vh - 32px)); overflow-y:auto; background:rgba(20,24,31,0.97); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); border:1px solid rgba(255,255,255,0.1); border-radius:14px; box-shadow:0 18px 40px -10px rgba(0,0,0,0.65); padding:0.4rem; box-sizing:border-box; display:flex; flex-direction:column; gap:3px;"
+      style="position:fixed; z-index:99995; left:{popSel.x}px; top:{popSel.y}px; bottom:{popSel.abajo}; width:{ANCHO_POP_MASIVOS}px; max-height:min(420px, calc(100vh - 32px)); overflow-y:auto; background:rgba(20,24,31,0.97); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); border:1px solid rgba(255,255,255,0.1); border-radius:14px; box-shadow:0 18px 40px -10px rgba(0,0,0,0.65); padding:0.4rem; box-sizing:border-box; display:flex; flex-direction:column; gap:3px;"
     >
       {#if !isWindows}
         <!-- Android trabaja con período DIARIO: no hay semana ni mes que elegir,
@@ -2480,15 +2480,15 @@ $effect(() => {
             </span>
           </button>
         {/each}
-      {:else if popMasivos.paso === 'estado'}
+      {:else if popSel.paso === 'estado'}
         {#each ESTADOS_PAJ as e (e.id)}
           {@const sub = e.id === 'P' ? 'Marcar presentes' : e.id === 'A' ? 'Marcar ausentes' : 'Marcar justificados'}
           <button
             role="menuitem"
-            disabled={!hayFechasConFaltantes || masivosGuardando}
+            disabled={!hayPendientes || masivosGuardando}
             onclick={() => pasoFechas(e.id)}
             title={`${sub} · después elegís los días`}
-            style="width:100%; display:flex; align-items:center; gap:0.55rem; padding:0.5rem 0.55rem; border-radius:9px; border:1px solid {e.borde}; background:{e.suave}; color:{e.color}; cursor:pointer; text-align:left; transition:all 0.15s ease; opacity:{!hayFechasConFaltantes ? 0.45 : 1};"
+            style="width:100%; display:flex; align-items:center; gap:0.55rem; padding:0.5rem 0.55rem; border-radius:9px; border:1px solid {e.borde}; background:{e.suave}; color:{e.color}; cursor:pointer; text-align:left; transition:all 0.15s ease; opacity:{!hayPendientes ? 0.45 : 1};"
             onmouseenter={(ev) => { ev.currentTarget.style.background = e.suave.replace('0.10', '0.2'); }}
             onmouseleave={(ev) => { ev.currentTarget.style.background = e.suave; }}
           >
@@ -2499,16 +2499,16 @@ $effect(() => {
             </span>
           </button>
         {/each}
-        {#if !hayFechasConFaltantes}
+        {#if !hayPendientes}
           <div style="padding:0.5rem 0.4rem 0.2rem; font-size:0.66rem; color:#94a3b8; text-align:center; line-height:1.35;">
             Ya están marcadas todas las asistencias del período.
           </div>
         {/if}
-      {:else if popMasivos.estado}
+      {:else if popSel.estado}
         <!-- `estadoSel` / `fechasSel` se capturan acá porque TypeScript pierde el
-             estrechamiento de `popMasivos` dentro de los `{#each}` anidados. -->
-        {@const estadoSel = popMasivos.estado}
-        {@const fechasSel = popMasivos.fechas}
+             estrechamiento de `popSel` dentro de los `{#each}` anidados. -->
+        {@const estadoSel = popSel.estado}
+        {@const fechasSel = popSel.fechas}
         {@const eSel = ESTADOS_PAJ.find(x => x.id === estadoSel)!}
         <!-- Encabezado: estado elegido + volver atrás -->
         <div style="display:flex; align-items:center; gap:0.4rem; padding:0.25rem 0.3rem 0.45rem; border-bottom:1px solid rgba(255,255,255,0.08); margin-bottom:0.25rem;">
@@ -2524,12 +2524,12 @@ $effect(() => {
         </div>
 
         <!-- Días, agrupados por semana como las columnas de la tabla -->
-        {#each gruposSemanaMasivos as g (g.numero)}
-          {#if gruposSemanaMasivos.length > 1}
+        {#each gruposSemanaSel as g (g.numero)}
+          {#if gruposSemanaSel.length > 1}
             <div style="padding:0.4rem 0.5rem 0.15rem; font-size:0.58rem; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; color:#64748b;">Semana {g.numero}</div>
           {/if}
           {#each g.fechas as f (f)}
-            {@const faltan = faltantesDe(f)}
+            {@const faltan = celdasVacias(f)}
             {@const sel = fechasSel.has(f)}
             <button
               role="menuitemcheckbox"
