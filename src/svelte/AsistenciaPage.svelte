@@ -658,6 +658,31 @@ $effect(() => {
     return out;
   });
 
+  /**
+   * Mismas semanas que `semanasMes` pero SIN filtrar por los días hábiles del
+   * colegio. `semanasMes` sale de `fechasVisibles`, que ya viene filtrada, así
+   * que la semana N solo contenía los días que el colegio seleccionado tenía
+   * como clase: al marcar "en todos los colegios" el otro colegio se quedaba
+   * sin los días de su propio horario dentro de esa misma semana.
+   *
+   * La numeración coincide con `semanasMes` porque `primerDiaSemana` es siempre
+   * un día hábil del colegio: en ambas listas cada bloque arranca en un día
+   * igual, así que el mismo número es la misma semana del calendario.
+   */
+  let semanasMesBase = $derived.by(() => {
+    const out: { numero: number; fechas: string[] }[] = [];
+    let actual: string[] = [];
+    getFechasPeriodo().forEach((fecha, i) => {
+      if (esInicioSemana(fecha, i) && actual.length > 0) {
+        out.push({ numero: out.length + 1, fechas: actual });
+        actual = [];
+      }
+      actual.push(fecha);
+    });
+    if (actual.length > 0) out.push({ numero: out.length + 1, fechas: actual });
+    return out;
+  });
+
   /** Número de semana al que pertenece una fecha, o null si no está en la tabla. */
   function numeroSemanaDe(iso: string): number | null {
     const s = semanasMes.find(w => w.fechas.includes(iso));
@@ -692,14 +717,24 @@ $effect(() => {
     popSinClasesAbierta = !popSinClasesAbierta;
   }
 
-  /** Fechas que se marcarán según el contexto: día concreto, semana elegida o período. */
-  function objetivosSinClases(): { fechas: string[]; etiqueta: string } | null {
+  /**
+   * Fechas que se marcarán según el contexto: día concreto, semana elegida o período.
+   *
+   * `paraTodosLosColegios` usa las fechas SIN filtrar por los días hábiles: la
+   * marca tiene que caer sobre la misma semana del calendario para todos los
+   * colegios, aunque cada uno tenga un horario distinto. Filtrando, un colegio
+   * martes-sábado se quedaba sin el lunes de esa semana y otro lunes-viernes sin
+   * el sábado.
+   */
+  function objetivosSinClases(paraTodosLosColegios = false): { fechas: string[]; etiqueta: string } | null {
     if (colFechaObjetivo) return { fechas: [colFechaObjetivo], etiqueta: 'ese día' };
     if (periodo === 'mensual') {
-      const sel = semanasMes.find(w => w.numero === semanaSeleccionada);
+      const lista = paraTodosLosColegios ? semanasMesBase : semanasMes;
+      const sel = lista.find(w => w.numero === semanaSeleccionada);
       if (!sel) return null;
       return { fechas: sel.fechas, etiqueta: `la semana ${sel.numero}` };
     }
+    if (paraTodosLosColegios) return { fechas: getFechasPeriodo(), etiqueta: 'el período actual' };
     return { fechas: fechasObjetivoSinClases(), etiqueta: 'el período actual' };
   }
 
@@ -761,7 +796,7 @@ $effect(() => {
   async function activarSinClasesTodosColegios() {
     const motivo = sinClasesDescripcion.trim();
     if (!motivo) { emit("show-toast", { message: "⚠️ El motivo es obligatorio", type: "warning" }); return; }
-    const obj = objetivosSinClases();
+    const obj = objetivosSinClases(true);
     if (!obj) {
       emit("show-toast", { message: "⚠️ Seleccione la semana que quedará sin clases", type: 'warning' });
       return;
@@ -784,9 +819,13 @@ $effect(() => {
   }
 
   async function desactivarSinClasesTodosColegios() {
-    const obj = objetivosSinClases();
+    const obj = objetivosSinClases(true);
     if (!obj) return;
-    const objetivos = obj.fechas.filter(f => esDiaSinClases(f));
+    // Sin filtro por `esDiaSinClases`: ese helper consulta la cobertura del
+    // colegio/sección QUE ESTÁ SELECCIONADO, y para el alcance global puede no
+    // ver las marcas de los demás. Quitar la marca es idempotente, así que se
+    // envían todas las fechas de la semana.
+    const objetivos = obj.fechas;
     if (objetivos.length === 0) return;
     const rangoTxt = objetivos.length === 1 ? objetivos[0].split('-').reverse().join('/') : `${objetivos[0].split('-').reverse().join('/')} al ${objetivos[objetivos.length - 1].split('-').reverse().join('/')}`;
     const ok = await ask(`¿Reactivar las clases del ${rangoTxt} en los ${colegios.length} colegio(s)?\n\nSe quitará la marca en todos los colegios.`, { title: 'Reactivar en todos los colegios', kind: 'info', okLabel: 'Sí, reactivar', cancelLabel: 'Cancelar' });
