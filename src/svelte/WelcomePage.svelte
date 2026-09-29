@@ -52,6 +52,27 @@
   /** Secciones precargadas para marcar (decisión 2026-09: solo A-D). */
   const SECCIONES_CATALOGO = ['A', 'B', 'C', 'D'];
 
+  /**
+   * Asignaturas precargadas, en los mismos dos grupos que usa el backend
+   * (`seed_default_data`): las cuantitativas con nota numérica y las
+   * cualitativas con etiqueta. Se muestran como toggles, pero el campo de texto
+   * sigue disponible para agregar materias propias del colegio.
+   */
+  const ASIGNATURAS_CATALOGO: { nombre: string; cualitativo: boolean }[] = [
+    { nombre: 'Ingles', cualitativo: false },
+    { nombre: 'Matematicas', cualitativo: false },
+    { nombre: 'Fisica', cualitativo: false },
+    { nombre: 'Biologia', cualitativo: false },
+    { nombre: 'Ciencias Naturales', cualitativo: false },
+    { nombre: 'Ciencias Sociales', cualitativo: false },
+    { nombre: 'TAC', cualitativo: true },
+    { nombre: 'AEP', cualitativo: true },
+    { nombre: 'Convivencia & Civismo', cualitativo: true },
+    { nombre: 'Creciendo en Valores', cualitativo: true },
+    { nombre: 'Derecho & Dignidad de la Mujer', cualitativo: true },
+    { nombre: 'Educación Física', cualitativo: true },
+  ];
+
   let inputAnos = $state<string[]>([]);
   let inputColegios = $state<ColegioItem[]>([]);
   let inputGrados = $state<GradItem[]>([]);
@@ -65,6 +86,10 @@
    */
   let gradosMarcados = $state<string[]>([]);
   let seccionesMarcadas = $state<string[]>([]);
+  /** Asignatura del catálogo precargado elegida como activa. */
+  let asignaturasCatalogo = $state<string[]>([]);
+  /** Materias escritas a mano que se agregan al final de la lista. */
+  let asignaturasPropias = $state<GradItem[]>([]);
 
   function toggleGrado(nombre: string) {
     gradosMarcados = gradosMarcados.includes(nombre)
@@ -88,6 +113,25 @@
       ? []
       : [...SECCIONES_CATALOGO];
   }
+  function toggleAsignaturaCatalogo(nombre: string) {
+    asignaturasCatalogo = asignaturasCatalogo.includes(nombre)
+      ? asignaturasCatalogo.filter(a => a !== nombre)
+      : [...asignaturasCatalogo, nombre];
+  }
+  function toggleTodasAsignaturas(cualitativo: boolean) {
+    const delGrupo = ASIGNATURAS_CATALOGO.filter(a => a.cualitativo === cualitativo).map(a => a.nombre);
+    const todasPuestas = delGrupo.every(a => asignaturasCatalogo.includes(a));
+    asignaturasCatalogo = todasPuestas
+      ? asignaturasCatalogo.filter(a => !delGrupo.includes(a))
+      : Array.from(new Set([...asignaturasCatalogo, ...delGrupo]));
+  }
+  /** Todas las asignaturas finales: catálogo marcado + las escritas a mano. */
+  function asignaturasElegidas(): GradItem[] {
+    const delCatalogo = ASIGNATURAS_CATALOGO
+      .filter(a => asignaturasCatalogo.includes(a.nombre))
+      .map(a => ({ nombre: a.nombre, cualitativo: a.cualitativo }));
+    return [...delCatalogo, ...asignaturasPropias];
+  }
 
   /**
    * Tipo del colegio deducido de los grados marcados: si hay algún grado de
@@ -104,11 +148,12 @@
   /** Aplica los toggles a los arrays que consume el backend. */
   function sincronizarToggles() {
     inputGrados = gradosMarcados.map(n => ({
-      nombre,
+      nombre: n,
       // 1er y 2do grado son cualitativos por defecto en el modelo.
       cualitativo: n === '1er grado' || n === '2do grado',
     }));
     inputSecciones = [...seccionesMarcadas];
+    inputAsignaturas = asignaturasElegidas();
   }
 
   const steps = [
@@ -348,8 +393,7 @@
         const hasData = await invoke('is_app_initialized');
         console.log('[Cloud] post-restore hasData=', hasData, 'pulled=', restorePulled, 'detail=', restoreDetail);
         if (hasData) {
-          await invoke('set_app_initialized');
-          emit('welcome-complete');
+          await entrarALaApp();
           setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
         } else if (restorePulled === 0) {
           // Restore OK sin error pero la nube devolvió 0 filas para esta cuenta.
@@ -394,8 +438,7 @@
       await invoke('d1_restore_from_cloud');
       const hasData = await invoke('is_app_initialized');
       if (hasData) {
-        await invoke('set_app_initialized');
-        emit('welcome-complete');
+        await entrarALaApp();
         setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
         loading = false; loadingMessage = '';
         return;
@@ -432,8 +475,7 @@
     cloudRetryError = '';
     loadingMessage = 'Inicializando app con datos parciales...';
     try {
-      await invoke('set_app_initialized');
-      emit('welcome-complete');
+      await entrarALaApp();
       setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
     } catch (e: any) {
       errorMsg = 'Error: ' + (typeof e === 'string' ? e : (e?.message || String(e)));
@@ -567,8 +609,7 @@
       }
       // El respaldo ya trajo datos (se validó arriba), así que solo queda
       // marcar la app como inicializada y entrar.
-      await invoke('set_app_initialized');
-      emit('welcome-complete');
+      await entrarALaApp();
       if (d1ResyncOk) {
         setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
       }
@@ -582,12 +623,56 @@
   }
 
   /** Pide el permiso POST_NOTIFICATIONS (Android 13+) en la primera ejecución. */
+  /**
+   * Entra a la app tras una restauración o el asistente.
+   *
+   * Además de `welcome-complete` emite `catalog-updated` / `data-updated`:
+   * las páginas están MONTADAS desde el arranque (con `display:none`), así que
+   * ya consultaron los catálogos y los tienen cacheados con el valor vacío que
+   * había antes del seed. Sin este aviso el Dashboard seguía mostrando
+   * "0 grados / 0 secciones" aunque los datos estuvieran escritos.
+   */
+  async function entrarALaApp() {
+    await invoke('set_app_initialized');
+    emit('catalog-updated', { timestamp: Date.now() });
+    emit('data-updated', { timestamp: Date.now() });
+    emit('welcome-complete');
+  }
+
   async function solicitarPermisoNotificaciones() {
     if (!/Android/i.test(navigator.userAgent)) return;
     // Solo pedir una vez por instalación (evita diálogos repetidos raros)
     if (localStorage.getItem('stp_notif_permiso_pedido')) return;
     localStorage.setItem('stp_notif_permiso_pedido', '1');
     try { await invoke('gd_request_notification_permission'); } catch (e) { console.error('Permiso notificaciones:', e); }
+  }
+
+  /**
+   * "Empezar de cero" implica empezar SIN nube. Si el usuario pasó antes por
+   * Drive o Cloudflare, quedó con la cuenta de Google enlazada y su archivo .db
+   * como activo: sin esto, la base nueva se seguía subiendo al namespace de la
+   * cuenta anterior.
+   */
+  async function desvincularSiHaceFalta() {
+    const tieneSesion = !!localStorage.getItem('schooltracker-google-drive-settings');
+    const tieneCuenta = !!getCurrentEmail();
+    let tieneConfig = false;
+    try { tieneConfig = !!(await invoke<any>('d1_get_config'))?.schoolKey; } catch {}
+    if (!tieneSesion && !tieneCuenta && !tieneConfig) return;
+
+    // Parar todo lo que pudiera seguir subiendo datos a la nube vieja.
+    try { const { syncService } = await import('../lib/syncService'); await syncService.stopPeriodicSync(); } catch {}
+    try { const { stopWsSync } = await import('../lib/wsSyncService'); stopWsSync(); } catch {}
+    try { const { driveSyncService } = await import('../lib/driveSyncService'); driveSyncService.stopPeriodicSync(); } catch {}
+
+    // Quitar tokens de Drive y el marcador de cuenta actual del localStorage.
+    localStorage.removeItem('schooltracker-google-drive-settings');
+    localStorage.removeItem('stp_current_account');
+
+    // Quitar el marcador de cuenta activa en disco, limpiar d1_config y volver
+    // a abrir `school.db` (el archivo por cuenta queda intacto, no se borra).
+    try { await invoke('desvincular_cuenta'); } catch (e) { console.warn('[Wizard] desvinculación falló:', e); }
+    console.log('[Wizard] cuenta desvinculada: base limpia, sin nube');
   }
 
   async function handleWizardComplete() {
@@ -600,6 +685,7 @@
     loading = true;
     errorMsg = '';
     try {
+      await desvincularSiHaceFalta();
       // El sistema anexa " grado" a lo que el usuario escriba en Grados
       // (p. ej. "1er" -> "1er grado"), salvo que ya lo incluya.
       const grados = inputGrados.map((g) => {
@@ -618,8 +704,7 @@
           asignaturas,
         }
       });
-      await invoke('set_app_initialized');
-      emit('welcome-complete');
+      await entrarALaApp();
       setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
     } catch (e: any) {
       errorMsg = 'Error guardando datos: ' + (e?.message || e);
@@ -655,18 +740,28 @@
     };
     return map[stepKey()];
   }
-  const diasKeys: (keyof DiasClase)[] = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'];
+  /**
+   * Días que se ofrecen en el asistente: LUNES a VIERNES.
+   * Sábado y domingo se quitaron del catálogo (decisión del usuario: el colegio
+   * es de entre semana). El tipo `DiasClase` los mantiene porque así está la
+   * tabla en la base, pero quedan siempre en false.
+   */
+  const diasKeys: (keyof DiasClase)[] = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes'];
   function defaultDias(): DiasClase {
     return { lunes: true, martes: true, miercoles: true, jueves: true, viernes: true, sabado: false, domingo: false };
   }
   function diaShort(k: keyof DiasClase): string {
-    return { lunes: 'L', martes: 'M', miercoles: 'X', jueves: 'J', viernes: 'V', sabado: 'S', domingo: 'D' }[k];
+    return { lunes: 'L', martes: 'M', miercoles: 'X', jueves: 'J', viernes: 'V' }[k] || '';
+  }
+  /** Forzar finde en false: el asistente ya no los ofrece. */
+  function soloEntreSemana(d: DiasClase): DiasClase {
+    return { ...d, sabado: false, domingo: false };
   }
   function currentItems(): (string | GradItem | ColegioItem)[] {
     const k = stepKey();
     if (k === 'anos') return inputAnos;
     if (k === 'colegios') return inputColegios;
-    if (k === 'asignaturas') return inputAsignaturas;
+    if (k === 'asignaturas') return asignaturasElegidas();
     // Grados y secciones salen de los toggles. Se derivan SIN mutar estado:
     // `sincronizarToggles()` solo se invoca al finalizar, para no tener efectos
     // secundarios dentro de una función que el markup llama en cada render.
@@ -683,28 +778,30 @@
   function chipLabel(item: string | GradItem | ColegioItem): string {
     return typeof item === 'string' ? item : item.nombre;
   }
-  function chipCualitativo(item: string | GradItem | ColegioItem): boolean {
-    if (typeof item === 'string') return false;
-    return (item as GradItem).cualitativo ?? false;
-  }
   function addCurrentItem() {
     const v = currentInput.trim();
     if (!v) return;
     const k = stepKey();
-    if (k === 'grados') {
-      if (!inputGrados.some((g) => g.nombre.toLowerCase() === v.toLowerCase())) {
-        inputGrados = [...inputGrados, { nombre: v, cualitativo: false }];
-      }
-    } else if (k === 'asignaturas') {
-      if (!inputAsignaturas.some((a) => a.nombre.toLowerCase() === v.toLowerCase())) {
-        inputAsignaturas = [...inputAsignaturas, { nombre: v, cualitativo: false }];
+    // Grados y secciones son catálogos con toggles: no se escriben a mano.
+    if (k === 'asignaturas') {
+      // Si el texto coincide con una del catálogo, se marca ese toggle en
+      // lugar de crear una materia nueva duplicada.
+      const delCatalogo = ASIGNATURAS_CATALOGO.find(
+        a => a.nombre.toLowerCase() === v.toLowerCase()
+      );
+      if (delCatalogo) {
+        if (!asignaturasCatalogo.includes(delCatalogo.nombre)) {
+          asignaturasCatalogo = [...asignaturasCatalogo, delCatalogo.nombre];
+        }
+      } else if (!asignaturasPropias.some((a) => a.nombre.toLowerCase() === v.toLowerCase())) {
+        asignaturasPropias = [...asignaturasPropias, { nombre: v, cualitativo: false }];
       }
     } else if (k === 'colegios') {
       if (!inputColegios.some((c) => c.nombre.toLowerCase() === v.toLowerCase())) {
         // El tipo lo deducen los toggles de grados (ver `tipoDesdeGrados`), así
         // que aquí no se fuerza nada. Tampoco se auto-agrean grados: si se
         // hicieran aquí pisarían lo que el usuario marcó a mano.
-        inputColegios = [...inputColegios, { nombre: v, tipo: 'Primaria', dias: defaultDias(), asignaturas: [] }];
+        inputColegios = [...inputColegios, { nombre: v, tipo: 'Primaria', dias: soloEntreSemana(defaultDias()), asignaturas: [] }];
       }
     } else {
       const items = [...(currentItems() as string[])];
@@ -715,20 +812,24 @@
   }
   function removeItem(i: number) {
     const k = stepKey();
-    if (k === 'grados') inputGrados = inputGrados.filter((_, idx) => idx !== i);
-    else if (k === 'asignaturas') inputAsignaturas = inputAsignaturas.filter((_, idx) => idx !== i);
-    else if (k === 'colegios') inputColegios = inputColegios.filter((_, idx) => idx !== i);
-    else setItems((currentItems() as string[]).filter((_, idx) => idx !== i));
-  }
-  function toggleCualitativo(i: number) {
-    const k = stepKey();
-    if (k === 'grados') {
-      inputGrados = inputGrados.map((g, idx) => idx === i ? { ...g, cualitativo: !g.cualitativo } : g);
-    } else if (k === 'asignaturas') {
-      inputAsignaturas = inputAsignaturas.map((a, idx) => idx === i ? { ...a, cualitativo: !a.cualitativo } : a);
+    // Asignaturas: el índice corresponde al catálogo marcado + las propias.
+    if (k === 'asignaturas') {
+      const delCatalogo = ASIGNATURAS_CATALOGO
+        .filter(a => asignaturasCatalogo.includes(a.nombre))
+        .map(a => a.nombre);
+      if (i < delCatalogo.length) {
+        asignaturasCatalogo = asignaturasCatalogo.filter(a => a !== delCatalogo[i]);
+      } else {
+        asignaturasPropias = asignaturasPropias.filter((_, idx) => idx !== i - delCatalogo.length);
+      }
+      return;
     }
+    if (k === 'colegios') { inputColegios = inputColegios.filter((_, idx) => idx !== i); return; }
+    if (k === 'grados' || k === 'secciones') return;  // solo toggles
+    setItems((currentItems() as string[]).filter((_, idx) => idx !== i));
   }
   function toggleDia(ci: number, dk: keyof DiasClase) {
+    if (dk === 'sabado' || dk === 'domingo') return;  // fuera del catálogo
     inputColegios = inputColegios.map((c, idx) => {
       if (idx !== ci) return c;
       const dias = { ...c.dias, [dk]: !c.dias[dk] };
@@ -756,7 +857,7 @@
       { label: 'Grados', items: gradosResumen.join(', '), icon: '📊' },
       { label: 'Secciones', items: seccionesMarcadas.join(', '), icon: '👥' },
       { label: 'Colegios', items: inputColegios.map((c) => c.nombre).join(', '), icon: '🏫' },
-      { label: 'Asignaturas', items: inputAsignaturas.map((a) => a.nombre).join(', '), icon: '📚' },
+      { label: 'Asignaturas', items: asignaturasElegidas().map((a) => a.nombre).join(', '), icon: '📚' },
     ];
   }
 
@@ -826,20 +927,9 @@
         <div class="welcome-error">{errorMsg}</div>
       {/if}
       {#if driveSinRespaldo}
-        <!-- Sin salida natural: se ofrece la nube. "Empezar de cero" NO se
-             repite acá porque ya es la tercera tarjeta de la portada; alcanza
-             con volver atrás para elegirla. -->
-        <div class="drive-fallback">
-          <button class="welcome-card card-cloud" onclick={() => { driveSinRespaldo = false; errorMsg = ''; handleCloudLogin(); }} disabled={loading}>
-            <div class="welcome-card-icon">☁️</div>
-            <div class="welcome-card-body">
-              <h3>Probar con la nube</h3>
-              <p>Busca tus datos en Cloudflare. Si ya usaste la app en otro dispositivo, están ahí.</p>
-            </div>
-            <div class="welcome-card-arrow">→</div>
-          </button>
-          <button class="welcome-link" onclick={() => { driveSinRespaldo = false; errorMsg = ''; }}>← Volver a las opciones</button>
-        </div>
+        <!-- El respaldo de Drive no sirvió. Las otras dos opciones siguen
+             accesibles desde la portada, así que solo alcanza con volver. -->
+        <button class="welcome-link" onclick={() => { driveSinRespaldo = false; errorMsg = ''; }}>← Volver a las opciones</button>
       {/if}
     </div>
 
@@ -927,14 +1017,15 @@
               </button>
             </div>
             <p class="wizard-hint">Marca las secciones que vas a usar. Se comparten entre todos los grados.</p>
-            <div class="wizard-toggle-grid" style="grid-template-columns:repeat(auto-fill,minmax(84px,1fr));">
-              {#each SECCIONES_CATALOGO as s (s)}
-                <button class="wizard-toggle-card" class:active={seccionesMarcadas.includes(s)} onclick={() => toggleSeccion(s)}>
-                  <span class="wizard-toggle-check">{#if seccionesMarcadas.includes(s)}✓{/if}</span>
-                  <span class="wizard-toggle-name">Sección {s}</span>
-                </button>
-              {/each}
+            <div class="wizard-toggle-grid secciones">
+            {#each SECCIONES_CATALOGO as s (s)}
+              <button class="wizard-toggle-card seccion" class:active={seccionesMarcadas.includes(s)} onclick={() => toggleSeccion(s)} title="Sección {s}">
+                <span class="wizard-toggle-check">{#if seccionesMarcadas.includes(s)}✓{/if}</span>
+                <span class="wizard-toggle-name">{s}</span>
+              </button>
+            {/each}
             </div>
+
           {:else if stepKey() === 'colegios'}
             <div class="wizard-hint">
               {#if tipoDesdeGrados === 'Secundaria'}
@@ -970,7 +1061,7 @@
                     </div>
                     <div class="wizard-colegio-label">Asignaturas que imparte</div>
                     <div class="wizard-asig">
-                      {#each inputAsignaturas as a}
+                      {#each asignaturasElegidas() as a}
                         <button class="wizard-asig-chip" class:active={col.asignaturas.includes(a.nombre)} onclick={() => toggleAsignaturaColegio(ci, a.nombre)}>{a.nombre}</button>
                       {/each}
                     </div>
@@ -978,6 +1069,56 @@
                 {/each}
               </div>
             {/if}
+          {:else if stepKey() === 'asignaturas'}
+            <!-- ASIGNATURAS: catálogo precargado con toggles (sin checkboxes) -->
+            <p class="wizard-hint">
+              Marca las asignaturas que vas a usar. Las cuantitativas se anotan
+              con número y las cualitativas con etiqueta (AA/AS/AF/AI).
+            </p>
+
+            {#each [{ clave: false, titulo: '📊 Cuantitativas' }, { clave: true, titulo: '🏷️ Cualitativas' }] as grupo (grupo.titulo)}
+              {@const lista = ASIGNATURAS_CATALOGO.filter(a => a.cualitativo === grupo.clave)}
+              {@const marcadas = lista.filter(a => asignaturasCatalogo.includes(a.nombre)).length}
+              <div class="wizard-grupo-head">
+                <span class="wizard-grupo-titulo">{grupo.titulo}</span>
+                <span class="wizard-grupo-cont">{marcadas}/{lista.length}</span>
+                <button class="wizard-grupo-all" class:active={marcadas === lista.length} onclick={() => toggleTodasAsignaturas(grupo.clave)}>
+                  {marcadas === lista.length ? 'Quitar todas' : 'Todas'}
+                </button>
+              </div>
+              <div class="wizard-toggle-grid asignaturas">
+                {#each lista as a (a.nombre)}
+                  <button class="wizard-toggle-card" class:cual={a.cualitativo} class:active={asignaturasCatalogo.includes(a.nombre)}
+                    onclick={() => toggleAsignaturaCatalogo(a.nombre)} title={a.nombre}>
+                    <span class="wizard-toggle-check">{#if asignaturasCatalogo.includes(a.nombre)}✓{/if}</span>
+                    <span class="wizard-toggle-name">{a.nombre}</span>
+                  </button>
+                {/each}
+              </div>
+            {/each}
+
+            {#if asignaturasPropias.length > 0}
+              <div class="wizard-grupo-head">
+                <span class="wizard-grupo-titulo">✏️ Agregadas por vos</span>
+                <span class="wizard-grupo-cont">{asignaturasPropias.length}</span>
+              </div>
+              <div class="wizard-toggle-grid asignaturas">
+                {#each asignaturasPropias as a, i (a.nombre)}
+                  <button class="wizard-toggle-card activeown" onclick={() => asignaturasPropias = asignaturasPropias.filter((_, j) => j !== i)}>
+                    <span class="wizard-toggle-check">✓</span>
+                    <span class="wizard-toggle-name">{a.nombre}</span>
+                    {#if a.cualitativo}<span class="wizard-asig-flag">C</span>{/if}
+                  </button>
+                {/each}
+              </div>
+            {/if}
+
+            <div class="wizard-input-row" style="margin-top:0.9rem;">
+              <input class="wizard-input" type="text" placeholder="Ej: Historia (si no está en la lista)"
+                bind:value={currentInput}
+                onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCurrentItem(); } }} />
+              <button class="wizard-add-btn" onclick={addCurrentItem}>Agregar</button>
+            </div>
           {:else}
             <div class="wizard-input-row">
               <input class="wizard-input" type="text" placeholder={inputPlaceholder()}
@@ -992,10 +1133,6 @@
               {#each currentItems() as item, i}
                 <div class="wizard-chip">
                   <span>{chipLabel(item)}</span>
-                  {#if stepKey() === 'asignaturas'}
-                    <button class="wizard-chip-toggle" class:active={chipCualitativo(item)}
-                      onclick={() => toggleCualitativo(i)} title="Marcar como cualitativa">C</button>
-                  {/if}
                   <button class="wizard-chip-x" onclick={() => removeItem(i)} aria-label="Eliminar">×</button>
                 </div>
               {/each}
@@ -1187,7 +1324,6 @@
   }
   .card-drive { --accent-from: #38bdf8; --accent-to: #2563eb; }
   .card-google { --accent-from: #34a853; --accent-to: #1a73e8; }
-  .card-manual { --accent-from: #a78bfa; --accent-to: #7c3aed; }
   .welcome-card:hover:not(:disabled) {
     border-color: rgba(255,255,255,0.16);
     background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03));
@@ -1336,8 +1472,6 @@
     background: rgba(255,255,255,0.05); color: #94a3b8; border-color: rgba(255,255,255,0.12);
   }
   .welcome-link:disabled { opacity: 0.4; cursor: not-allowed; }
-  /* Sin respaldo en Drive: se ofrece la nube (el wizard ya está en la portada). */
-  .drive-fallback { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; width: 100%; margin-top: 0.75rem; }
   .welcome-diag {
     font-size: 0.68rem; color: #64748b; text-align: center;
     margin: 0.4rem 0 0; line-height: 1.5;
@@ -1375,9 +1509,6 @@
   .wizard-grupo-all.active {
     background: rgba(239,68,68,0.14); border-color: rgba(239,68,68,0.35); color: #fca5a5;
   }
-  .wizard-toggle-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 0.5rem;
-  }
   .wizard-toggle-card {
     display: flex; align-items: center; gap: 0.45rem; padding: 0.6rem 0.55rem;
     border-radius: 11px; border: 1px solid rgba(255,255,255,0.08);
@@ -1399,7 +1530,36 @@
     background: var(--primary-color, #3b82f6);
     border-color: var(--primary-color, #3b82f6); color: #fff;
   }
-  .wizard-toggle-name { min-width: 0; word-break: break-word; line-height: 1.25; }
+  /* `nowrap`: con `break-word` una etiqueta que no entra en la celda partía la
+     última letra a la línea de abajo y la tarjeta crecía de alto. Si no cabe,
+     que se recorte con puntos suspensivos. */
+  .wizard-toggle-name { min-width: 0; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Secciones: solo la letra, así que la celda puede ser compacta. */
+  .wizard-toggle-grid { display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); }
+  /* Secciones: solo la letra, celda compacta. */
+  .wizard-toggle-grid.secciones { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); }
+  /* Asignaturas: nombres largos ("Convivencia & Civismo"), celda ancha para que
+     el nombre entre entero en vez de recortarse. */
+  .wizard-toggle-grid.asignaturas { grid-template-columns: repeat(auto-fill, minmax(172px, 1fr)); }
+  .wizard-toggle-card.seccion { justify-content: center; gap: 0.5rem; padding: 0.7rem 0.6rem; }
+  .wizard-toggle-card.seccion .wizard-toggle-name {
+    font-size: 1.05rem; font-weight: 800; letter-spacing: 0.5px; color: inherit;
+  }
+  /* Asignatura cualitativa: violeta para que se distinga al primer vistazo. */
+  .wizard-toggle-card.cual.active {
+    background: rgba(168,85,247,0.18); border-color: #a78bfa; color: #e9d5ff;
+  }
+  .wizard-toggle-card.cual.active .wizard-toggle-check { background: #a78bfa; border-color: #a78bfa; color: #fff; }
+  /* Materia escrita a mano: se quita con un clic (no tiene toggle de catálogo). */
+  .wizard-toggle-card.activeown {
+    background: rgba(34,197,94,0.14); border-color: rgba(34,197,94,0.4); color: #bbf7d0;
+  }
+  .wizard-toggle-card.activeown .wizard-toggle-check { background: #22c55e; border-color: #22c55e; color: #fff; }
+  .wizard-asig-flag {
+    margin-left: auto; font-size: 0.55rem; font-weight: 800;
+    padding: 0.05rem 0.25rem; border-radius: 4px;
+    background: rgba(168,85,247,0.25); color: #e9d5ff;
+  }
 
   /* Inputs libres del asistente manual */
   .wizard-input-row { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
@@ -1420,18 +1580,27 @@
   .wizard-empty { color: #64748b; font-size: 0.8rem; text-align: center; padding: 1rem; background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.1); border-radius: 12px; }
   .wizard-colegios { display: flex; flex-direction: column; gap: 0.75rem; max-height: 320px; overflow-y: auto; padding: 0.15rem; }
   .wizard-colegio-card {
-    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 0.85rem 0.95rem;
+    background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 0.9rem 1rem;
+    box-shadow: 0 3px 14px rgba(15,23,42,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
+    transition: border-color 0.2s ease;
   }
+  .wizard-colegio-card:hover { border-color: rgba(255,255,255,0.16); }
   .wizard-colegio-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.6rem; }
   .wizard-colegio-name { font-size: 0.95rem; font-weight: 700; color: #e2e8f0; }
   .wizard-colegio-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin: 0.5rem 0 0.35rem; }
   .wizard-dias { display: flex; gap: 0.35rem; flex-wrap: wrap; }
   .wizard-dia {
-    width: 34px; height: 34px; border-radius: 9px; cursor: pointer; font-size: 0.85rem; font-weight: 700; font-family: inherit;
-    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); color: #64748b; transition: all 0.2s ease;
+    width: 36px; height: 36px; border-radius: 10px; cursor: pointer;
+    font-size: 0.85rem; font-weight: 700; font-family: inherit;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+    color: #64748b; transition: all 0.2s ease;
   }
-  .wizard-dia:hover { border-color: var(--primary-color, #3b82f6); }
-  .wizard-dia.active { background: linear-gradient(135deg, var(--primary-color, #3b82f6), #a78bfa); color: #fff; border-color: transparent; box-shadow: 0 4px 12px rgba(59,130,246,0.25); }
+  .wizard-dia:hover { border-color: rgba(129,140,248,0.5); color: #c7d2fe; transform: translateY(-1px); }
+  .wizard-dia.active {
+    background: linear-gradient(135deg, #3b82f6, #a78bfa); color: #fff;
+    border-color: transparent; box-shadow: 0 4px 14px rgba(59,130,246,0.4);
+  }
   .wizard-asig { display: flex; flex-wrap: wrap; gap: 0.4rem; }
   .wizard-asig-chip {
     padding: 0.4rem 0.7rem; border-radius: 9px; cursor: pointer; font-size: 0.78rem; font-family: inherit;
@@ -1453,25 +1622,42 @@
     background: rgba(59,130,246,0.15); color: #60a5fa;
   }
   .wizard-colegio-tipo-badge.secundaria { background: rgba(168,85,247,0.15); color: #a78bfa; }
-  .wizard-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; max-height: 280px; overflow-y: auto; padding: 0.15rem; }
+  .wizard-chips {
+    display: flex; flex-wrap: wrap; gap: 0.55rem;
+    max-height: 280px; overflow-y: auto; padding: 0.2rem;
+  }
+  /* Chip moderno: tarjeta glass con borde de acento, brillo al hover y barra
+     lateral de color. Nada de la "píldora plana" azul de antes. */
   .wizard-chip {
-    display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.6rem;
-    background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.25);
-    border-radius: 999px; color: #e2e8f0; font-size: 0.8rem;
+    position: relative; display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.55rem 0.7rem 0.55rem 0.85rem;
+    background: linear-gradient(135deg, rgba(59,130,246,0.16), rgba(99,102,241,0.10));
+    border: 1px solid rgba(129,140,248,0.32);
+    border-radius: 12px;
+    color: #e0e7ff; font-size: 0.82rem; font-weight: 600;
+    box-shadow: 0 2px 10px rgba(15,23,42,0.35), inset 0 1px 0 rgba(255,255,255,0.07);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    overflow: hidden;
   }
+  /* Barra de acento a la izquierda (mismo lenguaje que las tarjetas de la portada). */
+  .wizard-chip::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: linear-gradient(180deg, #60a5fa, #a78bfa);
+    border-radius: 12px 0 0 12px;
+  }
+  .wizard-chip:hover {
+    transform: translateY(-2px);
+    border-color: rgba(165,180,252,0.6);
+    box-shadow: 0 8px 20px rgba(59,130,246,0.28), inset 0 1px 0 rgba(255,255,255,0.12);
+  }
+  .wizard-chip:active { transform: translateY(0); }
   .wizard-chip-x {
-    width: 18px; height: 18px; border-radius: 50%; border: none; cursor: pointer;
-    background: rgba(255,255,255,0.08); color: #cbd5e1; font-size: 0.85rem; line-height: 1;
-    display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;
+    width: 19px; height: 19px; border-radius: 6px; border: none; cursor: pointer;
+    background: rgba(255,255,255,0.1); color: #c7d2fe; font-size: 0.9rem; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.18s ease; flex-shrink: 0;
   }
-  .wizard-chip-x:hover { background: rgba(239,68,68,0.2); color: #f87171; }
-  .wizard-chip-toggle {
-    width: 20px; height: 20px; border-radius: 50%; border: 1px solid rgba(168,85,247,0.4); cursor: pointer;
-    background: rgba(255,255,255,0.06); color: #a78bfa; font-size: 0.7rem; font-weight: 700; line-height: 1;
-    display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;
-  }
-  .wizard-chip-toggle:hover { background: rgba(168,85,247,0.18); }
-  .wizard-chip-toggle.active { background: linear-gradient(135deg, #a78bfa, #7c3aed); color: #fff; border-color: transparent; box-shadow: 0 0 10px rgba(168,85,247,0.4); }
+  .wizard-chip-x:hover { background: rgba(239,68,68,0.28); color: #fecaca; transform: rotate(90deg); }
 
   .wizard-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.5rem; max-height: 280px; overflow-y: auto; padding: 0.15rem; }
   .wizard-item {

@@ -1038,6 +1038,46 @@ async fn gd_reload_database(app_handle: tauri::AppHandle, state: tauri::State<'_
     Ok(())
 }
 
+/// Desvincula la cuenta de Google activa: borra el marcador de cuenta, limpia
+/// la configuración de nube y vuelve a abrir la base por defecto (`school.db`).
+///
+/// Se usa en "Empezar de cero" del Welcome: si el usuario intentó la opción de
+/// Drive/Cloudflare, quedó con la cuenta enlazada y el archivo .db de esa
+/// cuenta como activo. Empezar de cero debe dejarla sin nube, no seguir
+/// subiendo la base nueva al namespace de la cuenta anterior.
+#[tauri::command]
+async fn desvincular_cuenta(
+    app_handle: tauri::AppHandle,
+    state: tauri::State<'_, DbState>,
+) -> Result<String, String> {
+    use std::fs;
+
+    let app_dir = get_profile_app_dir(&app_handle)?;
+    // Liberar el handle del archivo por cuenta ANTES de reabrir: en Windows
+    // mantenerlo abierto impide operar sobre `school.db`.
+    {
+        let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+        *conn = Connection::open_in_memory().map_err(|e| e.to_string())?;
+    }
+    // 1) Quitar el marcador de cuenta activa -> resolve_active_db_path cae a school.db
+    let marker = app_dir.join("active_account.txt");
+    if marker.exists() {
+        let _ = fs::remove_file(&marker);
+    }
+    // 2) Limpiar la config de nube guardada en la base (si el archivo la tenía)
+    let db_path = db::resolve_active_db_path(&app_dir);
+    {
+        let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
+        db::init_database(&conn).map_err(|e| e.to_string())?;
+        let _ = conn.execute("DELETE FROM d1_config", []);
+    }
+    // 3) Reabrir la base por defecto
+    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+    *conn = Connection::open(&db_path).map_err(|e| format!("Failed to reopen database: {}", e))?;
+    db::init_database(&*conn).map_err(|e| e.to_string())?;
+    Ok(db_path.to_string_lossy().into_owned())
+}
+
 #[tauri::command]
 async fn gd_write_file_base64(path: String, content_base64: String) -> Result<(), String> {
     use base64::{Engine as _, engine::general_purpose};
@@ -1579,6 +1619,38 @@ async fn gd_cancel_oauth() -> Result<(), String> {
     Ok(())
 }
 
+/// Snapshot consistente de la base ACTIVA, escrito en el directorio temporal
+/// del sistema y con nombre FIJO (se sobrescribe en cada llamada).
+///
+/// Reemplaza a `gd_create_backup` para el uso frecuente de sincronización:
+/// ese comando creaba un `backups/backup_<timestamp>.db` POR CADA push o
+/// restore, así que la carpeta de la aplicación se llenaba de copias que nadie
+/// miraba. Al vivir en TEMP y con nombre fijo no se acumula nada.
+///
+/// Existe además una razón funcional para copiar antes de leer: la app tiene el
+/// SQLite abierto, y leer el archivo vivo mientras se escribe puede producir un
+/// snapshot inconsistente. La copia es Point-in-Time y se sube esa.
+#[tauri::command]
+async fn gd_snapshot_db(app_handle: tauri::AppHandle) -> Result<String, String> {
+    use std::fs;
+
+    let app_data_dir = get_profile_app_dir(&app_handle)?;
+    let db_path = db::resolve_active_db_path(&app_data_dir);
+    if !db_path.exists() {
+        return Err("Database file not found".to_string());
+    }
+
+    let tmp_dir = std::env::temp_dir().join("schooltracker");
+    fs::create_dir_all(&tmp_dir).map_err(|e| format!("Failed to create temp dir: {}", e))?;
+    let snap = tmp_dir.join("snapshot.db");
+    fs::copy(&db_path, &snap).map_err(|e| format!("Failed to snapshot database: {}", e))?;
+    Ok(snap.to_string_lossy().into_owned())
+}
+
+/// Copia de seguridad de la base activa en `backups/backup_<timestamp>.db`.
+///
+/// Ya NO se usa para el ciclo de sincronización (ver `gd_snapshot_db`); queda
+/// como utilidad manual para dejar una copia explícita antes de tocar la base.
 #[tauri::command]
 async fn gd_create_backup(app_handle: tauri::AppHandle) -> Result<String, String> {
     use std::fs;
@@ -2036,8 +2108,11 @@ pub fn run() {
             gd_wait_oauth_code,
             gd_has_pending_oauth_code,
             gd_cancel_oauth,
-            gd_create_backup,
-            gd_get_backups,
+    gd_snapshot_db,
+    desvincular_cuenta,
+    gd_create_backup,
+    gd_get_backups,
+
             gd_delete_backup,
             gd_import_db_from_file,
             create_switch_backup,

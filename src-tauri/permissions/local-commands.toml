@@ -121,8 +121,11 @@ commands.allow = [
     "gd_wait_oauth_code",
     "gd_has_pending_oauth_code",
     "gd_cancel_oauth",
-    "gd_create_backup",
-    "gd_get_backups",
+  "gd_snapshot_db",
+  "desvincular_cuenta",
+  "gd_create_backup",
+  "gd_get_backups",
+
     "gd_delete_backup",
     "gd_import_db_from_file",
     "create_switch_backup",

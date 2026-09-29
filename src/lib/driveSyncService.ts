@@ -399,6 +399,24 @@ async function downloadAndRestore(token: string, fileId: string): Promise<void> 
   }
   syncManager.setState({ downloadProgress: { loaded: blob.size, total: blob.size, pct: 100 } });
 
+  /**
+   * VALIDAR antes de sobrescribir. La base local es la fuente de verdad: si el
+   * respaldo de Drive llega vacío o corrupto, escribirlo a ciegas la deja en 0
+   * bytes y se pierde TODO el trabajo local sin aviso. Se comprueba que el
+   * archivo tenga tamaño razonable y que empiece con la firma de SQLite.
+   */
+  if (blob.size < 4096) {
+    throw new Error(`El respaldo está vacío o truncado (${blob.size} bytes). No se restauró para no perder los datos locales.`);
+  }
+  const cabecera = new Uint8Array(await blob.slice(0, 16).arrayBuffer());
+  const firma = new TextDecoder().decode(cabecera);
+  if (!firma.startsWith('SQLite format 3')) {
+    throw new Error('El archivo descargado de Drive no es una base de datos válida. No se restauró.');
+  }
+  // Copia de seguridad en TEMP (fuera de la carpeta de la app, que se pidió
+  // dejar limpia) por si el restore resultara corrupto y hay que volver atrás.
+  try { await invoke('gd_snapshot_db'); } catch (e) { console.warn('[DriveSync] sin copia previa:', e); }
+
   const reader = new FileReader();
   const base64 = await new Promise<string>((resolve, reject) => {
     reader.onload = () => {
@@ -410,8 +428,10 @@ async function downloadAndRestore(token: string, fileId: string): Promise<void> 
     reader.readAsDataURL(blob);
   });
   const dbPath = await invoke<string>('get_db_path');
-  await invoke('gd_create_backup', {});
   syncManager.setState({ downloadProgress: null });
+  // Sin copia de seguridad previa: el respaldo de Drive que se está
+  // descargando es el respaldo. (Antes se guardaba un backup_<timestamp>.db en
+  // la carpeta de la app en cada restauración, llenándola de copias.)
   await invoke('gd_write_file_base64', { path: dbPath, contentBase64: base64 });
   await invoke('gd_reload_database', {});
   // La identidad del dispositivo NUNCA debe viajar dentro de un respaldo:
@@ -513,7 +533,9 @@ async function pushLatestBackup(): Promise<{ ok: boolean; reason?: string; creat
   if (!token) return { ok: false, reason: 'no_drive' };
   const fileName = latestFileName();
   const existente = await findSyncFileByName(token, fileName);
-  const localBackupPath = await invoke<string>('gd_create_backup');
+  // Snapshot en TEMP con nombre fijo: copia consistente del SQLite abierto
+  // para subir, sin dejar archivos en la carpeta de la aplicación.
+  const localBackupPath = await invoke<string>('gd_snapshot_db');
   let dbBytes = 0;
   try {
     const dbBase64 = await invoke<string>('gd_read_file_base64', { path: localBackupPath });
@@ -639,7 +661,9 @@ export const driveSyncService = {
       return;
     }
     await syncManager.wrapSync((async () => {
-      const localBackupPath = await invoke<string>('gd_create_backup');
+      // Snapshot en TEMP (mismo motivo que en el push: copia consistente del
+    // SQLite abierto, sin acumular archivos en la carpeta de la aplicación).
+    const localBackupPath = await invoke<string>('gd_snapshot_db');
       const dbBase64 = await invoke<string>('gd_read_file_base64', { path: localBackupPath });
       const dbBytes = bytesFromBase64(dbBase64);
       let folderId = await ensureBackupFolder(token);

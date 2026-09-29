@@ -5843,16 +5843,7 @@ pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: Se
         ).map_err(|e| e.to_string())?;
     }
 
-    // 3b. Grados por colegio según su tipo (Primaria → 1-6, Secundaria → 7-11)
-    for c in &selections.colegios {
-        let tipo = if c.tipo == "Secundaria" { "Secundaria" } else { "Primaria" };
-        let colegio_id: Option<i64> = conn
-            .query_row("SELECT id FROM colegio WHERE nombre = ?", [&c.nombre], |row| row.get(0))
-            .ok();
-        if let Some(cid) = colegio_id {
-            seed_colegio_grados(&conn, cid, tipo)?;
-        }
-    }
+    // 3b. (movido más abajo, después de insertar los grados: ver paso 5b-bis)
 
     // 4. Asignaturas seleccionadas (cualitativo definido por el usuario)
     for a in &selections.asignaturas {
@@ -5868,6 +5859,23 @@ pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: Se
             "INSERT OR IGNORE INTO grado (nombre, cualitativo) VALUES (?, ?)",
             rusqlite::params![g.nombre, if g.cualitativo { 1 } else { 0 }],
         ).map_err(|e| e.to_string())?;
+    }
+
+    // 5b-bis. Grados por colegio según su tipo (Primaria → 1-6, Secundaria → 7-11).
+    //
+    // DEBE ir DESPUÉS del paso 5: `seed_colegio_grados` inserta una fila por
+    // cada grado que ya exista en la tabla `grado` y que corresponda al tipo
+    // del colegio. Con este bloque antes de los grados, la tabla estaba vacía y
+    // la relación quedaba con 0 filas: el colegio no ofrecía ningún grado y el
+    // usuario no podía matricular estudiantes.
+    for c in &selections.colegios {
+        let tipo = if c.tipo == "Secundaria" { "Secundaria" } else { "Primaria" };
+        let colegio_id: Option<i64> = conn
+            .query_row("SELECT id FROM colegio WHERE nombre = ?", [&c.nombre], |row| row.get(0))
+            .ok();
+        if let Some(cid) = colegio_id {
+            seed_colegio_grados(&conn, cid, tipo)?;
+        }
     }
 
     // 5b. Días de clase y asignaturas por colegio (selección manual del usuario)
