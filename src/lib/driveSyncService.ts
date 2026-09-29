@@ -202,16 +202,10 @@ function accountTag(): string {
   return tag || 'default';
 }
 
-function timestampFileName(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${SYNC_FILE_PREFIX}_${accountTag()}_${devicePlatform()}_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.db`;
-}
-
 /**
- * Nombre ESTABLE del archivo de respaldo instantáneo. No lleva timestamp: se
- * sobrescribe en cada guardado (PATCH) en vez de crear un archivo nuevo, para
- * que la cuota de Drive no se llene de copias en la papelera.
+ * Nombre ESTABLE del archivo de respaldo. No lleva timestamp: se sobrescribe en
+ * cada guardado (PATCH) en vez de crear un archivo nuevo, para no gastar cuota de
+ * API de escritura ni dejar copias. Manual y automático usan el mismo nombre.
  */
 function latestFileName(): string {
   return `${SYNC_FILE_PREFIX}_${accountTag()}_${devicePlatform()}_${LATEST_SUFFIX}.db`;
@@ -523,11 +517,16 @@ async function uploadDbFile(
  * con el contenido actual de la base. Se dispara tras cada guardado (notas,
  * asistencia, estudiantes, catálogos...) a través de autoSync.
  *
- * Se ACTUALIZA en lugar de crear un archivo por guardado a propósito: Drive
- * manda a la papelera todo lo que se borra y la papelera sigue contando contra
- * la cuota (15 GB), así que crear cientos de copias de ~1 MB terminaría
- * bloqueando la sincronización. Los snapshots con timestamp los sigue creando
- * el planificador (driveAutoBackup) y la retención mantiene 2 archivos en total.
+   * Se ACTUALIZA en lugar de crear un archivo por guardado. Motivo: la API de
+   * Drive `files.delete` borra de forma PERMANENTE (no pasa por la papelera, y
+   * ver https://developers.google.com/workspace/drive/api/reference/rest/v3/files/delete),
+   * pero un archivo por cada guardado igual genera peticiones y cuota de API sin
+   * necesidad: la cuenta de un usuario normal se limita a ~1000 solicitudes de
+   * escritura por 100 segundos, y guardado tras guardado la revienta. Además el
+   * archivo de Drive no lo necesita actualizado: la nube autoritativa es D1.
+   * Un solo archivo `_latest` actualizado es el estado actual conocido, que es lo
+   * que necesita un primer arranque en otro equipo.
+
  */
 async function pushLatestBackup(): Promise<{ ok: boolean; reason?: string; created?: boolean }> {
   if (!navigator.onLine) return { ok: false, reason: 'offline' };
@@ -655,6 +654,17 @@ export const driveSyncService = {
     }
   },
 
+  /**
+   * "Crear respaldo" manual. Delega en `pushLatestBackup`: ahora usa el MISMO
+   * nombre estable `_latest` que el respaldo automático y sobrescribe ese
+   * archivo, en vez de crear uno nuevo con fecha y hora.
+   *
+   * Antes cada respaldo manual generaba `..._<fecha>_<hora>.db`. Con la retención
+   * en 2 archivos, esos timestamped caían casi enseguida en la poda, así que el
+   * botón no compraba ninguna garantía: al primer arranque de otro equipo se
+   * restauraba igual el `_latest`. Un solo nombre elimina la ambigüedad y deja un
+   * único archivo, que es el que se descarga.
+   */
   pushAll: async (force: boolean = false): Promise<void> => {
     const token = await getValidToken();
     if (!token) throw new Error('Google Drive no está vinculado');
@@ -663,37 +673,13 @@ export const driveSyncService = {
       return;
     }
     await syncManager.wrapSync((async () => {
-      // Snapshot en TEMP (mismo motivo que en el push: copia consistente del
-    // SQLite abierto, sin acumular archivos en la carpeta de la aplicación).
-    const localBackupPath = await invoke<string>('gd_snapshot_db');
-      const dbBase64 = await invoke<string>('gd_read_file_base64', { path: localBackupPath });
-      const dbBytes = bytesFromBase64(dbBase64);
-      let folderId = await ensureBackupFolder(token);
-      const fileName = timestampFileName();
-      const onProgress = (p: UploadProgress) => syncManager.setState({ uploadProgress: p });
-      const send = async (fid: string | null) => {
-        const res = await uploadDbFile(token, dbBase64, fileName, fid, null, onProgress);
-        return { xhr: res, fileName };
-      };
-      let ok = false;
-      for (let attempt = 0; attempt < 2 && !ok; attempt++) {
-        const { xhr, fileName } = await send(folderId);
-        console.debug(`[DriveSync] Archivo creado, status: ${xhr.status} (${fileName})`);
-        if (xhr.status === 404 && cachedFolderId) {
-          console.warn('[DriveSync] Carpeta destino no encontrada (404); reintentando con carpeta recién creada');
-          cachedFolderId = null;
-          localStorage.removeItem('drive_backup_folder_id');
-          folderId = await ensureBackupFolder(token);
-          continue;
-        }
-        try { await invoke('gd_delete_backup', { path: localBackupPath }); } catch (_) {}
-        await deleteOldSyncVersions(token);
-        syncManager.setState({ lastUpload: now(), lastUploadBytes: dbBytes || null });
-        markAllClean();
-        ok = true;
-      }
-      if (!ok) {
-        throw new Error('La carpeta de respaldo desapareció; reintenta para recrearla');
+      const res = await pushLatestBackup();
+      if (!res.ok) {
+        throw new Error(
+          res.reason === 'offline' ? 'Sin conexión'
+            : res.reason === 'no_drive' ? 'Google Drive no está vinculado'
+            : 'No se pudo crear el respaldo'
+        );
       }
     })(), 'subir a Google Drive').finally(() => syncManager.setState({ uploadProgress: null }));
   },
