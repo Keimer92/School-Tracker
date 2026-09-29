@@ -118,6 +118,23 @@
     }
   }
 
+  /**
+   * Carga los contadores de TODAS las secciones del catálogo de una sola vez.
+   * Antes cada contador se pedía al abrir su sección, así que el número del rail
+   * aparecía recién después de entrar a la página y las demás entradas quedaban
+   * sin conteo. Con esto el número está siempre visible.
+   *
+   * `forzar` vuelve a pedir todos los contadores, para que no queden desfasados
+   * después de agregar o borrar ítems en otra sección.
+   */
+  async function cargarTodosLosContadores(forzar = false) {
+    for (const s of SECCIONES) {
+      if (!s.contador) continue;
+      if (!forzar && contadoresCargados.has(s.id)) continue;
+      await cargarContador(s);
+    }
+  }
+
   function abrirPorId(id: string) {
     const s = SECCIONES.find(x => x.id === id);
     if (s) abrir(s);
@@ -137,7 +154,8 @@
   }
 
   // Al volver a la página: en Android se muestra la lista; en escritorio se
-  // respeta la sección pedida por deep-link.
+  // respeta la sección pedida por deep-link. Los contadores se recalculan porque
+  // mientras la app estuvo en otra pestaña se pudieron agregar o borrar ítems.
   let fueVisible = pageActive;
   $effect(() => {
     const ahora = pageActive;
@@ -146,6 +164,7 @@
     if (!ahora || previo) return;
     if (isAndroidMobile) { activa = null; }
     else { abrirPorId(seccion); }
+    void cargarTodosLosContadores(true);
   });
 
   // Deep-link: cualquier página puede pedir una sección concreta.
@@ -180,8 +199,9 @@
     // este shell (sección Año Lectivo): hay que suscribirse a los ajustes.
     loadAppSettings().then(s => { showAnoDropdown = s.showAnoDropdown; });
     const unsub = onAppSettingsChange(s => { showAnoDropdown = s.showAnoDropdown; });
-    // Contador de la sección inicial.
-    if (activa?.contador) cargarContador(activa);
+    // Contadores de TODAS las secciones de una vez, para que el número del rail
+    // esté siempre visible y no solo en la sección abierta.
+    void cargarTodosLosContadores();
     return unsub;
   });
 
