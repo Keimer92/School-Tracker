@@ -447,13 +447,33 @@ $effect(() => {
 
   function elegirTodasLasFechas() {
     if (!popMasivos) return;
-    popMasivos = { ...popMasivos, fechas: new Set(fechasPeriodo) };
+    popMasivos = { ...popMasivos, fechas: new Set(diasRellenables) };
   }
 
   function elegirNinguna() {
     if (!popMasivos) return;
     popMasivos = { ...popMasivos, fechas: new Set() };
   }
+
+  /**
+   * Días que el selector de "Rellenar" ofrece: los hábiles del colegio, sin los
+   * días marcados sin clases, y solo los que el servidor devolvió datos.
+   *
+   * NO usa `fechasPeriodo`: ese `$state` se llena dentro del fetch de
+   * estudiantes, que va en `untrack()` (a propósito, para no re-disparar el
+   * efecto en bucle) y por lo tanto no depende de `colegioConfig`. Si la carga
+   * corre antes de que llegue la config del colegio, `getDiasHabilitados`
+   * devuelve los 7 días y el snapshot queda con fines de semana; la grilla no lo
+   * sufre porque usa un `$derived`, pero este selector sí. Se calcula al vuelo.
+   */
+  let diasRellenables = $derived.by(() => {
+    const habiles = getDiasHabilitados(getFechasPeriodo());
+    if (estudiantesMulti.length === 0) return habiles;
+    const conDatos = new Set(Object.keys(estudiantesMulti[0].dias || {}));
+    // Si el servidor no trajo días, no se inventa ninguno: se offerce el período.
+    if (conDatos.size === 0) return habiles;
+    return habiles.filter(f => conDatos.has(f));
+  });
 
   /**
    * Días del período agrupados por semana (mismo criterio que la tabla, con el
@@ -464,7 +484,7 @@ $effect(() => {
   let gruposSemanaMasivos = $derived.by(() => {
     const out: { numero: number; fechas: string[] }[] = [];
     let actual: string[] = [];
-    fechasPeriodo.forEach((fecha, i) => {
+    diasRellenables.forEach((fecha, i) => {
       if (esInicioSemana(fecha, i) && actual.length > 0) {
         out.push({ numero: out.length + 1, fechas: actual });
         actual = [];
@@ -475,9 +495,10 @@ $effect(() => {
     return out;
   });
 
-  /** Cuántas asistencias se van a CREAR para un estado en las fechas dadas. */
+  /** Cuántas asistencias se van a CREAR para un estado en un día dado. */
   function faltantesDe(fecha: string): number {
     return estudiantesMulti.filter(est => {
+      if (!(fecha in (est.dias || {}))) return false;
       const actual = est.dias[fecha]?.estado || null;
       return !actual || actual === '-';
     }).length;
@@ -491,12 +512,12 @@ $effect(() => {
     return total;
   });
 
-  let hayFechasConFaltantes = $derived(fechasPeriodo.some(f => faltantesDe(f) > 0));
+  let hayFechasConFaltantes = $derived(diasRellenables.some(f => faltantesDe(f) > 0));
 
   /** Total de celdas vacías en todo el período (sub del botón disparador). */
   let totalFaltantesPeriodo = $derived.by(() => {
     let total = 0;
-    for (const fecha of fechasPeriodo) total += faltantesDe(fecha);
+    for (const fecha of diasRellenables) total += faltantesDe(fecha);
     return total;
   });
 
@@ -515,6 +536,9 @@ $effect(() => {
     const escritas: Array<{ estId: number; fecha: string; observacion: string }> = [];
     for (const fecha of fechas) {
       for (const est of estudiantesMulti) {
+        // Solo días que el servidor trajo para ese estudiante: evita insertar
+        // filas de días que no están en el rango cargado.
+        if (!(fecha in (est.dias || {}))) continue;
         const actual = est.dias[fecha]?.estado || null;
         if (actual && actual !== '-') continue; // ya tiene estado: no se pisa
         // La observación sale del borrador si hay algo escrito sin guardar: si se
@@ -549,6 +573,7 @@ $effect(() => {
       estudiantesMulti = estudiantesMulti.map(est => {
         const dias = { ...est.dias };
         for (const fecha of porFecha) {
+          if (!(fecha in dias)) continue;
           const actual = dias[fecha]?.estado || null;
           if (actual && actual !== '-') continue;
           dias[fecha] = { ...dias[fecha], estado: estadoElegido, observacion: dias[fecha]?.observacion || '' };

@@ -282,18 +282,19 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             FOREIGN KEY(estudiante_id) REFERENCES estudiante(id) ON DELETE CASCADE
         );
 
-        CREATE TABLE IF NOT EXISTS colegio_dias_asistencia (
-            colegio_id INTEGER PRIMARY KEY,
-            lunes INTEGER DEFAULT 1,
-            martes INTEGER DEFAULT 1,
-            miercoles INTEGER DEFAULT 1,
-            jueves INTEGER DEFAULT 1,
-            viernes INTEGER DEFAULT 1,
-            sabado INTEGER DEFAULT 1,
-            domingo INTEGER DEFAULT 1,
-            updated_at TEXT DEFAULT (datetime('now')),
-            FOREIGN KEY(colegio_id) REFERENCES colegio(id) ON DELETE CASCADE
-        );
+    CREATE TABLE IF NOT EXISTS colegio_dias_asistencia (
+    colegio_id INTEGER PRIMARY KEY,
+    lunes INTEGER DEFAULT 1,
+    martes INTEGER DEFAULT 1,
+    miercoles INTEGER DEFAULT 1,
+    jueves INTEGER DEFAULT 1,
+    viernes INTEGER DEFAULT 1,
+    sabado INTEGER DEFAULT 0,
+    domingo INTEGER DEFAULT 0,
+    updated_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY(colegio_id) REFERENCES colegio(id) ON DELETE CASCADE
+    );
+
 
         CREATE TABLE IF NOT EXISTS dia_sin_clases (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -4089,7 +4090,12 @@ pub async fn get_colegio_dias_asistencia(
     match res {
         Ok(config) => Ok(config),
         Err(rusqlite::Error::QueryReturnedNoRows) => {
-            // Default to all days enabled if no config exists
+            // Sin fila guardada, el colegio trabaja de lunes a viernes (el mismo
+            // default del asistente de Welcome). Antes devolvía los 7 días en
+            // `true`, y como el filtro de días hábiles del frontend descarta solo
+            // los que están en `false`, el colegio terminaba dando clases sábado
+            // y domingo: se veían columnas de fin de semana en la grilla y fines
+            // de semana en la lista de días para marcar.
             Ok(ColegioDiasAsistencia {
                 colegio_id: colegioId,
                 lunes: true,
@@ -4097,8 +4103,8 @@ pub async fn get_colegio_dias_asistencia(
                 miercoles: true,
                 jueves: true,
                 viernes: true,
-                sabado: true,
-                domingo: true,
+                sabado: false,
+                domingo: false,
             })
         }
         Err(e) => Err(e.to_string()),
