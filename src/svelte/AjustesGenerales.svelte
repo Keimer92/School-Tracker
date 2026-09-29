@@ -310,7 +310,7 @@
   <div class="aj-gen">
     <nav class="rail" class:expandido={railExpandido || railFijado || !!busqueda.trim()} style="width:{railAncho}"
       onmouseenter={() => railExpandido = true}
-      onmouseleave={() => { railExpandido = false; if (!busqueda.trim()) railFijado = false; }}>
+      onmouseleave={() => { railExpandido = false; if (!busqueda.trim()) railFijado = false; cancelarHover(); }}>
       <div class="rail-busca">
         <span class="lupa" onclick={() => { railExpandido = true; railFijado = true; }} title="Buscar sección">🔍</span>
         <input placeholder="Buscar sección" bind:value={busqueda} onfocus={() => railFijado = true} onkeydown={onSearchKey} />
