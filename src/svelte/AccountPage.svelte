@@ -10,10 +10,6 @@
     DEFAULT_WORKER_URL,
     type CloudPerfil, type AdminUserInfo,
   } from "../lib/cloudAuth";
-  import {
-    saveProfile, getProfile, setCurrentEmail, listProfiles, patchProfileTokens,
-    type AccountProfile,
-  } from "../lib/accountProfiles";
   import { iniciarSesionGoogleConNube } from "../lib/cloudLogin";
   import { setBackAuthInProgress } from "../lib/androidBack";
   import { d1SyncService } from "../lib/d1SyncService";
@@ -24,11 +20,8 @@
   let { onNavigate }: { onNavigate?: (tab: string) => void } = $props();
 
   let perfil: CloudPerfil | null = $state(getPerfilLocal());
-  let linkedAccounts: AccountProfile[] = $state([]);
   let dbPath = $state("");
   let isAndroid = /Android/i.test(navigator.userAgent);
-
-  function refreshLinkedAccounts() { linkedAccounts = listProfiles(); }
 
   async function loadDbPath() {
     try { dbPath = await invoke<string>("get_db_path"); } catch {}
@@ -48,7 +41,6 @@
       });
       if (res.status === 'ok') {
         perfil = getPerfilLocal();
-        refreshLinkedAccounts();
         await loadDbPath();
         await emit("show-toast", {
           message: perfil?.rol === 'admin' ? "👑 Sesión de administrador iniciada" : "✅ Sesión iniciada con Google",
@@ -75,206 +67,47 @@
     emit("show-toast", { message: "👋 Sesión cerrada (la nube y tus datos permanecen intactos)", type: "info" });
   }
 
-  // ── Cambio de cuenta (stored) ──
-  let switchingAccount = $state(false);
+  /**
+   * Traspaso del dispositivo a otra persona: respaldo a Drive, borrado de los
+   * datos locales y del vínculo con la nube, y vuelta al Welcome.
+   *
+   * El orden está en `deviceHandover.ts` y es importante: si el respaldo a Drive
+   * falla, no se borra nada y se avisa.
+   */
+  let handoverBusy = $state(false);
+  let handoverEtapa = $state('');
 
-  function parseIdTokenExp(idToken: string): number {
-    try { const p = JSON.parse(atob(idToken.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))); return (p.exp || 0) * 1000; } catch { return 0; }
-  }
-
-  async function openAccountDb(email: string) {
-    try {
-      const { driveAutoBackup } = await import('../lib/driveAutoBackup');
-      await driveAutoBackup.flushBeforeAccountSwap();
-    } catch (e) {
-      console.warn('[AccountPage] flush Drive antes del swap falló:', e);
-    }
-    await invoke("open_account_db", { email, migrateFromDefault: true });
-    setCurrentEmail(email);
-  }
-
-  async function finalizeAccountSwitch(opts: {
-    email: string;
-    cloud?: { workerUrl: string; schoolKey: string } | null;
-    seedIfEmpty?: boolean;
-  }): Promise<boolean> {
-    const { email, cloud, seedIfEmpty = true } = opts;
-    await invalidateD1Cache();
-    if (cloud && cloud.workerUrl && cloud.schoolKey) {
-      await d1SyncService.saveConfig(cloud.workerUrl, cloud.schoolKey);
-    }
-    stopWsSync();
-    ensureWsSync();
-    try { await invoke("d1_sync_all", {}); } catch (e) { console.warn("[cambiarCuenta] sync falló:", e); }
-    try { await driveSyncService.pushAll(); } catch (e) { console.warn("[cambiarCuenta] Drive push falló:", e); }
-    perfil = getPerfilLocal();
-    const sts: any = await invoke("get_students").catch(() => []);
-    const empty = !Array.isArray(sts) || sts.length === 0;
-    await emit("data-updated", {});
-    await emit("catalog-updated", {});
-    await emit("student-updated", {});
-    stopWsSync();
-    ensureWsSync();
-    if (empty && seedIfEmpty) {
-      try { await invoke("seed_defaults_now"); } catch (e) { console.warn("[cambiarCuenta] seed falló:", e); }
-      onNavigate?.("ajustes");
-    }
-    return !empty;
-  }
-
-  function applyAccountStores(acct: {
-    idToken?: string; accessToken?: string | null; refreshToken?: string | null;
-    idExpiresAt?: number; driveExpiresAt?: number; clientId?: string;
-    email: string; nombre?: string; foto?: string;
-  }) {
-    const STORAGE_KEY = 'schooltracker-google-drive-settings';
-    const DEFAULT_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
-    let settings: any = {};
-    try { settings = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch {}
-    settings.clientId = acct.clientId || settings.clientId || DEFAULT_CLIENT_ID;
-    if (acct.accessToken !== undefined) settings.accessToken = acct.accessToken;
-    if (acct.refreshToken !== undefined) settings.refreshToken = acct.refreshToken;
-    if (acct.driveExpiresAt !== undefined) settings.tokenExpiry = acct.driveExpiresAt;
-    settings.googleUserEmail = acct.email;
-    settings.googleUserName = acct.nombre || null;
-    settings.googleUserProfilePic = acct.foto || null;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-    if (acct.idToken) {
-      const prev = getAuthToken();
-      // Keep existing refresh token if new one not provided
-      const prevProfile = getProfile(acct.email);
-      const rt = acct.refreshToken || prevProfile?.googleRefreshToken || "";
-      const bundle = { idToken: acct.idToken, refreshToken: rt, expiresAt: parseIdTokenExp(acct.idToken) };
-      localStorage.setItem('stp_cloud_idtoken', JSON.stringify(bundle));
-    }
-    setPerfilLocal({ email: acct.email, nombre: acct.nombre || '', foto: acct.foto || '', rol: 'user' });
-  }
-
-  async function switchToStoredAccount(email: string) {
-    if (switchingAccount || loginLoading) return;
-    const prof = getProfile(email);
-    if (!prof || !prof.googleRefreshToken) {
-      await emit("show-toast", { message: "Esta cuenta requiere volver a iniciar sesión (no hay tokens guardados).", type: "info" });
-      return;
-    }
+  async function traspasar() {
+    if (handoverBusy) return;
     const ok = await ask(
-      `Vas a cambiar a la cuenta ${prof.email}.\n\nCada cuenta tiene su propia base de datos local y su nube. Tus datos de esta cuenta se conservan.\n\n¿Continuar?`,
-      { title: 'Cambiar de cuenta', kind: 'warning', okLabel: 'Sí, cambiar', cancelLabel: 'Cancelar' }
-    );
-    if (!ok) return;
-    switchingAccount = true;
-    try {
-      await openAccountDb(prof.email);
-      applyAccountStores({
-        idToken: prof.googleIdToken || '',
-        accessToken: prof.googleAccessToken ?? null,
-        refreshToken: prof.googleRefreshToken ?? null,
-        idExpiresAt: prof.googleIdExpiresAt,
-        driveExpiresAt: prof.googleDriveExpiresAt,
-        clientId: prof.googleClientId || import.meta.env.VITE_GOOGLE_CLIENT_ID || "",
-        email: prof.email,
-        nombre: prof.nombre,
-        foto: prof.foto,
-      });
-      await finalizeAccountSwitch({ email: prof.email, seedIfEmpty: true });
-      patchProfileTokens(prof.email, {
-        googleIdToken: getAuthToken(),
-        googleClientId: prof.googleClientId || import.meta.env.VITE_GOOGLE_CLIENT_ID || "",
-      });
-      refreshLinkedAccounts();
-      await emit("show-toast", { message: `✅ Ahora usando la cuenta ${prof.email}`, type: "success" });
-    } catch (e) {
-      await emit("show-toast", { message: "❌ Error al cambiar de cuenta: " + e, type: "error" });
-    } finally {
-      switchingAccount = false;
-    }
-  }
-
-  async function cambiarCuenta() {
-    if (switchingAccount || loginLoading) return;
-    const ok = await ask(
-      'Vas a iniciar sesión con otra cuenta de Google.\n\n' +
-      'Cada cuenta tiene su propia base de datos local y su nube. Al cambiar, se abre el archivo de esa cuenta ' +
-      'y se sincroniza con su nube; los datos de las demás cuentas NO se tocan.\n\n' +
+      'Se borrarán los datos locales de esta app y el vínculo con la nube.\n\n' +
+      'Primero se sube un respaldo a tu Google Drive. Si esa subida falla, no se borra nada.\n\n' +
+      'Después la app vuelve a la pantalla de inicio para que la otra persona entre con su cuenta.\n\n' +
       '¿Continuar?',
-      { title: 'Cambiar de cuenta', kind: 'warning', okLabel: 'Sí, cambiar', cancelLabel: 'Cancelar' }
+      { title: 'Traspasar dispositivo', kind: 'warning', okLabel: 'Sí, respaldar y traspasar', cancelLabel: 'Cancelar' }
     );
     if (!ok) return;
-    switchingAccount = true;
+    handoverBusy = true;
+    handoverEtapa = 'Respaldando...';
     try {
-      const res = await iniciarSesionGoogleConNube({
-        forceSelectAccount: true,
-        skipSync: true,
-        onStatus: (m) => emit("show-toast", { message: m, type: "info" }),
-        setBackAuth: setBackAuthInProgress,
+      const { traspasarDispositivo } = await import('../lib/deviceHandover');
+      const res = await traspasarDispositivo({
+        onEtapa: (etapa) => { handoverEtapa = etapa; },
       });
-      if (res.status === 'cancelled') {
-        await emit("show-toast", { message: "Cambio de cuenta cancelado", type: "info" });
-        return;
+      if (res.ok) {
+        handoverEtapa = 'Listo. Reiniciando...';
+        await emit("show-toast", { message: "📦 Dispositivo traspasado. Se recargará la app.", type: "success" });
+      } else {
+        handoverEtapa = '';
+        await emit("show-toast", { message: "❌ " + (res.motivo || 'No se pudo completar el traspaso'), type: "error" });
       }
-      if (res.status === 'error') {
-        await emit("show-toast", { message: "❌ " + res.error, type: "error" });
-        return;
-      }
-      if (res.status === 'sin-nube') {
-        // La cuenta se guardó y su BD se abrió dentro del login. Entra igual, pero
-        // sin nube: `finalizeAccountSwitch` con `cloud: null` no configura D1.
-        const emailSinNube = (res.email || '').toLowerCase();
-        if (emailSinNube) {
-          applyAccountStores({
-            idToken: res.tokens?.idToken || '',
-            accessToken: res.tokens?.accessToken ?? null,
-            refreshToken: res.tokens?.refreshToken ?? null,
-            idExpiresAt: res.tokens?.idToken ? parseIdTokenExp(res.tokens.idToken) : undefined,
-            driveExpiresAt: res.tokens?.accessToken ? Date.now() + 3600 * 1000 : undefined,
-            clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || "",
-            email: emailSinNube,
-          });
-          const notEmpty = await finalizeAccountSwitch({ email: emailSinNube, cloud: null, seedIfEmpty: true });
-          if (!notEmpty) onNavigate?.('ajustes');
-          refreshLinkedAccounts();
-          await emit("show-toast", { message: `✅ Ahora usando la cuenta ${emailSinNube} (sin nube D1)`, type: "success" });
-        } else {
-          await emit("show-toast", { message: "🔑 Sesión iniciada sin acceso a la nube. No se pudo identificar la cuenta.", type: "info" });
-        }
-        return;
-      }
-      const newEmail = (res.result?.perfil?.email || '').toLowerCase();
-      applyAccountStores({
-        idToken: res.tokens?.idToken || '',
-        accessToken: res.tokens?.accessToken ?? null,
-        refreshToken: res.tokens?.refreshToken ?? null,
-        idExpiresAt: res.tokens?.idToken ? parseIdTokenExp(res.tokens.idToken) : undefined,
-        driveExpiresAt: res.tokens?.accessToken ? Date.now() + 3600 * 1000 : undefined,
-        clientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || "",
-        email: newEmail,
-        nombre: res.result?.perfil?.nombre,
-        foto: res.result?.perfil?.foto,
-      });
-      if (res.tokens) {
-        patchProfileTokens(newEmail, {
-          googleIdToken: res.tokens.idToken,
-          googleAccessToken: res.tokens.accessToken,
-          googleRefreshToken: res.tokens.refreshToken,
-          googleIdExpiresAt: parseIdTokenExp(res.tokens.idToken),
-          googleDriveExpiresAt: Date.now() + 3600 * 1000,
-          googleClientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || "",
-        });
-      }
-      const cloud = res.result?.schoolKey
-        ? { workerUrl: DEFAULT_WORKER_URL, schoolKey: res.result.schoolKey }
-        : null;
-      const notEmpty = await finalizeAccountSwitch({ email: newEmail, cloud, seedIfEmpty: true });
-      if (!notEmpty) onNavigate?.('ajustes');
-      refreshLinkedAccounts();
-      await emit("show-toast", { message: `✅ Ahora usando la cuenta ${newEmail}`, type: "success" });
-    } catch (e) {
-      await emit("show-toast", { message: "❌ Error al cambiar de cuenta: " + e, type: "error" });
+    } catch (e: any) {
+      handoverEtapa = '';
+      await emit("show-toast", { message: "❌ Error en el traspaso: " + (e?.message || e), type: "error" });
     } finally {
-      switchingAccount = false;
+      if (handoverEtapa !== 'Listo. Reiniciando...') handoverBusy = false;
     }
   }
-
   // ── Admin panel ──
   let showAdminPanel = $state(false);
   let adminUsers: AdminUserInfo[] = $state([]);
@@ -327,7 +160,6 @@
   }
 
   onMount(() => {
-    refreshLinkedAccounts();
     loadDbPath();
   });
 </script>
@@ -439,34 +271,33 @@
       <h3>
         <span class="header-badge">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4285F4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 14 0v1"/></svg>
-          Cuentas vinculadas
+          Traspasar dispositivo
         </span>
       </h3>
     </div>
     <div class="account-card-body">
-      {#if perfil && linkedAccounts.length > 0}
-        <div style="margin-bottom: 0.8rem;">
-          {#each linkedAccounts as acc (acc.email)}
-            {@const isActive = acc.email.toLowerCase() === (perfil?.email || '').toLowerCase()}
-            <button onclick={() => switchToStoredAccount(acc.email)} disabled={switchingAccount || isActive}
-              class="account-item" class:active={isActive}>
-              <span class="account-item-name">{acc.nombre || acc.email}</span>
-              {#if !acc.googleRefreshToken}<span style="color:#fbbf24;font-size:0.62rem;">↻ requiere login</span>{/if}
-              {#if isActive}<span style="color:#4ade80;font-size:0.7rem;">● activa</span>{/if}
-            </button>
-          {/each}
-        </div>
-      {:else if perfil}
-        <p style="color:#64748b;font-size:0.8rem;margin:0 0 0.5rem;">Solo hay una cuenta vinculada.</p>
-      {/if}
-
-      {#if perfil}
-        <button onclick={cambiarCuenta} disabled={switchingAccount || loginLoading} class="btn-switch">
-          {switchingAccount ? 'Cambiando cuenta...' : '➕ Agregar otra cuenta de Google'}
-        </button>
-      {:else}
-        <p style="color: #94a3b8; font-size: 0.85rem; margin: 0 0 1rem;">Inicia sesión para ver y cambiar entre tus cuentas vinculadas.</p>
-      {/if}
+      <!--
+        Antes esto era "cuentas vinculadas" con un selector para saltar de una a
+        otra. Se reemplazó por el traspaso: el dispositivo se respalda a Drive, se
+        borra y vuelve al Welcome para que entre la próxima persona. Alternar
+        cuentas en el mismo equipo mezclaba contexts (el `.db` de una cuenta con
+        el `d1_config` de otra), que es la clase de error más difícil de detectar
+        en esta app.
+      -->
+      <p style="color:#94a3b8;font-size:0.8rem;line-height:1.5;margin:0 0 0.8rem;">
+        Para que otra persona use este equipo: se guarda un respaldo en tu Google
+        Drive, se borran los datos locales y la nube, y la app vuelve a la
+        pantalla de inicio para que entre con su cuenta.
+      </p>
+      <p style="color:#64748b;font-size:0.72rem;line-height:1.5;margin:0 0 0.8rem;">
+        El respaldo de Drive se sube con tu cuenta actual, así que queda a tu
+        nombre: la otra persona no lo ve. Tu archivo de base anterior no se borra
+        de disco, pero la app deja de usarlo.
+      </p>
+      <button onclick={traspasar} disabled={handoverBusy} class="btn-switch"
+        style="background:rgba(239,68,68,0.1);border-color:rgba(239,68,68,0.3);color:#fca5a5;">
+        {handoverBusy ? handoverEtapa : '📦 Respaldar, borrar y traspasar'}
+      </button>
     </div>
   </div>
 </div>
