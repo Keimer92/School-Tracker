@@ -14,10 +14,6 @@
   let loadingMessage = $state('');
   let errorMsg = $state('');
 
-  function goToLanding() {
-    view = 'landing';
-    errorMsg = '';
-  }
 
   // Detección de plataforma (mismo patrón que AsistenciaPage)
   let isAndroid = $state(/Android/i.test(navigator.userAgent));
@@ -173,56 +169,6 @@
     step = 1;
     errorMsg = '';
     currentInput = '';
-  }
-
-  /**
-   * Flujo común tras obtener credenciales (por .key o por login Google):
-   * guarda la config en d1_config (protección anti-mezcla) y sincroniza.
-   */
-  async function conectarConCredenciales(workerUrl: string, schoolKey: string) {
-    // Si ya existía una conexión con OTRAS credenciales, reemplazar limpio
-    const previa = await invoke<any>('d1_get_config');
-    if (previa && (previa.workerUrl !== workerUrl || previa.schoolKey !== schoolKey)) {
-      const ok = await ask(
-        'Ya existe una conexión a la nube con OTRAS credenciales.\n\n¿Reemplazarla? Se generará un nuevo ID de dispositivo y los datos locales se sincronizarán con la nube nueva.',
-        { title: 'Reemplazar conexión', kind: 'warning', okLabel: 'Sí, reemplazar', cancelLabel: 'Cancelar' }
-      );
-      if (!ok) { loading = false; loadingMessage = ''; return; }
-      await invoke('d1_clear_config');
-    }
-    await invoke('d1_save_config', { workerUrl, schoolKey });
-    loadingMessage = 'Sincronizando con la nube...';
-    let unlisten: (() => void) | null = null;
-    try {
-      unlisten = await listen<{ message?: string }>('d1-sync-progress', (e) => {
-        if (e.payload?.message) loadingMessage = e.payload.message;
-      });
-    } catch { /* ignorable */ }
-    try {
-      await invoke('d1_restore_from_cloud');
-    } catch (syncErr) {
-      console.error('[Cloud] primer sync falló:', syncErr);
-      const detail = (typeof syncErr === 'string' && syncErr.trim())
-        ? syncErr
-        : (syncErr?.message || JSON.stringify(syncErr));
-      errorMsg = 'No se pudo sincronizar con el Worker.\n' + detail;
-      loading = false; loadingMessage = '';
-      return;
-    } finally {
-      if (unlisten) unlisten();
-    }
-    loadingMessage = 'Verificando datos...';
-    const hasData = await invoke('is_app_initialized');
-    if (hasData) {
-      await invoke('set_app_initialized');
-      emit('welcome-complete');
-      setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
-    } else {
-      loading = false; loadingMessage = '';
-      goToWizard();
-    }
-    loading = false;
-    loadingMessage = '';
   }
 
   /** Detecta errores transitorios del Worker (cuota free agotada, red, rate limit). */

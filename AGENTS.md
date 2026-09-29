@@ -261,7 +261,7 @@ La portada quedó con **tres** tarjetas y nada más:
 
 | # | Opción | Vista | Acción |
 |---|--------|-------|--------|
-| 1 | 📥 Continuar con Google | `view === 'drive'` | Login Google → `conectarConCredenciales(workerUrl, codigo)` → `restoreFromDrive()` |
+| 1 | 📥 Continuar con Google | landing | `handleDriveLogin()` → `iniciarSesionGoogleConNube({skipSync:true})` → `restoreFromDrive()` |
 | 2 | ☁️ Iniciar sesión y sincronizar | `view === 'cloud'` | `handleCloudLogin()` (restore autoritativo desde D1) |
 | 3 | ✨ Empezar de cero | `view === 'wizard'` | Asistente de instalación |
 
@@ -270,6 +270,13 @@ portada (2026-09, decisión del usuario). Consecuencia: un usuario que solo teng
 un `.key` o un `.db` ya no tiene salida desde el Welcome; si vuelve a hacer
 falta, restaurar `importarArchivoConexion` / `importarBaseDatos` (se borraron
 junto con sus imports `openDialog` y `readTextFile`).
+
+**Opciones 1 y 2 son iguales salvo el ORIGEN de los datos**: ambas hacen login con
+Google y obtienen el `schoolKey` automáticamente del Worker en `/auth` (NO se le
+pide código al usuario). La 1 restaura el último archivo de Drive; la 2 hace
+`d1_restore_from_cloud`. `handleDriveLogin` usa `skipSync:true` para no hacer un
+sync con D1 que no aporta nada (la nube puede estar vacía); lo que restaura es
+Drive. Se eliminó la vista intermedia `view === 'drive'` con el input de código.
 
 **Opción 1 (Drive)**: pide el `schoolKey` (el "código" que viaja dentro del
 `.key`) en un input monoespaciado. El orden importa: se configura D1 **antes**
