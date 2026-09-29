@@ -677,7 +677,7 @@
   <div class="cloud-cols" class:mobile={isAndroid} role="region" aria-label="Paneles de sincronización"
     ontouchstart={isAndroid ? onCloudTouchStart : undefined}
     ontouchend={isAndroid ? onCloudTouchEnd : undefined}>
-  <div class="cloud-card" style={isAndroid && activeCloudTab !== 0 ? 'display:none;' : 'margin-bottom: 1.25rem;'}>
+  <div class="cloud-card" style={isAndroid && activeCloudTab !== 0 ? 'display:none;' : ''}>
     <div class="cloud-card-header" style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
       <h3>
         <span style="display: inline-flex; align-items: center; gap: 10px; background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%); padding: 0.5rem 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);">
@@ -982,7 +982,7 @@
           <span style="line-height: 1.25; min-width: 0;">
             <span style="display: block; font-size: 0.8rem; color: #e2e8f0; font-weight: 600;">Respaldar con cada guardado</span>
             <span style="display: block; font-size: 0.68rem; color: {instantBackupOn ? '#22c55e' : '#94a3b8'};">
-              {instantBackupOn ? 'Se sube a Drive ~12 s después de guardar' : 'Desactivado: solo respaldos manuales y programados'}
+              {instantBackupOn ? 'Se sube a Drive ~5 s después de guardar' : 'Desactivado: solo respaldos manuales'}
             </span>
           </span>
         </label>
@@ -1005,10 +1005,6 @@
                       <span>{fmtDate(file.modifiedTime || file.createdTime)} · {fmtSize(file.size)}</span>
                       {#if file.name.endsWith('_latest.db')}
                         <span style="padding: 1px 6px; border-radius: 999px; background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.25); color: #4ade80; font-size: 0.6rem; font-weight: 600;">⚡ se actualiza al guardar</span>
-                      {:else if filePlatform(file.name) === 'Android'}
-                        <span style="padding: 1px 6px; border-radius: 999px; background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.25); color: #7dd3fc; font-size: 20px; line-height: 1;">🤖</span>
-                      {:else if filePlatform(file.name) === 'Windows'}
-                        <span style="padding: 1px 6px; border-radius: 999px; background: rgba(167,139,250,0.12); border: 1px solid rgba(167,139,250,0.25); color: #c4b5fd; font-size: 20px; line-height: 1;">🪟</span>
                       {/if}
                     </div>
                   </div>
@@ -1033,10 +1029,13 @@
 <style>
   .cloud-page { max-width: 1000px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; }
 
-  /* Layout de nube: dos columnas en desktop, swipe/mobile en Android */
+  /* Layout de nube: UNA columna en desktop (2026-09). Con dos columnas las
+     cards quedaban apretadas y había que hacer scroll horizontal dentro de
+     cada panel; apiladas usan todo el ancho y respiran.
+     En Android sigue siendo bloque con pestañas. */
   .cloud-cols {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 1.25rem;
     align-items: start;
   }

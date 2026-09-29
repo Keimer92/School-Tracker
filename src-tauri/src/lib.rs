@@ -1082,14 +1082,29 @@ async fn desvincular_cuenta(
 async fn gd_write_file_base64(path: String, content_base64: String) -> Result<(), String> {
     use base64::{Engine as _, engine::general_purpose};
     use std::fs;
-    
+
     let bytes = general_purpose::STANDARD
         .decode(&content_base64)
         .map_err(|e| format!("Error decodificando base64: {}", e))?;
+    let p = std::path::PathBuf::from(&path);
+    // Si la base está en WAL, los archivos `-wal`/`-shm` pertenecen a la base
+    // ANTERIOR. Si se dejan, SQLite los reproduce sobre el archivo recién
+    // escrito y lo corrompe. Se borran antes de sobrescribir.
+    for sufijo in ["-wal", "-shm"] {
+        let lateral = p.with_extension(format!(
+            "{}{}",
+            p.extension().and_then(|e| e.to_str()).unwrap_or("db"),
+            sufijo
+        ));
+        if lateral.exists() {
+            let _ = fs::remove_file(&lateral);
+        }
+    }
     fs::write(&path, bytes)
-        .map_err(|e| format!("Error escribiendo archivo: {}", e))?;
+    .map_err(|e| format!("Error escribiendo archivo: {}", e))?;
     Ok(())
 }
+
 
 #[tauri::command]
 async fn gd_open_url_browser(app: tauri::AppHandle, url: String) -> Result<(), String> {
@@ -1631,7 +1646,7 @@ async fn gd_cancel_oauth() -> Result<(), String> {
 /// SQLite abierto, y leer el archivo vivo mientras se escribe puede producir un
 /// snapshot inconsistente. La copia es Point-in-Time y se sube esa.
 #[tauri::command]
-async fn gd_snapshot_db(app_handle: tauri::AppHandle) -> Result<String, String> {
+async fn gd_snapshot_db(app_handle: tauri::AppHandle, state: tauri::State<'_, DbState>) -> Result<String, String> {
     use std::fs;
 
     let app_data_dir = get_profile_app_dir(&app_handle)?;
@@ -1643,7 +1658,25 @@ async fn gd_snapshot_db(app_handle: tauri::AppHandle) -> Result<String, String> 
     let tmp_dir = std::env::temp_dir().join("schooltracker");
     fs::create_dir_all(&tmp_dir).map_err(|e| format!("Failed to create temp dir: {}", e))?;
     let snap = tmp_dir.join("snapshot.db");
-    fs::copy(&db_path, &snap).map_err(|e| format!("Failed to snapshot database: {}", e))?;
+
+    // Se hace el checkpoint y la copia con el lock tomado. Sin esto, en modo
+    // WAL los datos confirmados siguen en `school.db-wal` y la copia del `.db`
+    // saldría incompleta: el respaldo a Drive perdería los últimos cambios sin
+    // avisar. `TRUNCATE` además deja el `-wal` en 0 bytes.
+    {
+        let conn = state.conn.lock().map_err(|e| e.to_string())?;
+        match conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| {
+            Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?))
+        }) {
+            Ok((busy, written, moved)) => {
+                if busy == 0 {
+                    println!("[Snapshot] WAL checkpoint: {} frames volcados, {} movidos", written, moved);
+                }
+            }
+            Err(e) => println!("[Snapshot] sin checkpoint (base no está en WAL): {}", e),
+        }
+        fs::copy(&db_path, &snap).map_err(|e| format!("Failed to snapshot database: {}", e))?;
+    }
     Ok(snap.to_string_lossy().into_owned())
 }
 
@@ -1964,6 +1997,13 @@ pub fn run() {
                 app_dir.join("school.db")
             };
             let conn = Connection::open(db_path).expect("Failed to open database");
+            // Modo WAL explícito: la app lee desde el WebView mientras el motor
+            // de sync escribe por detrás, y en modo `delete` un guardado bloquea
+            // a todos los lectores. OJO: en WAL los datos confirmados viven en
+            // `school.db-wal` hasta el checkpoint, por eso `gd_snapshot_db`
+            // hace `wal_checkpoint(TRUNCATE)` antes de copiar el `.db`.
+            let _ = conn.pragma_update(None, "journal_mode", "WAL");
+            let _ = conn.pragma_update(None, "synchronous", "FULL");
             db::init_database(&conn).expect("Failed to initialize database");
             app_handle.manage(DbState {
                 conn: Arc::new(Mutex::new(conn)),
