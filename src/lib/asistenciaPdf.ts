@@ -54,7 +54,7 @@ import {
   resolverExport,
 } from "./pdfChrome";
 
-export type CeldaPdf = string | { content: string; rowSpan?: number; styles?: Record<string, any> };
+export type CeldaPdf = string | number | { content: string | number; rowSpan?: number; styles?: Record<string, any> };
 
 export interface TablaAsistenciaPdf {
   titulo: string;

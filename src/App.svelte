@@ -30,6 +30,11 @@
   // Nube, Cuenta y Evaluaciones ya no son tabs: son secciones del rail de Ajustes.
   const DEFAULT_TABS: Tab[] = ["dashboard", "notas", "estudiantes", "ajustes", "asistencia"];
 
+  /** ¿El string recibido corresponde a una tab vigente? */
+  function esTabValida(v: string): v is Tab {
+    return (DEFAULT_TABS as string[]).includes(v);
+  }
+
   let initialized = $state<boolean | null>(null);
   let isMobile = $state(false);
   let isAndroid = $state(false);
@@ -161,16 +166,22 @@
     localStorage.setItem("visited-tabs", JSON.stringify(Array.from(visitedTabs)));
   }
 
-  function handleTabChange(tab: Tab) {
+  /**
+   * Navegación central. Acepta `string` y no `Tab` a propósito: los
+   * quick-actions del Dashboard y varios `onNavigate` siguen pasando nombres
+   * históricos ("reportes", "informe", "cloud"…) que se redirigen más abajo.
+   * Declarationar `Tab` obligaba a castear en cada comparación.
+   */
+  function handleTabChange(tab: string) {
     // Migración: el quick-action "Reportes" del Dashboard abre la página unificada en su sub-tab Reportes
-    if ((tab as string) === "reportes") {
+    if (tab === "reportes") {
       notasSubTabRequest = "reportes";
       setActiveTab("notas");
       if (isMobile) drawerOpen = false;
       return;
     }
     // Migración: el quick-action "Informe" del Dashboard abre la página unificada en su sub-tab Informe
-    if ((tab as string) === "informe") {
+    if (tab === "informe") {
       asistenciaSubTabRequest = "informe";
       setActiveTab("asistencia");
       if (isMobile) drawerOpen = false;
@@ -179,16 +190,21 @@
     // Nube, Cuenta y Evaluaciones ya no son tabs: son secciones del rail de
     // Ajustes. Cualquier llamador legado (CloudCards, drawer, páginas) que
     // aún pida esos destinos aterriza en Ajustes con la sección equivalente.
-    const seccionAjustes = TAB_A_SECCION_AJUSTES[tab as string];
+    const seccionAjustes = TAB_A_SECCION_AJUSTES[tab];
     if (seccionAjustes) {
       ajustesSeccion = seccionAjustes;
       setActiveTab("ajustes");
       if (isMobile) drawerOpen = false;
       return;
     }
+    if (!esTabValida(tab)) {
+      // Destino desconocido: no se cambia de pestaña en vez de dejar la app
+      // apuntando a una tab inexistente.
+      return;
+    }
     // Entrada normal a Ajustes (barra lateral): se abre la sección por defecto.
     // Los deep-links llegan por otra vía y conservan la sección pedida.
-    if ((tab as string) === "ajustes") ajustesSeccion = SECCION_AJUSTES_POR_DEFECTO;
+    if (tab === "ajustes") ajustesSeccion = SECCION_AJUSTES_POR_DEFECTO;
     asistenciaSubTabRequest = null;
     notasSubTabRequest = null;
     setActiveTab(tab);
@@ -297,7 +313,11 @@
 
     if (init) {
       // Existing init logic only runs if already initialized
-      const saved = localStorage.getItem("active-tab") as Tab | null;
+      // Se lee como `string` y no como `Tab`: el valor persistido puede ser un
+      // nombre de tab de una versión anterior, y castearlo a `Tab` antes de
+      // comparar hacía que TypeScript viera las migraciones como imposibles.
+      const saved = localStorage.getItem("active-tab");
+      const esTabActual = (v: string): v is Tab => (DEFAULT_TABS as string[]).includes(v);
       // Migraciones: páginas fusionadas como sub-tabs, y Globales→Ajustes Generales
       if (saved === "informe" || saved === "reportes") {
         const merged = saved === "informe" ? "asistencia" : "notas";
@@ -316,7 +336,10 @@
         ajustesSeccion = TAB_A_SECCION_AJUSTES[saved];
         localStorage.setItem("active-tab", "ajustes");
       }
-      else if (saved) activeTab = saved;
+      else if (saved && esTabActual(saved)) activeTab = saved;
+      // Cualquier otro valor desconocido cae en el dashboard en vez de dejar
+      // `activeTab` apuntando a una tab inexistente (pantalla vacía).
+      else if (saved) { activeTab = "dashboard"; localStorage.setItem("active-tab", "dashboard"); }
       const w = localStorage.getItem("sidebar-width");
       if (w) sidebarWidth = parseInt(w);
       const visits = localStorage.getItem("visited-tabs");
@@ -509,7 +532,7 @@
       setThemeMode={setThemeMode}
       onTabChange={handleTabChange}
       toggleDrawer={toggleDrawer}
-      on:closeDrawer={closeDrawer}
+      onDrawerClose={closeDrawer}
     />
 
     <div

@@ -11,7 +11,8 @@
     "dev:android:hmr": "node scripts/android-hmr.mjs",
     "dev:android:device": "node scripts/android-hmr.mjs --device",
     "check:components": "node scripts/check-components.mjs",
-    "build": "npm run check:components && tsc && vite build",
+    "check:svelte": "svelte-check --threshold error --fail-on-warnings=false",
+    "build": "npm run check:components && npm run check:svelte && tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri"
   },
@@ -35,6 +36,7 @@
     "@rollup/plugin-babel": "^7.0.0",
     "@sveltejs/vite-plugin-svelte": "^6.2.4",
     "@tauri-apps/cli": "^2",
+    "svelte-check": "^4.7.6",
     "typescript": "~5.8.3",
     "vite": "^7.0.4",
     "vite-plugin-top-level-await": "^1.6.0"

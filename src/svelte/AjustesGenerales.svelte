@@ -211,7 +211,10 @@
 {/snippet}
 
 {#snippet contenidoSeccion()}
-  {#if activa.cat}
+  {#if !activa}
+    <!-- `activa` es null en la lista raíz: acá no se renderiza nada. El guard
+         además le permite a TS estrechar el tipo dentro del snippet. -->
+  {:else if activa.cat}
     <CategoryTabContent config={activa.cat} accentColor={activa.color} accentIcon={activa.icono} headerExtra={activa.id === 'ano-lectivo' ? anoLectivoHeader : undefined} />
   {:else if activa.id === 'notas'}
     <NotasConfig />

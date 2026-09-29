@@ -1932,7 +1932,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Asignatura:</label>
             <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px"
               value={selectedAsignatura}
-              onchange={(e) => { selectedAsignatura = Number(e.target.value); localStorage.setItem('notas-last-asignatura', String(selectedAsignatura)); }}>
+              onchange={(e) => { selectedAsignatura = Number((e.currentTarget as HTMLSelectElement).value); localStorage.setItem('notas-last-asignatura', String(selectedAsignatura)); }}>
               {#each asignaturas as a}
                 <option value={a.id}>{a.nombre}</option>
               {/each}
@@ -2748,7 +2748,8 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                       {#each cortesPrecios as corte (corte.id)}
                         {@const pctPrevCorte = comparacionCortes[corte.id]?.[est.estudianteId] ?? null}
                         {@const gradePrevCorte = pctPrevCorte === null ? '' : (getGradeFromScore(pctPrevCorte)?.id || '')}
-                        <td class="col-num" title="{corte.name}: {pctPrevCorte === null ? 'sin notas' : isQualitative ? gradePrevCorte : pctPrevCorte}" style="padding: 0.3rem 0.3rem; text-align: center; white-space: nowrap; font-size: 0.74rem; font-weight: 600; color: {isQualitative ? (gradePrevCorte ? getGradeColor(gradePrevCorte) : '#94a3b8') : colorPctAnterior(pctPrevCorte)};">
+                          <td class="col-num" title="{corte.nombre}: {pctPrevCorte === null ? 'sin notas' : isQualitative ? gradePrevCorte : pctPrevCorte}" style="padding: 0.3rem 0.3rem; text-align: center; white-space: nowrap; font-size: 0.74rem; font-weight: 600; color: {isQualitative ? (gradePrevCorte ? getGradeColor(gradePrevCorte) : '#94a3b8') : colorPctAnterior(pctPrevCorte)};">
+
                           {#if pctPrevCorte === null}
                             —
                           {:else if isQualitative}
@@ -2977,7 +2978,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                 <div style="color: #f1f5f9; font-weight: 600; font-size: 0.9rem;">Por estudiante</div>
                 <div style="color: #64748b; font-size: 0.75rem; margin-top: 2px;">Elimina todas las notas de un estudiante específico</div>
                 {#if deleteMode === 'student'}
-                  <select value={deleteStudentId} onchange={(e) => deleteStudentId = Number(e.target.value)} onclick={(e) => e.stopPropagation()}
+                  <select value={deleteStudentId} onchange={(e) => deleteStudentId = Number((e.currentTarget as HTMLSelectElement).value)} onclick={(e) => e.stopPropagation()}
                     style="width: 100%; margin-top: 0.5rem; padding: 0.5rem 0.75rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15, 23, 42, 0.6); color: #e2e8f0; font-size: 0.82rem; cursor: pointer; outline: none;">
                     <option value={0}>Seleccione estudiante...</option>
                     {#each filteredNotas as n}
@@ -2996,7 +2997,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                 <div style="color: #f1f5f9; font-weight: 600; font-size: 0.9rem;">Por indicador</div>
                 <div style="color: #64748b; font-size: 0.75rem; margin-top: 2px;">Elimina todas las notas de un indicador específico</div>
                 {#if deleteMode === 'indicator'}
-                  <select value={deleteIndicatorId} onchange={(e) => deleteIndicatorId = Number(e.target.value)} onclick={(e) => e.stopPropagation()}
+                  <select value={deleteIndicatorId} onchange={(e) => deleteIndicatorId = Number((e.currentTarget as HTMLSelectElement).value)} onclick={(e) => e.stopPropagation()}
                     style="width: 100%; margin-top: 0.5rem; padding: 0.5rem 0.75rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15, 23, 42, 0.6); color: #e2e8f0; font-size: 0.82rem; cursor: pointer; outline: none;">
                     <option value={0}>Seleccione indicador...</option>
                     {#each indicadoresSeccion.filter(i => i.activo) as ind}

@@ -180,6 +180,17 @@ $effect(() => {
     `(${fechaLarga(fechaInicio)} al ${fechaLarga(fechaFin)})`
   );
 
+  /**
+   * Semana visible según `fechaBase`. Va declarada antes de `periodoEtiqueta` y
+   * `resumenPeriodo` porque la usan: con los `$derived` en orden inverso la
+   * referencia caía en zona muerta temporal.
+   */
+  let semanaActiva = $derived.by(() => {
+    const lu = lunesDeISO(fechaBase);
+    const match = semanasOpts.find(s => s.lunes === lu);
+    return match?.n ?? (fechaBase >= (semanasOpts[0]?.lunes ?? '') ? 1 : semanasOpts.length || 1);
+  });
+
   /** Etiqueta del período: "Septiembre" (mensual) o "Semana 3 Septiembre" (semanal). */
   let periodoEtiqueta = $derived.by(() => {
     if (periodo === 'semanal') return `Semana ${semanaActiva} ${nombreMes(mesSeleccionado)}`;
@@ -190,12 +201,6 @@ $effect(() => {
   let resumenPeriodo = $derived(
     periodo === 'semanal' ? `Semana ${semanaActiva}` : `${nombreMes(mesSeleccionado)} ${anoSeleccionado}`
   );
-
-  let semanaActiva = $derived.by(() => {
-    const lu = lunesDeISO(fechaBase);
-    const match = semanasOpts.find(s => s.lunes === lu);
-    return match?.n ?? (fechaBase >= (semanasOpts[0]?.lunes ?? '') ? 1 : semanasOpts.length || 1);
-  });
 
   function elegirSemanaInforme(s: SemanaOpt) {
     fechaBase = s.lunes;

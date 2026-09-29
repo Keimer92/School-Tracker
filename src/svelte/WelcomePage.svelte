@@ -195,9 +195,12 @@
         skipSync: true,
       });
       if (res.status !== 'ok') {
-        const motivo = res.cancelled
+        // `CloudLoginResult` marca la cancelación con `status`, no con una
+        // propiedad `cancelled`: preguntar por `res.cancelled` daba siempre
+        // undefined y el usuario veía "error desconocido" al cancelar.
+        const motivo = res.status === 'cancelled'
           ? 'Iniciá sesión con Google para continuar.'
-          : friendlyCloudError(String((res as any).error || 'error desconocido')).body;
+          : friendlyCloudError(res.error || 'error desconocido').body;
         errorMsg = motivo;
         return;
       }
@@ -751,7 +754,12 @@
     return { lunes: true, martes: true, miercoles: true, jueves: true, viernes: true, sabado: false, domingo: false };
   }
   function diaShort(k: keyof DiasClase): string {
-    return { lunes: 'L', martes: 'M', miercoles: 'X', jueves: 'J', viernes: 'V' }[k] || '';
+    // El asistente solo ofrece L-V, pero `DiasClase` conserva sábado y domingo
+    // porque así vienen en la BD; el mapa los cubre para no dejar el índice sin tipo.
+    const CORTO: Partial<Record<keyof DiasClase, string>> = {
+      lunes: 'L', martes: 'M', miercoles: 'X', jueves: 'J', viernes: 'V', sabado: 'S', domingo: 'D',
+    };
+    return CORTO[k] || '';
   }
   /** Forzar finde en false: el asistente ya no los ofrece. */
   function soloEntreSemana(d: DiasClase): DiasClase {

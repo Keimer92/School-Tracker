@@ -62,7 +62,7 @@
   let abierto = $state(false);
   let triggerEl = $state<HTMLElement | null>(null);
   let panelEl = $state<HTMLElement | null>(null);
-  let pos = $state({ x: 0, y: 0, arriba: false });
+  let pos = $state({ x: 0, y: 0, abajo: 'auto' });
   let maxiAlto = $state(320);
   let anchoPanelActivo = $state(ANCHO_MIN);
 
@@ -74,12 +74,15 @@
     if (disabled) return;
     const r = triggerEl?.getBoundingClientRect();
     if (!r) return;
+    // Alto estimado SOLO para decidir si abre hacia arriba. El panel no fija su
+    // altura a esta estimación: crece hasta el contenido, así que una lista con
+    // muchas opciones se ve completa y sin scroll. El max-height queda como red
+    // de seguridad para cuando no cabe ni abierta hacia arriba.
     const items = options.length || 1;
-    const alto = Math.min(items * ALTO_ITEM, 320) + 10;
-    // Si no cabe abajo, abre hacia arriba; si tampoco, se recorta al alto útil.
-    const abreArriba = r.bottom + alto > window.innerHeight && r.top > alto;
+    const altoEstimado = items * ALTO_ITEM + 10;
+    const abreArriba = r.bottom + altoEstimado > window.innerHeight && r.top > altoEstimado;
     const disponible = abreArriba ? r.top - SEPARACION : window.innerHeight - r.bottom - SEPARACION;
-    maxiAlto = Math.max(140, Math.min(alto, disponible));
+    maxiAlto = Math.max(140, disponible);
     // El panel nunca es más angosto que ANCHO_MIN: los chips de la barra de
     // filtros son angostos por la grilla y con el ancho del chip los nombres
     // largos (colegios) quedaban con ellipsis. Crece a lo que haga falta y se
@@ -90,8 +93,11 @@
     );
     pos = {
       x: Math.max(8, Math.min(Math.round(r.left), window.innerWidth - anchoPanel - 8)),
-      y: Math.round(abreArriba ? r.top - maxiAlto - SEPARACION : r.bottom + SEPARACION),
-      arriba: abreArriba,
+      // Abierto hacia arriba se ancla por el BORDE INFERIOR (no con `top`): como
+      // la altura la define el contenido, anclar por arriba lo dejaría más alto
+      // de lo previsto y se saldría de la pantalla.
+      y: abreArriba ? 0 : Math.round(r.bottom + SEPARACION),
+      abajo: abreArriba ? `${Math.round(window.innerHeight - r.top + SEPARACION)}px` : 'auto',
     };
     anchoPanelActivo = Math.round(anchoPanel);
     abierto = true;
@@ -154,7 +160,7 @@
     bind:this={panelEl}
     use:portalToBody
     role="listbox"
-    style="position:fixed; z-index:99990; left:{pos.x}px; top:{pos.y}px; width:{anchoPanelActivo}px; max-height:{maxiAlto}px; overflow-y:auto; padding:0.5rem; box-sizing:border-box; border-radius:16px; background:rgba(13,20,36,0.975); backdrop-filter:blur(24px) saturate(1.3); -webkit-backdrop-filter:blur(24px) saturate(1.3); border:1px solid rgba(255,255,255,0.16); box-shadow:0 24px 60px -12px rgba(0,0,0,0.7); outline:none; animation:pop-in .18s cubic-bezier(.34,1.3,.64,1);"
+    style="position:fixed; z-index:99990; left:{pos.x}px; top:{pos.y}px; bottom:{pos.abajo}; width:{anchoPanelActivo}px; max-height:{maxiAlto}px; overflow-y:auto; padding:0.5rem; box-sizing:border-box; border-radius:16px; background:rgba(13,20,36,0.975); backdrop-filter:blur(24px) saturate(1.3); -webkit-backdrop-filter:blur(24px) saturate(1.3); border:1px solid rgba(255,255,255,0.16); box-shadow:0 24px 60px -12px rgba(0,0,0,0.7); outline:none; animation:pop-in .18s cubic-bezier(.34,1.3,.64,1);"
 >
     {#each options as o, i (o.value)}
       {@const nuevoGrupo = i === 0 || o.grupo !== options[i - 1].grupo}

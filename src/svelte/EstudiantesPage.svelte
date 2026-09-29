@@ -506,8 +506,8 @@ async function fetchData(preserveFilters = false) {
     }
   }
 
-function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId' | 'sexo', valor: string | number) {
-  const val = campo === 'sexo' ? String(valor) : Number(valor);
+function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId' | 'sexo', valor: string | number | null) {
+  const val = campo === 'sexo' ? String(valor ?? '') : Number(valor ?? 0);
   const newFilters = { ...filters, [campo]: val };
   if (campo === 'colegioId' || campo === 'anoLectivoId') { newFilters.gradoId = 0; newFilters.seccionId = 0; }
   else if (campo === 'gradoId') newFilters.seccionId = 0;

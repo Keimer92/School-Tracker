@@ -88,9 +88,13 @@ import SelectChip from "./SelectChip.svelte";
   }
 
   onMount(() => {
-    const saved = localStorage.getItem("evaluaciones-view-mode") as ViewMode | null;
-    if (saved === "refined" || saved === "accordion") { viewMode = "split-panel"; localStorage.setItem("evaluaciones-view-mode", "split-panel"); }
-    else if (saved) viewMode = saved;
+    // El valor persistido puede venir de una versión anterior con otros nombres
+    // de modo ("refined"/"accordion"): se compara como string y cualquier valor
+    // que no sea un modo vigente vuelve al de por defecto.
+    const previo = localStorage.getItem("evaluaciones-view-mode");
+    const esModoValido = !!previo && VIEW_MODES.some(v => v.key === previo);
+    viewMode = esModoValido ? (previo as ViewMode) : "split-panel";
+    if (!esModoValido && previo) localStorage.setItem("evaluaciones-view-mode", viewMode);
     if (isAndroid) viewMode = "modern-cards";
     const checkMobile = () => { isMobile = window.innerWidth <= 768; };
     checkMobile();
