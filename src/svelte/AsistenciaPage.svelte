@@ -2644,9 +2644,10 @@ $effect(() => {
              `{#each}` anidados. "Limpiar" no tiene estado: usa un acento neutro. -->
         {@const esLimpiar = popSel.modo === 'limpiar'}
         {@const fechasSel = popSel.fechas}
+        {@const estadoSel = popSel.estado}
         {@const acento = esLimpiar
           ? { id: '🧹', borde: 'rgba(203,213,225,0.35)', suave: 'rgba(203,213,225,0.10)', color: '#e2e8f0' }
-          : ESTADOS_PAJ.find(x => x.id === popSel.estado)!}
+          : ESTADOS_PAJ.find(x => x.id === estadoSel)!}
         <!-- Encabezado: en Rellenar se puede volver a elegir el estado; en Limpiar
              solo muestra qué se está limpiando. -->
         <div style="display:flex; align-items:center; gap:0.4rem; padding:0.25rem 0.3rem 0.45rem; border-bottom:1px solid rgba(255,255,255,0.08); margin-bottom:0.25rem;">
