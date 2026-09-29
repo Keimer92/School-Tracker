@@ -4,6 +4,9 @@
   import { listen } from "@tauri-apps/api/event";
   import { registerBackHandler } from "../lib/androidBack";
 
+  /** Permite que el aviso de "sin estudiantes" mande al usuario a esa página. */
+  let { onNavigate }: { onNavigate?: (tab: string) => void } = $props();
+
   interface DashboardStats {
     totalEstudiantes: number;
     totalNotas: number;
@@ -21,8 +24,6 @@
     estudiantesPorGrado: { grado: string; count: number }[];
     estudiantesPorGradoSeccion: { grado: string; seccion: string; colegio: string; count: number }[];
   }
-
-  let { onNavigate }: { onNavigate?: (tab: string) => void } = $props();
 
   interface Colegio {
     id: number;
@@ -157,6 +158,29 @@
         </select>
       </div>
     </div>
+
+    <!-- Aviso de base recién creada: sin estudiantes, los contadores de grados
+         y secciones dan 0 (miden combinaciones en uso sobre la tabla
+         `estudiante`, no el catálogo) y los desplegables de las demás páginas
+         no tienen con qué llenarse. -->
+    {#if stats.totalEstudiantes === 0}
+      <div class="empty-hint">
+        <div class="empty-hint-icon">👨‍🎓</div>
+        <div class="empty-hint-body">
+          <div class="empty-hint-title">Todavía no hay estudiantes</div>
+          <p class="empty-hint-text">
+            Agrega al menos un estudiante para que todo funcione. Los contadores de
+            <strong>Grados</strong> y <strong>Secciones</strong> marcan 0 porque cuentan las
+            combinaciones que <em>están en uso</em>, no las del catálogo: sin estudiantes
+            no hay ninguna. Los desplegables de grado y sección de Notas, Asistencia y
+            Reportes también salen vacíos por lo mismo.
+          </p>
+          <button class="empty-hint-btn" onclick={() => onNavigate?.('estudiantes')}>
+            👨‍🎓 Ir a Estudiantes
+          </button>
+        </div>
+      </div>
+    {/if}
 
     <!-- Summary cards -->
     <div class="cards-grid">
@@ -304,6 +328,38 @@
     transition: all 0.15s;
   }
   .retry-btn:hover { background: rgba(139,92,246,0.25); }
+
+  /* Aviso de base recién creada (sin estudiantes) */
+  .empty-hint {
+    display: flex; align-items: flex-start; gap: 0.9rem;
+    padding: 1rem 1.15rem; margin-bottom: 1rem;
+    background: linear-gradient(135deg, rgba(139,92,246,0.14), rgba(59,130,246,0.08));
+    border: 1px solid rgba(167,139,250,0.32);
+    border-left: 4px solid #a78bfa;
+    border-radius: 14px;
+    box-shadow: 0 4px 16px rgba(15,23,42,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+  .empty-hint-icon {
+    width: 38px; height: 38px; flex-shrink: 0; border-radius: 11px;
+    background: rgba(167,139,250,0.18); display: flex; align-items: center; justify-content: center;
+    font-size: 1.15rem;
+  }
+  .empty-hint-body { min-width: 0; flex: 1; }
+  .empty-hint-title { font-size: 0.92rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.25rem; }
+  .empty-hint-text { font-size: 0.78rem; color: #94a3b8; line-height: 1.55; margin: 0 0 0.7rem; }
+  .empty-hint-text strong { color: #c4b5fd; }
+  .empty-hint-text em { color: #a78bfa; font-style: normal; font-weight: 600; }
+  .empty-hint-btn {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    padding: 0.5rem 1rem; border: none; border-radius: 10px;
+    background: linear-gradient(135deg, #8b5cf6, #6366f1); color: #fff;
+    font-size: 0.8rem; font-weight: 700; font-family: inherit; cursor: pointer;
+    box-shadow: 0 4px 12px rgba(139,92,246,0.3);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  .empty-hint-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(139,92,246,0.42); }
+  .empty-hint-btn:active { transform: translateY(1px); }
+
   .dashboard-header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
   .dashboard-title { font-size: 1.5rem; font-weight: 700; margin: 0; color: #f1f5f9; }
   .dashboard-subtitle { font-size: 0.8rem; color: #94a3b8; margin: 0.25rem 0 0 0; }
