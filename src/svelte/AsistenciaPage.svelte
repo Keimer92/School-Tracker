@@ -303,6 +303,85 @@ $effect(() => {
     }
   });
 
+  // ── Popover de estado P/A/J ──
+  // Antes eran tres botones (`rapido-overlay`) posicionados en `absolute` DENTRO
+  // de la celda: como viven en un `td` dentro de un contenedor con scroll y con
+  // ancestros `backdrop-filter`, se pintaban por encima de la barra de filtros
+  // y se salían del wrapper. Ahora hay un solo disparador por celda y la lista
+  // P/A/J vive en un panel `fixed` montado en `<body>` (portalToBody), igual que
+  // el popover de Acciones de NotasPage.
+  type PopEstado = {
+    x: number;
+    y: number;
+    /** `auto` o px: abierto hacia arriba se ancla por el borde inferior. */
+    abajo: string;
+    estId: number;
+    fecha: string;
+    actual: string | null;
+  };
+  const ESTADOS_PAJ = [
+    { id: 'P', label: 'Presente', color: '#10b981', suave: 'rgba(16,185,129,0.10)', borde: 'rgba(16,185,129,0.3)' },
+    { id: 'A', label: 'Ausente', color: '#ef4444', suave: 'rgba(239,68,68,0.10)', borde: 'rgba(239,68,68,0.3)' },
+    { id: 'J', label: 'Justificado', color: '#f59e0b', suave: 'rgba(245,158,11,0.10)', borde: 'rgba(245,158,11,0.3)' },
+  ] as const;
+  const ANCHO_POP_ESTADO = 178;
+
+  let popEstado = $state<PopEstado | null>(null);
+  let popEstadoPanelEl = $state<HTMLDivElement | null>(null);
+  let popEstadoBtn = $state<HTMLElement | null>(null);
+
+  function abrirPopEstado(estId: number, fecha: string, actual: string | null, btn: HTMLElement) {
+    // El disparador llega desde `event.currentTarget` a propósito: el snippet se
+    // renderiza una vez por celda, así que un `bind:this` compartido apuntaría
+    // siempre a la última celda montada y el popover se anclaría en otro sitio.
+    const r = btn.getBoundingClientRect();
+    if (!r) { console.warn('[Estado] botón sin referencia; no se puede anclar el popover'); return; }
+    const altoEstimado = ESTADOS_PAJ.length * 38 + 12;
+    const abreArriba = r.bottom + altoEstimado > window.innerHeight && r.top > altoEstimado;
+    popEstadoBtn = btn;
+    popEstado = {
+      x: Math.max(8, Math.min(Math.round(r.left), window.innerWidth - ANCHO_POP_ESTADO - 8)),
+      y: abreArriba ? 0 : Math.round(r.bottom + 4),
+      abajo: abreArriba ? `${Math.round(window.innerHeight - r.top + 4)}px` : 'auto',
+      estId,
+      fecha,
+      actual,
+    };
+  }
+
+  function cerrarPopEstado() { popEstado = null; popEstadoBtn = null; }
+
+  function elegirEstadoPop(id: 'P' | 'A' | 'J') {
+    if (!popEstado) return;
+    const { estId, fecha } = popEstado;
+    cerrarPopEstado();
+    handleEstadoChangeMulti(estId, fecha, id);
+  }
+
+  $effect(() => {
+    if (!popEstado) return;
+    const onPointerDown = (ev: PointerEvent) => {
+      const t = ev.target as Node | null;
+      if (t && (popEstadoPanelEl?.contains(t) || popEstadoBtn?.contains(t))) return;
+      cerrarPopEstado();
+    };
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') cerrarPopEstado(); };
+    window.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('resize', cerrarPopEstado);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', cerrarPopEstado);
+    };
+  });
+
+  $effect(() => {
+    if (popEstado) {
+      return registerBackHandler(() => { cerrarPopEstado(); return true; });
+    }
+  });
+
   // Si el DatePicker deja de estar montado (cambio de período), el bindable
   // quedaría en true y la fila perdería su overflow scroll.
   $effect(() => {
@@ -1283,11 +1362,16 @@ $effect(() => {
     /* Los tres estados aparecen flotando al pasar el cursor sobre la celda
        (que incluye el input de observación), sin apretar el diseño de la tabla */
     .celda-estado{position:relative;display:flex;flex-direction:column;gap:0.15rem}
-    .rapido-overlay{position:absolute;left:50%;bottom:calc(100% + 4px);transform:translateX(-50%);display:none;gap:3px;padding:4px;border-radius:9px;background:rgba(17,24,39,0.94);border:1px solid rgba(255,255,255,0.14);box-shadow:0 10px 24px rgba(0,0,0,0.55);z-index:40;white-space:nowrap}
+    /* Un solo disparador por celda: la lista P/A/J vive en el popover fixed de
+       la página. Va en la esquina superior derecha, al lado de la caja de
+       estado; antes estaba en `bottom:calc(100% + 4px)` (fuera de la celda) y se
+       pintaba por encima de la barra de filtros, saliéndose del wrapper. */
+    .rapido-overlay{position:absolute;top:1px;right:2px;display:none;z-index:40}
     .celda-estado:hover .rapido-overlay,.celda-estado:focus-within .rapido-overlay{display:flex}
-    .rapido-btn{min-width:30px;height:26px;padding:0 6px;border-radius:7px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);color:#94a3b8;font-size:0.7rem;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.12s ease;font-family:inherit}
+    .rapido-btn{min-width:26px;height:22px;padding:0 7px;border-radius:6px;border:1px solid rgba(255,255,255,0.12);background:rgba(15,23,42,0.9);color:#94a3b8;font-size:0.68rem;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.12s ease;font-family:inherit}
     .rapido-btn:hover{background:rgba(255,255,255,0.12);color:#fff}
     .rapido-btn:focus-visible{outline:2px solid var(--primary-color);outline-offset:1px}
+    .rapido-btn.on{color:#fff}
     .rapido-btn.p.on{background:rgba(16,185,129,0.3);border-color:#10b981;color:#6ee7b7}
     .rapido-btn.a.on{background:rgba(239,68,68,0.3);border-color:#ef4444;color:#fca5a5}
     .rapido-btn.j.on{background:rgba(245,158,11,0.3);border-color:#f59e0b;color:#fcd34d}
@@ -1346,12 +1430,21 @@ $effect(() => {
 
   {#snippet overlayEstados(estId: number, fecha: string, actual: string | null)}
     <div class="rapido-overlay">
-      <button class="rapido-btn p" class:on={actual === 'P'} title="Marcar Presente" aria-label="Marcar Presente" aria-pressed={actual === 'P'}
-        onclick={() => handleEstadoChangeMulti(estId, fecha, 'P')}>P</button>
-      <button class="rapido-btn a" class:on={actual === 'A'} title="Marcar Ausente" aria-label="Marcar Ausente" aria-pressed={actual === 'A'}
-        onclick={() => handleEstadoChangeMulti(estId, fecha, 'A')}>A</button>
-      <button class="rapido-btn j" class:on={actual === 'J'} title="Marcar Justificado" aria-label="Marcar Justificado" aria-pressed={actual === 'J'}
-        onclick={() => handleEstadoChangeMulti(estId, fecha, 'J')}>J</button>
+      <button
+        class="rapido-btn"
+        class:p={actual === 'P'}
+        class:a={actual === 'A'}
+        class:j={actual === 'J'}
+        class:on={actual !== null}
+        title="Elegir estado de asistencia"
+        aria-label="Elegir estado de asistencia"
+        aria-haspopup="menu"
+        aria-expanded={popEstado?.estId === estId && popEstado?.fecha === fecha}
+        onclick={(e) => {
+          if (popEstado?.estId === estId && popEstado?.fecha === fecha) { cerrarPopEstado(); return; }
+          abrirPopEstado(estId, fecha, actual, e.currentTarget);
+        }}
+      >{actual ?? '⋯'}</button>
     </div>
   {/snippet}
 
@@ -2035,6 +2128,33 @@ $effect(() => {
       </ScrollableTable>
     {/if}
   </PageLayout>
+
+  {#if popEstado}
+    <div
+      bind:this={popEstadoPanelEl}
+      use:portalToBody
+      role="menu"
+      aria-label="Estado de asistencia"
+      style="position:fixed; z-index:99995; left:{popEstado.x}px; top:{popEstado.y}px; bottom:{popEstado.abajo}; width:{ANCHO_POP_ESTADO}px; background:rgba(20,24,31,0.97); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); border:1px solid rgba(255,255,255,0.1); border-radius:14px; box-shadow:0 18px 40px -10px rgba(0,0,0,0.65); padding:0.35rem; box-sizing:border-box; display:flex; flex-direction:column; gap:3px;"
+    >
+      {#each ESTADOS_PAJ as e (e.id)}
+        {@const activo = popEstado.actual === e.id}
+        <button
+          role="menuitemradio"
+          aria-checked={activo}
+          title={activo ? `${e.label} · tocar de nuevo lo quita` : `Marcar ${e.label}`}
+          onclick={() => elegirEstadoPop(e.id)}
+          style="width:100%; display:flex; align-items:center; gap:0.5rem; padding:0.5rem 0.55rem; border-radius:9px; border:1px solid {activo ? e.borde : 'transparent'}; background:{activo ? e.suave : 'transparent'}; color:{activo ? e.color : '#cbd5e1'}; cursor:pointer; text-align:left; transition:all 0.15s ease;"
+          onmouseenter={(ev) => { if (!activo) ev.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+          onmouseleave={(ev) => { if (!activo) ev.currentTarget.style.background = 'transparent'; }}
+        >
+          <span style="width:22px; height:22px; flex-shrink:0; display:flex; align-items:center; justify-content:center; border-radius:6px; font-size:0.7rem; font-weight:800; background:{activo ? e.suave : 'rgba(255,255,255,0.05)'}; border:1px solid {activo ? e.borde : 'rgba(255,255,255,0.1)'}; color:{e.color};">{e.id}</span>
+          <span style="flex:1; min-width:0; font-size:0.78rem; font-weight:{activo ? 700 : 500};">{e.label}</span>
+          {#if activo}<span style="color:{e.color}; font-size:0.7rem; flex-shrink:0;">✓</span>{/if}
+        </button>
+      {/each}
+    </div>
+  {/if}
 
   {#if showSummaryModal.show}
     <div class="modal-overlay" onclick={() => showSummaryModal = { ...showSummaryModal, show: false }}>
