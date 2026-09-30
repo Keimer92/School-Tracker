@@ -394,8 +394,8 @@
   onmouseenter={(e) => { e.currentTarget.style.borderColor = accentColor + '44'; e.currentTarget.style.boxShadow = `0 8px 32px ${accentColor}22`; }}
   onmouseleave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'; e.currentTarget.style.borderLeftColor = accentColor; e.currentTarget.style.boxShadow = 'none'; }}>
   <div style="position:absolute;top:0;left:0;width:100%;height:1px;background:linear-gradient(90deg,{accentColor}33,transparent);"></div>
-  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.06);">
-    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+  <div class="cat-head">
+    <div class="cat-head-left">
       <div style="width:36px;height:36px;border-radius:10px;background:{accentColor}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">{accentIcon}</div>
       <h2 style="margin: 0; font-size: 1.25rem; color: #f1f5f9; font-weight: 700; letter-spacing: -0.02em;">{config.title}</h2>
       {#if hasUnsavedChanges}
@@ -427,7 +427,7 @@
       {/if}
     </div>
     {#if !config.noAdd}
-    <button onclick={handleAdd} style="padding:0.55rem 1.1rem;font-size:0.8rem;border-radius:10px;background:linear-gradient(135deg,{accentColor},{accentColor}dd);border:none;cursor:pointer;font-weight:600;color:white;box-shadow:0 2px 10px {accentColor}4d;transition:all 0.2s;letter-spacing:0.2px"
+    <button onclick={handleAdd} class="cat-btn-add" style="padding:0.55rem 1.1rem;font-size:0.8rem;border-radius:10px;background:linear-gradient(135deg,{accentColor},{accentColor}dd);border:none;cursor:pointer;font-weight:600;color:white;box-shadow:0 2px 10px {accentColor}4d;transition:all 0.2s;letter-spacing:0.2px"
       onmouseenter={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}
       onmouseleave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
       onmousedown={(e) => e.currentTarget.style.transform = 'translateY(1px)'}
@@ -636,6 +636,20 @@
   }
   .cat-select-all-text { white-space: nowrap; }
 
+  /* Cabecera de la card: `min-width:0` + `flex:1` en el lado izquierdo para que
+     el banner de cualitativo se recorte en vez de empujar el boton "Agregar"
+     fuera de la tarjeta (que tiene overflow:hidden). */
+  .cat-head {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem; padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .cat-head-left {
+    display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+    flex: 1 1 auto; min-width: 0;
+  }
+
   .cat-toggle-slot {
     display: inline-flex;
     align-items: center;
@@ -651,16 +665,27 @@
     color: #c4b5fd; background: rgba(139, 92, 246, 0.14);
     border: 1px solid rgba(139, 92, 246, 0.3);
   }
-  /* Banner de la cabecera: una sola linea, nunca partido en dos tramos. */
+  /* Banner de la cabecera: una sola linea, nunca partido en dos tramos.
+     `min-width:0` + `flex-shrink:1` para que en pantallas angostas se recorte con
+     ellipsis en vez de crecer: si no, empujaba el boton "Agregar" fuera de la
+     tarjeta (que tiene overflow:hidden) y quedaba invisible. */
   .cat-qual-note {
     display: inline-flex; align-items: center; gap: 0.35rem;
     flex-wrap: nowrap; white-space: nowrap;
+    flex: 0 1 auto; min-width: 0;
     margin-left: 0.5rem; padding: 0.3rem 0.6rem;
     background: rgba(139, 92, 246, 0.06);
     border: 1px solid rgba(139, 92, 246, 0.14);
     border-radius: 6px;
     font-size: 0.7rem; font-weight: 600; color: #a78bfa;
-    max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+    overflow: hidden;
   }
-  .cat-qual-note-sep { color: #64748b; }
+  .cat-qual-note > span { overflow: hidden; text-overflow: ellipsis; }
+  .cat-qual-note-sep { color: #64748b; flex-shrink: 0; }
+
+  /* El boton Agregar nunca se encoge ni se deja empujar fuera. */
+  .cat-btn-add {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
 </style>

@@ -206,6 +206,36 @@ export async function ensureDriveSession(): Promise<boolean> {
   return !!token;
 }
 
+/**
+ * Recupera el email de la cuenta si se perdio.
+ *
+ * Sin `googleUserEmail`, `accountTag()` cae a "default", el nombre del archivo
+ * deja de coincidir con el que hay en Drive y la app CREA un respaldo nuevo en
+ * cada guardado (copias duplicadas). El email no se puede deducir del token, asi
+ * que la unica fuente es lacached del perfil o el nombre de cuenta guardado.
+ */
+export async function ensureDriveAccountEmail(): Promise<boolean> {
+  const settings = getSettings();
+  if (!settings || settings.googleUserEmail) return !!settings?.googleUserEmail;
+
+  // 1) Email de la cuenta activa ya guardado (no requiere red).
+  try {
+    const mod = await import("../lib/accountProfiles");
+    const email = mod.getCurrentEmail?.() || "";
+    if (email) {
+      settings.googleUserEmail = email;
+      saveSettings(settings);
+      console.warn("[DriveSync] Se restauró el email de la cuenta activa:", email);
+      return true;
+    }
+  } catch { /* el modulo puede no estar disponible */ }
+
+  // 2) Sin perfil local: solo el refresh token puede confirmarlo, y no trae el
+  //    email. Se deja el estado como estaba y se avisa una vez.
+  console.warn("[DriveSync] No se pudo recuperar el email de la cuenta; el respaldo usará el tag 'default'.");
+  return false;
+}
+
 async function getValidToken(): Promise<string | null> {
   const settings = getSettings();
   if (!settings) return null;
@@ -306,17 +336,51 @@ async function listSyncFilesRaw(token: string): Promise<DriveFile[]> {
 }
 
 /** Busca un respaldo por nombre exacto (sin podar). */
-async function findSyncFileByName(token: string, name: string): Promise<DriveFile | null> {
-  const q = `name='${name.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' and trashed=false`;
-  const resp = await fetch(
-    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,size,createdTime,modifiedTime)`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
-  if (!resp.ok) return null;
-  const data = await resp.json();
-  const f = (data.files || [])[0];
-  return f ? { id: f.id, name: f.name, size: f.size || 0, createdTime: f.createdTime || '', modifiedTime: f.modifiedTime || '' } : null;
-}
+  async function findSyncFileByName(token: string, name: string): Promise<DriveFile | null> {
+    const q = `name='${name.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' and trashed=false`;
+    const resp = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,size,createdTime,modifiedTime)`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const f = (data.files || [])[0];
+    return f ? { id: f.id, name: f.name, size: f.size || 0, createdTime: f.createdTime || '', modifiedTime: f.modifiedTime || '' } : null;
+  }
+
+  /**
+   * Busca CUALQUIER respaldo de la cuenta dentro de la carpeta destino. Es el
+   * fallback cuando el nombre exacto no aparece.
+   *
+   * Por que hace falta: `accountTag()` deriva del email, y si `googleUserEmail`
+   * se perdió (falla `userinfo` en el login) el tag cae a `default`, con lo que
+   * el nombre buscado ya no existe en Drive. Sin este fallback la app no
+   * encuentra nada y CREA un archivo nuevo en cada guardado, dejando copias
+   * duplicadas. Reutilizando el respaldo que ya existe, la app converge sola a un
+   * unico archivo por cuenta.
+   */
+  async function findAnyExistingBackup(token: string, folderId: string | null): Promise<DriveFile | null> {
+    const platform = devicePlatform();
+    const clauses = [`name contains '${SYNC_FILE_PREFIX}_'`, 'trashed=false'];
+    if (folderId) clauses.push(`'${folderId}' in parents`);
+    const q = `${clauses.join(' and ')} and name contains '_${platform}_${LATEST_SUFFIX}.db'`;
+    try {
+      const resp = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&orderBy=modifiedTime desc&pageSize=10&fields=files(id,name,size,createdTime,modifiedTime)`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!resp.ok) return null;
+      const data = await resp.json();
+      const files = data.files || [];
+      if (files.length === 0) return null;
+      // Si hay varias copias, se queda con la mas reciente.
+      const f = files[0];
+      return { id: f.id, name: f.name, size: f.size || 0, createdTime: f.createdTime || '', modifiedTime: f.modifiedTime || '' };
+    } catch {
+      return null;
+    }
+  }
+
 
 /**
  * Conserva el archivo "_latest" (respaldo instantáneo) y, si queda espacio, el
@@ -558,36 +622,53 @@ async function uploadDbFile(
  */
 async function pushLatestBackup(): Promise<{ ok: boolean; reason?: string; created?: boolean }> {
   if (!navigator.onLine) return { ok: false, reason: 'offline' };
-  const token = await getValidToken();
-  if (!token) return { ok: false, reason: 'no_drive' };
-  const fileName = latestFileName();
-  const existente = await findSyncFileByName(token, fileName);
-  // Snapshot en TEMP con nombre fijo: copia consistente del SQLite abierto
-  // para subir, sin dejar archivos en la carpeta de la aplicación.
-  const localBackupPath = await invoke<string>('gd_snapshot_db');
-  let dbBytes = 0;
-  try {
-    const dbBase64 = await invoke<string>('gd_read_file_base64', { path: localBackupPath });
-    dbBytes = bytesFromBase64(dbBase64);
+    const token = await getValidToken();
+    if (!token) return { ok: false, reason: 'no_drive' };
+    const fileName = latestFileName();
+    // La carpeta se resuelve ANTES de buscar el archivo: el fallback la necesita
+    // para acotar la busqueda a los respaldos de la app.
     const folderId = await ensureBackupFolder(token);
-    const onProgress = (p: UploadProgress) => syncManager.setState({ uploadProgress: p });
-    let res = await uploadDbFile(token, dbBase64, fileName, folderId, existente?.id ?? null, onProgress);
-    if ((res.status === 404 || res.status === 410) && existente?.id) {
-      // El archivo se borró desde Drive: se recrea.
-      res = await uploadDbFile(token, dbBase64, fileName, folderId, null, onProgress);
+    let existente = await findSyncFileByName(token, fileName);
+    let reutilizado = false;
+    if (!existente) {
+      // No hay archivo con ESE nombre (p. ej. porque `accountTag()` cayo a
+      // 'default' al perderse el email). Antes de crear uno nuevo se reusa el
+      // respaldo que ya haya, para no duplicar en cada guardado.
+      existente = await findAnyExistingBackup(token, folderId);
+      reutilizado = !!existente;
     }
-    if (res.status < 200 || res.status >= 300) {
-      throw new Error(`HTTP ${res.status} al actualizar el respaldo en Drive`);
+    // Snapshot en TEMP con nombre fijo: copia consistente del SQLite abierto
+    // para subir, sin dejar archivos en la carpeta de la aplicación.
+    const localBackupPath = await invoke<string>('gd_snapshot_db');
+    let dbBytes = 0;
+    try {
+      const dbBase64 = await invoke<string>('gd_read_file_base64', { path: localBackupPath });
+      dbBytes = bytesFromBase64(dbBase64);
+      const onProgress = (p: UploadProgress) => syncManager.setState({ uploadProgress: p });
+      let res = await uploadDbFile(token, dbBase64, fileName, folderId, existente?.id ?? null, onProgress);
+      if ((res.status === 404 || res.status === 410) && existente?.id) {
+        // El archivo se borró desde Drive: se recrea.
+        res = await uploadDbFile(token, dbBase64, fileName, folderId, null, onProgress);
+      }
+      if (res.status < 200 || res.status >= 300) {
+        throw new Error(`HTTP ${res.status} al actualizar el respaldo en Drive`);
+      }
+    } finally {
+      syncManager.setState({ uploadProgress: null });
+      try { await invoke('gd_delete_backup', { path: localBackupPath }); } catch (_) {}
     }
-  } finally {
-    syncManager.setState({ uploadProgress: null });
-    try { await invoke('gd_delete_backup', { path: localBackupPath }); } catch (_) {}
+    await deleteOldSyncVersions(token);
+    syncManager.setState({ lastUpload: now(), lastUploadBytes: dbBytes || null });
+    markAllClean();
+    if (reutilizado && existente) {
+      console.warn(
+        `[DriveSync] No se encontró "${fileName}"; se reutilizó el respaldo existente "${existente.name}". ` +
+        'Probablemente se perdió el email de la cuenta (accountTag() cayó a "default").'
+      );
+    }
+    return { ok: true, created: !existente };
   }
-  await deleteOldSyncVersions(token);
-  syncManager.setState({ lastUpload: now(), lastUploadBytes: dbBytes || null });
-  markAllClean();
-  return { ok: true, created: !existente };
-}
+
 
 export const driveSyncService = {
   _periodicTimer: null as ReturnType<typeof setInterval> | null,

@@ -6,7 +6,7 @@
   import { handleBack, isBackAuthInProgress, setBackAuthInProgress } from "./lib/androidBack";
   import { syncService } from "./lib/syncService";
   import { isD1Configured, d1SyncManager } from "./lib/syncService";
-  import { driveSyncService, ensureDriveSession } from "./lib/driveSyncService";
+  import { driveSyncService, ensureDriveSession, ensureDriveAccountEmail } from "./lib/driveSyncService";
   import { driveAutoBackup } from "./lib/driveAutoBackup";
   import { ensureWsSync, stopWsSync } from "./lib/wsSyncService";
   import { loadAppSettings, saveAppSettings, getAppSettings, onAppSettingsChange } from "./lib/appSettings";
@@ -440,6 +440,10 @@
       // Mostrándose desconectada hasta el primer respaldo (o para siempre si
       // el refreshToken se perdió). Es idempotente y barato si ya está vigente.
       ensureDriveSession().catch(() => {});
+      // Orden importa: primero el email (de él depende el nombre del archivo de
+      // Drive) y después el token. Si el email falta, accountTag() cae a
+      // "default" y la app subiría un respaldo NUEVO en cada guardado.
+      ensureDriveAccountEmail().catch(() => {});
 
       // Pull bilateral pasivo: traer cambios de otros dispositivos sin esperar
       // al timer ni generar un cambio local.
