@@ -14,6 +14,7 @@
   import { emit } from "@tauri-apps/api/event";
   import { open, ask } from "@tauri-apps/plugin-dialog";
   import { copyFile } from "@tauri-apps/plugin-fs";
+  import { portalToBody } from "../../lib/portalToBody";
 
   const isAndroid = /Android/i.test(navigator.userAgent);
   const ACCENT = "#ef4444";
@@ -27,7 +28,95 @@
   let isImporting = $state(false);
   let isWipingProfile = $state(false);
 
+  // ── Backup automático local ──
+  let backupActivo = $state(false);
+  let backupIntervaloMin = $state(120);
+  let showBackupPopover = $state(false);
+  let savingBackupCfg = $state(false);
+  let runningBackup = $state(false);
+
+  const INTERVALOS = [
+    { min: 0, label: "Desactivado" },
+    { min: 60, label: "Cada hora" },
+    { min: 180, label: "Cada 3 horas" },
+    { min: 360, label: "Cada 6 horas" },
+    { min: 720, label: "Cada 12 horas" },
+    { min: 1440, label: "Cada día" },
+  ];
+
   invoke<string>("get_db_path").then(p => dbPath = p).catch(() => dbPath = "");
+
+  // Carga la config guardada (via el mismo canal que el resto de app_settings).
+  (async () => {
+    try {
+      const raw = await invoke<string>("get_app_settings");
+      const s = JSON.parse(raw || "{}");
+      backupActivo = !!s.localBackupActivo;
+      if (Number.isFinite(Number(s.localBackupIntervaloMin))) {
+        backupIntervaloMin = Math.max(0, Number(s.localBackupIntervaloMin));
+      }
+    } catch { /* sin config guardada: se usan los valores por defecto */ }
+  })();
+
+  /** Tupla [min, hora] de la ultima ejecucion; la clave evita timers duplicados. */
+  let ultimoTimer: ReturnType<typeof setTimeout> | null = null;
+  let ultimaCorridaMs = $state(0);
+
+  function agendarBackupEscritorio() {
+    // En Android manda la alarma nativa (LocalBackupScheduler): aqui solo se
+    // agenda mientras la app vive, y por eso NO se promete backup con la app
+    // cerrada en escritorio.
+    if (isAndroid) return;
+    if (ultimoTimer) { clearTimeout(ultimoTimer); ultimoTimer = null; }
+    if (!backupActivo || backupIntervaloMin <= 0) return;
+    const periodo = backupIntervaloMin * 60_000;
+    const elapsed = Date.now() - ultimaCorridaMs;
+    const faltan = Math.max(60_000, periodo - (elapsed > 0 ? elapsed : periodo));
+    ultimoTimer = setTimeout(async () => {
+      ultimoTimer = null;
+      await hacerBackupAhora();
+      ultimaCorridaMs = Date.now();
+      agendarBackupEscritorio();
+    }, faltan);
+  }
+
+  $effect(() => {
+    // Lee las dos vars para reagendar cuando cambian desde el popover.
+    backupActivo; backupIntervaloMin;
+    agendarBackupEscritorio();
+  });
+
+  async function aplicarConfigBackup(activo: boolean, intervalo: number) {
+    savingBackupCfg = true;
+    try {
+      await invoke("set_local_backup_config", { activo, intervaloMin: intervalo });
+      backupActivo = activo;
+      backupIntervaloMin = intervalo;
+      showBackupPopover = false;
+      await emit("show-toast", {
+        message: activo
+          ? `✅ Backup automático cada ${intervalo / 60} h`
+          : "🔕 Backup automático desactivado",
+        type: "success",
+      });
+    } catch (e) {
+      await emit("show-toast", { message: "❌ No se pudo guardar la config: " + e, type: "error" });
+    } finally { savingBackupCfg = false; }
+  }
+
+  async function hacerBackupAhora() {
+    if (runningBackup) return;
+    runningBackup = true;
+    try {
+      const ruta = await invoke<string>("run_local_backup", { keep: 2 });
+      await emit("show-toast", {
+        message: ruta ? `✅ Backup guardado: ${ruta.split(/[\\/]/).pop()}` : "❌ No se pudo guardar el backup",
+        type: ruta ? "success" : "error",
+      });
+    } catch (e) {
+      await emit("show-toast", { message: "❌ Error en el backup: " + e, type: "error" });
+    } finally { runningBackup = false; }
+  }
 
   function backupFileName(ext: string): string {
     const d = new Date();
@@ -169,10 +258,53 @@
     <div class="dbg-body">
       <!-- EXPORTAR -->
       <div class="dbg-box">
-        <div class="dbg-box-head"><span style="font-size: 1.2rem;">📤</span><h5>Exportar datos</h5></div>
-        <p class="dbg-desc">Guarda una copia completa de la base de datos {isAndroid ? "en la carpeta Descargas" : " donde elijas"}.</p>
+        <div class="dbg-box-head">
+          <span style="font-size: 1.2rem;">📤</span><h5>Exportar datos</h5>
+          <span style="flex:1"></span>
+          <button
+            class="dbg-icon-btn"
+            class:on={backupActivo}
+            onclick={() => showBackupPopover = !showBackupPopover}
+            disabled={savingBackupCfg}
+            title="Backup automático local"
+            aria-label="Configurar backup automático">⏱</button>
+        </div>
+        <p class="dbg-desc">Guarda una copia completa de la base de datos en <strong>{CARPETA_BACKUPS}</strong> {isAndroid ? "(Descargas)" : "(Documentos)"}.</p>
         <button onclick={handleExportDB} class="dbg-btn dbg-btn-verde">📤 Exportar base de datos</button>
+
+        <!-- Popover: respaldo automático -->
+        {#if showBackupPopover}
+          <div class="dbg-pop" use:portalToBody>
+            <div class="dbg-pop-card">
+              <div class="dbg-pop-head">
+                <span>⏱ Backup automático</span>
+                <button class="dbg-pop-x" onclick={() => showBackupPopover = false} aria-label="Cerrar">✕</button>
+              </div>
+              <p class="dbg-pop-desc">
+                Guarda una copia cada intervalo y conserva las <strong>2 más recientes</strong> (las anteriores se borran).
+                {isAndroid
+                  ? "Sigue funcionando con la app cerrada: lo programa una alarma del sistema."
+                  : "Mientras la app esté abierta; con la app cerrada no hay proceso que la ejecute."}
+              </p>
+              <div class="dbg-pop-opts">
+                {#each INTERVALOS as o}
+                  <button
+                    class="dbg-pop-opt"
+                    class:on={backupIntervaloMin === o.min}
+                    onclick={() => aplicarConfigBackup(o.min > 0, o.min)}
+                    disabled={savingBackupCfg}>
+                    {o.label}
+                  </button>
+                {/each}
+              </div>
+              <button onclick={hacerBackupAhora} disabled={runningBackup} class="dbg-btn dbg-btn-ghost" style="margin-top:0.6rem;">
+                {runningBackup ? "⏳ Generando..." : "💾 Hacer un backup ahora"}
+              </button>
+            </div>
+          </div>
+        {/if}
       </div>
+
 
       <!-- IMPORTAR -->
       <div class="dbg-box">
@@ -226,6 +358,54 @@
   .dbg-box-peligro { background: rgba(239,68,68,0.05); border-color: rgba(239,68,68,0.2); }
   .dbg-box-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
   .dbg-box-head h5 { margin: 0; color: #e2e8f0; font-size: 1rem; }
+  .dbg-icon-btn {
+    width: 30px; height: 30px; flex-shrink: 0; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px; font-size: 0.9rem; color: #cbd5e1; transition: all 0.2s ease;
+  }
+  .dbg-icon-btn:hover { background: rgba(255,255,255,0.12); }
+  .dbg-icon-btn.on { background: rgba(52,211,153,0.18); border-color: rgba(52,211,153,0.45); color: #34d399; }
+  .dbg-icon-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  /* Popover del backup automático. Va a <body> porque el overlay es `fixed` y
+     los ancestros con backdrop-filter lo confinan (AGENTS.md). */
+  .dbg-pop {
+    position: fixed; inset: 0; z-index: 10000;
+    display: flex; align-items: center; justify-content: center; padding: 1rem;
+    background: rgba(0,0,0,0.5); backdrop-filter: blur(6px);
+  }
+  .dbg-pop-card {
+    width: min(92vw, 340px); padding: 1.1rem; border-radius: 16px;
+    background: rgba(20,24,31,0.95); border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 25px 60px -12px rgba(0,0,0,0.6);
+  }
+  .dbg-pop-head {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+    font-size: 0.95rem; font-weight: 700; color: #f1f5f9; margin-bottom: 0.5rem;
+  }
+  .dbg-pop-x {
+    background: transparent; border: none; color: #94a3b8; cursor: pointer;
+    font-size: 1rem; line-height: 1; padding: 0.15rem 0.3rem; border-radius: 6px;
+  }
+  .dbg-pop-x:hover { color: #f1f5f9; background: rgba(255,255,255,0.08); }
+  .dbg-pop-desc { margin: 0 0 0.8rem; color: #94a3b8; font-size: 0.76rem; line-height: 1.5; }
+  .dbg-pop-opts { display: flex; flex-direction: column; gap: 0.35rem; }
+  .dbg-pop-opt {
+    width: 100%; padding: 0.55rem 0.7rem; cursor: pointer; text-align: left;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 9px; color: #cbd5e1; font-size: 0.85rem; transition: all 0.15s ease;
+  }
+  .dbg-pop-opt:hover { background: rgba(255,255,255,0.09); }
+  .dbg-pop-opt.on {
+    background: rgba(52,211,153,0.15); border-color: rgba(52,211,153,0.45);
+    color: #34d399; font-weight: 700;
+  }
+  .dbg-pop-opt:disabled { opacity: 0.6; cursor: not-allowed; }
+  .dbg-btn-ghost {
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); color: #e2e8f0;
+  }
+  .dbg-btn-ghost:hover { background: rgba(255,255,255,0.12); }
   .dbg-peligro-titulo { color: #f87171 !important; }
   .dbg-desc { margin: 0 0 0.9rem; color: #94a3b8; font-size: 0.82rem; line-height: 1.5; }
   .dbg-desc code {
