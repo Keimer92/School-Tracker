@@ -345,7 +345,7 @@ import SelectChip from "./SelectChip.svelte";
             {#if !isQualitative}
               <span style="margin-left: 1rem;">Puntaje: <strong>{puntosActivos}</strong> / {maxScore} pts</span>
             {/if}
-            <span style="margin-left: 1rem; font-size: 0.72rem; color: #64748b;">Editable aquí: descripciones y puntos. Cuáles suman se decide en NotasPage.</span>
+            <span style="margin-left: 1rem; font-size: 0.72rem; color: #64748b;">{isQualitative ? 'Editable aquí: descripciones (el puntaje no aplica en cualitativo).' : 'Editable aquí: descripciones y puntos.'} Cuáles suman se decide en NotasPage.</span>
             {#if hayCambios}
               <span style="margin-left: 1rem; font-size: 0.72rem; color: #fbbf24; font-weight: 700;">· ⚠️ Cambios sin guardar</span>
             {:else if recienGuardado}
@@ -380,14 +380,32 @@ import SelectChip from "./SelectChip.svelte";
                 </div>
                 {#if expanded}
                   <div class="accordion-body">
+                    <!-- Descripción del INDICADOR. Antes solo existía en la vista
+                         split de escritorio, así que en móvil no había forma de
+                         editarla al desplegar. -->
+                    <div class="criterio-row" style="margin-bottom:0.45rem;">
+                      <span class="criterio-label">Indicador</span>
+                      <input
+                        type="text"
+                        value={ind.descripcion}
+                        oninput={(e) => handleUpdateIndicadorDesc(ind.id, (e.target as HTMLInputElement).value)}
+                        placeholder="Descripción del indicador..."
+                        class="criterio-input"
+                        style="font-weight:600;" />
+                    </div>
                     {#each ind.criterios as crit (crit.id)}
                       <div class="criterio-row">
                         <span class="criterio-label">Crit. {crit.orden}</span>
                         <input type="text" value={crit.descripcion} oninput={(e) => handleUpdateCriterio(ind.id, crit.id, "descripcion", (e.target as HTMLInputElement).value)} placeholder="Descripción..." class="criterio-input" />
-                        <div class="criterio-score">
-                          <input type="number" value={crit.puntajeMaximo} oninput={(e) => handleUpdateCriterio(ind.id, crit.id, "puntajeMaximo", Number((e.target as HTMLInputElement).value))} disabled={isQualitative} class="criterio-puntaje" />
-                          <span class="criterio-pts">pts</span>
-                        </div>
+                        <!-- En cualitativo el puntaje no interviene (el peso por
+                             criterio es fijo 7/7/6 = 20), asi que se oculta en vez
+                             de mostrarse deshabilitado. -->
+                        {#if !isQualitative}
+                          <div class="criterio-score">
+                            <input type="number" value={crit.puntajeMaximo} oninput={(e) => handleUpdateCriterio(ind.id, crit.id, "puntajeMaximo", Number((e.target as HTMLInputElement).value))} class="criterio-puntaje" />
+                            <span class="criterio-pts">pts</span>
+                          </div>
+                        {/if}
                       </div>
                     {/each}
                   </div>
@@ -428,10 +446,14 @@ import SelectChip from "./SelectChip.svelte";
                     <div class="criterio-row">
                       <span class="criterio-label">Crit. {crit.orden}</span>
                       <input type="text" value={crit.descripcion} oninput={(e) => handleUpdateCriterio(selected.id, crit.id, "descripcion", (e.target as HTMLInputElement).value)} placeholder="Descripción..." class="criterio-input" />
-                      <div class="criterio-score">
-                        <input type="number" value={crit.puntajeMaximo} oninput={(e) => handleUpdateCriterio(selected.id, crit.id, "puntajeMaximo", Number((e.target as HTMLInputElement).value))} disabled={isQualitative} class="criterio-puntaje" />
-                        <span class="criterio-pts">pts</span>
-                      </div>
+                      <!-- Ver nota en la vista accordion: en cualitativo no se
+                           muestra el puntaje. -->
+                      {#if !isQualitative}
+                        <div class="criterio-score">
+                          <input type="number" value={crit.puntajeMaximo} oninput={(e) => handleUpdateCriterio(selected.id, crit.id, "puntajeMaximo", Number((e.target as HTMLInputElement).value))} class="criterio-puntaje" />
+                          <span class="criterio-pts">pts</span>
+                        </div>
+                      {/if}
                     </div>
                   {/each}
                 </div>
