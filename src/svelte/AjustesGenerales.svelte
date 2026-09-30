@@ -5,7 +5,8 @@
   import { registerBackHandler } from "../lib/androidBack";
   import { getAppSettings, saveAppSettings, loadAppSettings, onAppSettingsChange } from "../lib/appSettings";
   import CategoryTabContent from "./CategoryTabContent.svelte";
-  import NotasConfig from "./globales/NotasConfig.svelte";
+  import CalificacionesConfig from "./globales/CalificacionesConfig.svelte";
+  import MultiplicadoresConfig from "./globales/MultiplicadoresConfig.svelte";
   import AjustesPage from "./AjustesPage.svelte";
   import EvaluacionesPage from "./EvaluacionesPage.svelte";
   import CloudPage from "./CloudPage.svelte";
@@ -66,6 +67,7 @@
   const SECCIONES: Seccion[] = [
     { id: 'evaluaciones', label: 'Evaluaciones', icono: '✏️', color: '#c084fc', grupo: 'Académico' },
     { id: 'notas', label: 'Notas', icono: '⭐', color: '#fbbf24', grupo: 'Académico', contador: 'get_grade_configs' },
+    { id: 'multiplicadores', label: 'Multiplicadores', icono: '✖️', color: '#a78bfa', grupo: 'Académico', contador: 'get_multiplicadores' },
     { id: 'ano-lectivo', label: 'Año Lectivo', icono: '📅', color: '#818cf8', grupo: 'Académico', cat: CATEGORIES[0], contador: 'get_anos' },
     { id: 'corte', label: 'Corte Evaluativo', icono: '✂️', color: '#f472b6', grupo: 'Académico', cat: CATEGORIES[1], contador: 'get_cortes' },
     { id: 'asignaturas', label: 'Asignatura', icono: '📚', color: '#60a5fa', grupo: 'Académico', cat: CATEGORIES[2], contador: 'get_asignaturas' },
@@ -263,7 +265,9 @@
   {:else if activa.cat}
     <CategoryTabContent config={activa.cat} accentColor={activa.color} accentIcon={activa.icono} headerExtra={activa.id === 'ano-lectivo' ? anoLectivoHeader : undefined} />
   {:else if activa.id === 'notas'}
-    <NotasConfig />
+    <CalificacionesConfig />
+  {:else if activa.id === 'multiplicadores'}
+    <MultiplicadoresConfig />
   {:else if activa.id === 'evaluaciones'}
     <div style="width:100%;height:100%;"><EvaluacionesPage /></div>
   {:else if activa.id === 'nube'}

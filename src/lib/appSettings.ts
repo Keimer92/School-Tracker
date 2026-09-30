@@ -106,9 +106,14 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
   writeLocalStorageFallback(_settings);
   try {
     await invoke("set_app_settings", { settingsJson: JSON.stringify(_settings) });
-    // Marcar tabla como dirty para sync
-    const { markDirty } = await import("./dirtyTracker");
-    markDirty("app_settings");
+    // OJO: hay que pasar por `onDataChange`, NO marcar la tabla a mano con
+    // `markDirty`. `markDirty` solo deja la marca y la tabla se sube en el
+    // PROXIMO sync por el pulso periodico; `onDataChange` es lo que ademas
+    // dispara `syncAllSilent` (push a Cloudflare D1) y `scheduleInstantBackup`
+    // (respaldo instantaneo a Google Drive). Con `markDirty` directo, la config
+    // de notificaciones quedaba en la BD pero tardaba hasta 20 min en subir.
+    const { onDataChange } = await import("./autoSync");
+    onDataChange("app_settings", { immediate: true });
   } catch (e) {
     console.error("[appSettings] Error saving to Rust:", e);
   }
