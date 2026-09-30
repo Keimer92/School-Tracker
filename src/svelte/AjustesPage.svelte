@@ -123,23 +123,28 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
         .filter(([, c]) => c.activo)
         .map(([id, c]) => ({ id: Number(id), inicio: c.inicio, fin: c.fin, intervaloMin: Number(c.intervaloMin) || 45 }));
       const config = { enabled: notifEnabled && colegios.length > 0, colegios };
-      console.log('[NotifUI] Guardando config:', JSON.stringify(config));
       localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(config));
-      // Sincronizar a la tabla app_settings
       await saveAppSettings({ ...getAppSettings(), notifEnabled, notifCfg });
-      const dbPath = await invoke<string>("get_db_path");
-      console.log('[NotifUI] dbPath =', dbPath);
-      if (config.enabled) {
-        await invoke("schedule_attendance_alarm", { config: JSON.stringify(config), dbPath });
-        console.log('[NotifUI] schedule_attendance_alarm OK');
-        await emit("show-toast", { message: "🔔 Notificaciones programadas para " + colegios.length + " colegio(s)", type: "success" });
-      } else {
+
+      // A partir de acá la config YA está persistida. Programar la alarma es un
+      // paso aparte: si falla no se revierte lo guardado, pero tampoco se reporta
+      // como "error al guardar" (invitaba a pulsar Guardar en bucle sin efecto).
+      if (!config.enabled) {
         await invoke("cancel_attendance_alarm");
-        console.log('[NotifUI] cancel_attendance_alarm OK');
         await emit("show-toast", { message: "🔕 Notificaciones desactivadas", type: "info" });
+        return;
+      }
+      const detalle = colegios.map(c => `${notifColegios.find(x => x.id === c.id)?.nombre || c.id} ${c.inicio}-${c.fin}/${c.intervaloMin}m`);
+      try {
+        const dbPath = await invoke<string>("get_db_path");
+        await invoke("schedule_attendance_alarm", { config: JSON.stringify(config), dbPath });
+        await emit("show-toast", { message: "🔔 Guardado · " + detalle.join(", "), type: "success" });
+      } catch (alarmErr) {
+        console.error('[NotifUI] Error programando alarma:', alarmErr);
+        await emit("show-toast", { message: "✅ Config guardada · ⚠️ no se pudo programar la alarma: " + (alarmErr instanceof Error ? alarmErr.message : alarmErr), type: "warning" });
       }
     } catch (error) {
-      console.error('[NotifUI] Error guardando/programando:', error);
+      console.error('[NotifUI] Error guardando:', error);
       await emit("show-toast", { message: "❌ Error al guardar: " + error, type: "error" });
     } finally {
       notifSaving = false;
