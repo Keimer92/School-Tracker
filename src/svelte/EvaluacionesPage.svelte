@@ -239,7 +239,12 @@ import SelectChip from "./SelectChip.svelte";
       configBaseline = snapshotConfig(indicadores);
       recienGuardado = true;
       setTimeout(() => { recienGuardado = false; }, 1600);
+      // Hay que marcar LAS DOS tablas: el guardado escribe indicadores y criterios.
+      // Antes solo se marcaba 'indicador' y el sync D1 se salvaba porque el push
+      // es por cursor (updated_at) sobre todas las tablas, pero 'criterio'
+      // quedaba sin marcar y el rastro de sync no reflejaba lo que se guardo.
       onDataChange('indicador');
+      onDataChange('criterio');
       await emit("notas-updated", { timestamp: Date.now() });
       await emit("show-toast", { message: "✅ Configuración guardada", type: "success" });
     } catch (error) {
