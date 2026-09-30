@@ -20,6 +20,9 @@
 
   const STORAGE_KEY = "stp_attendance_notif_settings";
   const INTERVALOS = [15, 30, 45, 60, 90, 120];
+  // Orden = indice de `Date.getDay()` (0 = domingo). Debe coincidir con las
+  // columnas de `colegio_dias_asistencia`.
+  const DIAS = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
   const CFG_POR_DEFECTO: Omit<NotifColegioCfg, "activo"> = { inicio: "07:00", fin: "12:00", intervaloMin: 45 };
 
   interface NotifColegioCfg { activo: boolean; inicio: string; fin: string; intervaloMin: number; }
@@ -74,9 +77,47 @@
   async function loadCatalogs() {
     try {
       colegios = await invoke<ColegioItem[]>("get_colegios");
+      await elegirColegioDePrueba();
     } catch (e) {
       console.error("[Notif] Error cargando colegios:", e);
     }
+  }
+
+  /** ¿Este colegio tiene HOY marcado como día de asistencia? */
+  async function laborableHoy(colegioId: number): Promise<boolean> {
+    try {
+      const dias = await invoke<Record<string, boolean>>("get_colegio_dias_asistencia", { colegioId });
+      // Sin fila en la tabla se asume que labora (mismo criterio que el backend:
+      // `COALESCE(columna, 1) = 1`).
+      return dias?.[DIAS[dayOfWeek()]] !== false;
+    } catch {
+      return true;
+    }
+  }
+
+  function dayOfWeek(): number {
+    return new Date(getLocalDateISOString() + "T12:00:00").getDay();
+  }
+
+  /**
+   * El select de prueba SIEMPRE debe mostrar un colegio, para que "Probar real"
+   * sea usable sin tocarlo. Se prefiere uno que tenga hoy como día hábil (si no,
+   * la prueba siempre respondería "hoy NO es día hábil"); entre los que sirvan
+   * gana el primero por orden alfabético. Sin config, el primero alfabético.
+   */
+  async function elegirColegioDePrueba() {
+    if (colegios.length === 0) { testColegio = ""; return; }
+    // Si el usuario ya eligió uno válido, no se le cambia debajo.
+    if (testColegio && colegios.some(c => String(c.id) === testColegio)) return;
+
+    // Orden alfabético estable por nombre (locale para acentos/ñ).
+    const ordenados = [...colegios].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+    const resultados = await Promise.all(
+      ordenados.map(async c => ({ c, ok: await laborableHoy(c.id) }))
+    );
+    const elegido = resultados.find(r => r.ok)?.c ?? ordenados[0];
+    if (!elegido) { testColegio = ""; return; }
+    testColegio = String(elegido.id);
   }
 
   async function refreshSilenced() {
@@ -137,6 +178,8 @@
 
   /** Dispara una notificacion real con los grados pendientes de HOY. */
   async function test() {
+    // `testColegio` ya viene elegido por `elegirColegioDePrueba`; el `||` solo
+    // cubre el caso sin colegios configurados.
     const cid = Number(testColegio) || colegios[0]?.id;
     if (!cid) { await emit("show-toast", { message: "⚠️ No hay colegios configurados", type: "warning" }); return; }
     testing = true;
@@ -151,9 +194,7 @@
         let motivo = "todo está registrado hoy ✅";
         try {
           const dias = await invoke<Record<string, boolean>>("get_colegio_dias_asistencia", { colegioId: cid });
-          const nombres = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
-          const d = new Date(fecha + "T12:00:00").getDay();
-          if (dias && dias[nombres[d]] === false) motivo = "hoy NO es día hábil para este colegio 🚫";
+          if (dias && dias[DIAS[dayOfWeek()]] === false) motivo = "hoy NO es día hábil para este colegio 🚫";
         } catch { /* la tabla puede no existir: se deja el motivo por defecto */ }
         await emit("show-toast", { message: `ℹ️ Sin pendientes: ${motivo}`, type: "info" });
         return;
@@ -266,17 +307,21 @@
     <!-- Acciones -->
     <div class="notif-campo" style="width:100%;padding:0 0.75rem;">
       <label>Colegio para la prueba</label>
-      <select bind:value={testColegio}>
-        {#each colegios as c (c.id)}
-          <option value={String(c.id)}>{c.nombre}</option>
-        {/each}
-      </select>
+      {#if colegios.length === 0}
+        <select disabled><option>Sin colegios configurados</option></select>
+      {:else}
+        <select bind:value={testColegio}>
+          {#each colegios as c (c.id)}
+            <option value={String(c.id)}>{c.nombre}</option>
+          {/each}
+        </select>
+      {/if}
     </div>
     <div class="notif-acciones">
       <button class="notif-btn-primary" onclick={save} disabled={saving}>
         {saving ? "Guardando..." : "💾 Guardar"}
       </button>
-      <button class="notif-btn-ghost" onclick={test} disabled={testing}>
+      <button class="notif-btn-ghost" onclick={test} disabled={testing || colegios.length === 0}>
         {testing ? "Probando..." : "🔔 Probar real"}
       </button>
     </div>
