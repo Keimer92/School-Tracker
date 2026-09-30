@@ -2,13 +2,12 @@
   import { onMount, onDestroy } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { emit } from "@tauri-apps/api/event";
-  import { open, save, ask } from "@tauri-apps/plugin-dialog";
-  import { copyFile, BaseDirectory } from "@tauri-apps/plugin-fs";
-  import { syncService } from "../lib/syncService";
   import { onDataChange } from "../lib/autoSync";
   import { registerBackHandler } from "../lib/androidBack";
   import { loadAppSettings, saveAppSettings, getAppSettings, onAppSettingsChange } from "../lib/appSettings";
   import NotificacionesPage from "./notificaciones/NotificacionesPage.svelte";
+  import DebugPage from "./ajustes/DebugPage.svelte";
+  import InfoPage from "./ajustes/InfoPage.svelte";
   import appIcon from "../assets/app-icon.png";
 
   function getThemeColor(color: string): string {
@@ -43,22 +42,8 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     const dispose = registerBackHandler(() => { activeTab = null; return true; });
     return () => dispose();
   });
-  let dbPath = $state("");
   let gradeConfigs = $state<{ id: string; nombre: string; color: string; minimo: number }[]>([]);
   let highlightColor = $state(localStorage.getItem("student-highlight-color") || "#4ade80");
-  let currentUserId = $state("");
-  let showUserIdBox = $state(false);
-  let selectedFeature = $state<{ icon: string; title: string; desc: string } | null>(null);
-
-  const FEATURES = [
-    { icon: "📋", title: "Gestión Académica", desc: "Organiza años lectivos, colegios, grados, secciones y asignaturas. Crea y administra catálogos completos con relaciones entre grados y asignaturas por colegio." },
-    { icon: "📝", title: "Notas y Evaluaciones", desc: "Registra notas por indicador y criterio dentro de cada corte evaluativo. Soporta calificaciones numéricas y cualitativas (AA, AS, AF, AI) con multiplicadores configurables." },
-    { icon: "✅", title: "Asistencia", desc: "Control diario, semanal y mensual de asistencia por estudiante (Presente, Ausente, Justificado). Incluye días sin clases, informes por período y exportación." },
-    { icon: "📊", title: "Informes y PDF", desc: "Genera boletines de calificaciones, listados de estudiantes y reportes de asistencia en formato PDF y Excel. Personaliza colores y diseño de encabezados." },
-    { icon: "☁️", title: "Sync en la Nube", desc: "Respaldo completo en Google Drive y sincronización bilateral en tiempo real con Cloudflare D1. Múltiples dispositivos siempre actualizados." },
-    { icon: "📱", title: "Multiplataforma", desc: "Funciona en Windows, Android y navegadores web. Datos almacenados localmente en SQLite — no requiere conexión constante a internet." },
-  ];
-
 
   let { themeMode = "sistema", setThemeMode = () => {}, pageActive = false, tabRequest = null as string | null, seccion = null as string | null, soloContenido = false } = $props();
 
@@ -97,7 +82,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
   onMount(async () => {
     invoke<{ id: string; nombre: string; color: string; minimo: number }[]>("get_grade_configs").then(d => gradeConfigs = d).catch(e => console.error("Error fetching grade configs:", e));
-    invoke<string>("get_db_path").then(p => dbPath = p).catch(e => console.error("Error fetching db path:", e));
+    // La ruta de la BD la carga DebugPage por su cuenta (solo la usa esa sección).
     // Cargar configuraciones desde la tabla syncronizable
     const settings = await loadAppSettings();
     highlightColor = settings.highlightColor;
@@ -134,133 +119,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     }
   }
 
-  function backupFileName(ext: string): string {
-    const d = new Date();
-    const p = (n: number) => String(n).padStart(2, "0");
-    const fecha = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-    const hora = `${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
-    return `Backup_SchoolTracker_${fecha}_${hora}.${ext}`;
-  }
-
-  async function handleExportDB() {
-    try {
-      const dbFile = await invoke<string>("get_db_path");
-      if (isAndroid) {
-        await copyFile(dbFile, backupFileName("sqlite"), { toPathBaseDir: BaseDirectory.Download });
-        await emit("show-toast", { message: "✅ Base de datos exportada a Descargas", type: "success" }); return;
-      }
-      const dest = await save({ filters: [{ name: "Database File", extensions: ["db"] }], defaultPath: backupFileName("db") });
-      if (dest) { await copyFile(dbFile, dest); await emit("show-toast", { message: "✅ Base de datos exportada", type: "success" }); }
-    } catch (error) { await emit("show-toast", { message: "❌ Error al exportar: " + error, type: "error" }); }
-  }
-
-  let isImporting = $state(false);
-  async function handleImportDB() {
-    try {
-      const source = await open({ filters: [{ name: "Database File", extensions: ["db"] }], multiple: false });
-      if (source && typeof source === "string") {
-        isImporting = true;
-        const dbFile = await invoke<string>("get_db_path"); await copyFile(source, dbFile);
-        // Reabrir la conexión Y correr migraciones: un backup de una versión
-        // anterior puede carecer de tablas nuevas (colegio_grado, dia_sin_clases,
-        // columna tipo, …). Sin esto el sync D1 falla con "no such table".
-        try {
-          await invoke("gd_reload_database");
-          await emit("catalog-updated");
-          await emit("data-updated");
-        } catch (e) { console.warn("Post-import migrate/reload:", e); }
-        // Sync COMPLETO automático tras importar un backup completo:
-        // 1) RESET de la nube: borra filas Y tombstones residuales de purgas
-        //    previas. Sin esto, los tombstones (que persistían en la nube)
-        //    viajan a los dispositivos y borran las filas recién subidas
-        //    ("los datos desaparecen al refrescar").
-        // 2) full=true re-pushea TODAS las filas locales (ignora cursores viejos
-        //    del d1_config importado) y deja la nube = la base importada.
-        // Ambas son seguras/idempotentes (upsert LWW del worker).
-        let sincronizada = 0;
-        let syncErrores = '';
-        try {
-          await invoke("d1_reset_remote");
-          const r = await invoke<any>("d1_sync_all", { full: true });
-          const pushed = r?.pushed || {};
-          sincronizada = typeof pushed === 'number' ? pushed : Object.values(pushed).reduce((a: number, b: any) => a + Number(b || 0), 0);
-        } catch (e) {
-          syncErrores = String(e);
-          console.error("[Import] reset/sync completo automático falló:", e);
-        }
-        if (syncErrores) {
-          await emit("show-toast", { message: `✅ Base importada y migrada. ⚠️ Sync completo no pudo ejecutarse: ${syncErrores}. Usa \u201cSync completo\u201d en Nube.`, type: "warning" });
-        } else {
-          await emit("show-toast", { message: `✅ Base importada, migrada y sincronizada (${sincronizada} filas en la nube). Reinicie la app si algo no responde.`, type: "success" });
-        }
-      }
-    } catch (error) { await emit("show-toast", { message: "❌ Error al importar: " + error, type: "error" }); }
-    finally { isImporting = false; }
-  }
-
-  async function handleResetLocalDB() {
-    const ok = await ask("¿Estás SEGURO de que quieres reiniciar la base de datos LOCAL?\n\nSe borrarán todos los estudiantes, notas, asistencias y configuraciones.\nLa conexión a la nube se conserva (el próximo sync re-traerá tus datos).\nEsta acción no se puede deshacer.", { title: "⚠️ Reiniciar Base de Datos Local", kind: "warning", okLabel: "Confirmar", cancelLabel: "Cancelar" });
-    if (!ok) return;
-    try {
-      await invoke("reset_local_database");
-      await emit("catalog-updated");
-      await emit("data-updated");
-      await emit("show-toast", { message: "✅ Base de datos local reiniciada. Recargando…", type: "success" });
-      setTimeout(() => location.reload(), 1500);
-    }
-    catch (error) { await emit("show-toast", { message: "❌ Error al reiniciar DB: " + error, type: "error" }); }
-  }
-
-  /** Purga TOTAL del perfil logueado: vacía la nube D1 (school key activa) Y
-   *  reinicia la base local, dejando el perfil en cero para importar una DB
-   *  buena. La config de conexión (d1_config) se conserva. */
-  let isWipingProfile = $state(false);
-  async function handleWipeProfileData() {
-    const ok = await ask(
-      "¡ATENCIÓN MÁXIMA! Esto dejará en CERO el perfil actual:\n\n" +
-      "1️⃣ Borrará TODOS los datos de la NUBE (Cloudflare D1) de esta cuenta.\n" +
-      "2️⃣ Reiniciará la base de datos LOCAL (con datos semilla por defecto).\n\n" +
-      "Los demás dispositivos sincronizados también perderán los datos.\n" +
-      "Después podrás importar tu base de datos buena.\n\n¿Continuar?",
-      { title: "🚨 Purgar Perfil (Nube + Local)", kind: "warning", okLabel: "Sí, purgar todo", cancelLabel: "Cancelar" }
-    );
-    if (!ok) return;
-    isWipingProfile = true;
-    try {
-      // 1. Vaciar la nube D1 del perfil (best-effort: si D1 no está configurado, seguir)
-      let nubeOk = true;
-      try {
-        const r = await invoke<{ ok: boolean; deleted: number }>("d1_wipe_remote");
-        console.log("[Wipe] nube purgada:", r);
-      } catch (e) {
-        nubeOk = false;
-        console.warn("[Wipe] nube no purgada (¿D1 sin configurar?):", e);
-      }
-      // 2. Reiniciar la base local (conserva d1_config, re-siembra defaults)
-      await invoke("reset_local_database");
-      await emit("catalog-updated");
-      await emit("data-updated");
-      await emit("show-toast", {
-        message: nubeOk
-          ? "✅ Perfil purgado (nube + local en cero). Ahora importa tu base buena. Recargando…"
-          : "⚠️ Local reiniciada; la nube NO se purgó (D1 sin configurar). Recargando…",
-        type: nubeOk ? "success" : "warning",
-      });
-      setTimeout(() => location.reload(), 1800);
-    } catch (error) {
-      console.error("[Wipe] error:", error);
-      await emit("show-toast", { message: "❌ Error al purgar perfil: " + error, type: "error" });
-    } finally {
-      isWipingProfile = false;
-    }
-  }
-
-  async function showUserId() { currentUserId = await syncService.getUserId() || 'No conectado'; showUserIdBox = true; }
-  async function copyUserId() { if (currentUserId && currentUserId !== 'No conectado') { await navigator.clipboard.writeText(currentUserId); emit("show-toast", { message: "User ID copiado al portapapeles", type: "success" }); } }
-  async function handleSelectFolder() {
-    try { const selected = await open({ directory: true, multiple: false }); if (selected) await emit("show-toast", { message: "📁 Carpeta seleccionada: " + selected, type: "info" }); }
-    catch (error) { console.error("Error al seleccionar carpeta:", error); }
-  }
 
 </script>
 
@@ -420,19 +278,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
 </div>
 
-{#if selectedFeature}
-  <div class="info-modal-overlay" onclick={() => selectedFeature = null} role="presentation">
-    <div class="info-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-label={selectedFeature.title}>
-      <div class="info-modal-header">
-        <span class="info-modal-icon">{selectedFeature.icon}</span>
-        <h3 class="info-modal-title">{selectedFeature.title}</h3>
-      </div>
-      <p class="info-modal-desc">{selectedFeature.desc}</p>
-      <button class="info-modal-close" onclick={() => selectedFeature = null}>Cerrar</button>
-    </div>
-  </div>
-{/if}
-
 <style>
   .ajustes-grid {
     display: grid;
@@ -441,183 +286,5 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
     gap: 1.25rem;
     align-items: start;
-  }
-  .info-hero {
-    display: flex;
-    align-items: center;
-    gap: 1.25rem;
-    padding: 1.5rem;
-    border-radius: 16px;
-    background: linear-gradient(135deg, rgba(var(--primary-rgb, 96,165,250), 0.08), rgba(168,85,247,0.06));
-    border: 1px solid rgba(255,255,255,0.07);
-    backdrop-filter: blur(20px);
-    margin-bottom: 1.25rem;
-  }
-  .info-hero-icon-wrap {
-    width: 72px;
-    height: 72px;
-    border-radius: 18px;
-    overflow: hidden;
-    flex-shrink: 0;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.3), 0 0 20px rgba(var(--primary-rgb, 96,165,250), 0.15);
-    animation: info-float 3s ease-in-out infinite, info-glow 2s ease-in-out infinite alternate;
-  }
-  .info-hero-icon {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    display: block;
-  }
-  .info-hero-text {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    animation: info-slide-in 0.6s ease-out both;
-  }
-  .info-hero-title {
-    margin: 0;
-    font-size: 1.8rem;
-    font-weight: 700;
-    background: linear-gradient(135deg, var(--primary-color) 0%, #a855f7 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: info-shimmer 3s ease-in-out infinite;
-    background-size: 200% 100%;
-  }
-  @keyframes info-float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-4px); }
-  }
-  @keyframes info-glow {
-    0% { box-shadow: 0 8px 24px rgba(0,0,0,0.3), 0 0 15px rgba(var(--primary-rgb, 96,165,250), 0.1); }
-    100% { box-shadow: 0 8px 24px rgba(0,0,0,0.3), 0 0 25px rgba(var(--primary-rgb, 96,165,250), 0.25); }
-  }
-  @keyframes info-slide-in {
-    0% { opacity: 0; transform: translateX(-12px); }
-    100% { opacity: 1; transform: translateX(0); }
-  }
-  @keyframes info-shimmer {
-    0%, 100% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
-  }
-  .info-features {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-  .info-feature {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.85rem;
-    border-radius: 10px;
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.06);
-    color: inherit;
-    font: inherit;
-    transition: all 0.2s ease;
-    flex: 1 1 auto;
-    min-width: 0;
-    cursor: pointer;
-  }
-  .info-feature:hover {
-    border-color: rgba(var(--primary-rgb, 96,165,250), 0.2);
-    background: rgba(255,255,255,0.04);
-  }
-  .info-feature:active {
-    transform: scale(0.97);
-  }
-  .info-feature-icon {
-    font-size: 1rem;
-    flex-shrink: 0;
-  }
-  .info-feature-title {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #e2e8f0;
-    white-space: nowrap;
-  }
-  .info-feature-desc {
-    display: none;
-  }
-  .ajustes-ribbon-container {
-    display: flex;
-    justify-content: center;
-    margin-bottom: 1.5rem;
-    position: sticky;
-    top: 0;
-    z-index: 500;
-    padding: 0.6rem 0;
-    background: var(--bg-primary, #0f172a);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border-radius: 0 0 14px 14px;
-  }
-  :global(.ajustes-ribbon) { display: inline-flex; padding: 0.4rem; gap: 0.3rem; background: var(--bg-elevated); border-radius: 14px; border: 1px solid var(--border); }
-  :global(.ajustes-tab) { padding: 0.5rem 1rem; border-radius: 10px; border: none; background: transparent; color: var(--text-muted); font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.2s ease; display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; }
-  :global(.ajustes-tab.active) { color: var(--text-bright); background: var(--bg-active); box-shadow: 0 0 8px rgba(var(--primary-rgb), 0.08); }
-  :global(.ajustes-tab:hover:not(.active)) { background: var(--bg-hover); color: var(--text-primary); }
-  :global(.tab-label) { display: inline-block; }
-  @media (max-width: 1024px) {
-    :global(.ajustes-ribbon-container) { justify-content: center; margin-bottom: 1rem; }
-    :global(.ajustes-ribbon) { display: inline-flex; padding: 0.3rem; gap: 2px; }
-    :global(.ajustes-tab) { padding: 0.5rem 0.6rem; gap: 0; font-size: 0.8rem; }
-    :global(.ajustes-tab .tab-label) { display: none; }
-    :global(.ajustes-tab.active) { padding: 0.5rem 0.8rem; }
-    :global(.ajustes-tab.active .tab-label) { display: inline-block; font-size: 0.8rem; }
-  }
-  /* ── Modal Info Feature ── */
-  .info-modal-overlay {
-    position: fixed; inset: 0; z-index: 9999;
-    display: flex; align-items: center; justify-content: center;
-    background: rgba(0,0,0,0.5);
-    backdrop-filter: blur(8px);
-    animation: info-modal-fade-in 0.2s ease-out;
-  }
-  .info-modal {
-    width: min(90vw, 380px);
-    padding: 1.5rem;
-    border-radius: 18px;
-    background: rgba(20,24,31,0.92);
-    backdrop-filter: blur(24px);
-    border: 1px solid rgba(255,255,255,0.1);
-    box-shadow: 0 25px 60px -12px rgba(0,0,0,0.6);
-    animation: info-modal-slide-in 0.25s ease-out;
-  }
-  .info-modal-header {
-    display: flex; align-items: center; gap: 0.75rem;
-    margin-bottom: 1rem;
-  }
-  .info-modal-icon {
-    font-size: 1.8rem;
-    width: 48px; height: 48px;
-    display: flex; align-items: center; justify-content: center;
-    border-radius: 14px;
-    background: rgba(var(--primary-rgb, 96,165,250), 0.1);
-    border: 1px solid rgba(var(--primary-rgb, 96,165,250), 0.2);
-    flex-shrink: 0;
-  }
-  .info-modal-title {
-    margin: 0; font-size: 1.1rem; font-weight: 700; color: #f1f5f9;
-  }
-  .info-modal-desc {
-    margin: 0 0 1.25rem; font-size: 0.85rem; color: #94a3b8; line-height: 1.6;
-  }
-  .info-modal-close {
-    width: 100%; padding: 0.65rem; border: none; border-radius: 10px;
-    background: rgba(255,255,255,0.08); color: #e2e8f0;
-    font-size: 0.85rem; font-weight: 600; cursor: pointer;
-    transition: all 0.15s ease;
-  }
-  .info-modal-close:hover { background: rgba(255,255,255,0.12); }
-  .info-modal-close:active { transform: scale(0.97); }
-  @keyframes info-modal-fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-  @keyframes info-modal-slide-in {
-    from { opacity: 0; transform: translateY(16px) scale(0.96); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
   }
 </style>
