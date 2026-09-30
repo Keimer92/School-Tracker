@@ -313,70 +313,12 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
       <!-- DEBUGGING -->
       {#if !filtro || filtro === "debugging"}
-      <div class="category-card" style="border-left: 3px solid {TAB_COLORS.debugging};">
-        <div class="category-header" style="border-left: none;">
-          <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.debugging}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">🐛</div>
-          <h3>Debugging</h3>
-        </div>
-        <div style="padding: 1.5rem 2rem;">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-            <div style="background: rgba(255,255,255,0.05); padding: 1.25rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
-              <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;"><span style="font-size: 1.1rem;">📤</span><h5 style="margin: 0; color: #e2e8f0; font-size: 0.9rem;">Exportar</h5></div>
-              <button onclick={handleExportDB} style="padding: 0.5rem 0.8rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; color: white; border-radius: 8px; cursor: pointer; font-size: 0.8rem; font-weight: 600; width: 100%;">📤 Exportar DB</button>
-            </div>
-            <div style="background: rgba(255,255,255,0.05); padding: 1.25rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
-              <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;"><span style="font-size: 1.1rem;">📥</span><h5 style="margin: 0; color: #e2e8f0; font-size: 0.9rem;">Importar</h5></div>
-              <button onclick={handleImportDB} disabled={isImporting} style="padding: 0.5rem 0.8rem; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border: none; color: white; border-radius: 8px; cursor: pointer; font-size: 0.8rem; font-weight: 600; width: 100%; opacity: {isImporting ? 0.6 : 1};">{isImporting ? '⏳ Importando + sincronizando…' : '📥 Importar DB'}</button>
-            </div>
-          </div>
-          <div style="background: rgba(239, 68, 68, 0.05); padding: 1.25rem; border-radius: 12px; border: 1px solid rgba(239, 68, 68, 0.2);">
-            <h5 style="margin: 0 0 0.5rem 0; color: #f87171; font-size: 0.85rem;">⚠️ Zona de Peligro</h5>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
-              <button onclick={handleResetLocalDB} title="Borra estudiantes, notas, asistencias y catálogos de este dispositivo y recarga la app. La conexión a la nube se conserva (el próximo sync re-traerá tus datos)." style="padding: 0.45rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; border-radius: 8px; cursor: pointer; font-size: 0.75rem; font-weight: 600;">🗑️ Reiniciar Local</button>
-              <button onclick={handleWipeProfileData} disabled={isWipingProfile} title="Purga total: vacía la nube D1 de esta cuenta Y reinicia la base local, luego recarga. Úsalo antes de importar una DB buena." style="padding: 0.45rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; border-radius: 8px; cursor: pointer; font-size: 0.75rem; font-weight: 600; opacity: {isWipingProfile ? 0.6 : 1};">{isWipingProfile ? "⏳ Purgando…" : "🧨 Purgar Perfil"}</button>
-            </div>
-            <div style="font-size: 0.7rem; color: #94a3b8; margin-top: 0.5rem;">🗑️ <strong>Reiniciar Local</strong>: solo este dispositivo, la nube queda intacta. 🧨 <strong>Purgar Perfil</strong>: vacía la nube D1 de esta cuenta Y reinicia la base local. Úsalo antes de importar una DB buena.</div>
-          </div>
-          <div style="margin-top: 1rem; background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
-            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;"><span style="font-size: 1rem;">📊</span><h5 style="margin: 0; color: #e2e8f0; font-size: 0.85rem;">Sistema</h5></div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
-              <div><div style="font-size: 0.7rem; color: #64748b;">Versión</div><div style="color: #e2e8f0; font-weight: 600; font-size: 0.85rem;">1.2.0</div></div>
-              <div><div style="font-size: 0.7rem; color: #64748b;">Ruta DB</div><div class="selectable" style="color: #e2e8f0; font-size: 0.7rem; word-break: break-all;">{dbPath}</div></div>
-            </div>
-          </div>
-        </div>
-      </div>
+        <DebugPage />
       {/if}
 
       <!-- INFO -->
       {#if !filtro || filtro === "acercaDe"}
-      <div class="category-card" style="border-left: 3px solid {TAB_COLORS.acercaDe};">
-        <div class="category-header" style="border-left: none;">
-          <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.acercaDe}18;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><img src={appIcon} alt="" style="width:24px;height:24px;border-radius:6px;object-fit:contain;" /></div>
-          <h3>Info</h3>
-        </div>
-        <div style="padding: 1.5rem 2rem;">
-          <div class="info-hero">
-            <div class="info-hero-icon-wrap">
-              <img src={appIcon} alt="School Tracker" class="info-hero-icon" />
-            </div>
-            <div class="info-hero-text">
-              <h2 class="info-hero-title">School Tracker</h2>
-              <p style="color: #94a3b8; font-size: 0.85rem; margin: 0;">Sistema de Gestión Académica</p>
-              <div style="display: inline-block; margin-top: 0.4rem; padding: 0.15rem 0.6rem; background: rgba(255,255,255,0.05); border-radius: 20px; font-size: 0.7rem; color: var(--primary-color); border: 1px solid var(--primary-color);">v1.2.0</div>
-            </div>
-          </div>
-          <div class="info-features">
-            {#each FEATURES as f}
-              <button class="info-feature" onclick={() => selectedFeature = f}>
-                <span class="info-feature-icon">{f.icon}</span>
-                <span class="info-feature-title">{f.title}</span>
-              </button>
-            {/each}
-          </div>
-          <div style="margin-top: 1rem; text-align: center; color: #64748b; font-size: 0.8rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 0.75rem;">Desarrollado con ❤️ por Keimer</div>
-        </div>
-      </div>
+        <InfoPage />
       {/if}
     </div>
   {/if}
@@ -465,107 +407,12 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
         <!-- DEBUGGING -->
         {#if activeTab === "debugging"}
-          <div class="category-card" style="border-left: 3px solid {TAB_COLORS.debugging};">
-            <div class="category-header" style="border-left: none;">
-              <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.debugging}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">🐛</div>
-              <h3>Debugging</h3>
-            </div>
-            <div style="padding: 2rem;">
-              <div style="margin-bottom: 2rem;">
-                <h4 style="color: #e2e8f0;">Gestión de Datos y Configuración</h4>
-                <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 1.5rem;">Configura la ubicación de almacenamiento y gestiona la importación/exportación de datos</p>
-              </div>
-              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
-                <div style="background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
-                  <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;"><span style="font-size: 1.2rem;">📁</span><h5 style="margin: 0; color: #e2e8f0; font-size: 1rem;">Ubicación de Almacenamiento</h5></div>
-                  <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                    <button onclick={handleSelectFolder} style="padding: 0.6rem 1rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #e2e8f0; border-radius: 8px; cursor: pointer; font-size: 0.9rem;">📂 Seleccionar Carpeta</button>
-                    <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.5rem; word-break: break-all;">Carpeta actual: {dbPath || "Cargando..."}</div>
-                  </div>
-                </div>
-                <div style="background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
-                  <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;"><span style="font-size: 1.2rem;">📤</span><h5 style="margin: 0; color: #e2e8f0; font-size: 1rem;">Exportación de Datos</h5></div>
-                  <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                    <button onclick={handleExportDB} style="padding: 0.6rem 1rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; color: white; border-radius: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 600;">📤 Exportar Todo</button>
-                    <button onclick={handleExportDB} style="padding: 0.6rem 1rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #e2e8f0; border-radius: 8px; cursor: pointer; font-size: 0.9rem;">🗄️ Base de Datos</button>
-                    <button onclick={async () => { await emit("show-toast", { message: "ℹ️ Funcionalidad no implementada.", type: "info" }); }} style="padding: 0.6rem 1rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #e2e8f0; border-radius: 8px; cursor: pointer; font-size: 0.9rem;">⚙️ Configuración</button>
-                  </div>
-                </div>
-              </div>
-              <div style="background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
-                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;"><span style="font-size: 1.2rem;">📥</span><h5 style="margin: 0; color: #e2e8f0; font-size: 1rem;">Importación de Datos</h5></div>
-                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                  <button onclick={handleImportDB} disabled={isImporting} style="padding: 0.6rem 1rem; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border: none; color: white; border-radius: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 600; opacity: {isImporting ? 0.6 : 1};">{isImporting ? '⏳ Importando + sincronizando…' : '📥 Importar Todo'}</button>
-                  <button onclick={handleImportDB} style="padding: 0.6rem 1rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #e2e8f0; border-radius: 8px; cursor: pointer; font-size: 0.9rem;">📊 Base de Datos</button>
-                  <button onclick={async () => { await emit("show-toast", { message: "ℹ️ Funcionalidad no implementada.", type: "info" }); }} style="padding: 0.6rem 1rem; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: #e2e8f0; border-radius: 8px; cursor: pointer; font-size: 0.9rem;">⚙️ Configuración</button>
-                  <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.5rem;">⚠️ La importación sobrescribirá los datos actuales.</div>
-                </div>
-              </div>
-              <div style="background: rgba(239, 68, 68, 0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(239, 68, 68, 0.2); margin-top: 1.5rem;">
-                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;"><span style="font-size: 1.2rem;">⚠️</span><h5 style="margin: 0; color: #f87171; font-size: 1rem;">Zona de Peligro (Reset)</h5></div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
-                  <button onclick={handleResetLocalDB} title="Borra estudiantes, notas, asistencias y catálogos de este dispositivo y recarga la app. La conexión a la nube se conserva (el próximo sync re-traerá tus datos)." style="padding: 0.6rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600;">🗑️ Reiniciar Local</button>
-                  <button onclick={handleWipeProfileData} disabled={isWipingProfile} title="Purga total: vacía la nube D1 de esta cuenta Y reinicia la base local, luego recarga. Úsalo antes de importar una DB buena." style="padding: 0.6rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: 600; opacity: {isWipingProfile ? 0.6 : 1};">{isWipingProfile ? "⏳ Purgando…" : "🧨 Purgar Perfil (Nube + Local)"}</button>
-                </div>
-                <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.75rem;">🗑️ <strong>Reiniciar Local</strong>: solo este dispositivo, la nube queda intacta. 🧨 <strong>Purgar Perfil</strong>: vacía la nube D1 de esta cuenta Y reinicia la base local. Úsalo antes de importar una base de datos buena para evitar mezclas con datos viejos.</div>
-              </div>
-              <div style="background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); margin-top: 1.5rem;">
-                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;"><span style="font-size: 1.2rem;">📊</span><h5 style="margin: 0; color: #e2e8f0; font-size: 1rem;">Información del Sistema</h5></div>
-                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
-                  <div><div style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.25rem;">Versión App</div><div style="color: #e2e8f0; font-weight: 600;">1.2.0</div></div>
-                  <div><div style="font-size: 0.8rem; color: #64748b; margin-bottom: 0.25rem;">Ruta DB</div><div class="selectable" style="color: #e2e8f0; font-size: 0.8rem; word-break: break-all;">{dbPath}</div></div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <DebugPage />
         {/if}
 
         <!-- ACERCA DE -->
         {#if activeTab === "acercaDe"}
-          <div class="category-card" style="border-left: 3px solid {TAB_COLORS.acercaDe};">
-            <div class="category-header" style="border-left: none;">
-              <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.acercaDe}18;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><img src={appIcon} alt="" style="width:24px;height:24px;border-radius:6px;object-fit:contain;" /></div>
-              <h3>Acerca de la Aplicación</h3>
-            </div>
-            <div style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem;">
-              <div class="info-hero">
-                <div class="info-hero-icon-wrap">
-                  <img src={appIcon} alt="School Tracker" class="info-hero-icon" />
-                </div>
-                <div class="info-hero-text">
-                  <h2 class="info-hero-title" style="font-size: 1.6rem;">School Tracker</h2>
-                  <p style="color: #94a3b8; font-size: 0.9rem; margin: 0;">Sistema de Gestión Académica Profesional</p>
-                  <div style="display: inline-block; margin-top: 0.4rem; padding: 0.2rem 0.7rem; background: rgba(255,255,255,0.05); border-radius: 20px; font-size: 0.75rem; color: var(--primary-color); border: 1px solid var(--primary-color);">v1.2.0 - Android & Cloud Edition</div>
-                </div>
-              </div>
-              <div class="info-features">
-                {#each FEATURES as f}
-                  <button class="info-feature" onclick={() => selectedFeature = f}>
-                    <span class="info-feature-icon">{f.icon}</span>
-                    <span class="info-feature-title">{f.title}</span>
-                  </button>
-                {/each}
-              </div>
-              <div style="background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
-                <h4 style="margin: 0 0 1rem 0; color: #e2e8f0;">🚀 Últimas Actualizaciones (v1.2.0)</h4>
-                <ul style="color: #94a3b8; font-size: 0.9rem; margin: 0; padding-left: 1.5rem; line-height: 1.8;">
-                  <li>📱 Rediseño Android: Nueva navegación de Ajustes optimizada.</li>
-                  <li>☁️ Sync Real-time: Estado de sincronización en vivo.</li>
-                  <li>⭐ Calificaciones Flexibles: Configuración dinámica de colores.</li>
-                  <li>🎨 Motor de Temas: Soporte para múltiples esquemas.</li>
-                  <li>🔄 Gestión de Orientación: Control de rotación en Android.</li>
-                </ul>
-              </div>
-              <div style="background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
-                <h4 style="margin: 0 0 1rem 0; color: #e2e8f0;">Tecnologías de Vanguardia</h4>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
-                  <div><div style="font-weight: bold; color: var(--primary-color); margin-bottom: 0.5rem;">Core System</div><ul style="color: #94a3b8; font-size: 0.8rem; padding-left: 1.2rem;"><li>Tauri v2 (Rust)</li><li>React 19</li><li>TypeScript</li></ul></div>
-                  <div><div style="font-weight: bold; color: #a855f7; margin-bottom: 0.5rem;">Data & Cloud</div><ul style="color: #94a3b8; font-size: 0.8rem; padding-left: 1.2rem;"><li>SQLite Local</li><li>Google Drive</li></ul></div>
-                </div>
-              </div>
-              <div style="text-align: center; color: #64748b; font-size: 0.9rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">Desarrollado con ❤️ por Keimer - v1.2.0</div>
-            </div>
-          </div>
+          <InfoPage />
         {/if}
       </div>
     </div>
