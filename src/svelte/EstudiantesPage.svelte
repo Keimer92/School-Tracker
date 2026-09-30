@@ -184,29 +184,37 @@ import SelectChip from "./SelectChip.svelte";
     const conDatos = lista.filter(c => students.some(s => Number(s.anoLectivoId) === Number(anoSel.id) && Number(s.colegioId) === c.id));
     if (conDatos.length === 0) { await emit("show-toast", { message: `⚠️ No hay estudiantes en ${anoSel.nombre}`, type: "warning" }); return; }
 
+    // En Android no se pide carpeta: el selector devuelve una URI de contenido y
+    // no se puede escribir con una ruta cruda. El archivo va directo a la carpeta
+    // pública Descargas/School Tracker vía MediaStore (sin permisos).
     const ok = await ask(
-      `Se generarán ${conDatos.length} archivo(s) Excel (uno por colegio) con los estudiantes de ${anoSel.nombre}.\n\nElige la carpeta donde guardarlos.`,
-      { title: "📊 Exportar estudiantes", kind: "info", okLabel: "Elegir carpeta", cancelLabel: "Cancelar" }
+      isAndroid
+        ? `Se generarán ${conDatos.length} archivo(s) Excel (uno por colegio) con los estudiantes de ${anoSel.nombre}.\n\nSe guardarán en Descargas/School Tracker.`
+        : `Se generarán ${conDatos.length} archivo(s) Excel (uno por colegio) con los estudiantes de ${anoSel.nombre}.\n\nElige la carpeta donde guardarlos.`,
+      { title: "📊 Exportar estudiantes", kind: "info", okLabel: isAndroid ? "Exportar" : "Elegir carpeta", cancelLabel: "Cancelar" }
     );
     if (!ok) return;
 
-    let carpeta: string | null = null;
-    try {
-      const { open } = await import("@tauri-apps/plugin-dialog");
-      const sel = await open({ directory: true, multiple: false, title: "Carpeta destino para los archivos Excel" });
-      if (!sel || Array.isArray(sel)) return;
-      carpeta = String(sel);
-    } catch (e) {
-      console.error("Error abriendo selector de carpeta:", e);
-      await emit("show-toast", { message: "❌ No se pudo elegir la carpeta", type: "error" });
-      return;
+    // Vacía en Android: ahí no se elige carpeta y el destino es Descargas/School Tracker.
+    let carpeta = "";
+    if (!isAndroid) {
+      try {
+        const { open } = await import("@tauri-apps/plugin-dialog");
+        const sel = await open({ directory: true, multiple: false, title: "Carpeta destino para los archivos Excel" });
+        if (!sel || Array.isArray(sel)) return;
+        carpeta = String(sel);
+      } catch (e) {
+        console.error("Error abriendo selector de carpeta:", e);
+        await emit("show-toast", { message: "❌ No se pudo elegir la carpeta", type: "error" });
+        return;
+      }
     }
 
     exportando = true;
     try {
       // Módulo compartido: ExcelJS con estilos reales (colores, bordes, merges,
       // panel congelado y autofiltro). El SheetJS "community" ignora los estilos.
-      const { crearLibroEstudiantes, escribirLibroEnCarpeta, nombreArchivoSeguro } = await import("../lib/excel");
+      const { crearLibroEstudiantes, escribirLibroEnCarpeta, escribirLibroEnDescargas, nombreArchivoSeguro } = await import("../lib/excel");
       const archivos: string[] = [];
       let total = 0;
 
@@ -228,21 +236,27 @@ import SelectChip from "./SelectChip.svelte";
           incluirGradosVacios: exportIncluirGradosVacios,
         });
 
-        const ruta = await escribirLibroEnCarpeta(
-          libro,
-          carpeta,
-          `Estudiantes_${nombreArchivoSeguro(anoSel.nombre)}_${nombreArchivoSeguro(col.nombre)}`
-        );
+        const nombreBase = `Estudiantes_${nombreArchivoSeguro(anoSel.nombre)}_${nombreArchivoSeguro(col.nombre)}`;
+        const ruta = isAndroid
+          ? await escribirLibroEnDescargas(libro, nombreBase)
+          : await escribirLibroEnCarpeta(libro, carpeta, nombreBase);
         archivos.push(ruta);
         total += totalColegio;
       }
 
-      exportUltimaCarpeta = carpeta;
-      await emit("show-toast", { message: `✅ ${archivos.length} archivo(s) exportados · ${total} estudiantes`, type: "success" });
-      try {
-        const { openUrl } = await import("@tauri-apps/plugin-opener");
-        openUrl(carpeta);
-      } catch (_) { /* abrir la carpeta no es crítico */ }
+      if (!isAndroid) exportUltimaCarpeta = carpeta;
+      await emit("show-toast", {
+        message: isAndroid
+          ? `✅ ${archivos.length} archivo(s) en Descargas/School Tracker · ${total} estudiantes`
+          : `✅ ${archivos.length} archivo(s) exportados · ${total} estudiantes`,
+        type: "success",
+      });
+      if (!isAndroid) {
+        try {
+          const { openUrl } = await import("@tauri-apps/plugin-opener");
+          openUrl(carpeta);
+        } catch (_) { /* abrir la carpeta no es crítico */ }
+      }
     } catch (e) {
       console.error("Error exportando Excel:", e);
       await emit("show-toast", { message: "❌ Error al exportar: " + ((e as Error)?.message || e), type: "error" });
@@ -1440,7 +1454,11 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
             <span style="font-size: 1rem;">📁</span>
             <div style="font-size: 0.75rem; color: #bae6fd; line-height: 1.4;">
               Se generarán <strong>{exportResumen.filter(r => r.estudiantes > 0).length}</strong> archivo(s) con <strong>{exportTotal}</strong> estudiante(s) de {anos.find(a => a.id === exportAno)?.nombre || '—'}.
-              {#if exportUltimaCarpeta}<span style="display: block; color: #64748b; font-size: 0.68rem; margin-top: 2px;">Última carpeta: {exportUltimaCarpeta}</span>{/if}
+              {#if isAndroid}
+                <span style="display: block; color: #64748b; font-size: 0.68rem; margin-top: 2px;">Se guardarán en Descargas/School Tracker</span>
+              {:else if exportUltimaCarpeta}
+                <span style="display: block; color: #64748b; font-size: 0.68rem; margin-top: 2px;">Última carpeta: {exportUltimaCarpeta}</span>
+              {/if}
             </div>
           </div>
         </div>

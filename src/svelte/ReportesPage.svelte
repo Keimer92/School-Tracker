@@ -792,7 +792,14 @@ import { portalToBody } from "../lib/portalToBody";
   }
 
   let showClipboardMenu = $state(false);
-  /** Disparador del menú, para anclarlo. */
+  /**
+   * Disparador del menú. SOLO lo escribe `bind:this`: antes esta variable la
+   * ponía el propio toggle al abrir y la anulaba al cerrar, y como el `onclick`
+   * la comprobaba (`clipboardBtn && toggle(...)`), quedaba en `null` y el segundo
+   * clic se perdía en silencio. Ahora el elemento llega por `event.currentTarget`
+   * y esta ref se usa únicamente para NO cerrar cuando el puntero está sobre el
+   * botón.
+   */
   let clipboardBtn = $state<HTMLElement | null>(null);
   let clipboardPanelEl = $state<HTMLDivElement | null>(null);
   /**
@@ -805,11 +812,10 @@ import { portalToBody } from "../lib/portalToBody";
   const CLIPBOARD_ALTO_EST = 108;
 
   function toggleClipboardMenu(btn: HTMLElement) {
-    if (showClipboardMenu) { closeClipboardMenu(); return; }
+    if (showClipboardMenu) { showClipboardMenu = false; return; }
     const r = btn.getBoundingClientRect();
     if (!r) return;
     const abreArriba = r.bottom + CLIPBOARD_ALTO_EST > window.innerHeight && r.top > CLIPBOARD_ALTO_EST;
-    clipboardBtn = btn;
     clipboardPos = {
       x: Math.max(8, Math.min(Math.round(r.left), window.innerWidth - 248 - 8)),
       y: abreArriba ? 0 : Math.round(r.bottom + 4),
@@ -820,7 +826,6 @@ import { portalToBody } from "../lib/portalToBody";
 
   function closeClipboardMenu() {
     showClipboardMenu = false;
-    clipboardBtn = null;
   }
 
   function getNotaFinalValue(est: EstudianteReporte): string {
@@ -935,6 +940,31 @@ import { portalToBody } from "../lib/portalToBody";
     }
   }
 </script>
+{#snippet botonCopiar(compacto: boolean)}
+  <div style="position:relative;flex-shrink:0">
+    <button bind:this={clipboardBtn} onclick={(e) => toggleClipboardMenu(e.currentTarget)} disabled={filteredReporte.length === 0 || loading}
+      style="height:42px;padding:0 {compacto || isMobile ? '0.55rem' : '1rem'};font-size:{compacto || isMobile ? '0.75rem' : '0.85rem'};background:linear-gradient(135deg,rgba(168,85,247,0.16),rgba(147,51,234,0.06));border:1px solid rgba(168,85,247,0.28);color:#e9d5ff;border-radius:10px;display:flex;align-items:center;gap:{compacto ? '0.45rem' : '9px'};font-weight:700;cursor:{filteredReporte.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;flex-shrink:0;white-space:nowrap;opacity:{filteredReporte.length === 0 || loading ? 0.6 : 1}"
+      onmouseenter={(e) => { if (filteredReporte.length > 0 && !loading) (e.currentTarget as HTMLElement).style.background = 'linear-gradient(135deg,rgba(168,85,247,0.28),rgba(147,51,234,0.12))'; }}
+      onmouseleave={(e) => { (e.currentTarget as HTMLElement).style.background = 'linear-gradient(135deg,rgba(168,85,247,0.16),rgba(147,51,234,0.06))'; }}
+      title="Copiar al portapapeles: la tabla completa o solo la nota final">
+      <span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:rgba(168,85,247,0.35);color:#f3e8ff;flex-shrink:0">
+        <svg width="{compacto ? '13' : '12'}" height="{compacto ? '13' : '12'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      </span>
+      {#if compacto}
+        <span>Copiar</span>
+      {:else}
+        <span style="display:flex;flex-direction:column;align-items:flex-start;line-height:1.15;gap:1px;min-width:0">
+          <span>Copiar</span>
+          <span style="font-size:0.6rem;font-weight:600;color:#c4b5fd;letter-spacing:0.2px">{filteredReporte.length} estudiantes · 2 formatos</span>
+        </span>
+      {/if}
+      {#if showClipboardMenu}
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="margin-left:2px;transform:rotate(180deg);flex-shrink:0"><polyline points="6 9 12 15 18 9"/></svg>
+      {/if}
+    </button>
+  </div>
+{/snippet}
+
 {#snippet menuCopiar()}
   <div
     bind:this={clipboardPanelEl}
@@ -1090,16 +1120,7 @@ Buscar..." />{/if}
               <span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:rgba(99,102,241,0.45);color:#c7d2fe;flex-shrink:0">📚</span>
               {exportandoMasivo ? progresoMasivo : 'Todo'}
             </button>
-            <div style="position:relative;flex-shrink:0">
-              <button bind:this={clipboardBtn} onclick={() => clipboardBtn && toggleClipboardMenu(clipboardBtn)} disabled={filteredReporte.length === 0 || loading}
-                style="height:42px;padding:0 0.55rem;display:flex;align-items:center;gap:0.45rem;flex-shrink:0;border:1px solid rgba(168,85,247,0.5);border-radius:10px;background:linear-gradient(135deg,rgba(168,85,247,0.26),rgba(147,51,234,0.2));backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:#f3e8ff;font-weight:700;font-size:0.75rem;cursor:{filteredReporte.length === 0 || loading ? 'default' : 'pointer'};box-shadow:0 6px 18px rgba(147,51,234,0.26);white-space:nowrap;opacity:{filteredReporte.length === 0 || loading ? 0.65 : 1};transition:transform 0.15s ease,box-shadow 0.2s ease"
-                title="Copiar al portapapeles: la tabla completa o solo la nota final">
-                <span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:rgba(168,85,247,0.4);color:#e9d5ff;flex-shrink:0">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                </span>
-                Copiar
-              </button>
-            </div>
+            {@render botonCopiar(true)}
           </div>
         {:else}
         <FilterContainer {isMobile} style="padding:0.5rem">
@@ -1206,28 +1227,7 @@ Buscar..." />{/if}
                 </span>
               {/if}
             </button>
-            <div style="position:relative;flex-shrink:0">
-              <button bind:this={clipboardBtn} onclick={() => clipboardBtn && toggleClipboardMenu(clipboardBtn)} disabled={filteredReporte.length === 0 || loading}
-                style="height:42px;padding:0 {isMobile ? '0.55rem' : '1rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background:linear-gradient(135deg,rgba(168,85,247,0.16),rgba(147,51,234,0.06));border:1px solid rgba(168,85,247,0.28);color:#e9d5ff;border-radius:10px;display:flex;align-items:center;gap:9px;font-weight:700;cursor:{filteredReporte.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;flex-shrink:0;white-space:nowrap;opacity:{filteredReporte.length === 0 || loading ? 0.6 : 1}"
-                onmouseenter={(e) => { if (filteredReporte.length > 0 && !loading) (e.currentTarget as HTMLElement).style.background = 'linear-gradient(135deg,rgba(168,85,247,0.28),rgba(147,51,234,0.12))'; }}
-                onmouseleave={(e) => { (e.currentTarget as HTMLElement).style.background = 'linear-gradient(135deg,rgba(168,85,247,0.16),rgba(147,51,234,0.06))'; }}
-                title="Copiar al portapapeles: tabla completa o solo la nota final">
-                <span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:rgba(168,85,247,0.35);color:#f3e8ff;flex-shrink:0">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                </span>
-                {#if isMobile}
-                  <span>Copiar</span>
-                {:else}
-                  <span style="display:flex;flex-direction:column;align-items:flex-start;line-height:1.15;gap:1px;min-width:0">
-                    <span>Copiar</span>
-                    <span style="font-size:0.6rem;font-weight:600;color:#c4b5fd;letter-spacing:0.2px">{filteredReporte.length} estudiantes · 2 formatos</span>
-                  </span>
-                {/if}
-                {#if showClipboardMenu}
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="margin-left:2px;transform:rotate(180deg);flex-shrink:0"><polyline points="6 9 12 15 18 9"/></svg>
-                {/if}
-              </button>
-            </div>
+            {@render botonCopiar(false)}
             <div style="flex:1;min-width:100px">
             </div>
           </div>

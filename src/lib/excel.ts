@@ -279,6 +279,41 @@ export async function escribirLibroEnCarpeta(libro: any, carpeta: string, nombre
 }
 
 /**
+ * Guarda el libro en la carpeta PÚBLICA de Descargas del dispositivo.
+ *
+ * Es lo que hay que usar en Android: el selector de carpetas devuelve una URI de
+ * contenido, no una ruta del sistema de archivos, y escribir con `writeFile` sobre
+ * una ruta cruda falla porque la app no tiene acceso al almacenamiento compartido.
+ * El flujo correcto es: se escribe dentro del sandbox (`documentDir`) y después
+ * `guardar_en_descargas` lo copia a Descargas vía MediaStore, sin permisos.
+ *
+ * `subcarpeta` es opcional y se anida bajo "School Tracker".
+ */
+export async function escribirLibroEnDescargas(
+  libro: any,
+  nombreBase: string,
+  subcarpeta = ''
+): Promise<string> {
+  const { invoke } = await import('@tauri-apps/api/core');
+  const { documentDir } = await import('@tauri-apps/api/path');
+  const { mkdir, writeFile } = await import('@tauri-apps/plugin-fs');
+  const folderName = 'School Tracker';
+  const sep = '/';
+  const baseDir = (await documentDir()) + sep + folderName + (subcarpeta ? sep + subcarpeta : '');
+  await mkdir(baseDir, { recursive: true });
+  const nombre = `${nombreArchivoSeguro(nombreBase)}.xlsx`;
+  const rutaLocal = baseDir + sep + nombre;
+  await writeFile(rutaLocal, await libro.xlsx.writeBuffer());
+  const carpeta = subcarpeta ? `${folderName}/${subcarpeta}` : folderName;
+  return await invoke<string>('guardar_en_descargas', {
+    path: rutaLocal,
+    mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    carpeta,
+    nombre,
+  });
+}
+
+/**
  * Diálogo "Guardar como" + escritura. Devuelve la ruta o `null` si el
  * usuario cancela. Con `directorio` pide una carpeta y usa `nombreSugerido`
  * como nombre de archivo; con `abrir` abre el archivo al terminar.
