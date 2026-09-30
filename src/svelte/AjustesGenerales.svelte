@@ -301,7 +301,7 @@
         </div>
       </div>
     {:else}
-      <div style="padding:1rem;">
+      <div style="padding:0;width:100%;">
         {@render contenidoSeccion()}
       </div>
     {/if}

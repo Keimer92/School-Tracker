@@ -439,7 +439,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
 </script>
 
-<div class="page-container" style="display: block;{(soloContenido ? ';padding:0' : '')}">
+<div class="page-container" style="display: flex; flex-direction: column; width: 100%; align-items: stretch;{(soloContenido ? ';padding:0' : '')}">
 
   {#if !isAndroid}
     {#if !soloContenido}
@@ -576,9 +576,9 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
       </div>
     </div>
   {:else if isAndroid && (soloContenido || activeTab !== null)}
-    <div style="padding: 1rem;">
+    <div style="padding: 0 1rem 1.5rem; width: 100%; box-sizing: border-box;">
       <!-- El back nativo de Android ya maneja la vuelta (registerBackHandler) -->
-      <div class="settings-content-wrapper">
+      <div class="settings-content-wrapper" style="width:100%;">
         <!-- NOTIFICACIONES DE ASISTENCIA (solo Android) -->
         {#if activeTab === "notificaciones"}
           <div class="notif-page">
@@ -1039,22 +1039,25 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   /* ── Notificaciones (glassmorphism, solo Android) ── */
   .notif-page {
     display: flex; flex-direction: column; gap: 0.75rem;
-    /* `stretch` explícito: evita que las cards se encojan al contenido. */
+    /* `stretch` + ancho completo: sin esto el flex column encoge las cards al
+       contenido y quedan angostas en Android. */
     align-items: stretch;
     width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
   }
   .notif-hero {
     display: flex; align-items: center; gap: 0.9rem;
     padding: 1rem 1.1rem; border-radius: 18px;
     background: linear-gradient(135deg, rgba(245,158,11,0.12), rgba(139,92,246,0.06));
     backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255,255,255,0.09);
+    border: none;
     box-shadow: 0 8px 28px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.05);
   }
   .notif-hero-icon {
     width: 46px; height: 46px; border-radius: 14px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center; font-size: 1.3rem;
-    background: rgba(245,158,11,0.14); border: 1px solid rgba(245,158,11,0.28);
+    background: rgba(245,158,11,0.14); border: none;
     backdrop-filter: blur(10px);
   }
   .notif-colegio-card {
@@ -1064,14 +1067,19 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     box-sizing: border-box;
     align-self: stretch;
     border-radius: 16px; overflow: hidden;
-    background: rgba(255,255,255,0.02);
+    /* Sin borde la card necesita algo mas de fondo para separarse del lienzo;
+       se usa un relleno un poco mas presente que el 0.02 original. */
+    background: rgba(255,255,255,0.045);
     backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-    border: 1px solid rgba(255,255,255,0.07);
+    /* Sin borde: la separacion entre cards la hace el `gap` del contenedor. */
+    border: none;
     transition: all 0.2s ease;
   }
+  /* Antes el estado activo se marcaba cambiando `border-color`; sin borde se
+     distingue con el fondo y una barra de acento a la izquierda. */
   .notif-colegio-card.activa {
-    border-color: rgba(var(--primary-rgb), 0.35);
-    background: rgba(var(--primary-rgb), 0.04);
+    background: rgba(var(--primary-rgb), 0.07);
+    box-shadow: inset 3px 0 0 var(--primary-color);
   }
   .notif-colegio-head {
     display: flex; align-items: center; gap: 0.7rem;
