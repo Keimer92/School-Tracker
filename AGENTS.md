@@ -46,9 +46,32 @@ src/
   svelte/                    páginas UI (*Page.svelte) y componentes reutilizables
     asistencia/              AsistenciaMainPage.svelte (wrapper sub-tabs: AsistenciaPage + InformePage)
     notas/                   NotasMainPage.svelte (wrapper sub-tabs: NotasPage + ReportesPage)
+    ajustes/                 Configuración (antes AjustesGenerales). Submódulos
+                              extraídos del page shell:
+       DebugPage.svelte       gestión de datos (exportar/importar/purgar +
+                              info del sistema) y popover de backup automático
+       InfoPage.svelte        "Acerca de": hero, features, changelog, modal
+                              (va a <body> con portalToBody por ser `fixed`)
+    notificaciones/          NotificacionesPage.svelte (solo Android; AlarmManager
+                              nativo). Config por colegio: ventana [inicio,fin] +
+                              intervalo de repetición
+    globales/                módulos de catálogo con estado propio:
+       CalificacionesConfig.svelte   escalas cualitativas (AA/AS/AF/AI):
+                                     sigla, nombre, color y mínimo
+       MultiplicadoresConfig.svelte  ponderación por criterio. Lee
+                                     `get_grade_configs` SOLO para pintar
+                                     nombre/color; no edita ahí
+       ColegioConfigModal.svelte     ⚙️ Colegio: 4 pestañas (tipo, días,
+                                     asignaturas, grados). ÚNICO lugar donde se
+                                     marca cualitativo
+       GradoConfigModal.svelte        ⚙️ Grado: asignaturas (currículo)
+     ConfiguracionPage.svelte shell de Configuración: rail (desktop) o lista
+                              (Android) + sub-navegación. Guarda el scroll de
+                              la lista al entrar/salir de una sección
      CloudCards.svelte        cards Nube D1 / Respaldo Drive (drawer móvil + header desktop)
-     CategoryTabContent.svelte  card/config de cada categoría en GlobalesPage
-                              (modales add/edit, switch activo, savebar)
+     CategoryTabContent.svelte  card/config de cada categoría en el catálogo
+                              (modales add/edit, switch activo, savebar). El
+                              botón ⚙️ SOLO se renderiza si recibe `onConfigClick`
      DatePickerGlass.svelte   selector de fecha con dias no habiles tachados
      FiltersModalAndroid.svelte modal unico de filtros en Android (año lectivo
                               primero, luego el slot `extras` de cada página)
@@ -157,7 +180,8 @@ src-tauri/gen/               generado (ignorar; no editar a mano — EXCEPCIÓN:
 - **Año lectivo = año calendario (REGLA)**: el año lectivo se ingresa SIEMPRE como
   año calendario de 4 dígitos (2026, 2027…), nunca como rango ("2026-2027").
   Validado en `CategoryTabContent.svelte` con `/^(19|20)\d{2}$/` (alta y edición)
-  y explicado en la UI de GlobalesPage.   Consecuencia asumida: el selector de año calendario del mes desapareció de
+  y explicado en la UI de Configuración.   Consecuencia asumida: el selector de año calendario del 
+ mes desapareció de
   AsistenciaPage/InformePage; `anoSeleccionado` se deriva
   del año lectivo por `$effect`. Si el año lectivo es 2026, el mes se ve en 2026.
 - **`position: fixed` dentro de contenedores glass**: cualquier ancestro con
@@ -394,7 +418,7 @@ Toda la interfaz debe seguir un diseño **glassmorphism minimalista tipo Apple**
 ### Acentos por categoría (2026-08)
 
 Cada sección/categoría usa un **color de acento** e **icono** único para
-distinguirse visualmente. Este patrón se aplica en `GlobalesPage` y `AjustesPage`.
+distinguirse visualmente. Este patrón se aplica en `ConfiguracionPage` y `AjustesPage`.
 
 **Paleta Pastel Suave (estándar):**
 
@@ -413,13 +437,13 @@ distinguirse visualmente. Este patrón se aplica en `GlobalesPage` y `AjustesPag
 | Debug | `#ef4444` | 🐛 |
 | Info | `#a78bfa` | 📖 |
 
-**Componente `CategoryTabContent` (GlobalesPage):**
+**Componente `CategoryTabContent` (Configuración):**
 - Props: `accentColor: string`, `accentIcon: string`
 - Header: `border-left: 3px solid {accentColor}` + icono circular `{accentColor}18` bg
 - Botón "Agregar": gradiente `{accentColor}` → `{accentColor}dd`
 - Hover: borde → `{accentColor}44`, sombra → `{accentColor}22`
 
-**Mobile cards (GlobalesPage/AjustesPage):**
+**Mobile cards (Configuración/AjustesPage):**
 ```html
 <button style="border-left: 3px solid {color}; ...">
   <div class="icon-circle" style="background: {color}18">{icon}</div>
@@ -428,7 +452,7 @@ distinguirse visualmente. Este patrón se aplica en `GlobalesPage` y `AjustesPag
 </button>
 ```
 
-**Desktop grid (GlobalesPage):**
+**Desktop grid (Configuración):**
 - Grid 3 columnas fijo (`repeat(3, 1fr)`)
 - Responsive: 2 cols ≤1100px, 1 col ≤700px
 - Cada `CategoryTabContent` recibe `accentColor` y `accentIcon`
@@ -719,9 +743,10 @@ está abierto, y solo cuando la página está activa (prop `pageActive`):
 - `EstudiantesPage.svelte` → `isModalOpen` (form de estudiante)
 - `AsistenciaPage.svelte` / `InformePage.svelte` → `selectedStudentDetail` (detalle)
 - `CloudPage.svelte` → `showConfirm`
-- `GlobalesPage.svelte` → sub-navegación: modales de materias/días/asignaturas
-  (`selectedColegioForSubjects` → `selectedGrade` → `selectedColegio`), detalle de categoría
-  (`selectedCategory`) y sub-tab `Notas` (`selectedTab`)
+- `ConfiguracionPage.svelte` → vuelve a la lista desde una sección (`activa` a
+  `null`; solo Android) y cierra primero los modales de catálogo abiertos
+  (`colegioConfig` / `gradoConfig`). Además restaura el scroll de la lista, que
+  se pierde porque al entrar a una sección la lista se desmonta entera.
 - `AjustesPage.svelte` → sub-tab (`activeTab !== null` → vuelve a la lista; solo Android)
 - `CategoryTabContent.svelte` → modales `showPrompt` / `showDeleteConfirm` / `showBatchDeleteConfirm`
 - `GoogleDriveBackup.svelte` es legacy (no se monta en `App.svelte`); no se toca.
