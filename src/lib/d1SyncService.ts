@@ -94,6 +94,18 @@ async function emitUpdates() {
 export const d1SyncService = {
   _periodicTimer: null as ReturnType<typeof setInterval> | null,
   _syncLock: false,
+  /**
+   * Hay un sync pendiente de correr (alguien pidio sincronizar mientras otro
+   * estaba en vuelo). Antes esto no existia: los llamadores hacian spin-wait de
+   * 500ms y al liberarse el lock ejecutaban UN SYNC COMPLETO cada uno. Como
+   * `d1_sync_all` son 2 peticiones al worker (/push + /pull), un rafaga de N
+   * triggers (visibilitychange + online + navegacion + WS) gastaba 2N peticiones
+   * en vez de 2. En Android, con el WebView entrando y saliendo de primer plano,
+   * eso es lo que disparaba el aviso de "casi llego al limite diario".
+   * Ahora se COALESCEN: si ya hay un sync en vuelo se marca el pendiente y se
+   * retorna, de modo que N llamadas se reducen a 1 sync extra (como maximo).
+   */
+  _syncPending: false,
 
   getConfig,
   saveConfig: async (workerUrl: any, schoolKey: any): Promise<D1Config> => {
@@ -127,10 +139,15 @@ export const d1SyncService = {
   },
 
   syncAllSilent: async (dispatchEvents: boolean = true): Promise<D1SyncResult | null> => {
-    while ((d1SyncService as any)._syncLock) {
-      await new Promise(r => setTimeout(r, 500));
+    const self = d1SyncService as any;
+    if (self._syncLock) {
+      // Coalescer en vez de encolar: el sync en vuelo ya recogera los cambios
+      // que se acabaron de marcar, asi que basta con dejar constancia de que
+      // hay otro pendiente. Ver la nota de `_syncPending`.
+      self._syncPending = true;
+      return null;
     }
-    (d1SyncService as any)._syncLock = true;
+    self._syncLock = true;
     try {
       const cfg = await getConfig();
       if (!cfg) return null;
@@ -194,6 +211,12 @@ export const d1SyncService = {
       return null;
     } finally {
       (d1SyncService as any)._syncLock = false;
+      // Si alguien pidio sync durante el vuelo, se corre UNO mas (no uno por
+      // cada llamador). Se hace fuera del lock para no re-entrar en cola.
+      if ((d1SyncService as any)._syncPending) {
+        (d1SyncService as any)._syncPending = false;
+        void d1SyncService.syncAllSilent(dispatchEvents);
+      }
     }
   },
 

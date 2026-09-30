@@ -159,11 +159,19 @@ async function refreshAccessToken(): Promise<string | null> {
       }),
     });
     if (!response.ok) {
-      console.error('[DriveSync] Error refrescando token:', await response.text());
-      // Limpiar token expirado para que la UI muestre "desconectado"
-      settings.accessToken = '';
-      settings.tokenExpiry = 0;
-      saveSettings(settings);
+      const texto = await response.text();
+      // 400 invalid_grant / 401 = el refresh_token quedo revocado o invalido:
+      // eso SI requiere rehacer el login. Cualquier otro status (429 por cuota,
+      // 5xx del servidor de Google) es pasajero y se conserva la sesion.
+      const definitivo = response.status === 400 || response.status === 401;
+      if (definitivo) {
+        console.error('[DriveSync] Refresh token rechazado; se pide re-login:', texto);
+        settings.accessToken = '';
+        settings.tokenExpiry = 0;
+        saveSettings(settings);
+      } else {
+        console.warn(`[DriveSync] Refresh falló con HTTP ${response.status} (transitorio, se conserva la sesion):`, texto);
+      }
       return null;
     }
     const data = await response.json();
@@ -173,9 +181,29 @@ async function refreshAccessToken(): Promise<string | null> {
     saveSettings(settings);
     return data.access_token;
   } catch (e) {
-    console.error('[DriveSync] Error refrescando token:', e);
+    // FALLO TRANSITORIO (red, TLS, Android sin cobertura momentanea). NO se
+    // toca el token: `refreshToken` sigue siendo valido y el proximo intento
+    // se recupera solo. Borrarlo aqui hacia que la UI mostrara "desconectado"
+    // y el usuario tuviera que rehacer el login por un fallo de red pasajero.
+    console.warn('[DriveSync] Fallo transitorio al refrescar el token (se conserva la sesion):', e);
     return null;
   }
+}
+
+/**
+ * Intenta recuperar la sesion sin intervencion del usuario: si el
+ * `accessToken` quedo vacio (o por vencer) pero hay `refreshToken`, renueva.
+ * La UI deriva "conectado" de `accessToken` no vacio, asi que sin esto un
+ * fallo pasajero se ve como sesion perdida.
+ */
+export async function ensureDriveSession(): Promise<boolean> {
+  const settings = getSettings();
+  if (!settings?.refreshToken) return false;
+  if (settings.accessToken && settings.tokenExpiry && settings.tokenExpiry > Date.now() + 120000) {
+    return true;
+  }
+  const token = await refreshAccessToken();
+  return !!token;
 }
 
 async function getValidToken(): Promise<string | null> {

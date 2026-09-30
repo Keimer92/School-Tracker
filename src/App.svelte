@@ -6,7 +6,7 @@
   import { handleBack, isBackAuthInProgress, setBackAuthInProgress } from "./lib/androidBack";
   import { syncService } from "./lib/syncService";
   import { isD1Configured, d1SyncManager } from "./lib/syncService";
-  import { driveSyncService } from "./lib/driveSyncService";
+  import { driveSyncService, ensureDriveSession } from "./lib/driveSyncService";
   import { driveAutoBackup } from "./lib/driveAutoBackup";
   import { ensureWsSync, stopWsSync } from "./lib/wsSyncService";
   import { loadAppSettings, saveAppSettings, getAppSettings, onAppSettingsChange } from "./lib/appSettings";
@@ -433,6 +433,13 @@
       driveSyncService.ensureAutoBackup();
       // Scheduler híbrido de Drive (timer inteligente + triggers pasivos + cuenta).
       driveAutoBackup.start();
+
+      // Recuperar la sesion de Drive antes de que la UI la evalúe. El estado
+      // "conectado" se deriva de `accessToken`, que expira cada ~1 h; si
+      // expiró mientras la app estaba cerrada, sin esto la app arrancaba
+      // Mostrándose desconectada hasta el primer respaldo (o para siempre si
+      // el refreshToken se perdió). Es idempotente y barato si ya está vigente.
+      ensureDriveSession().catch(() => {});
 
       // Pull bilateral pasivo: traer cambios de otros dispositivos sin esperar
       // al timer ni generar un cambio local.
