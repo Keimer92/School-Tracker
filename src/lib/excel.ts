@@ -274,7 +274,7 @@ export async function escribirLibroEnCarpeta(libro: any, carpeta: string, nombre
   const sep = carpeta.includes('\\') ? '\\' : '/';
   const buffer = await libro.xlsx.writeBuffer();
   const ruta = `${carpeta}${sep}${nombreArchivoSeguro(nombreBase)}.xlsx`;
-  await writeFile(ruta, buffer);
+  await writeFile(ruta, new Uint8Array(buffer));
   return ruta;
 }
 
@@ -303,7 +303,7 @@ export async function escribirLibroEnDescargas(
   await mkdir(baseDir, { recursive: true });
   const nombre = `${nombreArchivoSeguro(nombreBase)}.xlsx`;
   const rutaLocal = baseDir + sep + nombre;
-  await writeFile(rutaLocal, await libro.xlsx.writeBuffer());
+  await writeFile(rutaLocal, new Uint8Array(await libro.xlsx.writeBuffer()));
   const carpeta = subcarpeta ? `${folderName}/${subcarpeta}` : folderName;
   return await invoke<string>('guardar_en_descargas', {
     path: rutaLocal,
@@ -334,7 +334,7 @@ export async function guardarLibro(
   if (!ruta) return null;
   const { writeFile } = await import('@tauri-apps/plugin-fs');
   const buffer = await libro.xlsx.writeBuffer();
-  await writeFile(ruta, buffer);
+  await writeFile(ruta, new Uint8Array(buffer));
   if (opciones.abrir) {
     try {
       const { openUrl } = await import('@tauri-apps/plugin-opener');

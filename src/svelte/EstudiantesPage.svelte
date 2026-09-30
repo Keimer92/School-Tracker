@@ -237,9 +237,17 @@ import SelectChip from "./SelectChip.svelte";
         });
 
         const nombreBase = `Estudiantes_${nombreArchivoSeguro(anoSel.nombre)}_${nombreArchivoSeguro(col.nombre)}`;
-        const ruta = isAndroid
-          ? await escribirLibroEnDescargas(libro, nombreBase)
-          : await escribirLibroEnCarpeta(libro, carpeta, nombreBase);
+        let ruta: string;
+        try {
+          ruta = isAndroid
+            ? await escribirLibroEnDescargas(libro, nombreBase)
+            : await escribirLibroEnCarpeta(libro, carpeta, nombreBase);
+        } catch (err) {
+          // El error crudo de Tauri ("unexpected invoke body") no dice qué paso
+          // falló, así que se reenvía con el paso y el colegio de contexto.
+          const detalle = err instanceof Error ? err.message : String(err);
+          throw new Error(`${col.nombre}: ${detalle}`);
+        }
         archivos.push(ruta);
         total += totalColegio;
       }
