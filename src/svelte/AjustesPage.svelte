@@ -70,6 +70,8 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   let notifCfg = $state<Record<number, NotifColegioCfg>>({});
   let notifSaving = $state(false);
   let notifTesting = $state(false);
+  // Evita recargar la config en cada render del panel (ver el $effect de abajo).
+  let notifCargada = $state(false);
   let notifSilencedToday = $state(false);
   let notifDismissing = $state(false);
   let testColegio = $state<number>(0);
@@ -212,10 +214,19 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
   $effect(() => {
     if (activeTab === "notificaciones") {
+      // Solo al ABRIR la sección. Antes se re-ejecutaba en cada cambio de estado:
+      // `refreshNotifSilenced` escribe `notifSilencedToday`, lo que invalidaba el
+      // efecto y hacía correr `loadNotifSettings` otra vez, pisando con los valores
+      // de storage la hora/intervalo que el usuario acababa de elegir.
+      if (notifCargada) return;
+      notifCargada = true;
       loadNotifSettings();
       loadNotifCatalogs();
       refreshNotifSilenced();
+      return;
     }
+    // Al salir de la sección se rearma, para que al volver traiga lo persistido.
+    notifCargada = false;
   });
 
   let { themeMode = "sistema", setThemeMode = () => {}, pageActive = false, tabRequest = null as string | null, seccion = null as string | null, soloContenido = false } = $props();
