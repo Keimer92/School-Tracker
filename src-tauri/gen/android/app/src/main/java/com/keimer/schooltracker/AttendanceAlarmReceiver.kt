@@ -68,7 +68,7 @@ class AttendanceAlarmReceiver : BroadcastReceiver() {
                     android.app.Notification.Builder(context)
                 }
                 val notification = builder
-                    .setSmallIcon(android.R.drawable.ic_dialog_info)
+                    .setSmallIcon(com.keimer.schooltracker.R.mipmap.ic_launcher)
                     .setContentTitle(title)
                     .setContentText(body)
                     .setAutoCancel(true)

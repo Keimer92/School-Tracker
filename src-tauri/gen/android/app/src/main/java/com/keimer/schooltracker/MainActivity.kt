@@ -364,7 +364,7 @@ class MainActivity : TauriActivity() {
         }
 
       val notification = builder
-        .setSmallIcon(android.R.drawable.ic_dialog_info)
+        .setSmallIcon(com.keimer.schooltracker.R.mipmap.ic_launcher)
         .setContentTitle(title)
         .setContentText(body)
         .setAutoCancel(true)
@@ -579,7 +579,7 @@ class MainActivity : TauriActivity() {
         }
 
       val notification = builder
-        .setSmallIcon(android.R.drawable.ic_dialog_info)
+        .setSmallIcon(com.keimer.schooltracker.R.mipmap.ic_launcher)
         .setContentTitle(title)
         .setContentText(body)
         .setAutoCancel(true)

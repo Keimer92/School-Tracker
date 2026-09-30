@@ -74,7 +74,9 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   let notifCargada = $state(false);
   let notifSilencedToday = $state(false);
   let notifDismissing = $state(false);
-  let testColegio = $state<number>(0);
+  // String porque `bind:value` en un <select> entrega el value como texto; los
+  // options van con String(c.id) para que coincidan al re-renderizar.
+  let testColegio = $state<string>("");
 
   function cfgDe(id: number): NotifColegioCfg {
     return notifCfg[id] ?? { activo: false, inicio: '07:00', fin: '12:00', intervaloMin: 45 };
@@ -157,13 +159,13 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   }
 
   async function testNotif() {
-    const cid = testColegio || notifColegios[0]?.id;
+    // `testColegio` viene del <select> como texto; el comando Rust espera i64.
+    const cid = Number(testColegio) || notifColegios[0]?.id;
     if (!cid) { await emit("show-toast", { message: "⚠️ No hay colegios configurados", type: "warning" }); return; }
     notifTesting = true;
     try {
       // PRUEBA REAL: consulta los grados pendientes de HOY para ese colegio
       const fecha = getLocalDateISOString();
-      console.log('[NotifUI] Test real: colegio', cid, 'fecha', fecha);
       const pendientes = await invoke<Array<{ grado: string; seccion: string }>>(
         "get_grados_secciones_sin_asistencia_hoy", { colegioId: cid, fecha }
       );
@@ -186,7 +188,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
         title: "Asistencia pendiente",
         body: `Sin asistencia hoy (${nombre}): ${lista}${resto}`,
       });
-      console.log('[NotifUI] notify_attendance_reminder OK, pendientes:', pendientes.length);
       await emit("show-toast", { message: `🔔 Notificación enviada con ${pendientes.length} grado(s) pendiente(s)`, type: "success" });
     } catch (error) {
       console.error('[NotifUI] Error en notificación de prueba:', error);
@@ -596,7 +597,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
             {#if notifEnabled}
               <!-- Cards por colegio -->
-              <div style="display:flex;flex-direction:column;gap:0.6rem;">
+              <div style="display:flex;flex-direction:column;gap:0.6rem;width:100%;align-items:stretch;">
                 {#each notifColegios as c (c.id)}
                   {@const cfg = cfgDe(c.id!)}
                   <div class="notif-colegio-card" class:activa={cfg.activo}>
@@ -616,9 +617,11 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                         </div>
                         <div class="notif-campo" style="flex:1.3">
                           <label>Repetir cada</label>
-                          <select value={String(cfg.intervaloMin)} onchange={(e) => setCfg(c.id!, { intervaloMin: Number((e.target as HTMLSelectElement).value) })}>
+                          <select
+                            value={String(cfg.intervaloMin)}
+                            onchange={(e) => setCfg(c.id!, { intervaloMin: Number((e.target as HTMLSelectElement).value) })}>
                             {#each [15, 30, 45, 60, 90, 120] as m}
-                              <option value={m}>{m} min</option>
+                              <option value={String(m)}>{m} min</option>
                             {/each}
                           </select>
                         </div>
@@ -637,11 +640,11 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                 <label>Colegio para la prueba</label>
                 <select bind:value={testColegio}>
                   {#each notifColegios as c (c.id)}
-                    <option value={c.id}>{c.nombre}</option>
+                    <option value={String(c.id)}>{c.nombre}</option>
                   {/each}
                 </select>
               </div>
-              <div style="display:flex;gap:0.6rem;">
+              <div style="display:flex;gap:0.6rem;width:100%;">
                 <button class="notif-btn-primary" onclick={saveNotifSettings} disabled={notifSaving} style="flex:1">
                   {notifSaving ? "Guardando..." : "💾 Guardar"}
                 </button>
@@ -1034,7 +1037,12 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   }
 
   /* ── Notificaciones (glassmorphism, solo Android) ── */
-  .notif-page { display: flex; flex-direction: column; gap: 0.75rem; }
+  .notif-page {
+    display: flex; flex-direction: column; gap: 0.75rem;
+    /* `stretch` explícito: evita que las cards se encojan al contenido. */
+    align-items: stretch;
+    width: 100%;
+  }
   .notif-hero {
     display: flex; align-items: center; gap: 0.9rem;
     padding: 1rem 1.1rem; border-radius: 18px;
@@ -1050,6 +1058,11 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     backdrop-filter: blur(10px);
   }
   .notif-colegio-card {
+    /* Sin esto el flex column la encoge al contenido y queda angosta en vez de
+       ocupar el ancho disponible. */
+    width: 100%;
+    box-sizing: border-box;
+    align-self: stretch;
     border-radius: 16px; overflow: hidden;
     background: rgba(255,255,255,0.02);
     backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
@@ -1075,8 +1088,13 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   }
   .activa .notif-check { background: var(--primary-color); border-color: var(--primary-color); box-shadow: 0 0 10px rgba(var(--primary-rgb), 0.4); }
   .notif-colegio-nombre { flex: 1; min-width: 0; font-size: 0.88rem; font-weight: 600; color: #e2e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .notif-colegio-body { display: flex; gap: 0.5rem; padding: 0 0.9rem 0.5rem; }
-  .notif-campo { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+  .notif-colegio-body {
+    display: flex; gap: 0.5rem; padding: 0 0.9rem 0.5rem;
+    width: 100%; box-sizing: border-box;
+  }
+  /* `min-width: 0` deja que los campos se encojan: sin esto el input de hora
+     (ancho minimo del picker nativo) ensancha la card en pantallas angostas. */
+  .notif-campo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
   .notif-campo label {
     font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.5px;
     color: #64748b; font-weight: 700;
