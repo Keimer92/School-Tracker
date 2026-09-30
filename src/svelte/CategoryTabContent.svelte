@@ -133,16 +133,9 @@
     nuevos = [];
   }
 
-  // ---- Reordenar (drag&drop desktop + botones touch) ----
-  function mover(item: CategoryItem, dir: -1 | 1) {
-    if (!config.endpoints.updateOrder) return;
-    const list = [...items];
-    const idx = list.findIndex(i => i.id === item.id);
-    const target = idx + dir;
-    if (idx === -1 || target < 0 || target >= list.length) return;
-    [list[idx], list[target]] = [list[target], list[idx]];
-    items = list;
-  }
+  // ---- Reordenar (drag & drop, solo escritorio) ----
+  // `mover()` se elimino: solo lo usaban los botones de subir/bajar de Android,
+  // que se quitaron. En escritorio el reordenamiento es por arrastre.
 
   function handleDragStart(e: DragEvent, item: CategoryItem) {
     if (!config.endpoints.updateOrder) return;
@@ -421,10 +414,15 @@
         {/if}
       {/if}
       {#if config.title === "Asignatura" && items.length > 0}
-        <!-- Solo informativa: el cualitativo se cambia desde ⚙️ del Colegio. -->
-        <div style="display: flex; align-items: center; gap: 0.4rem; margin-left: 0.5rem; padding: 0.3rem 0.6rem; background: rgba(139, 92, 246, 0.06); border-radius: 6px; border: 1px solid rgba(139, 92, 246, 0.14);">
-          <span style="font-size: 0.7rem; color: #a78bfa; font-weight: 600;">Cualitativo</span>
-          <span style="font-size: 0.7rem; color: #64748b;">se edita en ⚙️ Colegio</span>
+        <!-- Solo informativa: el cualitativo se cambia desde ⚙️ del Colegio.
+             Una sola linea: nowrap evita que en pantallas angostas el texto se
+             parta en dos tramos descolocados. -->
+        <div
+          class="cat-qual-note"
+          title="El cualitativo de cada asignatura se cambia en el ⚙️ del Colegio, en la pestaña Asignaturas.">
+          <span>Cualitativo</span>
+          <span class="cat-qual-note-sep">·</span>
+          <span>se cambia en ⚙️ Colegio</span>
         </div>
       {/if}
     </div>
@@ -471,12 +469,10 @@
               </label>
             {/if}
             {#if config.endpoints.updateOrder}
-              {#if isAndroid}
-                <div style="display:flex;flex-direction:column;gap:2px;">
-                  <button onclick={() => mover(item, -1)} style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:5px;color:#94a3b8;font-size:0.55rem;padding:0.1rem 0.35rem;cursor:pointer;line-height:1;">▲</button>
-                  <button onclick={() => mover(item, 1)} style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:5px;color:#94a3b8;font-size:0.55rem;padding:0.1rem 0.35rem;cursor:pointer;line-height:1;">▼</button>
-                </div>
-              {:else}
+              <!-- Solo escritorio con drag & drop. En Android se quitaron los
+                   botones de subir/bajar: quedaban apilados sobre el nombre y
+                   ensuciaban la fila. El orden se cambia arrastrando en PC. -->
+              {#if !isAndroid}
                 <span style="cursor:grab;color:var(--text-muted);font-size:1rem;user-select:none;padding:0.15rem;opacity:0.5;">⋮⋮</span>
               {/if}
             {/if}
@@ -647,7 +643,7 @@
     margin-right: 0.15rem;
     border-right: 1px solid rgba(255,255,255,0.08);
   }
-  /* Indicador de solo lectura del cualitativo. */
+  /* Indicador de solo lectura del cualitativo (chip por fila). */
   .cat-qual-chip {
     display: inline-flex; align-items: center; gap: 0.25rem;
     padding: 0.2rem 0.5rem; border-radius: 6px;
@@ -655,4 +651,16 @@
     color: #c4b5fd; background: rgba(139, 92, 246, 0.14);
     border: 1px solid rgba(139, 92, 246, 0.3);
   }
+  /* Banner de la cabecera: una sola linea, nunca partido en dos tramos. */
+  .cat-qual-note {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    flex-wrap: nowrap; white-space: nowrap;
+    margin-left: 0.5rem; padding: 0.3rem 0.6rem;
+    background: rgba(139, 92, 246, 0.06);
+    border: 1px solid rgba(139, 92, 246, 0.14);
+    border-radius: 6px;
+    font-size: 0.7rem; font-weight: 600; color: #a78bfa;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+  }
+  .cat-qual-note-sep { color: #64748b; }
 </style>

@@ -4,7 +4,7 @@
   import { emit } from '@tauri-apps/api/event';
 
   // Nube, Cuenta y Evaluaciones ya no son tabs: son secciones del rail de
-  // Ajustes Generales, a las que se llega con el evento `open-ajustes`.
+  // Configuración, a las que se llega con el evento `open-ajustes`.
   export type Tab = "dashboard" | "notas" | "estudiantes" | "ajustes" | "asistencia";
 
   const SECCION_AJUSTES: Record<string, string> = { cloud: 'nube', account: 'cuenta', evaluaciones: 'evaluaciones' };
@@ -78,7 +78,7 @@ setThemeMode: (mode: string) => void;
 
     <div class="sidebar-section-header">GENERALES</div>
     <button class="sidebar-button {activeTab === 'ajustes' ? 'active' : ''}" onclick={() => onTabChange('ajustes')} type="button">
-      <span>⚙️</span><span>Ajustes Generales</span>
+      <span>⚙️</span><span>Configuración</span>
     </button>
   </div>
 

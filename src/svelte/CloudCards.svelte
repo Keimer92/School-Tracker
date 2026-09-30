@@ -17,7 +17,7 @@
   }>();
 
   /**
-   * Nube ya no es un tab: es una sección del rail de Ajustes Generales.
+   * Nube ya no es un tab: es una sección del rail de Configuración.
    * Se sigue usando onTabChange como fallback por si el consumidor no escucha
    * el evento, pero la vía principal es `open-ajustes`.
    */

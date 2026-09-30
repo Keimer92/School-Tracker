@@ -86,7 +86,7 @@
   ];
 
   const seccionesVisibles = $derived(SECCIONES.filter(s => !s.soloAndroid || isAndroid));
-  /** Sección que se abre siempre que se entra a Ajustes Generales. */
+  /** Sección que se abre siempre que se entra a Configuración. */
   const SECCION_POR_DEFECTO = 'evaluaciones';
   // En escritorio se abre directamente la sección pedida (por defecto Notas):
   // el rail es navegación secundaria, no una pantalla de bienvenida.
@@ -345,7 +345,7 @@
   <div class="page-container">
     {#if !activa}
       <div style="padding:1rem;" bind:this={listaRef}>
-        <h1 style="font-size:1.5rem;font-weight:700;color:#f1f5f9;margin-bottom:1.5rem;text-align:center;">Ajustes Generales</h1>
+        <h1 style="font-size:1.5rem;font-weight:700;color:#f1f5f9;margin-bottom:1.5rem;text-align:center;">Configuración</h1>
         <div style="display:flex;flex-direction:column;gap:0.75rem;">
           {#each GRUPOS as grupo (grupo)}
             {@const delGrupo = filtradas.filter(s => s.grupo === grupo)}

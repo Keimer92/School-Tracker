@@ -48,7 +48,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   let { themeMode = "sistema", setThemeMode = () => {}, pageActive = false, tabRequest = null as string | null, seccion = null as string | null, soloContenido = false } = $props();
 
   /**
-   * Cuando la página se monta dentro de Ajustes Generales, `soloContenido`
+   * Cuando la página se monta dentro de Configuración, `soloContenido`
    * oculta la navegación propia (rail, lista de cards y grid) y muestra solo
    * la sección pedida. Fuera de ese contenedor el comportamiento no cambia:
    * escritorio muestra todas las tarjetas y Android la lista de secciones.

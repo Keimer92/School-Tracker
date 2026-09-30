@@ -7,7 +7,7 @@
    *   📊 Grados      activar/desactivar y marcar cualitativo por colegio
    *
    * Extraido de GlobalesPage.svelte, que NO estaba montado en ningun sitio: la
-   * UI real de catalogos vive en AjustesGenerales -> CategoryTabContent, y ahi
+   * UI real de catalogos vive en ConfiguracionPage -> CategoryTabContent, y ahi
    * el boton ⚙️ solo aparece si se le pasa `onConfigClick`. Sin ese handler el
    * boton ni se renderizaba, asi que estas opciones habian desaparecido de la UI.
    *

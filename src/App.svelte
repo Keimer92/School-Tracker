@@ -15,7 +15,7 @@
   import AsistenciaMainPage from "./svelte/asistencia/AsistenciaMainPage.svelte";
   import NotasMainPage from "./svelte/notas/NotasMainPage.svelte";
   import EstudiantesPage from "./svelte/EstudiantesPage.svelte";
-  import AjustesGenerales from "./svelte/AjustesGenerales.svelte";
+  import ConfiguracionPage from "./svelte/ConfiguracionPage.svelte";
 
   import DashboardPage from "./svelte/DashboardPage.svelte";
   import Sidebar from "./svelte/Sidebar.svelte";
@@ -45,7 +45,7 @@
   let isResizing = $state(false);
   let toast: { message: string; type: string; isOpen: boolean } = $state({ message: "", type: "info", isOpen: false });
   let unlisten: (() => void)[] = [];
-  /** Sección de Ajustes Generales abierta (deep-link). */
+  /** Sección de Configuración abierta (deep-link). */
   let ajustesSeccion = $state<string>('evaluaciones');
 
   /** Sección que se abre al entrar a Ajustes sin deep-link. */
@@ -318,7 +318,7 @@
       // comparar hacía que TypeScript viera las migraciones como imposibles.
       const saved = localStorage.getItem("active-tab");
       const esTabActual = (v: string): v is Tab => (DEFAULT_TABS as string[]).includes(v);
-      // Migraciones: páginas fusionadas como sub-tabs, y Globales→Ajustes Generales
+      // Migraciones: páginas fusionadas como sub-tabs, y Globales→Configuración
       if (saved === "informe" || saved === "reportes") {
         const merged = saved === "informe" ? "asistencia" : "notas";
         activeTab = merged as Tab;
@@ -347,7 +347,7 @@
         try {
           const parsed = JSON.parse(visits) as string[];
           // Migración de visited-tabs históricos: sub-tabs fusionados y
-          // Globales→Ajustes Generales. Se RECONSTRUYE el Set partiendo de los
+          // Globales→Configuración. Se RECONSTRUYE el Set partiendo de los
           // valores migrados + los por defecto, en vez de filtrar `parsed` pelado
           // (eso descartaba las migraciones y podía dejar el Set vacío).
           const LegacyTabMapeo: Record<string, Tab> = {
@@ -419,7 +419,7 @@
         showToast(event.payload.message, event.payload.type);
       }).then(u => unlisten.push(u));
 
-      // Deep-link: cualquier página pide abrir una sección de Ajustes Generales.
+      // Deep-link: cualquier página pide abrir una sección de Configuración.
       listen("open-ajustes", (event: any) => {
         const seccion = event.payload?.section;
         if (!seccion) return;
@@ -561,7 +561,7 @@
       <div style="display: {activeTab === 'estudiantes' ? 'block' : 'none'}; width: 100%; height: 100%;"><EstudiantesPage /></div>
     {/if}
     {#if visitedTabs.has('ajustes')}
-      <div style="display: {activeTab === 'ajustes' ? 'block' : 'none'}; width: 100%; height: 100%;"><AjustesGenerales pageActive={activeTab === 'ajustes'} bind:seccion={ajustesSeccion} {themeMode} {setThemeMode} /></div>
+      <div style="display: {activeTab === 'ajustes' ? 'block' : 'none'}; width: 100%; height: 100%;"><ConfiguracionPage pageActive={activeTab === 'ajustes'} bind:seccion={ajustesSeccion} {themeMode} {setThemeMode} /></div>
     {/if}
   </main>
 
