@@ -2052,6 +2052,16 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             title: 'Instrumentos, distribuir y eliminar notas', compacto: true
           }} />
 
+          <!-- Guardar va antes que Deshacer/Rehacer: es la acción que se usa en
+               cada cambio de nota, así que queda a la vista sin scrollear, igual
+               que en Asistencia. El orden de escritorio no cambia. -->
+          <BotonMod opts={{
+            onclick: handleGuardarNotas,
+            disabled: !hasUnsavedChanges || saving || estudiantes.length === 0,
+            icono: saving ? '⏳' : '💾', etiqueta: saving ? 'Guardando' : 'Guardar', tono: 'verde',
+            sub: saving ? 'Escribiendo en la BD' : (hasUnsavedChanges ? `${cambiosPendientes} cambios` : 'Sin cambios'),
+            title: 'Guardar Notas (Ctrl+G)', compacto: true
+          }} />
           <BotonMod opts={{
             onclick: undo, disabled: history.length === 0,
             icono: '↩️', etiqueta: 'Deshacer', tono: 'ambar',
@@ -2064,14 +2074,8 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             sub: redoStack.length === 0 ? 'Nada que rehacer' : `${redoStack.length} por rehacer`,
             title: 'Rehacer (Ctrl+Y)', compacto: true
           }} />
-          <BotonMod opts={{
-            onclick: handleGuardarNotas,
-            disabled: !hasUnsavedChanges || saving || estudiantes.length === 0,
-            icono: saving ? '⏳' : '💾', etiqueta: saving ? 'Guardando' : 'Guardar', tono: 'verde',
-            sub: saving ? 'Escribiendo en la BD' : (hasUnsavedChanges ? `${cambiosPendientes} cambios` : 'Sin cambios'),
-            title: 'Guardar Notas (Ctrl+G)', compacto: true
-          }} />
         </div>
+
       {/if}
 
       <!-- Mobile: Card View -->
