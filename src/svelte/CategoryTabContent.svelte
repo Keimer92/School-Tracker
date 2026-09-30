@@ -31,7 +31,6 @@
   let isDeleting = $state(false);
   let selectedIds: Set<number> = $state(new Set());
   let draggedItem: CategoryItem | null = $state(null);
-  let globalCualitativo: boolean | null = $state(null);
   let promptInput: HTMLInputElement | undefined = $state(undefined);
 
   // Prompt (entrada de nombre — modal glass; la CONFIRMACIÓN es nativa)
@@ -221,20 +220,9 @@
     items = items.map(i => ({ ...i, activo: i.id === id ? !yaActivo : false }));
   }
 
-  function handleToggleCualitativo(item: CategoryItem & { esNuevo?: boolean }) {
-    if (item.esNuevo) {
-      nuevos = nuevos.map(n => n.tempId === item.id ? { ...n, cualitativo: !item.cualitativo } : n);
-    } else {
-      items = items.map(i => i.id === item.id ? { ...i, cualitativo: !i.cualitativo } : i);
-    }
-  }
-
-  function handleGlobalCualitativo(enabled: boolean) {
-    globalCualitativo = enabled;
-    items = items.map(i => ({ ...i, cualitativo: enabled }));
-    nuevos = nuevos.map(n => ({ ...n, cualitativo: enabled }));
-  }
-
+  // NOTA: ya no hay `handleToggleCualitativo` ni `handleGlobalCualitativo`. El
+  // flag cualitativo de grado/asignatura se edita SOLO desde el modal de
+  // configuracion del Colegio, que es el unico escritor. Aqui es de solo lectura.
   // ---- GUARDAR: confirmación NATIVA y aplicación agrupada ----
   async function handleSave() {
     const total = countCambios() + (orderChanged() ? 1 : 0);
@@ -380,7 +368,6 @@
       tempCounter = -1;
       selectedIds = new Set();
       draggedItem = null;
-      globalCualitativo = null;
       showPrompt = false;
       promptOnConfirm = null;
       isDeleting = false;
