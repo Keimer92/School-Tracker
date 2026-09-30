@@ -7,6 +7,8 @@
   import CategoryTabContent from "./CategoryTabContent.svelte";
   import CalificacionesConfig from "./globales/CalificacionesConfig.svelte";
   import MultiplicadoresConfig from "./globales/MultiplicadoresConfig.svelte";
+  import ColegioConfigModal from "./globales/ColegioConfigModal.svelte";
+  import GradoConfigModal from "./globales/GradoConfigModal.svelte";
   import AjustesPage from "./AjustesPage.svelte";
   import EvaluacionesPage from "./EvaluacionesPage.svelte";
   import CloudPage from "./CloudPage.svelte";
@@ -88,6 +90,9 @@
   // En escritorio se abre directamente la sección pedida (por defecto Notas):
   // el rail es navegación secundaria, no una pantalla de bienvenida.
   let activa = $state<Seccion | null>(isAndroidMobile ? null : SECCIONES.find(s => s.id === SECCION_POR_DEFECTO) ?? null);
+  // Modales de configuracion de catalogo (⚙️ de Colegio y de Grado).
+  let colegioConfig = $state<{ id: number; nombre: string; cualitativo?: boolean } | null>(null);
+  let gradoConfig = $state<{ id: number; nombre: string; cualitativo?: boolean } | null>(null);
   let busqueda = $state('');
   let railExpandido = $state(false);
   let railFijado = $state(false);
@@ -205,9 +210,13 @@
     return () => { off.then(f => f()); };
   });
 
-  // Back de Android: desde el detalle vuelve a la lista.
+  // Back de Android: cierra primero el modal abierto y, si no hay, vuelve a la lista.
   $effect(() => {
     if (!isAndroidMobile || !pageActive) return;
+    // Un modal abierto tiene prioridad (pila LIFO): el back lo cierra a el, no la sección.
+    if (colegioConfig || gradoConfig) {
+      return registerBackHandler(() => { colegioConfig = null; gradoConfig = null; return true; });
+    }
     if (!activa) return;
     return registerBackHandler(() => { cerrar(); return true; });
   });
@@ -263,7 +272,19 @@
     <!-- `activa` es null en la lista raíz: acá no se renderiza nada. El guard
          además le permite a TS estrechar el tipo dentro del snippet. -->
   {:else if activa.cat}
-    <CategoryTabContent config={activa.cat} accentColor={activa.color} accentIcon={activa.icono} headerExtra={activa.id === 'ano-lectivo' ? anoLectivoHeader : undefined} />
+    <CategoryTabContent
+      config={activa.cat}
+      accentColor={activa.color}
+      accentIcon={activa.icono}
+      headerExtra={activa.id === 'ano-lectivo' ? anoLectivoHeader : undefined}
+      onConfigClick={(item) => {
+        // El boton ⚙️ SOLO se renderiza si se le pasa este handler. Sin el, las
+        // opciones de dias/asignaturas/grados de cada colegio y el curriculo de
+        // cada grado no tenian forma de abrirse.
+        if (activa?.id === 'colegios') colegioConfig = item;
+        if (activa?.id === 'grados') gradoConfig = item;
+      }}
+    />
   {:else if activa.id === 'notas'}
     <CalificacionesConfig />
   {:else if activa.id === 'multiplicadores'}
@@ -366,6 +387,12 @@
     </section>
   </div>
 {/if}
+
+<!-- Modales de configuración de catálogo. Se montan FUERA del condicional de
+     plataforma para que funcionen igual en Android y escritorio. Cada uno se
+     auto-oculta cuando su prop es `null`. -->
+<ColegioConfigModal colegio={colegioConfig} onClose={() => colegioConfig = null} />
+<GradoConfigModal grado={gradoConfig} onClose={() => gradoConfig = null} />
 
 <style>
   .aj-gen{display:flex;height:100%;min-height:0;width:100%;overflow:hidden}
