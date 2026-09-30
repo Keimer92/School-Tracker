@@ -324,6 +324,56 @@ class MainActivity : TauriActivity() {
     }
   }
 
+  /**
+   * Guarda un backup ROTANDO la carpeta: deja solo [keep] archivos y borra los
+   * mas antiguos. Lo invoca Rust por JNI desde `run_local_backup`.
+   * En Android 9 o menos cae a copia directa, tambien rotada.
+   */
+  fun rotateBackup(sourcePath: String, mime: String, folder: String, displayName: String, keep: Int): String {
+    return try {
+      val origen = File(sourcePath)
+      if (!origen.exists() || !origen.isFile) {
+        android.util.Log.e("MainActivity", "rotateBackup: origen no existe: $sourcePath")
+        return ""
+      }
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        DescargasSaver.rotar(contentResolver, sourcePath, mime, folder, displayName, keep)
+      } else {
+        val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), folder)
+        dir.mkdirs()
+        val archivos = dir.listFiles { f -> f.isFile && f.name.endsWith(".db") }
+          ?.sortedByDescending { it.lastModified() } ?: emptyList()
+        // Deja (keep - 1) antes de escribir el nuevo.
+        archivos.drop((keep - 1).coerceAtLeast(0)).forEach { it.delete() }
+        val destino = File(dir, displayName)
+        origen.copyTo(destino, overwrite = true)
+        android.util.Log.i("MainActivity", "rotateBackup (legacy) OK: ${destino.absolutePath}")
+        destino.absolutePath
+      }
+    } catch (e: Exception) {
+      android.util.Log.e("MainActivity", "rotateBackup error: ${e.message}")
+      ""
+    }
+  }
+
+  /**
+   * Guarda la config del backup automatico y (re)programa la alarma.
+   * La invoca Rust por JNI desde `set_local_backup_config`.
+   */
+  fun configureLocalBackup(activo: Boolean, intervaloMin: Int) {
+    try {
+      LocalBackupPrefs.setConfig(this, activo, intervaloMin)
+      if (activo) {
+        LocalBackupScheduler.schedule(this)
+      } else {
+        LocalBackupScheduler.cancel(this)
+      }
+      android.util.Log.i("MainActivity", "Backup automático: activo=$activo cada $intervaloMin min")
+    } catch (e: Exception) {
+      android.util.Log.e("MainActivity", "configureLocalBackup error: ${e.message}")
+    }
+  }
+
   fun notifyAttendanceReminder(title: String, body: String) {
     try {
       val channelId = "attendance_reminders"

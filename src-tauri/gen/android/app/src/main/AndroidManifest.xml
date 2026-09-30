@@ -57,6 +57,9 @@
         </provider>
 
         <receiver android:name=".AttendanceAlarmReceiver" android:exported="false" />
+    <!-- Backup automatico local: la alarma la reprograma el mismo receiver, asi
+         que sobrevive al reinicio del proceso. -->
+    <receiver android:name=".LocalBackupAlarmReceiver" android:exported="false" />
         <receiver android:name=".AttendanceDismissReceiver" android:exported="false" />
         <receiver android:name=".AttendanceBootReceiver" android:exported="true">
             <intent-filter>

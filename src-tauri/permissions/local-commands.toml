@@ -1,6 +1,6 @@
 [[permission]]
 identifier = "allow-local-commands"
-description = "Permite la ejecución de todos los comandos locales definidos en lib.rs"
+description = "Permite la ejecuciÃ³n de todos los comandos locales definidos en lib.rs"
 commands.allow = [
     "get_anos",
     "add_ano",
@@ -90,6 +90,10 @@ commands.allow = [
         "share_pdf",
         "save_file_android",
         "guardar_en_descargas",
+
+        "run_local_backup",
+
+        "set_local_backup_config",
 
     "get_colegio_dias_asistencia_all",
     "delete_asistencia_batch",

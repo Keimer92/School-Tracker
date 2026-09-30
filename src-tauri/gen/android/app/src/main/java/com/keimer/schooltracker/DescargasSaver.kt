@@ -110,4 +110,89 @@ object DescargasSaver {
 
   fun downloadRoot(): String =
     Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).absolutePath
+
+  /**
+   * Guarda un backup ROTANDO la carpeta: deja solo [keep] archivos y borra los
+   * mas antiguos. Se purga ANTES de insertar, asi que despues de la llamada la
+   * carpeta tiene como maximo [keep] archivos.
+   *
+   * No se usan nombres fijos (backup_1/backup_2) porque MediaStore no permite
+   * renombrar ni sobrescribir con facilidad; se lista por RELATIVE_PATH y se
+   * borra lo que sobra. Devuelve la ruta publica del archivo nuevo, o "".
+   */
+  fun rotar(
+    resolver: android.content.ContentResolver,
+    sourcePath: String,
+    mime: String,
+    carpeta: String,
+    nombre: String,
+    keep: Int,
+  ): String {
+    return try {
+      val origen = File(sourcePath)
+      if (!origen.exists() || !origen.isFile) {
+        Log.e(TAG, "Origen no existe: $sourcePath")
+        return ""
+      }
+      // 1) Dejar solo (keep - 1) archivos: roompara el que entra ahora.
+      val borrados = purgar(resolver, carpeta, (keep - 1).coerceAtLeast(0))
+      if (borrados > 0) Log.i(TAG, "Rotacion: se borraron $borrados backup(s) viejo(s)")
+
+      // 2) Insertar el nuevo.
+      guardar(resolver, sourcePath, mime, carpeta, nombre)
+    } catch (e: Exception) {
+      Log.e(TAG, "Error en rotar(): ${e.message}")
+      ""
+    }
+  }
+
+  /**
+   * Borra los archivos de `Download/$carpeta/` dejando los [keep] mas recientes
+   * (ordenados por fecha de adicion). Devuelve cuantos borro.
+   */
+  private fun purgar(
+    resolver: android.content.ContentResolver,
+    carpeta: String,
+    keep: Int,
+  ): Int {
+    var borrados = 0
+    try {
+      val relativePath = "Download/$carpeta/"
+      val ids = mutableListOf<Pair<Long, String>>()  // id -> display name
+      resolver.query(
+        MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+        arrayOf(
+          MediaStore.MediaColumns._ID,
+          MediaStore.MediaColumns.DISPLAY_NAME,
+          MediaStore.MediaColumns.DATE_ADDED,
+        ),
+        "${MediaStore.MediaColumns.RELATIVE_PATH} = ?",
+        arrayOf(relativePath),
+        null,
+      )?.use { cursor ->
+        val idCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
+        val nameCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
+        val dateCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DATE_ADDED)
+        while (cursor.moveToNext()) {
+          ids.add(Pair(cursor.getLong(dateCol), cursor.getString(nameCol) ?: ""))
+          // `id` se recompone abajo desde el nombre; se usa _id directamente.
+        }
+      }
+      if (ids.size <= keep) return 0
+      // Mas reciente primero.
+      ids.sortByDescending { it.first }
+      val aBorrar = ids.drop(keep)
+      for ((_, name) in aBorrar) {
+        resolver.delete(
+          MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+          "${MediaStore.MediaColumns.RELATIVE_PATH} = ? AND ${MediaStore.MediaColumns.DISPLAY_NAME} = ?",
+          arrayOf(relativePath, name),
+        )
+        borrados++
+      }
+    } catch (e: Exception) {
+      Log.e(TAG, "Error purgando backups: ${e.message}")
+    }
+    return borrados
+  }
 }

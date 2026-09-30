@@ -17,5 +17,12 @@ class AttendanceBootReceiver : BroadcastReceiver() {
             AttendanceScheduler.schedule(context)
             android.util.Log.i("AttendanceBootReceiver", "Alarma reprogramada tras boot")
         }
+
+        // El backup automatico tambien pierde su alarma al reiniciar el
+        // dispositivo, asi que se rearma aqui.
+        if (LocalBackupPrefs.prefs(context).getBoolean(LocalBackupPrefs.KEY_ACTIVO, false)) {
+            LocalBackupScheduler.schedule(context)
+            android.util.Log.i("AttendanceBootReceiver", "Alarma de backup reprogramada tras boot")
+        }
     }
 }

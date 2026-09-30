@@ -12,11 +12,16 @@
    */
   import { invoke } from "@tauri-apps/api/core";
   import { emit } from "@tauri-apps/api/event";
-  import { open, save, ask } from "@tauri-apps/plugin-dialog";
-  import { copyFile, BaseDirectory } from "@tauri-apps/plugin-fs";
+  import { open, ask } from "@tauri-apps/plugin-dialog";
+  import { copyFile } from "@tauri-apps/plugin-fs";
 
   const isAndroid = /Android/i.test(navigator.userAgent);
   const ACCENT = "#ef4444";
+  /**
+   * Carpeta unica de backups. En Android se pasa a `guardar_en_descargas`, que
+   * la resuelve bajo `Download/`; en escritorio se resuelve contra `Documents/`.
+   */
+  const CARPETA_BACKUPS = "School Tracker/Backups";
 
   let dbPath = $state("");
   let isImporting = $state(false);
@@ -36,12 +41,35 @@
     try {
       const dbFile = await invoke<string>("get_db_path");
       if (isAndroid) {
-        await copyFile(dbFile, backupFileName("sqlite"), { toPathBaseDir: BaseDirectory.Download });
-        await emit("show-toast", { message: "✅ Base de datos exportada a Descargas", type: "success" });
+        // `copyFile` con `BaseDirectory.Download` falla en Android: la app no
+        // tiene escritura en la carpeta publica de Descargas (scoped storage).
+        // La ruta correcta es escribir en el sandbox y dejar que
+        // `guardar_en_descargas` la copie a Descargas via MediaStore.
+        const nombre = backupFileName("sqlite");
+        const ruta = await invoke<string>("guardar_en_descargas", {
+          path: dbFile,
+          mime: "application/vnd.sqlite3",
+          carpeta: CARPETA_BACKUPS,
+          nombre,
+        });
+        if (!ruta) {
+          await emit("show-toast", { message: "❌ No se pudo guardar en Descargas", type: "error" });
+        } else {
+          await emit("show-toast", { message: `✅ Guardada en ${ruta}`, type: "success" });
+        }
         return;
       }
-      const dest = await save({ filters: [{ name: "Database File", extensions: ["db"] }], defaultPath: backupFileName("db") });
-      if (dest) { await copyFile(dbFile, dest); await emit("show-toast", { message: "✅ Base de datos exportada", type: "success" }); }
+      // Escritorio: se escribe directo en Documents/School Tracker/Backups, sin
+      // dialogo (mismo destino que los backups automaticos).
+      const { documentDir } = await import("@tauri-apps/api/path");
+      const { mkdir } = await import("@tauri-apps/plugin-fs");
+      const base = (await documentDir()) + "/" + CARPETA_BACKUPS;
+      await mkdir(base, { recursive: true });
+      const sep = base.includes("\\") ? "\\" : "/";
+      const nombre = backupFileName("db");
+      const destino = base + sep + nombre;
+      await copyFile(dbFile, destino);
+      await emit("show-toast", { message: `✅ Guardada en ${destino}`, type: "success" });
     } catch (error) { await emit("show-toast", { message: "❌ Error al exportar: " + error, type: "error" }); }
   }
 
