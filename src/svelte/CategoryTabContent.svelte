@@ -434,12 +434,10 @@
         {/if}
       {/if}
       {#if config.title === "Asignatura" && items.length > 0}
-        <div style="display: flex; align-items: center; gap: 0.4rem; margin-left: 0.5rem; padding: 0.3rem 0.6rem; background: rgba(139, 92, 246, 0.1); border-radius: 6px; border: 1px solid rgba(139, 92, 246, 0.2);">
+        <!-- Solo informativa: el cualitativo se cambia desde ⚙️ del Colegio. -->
+        <div style="display: flex; align-items: center; gap: 0.4rem; margin-left: 0.5rem; padding: 0.3rem 0.6rem; background: rgba(139, 92, 246, 0.06); border-radius: 6px; border: 1px solid rgba(139, 92, 246, 0.14);">
           <span style="font-size: 0.7rem; color: #a78bfa; font-weight: 600;">Cualitativo</span>
-          <label class="switch" title={globalCualitativo ? "Desactivar todo" : "Activar todo"}>
-            <input type="checkbox" checked={globalCualitativo === true} onchange={(e) => { const checked = (e.target as HTMLInputElement).checked; handleGlobalCualitativo(checked); }} />
-            <span class="slider round" style="background-color: {globalCualitativo ? '#8b5cf6' : undefined};"></span>
-          </label>
+          <span style="font-size: 0.7rem; color: #64748b;">se edita en ⚙️ Colegio</span>
         </div>
       {/if}
     </div>
@@ -518,14 +516,21 @@
               </span>
             {/if}
             {#if config.title === "Asignatura"}
+              <!-- SOLO LECTURA: el cualitativo se edita unicamente desde el modal
+                   de configuracion del Colegio. Se muestra el estado, no se cambia. -->
               <span class="cat-toggle-slot">
-                <label class="switch" title={item.cualitativo ? "Cambiar a Cuantitativo" : "Cambiar a Cualitativo"}>
-                  <input type="checkbox" checked={item.cualitativo || false} onchange={() => handleToggleCualitativo(item)} />
-                  <span class="slider round" style="background-color: {item.cualitativo ? '#8b5cf6' : undefined};"></span>
-                </label>
+                {#if item.cualitativo}
+                  <span class="cat-qual-chip" title="Cualitativo — se cambia en ⚙️ del Colegio">✦ Cualitativo</span>
+                {/if}
               </span>
             {/if}
             {#if config.title === "Grado" && onConfigClick && !item.esNuevo}
+              <!-- Solo lectura: el cualitativo se edita en ⚙️ del Colegio. -->
+              <span class="cat-toggle-slot">
+                {#if item.cualitativo}
+                  <span class="cat-qual-chip" title="Cualitativo — se cambia en ⚙️ del Colegio">✦ Cualitativo</span>
+                {/if}
+              </span>
               <button onclick={() => onConfigClick(item)} title="Configurar grado" style="background:rgba(var(--primary-rgb),0.1);border:1px solid rgba(var(--primary-rgb),0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.1)'}>⚙️</button>
             {/if}
             {#if config.title === "Colegio" && onConfigClick && !item.esNuevo}
@@ -654,5 +659,13 @@
     padding-right: 0.4rem;
     margin-right: 0.15rem;
     border-right: 1px solid rgba(255,255,255,0.08);
+  }
+  /* Indicador de solo lectura del cualitativo. */
+  .cat-qual-chip {
+    display: inline-flex; align-items: center; gap: 0.25rem;
+    padding: 0.2rem 0.5rem; border-radius: 6px;
+    font-size: 0.68rem; font-weight: 600; white-space: nowrap;
+    color: #c4b5fd; background: rgba(139, 92, 246, 0.14);
+    border: 1px solid rgba(139, 92, 246, 0.3);
   }
 </style>

@@ -22,7 +22,7 @@
   import { portalToBody } from "../../lib/portalToBody";
 
   export interface ColegioItem { id: number; nombre: string; cualitativo?: boolean; }
-  interface AsignaturaItem { id: number; nombre: string; }
+  interface AsignaturaItem { id: number; nombre: string; cualitativo?: boolean; }
   interface ColegioDiasAsistencia {
     colegioId: number; lunes: boolean; martes: boolean; miercoles: boolean;
     jueves: boolean; viernes: boolean; sabado: boolean; domingo: boolean;
@@ -50,12 +50,22 @@
   let asignadasIds = $state<number[]>([]);
   let asignadasOriginal = $state("");
   let grados = $state<ColegioGrado[]>([]);
-  let gradosOriginal = $state("");
+  let gradosActivoOriginal = $state<Record<number, boolean>>({});
+  let gradosCualOriginal = $state<Record<number, boolean>>({});
+  let asignaturasCualOriginal = $state<Record<number, boolean>>({});
+  let catalogoGrados = $state<Record<number, { nombre: string; cualitativo: boolean }>>({});
   let saving = $state(false);
 
   let diasDirty = $derived(dias !== null && JSON.stringify(dias) !== diasOriginal);
-  let asignaturasDirty = $derived(colegio !== null && JSON.stringify(asignadasIds) !== asignadasOriginal);
-  let gradosDirty = $derived(colegio !== null && JSON.stringify(grados) !== gradosOriginal);
+  let asignaturasDirty = $derived(
+    colegio !== null &&
+    (JSON.stringify(asignadasIds) !== asignadasOriginal ||
+      todasAsignaturas.some(s => asignaturasCualOriginal[s.id] !== !!s.cualitativo))
+  );
+  let gradosDirty = $derived(
+    colegio !== null &&
+    grados.some(g => gradosActivoOriginal[g.id] !== g.activo || gradosCualOriginal[g.id] !== g.cualitativo)
+  );
   let hayCambios = $derived(diasDirty || asignaturasDirty || gradosDirty);
 
   // Carga al abrir (o al cambiar de colegio). El efecto solo lee `colegio`, asi
@@ -83,10 +93,32 @@
         todasAsignaturas = todas;
         asignadasIds = asignadas.map(s => s.id);
         asignadasOriginal = JSON.stringify(asignadasIds);
+        const mapa: Record<number, boolean> = {};
+        for (const s of todas) mapa[s.id] = !!s.cualitativo;
+        asignaturasCualOriginal = mapa;
       })
       .catch(e => console.error("[ColegioConfig] asignaturas:", e));
-    invoke<ColegioGrado[]>("get_grados_config_by_colegio", { colegioId: c.id })
-      .then(g => { grados = g; gradosOriginal = JSON.stringify(g); })
+
+    // El CUALITATIVO de un grado es GLOBAL (`grado.cualitativo`), no por colegio:
+    // es lo que leen NotasPage, ReportesPage, EvaluacionesPage y los PDF. Por eso
+    // se trae el catalogo y se pisa el valor que devuelven las columnas
+    // `colegio_grado` (que nadie leia y por eso se desincronizaba).
+    Promise.all([
+      invoke<ColegioGrado[]>("get_grados_config_by_colegio", { colegioId: c.id }),
+      invoke<{ id: number; nombre: string; cualitativo: boolean }[]>("get_grados"),
+    ])
+      .then(([porColegio, catalogo]) => {
+        const mapa: Record<number, { nombre: string; cualitativo: boolean }> = {};
+        for (const g of catalogo) mapa[g.id] = { nombre: g.nombre, cualitativo: !!g.cualitativo };
+        catalogoGrados = mapa;
+        const lista = porColegio.map(g => ({ ...g, cualitativo: mapa[g.id]?.cualitativo ?? false }));
+        grados = lista;
+        const act: Record<number, boolean> = {};
+        const cua: Record<number, boolean> = {};
+        for (const g of lista) { act[g.id] = g.activo; cua[g.id] = g.cualitativo; }
+        gradosActivoOriginal = act;
+        gradosCualOriginal = cua;
+      })
       .catch(e => console.error("[ColegioConfig] grados:", e));
   });
 
@@ -130,22 +162,39 @@
     finally { saving = false; }
   }
 
+  function toggleAsignaturaCualitativo(s: AsignaturaItem) {
+    todasAsignaturas = todasAsignaturas.map(x => x.id === s.id ? { ...x, cualitativo: !x.cualitativo } : x);
+  }
+
   async function guardarAsignaturas() {
     if (!colegio || !asignaturasDirty) return;
     if (!await ask(`¿Aplicar las asignaturas de "${colegio.nombre}"?`, { title: "Confirmar cambios", kind: "info", okLabel: "Guardar", cancelLabel: "Cancelar" })) return;
     saving = true;
     try {
-      const orig: number[] = JSON.parse(asignadasOriginal);
+      const prev: number[] = JSON.parse(asignadasOriginal);
       for (const id of asignadasIds) {
-        if (!orig.includes(id)) await invoke("assign_subject_to_colegio", { colegioId: colegio.id, asignaturaId: id });
+        if (!prev.includes(id)) await invoke("assign_subject_to_colegio", { colegioId: colegio.id, asignaturaId: id });
       }
-      for (const id of orig) {
+      for (const id of prev) {
         if (!asignadasIds.includes(id)) await invoke("unassign_subject_from_colegio", { colegioId: colegio.id, asignaturaId: id });
       }
+      // El cualitativo de la asignatura tambien es GLOBAL (`asignatura.cualitativo`).
+      const mapa: Record<number, boolean> = {};
+      let tocoCualitativo = false;
+      for (const s of todasAsignaturas) {
+        if (asignaturasCualOriginal[s.id] !== !!s.cualitativo) {
+          await invoke("update_asignatura", { id: s.id, nombre: s.nombre, cualitativo: !!s.cualitativo });
+          tocoCualitativo = true;
+        }
+        mapa[s.id] = !!s.cualitativo;
+      }
       asignadasOriginal = JSON.stringify(asignadasIds);
+      asignaturasCualOriginal = mapa;
       onDataChange("colegio_asignatura");
+      if (tocoCualitativo) onDataChange("asignatura", { immediate: true });
       await emit("show-toast", { message: "✅ Asignación guardada", type: "success" });
       await emit("subjects-updated");
+      await emit("catalog-updated");
     } catch (e) { await emit("show-toast", { message: "❌ Error al guardar asignación: " + e, type: "error" }); }
     finally { saving = false; }
   }
@@ -155,11 +204,25 @@
     if (!await ask(`¿Aplicar los grados de "${colegio.nombre}"?`, { title: "Confirmar cambios", kind: "info", okLabel: "Guardar", cancelLabel: "Cancelar" })) return;
     saving = true;
     try {
+      const act: Record<number, boolean> = {};
+      const cua: Record<number, boolean> = {};
+      let tocoCualitativo = false;
       for (const g of grados) {
+        // `activo` vive en colegio_grado (por colegio); `cualitativo` se espeja
+        // desde el global para que la columna duplicada no quede obsoleta.
         await invoke("set_colegio_grado", { colegioId: colegio.id, gradoId: g.id, activo: g.activo, cualitativo: g.cualitativo });
+        if (gradosCualOriginal[g.id] !== g.cualitativo) {
+          const cat = catalogoGrados[g.id];
+          await invoke("update_grado", { id: g.id, nombre: cat?.nombre ?? g.nombre, cualitativo: g.cualitativo });
+          tocoCualitativo = true;
+        }
+        act[g.id] = g.activo;
+        cua[g.id] = g.cualitativo;
       }
-      gradosOriginal = JSON.stringify(grados);
+      gradosActivoOriginal = act;
+      gradosCualOriginal = cua;
       onDataChange("colegio_grado");
+      if (tocoCualitativo) onDataChange("grado", { immediate: true });
       await emit("show-toast", { message: "✅ Grados guardados", type: "success" });
       await emit("catalog-updated");
     } catch (e) { await emit("show-toast", { message: "❌ Error guardando grados: " + e, type: "error" }); }
@@ -172,7 +235,11 @@
     try {
       await invoke("delete_colegio_grado", { colegioId: colegio.id, gradoId: g.id });
       grados = grados.filter(x => x.id !== g.id);
-      gradosOriginal = JSON.stringify(grados);
+      // Se actualizan las dos bases de comparacion (activo y cualitativo).
+      delete gradosActivoOriginal[g.id];
+      delete gradosCualOriginal[g.id];
+      gradosActivoOriginal = { ...gradosActivoOriginal };
+      gradosCualOriginal = { ...gradosCualOriginal };
       onDataChange("colegio_grado");
       await emit("catalog-updated");
       await emit("show-toast", { message: "🗑 Grado eliminado del colegio", type: "success" });
@@ -295,12 +362,19 @@
             </div>
             {#each todasAsignaturas as sub (sub.id)}
               {@const on = asignadasIds.includes(sub.id)}
-              <button class="item-row cc-row" class:on onclick={() => toggleAsignatura(sub.id)}>
-                <span class="switch" style="pointer-events:none;">
-                  <span class="slider round" class:on={on}></span>
-                </span>
-                <span class="cc-label" class:on>{sub.nombre}</span>
-              </button>
+              <div class="item-row cc-row" class:on>
+                <!-- Dos controles independientes: la fila es `div` (no `button`)
+                     porque anidar botones seria HTML invalido. -->
+                <button class="cc-main" onclick={() => toggleAsignatura(sub.id)} title={on ? "Quitar del colegio" : "Agregar al colegio"}>
+                  <span class="switch" style="pointer-events:none;">
+                    <span class="slider round" class:on={on}></span>
+                  </span>
+                  <span class="cc-label" class:on>{sub.nombre}</span>
+                </button>
+                <button class="switch" title={sub.cualitativo ? "Quitar cualitativo" : "Marcar cualitativo"} onclick={() => toggleAsignaturaCualitativo(sub)}>
+                  <span class="slider round cc-cual" class:on={!!sub.cualitativo}></span>
+                </button>
+              </div>
             {/each}
             {#if asignaturasDirty}
               <button onclick={guardarAsignaturas} disabled={saving} class="save-verde">
@@ -342,7 +416,7 @@
 <style>
   /* La fila entera es el control (regla de toggles: nunca checkbox). */
   .cc-row {
-    width: 100%; text-align: left; cursor: pointer;
+    width: 100%; text-align: left;
     display: flex; align-items: center; gap: 12px;
     padding: 0.6rem 0.75rem; border-radius: 10px;
     background: rgba(255,255,255,0.03);
@@ -351,6 +425,11 @@
   }
   .cc-row.on { border-color: rgba(74,222,128,0.3); }
   .cc-row:hover { background: rgba(255,255,255,0.06); }
+  /* Zona principal de la fila (membresia); el cualitativo es un control aparte. */
+  .cc-main {
+    flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px;
+    background: none; border: none; padding: 0; cursor: pointer; text-align: left;
+  }
   .cc-label { flex: 1; min-width: 0; font-size: 0.85rem; font-weight: 500; color: #94a3b8; text-transform: capitalize; }
   .cc-label.on { font-weight: 700; color: #4ade80; }
 
