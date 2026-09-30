@@ -258,19 +258,26 @@
     <div class="dbg-body">
       <!-- EXPORTAR -->
       <div class="dbg-box">
-        <div class="dbg-box-head">
-          <span style="font-size: 1.2rem;">📤</span><h5>Exportar datos</h5>
-          <span style="flex:1"></span>
-          <button
-            class="dbg-icon-btn"
-            class:on={backupActivo}
-            onclick={() => showBackupPopover = !showBackupPopover}
-            disabled={savingBackupCfg}
-            title="Backup automático local"
-            aria-label="Configurar backup automático">⏱</button>
-        </div>
+        <div class="dbg-box-head"><span style="font-size: 1.2rem;">📤</span><h5>Exportar datos</h5></div>
         <p class="dbg-desc">Guarda una copia completa de la base de datos en <strong>{CARPETA_BACKUPS}</strong> {isAndroid ? "(Descargas)" : "(Documentos)"}.</p>
         <button onclick={handleExportDB} class="dbg-btn dbg-btn-verde">📤 Exportar base de datos</button>
+
+        <!-- Backup automático: botón completo, no un ícono suelto (en un ⏱ de
+             30px no se descubría). Al tocarlo abre el popover de intervalos. -->
+        <button
+          class="dbg-auto"
+          class:on={backupActivo}
+          onclick={() => showBackupPopover = !showBackupPopover}
+          disabled={savingBackupCfg}
+          aria-label="Configurar backup automático"
+          aria-expanded={showBackupPopover}>
+          <span class="dbg-auto-ico">⏱</span>
+          <span class="dbg-auto-txt">
+            <strong>Backup automático</strong>
+            <small>{backupActivo ? `Activo · cada ${backupIntervaloMin / 60} h` : "Desactivado"}</small>
+          </span>
+          <span class="dbg-auto-chev">›</span>
+        </button>
 
         <!-- Popover: respaldo automático -->
         {#if showBackupPopover}
@@ -358,15 +365,29 @@
   .dbg-box-peligro { background: rgba(239,68,68,0.05); border-color: rgba(239,68,68,0.2); }
   .dbg-box-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
   .dbg-box-head h5 { margin: 0; color: #e2e8f0; font-size: 1rem; }
-  .dbg-icon-btn {
-    width: 30px; height: 30px; flex-shrink: 0; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 8px; font-size: 0.9rem; color: #cbd5e1; transition: all 0.2s ease;
+
+  /* Botón de backup automático: fila completa y con texto, para que se vea
+     que existe y cuál es el estado actual. */
+  .dbg-auto {
+    width: 100%; margin-top: 0.6rem;
+    display: flex; align-items: center; gap: 0.65rem;
+    padding: 0.65rem 0.8rem; cursor: pointer; text-align: left;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 11px; transition: all 0.2s ease;
   }
-  .dbg-icon-btn:hover { background: rgba(255,255,255,0.12); }
-  .dbg-icon-btn.on { background: rgba(52,211,153,0.18); border-color: rgba(52,211,153,0.45); color: #34d399; }
-  .dbg-icon-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .dbg-auto:hover { background: rgba(255,255,255,0.08); }
+  .dbg-auto.on {
+    background: rgba(52,211,153,0.12);
+    border-color: rgba(52,211,153,0.4);
+  }
+  .dbg-auto:disabled { opacity: 0.6; cursor: not-allowed; }
+  .dbg-auto-ico { font-size: 1.05rem; flex-shrink: 0; }
+  .dbg-auto-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .dbg-auto-txt strong { font-size: 0.85rem; font-weight: 600; color: #e2e8f0; }
+  .dbg-auto-txt small { font-size: 0.7rem; color: #64748b; }
+  .dbg-auto.on .dbg-auto-txt small { color: #34d399; }
+  .dbg-auto-chev { font-size: 1.15rem; color: #64748b; flex-shrink: 0; }
 
   /* Popover del backup automático. Va a <body> porque el overlay es `fixed` y
      los ancestros con backdrop-filter lo confinan (AGENTS.md). */

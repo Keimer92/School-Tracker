@@ -6405,11 +6405,14 @@ pub async fn run_local_backup(
     {
         let (vm, activity) = crate::obtain_native_bridge()?;
         let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
-        let j_path = env.new_string(db_path.trim_start_matches("file://")).map_err(|e| e.to_string())?;
+        // `db_path` es PathBuf: se pasa el texto plano, sin el prefijo file://.
+        let ruta_plana = db_path.to_string_lossy().trim_start_matches("file://").to_string();
+        let j_path = env.new_string(&ruta_plana).map_err(|e| e.to_string())?;
         let j_mime = env.new_string("application/vnd.sqlite3").map_err(|e| e.to_string())?;
         let j_carpeta = env.new_string(CARPETA_BACKUPS).map_err(|e| e.to_string())?;
         let j_nombre = env.new_string(&nombre).map_err(|e| e.to_string())?;
-        let j_keep = env.new_int(keep as i32).map_err(|e| e.to_string())?;
+        // jni 0.21 no tiene `env.new_int`: los primitivos viajan por JValue.
+        let j_keep: jni::sys::jint = keep as i32;
         let out = env
             .call_method(
                 activity.as_obj(),
@@ -6420,7 +6423,7 @@ pub async fn run_local_backup(
                     jni::objects::JValue::Object(&j_mime),
                     jni::objects::JValue::Object(&j_carpeta),
                     jni::objects::JValue::Object(&j_nombre),
-                    jni::objects::JValue::Int(&j_keep),
+                    jni::objects::JValue::Int(j_keep),
                 ],
             )
             .map_err(|e| format!("Error JNI rotateBackup: {}", e))?
@@ -6518,11 +6521,13 @@ pub async fn set_local_backup_config(
     {
         let (vm, activity) = crate::obtain_native_bridge()?;
         let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
-        let j_activo = env.new_boolean(activo).map_err(|e| e.to_string())?;
-        let j_min = env.new_int(intervalo as i32).map_err(|e| e.to_string())?;
+        // Igual que arriba: en jni 0.21 los primitivos van por JValue, no por
+        // `env.new_boolean` / `env.new_int` (que no existen).
+        let j_activo: jni::sys::jboolean = if activo { 1 } else { 0 };
+        let j_min: jni::sys::jint = intervalo as i32;
         env.call_method(activity.as_obj(), "configureLocalBackup", "(ZI)V", &[
-            jni::objects::JValue::Object(&j_activo),
-            jni::objects::JValue::Int(&j_min),
+            jni::objects::JValue::Bool(j_activo),
+            jni::objects::JValue::Int(j_min),
         ]).map_err(|e| format!("Error JNI configureLocalBackup: {}", e))?;
     }
     #[cfg(not(target_os = "android"))]
