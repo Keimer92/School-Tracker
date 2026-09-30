@@ -146,6 +146,22 @@ import { portalToBody } from "../lib/portalToBody";
   let isAndroid = $state(/Android/i.test(navigator.userAgent));
   let isWindows = $state(/Windows/i.test(navigator.userAgent));
   let isAndroidMobile = $derived(isAndroid || (isMobile && !isWindows));
+
+  /**
+   * Opciones del botón Guardar. Se declaran una vez porque en Android se renderiza
+   * justo después del selector de fecha (que es lo que se está marcando) y en
+   * Windows al final de la cinta, junto al resto de acciones.
+   */
+  let optsGuardar = $derived({
+    onclick: handleManualSave,
+    disabled: !hasUnsavedChanges || saving,
+    icono: saving ? '⏳' : '💾',
+    etiqueta: saving ? 'Guardando' : 'Guardar',
+    tono: 'verde' as const,
+    sub: saving ? 'Escribiendo en la BD' : (hasUnsavedChanges ? 'Cambios sin guardar' : 'Sin cambios'),
+    title: 'Guardar asistencia',
+    compacto: isAndroidMobile,
+  });
   let pageVisible = $state(true);
 
   // Ancho de los modales (Sin Clases / Semana): más grande y cómodo en Windows,
@@ -156,19 +172,23 @@ import { portalToBody } from "../lib/portalToBody";
 
   type AsistenciaPeriodo = "diario" | "semanal" | "mensual";
   /**
-   * El período predeterminado es Mensual (se abre el mes en curso, que es lo que
-   * se usa a diario). Solo si no hay nada guardado se aplica ese valor: la
-   * preferencia del usuario se respeta.
+   * El período por defecto depende de la plataforma, y solo si no hay nada
+   * guardado: la preferencia del usuario se respeta siempre.
    *
-   * En Windows el filtro Diario no se ofrece: la pantalla es lo bastante ancha
-   * para que Semanal y Mensual sean más útiles. Si quedó persistido "diario"
-   * desde Android o de una versión anterior, se migra a Mensual en vez de dejar
-   * el <select> sin opción coincidente.
+   *  - Windows: Mensual. La pantalla es ancha y ver el mes entero es lo útil.
+   *  - Android: Diario. En un teléfono el día es la unidad de trabajo, y encima
+   *    es el único modo donde el botón "Rellenar/Limpiar" no ofrece elegir
+   *    días, así que el flujo se mantiene simple.
+   *
+   * En Windows el filtro Diario no se ofrece. Si quedó persistido "diario" desde
+   * Android o de una versión anterior, se migra a Mensual en vez de dejar el
+   * selector sin opción coincidente.
    */
   let periodo = $state<AsistenciaPeriodo>((() => {
     const guardado = localStorage.getItem("asistencia_periodo") as AsistenciaPeriodo | null;
-    if (guardado === "diario" && /Windows/i.test(navigator.userAgent)) return "mensual";
-    return guardado || "mensual";
+    const esWindows = /Windows/i.test(navigator.userAgent);
+    if (guardado === "diario" && esWindows) return "mensual";
+    return guardado || (esWindows ? "mensual" : "diario");
   })());
 
 
@@ -1979,9 +1999,15 @@ $effect(() => {
           {/if}
           <div class="android-actions" style="display:flex;gap:{isAndroidMobile ? '2px' : '0.3rem'};align-items:stretch;flex-shrink:0;{isAndroidMobile ? 'flex-wrap:nowrap;min-width:0;width:100%;max-width:100%;-webkit-overflow-scrolling:touch;' : 'overflow:visible'}overflow-x:{isAndroidMobile && dpAbierto ? 'visible' : isAndroidMobile ? 'auto' : 'visible'}">
           {#if isAndroidMobile && periodo === "diario"}
-            <div style="flex:1 1 40%;min-width:130px;max-width:180px;align-self:stretch;">
+            <!-- Más ancho que antes: con 130px la fecha "dd/mm/aaaa" no entraba y el
+                 año quedaba con puntos suspensivos. La fila es nowrap con scroll
+                 horizontal, así que ensanchar no empuja a los demás de la vista. -->
+            <div style="flex:1 1 52%;min-width:172px;max-width:260px;align-self:stretch;">
               <DatePickerGlass bind:value={selectedFecha} bind:abierto={dpAbierto} diaHabilitado={esDiaHabilCalendario} />
             </div>
+            <!-- Guardar va acá en Android: se sigue la fila de izquierda a derecha
+                 (fecha -> guardar) y queda a la vista sin tener que scrollear. -->
+            <BotonMod opts={optsGuardar} />
           {/if}
           <div class="pop-wrap" bind:this={popSinClasesEl} style="flex:0 0 auto;">
             <BotonMod opts={{
@@ -2097,16 +2123,9 @@ $effect(() => {
               : 'Marcar a todos los estudiantes del día',
             compacto: isAndroidMobile,
           }} />
-          <BotonMod opts={{
-            onclick: handleManualSave,
-            disabled: !hasUnsavedChanges || saving,
-            icono: saving ? '⏳' : '💾',
-            etiqueta: saving ? 'Guardando' : 'Guardar',
-            tono: 'verde',
-            sub: saving ? 'Escribiendo en la BD' : (hasUnsavedChanges ? 'Cambios sin guardar' : 'Sin cambios'),
-            title: 'Guardar asistencia',
-            compacto: isAndroidMobile,
-          }} />
+          {#if !isAndroidMobile}
+            <BotonMod opts={optsGuardar} />
+          {/if}
           {#if !isAndroidMobile}
           <div style="flex:1;min-width:100px">
           </div>
