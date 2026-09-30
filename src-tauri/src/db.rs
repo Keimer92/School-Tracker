@@ -5642,7 +5642,6 @@ pub fn grados_secciones_sin_asistencia(
          HAVING SUM(CASE WHEN EXISTS (
              SELECT 1 FROM asistencia a WHERE a.estudiante_id = e.id AND a.fecha = ?
          ) THEN 1 ELSE 0 END) < COUNT(*)
-         ORDER BY g.nombre, s.nombre
          ORDER BY g.nombre, s.nombre",
         where_parts.join(" AND ")
     );
