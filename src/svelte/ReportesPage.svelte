@@ -13,6 +13,7 @@ import SelectChip from "./SelectChip.svelte";
   import PageLayout from "./PageLayout.svelte";
   import FiltersModalAndroid from "./FiltersModalAndroid.svelte";
   import { registerBackHandler } from "../lib/androidBack";
+import { portalToBody } from "../lib/portalToBody";
   import { loadAppSettings, onAppSettingsChange } from "../lib/appSettings";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
@@ -791,14 +792,35 @@ import SelectChip from "./SelectChip.svelte";
   }
 
   let showClipboardMenu = $state(false);
+  /** Disparador del menú, para anclarlo. */
+  let clipboardBtn = $state<HTMLElement | null>(null);
+  let clipboardPanelEl = $state<HTMLDivElement | null>(null);
+  /**
+   * El menú se posiciona con `fixed` + coordenadas de viewport y se monta en
+   * `<body>`. Antes iba en `absolute` dentro de la cinta de filtros, y en Android
+   * esa cinta tiene `overflow-x: auto` más ancestros con `backdrop-filter`: el
+   * panel quedaba recortado y tapado por el contenido de abajo.
+   */
+  let clipboardPos = $state({ x: 0, y: 0, abajo: 'auto' });
+  const CLIPBOARD_ALTO_EST = 108;
 
-  function toggleClipboardMenu(e: MouseEvent) {
-    e.stopPropagation();
-    showClipboardMenu = !showClipboardMenu;
+  function toggleClipboardMenu(btn: HTMLElement) {
+    if (showClipboardMenu) { closeClipboardMenu(); return; }
+    const r = btn.getBoundingClientRect();
+    if (!r) return;
+    const abreArriba = r.bottom + CLIPBOARD_ALTO_EST > window.innerHeight && r.top > CLIPBOARD_ALTO_EST;
+    clipboardBtn = btn;
+    clipboardPos = {
+      x: Math.max(8, Math.min(Math.round(r.left), window.innerWidth - 248 - 8)),
+      y: abreArriba ? 0 : Math.round(r.bottom + 4),
+      abajo: abreArriba ? `${Math.round(window.innerHeight - r.top + 4)}px` : 'auto',
+    };
+    showClipboardMenu = true;
   }
 
   function closeClipboardMenu() {
     showClipboardMenu = false;
+    clipboardBtn = null;
   }
 
   function getNotaFinalValue(est: EstudianteReporte): string {
@@ -850,12 +872,26 @@ import SelectChip from "./SelectChip.svelte";
   }
 
   $effect(() => {
-    if (showClipboardMenu) {
-      const dispose = registerBackHandler(() => { showClipboardMenu = false; return true; });
-      const handler = () => { showClipboardMenu = false; };
-      const timer = setTimeout(() => window.addEventListener('click', handler), 0);
-      return () => { clearTimeout(timer); window.removeEventListener('click', handler); dispose(); };
-    }
+    if (!showClipboardMenu) return;
+    const dispose = registerBackHandler(() => { closeClipboardMenu(); return true; });
+    // `pointerdown` en fase de captura: si se cerrara con `click`, el clic que
+    // abre el menú lo cerraría en el mismo gesto. Se ignora el interior del
+    // panel y el propio disparador (que vive en la cinta, no en el portal).
+    const onPointerDown = (ev: PointerEvent) => {
+      const t = ev.target as Node | null;
+      if (t && (clipboardPanelEl?.contains(t) || clipboardBtn?.contains(t))) return;
+      closeClipboardMenu();
+    };
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') closeClipboardMenu(); };
+    window.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('resize', closeClipboardMenu);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', closeClipboardMenu);
+      dispose();
+    };
   });
 
   async function handlePrintWithIframe() {
@@ -899,7 +935,33 @@ import SelectChip from "./SelectChip.svelte";
     }
   }
 </script>
-{#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder="Buscar..." />{/if}
+{#snippet menuCopiar()}
+  <div
+    bind:this={clipboardPanelEl}
+    use:portalToBody
+    role="menu"
+    aria-label="Opciones para copiar"
+    style="position:fixed; z-index:99995; left:{clipboardPos.x}px; top:{clipboardPos.y}px; bottom:{clipboardPos.abajo}; min-width:240px; background:rgba(20,24,31,0.97); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); border:1px solid rgba(255,255,255,0.1); border-radius:12px; box-shadow:0 25px 60px -12px rgba(0,0,0,0.6); padding:0.4rem; box-sizing:border-box; overflow:hidden; animation:fadeIn 0.15s ease-out"
+  >
+    <button role="menuitem" onclick={copyFullTable}
+      style="display:flex;align-items:center;gap:8px;width:100%;padding:0.65rem 0.75rem;font-size:0.8rem;background:transparent;color:#e2e8f0;border:none;border-radius:8px;cursor:pointer;transition:all 0.15s ease;white-space:nowrap;text-align:left"
+      onmouseenter={(e) => e.currentTarget.style.backgroundColor = 'rgba(168,85,247,0.15)'}
+      onmouseleave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+      Estudiantes + Nota Final
+    </button>
+    <button role="menuitem" onclick={copyFinalGradesOnly}
+      style="display:flex;align-items:center;gap:8px;width:100%;padding:0.65rem 0.75rem;font-size:0.8rem;background:transparent;color:#e2e8f0;border:none;border-radius:8px;cursor:pointer;transition:all 0.15s ease;white-space:nowrap;text-align:left"
+      onmouseenter={(e) => e.currentTarget.style.backgroundColor = 'rgba(168,85,247,0.15)'}
+      onmouseleave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+      Solo Nota Final
+    </button>
+  </div>
+{/snippet}
+
+{#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder="
+Buscar..." />{/if}
 
 
 <div class="page-container" style="height:100%;min-height:0">
@@ -1029,27 +1091,14 @@ import SelectChip from "./SelectChip.svelte";
               {exportandoMasivo ? progresoMasivo : 'Todo'}
             </button>
             <div style="position:relative;flex-shrink:0">
-              <button onclick={toggleClipboardMenu} disabled={filteredReporte.length === 0 || loading}
-                style="height:42px;padding:0 0.4rem;font-size:0.75rem;background:linear-gradient(135deg,#a855f7,#9333ea);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{filteredReporte.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(168,85,247,0.4);flex-shrink:0;white-space:nowrap;opacity:{filteredReporte.length === 0 || loading ? 0.7 : 1}"
-                title="Copiar al portapapeles">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <button bind:this={clipboardBtn} onclick={() => clipboardBtn && toggleClipboardMenu(clipboardBtn)} disabled={filteredReporte.length === 0 || loading}
+                style="height:42px;padding:0 0.55rem;display:flex;align-items:center;gap:0.45rem;flex-shrink:0;border:1px solid rgba(168,85,247,0.5);border-radius:10px;background:linear-gradient(135deg,rgba(168,85,247,0.26),rgba(147,51,234,0.2));backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:#f3e8ff;font-weight:700;font-size:0.75rem;cursor:{filteredReporte.length === 0 || loading ? 'default' : 'pointer'};box-shadow:0 6px 18px rgba(147,51,234,0.26);white-space:nowrap;opacity:{filteredReporte.length === 0 || loading ? 0.65 : 1};transition:transform 0.15s ease,box-shadow 0.2s ease"
+                title="Copiar al portapapeles: la tabla completa o solo la nota final">
+                <span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:rgba(168,85,247,0.4);color:#e9d5ff;flex-shrink:0">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                </span>
+                Copiar
               </button>
-              {#if showClipboardMenu}
-                <div onclick={(e) => e.stopPropagation()} style="position:absolute;top:calc(100% + 4px);right:0;min-width:240px;background:rgba(20,24,31,0.85);backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.1);border-radius:12px;box-shadow:0 25px 60px -12px rgba(0,0,0,0.6);padding:0.4rem;z-index:200;overflow:hidden;animation:fadeIn 0.15s ease-out">
-                  <button onclick={copyFullTable}
-                    style="display:flex;align-items:center;gap:8px;width:100%;padding:0.65rem 0.75rem;font-size:0.8rem;background:transparent;color:#e2e8f0;border:none;border-radius:8px;cursor:pointer;transition:all 0.15s ease;white-space:nowrap"
-                    onmouseenter={(e) => e.currentTarget.style.backgroundColor = 'rgba(168,85,247,0.15)'}
-                    onmouseleave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
-                    Estudiantes + Nota Final
-                  </button>
-                  <button onclick={copyFinalGradesOnly}
-                    style="display:flex;align-items:center;gap:8px;width:100%;padding:0.65rem 0.75rem;font-size:0.8rem;background:transparent;color:#e2e8f0;border:none;border-radius:8px;cursor:pointer;transition:all 0.15s ease;white-space:nowrap"
-                    onmouseenter={(e) => e.currentTarget.style.backgroundColor = 'rgba(168,85,247,0.15)'}
-                    onmouseleave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
-                    Solo Nota Final
-                  </button>
-                </div>
-              {/if}
             </div>
           </div>
         {:else}
@@ -1158,7 +1207,7 @@ import SelectChip from "./SelectChip.svelte";
               {/if}
             </button>
             <div style="position:relative;flex-shrink:0">
-              <button onclick={toggleClipboardMenu} disabled={filteredReporte.length === 0 || loading}
+              <button bind:this={clipboardBtn} onclick={() => clipboardBtn && toggleClipboardMenu(clipboardBtn)} disabled={filteredReporte.length === 0 || loading}
                 style="height:42px;padding:0 {isMobile ? '0.55rem' : '1rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background:linear-gradient(135deg,rgba(168,85,247,0.16),rgba(147,51,234,0.06));border:1px solid rgba(168,85,247,0.28);color:#e9d5ff;border-radius:10px;display:flex;align-items:center;gap:9px;font-weight:700;cursor:{filteredReporte.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;flex-shrink:0;white-space:nowrap;opacity:{filteredReporte.length === 0 || loading ? 0.6 : 1}"
                 onmouseenter={(e) => { if (filteredReporte.length > 0 && !loading) (e.currentTarget as HTMLElement).style.background = 'linear-gradient(135deg,rgba(168,85,247,0.28),rgba(147,51,234,0.12))'; }}
                 onmouseleave={(e) => { (e.currentTarget as HTMLElement).style.background = 'linear-gradient(135deg,rgba(168,85,247,0.16),rgba(147,51,234,0.06))'; }}
@@ -1178,24 +1227,6 @@ import SelectChip from "./SelectChip.svelte";
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="margin-left:2px;transform:rotate(180deg);flex-shrink:0"><polyline points="6 9 12 15 18 9"/></svg>
                 {/if}
               </button>
-              {#if showClipboardMenu}
-                <div onclick={(e) => e.stopPropagation()} style="position:absolute;top:calc(100% + 4px);right:0;min-width:240px;background:rgba(20,24,31,0.85);backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,0.1);border-radius:12px;box-shadow:0 25px 60px -12px rgba(0,0,0,0.6);padding:0.4rem;z-index:200;overflow:hidden;animation:fadeIn 0.15s ease-out">
-                  <button onclick={copyFullTable}
-                    style="display:flex;align-items:center;gap:8px;width:100%;padding:0.65rem 0.75rem;font-size:0.8rem;background:transparent;color:#e2e8f0;border:none;border-radius:8px;cursor:pointer;transition:all 0.15s ease;white-space:nowrap"
-                    onmouseenter={(e) => e.currentTarget.style.backgroundColor = 'rgba(168,85,247,0.15)'}
-                    onmouseleave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
-                    Estudiantes + Nota Final
-                  </button>
-                  <button onclick={copyFinalGradesOnly}
-                    style="display:flex;align-items:center;gap:8px;width:100%;padding:0.65rem 0.75rem;font-size:0.8rem;background:transparent;color:#e2e8f0;border:none;border-radius:8px;cursor:pointer;transition:all 0.15s ease;white-space:nowrap"
-                    onmouseenter={(e) => e.currentTarget.style.backgroundColor = 'rgba(168,85,247,0.15)'}
-                    onmouseleave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-                    Solo Nota Final
-                  </button>
-                </div>
-              {/if}
             </div>
             <div style="flex:1;min-width:100px">
             </div>
@@ -1422,4 +1453,7 @@ import SelectChip from "./SelectChip.svelte";
       </div>
     {/snippet}
   </FiltersModalAndroid>
+  {#if showClipboardMenu}
+    {@render menuCopiar()}
+  {/if}
 </div>
