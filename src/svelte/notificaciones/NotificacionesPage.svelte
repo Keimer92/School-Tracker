@@ -1,0 +1,466 @@
+<script lang="ts">
+  /**
+   * NotificacionesPage — modulo de "Notif. Asistencia" (solo Android).
+   *
+   * Extraido de AjustesPage.svelte para que la pagina no dependa de el: aqui viven
+   * TODO su estado, sus funciones y sus estilos (`.notif-*`). AjustesPage solo la
+   * monta cuando `activeTab === "notificaciones"`.
+   *
+   * Como funciona: por cada colegio se define una ventana horaria `[inicio, fin]` y
+   * cada cuanto repetir (AlarmManager nativo). La config se guarda en localStorage
+   * (`stp_attendance_notif_settings`, espejo en la tabla `app_settings`) y se manda
+   * al calendario de Android con `schedule_attendance_alarm`.
+   */
+  import { invoke } from "@tauri-apps/api/core";
+  import { emit } from "@tauri-apps/api/event";
+  import { getLocalDateISOString } from "../../lib/dateUtils";
+  import { getAppSettings, saveAppSettings } from "../../lib/appSettings";
+
+  interface ColegioItem { id: number; nombre: string; }
+
+  const STORAGE_KEY = "stp_attendance_notif_settings";
+  const INTERVALOS = [15, 30, 45, 60, 90, 120];
+  const CFG_POR_DEFECTO: Omit<NotifColegioCfg, "activo"> = { inicio: "07:00", fin: "12:00", intervaloMin: 45 };
+
+  interface NotifColegioCfg { activo: boolean; inicio: string; fin: string; intervaloMin: number; }
+
+  let colegios = $state<ColegioItem[]>([]);
+  let enabled = $state(false);
+  let cfg = $state<Record<number, NotifColegioCfg>>({});
+  let saving = $state(false);
+  let testing = $state(false);
+  let silencedToday = $state(false);
+  let dismissing = $state(false);
+  // String porque `bind:value` en un <select> entrega texto; el comando Rust
+  // espera i64, por eso `testNotif` convierte con Number().
+  let testColegio = $state<string>("");
+  // La config se lee UNA vez al montar. Antes se releia en cada render (el efecto
+  // se auto-invalidaba) y pisaba la hora/intervalo recien elegidos.
+  let cargada = $state(false);
+
+  function cfgDe(id: number): NotifColegioCfg {
+    return cfg[id] ?? { activo: false, ...CFG_POR_DEFECTO };
+  }
+  function setCfg(id: number, patch: Partial<NotifColegioCfg>) {
+    cfg = { ...cfg, [id]: { ...cfgDe(id), ...patch } };
+  }
+  function toggleColegio(id: number) {
+    setCfg(id, { activo: !cfgDe(id).activo });
+  }
+
+  function loadSettings() {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (!stored) return;
+      const s = JSON.parse(stored);
+      enabled = !!s.enabled;
+      const map: Record<number, NotifColegioCfg> = {};
+      for (const c of Array.isArray(s.colegios) ? s.colegios : []) {
+        if (typeof c === "object" && c != null && c.id != null) {
+          map[Number(c.id)] = {
+            activo: true,
+            inicio: c.inicio || CFG_POR_DEFECTO.inicio,
+            fin: c.fin || CFG_POR_DEFECTO.fin,
+            intervaloMin: Number(c.intervaloMin) || CFG_POR_DEFECTO.intervaloMin,
+          };
+        }
+      }
+      if (Object.keys(map).length > 0) cfg = map;
+    } catch (e) {
+      console.error("[Notif] Error cargando config:", e);
+    }
+  }
+
+  async function loadCatalogs() {
+    try {
+      colegios = await invoke<ColegioItem[]>("get_colegios");
+    } catch (e) {
+      console.error("[Notif] Error cargando colegios:", e);
+    }
+  }
+
+  async function refreshSilenced() {
+    try {
+      silencedToday = await invoke<boolean>("get_attendance_silenced_today");
+    } catch {
+      silencedToday = false;
+    }
+  }
+
+  /**
+   * Persiste la config y programa la alarma. Son dos pasos separados a proposito:
+   * si la alarma falla, lo guardado NO se revierte, y el toast lo dice claro para
+   * no invitar a pulsar Guardar en bucle sin efecto.
+   */
+  async function save() {
+    saving = true;
+    try {
+      const activos = Object.entries(cfg)
+        .filter(([, c]) => c.activo)
+        .map(([id, c]) => ({
+          id: Number(id),
+          inicio: c.inicio,
+          fin: c.fin,
+          intervaloMin: Number(c.intervaloMin) || CFG_POR_DEFECTO.intervaloMin,
+        }));
+      const config = { enabled: enabled && activos.length > 0, colegios: activos };
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+      await saveAppSettings({ ...getAppSettings(), notifEnabled: enabled, notifCfg: cfg });
+
+      if (!config.enabled) {
+        await invoke("cancel_attendance_alarm");
+        await emit("show-toast", { message: "🔕 Notificaciones desactivadas", type: "info" });
+        return;
+      }
+
+      const detalle = activos.map(c => {
+        const nombre = colegios.find(x => x.id === c.id)?.nombre || `#${c.id}`;
+        return `${nombre} ${c.inicio}-${c.fin}/${c.intervaloMin}m`;
+      });
+      try {
+        const dbPath = await invoke<string>("get_db_path");
+        await invoke("schedule_attendance_alarm", { config: JSON.stringify(config), dbPath });
+        await emit("show-toast", { message: "🔔 Guardado · " + detalle.join(", "), type: "success" });
+      } catch (alarmErr) {
+        console.error("[Notif] Error programando alarma:", alarmErr);
+        const msg = alarmErr instanceof Error ? alarmErr.message : alarmErr;
+        await emit("show-toast", { message: `✅ Config guardada · ⚠️ no se pudo programar la alarma: ${msg}`, type: "warning" });
+      }
+    } catch (error) {
+      console.error("[Notif] Error guardando:", error);
+      await emit("show-toast", { message: "❌ Error al guardar: " + error, type: "error" });
+    } finally {
+      saving = false;
+    }
+  }
+
+  /** Dispara una notificacion real con los grados pendientes de HOY. */
+  async function test() {
+    const cid = Number(testColegio) || colegios[0]?.id;
+    if (!cid) { await emit("show-toast", { message: "⚠️ No hay colegios configurados", type: "warning" }); return; }
+    testing = true;
+    try {
+      const fecha = getLocalDateISOString();
+      const pendientes = await invoke<Array<{ grado: string; seccion: string }>>(
+        "get_grados_secciones_sin_asistencia_hoy", { colegioId: cid, fecha }
+      );
+      const nombre = colegios.find(c => c.id === cid)?.nombre || "";
+      if (!pendientes || pendientes.length === 0) {
+        // Distinguir motivo: dia no habil vs todo registrado.
+        let motivo = "todo está registrado hoy ✅";
+        try {
+          const dias = await invoke<Record<string, boolean>>("get_colegio_dias_asistencia", { colegioId: cid });
+          const nombres = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
+          const d = new Date(fecha + "T12:00:00").getDay();
+          if (dias && dias[nombres[d]] === false) motivo = "hoy NO es día hábil para este colegio 🚫";
+        } catch { /* la tabla puede no existir: se deja el motivo por defecto */ }
+        await emit("show-toast", { message: `ℹ️ Sin pendientes: ${motivo}`, type: "info" });
+        return;
+      }
+      const lista = pendientes.slice(0, 5).map(p => `${p.grado} ${p.seccion}`).join(", ");
+      const resto = pendientes.length > 5 ? ` y ${pendientes.length - 5} más` : "";
+      await invoke("notify_attendance_reminder", {
+        title: "Asistencia pendiente",
+        body: `Sin asistencia hoy (${nombre}): ${lista}${resto}`,
+      });
+      await emit("show-toast", { message: `🔔 Notificación enviada con ${pendientes.length} grado(s) pendiente(s)`, type: "success" });
+    } catch (error) {
+      console.error("[Notif] Error en la prueba:", error);
+      await emit("show-toast", { message: "❌ Error: " + error, type: "error" });
+    } finally {
+      testing = false;
+    }
+  }
+
+  async function dismissToday() {
+    dismissing = true;
+    try {
+      await invoke("dismiss_attendance_today");
+      silencedToday = true;
+      await emit("show-toast", { message: "🔕 Recordatorios silenciados para hoy", type: "success" });
+    } catch (error) {
+      await emit("show-toast", { message: "❌ Error: " + error, type: "error" });
+    } finally {
+      dismissing = false;
+    }
+  }
+
+  async function reactivateToday() {
+    try {
+      await invoke("set_attendance_silenced_today", { silenced: false });
+      silencedToday = false;
+      await emit("show-toast", { message: "🔔 Recordatorios reactivados para hoy", type: "success" });
+    } catch (error) {
+      await emit("show-toast", { message: "❌ Error: " + error, type: "error" });
+    }
+  }
+
+  $effect(() => {
+    if (cargada) return;
+    cargada = true;
+    loadSettings();
+    loadCatalogs();
+    refreshSilenced();
+  });
+</script>
+
+<div class="notif-page">
+  <!-- Header glass con toggle global -->
+  <div class="notif-hero">
+    <div class="notif-hero-icon">🔔</div>
+    <div style="flex:1;min-width:0">
+      <h3 style="margin:0 0 2px;font-size:1.05rem;color:#f1f5f9;">Notificaciones de Asistencia</h3>
+      <p style="margin:0;font-size:0.75rem;color:#94a3b8;line-height:1.45;">Avisa cuando un colegio tenga grados sin asistencia, dentro de su ventana horaria. Funciona con la app cerrada.</p>
+    </div>
+    <label class="switch" style="flex-shrink:0">
+      <input type="checkbox" bind:checked={enabled} />
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  {#if enabled}
+    <!-- Cards por colegio. Sin borde, el `gap` es lo que las separa. -->
+    <div class="notif-lista">
+      {#each colegios as c (c.id)}
+        {@const c0 = cfgDe(c.id)}
+        <div class="notif-colegio-card" class:activa={c0.activo}>
+          <div class="notif-colegio-head" onclick={() => toggleColegio(c.id)}>
+            <span class="notif-check">{c0.activo ? "✓" : ""}</span>
+            <span class="notif-colegio-nombre">{c.nombre}</span>
+          </div>
+          {#if c0.activo}
+            <div class="notif-colegio-body">
+              <div class="notif-campo">
+                <label>Desde</label>
+                <input type="time" value={c0.inicio} onchange={(e) => setCfg(c.id, { inicio: e.currentTarget.value })} />
+              </div>
+              <div class="notif-campo">
+                <label>Hasta</label>
+                <input type="time" value={c0.fin} onchange={(e) => setCfg(c.id, { fin: e.currentTarget.value })} />
+              </div>
+              <div class="notif-campo" style="flex:1.3">
+                <label>Repetir cada</label>
+                <!-- `String(m)` en las options: con numero nunca coincidia el
+                     `value` del select y volvia siempre a la primera opcion. -->
+                <select
+                  value={String(c0.intervaloMin)}
+                  onchange={(e) => setCfg(c.id, { intervaloMin: Number(e.currentTarget.value) })}>
+                  {#each INTERVALOS as m}
+                    <option value={String(m)}>{m} min</option>
+                  {/each}
+                </select>
+              </div>
+            </div>
+            <div class="notif-resumen">⏱ De {c0.inicio} a {c0.fin} · cada {c0.intervaloMin} min si hay grados pendientes</div>
+          {/if}
+        </div>
+      {:else}
+        <div class="notif-empty"><span>👆</span><span>No hay colegios configurados</span></div>
+      {/each}
+      {#if Object.values(cfg).filter(c => c.activo).length === 0 && colegios.length > 0}
+        <div class="notif-empty"><span>👆</span><span>Toca un colegio para configurar su horario</span></div>
+      {/if}
+    </div>
+
+    <!-- Acciones -->
+    <div class="notif-campo" style="width:100%;padding:0 0.75rem;">
+      <label>Colegio para la prueba</label>
+      <select bind:value={testColegio}>
+        {#each colegios as c (c.id)}
+          <option value={String(c.id)}>{c.nombre}</option>
+        {/each}
+      </select>
+    </div>
+    <div class="notif-acciones">
+      <button class="notif-btn-primary" onclick={save} disabled={saving}>
+        {saving ? "Guardando..." : "💾 Guardar"}
+      </button>
+      <button class="notif-btn-ghost" onclick={test} disabled={testing}>
+        {testing ? "Probando..." : "🔔 Probar real"}
+      </button>
+    </div>
+
+    <!-- Silenciar hoy -->
+    {#if silencedToday}
+      <div class="notif-banner-ok" style="margin:0 0.75rem;">
+        <span>🔕 Recordatorios silenciados para hoy</span>
+        <button onclick={reactivateToday} class="notif-btn-mini">Reactivar</button>
+      </div>
+    {:else}
+      <button class="notif-btn-ghost" onclick={dismissToday} disabled={dismissing} style="align-self:flex-start;width:auto;">
+        {dismissing ? "Silenciando..." : "🔕 Silenciar recordatorios de hoy"}
+      </button>
+    {/if}
+
+    <div class="notif-nota">
+       ⚠️ En Android 12+ la precisión exacta requiere el permiso "Alarmas y recordatorios exactos" (Sistema → Apps → School Tracker).
+    </div>
+  {:else}
+    <div class="notif-empty"><span>🔕</span><span>Las notificaciones están desactivadas</span></div>
+  {/if}
+</div>
+
+<style>
+  /* ── Contenedor: full-bleed como EvaluacionesPage ── */
+  .notif-page {
+    display: flex; flex-direction: column; gap: 0.75rem;
+    /* `stretch` + ancho completo: sin esto el flex column encoge las cards al
+       contenido y quedan angostas en Android. */
+    align-items: stretch;
+    width: 100%; max-width: 100%; min-width: 0;
+    box-sizing: border-box;
+  }
+  .notif-lista {
+    display: flex; flex-direction: column; gap: 0.9rem;
+    width: 100%; max-width: 100%;
+    align-items: stretch;
+  }
+  .notif-acciones {
+    display: flex; gap: 0.6rem;
+    width: 100%; padding: 0 0.75rem;
+    box-sizing: border-box;
+  }
+  .notif-acciones > * { flex: 1; min-width: 0; }
+
+  /* Vacio: se define aqui porque `empty-state-sm` solo existe (scoped) en
+     DashboardPage, asi que nunca aplicaba en Ajustes. */
+  .notif-empty {
+    display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+    padding: 1.5rem 0.75rem; font-size: 0.85rem; color: #64748b; text-align: center;
+  }
+
+  /* ── Hero ── */
+  .notif-hero {
+    display: flex; align-items: center; gap: 0.9rem;
+    padding: 1rem 0.85rem; border-radius: 18px;
+    width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box;
+    background: linear-gradient(135deg, rgba(245,158,11,0.12), rgba(139,92,246,0.06));
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border: none;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+  .notif-hero-icon {
+    width: 46px; height: 46px; border-radius: 14px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 1.3rem;
+    background: rgba(245,158,11,0.14); border: none;
+    backdrop-filter: blur(10px);
+  }
+
+  /* ── Card de colegio: sin borde, a sangre total ── */
+  .notif-colegio-card {
+    width: 100%; max-width: 100%; min-width: 0;
+    box-sizing: border-box; align-self: stretch;
+    border-radius: 16px; overflow: hidden;
+    /* Sin borde la card necesita algo mas de fondo para separarse del lienzo. */
+    background: rgba(255,255,255,0.045);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: none;
+    transition: all 0.2s ease;
+  }
+  /* El estado activo ya no puede marcar `border-color`; usa fondo + barra. */
+  .notif-colegio-card.activa {
+    background: rgba(var(--primary-rgb), 0.07);
+    box-shadow: inset 3px 0 0 var(--primary-color);
+  }
+  .notif-colegio-head {
+    display: flex; align-items: center; gap: 0.7rem;
+    padding: 0.85rem 0.75rem; cursor: pointer; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .notif-colegio-head:active { background: rgba(255,255,255,0.04); }
+  .notif-check {
+    width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.65rem; font-weight: 800; color: #fff;
+    border: 2px solid rgba(255,255,255,0.2);
+    transition: all 0.2s ease;
+  }
+  .activa .notif-check { background: var(--primary-color); border-color: var(--primary-color); box-shadow: 0 0 10px rgba(var(--primary-rgb), 0.4); }
+  .notif-colegio-nombre {
+    flex: 1; min-width: 0; font-size: 0.88rem; font-weight: 600; color: #e2e8f0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .notif-colegio-body {
+    display: flex; gap: 0.5rem; padding: 0 0.75rem 0.5rem;
+    width: 100%; box-sizing: border-box;
+  }
+  /* `min-width: 0` deja que los campos se encojan: sin esto el input de hora
+     (ancho minimo del picker nativo) ensancha la card en pantallas angostas. */
+  .notif-campo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .notif-campo label {
+    font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.5px;
+    color: #64748b; font-weight: 700;
+  }
+  .notif-campo input, .notif-campo select {
+    width: 100%; padding: 0.45rem 0.55rem; border-radius: 9px; box-sizing: border-box;
+    border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.25); color: #e2e8f0;
+    font-size: 0.85rem; outline: none; text-align: center;
+  }
+  .notif-campo input:focus, .notif-campo select:focus { border-color: var(--primary-color); }
+  .notif-resumen {
+    margin: 0 0.75rem 0.75rem; padding: 0.35rem 0.6rem; border-radius: 8px;
+    font-size: 0.68rem; color: #94a3b8;
+    background: rgba(0,0,0,0.2); border-left: 3px solid var(--primary-color);
+  }
+
+  /* ── Botones ── */
+  .notif-btn-primary {
+    height: 44px; border-radius: 12px; border: none; cursor: pointer;
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
+    color: #fff; font-weight: 700; font-size: 0.85rem;
+    box-shadow: 0 4px 14px rgba(var(--primary-rgb), 0.3);
+  }
+  .notif-btn-primary:disabled { opacity: 0.6; }
+  .notif-btn-ghost {
+    height: 44px; border-radius: 12px; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05);
+    color: #cbd5e1; font-weight: 600; font-size: 0.82rem;
+  }
+  .notif-btn-mini {
+    padding: 0.35rem 0.75rem; border-radius: 8px; cursor: pointer;
+    border: 1px solid rgba(16,185,129,0.4); background: rgba(16,185,129,0.15);
+    color: #6ee7b7; font-weight: 600; font-size: 0.72rem;
+  }
+
+  /* ── Banners ── */
+  .notif-banner-ok {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap;
+    padding: 0.8rem 0.95rem; border-radius: 12px; font-size: 0.8rem; color: #6ee7b7;
+    background: rgba(16,185,129,0.08); backdrop-filter: blur(12px);
+    border: 1px solid rgba(16,185,129,0.28);
+  }
+  .notif-nota {
+    padding: 0.75rem 0.9rem; border-radius: 12px;
+    font-size: 0.7rem; color: #fde68a; line-height: 1.5;
+    background: rgba(250,204,21,0.07); border: 1px solid rgba(250,204,21,0.18);
+    backdrop-filter: blur(12px);
+  }
+
+  /* ── Switch del toggle global ── */
+  .notif-hero .switch { position: relative; display: inline-block; width: 52px; height: 30px; margin: 0; }
+  .notif-hero .switch input { opacity: 0; width: 0; height: 0; }
+  .notif-hero .slider {
+    position: absolute; inset: 0;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 999px; cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .notif-hero .slider::before {
+    content: ''; position: absolute; width: 22px; height: 22px;
+    left: 4px; top: 50%; transform: translateY(-50%);
+    background: #cbd5e1; border-radius: 50%;
+    transition: all 0.3s cubic-bezier(0.34, 1.3, 0.64, 1);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+  }
+  .notif-hero .switch input:checked + .slider {
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    border-color: transparent;
+    box-shadow: 0 0 12px rgba(34,197,94,0.35);
+  }
+  .notif-hero .switch input:checked + .slider::before {
+    transform: translateY(-50%) translateX(21px);
+    background: #fff;
+  }
+</style>
