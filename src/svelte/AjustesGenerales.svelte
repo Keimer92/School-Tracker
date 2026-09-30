@@ -1,7 +1,8 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
-  import { onMount, onDestroy } from "svelte";
+    import { onMount, onDestroy, tick, untrack } from "svelte";
+
   import { registerBackHandler } from "../lib/androidBack";
   import { getAppSettings, saveAppSettings, loadAppSettings, onAppSettingsChange } from "../lib/appSettings";
   import CategoryTabContent from "./CategoryTabContent.svelte";
@@ -106,14 +107,54 @@
   });
   const activaVisible = $derived(!!activa && filtradas.some(s => s.id === activa!.id));
 
+  // ── Posición del scroll al volver a la lista (Android) ──
+  // En Android la lista de secciones NO es el elemento que scrollea: el scroll
+  // vive en un ancestro de la app. Al entrar a una sección la lista se
+  // desmonta y al volver se reconstruye desde 0, así que sin esto siempre
+  // aparecía en el principio (hay que hacer scroll de nuevo para llegar a
+  // secciones como "Info", que están al final).
+  let listaRef = $state<HTMLDivElement | null>(null);
+  let scrollGuardado = 0;
+
+  /** Sube por el árbol hasta el primer ancestro que realmente scrollea. */
+  function scrollerDe(el: HTMLElement | null): HTMLElement | null {
+    let p = el?.parentElement ?? null;
+    while (p) {
+      const st = getComputedStyle(p);
+      if (/(auto|scroll)/.test(st.overflowY) && p.scrollHeight > p.clientHeight + 1) return p;
+      p = p.parentElement;
+    }
+    return null;
+  }
+
   function abrir(s: Seccion) {
     cancelarHover();
+    // Se guarda la posición ANTES de que la lista se desmonte.
+    const sc = scrollerDe(listaRef);
+    if (sc) scrollGuardado = sc.scrollTop;
     activa = s;
     seccion = s.id;
     busqueda = '';
     if (s.contador && !contadoresCargados.has(s.id)) cargarContador(s);
   }
   function cerrar() { activa = null; }
+
+  /**
+   * Al volver a la lista se restaura el scroll. Necesita `tick()` porque la lista
+   * recién se monta en ese cambio: si se asignara el `scrollTop` de inmediato,
+   * el elemento todavía no existiría y el valor se perdería.
+   */
+  $effect(() => {
+    if (activa) return;                 // solo cuando se vuelve a la lista
+    const guardado = scrollGuardado;
+    if (guardado <= 0) return;
+    untrack(() => {
+      void tick().then(() => {
+        const sc = scrollerDe(listaRef);
+        if (sc) sc.scrollTop = guardado;
+      });
+    });
+  });
 
   /**
    * Abrir al pasar el cursor por el rail. Va con retardo a propósito: sin él,
@@ -303,7 +344,7 @@
 {#if isAndroidMobile}
   <div class="page-container">
     {#if !activa}
-      <div style="padding:1rem;">
+      <div style="padding:1rem;" bind:this={listaRef}>
         <h1 style="font-size:1.5rem;font-weight:700;color:#f1f5f9;margin-bottom:1.5rem;text-align:center;">Ajustes Generales</h1>
         <div style="display:flex;flex-direction:column;gap:0.75rem;">
           {#each GRUPOS as grupo (grupo)}
