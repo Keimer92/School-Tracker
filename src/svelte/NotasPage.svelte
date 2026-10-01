@@ -1260,13 +1260,19 @@
     } catch (error) { console.error("Error fetching secciones:", error); }
   }
 
-  async function fetchConfiguracionEvaluacion(silent = false): Promise<Indicador[]> {
+  /**
+   * @param escribir `false` devuelve los indicadores SIN asignarlos a `indicadores`.
+   *   Lo usa `loadNotas` para que las columnas nuevas y las filas nuevas caigan en
+   *   el mismo lote de render (ver el comentario ahí). Con `true` se comporta como
+   *   siempre: escribe y devuelve.
+   */
+  async function fetchConfiguracionEvaluacion(silent = false, escribir = true): Promise<Indicador[]> {
     const isActuallySilent = silent || nextRefreshSilent;
     if (!isActuallySilent) loading = true;
     const { corte, asignatura, grado } = filtersRef;
     try {
       const data = await invoke<Indicador[]>("get_evaluation_config", { gradoId: grado, asignaturaId: asignatura, corteEvaluativoId: corte, anoLectivoId: filtersRef.ano });
-      indicadores = data;
+      if (escribir) indicadores = data;
       return data;
     } catch (error) {
       console.error("Error fetching evaluation config:", error);
@@ -1752,11 +1758,19 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
     loading = true;
     try {
       const [currentIndicadores, estudiantesData, notasData] = await Promise.all([
-        fetchConfiguracionEvaluacion(true),
+        fetchConfiguracionEvaluacion(true, false),
         invoke<Estudiante[]>("get_estudiantes_by_filters", { gradoId: grado, seccionId: seccion }),
         invoke<{ estudianteId: number; criterioId: number; valor: number }[]>("get_notas_by_filters", { gradoId: grado, seccionId: seccion, corteId: corte, asignaturaId: asignatura })
       ]);
       if (currentLoadId !== loadId) return;
+      // Las columnas (`indicadores`) se escriben acá y no dentro de
+      // fetchConfiguracionEvaluacion a propósito. Ahí quedaban en un lote de render
+      // ANTERIOR al de `fetchEstudiantes`, y como hay un `await` de por medio Svelte
+      // no los agrupaba: al cambiar de sección se veía la tabla con los
+      // indicadores de la sección nueva arriba y las notas de la anterior abajo,
+      // y recién en el segundo render aparecía todo junto. Ahora ambas
+      // escrituras caen en el mismo tick.
+      indicadores = currentIndicadores;
       await fetchEstudiantes(currentIndicadores, true, { estudiantes: estudiantesData, notas: notasData });
       if (currentLoadId !== loadId) return;
       history = [];
