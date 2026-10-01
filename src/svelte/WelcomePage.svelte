@@ -409,11 +409,15 @@
       const backups = await driveSyncService.listBackups();
       driveFilesCount = backups.length;
       if (backups.length === 0) {
-        // No es un error: es el caso "esta cuenta no tiene respaldos". Se
-        // ofrecen alternativas en vez de dejar al usuario sin salida.
+        // No es un error: es el caso "esta cuenta no tiene respaldos". Como la
+        // portada tiene una sola vía con cuenta, la otra fuente de datos es la
+        // nube: se intenta restaurar desde Cloudflare en vez de dejar al usuario
+        // sin salida. Si eso tampoco trae datos, `retryCloudRestore` muestra sus
+        // opciones (reintentar / seguir con datos parciales / empezar de cero).
         driveSinRespaldo = true;
-        errorMsg = 'Esta cuenta de Google no tiene respaldos guardados en Drive.';
+        errorMsg = 'Esta cuenta no tiene respaldos en Drive. Intentando recuperar tus datos desde la nube…';
         loading = false; loadingMessage = '';
+        await retryCloudRestore();
         return;
       }
       // Se recorren del más nuevo al más viejo y se corta en el primero que
