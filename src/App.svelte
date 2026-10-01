@@ -282,13 +282,19 @@
    * garantiza que la app entre igual y registre la causa.
    */
   onMount(() => {
+    // El listener se registra acá, en la parte SINCRÓNICA del onMount, y el
+    // cleanup se devuelve como retorno. Antes se deregistraba desde dentro de
+    // `iniciar()` con `onDestroy(...)`, lo cual solo funcionaba por casualidad:
+    // mientras no hubiera un `await` antes, el cuerpo síncrono de `iniciar()`
+    // aún corre dentro del ciclo de vida del componente. Al primer `await`
+    // se habría lanzado `lifecycle_outside_component`.
+    window.addEventListener('keydown', handleKeyDown);
     void iniciar();
+    return () => window.removeEventListener('keydown', handleKeyDown);
   });
 
   async function iniciar() {
    try {
-    window.addEventListener('keydown', handleKeyDown);
-    onDestroy(() => window.removeEventListener('keydown', handleKeyDown));
     checkMobile();
 
     // Back button Android: enruta el back al JS (AppPlugin no cierra la app).

@@ -80,17 +80,22 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   }
   $effect(() => { saveAppSettings({ ...getAppSettings(), highlightColor }); });
 
-  onMount(async () => {
+  // El callback NO puede ser `async`: todo lo que sigue a un `await` se ejecuta
+  // fuera del contexto de inicialización del componente, y `onDestroy`lanza
+  // `lifecycle_outside_component`. Por eso el cleanup se devuelve como valor
+  // de retorno del `onMount` (Svelte lo invoca al destruír el componente).
+  onMount(() => {
     invoke<{ id: string; nombre: string; color: string; minimo: number }[]>("get_grade_configs").then(d => gradeConfigs = d).catch(e => console.error("Error fetching grade configs:", e));
     // La ruta de la BD la carga DebugPage por su cuenta (solo la usa esa sección).
     // Cargar configuraciones desde la tabla syncronizable
-    const settings = await loadAppSettings();
-    highlightColor = settings.highlightColor;
+    loadAppSettings()
+      .then((settings) => { highlightColor = settings.highlightColor; })
+      .catch((e) => console.error("Error loading app settings:", e));
     // Suscribirse a cambios externos (sync desde otro dispositivo)
     const unsub = onAppSettingsChange((s) => {
       highlightColor = s.highlightColor;
     });
-    onDestroy(unsub);
+    return () => unsub();
   });
 
   async function handleUpdateGradeConfig(id: string, nombre: string, color: string, minimo: number) {

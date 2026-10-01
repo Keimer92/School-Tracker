@@ -2433,7 +2433,11 @@ pub async fn get_students(state: tauri::State<'_, DbState>) -> Result<Vec<Studen
 pub async fn add_student(state: tauri::State<'_, DbState>, student: Student) -> Result<i64, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     conn.execute(
-        "INSERT INTO estudiante (nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, colegio_id, foto) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        // El 9º valor era un `?` sin columna correspondiente ("9 values for 8
+        // columns"). Se cierra con `datetime('now')` como hace `promote_students`,
+        // además de sellar `updated_at`: si quedara NULL, el sync D1 no podría
+        // comparar la fila contra los cursores y el estudiante nunca se subiría.
+        "INSERT INTO estudiante (nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, colegio_id, foto, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))",
         rusqlite::params![
             student.nombre,
             student.codigo,
