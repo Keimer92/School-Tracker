@@ -2788,13 +2788,24 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                       {/if}
                     {/if}
                     <td class="col-num" style="padding: 0.3rem 0.4rem; text-align: center; font-weight: 600; white-space: nowrap;">
-                      {#if isQualitative && distribuirTargets[est.estudianteId] && ['AA','AS','AF','AI'].includes(distribuirTargets[est.estudianteId]!.trim().toUpperCase())}
-                        {@const gradePrev = previewQualitativeGrade(distribuirTargets[est.estudianteId]!.trim().toUpperCase()) || ''}
+                      {#if isQualitative}
+                        <!-- En cualitativo esta columna es SIEMPRE una letra, nunca
+                             el número. Antes el `{:else}` caía en
+                             `calcularPctPreview` y pintaba el porcentaje (ej. "78")
+                             siempre que el estudiante no tuviera una letra elegida
+                             todavía, así que la columna mezclaba letras y números.
+                             Sin objetivo elegido se muestra el equivalente de la nota
+                             ACTUAL, que es lo que hay que comparar contra el
+                             resultado que se va a aplicar. -->
+                        {@const objetivoQual = distribuirTargets[est.estudianteId]?.trim().toUpperCase() || ''}
+                        {@const gradePrev = allowedQualitativeGrades.includes(objetivoQual)
+                          ? (previewQualitativeGrade(objetivoQual) || '')
+                          : (getGradeFromScore(calcularPctActual(est.estudianteId))?.id || '')}
                         <span style="color: {gradePrev ? getGradeColor(gradePrev) : '#a78bfa'}; font-size:0.9rem;">{gradePrev || '—'}</span>
                       {:else}
                         {@const pctPrev = calcularPctPreview(est.estudianteId, distribuirTargets[est.estudianteId])}
-                        {@const gradePrev = getGradeFromScore(pctPrev)?.id || ''}
-                        <span style="color: {gradePrev ? getGradeColor(gradePrev) : '#a78bfa'}">{pctPrev}</span>
+                        {@const gradePrevNum = getGradeFromScore(pctPrev)?.id || ''}
+                        <span style="color: {gradePrevNum ? getGradeColor(gradePrevNum) : '#a78bfa'}">{pctPrev}</span>
                       {/if}
                     </td>
                     <td class="col-num" style="padding: 0.15rem 0.3rem; text-align: center; white-space: nowrap;">
