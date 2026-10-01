@@ -7,7 +7,19 @@
   import { registerBackHandler } from "../lib/androidBack";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
-  interface CategoryConfig { title: string; table: string; endpoints: { get: string; add: string; update: string; delete: string; setActive?: string; updateOrder?: string; }; hideDefault?: boolean; noAdd?: boolean; }
+  interface CategoryConfig {
+    title: string;
+    table: string;
+    endpoints: { get: string; add: string; update: string; delete: string; setActive?: string; updateOrder?: string };
+    hideDefault?: boolean;
+    noAdd?: boolean;
+    /** No renderizar el toggle de 'activo' cuando el catalogo tiene un solo
+     *  elemento: no hay nada que elegir. Solo para Ano Lectivo. */
+    ocultarToggleSiUnico?: boolean;
+    /** El activo queda obligado a ser el de MAYOR anio calendario, y solo se
+     *  puede activar ese. Solo para Ano Lectivo. */
+    soloElMayor?: boolean;
+  }
   interface DeleteCheckResponse { hasStudents: boolean; hasGrades: boolean; hasNotes: boolean; hasAttendance: boolean; studentCount: number; noteCount: number; attendanceCount: number; }
 
   let { config, onConfigClick, accentColor = 'var(--primary-color)', accentIcon = '📋', headerExtra }: {
@@ -207,10 +219,56 @@
   }
 
   // ---- Toggles (buffered) ----
+
+  /** Año calendario de un item del catálogo, o null si el nombre no es un año. */
+  function anioDe(nombre: string): number | null {
+    const m = nombre.trim().match(/^(19|20)\d{2}$/);
+    return m ? parseInt(m[0], 10) : null;
+  }
+
+  /** Item con el MAYOR año calendario. Los que no son año van al final. */
+  function itemMayorAnio(lista: CategoryItem[]): CategoryItem | undefined {
+    return [...lista]
+      .sort((a, b) => (anioDe(b.nombre) ?? -1) - (anioDe(a.nombre) ?? -1))[0];
+  }
+
+  /**
+   * Activación EXCLUSIVA e irreversible: el catálogo siempre queda con uno
+   * activo.
+   *
+   * Antes el toggle era bidireccional (`i.id === id ? !yaActivo : false`), así
+   * que se podía dejar el catálogo sin ningún activo. Eso no lo persistía
+   * `handleSave` (solo llama a `setActive` si hay un `nuevoActivo`), dejando la
+   * UI y la base desincronizadas: se veía "nada activo" pero en la BD seguía el
+   * anterior. Ahora desactivar no es una operación: para cambiar hay que activar
+   * otro, y esa activación baja el anterior en el mismo paso.
+   */
   function handleSetActive(id: number) {
     if (!config.endpoints.setActive) return;
-    const yaActivo = items.find(i => i.id === id)?.activo;
-    items = items.map(i => ({ ...i, activo: i.id === id ? !yaActivo : false }));
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+
+    if (item.activo) {
+      emit('show-toast', {
+        message: `«${item.nombre}» ya está activo. Activá otro para cambiarlo.`,
+        type: 'info',
+      });
+      return;
+    }
+
+    // Año Lectivo: el activo tiene que ser el de mayor año calendario.
+    if (config.soloElMayor) {
+      const mayor = itemMayorAnio(items);
+      if (mayor && mayor.id !== item.id) {
+        emit('show-toast', {
+          message: `El año activo debe ser el mayor. Activá «${mayor.nombre}».`,
+          type: 'info',
+        });
+        return;
+      }
+    }
+
+    items = items.map(i => ({ ...i, activo: i.id === id }));
   }
 
   // NOTA: ya no hay `handleToggleCualitativo` ni `handleGlobalCualitativo`. El
@@ -490,7 +548,7 @@
             {/if}
           </span>
           <div style="display: flex; gap: 0.35rem; flex-shrink: 0; align-items: center;">
-            {#if config.endpoints.setActive && !config.hideDefault && !item.esNuevo}
+            {#if config.endpoints.setActive && !config.hideDefault && !item.esNuevo && !(config.ocultarToggleSiUnico && items.length <= 1)}
               <span class="cat-toggle-slot">
                 <label class="switch" title="Activar">
                   <input type="checkbox" checked={item.activo || false} onchange={() => handleSetActive(item.id)} />

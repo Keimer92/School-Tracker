@@ -35,10 +35,16 @@
   const isAndroidMobile = $derived(isAndroid || (isMobile && !isWindows));
 
   const CATEGORIES: CategoryConfig[] = [
-    { title: "Año Lectivo", table: "ano_lectivo", endpoints: { get: "get_anos", add: "add_ano", update: "update_ano", delete: "delete_ano", setActive: "set_active_ano" } },
+    // Año Lectivo: el toggle solo aparece si hay más de un año, y el activo
+    // queda obligado a ser el MAYOR año calendario (ver handleSetActive).
+    { title: "Año Lectivo", table: "ano_lectivo", endpoints: { get: "get_anos", add: "add_ano", update: "update_ano", delete: "delete_ano", setActive: "set_active_ano" }, ocultarToggleSiUnico: true, soloElMayor: true },
     { title: "Corte Evaluativo", table: "corte_evaluativo", endpoints: { get: "get_cortes", add: "add_corte", update: "update_corte", delete: "delete_corte", setActive: "set_active_corte" }, noAdd: true },
     { title: "Asignatura", table: "asignatura", endpoints: { get: "get_asignaturas", add: "add_asignatura", update: "update_asignatura", delete: "delete_asignatura" } },
-    { title: "Colegio", table: "colegio", endpoints: { get: "get_colegios", add: "add_colegio", update: "update_colegio", delete: "delete_colegio", setActive: "set_active_colegio", updateOrder: "update_colegio_order" }, hideDefault: true },
+    // Colegio SIN `setActive`: ya no existe un colegio "predeterminado".
+    // Asistencia se autoelige por días hábiles (`get_recommended_colegio`, que
+    // ya desempata alfabéticamente) y el resto de páginas toman el primero
+    // alfabético. Por eso `colegio.activo` quedasiempre en 0.
+    { title: "Colegio", table: "colegio", endpoints: { get: "get_colegios", add: "add_colegio", update: "update_colegio", delete: "delete_colegio", updateOrder: "update_colegio_order" } },
     { title: "Grado", table: "grado", endpoints: { get: "get_grados", add: "add_grado", update: "update_grado", delete: "delete_grado" }, noAdd: true },
     { title: "Sección", table: "seccion", endpoints: { get: "get_secciones", add: "add_seccion", update: "update_seccion", delete: "delete_seccion" } },
   ];

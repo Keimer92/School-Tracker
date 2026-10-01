@@ -3376,22 +3376,6 @@ pub async fn delete_colegio(state: tauri::State<'_, DbState>, id: i64) -> Result
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-pub async fn set_active_colegio(state: tauri::State<'_, DbState>, id: i64) -> Result<(), String> {
-    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
-    let tx = conn.transaction().map_err(|e| e.to_string())?;
-
-    // Deactivate all
-    tx.execute("UPDATE colegio SET activo = 0, updated_at = datetime('now')", [])
-        .map_err(|e| e.to_string())?;
-
-    // Activate selected
-    tx.execute("UPDATE colegio SET activo = 1, updated_at = datetime('now') WHERE id = ?", [id])
-        .map_err(|e| e.to_string())?;
-
-    tx.commit().map_err(|e| e.to_string())?;
-    Ok(())
-}
 
 #[tauri::command]
 pub async fn update_colegio_order(

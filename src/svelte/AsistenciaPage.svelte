@@ -8,6 +8,7 @@
   import { registerBackHandler } from "../lib/androidBack";
   import { getLocalDateISOString } from "../lib/dateUtils";
   import { loadAppSettings, onAppSettingsChange } from "../lib/appSettings";
+import { primerColegio } from "../lib/catalogo";
   import { ask } from "@tauri-apps/plugin-dialog";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
@@ -1320,9 +1321,14 @@ $effect(() => {
         invoke<number>("get_recommended_colegio"),
       ]);
       const activeAno = anosData.find(a => a.activo)?.id || (anosData.length > 0 ? anosData[0].id : 0);
+      // Colegio: primero el que tenga clases HOY (`get_recommended_colegio` ya
+      // desempata alfabéticamente entre los que corresponde). Si hoy no hay
+      // ninguno con ese día habilitado —fin de semana, feriado o colegio sin
+      // `colegio_dias_asistencia` cargado— se cae al primero alfabético. Ya no
+      // se mira `colegio.activo`: no existe colegio predeterminado.
       let colegioToSelect = 0;
       if (recommendedColegioId && recommendedColegioId > 0) colegioToSelect = recommendedColegioId;
-      else colegioToSelect = colegiosData.find(c => c.activo)?.id || (colegiosData.length > 0 ? colegiosData[0].id : 0);
+      else colegioToSelect = primerColegio(colegiosData)?.id || 0;
       anos = anosData; colegios = colegiosData; selectedAno = activeAno; selectedColegio = colegioToSelect;
     } catch (error) {
       console.error("Error fetching catalogs:", error);

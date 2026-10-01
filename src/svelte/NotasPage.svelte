@@ -5,6 +5,7 @@
   import { syncService } from "../lib/syncService";
   import { onDataChange } from "../lib/autoSync";
   import { loadAppSettings, onAppSettingsChange } from "../lib/appSettings";
+import { primerColegio } from "../lib/catalogo";
   import FilterContainer from "./FilterContainer.svelte";
   import BotonMod from "./BotonMod.svelte";
   import FilterGroup from "./FilterGroup.svelte";
@@ -1203,7 +1204,8 @@
       ]);
       const activeAno = anosData.find(a => a.activo)?.id || (anosData.length > 0 ? anosData[0].id : 0);
       const activeCorte = cortesData.find(c => c.activo)?.id || (cortesData.length > 0 ? cortesData[0].id : 0);
-      const activeColegio = colegiosData.find(c => c.activo)?.id || (colegiosData.length > 0 ? colegiosData[0].id : 0);
+      // Colegio: no hay predeterminado, se toma el primero alfabético.
+      const activeColegio = primerColegio(colegiosData)?.id || 0;
       anos = anosData;
       cortes = cortesData;
       colegios = colegiosData;
