@@ -198,6 +198,7 @@
         // La cuenta no está en la lista ALLOWED_EMAILS del Worker, pero Drive
         // ya quedó vinculado. Se sigue igual: esta opción restaura desde Drive,
         // que es un servicio aparte. Solo se pierde el sync con D1.
+        tieneNube = false;
         await emit("show-toast", { message: "ℹ️ Tu cuenta no tiene acceso a la nube de este desarrollador. Seguimos con tu Google Drive.", type: "info" });
         loadingMessage = 'Buscando tu último respaldo en Google Drive...';
         await restoreFromDrive();
@@ -216,6 +217,7 @@
       // La nube queda configurada con la key autoritativa del Worker antes de
       // restaurar: si el resync posterior corriera con la config vacía crearía
       // un namespace nuevo y el vínculo con los datos se perdería.
+      tieneNube = true;
       loadingMessage = 'Buscando tu último respaldo en Google Drive...';
       await restoreFromDrive();
     } catch (e: any) {
@@ -231,6 +233,28 @@
     step = 1;
     errorMsg = '';
     currentInput = '';
+  }
+
+  /**
+   * Avisa al usuario y lo conduce al wizard.
+   *
+   * El aviso NO puede quedar en `errorMsg`, porque `goToWizard()` lo limpia en
+   * el mismo paso: si se mostrara ahí, desaparecería antes de poder leerse y el
+   * usuario aparecería en el wizard sin entender por qué. Por eso se emite como
+   * toast, se espera un instante y recién entonces se cambia de vista.
+   */
+  async function irAlWizardTrasAviso() {
+    const aviso = errorMsg || 'No encontramos datos previos. Vamos a configurar tu base de datos desde cero.';
+    errorMsg = '';
+    driveSinRespaldo = false;
+    await emit("show-toast", { message: aviso, type: "info" });
+    loadingMessage = 'Preparando la configuración inicial...';
+    // Pausa deliberada: da tiempo a leer el motivo antes de que el wizard
+    // cubra la portada.
+    await new Promise((r) => setTimeout(r, 2200));
+    loading = false;
+    loadingMessage = '';
+    goToWizard();
   }
 
   /** Detecta errores transitorios del Worker (cuota free agotada, red, rate limit). */
@@ -312,6 +336,11 @@
   /** Diagnóstico visible del fallo: cuenta y cuántos respaldos encontró. */
   let driveAccount = $state('');
   let driveFilesCount = $state<number | null>(null);
+  /** ¿El login con Google devolvió una key de nube válida? Si es false
+   *  (cuenta nueva, fuera de ALLOWED_EMAILS) NO hay nada que buscar en
+   *  Cloudflare, así que ante un Drive vacío se va directo al wizard en vez de
+   *  gastar un intento de descarga. */
+  let tieneNube = $state(false);
   /** Archivo de Drive que terminó restaurándose con datos. */
   let driveBackupInfo = $state<DriveFileInfo | null>(null);
   /** Respaldos descartados por venir con la base vacía o fallar la descarga. */
@@ -337,12 +366,16 @@
         loading = false; loadingMessage = '';
         return;
       }
-      // Sin datos tras reintento: mostrar opciones en vez de saltar al wizard
-      // silenciosamente. El usuario debe decidir si reintentar, restaurar
-      // desde Drive o configurar manualmente.
-      cloudRetryError = 'El Worker respondió correctamente pero no se encontraron datos para tu cuenta de Google en la nube (0 filas aplicadas).\n\nPosibles causas:\n• Es la primera vez que conectas esta cuenta.\n• Los datos fueron eliminados de la nube previamente.\n• Estás usando una cuenta de Google distinta a la que tiene los datos.\n\nCuota free de Cloudflare se reinicia en aprox. ' + cloudflareResetInfo() + '.';
+      // El Worker respondió bien pero sin datos: es una respuesta CONCLUYENTE de
+      // que no hay nada que recuperar (cuenta nueva o datos borrados), no un
+      // fallo transitorio. En ese caso se encamina al wizard, que es donde
+      // el usuario va a terminar de todos modos. El bloque de opciones
+      // `showCloudRetry` queda reservado para errores reales (red, cuota,
+      // rate limit), donde saltar al wizard a ciegas podría hacer perder datos
+      // que sí están en la nube.
+      errorMsg = 'Tu nube respondió correctamente pero está vacía: no hay datos guardados para esta cuenta. Vamos a configurar tu base de datos desde cero.';
       loading = false; loadingMessage = '';
-      showCloudRetry = true;
+      await irAlWizardTrasAviso();
     } catch (e: any) {
       const m = typeof e === 'string' ? e : (e?.message || String(e));
       // Cualquier fallo del reintento ofrece opciones (Drive incluido),
@@ -409,12 +442,20 @@
       const backups = await driveSyncService.listBackups();
       driveFilesCount = backups.length;
       if (backups.length === 0) {
-        // No es un error: es el caso "esta cuenta no tiene respaldos". Como la
-        // portada tiene una sola vía con cuenta, la otra fuente de datos es la
-        // nube: se intenta restaurar desde Cloudflare en vez de dejar al usuario
-        // sin salida. Si eso tampoco trae datos, `retryCloudRestore` muestra sus
-        // opciones (reintentar / seguir con datos parciales / empezar de cero).
         driveSinRespaldo = true;
+        if (!tieneNube) {
+          // Caso "cuenta nueva": ni Drive tiene respaldos ni existe namespace
+          // en la nube (el Worker respondió sin-nube). No hay nada que buscar en
+          // ninguna parte, así que se informa y se pasa al wizard en vez de
+          // dejar al usuario en un callejón sin salida.
+          loading = false; loadingMessage = '';
+          errorMsg = 'Esta cuenta de Google es nueva: no tiene respaldos en Drive ni datos en la nube. Vamos a configurar tu base de datos desde cero.';
+          await irAlWizardTrasAviso();
+          return;
+        }
+        // Con nube configurada, Drive vacío puede ser un teléfono perdido: se
+        // intenta recuperar desde Cloudflare. Si tampoco trae datos,
+        // `retryCloudRestore` encamina al wizard.
         errorMsg = 'Esta cuenta no tiene respaldos en Drive. Intentando recuperar tus datos desde la nube…';
         loading = false; loadingMessage = '';
         await retryCloudRestore();
