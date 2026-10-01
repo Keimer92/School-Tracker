@@ -596,6 +596,10 @@ import { primerColegio } from "../lib/catalogo";
       const corteId = selectedCorte;
       const asignaturaId = selectedAsignatura;
       const borradas = await invoke<number>('vaciar_notas_indicador', { id: ind.id, corteId, asignaturaId });
+      // Imprescindible: el comando borra en local y deja tombstones, pero SIN
+      // esto no se dispara ni el push a D1 ni el respaldo a Drive. Las notas
+      // vaciadas volverían del otro dispositivo en el próximo pull.
+      onDataChange('nota', { immediate: true });
       await emit("show-toast", { message: `🧹 Indicador ${ind.orden}: ${borradas} nota(s) vaciada(s) en ${nombreCorte}`, type: 'success' });
       await recargarIndicadoresYNotas();
     } catch (e) {
@@ -617,6 +621,11 @@ import { primerColegio } from "../lib/catalogo";
     procesandoAccion = true;
     try {
       await invoke('delete_criterio', { id: crit.id });
+      // Mismo motivo que en "vaciar notas": sin `onDataChange` el tombstone del
+      // criterio y de sus notas queda local, y el criterio reaparece al bajar
+      // desde otro dispositivo.
+      onDataChange('nota', { immediate: true });
+      onDataChange('criterio', { immediate: true });
       await emit("show-toast", { message: `🗑 Criterio ${crit.orden} eliminado`, type: 'success' });
       await recargarIndicadoresYNotas();
     } catch (e) {
