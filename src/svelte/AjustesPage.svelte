@@ -184,10 +184,16 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
       </div>
       {/if}
 
-      <!-- DEBUGGING -->
-      {#if !filtro || filtro === "debugging"}
-        <DebugPage />
-      {/if}
+<!-- DEBUGGING -->
+  <!-- Un SOLO render. Antes había un segundo `<DebugPage />` en
+       `{#if activeTab === "debugging"}` más abajo, y no lo separaba ningún
+       `{:else}`: al abrir la sección se cumplían AMBAS condiciones
+       (`!filtro` porque el shell no pasa `filtro`, y `activeTab === 'debugging'`
+       porque el efecto de sección lo setea), así que se montaban dos instancias
+       con dos `ultimoTimer` independientes y dos backups por periodo. -->
+  {#if !filtro || filtro === "debugging"}
+    <DebugPage />
+  {/if}
 
       <!-- INFO -->
       {#if !filtro || filtro === "acercaDe"}
@@ -276,18 +282,9 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
               {/if}
             </div>
           </div>
-        {/if}
+{/if}
 
-        <!-- DEBUGGING -->
-        {#if activeTab === "debugging"}
-          <DebugPage />
-        {/if}
-
-        <!-- ACERCA DE -->
-        {#if activeTab === "acercaDe"}
-          <InfoPage />
-        {/if}
-      </div>
+  </div>
     </div>
   {/if}
 

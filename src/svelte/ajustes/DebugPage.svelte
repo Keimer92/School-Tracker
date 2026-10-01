@@ -71,8 +71,20 @@
     if (ultimoTimer) { clearTimeout(ultimoTimer); ultimoTimer = null; }
     if (!backupActivo || backupIntervaloMin <= 0) return;
     const periodo = backupIntervaloMin * 60_000;
-    const elapsed = Date.now() - ultimaCorridaMs;
-    const faltan = Math.max(60_000, periodo - (elapsed > 0 ? elapsed : periodo));
+    // La PRIMERA corrida tiene que esperar el periodo completo.
+    //
+    // Antes se calculaba `elapsed = Date.now() - ultimaCorridaMs` con
+    // `ultimaCorridaMs = 0`, o sea la hora de epoch (~1,8e12 ms): un número
+    // gigante pero POSITIVO, así que la rama `elapsed > 0 ? elapsed : periodo`
+    // tomaba siempre el valor gigante, `periodo - elapsed` daba negativo y lo
+    //_convertía_ el piso de 60 s. La rama `: periodo` (la que pretendía esperar
+    // el periodo completo) nunca se ejecutaba. Resultado: el primer backup
+    // salía a los 60 segundos, y como se reapagaba en cada montaje del
+    // componente, se repetía cada vez que se entraba a la sección.
+    const hayCorridaPrevia = ultimaCorridaMs > 0;
+    const elapsed = hayCorridaPrevia ? Date.now() - ultimaCorridaMs : 0;
+    const faltan = Math.max(60_000, periodo - elapsed);
+    console.debug(`[LocalBackup] agendado en ${Math.round(faltan / 1000)}s (periodo ${Math.round(periodo / 1000)}s, corrida previa: ${hayCorridaPrevia})`);
     ultimoTimer = setTimeout(async () => {
       ultimoTimer = null;
       await hacerBackupAhora();
