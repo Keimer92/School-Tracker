@@ -15,6 +15,7 @@
   import { emit } from "@tauri-apps/api/event";
   import { getLocalDateISOString } from "../../lib/dateUtils";
   import { getAppSettings, saveAppSettings } from "../../lib/appSettings";
+import { onMount } from "svelte";
 
   interface ColegioItem { id: number; nombre: string; }
 
@@ -40,6 +41,80 @@
   // La config se lee UNA vez al montar. Antes se releia en cada render (el efecto
   // se auto-invalidaba) y pisaba la hora/intervalo recien elegidos.
   let cargada = $state(false);
+
+  // ── Sonido de la alarma (solo Android) ──────────────────────────────
+  interface RingtoneState { ok: boolean; uri: string; label: string; canalExiste?: boolean; }
+  let ringtone = $state<RingtoneState>({ ok: true, uri: "", label: "Sonido por defecto del sistema" });
+  let abriendoSonido = $state(false);
+
+  const isAndroid = /Android/i.test(navigator.userAgent);
+
+  async function cargarRingtone() {
+    if (!isAndroid) return;
+    try {
+      const raw = await invoke<string>("attendance_get_ringtone");
+      ringtone = JSON.parse(raw);
+    } catch (e) {
+      console.warn("[Notif] No se pudo leer el sonido:", e);
+    }
+  }
+
+  /**
+   * Lanza el selector nativo. El resultado NO vuelve por el `invoke`: Kotlin
+   * emite el evento `android-ringtone-result` al WebView, porque el picker es
+   * asíncrono y la WebView puede recargarse mientras el usuario está en él.
+   */
+  async function elegirSonido(tipo: "sistema" | "archivo") {
+    if (abriendoSonido) return;
+    abriendoSonido = true;
+    try {
+      await invoke("attendance_pick_ringtone", { tipo });
+    } catch (e) {
+      abriendoSonido = false;
+      console.error("[Notif] No se pudo abrir el selector:", e);
+      await emit("show-toast", { message: "❌ No se pudo abrir el selector de sonido", type: "error" });
+    }
+    // `abriendoSonido` se baja recién en el evento o al volver a la app, por si
+    // el usuario cancela el picker (en ese caso no llega ningún evento).
+  }
+
+  async function resetSonido() {
+    try {
+      await invoke("attendance_reset_ringtone");
+      await cargarRingtone();
+    } catch (e) {
+      console.error("[Notif] No se pudo restablecer el sonido:", e);
+    }
+  }
+
+  onMount(() => {
+    void cargarRingtone();
+    // El evento se escucha en `window` y no por `listen` de Tauri a propósito:
+    // Kotlin lo inyecta con `CustomEvent`, que sobrevive aunque el objeto global
+    // `__TAURI__` no esté disponible en la WebView (mismo motivo que
+    // `google-native-auth-result`).
+    const onResultado = (ev: Event) => {
+      const detail = (ev as CustomEvent).detail as RingtoneState | undefined;
+      abriendoSonido = false;
+      if (!detail) return;
+      if (detail.ok) {
+        ringtone = detail;
+        void emit("show-toast", {
+          message: detail.uri ? `🔔 Sonido: ${detail.label}` : "🔔 Sonido por defecto del sistema",
+          type: "success",
+        });
+      }
+    };
+    window.addEventListener("android-ringtone-result", onResultado);
+    // Al volver a la app: si el usuario canceló el picker no llega evento, así
+    // que el botón quedaría trabado en "abriendo..." para siempre.
+    const onVisible = () => { if (document.visibilityState === "visible") abriendoSonido = false; };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("android-ringtone-result", onResultado);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  });
 
   function cfgDe(id: number): NotifColegioCfg {
     return cfg[id] ?? { activo: false, ...CFG_POR_DEFECTO };
@@ -326,6 +401,38 @@
       </button>
     </div>
 
+    <!-- Sonido de la alarma (solo Android) -->
+    {#if isAndroid}
+      <div class="notif-campo" style="width:100%;padding:0 0.75rem;">
+        <label>Sonido de la alarma</label>
+        <div class="notif-sonido-actual">
+          <span style="font-size:1.1rem;">🔔</span>
+          <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            {ringtone.label || "Sonido por defecto del sistema"}
+          </span>
+        </div>
+        <div class="notif-sonido-btns">
+          <button class="notif-btn-ghost" onclick={() => elegirSonido("sistema")}
+            disabled={abriendoSonido} style="width:auto;">
+            {abriendoSonido ? "Abriendo…" : "📱 Del sistema"}
+          </button>
+          <button class="notif-btn-ghost" onclick={() => elegirSonido("archivo")}
+            disabled={abriendoSonido} style="width:auto;">
+            🎵 Archivo
+          </button>
+          {#if ringtone.uri}
+            <button class="notif-btn-ghost" onclick={resetSonido} style="width:auto;">↺ Default</button>
+          {/if}
+        </div>
+        <p style="margin:0.4rem 0 0;font-size:0.7rem;color:#64748b;line-height:1.45;">
+          El archivo se copia por referencia y queda accesible aunque lo muevas.
+          Al cambiar el sonido se recrea el canal de la notificación, así que
+          Android reinicia la importancia y la vibración de ese canal a sus
+          valores por defecto.
+        </p>
+      </div>
+    {/if}
+
     <!-- Silenciar hoy -->
     {#if silencedToday}
       <div class="notif-banner-ok" style="margin:0 0.75rem;">
@@ -462,6 +569,21 @@
     border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05);
     color: #cbd5e1; font-weight: 600; font-size: 0.82rem;
   }
+  .notif-btn-ghost:disabled { opacity: 0.6; cursor: default; }
+
+  /* Selector de sonido: el nombre puede ser largo (rutas del explorador de
+     archivos), así que la fila actual recorta con ellipsis en vez de romper el
+     layout, y los botones se envuelven en columna. */
+  .notif-sonido-actual {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 0.7rem; border-radius: 10px;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    font-size: 0.8rem; color: #e2e8f0;
+  }
+  .notif-sonido-btns {
+    display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.4rem;
+  }
+  .notif-sonido-btns > * { flex: 1 1 auto; min-width: 0; }
   .notif-btn-mini {
     padding: 0.35rem 0.75rem; border-radius: 8px; cursor: pointer;
     border: 1px solid rgba(16,185,129,0.4); background: rgba(16,185,129,0.15);

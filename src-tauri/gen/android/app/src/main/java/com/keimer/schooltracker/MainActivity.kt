@@ -667,13 +667,14 @@ class MainActivity : TauriActivity() {
       context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
     val (uriStr, _) = AttendancePrefs.getRingtone(context)
+    // `getDefaultUri` está tipado como no-null en este compileSdk, así que el
+    // fallback a TYPE_ALARM era código muerto y el compilador lo rechazaba.
     val soundUri: Uri = if (uriStr.isBlank()) {
       RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-        ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
     } else {
       Uri.parse(uriStr)
     }
-    val firma = soundUri?.toString() ?: "(sin sonido)"
+    val firma = soundUri.toString()
 
     if (!forzar && AttendancePrefs.getChannelSound(context) == firma &&
       notificationManager.getNotificationChannel(channelId) != null
@@ -695,15 +696,13 @@ class MainActivity : TauriActivity() {
       ).apply {
         description = "Grados/secciones sin asistencia del día"
         enableVibration(true)
-        if (soundUri != null) {
-          setSound(
-            soundUri,
-            AudioAttributes.Builder()
-              .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-              .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-              .build()
-          )
-        }
+        setSound(
+          soundUri,
+          AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+        )
       }
       notificationManager.createNotificationChannel(channel)
       AttendancePrefs.setChannelSound(context, firma)
@@ -723,10 +722,14 @@ class MainActivity : TauriActivity() {
   fun pickAttendanceRingtone(tipo: String) {
     try {
       val intent = if (tipo == "sistema") {
-        Intent(Intent.ACTION_RINGTONE_PICKER).apply {
-          putExtra(Intent.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION)
-          putExtra(Intent.EXTRA_RINGTONE_SHOW_SILENT, false)
-          putExtra(Intent.EXTRA_RINGTONE_SHOW_VIBRATE, true)
+        // Las constantes del selector están en `RingtoneManager`, NO en `Intent`:
+        // `Intent.ACTION_RINGTONE_PICKER` no existe y el compilador lo rechaza.
+        Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+          putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION)
+          putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+          // `EXTRA_RINGTONE_SHOW_VIBRATE` no existe en el compileSdk de este
+          // proyecto; solo controla si el selector muestra el pseudo-ringtone
+          // "vibración", que no nos sirve igual.
         }
       } else {
         Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
