@@ -834,30 +834,26 @@ import { portalToBody } from "../lib/portalToBody";
     return String(Math.round(est.notaFinal));
   }
 
+  /**
+   * Copia SOLO dos columnas: el nombre del estudiante y su nota final.
+   *
+   * Antes exportaba `Estudiante | Sexo | Ind. 1..n | Nota Final`, que al pegar
+   * en Excel generaba una tabla intermedia difícil de usar: el maestro termina
+   * borrando las columnas de indicadores a mano para poder calzar la lista con
+   * su planilla. Ahora la salida es directamente de dos columnas, la misma
+   * información de la fila del reporte, y el formato queda alineado con el de
+   * "Solo Nota Final" (que es esta misma información sin la columna del nombre).
+   */
   async function copyFullTable() {
     if (filteredReporte.length === 0) return;
-    const headers = ['Estudiante', 'Sexo'];
-    if (!specialCorte) {
-      configIndicadores.forEach(ind => headers.push(`Ind. ${ind.orden}`));
-    }
-    headers.push('Nota Final');
-    const rows = filteredReporte.map(est => {
-      const cells = [est.nombre, est.sexo];
-      if (!specialCorte) {
-        configIndicadores.forEach(ind => {
-          const nota = est.notasIndicadores[ind.id] || 0;
-          const label = est.notasCualitativasIndicadores[ind.id] || '';
-          if (label === '-' || label === '') cells.push('-');
-          else cells.push(isQualitative ? label : String(Math.round(nota)));
-        });
-      }
-      cells.push(getNotaFinalValue(est));
-      return cells.join('\t');
-    });
+    const headers = ['Estudiante', 'Nota Final'];
+    const rows = filteredReporte.map(est =>
+      [est.nombre, getNotaFinalValue(est)].join('\t')
+    );
     const tsv = [headers.join('\t'), ...rows].join('\n');
     try {
       await navigator.clipboard.writeText(tsv);
-      await emit('show-toast', { message: `✅ ${filteredReporte.length} registros copiados. Pega en Excel (Ctrl+V).`, type: 'success' });
+      await emit('show-toast', { message: `✅ ${filteredReporte.length} estudiantes copiados con su nota final. Pega en Excel (Ctrl+V).`, type: 'success' });
     } catch (e) {
       await emit('show-toast', { message: `❌ Error al copiar: ${e}`, type: 'error' });
     }
@@ -946,7 +942,7 @@ import { portalToBody } from "../lib/portalToBody";
       style="height:42px;padding:0 {compacto || isMobile ? '0.55rem' : '1rem'};font-size:{compacto || isMobile ? '0.75rem' : '0.85rem'};background:linear-gradient(135deg,rgba(168,85,247,0.16),rgba(147,51,234,0.06));border:1px solid rgba(168,85,247,0.28);color:#e9d5ff;border-radius:10px;display:flex;align-items:center;gap:{compacto ? '0.45rem' : '9px'};font-weight:700;cursor:{filteredReporte.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;flex-shrink:0;white-space:nowrap;opacity:{filteredReporte.length === 0 || loading ? 0.6 : 1}"
       onmouseenter={(e) => { if (filteredReporte.length > 0 && !loading) (e.currentTarget as HTMLElement).style.background = 'linear-gradient(135deg,rgba(168,85,247,0.28),rgba(147,51,234,0.12))'; }}
       onmouseleave={(e) => { (e.currentTarget as HTMLElement).style.background = 'linear-gradient(135deg,rgba(168,85,247,0.16),rgba(147,51,234,0.06))'; }}
-      title="Copiar al portapapeles: la tabla completa o solo la nota final">
+      title="Copiar al portapapeles: estudiante con su nota final, o solo las notas">
       <span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:rgba(168,85,247,0.35);color:#f3e8ff;flex-shrink:0">
         <svg width="{compacto ? '13' : '12'}" height="{compacto ? '13' : '12'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
       </span>
