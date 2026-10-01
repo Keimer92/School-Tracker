@@ -1,5 +1,6 @@
 package com.keimer.schooltracker
 
+import android.app.Activity
 import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
@@ -47,6 +48,12 @@ class MainActivity : TauriActivity() {
   private lateinit var googleSignInLauncher: ActivityResultLauncher<Intent>
 
   companion object {
+    /** Id del canal de la alarma de asistencia. Debe coincidir con el que usa
+     *  `AttendanceAlarmReceiver` y con el que ya quedó creado en installs
+     *  previos: si cambia, Android deja el canal viejo dando notificaciones con
+     *  el sonido anterior. */
+    const val ATTENDANCE_CHANNEL_ID = "attendance_reminders"
+
     @Volatile
     var lastNativeAuthResult: String? = null
 
@@ -378,27 +385,13 @@ class MainActivity : TauriActivity() {
 
   fun notifyAttendanceReminder(title: String, body: String) {
     try {
-      val channelId = "attendance_reminders"
+      val channelId = ATTENDANCE_CHANNEL_ID
       val notificationManager = getSystemService(NotificationManager::class.java)
 
-      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        val channel = NotificationChannel(
-          channelId,
-          "Recordatorio de asistencia",
-          NotificationManager.IMPORTANCE_HIGH
-        ).apply {
-          description = "Grados/secciones sin asistencia del día"
-          val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-          setSound(
-            soundUri,
-            AudioAttributes.Builder()
-              .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-              .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-              .build()
-          )
-        }
-        notificationManager.createNotificationChannel(channel)
-      }
+      // El canal se (re)crea con el sonido elegido por el usuario. Ya no se
+      // hardcodea `RingtoneManager.getDefaultUri` acá: el sonido vive en el
+      // canal, y el canal es lo único que lo puede cambiar.
+      ensureAttendanceChannel(this)
 
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
         checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -643,5 +636,212 @@ class MainActivity : TauriActivity() {
     } catch (e: Exception) {
       android.util.Log.e("MainActivity", "Error mostrando drive notification: ${e.message}")
     }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  SONIDO DE LA ALARMA DE ASISTENCIA
+  // ══════════════════════════════════════════════════════════════════════
+  //
+  // En Android 8+ el sonido de una notificación se fija en el NotificationChannel
+  // y Android CONGELA ese valor: `setSound()` sobre un canal existente se ignora
+  // en silencio. La única forma de cambiarlo es borrar el canal y recrearlo, y
+  // eso reinicia lo que el haya configurado a mano en los ajustes del sistema
+  // (importancia, vibración, "silenciar"). Por eso `ensureAttendanceChannel`
+  // solo borra cuando la firma del sonido cambia de verdad.
+
+  private val ringtoneLauncher = registerForActivityResult(
+    ActivityResultContracts.StartActivityForResult()
+  ) { result -> handleRingtoneResult(result.resultCode, result.data) }
+
+  /**
+   * Crea (o recrea) el canal de la alarma con el sonido elegido.
+   *
+   * @param forzar recrear aunque la firma no haya cambiado (lo usa la app al
+   *   arrancar después de que el usuario haya podido cambiar el canal desde los
+   *   ajustes del sistema).
+   */
+  private fun ensureAttendanceChannel(context: Context, forzar: Boolean = false) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+    val channelId = ATTENDANCE_CHANNEL_ID
+    val notificationManager =
+      context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+    val (uriStr, _) = AttendancePrefs.getRingtone(context)
+    val soundUri: Uri = if (uriStr.isBlank()) {
+      RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+        ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+    } else {
+      Uri.parse(uriStr)
+    }
+    val firma = soundUri?.toString() ?: "(sin sonido)"
+
+    if (!forzar && AttendancePrefs.getChannelSound(context) == firma &&
+      notificationManager.getNotificationChannel(channelId) != null
+    ) {
+      return
+    }
+
+    try {
+      // Solo si la firma cambió: recrear el canal sin motivo reiniciaría las
+      // preferencias del usuario en los ajustes del sistema.
+      if (notificationManager.getNotificationChannel(channelId) != null) {
+        notificationManager.deleteNotificationChannel(channelId)
+        android.util.Log.i("Ringtone", "Canal recreado por cambio de sonido -> $firma")
+      }
+      val channel = NotificationChannel(
+        channelId,
+        "Recordatorio de asistencia",
+        NotificationManager.IMPORTANCE_HIGH
+      ).apply {
+        description = "Grados/secciones sin asistencia del día"
+        enableVibration(true)
+        if (soundUri != null) {
+          setSound(
+            soundUri,
+            AudioAttributes.Builder()
+              .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+              .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+              .build()
+          )
+        }
+      }
+      notificationManager.createNotificationChannel(channel)
+      AttendancePrefs.setChannelSound(context, firma)
+    } catch (e: Exception) {
+      android.util.Log.e("Ringtone", "No se pudo crear el canal: ${e.message}")
+    }
+  }
+
+  /**
+   * Abre el selector. `tipo` = "sistema" (ringtones del dispositivo) o
+   * "archivo" (cualquier mp/wav/ogg del almacenamiento).
+   *
+   * Se usa `ACTION_RINGTONE_PICKER` y no `ACTION_GET_CONTENT` para el sistema:
+   * muestra los ringtones ya instalados sin que la app tenga que enumerarlos
+   * (Android no expone una API pública para listarlos).
+   */
+  fun pickAttendanceRingtone(tipo: String) {
+    try {
+      val intent = if (tipo == "sistema") {
+        Intent(Intent.ACTION_RINGTONE_PICKER).apply {
+          putExtra(Intent.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION)
+          putExtra(Intent.EXTRA_RINGTONE_SHOW_SILENT, false)
+          putExtra(Intent.EXTRA_RINGTONE_SHOW_VIBRATE, true)
+        }
+      } else {
+        Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+          addCategory(Intent.CATEGORY_OPENABLE)
+          // `*/*` y no `audio/*`: muchos exploradores de archivos de Android
+          // clasifican un .mp como `application/octet-stream`, y con `audio/*`
+          // el archivo sencillamente no aparece en la lista.
+          type = "*/*"
+          putExtra(
+            Intent.EXTRA_MIME_TYPES,
+            arrayOf("audio/*", "application/octet-stream", "*/*")
+          )
+          addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+          addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+      }
+      ringtoneLauncher.launch(intent)
+    } catch (e: Exception) {
+      android.util.Log.e("Ringtone", "No se pudo abrir el selector: ${e.message}")
+      emitRingtoneResult(false, "", "", "No se pudo abrir el selector: ${e.message}")
+    }
+  }
+
+  private fun handleRingtoneResult(resultCode: Int, data: Intent?) {
+    if (resultCode != Activity.RESULT_OK || data == null) {
+      emitRingtoneResult(false, "", "", null)
+      return
+    }
+    val uri: Uri? = data.data
+    if (uri == null) {
+      emitRingtoneResult(false, "", "", null)
+      return
+    }
+    try {
+      // Sin permiso persistente, el URI deja de servir tras un reinicio y la
+      // alarma sonaría con el default (o en silencio). Es la diferencia entre
+      // "funciona hoy" y "funciona siempre".
+      try {
+        contentResolver.takePersistableUriPermission(
+          uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
+        )
+      } catch (e: Exception) {
+        // Los ringtones del sistema no pasan por SAF: no tienen permiso
+        // persistente y no lo necesitan. Se ignora el fallo a propósito.
+        android.util.Log.d("Ringtone", "Sin permiso persistente (URI del sistema): ${e.message}")
+      }
+      val label = resolveRingtoneLabel(uri)
+      AttendancePrefs.setRingtone(this, uri.toString(), label)
+      ensureAttendanceChannel(this, forzar = true)
+      emitRingtoneResult(true, uri.toString(), label, null)
+    } catch (e: Exception) {
+      emitRingtoneResult(false, "", "", e.message)
+    }
+  }
+
+  private fun resolveRingtoneLabel(uri: Uri): String {
+    return try {
+      val cursor = contentResolver.query(uri, null, null, null, null)
+      cursor?.use {
+        if (it.moveToFirst()) {
+          val idx = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+          if (idx >= 0) {
+            val name = it.getString(idx)
+            if (!name.isNullOrBlank()) return name
+          }
+        }
+      }
+      uri.lastPathSegment ?: uri.toString()
+    } catch (e: Exception) {
+      uri.lastPathSegment ?: uri.toString()
+    }
+  }
+
+  /** Vuelve al sonido por defecto del sistema. */
+  fun resetAttendanceRingtone() {
+    AttendancePrefs.setRingtone(this, "", "")
+    ensureAttendanceChannel(this, forzar = true)
+    emitRingtoneResult(true, "", "Sonido por defecto del sistema", null)
+  }
+
+  /** Estado actual como JSON: `{"ok":true,"uri":"...","label":"..."}`. */
+  fun getAttendanceRingtone(): String {
+    val (uri, label) = AttendancePrefs.getRingtone(this)
+    val json = org.json.JSONObject().apply {
+      put("ok", true)
+      put("uri", uri)
+      put(
+        "label",
+        if (label.isBlank()) "Sonido por defecto del sistema" else label
+      )
+      put("canalExiste", notificationChannelExists())
+    }
+    return json.toString()
+  }
+
+  private fun notificationChannelExists(): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return true
+    val nm = getSystemService(NotificationManager::class.java)
+    return nm.getNotificationChannel(ATTENDANCE_CHANNEL_ID) != null
+  }
+
+  private fun emitRingtoneResult(ok: Boolean, uri: String, label: String, error: String?) {
+    val json = org.json.JSONObject().apply {
+      put("ok", ok)
+      put("uri", uri)
+      put("label", label)
+      if (error != null) put("error", error)
+    }.toString()
+    val escaped = json.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+    val js = """
+      (function(){
+        try { if (window.__TAURI__ && window.__TAURI__.event) { window.__TAURI__.event.emit('android-ringtone-result', JSON.parse('$escaped')); } } catch(e) {}
+        try { window.dispatchEvent(new CustomEvent('android-ringtone-result', { detail: JSON.parse('$escaped') })); } catch(e) {}
+      })();
+    """.trimIndent()
+    webView?.post { webView?.evaluateJavascript(js, null) }
   }
 }

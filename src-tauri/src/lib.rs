@@ -861,6 +861,89 @@ struct BatteryStatus {
     source: &'static str,
 }
 
+/// Estado del sonido elegido para la alarma de asistencia (solo Android).
+///
+/// Devuelve el JSON que arma Kotlin: `{ ok, uri, label, canalExiste }`. En
+/// desktop devuelve el equivalente con el sonido por defecto para que el
+/// frontend pueda pintar la UI sin ramificar por plataforma.
+#[tauri::command]
+async fn attendance_get_ringtone() -> Result<String, String> {
+    #[cfg(target_os = "android")]
+    {
+        let (vm, activity) = obtain_native_bridge()?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        let j_obj = env
+            .call_method(
+                activity.as_obj(),
+                "getAttendanceRingtone",
+                "()Ljava/lang/String;",
+                &[],
+            )
+            .map_err(|e| format!("Error JNI getAttendanceRingtone: {}", e))?
+            .l()
+            .map_err(|e| e.to_string())?;
+        if j_obj.is_null() {
+            return Ok(r#"{"ok":true,"uri":"","label":"Sonido por defecto del sistema"}"#.to_string());
+        }
+        let s: String = env
+            .get_string(&jni::objects::JString::from(j_obj))
+            .map_err(|e| e.to_string())?
+            .into();
+        Ok(s)
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        Ok(r#"{"ok":true,"uri":"","label":"Sonido por defecto del sistema"}"#.to_string())
+    }
+}
+
+/// Abre el selector de sonido de Android: `"sistema"` (ringtones instalados) o
+/// `"archivo"` (mp/wav/ogg del almacenamiento).
+///
+/// El resultado NO vuelve por acá: el picker es asíncrono y el WebView puede
+/// recargarse mientras el usuario está en el selector. Kotlin guarda el URI y
+/// emite el evento `android-ringtone-result` al WebView; el frontend además
+/// puede releer el estado con `attendance_get_ringtone`.
+#[tauri::command]
+async fn attendance_pick_ringtone(tipo: String) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        let (vm, activity) = obtain_native_bridge()?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        let j_tipo = env.new_string(&tipo).map_err(|e| e.to_string())?;
+        env.call_method(
+            activity.as_obj(),
+            "pickAttendanceRingtone",
+            "(Ljava/lang/String;)V",
+            &[jni::objects::JValue::Object(&j_tipo)],
+        )
+        .map_err(|e| format!("Error JNI pickAttendanceRingtone: {}", e))?;
+        Ok(())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = tipo;
+        Err("La selección de sonido solo está disponible en Android.".to_string())
+    }
+}
+
+/// Vuelve al sonido por defecto del sistema y recrea el canal.
+#[tauri::command]
+async fn attendance_reset_ringtone() -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        let (vm, activity) = obtain_native_bridge()?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        env.call_method(activity.as_obj(), "resetAttendanceRingtone", "()V", &[])
+            .map_err(|e| format!("Error JNI resetAttendanceRingtone: {}", e))?;
+        Ok(())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        Ok(())
+    }
+}
+
 #[tauri::command]
 async fn gd_battery_status() -> Result<BatteryStatus, String> {
     #[cfg(target_os = "android")]
@@ -2174,6 +2257,9 @@ update_colegio,
             gd_request_notification_permission,
             gd_take_last_native_result,
             gd_battery_status,
+    attendance_get_ringtone,
+    attendance_pick_ringtone,
+    attendance_reset_ringtone,
             gd_show_notification,
             get_monthly_attendance_pct,
             get_seed_options,
