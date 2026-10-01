@@ -2736,10 +2736,11 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                     <div style="font-size: 0.68rem; color: #fbcfe8; font-weight: 700; white-space: nowrap;">{nombreCortoCorte(corteActualNombre)}</div>
                     <div style="font-size: 0.5rem; color: #f472b6; text-transform: uppercase; letter-spacing: 0.3px;">corte actual</div>
                   </th>
-                  {#if isQualitative}
-                    <th class="col-num" style="text-align: center; padding: 0.4rem 0.4rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Meta</th>
-                  {/if}
-                  <th class="col-num" style="text-align: center; padding: 0.4rem 0.4rem; background: rgba(15, 23, 42, 0.95); color: #a78bfa; font-weight: 600; white-space: nowrap; border-bottom: 1px solid rgba(139,92,246,0.15);">→ Resultante</th>
+                  <!-- Se quitó la columna "Meta" (solo cualitativo): repetía literalmente
+                       la letra elegida en la columna "Nota objetivo" de la derecha, sin
+                       aportar nada. Su sentido de "total objetivo" solo aplica a las notas
+                       numéricas, y ese caso ya tiene su propia columna "Nuevo total". -->
+                  <th class="col-num" title={isQualitative ? 'Nota final que quedará al aplicar la letra elegida' : 'Total que resultará de aplicar el nuevo total'} style="text-align: center; padding: 0.4rem 0.4rem; background: rgba(15, 23, 42, 0.95); color: #a78bfa; font-weight: 600; white-space: nowrap; border-bottom: 1px solid rgba(139,92,246,0.15);">{isQualitative ? 'Nueva Nota' : '→ Resultante'}</th>
                   <th class="col-num" style="text-align: center; padding: 0.4rem 0.4rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; white-space: nowrap; border-bottom: 1px solid rgba(255,255,255,0.06);">{isQualitative ? 'Nota objetivo' : 'Nuevo total'}</th>
                 </tr>
               </thead>
@@ -2775,33 +2776,24 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                         <span style="color: {gradeActual ? getGradeColor(gradeActual) : '#94a3b8'}; font-weight: 600;">{pctActual}</span>
                       {/if}
                     </td>
-                    {#if isQualitative}
-                      {#if isQualitative}
-                        {@const objActual = distribuirTargets[est.estudianteId]?.trim().toUpperCase() || ''}
-                        <td class="col-num" style="padding: 0.3rem 0.4rem; text-align: center; white-space: nowrap; color: #94a3b8; font-weight: 600;">
-                          {#if ['AA','AS','AF','AI'].includes(objActual)}
-                            <span style="color: {getGradeColor(objActual)};">{objActual}</span>
-                          {:else}
-                            -
-                          {/if}
-                        </td>
-                      {/if}
-                    {/if}
                     <td class="col-num" style="padding: 0.3rem 0.4rem; text-align: center; font-weight: 600; white-space: nowrap;">
                       {#if isQualitative}
-                        <!-- En cualitativo esta columna es SIEMPRE una letra, nunca
-                             el número. Antes el `{:else}` caía en
-                             `calcularPctPreview` y pintaba el porcentaje (ej. "78")
-                             siempre que el estudiante no tuviera una letra elegida
-                             todavía, así que la columna mezclaba letras y números.
-                             Sin objetivo elegido se muestra el equivalente de la nota
-                             ACTUAL, que es lo que hay que comparar contra el
-                             resultado que se va a aplicar. -->
+                        <!-- "Nueva Nota": queda VACÍA hasta que se elige una letra.
+                             Mostrar antes el equivalente de la nota actual era
+                             engañoso: parecía un resultado ya calculado cuando en
+                             realidad no se había tocado nada, y esa información
+                             ya está en la columna "Nota final actual" de la
+                             izquierda. El guion es el marcador de "vacío" que ya
+                             usa el resto de la tabla para "sin datos". -->
                         {@const objetivoQual = distribuirTargets[est.estudianteId]?.trim().toUpperCase() || ''}
                         {@const gradePrev = allowedQualitativeGrades.includes(objetivoQual)
                           ? (previewQualitativeGrade(objetivoQual) || '')
-                          : (getGradeFromScore(calcularPctActual(est.estudianteId))?.id || '')}
-                        <span style="color: {gradePrev ? getGradeColor(gradePrev) : '#a78bfa'}; font-size:0.9rem;">{gradePrev || '—'}</span>
+                          : ''}
+                        {#if gradePrev}
+                          <span style="color: {getGradeColor(gradePrev)}; font-size:0.9rem;">{gradePrev}</span>
+                        {:else}
+                          <span style="color: #64748b;">—</span>
+                        {/if}
                       {:else}
                         {@const pctPrev = calcularPctPreview(est.estudianteId, distribuirTargets[est.estudianteId])}
                         {@const gradePrevNum = getGradeFromScore(pctPrev)?.id || ''}
