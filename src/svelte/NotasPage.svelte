@@ -1910,6 +1910,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
 
 <div class="page-container notas-page-root" style="height: 100%; min-height: 0;">
   <div class="category-grid" style="display: flex; flex-direction: column; height: 100%;">
+    {#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder="Buscar estudiante o nota..." />{/if}
     <div style="{isAndroid && isMobile ? 'position: sticky; top: 0; z-index: 50; background: #0f172a; padding-bottom: 0.2rem; margin-bottom: 0.3rem;' : ''}">
       <FiltersModalAndroid
         bind:open={showFiltersModal}
@@ -3030,6 +3031,5 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
 
 
 
-    {#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder="Buscar estudiante o nota..." />{/if}
-  </div>
+    </div>
 </div>

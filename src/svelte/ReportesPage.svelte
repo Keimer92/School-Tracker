@@ -986,11 +986,9 @@ import { portalToBody } from "../lib/portalToBody";
   </div>
 {/snippet}
 
-{#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder="
-Buscar..." />{/if}
-
 
 <div class="page-container" style="height:100%;min-height:0">
+  {#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder="Buscar..." />{/if}
   <style>
     @media print {
       :root{color-scheme:light!important}

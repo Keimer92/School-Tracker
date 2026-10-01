@@ -3027,3 +3027,11 @@ input:checked + .slider:before {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Regla global de impresion: elementos de UI que no deben salir en el PDF.
+   ReportesPage ya la declara en su CSS propio, pero InformePage no lo hacia
+   y el buscador (un div, no un utton) se imprimia con el texto de
+   busqueda arriba del reporte. */
+@media print {
+  .no-print { display: none !important; }
+}

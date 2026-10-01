@@ -3,215 +3,106 @@
   import { registerBackHandler } from '../lib/androidBack';
 
   /**
-   * Buscador flotante expandible (FAB) — esquina inferior derecha.
+   * Buscador de estudiantes — barra en el FLUJO, arriba del contenido.
+   *
+   * Antes era un FAB flotante en la esquina inferior derecha. Se cambió por dos
+   * razones: tapaba la última fila de la tabla y, al ser `position: fixed`
+   * (por necessity de no alterar el layout), cualquier barra nueva arriba
+   * quedaba tapada o la tapaba a ella.
+   *
+   * Ahora es un input normal que ocupa su propia línea arriba del contenido,
+   * igual que el buscador de Android: sin `fixed`, sin `z-index` y sin overlay,
+   * así que no puede pisar nada.
    *
    * Uso: <SearchFab bind:value={searchTerm} placeholder="Buscar..." />
-   * Opcional: zIndex, onopen callback.
-   * Al expandirse registra un back-handler en Android: Back limpia el texto
-   * y si ya está vacío colapsa el buscador.
-   * Se oculta automáticamente al hacer scroll hacia abajo y reaparece
-   * al hacer scroll hacia arriba o al detener el scroll.
    */
 
   let {
     value = $bindable(''),
     placeholder = 'Buscar...',
-    zIndex = 650,
-  }: { value?: string; placeholder?: string; zIndex?: number } = $props();
+  }: { value?: string; placeholder?: string } = $props();
 
-  let abierto = $state(false);
   let inputEl: HTMLInputElement | null = $state(null);
-  let oculto = $state(false);
 
+  /** Enfoca el input. Lo usan los atajos externos. */
   export function abrir() {
-    abierto = true;
     tick().then(() => inputEl?.focus());
   }
 
   export function cerrar() {
-    abierto = false;
+    inputEl?.blur();
   }
 
-  function toggle() {
-    if (abierto) {
-      if (value) { value = ''; }
-      cerrar();
-    } else {
-      abrir();
-    }
+  function limpiar() {
+    value = '';
+    inputEl?.focus();
   }
 
-  function onInputKeydown(e: KeyboardEvent) {
+  function onKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       e.preventDefault();
-      if (value) { value = ''; inputEl?.focus(); }
-      else { cerrar(); }
+      // Escape primero borra lo escrito; si ya estaba vacío, solo suelta el foco.
+      if (value) limpiar();
+      else cerrar();
     }
   }
 
-  // Android Back: primero limpia el texto, luego colapsa
+  // Android Back: si quedó texto escrito, lo borra en vez de cerrar la pantalla.
   $effect(() => {
-    if (!abierto) return;
-    return registerBackHandler(() => {
-      if (value) { value = ''; return true; }
-      cerrar();
-      return true;
-    });
-  });
-
-  // Auto-focus al expandir
-  $effect(() => {
-    if (abierto) tick().then(() => inputEl?.focus());
-  });
-
-  // Auto-hide on scroll: detectar el contenedor scrolleable y ocultar/mostrar el FAB
-  let stopTimer: ReturnType<typeof setTimeout> | null = null;
-
-  $effect(() => {
-    // Buscar el contenedor scrolleable más cercano hacia arriba
-    const wrap = document.querySelector('.sfab-wrap');
-    let scrollParent: Element | null = null;
-
-    if (wrap) {
-      let el: Element | null = wrap.parentElement;
-      while (el && el !== document.body && el !== document.documentElement) {
-        const style = getComputedStyle(el);
-        const overflowY = style.overflowY;
-        if ((overflowY === 'auto' || overflowY === 'scroll') && el.scrollHeight > el.clientHeight) {
-          scrollParent = el;
-          break;
-        }
-        el = el.parentElement;
-      }
-    }
-
-    // Fallback: viewport/window scroll (Android WebView scrollea el viewport)
-    const target: Element | Window = scrollParent || window;
-    let lastScrollTop = scrollParent ? scrollParent.scrollTop : window.scrollY;
-
-    function onScroll() {
-      if (abierto) return; // No ocultar si el buscador está abierto
-      const st = scrollParent ? scrollParent.scrollTop : window.scrollY;
-      if (st > lastScrollTop && st > 60) {
-        // Scroll hacia abajo → ocultar
-        oculto = true;
-      } else {
-        // Scroll hacia arriba → mostrar
-        oculto = false;
-      }
-      lastScrollTop = st <= 0 ? 0 : st;
-
-      // Reaparecer tras 400ms sin scroll
-      if (stopTimer) clearTimeout(stopTimer);
-      stopTimer = setTimeout(() => { oculto = false; }, 400);
-    }
-
-    target.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      target.removeEventListener('scroll', onScroll);
-      if (stopTimer) clearTimeout(stopTimer);
-    };
+    if (!value) return;
+    return registerBackHandler(() => { limpiar(); return true; });
   });
 </script>
 
-<div class="sfab-wrap" class:sfab-oculto={oculto && !abierto} style="z-index:{zIndex}">
-  {#if abierto}
-    <div class="sfab-bar">
-      <span class="sfab-icon">🔍</span>
-      <input
-        bind:this={inputEl}
-        bind:value
-        {placeholder}
-        class="sfab-input"
-        type="text"
-        onkeydown={onInputKeydown}
-      />
-      {#if value}
-        <button class="sfab-clear" onclick={() => value = ''} title="Limpiar">✕</button>
-      {/if}
-      <button class="sfab-close" onclick={() => cerrar()} title="Cerrar búsqueda">✕</button>
-    </div>
-  {:else}
-    <button class="sfab-btn" class:activo={!!value} onclick={() => abrir()} title="Buscar" aria-label="Buscar">
-      <span>🔍</span>
-      {#if value}<span class="sfab-dot"></span>{/if}
+<!-- `no-print`: el CSS de impresión de ReportesPage oculta `button`, pero esta
+     barra es un `div` con un `input`. Sin esta clase se imprimiría el buscador
+     con el texto de búsqueda arriba del reporte. -->
+<div class="sfab-bar no-print" role="search">
+  <span class="sfab-icon" aria-hidden="true">🔍</span>
+  <input
+    bind:this={inputEl}
+    bind:value
+    {placeholder}
+    class="sfab-input"
+    type="search"
+    enterkeyhint="search"
+    autocomplete="off"
+    onkeydown={onKeydown}
+  />
+  {#if value}
+    <!-- Escoba: el icono que se pidió para "borrar el texto escrito". Antes
+         era una ✕, que se confunde con el botón de cerrar. -->
+    <button class="sfab-clear" onclick={limpiar} title="Borrar texto escrito" aria-label="Borrar texto escrito">
+      🧹
     </button>
   {/if}
 </div>
 
 <style>
-  .sfab-wrap {
-    position: fixed;
-    right: 18px;
-    bottom: calc(18px + env(safe-area-inset-bottom, 0px));
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    pointer-events: none;
-    transition: opacity 0.25s ease, transform 0.25s ease;
-  }
-  .sfab-wrap.sfab-oculto {
-    opacity: 0;
-    transform: scale(0.7);
-    pointer-events: none !important;
-  }
-  .sfab-wrap.sfab-oculto > :global(*) { pointer-events: none !important; }
-
-  .sfab-btn {
-    width: 54px;
-    height: 54px;
-    border-radius: 50%;
-    border: none;
-    background: linear-gradient(135deg, var(--primary-color, #3b82f6), #6366f1);
-    color: #fff;
-    font-size: 1.25rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    position: relative;
-    pointer-events: auto;
-    box-shadow: 0 8px 24px rgba(59, 130, 246, 0.45);
-    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .sfab-btn:hover { transform: translateY(-3px) scale(1.05); box-shadow: 0 12px 30px rgba(59, 130, 246, 0.55); }
-  .sfab-btn:active { transform: scale(0.94); }
-  .sfab-btn:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
-
-  .sfab-dot {
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    width: 13px;
-    height: 13px;
-    border-radius: 50%;
-    background: #fbbf24;
-    border: 2px solid #0f172a;
-  }
-
+  /* Barra en el flujo: es un hermano más del contenido, no un overlay.
+     `align-self: stretch` + `max-width` la alinean con el ancho de las cards
+     sin salirse de la caja flexible del padre. */
   .sfab-bar {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    height: 52px;
-    padding: 0 0.55rem 0 1rem;
-    border-radius: 999px;
-    background: rgba(15, 23, 42, 0.92);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    width: min(88vw, 380px);
-    pointer-events: auto;
-    animation: sfab-expand 0.22s cubic-bezier(0.34, 1.3, 0.64, 1);
+    width: 100%;
+    max-width: 420px;
+    height: 38px;
+    box-sizing: border-box;
+    padding: 0 0.45rem 0 0.8rem;
+    margin: 0 0 0.5rem;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: border-color 0.2s ease, background 0.2s ease;
   }
-  @keyframes sfab-expand {
-    from { opacity: 0; transform: translateX(28px); }
-    to { opacity: 1; transform: none; }
+  .sfab-bar:focus-within {
+    border-color: var(--primary-color, #3b82f6);
+    background: rgba(255, 255, 255, 0.08);
   }
 
-  .sfab-icon { font-size: 1.05rem; flex-shrink: 0; }
+  .sfab-icon { font-size: 0.9rem; flex-shrink: 0; opacity: 0.7; }
 
   .sfab-input {
     flex: 1;
@@ -219,27 +110,38 @@
     background: transparent;
     border: none;
     outline: none;
-    color: #f1f5f9;
-    font-size: 0.95rem;
+    color: #e2e8f0;
+    font-size: 0.82rem;
+    font-family: inherit;
+    height: 100%;
   }
   .sfab-input::placeholder { color: #64748b; }
+  /* `type="search"` pinta una ✕ propia del navegador (WebView) que
+     duplicaría la escoba. */
+  .sfab-input::-webkit-search-cancel-button,
+  .sfab-input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; display: none; }
 
-  .sfab-clear,
-  .sfab-close {
+  .sfab-clear {
     width: 30px;
     height: 30px;
-    border-radius: 50%;
-    border: none;
-    font-size: 0.85rem;
-    cursor: pointer;
     flex-shrink: 0;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    font-size: 0.85rem;
+    line-height: 1;
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
   }
-  .sfab-clear { background: rgba(255, 255, 255, 0.08); color: #94a3b8; }
-  .sfab-clear:hover { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
-  .sfab-close { background: rgba(255, 255, 255, 0.08); color: #94a3b8; }
-  .sfab-close:hover { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+  .sfab-clear:hover { background: rgba(255, 255, 255, 0.1); }
+  .sfab-clear:active { transform: scale(0.9); }
+  .sfab-clear:focus-visible { outline: 2px solid #93c5fd; outline-offset: 1px; }
+
+  @media (max-width: 640px) {
+    .sfab-bar { max-width: none; }
+  }
 </style>

@@ -886,10 +886,8 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
     };
   });
 </script>
-{#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder="Nombre o codigo..." />{/if}
-
-
 <div class="page-container" id="estudiantes-page" style="height: 100%; min-height: 0;">
+  {#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder="Nombre o código..." />{/if}
   {#if isAndroidMobile}
     <div class="category-card" style="padding: 0.4rem 0.5rem; margin-bottom: 0.4rem;">
       <input bind:value={searchTerm} placeholder="🔍 Buscar nombre o código..."
