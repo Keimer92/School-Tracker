@@ -15,6 +15,7 @@ import SelectChip from "./SelectChip.svelte";
   import { registerBackHandler } from "../lib/androidBack";
 import { portalToBody } from "../lib/portalToBody";
   import { loadAppSettings, onAppSettingsChange } from "../lib/appSettings";
+import { primerColegio } from "../lib/catalogo";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
   interface Criterio { id: number; orden: number; descripcion: string; puntajeMaximo: number; }
@@ -364,7 +365,7 @@ import { portalToBody } from "../lib/portalToBody";
       ]);
       const activeAno = anosData.length > 0 ? (anosData.find(a => a.activo)?.id || anosData[0].id) : 0;
       const activeCorte = cortesData.length > 0 ? (cortesData.find(c => c.activo)?.id || cortesData[0].id) : 0;
-      const activeColegio = colegiosData.length > 0 ? (colegiosData.find(c => c.activo)?.id || colegiosData[0].id) : 0;
+      const activeColegio = primerColegio(colegiosData)?.id || 0;
       anos = anosData;
       cortes = cortesData;
       colegios = colegiosData;

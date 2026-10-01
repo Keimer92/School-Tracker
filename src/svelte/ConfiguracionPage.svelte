@@ -20,6 +20,10 @@
     title: string; table: string;
     endpoints: { get: string; add: string; update: string; delete: string; setActive?: string; updateOrder?: string; };
     hideDefault?: boolean; noAdd?: boolean;
+    /** Ocultar el toggle de "activo" cuando hay un solo elemento. */
+    ocultarToggleSiUnico?: boolean;
+    /** El activo queda obligado a ser el de mayor año calendario. */
+    soloElMayor?: boolean;
   }
 
   let { pageActive = true, seccion = $bindable('evaluaciones'), themeMode = 'sistema', setThemeMode = () => {} }: {

@@ -380,7 +380,7 @@ $effect(() => {
         invoke<CategoryItem[]>("get_colegios"),
       ]);
       const activeAno = anosData.find(a => a.activo)?.id || (anosData.length > 0 ? anosData[0].id : 0);
-      const activeColegio = colegiosData.find(c => c.activo)?.id || (colegiosData.length > 0 ? colegiosData[0].id : 0);
+      const activeColegio = primerColegio(colegiosData)?.id || 0;
       anos = anosData;
       colegios = colegiosData;
       selectedAno = activeAno;
