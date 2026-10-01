@@ -1080,8 +1080,7 @@ import { portalToBody } from "../lib/portalToBody";
 
         {#if isAndroidMobile}
           <div style="width:100%;padding:0.1rem 0 0.3rem;">
-            <input bind:value={searchTerm} placeholder="🔍 Buscar..."
-              style="width:100%;height:38px;padding:0 0.8rem;font-size:0.82rem;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#e2e8f0;outline:none;box-sizing:border-box;" />
+            <SearchFab bind:value={searchTerm} placeholder="Buscar..." conMargen={false} />
           </div>
           <div class="category-card" style="padding: 0.5rem; margin-bottom: 0.5rem; display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
             <button type="button" onclick={() => { showFiltersModal = true; }}

@@ -890,8 +890,7 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
   {#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder="Nombre o código..." />{/if}
   {#if isAndroidMobile}
     <div class="category-card" style="padding: 0.4rem 0.5rem; margin-bottom: 0.4rem;">
-      <input bind:value={searchTerm} placeholder="🔍 Buscar nombre o código..."
-        style="width:100%;height:38px;padding:0 0.8rem;font-size:0.82rem;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#e2e8f0;outline:none;box-sizing:border-box;" />
+      <SearchFab bind:value={searchTerm} placeholder="Buscar nombre o código..." conMargen={false} />
     </div>
     <div class="category-card" style="padding: 0.5rem; margin-bottom: 0.4rem; display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
       <button type="button" onclick={() => { showFiltersModal = true; }}

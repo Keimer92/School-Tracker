@@ -20,7 +20,8 @@
   let {
     value = $bindable(''),
     placeholder = 'Buscar...',
-  }: { value?: string; placeholder?: string } = $props();
+    conMargen = true,
+  }: { value?: string; placeholder?: string; conMargen?: boolean } = $props();
 
   let inputEl: HTMLInputElement | null = $state(null);
 
@@ -57,7 +58,7 @@
 <!-- `no-print`: el CSS de impresión de ReportesPage oculta `button`, pero esta
      barra es un `div` con un `input`. Sin esta clase se imprimiría el buscador
      con el texto de búsqueda arriba del reporte. -->
-<div class="sfab-bar no-print" role="search">
+<div class="sfab-bar no-print" class:sin-margen={!conMargen} role="search">
   <span class="sfab-icon" aria-hidden="true">🔍</span>
   <input
     bind:this={inputEl}
@@ -97,6 +98,9 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     transition: border-color 0.2s ease, background 0.2s ease;
   }
+  /* En Android la barra vive DENTRO de una `category-card` que ya aporta el
+     padding y el margen: ahí el espacio extra sobra y empuja el contenido. */
+  .sfab-bar.sin-margen { margin-bottom: 0; }
   .sfab-bar:focus-within {
     border-color: var(--primary-color, #3b82f6);
     background: rgba(255, 255, 255, 0.08);

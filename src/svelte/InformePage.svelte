@@ -916,8 +916,7 @@ $effect(() => {
 
           {#if isAndroidMobile}
             <div style="width:100%;padding:0.1rem 0 0.3rem;">
-              <input bind:value={searchTerm} placeholder="🔍 Buscar..."
-                style="width:100%;height:38px;padding:0 0.8rem;font-size:0.82rem;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#e2e8f0;outline:none;box-sizing:border-box;" />
+              <SearchFab bind:value={searchTerm} placeholder="Buscar..." conMargen={false} />
             </div>
             <button onclick={() => showFiltersModal = true} title="Filtros (Período · Año · Colegio · Grado · Sección · Sexo · Semana/Mes)"
               style="width:100%;height:42px;padding:0 0.9rem;font-size:0.85rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#e2e8f0;border-radius:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all 0.15s;white-space:nowrap;margin-bottom:0.3rem"
