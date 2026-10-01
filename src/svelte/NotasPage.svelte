@@ -251,11 +251,9 @@
   let history: Record<string, string>[] = $state([]);
   let redoStack: Record<string, string>[] = $state([]);
 
-  let rowVersionTick = $state(0);
   let refreshTrigger = $state(0);
 
   let notasCualitativas: Record<string, string> = $state({});
-  let notasCuantitativas: Record<string, number> = {};
 
   /** Estado que coincide con lo guardado en la BD (se actualiza al cargar y al guardar). */
   let savedBaseline: Record<string, string> = $state({});
@@ -647,7 +645,6 @@
     if (!ok) return;
     pushHistory({ ...notasCualitativas });
     for (const n of destino) handleNotaChange(n.estudianteId, crit.id, letra);
-    rowVersionTick++;
     await emit("show-toast", { message: `✍ ${letra} aplicado a ${destino.length} estudiante(s) en C${crit.orden}`, type: 'success' });
   }
 
@@ -1001,7 +998,6 @@
         }
       }
     });
-    rowVersionTick++;
   }
 
   function undo() {
@@ -1074,7 +1070,6 @@
     } else if (normalizedValue === 'A') {
       numValue = 0;
     }
-    notasCuantitativas[key] = Math.round(numValue);
     hasUnsavedRef = true;
   }
 
@@ -1287,7 +1282,6 @@
     nextRefreshSilent = false;
     const indToUse = currentIndicadores || indicadores;
     const { corte, asignatura, grado, seccion, sexo } = filtersRef;
-    notasCuantitativas = {};
     try {
       const [dataRaw, notasGuardadas] = preFetchedData
         ? [preFetchedData.estudiantes, preFetchedData.notas]
@@ -1353,7 +1347,6 @@
               }
             });
           });
-          rowVersionTick++;
         }, 100);
       }
     } catch (error) {
@@ -2227,7 +2220,6 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                               if (oldVal !== newVal) pushHistory({ ...notasCualitativas });
                               handleNotaChange(est.estudianteId, crit.id, newVal);
                               cellSnapshot = null;
-                              rowVersionTick++;
                             }}
                             style="flex: 1; min-width: 52px; padding: 0.5rem 0.3rem; border-radius: 8px; border: 2px solid {gradeColor}; background: {isSelected ? gradeColor : 'transparent'}; color: {isSelected ? '#fff' : gradeColor}; font-weight: bold; font-size: 0.8rem; cursor: pointer; text-align: center; transition: all 0.15s ease;"
                           >{grade}</button>
@@ -2393,7 +2385,6 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                               notasCualitativas[key] = val;
                               (e.target as HTMLInputElement).value = val;
                             }
-                            rowVersionTick++;
                           }}
                           onkeydown={(e) => handleKeyDown(e, est.estudianteId, criterioIndex)}
                           onfocus={(e) => {
