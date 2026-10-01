@@ -10,12 +10,14 @@ const DEBOUNCE_MS = 2000;
 async function flush() {
   if (isFlushing) return;
   isFlushing = true;
+  let huboCambios = false;
   try {
     // Drena la cola: si llegan cambios durante el sync (p.ej. varias acciones
     // inmediatas seguidas), se procesan en el mismo flush para no disparar syncs redundantes.
     while (pendingTables.size > 0) {
       const tables = [...pendingTables];
       pendingTables = new Set();
+      huboCambios = true;
       await syncService.syncAllSilent();
       tables.forEach(t => markClean(t));
     }
@@ -27,7 +29,13 @@ async function flush() {
     // las escrituras de la BD (notas, asistencia, estudiantes, catálogos,
     // indicadores, días sin clases, calificaciones...) acaben respaldadas en
     // Drive. Va en `finally` para que también se dispare si el sync D1 falló.
-    scheduleInstantBackup();
+    //
+    // SOLO si hubo cambios reales: antes se llamaba SIEMPRE, y como cada
+    // `flush()` rearma el debounce de 5 s de `driveInstantBackup`, cualquier
+    // `flush()` sin escrituras (por ejemplo al montar una sección que reescribe
+    // ajustes) terminaba subido un archivo a Drive sin que nadie hubiera tocado
+    // nada.
+    if (huboCambios) scheduleInstantBackup();
     if (pendingTables.size > 0 && !debounceTimer) {
       debounceTimer = setTimeout(flush, 300);
     }

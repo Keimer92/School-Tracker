@@ -14,6 +14,7 @@
   import { emit } from "@tauri-apps/api/event";
   import { open, ask } from "@tauri-apps/plugin-dialog";
   import { copyFile } from "@tauri-apps/plugin-fs";
+  import { untrack } from "svelte";
   import { portalToBody } from "../../lib/portalToBody";
 
   const isAndroid = /Android/i.test(navigator.userAgent);
@@ -81,9 +82,18 @@
   }
 
   $effect(() => {
-    // Lee las dos vars para reagendar cuando cambian desde el popover.
-    backupActivo; backupIntervaloMin;
-    agendarBackupEscritorio();
+    // Se reagenda SOLO cuando el usuario cambia la config desde el popover.
+    //
+    // Las dos vars se leen FUERA del untrack para que sigan siendo las
+    // dependencias del effect, y todo lo de `agendarBackupEscritorio()` va
+    // DENTRO: esa función también lee `ultimaCorridaMs`, que es `$state` y se
+    // reescribe dentro del propio `setTimeout`. Sin esto el effect se
+    // suscribía a ese estado y cada corrida del timer lo reescribía →
+    // effect → timer → effect, encadenando respaldos locales indefinidamente
+    // sin importar el intervalo elegido.
+    const activo = backupActivo;
+    const intervalo = backupIntervaloMin;
+    untrack(() => agendarBackupEscritorio());
   });
 
   async function aplicarConfigBackup(activo: boolean, intervalo: number) {
