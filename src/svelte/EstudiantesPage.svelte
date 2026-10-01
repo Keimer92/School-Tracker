@@ -5,6 +5,7 @@
   import { syncService } from "../lib/syncService";
   import { onDataChange } from "../lib/autoSync";
   import { registerBackHandler } from "../lib/androidBack";
+import { primerColegio } from "../lib/catalogo";
   import { ask } from "@tauri-apps/plugin-dialog";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
@@ -406,7 +407,7 @@ async function fetchData(preserveFilters = false) {
     anos = aData; colegios = colData; students = sData; allGrados = gData; allSecciones = secData;
     const activeYear = aData.find(a => a.activo) || aData[0];
     const activeYearId = activeYear?.id ?? 0;
-    const activeColegio = colData.find(c => c.activo) || colData[0];
+    const activeColegio = primerColegio(colData);
     const activeColegioId = activeColegio?.id ?? 0;
     if (!preserveFilters) {
       filters = { ...filters, anoLectivoId: activeYearId, colegioId: activeColegioId, gradoId: 0, seccionId: 0 };
@@ -593,7 +594,7 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
     isEditing = false;
     const activeYear = anos.find(a => a.activo) || anos[0];
     const activeYearId = activeYear?.id ?? 0;
-    const activeColegio = colegios.find(c => c.activo) || colegios[0];
+    const activeColegio = primerColegio(colegios);
     const activeColegioId = activeColegio?.id ?? 0;
     formData = {
       ...emptyStudent,
@@ -951,7 +952,7 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
               <select class="filter-select"
                 style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;background:#0f172a;border:1px solid rgba(148,163,184,0.45);color:#f1f5f9;font-weight:600;appearance:none;-webkit-appearance:none;background-image:url(&quot;data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e&quot;);background-repeat:no-repeat;background-position:right 0.6rem center;background-size:14px;padding-right:1.8rem"
                 value={filters.colegioId} onchange={(e) => { filters = { ...filters, colegioId: Number((e.target as HTMLSelectElement).value), gradoId: 0, seccionId: 0 }; }}>
-                {#each colegios as c}<option value={c.id}>{c.nombre}{#if c.activo} ✓ (Activo){/if}</option>{/each}
+                {#each colegios as c}<option value={c.id}>{c.nombre}</option>{/each}
               </select>
             </div>
             <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
@@ -997,7 +998,7 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
           <SelectChip
             value={filters.colegioId}
             onchange={(v) => setFilter('colegioId', v)}
-            options={colegios.map(c => ({ value: c.id, label: c.nombre, sub: c.activo ? 'Activo' : undefined }))} />
+            options={colegios.map(c => ({ value: c.id, label: c.nombre }))} />
       </FilterGroup>
       <FilterGroup label="Grado:" {isMobile}>
           <SelectChip

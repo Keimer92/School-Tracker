@@ -10,6 +10,7 @@
   import type { TablaAsistenciaPdf } from "../lib/asistenciaPdf";
   import { registerBackHandler } from "../lib/androidBack";
   import { loadAppSettings, onAppSettingsChange } from "../lib/appSettings";
+import { primerColegio } from "../lib/catalogo";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
 import SelectChip from "./SelectChip.svelte";
