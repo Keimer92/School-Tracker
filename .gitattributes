@@ -1,0 +1,25 @@
+# Normalización de fin de línea.
+#
+# El proyecto se desarrolló en Windows, donde git dejó los blobs con LF pero el
+# working tree quedó con CRLF. Al copiarlo a Linux, `git status` marcaba 35
+# archivos como modificados con un diff de ~29.500 líneas que en realidad eran
+# solo el fin de línea. `text=auto eol=lf` hace que git normalice al comparar,
+# así el working tree deja de verse sucio sin reescribir los archivos a mano.
+* text=auto eol=lf
+
+# Excepciones: Windows y Android necesitan CRLF para que sus scripts corran.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binarios explícitos, por si `auto` los detecta mal en alguna plataforma.
+*.png binary
+*.jpg binary
+*.ico binary
+*.icns binary
+*.db binary
+*.sqlite binary
+*.xlsx binary
+*.pdb binary
+*.woff binary
+*.woff2 binary

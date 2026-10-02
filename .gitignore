@@ -1,4 +1,4 @@
-﻿# ============================================
+# ============================================
 # .gitignore para Rust/Tauri + Windows/Android
 # ============================================
 
@@ -49,6 +49,29 @@ src-tauri/gen/android/app/src/main/res/layout/
 src-tauri/gen/android/app/src/main/res/mipmap-*/
 src-tauri/gen/android/app/src/main/res/values/
 src-tauri/gen/android/app/src/main/res/values-night/
+
+# --- Datos personales: NUNCA en git ---
+# Credenciales de Cloudflare (schoolKey + workerUrl). El archivo se guardaba
+# commiteado; ahora queda fuera. Ver AGENTS.md → "Credenciales Cloudflare".
+Credenciales.xlsx
+*.xlsx
+
+# Respaldos de la base de datos local: contienen los estudiantes reales
+# (nombre, código, teléfono, email, asistencia y notas).
+Bakups de base de datos/
+*.db
+*.db.backup_*
+*.sqlite
+
+# --- Basura de desarrollo local ---
+# Salida de compilaciónderramada a un archivo por error (`npm i > 2`).
+/src-tauri/2
+src-tauri/cargo_check*.txt
+src-tauri/cargo_check_out.txt
+# Config personal de la extensión Code Runner (devUrl del emulador Android).
+src-tauri/.code-runner-config.json
+# Artefactos de Windows que se colaron en el repo.
+*.pdb
 
 # --- Sistema operativo ---
 .DS_Store
