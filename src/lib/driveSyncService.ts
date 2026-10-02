@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
 import { markDirty, markAllDirty, markAllClean, hasDirtyTables } from './dirtyTracker';
+import { esAndroid, esLinux, esMacOS, esWindows } from './platform';
 
 const STORAGE_KEY = 'schooltracker-google-drive-settings';
 const SYNC_FILE_PREFIX = 'SchoolTracker_Sync';
@@ -245,8 +246,22 @@ async function getValidToken(): Promise<string | null> {
   return await refreshAccessToken();
 }
 
-function devicePlatform(): 'Windows' | 'Android' {
-  return /Android/i.test(navigator.userAgent) ? 'Android' : 'Windows';
+/**
+ * Plataforma real del dispositivo, para etiquetar el nombre del respaldo.
+ *
+ * Antes devolvía 'Windows' para todo lo que no fuera Android, así que en Linux
+ * los respaldos se guardaban como `..._Windows_latest.db`. Ojo: esto SÍ cambia
+ * el nombre del archivo respecto a las versiones previas. Por eso
+ * `findAnyExistingBackup()` ahora busca SIN filtrar por plataforma: al guardar
+ * desde Linux encuentra el `..._Windows_latest.db` existente y lo renombra por
+ * PATCH, en vez de crear una cadena de respaldos paralela.
+ */
+function devicePlatform(): 'Windows' | 'macOS' | 'Linux' | 'Android' {
+  if (esAndroid()) return 'Android';
+  if (esWindows()) return 'Windows';
+  if (esMacOS()) return 'macOS';
+  if (esLinux()) return 'Linux';
+  return 'Windows';
 }
 
 /** Etiqueta de la cuenta actual para aislar los respaldos de Drive por cuenta. */
@@ -269,8 +284,20 @@ function latestFileName(): string {
   return `${SYNC_FILE_PREFIX}_${accountTag()}_${devicePlatform()}_${LATEST_SUFFIX}.db`;
 }
 
+/**
+ * ¿Es el archivo "_latest" de esta cuenta?
+ *
+ * Acepta cualquier plataforma: si el usuario guardó desde Windows y ahora
+ * guarda desde Linux, los dos nombres son válidos y el archivo es el mismo
+ * (el nombre real solo cambia cuando la app lo renombra por PATCH).
+ */
 function isLatestFile(f: DriveFile): boolean {
-  return f.name === latestFileName();
+  const esperado = `${SYNC_FILE_PREFIX}_`;
+  return (
+    f.name.startsWith(esperado) &&
+    f.name.endsWith(`_${LATEST_SUFFIX}.db`) &&
+    f.name.includes(`_${accountTag()}_`)
+  );
 }
 
 function recencyOf(f: DriveFile): string {
@@ -360,10 +387,14 @@ async function listSyncFilesRaw(token: string): Promise<DriveFile[]> {
    * unico archivo por cuenta.
    */
   async function findAnyExistingBackup(token: string, folderId: string | null): Promise<DriveFile | null> {
-    const platform = devicePlatform();
+    // SIN filtrar por plataforma a propósito: si el nombre estable no existe
+    // porque la plataforma cambió (Windows -> Linux) o porque el tag cayó a
+    // 'default', hay que igual reusar el respaldo que SÍ está en Drive.
+    // Filtrar por plataforma hacía que no se encontrara nada y se creara un
+    // archivo nuevo en cada guardado.
     const clauses = [`name contains '${SYNC_FILE_PREFIX}_'`, 'trashed=false'];
     if (folderId) clauses.push(`'${folderId}' in parents`);
-    const q = `${clauses.join(' and ')} and name contains '_${platform}_${LATEST_SUFFIX}.db'`;
+    const q = `${clauses.join(' and ')} and name ends with '_${LATEST_SUFFIX}.db'`;
     try {
       const resp = await fetch(
         `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&orderBy=modifiedTime desc&pageSize=10&fields=files(id,name,size,createdTime,modifiedTime)`,

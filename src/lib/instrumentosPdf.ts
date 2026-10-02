@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { documentDir } from '@tauri-apps/api/path';
 import { writeFile, mkdir } from '@tauri-apps/plugin-fs';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { aFileURL, esAndroid, unirRuta } from './platform';
 
 /**
  * Instrumentos de evaluación por indicador (PDF).
@@ -252,16 +253,15 @@ function tipoLabel(tipo: InstrumentoTipo): string {
 async function guardarYEntregar(doc: any, fileName: string, subfolder: string): Promise<string> {
   const pdfData = doc.output('arraybuffer');
   const docsPath = await documentDir();
-  const sep = /Android/i.test(navigator.userAgent) ? '/' : '\\';
-  const dir = `${docsPath}${sep}SchoolTrackerPro${sep}Instrumentos${sep}${subfolder}`;
+  const dir = unirRuta(docsPath, 'SchoolTrackerPro', 'Instrumentos', subfolder);
   await mkdir(dir, { recursive: true }).catch(() => {});
-  const fullPath = `${dir}${sep}${fileName}`;
+  const fullPath = unirRuta(dir, fileName);
   await writeFile(fullPath, new Uint8Array(pdfData));
-  const folderPath = dir.replace(/\\/g, '/');
-  if (/Android/i.test(navigator.userAgent)) {
+  if (esAndroid()) {
+    // Android espera separadores '/' en la ruta que le pasa el ContentResolver.
     try { await invoke('share_pdf', { path: fullPath.replace(/\\/g, '/') }); } catch {}
   } else {
-    try { await openUrl('file:///' + folderPath); } catch {}
+    try { await openUrl(aFileURL(dir)); } catch {}
   }
   return fullPath;
 }

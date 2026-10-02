@@ -2,6 +2,7 @@ import JSZip from 'jszip';
 import { documentDir } from '@tauri-apps/api/path';
 import { writeFile, mkdir, readDir } from '@tauri-apps/plugin-fs';
 import type { InstrumentoTipo } from './instrumentosPdf';
+import { aFileURL, separadorRuta, unirRuta } from './platform';
 
 /** Detecta el tipo de instrumento por palabras clave EN EL NOMBRE DEL ARCHIVO.
  *  El nombre debe contener: "Rúbrica"/"Rubrica", "Cotejo" o "Escala".
@@ -204,17 +205,22 @@ function procesarBloqueEstudiantes(sheetXml: string, input: ExcelInstrumentoInpu
   return result;
 }
 
-/** Carpeta fija donde la app busca plantillas .xlsx del usuario. */
+/**
+ * Carpeta fija donde la app busca plantillas .xlsx del usuario.
+ *
+ * El separador sale de `unirRuta()`: hardcodear `\\` para "todo lo que no sea
+ * Android" armaba `/home/user/Documents\SchoolTrackerPro\Plantillas` en Linux
+ * y la carpeta nunca aparecía.
+ */
 export async function plantillasDir(): Promise<string> {
   const docsPath = await documentDir();
-  const sep = /Android/i.test(navigator.userAgent) ? '/' : '\\';
-  return `${docsPath}${sep}SchoolTrackerPro${sep}Plantillas`;
+  return unirRuta(docsPath, 'SchoolTrackerPro', 'Plantillas');
 }
 
 /** Lista las plantillas .xlsx disponibles con su tipo detectado por nombre. */
 export async function listarPlantillas(): Promise<{ nombre: string; ruta: string; tipo: InstrumentoTipo }[]> {
   const dir = await plantillasDir();
-  const sep = /Android/i.test(navigator.userAgent) ? '/' : '\\';
+  const sep = separadorRuta();
   try {
     const entries = await readDir(dir);
     return entries
@@ -241,7 +247,7 @@ export async function asegurarCarpetaPlantillas(): Promise<string> {
 export async function abrirCarpetaPlantillas(): Promise<void> {
   const { openUrl } = await import('@tauri-apps/plugin-opener');
   const dir = await asegurarCarpetaPlantillas();
-  try { await openUrl('file:///' + dir.replace(/\\/g, '/')); } catch {}
+  try { await openUrl(aFileURL(dir)); } catch {}
 }
 
 /**
@@ -278,10 +284,9 @@ export async function generarInstrumentoExcel(
   // 3) Empaquetar y guardar
   const outData = await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
   const docsPath = await (await import('@tauri-apps/api/path')).documentDir();
-  const sep = /Android/i.test(navigator.userAgent) ? '/' : '\\';
-  const dir = `${docsPath}${sep}SchoolTrackerPro${sep}Instrumentos`;
+  const dir = unirRuta(docsPath, 'SchoolTrackerPro', 'Instrumentos');
   await mkdir(dir, { recursive: true }).catch(() => {});
-  const fullPath = `${dir}${sep}${fileNameBase}.xlsx`;
+  const fullPath = unirRuta(dir, `${fileNameBase}.xlsx`);
   await writeFile(fullPath, outData);
   return fullPath;
 }
@@ -290,5 +295,5 @@ export async function generarInstrumentoExcel(
 export async function abrirCarpetaInstrumentos(): Promise<void> {
   const { openUrl } = await import('@tauri-apps/plugin-opener');
   const docsPath = await (await import('@tauri-apps/api/path')).documentDir();
-  try { await openUrl('file:///' + docsPath.replace(/\\/g, '/') + '/SchoolTrackerPro/Instrumentos'); } catch {}
+  try { await openUrl(aFileURL(unirRuta(docsPath, 'SchoolTrackerPro', 'Instrumentos'))); } catch {}
 }

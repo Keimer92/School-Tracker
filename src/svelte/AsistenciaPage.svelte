@@ -145,8 +145,20 @@ import { portalToBody } from "../lib/portalToBody";
 
   let isMobile = $state(false);
   let isAndroid = $state(/Android/i.test(navigator.userAgent));
-  let isWindows = $state(/Windows/i.test(navigator.userAgent));
-  let isAndroidMobile = $derived(isAndroid || (isMobile && !isWindows));
+  /**
+   * ¿Estamos en la UI ancha de escritorio?
+   *
+   * Antes esto era `isWindows = /Windows/i.test(navigator.userAgent)`, y como la
+   * variable se usaba acá para elegir entre la versión ancha y la de teléfono,
+   * en Linux de escritorio caía siempre en la angosta: aparecía el menú de
+   * marcado diario en vez de los popovers con selector de días, el período
+   * predeterminado era "diario" y los modales se medían con 320px.
+   *
+   * La pregunta correcta NO es "¿soy Windows?" sino "¿soy un teléfono?": en
+   * este archivo el otro lado del `if` siempre fue el flujo de Android.
+   */
+  let esEscritorio = $derived(!isAndroid);
+  let isAndroidMobile = $derived(isAndroid || (isMobile && !esEscritorio));
 
   /**
    * Opciones del botón Guardar. Se declaran una vez porque en Android se renderiza
@@ -167,7 +179,7 @@ import { portalToBody } from "../lib/portalToBody";
 
   // Ancho de los modales (Sin Clases / Semana): más grande y cómodo en Windows,
   // ajustado al viewport en móvil para no salirse de pantalla.
-  const modalCardWidth = isWindows ? 'min(480px, calc(100vw - 64px))' : 'min(320px, calc(100vw - 32px))';
+  const modalCardWidth = esEscritorio ? 'min(480px, calc(100vw - 64px))' : 'min(320px, calc(100vw - 32px))';
 
   let draft: Record<number, { estado: string | null; observacion: string | null }> = {};
 
@@ -187,9 +199,11 @@ import { portalToBody } from "../lib/portalToBody";
    */
   let periodo = $state<AsistenciaPeriodo>((() => {
     const guardado = localStorage.getItem("asistencia_periodo") as AsistenciaPeriodo | null;
-    const esWindows = /Windows/i.test(navigator.userAgent);
-    if (guardado === "diario" && esWindows) return "mensual";
-    return guardado || (esWindows ? "mensual" : "diario");
+    // Mismo criterio que `esEscritorio`: en escritorio (Windows, Linux o macOS)
+    // el predeterminado es mensual, porque la pantalla entra el selector.
+    const enEscritorio = !/Android/i.test(navigator.userAgent);
+    if (guardado === "diario" && enEscritorio) return "mensual";
+    return guardado || (enEscritorio ? "mensual" : "diario");
   })());
 
 
@@ -1901,7 +1915,7 @@ $effect(() => {
                 value={periodo}
                 onchange={(v) => { periodo = String(v) as typeof periodo; }}
                 options={[
-                  ...(!isWindows ? [{ value: 'diario', label: 'Diario' }] : []),
+                  ...(!esEscritorio ? [{ value: 'diario', label: 'Diario' }] : []),
                   { value: 'semanal', label: 'Semanal' },
                   { value: 'mensual', label: 'Mensual' },
                 ]} />
@@ -2095,7 +2109,7 @@ $effect(() => {
               </div>
             </div>
           {/if}
-          {#if isWindows}
+          {#if esEscritorio}
             <BotonMod bind:ref={popLimpiarBtnEl} opts={{
               onclick: () => { if (popLimpiarBtnEl) togglePopSel(popLimpiarBtnEl, 'limpiar'); },
               disabled: getActiveStudentCount() === 0 || !hayLimpables,
@@ -2116,14 +2130,14 @@ $effect(() => {
           {/if}
           <BotonMod bind:ref={popSelBtnEl} opts={{
             onclick: () => { if (popSelBtnEl) togglePopSel(popSelBtnEl, 'rellenar'); },
-            disabled: getActiveStudentCount() === 0 || (isWindows && !hayPendientes),
+            disabled: getActiveStudentCount() === 0 || (esEscritorio && !hayPendientes),
             icono: popSel ? '✕' : '👥',
-            etiqueta: isWindows ? 'Rellenar' : 'Marcar todos',
+            etiqueta: esEscritorio ? 'Rellenar' : 'Marcar todos',
             tono: 'violeta',
-            sub: isWindows
+            sub: esEscritorio
               ? (!hayPendientes ? 'Todo completo' : `${totalPendientes} sin marcar`)
               : `${getActiveStudentCount()} estudiante(s)`,
-            title: isWindows
+            title: esEscritorio
               ? 'Rellenar solo las asistencias vacías de los días que elijas, y guardarlas'
               : 'Marcar a todos los estudiantes del día',
             compacto: isAndroidMobile,
@@ -2465,7 +2479,7 @@ $effect(() => {
                       {@const draftD = draftMulti[est.id]?.[fv.fecha]}
                       {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
                       <td style="text-align:center;padding:0.15rem;min-width:105px">
-                        {#if isWindows}
+                        {#if esEscritorio}
                           <div class="celda-estado">
                             <div class="semanal-status" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
                               onclick={() => cicloEstado(est.id, fv.fecha)}
@@ -2548,7 +2562,7 @@ $effect(() => {
                           class:semana-hl-ini={semanaHoverRango?.ini === fv.fecha}
                           class:semana-hl-fin={semanaHoverRango?.fin === fv.fecha}
                           style="text-align:center;padding:0.15rem">
-                          {#if isWindows}
+                          {#if esEscritorio}
                             <div class="celda-estado">
 
                             <div class="ciclo-cell" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
@@ -2615,7 +2629,7 @@ $effect(() => {
       aria-label="Marcar asistencias masivamente"
       style="position:fixed; z-index:99995; left:{popSel.x}px; top:{popSel.y}px; bottom:{popSel.abajo}; width:{ANCHO_POP_MASIVOS}px; max-height:min(420px, calc(100vh - 32px)); overflow-y:auto; background:rgba(20,24,31,0.97); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); border:1px solid rgba(255,255,255,0.1); border-radius:14px; box-shadow:0 18px 40px -10px rgba(0,0,0,0.65); padding:0.4rem; box-sizing:border-box; display:flex; flex-direction:column; gap:3px;"
     >
-      {#if !isWindows}
+      {#if !esEscritorio}
         <!-- Android trabaja con período DIARIO: no hay semana ni mes que elegir,
              así que va el marcado directo de todo el día (el que usa `marcarTodos`
              y deja el cambio en el borrador, para revisarlo antes de Guardar). -->
@@ -2662,7 +2676,7 @@ $effect(() => {
           </div>
         {/if}
       {:else}
-        <!-- Llega acá con `isWindows` y `paso === 'fechas'`: en Rellenar ya se eligió
+        <!-- Llega acá con `esEscritorio` y `paso === 'fechas'`: en Rellenar ya se eligió
              estado, en Limpiar entra directo. `fechasSel` / `acento` se capturan acá
              porque TypeScript pierde el estrechamiento de `popSel` dentro de los
              `{#each}` anidados. "Limpiar" no tiene estado: usa un acento neutro. -->
