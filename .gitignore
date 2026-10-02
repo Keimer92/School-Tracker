@@ -3,7 +3,11 @@
 # ============================================
 
 # --- Rust / Cargo (build artifacts, muy pesados) ---
-src-tauri/target/
+# OJO: antes solo se ignoraba `src-tauri/target/`, asi que el `target/` de la
+# RAIZ (el del tauri-android-signer) se commiteo entero: 5125 blobs, ~1 GB de
+# .rmeta/.rlib/.dll.lib de Windows. El patron `target/` de abajo cubre todos.
+target/
+**/target/
 
 # --- Node.js ---
 node_modules/
@@ -64,7 +68,7 @@ Bakups de base de datos/
 *.sqlite
 
 # --- Basura de desarrollo local ---
-# Salida de compilaciónderramada a un archivo por error (`npm i > 2`).
+# Salida de compilación mandada a un archivo por error (`npm i > 2`).
 /src-tauri/2
 src-tauri/cargo_check*.txt
 src-tauri/cargo_check_out.txt
