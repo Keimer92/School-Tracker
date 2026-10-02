@@ -116,6 +116,8 @@ src/
     dirtyTracker.ts          marcas de tablas "sucias" para saber qué ha cambiado
     googleDriveBackupService.ts
     dateUtils.ts
+    platform.ts              esAndroid/esWindows/esMacOS/esLinux, separadorRuta(),
+                             unirRuta(), aFileURL(). VER sección "GOTCHA: Linux".
     autoSync.ts              helper onDataChange(table,{immediate}) → flush → syncAllSilent
 src-tauri/
   Cargo.toml                 deps Rust (ver stack)
@@ -208,6 +210,86 @@ src-tauri/gen/               generado (ignorar; no editar a mano — EXCEPCIÓN:
 - **Pie de página del PDF**: dibujarlo dentro de `didDrawPage` da "Hoja 1/1" en
   cada página, porque las hojas siguientes aún no existen. Registrar el rango de
   páginas de cada tabla y pintar el pie al final, ya con `getNumberOfPages()` real.
+
+## GOTCHA: Linux (2026-10) — "no es Windows" NO significa "es Android"
+
+El backend Rust ya era multiplataforma: tiene `#[cfg(target_os = "linux")]`
+en `gd_open_url_browser` (usa `xdg-open`), en los comandos JNI, etc., y
+`cargo check` pasa en Linux sin tocar una línea. **Todos los problemas estaban
+en el frontend**, y en un ún error de fondo: cuatro lugares asumían que si no
+|Windows" entonces era "un telófono Android". En Linux de escritorio eso es
+falso, y el resultado era una app que funcionaba pero con la UI del móvil.
+
+**Regla**: para elegir entre UI ancha y UI de telófono, preguntar
+"**¿soy un telófono?**" (`!isAndroid` / `esEscritorio` de `platform.ts`),
+nunca "¿soy Windows?". La pregunta de plataforma real es para lo que de verdad
+importa: separadores de ruta, `file://`, binario para abrir el navegador.
+
+### Lo que estaba roto en Linux (arreglado en `9c0509f`)
+
+1. **Separadores de ruta hardcodeados**: `/Android/i.test(ua) ? '/' : '\\'`
+   en `instrumentosExcel.ts` e `instrumentosPdf.ts`. En Linux armaba
+   `/home/user/Documents\SchoolTrackerPro\Plantillas`: las plantillas nunca se
+   listaban y los instrumentos xlsx/pdf no se guardaban.
+2. **`openUrl('file:///' + ruta)`**: en Linux daba `file:////home/...` con
+   cuatro barras. Prefijar la unidad en Windows es lo que deja el host vacío.
+3. **`devicePlatform()`** (`driveSyncService.ts`) devolvía `'Windows'` para todo
+   lo que no fuera Android → los respaldos de Drive se nombraban
+   `..._Windows_latest.db` desde Linux.
+4. **`isWindows` en `AsistenciaPage.svelte`**: caía siempre en la UI angosta
+   (menú de marcado diario en vez de los popovers con selector de días,
+   período predeterminado "diario" en vez de "mensual", modales de 320px).
+
+### Reglas que quedan
+
+- **NUNCA hardcodear el separador ni armar `file://` a mano.** Usar
+  `separadorRuta()`, `unirRuta()` y `aFileURL()` de `src/lib/platform.ts`.
+  `excel.ts` y `DebugPage.svelte` ya lo hacían bien con
+  `carpeta.includes('\\') ? '\\' : '/'`; `platform.ts` lo centraliza.
+- **Cambiar la plataforma del nombre del archivo de Drive implica volver la
+  bútqueda agnóstica**: `findAnyExistingBackup()` busca cualquier
+  `..._latest.db` (sin filtrar por plataforma) y `isLatestFile()` acepta
+  cualquier plataforma. Si no, al guardar desde Linux no se encuentra el
+  `..._Windows_latest.db` y se crea una cadena de respaldos paralela en cada
+  guardado. Es el mismo modo de fallo que el GOTCHA de `accountTag()` de arriba.
+- **`node_modules` es específico de plataforma**: copiado desde Windows solo
+  trae `@rollup/rollup-win32-*`, `@esbuild/win32-x64` y
+  `@tauri-apps/cli-win32-x64-msvc`, y `svelte-check` falla con *"Cannot find
+  module @rollup/rollup-linux-x64-gnu"* en los 40 componentes. Siempre
+  `npm install` en la máquina nueva, nunca copiar la carpeta.
+- **Empaquetado**: `targets: "all"` incluye rpm y appimage, que necesitan
+  `rpmbuild` y `patchelf`. El `deb` solo necesita `dpkg-deb` + `fakeroot`.
+  `libayatana-appindicator3-0.1` NO hace falta (la app no usa tray icon).
+- **GOTCHA de `git-filter-repo`**: al terminar hace `git reset --hard`, asi que
+  **descarta cualquier cambio sin commitear**. Commitear antes de purgar.
+
+## REGLA: datos personales y secretos NUNCA en git (2026-10)
+
+El repo estuvo ~2 años con datos reales commitados. Se purgó todo el
+historial con `git-filter-repo`, pero **cualquiera puede volver a colarlos**:
+
+| Nunca commitear | Por qué |
+|---|---|
+| `*.db` / `*.sqlite` | La BD tiene los 163 estudiantes: nombre, código, teléfono, email, dirección, asistencia y notas |
+| `Credenciales.xlsx`, `Turso.xlsx` | `schoolKey` + `workerUrl` de Cloudflare, y un JWT de Turso |
+| Claves en el código (`supabase_key = "eyJ..."`) | Una `service_role` de Supabase es admin total; jamás se hardcodea, va en `.env` / Secret Manager |
+| `.wrangler/` | Estado local del CLI, nunca versionado |
+| `target/` | Ver GOTCHA de `target/` en `.gitignore` (1 GB de build de Windows) |
+
+Ya están en `.gitignore`. Si un `.db` aparece con datos de personas, tratarlo
+como incidente: purgar con `git-filter-repo` **y rotar la credencial** que se
+expuso. Borrar el archivo del working tree NO alcanza: sigue en el historial.
+
+**Respaldo del historial antes de purgar** (fuera del repo, porque si queda una
+rama o un tag el blob sigue siendo alcanzable):
+
+`bash
+git bundle create /tmp/rescate/historial.bundle --all
+git branch -D backup-temporal   # si no, la purga no sirve
+python3 /ruta/git-filter-repo --force --invert-paths --path "archivo"
+# para contenido dentro de archivos que NO se pueden borrar (ej. lib.rs):
+#   --replace-text (con un archivo de regex:PATRON==>REEMPLAZO)
+`
 
 ## Archivos Android custom en gen/ (commiteados, NO auto-generados)
 
@@ -974,7 +1056,8 @@ props { pageActive, subTabRequest }, montaje perezoso (cada hijo se monta al
 primera visita y queda oculto con display:none — preserva estado/drafts),
 siempre abren en el sub-tab principal salvo subTabRequest (quick-actions del
 Dashboard mapean en App.handleTabChange: 'informe'→asistencia, 'reportes'→notas).
-Hijos reciben isible para condicionar egisterBackHandler. Swipe
+Hijos reciben isible para condicionar 
+egisterBackHandler. Swipe
 horizontal Android alterna sub-tabs (ignora gestos sobre scroll-x propios o
 modales fixed z=100).
 
