@@ -398,6 +398,16 @@ y el usuario necesita verlos permanentemente.
 - `npm run tauri` / `npm run tauri build` — construir/ejecutar el binario Tauri (Rust).
 - `npm run dev:android` / `dev:android:hot` — desarrollo en Android.
 - Verificación Rust: `cd src-tauri && cargo check` (o `cargo build`).
+- `npm run clean` — borra `dist/`, `src-tauri/target/` y
+  `src-tauri/gen/schemas/` (dejando `node_modules`). Para recompilar desde cero.
+- `npm run clean:all` — además borra `node_modules`. **Obligatorio al cambiar de
+  plataforma**: los binarios nativos de `@rollup`, `@esbuild` y `@tauri-apps/cli`
+  son del SO. Añade `-- --dry` a cualquiera de los dos para ver qué borraría sin
+  borrar nada.
+- Compilar el binario de Linux: `npm run build && cd src-tauri && cargo build --release`.
+  Ojo: `bundle.targets` está en `"all"`, que en Linux quiere decir deb+rpm+appimage;
+  rpm y appimage necesitan `rpmbuild` y `patchelf` (no instalados). Para solo deb:
+  `npx tauri build --bundles deb`.
 
 ## Tareas frecuentes (plantilla)
 - **Agregar un campo a una tabla**: editar `CREATE TABLE` en `db.rs::init_database`.
