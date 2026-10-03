@@ -1418,6 +1418,11 @@ async fn gd_start_oauth_server(port: u16) -> Result<String, String> {
     Ok(code)
 }
 
+// Solo se usan en la rama WebView de `gd_open_auth_webview`, que compila solo
+// en Windows/macOS: en Linux y Android el login va por navegador del sistema y
+// el código lo captura el servidor TCP. Sin el allow, `cargo check` en Linux
+// las marca como dead code.
+#[allow(dead_code)]
 fn extract_oauth_code_from_url(raw_url: &str) -> Option<String> {
     if let Ok(parsed) = url::Url::parse(raw_url) {
         for (key, value) in parsed.query_pairs() {
@@ -1444,6 +1449,25 @@ fn extract_oauth_port_from_auth_url(auth_url: &str) -> u16 {
     51733
 }
 
+/// Lee el parametro `error=` de una URL de callback de Google.
+///
+/// Valores tipicos: `access_denied` (el usuario cerro o Google's bloquea),
+/// `redirect_uri_mismatch`, `invalid_client`, `invalid_scope`, o
+/// `disallowed_useragent` (login dentro de una WebView embebida, que es
+/// exactamente lo que pasó en Linux antes de usar el navegador del sistema).
+#[allow(dead_code)]
+fn extract_oauth_error_from_url(raw_url: &str) -> Option<String> {
+    if let Ok(parsed) = url::Url::parse(raw_url) {
+        for (key, value) in parsed.query_pairs() {
+            if key == "error" {
+                return Some(value.to_string());
+            }
+        }
+    }
+    None
+}
+
+#[allow(dead_code)]
 fn is_localhost_oauth_callback(raw_url: &str) -> bool {
     if let Ok(parsed) = url::Url::parse(raw_url) {
         let host = parsed.host_str().unwrap_or("");
@@ -1462,12 +1486,22 @@ async fn gd_open_auth_webview(
     oauth_cancel_flag().store(false, Ordering::SeqCst);
     gd_start_oauth_background(app.clone(), port).await?;
 
-    #[cfg(target_os = "android")]
+    // ── Android y Linux: navegador del SISTEMA + polling del servidor TCP ──
+    //
+    // En Linux el WebView embebido (WebKitGTK) NO sirve: Google bloquea el
+    // login en user-agents embebidos y responde "Something went wrong". El
+    // `client_id` y el `redirect_uri` son correctos (verificado con curl: la
+    // misma URL devuelve 302 a la pantalla de login), así que el problema es la
+    // WebView, no la configuración.
+    //
+    // El navegador real además es mejor UX: ya tiene la sesión de Google abierta
+    // y no hay que re-ingresar. El código lo captura el servidor TCP que ya se
+    // arrancó arriba (`gd_start_oauth_background`), igual que en Android.
+    #[cfg(any(target_os = "android", target_os = "linux"))]
     {
-        use tauri_plugin_opener::OpenerExt;
-        app.opener()
-            .open_url(&url, None::<&str>)
-            .map_err(|e| format!("Error al abrir navegador en Android: {}", e))?;
+        if let Err(e) = gd_open_url_browser(app.clone(), url.clone()).await {
+            return Err(format!("No se pudo abrir el navegador del sistema: {}", e));
+        }
 
         for _ in 0..600 {
             if oauth_cancel_flag().load(Ordering::SeqCst) {
@@ -1477,16 +1511,17 @@ async fn gd_open_auth_webview(
             {
                 let mut guard = oauth_code_state().lock().map_err(|e| e.to_string())?;
                 if let Some(code) = guard.take() {
-                    println!("[OAuth Android] Código recibido via servidor TCP!");
+                    println!("[OAuth] Código recibido via servidor TCP!");
                     return Ok(code);
                 }
             }
             tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         }
-        return Err("Tiempo de espera agotado".to_string());
+        return Err("Tiempo de espera agotado (¿se completó el login en el navegador?)".to_string());
     }
 
-    #[cfg(not(target_os = "android"))]
+    // ── Windows y macOS: WebView embebido ──
+    #[cfg(not(any(target_os = "android", target_os = "linux")))]
     {
         let (tx, rx) = std::sync::mpsc::channel::<String>();
 
@@ -1510,6 +1545,14 @@ async fn gd_open_auth_webview(
         .on_navigation(move |nav_url| {
             let s = nav_url.as_str();
             println!("[OAuth] WebView navigation: {}", &s[..s.len().min(150)]);
+
+            // Diagnóstico: Google responde con "?error=<motivo>" cuando rechaza
+            // el login ("Something went wrong" en la ventana). Sin esto el
+            // usuario solo ve la pantalla de error de Google y no sabemos si es
+            // redirect_uri_mismatch, disallowed_useragent o lo que sea.
+            if let Some(err) = extract_oauth_error_from_url(s) {
+                eprintln!("[OAuth] Google devolvio un error: {}", err);
+            }
 
             if let Some(code) = extract_oauth_code_from_url(s) {
                 println!("[OAuth] Code extracted via WebView (len={})", code.len());
@@ -1652,16 +1695,52 @@ async fn gd_start_oauth_background(app: tauri::AppHandle, port: u16) -> Result<(
                             println!("[OAuth] No code found in request");
                         }
 
+                        // El scheme `schooltracker-auth://` SOLO esta registrado en el
+                        // AndroidManifest. En Linux/Windows/macOS el navegador no lo
+                        // conoce y, tras el login, mostraria una pagina de error
+                        // "no hay aplicacion asociada". Ahi se responde con un cierre
+                        // limpio sin redireccion. El codigo YA quedo guardado en
+                        // `oauth_code_state()`, asi que la app lo recupera igual por
+                        // polling o por el evento `google-auth-code`.
+                        #[cfg(target_os = "android")]
                         let callback_url = format!(
                             "schooltracker-auth://callback?code={}",
                             url::form_urlencoded::byte_serialize(code.as_bytes()).collect::<String>()
                         );
-                        let html = r#"<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Conectado</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;font-family:system-ui,sans-serif}.card{background:rgba(30,41,59,.85);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:3rem 2.5rem;text-align:center;max-width:420px;width:90%;animation:slideUp .6s ease-out}@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}.check{width:80px;height:80px;margin:0 auto 1.5rem;background:linear-gradient(135deg,#10b981,#059669);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(16,185,129,.4)}h1{color:#f8fafc;font-size:1.5rem;font-weight:700;margin:0 0 1rem}p{color:#94a3b8;font-size:.9rem;line-height:1.6;margin:0 0 1.5rem}a.btn{display:inline-block;background:#3b82f6;color:white;text-decoration:none;padding:10px 24px;border-radius:12px;font-weight:600;transition:background 0.2s}a.btn:hover{background:#2563eb}</style></head><body><div class="card"><div class="check"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="4 12 9 17 20 6"/></svg></div><h1>Conectado a Google Drive</h1><p>Redirigiendo a la aplicación...</p><a href="__CALLBACK_URL__" class="btn">Volver a la App</a></div><script>setTimeout(function(){window.location.href="__CALLBACK_URL__";window.close();},500);</script></body></html>"#.replace("__CALLBACK_URL__", &callback_url);
+                        #[cfg(not(target_os = "android"))]
+                        let callback_url = String::new();
+
+                        // Texto y auto-redireccion segun plataforma.
+                        #[cfg(target_os = "android")]
+                        let (subtitulo, auto_redirect) = (
+                            "Redirigiendo a la aplicacion...",
+                            "<script>setTimeout(function(){window.location.href=\"__CALLBACK_URL__\";window.close();},500);</script>",
+                        );
+                        #[cfg(not(target_os = "android"))]
+                        let (subtitulo, auto_redirect) = (
+                            "Ya podes cerrar esta pestana y volver a la aplicacion.",
+                            "",
+                        );
+                        // El boton "Volver a la App" solo tiene sentido en Android,
+                        // donde el scheme abre la app. En desktop molestaria.
+                        #[cfg(target_os = "android")]
+                        let boton_volver = format!(
+                            "<a href=\"{}\" class=\"btn\">Volver a la App</a>",
+                            callback_url
+                        );
+                        #[cfg(not(target_os = "android"))]
+                        let boton_volver = String::new();
+
+                        let html = r#"<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>Conectado</title><style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f172a;font-family:system-ui,sans-serif}.card{background:rgba(30,41,59,.85);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:3rem 2.5rem;text-align:center;max-width:420px;width:90%;animation:slideUp .6s ease-out}@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}.check{width:80px;height:80px;margin:0 auto 1.5rem;background:linear-gradient(135deg,#10b981,#059669);border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 20px rgba(16,185,129,.4)}h1{color:#f8fafc;font-size:1.5rem;font-weight:700;margin:0 0 1rem}p{color:#94a3b8;font-size:.9rem;line-height:1.6;margin:0 0 1.5rem}a.btn{display:inline-block;background:#3b82f6;color:white;text-decoration:none;padding:10px 24px;border-radius:12px;font-weight:600;transition:background 0.2s}a.btn:hover{background:#2563eb}</style></head><body><div class="card"><div class="check"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="4 12 9 17 20 6"/></svg></div><h1>Conectado a Google Drive</h1><p>__SUBTITULO__</p>__AUTO_REDIRECT__</div>__AUTO_REDIRECT_SCRIPT__</body></html>"#
+                            .replace("__CALLBACK_URL__", &callback_url)
+                            .replace("__SUBTITULO__", subtitulo)
+                            .replace("__AUTO_REDIRECT__", &boton_volver)
+                            .replace("__AUTO_REDIRECT_SCRIPT__", auto_redirect);
                         let response = format!(
                             "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                             html.len(), html
                         );
-let _ = socket.write_all(response.as_bytes()).await;
+                        let _ = socket.write_all(response.as_bytes()).await;
                         let _ = socket.flush().await;
                         println!("[OAuth] Response sent to browser");
                     }

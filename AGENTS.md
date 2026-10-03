@@ -310,6 +310,52 @@ vivo (próxima subida, intervalo, último respaldo, subida totales, último erro
 un botón "Forzar respaldo ahora" que reporta el motivo si no sube
 (`no_changes` / `throttled` / `disabled`).
 
+## GOTCHA: Google BLOQUEA el login en WebViews embebidas (2026-10)
+
+Síntoma en Linux: al tocar "Continuar con Google" se abre la ventana
+`google-auth` y Google muestra **"Something went wrong"**. En Windows y macOS
+funcionaba (WebView2 = Chromium).
+
+**No es un problema de configuración.** El `client_id` y el
+`redirect_uri=http://localhost:51733/callback` son válidos: la misma URL pedida
+con `curl` y un user agent de navegador devuelve `HTTP 302` a la pantalla de
+login. Lo que falla es el **user agent embebido**: Google rechaza el login OAuth
+dentro de WebViews (WebKitGTK en Linux) con `error=disallowed_useragent` /
+`access_denied`, y su página de error es justamente "Something went wrong".
+
+**Solución aplicada**: en Linux el login va por **navegador del sistema**
+(`xdg-open`), igual que en Android, y no por WebView. El código lo sigue
+capturando el servidor TCP de `127.0.0.1:51733` con polling, que ya existía.
+En Windows/macOS se mantiene la WebView.
+
+| Plataforma | Login | Quién captura el código |
+|---|---|---|
+| Android | Google Sign-In nativo (Play Services) | `serverAuthCode` |
+| Linux | **navegador del sistema** (`xdg-open`) | servidor TCP + polling |
+| Windows/macOS | WebView embebida | `on_navigation` + servidor TCP (redundancia) |
+
+Ventaja extra del navegador del sistema en Linux: el usuario ya tiene la sesión
+de Google abierta en Firefox/Chrome, así que no re-ingresa nada.
+
+**El scheme `schooltracker-auth://` SOLO está registrado en el
+AndroidManifest.** En Linux el navegador no lo conoce y tras el login mostraría
+una página de error "no hay aplicación asociada". Por eso el HTML de
+respuesta del servidor TCP ahora es por plataforma: en Android redirige al
+scheme y muestra el botón "Volver a la App"; en desktop muestra "Ya podés
+cerrar esta pestana" y no redirige. El código ya quedó guardado en
+`oauth_code_state()` en ambos casos, así que la app lo recupera igual.
+
+**Diagnóstico**: `on_navigation` ahora loguea con `eprintln!` cuando la URL trae
+`error=` (véase `extract_oauth_error_from_url`). Sin eso solo se veía la
+pantalla de error de Google, sin saber el motivo. Para leerlo hay que correr
+`npx tauri dev` y mirar la terminal (los `println!` de Rust no van a la consola
+del navegador).
+
+**GOTCHA al editar**: `format!("<a href=\"{}\" class=...")` — si el `\"` se
+coloca después del `{}` en vez de antes, cierra el string antes de tiempo y
+salta `unknown start of token: \`. Y `str::replace()` exige `&String`, no
+`String`: `.replace("__X__", &boton_volver)`.
+
 ## REGLA: datos personales y secretos NUNCA en git (2026-10)
 
 El repo estuvo ~2 años con datos reales commitados. Se purgó todo el
