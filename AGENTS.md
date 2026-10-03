@@ -171,10 +171,9 @@ src-tauri/gen/               generado (ignorar; no editar a mano — EXCEPCIÓN:
 - **Sync periódico**: configurable en ajustes (segundos). Lo maneja
   `driveSyncService.ensurePeriodicSync()`. Intervalo guardado en
   `localStorage['periodic_sync_interval_seconds']`.
-- **dirtyTracker**: la clave en localStorage es `stp_dirty_tables`. En `dirtyTracker.ts`
-  hay una migración que renombra la clave histórica `turso_dirty_tables` una sola vez
-  para no perder marcas pendientes. Función: marcar tablas modificadas para saber si
-  hay cambios pendientes de subir.
+- **dirtyTracker**: la clave en localStorage es `stp_dirty_tables`. Función: marcar
+  tablas modificadas para saber si hay cambios pendientes de subir. (Hubo una
+  migración desde `turso_dirty_tables`; se eliminó en 2026-10 con Turso.)
 - **Per-account DBs**: cada cuenta de Google tiene su propio archivo SQLite
   (`school_<email>.db`). El archivo activo se controla via `active_account.txt`
   y helpers `db::read_active_account` / `db::write_active_account`. NO usar
@@ -364,8 +363,8 @@ historial con `git-filter-repo`, pero **cualquiera puede volver a colarlos**:
 | Nunca commitear | Por qué |
 |---|---|
 | `*.db` / `*.sqlite` | La BD tiene los 163 estudiantes: nombre, código, teléfono, email, dirección, asistencia y notas |
-| `Credenciales.xlsx`, `Turso.xlsx` | `schoolKey` + `workerUrl` de Cloudflare, y un JWT de Turso |
-| Claves en el código (`supabase_key = "eyJ..."`) | Una `service_role` de Supabase es admin total; jamás se hardcodea, va en `.env` / Secret Manager |
+| `Credenciales.xlsx` y cualquier `*.xlsx` con claves | El `schoolKey` + `workerUrl` de Cloudflare vivía en un `Credenciales.xlsx` commiteado |
+| Cualquier API key o JWT en el código (`key = "eyJ..."`) | Se hallaron dos claves reales de proveedores ya retirados (una `service_role` de Postgres y un token de libSQL), ambas hardcodeadas en `lib.rs`. Una `service_role` es admin total. Jamás se hardcodea: va en `.env` o Secret Manager |
 | `.wrangler/` | Estado local del CLI, nunca versionado |
 | `target/` | Ver GOTCHA de `target/` en `.gitignore` (1 GB de build de Windows) |
 

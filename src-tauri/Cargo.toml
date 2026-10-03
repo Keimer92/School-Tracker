@@ -33,7 +33,11 @@ tauri-plugin-global-shortcut = "2"
 ureq = { version = "2.9", features = ["json"] }
 tokio = { version = "1", features = ["full"] }
 base64 = "0.22.1"
-sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "json"] }
-futures = "0.3"
 url = "2"
+
+# ELIMINADOS 2026-10 (proveedor de nube retirado, ya no se usan):
+#   sqlx    -> cliente Postgres de Supabase. 0 referencias en src/.
+#   futures -> lo usaban los servicios de sync viejos (Supabase/Turso/
+#              PocketBase). El sync actual es Cloudflare D1 con `ureq`
+#              (bloqueante, dentro de spawn_blocking) mas WebSocket con tokio.
 
