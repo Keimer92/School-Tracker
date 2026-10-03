@@ -355,6 +355,89 @@ coloca después del `{}` en vez de antes, cierra el string antes de tiempo y
 salta `unknown start of token: \`. Y `str::replace()` exige `&String`, no
 `String`: `.replace("__X__", &boton_volver)`.
 
+## GOTCHA: ícono genérico en el dock de COSMIC (2026-10)
+
+Síntoma en Linux: la app corre pero el dock muestra el ícono genérico de
+engranaje en vez del ícono real.
+
+**Causa**: la app nunca estuvo *instalada*. Un binario suelto ( `./target/debug/...`)
+no tiene entrada `.desktop`, y el dock de COSMIC no tiene nada con qué asociar la
+ventana. No es un tema de imágenes.
+
+**Instalación sin sudo** (Tauri genera el `.desktop` y los íconos correctos al
+empaquetar, así que basta con extraer el `.deb` en `~/.local`):
+
+`bash
+npm run tauri build -- --debug --bundles deb
+# o para el de release: npm run tauri build -- --bundles deb
+dpkg-deb -x "src-tauri/target/{debug,release}/bundle/deb/School Tracker_*.deb" /tmp/x
+install -Dm755 /tmp/x/usr/bin/school-tracker            ~/.local/bin/school-tracker
+install -Dm644 "/tmp/x/usr/share/applications/School Tracker.desktop" \
+             ~/.local/share/applications/school-tracker.desktop
+# iconos: 32x32, 128x128 y 256x256@2 de /tmp/x/usr/share/icons/hicolor/
+gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor
+update-desktop-database ~/.local/share/applications
+`
+
+Con sudo alcanza con `sudo apt install ./School\ Tracker_*.deb`.
+
+### Las tres piezas tienen que coincidir
+
+| Pieza | Valor correcto | Cómo se comprueba |
+|---|---|---|
+| `app_id` de la ventana | `school-tracker` | `WAYLAND_DEBUG=1 app 2>&1 \| grep set_app_id` |
+| `StartupWMClass` del `.desktop` | `school-tracker` | lo escribe Tauri desde el nombre del binario |
+| `Icon=` | `school-tracker` | `python3 -c "import gi; gi.require_version('Gtk','3.0'); from gi.repository import Gtk; print(Gtk.IconTheme.get_default().lookup_icon('school-tracker',128,0).get_filename())"` |
+
+El `.desktop` que genera Tauri tiene `StartupWMClass=school-tracker` (el **nombre del
+binario**, NO el campo `identifier`). Ese es el que tiene que coincidir, así que no tocar.
+
+### ¿POR QUÉ NO APARECÍ HASTA REINICIAR SESIÓN?
+
+`cosmic-panel` lee las entradas `.desktop` **una sola vez al arrancar**. Se puede
+comprobar que no las vigila: sus watches de inotify (en `/proc/<pid>/fdinfo`) son
+solo `~/.config/cosmic/com.system76.CosmicPanel*/v1` y los directorios de tema.
+Nada de `~/.local/share/applications` ni `/usr/share/applications`.
+
+`bash
+for f in /proc/$(pgrep -x cosmic-panel)/fdinfo/*; do
+  grep -oE 'inotify wd:[0-9]+ ino:[0-9a-f]+' "$f"
+done | sed 's/.*ino://' | while read i; do
+  find ~ -maxdepth 5 -inum $((16#$i)) 2>/dev/null
+done
+`
+
+Por eso un `.desktop` recién creado no aparece hasta que se reinicia el panel o la
+sesión. No hay `update-desktop-database` que lo arregle.
+
+### NO usar `app.enableGTKAppId`
+
+Tauri 2.11 tiene ese flag (default `false`) y pone el `app_id` igual al campo
+`identifier`, o sea `com.keimer.schooltracker`. Como el bundler escribe
+`StartupWMClass=school-tracker`, el flag **rompe** la coincidencia. Además, con
+`gtk::Application::new(Some(app_id))` la app registra un nombre en el bus de sesión
+y se comporta de forma distinta. Probado con A/B: la app con el flag moría a los
+10s en vez de los 30s.
+
+### GOTCHA: `cargo build` a secas NO da un binario standalone
+
+`tauri-codegen` decide con `dev: cfg!(not(feature = "custom-protocol"))`. Sin esa
+feature, `dev = true` y el binario usa `devUrl` (`http://localhost:1420`) en vez de
+embebir `frontendDist`. Escenario típico: `cargo build`, `./target/debug/school-tracker`
+y la ventana en blanco porque no hay servidor de Vite corriendo.
+
+Por eso `src-tauri/Cargo.toml` necesita la sección:
+
+`toml
+[features]
+custom-protocol = ["tauri/custom-protocol"]
+`
+
+Sin ella `npm run tauri build` falla con *feature custom-protocol not found*.
+
+**Para un binario que funcione standalone: `npm run tauri build`**, no `cargo build`.
+Para desarrollo con ventana y HMR: `npx tauri dev` (que además levanta Vite).
+
 ## REGLA: datos personales y secretos NUNCA en git (2026-10)
 
 El repo estuvo ~2 años con datos reales commitados. Se purgó todo el

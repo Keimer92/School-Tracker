@@ -17,6 +17,14 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+[features]
+# Tauri la usa para decidir si el binario embebe `frontendDist` o usa
+# `devUrl` (ver `tauri-codegen`: `dev: cfg!(not(feature = "custom-protocol"))`).
+# `npm run tauri build` la activa sola; un `cargo build` a secas NO, y entonces
+# el binario intenta cargar http://localhost:1420 en vez de los assets embebidos.
+# Sin esta seccion, `tauri build` falla con "feature custom-protocol not found".
+custom-protocol = ["tauri/custom-protocol"]
+
 [dependencies]
 tauri = { version = "2", features = [] }
 jni = "0.21"
