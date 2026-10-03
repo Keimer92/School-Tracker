@@ -441,6 +441,13 @@
       } catch {}
       const backups = await driveSyncService.listBackups();
       driveFilesCount = backups.length;
+      // `listSyncFiles` ya devuelve el "_latest" primero (ver `priorizarLatest`),
+      // así que este bucle arranca por el último estado conocido y solo cae al
+      // snapshot con timestamp si el "_latest" falla o viene con la base vacía.
+      console.debug(
+        '[Drive] orden de restauracion:',
+        backups.map((b: any) => b.name)
+      );
       if (backups.length === 0) {
         driveSinRespaldo = true;
         if (!tieneNube) {

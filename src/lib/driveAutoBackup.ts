@@ -43,7 +43,8 @@ interface BatteryStatus {
   source: string;
 }
 
-interface AutoBackupState {
+/** Estado del planificador. Exportado para mostrarlo en Ajustes -> Depuración. */
+export interface AutoBackupState {
   enabled: boolean;
   baseIntervalMin: number;
   maxIntervalMin: number;
@@ -165,6 +166,10 @@ async function canRunNow(
   reason: TriggerReason,
   options: { skipThrottle?: boolean; skipBattery?: boolean } = {}
 ): Promise<{ ok: boolean; reason?: string }> {
+  // `setEnabled(false)` solo limpiaba el timer, pero los triggers pasivos
+  // (boot/visibility/online/hidden) seguían empujando: apagar el respaldo
+  // automático en Ajustes no lo apagaba de verdad.
+  if (!state.enabled) return { ok: false, reason: 'disabled' };
   if (!navigator.onLine) return { ok: false, reason: 'offline' };
   if (!options.skipThrottle && shouldThrottle())
     return { ok: false, reason: 'throttled' };
@@ -235,7 +240,16 @@ function scheduleNextRun() {
     clearTimeout(timerHandle);
     timerHandle = null;
   }
-  if (!isStarted || !isRunning) return;
+  // OJO: el guard es `isStarted` + `state.enabled`, NUNCA `isRunning`.
+  // `start()` hace `isRunning = false` y llama a `scheduleNextRun()` justo
+  // después, así que con `!isRunning` en el guard el temporizador NUNCA se
+  // armaba: la "capa 1" (timer adaptativo) estaba muerta desde siempre y solo
+  // funcionaban los triggers pasivos (boot/visibility/online). Peor: en el
+  // `finally` de `runOnce` el rearmado tampoco pasaba, así que ni siquiera
+  // después de un timer disparado se reprogramaba el siguiente.
+  // El estado que decide si tiene que haber timer es `enabled`, no si hay una
+  // subida en vuelo (`isRunning`).
+  if (!isStarted || !state.enabled) return;
   const baseMs = state.currentIntervalMin * 60_000;
   const delay = baseMs + jitter();
   state.nextRunAt = Date.now() + delay;
@@ -254,6 +268,10 @@ async function runOnce(reason: TriggerReason): Promise<{ ran: boolean; reason?: 
     return { ran: false, reason: 'busy' };
   }
   isRunning = true;
+  // Si el catch arma un timer de reintento corto (5/15/60 min), el `finally` NO
+  // debe reprogramar el intervalo normal encima: se perdería el backoff y se
+  // reintentaría al ritmo normal, que es justo lo contrario de lo que se busca.
+  let retryArmed = false;
   try {
     const can = await canRunNow(reason, {
       // El timer ignora batería; los triggers manuales sí la respetan
@@ -274,17 +292,20 @@ async function runOnce(reason: TriggerReason): Promise<{ ran: boolean; reason?: 
       const mins = backoffs[Math.min(state.consecutiveFails - 1, backoffs.length - 1)];
       if (timerHandle) clearTimeout(timerHandle);
       timerHandle = setTimeout(() => void notifyTrigger('timer'), mins * 60_000);
+      retryArmed = true;
       return { ran: false, reason: 'push_failed' };
     }
   } finally {
     isRunning = false;
-    if (reason === 'timer') scheduleNextRun();
+    if (reason === 'timer' && !retryArmed) scheduleNextRun();
   }
 }
 
 async function notifyTrigger(reason: TriggerReason) {
+  // No rearma el timer acá: `runOnce` ya lo hace en su `finally` cuando el
+  // motivo es 'timer'. Llamarlo dos veces aplicaba el jitter dos veces y
+  // reiniciaba la cuenta regresiva.
   await runOnce(reason);
-  if (reason === 'timer') scheduleNextRun();
 }
 
 function onVisibilityChange() {

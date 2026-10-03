@@ -444,12 +444,29 @@ async function pruneSyncFiles(token: string, files: DriveFile[]): Promise<DriveF
   return keep.sort((a, b) => recencyOf(b).localeCompare(recencyOf(a)));
 }
 
+/**
+ * Prioriza el archivo "_latest" sin depender de `modifiedTime`.
+ *
+ * `recencyOf()` ordena por `modifiedTime`, y el "_latest" sí suele ser el más
+ * reciente (se sobrescribe por PATCH en cada guardado)... pero no está
+ * GARANTIZADO: si el push falla y se reintenta, o si un snapshot con timestamp
+ * se sube después, el timestamped puede quedar por delante. Para "restaurar" lo
+ * que importa es el último estado conocido, así que el "_latest" va primero
+ * explícitamente y el resto se ordena por recencia.
+ */
+function priorizarLatest(files: DriveFile[]): DriveFile[] {
+  return [...files].sort((a, b) => {
+    const aLatest = isLatestFile(a);
+    const bLatest = isLatestFile(b);
+    if (aLatest !== bLatest) return aLatest ? -1 : 1;
+    return recencyOf(b).localeCompare(recencyOf(a));
+  });
+}
+
 async function listSyncFiles(token: string): Promise<DriveFile[]> {
   const files = await listSyncFilesRaw(token);
-  if (files.length <= MAX_SYNC_FILES) {
-    return [...files].sort((a, b) => recencyOf(b).localeCompare(recencyOf(a)));
-  }
-  return pruneSyncFiles(token, files);
+  if (files.length <= MAX_SYNC_FILES) return priorizarLatest(files);
+  return priorizarLatest(await pruneSyncFiles(token, files));
 }
 
 async function deleteOldSyncVersions(token: string): Promise<void> {

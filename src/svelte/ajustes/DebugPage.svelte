@@ -29,6 +29,75 @@
   let isImporting = $state(false);
   let isWipingProfile = $state(false);
 
+  // ── Estado del respaldo automático a Google Drive ──
+  // Existía como scheduler sin ninguna UI: era imposible saber si estaba
+  // corriendo, armando el temporizador o saltándose por throttle. Este panel
+  // lo hace observable. Se refresca cada 5 s porque `getState()` es síncrono y
+  // solo lee un objeto en memoria (no toca la red).
+  type AbEstado = import("../../lib/driveAutoBackup").AutoBackupState;
+  let abEstado = $state<AbEstado | null>(null);
+  let abSubiendo = $state(false);
+  let abMensaje = $state("");
+  let ahora = $state(Date.now());
+
+  const leerEstadoDrive = async () => {
+    try {
+      const { driveAutoBackup } = await import("../../lib/driveAutoBackup");
+      abEstado = { ...driveAutoBackup.getState() };
+    } catch (e) {
+      console.warn("[DebugPage] no se pudo leer el estado de Drive:", e);
+    }
+  };
+
+  /** Cuenta regresiva formateada: "12 min" / "1 h 05 min" / "ahora". */
+  const cuentaRegresiva = (proximo: number | null | undefined) => {
+    if (!proximo) return "sin programar";
+    const min = Math.max(0, Math.round((proximo - ahora) / 60000));
+    if (min <= 0) return "en cualquier momento";
+    if (min < 60) return `en ${min} min`;
+    return `en ${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")} min`;
+  };
+
+  const marcaTiempo = (ms: number | null | undefined) =>
+    ms ? new Date(ms).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" }) : "nunca";
+
+  const forzarRespaldoDrive = async () => {
+    abSubiendo = true;
+    abMensaje = "";
+    try {
+      const { driveAutoBackup } = await import("../../lib/driveAutoBackup");
+      // `runOnce` respeta el toggle `enabled` y el throttle de 15 min, así que
+      // el botón avisa en vez de fingir que subió.
+      const res = await driveAutoBackup.runOnce("manual");
+      abMensaje = res.ran
+        ? "✓ Respaldo subido a Drive."
+        : `No se subió (${res.reason ?? "sin motivo"}). ${
+            res.reason === "no_changes"
+              ? "No hay cambios locales pendientes."
+              : res.reason === "throttled"
+                ? "Pasaron menos de 15 min desde el último respaldo."
+                : res.reason === "disabled"
+                  ? "El respaldo automático está desactivado."
+                  : ""
+          }`;
+    } catch (e) {
+      abMensaje = `✗ Error: ${(e as Error)?.message ?? e}`;
+    } finally {
+      abSubiendo = false;
+      await leerEstadoDrive();
+    }
+  };
+
+  $effect(() => {
+    void leerEstadoDrive();
+    const t1 = setInterval(() => void leerEstadoDrive(), 5000);
+    const t2 = setInterval(() => (ahora = Date.now()), 10000);
+    return () => {
+      clearInterval(t1);
+      clearInterval(t2);
+    };
+  });
+
   // ── Backup automático local ──
   let backupActivo = $state(false);
   let backupIntervaloMin = $state(120);
@@ -363,6 +432,44 @@
           <div><dt>Ruta de la base de datos</dt><dd class="dbg-path">{dbPath || "Cargando…"}</dd></div>
           <div><dt>Plataforma</dt><dd>{isAndroid ? "Android" : "Escritorio"}</dd></div>
         </dl>
+      </div>
+
+      <!-- RESPALDO AUTOMATICO A GOOGLE DRIVE -->
+      <div class="dbg-box">
+        <div class="dbg-box-head"><span style="font-size: 1.2rem;">☁️</span><h5>Respaldo automático a Drive</h5></div>
+        {#if !abEstado}
+          <p class="dbg-desc">Cargando estado…</p>
+        {:else}
+          <dl class="dbg-info">
+            <div>
+              <dt>Planificador</dt>
+              <dd>
+                {abEstado.enabled ? "Activo" : "Desactivado"}
+                {#if !abEstado.enabled}<span style="color:#f87171;"> (no sube nada)</span>{/if}
+              </dd>
+            </div>
+            <div><dt>Próxima subida automática</dt><dd>{cuentaRegresiva(abEstado.nextRunAt)}</dd></div>
+            <div><dt>Intervalo actual</dt><dd>cada {abEstado.currentIntervalMin} min (±{abEstado.jitterMin})</dd></div>
+            <div><dt>Último respaldo</dt><dd>{marcaTiempo(abEstado.lastSuccessAt)}</dd></div>
+            <div><dt>Subidas totales</dt><dd>{abEstado.totalUploads}</dd></div>
+            {#if abEstado.lastErrorAt}
+              <div><dt>Último error</dt><dd style="color:#f87171;">{marcaTiempo(abEstado.lastErrorAt)} · {abEstado.consecutiveFails} seguidos</dd></div>
+            {/if}
+            {#if abEstado.onlyWifi}
+              <div><dt>Solo con buena red</dt><dd>sí</dd></div>
+            {/if}
+          </dl>
+          <p class="dbg-desc">
+            Además, cada guardado en la app sube un respaldo instantáneo a los 5 s
+            (no espera al temporizador).
+          </p>
+          <button onclick={forzarRespaldoDrive} class="dbg-btn dbg-btn-verde" disabled={abSubiendo}>
+            {abSubiendo ? "Subiendo…" : "☁️ Forzar respaldo ahora"}
+          </button>
+          {#if abMensaje}
+            <p class="dbg-desc" style="margin-top:0.5rem;">{abMensaje}</p>
+          {/if}
+        {/if}
       </div>
     </div>
   </div>

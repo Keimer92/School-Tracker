@@ -263,6 +263,53 @@ importa: separadores de ruta, `file://`, binario para abrir el navegador.
 - **GOTCHA de `git-filter-repo`**: al terminar hace `git reset --hard`, asi que
   **descarta cualquier cambio sin commitear**. Commitear antes de purgar.
 
+## GOTCHA: el temporizador de `driveAutoBackup` estaba muerto (2026-10)
+
+Síntoma: "al entrar a la app no se hace un respaldo automático". El scheduler
+existía, arrancaba bien (`App.svelte` llama `driveAutoBackup.start()`) y logueaba
+`[AutoBackup] scheduler iniciado`, pero **nunca colgaba un `setTimeout`**, así
+que la "capa 1" (timer adaptativo) no corría nunca. Tampoco había ninguna UI que
+lo mostrara, por eso era invisible.
+
+**Causa**: el guard de `scheduleNextRun()` era
+
+`ts
+if (!isStarted || !isRunning) return;   // <- isRunning NO va aquí
+`
+
+`start()` hace `isRunning = false` y llama a `scheduleNextRun()` justo después,
+así que el guard siempre cortaba. Peor: el `finally` de `runOnce()` también
+rearmaba con `isRunning === false`, así que ni después de un disparo del timer
+se reprogramaba el siguiente. Dos bugs más en el mismo archivo:
+
+- `canRunNow()` **nunca miraba `state.enabled`**: apagar el respaldo automático en
+  Ajustes solo limpiaba el timer, pero los triggers pasivos
+  (boot/visibility/online/hidden) seguían empujando.
+- El `catch` de `runOnce()` armaba un backoff de reintento (5/15/60 min) que el
+  `finally` **pisaba** con el intervalo normal, dejando el reintento al ritmo
+  normal.
+
+**Corregido**: el guard es `if (!isStarted || !state.enabled) return;`, el
+`finally` usa un flag `retryArmed` para no pisar el backoff, y `notifyTrigger` ya
+no rearma dos veces (aplicaba el jitter doble).
+
+⚠️ Para ejercitarlo sin Tauri, como los PDFs: copiar el módulo a un directorio
+de prueba, redirigir sus 2 imports (`@tauri-apps/api/core` y `./driveSyncService`)
+a stubs, `npx esbuild test.ts --bundle --platform=node --format=esm` y correr el
+`.mjs`. **Instrumentar `globalThis.setTimeout` ANTES de importar el módulo** para
+poder afirmar que hay un timer vivo: `nextRunAt` solo es un número, no prueba que
+el `setTimeout` exista. En Node 24 `navigator` es getter de solo lectura, hay que
+usar `Object.defineProperty` para redefinirlo.
+
+**Los triggers pasivos NO deben reprogramar el timer**: si lo hicieran, cada
+`visibilitychange`/`online` empujaría la fecha límite y el respaldo nunca
+dispararía. Solo el camino `timer` rearma. Es intencionado.
+
+**Ver**: Ajustes -> Depuración -> "Respaldo automático a Drive" muestra el estado
+vivo (próxima subida, intervalo, último respaldo, subida totales, último error) y
+un botón "Forzar respaldo ahora" que reporta el motivo si no sube
+(`no_changes` / `throttled` / `disabled`).
+
 ## REGLA: datos personales y secretos NUNCA en git (2026-10)
 
 El repo estuvo ~2 años con datos reales commitados. Se purgó todo el
