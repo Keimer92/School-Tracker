@@ -362,6 +362,17 @@ navegador real el usuario puede tener que escribir su contraseña o pasar el
 
 ### Volver a la app sola cuando llega el código (`devolver_el_foco`)
 
+⚠️ **GOTCHA: los cambios en Rust NO se ven con `npm run dev`.** Ese comando
+solo levanta Vite y recarga el frontend. Para probar un cambio en
+`src-tauri/src/**` hay que correr `npm run dev:win` (= `tauri dev`) o
+recompilar el binario; si se prueba el `.exe` viejo, los síntomas son
+confusos: "la app hace X" cuando en realidad el código nuevo ni se ejecutó
+(a mí me pasó: el selector de navegador "no funcionaba" porque el binario era
+anterior a que existiera el parámetro). **Los `println!` de Rust solo salen en
+la terminal de `tauri dev`**; en el binario compilado no hay dónde verlos, así
+que para diagnosticar en una build release hay que usar `console.warn` en el
+frontend (DevTools oculta `console.debug` salvo nivel "Verbose").
+
 Como el login ocurre en el navegador del sistema, el SO le roba el foco a la
 app y el usuario queda mirando una pestaña que solo dice "Ya podés cerrar esta
 pestana", con la app escondida detrás. `devolver_el_foco(&app, motivo)` la
@@ -385,17 +396,29 @@ z-order normal). Es lo que hacen los lanzadores y los Toasts, y va dentro de un
 ⚠️ **GOTCHA: los métodos de ventana de Tauri son round-trips SINCRÓNICOS al
 event loop del SO.** `is_minimized`, `is_visible`, `show`, `unminimize`,
 `set_focus` y `set_always_on_top` bloquean el hilo que los llama hasta que el
-loop del SO responde. Consecuencia real que se costó una vuelta: llamarlos
-**directamente** dentro de `gd_open_auth_webview` dejaba el comando sin
-retornar, el `invoke` del frontend no resolvía y el WelcomePage quedaba
-girando para siempre —el síntoma era "vuelve a la app pero no pasa de
-WelcomePage". Por eso la API es de dos capas:
+loop del SO responde. Y el lugar donde se ejecutan decide si eso es grave:
 
-- `devolver_el_foco(&app, motivo)` → `tauri::async_runtime::spawn` con 120 ms de
-  margen, y devuelve enseguida. El comando retorna el `code` sin depender del
-  event loop.
+|Dónde se ejecuta | Si se cuelga, qué pasa |
+|---|---|
+| Directo en el comando | el `invoke` no resuelve nunca → el WelcomePage gira para siempre |
+| En un `async_runtime::spawn` | **consume un worker de tokio para siempre** → los comandos `async` (`d1_sync_all`, `gd_snapshot_db`…) se quedan sin runtime y la app entera se cuelga |
+| En un `std::thread::spawn` | un hilo dedicado queda colgado; no cuesta nada crítico |
+
+Por eso `devolver_el_foco` usa `std::thread::spawn` y NO
+`tauri::async_runtime::spawn`: los comandos `async` de Tauri corren en ese mismo
+runtime, así que un worker bloqueado en un round-trip al event loop deja sin
+servicio a todos los demás. La API quedó en dos capas:
+
+- `devolver_el_foco(&app, motivo)` → `std::thread::spawn` con 120 ms de margen, y
+  devuelve enseguida. El comando retorna el `code` sin depender del event loop.
 - `traer_app_al_frente(&app, motivo)` → sí hace las llamadas de ventana, pero
-  solo corre dentro de esa tarea suelta.
+  solo corre dentro de ese hilo.
+
+Esto se descubrió por un síntoma muy confuso: "el login se cuelga en el
+WelcomePage, pero si lo reintento funciona". Era una **carrera**, no un estado
+persistente: si los round-trips al event loop respondían rápido, el comando
+llegaba a `return Ok(code)`; si no, se quedaba trabado. Un bug que depende de
+latencia hay que sospecharlo siempre de carrera.
 
 ⚠️ **Nunca hacer operaciones de ventana con un mutex tomado**. El primer intento
 las tenía dentro del `guard` de `oauth_code_state()`, que compite con el
@@ -409,6 +432,24 @@ let maybe_code = {
 };
 if let Some(code) = maybe_code { devolver_el_foco(&app, "..."); return Ok(code); }
 ```
+
+### El WelcomePage no se puede quedar colgado (`conTope`)
+
+La fase de nube del restore (reconfigurar D1 + resync + `set_app_initialized`) es
+todo red: una sola llamada sin resolver (cuota de Cloudflare, worker caído, un
+endpoint sin desplegar) dejaba al usuario clavado en el spinner sin error ni
+salida. `conTope(tarea, ms, motivo)` corre esa cadena con un tope de 40 s; si
+vence, avisa y **se entra igual a la app**, porque el respaldo de Drive ya está
+escrito en disco y la nube es opcional para arrancar. Si el tope venció antes de
+`entrarALaApp`, se la vuelve a llamar (idempotente: `set_app_initialized` +
+`welcome-complete`).
+
+`Promise.race` **no cancela** la tarea perdedora: si termina después, su `catch`
+propio ya no molesta, y por eso `tarea` maneja sus errores internamente.
+
+Cada paso de la cadena deja un `console.warn('[Welcome] +X.Xs …')` con el tiempo
+transcurrido: es la única forma de saber en release **dónde** se colgó, porque
+los `println!` de Rust no se ven fuera de `tauri dev`.
 
 ⚠️ **No se puede detectar "el usuario cerró la pestaña"**: no hay evento de
 navegador que lo diga. La app solo se entera por el timeout, que es el motivo
