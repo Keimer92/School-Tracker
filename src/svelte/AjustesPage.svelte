@@ -304,13 +304,10 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                   <div style="display: flex; flex-wrap: wrap; gap: 8px;">
                     {#each OPCIONES_NAVEGADOR as op (op.id)}
                       <button
+                        class="nav-btn"
+                        class:activo={navegadorElegido === op.id}
                         onclick={() => { setNavegadorLogin(op.id); navegadorElegido = op.id; }}
-                        title={op.id === 'default' ? 'Usa la asociación http/https de Windows, macOS o Linux' : `Abrir el login directamente con ${op.label}`}
-                        style="padding: 0.55rem 1rem; border-radius: 10px; cursor: pointer; font-size: 0.82rem; font-weight: 600; transition: all 0.2s ease;
-                          {navegadorElegido === op.id
-                            ? 'background: rgba(96,165,250,0.22); border: 1px solid rgba(96,165,250,0.7); color: #bfdbfe; box-shadow: 0 2px 10px rgba(96,165,250,0.18);'
-                            : 'background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.1); color: #94a3b8;'}
-                          {navegadorElegido === op.id ? '' : 'onmouseover'}
+                        title={op.id === 'default' ? 'Usa la asociación http/https del sistema' : `Abrir el login directamente con ${op.label}`}
                       >{op.label}</button>
                     {/each}
                   </div>
@@ -335,6 +332,31 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 </div>
 
 <style>
+  /* Selector de navegador del login: glassmorphism, con el activo en acento.
+     Va en CSS y no en un `style="...{cond ? a : b}"` multilínea porque dos
+     expresiones en el mismo atributo rompe el parseo del template. */
+  .nav-btn {
+    padding: 0.55rem 1rem;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #94a3b8;
+  }
+  .nav-btn:hover {
+    border-color: rgba(96, 165, 250, 0.45);
+    color: #e2e8f0;
+  }
+  .nav-btn.activo {
+    background: rgba(96, 165, 250, 0.22);
+    border-color: rgba(96, 165, 250, 0.7);
+    color: #bfdbfe;
+    box-shadow: 0 2px 10px rgba(96, 165, 250, 0.18);
+  }
+
   .ajustes-grid {
     display: grid;
     /* auto-fit (no auto-fill): colapsa las columnas vacías para que una card

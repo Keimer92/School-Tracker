@@ -414,6 +414,56 @@ if let Some(code) = maybe_code { devolver_el_foco(&app, "..."); return Ok(code);
 navegador que lo diga. La app solo se entera por el timeout, que es el motivo
 de traerla al frente también en ese camino.
 
+### Elegir navegador para el login (`oauthBrowser.ts`)
+
+**No es un bug de la app**: `gd_open_url_browser` abre con
+`ShellExecuteExW` (plugin `opener` → crate `open` → `open::that_detached`), que
+es exactamente lo que hay que hacer para respetar el navegador del usuario. Si se
+abre Edge, es porque Windows lo pidió. Se puede verificar en la máquina:
+
+```
+HKCU\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\https\UserChoice
+   ProgId = "MSEdgeHTM"     <- el que gana
+HKCU\...\UrlAssociations\http\UserChoice
+   ProgId = "MSEdgeHTM"
+```
+
+Edge se auto-registra al instalarse y es el predeterminado de fábrica de
+Windows 11, así que esa asociación sigue apuntando a Edge aunque la persona use
+Firefox. **`http` y `https` son asociaciones SEPARADAS**: basta con que `https`
+siga en Edge para que el login (que es `https://accounts.google.com`) se abra en
+Edge, aunque `http` esté en Firefox.
+
+Ajustes → General → "Navegador para iniciar sesión con Google" (solo escritorio)
+deja elegir entre Predeterminado del sistema / Firefox / Chrome / Edge / Brave.
+Se guarda en `localStorage['stp_navegador_login']` y viaja como
+`invoke('gd_open_auth_webview', { url, browser })`. **Los dos call sites
+(`cloudLogin.ts` y `CloudPage.svelte`) lo pasan con `navegadorLoginArg()`**; si
+no se eligió nada devuelve `undefined` y Rust lo trata igual que "default".
+
+⚠️ **Elegir navegador no puede romper el login**: `abrir_con_navegador()`
+recorre candidatos con `Command::spawn` y, si ninguno arranca, se cae al
+navegador del sistema con un `println!`. Un login en Edge es molesto; un login
+imposible es un dispositivo inutilizable.
+
+⚠️ **Chrome y Edge NO están en el PATH** de Windows, así que el nombre pelado
+alcanza solo por installs atypicos. `candidatos_navegador()` prueba primero las
+rutas absolutas con `%ProgramFiles%` / `%ProgramFiles(x86)%` /
+`%LOCALAPPDATA%` y el nombre pelado al final. Verificado en la máquina de
+desarrollo: Firefox existe en `C:\Program Files\Mozilla Firefox\firefox.exe` y
+Edge en `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`.
+
+⚠️ La resolución va solo en desktop (`#[cfg(not(target_os = "android"))]`): las
+rutas candidatas son de Windows y en Android el "navegador del sistema" ya es el
+único mecanismo.
+
+⚠️ **GOTCHA de Svelte: dos expresiones `{…}` en el mismo atributo `style` rompe
+el parseo** ("Unterminated regular expression"), sobre todo si el atributo
+ocupa varias líneas y el `? :` empieza una línea. La solución fue mover el
+estilo condicional a clases CSS (`.nav-btn` + `.nav-btn.activo`) en vez de
+armar el `style` con un ternario. `svelte-check` lo reporta como
+`js_parse_error`, no como error de template, y el mensaje no señala la causa.
+
 **El scheme `schooltracker-auth://` SOLO está registrado en el
 AndroidManifest.** En Linux el navegador no lo conoce y tras el login mostraría
 una página de error "no hay aplicación asociada". Por eso el HTML de
