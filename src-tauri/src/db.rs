@@ -83,11 +83,11 @@ pub struct DbState {
 }
 
 /// Inicializa la base de datos creando todas las tablas necesarias.
-/// Esta funciÃ³n es idempotente: usa CREATE TABLE IF NOT EXISTS.
+/// Esta función es idempotente: usa CREATE TABLE IF NOT EXISTS.
 pub fn init_database(conn: &Connection) -> Result<(), String> {
-    println!("ðŸ”„ [DB] Inicializando base de datos...");
+    println!("🔄 [DB] Inicializando base de datos...");
     
-    // Tablas de categorÃ­as
+    // Tablas de categorías
     conn.execute_batch(
         r#"
         CREATE TABLE IF NOT EXISTS ano_lectivo (
@@ -158,7 +158,7 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
         );
         "#,
     )
-    .map_err(|e| format!("Error creando tablas de categorÃ­as: {}", e))?;
+    .map_err(|e| format!("Error creando tablas de categorías: {}", e))?;
 
     // Tabla de estudiantes (estructura unificada)
     conn.execute_batch(
@@ -335,7 +335,7 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
     )
     .map_err(|e| format!("Error creando tabla nota: {}", e))?;
 
-    // Tabla de configuraciÃ³n de calificaciones
+    // Tabla de configuración de calificaciones
     conn.execute_batch(
         r#"
         CREATE TABLE IF NOT EXISTS configuracion_calificacion (
@@ -349,7 +349,7 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
     )
     .map_err(|e| format!("Error creando tabla configuracion_calificacion: {}", e))?;
 
-    // Tablas de sincronizaciÃ³n
+    // Tablas de sincronización
     conn.execute_batch(
         r#"
         CREATE TABLE IF NOT EXISTS sync_pending_deletions (
@@ -425,7 +425,7 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
     deduplicate_criteria(conn)?;
     cleanup_orphan_relations(conn)?;
 
-    println!("âœ… [DB] Base de datos inicializada correctamente");
+    println!("✅ [DB] Base de datos inicializada correctamente");
     Ok(())
 }
 
@@ -610,7 +610,7 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
         .map_err(|e| format!("Error agregando columna tipo a colegio: {}", e))?;
     }
 
-    // Sembrar multiplicadores por defecto si la tabla estÃ¡ vacÃ­a
+    // Sembrar multiplicadores por defecto si la tabla está vacía
     let has_multiplicadores: bool = conn
         .query_row(
             "SELECT COUNT(*) FROM multiplicador_calificacion",
@@ -632,10 +632,10 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
                 rusqlite::params![id, mult],
             ).ok();
         }
-        println!("âœ… [DB] Multiplicadores de criterios sembrados (migraciÃ³n)");
+        println!("✅ [DB] Multiplicadores de criterios sembrados (migración)");
     }
 
-    // MigraciÃ³n: agregar columna updated_at a todas las tablas que sincronizan
+    // Migración: agregar columna updated_at a todas las tablas que sincronizan
     let tables_updated_at = [
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
         "estudiante", "indicador", "criterio", "asistencia", "colegio_dias_asistencia", "dia_sin_clases",
@@ -651,21 +651,21 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
             )
             .unwrap_or(0) > 0;
         if !has_col {
-            // SQLite no permite DEFAULT con expresiÃ³n en ALTER TABLE,
-            // asÃ­ que agregamos sin default (nuevos registros usan DEFAULT de CREATE TABLE)
+            // SQLite no permite DEFAULT con expresión en ALTER TABLE,
+            // así que agregamos sin default (nuevos registros usan DEFAULT de CREATE TABLE)
             conn.execute(
                 &format!("ALTER TABLE {table} ADD COLUMN updated_at TEXT"),
                 [],
             )
             .map_err(|e| format!("Error agregando updated_at a {table}: {e}"))?;
             // Backfill de una sola vez: las filas existentes quedan con NULL y el
-            // chequeo de cambios locales (`has_local_changes`) no las detectarÃ­a.
+            // chequeo de cambios locales (`has_local_changes`) no las detectaría.
             conn.execute(
                 &format!("UPDATE {table} SET updated_at = datetime('now') WHERE updated_at IS NULL"),
                 [],
             )
             .map_err(|e| format!("Error actualizando updated_at en {table}: {e}"))?;
-            println!("âœ… [DB] Columna updated_at agregada a {table}");
+            println!("✅ [DB] Columna updated_at agregada a {table}");
         }
     }
 
@@ -1005,19 +1005,19 @@ fn deduplicate_criteria(conn: &Connection) -> Result<(), String> {
     Ok(())
 }
 
-/// Inserta datos iniciales si las tablas estÃ¡n vacÃ­as
+/// Inserta datos iniciales si las tablas están vacías
 pub fn seed_default_data(conn: &Connection) -> Result<(), String> {
-    // Verificar si ya hay datos (localmente o de sincronizaciÃ³n previa)
+    // Verificar si ya hay datos (localmente o de sincronización previa)
     let count: i64 = conn
         .query_row("SELECT COUNT(*) FROM ano_lectivo", [], |row| row.get(0))
         .unwrap_or(0);
 
     if count > 0 {
-        println!("ðŸ“Š [DB] Datos encontrados en base de datos local, omitiendo sembrado de datos por defecto");
+        println!("📊 [DB] Datos encontrados en base de datos local, omitiendo sembrado de datos por defecto");
         return Ok(());
     }
 
-    println!("ðŸŒ± [DB] Base de datos vacÃ­a, sembrando datos iniciales...");
+    println!("🌱 [DB] Base de datos vacía, sembrando datos iniciales...");
 
     // Opción 1 (anti-cruce de catálogos): si la nube D1 está configurada,
     // NO sembrar datos de usuario/instancia — el primer pull/restore trae
@@ -1088,7 +1088,7 @@ pub fn seed_default_data(conn: &Connection) -> Result<(), String> {
             [],
         )
         .ok();
-        println!("âœ… [DB] MigraciÃ³n de calificaciones completada");
+        println!("✅ [DB] Migración de calificaciones completada");
     } else {
         // Si no hay registros, insertar los nuevos
         let is_empty: bool = conn
@@ -1113,7 +1113,7 @@ pub fn seed_default_data(conn: &Connection) -> Result<(), String> {
                 )
                 .ok();
             }
-            println!("âœ… [DB] Datos iniciales de calificaciones sembrados");
+            println!("✅ [DB] Datos iniciales de calificaciones sembrados");
         }
     }
 
@@ -1131,7 +1131,7 @@ pub fn seed_default_data(conn: &Connection) -> Result<(), String> {
         ).ok();
     }
 
-    println!("âœ… [DB] Datos iniciales sembrados correctamente");
+    println!("✅ [DB] Datos iniciales sembrados correctamente");
     Ok(())
 }
 
@@ -1166,7 +1166,7 @@ pub fn truncate_all_local_data(conn: &Connection) -> Result<(), String> {
     Ok(())
 }
 
-/// Alias para compatibilidad hacia atrÃ¡s
+/// Alias para compatibilidad hacia atrás
 pub fn run_migrations(conn: &Connection) -> Result<(), String> {
     init_database(conn)
 }
@@ -1179,7 +1179,7 @@ pub struct StudentImpact {
 }
 
 // ============================================================================
-// Estructuras para sincronizaciÃ³n de eliminaciones (claves compuestas)
+// Estructuras para sincronización de eliminaciones (claves compuestas)
 // ============================================================================
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -2072,7 +2072,7 @@ pub async fn delete_category_force(
         _ => return Err("Tabla no reconocida".to_string()),
     }
 
-    // Registrar la eliminaciÃ³n de la entidad principal
+    // Registrar la eliminación de la entidad principal
     tx.execute(
         "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)",
         rusqlite::params![&table, id],
@@ -2481,7 +2481,7 @@ pub async fn get_recommended_colegio(state: tauri::State<'_, DbState>) -> Result
     let now = Local::now();
     let weekday = now.weekday();
 
-    // Mapear el dÃ­a de la semana a la columna de la base de datos
+    // Mapear el día de la semana a la columna de la base de datos
     let column = match weekday {
         chrono::Weekday::Mon => "lunes",
         chrono::Weekday::Tue => "martes",
@@ -2494,7 +2494,7 @@ pub async fn get_recommended_colegio(state: tauri::State<'_, DbState>) -> Result
 
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
 
-    // Buscar colegios habilitados para hoy, ordenados alfabÃ©ticamente
+    // Buscar colegios habilitados para hoy, ordenados alfabéticamente
     let mut stmt = conn
         .prepare(&format!(
             "SELECT c.id FROM colegio c 
@@ -2764,7 +2764,7 @@ pub async fn delete_student(state: tauri::State<'_, DbState>, id: i64) -> Result
     tx.execute("DELETE FROM estudiante WHERE id = ?", [id])
         .map_err(|e| e.to_string())?;
 
-    // 3. Registrar la eliminaciÃ³n pendiente para sincronizaciÃ³n
+    // 3. Registrar la eliminación pendiente para sincronización
     tx.execute(
         "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)",
         rusqlite::params!["estudiante", id],
@@ -2816,7 +2816,7 @@ pub async fn get_subjects_by_grade(
 ) -> Result<Vec<CategoryItem>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     
-    // Usar LEFT JOIN para obtener todas las asignaturas, incluso si no hay relaciÃ³n en grado_asignatura
+    // Usar LEFT JOIN para obtener todas las asignaturas, incluso si no hay relación en grado_asignatura
     let mut stmt = conn
         .prepare(
             "SELECT a.id, a.nombre, a.cualitativo 
@@ -2894,7 +2894,7 @@ pub async fn unassign_subject_from_grade(
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
 
-    // Solo registrar si la relaciÃ³n existe
+    // Solo registrar si la relación existe
     let exists: bool = conn.query_row(
         "SELECT EXISTS(SELECT 1 FROM grado_asignatura WHERE grado_id = ? AND asignatura_id = ?)",
         [gradoId, asignaturaId],
@@ -2902,13 +2902,13 @@ pub async fn unassign_subject_from_grade(
     ).unwrap_or(false);
 
     if exists {
-        // Registrar eliminaciÃ³n pendiente
+        // Registrar eliminación pendiente
         conn.execute(
             "INSERT INTO sync_pending_deletions_grado_asignatura (grado_id, asignatura_id) VALUES (?, ?)",
             [gradoId, asignaturaId],
         ).map_err(|e| e.to_string())?;
 
-        // Eliminar la relaciÃ³n
+        // Eliminar la relación
         conn.execute(
             "DELETE FROM grado_asignatura WHERE grado_id = ? AND asignatura_id = ?",
             [gradoId, asignaturaId],
@@ -3057,7 +3057,7 @@ pub async fn unassign_subject_from_colegio(
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
 
-    // Solo registrar si la relaciÃ³n existe
+    // Solo registrar si la relación existe
     let exists: bool = conn.query_row(
         "SELECT EXISTS(SELECT 1 FROM colegio_asignatura WHERE colegio_id = ? AND asignatura_id = ?)",
         [colegioId, asignaturaId],
@@ -3065,13 +3065,13 @@ pub async fn unassign_subject_from_colegio(
     ).unwrap_or(false);
 
     if exists {
-        // Registrar eliminaciÃ³n pendiente
+        // Registrar eliminación pendiente
         conn.execute(
             "INSERT INTO sync_pending_deletions_colegio_asignatura (colegio_id, asignatura_id) VALUES (?, ?)",
             [colegioId, asignaturaId],
         ).map_err(|e| e.to_string())?;
 
-        // Eliminar la relaciÃ³n
+        // Eliminar la relación
         conn.execute(
             "DELETE FROM colegio_asignatura WHERE colegio_id = ? AND asignatura_id = ?",
             [colegioId, asignaturaId],
@@ -3934,7 +3934,7 @@ pub async fn update_criterio(
 }
 
 // NotasPage Commands
-// Estructura especÃ­fica para estudiantes en la pÃ¡gina de notas
+// Estructura específica para estudiantes en la página de notas
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct EstudianteNota {
@@ -4691,7 +4691,7 @@ pub async fn get_monthly_attendance_pct(
 ) -> Result<Vec<MonthlyPctItem>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     if fecha.len() < 7 {
-        return Err("Fecha invÃ¡lida".to_string());
+        return Err("Fecha inválida".to_string());
     }
     let mes = &fecha[..7];
     let mes_pattern = format!("{}%", mes);
@@ -4945,7 +4945,7 @@ pub async fn delete_asistencia_batch(
             .unwrap_or(false);
 
         if exists {
-            // Registrar la eliminaciÃ³n pendiente ANTES de eliminar
+            // Registrar la eliminación pendiente ANTES de eliminar
             tx.execute(
                 "INSERT INTO sync_pending_deletions_asistencia (estudiante_id, fecha) VALUES (?, ?)",
                 rusqlite::params![id, &fecha],
@@ -5106,7 +5106,7 @@ pub async fn get_asistencia_all(
 }
 
 
-/// DiagnÃ³stico: muestra el conteo de notas en SQLite filtrado por grado/secciÃ³n/corte/asignatura
+/// Diagnóstico: muestra el conteo de notas en SQLite filtrado por grado/sección/corte/asignatura
 #[tauri::command]
 pub async fn get_notas_count(
     state: tauri::State<'_, DbState>,
@@ -5125,7 +5125,7 @@ pub async fn get_notas_count(
     Ok(count)
 }
 
-/// DiagnÃ³stico: muestra cantidad total de notas en SQLite
+/// Diagnóstico: muestra cantidad total de notas en SQLite
 #[tauri::command]
 pub async fn get_notas_count_all(state: tauri::State<'_, DbState>) -> Result<i64, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
@@ -5143,7 +5143,7 @@ pub async fn delete_record_local(
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     
-    println!("ðŸ—‘ï¸ [DB] delete_record_local: {} con id {:?}", table, id);
+    println!("🗑️ [DB] delete_record_local: {} con id {:?}", table, id);
 
     let sql = match table.as_str() {
         "asistencia" => {
@@ -5174,7 +5174,7 @@ pub async fn delete_record_local(
                     return Ok(());
                 }
             }
-            return Err("Nota requiere clave compuesta para eliminaciÃ³n".to_string());
+            return Err("Nota requiere clave compuesta para eliminación".to_string());
         },
         "grado_asignatura" => "DELETE FROM grado_asignatura WHERE grado_id = ? AND asignatura_id = ?",
         "colegio_asignatura" => "DELETE FROM colegio_asignatura WHERE colegio_id = ? AND asignatura_id = ?",
@@ -5681,7 +5681,7 @@ pub async fn get_pendientes_asistencia_filtrados(
 
 
 // ============================================================================
-// Estructuras para el wizard de inicializaciÃ³n
+// Estructuras para el wizard de inicialización
 // ============================================================================
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -5798,7 +5798,7 @@ pub async fn get_seed_options() -> Result<SeedOptions, String> {
             SeedOptionCualitativo { nombre: "Convivencia & Civismo".into(), cualitativo: true },
             SeedOptionCualitativo { nombre: "Creciendo en Valores".into(), cualitativo: true },
             SeedOptionCualitativo { nombre: "Derecho & Dignidad de la Mujer".into(), cualitativo: true },
-            SeedOptionCualitativo { nombre: "EducaciÃ³n FÃ­sica".into(), cualitativo: true },
+            SeedOptionCualitativo { nombre: "Educación Física".into(), cualitativo: true },
         ],
     })
 }
@@ -5809,7 +5809,7 @@ pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: Se
 
     conn.execute("PRAGMA foreign_keys = OFF", []).map_err(|e| e.to_string())?;
 
-    // 1. AÃ±os lectivos seleccionados
+    // 1. Años lectivos seleccionados
     for nombre in &selections.anos {
         conn.execute(
             "INSERT OR IGNORE INTO ano_lectivo (nombre) VALUES (?)",
@@ -5905,7 +5905,7 @@ pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: Se
         ).map_err(|e| e.to_string())?;
     }
 
-    // 7. Producto cartesiano grado Ã— asignatura (solo para grados y asignaturas seleccionados)
+    // 7. Producto cartesiano grado × asignatura (solo para grados y asignaturas seleccionados)
     if !selections.grados.is_empty() && !selections.asignaturas.is_empty() {
         let placeholders_g = selections.grados.iter().map(|_| "?").collect::<Vec<_>>().join(",");
         let placeholders_a = selections.asignaturas.iter().map(|_| "?").collect::<Vec<_>>().join(",");
@@ -5923,7 +5923,7 @@ pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: Se
         conn.execute(&sql, params_refs.as_slice()).map_err(|e| e.to_string())?;
     }
 
-    // 9. ConfiguraciÃ³n de calificaciones (siempre)
+    // 9. Configuración de calificaciones (siempre)
     let configs = vec![
         ("AA", "Aprendizaje Avanzado", "#22c55e", 90),
         ("AS", "Aprendizaje Satisfactorio", "#3b82f6", 70),
@@ -5953,7 +5953,7 @@ pub async fn seed_selected_data(state: tauri::State<'_, DbState>, selections: Se
 
     conn.execute("PRAGMA foreign_keys = ON", []).map_err(|e| e.to_string())?;
 
-    println!("âœ… [DB] Datos seleccionados insertados correctamente");
+    println!("✅ [DB] Datos seleccionados insertados correctamente");
     Ok(())
 }
 
@@ -6071,17 +6071,17 @@ pub async fn factory_reset(state: tauri::State<'_, DbState>) -> Result<(), Strin
         conn.execute(&format!("DROP TABLE IF EXISTS {}", table), []).map_err(|e| e.to_string())?;
     }
 
-    // Recrear tablas vacÃ­as
+    // Recrear tablas vacías
     drop(conn);
     let conn2 = state.conn.lock().map_err(|e| e.to_string())?;
     init_database(&conn2)?;
 
-    // Limpiar flag de inicializaciÃ³n
+    // Limpiar flag de inicialización
     conn2.execute("DELETE FROM app_meta WHERE key = 'initialized'", []).map_err(|e| e.to_string())?;
 
     conn2.execute("PRAGMA foreign_keys = ON", []).map_err(|e| e.to_string())?;
 
-    println!("âœ… [DB] Factory reset completado");
+    println!("✅ [DB] Factory reset completado");
     Ok(())
 }
 
