@@ -191,7 +191,14 @@ pub fn d1_reset_device_id(state: tauri::State<'_, DbState>) -> Result<String, St
     let new_id = generate_device_id();
     let n = conn
         .execute(
-            "UPDATE d1_config SET device_id = ?1, last_sync = NULL WHERE id = 1",
+            // El freno de reintentos se limpia: `d1_config` (con push_retry_after)
+            // viaja dentro del respaldo de Drive, así que al restaurar puede venir
+            // una espera heredada de otra máquina. El push siguiente es incremental
+            // (last_push_sync intacto), asi que un intento extra es barato; si
+            // vuelve a fallar, el freno se rearma solo.
+            "UPDATE d1_config SET device_id = ?1, last_sync = NULL,
+                 push_fail_count = 0, push_retry_after = NULL
+             WHERE id = 1",
             rusqlite::params![new_id],
         )
         .map_err(|e| e.to_string())?;
@@ -988,8 +995,20 @@ pub async fn d1_sync_all(
         }
     }
 
-    // Confirmar: los borrados pendientes locales ya se aplicaron en el Worker
-    clear_all_pending_deletions(&tx)?;
+    // Confirmar: los borrados pendientes locales ya se aplicaron en el Worker.
+    // ⚠️ Solo si el push NO fue omitido: si se saltó, esas bajas no llegaron a la
+    // nube y borrarlas de la lista local las perdería para siempre.
+    if push_omitido {
+        let pendientes = deletions.len();
+        if pendientes > 0 {
+            println!(
+                "[D1] {} borrados pendientes conservados: el push se omitio por el freno.",
+                pendientes
+            );
+        }
+    } else {
+        clear_all_pending_deletions(&tx)?;
+    }
 
     // Cursor AUTORITATIVO del servidor (reloj único de Cloudflare). Antes se
     // usaba el reloj local de cada dispositivo: un reloj adelantado hacía que
@@ -1003,15 +1022,29 @@ pub async fn d1_sync_all(
     println!("[D1] nuevo cursor last_sync=\"{}\" (fuente: {})", new_sync,
         if pull_resp.get("serverTime").is_some() { "servidor" } else { "reloj local (fallback)" });
     let new_push_cursor = now_sqlite(); // reloj LOCAL: par del cursor de push
-    tx.execute(
-        "UPDATE d1_config SET last_sync = ?1, last_push_sync = ?2, updated_at = datetime('now') WHERE id = 1",
-        params![new_sync, new_push_cursor],
-    )
-    .map_err(|e| e.to_string())?;
+    if push_omitido {
+        // ⚠️ El push se saltó por el freno: `last_push_sync` NO puede avanzar.
+        // Si avanzara, los cambios locales que nunca llegaron a la nube quedarían
+        // marcados como "ya subidos" y se perderían para siempre (el siguiente
+        // push incremental no los volvería a recoger). Tampoco se limpian los
+        // contadores del freno: la espera sigue corriendo.
+        println!("[D1] cursor de push intacto (push omitido); {} filas siguen pendientes.", total_push);
+        tx.execute(
+            "UPDATE d1_config SET last_sync = ?1, updated_at = datetime('now') WHERE id = 1",
+            params![new_sync],
+        )
+        .map_err(|e| e.to_string())?;
+    } else {
+        tx.execute(
+            "UPDATE d1_config SET last_sync = ?1, last_push_sync = ?2, updated_at = datetime('now') WHERE id = 1",
+            params![new_sync, new_push_cursor],
+        )
+        .map_err(|e| e.to_string())?;
 
-    // El sync llego bien: si venia de un push fallido, el freno se limpia y el
-    // proximo sync vuelve a intentarlo con normalidad.
-    limpiar_push_fallidos(&tx);
+        // El push llego bien: si venia de un fallo anterior, el freno se limpia y
+        // el proximo sync vuelve a intentarlo con normalidad.
+        limpiar_push_fallidos(&tx);
+    }
 
     tx.commit().map_err(|e| e.to_string())?;
     drop(conn);

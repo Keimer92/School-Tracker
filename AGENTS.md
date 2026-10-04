@@ -379,6 +379,142 @@ coloca después del `{}` en vez de antes, cierra el string antes de tiempo y
 salta `unknown start of token: \`. Y `str::replace()` exige `&String`, no
 `String`: `.replace("__X__", &boton_volver)`.
 
+## GOTCHA: la cuota diaria de D1 se agotaba sin tocar nada (2026-10)
+
+Síntoma: Cloudflare responde "daily quota exceeded" y el usuario jura que no
+modificó nada. Con la base real (~7.960 filas sincronizables: 5.098 `nota`,
+1.906 `asistencia`, 165 estudiantes, 447 `criterio`…), **12 pushes completos agotan
+la cuota** (plan gratis = 100.000 filas escritas/día). Tres mecanismos disparaban
+pushes completos solos:
+
+1. **`d1_reset_device_id` anulaba los DOS cursores.** Se llama en
+   `driveSyncService.downloadAndRestore()` (final de cada restore de Drive) y su
+   propósito es solo renovar la identidad del dispositivo. Con
+   `last_push_sync = NULL` el siguiente sync usa `push_since = "1970-01-01"` y
+   reenvía **absolutamente todas** las filas. → Ahora pone solo
+   `device_id` + `last_sync = NULL`; **`last_push_sync` no se toca jamás ahí**.
+   - El PULL completo sí hace falta (el respaldo puede ser más viejo que la nube).
+   - El PUSH no: esas filas ya están en D1 o hay versiones más nuevas, y
+     reenviarlas además pisaría datos recientes (justo lo que el aviso de
+     "respaldo más antiguo" intenta evitar).
+2. **`WelcomePage.restoreFromDrive()` borraba la nube y re-subía todo**:
+   `d1_reset_remote` + `d1_sync_all {full:true}` = ~16.000 operaciones de fila
+   (7.960 de escritura) en cada primer login, sin que el usuario tocara nada.
+3. **El runaway**: si el push fallaba, el `?` abortaba `d1_sync_all` ANTES del
+   `UPDATE d1_config` final, así que `last_push_sync` quedaba en NULL y **cada
+   trigger** (arranque, `visibilitychange`, `online`, cambio de pestaña,
+   reconexión del WS, tick de 20 min) reintentaba el push completo. Un error
+   puntual se convertía en el día entero de cuota.
+
+### Freno de reintentos (nuevo)
+
+`d1_config` gana `push_fail_count INTEGER` y `push_retry_after TEXT`
+(agregadas en `migrate_add_columns` de `db.rs`). Al fallar un push se incrementa
+el contador y se arma `push_retry_after = now + X` con
+`PUSH_BACKOFF_MIN = [5, 15, 30, 60, 120, 240]` minutos (tope 4 h). Mientras haya
+tiempo, `d1_sync_all` **omite el push y hace solo el pull** (lee, no escribe, no
+gasta cuota); los cambios NO se pierden porque `last_push_sync` no avanza, así que
+se reintentan al vencer la espera. Un sync que aplica bien limpia el freno.
+
+`d1_sync_all` ganó el parámetro `force` (además de `full`): lo pasan los botones
+manuales del usuario —"Sincronizar" en `CloudPage.syncD1()` y el sync post-import
+de `DebugPage`— que si lo pidió explícitamente no esperan nada. **Nunca lo pases
+en un trigger automático.**
+
+El resultado ahora incluye `pushOmitido`, y `d1SyncService` lo traduce a un
+mensaje en la card de Cloudflare ("Subida a la nube en pausa tras un error
+anterior…") para que no parezca que los datos desaparecieron.
+
+⚠️ **Cuando el push se omite, hay DOS cosas que NO pueden pasar** (y son la
+trampa del diseño: el sync "termina bien" y da la impresión de que todo se
+ordenó):
+
+1. **`last_push_sync` NO avanza.** Si avanzara, los cambios locales que nunca
+   llegaron a la nube quedarían marcados como "ya subidos" y el siguiente push
+   incremental no los volvería a recoger → **pérdida silenciosa de datos**. La
+   transacción final tiene una rama aparte para el caso `push_omitido` que solo
+   actualiza `last_sync`.
+2. **`clear_all_pending_deletions()` NO se llama.** Los borrados pendientes se
+   mandan en el body del push; si el push no salió, borrar la lista local los
+   pierde para siempre. La función está detrás de un `if !push_omitido`.
+
+Los contadores del freno tampoco se limpian en ese camino (si no, la espera se
+desarmaría en el mismo sync que la armó y el freno no frenaría nada).
+
+### Merge en vez de wipe al restaurar Drive (nuevo)
+
+`WelcomePage.sincronizarNubeTrasRestore()` consulta `d1_remote_stats` (endpoint
+nuevo `/stats` del worker: `COUNT(*)` por tabla + tombstones, 1 petición) y
+compara contra `contar_filas_sincronizables` (comando local):
+
+| Estado de la nube | Acción | Costo |
+|---|---|---|
+| Tiene ≥50% de las filas locales | `d1_sync_all` (merge: push incremental + pull completo) | ~1 request, pocas escrituras |
+| <50% y con tombstones | `d1_reset_remote` + `d1_sync_all {full, force}` | ~16.000 ops (solo cuando de verdad hace falta) |
+| <50% sin tombstones | `d1_sync_all {full, force}` | ~8.000 escrituras |
+| `/stats` falló | merge incremental (conservador: no borra nada) | barato |
+
+⚠️ **No volver a poner el `d1_reset_remote` incondicional en el flujo de restore.**
+Existe para el caso "tombstones residuales de la purga 2026-09", y `/stats` lo
+detecta (tombstones > 0 con la nube vacía). Para una nube sana, el wipe es
+destruir datos válidos para re-subir lo que ya estaba.
+
+⚠️ **Los cursores son la economía del sync**: cada NULL en `last_push_sync`
+significa "mandá todo". Antes de anular un cursor, preguntate si el fin es
+identidad (`device_id`), reconciliación (`last_sync`) o recuperación real
+(`full`). Solo el tercero justifica un push completo.
+
+### Ejecutar este proyecto
+
+Requiere `npx wrangler deploy` (el `/stats` nuevo no existe hasta que se despliega;
+sin eso el merge cae al caso conservador y sigue funcionando, solo que no detecta
+la nube vacía).
+
+## GOTCHA: texto corrupto en el código fuente tras editar con PowerShell (2026-10)
+
+Síntoma en la consola: los `[D1]` se ven bien pero aparece
+`ðŸ”„ [DB] Inicializando base de datos...` y
+`âœ… [DB] Base de datos inicializada correctamente`. OJO: **el problema NO es la
+consola ni la config regional**, es el archivo. `src-tauri/src/db.rs` tenía el
+texto **doblemente codificado en el código fuente** —59 ocurrencias en 50 líneas—
+y es el resultado de un `Get-Content`/`Set-Content` de PowerShell sobre un
+archivo UTF-8. Solo se nota en los `println!`/`eprintln!`, porque el resto son
+comentarios.
+
+Cómo se ve la firma de mojibake (UTF-8 leído como CP1252):
+
+| Mojibake | Real | Qué pasó |
+|---|---|---|
+| `âœ…` | `✅` | `E2 9C 85` partido en 3 bytes CP1252 |
+| `Ã­` / `Ã³` / `Ã¡` / `Ã±` | `í` `ó` `á` `ñ` | cada vocal acentuada, 2 bytes |
+| `ðŸ”„` | un emoji de 4 bytes (surrogate pair) | `F0 9F xx xx` → 4 chars CP1252 |
+| `Ã—` | `×` | `C3 97`, y `0x97` en CP1252 es `—` (em dash) |
+
+Para recuperar el caracter original: codificar la tanda a CP1252 y decodificar
+como UTF-8.
+
+⚠️ **La herramienta `edit` NO puede hacer match de `─` (U+2500)** ni de otras
+tandas de no-ASCII: el `oldString` hay que armarlo solo con ASCII, o el edit
+falla con "Could not find oldString" aunque el texto exista (el `read` lo muestra
+bien, lo que confunde y hace creer que el archivo cambió). Para una reparación
+masiva de mojibake hay que ir por script: `ReadAllText(UTF8)` → reemplazar cada
+tanda `[^\x00-\x7F]+` por su inverso CP1252→UTF-8 (**solo si decodifica limpio**;
+el español correcto NO se toca, porque `í`→`ED` no forma UTF-8 válido) →
+`WriteAllText` con `UTF8Encoding($false)`. NUNCA `Set-Content`.
+
+⚠️ **Dos falsos positivos que hay que filtrar**, porque `[^\x00-\x7F]+` también
+matchea texto sano: los guiones de caja `──` de los comentarios de sección (U+2500,
+no existe en CP1252 → el `GetBytes` lanza y se deja igual, por diseño) y las
+tandas mixtas `palabraÃ­` + acento legítimo (decodifican a algo inválido → también
+se dejan). Por eso el criterio es "decodifica limpio", no "contiene caracteres
+extraños".
+
+⚠️ **Revisar `git diff --stat` antes de suspectar una reescritura masiva**: muestra 1 línea +/- por
+línea tocada, no por carácter. Un `db.rs | 100 ++++----` con 50/50 son 50
+caracteres reparados. Y verificar el resultado con un volcado de code points
+(`"U+{0:X4}" -f [int]$_`), porque el `read`/`git diff` los renderizan y uno se
+termina creyendo que el archivo sigue roto.
+
 ## GOTCHA: ícono genérico en el dock de COSMIC (2026-10)
 
 Síntoma en Linux: la app corre pero el dock muestra el ícono genérico de
