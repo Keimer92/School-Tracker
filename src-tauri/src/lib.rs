@@ -1501,6 +1501,46 @@ fn is_localhost_oauth_callback(raw_url: &str) -> bool {
 /// El nombre del comando se mantiene porque está referenciado en
 /// `permissions/local-commands.toml` y en los dos call sites del frontend
 /// (`CloudPage.svelte` y `lib/cloudLogin.ts`, que usa `WelcomePage`).
+/// Trae la ventana principal al frente: la restaura si estaba minimizada, la
+/// muestra si estaba oculta y le da el foco.
+///
+/// Hace falta porque el login de Google ocurre en el NAVEGADOR DEL SISTEMA
+/// (Windows, Linux y el fallback de Android): al abrirlo, el SO le roba el
+/// foco a la app, y cuando el servidor TCP recibe el `code` el usuario sigue
+/// mirando el navegador —que solo muestra "Ya podés cerrar esta pestana"— y
+/// tiene que ir a buscar el ícono en la barra de tareas a mano.
+///
+/// Detalle de Windows: `SetForegroundWindow` esta restringido para procesos que
+/// no tienen el foco, asi que `set_focus()` solo puede no alcanzar. El truco de
+/// `always_on_top`true -> `false` fuerza a Windows a traer la ventana adelante
+/// (es lo que hacen los lanzadores y los Toasts). Se hace solo en Windows; en
+/// Linux/macOS alcanza con `set_focus` + `unminimize`.
+fn traer_app_al_frente(app: &tauri::AppHandle) {
+    let Some(win) = app.get_webview_window("main") else {
+        println!("[OAuth] ventana 'main' no encontrada; no se puede traer al frente");
+        return;
+    };
+
+    if win.is_minimized().unwrap_or(false) {
+        let _ = win.unminimize();
+    }
+    if !win.is_visible().unwrap_or(true) {
+        let _ = win.show();
+    }
+    let _ = win.set_focus();
+
+    #[cfg(target_os = "windows")]
+    {
+        // always_on_top(true) y de inmediato (false): el primer aviso la levanta
+        // por encima del navegador, el segundo la devuelve a su z-order normal.
+        let _ = win.set_always_on_top(true);
+        let _ = win.set_focus();
+        let _ = win.set_always_on_top(false);
+    }
+
+    println!("[OAuth] ventana principal traida al frente");
+}
+
 #[tauri::command]
 async fn gd_open_auth_webview(
     app: tauri::AppHandle,
@@ -1545,11 +1585,16 @@ async fn gd_open_auth_webview(
                 let mut guard = oauth_code_state().lock().map_err(|e| e.to_string())?;
                 if let Some(code) = guard.take() {
                     println!("[OAuth] Código recibido via servidor TCP!");
+                    // El login terminó en el navegador: devolverle el foco a la app
+                    // para que el usuario no tenga que ir a buscarla a la barra de tareas.
+                    traer_app_al_frente(&app);
                     return Ok(code);
                 }
             }
             tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         }
+        println!("[OAuth] tiempo de espera agotado; se devuelve el foco a la app");
+        traer_app_al_frente(&app);
         return Err("Tiempo de espera agotado (¿se completó el login en el navegador?)".to_string());
     }
 
@@ -1788,7 +1833,7 @@ async fn gd_start_oauth_background(app: tauri::AppHandle, port: u16) -> Result<(
 }
 
 #[tauri::command]
-async fn gd_wait_oauth_code(timeout_secs: u64) -> Result<String, String> {
+async fn gd_wait_oauth_code(app: tauri::AppHandle, timeout_secs: u64) -> Result<String, String> {
     println!("[OAuth] gd_wait_oauth_code called, timeout={}s", timeout_secs);
     let state = oauth_code_state();
     let max_polls = timeout_secs * 5;
@@ -1796,12 +1841,16 @@ async fn gd_wait_oauth_code(timeout_secs: u64) -> Result<String, String> {
         if oauth_cancel_flag().load(Ordering::SeqCst) {
             println!("[OAuth] Cancelled flag detected, returning");
             *state.lock().map_err(|e| e.to_string())? = None;
+            traer_app_al_frente(&app);
             return Err("Autenticación cancelada".to_string());
         }
         {
             let mut guard = state.lock().map_err(|e| e.to_string())?;
             if let Some(code) = guard.take() {
                 println!("[OAuth] Code found in state, returning (len={})", code.len());
+                // Mismo motivo que en `gd_open_auth_webview`: el código llegó
+                // desde el navegador, hay que devolverle el foco a la app.
+                traer_app_al_frente(&app);
                 return Ok(code);
             }
         }
@@ -1811,6 +1860,7 @@ async fn gd_wait_oauth_code(timeout_secs: u64) -> Result<String, String> {
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     }
     println!("[OAuth] Timeout reached");
+    traer_app_al_frente(&app);
     Err("Tiempo de espera agotado".to_string())
 }
 
