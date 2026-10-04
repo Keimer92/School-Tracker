@@ -1605,21 +1605,32 @@ fn is_localhost_oauth_callback(raw_url: &str) -> bool {
 /// mirando el navegador —que solo muestra "Ya podés cerrar esta pestana"— y
 /// tiene que ir a buscar el ícono en la barra de tareas a mano.
 ///
-/// ⚠️ **Por qué una tarea suelta y no una llamada directa**: los métodos de
+/// ⚠️ **Por qué un hilo propio y no `async_runtime::spawn`**: los métodos de
 /// ventana de Tauri (`is_minimized`, `set_focus`, `set_always_on_top`, …) son
 /// round-trips **síncronos** al event loop del SO: bloquean el hilo que los
-/// llama hasta que el loop responde. Si esto corriera dentro de
-/// `gd_open_auth_webview`, el comando no retornaría nunca, el `invoke` del
-/// frontend no resolvería y el WelcomePage quedaría girando para siempre
-/// (justo el bug que Pepino reportó: "vuelve a la app pero no pasa de
-/// WelcomePage"). Con `spawn` el comando retorna el `code` ya y el foco se
-/// recupera en paralelo, con un tick de margen para que la respuesta del
-/// servidor TCP termine de escribirse en el navegador.
+/// llama hasta que el loop responde. Con `async_runtime::spawn` esos round-trips
+/// ocupan un **worker de tokio**, que es el mismo runtime donde corren los
+/// comandos `async` (`d1_sync_all`, `gd_snapshot_db`, …): si se quedan esperando,
+/// el worker no vuelve nunca y el runtime termina sin workers, colgando el app
+/// entera. Con `std::thread::spawn` un hilo colgado no cuesta nada crítico.
+///
+/// (La primera versión llamaba a `traer_app_al_frente` DIRECTO desde
+/// `gd_open_auth_webview`, con el mutex `oauth_code_state` tomado: el comando no
+/// retornaba, el `invoke` no resolvía y el WelcomePage quedaba girando para
+/// siempre.)
 fn devolver_el_foco(app: &tauri::AppHandle, motivo: &str) {
     let app = app.clone();
     let motivo = motivo.to_string();
-    tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_millis(120)).await;
+    // ⚠️ `std::thread::spawn` y NO `tauri::async_runtime::spawn`. Este último
+    // corre sobre un worker de tokio, y los comandos `async` de Tauri (que es lo
+    // que son `d1_sync_all`, `gd_snapshot_db`, etc.) se ejecutan en ESE MISMO
+    // runtime. Si las llamadas de ventana se quedan esperando al event loop del
+    // SO, el worker no vuelve nunca y cada login bloqueado consumes uno: a los
+    // pocos, el runtime se queda sin workers y todo comando async se cuelga
+    // (el síntoma era "el spinner nunca termina y hay que reintentar"). Un hilo
+    // dedicado que se cuelgue no cuesta nada crítico.
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(120));
         traer_app_al_frente(&app, &motivo);
     });
 }

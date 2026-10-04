@@ -583,48 +583,61 @@
         }
       }
       try { await invoke('gd_reload_database'); } catch {}
-      // CRÍTICO: tras restaurar Drive, sincronizar LIMPIO con D1.
-      // Si D1 está en cuota, el reset+sync falla y dejamos al usuario
-      // trabajando solo con Drive hasta que la cuota se libere (parando
-      // el auto-sync para que no sobrescriba los datos de Drive con un
-      // pull de D1 antiguo).
-      // ⚠️ ORDEN CRÍTICO: restaurar Drive SOBRESCRIBE el archivo .db completo,
-      // y con él la tabla `d1_config` que se guardó en el login. Si no se
-      // vuelve a guardar después, el resync falla con "D1 no está configurado"
-      // y la cuenta queda sin nube. La key se lee del perfil de la cuenta
-      // activa (guardado en localStorage), no se pasa por parámetro.
-      const perfil = getProfile(getCurrentEmail());
-      if (perfil?.schoolKey) {
-        try {
-          await invoke('d1_save_config', { workerUrl: perfil.workerUrl || DEFAULT_WORKER, schoolKey: perfil.schoolKey });
-          console.log('[Drive] config de nube re-aplicada tras restaurar');
-        } catch (e) {
-          console.warn('[Drive] no se pudo re-aplicar d1_config:', e);
-        }
-      } else {
-        console.warn('[Drive] sin perfil de cuenta: d1_config puede quedar vacía tras restaurar');
+      // ── Watchdog: el respaldo YA está en disco ──
+      //
+      // Todo lo que viene de acá para adelante es *nube*: reconfigurar D1, el
+      // resync y el intercambio de tokens. Nada de eso es motivo para dejar al
+      // usuario clavado en el WelcomePage con el spinner, y una sola llamada
+      // colgada (cuota de Cloudflare, worker caído, /stats sin desplegar) lo
+      // dejaba exactamente así. Se corre la cadena con un tope de tiempo y, si
+      // no termina, se entra igual a la app: los datos están restaurados.
+      const RESTAURADO_EN = Date.now();
+      const paso = (m: string) => console.warn(`[Welcome] +${((Date.now() - RESTAURADO_EN) / 1000).toFixed(1)}s ${m}`);
+      paso('respaldo en disco; reconfigurando nube…');
+      await conTope(
+        async () => {
+          // ⚠️ ORDEN CRÍTICO: restaurar Drive SOBRESCRIBE el archivo .db completo,
+          // y con él la tabla `d1_config` que se guardó en el login. Si no se
+          // vuelve a guardar después, el resync falla con "D1 no está
+          // configurado" y la cuenta queda sin nube. La key se lee del perfil de
+          // la cuenta activa (guardado en localStorage), no se pasa por parámetro.
+          const perfil = getProfile(getCurrentEmail());
+          if (perfil?.schoolKey) {
+            try {
+              await invoke('d1_save_config', { workerUrl: perfil.workerUrl || DEFAULT_WORKER, schoolKey: perfil.schoolKey });
+              paso('config de nube re-aplicada tras restaurar');
+            } catch (e) {
+              paso('no se pudo re-aplicar d1_config: ' + e);
+            }
+          } else {
+            paso('sin perfil de cuenta: d1_config puede quedar vacía');
+          }
+
+          loadingMessage = 'Sincronizando respaldo con la nube...';
+          try {
+            await sincronizarNubeTrasRestore();
+          } catch (resyncErr) {
+            // console.warn (NO debug): DevTools oculta console.debug salvo nivel
+            // "Verbose", y esto es justamente el punto que hay que ver sin
+            // configurar nada. Una nube caida NO debe impedir entrar a la app.
+            paso('resync con la nube fallo (se entra igual): ' + resyncErr);
+            try {
+              const { syncService } = await import('../lib/syncService');
+              await syncService.stopPeriodicSync();
+            } catch {}
+          }
+          paso('entrando a la app...');
+          await entrarALaApp();
+          paso('listo');
+        },
+        40_000,
+        'la sincronización con la nube no respondió'
+      );
+      // Si el tope venció, `entrarALaApp` puede no haberse corrido: se asegura.
+      if (!appIniciada) {
+        paso('el tope venció; se entra a la app de todos modos');
+        await entrarALaApp().catch((e) => console.warn('[Welcome] entrarALaApp de emergencia fallo:', e));
       }
-      loadingMessage = 'Sincronizando respaldo con la nube...';
-      let d1ResyncOk = false;
-      try {
-        d1ResyncOk = await sincronizarNubeTrasRestore();
-      } catch (resyncErr) {
-        // console.warn (NO debug): DevTools oculta console.debug salvo nivel
-        // "Verbose", y esto es justamente el punto que hay que ver sin configurar
-        // nada. Una nube caida NO debe impedir entrar a la app: los datos del
-        // respaldo de Drive ya estan escritos en disco.
-        console.warn('[Cloud] resync tras Drive fallo:', resyncErr);
-        // Parar auto-sync para evitar pisar datos de Drive con D1 antiguo.
-        try {
-          const { syncService } = await import('../lib/syncService');
-          await syncService.stopPeriodicSync();
-        } catch {}
-      }
-      // El respaldo ya trajo datos (se validó arriba), así que solo queda
-      // marcar la app como inicializada y entrar.
-      console.warn('[Welcome] respaldo restaurado; entrando a la app...');
-      await entrarALaApp();
-      console.warn('[Welcome] entrarALaApp OK');
       if (d1ResyncOk) {
         setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
       }
@@ -647,9 +660,41 @@
    * había antes del seed. Sin este aviso el Dashboard seguía mostrando
    * "0 grados / 0 secciones" aunque los datos estuvieran escritos.
    */
+  /**
+   * Corre `tarea` con un tope de tiempo. Si el tope vence, NO lanza: solo avisa
+   * y deja seguir el flujo, porque el llamador tiene un camino de recuperación
+   * (entrar a la app con los datos que ya están en disco).
+   *
+   * Existe por un motivo concreto: la fase de nube del restore depende de
+   * llamadas que pueden colgarse sin resolver (cuota de Cloudflare, worker
+   * caído, un endpoint sin desplegar) y cualquiera de ellas dejaba al usuario
+   * clavado en el WelcomePage con el spinner girando, sin error y sin salida.
+   * `Promise.race` no cancela la tarea perdedora: si termina después, su
+   * `catch` propio ya no hace daño, y por eso `tarea` debe manejar sus errores.
+   */
+  async function conTope(tarea: () => Promise<void>, ms: number, motivo: string) {
+    let ticked = false;
+    const reloj = setTimeout(() => {
+      ticked = true;
+      console.warn(`[Welcome] ${motivo}: se sigue adelante a los ${ms / 1000}s (los datos ya están en disco)`);
+    }, ms);
+    try {
+      await Promise.race([
+        tarea(),
+        new Promise<void>((resolve) => setTimeout(() => { if (ticked) resolve(); }, ms)),
+      ]);
+    } finally {
+      clearTimeout(reloj);
+    }
+  }
+
+  /** `true` una vez que la app quedó marcada como inicializada. */
+  let appIniciada = $state(false);
+
   async function entrarALaApp() {
     console.warn('[Welcome] set_app_initialized...');
     await invoke('set_app_initialized');
+    appIniciada = true;
     console.warn('[Welcome] set_app_initialized OK; emitiendo welcome-complete');
     emit('catalog-updated', { timestamp: Date.now() });
     emit('data-updated', { timestamp: Date.now() });
