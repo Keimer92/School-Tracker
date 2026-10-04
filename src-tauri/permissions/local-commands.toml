@@ -118,6 +118,7 @@ commands.allow = [
     "gd_write_file_base64",
     "gd_reload_database",
     "gd_open_url_browser",
+    "gd_resolve_browser",
     "gd_start_oauth_server",
     "gd_open_auth_webview",
     "gd_start_oauth_background",

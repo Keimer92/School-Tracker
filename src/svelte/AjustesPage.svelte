@@ -8,12 +8,7 @@
   import NotificacionesPage from "./notificaciones/NotificacionesPage.svelte";
   import DebugPage from "./ajustes/DebugPage.svelte";
   import InfoPage from "./ajustes/InfoPage.svelte";
-  import {
-    OPCIONES_NAVEGADOR,
-    getNavegadorLogin,
-    setNavegadorLogin,
-    type NavegadorLogin,
-  } from "../lib/oauthBrowser";
+  import BrowserPicker from "./BrowserPicker.svelte";
   import appIcon from "../assets/app-icon.png";
 
   function getThemeColor(color: string): string {
@@ -49,7 +44,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     return () => dispose();
   });
   let gradeConfigs = $state<{ id: string; nombre: string; color: string; minimo: number }[]>([]);
-  let navegadorElegido = $state<NavegadorLogin>(getNavegadorLogin());
   let highlightColor = $state(localStorage.getItem("student-highlight-color") || "#4ade80");
   /** Último valor persistido, para no reescribir (y re-sincronizar) en cada effect. */
   let ultimoHighlightGuardado = $state<string | null>(null);
@@ -297,28 +291,11 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
               {#if !isAndroid}
                 <div style="margin-top: 2rem; background: rgba(96,165,250,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(96,165,250,0.18);">
                   <h4 style="margin: 0 0 0.5rem 0; color: #e2e8f0;">🌐 Navegador para iniciar sesión con Google</h4>
-                  <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1rem;">
+                  <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 0.25rem;">
                     Solo afecta al login de Google (Welcome y Nube). Si tu navegador predeterminado
                     sigue siendo Edge, elegí el tuyo acá y se abrirá ese.
                   </p>
-                  <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                    {#each OPCIONES_NAVEGADOR as op (op.id)}
-                      <button
-                        class="nav-btn"
-                        class:activo={navegadorElegido === op.id}
-                        onclick={() => { setNavegadorLogin(op.id); navegadorElegido = op.id; }}
-                        title={op.id === 'default' ? 'Usa la asociación http/https del sistema' : `Abrir el login directamente con ${op.label}`}
-                      >{op.label}</button>
-                    {/each}
-                  </div>
-                  {#if navegadorElegido === 'default'}
-                    <p style="margin: 0.9rem 0 0 0; color: #64748b; font-size: 0.76rem; line-height: 1.5;">
-                      ℹ️ Para cambiar el predeterminado del sistema: Windows 11 → Configuración → Aplicaciones →
-                      Aplicaciones predeterminadas → busca el navegador. Ojo: <code>http</code> y <code>https</code>
-                      son asociaciones separadas, y basta con que <code>https</code> siga en Edge para que el
-                      login se abra en Edge.
-                    </p>
-                  {/if}
+                  <BrowserPicker />
                 </div>
               {/if}
             </div>
@@ -332,30 +309,8 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 </div>
 
 <style>
-  /* Selector de navegador del login: glassmorphism, con el activo en acento.
-     Va en CSS y no en un `style="...{cond ? a : b}"` multilínea porque dos
-     expresiones en el mismo atributo rompe el parseo del template. */
-  .nav-btn {
-    padding: 0.55rem 1rem;
-    border-radius: 10px;
-    cursor: pointer;
-    font-size: 0.82rem;
-    font-weight: 600;
-    transition: all 0.2s ease;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: #94a3b8;
-  }
-  .nav-btn:hover {
-    border-color: rgba(96, 165, 250, 0.45);
-    color: #e2e8f0;
-  }
-  .nav-btn.activo {
-    background: rgba(96, 165, 250, 0.22);
-    border-color: rgba(96, 165, 250, 0.7);
-    color: #bfdbfe;
-    box-shadow: 0 2px 10px rgba(96, 165, 250, 0.18);
-  }
+  /* El selector de navegador del login vive en BrowserPicker.svelte (shared
+     con el WelcomePage); no hay estilos condicionales de botones acá. */
 
   .ajustes-grid {
     display: grid;

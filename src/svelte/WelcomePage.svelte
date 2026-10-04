@@ -8,6 +8,7 @@
   import { iniciarSesionGoogleConNube } from "../lib/cloudLogin";
   import { getProfile, getCurrentEmail } from "../lib/accountProfiles";
   import appIcon from "../assets/app-icon.png";
+  import BrowserPicker from "./BrowserPicker.svelte";
 
   /** Misma fuente que usa cloudLogin.ts para no divergir. */
   const DEFAULT_WORKER = import.meta.env.VITE_D1_WORKER_URL
@@ -935,6 +936,14 @@
       </div>
       {#if errorMsg}
         <div class="welcome-error">{errorMsg}</div>
+      {/if}
+      <!-- Selector de navegador del login. Tiene que estar AQUÍ y no solo en
+           Ajustes: el login arranca en esta pantalla, así que un usuario a quien
+           Windows le abre Edge no tiene forma de cambiarlo si la única entrada
+           está más adentro. Se compacta en una línea para no competir con las
+           tarjetas de entrada. -->
+      {#if !isAndroidMobile}
+        <BrowserPicker compacto />
       {/if}
       {#if driveSinRespaldo}
         <!-- El respaldo de Drive no sirvió. Las otras dos opciones siguen

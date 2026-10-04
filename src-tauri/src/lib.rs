@@ -1258,6 +1258,26 @@ fn abrir_con_navegador(url: &str, id: &str) -> bool {
     false
 }
 
+/// Devuelve la ruta del ejecutable que se usaría para `browser`, o `""` si no
+/// se encuentra ninguno. No abre nada: es solo el diagnóstico que muestra el
+/// selector ("Se abrirá: C:\...\firefox.exe"), para que el usuario pueda
+/// confirmar si su preferencia se aplicó de verdad.
+#[tauri::command]
+fn gd_resolve_browser(browser: Option<String>) -> String {
+    let id = match browser.as_deref() {
+        Some(v) if !v.is_empty() && v != "default" => v,
+        // Sin preferencia no hay nada que resolver: manda el del sistema.
+        _ => return String::new(),
+    };
+    for exe in candidatos_navegador(id) {
+        if std::path::Path::new(&exe).is_file() {
+            return exe;
+        }
+    }
+    println!("[Browser] no se encontró el ejecutable de '{}'", id);
+    String::new()
+}
+
 #[tauri::command]
 async fn gd_open_url_browser(
     app: tauri::AppHandle,
@@ -2503,6 +2523,7 @@ update_colegio,
             gd_write_file_base64,
             gd_reload_database,
             gd_open_url_browser,
+            gd_resolve_browser,
             gd_start_oauth_server,
             gd_open_auth_webview,
             gd_start_oauth_background,
