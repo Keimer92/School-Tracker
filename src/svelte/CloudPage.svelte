@@ -641,10 +641,11 @@
                   Conectando...
                 </div>
                 {#if !isAndroid}
-                  <!-- El login ocurre en el NAVEGADOR DEL SISTEMA (Windows, Linux y
-                       Android por fallback); la app solo espera el código que le
-                       devuelve el servidor TCP local. Sin este aviso el usuario
-                       cree que la app está colgada. -->
+                  <!-- En escritorio el login ocurre en el NAVEGADOR DEL SISTEMA, no
+                       en una ventana de la app: la WebView embebida no es fiable con
+                       Google y no comparte su sesión. Acá solo se espera el código
+                       que devuelve el servidor TCP local. Sin este aviso el usuario
+                       cree que la app se colgó. -->
                   <p style="color: #94a3b8; font-size: 0.8rem; max-width: 340px; margin: 0; text-align: center;">
                     🌐 Se abrió una ventana del navegador. Inicia sesión con Google
                     ahí y esta pantalla continuará sola.
