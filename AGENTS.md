@@ -439,7 +439,25 @@ deja elegir entre Predeterminado del sistema / Firefox / Chrome / Edge / Brave.
 Se guarda en `localStorage['stp_navegador_login']` y viaja como
 `invoke('gd_open_auth_webview', { url, browser })`. **Los dos call sites
 (`cloudLogin.ts` y `CloudPage.svelte`) lo pasan con `navegadorLoginArg()`**; si
-no se eligió nada devuelve `undefined` y Rust lo trata igual que "default".
+no se eligió nada devuelve `undefined`, `JSON.stringify` **borra las claves
+`undefined`** y el payload sale sin `browser` → Rust recibe `None` → navegador
+del sistema. Ese borrado es el comportamiento correcto, no un bug a
+"arreglar".
+
+⚠️ **GOTCHA: una opción que solo existe en Ajustes es inalcanzable si se
+necesita ANTES de pasar el WelcomePage.** El login arranca en la portada, así
+que un selector metido solo en Ajustes deja al usuario sin poder configurarlo
+exactamente cuando lo necesita (que es cuando Windows le abre Edge). La opción se
+monta en los DOS lados con el mismo componente, `src/svelte/BrowserPicker.svelte`
+(`compacto` en la portada, una línea desplegable; completo en Ajustes, con la
+nota de `http` vs `https`). **Regla: si un ajuste afecta al primer arranque, tiene
+que existir también en el WelcomePage.**
+
+⚠️ **Mostrar la ruta resuelta, no solo el nombre elegido**: el componente llama
+`gd_resolve_browser` (devuelve el ejecutable que se va a usar, o `""`) y lo
+muestra como "Se abrirá: `C:\...\firefox.exe`". Sin eso el usuario no tiene forma
+de distinguir "no guardó la preferencia" de "eligió uno que no tiene instalado", y
+ese es exactamente el debug que faltaba. No abre nada: solo informa.
 
 ⚠️ **Elegir navegador no puede romper el login**: `abrir_con_navegador()`
 recorre candidatos con `Command::spawn` y, si ninguno arranca, se cae al
