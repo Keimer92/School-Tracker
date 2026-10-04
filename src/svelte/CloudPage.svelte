@@ -8,6 +8,7 @@
   import { driveSyncService } from "../lib/driveSyncService";
   import { isInstantBackupEnabled, setInstantBackupEnabled } from "../lib/driveInstantBackup";
   import { ensureWsSync } from "../lib/wsSyncService";
+  import { navegadorLoginArg } from "../lib/oauthBrowser";
   import { registerBackHandler, setBackAuthInProgress } from "../lib/androidBack";
   import { ask } from "@tauri-apps/plugin-dialog";
   import {
@@ -222,7 +223,7 @@
       const port = 51733;
       const redirectUri = `${isAndroid ? 'http://127.0.0.1' : 'http://localhost'}:${port}/callback`;
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${settings.clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent('https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile')}&access_type=offline&prompt=${forceSelectAccount ? 'select_account' : 'consent'}`;
-      const code = await invoke<string>("gd_open_auth_webview", { url: authUrl });
+      const code = await invoke<string>("gd_open_auth_webview", { url: authUrl, browser: navegadorLoginArg() });
       if (code && !authHandled) {
         authHandled = true;
         await exchangeCode(code, redirectUri);

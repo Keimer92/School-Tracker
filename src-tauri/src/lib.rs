@@ -1190,13 +1190,98 @@ async fn gd_write_file_base64(path: String, content_base64: String) -> Result<()
 }
 
 
+/// Rutas donde suelen estar los navegadores, en orden de probabilidad.
+///
+/// Windows decide qué navegador abrir leyendo la asociación `http`/`https` del
+/// usuario, y esa asociación muy muchas veces sigue apuntando a Edge aunque la
+/// persona use Firefox a diario (Edge se auto-registra al instalarse y el
+/// "predeterminado" de Windows 11 es Edge). Cuando el usuario elige un
+/// navegador explícitamente en Ajustes lo arrancamos nosotros con su
+/// ejecutable, sin depender de esa asociación.
+///
+/// Se prueba primero la ruta absoluta (Chrome y Edge suelen NO estar en el PATH)
+/// y al final el nombre pelado, que cubre installs atypicalos y lo resuelve
+/// `Command::spawn` via el PATH del proceso.
+fn candidatos_navegador(id: &str) -> Vec<String> {
+    let pf = std::env::var("ProgramFiles").unwrap_or_else(|_| r"C:\Program Files".into());
+    let pf86 = std::env::var("ProgramFiles(x86)").unwrap_or_else(|_| r"C:\Program Files (x86)".into());
+    let local = std::env::var("LOCALAPPDATA").unwrap_or_default();
+    match id {
+        "firefox" => vec![
+            format!(r"{}\Mozilla Firefox\firefox.exe", pf),
+            format!(r"{}\Mozilla Firefox\firefox.exe", pf86),
+            "firefox.exe".into(),
+        ],
+        "chrome" => {
+            let mut v = vec![
+                format!(r"{}\Google\Chrome\Application\chrome.exe", pf),
+                format!(r"{}\Google\Chrome\Application\chrome.exe", pf86),
+            ];
+            if !local.is_empty() {
+                v.push(format!(r"{}\Google\Chrome\Application\chrome.exe", local));
+            }
+            v.push("chrome.exe".into());
+            v
+        }
+        "edge" => vec![
+            format!(r"{}\Microsoft\Edge\Application\msedge.exe", pf86),
+            format!(r"{}\Microsoft\Edge\Application\msedge.exe", pf),
+            "msedge.exe".into(),
+        ],
+        "brave" => vec![
+            format!(r"{}\BraveSoftware\Brave-Browser\Application\brave.exe", pf),
+            format!(r"{}\BraveSoftware\Brave-Browser\Application\brave.exe", pf86),
+            "brave.exe".into(),
+        ],
+        // Cualquier otro valor se trata como una ruta/custom ya resuelta.
+        _ => vec![id.to_string()],
+    }
+}
+
+/// Abre la URL con el navegador que el usuario eligió en Ajustes.
+///
+/// Devuelve `false` si no se pudo (no está instalado, la ruta está mal, etc.)
+/// para que el llamador caiga al navegador del sistema: **elegir un navegador
+/// nunca puede romper el login**.
+fn abrir_con_navegador(url: &str, id: &str) -> bool {
+    for exe in candidatos_navegador(id) {
+        match std::process::Command::new(&exe).arg(url).spawn() {
+            Ok(_) => {
+                println!("[Browser] abierto con '{}' ({}), como pedía el usuario", id, exe);
+                return true;
+            }
+            Err(e) => {
+                println!("[Browser] no se pudo lanzar '{}' ({}): {}", id, exe, e);
+            }
+        }
+    }
+    false
+}
+
 #[tauri::command]
-async fn gd_open_url_browser(app: tauri::AppHandle, url: String) -> Result<(), String> {
-    // El plugin opener está registrado en todas las plataformas (ver `run()`) y
-    // es la vía recomendada: delega en el mecanismo nativo del SO y respeta la
-    // asociación http/https del usuario (Chrome/Edge/Firefox en Windows, no solo
-    // el "predeterminado" heredado). Si el plugin falla en desktop se recurre al
-    // comando del sistema.
+async fn gd_open_url_browser(
+    app: tauri::AppHandle,
+    url: String,
+    browser: Option<String>,
+) -> Result<(), String> {
+    // 1) Navegador elegido explícitamente en Ajustes (si no, el del sistema).
+    // Solo desktop: las rutas candidatas son de Windows y en Android el
+    // "navegador del sistema" ya es el unico mecanismo que hay.
+    #[cfg(not(target_os = "android"))]
+    if let Some(id) = browser.as_deref().filter(|s| !s.is_empty() && *s != "default") {
+        if abrir_con_navegador(&url, id) {
+            return Ok(());
+        }
+        // Si falla se sigue con el del sistema, con un aviso en consola: mejor
+        // un login en Edge que un login imposible.
+        println!("[Browser] el navegador elegido ('{}') no se pudo abrir; se usa el del sistema", id);
+    }
+    #[cfg(target_os = "android")]
+    let _ = &browser;
+
+    // 2) Navegador del sistema. El plugin opener está registrado en todas las
+    // plataformas (ver `run()`) y delega en ShellExecuteExW con el verbo por
+    // defecto, que es lo que respeta la asociación http/https del usuario.
     #[cfg(not(target_os = "android"))]
     let _opened_by_plugin = {
         use tauri_plugin_opener::OpenerExt;
@@ -1567,6 +1652,7 @@ fn traer_app_al_frente(app: &tauri::AppHandle, motivo: &str) {
 async fn gd_open_auth_webview(
     app: tauri::AppHandle,
     url: String,
+    browser: Option<String>,
 ) -> Result<String, String> {
     let port = extract_oauth_port_from_auth_url(&url);
     *oauth_code_state().lock().map_err(|e| e.to_string())? = None;
@@ -1591,7 +1677,7 @@ async fn gd_open_auth_webview(
     // sí acepta el login).
     #[cfg(any(target_os = "android", target_os = "linux", target_os = "windows"))]
     {
-        if let Err(e) = gd_open_url_browser(app.clone(), url.clone()).await {
+        if let Err(e) = gd_open_url_browser(app.clone(), url.clone(), browser.clone()).await {
             return Err(format!("No se pudo abrir el navegador del sistema: {}", e));
         }
 

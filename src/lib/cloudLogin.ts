@@ -12,6 +12,7 @@ import { d1SyncService } from "./d1SyncService";
 import { invalidateD1Cache, syncService } from "./syncService";
 import { ensureWsSync, stopWsSync } from "./wsSyncService";
 import { getProfile, saveProfile, setCurrentEmail } from "./accountProfiles";
+import { navegadorLoginArg } from "./oauthBrowser";
 
 export interface CloudLoginTokens {
   idToken: string;
@@ -230,7 +231,10 @@ export async function iniciarSesionGoogleConNube(opts?: {
       // siempre (todo back posterior terminaba en `gd_cancel_oauth`).
       let code: string;
       try {
-        code = await invoke<string>('gd_open_auth_webview', { url: authUrl });
+        // `browser` sale de Ajustes: si el usuario eligió un navegador en vez de
+        // "el del sistema", se abre ese (en Windows la asociación http/https
+        // suele seguir apuntando a Edge aunque use Firefox).
+        code = await invoke<string>('gd_open_auth_webview', { url: authUrl, browser: navegadorLoginArg() });
       } finally {
         opts?.setBackAuth?.(false);
       }
