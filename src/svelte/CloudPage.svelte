@@ -640,6 +640,16 @@
                 <div style="padding: 0.8rem 2rem; background: linear-gradient(135deg, #4285F4, #34A853); border: none; color: white; border-radius: 12px; font-weight: 600; font-size: 1rem; opacity: 0.7; cursor: default;">
                   Conectando...
                 </div>
+                {#if !isAndroid}
+                  <!-- El login ocurre en el NAVEGADOR DEL SISTEMA (Windows, Linux y
+                       Android por fallback); la app solo espera el código que le
+                       devuelve el servidor TCP local. Sin este aviso el usuario
+                       cree que la app está colgada. -->
+                  <p style="color: #94a3b8; font-size: 0.8rem; max-width: 340px; margin: 0; text-align: center;">
+                    🌐 Se abrió una ventana del navegador. Inicia sesión con Google
+                    ahí y esta pantalla continuará sola.
+                  </p>
+                {/if}
                 <button onclick={cancelAuth} style="background: transparent; border: 1px solid rgba(239,68,68,0.35); color: #f87171; padding: 0.45rem 1.25rem; border-radius: 8px; cursor: pointer; font-size: 0.8rem; font-weight: 600; transition: all 0.2s;">
                   Cancelar
                 </button>

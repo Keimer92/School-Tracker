@@ -170,7 +170,10 @@ async function finalizarSoloDrive(
  * LOGIN/REGISTRO con Google para el sync Cloudflare + vinculación de Drive
  * con la MISMA cuenta. Reutilizable desde WelcomePage y CloudPage.
  *  - Android: selector nativo (idToken + serverAuthCode con scope drive.file).
- *  - Desktop: OAuth navegador con openid + drive.file (una sola consentición).
+ *  - Desktop: OAuth en el NAVEGADOR DEL SISTEMA con openid + drive.file (una
+ *    sola consentición). A pesar del nombre, `gd_open_auth_webview` abre el
+ *    navegador real en Windows y Linux y el código lo captura el servidor TCP
+ *    local; solo macOS sigue usando una ventana WebView embebida.
  */
 export async function iniciarSesionGoogleConNube(opts?: {
   onStatus?: (msg: string) => void;
@@ -221,9 +224,16 @@ export async function iniciarSesionGoogleConNube(opts?: {
       // el modal sin confirmación.
       const prompt = opts?.forceSelectAccount ? 'select_account consent' : 'consent';
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent('openid email profile https://www.googleapis.com/auth/drive.file')}&access_type=offline&prompt=${encodeURIComponent(prompt)}`;
-      opts?.onStatus?.('Esperando autenticación de Google...');
-      const code = await invoke<string>('gd_open_auth_webview', { url: authUrl });
-      opts?.setBackAuth?.(false);
+      opts?.onStatus?.('Se abrió tu navegador: inicia sesión con Google allí...');
+      // El flag del "botón atrás" se baja en `finally`: si el usuario cancela o
+      // el login expira, `invoke` lanza y el flag quedaba en `true` para
+      // siempre (todo back posterior terminaba en `gd_cancel_oauth`).
+      let code: string;
+      try {
+        code = await invoke<string>('gd_open_auth_webview', { url: authUrl });
+      } finally {
+        opts?.setBackAuth?.(false);
+      }
       opts?.onStatus?.('Verificando identidad...');
       const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',

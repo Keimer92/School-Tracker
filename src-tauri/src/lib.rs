@@ -1192,6 +1192,24 @@ async fn gd_write_file_base64(path: String, content_base64: String) -> Result<()
 
 #[tauri::command]
 async fn gd_open_url_browser(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    // El plugin opener está registrado en todas las plataformas (ver `run()`) y
+    // es la vía recomendada: delega en el mecanismo nativo del SO y respeta la
+    // asociación http/https del usuario (Chrome/Edge/Firefox en Windows, no solo
+    // el "predeterminado" heredado). Si el plugin falla en desktop se recurre al
+    // comando del sistema.
+    #[cfg(not(target_os = "android"))]
+    let _opened_by_plugin = {
+        use tauri_plugin_opener::OpenerExt;
+        match app.opener().open_url(&url, None::<&str>) {
+            Ok(()) => true,
+            Err(e) => {
+                eprintln!("[Browser] opener plugin falló ({}), usando comando del sistema", e);
+                false
+            }
+        }
+    };
+
+    // Android siempre por el plugin (el `open`/`xdg-open` de abajo no existen).
     #[cfg(target_os = "android")]
     {
         use tauri_plugin_opener::OpenerExt;
@@ -1201,34 +1219,31 @@ async fn gd_open_url_browser(app: tauri::AppHandle, url: String) -> Result<(), S
     }
 
     #[cfg(target_os = "windows")]
-    {
+    if !_opened_by_plugin {
         std::process::Command::new("rundll32")
             .args(["url.dll,FileProtocolHandler", &url])
             .spawn()
             .map_err(|e| format!("Failed to open browser: {}", e))?;
     }
-    
+
     #[cfg(target_os = "macos")]
-    {
+    if !_opened_by_plugin {
         std::process::Command::new("open")
             .arg(&url)
             .spawn()
             .map_err(|e| format!("Failed to open browser: {}", e))?;
     }
-    
+
     #[cfg(target_os = "linux")]
-    {
+    if !_opened_by_plugin {
         std::process::Command::new("xdg-open")
             .arg(&url)
             .spawn()
             .map_err(|e| format!("Failed to open browser: {}", e))?;
     }
-    
-    #[cfg(not(target_os = "android"))]
-    let _ = &app;
 
     #[cfg(not(any(target_os = "android", target_os = "windows", target_os = "macos", target_os = "linux")))]
-    let _ = url;
+    let _ = (app, url);
 
     Ok(())
 }
@@ -1419,9 +1434,9 @@ async fn gd_start_oauth_server(port: u16) -> Result<String, String> {
 }
 
 // Solo se usan en la rama WebView de `gd_open_auth_webview`, que compila solo
-// en Windows/macOS: en Linux y Android el login va por navegador del sistema y
-// el código lo captura el servidor TCP. Sin el allow, `cargo check` en Linux
-// las marca como dead code.
+// en macOS: en Android, Linux y Windows el login va por navegador del sistema y
+// el código lo captura el servidor TCP. Sin el allow, `cargo check` en las demás
+// plataformas las marca como dead code.
 #[allow(dead_code)]
 fn extract_oauth_code_from_url(raw_url: &str) -> Option<String> {
     if let Ok(parsed) = url::Url::parse(raw_url) {
@@ -1476,6 +1491,16 @@ fn is_localhost_oauth_callback(raw_url: &str) -> bool {
     false
 }
 
+/// Inicia el login OAuth de Google y devuelve el `code` de autorización.
+///
+/// A pesar del nombre (histórico, cuando todas las plataformas de escritorio
+/// usaban WebView embebida), en **Android, Linux y Windows abre el navegador
+/// del sistema** y el código lo captura el servidor TCP local. Solo macOS crea
+/// una ventana WebView embebida.
+///
+/// El nombre del comando se mantiene porque está referenciado en
+/// `permissions/local-commands.toml` y en los dos call sites del frontend
+/// (`CloudPage.svelte` y `lib/cloudLogin.ts`, que usa `WelcomePage`).
 #[tauri::command]
 async fn gd_open_auth_webview(
     app: tauri::AppHandle,
@@ -1486,24 +1511,32 @@ async fn gd_open_auth_webview(
     oauth_cancel_flag().store(false, Ordering::SeqCst);
     gd_start_oauth_background(app.clone(), port).await?;
 
-    // ── Android y Linux: navegador del SISTEMA + polling del servidor TCP ──
+    // ── Android, Linux y Windows: navegador del SISTEMA + polling del TCP ──
     //
     // En Linux el WebView embebido (WebKitGTK) NO sirve: Google bloquea el
     // login en user-agents embebidos y responde "Something went wrong". El
     // `client_id` y el `redirect_uri` son correctos (verificado con curl: la
     // misma URL devuelve 302 a la pantalla de login), así que el problema es la
-    // WebView, no la configuración.
+    // WebView, no la configuración. En Windows el WebView2 embebido tiene el
+    // mismo problema de user agent, y además NO comparte la sesión de Google
+    // del navegador, así que el usuario tenía que re-ingresar sus credenciales.
     //
     // El navegador real además es mejor UX: ya tiene la sesión de Google abierta
     // y no hay que re-ingresar. El código lo captura el servidor TCP que ya se
     // arrancó arriba (`gd_start_oauth_background`), igual que en Android.
-    #[cfg(any(target_os = "android", target_os = "linux"))]
+    //
+    // Solo queda macOS con la WebView embebida (WebKit del sistema, donde Google
+    // sí acepta el login).
+    #[cfg(any(target_os = "android", target_os = "linux", target_os = "windows"))]
     {
         if let Err(e) = gd_open_url_browser(app.clone(), url.clone()).await {
             return Err(format!("No se pudo abrir el navegador del sistema: {}", e));
         }
 
-        for _ in 0..600 {
+        // 300s (1500 x 200ms). Con navegador real el usuario puede tener que
+        // escribir su contraseña o pasar el 2FA, y eso tarda bastante más que
+        // completar la pantalla de consentimiento.
+        for _ in 0..1500 {
             if oauth_cancel_flag().load(Ordering::SeqCst) {
                 oauth_cancel_flag().store(false, Ordering::SeqCst);
                 return Err("Autenticación cancelada".to_string());
@@ -1520,8 +1553,8 @@ async fn gd_open_auth_webview(
         return Err("Tiempo de espera agotado (¿se completó el login en el navegador?)".to_string());
     }
 
-    // ── Windows y macOS: WebView embebido ──
-    #[cfg(not(any(target_os = "android", target_os = "linux")))]
+    // Solo macOS queda con WebView embebido
+    #[cfg(target_os = "macos")]
     {
         let (tx, rx) = std::sync::mpsc::channel::<String>();
 

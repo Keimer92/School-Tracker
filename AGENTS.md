@@ -312,8 +312,11 @@ un botón "Forzar respaldo ahora" que reporta el motivo si no sube
 ## GOTCHA: Google BLOQUEA el login en WebViews embebidas (2026-10)
 
 Síntoma en Linux: al tocar "Continuar con Google" se abre la ventana
-`google-auth` y Google muestra **"Something went wrong"**. En Windows y macOS
-funcionaba (WebView2 = Chromium).
+`google-auth` y Google muestra **"Something went wrong"**. En Windows/macOS
+funcionaba (WebView2/WebKit = Chromium/WebKit de sistema), pero en Windows el
+WebView2 embebido obligaba a re-ingresar las credenciales (no comparte la
+sesión de Google del navegador) y podía fallar igual por user agent. Hoy el
+navegador del sistema es el camino en escritorio salvo macOS.
 
 **No es un problema de configuración.** El `client_id` y el
 `redirect_uri=http://localhost:51733/callback` son válidos: la misma URL pedida
@@ -322,19 +325,40 @@ login. Lo que falla es el **user agent embebido**: Google rechaza el login OAuth
 dentro de WebViews (WebKitGTK en Linux) con `error=disallowed_useragent` /
 `access_denied`, y su página de error es justamente "Something went wrong".
 
-**Solución aplicada**: en Linux el login va por **navegador del sistema**
-(`xdg-open`), igual que en Android, y no por WebView. El código lo sigue
-capturando el servidor TCP de `127.0.0.1:51733` con polling, que ya existía.
-En Windows/macOS se mantiene la WebView.
+**Solución aplicada**: el login va por **navegador del sistema** en Linux
+(`xdg-open`), en Windows y en el fallback de Android, y NO por WebView. El
+código lo sigue capturando el servidor TCP de `127.0.0.1:51733` con polling,
+que ya existía. En macOS se mantiene la WebView (WebKit del sistema).
 
 | Plataforma | Login | Quién captura el código |
 |---|---|---|
 | Android | Google Sign-In nativo (Play Services) | `serverAuthCode` |
 | Linux | **navegador del sistema** (`xdg-open`) | servidor TCP + polling |
-| Windows/macOS | WebView embebida | `on_navigation` + servidor TCP (redundancia) |
+| Windows | **navegador del sistema** (plugin `opener` → `rundll32` de respaldo) | servidor TCP + polling |
+| macOS | WebView embebida | `on_navigation` + servidor TCP (redundancia) |
 
-Ventaja extra del navegador del sistema en Linux: el usuario ya tiene la sesión
-de Google abierta en Firefox/Chrome, así que no re-ingresa nada.
+Ventaja extra del navegador del sistema: el usuario ya tiene la sesión de
+Google abierta en Firefox/Chrome/Edge, así que no re-ingresa nada.
+
+⚠️ **El comando se llama `gd_open_auth_webview` pero en Android/Linux/Windows
+NO abre ninguna WebView** — abre el navegador. El nombre es histórico (el
+frontend, `permissions/local-commands.toml` y los dos call sites lo referencian);
+no lo renombrar sin actualizar los tres. La WebView embebida quedó como rama
+`#[cfg(target_os = "macos")]` pura dentro de `gd_open_auth_webview`.
+
+⚠️ **Al agregar Windows a la rama del navegador, la WebView dejó de compilar en
+esa plataforma**, así que `extract_oauth_code_from_url`, `is_localhost_oauth_callback`
+y `extract_oauth_error_from_url` quedaron `dead code` en Windows/Linux/Android:
+conservan su `#[allow(dead_code)]`. `cargo check` en Windows no detecta los
+problemas de cfg de Linux/macOS: para validar la estructura de `cfg` de un
+comando en varias plataformas, compilar un stub con la misma forma de `cfg`
+para `x86_64-unknown-linux-gnu`, `aarch64-linux-android` y
+`x86_64-apple-darwin` (`rustup target add` + `rustc --emit=metadata`, que no
+necesita linker).
+
+⚠️ **El timeout del polling pasó de 120s a 300s** (`for _ in 0..1500`): con
+navegador real el usuario puede tener que escribir su contraseña o pasar el
+2FA, y eso tarda mucho más que la pantalla de consentimiento.
 
 **El scheme `schooltracker-auth://` SOLO está registrado en el
 AndroidManifest.** En Linux el navegador no lo conoce y tras el login mostraría
@@ -833,15 +857,21 @@ para sobrevivir recargas de página/HMR:
 2. **`gd_open_auth_webview`** (`lib.rs`):
    - Extrae el puerto (`extract_oauth_port_from_auth_url`) y limpia estado/cancelación.
    - Llama a `gd_start_oauth_background` (servidor TCP en `127.0.0.1:51733`).
-   - **Android (solo fallback)**: abre el navegador del sistema vía `tauri-plugin-opener`
-     (`app.opener().open_url(...)`) y **hace polling** de `oauth_code_state()`
-     cada 200 ms (hasta ~120 s). ⚠️ Este path es NO fiable en dispositivo real:
-     Android congela el proceso en background y el TCP server no responde.
-   - **Desktop**: crea una ventana WebView `"google-auth"` con el
+   - **Android / Linux / Windows**: abre el **navegador del sistema** vía
+     `tauri-plugin-opener` (`app.opener().open_url(...)`, con `xdg-open` /
+     `rundll32` como respaldo) y **hace polling** de `oauth_code_state()`
+     cada 200 ms (hasta 300 s). ⚠️ El path de Android con navegador es NO
+     fiable en dispositivo real: Android congela el proceso en background y el
+     TCP server no responde (por eso el flujo principal en Android es Google
+     Sign-In nativo).
+   - **Solo macOS**: crea una ventana WebView `"google-auth"` con el
      callback `on_navigation`. Si la URL contiene `code=` lo envía por canal; si es el
      callback localhost (`is_localhost_oauth_callback`) devuelve `true` para que la
      navegación ocurra y el **servidor TCP también lo capture** (respaldo). Cierra la
      ventana al recibir el código y detecta cierre manual por el usuario → "cancelada".
+     ⚠️ Con navegador del sistema no se puede detectar "el usuario cerró la
+     pestaña": el flujo queda esperando al timeout salvo que se pulse Cancelar
+     (`gd_cancel_oauth`), que sí aborta el polling por el flag.
 3. **`gd_start_oauth_background`** (`lib.rs`): servidor TCP asíncrono arrancado una sola
    vez (flag `SERVER_STARTED: AtomicBool`, task `tokio::spawn` con `AppHandle` propio)
    → **sobrevive recargas**; si el bind falla el flag se resetea para reintentar
