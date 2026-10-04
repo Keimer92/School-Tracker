@@ -147,6 +147,13 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             school_key TEXT NOT NULL DEFAULT '',
             device_id TEXT NOT NULL DEFAULT '',
             last_sync TEXT,
+            -- Freno de reintentos del PUSH: si un push falla, NO se reintenta hasta
+            -- esta hora. Sin esto, un push completo fallido (p. ej. por cuota
+            -- diaria de D1) se reintentaba en CADA trigger (arranque, foreground,
+            -- online, cambio de pestaña, tick de 20 min) y quemaba la cuota del día
+            -- entero sin que el usuario tocara nada.
+            push_fail_count INTEGER DEFAULT 0,
+            push_retry_after TEXT,
             updated_at TEXT DEFAULT (datetime('now'))
         );
 
@@ -474,6 +481,28 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
             [],
         )
         .map_err(|e| format!("Error agregando columna last_push_sync: {}", e))?;
+    }
+
+    // Freno de reintentos del push (ver la definición de d1_config). Ambas se
+    // agregan aunque la base sea vieja: el freno es lo que evita que un push
+    // completo fallido se reintente en cada trigger.
+    for col in ["push_fail_count", "push_retry_after"] {
+        let exists: bool = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('d1_config') WHERE name = ?1",
+                rusqlite::params![col],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap_or(0) > 0;
+        if !exists {
+            let ddl = if col == "push_fail_count" {
+                "ALTER TABLE d1_config ADD COLUMN push_fail_count INTEGER DEFAULT 0"
+            } else {
+                "ALTER TABLE d1_config ADD COLUMN push_retry_after TEXT"
+            };
+            conn.execute(ddl, [])
+                .map_err(|e| format!("Error agregando columna {}: {}", col, e))?;
+        }
     }
 
     // Agregar columna 'minimo' a configuracion_calificacion si no existe

@@ -171,17 +171,27 @@ pub fn d1_clear_config(state: tauri::State<'_, DbState>) -> Result<(), String> {
 /// incluyó la tabla d1_config): con ids compartidos, el LWW no puede
 /// desempatar y el filtro de avisos propios del WebSocket descarta los
 /// cambios del otro dispositivo.
+///
+/// ⚠️ Solo pone `last_sync` (cursor de PULL) en NULL, NUNCA `last_push_sync`.
+///
+/// Antes los ponía los dos en NULL y por eso **restaurar un respaldo de Drive
+/// re-subía la base entera a D1** (con `push_since = 1970`, el worker escribe
+/// las ~8.000 filas otra vez: 12 restores agotaban la cuota diaria de D1 sin
+/// que el usuario tocara nada).
+///
+/// - El PULL completo sí hace falta: el respaldo puede ser más viejo que lo que
+///   hay en la nube, y sin cursor las filas que el otro device subió después no
+///   llegarían nunca.
+/// - El PUSH no: las filas del respaldo ya están en D1 (o hay versiones más
+///   nuevas). Reenviarlas no agrega nada y además pisaría datos más recientes,
+///   que es justo lo que el aviso de "respaldo más antiguo" intenta evitar.
 #[tauri::command]
 pub fn d1_reset_device_id(state: tauri::State<'_, DbState>) -> Result<String, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let new_id = generate_device_id();
     let n = conn
         .execute(
-            // Ambos cursores a NULL fuerzan push+pull completos desde época en
-            // el próximo sync (idempotente gracias al upsert LWW del worker).
-            // Útil cuando el cursor quedó ADELANTE del reloj real (desfase entre
-            // dispositivos) o tras restaurar respaldos que duplican identidad.
-            "UPDATE d1_config SET device_id = ?1, last_sync = NULL, last_push_sync = NULL WHERE id = 1",
+            "UPDATE d1_config SET device_id = ?1, last_sync = NULL WHERE id = 1",
             rusqlite::params![new_id],
         )
         .map_err(|e| e.to_string())?;
@@ -189,6 +199,114 @@ pub fn d1_reset_device_id(state: tauri::State<'_, DbState>) -> Result<String, St
         return Err("D1 no está configurado".to_string());
     }
     Ok(new_id)
+}
+
+/// howMany veces se reintenta el push tras fallos consecutivos, en minutos.
+/// El último valor es el tope: a partir de ahí se espera 4 h entre intentos.
+///
+/// La cuota diaria de D1 (100.000 filas escritas en el plan gratis) se agota
+/// con ~12 pushes completos de esta base, así que reintentar sin pausa es lo
+/// que convierte un error puntual en un día entero de sync roto.
+const PUSH_BACKOFF_MIN: [i64; 6] = [5, 15, 30, 60, 120, 240];
+
+/// Registra un push fallido: sube el contador y calcula `push_retry_after`.
+fn registrar_push_fallido(conn: &rusqlite::Connection, motivo: &str) -> Result<(), String> {
+    let prev: i64 = conn
+        .query_row(
+            "SELECT COALESCE(push_fail_count, 0) FROM d1_config WHERE id = 1",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
+    let n = prev + 1;
+    let idx = ((n - 1).max(0) as usize).min(PUSH_BACKOFF_MIN.len() - 1);
+    let minutos = PUSH_BACKOFF_MIN[idx];
+    conn.execute(
+        "UPDATE d1_config SET push_fail_count = ?1,
+             push_retry_after = datetime('now', ?2),
+             updated_at = datetime('now')
+         WHERE id = 1",
+        params![n, format!("+{} minutes", minutos)],
+    )
+    .map_err(|e| e.to_string())?;
+    println!(
+        "[D1] push FALLIDO (#{}) -> no se reintenta hasta {} ({} min). Motivo: {}",
+        n, minutos, minutos, motivo
+    );
+    Ok(())
+}
+
+/// Un push exitoso (o un sync bien aplicado) limpia el freno.
+fn limpiar_push_fallidos(conn: &rusqlite::Connection) {
+    let _ = conn.execute(
+        "UPDATE d1_config SET push_fail_count = 0, push_retry_after = NULL WHERE id = 1",
+        [],
+    );
+}
+
+/// ¿Estamos dentro de la ventana de espera del freno?
+fn push_en_espera(conn: &rusqlite::Connection) -> Option<String> {
+    let hasta: Option<String> = conn
+        .query_row(
+            "SELECT push_retry_after FROM d1_config WHERE id = 1",
+            [],
+            |r| r.get(0),
+        )
+        .ok()
+        .flatten();
+    let hasta = hasta?;
+    let esperando: i64 = conn
+        .query_row(
+            "SELECT CAST((julianday(?1) - julianday('now')) * 24 * 60 AS INTEGER)",
+            params![hasta],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
+    if esperando > 0 {
+        Some(format!("{} min", esperando))
+    } else {
+        None
+    }
+}
+
+/// Cuántas filas tiene guardadas la nube para este `schoolKey` (y cuántos
+/// tombstones). Lo usa el WelcomePage para decidir si la nube está vacía o
+/// atrasada: en ese caso único conviene un push completo; si ya tiene datos,
+/// un merge incremental es infinitamente más barato y no arriesga pisarlos.
+#[tauri::command]
+pub fn d1_remote_stats(state: tauri::State<'_, DbState>) -> Result<Value, String> {
+    let cfg = {
+        let conn = state.conn.lock().map_err(|e| e.to_string())?;
+        read_config(&conn)?.ok_or_else(|| "D1 no está configurado".to_string())?
+    };
+    let resp = http_post_json(&cfg.worker_url, &cfg.school_key, "/stats", json!({}))?;
+    Ok(resp)
+}
+
+/// Cuántas filas sincronizables hay ahora mismo en la base local.
+///
+/// Se compara contra `d1_remote_stats` para decidir si la nube está vacía o
+/// atrasada (ahí toca push completo) o si ya tiene datos (donde alcanza con un
+/// merge incremental). Solo cuenta las tablas que el worker guarda.
+#[tauri::command]
+pub fn contar_filas_sincronizables(state: tauri::State<'_, DbState>) -> Result<i64, String> {
+    const TABLAS: &[&str] = &[
+        "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
+        "estudiante", "configuracion_calificacion", "multiplicador_calificacion",
+        "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio",
+        "asistencia", "colegio_dias_asistencia", "nota", "dia_sin_clases",
+        "indicador_colegio_seccion_activo", "app_settings",
+    ];
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let mut total: i64 = 0;
+    for t in TABLAS {
+        // Una tabla puede no existir todavia en bases viejas: se ignora.
+        let n: i64 = conn
+            .query_row(&format!("SELECT COUNT(*) FROM \"{}\"", t), [], |r| r.get(0))
+            .unwrap_or(0);
+        total += n;
+    }
+    Ok(total)
 }
 
 #[tauri::command]
@@ -606,8 +724,20 @@ fn clear_all_pending_deletions(conn: &rusqlite::Connection) -> Result<(), String
 // Comando principal: syncAll (push + pull + apply)
 // ============================================================================
 
+/// Sync bilateral: push de lo local + pull de la nube + apply.
+///
+/// `full = true` ignora los cursores y manda toda la base (cambio de cuenta,
+/// importación de un .db). `force = true` ignora el freno de reintentos del
+/// push: lo usan los botones manuales del usuario, que si lo pidió él no se
+/// espera al próximo ventana.
 #[tauri::command]
-pub async fn d1_sync_all(app: tauri::AppHandle, state: tauri::State<'_, DbState>, full: Option<bool>) -> Result<Value, String> {
+pub async fn d1_sync_all(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, DbState>,
+    full: Option<bool>,
+    force: Option<bool>,
+) -> Result<Value, String> {
+    let force = force.unwrap_or(false);
     // Fase local (síncrona). Se acota el lock en este bloque para que el
     // MutexGuard NO cruce ningún .await (el futuro del comando debe ser Send).
     // Todo el trabajo de BD ocurre aquí, antes de lanzar la red con spawn_blocking.
@@ -615,7 +745,7 @@ pub async fn d1_sync_all(app: tauri::AppHandle, state: tauri::State<'_, DbState>
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
-    let (cfg, push_since, since, data, deletions) = {
+    let (cfg, push_since, since, data, deletions, esperando_push) = {
         let conn = state.conn.lock().map_err(|e| e.to_string())?;
         let cfg = read_config(&conn)?.ok_or_else(|| "D1 no está configurado".to_string())?;
         let is_full = full.unwrap_or(false);
@@ -714,7 +844,8 @@ pub async fn d1_sync_all(app: tauri::AppHandle, state: tauri::State<'_, DbState>
         // ---- 1. PUSH (cursor local): leer toda la BD local modificada.
         let data = collect_local_data_since(&conn, &push_since, &recent)?;
         let deletions = collect_pending_deletions(&conn)?;
-        (cfg, push_since, since, data, deletions)
+        let esperando_push = push_en_espera(&conn);
+        (cfg, push_since, since, data, deletions, esperando_push)
     };
 
     let total_push: usize = data
@@ -728,24 +859,71 @@ pub async fn d1_sync_all(app: tauri::AppHandle, state: tauri::State<'_, DbState>
         deletions.len()
     );
 
-    let push_body = json!({
-        "since": push_since,
-        "deviceId": cfg.device_id,
-        "data": data,
-        "deletions": deletions,
-    });
-    // La red es bloqueante (ureq). Ejecutarla dentro de spawn_blocking para que
-    // este comando async SI ceda el hilo: así el loop de eventos que atiende el
-    // WebView (Android incluido) no se satura y el modal de progreso no se ve
-    // congelado durante los segundos que dura el viaje al Worker.
-    let _ = app.emit("d1-sync-progress", json!({ "message": "Subiendo cambios a la nube…" }));
-    let push_resp = tauri::async_runtime::spawn_blocking({
-        let cfg = cfg.clone();
-        let push_body = push_body.clone();
-        move || http_post_json(&cfg.worker_url, &cfg.school_key, "/push", push_body)
-    })
-    .await
-    .map_err(|e| format!("Error en push (hilo): {}", e))??;
+    // ---- Freno de reintentos.
+    //
+    // Si el push anterior falló y todavía estamos dentro de la ventana de
+    // espera, se OMITE el push y se sigue solo con el pull (que lee, no escribe,
+    // y por tanto no consume la cuota de escrituras). Los cambios pendientes NO
+    // se pierden: `last_push_sync` no avanza, así que se reintentan en el
+    // primer sync posterior a que venza la espera.
+    //
+    // Sin esto, un push completo fallido (típicamente por cuota diaria de D1)
+    // se reintentaba en CADA trigger —arranque, volver a primer plano, `online`,
+    // cambio de pestaña, reconexión del WebSocket, tick de 20 min— y con ~8.000
+    // filas por push eso vaciaba la cuota del día entero sin que el usuario
+    // hubiera tocado nada. `force` lo reservan los botones manuales.
+    let push_omitido = match esperando_push.as_ref() {
+        Some(espera) if !force => {
+            println!(
+                "[D1] push OMITIDO por el freno de reintentos (faltan {}). El pull sigue adelante; \
+                 los {} cambios pendientes se reintentan al vencer la espera.",
+                espera, total_push
+            );
+            true
+        }
+        Some(espera) => {
+            println!("[D1] push FORZADO por el usuario (freno activo, quedaban {}).", espera);
+            false
+        }
+        None => false,
+    };
+
+    let push_resp: Value = if push_omitido {
+        json!({ "ok": true, "applied": {}, "omitidoPorFreno": true })
+    } else {
+        let push_body = json!({
+            "since": push_since,
+            "deviceId": cfg.device_id,
+            "data": data,
+            "deletions": deletions,
+        });
+        // La red es bloqueante (ureq). Ejecutarla dentro de spawn_blocking para que
+        // este comando async SI ceda el hilo: así el loop de eventos que atiende el
+        // WebView (Android incluido) no se satura y el modal de progreso no se ve
+        // congelado durante los segundos que dura el viaje al Worker.
+        let _ = app.emit("d1-sync-progress", json!({ "message": "Subiendo cambios a la nube…" }));
+        let intento = tauri::async_runtime::spawn_blocking({
+            let cfg = cfg.clone();
+            let push_body = push_body.clone();
+            move || http_post_json(&cfg.worker_url, &cfg.school_key, "/push", push_body)
+        })
+        .await
+        .map_err(|e| format!("Error en push (hilo): {}", e))?;
+
+        match intento {
+            Ok(v) => v,
+            Err(e) => {
+                // Se registra el fallo ANTES de propagarlo, y con lock propio para
+                // no interferir con la transaccion de mas abajo. El sync se aborta
+                // aca (no se hace pull) a proposito: el pull podria pisar cambios
+                // locales que todavia no se han subido a la nube.
+                if let Ok(conn) = state.conn.lock() {
+                    let _ = registrar_push_fallido(&conn, &e);
+                }
+                return Err(e);
+            }
+        }
+    };
 
     // ---- 2. PULL
     let pull_body = json!({
@@ -831,14 +1009,19 @@ pub async fn d1_sync_all(app: tauri::AppHandle, state: tauri::State<'_, DbState>
     )
     .map_err(|e| e.to_string())?;
 
+    // El sync llego bien: si venia de un push fallido, el freno se limpia y el
+    // proximo sync vuelve a intentarlo con normalidad.
+    limpiar_push_fallidos(&tx);
+
     tx.commit().map_err(|e| e.to_string())?;
     drop(conn);
 
     let applied = push_resp.get("applied").cloned().unwrap_or(Value::Null);
     println!(
-        "[D1] sync FIN device={}… push={:?} pull={} tablas ({} filas) del={} nuevo_since=\"{}\"",
+        "[D1] sync FIN device={}… push={:?}{} pull={} tablas ({} filas) del={} nuevo_since=\"{}\"",
         &cfg.device_id[..cfg.device_id.len().min(16)],
         applied,
+        if push_omitido { " (OMITIDO)" } else { "" },
         pulled_counts.len(),
         pulled_counts.values().filter_map(|v| v.as_u64()).sum::<u64>(),
         deleted_count,
@@ -847,6 +1030,7 @@ pub async fn d1_sync_all(app: tauri::AppHandle, state: tauri::State<'_, DbState>
     Ok(json!({
         "ok": true,
         "pushed": applied,
+        "pushOmitido": push_omitido,
         "pulled": pulled_counts,
         "deletedApplied": deleted_count,
         "lastSync": new_sync,

@@ -17,6 +17,8 @@ export interface D1Config {
 export interface D1SyncResult {
   ok: boolean;
   pushed: unknown;
+  /** El push se saltó por el freno de reintentos (ver `d1.rs`). */
+  pushOmitido?: boolean;
   pulled: Record<string, number>;
   deletedApplied: number;
   lastSync: string;
@@ -176,7 +178,15 @@ export const d1SyncService = {
         console.debug(`[D1Debug] sync OK · push=${p} pull=${l} del=${d} → eventos enviados a páginas`);
       } else {
         console.debug(`[D1Debug] sync OK · push=${p} pull=${l} del=${d} (sin cambios)`);
-      } 
+      }
+      // El push puede haberse saltado por el freno de reintentos: no es un
+      // error, pero conviene decirlo para que no parezca que todo vanished.
+      if (result?.pushOmitido) {
+        d1SyncManager.setState({
+          status: 'success',
+          message: 'Subida a la nube en pausa tras un error anterior (se reintenta solo). Los datos locales están seguros.',
+        });
+      }
       markAllClean();
       return result;
     } catch (e: any) {

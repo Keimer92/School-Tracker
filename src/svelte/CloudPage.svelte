@@ -410,11 +410,15 @@
     } catch {}
   }
 
-  /** Sincronización manual: push + pull. */
+  /** Sincronización manual: push + pull.
+   *
+   *  `force: true` saltea el freno de reintentos del push: si el usuario aprieta
+   *  "Sincronizar" a propósito, no se le hace esperar a que venza la espera que
+   *  dejó el último push fallido. */
   async function syncD1() {
     isD1Syncing = true;
     try {
-      await d1SyncService.syncAll();
+      await invoke("d1_sync_all", { force: true });
       await emit("show-toast", { message: "✅ Sincronización completa", type: "success" });
     } catch (e) {
       console.error('[D1] sync manual falló:', e);

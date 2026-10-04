@@ -278,7 +278,7 @@
       let syncErrores = "";
       try {
         await invoke("d1_reset_remote");
-        const r = await invoke<any>("d1_sync_all", { full: true });
+        const r = await invoke<any>("d1_sync_all", { full: true, force: true });
         const pushed = r?.pushed || {};
         sincronizada = typeof pushed === "number" ? pushed : Object.values(pushed).reduce((a: number, b: any) => a + Number(b || 0), 0);
       } catch (e) {

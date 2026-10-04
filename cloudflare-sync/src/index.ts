@@ -746,6 +746,36 @@ async function route(req: Request, env: Env): Promise<Response> {
         return json({ ok: true, borradas });
       }
 
+      if (path === '/stats') {
+        // Cuántas filas tiene guardadas la nube para este namespace, y cuántos
+        // tombstones. Mismo nivel de auth que /push y /pull (X-School-Key).
+        //
+        // Lo usa el cliente al restaurar un respaldo de Drive para decidir si
+        // la nube está vacía o muy atrasada (ahí sí conviene un push completo)
+        // o si ya tiene datos (donde un merge incremental es infinitamente más
+        // barato y no los pisa). Son 23 COUNT(*) sobre el índice (sk, updated_at):
+        // una sola petición y unas pocas filas leídas.
+        const schoolKey = req.headers.get('X-School-Key') || '';
+        if (!schoolKey) return json({ ok: false, error: 'Falta X-School-Key' }, 403);
+        await routeToDb(env, req);
+        const sk = await skOf(schoolKey);
+        const stmts = [
+          ...[...VALID_TABLES].map(t => ({ sql: `SELECT COUNT(*) AS n FROM ${t} WHERE sk = ?1`, params: [sk] })),
+          { sql: `SELECT COUNT(*) AS n FROM sync_tombstone WHERE sk = ?1`, params: [sk] },
+        ];
+        const results = await batchExec(env.DB, stmts);
+        const porTabla: Record<string, number> = {};
+        let total = 0;
+        [...VALID_TABLES].forEach((t, i) => {
+          const n = Number(results[i].results?.[0]?.n) || 0;
+          porTabla[t] = n;
+          total += n;
+        });
+        const tombstones = Number(results[VALID_TABLES.size].results?.[0]?.n) || 0;
+        console.log(`[stats] namespace ${sk.slice(0, 8)}…: ${total} filas, ${tombstones} tombstones`);
+        return json({ ok: true, total, tombstones, porTabla });
+      }
+
       if (path === '/push') {
         const schoolKey = req.headers.get('X-School-Key') || '';
         await routeToDb(env, req);

@@ -420,6 +420,70 @@
     } catch { return false; }
   }
 
+  /**
+   * Reconcilia la nube D1 con la base recien restaurada desde Drive.
+   *
+   * ANTES hacia siempre `d1_reset_remote` + `d1_sync_all {full:true}`, es decir
+   * BORRABA toda la nube y volvia a subir la base entera. Con ~8.000 filas
+   * sincronizables eso son ~16.000 operaciones de escritura de D1 (7.960 de ellas
+   * en el push) y el plan gratis permite 100.000 filas escritas por dia: unas
+   * pocas restauraciones bastaban para agotar la cuota, y como el push fallido
+   * dejaba `last_push_sync` en NULL, cada trigger reintentaba el push completo
+   * hasta vaciar el dia. Todo eso sin que el usuario tocara un solo dato.
+   *
+   * AHORA consulta cuantas filas hay en la nube (`d1_remote_stats`) y decide:
+   *
+   * - La nube TIENE datos -> merge incremental: push de lo realmente mas nuevo
+   *   (el cursor de push se conservó) + pull completo que fusiona. Cuesta una
+   *   peticion y unas pocas escrituras, y no pisa nada de lo que ya esta ahi.
+   * - La nube esta VACIA o muy atrasada -> ahi si el push completo es lo
+   *   correcto, porque si no los datos del respaldo nunca llegarian a la nube
+   *   (el cursor incremental los daria por ya subidos). Si ademas quedaran
+   *   tombstones de una purga vieja, se borran antes con `d1_reset_remote` para
+   *   que no se coman las filas recien subidas.
+   */
+  async function sincronizarNubeTrasRestore(): Promise<boolean> {
+    // Cuantas filas sincronizables hay ahora mismo en la base local.
+    let filasLocales = 0;
+    try {
+      filasLocales = await invoke<number>('contar_filas_sincronizables');
+    } catch (e) {
+      console.warn('[Cloud] no se pudo contar las filas locales:', e);
+    }
+
+    let stats: any = null;
+    try {
+      stats = await invoke<any>('d1_remote_stats');
+    } catch (e) {
+      // Sin estadisticas no se puede decidir con seguridad. El merge incremental
+      // es la opcion conservative: no borra nada de la nube y no la pisa.
+      console.warn('[Cloud] d1_remote_stats falló; se hace merge incremental:', e);
+    }
+
+    const enNube = Number(stats?.total ?? -1);
+    const tombstones = Number(stats?.tombstones ?? 0);
+
+    // Umbral: la nube se considera "atrasada" si tiene menos de la mitad de las
+    // filas locales. Con la base poblada (~8.000) son miles de filas de diferencia
+    // real, no ruido por una sincronizacion parcial.
+    const nubeVacia = enNube >= 0 && enNube < Math.max(1, Math.floor(filasLocales * 0.5));
+
+    if (nubeVacia && tombstones > 0) {
+      console.log(`[Cloud] nube casi vacía (${enNube} filas) con ${tombstones} tombstones: se purga antes de subir`);
+      await invoke('d1_reset_remote');
+      await invoke('d1_sync_all', { full: true, force: true });
+    } else if (nubeVacia) {
+      console.log(`[Cloud] nube casi vacía (${enNube} de ${filasLocales} filas locales): push completo`);
+      await invoke('d1_sync_all', { full: true, force: true });
+    } else {
+      console.log(
+        `[Cloud] nube con ${enNube} filas vs ${filasLocales} locales: merge incremental (push de lo nuevo + pull de fusión)`
+      );
+      await invoke('d1_sync_all');
+    }
+    return true;
+  }
+
   /** Restaura el último respaldo de Google Drive (workaround para cuota D1).
    *  Antes de restaurar: compara la fecha del respaldo con `last_sync` de D1.
    *  Si Drive es más viejo, advierte porque podría pisar cambios recientes
@@ -542,9 +606,7 @@
       loadingMessage = 'Sincronizando respaldo con la nube...';
       let d1ResyncOk = false;
       try {
-        await invoke('d1_reset_remote');
-        await invoke('d1_sync_all', { full: true });
-        d1ResyncOk = true;
+        d1ResyncOk = await sincronizarNubeTrasRestore();
       } catch (resyncErr) {
         console.warn('[Cloud] resync tras Drive falló (probable cuota):', resyncErr);
         // Parar auto-sync para evitar pisar datos de Drive con D1 antiguo.
