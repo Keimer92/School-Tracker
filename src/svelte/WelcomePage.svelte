@@ -616,6 +616,7 @@
           loadingMessage = 'Sincronizando respaldo con la nube...';
           try {
             await sincronizarNubeTrasRestore();
+            nubeSincronizada = true;
           } catch (resyncErr) {
             // console.warn (NO debug): DevTools oculta console.debug salvo nivel
             // "Verbose", y esto es justamente el punto que hay que ver sin
@@ -638,7 +639,10 @@
         paso('el tope venció; se entra a la app de todos modos');
         await entrarALaApp().catch((e) => console.warn('[Welcome] entrarALaApp de emergencia fallo:', e));
       }
-      if (d1ResyncOk) {
+      // El permiso de notificaciones solo tiene sentido si la nube quedó
+      // funcionando; si el resync falló (cuota, worker caído) se omite para no
+      // pedir un permiso que la app no va a poder usar.
+      if (nubeSincronizada) {
         setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
       }
       return;
@@ -690,6 +694,8 @@
 
   /** `true` una vez que la app quedó marcada como inicializada. */
   let appIniciada = $state(false);
+  /** `true` si el resync con la nube terminó bien. */
+  let nubeSincronizada = $state(false);
 
   async function entrarALaApp() {
     console.warn('[Welcome] set_app_initialized...');
