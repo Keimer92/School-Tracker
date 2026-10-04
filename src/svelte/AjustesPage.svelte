@@ -9,32 +9,39 @@
   import DebugPage from "./ajustes/DebugPage.svelte";
   import InfoPage from "./ajustes/InfoPage.svelte";
   import BrowserPicker from "./BrowserPicker.svelte";
+  import LanguagePicker from "./LanguagePicker.svelte";
+  import { t } from "../lib/i18n.svelte";
   import appIcon from "../assets/app-icon.png";
 
   function getThemeColor(color: string): string {
     return { claro: "#f1f5f9", oscuro: "#0f172a", sistema: "var(--primary-color)" }[color] || "#0f172a";
   }
   function getThemeName(color: string): string {
-    return { claro: "Claro", oscuro: "Oscuro", sistema: "Según sistema" }[color] || "Oscuro";
+    // Los VALORES del tema ('claro'/'oscuro'/'sistema') no se traducen: son
+    // claves que viajan al resto de la app y al sistema. Solo las etiquetas.
+    return { claro: t("ajustes.tab.temaClaro"), oscuro: t("ajustes.tab.temaOscuro"), sistema: t("ajustes.tab.temaSistema") }[color] || t("ajustes.tab.temaOscuro");
   }
   function getThemeLabel(color: string): string {
-    return { claro: "☀️ Tema Claro — Fondos claros, texto oscuro", oscuro: "🌙 Tema Oscuro — Fondos oscuros, texto claro", sistema: "💻 Según sistema — Usa la configuración de tu dispositivo" }[color] || "";
+    return { claro: t("ajustes.tab.temaClaro"), oscuro: t("ajustes.tab.temaOscuro"), sistema: t("ajustes.tab.temaSistema") }[color] || "";
   }
 
 const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff200","#22b14c","#00a2e8","#3f48cc","#a349a4","#ffffff","#c3c3c3","#b97a57","#ffaec9","#ffc90e","#efe4b0","#b5e61d","#99d9ea","#7092be","#c8bfe7","#C00000","#FF0000","#FFC000","#FFFF00","#92D050","#00B050","#00B0F0","#0070C0","#002060","#7030A0"];
 
-  const TABS = [
-    { id: "configuracion", label: "General", icon: "⚙️" },
-    { id: "notificaciones", label: "Notif. Asistencia", icon: "🔔", soloAndroid: true },
-    { id: "debugging", label: "Debug", icon: "🐛" },
-    { id: "acercaDe", label: "Info", icon: "📖" },
-  ] as const;
+  // `$derived` y no `const`: las etiquetas salen de `t()`, que lee el rune
+  // `$state` del idioma. Con un `const` se calcularían una sola vez al importar
+  // el módulo y cambiar de idioma no las actualaría nunca.
+  const TABS = $derived([
+    { id: "configuracion", label: t("ajustes.tab.configuracion"), icon: "⚙️" },
+    { id: "notificaciones", label: t("ajustes.tab.notificaciones"), icon: "🔔", soloAndroid: true },
+    { id: "debugging", label: t("ajustes.tab.debug"), icon: "🐛" },
+    { id: "acercaDe", label: t("ajustes.tab.info"), icon: "📖" },
+  ] as const);
 
   const TAB_COLORS: Record<string, string> = { configuracion: "#60a5fa", notificaciones: "#fbbf24", debugging: "#ef4444", acercaDe: "#a78bfa" };
 
   const isAndroid = /Android/i.test(navigator.userAgent);
   // Notificaciones de asistencia SOLO Android (usa AlarmManager nativo)
-  const tabsVisibles = TABS.filter(t => isAndroid || !("soloAndroid" in t && t.soloAndroid));
+  const tabsVisibles = $derived(TABS.filter(x => isAndroid || !("soloAndroid" in x && x.soloAndroid)));
 
   let activeTab: typeof TABS[number]["id"] | null = $state(isAndroid ? null : "configuracion");
 
@@ -118,7 +125,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
       await emit("grade-configs-updated");
     } catch (error) {
       console.error("Error updating grade config:", error);
-      await emit("show-toast", { message: "❌ Error al actualizar la configuración: " + error, type: "error" });
+      await emit("show-toast", { message: "❌ " + t("ajustes.config.error", { msg: String(error) }), type: "error" });
     }
   }
 
@@ -129,9 +136,9 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   async function pedirPermisoNotificaciones() {
     try {
       await invoke('gd_request_notification_permission');
-       await emit("show-toast", { message: "🔔 Si no viste el diálogo, actívalo en Sistema → Apps → School Tracker → Notificaciones", type: "info" });
+       await emit("show-toast", { message: "🔔 " + t("ajustes.notif.aviso"), type: "info" });
     } catch (e) {
-      await emit("show-toast", { message: "❌ Error solicitando permiso: " + e, type: "error" });
+      await emit("show-toast", { message: "❌ " + t("ajustes.notif.error", { msg: String(e) }), type: "error" });
     }
   }
 
@@ -142,7 +149,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
   {#if !isAndroid}
     {#if !soloContenido}
-      <h1 style="font-size: 1.6rem; font-weight: 700; color: #f1f5f9; margin: 0 0 1.25rem;">Ajustes</h1>
+      <h1 style="font-size: 1.6rem; font-weight: 700; color: #f1f5f9; margin: 0 0 1.25rem;">{t("ajustes.titulo")}</h1>
     {/if}
     <div class="ajustes-grid">
       <!-- CONFIGURACIÓN -->
@@ -150,16 +157,16 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
       <div class="category-card" style="border-left: 3px solid {TAB_COLORS.configuracion};">
         <div class="category-header" style="border-left: none;">
           <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.configuracion}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">⚙️</div>
-          <h3>Configuración</h3>
+          <h3>{t("ajustes.config.titulo")}</h3>
         </div>
         <div style="padding: 1.5rem 2rem;">
-          <h4 style="margin: 0 0 0.75rem 0; color: #e2e8f0; font-size: 0.95rem;">Color de Resaltado</h4>
-          <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1rem;">Color para destacar al estudiante en la tabla de notas.</p>
+          <h4 style="margin: 0 0 0.75rem 0; color: #e2e8f0; font-size: 0.95rem;">{t("ajustes.config.colorResaltado")}</h4>
+          <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1rem;">{t("ajustes.config.colorResaltadoDesc")}</p>
           <div style="background: rgba(255,255,255,0.05); padding: 1.25rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
             <div style="display: flex; align-items: center; justify-content: space-between; gap: 2rem;">
               <div style="flex: 1;">
-                <h5 style="margin: 0 0 0.4rem 0; color: #e2e8f0; font-size: 0.9rem;">Color de Resaltado</h5>
-                <p style="color: #94a3b8; font-size: 0.8rem; margin: 0;">Este color se usará para destacar al estudiante.</p>
+                <h5 style="margin: 0 0 0.4rem 0; color: #e2e8f0; font-size: 0.9rem;">{t("ajustes.config.colorResaltado")}</h5>
+                <p style="color: #94a3b8; font-size: 0.8rem; margin: 0;">{t("ajustes.config.colorResaltadoDesc")}</p>
               </div>
               <div style="display: flex; align-items: center; gap: 0.75rem;">
                 <div style="width: 40px; height: 40px; border-radius: 8px; background-color: {highlightColor}; border: 2px solid rgba(255,255,255,0.2); cursor: pointer; position: relative; overflow: hidden;" onclick={() => document.getElementById("highlight-color-picker")?.click()}>
@@ -175,10 +182,10 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
             </div>
           </div>
           <div style="margin-top: 1rem; padding: 0.75rem; border-radius: 8px; border: 1px dotted rgba(255,255,255,0.1);">
-            <h5 style="margin: 0 0 0.4rem 0; color: #e2e8f0; font-size: 0.85rem;">Vista Previa</h5>
+            <h5 style="margin: 0 0 0.4rem 0; color: #e2e8f0; font-size: 0.85rem;">{t("ajustes.config.vistaPrevia")}</h5>
             <div style="background: rgba(15, 23, 42, 0.5); padding: 0.75rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; gap: 0.75rem;">
               <div style="padding: 0.3rem 0.6rem; border-radius: 4px; background: {highlightColor}1a; border-left: 4px solid {highlightColor}; color: {highlightColor}; font-weight: bold; font-size: 0.8rem;">Juan Pérez García</div>
-              <div style="color: #64748b; font-size: 0.75rem;">← Ejemplo</div>
+              <div style="color: #64748b; font-size: 0.75rem;">{t("ajustes.config.vistaPreviaEjemplo")}</div>
             </div>
           </div>
         </div>
@@ -205,7 +212,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
 
   {#if isAndroid && !soloContenido && activeTab === null}
     <div style="padding: 1rem;">
-      <h1 style="font-size: 1.5rem; font-weight: 700; color: #f1f5f9; margin-bottom: 1.5rem; text-align: center;">Ajustes</h1>
+      <h1 style="font-size: 1.5rem; font-weight: 700; color: #f1f5f9; margin-bottom: 1.5rem; text-align: center;">{t("ajustes.titulo")}</h1>
       <div style="display: flex; flex-direction: column; gap: 0.75rem;">
         {#each tabsVisibles as tab (tab.id)}
           {@const color = TAB_COLORS[tab.id] || '#60a5fa'}
@@ -238,7 +245,7 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
           <div class="category-card" style="border-left: 3px solid {TAB_COLORS.configuracion};">
             <div class="category-header" style="border-left: none;">
               <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.configuracion}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">⚙️</div>
-              <h3>Configuración del Sistema</h3>
+              <h3>{t("ajustes.config.titulo")}</h3>
             </div>
             <div style="padding: 2rem;">
               <div style="margin-bottom: 2rem;">
@@ -247,8 +254,8 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                 <div style="background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
                   <div style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 2rem;">
                     <div style="flex: 1;">
-                      <h5 style="margin: 0 0 0.5rem 0; color: #e2e8f0;">Color de Resaltado</h5>
-                      <p style="color: #94a3b8; font-size: 0.85rem; margin: 0;">Este color se usará para destacar al estudiante y su fila cuando estés editando sus notas.</p>
+                      <h5 style="margin: 0 0 0.5rem 0; color: #e2e8f0;">{t("ajustes.config.colorResaltado")}</h5>
+                      <p style="color: #94a3b8; font-size: 0.85rem; margin: 0;">{t("ajustes.config.colorResaltadoLargo")}</p>
                     </div>
                     <div style="display: flex; align-items: center; gap: 1rem;">
                       <div style="width: 45px; height: 45px; border-radius: 8px; background-color: {highlightColor}; border: 2px solid rgba(255,255,255,0.2); cursor: pointer; position: relative; overflow: hidden;" onclick={() => document.getElementById("highlight-color-picker")?.click()}>
@@ -267,17 +274,17 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                   <h5 style="margin: 0 0 0.5rem 0; color: #e2e8f0; font-size: 0.9rem;">Vista Previa</h5>
                   <div style="background: rgba(15, 23, 42, 0.5); padding: 1rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; gap: 1rem;">
                     <div style="padding: 0.4rem 0.8rem; border-radius: 4px; background: {highlightColor}1a; border-left: 4px solid {highlightColor}; color: {highlightColor}; font-weight: bold; font-size: 0.85rem;">Juan Pérez García</div>
-                    <div style="color: #64748b; font-size: 0.8rem;">← Ejemplo de estudiante resaltado</div>
+                    <div style="color: #64748b; font-size: 0.8rem;">{t("ajustes.config.vistaPreviaEjemploLargo")}</div>
                   </div>
                 </div>
               </div>
 
               {#if isAndroid}
                 <div style="margin-top: 2rem; background: rgba(245,158,11,0.06); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(245,158,11,0.2);">
-                  <h4 style="margin: 0 0 0.5rem 0; color: #e2e8f0;">🔔 Notificaciones del sistema</h4>
-                  <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1rem;">Permite que la app muestre recordatorios de asistencia y avisos de sincronización. Si el aviso del primer inicio no apareció o denegaste el permiso, actívalo aquí.</p>
+                  <h4 style="margin: 0 0 0.5rem 0; color: #e2e8f0;">🔔 {t("ajustes.notif.titulo")}</h4>
+                  <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1rem;">{t("ajustes.notif.desc")}</p>
                   <button onclick={pedirPermisoNotificaciones} style="padding: 0.7rem 1.2rem; border-radius: 10px; border: 1px solid rgba(245,158,11,0.35); background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer;">
-                    Activar notificaciones
+                    {t("ajustes.notif.activar")}
                   </button>
                 </div>
               {/if}
@@ -290,14 +297,24 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                    eso. Si el elegido no está instalado se cae al del sistema. -->
               {#if !isAndroid}
                 <div style="margin-top: 2rem; background: rgba(96,165,250,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(96,165,250,0.18);">
-                  <h4 style="margin: 0 0 0.5rem 0; color: #e2e8f0;">🌐 Navegador para iniciar sesión con Google</h4>
+                  <h4 style="margin: 0 0 0.5rem 0; color: #e2e8f0;">🌐 {t("nav.titulo")}</h4>
                   <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 0.25rem;">
-                    Solo afecta al login de Google (Welcome y Nube). Si tu navegador predeterminado
-                    sigue siendo Edge, elegí el tuyo acá y se abrirá ese.
+                    {t("nav.desc")}
                   </p>
                   <BrowserPicker />
                 </div>
               {/if}
+
+              <!-- ── Idioma de la aplicación ──
+                   También en el WelcomePage: el idioma tiene que poder elegirse
+                   ANTES de entrar a la app (ver LanguagePicker.svelte). -->
+              <div style="margin-top: 2rem; background: rgba(167,139,250,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(167,139,250,0.18);">
+                <h4 style="margin: 0 0 0.5rem 0; color: #e2e8f0;">🌐 {t("idioma.titulo")}</h4>
+                <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 0.25rem;">
+                  {t("idioma.descripcion")}
+                </p>
+                <LanguagePicker />
+              </div>
             </div>
           </div>
 {/if}

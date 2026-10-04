@@ -3,10 +3,16 @@ import App from "./App.svelte";
 import "./App.css";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { emit } from "@tauri-apps/api/event";
+import { inicializarIdioma } from "./lib/i18n.svelte";
 
 const init = async () => {
   const currentWindow = getCurrentWebviewWindow();
   console.log("Iniciando aplicación en ventana:", currentWindow.label);
+
+  // Idioma: aplica el `<html lang>` guardado/detectado ANTES de montar nada, para
+  // que el spellcheck del SO y los lectores de pantalla ya entrafen con el
+  // idioma correcto en el primer render.
+  inicializarIdioma();
 
   // Captura global de errores: un fallo de render en cualquier página dejaba la
   // ventana en negro sin decir nada. Se loguea con prefijo [Init] para que se
