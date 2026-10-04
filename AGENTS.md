@@ -360,23 +360,20 @@ necesita linker).
 navegador real el usuario puede tener que escribir su contraseña o pasar el
 2FA, y eso tarda mucho más que la pantalla de consentimiento.
 
-### Volver a la app sola cuando llega el código (`traer_app_al_frente`)
+### Volver a la app sola cuando llega el código (`devolver_el_foco`)
 
 Como el login ocurre en el navegador del sistema, el SO le roba el foco a la
 app y el usuario queda mirando una pestaña que solo dice "Ya podés cerrar esta
-pestana", con la app escondida detrás. `traer_app_al_frente(&app)` (en `lib.rs`)
-la restaura si estaba minimizada, la muestra si estaba oculta y le da el foco.
-Se llama en los **tres** caminos de salida del polling:
+pestana", con la app escondida detrás. `devolver_el_foco(&app, motivo)` la
+restaura si estaba minimizada, la muestra si estaba oculta y le da el foco.
+Se llama en los **cuatro** caminos de salida del polling:
 
 | Momento | Por qué |
 |---|---|
-| código recibido (polling de `gd_open_auth_webview`) | camino normal |
-| cancelación (`oauth_cancel_flag`) | el usuario volvió a la app a cancelar; no hay nada que traer, pero si estaba minimizada se restaura |
+| código recibido (`gd_open_auth_webview`) | camino normal |
+| cancelación (`oauth_cancel_flag`) | el usuario volvió a la app a cancelar; si estaba minimizada se restaura |
 | timeout agotado | el usuario cerró la pestaña del navegador sin terminar |
-
-También está en `gd_wait_oauth_code` (el polling de respaldo por si el WebView se
-recargó), que por eso ahora recibe `app: tauri::AppHandle`. **Tauri inyecta
-`AppHandle` solo**: el frontend lo sigue llamando igual, sin argumentos nuevos.
+| los 3 anteriores en `gd_wait_oauth_code` | polling de respaldo si el WebView se recargó (por eso ese comando ahora recibe `app: AppHandle`; **Tauri lo inyecta solo**, el frontend no cambia) |
 
 ⚠️ **En Windows, `set_focus()` solo no alcanza**: `SetForegroundWindow` está
 restringido a procesos que ya tienen el foco, así que la ventana puede no subir.
@@ -384,6 +381,34 @@ El truco es `set_always_on_top(true)` → `set_focus()` → `set_always_on_top(f
 (el primero la levanta por encima del navegador, el segundo la devuelve a su
 z-order normal). Es lo que hacen los lanzadores y los Toasts, y va dentro de un
 `#[cfg(target_os = "windows")]` para no tocar el comportamiento de Linux/macOS.
+
+⚠️ **GOTCHA: los métodos de ventana de Tauri son round-trips SINCRÓNICOS al
+event loop del SO.** `is_minimized`, `is_visible`, `show`, `unminimize`,
+`set_focus` y `set_always_on_top` bloquean el hilo que los llama hasta que el
+loop del SO responde. Consecuencia real que se costó una vuelta: llamarlos
+**directamente** dentro de `gd_open_auth_webview` dejaba el comando sin
+retornar, el `invoke` del frontend no resolvía y el WelcomePage quedaba
+girando para siempre —el síntoma era "vuelve a la app pero no pasa de
+WelcomePage". Por eso la API es de dos capas:
+
+- `devolver_el_foco(&app, motivo)` → `tauri::async_runtime::spawn` con 120 ms de
+  margen, y devuelve enseguida. El comando retorna el `code` sin depender del
+  event loop.
+- `traer_app_al_frente(&app, motivo)` → sí hace las llamadas de ventana, pero
+  solo corre dentro de esa tarea suelta.
+
+⚠️ **Nunca hacer operaciones de ventana con un mutex tomado**. El primer intento
+las tenía dentro del `guard` de `oauth_code_state()`, que compite con el
+servidor TCP y con `gd_wait_oauth_code`. Ahora el `take()` va en un bloque
+propio para soltar el lock antes de tocar la ventana:
+
+```rust
+let maybe_code = {
+    let mut guard = oauth_code_state().lock()?;   // el guard muere en la llave de cierre
+    guard.take()
+};
+if let Some(code) = maybe_code { devolver_el_foco(&app, "..."); return Ok(code); }
+```
 
 ⚠️ **No se puede detectar "el usuario cerró la pestaña"**: no hay evento de
 navegador que lo diga. La app solo se entera por el timeout, que es el motivo

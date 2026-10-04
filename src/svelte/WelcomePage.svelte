@@ -608,7 +608,11 @@
       try {
         d1ResyncOk = await sincronizarNubeTrasRestore();
       } catch (resyncErr) {
-        console.warn('[Cloud] resync tras Drive falló (probable cuota):', resyncErr);
+        // console.warn (NO debug): DevTools oculta console.debug salvo nivel
+        // "Verbose", y esto es justamente el punto que hay que ver sin configurar
+        // nada. Una nube caida NO debe impedir entrar a la app: los datos del
+        // respaldo de Drive ya estan escritos en disco.
+        console.warn('[Cloud] resync tras Drive fallo:', resyncErr);
         // Parar auto-sync para evitar pisar datos de Drive con D1 antiguo.
         try {
           const { syncService } = await import('../lib/syncService');
@@ -617,7 +621,9 @@
       }
       // El respaldo ya trajo datos (se validó arriba), así que solo queda
       // marcar la app como inicializada y entrar.
+      console.warn('[Welcome] respaldo restaurado; entrando a la app...');
       await entrarALaApp();
+      console.warn('[Welcome] entrarALaApp OK');
       if (d1ResyncOk) {
         setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
       }
@@ -641,7 +647,9 @@
    * "0 grados / 0 secciones" aunque los datos estuvieran escritos.
    */
   async function entrarALaApp() {
+    console.warn('[Welcome] set_app_initialized...');
     await invoke('set_app_initialized');
+    console.warn('[Welcome] set_app_initialized OK; emitiendo welcome-complete');
     emit('catalog-updated', { timestamp: Date.now() });
     emit('data-updated', { timestamp: Date.now() });
     emit('welcome-complete');

@@ -1491,18 +1491,8 @@ fn is_localhost_oauth_callback(raw_url: &str) -> bool {
     false
 }
 
-/// Inicia el login OAuth de Google y devuelve el `code` de autorización.
-///
-/// A pesar del nombre (histórico, cuando todas las plataformas de escritorio
-/// usaban WebView embebida), en **Android, Linux y Windows abre el navegador
-/// del sistema** y el código lo captura el servidor TCP local. Solo macOS crea
-/// una ventana WebView embebida.
-///
-/// El nombre del comando se mantiene porque está referenciado en
-/// `permissions/local-commands.toml` y en los dos call sites del frontend
-/// (`CloudPage.svelte` y `lib/cloudLogin.ts`, que usa `WelcomePage`).
-/// Trae la ventana principal al frente: la restaura si estaba minimizada, la
-/// muestra si estaba oculta y le da el foco.
+/// Pide que la ventana principal vuelva al frente, **sin bloquear** al
+/// llamador.
 ///
 /// Hace falta porque el login de Google ocurre en el NAVEGADOR DEL SISTEMA
 /// (Windows, Linux y el fallback de Android): al abrirlo, el SO le roba el
@@ -1510,12 +1500,34 @@ fn is_localhost_oauth_callback(raw_url: &str) -> bool {
 /// mirando el navegador —que solo muestra "Ya podés cerrar esta pestana"— y
 /// tiene que ir a buscar el ícono en la barra de tareas a mano.
 ///
-/// Detalle de Windows: `SetForegroundWindow` esta restringido para procesos que
-/// no tienen el foco, asi que `set_focus()` solo puede no alcanzar. El truco de
-/// `always_on_top`true -> `false` fuerza a Windows a traer la ventana adelante
-/// (es lo que hacen los lanzadores y los Toasts). Se hace solo en Windows; en
-/// Linux/macOS alcanza con `set_focus` + `unminimize`.
-fn traer_app_al_frente(app: &tauri::AppHandle) {
+/// ⚠️ **Por qué una tarea suelta y no una llamada directa**: los métodos de
+/// ventana de Tauri (`is_minimized`, `set_focus`, `set_always_on_top`, …) son
+/// round-trips **síncronos** al event loop del SO: bloquean el hilo que los
+/// llama hasta que el loop responde. Si esto corriera dentro de
+/// `gd_open_auth_webview`, el comando no retornaría nunca, el `invoke` del
+/// frontend no resolvería y el WelcomePage quedaría girando para siempre
+/// (justo el bug que Pepino reportó: "vuelve a la app pero no pasa de
+/// WelcomePage"). Con `spawn` el comando retorna el `code` ya y el foco se
+/// recupera en paralelo, con un tick de margen para que la respuesta del
+/// servidor TCP termine de escribirse en el navegador.
+fn devolver_el_foco(app: &tauri::AppHandle, motivo: &str) {
+    let app = app.clone();
+    let motivo = motivo.to_string();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_millis(120)).await;
+        traer_app_al_frente(&app, &motivo);
+    });
+}
+
+/// Trae la ventana principal al frente: la restaura si estaba minimizada, la
+/// muestra si estaba oculta y le da el foco.
+///
+/// Detalle de Windows: `SetForegroundWindow` está restringido a procesos que no
+/// tienen el foco, así que `set_focus()` solo puede no alcanzar. El truco de
+/// `always_on_top` true → false fuerza a Windows a traer la ventana adelante (es
+/// lo que hacen los lanzadores y los Toasts). Va en su propio `#[cfg]` para no
+/// tocar el comportamiento de Linux/macOS.
+fn traer_app_al_frente(app: &tauri::AppHandle, motivo: &str) {
     let Some(win) = app.get_webview_window("main") else {
         println!("[OAuth] ventana 'main' no encontrada; no se puede traer al frente");
         return;
@@ -1538,9 +1550,19 @@ fn traer_app_al_frente(app: &tauri::AppHandle) {
         let _ = win.set_always_on_top(false);
     }
 
-    println!("[OAuth] ventana principal traida al frente");
+    println!("[OAuth] ventana principal traida al frente ({})", motivo);
 }
 
+/// Inicia el login OAuth de Google y devuelve el `code` de autorización.
+///
+/// A pesar del nombre (histórico, cuando todas las plataformas de escritorio
+/// usaban WebView embebida), en **Android, Linux y Windows abre el navegador
+/// del sistema** y el código lo captura el servidor TCP local. Solo macOS crea
+/// una ventana WebView embebida.
+///
+/// El nombre del comando se mantiene porque está referenciado en
+/// `permissions/local-commands.toml` y en los dos call sites del frontend
+/// (`CloudPage.svelte` y `lib/cloudLogin.ts`, que usa `WelcomePage`).
 #[tauri::command]
 async fn gd_open_auth_webview(
     app: tauri::AppHandle,
@@ -1579,22 +1601,27 @@ async fn gd_open_auth_webview(
         for _ in 0..1500 {
             if oauth_cancel_flag().load(Ordering::SeqCst) {
                 oauth_cancel_flag().store(false, Ordering::SeqCst);
+                devolver_el_foco(&app, "cancelado");
                 return Err("Autenticación cancelada".to_string());
             }
-            {
+            // El `take()` se hace en un bloque propio para SOLTAR el mutex antes
+            // de tocar la ventana. Las operaciones de ventana de Tauri son
+            // round-trips sincrónicos al event loop del SO: hacerlas con el lock
+            // tomado bloquearía al servidor TCP y a `gd_wait_oauth_code`, que
+            // compiten por el mismo mutex.
+            let maybe_code = {
                 let mut guard = oauth_code_state().lock().map_err(|e| e.to_string())?;
-                if let Some(code) = guard.take() {
-                    println!("[OAuth] Código recibido via servidor TCP!");
-                    // El login terminó en el navegador: devolverle el foco a la app
-                    // para que el usuario no tenga que ir a buscarla a la barra de tareas.
-                    traer_app_al_frente(&app);
-                    return Ok(code);
-                }
+                guard.take()
+            };
+            if let Some(code) = maybe_code {
+                println!("[OAuth] Código recibido via servidor TCP!");
+                devolver_el_foco(&app, "código recibido");
+                return Ok(code);
             }
             tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         }
-        println!("[OAuth] tiempo de espera agotado; se devuelve el foco a la app");
-        traer_app_al_frente(&app);
+        println!("[OAuth] tiempo de espera agotado");
+        devolver_el_foco(&app, "timeout");
         return Err("Tiempo de espera agotado (¿se completó el login en el navegador?)".to_string());
     }
 
@@ -1841,18 +1868,19 @@ async fn gd_wait_oauth_code(app: tauri::AppHandle, timeout_secs: u64) -> Result<
         if oauth_cancel_flag().load(Ordering::SeqCst) {
             println!("[OAuth] Cancelled flag detected, returning");
             *state.lock().map_err(|e| e.to_string())? = None;
-            traer_app_al_frente(&app);
+            devolver_el_foco(&app, "cancelado (polling de respaldo)");
             return Err("Autenticación cancelada".to_string());
         }
-        {
+        let maybe_code = {
             let mut guard = state.lock().map_err(|e| e.to_string())?;
-            if let Some(code) = guard.take() {
-                println!("[OAuth] Code found in state, returning (len={})", code.len());
-                // Mismo motivo que en `gd_open_auth_webview`: el código llegó
-                // desde el navegador, hay que devolverle el foco a la app.
-                traer_app_al_frente(&app);
-                return Ok(code);
-            }
+            guard.take()
+        };
+        if let Some(code) = maybe_code {
+            println!("[OAuth] Code found in state, returning (len={})", code.len());
+            // Mismo motivo que en `gd_open_auth_webview`: el código llegó desde el
+            // navegador, hay que devolverle el foco a la app.
+            devolver_el_foco(&app, "código recibido (polling de respaldo)");
+            return Ok(code);
         }
         if i % 25 == 0 {
             println!("[OAuth] Waiting for code... (poll {}/{})", i, max_polls);
@@ -1860,7 +1888,7 @@ async fn gd_wait_oauth_code(app: tauri::AppHandle, timeout_secs: u64) -> Result<
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     }
     println!("[OAuth] Timeout reached");
-    traer_app_al_frente(&app);
+    devolver_el_foco(&app, "timeout (polling de respaldo)");
     Err("Tiempo de espera agotado".to_string())
 }
 
