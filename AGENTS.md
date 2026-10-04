@@ -360,6 +360,35 @@ necesita linker).
 navegador real el usuario puede tener que escribir su contraseña o pasar el
 2FA, y eso tarda mucho más que la pantalla de consentimiento.
 
+### Volver a la app sola cuando llega el código (`traer_app_al_frente`)
+
+Como el login ocurre en el navegador del sistema, el SO le roba el foco a la
+app y el usuario queda mirando una pestaña que solo dice "Ya podés cerrar esta
+pestana", con la app escondida detrás. `traer_app_al_frente(&app)` (en `lib.rs`)
+la restaura si estaba minimizada, la muestra si estaba oculta y le da el foco.
+Se llama en los **tres** caminos de salida del polling:
+
+| Momento | Por qué |
+|---|---|
+| código recibido (polling de `gd_open_auth_webview`) | camino normal |
+| cancelación (`oauth_cancel_flag`) | el usuario volvió a la app a cancelar; no hay nada que traer, pero si estaba minimizada se restaura |
+| timeout agotado | el usuario cerró la pestaña del navegador sin terminar |
+
+También está en `gd_wait_oauth_code` (el polling de respaldo por si el WebView se
+recargó), que por eso ahora recibe `app: tauri::AppHandle`. **Tauri inyecta
+`AppHandle` solo**: el frontend lo sigue llamando igual, sin argumentos nuevos.
+
+⚠️ **En Windows, `set_focus()` solo no alcanza**: `SetForegroundWindow` está
+restringido a procesos que ya tienen el foco, así que la ventana puede no subir.
+El truco es `set_always_on_top(true)` → `set_focus()` → `set_always_on_top(false)`
+(el primero la levanta por encima del navegador, el segundo la devuelve a su
+z-order normal). Es lo que hacen los lanzadores y los Toasts, y va dentro de un
+`#[cfg(target_os = "windows")]` para no tocar el comportamiento de Linux/macOS.
+
+⚠️ **No se puede detectar "el usuario cerró la pestaña"**: no hay evento de
+navegador que lo diga. La app solo se entera por el timeout, que es el motivo
+de traerla al frente también en ese camino.
+
 **El scheme `schooltracker-auth://` SOLO está registrado en el
 AndroidManifest.** En Linux el navegador no lo conoce y tras el login mostraría
 una página de error "no hay aplicación asociada". Por eso el HTML de
