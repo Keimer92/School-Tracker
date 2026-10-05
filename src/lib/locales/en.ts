@@ -68,6 +68,31 @@ export const en: Record<Clave, string> = {
   'welcome.nube.sinNube':
     'Your account has no access to this developer’s cloud. We will continue with your Google Drive.',
   'welcome.nube.error': 'Could not connect to the cloud: {msg}',
+  'welcome.nube.reintentando': 'Retrying the download…',
+  'welcome.nube.vaciaRespuesta':
+    'Your cloud answered correctly but it is empty: no data is stored for this account. Let us set up your database from scratch.',
+  'welcome.nube.quotaTitulo': '☁️⚠️ Cloudflare daily limit reached',
+  'welcome.nube.quotaBody':
+    'The free Cloudflare Workers plan has a daily cap of about 100,000 requests. If you hit the limit, the quota resets at 00:00 UTC (around {reinicio}). You can wait and retry, or configure it manually and sync tomorrow once the quota has reset.',
+  'welcome.nube.sinDatosTitulo': '☁️ No data in the cloud for this account',
+  'welcome.nube.sinDatosBody':
+    'The server answered correctly but there is no synced data for your Google account in the cloud.\n\nThis can happen if this is the first time you connect this account, or if the data was previously deleted from the cloud.\n\nYou can retry the download, restore from Google Drive if you have a backup, or create a local database from scratch.',
+  'welcome.nube.incompletosTitulo': '☁️ Incomplete data in the cloud',
+  'welcome.nube.incompletosBody':
+    'Some data was downloaded but the information is incomplete (base tables such as school year or schools are missing). This usually happens when the Cloudflare quota ran out halfway through the download.\n\nYou can retry to fetch the missing data, or create the local database from scratch.',
+  'welcome.nube.noConectadoTitulo': 'Could not connect to the cloud',
+  'welcome.nube.noConectadoBody': 'Check your internet connection and try again in a few minutes.',
+  'welcome.nube.noConfigTitulo': 'Connection not configured',
+  'welcome.nube.noConfigBody':
+    'The cloud connection is not configured. Configure it manually or import a connection file (.key).',
+  'welcome.nube.errorServidorTitulo': 'Server error',
+  'welcome.nube.errorServidorBody':
+    'The sync server returned an error. It may be a temporary problem: try again or configure the cloud manually.',
+  'welcome.nube.errorTitulo': 'Could not connect to the cloud',
+  'welcome.nube.errorBody':
+    'An error occurred while talking to the server. Try again or configure it manually.',
+  'welcome.inicializandoParcial': 'Starting the app with partial data…',
+  'welcome.errorGenerico': 'Error: {msg}',
   'welcome.wizard.preparando': 'Preparing the initial setup…',
   'welcome.wizard.volver': '← Back to the options',
   'welcome.wizard.sinDatos': 'No previous data found. Let us set up your database from scratch.',
@@ -77,6 +102,9 @@ export const en: Record<Clave, string> = {
   'welcome.wizard.stepSecciones': 'Sections',
   'welcome.wizard.stepColegios': 'Schools',
   'welcome.wizard.stepResumen': 'Summary',
+  'welcome.wizard.minimoElementos': 'You must add at least one item in each category.',
+  'welcome.wizard.errorGuardando': 'Error saving data: {msg}',
+  'welcome.wizard.volverBoton': '← Back',
 
   // ── Settings ─────────────────────────────────────────────────────────────
   'ajustes.titulo': 'Settings',

@@ -9,6 +9,8 @@
   import { getProfile, getCurrentEmail } from "../lib/accountProfiles";
   import appIcon from "../assets/app-icon.png";
   import BrowserPicker from "./BrowserPicker.svelte";
+  import LanguagePicker from "./LanguagePicker.svelte";
+  import { t } from "../lib/i18n.svelte";
 
   /** Misma fuente que usa cloudLogin.ts para no divergir. */
   const DEFAULT_WORKER = import.meta.env.VITE_D1_WORKER_URL
@@ -157,14 +159,16 @@
     inputAsignaturas = asignaturasElegidas();
   }
 
-  const steps = [
-    { title: 'Años Lectivos', icon: '📅', key: 'anos' },
-    { title: 'Asignaturas', icon: '📚', key: 'asignaturas' },
-    { title: 'Grados', icon: '📊', key: 'grados' },
-    { title: 'Secciones', icon: '👥', key: 'secciones' },
-    { title: 'Colegios', icon: '🏫', key: 'colegios' },
-    { title: 'Resumen', icon: '✅', key: 'resumen' },
-  ];
+  // `steps` y `resumen` usan `t()`, así que van en `$derived`: con un `const`
+  // se calcularían al importar el módulo y no cambiarían con el idioma.
+  const steps = $derived([
+    { title: t('welcome.wizard.stepAnios'), icon: '📅', key: 'anos' },
+    { title: t('welcome.wizard.stepAsignaturas'), icon: '📚', key: 'asignaturas' },
+    { title: t('welcome.wizard.stepGrados'), icon: '📊', key: 'grados' },
+    { title: t('welcome.wizard.stepSecciones'), icon: '👥', key: 'secciones' },
+    { title: t('welcome.wizard.stepColegios'), icon: '🏫', key: 'colegios' },
+    { title: t('welcome.wizard.stepResumen'), icon: '✅', key: 'resumen' },
+  ] as const);
 
   function cancelAuth() {
     setBackAuthInProgress(false);
@@ -295,32 +299,26 @@
     const m = msg.toLowerCase();
     if (/1106|10000|429|quota|exceeded|rate|limit/.test(m)) {
       return {
-        title: '☁️⚠️ Límite diario de Cloudflare alcanzado',
-        body: `El plan gratuito de Cloudflare Workers tiene un tope diario de ~100.000 solicitudes. Si alcanzaste el límite, la cuota se reinicia a las 00:00 UTC (aprox. ${cloudflareResetInfo()}). Puedes esperar y reintentar, o configurar manualmente y sincronizar mañana cuando la cuota se haya reiniciado.`,
+        title: t('welcome.nube.quotaTitulo'),
+        body: t('welcome.nube.quotaBody', { reinicio: cloudflareResetInfo() }),
       };
     }
     if (/0 filas aplicadas|no devolvió datos/.test(m)) {
-      return {
-        title: '☁️ Nube sin datos para esta cuenta',
-        body: `El Worker respondió correctamente pero no hay datos sincronizados para tu cuenta de Google en la nube.\n\nEsto puede pasar si es la primera vez que conectas esta cuenta, o si los datos fueron eliminados de la nube previamente.\n\nPuedes reintentar la descarga, restaurar desde Google Drive si tienes un respaldo, o crear una base de datos local desde cero.`,
-      };
+      return { title: t('welcome.nube.sinDatosTitulo'), body: t('welcome.nube.sinDatosBody') };
     }
     if (/faltan catálogos base/.test(m)) {
-      return {
-        title: '☁️ Datos incompletos en la nube',
-        body: `Se descargaron algunos datos pero la información está incompleta (faltan tablas base como año lectivo o colegios). Esto suele pasar cuando la cuota de Cloudflare se agotó a mitad de la descarga.\n\nPuedes reintentar para completar los datos faltantes, o crear la base local desde cero.`,
-      };
+      return { title: t('welcome.nube.incompletosTitulo'), body: t('welcome.nube.incompletosBody') };
     }
     if (/timeout|econn|network|fetch failed|overloaded/.test(m)) {
-      return { title: 'No se pudo conectar con la nube', body: 'Revisa tu conexión a internet e inténtalo de nuevo en unos minutos.' };
+      return { title: t('welcome.nube.noConectadoTitulo'), body: t('welcome.nube.noConectadoBody') };
     }
     if (/d1 no está configurado/.test(m)) {
-      return { title: 'Conexión no configurada', body: 'La conexión con Cloudflare D1 no está configurada. Configura la nube manualmente o importa un archivo de conexión (.key).' };
+      return { title: t('welcome.nube.noConfigTitulo'), body: t('welcome.nube.noConfigBody') };
     }
     if (/worker error|http \d{3}/.test(m)) {
-      return { title: 'Error del servidor', body: 'El servidor de sincronización devolvió un error. Puede ser un problema temporal — inténtalo de nuevo o configura la nube manualmente.' };
+      return { title: t('welcome.nube.errorServidorTitulo'), body: t('welcome.nube.errorServidorBody') };
     }
-    return { title: 'No se pudo conectar con la nube', body: 'Ocurrió un error al hablar con el servidor. Inténtalo de nuevo o configura manualmente.' };
+    return { title: t('welcome.nube.errorTitulo'), body: t('welcome.nube.errorBody') };
   }
 
   let showCloudRetry = $state(false);
