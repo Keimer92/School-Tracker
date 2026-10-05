@@ -8,7 +8,8 @@
   import { registerBackHandler } from "../lib/androidBack";
   import { getLocalDateISOString } from "../lib/dateUtils";
   import { loadAppSettings, onAppSettingsChange } from "../lib/appSettings";
-import { primerColegio } from "../lib/catalogo";
+  import { primerColegio } from "../lib/catalogo";
+  import { t } from "../lib/i18n.svelte";
   import { ask } from "@tauri-apps/plugin-dialog";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
@@ -171,8 +172,12 @@ import { portalToBody } from "../lib/portalToBody";
     icono: saving ? '⏳' : '💾',
     etiqueta: saving ? 'Guardando' : 'Guardar',
     tono: 'verde' as const,
-    sub: saving ? 'Escribiendo en la BD' : (hasUnsavedChanges ? 'Cambios sin guardar' : 'Sin cambios'),
-    title: 'Guardar asistencia',
+    sub: saving
+      ? t('asis.guardado.escribiendo')
+      : hasUnsavedChanges
+        ? t('asis.guardado.sinGuardar')
+        : t('asis.guardado.limpio'),
+    title: t('asis.btn.guardar'),
     compacto: isAndroidMobile,
   });
   let pageVisible = $state(true);
@@ -354,11 +359,13 @@ $effect(() => {
     fecha: string;
     actual: string | null;
   };
-  const ESTADOS_PAJ = [
-    { id: 'P', label: 'Presente', color: '#10b981', suave: 'rgba(16,185,129,0.10)', borde: 'rgba(16,185,129,0.3)' },
-    { id: 'A', label: 'Ausente', color: '#ef4444', suave: 'rgba(239,68,68,0.10)', borde: 'rgba(239,68,68,0.3)' },
-    { id: 'J', label: 'Justificado', color: '#f59e0b', suave: 'rgba(245,158,11,0.10)', borde: 'rgba(245,158,11,0.3)' },
-  ] as const;
+  // `$derived` porque `label` se traduce: el `id` ('P'/'A'/'J') es el valor de
+  // dominio que viaja a la BD y NO se traduce, solo la etiqueta.
+  const ESTADOS_PAJ = $derived([
+    { id: 'P' as const, label: t('asis.estado.presente'), color: '#10b981', suave: 'rgba(16,185,129,0.10)', borde: 'rgba(16,185,129,0.3)' },
+    { id: 'A' as const, label: t('asis.estado.ausente'), color: '#ef4444', suave: 'rgba(239,68,68,0.10)', borde: 'rgba(239,68,68,0.3)' },
+    { id: 'J' as const, label: t('asis.estado.justificado'), color: '#f59e0b', suave: 'rgba(245,158,11,0.10)', borde: 'rgba(245,158,11,0.3)' },
+  ]);
   const ANCHO_POP_ESTADO = 178;
 
   let popEstado = $state<PopEstado | null>(null);
@@ -396,8 +403,11 @@ $effect(() => {
   $effect(() => {
     if (!popEstado) return;
     const onPointerDown = (ev: PointerEvent) => {
-      const t = ev.target as Node | null;
-      if (t && (popEstadoPanelEl?.contains(t) || popEstadoBtn?.contains(t))) return;
+      // `nodo` y no `t`: el nombre `t` tapa la función de traduccion `t()` que
+      // se importa en este componente, y el error solo apareceria si alguien
+      // usara `t()` dentro de este scope.
+      const nodo = ev.target as Node | null;
+      if (nodo && (popEstadoPanelEl?.contains(nodo) || popEstadoBtn?.contains(nodo))) return;
       cerrarPopEstado();
     };
     const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') cerrarPopEstado(); };
@@ -640,14 +650,27 @@ $effect(() => {
     }
     const rango = fechas.length === 1
       ? fmtDM(fechas[0])
-      : `${fmtDM(fechas[0])} al ${fmtDM(fechas[fechas.length - 1])}`;
-    const etiqueta = estadoElegido === 'P' ? 'Presente' : estadoElegido === 'A' ? 'Ausente' : 'Justificado';
+      : `${fmtDM(fechas[0])} ${t('asis.masivo.al')} ${fmtDM(fechas[fechas.length - 1])}`;
+    const etiqueta = estadoElegido === 'P'
+      ? t('asis.estado.presente')
+      : estadoElegido === 'A'
+        ? t('asis.estado.ausente')
+        : t('asis.estado.justificado');
     const ok = await ask(
-      `¿Marcar ${registros.length} asistencia(s) como "${etiqueta}" (${estadoElegido})?\n\n` +
-      `Fechas: ${rango} (${fechas.length})\n` +
-      `Estudiantes: ${estudiantesMulti.length}\n\n` +
-      `Solo se rellenan las que están vacías; las que ya tienen estado no se tocan.`,
-      { title: `Marcar ${etiqueta} masivamente`, kind: 'info', okLabel: 'Sí, marcar y guardar', cancelLabel: 'Cancelar' }
+      t('asis.masivo.confirmarMsg', {
+        n: registros.length,
+        estado: etiqueta,
+        codigo: estadoElegido,
+        rango,
+        dias: fechas.length,
+        estudiantes: estudiantesMulti.length,
+      }),
+      {
+        title: t('asis.masivo.marcarTitulo', { estado: etiqueta }),
+        kind: 'info',
+        okLabel: t('asis.masivo.siMarcar'),
+        cancelLabel: t('comun.cancelar'),
+      }
     );
     if (!ok) return;
     masivosGuardando = true;
@@ -674,14 +697,14 @@ $effect(() => {
       }
       syncDraftMultiToStorage();
       capturarOriginalMulti();
-      await emit('show-toast', { message: `✅ ${registros.length} asistencia(s) guardadas (${etiqueta})`, type: 'success' });
+      await emit('show-toast', { message: t('asis.masivo.exito', { n: registros.length, estado: etiqueta }), type: 'success' });
       onDataChange('asistencia', { immediate: true });
       skipNextRefresh = true;
       await emit('asistencia-updated');
       cerrarPopSel();
     } catch (error) {
       console.error('Error marcando asistencias masivamente:', error);
-      await emit('show-toast', { message: '❌ Error al guardar: ' + error, type: 'error' });
+      await emit('show-toast', { message: t('asis.error.guardar', { msg: String(error) }), type: 'error' });
     } finally { masivosGuardando = false; }
   }
 
@@ -714,22 +737,27 @@ $effect(() => {
       }
     }
     if (aVaciar.length === 0) {
-      await emit('show-toast', { message: '⚠️ No hay asistencias marcadas en esos días', type: 'warning' });
+      await emit('show-toast', { message: t('asis.limpiar.vacias'), type: 'warning' });
       return;
     }
     const rango = fechas.length === 1
       ? fmtDM(fechas[0])
-      : `${fmtDM(fechas[0])} al ${fmtDM(fechas[fechas.length - 1])}`;
+      : `${fmtDM(fechas[0])} ${t('asis.masivo.al')} ${fmtDM(fechas[fechas.length - 1])}`;
     const enServidor = aVaciar.filter(v => !!originalMulti[`${v.estId}|${v.fecha}`]?.estado).length;
     const ok = await ask(
-      `¿Vaciar ${aVaciar.length} asistencia(s) marcadas?\n\n` +
-      `Fechas: ${rango} (${fechas.length})\n` +
-      `Estudiantes: ${estudiantesMulti.length}\n\n` +
-      (enServidor > 0
-        ? `⚠️ Se borran ${enServidor} registro(s) de la base, y con ellos la observación de esos días.\n\n`
-        : '') +
-      `Solo se limpian los días elegidos; el resto del período no se toca.`,
-      { title: 'Limpiar asistencias', kind: 'warning', okLabel: 'Sí, limpiar', cancelLabel: 'Cancelar' }
+      t('asis.limpiar.confirmarMsg', {
+        n: aVaciar.length,
+        rango,
+        dias: fechas.length,
+        estudiantes: estudiantesMulti.length,
+        aviso: enServidor > 0 ? t('asis.limpiar.avisoServidor', { n: enServidor }) : '',
+      }),
+      {
+        title: t('asis.limpiar.btn'),
+        kind: 'warning',
+        okLabel: t('asis.limpiar.confirmar'),
+        cancelLabel: t('comun.cancelar'),
+      }
     );
     if (!ok) return;
     masivosGuardando = true;
@@ -752,22 +780,23 @@ $effect(() => {
       }
       syncDraftMultiToStorage();
       capturarOriginalMulti();
-      await emit('show-toast', { message: `🧹 ${aVaciar.length} asistencia(s) limpiadas`, type: 'success' });
+      await emit('show-toast', { message: t('asis.limpiar.exito', { n: aVaciar.length }), type: 'success' });
       onDataChange('asistencia', { immediate: true });
       skipNextRefresh = true;
       await emit('asistencia-updated');
       cerrarPopSel();
     } catch (error) {
       console.error('Error limpiando asistencias:', error);
-      await emit('show-toast', { message: '❌ Error al limpiar: ' + error, type: 'error' });
+      await emit('show-toast', { message: t('asis.error.limpiar', { msg: String(error) }), type: 'error' });
     } finally { masivosGuardando = false; }
   }
 
   $effect(() => {
     if (!popSel) return;
     const onPointerDown = (ev: PointerEvent) => {
-      const t = ev.target as Node | null;
-      if (t && (popSelPanelEl?.contains(t) || popSelBtn?.contains(t))) return;
+      // `nodo` y no `t`: ver la nota en el handler equivalente de arriba.
+      const nodo = ev.target as Node | null;
+      if (nodo && (popSelPanelEl?.contains(nodo) || popSelBtn?.contains(nodo))) return;
       cerrarPopSel();
     };
     const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') cerrarPopSel(); };
@@ -1211,9 +1240,10 @@ $effect(() => {
   $effect(() => {
     if (!popSinClasesAbierta) return;
     const fuera = (e: Event) => {
-      const t = e.target as Node;
-      if (popSinClasesEl && popSinClasesEl.contains(t)) return;
-      if (popModalSinClasesEl && popModalSinClasesEl.contains(t)) return;
+      // `nodo` y no `t`: ver la nota en el handler equivalente de arriba.
+      const nodo = e.target as Node;
+      if (popSinClasesEl && popSinClasesEl.contains(nodo)) return;
+      if (popModalSinClasesEl && popModalSinClasesEl.contains(nodo)) return;
       cerrarPopSinClases();
     };
     document.addEventListener('pointerdown', fuera, true);
