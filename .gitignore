@@ -29,12 +29,10 @@ src-tauri/gen/android/app/src/main/java/com/keimer/schooltracker/generated/
 src-tauri/gen/android/app/tauri.build.gradle.kts
 src-tauri/gen/android/app/tauri.properties
 src-tauri/gen/android/app/proguard-tauri.pro
-src-tauri/gen/android/app/proguard-rules.pro
 src-tauri/gen/android/app/.editorconfig
 src-tauri/gen/android/app/.gitignore
 src-tauri/gen/android/app/src/main/assets/
 src-tauri/gen/android/app/src/main/jniLibs/
-src-tauri/gen/android/app/build.gradle.kts
 src-tauri/gen/android/gradlew
 src-tauri/gen/android/gradlew.bat
 src-tauri/gen/android/gradle/

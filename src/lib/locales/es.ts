@@ -108,6 +108,9 @@ export const es = {
   'welcome.wizard.stepSecciones': 'Secciones',
   'welcome.wizard.stepColegios': 'Colegios',
   'welcome.wizard.stepResumen': 'Resumen',
+  'welcome.wizard.minimoElementos': 'Debes agregar al menos un elemento en cada categoría.',
+  'welcome.wizard.errorGuardando': 'Error guardando datos: {msg}',
+  'welcome.wizard.volverBoton': '← Volver',
 
   // ── Ajustes ──────────────────────────────────────────────────────────────
   'ajustes.titulo': 'Ajustes',
