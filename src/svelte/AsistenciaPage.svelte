@@ -1063,12 +1063,14 @@ $effect(() => {
     return s.fechas.length > 0 && s.fechas.every(f => esDiaSinClases(f));
   }
   function motivoSinClasesEn(fecha: string): string {
-    return coberturaSinClases(fecha)?.descripcion || 'Sin clases';
+    return coberturaSinClases(fecha)?.descripcion || t('asis.sinClases.motivoVacio');
   }
 
   /** Días seleccionables en el calendario: hábiles del colegio y no marcados sin clases. */
   function esDiaHabilCalendario(iso: string): boolean {
     if (!colegioConfig) return true;
+    // OJO: estos nombres son CLAVES de dominio: indexan `colegioConfig`, que viene
+    // de la tabla `colegio_dias_asistencia` (lunes..domingo). No se traducen.
     const dayNames = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
     if (colegioConfig[dayNames[new Date(iso + "T12:00:00").getDay()]] === false) return false;
     return !esDiaSinClases(iso);
@@ -1092,30 +1094,33 @@ $effect(() => {
    * el sábado.
    */
   function objetivosSinClases(paraTodosLosColegios = false): { fechas: string[]; etiqueta: string } | null {
-    if (colFechaObjetivo) return { fechas: [colFechaObjetivo], etiqueta: 'ese día' };
+    if (colFechaObjetivo) return { fechas: [colFechaObjetivo], etiqueta: t('asis.sinClases.eseDia') };
     if (periodo === 'mensual') {
       const lista = paraTodosLosColegios ? semanasMesBase : semanasMes;
       const sel = lista.find(w => w.numero === semanaSeleccionada);
       if (!sel) return null;
-      return { fechas: sel.fechas, etiqueta: `la semana ${sel.numero}` };
+      return { fechas: sel.fechas, etiqueta: t('asis.sinClases.etiquetaSemana', { n: sel.numero }) };
     }
-    if (paraTodosLosColegios) return { fechas: getFechasPeriodo(), etiqueta: 'el período actual' };
-    return { fechas: fechasObjetivoSinClases(), etiqueta: 'el período actual' };
+    if (paraTodosLosColegios) return { fechas: getFechasPeriodo(), etiqueta: t('asis.sinClases.periodoActual') };
+    return { fechas: fechasObjetivoSinClases(), etiqueta: t('asis.sinClases.periodoActual') };
   }
 
   async function activarSinClases(nivelColegio: boolean) {
     const motivo = sinClasesDescripcion.trim();
-    if (!motivo) { emit("show-toast", { message: "⚠️ El motivo es obligatorio", type: "warning" }); return; }
+    if (!motivo) { emit("show-toast", { message: t('asis.sinClases.motivoObligatorio'), type: "warning" }); return; }
     const obj = objetivosSinClases();
     if (!obj) {
-      emit("show-toast", { message: "⚠️ Seleccione la semana que quedará sin clases", type: 'warning' });
+      emit("show-toast", { message: t('asis.sinClases.seleccioneSemana'), type: 'warning' });
       return;
     }
     const objetivos = obj.fechas;
     if (objetivos.length === 0) return;
-    const alcanceTxt = nivelColegio ? 'TODO el colegio' : 'solo esta sección';
-    const rangoTxt = objetivos.length === 1 ? objetivos[0].split('-').reverse().join('/') : `${objetivos[0].split('-').reverse().join('/')} al ${objetivos[objetivos.length - 1].split('-').reverse().join('/')}`;
-    const ok = await ask(`¿Marcar ${rangoTxt} como día(s) sin clases?\n\nAlcance: ${alcanceTxt}\nAfecta: ${obj.etiqueta}\nMotivo: ${motivo}`, { title: 'Marcar sin clases', kind: 'warning', okLabel: 'Sí, marcar', cancelLabel: 'Cancelar' });
+    const alcanceTxt = nivelColegio ? t('asis.sinClases.todoColegio') : t('asis.sinClases.alcanceSoloSeccion');
+    const rangoTxt = objetivos.length === 1 ? objetivos[0].split('-').reverse().join('/') : `${objetivos[0].split('-').reverse().join('/')} ${t('asis.masivo.al')} ${objetivos[objetivos.length - 1].split('-').reverse().join('/')}`;
+    const ok = await ask(
+      t('asis.sinClases.confirmarMsg', { rango: rangoTxt, alcance: alcanceTxt, afecta: obj.etiqueta, motivo }),
+      { title: t('asis.sinClases.pasto'), kind: 'warning', okLabel: t('asis.sinClases.confirmar'), cancelLabel: t('comun.cancelar') }
+    );
     if (!ok) return;
     sinClasesGuardando = true;
     try {
@@ -1129,7 +1134,7 @@ $effect(() => {
       sinClasesDescripcion = '';
       await fetchDiasSinClases();
       if (periodo !== 'diario') { refreshingSilent = true; fetchEstudiantesMulti(); }
-      emit("show-toast", { message: `🚫 ${nivelColegio ? 'Colegio' : 'Sección'}: ${objetivos.length} día(s) sin clases (${motivo})`, type: "success" });
+      emit("show-toast", { message: t('asis.sinClases.exito', { nivel: nivelColegio ? t('asis.sinClases.nivelColegio') : t('asis.sinClases.nivelSeccion'), n: objetivos.length, motivo }), type: "success" });
     } catch (e) {
       console.error('Error marcando días sin clases:', e);
       await emit("show-toast", { message: "❌ Error al marcar días sin clases: " + e, type: "error" });
@@ -1144,7 +1149,7 @@ $effect(() => {
    */
   async function aplicarEnTodosLosColegios(fechas: string[], motivo: string, activo: boolean) {
     if (colegios.length === 0) {
-      await emit("show-toast", { message: "⚠️ No hay colegios registrados", type: 'warning' });
+      await emit("show-toast", { message: t('asis.sinClases.sinColegios'), type: 'warning' });
       return;
     }
     for (const col of colegios) {
@@ -1160,26 +1165,29 @@ $effect(() => {
 
   async function activarSinClasesTodosColegios() {
     const motivo = sinClasesDescripcion.trim();
-    if (!motivo) { emit("show-toast", { message: "⚠️ El motivo es obligatorio", type: "warning" }); return; }
+    if (!motivo) { emit("show-toast", { message: t('asis.sinClases.motivoObligatorio'), type: "warning" }); return; }
     const obj = objetivosSinClases(true);
     if (!obj) {
-      emit("show-toast", { message: "⚠️ Seleccione la semana que quedará sin clases", type: 'warning' });
+      emit("show-toast", { message: t('asis.sinClases.seleccioneSemana'), type: 'warning' });
       return;
     }
     const objetivos = obj.fechas;
     if (objetivos.length === 0) return;
-    const rangoTxt = objetivos.length === 1 ? objetivos[0].split('-').reverse().join('/') : `${objetivos[0].split('-').reverse().join('/')} al ${objetivos[objetivos.length - 1].split('-').reverse().join('/')}`;
-    const ok = await ask(`¿Marcar ${rangoTxt} sin clases en los ${colegios.length} colegio(s)?\n\nAlcance: TODOS los colegios\nAfecta: ${obj.etiqueta}\nMotivo: ${motivo}`, { title: 'Marcar en todos los colegios', kind: 'warning', okLabel: 'Sí, marcar todos', cancelLabel: 'Cancelar' });
+    const rangoTxt = objetivos.length === 1 ? objetivos[0].split('-').reverse().join('/') : `${objetivos[0].split('-').reverse().join('/')} ${t('asis.masivo.al')} ${objetivos[objetivos.length - 1].split('-').reverse().join('/')}`;
+    const ok = await ask(
+      t('asis.sinClases.todosConfirmarMsg', { rango: rangoTxt, n: colegios.length, alcance: t('asis.sinClases.todosTitulo'), afecta: obj.etiqueta, motivo }),
+      { title: t('asis.sinClases.todosColegios'), kind: 'warning', okLabel: t('asis.sinClases.todosColegiosConfirmar'), cancelLabel: t('comun.cancelar') }
+    );
     if (!ok) return;
     sinClasesGuardando = true;
     try {
       await aplicarEnTodosLosColegios(objetivos, motivo, true);
       cerrarPopSinClases();
       sinClasesDescripcion = '';
-      emit("show-toast", { message: `🌐 ${objetivos.length} día(s) sin clases en ${colegios.length} colegio(s) (${motivo})`, type: "success" });
+      emit("show-toast", { message: t('asis.sinClases.todosExito', { dias: objetivos.length, n: colegios.length, motivo }), type: "success" });
     } catch (e) {
       console.error('Error marcando días sin clases en todos los colegios:', e);
-      await emit("show-toast", { message: "❌ Error al marcar en todos los colegios: " + e, type: "error" });
+      await emit("show-toast", { message: t('asis.sinClases.errorMarcarTodos', { msg: String(e) }), type: "error" });
     } finally { sinClasesGuardando = false; }
   }
 
@@ -1193,16 +1201,19 @@ $effect(() => {
     const objetivos = obj.fechas;
     if (objetivos.length === 0) return;
     const rangoTxt = objetivos.length === 1 ? objetivos[0].split('-').reverse().join('/') : `${objetivos[0].split('-').reverse().join('/')} al ${objetivos[objetivos.length - 1].split('-').reverse().join('/')}`;
-    const ok = await ask(`¿Reactivar las clases del ${rangoTxt} en los ${colegios.length} colegio(s)?\n\nSe quitará la marca en todos los colegios.`, { title: 'Reactivar en todos los colegios', kind: 'info', okLabel: 'Sí, reactivar', cancelLabel: 'Cancelar' });
+    const ok = await ask(
+      t('asis.sinClases.reactivarTodosMsg', { rango: rangoTxt, n: colegios.length }),
+      { title: t('asis.sinClases.reactivarTodos'), kind: 'info', okLabel: t('asis.sinClases.reactivarSi'), cancelLabel: t('comun.cancelar') }
+    );
     if (!ok) return;
     sinClasesGuardando = true;
     try {
       await aplicarEnTodosLosColegios(objetivos, '', false);
       cerrarPopSinClases();
-      emit("show-toast", { message: "✅ Clases reactivadas en todos los colegios", type: "success" });
+      emit("show-toast", { message: t('asis.sinClases.reactivarTodosExito'), type: "success" });
     } catch (e) {
       console.error('Error reactivando días sin clases en todos los colegios:', e);
-      await emit("show-toast", { message: "❌ Error al reactivar en todos los colegios: " + e, type: "error" });
+      await emit("show-toast", { message: t('asis.sinClases.errorReactivarTodos', { msg: String(e) }), type: "error" });
     } finally { sinClasesGuardando = false; }
   }
 
@@ -1215,7 +1226,12 @@ $effect(() => {
       return !!d && d.grado_id === null && d.seccion_id === null;
     });
     const rangoTxt = objetivos.length === 1 ? objetivos[0].split('-').reverse().join('/') : `${objetivos[0].split('-').reverse().join('/')} al ${objetivos[objetivos.length - 1].split('-').reverse().join('/')}`;
-    const ok = await ask(`¿Reactivar las clases para ${rangoTxt}?\n\nSe quitará la marca de "${nivelColegio ? 'todo el colegio' : 'esta sección'}".`, { title: 'Reactivar clases', kind: 'info', okLabel: 'Sí, reactivar', cancelLabel: 'Cancelar' });
+    const ok = await ask(
+      t('asis.sinClases.reactivarUnicoMsg', { rango: rangoTxt }) +
+        '\n\n' +
+        t('asis.sinClases.reactivarUnicoAlcance', { alcance: nivelColegio ? t('asis.sinClases.alcanceTodo') : t('asis.limpiar.alcanceSeccion') }),
+      { title: t('asis.sinClases.reactivar'), kind: 'info', okLabel: t('asis.sinClases.reactivarSi'), cancelLabel: t('comun.cancelar') }
+    );
     if (!ok) return;
     sinClasesGuardando = true;
     try {
@@ -1227,10 +1243,10 @@ $effect(() => {
       onDataChange('dia_sin_clases');
       await fetchDiasSinClases();
       if (periodo !== 'diario') { refreshingSilent = true; fetchEstudiantesMulti(); }
-      emit("show-toast", { message: "✅ Clases reactivadas para el período", type: "success" });
+      emit("show-toast", { message: t('asis.sinClases.reactivarOk', { n: objetivos.length }), type: "success" });
     } catch (e) {
       console.error('Error reactivando clases:', e);
-      await emit("show-toast", { message: "❌ Error al reactivar clases: " + e, type: "error" });
+      await emit("show-toast", { message: t('asis.error.reactivar', { msg: String(e) }), type: "error" });
     } finally { sinClasesGuardando = false; }
   }
 
@@ -1711,6 +1727,10 @@ $effect(() => {
     confirmClearAllStatus();
   }
 
+  /**
+   * `type` es SOLO el título del modal de resumen (no un valor de dominio: no
+   * filtra ni viaja a la BD), así que se le pasa la etiqueta ya traducida.
+   */
   function handleCardClick(type: string, stats: { total: number; m: number; f: number }) {
     showSummaryModal = { show: true, type, stats };
   }
@@ -2036,14 +2056,14 @@ $effect(() => {
                 onchange={(v) => handleFilterChange((n: number) => selectedSeccion = n, Number(v))}
                 options={secciones.map(s => ({ value: s.id, label: s.nombre }))} />
             </FilterGroup>
-            <FilterGroup label="Sexo:" {isMobile}>
+            <FilterGroup label={t('asis.filtro.sexo')} {isMobile}>
               <SelectChip
                 value={selectedSexo}
                 onchange={(v) => handleFilterChange((s: string) => selectedSexo = s, String(v))}
                 options={[
-                  { value: '', label: 'Todos' },
-                  { value: 'M', label: 'Masculino' },
-                  { value: 'F', label: 'Femenino' },
+                  { value: '', label: t('asis.filtro.todos') },
+                  { value: 'M', label: t('asis.filtros.masculino') },
+                  { value: 'F', label: t('asis.filtros.femenino') },
                 ]} />
             </FilterGroup>
           {/if}
@@ -2064,10 +2084,10 @@ $effect(() => {
               onclick: handleSinClasesClick,
               disabled: sinClasesGuardando || !selectedSeccion,
               icono: sinClasesActivo ? '🏫' : '🚫',
-              etiqueta: 'Sin Clases',
+              etiqueta: t('asis.sinClases.chip'),
               tono: sinClasesActivo ? 'ambar' : 'pizarra',
-              sub: sinClasesActivo ? 'Todo el período' : (periodo === 'mensual' ? 'Elegir semana' : periodo === 'semanal' ? `Semana ${semanaActiva}` : fmtDM(selectedFecha)),
-              title: periodo === 'mensual' ? 'Dejar una semana del mes sin clases' : 'Marcar el período actual sin clases',
+              sub: sinClasesActivo ? t('asis.sinClases.todoPeriodo') : (periodo === 'mensual' ? t('asis.sinClases.elegirSemana') : periodo === 'semanal' ? t('asis.sinClases.semanaN', { n: semanaActiva }) : fmtDM(selectedFecha)),
+              title: periodo === 'mensual' ? t('asis.sinClases.descSemana') : t('asis.sinClases.descPeriodo'),
               compacto: isAndroidMobile,
             }} />
           </div>
@@ -2076,12 +2096,12 @@ $effect(() => {
               style="z-index:2000;{isAndroidMobile ? '' : 'background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;align-items:center;justify-content:center;padding-top:14vh;'}">
               <div bind:this={popModalSinClasesEl} class="pop-panel" tabindex="-1"
                 style="position:relative;top:auto;left:auto;right:auto;bottom:auto;width:{modalCardWidth};max-width:{modalCardWidth};max-height:85vh;overflow-y:auto;{isAndroidMobile ? '' : 'box-shadow:0 25px 60px -12px rgba(0,0,0,0.7);'}">
-                <button type="button" onclick={cerrarPopSinClases} title="Cerrar" style="position:absolute;top:.6rem;right:.6rem;width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#cbd5e1;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1">✕</button>
-                <div class="pop-mes"><span class="pop-mes-txt">{colFechaObjetivo ? `Marcar ${fmtDM(colFechaObjetivo)} sin clases` : periodo === 'mensual' ? 'Semana sin clases' : 'Motivo del día(s) sin clases'}</span></div>
+                <button type="button" onclick={cerrarPopSinClases} title={t('comun.cerrar')} style="position:absolute;top:.6rem;right:.6rem;width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#cbd5e1;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1">✕</button>
+                <div class="pop-mes"><span class="pop-mes-txt">{colFechaObjetivo ? t('asis.sinClases.marcarFecha', { fecha: fmtDM(colFechaObjetivo) }) : periodo === 'mensual' ? t('asis.sinClases.tituloSemana') : t('asis.sinClases.motivo')}</span></div>
                 {#if colFechaObjetivo}
-                  <div style="font-size:.65rem;color:#94a3b8;margin:-.3rem 0 .5rem">Solo afecta esa fecha específica</div>
+                  <div style="font-size:.65rem;color:#94a3b8;margin:-.3rem 0 .5rem">{t('asis.ausencia.soloEstaFecha')}</div>
                 {:else if periodo === 'mensual'}
-                  <div style="font-size:.65rem;color:#94a3b8;margin:-.3rem 0 .4rem">Pasa el cursor sobre una semana para verla resaltada en la tabla</div>
+                  <div style="font-size:.65rem;color:#94a3b8;margin:-.3rem 0 .4rem">{t('asis.ausencia.hintSemana')}</div>
                   <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:.55rem">
                     {#each semanasMes as s (s.numero)}
                       {@const todas = semanaSinClasesTotal(s)}
@@ -2092,29 +2112,29 @@ $effect(() => {
                         onmouseleave={() => semanaHover = null}
                         onfocus={() => semanaHover = s.numero}
                         onblur={() => semanaHover = null}>
-                        <span class="pop-sem-n">Semana {s.numero}</span>
+                        <span class="pop-sem-n">{t('asis.sinClases.semanaN', { n: s.numero })}</span>
                         <span class="pop-sem-rango">{rangoSemana(s)}{todas ? ' · 🚫' : ''}</span>
                       </button>
                     {/each}
                   </div>
                 {/if}
-                <input class="obs-inline" placeholder="Ej: Feriado nacional (obligatorio)"
+                <input class="obs-inline" placeholder={t('asis.sinClases.phMotivo')}
                   bind:value={sinClasesDescripcion}
                   onkeydown={(e) => { if (e.key === 'Enter' && sinClasesDescripcion.trim()) activarSinClases(false); }} />
                 <div style="display:flex;flex-direction:column;gap:3px;margin-top:.55rem">
                   {#if periodo === 'mensual' && semanaSeleccionada && semanaSinClasesTotal(semanasMes.find(w => w.numero === semanaSeleccionada)!)}
                     <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #10b981" disabled={sinClasesGuardando}
                       onclick={() => { const s = semanasMes.find(w => w.numero === semanaSeleccionada); if (s) { cerrarPopSinClases(); desactivarSinClases(s.fechas); } }}>
-                      ♻️ Reactivar las clases de la semana {semanaSeleccionada}
+                      ♻️ {t('asis.sinClases.reactivarSemana', { n: semanaSeleccionada })}
                     </button>
                     <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #10b981" disabled={sinClasesGuardando}
                       onclick={desactivarSinClasesTodosColegios}>
-                      ♻️ Reactivar en todos los colegios
+                      ♻️ {t('asis.sinClases.reactivarTodos')}
                     </button>
                   {:else if periodo !== 'mensual' && sinClasesActivo}
                     <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #10b981" disabled={sinClasesGuardando}
                       onclick={desactivarSinClasesTodosColegios}>
-                      ♻️ Reactivar en todos los colegios
+                      ♻️ {t('asis.sinClases.reactivarTodos')}
                     </button>
                   {/if}
                   <!-- Los tres alcances llevan color propio y escalan con el
@@ -2123,18 +2143,18 @@ $effect(() => {
                        aviso de "esto toca todo". -->
                   <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #f472b6;background:linear-gradient(135deg,rgba(244,114,182,.20),rgba(236,113,182,.10));color:#fbcfe8" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || (periodo === 'mensual' && !semanaSeleccionada)}
                     onclick={() => activarSinClases(false)}
-                    title="Solo afecta a {secciones.find(s => s.id === selectedSeccion)?.nombre || 'esta sección'} de {grados.find(g => g.id === selectedGrado)?.nombre || 'este grado'}">
-                    🚪 Marcar solo esta sección
+                    title={t('asis.sinClases.tituloSeccion', { seccion: secciones.find(s => s.id === selectedSeccion)?.nombre || t('asis.limpiar.alcanceSeccion'), grado: grados.find(g => g.id === selectedGrado)?.nombre || t('asis.limpiar.alcanceGrado') })}>
+                    {t('asis.sinClases.marcarSeccion')}
                   </button>
                   <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #34d399;background:linear-gradient(135deg,rgba(52,211,153,.20),rgba(16,185,129,.10));color:#a7f3d0" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || (periodo === 'mensual' && !semanaSeleccionada)}
                     onclick={() => activarSinClases(true)}
-                    title="Afecta a todas las secciones de {colegios.find(c => c.id === selectedColegio)?.nombre || 'este colegio'}">
-                    🏫 Marcar todo este colegio
+                    title={t('asis.sinClases.tituloColegio', { colegio: colegios.find(c => c.id === selectedColegio)?.nombre || t('asis.limpiar.alcanceColegio') })}>
+                    {t('asis.sinClases.marcarColegio')}
                   </button>
                   <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #fbbf24;background:linear-gradient(135deg,rgba(251,191,36,.22),rgba(245,158,11,.10));color:#fde68a" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || (periodo === 'mensual' && !semanaSeleccionada)}
                     onclick={activarSinClasesTodosColegios}
-                    title="Afecta a los {colegios.length} colegio(s) del catálogo, en la semana o el período visible">
-                    🌐 Marcar en TODOS los colegios
+                    title={t('asis.sinClases.tituloTodos', { n: colegios.length })}>
+                    {t('asis.sinClases.marcarTodos')}
                   </button>
                 </div>
               </div>
@@ -2144,18 +2164,18 @@ $effect(() => {
             <BotonMod bind:ref={popLimpiarBtnEl} opts={{
               onclick: () => { if (popLimpiarBtnEl) togglePopSel(popLimpiarBtnEl, 'limpiar'); },
               disabled: getActiveStudentCount() === 0 || !hayLimpables,
-              icono: popSel?.modo === 'limpiar' ? '✕' : '🧹', etiqueta: 'Limpiar', tono: 'pizarra',
-              sub: !hayLimpables ? 'Nada que borrar' : `${totalMarcadasPeriodo} marcadas`,
-              title: 'Vaciar las asistencias marcadas de los días que elijas',
+              icono: popSel?.modo === 'limpiar' ? '✕' : '🧹', etiqueta: t('asis.btn.limpiar'), tono: 'pizarra',
+              sub: !hayLimpables ? t('asis.limpiar.mensual') : t('asis.limpiar.marcadas', { n: totalMarcadasPeriodo }),
+              title: t('asis.limpiar.diarioDesc'),
               compacto: false,
             }} />
           {:else}
             <BotonMod opts={{
               onclick: limpiarAsistencia,
               disabled: getActiveStudentCount() === 0,
-              icono: '🧹', etiqueta: 'Limpiar', tono: 'pizarra',
-              sub: getActiveStudentCount() === 0 ? 'Nada que borrar' : `${getActiveStudentCount()} con estado`,
-              title: 'Limpiar la asistencia del día',
+              icono: '🧹', etiqueta: t('asis.btn.limpiar'), tono: 'pizarra',
+              sub: getActiveStudentCount() === 0 ? t('asis.limpiar.mensual') : t('asis.limpiar.conEstado', { n: getActiveStudentCount() }),
+              title: t('asis.limpiar.diario'),
               compacto: isAndroidMobile,
             }} />
           {/if}
@@ -2163,14 +2183,12 @@ $effect(() => {
             onclick: () => { if (popSelBtnEl) togglePopSel(popSelBtnEl, 'rellenar'); },
             disabled: getActiveStudentCount() === 0 || (esEscritorio && !hayPendientes),
             icono: popSel ? '✕' : '👥',
-            etiqueta: esEscritorio ? 'Rellenar' : 'Marcar todos',
+            etiqueta: esEscritorio ? t('asis.btn.rellenar') : t('asis.masivo.marcarTodos'),
             tono: 'violeta',
             sub: esEscritorio
-              ? (!hayPendientes ? 'Todo completo' : `${totalPendientes} sin marcar`)
-              : `${getActiveStudentCount()} estudiante(s)`,
-            title: esEscritorio
-              ? 'Rellenar solo las asistencias vacías de los días que elijas, y guardarlas'
-              : 'Marcar a todos los estudiantes del día',
+              ? (!hayPendientes ? t('asis.masivo.completo') : t('asis.rellenar.sinMarcar', { n: totalPendientes }))
+              : t('asis.rellenar.estudiantes', { n: getActiveStudentCount() }),
+            title: esEscritorio ? t('asis.masivo.todosDesc') : t('asis.masivo.todos'),
             compacto: isAndroidMobile,
           }} />
           {#if !isAndroidMobile}
@@ -2218,35 +2236,35 @@ $effect(() => {
             <div class="card-accent" style="background:#06b6d4"></div>
             <span class="card-icon">📋</span>
             <span class="card-value">{totalEstudiantes}</span>
-            <span class="card-label">Total</span>
+            <span class="card-label">{t('asis.stats.total')}</span>
             <div class="card-gender"><span class="gender-m">M:{totalM}</span><span class="gender-f">F:{totalF}</span></div>
           </div>
           <div class="summary-card" onclick={() => handleCardClick('Presentes', statsP)}>
             <div class="card-accent" style="background:#10b981"></div>
             <span class="card-icon">✅</span>
             <span class="card-value">{statsP.total}</span>
-            <span class="card-label">Presentes</span>
+            <span class="card-label">{t('asis.stats.presentes')}</span>
             <div class="card-gender"><span class="gender-m">M:{statsP.m}</span><span class="gender-f">F:{statsP.f}</span></div>
           </div>
           <div class="summary-card" onclick={() => handleCardClick('Ausentes', statsA)}>
             <div class="card-accent" style="background:#ef4444"></div>
             <span class="card-icon">❌</span>
             <span class="card-value">{statsA.total}</span>
-            <span class="card-label">Ausentes</span>
+            <span class="card-label">{t('asis.stats.ausentes')}</span>
             <div class="card-gender"><span class="gender-m">M:{statsA.m}</span><span class="gender-f">F:{statsA.f}</span></div>
           </div>
           <div class="summary-card" onclick={() => handleCardClick('Justificados', statsJ)}>
             <div class="card-accent" style="background:#f59e0b"></div>
             <span class="card-icon">⚠️</span>
             <span class="card-value">{statsJ.total}</span>
-            <span class="card-label">Justificados</span>
+            <span class="card-label">{t('asis.stats.justificados')}</span>
             <div class="card-gender"><span class="gender-m">M:{statsJ.m}</span><span class="gender-f">F:{statsJ.f}</span></div>
           </div>
           <div class="summary-card" onclick={() => handleCardClick('Asistencia', { total: asistenciaPct, m: 0, f: 0 })}>
             <div class="card-accent" style="background:#8b5cf6"></div>
             <span class="card-icon">📊</span>
             <span class="pct-value" style="color:{asistenciaPct >= 90 ? '#10b981' : asistenciaPct >= 70 ? '#f59e0b' : '#ef4444'}">{asistenciaPct}%</span>
-            <span class="card-label">Asistencia</span>
+            <span class="card-label">{t('asis.stats.asistencia')}</span>
             <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:{asistenciaPct}%;background:{asistenciaPct >= 90 ? '#10b981' : asistenciaPct >= 70 ? '#f59e0b' : '#ef4444'}"></div></div>
           </div>
         </div>
@@ -2400,7 +2418,7 @@ $effect(() => {
             <div class="card-accent" style="background:#8b5cf6"></div>
             <span class="card-icon">📊</span>
             <span class="pct-value" style="color:{pctMulti >= 90 ? '#10b981' : pctMulti >= 70 ? '#f59e0b' : '#ef4444'}">{pctMulti}%</span>
-            <span class="card-label">Asistencia</span>
+            <span class="card-label">{t('asis.stats.asistencia')}</span>
             <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:{pctMulti}%;background:{pctMulti >= 90 ? '#10b981' : pctMulti >= 70 ? '#f59e0b' : '#ef4444'}"></div></div>
           </div>
         </div>
