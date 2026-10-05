@@ -24,6 +24,7 @@ export const en: Record<Clave, string> = {
   'comun.buscando': 'Searching…',
   'comun.cargando': 'Loading…',
   'comun.guardando': 'Saving…',
+  'comun.guardar': 'Save',
 
   // ── Language picker ──────────────────────────────────────────────────────
   'idioma.titulo': 'Language',
@@ -202,8 +203,7 @@ export const en: Record<Clave, string> = {
   'asis.limpiar.limpiarGuardar': 'Clear and save',
   'asis.limpiar.confirmar': 'Yes, clear',
   'asis.limpiar.confirmarTitulo': 'Confirm clearing',
-  'asis.limpiar.confirmarMsg':
-    'Clear every attendance state for the current period?\n\nUnsaved changes will be discarded.',
+  'asis.limpiar.pedirGuardar': 'Clear every attendance state for the current period?\n\nUnsaved changes will be discarded.',
   'asis.limpiar.alcanceSeccion': 'this section',
   'asis.limpiar.alcanceGrado': 'this grade',
   'asis.limpiar.alcanceColegio': 'this school',
@@ -213,6 +213,7 @@ export const en: Record<Clave, string> = {
   'asis.limpiar.avisoServidor':
     '⚠️ {n} record(s) will be deleted from the database, along with the note for those days.\n\n',
   'asis.limpiar.exito': '✅ {n} attendance record(s) cleared',
+  'asis.limpiar.aviso': '🧹 Attendance cleared. Remember to save your changes.',
   'asis.sinClases.btn': 'No classes',
   'asis.sinClases.chip': 'No classes',
   'asis.sinClases.pasto': 'Mark as no class',
@@ -244,6 +245,7 @@ export const en: Record<Clave, string> = {
   'asis.confirmar.guardarTitulo': 'Confirm save',
   'asis.confirmar.sinGuardar': 'You have unsaved changes. Save them before continuing?',
   'asis.confirmar.sinGuardarTitulo': 'Unsaved changes',
+  'asis.confirmar.descartar': 'Discard',
   'asis.error.guardar': '❌ Error saving: {msg}',
   'asis.error.limpiar': '❌ Error clearing: {msg}',
   'asis.error.masivo': 'Error marking attendance in bulk: {msg}',

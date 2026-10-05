@@ -26,6 +26,7 @@ export const es = {
   'comun.buscando': 'Buscando…',
   'comun.cargando': 'Cargando…',
   'comun.guardando': 'Guardando…',
+  'comun.guardar': 'Guardar',
 
   // ── Selector de idioma ───────────────────────────────────────────────────
   'idioma.titulo': 'Idioma',
@@ -210,8 +211,7 @@ export const es = {
   'asis.limpiar.limpiarGuardar': 'Limpiar y guardar',
   'asis.limpiar.confirmar': 'Sí, limpiar',
   'asis.limpiar.confirmarTitulo': 'Confirmar Limpieza',
-  'asis.limpiar.confirmarMsg':
-    '¿Limpiar todos los estados de asistencia del período actual?\n\nLos cambios sin guardar se descartarán.',
+  'asis.limpiar.pedirGuardar': '¿Limpiar todos los estados de asistencia del período actual?\n\nLos cambios sin guardar se descartarán.',
   'asis.limpiar.alcanceSeccion': 'esta sección',
   'asis.limpiar.alcanceGrado': 'este grado',
   'asis.limpiar.alcanceColegio': 'este colegio',
@@ -221,6 +221,7 @@ export const es = {
   'asis.limpiar.avisoServidor':
     '⚠️ Se borran {n} registro(s) de la base, y con ellos la observación de esos días.\n\n',
   'asis.limpiar.exito': '✅ {n} asistencia(s) limpiadas',
+  'asis.limpiar.aviso': '🧹 Asistencia limpiada. Recuerda guardar los cambios.',
   'asis.sinClases.btn': 'Sin clases',
   'asis.sinClases.chip': 'Sin Clases',
   'asis.sinClases.pasto': 'Marcar sin clases',
@@ -254,6 +255,7 @@ export const es = {
   'asis.confirmar.sinGuardar':
     'Tienes cambios sin guardar. ¿Deseas guardarlos antes de continuar?',
   'asis.confirmar.sinGuardarTitulo': 'Cambios sin guardar',
+  'asis.confirmar.descartar': 'Descartar',
   'asis.error.guardar': '❌ Error al guardar: {msg}',
   'asis.error.limpiar': '❌ Error al limpiar: {msg}',
   'asis.error.masivo': 'Error marcando asistencias masivamente: {msg}',

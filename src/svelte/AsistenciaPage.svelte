@@ -1687,13 +1687,14 @@ $effect(() => {
         return { ...est, dias: newDias };
       });
     }
-    emit("show-toast", { message: "🧹 Asistencia limpiada. Recuerda guardar los cambios.", type: "info" });
+    emit("show-toast", { message: t('asis.limpiar.aviso'), type: "info" });
   }
 
   async function handleManualSave() {
     if (!hasUnsavedChanges) return;
-    const ok = await ask('¿Guardar los cambios de asistencia pendientes?', {
-      title: 'Confirmar guardado', kind: 'info', okLabel: 'Guardar', cancelLabel: 'Cancelar',
+    const ok = await ask(t('asis.confirmar.guardar'), {
+      title: t('asis.confirmar.guardarTitulo'), kind: 'info',
+      okLabel: t('comun.guardar'), cancelLabel: t('comun.cancelar'),
     });
     if (!ok) return;
     if (periodo === "diario") {
@@ -1705,7 +1706,7 @@ $effect(() => {
 
   async function limpiarAsistencia() {
     if (getActiveStudentCount() === 0) return;
-    const ok = await ask('¿Limpiar todos los estados de asistencia del período actual?\n\nLos cambios sin guardar se descartarán.', { title: 'Confirmar Limpieza', kind: 'warning', okLabel: 'Sí, limpiar', cancelLabel: 'Cancelar' });
+    const ok = await ask(t('asis.limpiar.pedirGuardar'), { title: t('asis.limpiar.confirmarTitulo'), kind: 'warning', okLabel: t('asis.limpiar.confirmar'), cancelLabel: t('comun.cancelar') });
     if (!ok) return;
     confirmClearAllStatus();
   }
@@ -1758,7 +1759,7 @@ $effect(() => {
 
   async function handleFilterChange(setter: (v: any) => void, value: any) {
     if (hasUnsavedChanges) {
-      const answer = await ask('Tienes cambios sin guardar. ¿Deseas guardarlos antes de continuar?', { title: 'Cambios sin guardar', kind: 'warning', okLabel: 'Guardar', cancelLabel: 'Descartar' });
+      const answer = await ask(t('asis.confirmar.sinGuardar'), { title: t('asis.confirmar.sinGuardarTitulo'), kind: 'warning', okLabel: t('comun.guardar'), cancelLabel: t('asis.confirmar.descartar') });
       if (answer) {
         if (periodo === "diario") { await saveChanges(estudiantes); } else { await saveChangesMulti(); }
         setter(value);
