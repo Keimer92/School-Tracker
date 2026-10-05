@@ -28,6 +28,62 @@ Idioma del código y comentarios: **español**. Mantener así.
 - **Rust deps clave**: `rusqlite`, `futures`, `tokio`,
   `tauri-plugin-{fs,dialog,opener}`, `jni`/`ndk-context` (Android).
 
+## i18n (Espanol / English) - 2026-10
+
+Infraestructura en `src/lib/i18n.svelte.ts` + diccionarios `src/lib/locales/es.ts`
+y `en.ts`. Picker en `src/svelte/LanguagePicker.svelte`.
+
+### El tipado es la garantia, no un script
+
+`es.ts` es la fuente de verdad (`export type Clave = keyof typeof es`) y `en.ts`
+esta declarado como `Record<Clave, string>`. **Si se agrega una clave en espanol y
+se olvida la traduccion, el `tsc` del build falla.** No hace falta ningun
+comprobador de claves sincronizadas.
+
+### El modulo es `.svelte.ts`, NO `.ts`
+
+El estado del idioma es `let locale = $state<Locale>(...)`. Eso es lo que hace que
+`t()` sea **reactivo**: al leer el rune dentro de la funcion, Svelte registra la
+dependencia y toda la app se re-renderiza sola al cambiar el idioma. Con un `let`
+normal en un `.ts` comun, `t()` devolveria el valor viejo y la app quedaria medio
+traducida hasta que algo mas provocara un render.
+
+Por lo mismo, **todo lo que usa `t()` tiene que ser `$derived`, no `const`**: en
+`AjustesPage` los `TABS` y en `WelcomePage` los `steps` y el resumen del wizard.
+Con `const` se evaluan una vez al importar el modulo y nunca cambian de idioma. Es
+el error facil de cometer y no da error de compilacion: el proyecto tiene
+`fail-on-warnings=false` y `$derived` acepta cualquier expresion.
+
+### Deteccion de idioma inicial
+
+`localStorage['stp_locale']` -> `navigator.languages` -> `navigator.language` ->
+`es`. Se mira **el primer tag reconocido de la lista**, no solo el primero: con
+`['pt-BR','en-US']` gana `en` (el idioma que el usuario si habla), no espanol por
+defecto. Un idioma no reconocido (fr, de) cae a espanol.
+
+⚠️ **`navigator.language` YA es el idioma del sistema** en Windows (WebView2 sigue
+la display language) y en Android (WebView sigue el locale del dispositivo), asi
+que no hace falta JNI para el caso pedido. La unica excepcion conocida es Android
+13+ con "idiomas por app" configurado para School Tracker: ahi el WebView puede
+reportar algo distinto al del sistema. Si alguna vez se nota, el enganche es un
+comando `gd_system_language` con `Locale.getDefault()` en `MainActivity.kt`,
+consultado antes del paso 2. No se hizo a proposito porque suma una funcion nativa
+en `gen/android` (commiteado a mano) por una diferencia casi inexistente.
+
+### Que se traduce y que no
+
+| Se traduce | NO se traduce |
+|---|---|
+| Labels, botones, titulos, placeholders | **Nombres de grado/seccion/asignatura/estudiante** (datos del usuario) |
+| Mensajes de error y toasts | **Valores de enum**: `tipoDesdeGrados === 'Primaria'`, `themeMode: 'claro'/'oscuro'/'sistema'`. Son claves que viajan a la BD y al resto de la app; solo se traduce la etiqueta visible |
+| Textos de los modales `ask()` | `console.warn` / `println!` (codigo y comentarios siguen en espanol, por convencion del repo) |
+| | **Encabezados de PDF/Excel** (`excel.ts`, `asistenciaPdf.ts`): un reporte en ingles para una direccion de colegio es raro. Si alguna vez se quiere, va con un toggle aparte |
+
+⚠️ Si el `value` de un `<option>` o de un boton activo es una clave de dominio
+(`'firefox'`, `'chrome'`), el `t()` NO se puede aplicar ahi. Para eso esta el mapa
+`CLAVE_I18N` en `BrowserPicker`: traduce solo la etiqueta y deja la clave intacta
+para el estado interno.
+
 ## Estructura
 ```
 package.json                 scripts npm (dev, build, tauri, dev:android, dev:win)

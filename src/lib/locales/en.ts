@@ -105,6 +105,31 @@ export const en: Record<Clave, string> = {
   'welcome.wizard.minimoElementos': 'You must add at least one item in each category.',
   'welcome.wizard.errorGuardando': 'Error saving data: {msg}',
   'welcome.wizard.volverBoton': '← Back',
+  'welcome.wizard.agregar': 'Add',
+  'welcome.wizard.siguiente': 'Next →',
+  'welcome.wizard.anterior': '← Previous',
+  'welcome.wizard.verDetalle': 'See technical details',
+  'welcome.wizard.tipo': 'School type',
+  'welcome.wizard.primaria': 'Primary',
+  'welcome.wizard.secundaria': 'Secondary',
+  'welcome.wizard.tipoAplicara1': 'Type that will be applied:',
+  'welcome.wizard.tipoAplicara2': '(detected from the selected grades).',
+  'welcome.wizard.hintGrados':
+    'Select the grades you will use. The school type is detected automatically: with a 7th grade or higher it becomes Secondary.',
+  'welcome.wizard.hintSecciones':
+    'Select the sections you will use. They are shared across all grades.',
+  'welcome.wizard.hintAsignaturas':
+    'Select the subjects you will use. Quantitative ones are graded with a number, qualitative ones with a label (AA/AS/AF/AI).',
+  'welcome.wizard.grupoCuantitativas': '📊 Quantitative',
+  'welcome.wizard.grupoCualitativas': '🏷️ Qualitative',
+  'welcome.wizard.sinColegios': 'You have not added any schools yet. Type one above and press "Add".',
+  'welcome.wizard.sinItems': 'You have not added {item} yet. Type one above and press "Add".',
+  'welcome.wizard.diasClases': 'Class days',
+  'welcome.wizard.asignaturasImparte': 'Subjects taught',
+  'welcome.wizard.seleccionaTodos': 'All',
+  'welcome.wizard.seccionTitle': 'Section {s}',
+  'welcome.wizard.phColegio': 'E.g. Central School',
+  'welcome.wizard.phAsignatura': 'E.g. History (if not in the list)',
 
   // ── Settings ─────────────────────────────────────────────────────────────
   'ajustes.titulo': 'Settings',

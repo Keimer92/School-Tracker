@@ -111,6 +111,31 @@ export const es = {
   'welcome.wizard.minimoElementos': 'Debes agregar al menos un elemento en cada categoría.',
   'welcome.wizard.errorGuardando': 'Error guardando datos: {msg}',
   'welcome.wizard.volverBoton': '← Volver',
+  'welcome.wizard.agregar': 'Agregar',
+  'welcome.wizard.siguiente': 'Siguiente →',
+  'welcome.wizard.anterior': '← Anterior',
+  'welcome.wizard.verDetalle': 'Ver detalle técnico',
+  'welcome.wizard.tipo': 'Tipo de colegio',
+  'welcome.wizard.primaria': 'Primaria',
+  'welcome.wizard.secundaria': 'Secundaria',
+  'welcome.wizard.tipoAplicara1': 'Tipo que se aplicará:',
+  'welcome.wizard.tipoAplicara2': '(detectado por los grados marcados).',
+  'welcome.wizard.hintGrados':
+    'Marca los grados que vas a usar. El tipo del colegio se deduce solo: con un grado de 7mo en adelante será Secundaria.',
+  'welcome.wizard.hintSecciones':
+    'Marca las secciones que vas a usar. Se comparten entre todos los grados.',
+  'welcome.wizard.hintAsignaturas':
+    'Marca las asignaturas que vas a usar. Las cuantitativas se anotan con número y las cualitativas con etiqueta (AA/AS/AF/AI).',
+  'welcome.wizard.grupoCuantitativas': '📊 Cuantitativas',
+  'welcome.wizard.grupoCualitativas': '🏷️ Cualitativas',
+  'welcome.wizard.sinColegios': 'Aún no has agregado colegios. Escribe uno arriba y pulsa "Agregar".',
+  'welcome.wizard.sinItems': 'Aún no has agregado {item}. Escribe uno arriba y pulsa "Agregar".',
+  'welcome.wizard.diasClases': 'Días de clases',
+  'welcome.wizard.asignaturasImparte': 'Asignaturas que imparte',
+  'welcome.wizard.seleccionaTodos': 'Todos',
+  'welcome.wizard.seccionTitle': 'Sección {s}',
+  'welcome.wizard.phColegio': 'Ej: Colegio Central',
+  'welcome.wizard.phAsignatura': 'Ej: Historia (si no está en la lista)',
 
   // ── Ajustes ──────────────────────────────────────────────────────────────
   'ajustes.titulo': 'Ajustes',

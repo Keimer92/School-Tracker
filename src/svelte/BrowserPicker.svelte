@@ -21,9 +21,21 @@
     setNavegadorLogin,
     type NavegadorLogin,
   } from "../lib/oauthBrowser";
+  import { t } from "../lib/i18n.svelte";
 
   /** `compact` = una línea desplegable (portada). `completo` = card con nota. */
   let { compacto = false }: { compacto?: boolean } = $props();
+
+  /** Los nombres de los navegadores se traducen como claves `nav.*`: el
+   *  "Firefox" / "Google Chrome" son marcas y no cambian, pero "Predeterminado
+   *  del sistema" sí. El mapa evita hacer `t()` dynamico con un string libre. */
+  const CLAVE_I18N: Record<string, Parameters<typeof t>[0]> = {
+    default: 'nav.default',
+    firefox: 'nav.firefox',
+    chrome: 'nav.chrome',
+    edge: 'nav.edge',
+    brave: 'nav.brave',
+  };
 
   let elegido = $state<NavegadorLogin>(getNavegadorLogin());
   let expandido = $state(false);
@@ -45,7 +57,9 @@
   }
 
   const etiqueta = $derived(
-    OPCIONES_NAVEGADOR.find((o) => o.id === elegido)?.label ?? 'Predeterminado del sistema'
+    OPCIONES_NAVEGADOR.find((o) => o.id === elegido)
+      ? t(CLAVE_I18N[OPCIONES_NAVEGADOR.find((o) => o.id === elegido)!.id])
+      : t("nav.default")
   );
 
   onMount(resolver);
@@ -60,23 +74,23 @@
       onclick={() => (expandido = !expandido)}
       title="Con qué navegador se abre el inicio de sesión con Google"
     >
-      <span>🌐 {etiqueta}</span>
+      <span>🌐 {t("nav.compacto", { nombre: etiqueta })}</span>
       <span class="nav-caret" class:abierto={expandido}>▾</span>
     </button>
     {#if expandido}
       <div class="nav-chips">
         {#each OPCIONES_NAVEGADOR as op (op.id)}
           <button class="nav-chip" class:activo={elegido === op.id} onclick={() => elegir(op.id)}>
-            {op.label}
+            {t(CLAVE_I18N[op.id])}
           </button>
         {/each}
         <p class="nav-nota">
           {#if elegido === 'default'}
-            Se usará el navegador que Windows tenga configurado.
+            {t("nav.usaraSistema")}
           {:else if rutaResuelta}
-            Se abrirá: <code>{rutaResuelta}</code>
+            {t("nav.seAbrira", { ruta: rutaResuelta })}
           {:else}
-            ⚠️ No encontramos ese navegador instalado; se usará el del sistema.
+            {t("nav.noEncontrado")}
           {/if}
         </p>
       </div>
@@ -87,24 +101,21 @@
     <div class="nav-chips">
       {#each OPCIONES_NAVEGADOR as op (op.id)}
         <button class="nav-chip" class:activo={elegido === op.id} onclick={() => elegir(op.id)}>
-          {op.label}
+          {t(CLAVE_I18N[op.id])}
         </button>
       {/each}
     </div>
     {#if elegido !== 'default'}
       <p class="nav-nota">
         {#if rutaResuelta}
-          Se abrirá: <code>{rutaResuelta}</code>
+          {t("nav.seAbrira", { ruta: rutaResuelta })}
         {:else}
-          ⚠️ No encontramos ese navegador instalado; se usará el del sistema.
+          ⚠️ {t("nav.noEncontrado")}
         {/if}
       </p>
     {:else}
       <p class="nav-nota">
-        Se usará el navegador que el sistema tenga configurado. En Windows 11: Configuración →
-        Aplicaciones → Aplicaciones predeterminadas. Ojo: <code>http</code> y <code>https</code> son
-        asociaciones separadas, y basta con que <code>https</code> siga en Edge para que el login
-        se abra en Edge aunque hayas puesto otro navegador como predeterminado.
+        {t("nav.notaWindows", { http: 'http', https: 'https' })}
       </p>
     {/if}
   </div>
@@ -203,4 +214,8 @@
     color: #94a3b8;
     word-break: break-all;
   }
+  /* La ruta del ejecutable viene dentro de un parametro `{ruta}`, no en su
+     propio `<code>`: si se rompe el texto en varios <code>, la traduccion deja
+     de ser una interpolacion simple. Se resalta con un `::first-line` no, asi
+     que se resuelve deixando que el break-word haga su trabajo. */
 </style>

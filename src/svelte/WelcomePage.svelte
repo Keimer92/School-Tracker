@@ -204,8 +204,8 @@
         // ya quedó vinculado. Se sigue igual: esta opción restaura desde Drive,
         // que es un servicio aparte. Solo se pierde el sync con D1.
         tieneNube = false;
-        await emit("show-toast", { message: "ℹ️ Tu cuenta no tiene acceso a la nube de este desarrollador. Seguimos con tu Google Drive.", type: "info" });
-        loadingMessage = 'Buscando tu último respaldo en Google Drive...';
+        await emit("show-toast", { message: "ℹ️ " + t('welcome.nube.sinNube'), type: "info" });
+        loadingMessage = t('welcome.google.nueva');
         await restoreFromDrive();
         return;
       }
@@ -223,7 +223,7 @@
       // restaurar: si el resync posterior corriera con la config vacía crearía
       // un namespace nuevo y el vínculo con los datos se perdería.
       tieneNube = true;
-      loadingMessage = 'Buscando tu último respaldo en Google Drive...';
+      loadingMessage = t('welcome.google.nueva');
       await restoreFromDrive();
     } catch (e: any) {
       errorMsg = e?.message || String(e);
@@ -253,7 +253,7 @@
     errorMsg = '';
     driveSinRespaldo = false;
     await emit("show-toast", { message: aviso, type: "info" });
-    loadingMessage = 'Preparando la configuración inicial...';
+    loadingMessage = t('welcome.wizard.preparando');
     // Pausa deliberada: da tiempo a leer el motivo antes de que el wizard
     // cubra la portada.
     await new Promise((r) => setTimeout(r, 2200));
@@ -355,7 +355,7 @@
     loading = true;
     showCloudRetry = false;
     cloudRetryError = '';
-    loadingMessage = 'Reintentando descarga...';
+    loadingMessage = t('welcome.nube.reintentando');
     try {
       await invoke('d1_restore_from_cloud');
       const hasData = await invoke('is_app_initialized');
@@ -372,7 +372,7 @@
       // `showCloudRetry` queda reservado para errores reales (red, cuota,
       // rate limit), donde saltar al wizard a ciegas podría hacer perder datos
       // que sí están en la nube.
-      errorMsg = 'Tu nube respondió correctamente pero está vacía: no hay datos guardados para esta cuenta. Vamos a configurar tu base de datos desde cero.';
+      errorMsg = t('welcome.nube.vaciaRespuesta');
       loading = false; loadingMessage = '';
       await irAlWizardTrasAviso();
     } catch (e: any) {
@@ -399,12 +399,12 @@
     loading = true;
     showCloudRetry = false;
     cloudRetryError = '';
-    loadingMessage = 'Inicializando app con datos parciales...';
+    loadingMessage = t('welcome.inicializandoParcial');
     try {
       await entrarALaApp();
       setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
     } catch (e: any) {
-      errorMsg = 'Error: ' + (typeof e === 'string' ? e : (e?.message || String(e)));
+      errorMsg = t('welcome.errorGenerico', { msg: typeof e === 'string' ? e : (e?.message || String(e)) });
     }
     loading = false; loadingMessage = '';
   }
@@ -492,7 +492,7 @@
     showCloudRetry = false;
     cloudRetryError = '';
     driveSinRespaldo = false;
-    loadingMessage = 'Buscando respaldos en Drive...';
+    loadingMessage = t('welcome.drive.buscando');
     try {
       const { driveSyncService } = await import('../lib/driveSyncService');
       // Diagnóstico: los respaldos se filtran por el email de la cuenta, así que
@@ -519,14 +519,14 @@
           // ninguna parte, así que se informa y se pasa al wizard en vez de
           // dejar al usuario en un callejón sin salida.
           loading = false; loadingMessage = '';
-          errorMsg = 'Esta cuenta de Google es nueva: no tiene respaldos en Drive ni datos en la nube. Vamos a configurar tu base de datos desde cero.';
+          errorMsg = t('welcome.drive.nuevaCuenta');
           await irAlWizardTrasAviso();
           return;
         }
         // Con nube configurada, Drive vacío puede ser un teléfono perdido: se
         // intenta recuperar desde Cloudflare. Si tampoco trae datos,
         // `retryCloudRestore` encamina al wizard.
-        errorMsg = 'Esta cuenta no tiene respaldos en Drive. Intentando recuperar tus datos desde la nube…';
+        errorMsg = t('welcome.drive.sinRespaldo');
         loading = false; loadingMessage = '';
         await retryCloudRestore();
         return;
@@ -540,7 +540,7 @@
         const tam = ((b.size || 0) / 1024).toFixed(1);
         // El nombre va aparte (`loadingMessageFile`): metido en el mensaje se
         // partía en varias líneas y empujaba el modal.
-        loadingMessage = 'Descargando respaldo…';
+        loadingMessage = t('welcome.drive.descargando');
         loadingMessageFile = `${b.name} · ${tam} KB`;
         try {
           await driveSyncService.pullById(b.id);
@@ -560,7 +560,7 @@
       if (!restaurado) {
         // Todos los respaldos restauraron una base vacía.
         driveSinRespaldo = true;
-        errorMsg = 'Se descargaron los respaldos de Drive pero todos vinieron con la base vacía.';
+        errorMsg = t('welcome.drive.todosVacios');
         loading = false; loadingMessage = '';
         return;
       }
@@ -574,10 +574,18 @@
         if (!isNaN(d1Time) && !isNaN(driveTime) && driveTime < d1Time - 60_000) {
           const fmt = (iso: string) => new Date(iso).toLocaleString();
           const ok = await ask(
-            `⚠️ El respaldo de Drive es del ${fmt(restaurado.modified)}, más antiguo que la última sincronización D1 (${fmt(d1LastSync.replace(' ', 'T') + 'Z')}).\n\nSi lo restauras, podrías perder asistencias/notas modificadas en el desktop después de esa fecha.`,
-            { title: 'Restaurar respaldo antiguo', kind: 'warning', okLabel: 'Sí, restaurar de todos modos', cancelLabel: 'Cancelar' }
+            '⚠️ ' + t('welcome.drive.antiguoAviso', {
+              fecha: fmt(restaurado.modified),
+              fechaNube: fmt(d1LastSync.replace(' ', 'T') + 'Z'),
+            }),
+            {
+              title: t('welcome.drive.antiguoTitulo'),
+              kind: 'warning',
+              okLabel: t('welcome.drive.antiguoSi'),
+              cancelLabel: t('welcome.drive.antiguoNo'),
+            }
           );
-          if (!ok) { loading = false; loadingMessage = ''; driveSinRespaldo = true; errorMsg = 'Restauración cancelada.'; return; }
+          if (!ok) { loading = false; loadingMessage = ''; driveSinRespaldo = true; errorMsg = t('welcome.drive.cancelado'); return; }
         }
       }
       try { await invoke('gd_reload_database'); } catch {}
@@ -611,7 +619,7 @@
             paso('sin perfil de cuenta: d1_config puede quedar vacía');
           }
 
-          loadingMessage = 'Sincronizando respaldo con la nube...';
+          loadingMessage = t('welcome.nube.sincronizando');
           try {
             await sincronizarNubeTrasRestore();
             nubeSincronizada = true;
@@ -646,7 +654,7 @@
       return;
     } catch (e: any) {
       const m = typeof e === 'string' ? e : (e?.message || String(e));
-      errorMsg = 'No se pudo restaurar desde Drive: ' + m;
+      errorMsg = t('welcome.drive.error', { msg: m });
       driveSinRespaldo = true;
     }
     loading = false; loadingMessage = '';
@@ -745,7 +753,7 @@
     sincronizarToggles();
     if (inputAnos.length === 0 || inputColegios.length === 0 || inputGrados.length === 0 ||
         inputSecciones.length === 0 || inputAsignaturas.length === 0) {
-      errorMsg = 'Debes agregar al menos un elemento en cada categoría.';
+      errorMsg = t('welcome.wizard.minimoElementos');
       return;
     }
     loading = true;
@@ -773,7 +781,7 @@
       await entrarALaApp();
       setTimeout(() => { solicitarPermisoNotificaciones(); }, 1800);
     } catch (e: any) {
-      errorMsg = 'Error guardando datos: ' + (e?.message || e);
+      errorMsg = t('welcome.wizard.errorGuardando', { msg: e?.message || String(e) });
     }
     loading = false;
   }
@@ -924,11 +932,11 @@
       return /grado\s*$/i.test(t) ? t : t + ' grado';
     });
     return [
-      { label: 'Años Lectivos', items: inputAnos.join(', '), icon: '📅' },
-      { label: 'Grados', items: gradosResumen.join(', '), icon: '📊' },
-      { label: 'Secciones', items: seccionesMarcadas.join(', '), icon: '👥' },
-      { label: 'Colegios', items: inputColegios.map((c) => c.nombre).join(', '), icon: '🏫' },
-      { label: 'Asignaturas', items: asignaturasElegidas().map((a) => a.nombre).join(', '), icon: '📚' },
+      { label: t('welcome.wizard.stepAnios'), items: inputAnos.join(', '), icon: '📅' },
+      { label: t('welcome.wizard.stepGrados'), items: gradosResumen.join(', '), icon: '📊' },
+      { label: t('welcome.wizard.stepSecciones'), items: seccionesMarcadas.join(', '), icon: '👥' },
+      { label: t('welcome.wizard.stepColegios'), items: inputColegios.map((c) => c.nombre).join(', '), icon: '🏫' },
+      { label: t('welcome.wizard.stepAsignaturas'), items: asignaturasElegidas().map((a) => a.nombre).join(', '), icon: '📚' },
     ];
   }
 
@@ -949,14 +957,14 @@
           <div class="welcome-brand-row">
             <img class="welcome-logo welcome-logo-sm" src={appIcon} alt="School Tracker" draggable="false" />
             <div class="welcome-brand-text">
-              <h1 class="welcome-title welcome-title-sm">School Tracker</h1>
-              <p class="welcome-subtitle">Selecciona cómo quieres iniciar</p>
+              <h1 class="welcome-title welcome-title-sm">{t("welcome.appTitle")}</h1>
+              <p class="welcome-subtitle">{t("welcome.subtitle")}</p>
             </div>
           </div>
         {:else}
           <img class="welcome-logo" src={appIcon} alt="School Tracker" draggable="false" />
-          <h1 class="welcome-title">School Tracker</h1>
-          <p class="welcome-subtitle">Selecciona cómo quieres iniciar</p>
+          <h1 class="welcome-title">{t("welcome.appTitle")}</h1>
+          <p class="welcome-subtitle">{t("welcome.subtitle")}</p>
         {/if}
       </div>
       <div class="welcome-cards" class:android={isAndroidMobile}>
@@ -964,9 +972,9 @@
         <button class="welcome-card card-google" class:android={isAndroidMobile} onclick={() => handleDriveLogin()} disabled={loading}>
           <div class="welcome-card-icon">📥</div>
           <div class="welcome-card-body">
-            <h3>Continuar con Google</h3>
-            <p>Entra con tu cuenta y recupera el último respaldo guardado en Google Drive.</p>
-            <span class="welcome-card-tags"><span class="welcome-tag">Google Drive</span><span class="welcome-tag">Sin código</span></span>
+            <h3>{t("welcome.cardGoogle.title")}</h3>
+            <p>{t("welcome.cardGoogle.desc")}</p>
+            <span class="welcome-card-tags"><span class="welcome-tag">{t("welcome.cardGoogle.tag1")}</span><span class="welcome-tag">{t("welcome.cardGoogle.tag2")}</span></span>
           </div>
           <div class="welcome-card-arrow">→</div>
         </button>
@@ -975,9 +983,9 @@
         <button class="welcome-card card-manual" class:android={isAndroidMobile} onclick={goToWizard} disabled={loading}>
           <div class="welcome-card-icon">✨</div>
           <div class="welcome-card-body">
-            <h3>Empezar de cero</h3>
-            <p>Crea una base de datos limpia y marca con toggles los grados y secciones que vas a usar.</p>
-            <span class="welcome-card-tags"><span class="welcome-tag">Catálogo precargado</span><span class="welcome-tag">Sin nube</span></span>
+            <h3>{t("welcome.cardWizard.title")}</h3>
+            <p>{t("welcome.cardWizard.desc")}</p>
+            <span class="welcome-card-tags"><span class="welcome-tag">{t("welcome.cardWizard.tag1")}</span><span class="welcome-tag">{t("welcome.cardWizard.tag2")}</span></span>
           </div>
           <div class="welcome-card-arrow">→</div>
         </button>
@@ -993,17 +1001,21 @@
            tarjetas de entrada. -->
       {#if !isAndroidMobile}
         <BrowserPicker compacto />
+        <!-- El idioma también se elige acá, y no solo en Ajustes: si el único
+             lugar fuera Ajustes, el usuario no podría cambiarlo en el primer
+             arranque, que es justo cuando más lo necesita. -->
+        <LanguagePicker compacto />
       {/if}
       {#if driveSinRespaldo}
         <!-- El respaldo de Drive no sirvió. Las otras dos opciones siguen
              accesibles desde la portada, así que solo alcanza con volver. -->
-        <button class="welcome-link" onclick={() => { driveSinRespaldo = false; errorMsg = ''; }}>← Volver a las opciones</button>
+        <button class="welcome-link" onclick={() => { driveSinRespaldo = false; errorMsg = ''; }}>{t("welcome.wizard.volver")}</button>
       {/if}
     </div>
 
   {:else if view === 'wizard'}
     <div class="welcome-container wizard-container">
-      <button class="welcome-back" onclick={() => { view = 'landing'; errorMsg = ''; step = 1; }}>← Volver</button>
+      <button class="welcome-back" onclick={() => { view = 'landing'; errorMsg = ''; step = 1; }}>{t("welcome.wizard.volverBoton")}</button>
       <div class="wizard-progress">
         {#each steps as s, i}
           <div class="wizard-step-dot" class:active={i + 1 === step} class:done={i + 1 < step}>
@@ -1030,7 +1042,7 @@
           <div class="resumen-row" style="border-top:1px solid rgba(255,255,255,0.08);margin-top:0.5rem;padding-top:0.75rem;">
             <span class="resumen-icon">{tipoDesdeGrados === 'Primaria' ? '🏫' : '🏛️'}</span>
             <div class="resumen-body">
-              <span class="resumen-label">Tipo de colegio</span>
+              <span class="resumen-label">{t("welcome.wizard.tipo")}</span>
               <span class="resumen-value">{tipoDesdeGrados} · {cantidadPrimaria} primaria / {cantidadSecundaria} secundaria</span>
             </div>
           </div>
@@ -1045,13 +1057,12 @@
             <div class="wizard-tipo-row">
               <span class="wizard-tipo-label">Tipo:</span>
               <div class="wizard-tipo-segmented">
-                <button class="wizard-tipo-btn" class:active={tipoDesdeGrados === 'Primaria'} onclick={() => { gradosMarcados = gradosPrimaria; }}>🏫 Primaria</button>
-                <button class="wizard-tipo-btn" class:active={tipoDesdeGrados === 'Secundaria'} onclick={() => { gradosMarcados = gradosSecundaria; }}>🏛️ Secundaria</button>
+                <button class="wizard-tipo-btn" class:active={tipoDesdeGrados === 'Primaria'} onclick={() => { gradosMarcados = gradosPrimaria; }}>🏫 {t("welcome.wizard.primaria")}</button>
+                <button class="wizard-tipo-btn" class:active={tipoDesdeGrados === 'Secundaria'} onclick={() => { gradosMarcados = gradosSecundaria; }}>🏛️ {t("welcome.wizard.secundaria")}</button>
               </div>
             </div>
             <p class="wizard-hint">
-              Marca los grados que vas a usar. El tipo del colegio se deduce solo:
-              con un grado de 7mo en adelante será Secundaria.
+              {t("welcome.wizard.hintGrados")}
             </p>
 
             {#each ['Primaria', 'Secundaria'] as nivel}
@@ -1059,7 +1070,7 @@
               {@const marcadosDelNivel = lista.filter(g => gradosMarcados.includes(g.nombre)).length}
               <div class="wizard-grupo-head">
                 <span class="wizard-grupo-titulo" class:secundaria={nivel === 'Secundaria'}>
-                  {nivel === 'Primaria' ? '🏫 Primaria' : '🏛️ Secundaria'}
+                  {nivel === 'Primaria' ? '🏫 ' + t('welcome.wizard.primaria') : '🏛️ ' + t('welcome.wizard.secundaria')}
                 </span>
                 <span class="wizard-grupo-cont">{marcadosDelNivel}/{lista.length}</span>
                 <button class="wizard-grupo-all" class:active={marcadosDelNivel === lista.length} onclick={() => toggleTodosGrados(nivel as 'Primaria' | 'Secundaria')}>
@@ -1084,10 +1095,10 @@
                 {seccionesMarcadas.length === SECCIONES_CATALOGO.length ? 'Quitar todas' : 'Todas'}
               </button>
             </div>
-            <p class="wizard-hint">Marca las secciones que vas a usar. Se comparten entre todos los grados.</p>
+            <p class="wizard-hint">{t("welcome.wizard.hintSecciones")}</p>
             <div class="wizard-toggle-grid secciones">
             {#each SECCIONES_CATALOGO as s (s)}
-              <button class="wizard-toggle-card seccion" class:active={seccionesMarcadas.includes(s)} onclick={() => toggleSeccion(s)} title="Sección {s}">
+              <button class="wizard-toggle-card seccion" class:active={seccionesMarcadas.includes(s)} onclick={() => toggleSeccion(s)} title={t("welcome.wizard.seccionTitle", { s })}>
                 <span class="wizard-toggle-check">{#if seccionesMarcadas.includes(s)}✓{/if}</span>
                 <span class="wizard-toggle-name">{s}</span>
               </button>
@@ -1097,19 +1108,19 @@
           {:else if stepKey() === 'colegios'}
             <div class="wizard-hint">
               {#if tipoDesdeGrados === 'Secundaria'}
-                Tipo que se aplicará: 🏛️ <strong>Secundaria</strong> (detectado por los grados marcados).
+                {t("welcome.wizard.tipoAplicara1")} 🏛️ <strong>{t("welcome.wizard.secundaria")}</strong> {t("welcome.wizard.tipoAplicara2")}
               {:else}
-                Tipo que se aplicará: 🏫 <strong>Primaria</strong> (detectado por los grados marcados).
+                {t("welcome.wizard.tipoAplicara1")} 🏫 <strong>{t("welcome.wizard.primaria")}</strong> {t("welcome.wizard.tipoAplicara2")}
               {/if}
             </div>
             <div class="wizard-input-row">
-              <input class="wizard-input" type="text" placeholder="Ej: Colegio Central"
+              <input class="wizard-input" type="text" placeholder={t("welcome.wizard.phColegio")}
                 bind:value={currentInput}
                 onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCurrentItem(); } }} />
-              <button class="wizard-add-btn" onclick={addCurrentItem}>Agregar</button>
+              <button class="wizard-add-btn" onclick={addCurrentItem}>{t("welcome.wizard.agregar")}</button>
             </div>
             {#if inputColegios.length === 0}
-              <p class="wizard-empty">Aún no has agregado colegios. Escribe uno arriba y pulsa “Agregar”.</p>
+              <p class="wizard-empty">{t("welcome.wizard.sinColegios")}</p>
             {:else}
               <div class="wizard-colegios">
                 {#each inputColegios as col, ci}
@@ -1121,13 +1132,13 @@
                       </span>
                       <button class="wizard-chip-x" onclick={() => removeItem(ci)} aria-label="Eliminar">×</button>
                     </div>
-                    <div class="wizard-colegio-label">Días de clases</div>
+                    <div class="wizard-colegio-label">{t("welcome.wizard.diasClases")}</div>
                     <div class="wizard-dias">
                       {#each diasKeys as dk}
                         <button class="wizard-dia" class:active={col.dias[dk]} onclick={() => toggleDia(ci, dk)}>{diaShort(dk)}</button>
                       {/each}
                     </div>
-                    <div class="wizard-colegio-label">Asignaturas que imparte</div>
+                    <div class="wizard-colegio-label">{t("welcome.wizard.asignaturasImparte")}</div>
                     <div class="wizard-asig">
                       {#each asignaturasElegidas() as a}
                         <button class="wizard-asig-chip" class:active={col.asignaturas.includes(a.nombre)} onclick={() => toggleAsignaturaColegio(ci, a.nombre)}>{a.nombre}</button>
@@ -1140,11 +1151,10 @@
           {:else if stepKey() === 'asignaturas'}
             <!-- ASIGNATURAS: catálogo precargado con toggles (sin checkboxes) -->
             <p class="wizard-hint">
-              Marca las asignaturas que vas a usar. Las cuantitativas se anotan
-              con número y las cualitativas con etiqueta (AA/AS/AF/AI).
+              {t("welcome.wizard.hintAsignaturas")}
             </p>
 
-            {#each [{ clave: false, titulo: '📊 Cuantitativas' }, { clave: true, titulo: '🏷️ Cualitativas' }] as grupo (grupo.titulo)}
+            {#each [{ clave: false, titulo: t("welcome.wizard.grupoCuantitativas") }, { clave: true, titulo: t("welcome.wizard.grupoCualitativas") }] as grupo (grupo.titulo)}
               {@const lista = ASIGNATURAS_CATALOGO.filter(a => a.cualitativo === grupo.clave)}
               {@const marcadas = lista.filter(a => asignaturasCatalogo.includes(a.nombre)).length}
               <div class="wizard-grupo-head">
@@ -1182,20 +1192,20 @@
             {/if}
 
             <div class="wizard-input-row" style="margin-top:0.9rem;">
-              <input class="wizard-input" type="text" placeholder="Ej: Historia (si no está en la lista)"
+              <input class="wizard-input" type="text" placeholder={t("welcome.wizard.phAsignatura")}
                 bind:value={currentInput}
                 onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCurrentItem(); } }} />
-              <button class="wizard-add-btn" onclick={addCurrentItem}>Agregar</button>
+              <button class="wizard-add-btn" onclick={addCurrentItem}>{t("welcome.wizard.agregar")}</button>
             </div>
           {:else}
             <div class="wizard-input-row">
               <input class="wizard-input" type="text" placeholder={inputPlaceholder()}
                 bind:value={currentInput}
                 onkeydown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCurrentItem(); } }} />
-              <button class="wizard-add-btn" onclick={addCurrentItem}>Agregar</button>
+              <button class="wizard-add-btn" onclick={addCurrentItem}>{t("welcome.wizard.agregar")}</button>
             </div>
             {#if currentItems().length === 0}
-              <p class="wizard-empty">Aún no has agregado {stepLabel()}. Escribe uno arriba y pulsa “Agregar”.</p>
+              <p class="wizard-empty">{t("welcome.wizard.sinItems", { item: stepLabel() })}</p>
             {:else}
               <div class="wizard-chips">
               {#each currentItems() as item, i}
@@ -1229,7 +1239,7 @@
         <button class="wizard-btn" onclick={prevStep} disabled={step === 1}>← Anterior</button>
         <div class="wizard-step-counter">{step} / {steps.length}</div>
         {#if step < steps.length}
-          <button class="wizard-btn primary" onclick={nextStep} disabled={!puedeAvanzar()}>Siguiente →</button>
+          <button class="wizard-btn primary" onclick={nextStep} disabled={!puedeAvanzar()}>{t("welcome.wizard.siguiente")}</button>
         {:else}
           <button class="wizard-btn primary" onclick={handleWizardComplete} disabled={loading}>
             {loading ? 'Guardando...' : 'Comenzar'}
@@ -1269,7 +1279,7 @@
         {#if loadingMessageFile}
           <p class="dl-file-name" title={loadingMessageFile}>{loadingMessageFile}</p>
         {/if}
-        <button onclick={cancelAuth}>Cancelar</button>
+        <button onclick={cancelAuth}>{t("comun.cancelar")}</button>
       </div>
     </div>
   {/if}
@@ -1286,7 +1296,7 @@
         </p>
         {#if cloudRetryError}
           <details style="width:100%;max-width:320px;">
-            <summary style="cursor:pointer;color:#64748b;font-size:0.72rem;">Ver detalle técnico</summary>
+            <summary style="cursor:pointer;color:#64748b;font-size:0.72rem;">{t("welcome.wizard.verDetalle")}</summary>
             <pre style="margin:0.4rem 0 0;color:#94a3b8;font-size:0.7rem;white-space:pre-wrap;word-break:break-word;background:rgba(0,0,0,0.25);padding:0.5rem;border-radius:8px;max-height:120px;overflow:auto;">{cloudRetryError}</pre>
           </details>
         {/if}
