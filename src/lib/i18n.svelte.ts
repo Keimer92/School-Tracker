@@ -143,6 +143,30 @@ export function cantidadLocales(): number {
   return Object.keys(DICCIONARIOS).length;
 }
 
+/**
+ * Tag BCP-47 del idioma activo, para `toLocaleDateString` y compañía.
+ *
+ * Antes los componentes hacían `toLocaleDateString('es-ES', ...)` con el locale
+ * fijo, y en modo inglés el día salía en español ("lunes"). Ahora las fechas
+ * siguen el idioma elegido.
+ *
+ * OJO: `getLocale()` lee el rune, así que llamarlo dentro de un `$derived` o de
+ * un método que se ejecuta durante el render mantiene la reactividad.
+ */
+export function tagLocale(): string {
+  return locale === 'en' ? 'en-US' : 'es-ES';
+}
+
+/**
+ * Fecha formateada en el idioma activo.
+ *
+ * Atajo de `new Date(...).toLocaleDateString(tagLocale(), opts)` para no
+ * repetir el `tagLocale()` en cada llamada dentro de los templates.
+ */
+export function fmtFecha(iso: string, opts: Intl.DateTimeFormatOptions): string {
+  return new Date(iso + 'T12:00:00').toLocaleDateString(tagLocale(), opts);
+}
+
 /** Aplica el idioma guardado al `<html lang>` al arrancar. */
 export function inicializarIdioma(): void {
   try {

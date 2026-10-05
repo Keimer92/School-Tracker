@@ -146,6 +146,7 @@ export const en: Record<Clave, string> = {
   'asis.col.asistencia': 'Attendance',
   'asis.col.observacion': 'Note',
   'asis.col.porcentajeMes': '% Month',
+  'asis.estudiantes': 'Students',
   'asis.cargando': 'Loading students…',
   'asis.limpiarBusqueda': 'Clear search',
   'asis.noClasesHoy': 'No classes this day',

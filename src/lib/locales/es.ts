@@ -152,6 +152,7 @@ export const es = {
   'asis.col.asistencia': 'Asistencia',
   'asis.col.observacion': 'Observación',
   'asis.col.porcentajeMes': '% Mes',
+  'asis.estudiantes': 'Estudiantes',
   'asis.cargando': 'Cargando estudiantes…',
   'asis.limpiarBusqueda': 'Limpiar búsqueda',
   'asis.noClasesHoy': 'No hubo clases este día',

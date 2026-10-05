@@ -9,7 +9,7 @@
   import { getLocalDateISOString } from "../lib/dateUtils";
   import { loadAppSettings, onAppSettingsChange } from "../lib/appSettings";
   import { primerColegio } from "../lib/catalogo";
-  import { t } from "../lib/i18n.svelte";
+  import { t, tagLocale, fmtFecha } from "../lib/i18n.svelte";
   import { ask } from "@tauri-apps/plugin-dialog";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
@@ -226,7 +226,7 @@ import { portalToBody } from "../lib/portalToBody";
     if (Number.isFinite(n) && n > 1900) anoSeleccionado = n;
   });
   let mesesOptions = $derived(Array.from({ length: 12 }, (_, i) => {
-    const raw = new Date(2000, i, 1).toLocaleDateString('es-ES', { month: 'long' });
+    const raw = new Date(2000, i, 1).toLocaleDateString(tagLocale(), { month: 'long' });
     return { value: i + 1, label: raw.charAt(0).toUpperCase() + raw.slice(1) };
   }));
 
@@ -2211,18 +2211,18 @@ $effect(() => {
             <div style="display:flex;align-items:center;gap:2px"><span style="color:#60a5fa;font-weight:bold;font-size:0.8rem">M:</span><span style="color:#fff;font-weight:bold;font-size:0.9rem">{totalM}</span></div>
           </div>
           <div style="display:flex;align-items:center;justify-content:space-around;gap:0.3rem;background:rgba(255,255,255,0.05);border-radius:8px;padding:0 0.3rem;flex:1;user-select:none">
-            <div onclick={() => handleCardClick('Total', { total: totalEstudiantes, m: totalM, f: totalF })} style="display:flex;align-items:center;gap:2px;cursor:pointer">
+            <div onclick={() => handleCardClick(t('asis.stats.total'), { total: totalEstudiantes, m: totalM, f: totalF })} style="display:flex;align-items:center;gap:2px;cursor:pointer">
               <span style="color:#06b6d4;font-weight:bold;font-size:0.8rem">E:</span><span style="color:#fff;font-weight:bold;font-size:0.9rem">{totalEstudiantes}</span>
             </div>
-            <div onclick={() => handleCardClick('Presentes', statsP)}
+            <div onclick={() => handleCardClick(t('asis.stats.presentes'), statsP)}
               style="display:flex;align-items:center;gap:2px;cursor:pointer">
               <span style="color:#10b981;font-weight:bold;font-size:0.8rem">P:</span><span style="color:#fff;font-weight:bold;font-size:0.9rem">{statsP.total}</span>
             </div>
-            <div onclick={() => handleCardClick('Ausentes', statsA)}
+            <div onclick={() => handleCardClick(t('asis.stats.ausentes'), statsA)}
               style="display:flex;align-items:center;gap:2px;cursor:pointer">
               <span style="color:#ef4444;font-weight:bold;font-size:0.8rem">A:</span><span style="color:#fff;font-weight:bold;font-size:0.9rem">{statsA.total}</span>
             </div>
-            <div onclick={() => handleCardClick('Justificados', statsJ)}
+            <div onclick={() => handleCardClick(t('asis.stats.justificados'), statsJ)}
               style="display:flex;align-items:center;gap:2px;cursor:pointer">
               <span style="color:#f59e0b;font-weight:bold;font-size:0.8rem">J:</span><span style="color:#fff;font-weight:bold;font-size:0.9rem">{statsJ.total}</span>
             </div>
@@ -2232,35 +2232,35 @@ $effect(() => {
 
       {#if !isAndroidMobile && filteredEstudiantes.length > 0}
         <div class="asist-summary-grid-mob" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0.4rem;margin:0.5rem 0;padding:0;width:100%;max-width:100%">
-          <div class="summary-card" onclick={() => handleCardClick('Total', { total: totalEstudiantes, m: totalM, f: totalF })}>
+          <div class="summary-card" onclick={() => handleCardClick(t('asis.stats.total'), { total: totalEstudiantes, m: totalM, f: totalF })}>
             <div class="card-accent" style="background:#06b6d4"></div>
             <span class="card-icon">📋</span>
             <span class="card-value">{totalEstudiantes}</span>
             <span class="card-label">{t('asis.stats.total')}</span>
             <div class="card-gender"><span class="gender-m">M:{totalM}</span><span class="gender-f">F:{totalF}</span></div>
           </div>
-          <div class="summary-card" onclick={() => handleCardClick('Presentes', statsP)}>
+          <div class="summary-card" onclick={() => handleCardClick(t('asis.stats.presentes'), statsP)}>
             <div class="card-accent" style="background:#10b981"></div>
             <span class="card-icon">✅</span>
             <span class="card-value">{statsP.total}</span>
             <span class="card-label">{t('asis.stats.presentes')}</span>
             <div class="card-gender"><span class="gender-m">M:{statsP.m}</span><span class="gender-f">F:{statsP.f}</span></div>
           </div>
-          <div class="summary-card" onclick={() => handleCardClick('Ausentes', statsA)}>
+          <div class="summary-card" onclick={() => handleCardClick(t('asis.stats.ausentes'), statsA)}>
             <div class="card-accent" style="background:#ef4444"></div>
             <span class="card-icon">❌</span>
             <span class="card-value">{statsA.total}</span>
             <span class="card-label">{t('asis.stats.ausentes')}</span>
             <div class="card-gender"><span class="gender-m">M:{statsA.m}</span><span class="gender-f">F:{statsA.f}</span></div>
           </div>
-          <div class="summary-card" onclick={() => handleCardClick('Justificados', statsJ)}>
+          <div class="summary-card" onclick={() => handleCardClick(t('asis.stats.justificados'), statsJ)}>
             <div class="card-accent" style="background:#f59e0b"></div>
             <span class="card-icon">⚠️</span>
             <span class="card-value">{statsJ.total}</span>
             <span class="card-label">{t('asis.stats.justificados')}</span>
             <div class="card-gender"><span class="gender-m">M:{statsJ.m}</span><span class="gender-f">F:{statsJ.f}</span></div>
           </div>
-          <div class="summary-card" onclick={() => handleCardClick('Asistencia', { total: asistenciaPct, m: 0, f: 0 })}>
+          <div class="summary-card" onclick={() => handleCardClick(t('asis.stats.asistencia'), { total: asistenciaPct, m: 0, f: 0 })}>
             <div class="card-accent" style="background:#8b5cf6"></div>
             <span class="card-icon">📊</span>
             <span class="pct-value" style="color:{asistenciaPct >= 90 ? '#10b981' : asistenciaPct >= 70 ? '#f59e0b' : '#ef4444'}">{asistenciaPct}%</span>
@@ -2272,29 +2272,29 @@ $effect(() => {
 
       <ScrollableTable>
         {#if loading}
-          <div class="loading-state">Cargando estudiantes...</div>
+          <div class="loading-state">{t('asis.cargando')}</div>
         {:else if !isFechaHabilitada && periodo === 'diario' && esDiaSinClases(selectedFecha)}
           {@const cov = coberturaSinClases(selectedFecha)}
           <div class="dsc-banner">
             <div class="dsc-icon">🚫</div>
             <div style="flex:1;min-width:0;text-align:left">
-              <h3 style="margin:0 0 .25rem;color:#fbbf24;font-size:1.05rem">No hubo clases este día</h3>
+              <h3 style="margin:0 0 .25rem;color:#fbbf24;font-size:1.05rem">{t('asis.noClasesHoy')}</h3>
               <p style="margin:0;color:#e2e8f0;font-size:.88rem;font-weight:600">{cov?.descripcion || 'Día marcado sin clases'}</p>
-              <p style="margin:.25rem 0 0;color:#94a3b8;font-size:.75rem;text-transform:capitalize">{new Date(selectedFecha + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+              <p style="margin:.25rem 0 0;color:#94a3b8;font-size:.75rem;text-transform:capitalize">{fmtFecha(selectedFecha, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
             </div>
-            <span class="dsc-badge">{cov?.grado_id === null ? '🏫 Todo el colegio' : '🚪 Esta sección'}</span>
+            <span class="dsc-badge">{cov?.grado_id === null ? t('asis.sinClases.badgeTodo') : t('asis.sinClases.badgeSeccion')}</span>
           </div>
         {:else if !isFechaHabilitada}
           <div style="padding:40px;text-align:center;background:rgba(239,68,68,0.1);border-radius:12px;border:1px dashed #ef4444;color:#ef4444">
-            <h3>📅 Día no laborable</h3>
-            <p>El colegio seleccionado no tiene habilitada la toma de asistencia para los días <strong>{new Date(selectedFecha + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'long' })}</strong>.</p>
+            <h3>{t('asis.diaNoLaborable')}</h3>
+            <p>{t('asis.diaNoLaborableDesc')} <strong>{fmtFecha(selectedFecha, { weekday: 'long' })}</strong>.</p>
           </div>
         {:else if filteredEstudiantes.length === 0}
           <div style="text-align:center;padding:5rem 2rem;border:2px dashed rgba(255,255,255,0.1);border-radius:16px;margin:0 1rem">
             <div style="font-size:3rem;margin-bottom:1rem">{searchTerm ? '🔍' : '📋'}</div>
             <h4 style="color:#cbd5e1;margin-bottom:0.5rem">{searchTerm ? 'No se encontraron resultados' : 'No hay estudiantes para mostrar'}</h4>
             <p style="color:#94a3b8;max-width:400px;margin:0 auto">{searchTerm ? `No se encontró ningún estudiante que coincida con "${searchTerm}"` : 'No se encontraron estudiantes para los filtros seleccionados.'}</p>
-            {#if searchTerm}<button class="secondary" onclick={() => searchTerm = ""} style="margin-top:1.5rem;padding:0.5rem 1rem">Limpiar búsqueda</button>{/if}
+            {#if searchTerm}<button class="secondary" onclick={() => searchTerm = ""} style="margin-top:1.5rem;padding:0.5rem 1rem">{t('asis.limpiarBusqueda')}</button>{/if}
           </div>
         {:else if isAndroidMobile}
           <div style="display:flex;flex-direction:column;gap:0.5rem;padding:0.4rem 0">
@@ -2309,13 +2309,13 @@ $effect(() => {
                   <!-- Sin <input type=radio>: el label reenvía un clic sintético al
                        input oculto que burbujeaba y disparaba el toggle dos veces -->
                   <label style="flex:1;height:36px;font-size:0.78rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:700;background:{est.estado === 'P' ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.05)'};border:{est.estado === 'P' ? '1px solid #10b981' : '1px solid rgba(255,255,255,0.1)'};color:{est.estado === 'P' ? '#10b981' : '#94a3b8'}" onclick={() => handleEstadoChange(est.id, 'P')}>
-                    <span>Presente</span>
+                    <span>{t('asis.estado.presente')}</span>
                   </label>
                   <label style="flex:1;height:36px;font-size:0.78rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:700;background:{est.estado === 'A' ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.05)'};border:{est.estado === 'A' ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.1)'};color:{est.estado === 'A' ? '#ef4444' : '#94a3b8'}" onclick={() => handleEstadoChange(est.id, 'A')}>
-                    <span>Ausente</span>
+                    <span>{t('asis.estado.ausente')}</span>
                   </label>
                   <label style="flex:1;height:36px;font-size:0.78rem;display:flex;align-items:center;justify-content:center;border-radius:8px;cursor:pointer;font-weight:700;background:{est.estado === 'J' ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.05)'};border:{est.estado === 'J' ? '1px solid #f59e0b' : '1px solid rgba(255,255,255,0.1)'};color:{est.estado === 'J' ? '#f59e0b' : '#94a3b8'}" onclick={() => handleEstadoChange(est.id, 'J')}>
-                    <span>Justificado</span>
+                    <span>{t('asis.estado.justificado')}</span>
                   </label>
                 </div>
                 <input type="text" placeholder="Observación..." value={est.observacion || ''} oninput={(e) => handleObservacionChange(est.id, (e.target as HTMLInputElement).value)}
@@ -2327,10 +2327,10 @@ $effect(() => {
           <table class="custom-table" style="width:100%;margin:0;overflow:visible;table-layout:fixed">
             <thead><tr>
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
-              <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10">Estudiante</th>
+              <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10">{t('asis.col.estudiante')}</th>
               <th style="width:310px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10">Asistencia</th>
-              <th style="width:140px;text-align:left;position:sticky;top:0;background:#1e293b;z-index:10">Observación</th>
-              <th style="width:60px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10">% Mes</th>
+              <th style="width:140px;text-align:left;position:sticky;top:0;background:#1e293b;z-index:10">{t('asis.col.observacion')}</th>
+              <th style="width:60px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10">{t('asis.col.porcentajeMes')}</th>
             </tr></thead>
             <tbody>
               {#each filteredEstudiantes as est, index (est.id)}
@@ -2346,9 +2346,9 @@ $effect(() => {
                   </td>
                   <td style="text-align:center">
                     <div style="display:flex;gap:6px;justify-content:center">
-                      <label class="asistencia-btn" class:p={est.estado === 'P'} onclick={() => handleEstadoChange(est.id, 'P')}>Presente</label>
-                      <label class="asistencia-btn" class:a={est.estado === 'A'} onclick={() => handleEstadoChange(est.id, 'A')}>Ausente</label>
-                      <label class="asistencia-btn" class:j={est.estado === 'J'} onclick={() => handleEstadoChange(est.id, 'J')}>Justificado</label>
+                      <label class="asistencia-btn" class:p={est.estado === 'P'} onclick={() => handleEstadoChange(est.id, 'P')}>{t('asis.estado.presente')}</label>
+                      <label class="asistencia-btn" class:a={est.estado === 'A'} onclick={() => handleEstadoChange(est.id, 'A')}>{t('asis.estado.ausente')}</label>
+                      <label class="asistencia-btn" class:j={est.estado === 'J'} onclick={() => handleEstadoChange(est.id, 'J')}>{t('asis.estado.justificado')}</label>
                     </div>
                   </td>
                   <td style="text-align:left;padding:0.1rem">
@@ -2376,7 +2376,7 @@ $effect(() => {
             <div style="display:flex;align-items:center;gap:2px"><span style="color:#60a5fa;font-weight:bold;font-size:0.8rem">M:</span><span style="color:#fff;font-weight:bold;font-size:0.9rem">{filteredEstudiantesMulti.filter(e => e.sexo === 'M').length}</span></div>
           </div>
           <div style="display:flex;align-items:center;justify-content:space-around;gap:0.3rem;background:rgba(255,255,255,0.05);border-radius:8px;padding:0 0.3rem;flex:1;user-select:none">
-            <div onclick={() => handleCardClick('Total', { total: filteredEstudiantesMulti.length, m: filteredEstudiantesMulti.filter(e => e.sexo === 'M').length, f: filteredEstudiantesMulti.filter(e => e.sexo === 'F').length })} style="display:flex;align-items:center;gap:2px;cursor:pointer">
+            <div onclick={() => handleCardClick(t('asis.stats.total'), { total: filteredEstudiantesMulti.length, m: filteredEstudiantesMulti.filter(e => e.sexo === 'M').length, f: filteredEstudiantesMulti.filter(e => e.sexo === 'F').length })} style="display:flex;align-items:center;gap:2px;cursor:pointer">
               <span style="color:#06b6d4;font-weight:bold;font-size:0.8rem">E:</span><span style="color:#fff;font-weight:bold;font-size:0.9rem">{filteredEstudiantesMulti.length}</span>
             </div>
             {#each ['P', 'A', 'J'] as estado}
@@ -2396,11 +2396,11 @@ $effect(() => {
         {@const totalFM = filteredEstudiantesMulti.filter(e => e.sexo === 'F').length}
         {@const pctMulti = totalPosibleMulti > 0 ? Math.round(getMultiStats('P').total / totalPosibleMulti * 100) : 0}
         <div class="asist-summary-grid-mob" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0.4rem;margin:0.5rem 0;padding:0;width:100%;max-width:100%">
-          <div class="summary-card" onclick={() => handleCardClick('Total', { total: filteredEstudiantesMulti.length, m: totalMM, f: totalFM })}>
+          <div class="summary-card" onclick={() => handleCardClick(t('asis.stats.total'), { total: filteredEstudiantesMulti.length, m: totalMM, f: totalFM })}>
             <div class="card-accent" style="background:#06b6d4"></div>
             <span class="card-icon">📋</span>
             <span class="card-value">{filteredEstudiantesMulti.length}</span>
-            <span class="card-label">Estudiantes</span>
+            <span class="card-label">{t('asis.estudiantes')}</span>
             <div class="card-gender"><span class="gender-m">M:{totalMM}</span><span class="gender-f">F:{totalFM}</span></div>
           </div>
           {#each ['P', 'A', 'J'] as estado}
@@ -2414,7 +2414,7 @@ $effect(() => {
               <div class="card-gender"><span class="gender-m">M:{st.m}</span><span class="gender-f">F:{st.f}</span></div>
             </div>
           {/each}
-          <div class="summary-card" onclick={() => handleCardClick('Asistencia', { total: pctMulti, m: 0, f: 0 })}>
+          <div class="summary-card" onclick={() => handleCardClick(t('asis.stats.asistencia'), { total: pctMulti, m: 0, f: 0 })}>
             <div class="card-accent" style="background:#8b5cf6"></div>
             <span class="card-icon">📊</span>
             <span class="pct-value" style="color:{pctMulti >= 90 ? '#10b981' : pctMulti >= 70 ? '#f59e0b' : '#ef4444'}">{pctMulti}%</span>
@@ -2426,10 +2426,10 @@ $effect(() => {
 
       <ScrollableTable>
         {#if loading}
-          <div class="loading-state">Cargando estudiantes...</div>
+          <div class="loading-state">{t('asis.cargando')}</div>
         {:else if fechasPeriodo.length === 0}
           <div style="padding:40px;text-align:center;background:rgba(239,68,68,0.1);border-radius:12px;border:1px dashed #ef4444;color:#ef4444">
-            <h3>📅 Sin días hábiles</h3>
+            <h3>{t('asis.sinDiasHabiles.titulo')}</h3>
             <p>No hay días hábiles configurados para el período seleccionado.</p>
           </div>
         {:else if filteredEstudiantesMulti.length === 0}
@@ -2437,7 +2437,7 @@ $effect(() => {
             <div style="font-size:3rem;margin-bottom:1rem">{searchTerm ? '🔍' : '📋'}</div>
             <h4 style="color:#cbd5e1;margin-bottom:0.5rem">{searchTerm ? 'No se encontraron resultados' : 'No hay estudiantes para mostrar'}</h4>
             <p style="color:#94a3b8;max-width:400px;margin:0 auto">{searchTerm ? `No se encontró ningún estudiante que coincida con "${searchTerm}"` : 'No se encontraron estudiantes para los filtros seleccionados.'}</p>
-            {#if searchTerm}<button class="secondary" onclick={() => searchTerm = ""} style="margin-top:1.5rem;padding:0.5rem 1rem">Limpiar búsqueda</button>{/if}
+            {#if searchTerm}<button class="secondary" onclick={() => searchTerm = ""} style="margin-top:1.5rem;padding:0.5rem 1rem">{t('asis.limpiarBusqueda')}</button>{/if}
           </div>
         {:else if isAndroidMobile && periodo === "semanal"}
           <div style="display:flex;flex-direction:column;gap:0.5rem;padding:0.4rem 0">
@@ -2450,7 +2450,7 @@ $effect(() => {
                 </div>
                 <div style="display:flex;gap:0.4rem;overflow-x:auto;padding-bottom:0.2rem">
                   {#each fechasPeriodo as fecha}
-                    {@const dayName = new Date(fecha + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short' }).replace('.','')}
+                    {@const dayName = fmtFecha(fecha, { weekday: 'short' }).replace('.','')}
                     {@const d = est.dias[fecha]}
                     {@const draftD = draftMulti[est.id]?.[fecha]}
                     {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
@@ -2485,7 +2485,7 @@ $effect(() => {
                     {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
                     <div class="mensual-chip" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
                       onclick={() => cicloEstado(est.id, fecha)}
-                      title={new Date(fecha + "T12:00:00").toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}>
+                      title={fmtFecha(fecha, { day: 'numeric', month: 'short' })}>
                       {new Date(fecha + "T12:00:00").getDate()}
                     </div>
                   {/each}
@@ -2497,13 +2497,13 @@ $effect(() => {
           <table class="custom-table" style="width:100%;margin:0;overflow:visible">
             <thead><tr>
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
-              <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;min-width:200px">Estudiante</th>
+              <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;min-width:200px">{t('asis.col.estudiante')}</th>
               {#each fechasVisibles as fv (fv.fecha)}
                 <th class:dsc-th={fv.sinClases} class:fch-th={true}
                   style="min-width:105px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;font-size:0.7rem;font-weight:600;padding:0.3rem 0.15rem"
                   title={fv.sinClases ? `${motivoSinClasesEn(fv.fecha)} — Click para reactivar clases` : 'Click para marcar este día sin clases'}
                   onclick={() => clickHeaderFecha(fv.fecha)}>
-                  {fv.sinClases ? '🚫 ' : ''}{new Date(fv.fecha + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }).replace('.','').replace(',','')}
+                  {fv.sinClases ? '🚫 ' : ''}{fmtFecha(fv.fecha, { weekday: 'short', day: 'numeric' }).replace('.','').replace(',','')}
                 </th>
               {/each}
             </tr></thead>
@@ -2561,7 +2561,7 @@ $effect(() => {
           <table class="custom-table" style="width:100%;margin:0;overflow:visible">
             <thead><tr>
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
-              <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;min-width:200px">Estudiante</th>
+              <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;min-width:200px">{t('asis.col.estudiante')}</th>
               {#each fechasVisibles as fv, iFecha (fv.fecha)}
                 <th class:dsc-th={fv.sinClases} class:fch-th={true} class:sep-semana={esInicioSemana(fv.fecha, iFecha)}
                   class:semana-hl={semanaHover !== null && numeroSemanaDe(fv.fecha) === semanaHover}
@@ -2573,7 +2573,7 @@ $effect(() => {
                   {#if esInicioSemana(fv.fecha, iFecha) && numeroSemanaDe(fv.fecha)}
                     <div class="semana-badge">S{numeroSemanaDe(fv.fecha)}</div>
                   {/if}
-                  <div style="font-size:0.6rem;opacity:0.7">{fv.sinClases ? '🚫 ' : ''}{new Date(fv.fecha + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short' })}</div>
+                  <div style="font-size:0.6rem;opacity:0.7">{fv.sinClases ? '🚫 ' : ''}{fmtFecha(fv.fecha, { weekday: 'short' })}</div>
                   {fv.fecha.split('-').slice(1).reverse().join('/')}
                 </th>
               {/each}
@@ -2624,7 +2624,7 @@ $effect(() => {
                         {:else}
                           <div class="ciclo-cell" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
                             onclick={() => cicloEstado(est.id, fv.fecha)}
-                            title={new Date(fv.fecha + "T12:00:00").toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }) + ': ' + (effectiveEstado === 'P' ? 'Presente' : effectiveEstado === 'A' ? 'Ausente' : effectiveEstado === 'J' ? 'Justificado' : 'Sin marcar')}>
+                            title={fmtFecha(fv.fecha, { day: 'numeric', month: 'short' }) + ': ' + (effectiveEstado === 'P' ? t('asis.estado.presente') : effectiveEstado === 'A' ? t('asis.estado.ausente') : effectiveEstado === 'J' ? t('asis.estado.justificado') : t('asis.estado.sinMarcar'))}>
                             {effectiveEstado ?? '-'}
                           </div>
                         {/if}

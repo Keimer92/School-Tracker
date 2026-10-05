@@ -25,7 +25,7 @@ build/
 src-tauri/gen/schemas/
 # Auto-generado por Tauri (NO commitear):
 src-tauri/gen/android/app/build/
-src-tauri/gen/android/app/src/main/java/com/keimer/gympro/generated/
+src-tauri/gen/android/app/src/main/java/com/keimer/schooltracker/generated/
 src-tauri/gen/android/app/tauri.build.gradle.kts
 src-tauri/gen/android/app/tauri.properties
 src-tauri/gen/android/app/proguard-tauri.pro
@@ -74,14 +74,6 @@ src-tauri/cargo_check_out.txt
 src-tauri/.code-runner-config.json
 # Artefactos de Windows que se colaron en el repo.
 *.pdb
-
-# --- whatsapp-engine: node_modules copiado, se regenera con npm install ---
-src-tauri/whatsapp-engine/
-
-# --- Datos sensibles / logs ---
-*.log
-whatsapp.log.txt
-KEIMER-LABS-*.txt
 
 # --- Sistema operativo ---
 .DS_Store
