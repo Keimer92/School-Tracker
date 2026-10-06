@@ -158,6 +158,7 @@ export const en: Record<Clave, string> = {
   'asis.vacio.titulo': 'No results found',
   'asis.vacio.tituloAlt': 'No students to show',
   'asis.vacio.desc': 'No students match the selected filters.',
+  'asis.vacio.busqueda': 'No student matches "{q}"',
   'asis.filtros.todas': 'All',
   'asis.filtros.ninguna': 'None',
   'asis.filtros.total': 'Total:',

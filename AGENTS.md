@@ -33,6 +33,10 @@ Idioma del código y comentarios: **español**. Mantener así.
 Infraestructura en `src/lib/i18n.svelte.ts` + diccionarios `src/lib/locales/es.ts`
 y `en.ts`. Picker en `src/svelte/LanguagePicker.svelte`.
 
+**El estado de avance (que paginas faltan) esta en `docs/I18N-PENDIENTES.md`**,
+con el script `docs/i18n-status.ps1` que lo recalcula. Ahi esta el checklist para
+traducir una pagina nueva y las decisiones de que NO se traduce.
+
 ### El tipado es la garantia, no un script
 
 `es.ts` es la fuente de verdad (`export type Clave = keyof typeof es`) y `en.ts`
@@ -83,6 +87,39 @@ en `gen/android` (commiteado a mano) por una diferencia casi inexistente.
 (`'firefox'`, `'chrome'`), el `t()` NO se puede aplicar ahi. Para eso esta el mapa
 `CLAVE_I18N` en `BrowserPicker`: traduce solo la etiqueta y deja la clave intacta
 para el estado interno.
+
+### Getters de i18n para listas y fechas (`i18n.svelte.ts`)
+
+`tagLocale()` devuelve el tag BCP-47 activo (`en-US` / `es-ES`) y `fmtFecha(iso, opts)`
+es un atajo de `toLocaleDateString(tagLocale(), opts)`. Existen porque los templates
+tenian `toLocaleDateString('es-ES', ...)` con el locale **hardcodeado**: en modo ingles
+el dia de la semana salia en espanol ("lunes"). Se aplica solo en el `render`, asi que
+`getLocale()` queda como dependencia reactiva y la fecha se re-formatea al cambiar el
+idioma.
+
+Para un listado de valores enumerados, `OPCIONES` es el patron: el array lleva el id de
+dominio, y una funcion traduce solo la etiqueta.
+
+### Trampas concretas al traducir una pagina
+
+- ⚠️ **Una variable local llamada `t` tapa la funcion `t()`.** En `AsistenciaPage` habia
+  tres `const t = ev.target as Node` en handlers de eventos. No rompia nada porque
+  dentro de esos scopes no se llamaba `t()`, pero es una bomba de relojería: el proximo
+  `t('clave')` en ese scope daria "t is not a function" y el error apuntaria a la linea
+  equivocada. Se renombraron a `nodo`. **Al meter `t()` en un archivo, buscar antes
+  `const t =` / `let t =` / `(t) =>`.**
+- ⚠️ **Las claves de dominio NO se traducen aunque "parezcan" texto.** En
+  `AsistenciaPage`, `dayNames = ['domingo','lunes',...]` indexa `colegioConfig`, que viene
+  de `colegio_dias_asistencia` (columnas `lunes`..`domingo`). Traducirlas rompe el filtro
+  de dias habiles en silencio. Lo mismo con `handleCardClick('Presentes', ...)`: ese `type`
+  era SOLO el titulo del modal, asi que ese si se pudo pasar ya traducido; la regla es
+  revisar que hace el valor antes de decidir.
+- ⚠️ **Los `console.warn`/`console.error` quedan en español** (convencion del repo: el
+  codigo esta en español). Solo se traducen los `emit('show-toast', ...)` y los textos de
+  los `ask()`.
+- Las abreviaturas de una letra en las tarjetas compactas de movil (`F:`, `M:`, `E:`,
+  `P:`, `A:`, `J:`) se dejaron como estan: son casi universales y la etiqueta completa ya
+  aparece en las tarjetas de escritorio. Traducirlas rompe el ancho de esa fila.
 
 ## Estructura
 ```

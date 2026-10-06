@@ -165,6 +165,7 @@ export const es = {
   'asis.vacio.titulo': 'No se encontraron resultados',
   'asis.vacio.tituloAlt': 'No hay estudiantes para mostrar',
   'asis.vacio.desc': 'No se encontraron estudiantes para los filtros seleccionados.',
+  'asis.vacio.busqueda': 'No se encontró ningún estudiante que coincida con "{q}"',
   'asis.filtros.todas': 'Todas',
   'asis.filtros.ninguna': 'Ninguna',
   'asis.filtros.total': 'Total:',

@@ -1200,7 +1200,7 @@ $effect(() => {
     // envían todas las fechas de la semana.
     const objetivos = obj.fechas;
     if (objetivos.length === 0) return;
-    const rangoTxt = objetivos.length === 1 ? objetivos[0].split('-').reverse().join('/') : `${objetivos[0].split('-').reverse().join('/')} al ${objetivos[objetivos.length - 1].split('-').reverse().join('/')}`;
+    const rangoTxt = objetivos.length === 1 ? objetivos[0].split('-').reverse().join('/') : `${objetivos[0].split('-').reverse().join('/')} ${t('asis.masivo.al')} ${objetivos[objetivos.length - 1].split('-').reverse().join('/')}`;
     const ok = await ask(
       t('asis.sinClases.reactivarTodosMsg', { rango: rangoTxt, n: colegios.length }),
       { title: t('asis.sinClases.reactivarTodos'), kind: 'info', okLabel: t('asis.sinClases.reactivarSi'), cancelLabel: t('comun.cancelar') }
@@ -2279,7 +2279,7 @@ $effect(() => {
             <div class="dsc-icon">🚫</div>
             <div style="flex:1;min-width:0;text-align:left">
               <h3 style="margin:0 0 .25rem;color:#fbbf24;font-size:1.05rem">{t('asis.noClasesHoy')}</h3>
-              <p style="margin:0;color:#e2e8f0;font-size:.88rem;font-weight:600">{cov?.descripcion || 'Día marcado sin clases'}</p>
+              <p style="margin:0;color:#e2e8f0;font-size:.88rem;font-weight:600">{cov?.descripcion || t('asis.sinClases.marcado')}</p>
               <p style="margin:.25rem 0 0;color:#94a3b8;font-size:.75rem;text-transform:capitalize">{fmtFecha(selectedFecha, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
             </div>
             <span class="dsc-badge">{cov?.grado_id === null ? t('asis.sinClases.badgeTodo') : t('asis.sinClases.badgeSeccion')}</span>
@@ -2292,8 +2292,8 @@ $effect(() => {
         {:else if filteredEstudiantes.length === 0}
           <div style="text-align:center;padding:5rem 2rem;border:2px dashed rgba(255,255,255,0.1);border-radius:16px;margin:0 1rem">
             <div style="font-size:3rem;margin-bottom:1rem">{searchTerm ? '🔍' : '📋'}</div>
-            <h4 style="color:#cbd5e1;margin-bottom:0.5rem">{searchTerm ? 'No se encontraron resultados' : 'No hay estudiantes para mostrar'}</h4>
-            <p style="color:#94a3b8;max-width:400px;margin:0 auto">{searchTerm ? `No se encontró ningún estudiante que coincida con "${searchTerm}"` : 'No se encontraron estudiantes para los filtros seleccionados.'}</p>
+            <h4 style="color:#cbd5e1;margin-bottom:0.5rem">{searchTerm ? t('asis.vacio.titulo') : t('asis.vacio.tituloAlt')}</h4>
+            <p style="color:#94a3b8;max-width:400px;margin:0 auto">{searchTerm ? t('asis.vacio.busqueda', { q: searchTerm }) : t('asis.vacio.desc')}</p>
             {#if searchTerm}<button class="secondary" onclick={() => searchTerm = ""} style="margin-top:1.5rem;padding:0.5rem 1rem">{t('asis.limpiarBusqueda')}</button>{/if}
           </div>
         {:else if isAndroidMobile}
@@ -2328,7 +2328,7 @@ $effect(() => {
             <thead><tr>
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
               <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10">{t('asis.col.estudiante')}</th>
-              <th style="width:310px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10">Asistencia</th>
+              <th style="width:310px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10">{t('asis.col.asistencia')}</th>
               <th style="width:140px;text-align:left;position:sticky;top:0;background:#1e293b;z-index:10">{t('asis.col.observacion')}</th>
               <th style="width:60px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10">{t('asis.col.porcentajeMes')}</th>
             </tr></thead>
@@ -2430,13 +2430,13 @@ $effect(() => {
         {:else if fechasPeriodo.length === 0}
           <div style="padding:40px;text-align:center;background:rgba(239,68,68,0.1);border-radius:12px;border:1px dashed #ef4444;color:#ef4444">
             <h3>{t('asis.sinDiasHabiles.titulo')}</h3>
-            <p>No hay días hábiles configurados para el período seleccionado.</p>
+            <p>{t('asis.sinDiasHabiles.desc')}</p>
           </div>
         {:else if filteredEstudiantesMulti.length === 0}
           <div style="text-align:center;padding:5rem 2rem;border:2px dashed rgba(255,255,255,0.1);border-radius:16px;margin:0 1rem">
             <div style="font-size:3rem;margin-bottom:1rem">{searchTerm ? '🔍' : '📋'}</div>
-            <h4 style="color:#cbd5e1;margin-bottom:0.5rem">{searchTerm ? 'No se encontraron resultados' : 'No hay estudiantes para mostrar'}</h4>
-            <p style="color:#94a3b8;max-width:400px;margin:0 auto">{searchTerm ? `No se encontró ningún estudiante que coincida con "${searchTerm}"` : 'No se encontraron estudiantes para los filtros seleccionados.'}</p>
+            <h4 style="color:#cbd5e1;margin-bottom:0.5rem">{searchTerm ? t('asis.vacio.titulo') : t('asis.vacio.tituloAlt')}</h4>
+            <p style="color:#94a3b8;max-width:400px;margin:0 auto">{searchTerm ? t('asis.vacio.busqueda', { q: searchTerm }) : t('asis.vacio.desc')}</p>
             {#if searchTerm}<button class="secondary" onclick={() => searchTerm = ""} style="margin-top:1.5rem;padding:0.5rem 1rem">{t('asis.limpiarBusqueda')}</button>{/if}
           </div>
         {:else if isAndroidMobile && periodo === "semanal"}
@@ -2748,9 +2748,9 @@ $effect(() => {
           {/if}
           <span style="flex:1; min-width:0; font-size:0.68rem; color:#94a3b8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{esLimpiar ? '¿Qué días limpiar?' : '¿Qué días marcar?'}</span>
           <button type="button" onclick={elegirTodasLasFechas} title="Seleccionar todos los días con pendientes"
-            style="flex-shrink:0; padding:0.2rem 0.35rem; border-radius:6px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.04); color:#cbd5e1; font-size:0.62rem; font-weight:600; cursor:pointer; font-family:inherit;">Todas</button>
+            style="flex-shrink:0; padding:0.2rem 0.35rem; border-radius:6px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.04); color:#cbd5e1; font-size:0.62rem; font-weight:600; cursor:pointer; font-family:inherit;">{t('asis.filtros.todas')}</button>
           <button type="button" onclick={elegirNinguna} title="Quitar la selección"
-            style="flex-shrink:0; padding:0.2rem 0.35rem; border-radius:6px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.04); color:#cbd5e1; font-size:0.62rem; font-weight:600; cursor:pointer; font-family:inherit;">Ninguna</button>
+            style="flex-shrink:0; padding:0.2rem 0.35rem; border-radius:6px; border:1px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.04); color:#cbd5e1; font-size:0.62rem; font-weight:600; cursor:pointer; font-family:inherit;">{t('asis.filtros.ninguna')}</button>
         </div>
 
         <!-- Días, agrupados por semana como las columnas de la tabla -->
@@ -2808,18 +2808,18 @@ $effect(() => {
         <h3 style="margin-top:0;color:var(--primary-color);font-size:1.2rem;margin-bottom:1rem">📊 {showSummaryModal.type}</h3>
         <div style="display:flex;flex-direction:column;gap:0.8rem">
           <div style="background:rgba(255,255,255,0.05);padding:0.8rem;border-radius:10px;display:flex;justify-content:space-between;align-items:center">
-            <span style="color:#94a3b8">Total:</span><span style="font-size:1.3rem;font-weight:bold;color:#fff">{showSummaryModal.stats?.total}</span>
+            <span style="color:#94a3b8">{t('asis.filtros.total')}</span><span style="font-size:1.3rem;font-weight:bold;color:#fff">{showSummaryModal.stats?.total}</span>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem">
             <div style="background:rgba(96,165,250,0.1);padding:0.8rem;border-radius:10px;display:flex;flex-direction:column;gap:2px">
-              <span style="color:#60a5fa;font-size:0.8rem">Masculino</span><span style="font-size:1.2rem;font-weight:bold;color:#60a5fa">{showSummaryModal.stats?.m}</span>
+              <span style="color:#60a5fa;font-size:0.8rem">{t('asis.filtros.masculino')}</span><span style="font-size:1.2rem;font-weight:bold;color:#60a5fa">{showSummaryModal.stats?.m}</span>
             </div>
             <div style="background:rgba(244,114,182,0.1);padding:0.8rem;border-radius:10px;display:flex;flex-direction:column;gap:2px">
-              <span style="color:#f472b6;font-size:0.8rem">Femenino</span><span style="font-size:1.2rem;font-weight:bold;color:#f472b6">{showSummaryModal.stats?.f}</span>
+              <span style="color:#f472b6;font-size:0.8rem">{t('asis.filtros.femenino')}</span><span style="font-size:1.2rem;font-weight:bold;color:#f472b6">{showSummaryModal.stats?.f}</span>
             </div>
           </div>
         </div>
-        <button class="primary" onclick={() => showSummaryModal = { ...showSummaryModal, show: false }} style="margin-top:1.5rem;width:100%">Cerrar</button>
+        <button class="primary" onclick={() => showSummaryModal = { ...showSummaryModal, show: false }} style="margin-top:1.5rem;width:100%">{t('comun.cerrar')}</button>
       </div>
     </div>
   {/if}
@@ -2832,7 +2832,7 @@ $effect(() => {
           <h3 style="margin:0.5rem 0;color:#fff;font-size:1.2rem">{selectedStudentDetail.nombre}</h3>
           <div style="display:inline-block;padding:0.3rem 0.8rem;border-radius:20px;background:{selectedStudentDetail.sexo === 'M' ? 'rgba(96,165,250,0.1)' : 'rgba(244,114,182,0.1)'};color:{selectedStudentDetail.sexo === 'M' ? '#60a5fa' : '#f472b6'};font-size:0.85rem;font-weight:600;margin-top:0.3rem">{selectedStudentDetail.sexo === 'M' ? 'Masculino' : 'Femenino'}</div>
         </div>
-        <button class="primary" onclick={() => selectedStudentDetail = null} style="margin-top:1rem;width:100%">Cerrar</button>
+        <button class="primary" onclick={() => selectedStudentDetail = null} style="margin-top:1rem;width:100%">{t('comun.cerrar')}</button>
       </div>
     </div>
   {/if}
@@ -2849,7 +2849,7 @@ $effect(() => {
           value={obsModalStudent.observacion || ''} placeholder="Escribe una observación..."
           oninput={(e) => { const v = (e.target as HTMLTextAreaElement).value; handleObservacionChange(obsModalStudent!.id, v); obsModalStudent = { ...obsModalStudent!, observacion: v }; }} />
         <div style="display:flex;gap:0.5rem;margin-top:1rem">
-          <button class="primary" onclick={() => obsModalStudent = null} style="flex:1">✓ Listo</button>
+          <button class="primary" onclick={() => obsModalStudent = null} style="flex:1">{t('asis.btn.listo')}</button>
           {#if obsModalStudent.observacion}
             <button onclick={() => { handleObservacionChange(obsModalStudent!.id, ''); obsModalStudent = null; }}
               style="background:rgba(239,68,68,0.2);border:1px solid #ef4444;border-radius:6px;padding:0.5rem 1rem;color:#ef4444;cursor:pointer">🗑️</button>
@@ -2871,17 +2871,17 @@ $effect(() => {
   >
     {#snippet extras()}
       <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
-        <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Período:</label>
+        <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('asis.periodo.etiqueta')}</label>
         <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px"
           value={periodo} onchange={(e) => periodo = (e.target as HTMLSelectElement).value as AsistenciaPeriodo}>
-          <option value="diario">Diario</option>
-          <option value="semanal">Semanal</option>
-          <option value="mensual">Mensual</option>
+          <option value="diario">{t('asis.periodo.diario')}</option>
+          <option value="semanal">{t('asis.periodo.semanal')}</option>
+          <option value="mensual">{t('asis.periodo.mensual')}</option>
         </select>
       </div>
       {#if periodo === "semanal"}
         <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
-          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Semana de:</label>
+          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('asis.periodo.semanaDe')}</label>
           <button type="button" class="filter-select filter-select-solid pop-trigger"
             onclick={() => { showFiltersModal = false; setTimeout(() => popSemanaAbierta = true, 50); }}
             style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px;text-align:left;cursor:pointer">
@@ -2891,7 +2891,7 @@ $effect(() => {
       {/if}
       {#if periodo === "mensual"}
         <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
-          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Mes:</label>
+          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('asis.periodo.mes')}</label>
           <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px;min-width:100px"
             value={mesSeleccionado} onchange={(e) => mesSeleccionado = Number((e.target as HTMLSelectElement).value)}>
             {#each mesesOptions as m}<option value={m.value}>{m.label}</option>{/each}
