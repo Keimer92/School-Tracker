@@ -1649,6 +1649,9 @@ fn traer_app_al_frente(app: &tauri::AppHandle, motivo: &str) {
         return;
     };
 
+    // `is_minimized`/`unminimize` no existen en Android: la app móvil no se minimiza
+    // como una ventana de escritorio.
+    #[cfg(not(target_os = "android"))]
     if win.is_minimized().unwrap_or(false) {
         let _ = win.unminimize();
     }
