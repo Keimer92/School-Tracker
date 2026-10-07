@@ -47,6 +47,6 @@ object AttendanceNative {
     private external fun nativeQueryAttendancePending(dbPath: String, fecha: String, filtrosJson: String): String
 
     init {
-        System.loadLibrary("school_tracker_pro_lib")
+        System.loadLibrary("school_tracker_lib")
     }
 }

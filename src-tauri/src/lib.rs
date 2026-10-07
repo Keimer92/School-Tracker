@@ -1034,13 +1034,22 @@ async fn gd_take_last_native_result() -> Result<Option<String>, String> {
     }
 }
 
-/// Función JNI invocada por `AttendanceNative` (Kotlin) cuando la app está
-/// cerrada y dispara la alarma de asistencia. Recibe la ruta de la BD, la
-/// fecha local y un JSON con los filtros, y devuelve el JSON de pendientes.
-/// La consulta SQL vive SOLO en Rust (`db::grados_secciones_sin_asistencia`).
+/// Función JNI invocada por `AttendanceNative.nativeQueryAttendancePending`
+/// (Kotlin) cuando la app está cerrada y dispara la alarma de asistencia.
+///
+/// El nombre del símbolo lo fija el `external fun` de Kotlin: JNI resuelve
+/// `Java_<paquete>_<clase>_<método>`, y el método declarado es
+/// `nativeQueryAttendancePending`, no `queryAttendancePending` (ése es el
+/// wrapper público no-external que llama a este). Con el nombre anterior la
+/// resolución fallaba en tiempo de ejecución con `UnsatisfiedLinkError` al
+/// primer intento de consultar los pendientes.
+///
+/// Recibe la ruta de la BD, la fecha local y un JSON con los filtros, y
+/// devuelve el JSON de pendientes. La consulta SQL vive SOLO en Rust
+/// (`db::grados_secciones_sin_asistencia`).
 #[cfg(target_os = "android")]
 #[no_mangle]
-pub extern "system" fn Java_com_keimer_schooltracker_AttendanceNative_queryAttendancePending(
+pub extern "system" fn Java_com_keimer_schooltracker_AttendanceNative_nativeQueryAttendancePending(
     mut env: jni::JNIEnv,
     _class: jni::objects::JClass,
     db_path: jni::sys::jstring,

@@ -64,7 +64,10 @@ class MainActivity : TauriActivity() {
     var pendingSyncOnConnect: Boolean = false
 
     init {
-      System.loadLibrary("school_tracker_pro_lib")
+      // Debe coincidir con `[lib] name` en src-tauri/Cargo.toml. El rename
+      // school-tracker-pro -> school-tracker (commit 23c58b6) cambió Cargo.toml
+      // pero no este archivo, y daba UnsatisfiedLinkError en <clinit> al abrir.
+      System.loadLibrary("school_tracker_lib")
     }
   }
 
