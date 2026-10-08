@@ -422,7 +422,7 @@
       await emit("show-toast", { message: t('cloud.toast.syncCompleta'), type: "success" });
     } catch (e) {
       console.error('[D1] sync manual falló:', e);
-      await emit("show-toast", { message: "❌ Error al sincronizar: " + mensajeError(e), type: "error" });
+      await emit("show-toast", { message: t('cloud.error.sync', { e: mensajeError(e) }), type: "error" });
     } finally { isD1Syncing = false; }
   }
 
@@ -517,7 +517,7 @@
       <h3>
         <span style="display: inline-flex; align-items: center; gap: 10px; background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%); padding: 0.5rem 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F6821F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 7.7l5.4-.8z"/></svg>
-          Cloudflare D1 <span style="font-size: 0.65rem; font-weight: 400; color: #64748b;">(Sync principal)</span>
+          Cloudflare D1 <span style="font-size: 0.65rem; font-weight: 400; color: #64748b;">({t('cloud.sync.subtitle')})</span>
         </span>
       </h3>
     </div>
@@ -536,33 +536,33 @@
           completo, Probar, Regenerar ID, Desconectar y el ajuste del intervalo.
         -->
         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-          <button onclick={syncD1} disabled={isD1Syncing} title="Sincronizar ahora"
+          <button onclick={syncD1} disabled={isD1Syncing} title={t('cloud.sync.title')}
             style="display: inline-flex; align-items: center; gap: 6px; padding: 0 0.85rem; height: 36px; border-radius: 9px; border: 1px solid rgba(246,130,31,0.25); background: rgba(246,130,31,0.08); color: #fdba74; cursor: pointer; opacity: {isD1Syncing ? 0.5 : 1}; transition: all 0.2s ease; font-size: 0.75rem; font-weight: 700;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F6821F" stroke-width="2" stroke-linecap="round" style="{isD1Syncing ? 'animation: spin 1s linear infinite;' : ''}"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
-            <span>{isD1Syncing ? 'Sincronizando' : 'Sincronizar'}</span>
+            <span>{isD1Syncing ? t('cloud.sync.btn.syncing') : t('cloud.sync.btn.sync')}</span>
           </button>
           <div style="display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1;">
             <span style="color: #94a3b8; font-size: 0.72rem;">
-              Última sync: <strong style="color: #e2e8f0;">{d1SyncState.lastSync ? new Date(d1SyncState.lastSync).toLocaleString('es-ES') : '—'}</strong>
+              {t('cloud.sync.ultima')} <strong style="color: #e2e8f0;">{d1SyncState.lastSync ? new Date(d1SyncState.lastSync).toLocaleString(tagLocale()) : '—'}</strong>
             </span>
-            <span style="color: #64748b; font-size: 0.68rem;">Automática en tiempo real y cada {SYNC_PERIODICO_MIN} min</span>
+            <span style="color: #64748b; font-size: 0.68rem;">{t('cloud.sync.auto', { n: SYNC_PERIODICO_MIN })}</span>
           </div>
         </div>
         {#if d1SyncState.status === 'error' && d1SyncState.message}
           <div style="margin-top: 0.85rem; padding: 0.9rem 1rem; background: rgba(15,23,42,0.55); border: 1px solid rgba(239,68,68,0.3); border-radius: 14px;">
             <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 0.75rem; color: #fca5a5; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700;">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              Error de sincronización
+              {t('cloud.errorSync.titulo')}
             </div>
             <p style="margin: 0; padding: 0.6rem 0.7rem; border-radius: 10px; background: rgba(239,68,68,0.1); color: #fecaca; font-size: 0.74rem; line-height: 1.5; border-left: 3px solid #ef4444; word-break: break-word;">{d1SyncState.message}</p>
             <div style="display: flex; gap: 6px; margin-top: 0.5rem;">
-              <button onclick={copiarD1Error} style="padding: 0.3rem 0.7rem; border-radius: 6px; border: 1px solid rgba(59,130,246,0.3); background: rgba(59,130,246,0.1); color: #93c5fd; cursor: pointer; font-size: 0.68rem; font-weight: 600;">📋 Copiar diagnóstico</button>
+              <button onclick={copiarD1Error} style="padding: 0.3rem 0.7rem; border-radius: 6px; border: 1px solid rgba(59,130,246,0.3); background: rgba(59,130,246,0.1); color: #93c5fd; cursor: pointer; font-size: 0.68rem; font-weight: 600;">{t('cloud.copiarDiagnostico')}</button>
             </div>
           </div>
         {/if}
       {:else}
         <p style="margin: 0; color: #64748b; font-size: 0.78rem; text-align: center; line-height: 1.5;">
-          La nube se configura sola al iniciar sesión con tu cuenta de Google.
+          {t('cloud.vacio')}
         </p>
       {/if}
     </div>
@@ -573,14 +573,14 @@
       <h3>
         <span style="display: inline-flex; align-items: center; gap: 10px; background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%); padding: 0.5rem 1rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M19 18H6a5 5 0 0 1 0-10h1.26a5.5 5.5 0 0 1 10.48 0H18a5 5 0 0 1 0 10z" stroke="url(#cloudGrad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><defs><linearGradient id="cloudGrad" x1="6" y1="8" x2="19" y2="18" gradientUnits="userSpaceOnUse"><stop stop-color="var(--primary-color)"/><stop offset="1" stop-color="#A78BFA"/></linearGradient></defs></svg>
-          Google Drive <span style="font-size: 0.65rem; font-weight: 400; color: #64748b;">(Respaldo automático)</span>
+          Google Drive <span style="font-size: 0.65rem; font-weight: 400; color: #64748b;">{t('cloud.driveSubtitulo')}</span>
         </span>
       </h3>
       {#if isConnected}
-        <button onclick={() => showDrivePopover = !showDrivePopover} title="Ver details del último respaldo"
+        <button onclick={() => showDrivePopover = !showDrivePopover} title={t('cloud.verDetails')}
           style="display: inline-flex; align-items: center; gap: 5px; padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #94a3b8; cursor: pointer; font-size: 0.7rem; flex-shrink: 0;">
           <span style="width: 6px; height: 6px; border-radius: 50%; background: {syncStatus.uploadProgress ? '#38bdf8' : driveUltimoRespaldo.when ? '#22c55e' : '#64748b'}; box-shadow: 0 0 6px {syncStatus.uploadProgress ? 'rgba(56,189,248,0.6)' : 'rgba(34,197,94,0.5)'};"></span>
-          {syncStatus.uploadProgress ? `${syncStatus.uploadProgress.pct}%` : fmtMomento(driveUltimoRespaldo.when).replace('Hoy ', '')}
+          {syncStatus.uploadProgress ? `${syncStatus.uploadProgress.pct}%` : fmtMomento(driveUltimoRespaldo.when).replace(t('cloud.hoy') + ' ', '')}
         </button>
       {/if}
     </div>
@@ -589,20 +589,20 @@
     {#if showDrivePopover && isConnected}
       <div style="margin: 0 1.5rem 1rem; padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(15,23,42,0.7), rgba(30,41,59,0.6)); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);">
         <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.6rem;">
-          <span style="font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; color: #94a3b8;">☁️ Último respaldo en Drive</span>
-          <button onclick={refreshFiles} disabled={isFetchingFiles} style="padding: 0.25rem 0.6rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-size: 0.68rem;">{isFetchingFiles ? 'Actualizando…' : '↻ Refrescar'}</button>
+          <span style="font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; color: #94a3b8;">{t('cloud.ultimoRespaldo')}</span>
+          <button onclick={refreshFiles} disabled={isFetchingFiles} style="padding: 0.25rem 0.6rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-size: 0.68rem;">{isFetchingFiles ? t('cloud.btn.actualizando') : t('cloud.btn.refrescar')}</button>
         </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.6rem;">
           <div style="padding: 0.5rem 0.6rem; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px;">
-            <div style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.4px; color: #64748b;">Momento</div>
+            <div style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.4px; color: #64748b;">{t('cloud.momento')}</div>
             <div style="font-size: 0.9rem; font-weight: 700; color: #e2e8f0; margin-top: 2px;">{fmtMomento(driveUltimoRespaldo.when)}</div>
           </div>
           <div style="padding: 0.5rem 0.6rem; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px;">
-            <div style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.4px; color: #64748b;">Enviado a la nube</div>
+            <div style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.4px; color: #64748b;">{t('cloud.enviado')}</div>
             <div style="font-size: 0.9rem; font-weight: 700; color: #e2e8f0; margin-top: 2px;">{driveUltimoRespaldo.bytes ? fmtBytes(driveUltimoRespaldo.bytes) : '—'}</div>
           </div>
           <div style="padding: 0.5rem 0.6rem; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; grid-column: 1 / -1;">
-            <div style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.4px; color: #64748b;">Archivo</div>
+            <div style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.4px; color: #64748b;">{t('cloud.archivo')}</div>
             <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{driveUltimoRespaldo.name || '—'}</div>
           </div>
         </div>
@@ -610,7 +610,7 @@
           {@const up = syncStatus.uploadProgress}
           <div style="margin-top: 0.7rem;">
             <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.68rem; color: #7dd3fc; margin-bottom: 0.3rem;">
-              <span>⇪ Subiendo a Drive…</span>
+              <span>{t('cloud.subiendo')}</span>
               <span style="font-family: monospace;">{fmtBytes(up.loaded)} / {fmtBytes(up.total)} · {up.pct}%</span>
             </div>
             <div style="height: 6px; border-radius: 3px; background: rgba(255,255,255,0.06); overflow: hidden;">
@@ -619,7 +619,7 @@
           </div>
         {/if}
         <p style="margin: 0.7rem 0 0; font-size: 0.66rem; color: #64748b; line-height: 1.45;">
-          El archivo <span style="color:#94a3b8;">_latest.db</span> se sobrescribe tras cada guardado (no crea copias nuevas); los demás son snapshots programados. Pulsa <span style="color:#94a3b8;">↻ Refrescar</span> para leer de Drive el momento y el tamaño reales.
+          {t('cloud.latestInfo')}
         </p>
       </div>
     {/if}
@@ -627,7 +627,7 @@
     <div style="padding: 0 1.5rem 1.5rem;">
       {#if syncStatus.status === 'error' && syncStatus.message}
         <div style="margin-bottom: 1rem; padding: 0.9rem 1rem; border-radius: 12px; border: 1px solid rgba(248,113,113,0.25); background: rgba(239,68,68,0.12); color: #fecaca; font-size: 0.8rem; line-height: 1.45;">
-          <div style="font-weight: 700; margin-bottom: 0.25rem;">⚠️ Error de sincronización</div>
+          <div style="font-weight: 700; margin-bottom: 0.25rem;">⚠️ {t('cloud.errorSync.titulo')}</div>
           <div>{syncStatus.message}</div>
         </div>
       {/if}
