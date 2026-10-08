@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
 import { markDirty, markAllDirty, markAllClean, hasDirtyTables } from './dirtyTracker';
 import { esAndroid, esLinux, esMacOS, esWindows } from './platform';
+import { t } from './i18n.svelte';
 
 const STORAGE_KEY = 'schooltracker-google-drive-settings';
 const SYNC_FILE_PREFIX = 'SchoolTracker_Sync';
@@ -109,7 +110,7 @@ class SyncManager {
   }
 
   async wrapSync(promise: Promise<any>, description: string) {
-    this.setState({ status: 'syncing', message: `Sincronizando ${description}...` });
+    this.setState({ status: 'syncing', message: t('drive.sync.syncing', { op: description }) });
     try {
       const result = await promise;
       this.setState({
@@ -122,7 +123,7 @@ class SyncManager {
     } catch (e: any) {
       this.setState({
         status: 'error',
-        message: `Error en ${description}: ${e?.message || e}`,
+        message: t('drive.sync.error', { op: description, e: String(e?.message || e) }),
       });
       throw e;
     }
@@ -506,7 +507,7 @@ async function downloadAndRestore(token: string, fileId: string): Promise<void> 
   const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!response.ok) throw new Error(`Error descargando: ${response.statusText}`);
+  if (!response.ok) throw new Error(t('drive.error.descargando', { e: response.statusText }));
 
   // Descarga en streaming con reporte de progreso (bytes vs Content-Length)
   syncManager.setState({ downloadProgress: { loaded: 0, total: 0, pct: 0 } });
@@ -542,12 +543,12 @@ async function downloadAndRestore(token: string, fileId: string): Promise<void> 
    * archivo tenga tamaño razonable y que empiece con la firma de SQLite.
    */
   if (blob.size < 4096) {
-    throw new Error(`El respaldo está vacío o truncado (${blob.size} bytes). No se restauró para no perder los datos locales.`);
+    throw new Error(t('drive.error.respaldoVacio', { bytes: blob.size }));
   }
   const cabecera = new Uint8Array(await blob.slice(0, 16).arrayBuffer());
   const firma = new TextDecoder().decode(cabecera);
   if (!firma.startsWith('SQLite format 3')) {
-    throw new Error('El archivo descargado de Drive no es una base de datos válida. No se restauró.');
+    throw new Error(t('drive.error.dbNoValida'));
   }
   // Copia de seguridad en TEMP (fuera de la carpeta de la app, que se pidió
   // dejar limpia) por si el restore resultara corrupto y hay que volver atrás.
@@ -560,7 +561,7 @@ async function downloadAndRestore(token: string, fileId: string): Promise<void> 
       const base64Data = result.includes(',') ? result.split(',')[1] : result;
       resolve(base64Data);
     };
-    reader.onerror = () => reject(new Error('Error leyendo blob'));
+    reader.onerror = () => reject(new Error(t('drive.error.leyendoBlob')));
     reader.readAsDataURL(blob);
   });
   const dbPath = await invoke<string>('get_db_path');
@@ -647,7 +648,7 @@ async function uploadDbFile(
       };
     }
     x.onload = () => resolve({ status: x.status });
-    x.onerror = () => reject(new Error('Network error'));
+    x.onerror = () => reject(new Error(t('drive.error.network')));
     x.send(multipartBody);
   });
 }
@@ -699,7 +700,7 @@ async function pushLatestBackup(): Promise<{ ok: boolean; reason?: string; creat
         res = await uploadDbFile(token, dbBase64, fileName, folderId, null, onProgress);
       }
       if (res.status < 200 || res.status >= 300) {
-        throw new Error(`HTTP ${res.status} al actualizar el respaldo en Drive`);
+        throw new Error(t('drive.error.actualizar', { status: res.status }));
       }
     } finally {
       syncManager.setState({ uploadProgress: null });
@@ -824,21 +825,21 @@ export const driveSyncService = {
    */
   pushAll: async (force: boolean = false): Promise<void> => {
     const token = await getValidToken();
-    if (!token) throw new Error('Google Drive no está vinculado');
+    if (!token) throw new Error(t('drive.error.noVinculado'));
     if (!navigator.onLine) {
-      syncManager.setState({ status: 'offline', message: 'Sin conexión' });
+      syncManager.setState({ status: 'offline', message: t('drive.error.sinConexion') });
       return;
     }
     await syncManager.wrapSync((async () => {
       const res = await pushLatestBackup();
       if (!res.ok) {
         throw new Error(
-          res.reason === 'offline' ? 'Sin conexión'
-            : res.reason === 'no_drive' ? 'Google Drive no está vinculado'
-            : 'No se pudo crear el respaldo'
+          res.reason === 'offline' ? t('drive.error.sinConexion')
+            : res.reason === 'no_drive' ? t('drive.error.noVinculado')
+            : t('drive.error.crearRespaldo')
         );
       }
-    })(), 'subir a Google Drive').finally(() => syncManager.setState({ uploadProgress: null }));
+    })(), t('drive.op.subir')).finally(() => syncManager.setState({ uploadProgress: null }));
   },
 
   pushAllSilent: async (force: boolean = false): Promise<void> => {
@@ -863,9 +864,9 @@ export const driveSyncService = {
 
   pullAll: async (): Promise<void> => {
     const token = await getValidToken();
-    if (!token) throw new Error('Google Drive no está vinculado');
+    if (!token) throw new Error(t('drive.error.noVinculado'));
     if (!navigator.onLine) {
-      syncManager.setState({ status: 'offline', message: 'Sin conexión' });
+      syncManager.setState({ status: 'offline', message: t('drive.error.sinConexion') });
       return;
     }
     await syncManager.wrapSync((async () => {
@@ -879,19 +880,19 @@ export const driveSyncService = {
       const newest = files.reduce((a, b) => recencyOf(b) >= recencyOf(a) ? b : a);
       await downloadAndRestore(token, newest.id);
       console.debug('[DriveSync] Archivo descargado y restaurado correctamente');
-    })(), 'descargar desde Google Drive');
+    })(), t('drive.op.descargar'));
   },
 
   pullById: async (fileId: string): Promise<void> => {
     const token = await getValidToken();
-    if (!token) throw new Error('Google Drive no está vinculado');
+    if (!token) throw new Error(t('drive.error.noVinculado'));
     if (!navigator.onLine) {
-      syncManager.setState({ status: 'offline', message: 'Sin conexión' });
+      syncManager.setState({ status: 'offline', message: t('drive.error.sinConexion') });
       return;
     }
     await syncManager.wrapSync((async () => {
       await downloadAndRestore(token, fileId);
-    })(), 'restaurar respaldo');
+    })(), t('drive.op.restaurar'));
   },
 
   pullAllSilent: async (): Promise<void> => {
@@ -985,7 +986,7 @@ export const driveSyncService = {
 
   testConnection: async (): Promise<{ ok: boolean; latency: number; error?: string }> => {
     const token = await getValidToken();
-    if (!token) return { ok: false, latency: 0, error: 'Google Drive no está vinculado' };
+    if (!token) return { ok: false, latency: 0, error: t('drive.error.noVinculado') };
     try {
       const start = performance.now();
       const response = await fetch('https://www.googleapis.com/drive/v3/files?pageSize=1', {
@@ -1001,7 +1002,7 @@ export const driveSyncService = {
 
   connectAndSetup: async (): Promise<{ ok: boolean; error?: string }> => {
     const token = await getValidToken();
-    if (!token) return { ok: false, error: 'No se pudo obtener token de acceso' };
+    if (!token) return { ok: false, error: t('drive.error.sinToken') };
     const test = await driveSyncService.testConnection();
     if (!test.ok) return { ok: false, error: test.error };
     markAllDirty();
@@ -1028,7 +1029,7 @@ export const driveSyncService = {
       syncManager.setState({
         lastSync: null, lastUpload: null, lastDownload: null,
       });
-    })(), 'eliminar datos remotos');
+    })(), t('drive.op.eliminar'));
   },
 
   disconnect: () => {

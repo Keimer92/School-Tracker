@@ -1369,6 +1369,23 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'cloud.btn.restaurar': 'Restaurar',
   'cloud.notaRespaldos': '💾 Se conservan 2 respaldos: el que se actualiza al guardar y el snapshot más reciente.',
   'cloud.ariaPaneles': 'Paneles de sincronización',
+  // ── Respaldo en Google Drive (driveSyncService) ──
+  'drive.error.descargando': 'Error descargando: {e}',
+  'drive.error.respaldoVacio': 'El respaldo está vacío o truncado ({bytes} bytes). No se restauró para no perder los datos locales.',
+  'drive.error.dbNoValida': 'El archivo descargado de Drive no es una base de datos válida. No se restauró.',
+  'drive.error.network': 'Error de red',
+  'drive.error.leyendoBlob': 'Error leyendo blob',
+  'drive.error.actualizar': 'HTTP {status} al actualizar el respaldo en Drive',
+  'drive.error.noVinculado': 'Google Drive no está vinculado',
+  'drive.error.sinConexion': 'Sin conexión',
+  'drive.error.crearRespaldo': 'No se pudo crear el respaldo',
+  'drive.error.sinToken': 'No se pudo obtener token de acceso',
+  'drive.op.subir': 'subir a Google Drive',
+  'drive.op.descargar': 'descargar desde Google Drive',
+  'drive.op.restaurar': 'restaurar respaldo',
+  'drive.op.eliminar': 'eliminar datos remotos',
+  'drive.sync.syncing': 'Sincronizando {op}...',
+  'drive.sync.error': 'Error en {op}: {e}',
 } as const;
 
 export type Clave = keyof typeof es;
