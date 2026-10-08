@@ -509,7 +509,7 @@
     </div>
   {/if}
 
-  <div class="cloud-cols" class:mobile={isAndroid} role="region" aria-label="Paneles de sincronización"
+  <div class="cloud-cols" class:mobile={isAndroid} role="region" aria-label={t('cloud.ariaPaneles')}
     ontouchstart={isAndroid ? onCloudTouchStart : undefined}
     ontouchend={isAndroid ? onCloudTouchEnd : undefined}>
   <div class="cloud-card" style={isAndroid && activeCloudTab !== 0 ? 'display:none;' : ''}>
@@ -636,13 +636,13 @@
         <!-- Not connected -->
         <div style="text-align: center; padding: 2rem 1rem;">
           <div style="font-size: 3rem; margin-bottom: 1rem;">☁️</div>
-          <h4 style="color: #e2e8f0; margin: 0 0 0.5rem 0;">Respaldo en Google Drive</h4>
-          <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 1.5rem;">Vincula tu cuenta de Google Drive para crear respaldos manuales de tu base de datos.</p>
+          <h4 style="color: #e2e8f0; margin: 0 0 0.5rem 0;">{t('cloud.driveTitulo')}</h4>
+          <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 1.5rem;">{t('cloud.driveDesc')}</p>
           {#if settings.clientId}
             {#if isAuthLoading}
               <div style="display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
                 <div style="padding: 0.8rem 2rem; background: linear-gradient(135deg, #4285F4, #34A853); border: none; color: white; border-radius: 12px; font-weight: 600; font-size: 1rem; opacity: 0.7; cursor: default;">
-                  Conectando...
+                  {t('cloud.conectando')}
                 </div>
                 {#if !isAndroid}
                   <!-- En escritorio el login ocurre en el NAVEGADOR DEL SISTEMA, no
@@ -651,22 +651,21 @@
                        que devuelve el servidor TCP local. Sin este aviso el usuario
                        cree que la app se colgó. -->
                   <p style="color: #94a3b8; font-size: 0.8rem; max-width: 340px; margin: 0; text-align: center;">
-                    🌐 Se abrió una ventana del navegador. Inicia sesión con Google
-                    ahí y esta pantalla continuará sola.
+                    {t('cloud.esperaNavegador')}
                   </p>
                 {/if}
                 <button onclick={cancelAuth} style="background: transparent; border: 1px solid rgba(239,68,68,0.35); color: #f87171; padding: 0.45rem 1.25rem; border-radius: 8px; cursor: pointer; font-size: 0.8rem; font-weight: 600; transition: all 0.2s;">
-                  Cancelar
+                  {t('comun.cancelar')}
                 </button>
               </div>
             {:else}
               <button onclick={() => initGoogleAuth()} style="padding: 0.8rem 2rem; background: linear-gradient(135deg, #4285F4, #34A853); border: none; color: white; border-radius: 12px; font-weight: 600; font-size: 1rem; cursor: pointer; box-shadow: 0 4px 16px rgba(66,133,244,0.3);">
-                🔗 Vincular Google Drive
+                {t('cloud.vincular')}
               </button>
             {/if}
           {:else}
             <div style="background: rgba(234,179,8,0.1); border: 1px solid rgba(234,179,8,0.2); border-radius: 8px; padding: 0.8rem; font-size: 0.8rem; color: #eab308; max-width: 400px; margin: 0 auto;">
-              ⚠️ No hay Client ID configurado. Define VITE_GOOGLE_CLIENT_ID en tu archivo .env
+              {t('cloud.noClientId')}
             </div>
           {/if}
         </div>
@@ -681,27 +680,27 @@
           {/if}
           <div style="flex: 1;">
             <div style="color: #f1f5f9; font-weight: 600; font-size: 0.85rem;">
-              {settings.googleUserName || 'Usuario de Google'}
+              {settings.googleUserName || t('cloud.userDefault')}
             </div>
             <div style="color: #64748b; font-size: 0.75rem;">
               {settings.googleUserEmail || ''}
               {#if driveUltimoRespaldo.when}
-                · Último respaldo: {fmtMomento(driveUltimoRespaldo.when)}{driveUltimoRespaldo.bytes ? ` · ${fmtBytes(driveUltimoRespaldo.bytes)}` : ''}
+                · {t('cloud.ultimoRespaldoCorto')} {fmtMomento(driveUltimoRespaldo.when)}{driveUltimoRespaldo.bytes ? ` · ${fmtBytes(driveUltimoRespaldo.bytes)}` : ''}
               {/if}
             </div>
           </div>
           {#if !isAndroid}
             <div style="display: flex; gap: 6px;">
-              <button onclick={testConnection} disabled={isTesting} style="padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #94a3b8; cursor: pointer; font-size: 0.7rem;">{isTesting ? '...' : 'Probar'}</button>
-              <button onclick={disconnect} style="padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); color: #f87171; cursor: pointer; font-size: 0.7rem;">Desconectar</button>
+              <button onclick={testConnection} disabled={isTesting} style="padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #94a3b8; cursor: pointer; font-size: 0.7rem;">{isTesting ? '...' : t('cloud.probar')}</button>
+              <button onclick={disconnect} style="padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); color: #f87171; cursor: pointer; font-size: 0.7rem;">{t('cloud.desconectar')}</button>
             </div>
           {/if}
         </div>
 
         {#if isAndroid}
           <div style="display: flex; gap: 0.5rem; margin: -0.5rem 0 1.25rem;">
-            <button onclick={testConnection} disabled={isTesting} style="flex: 1; padding: 0.55rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); color: #94a3b8; cursor: pointer; font-size: 0.85rem;">{isTesting ? 'Probando...' : 'Probar'}</button>
-            <button onclick={disconnect} style="flex: 1; padding: 0.55rem; border-radius: 10px; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); color: #f87171; cursor: pointer; font-size: 0.85rem;">Desconectar</button>
+            <button onclick={testConnection} disabled={isTesting} style="flex: 1; padding: 0.55rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); color: #94a3b8; cursor: pointer; font-size: 0.85rem;">{isTesting ? t('cloud.probando') : t('cloud.probar')}</button>
+            <button onclick={disconnect} style="flex: 1; padding: 0.55rem; border-radius: 10px; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); color: #f87171; cursor: pointer; font-size: 0.85rem;">{t('cloud.desconectar')}</button>
           </div>
         {/if}
 
@@ -717,7 +716,7 @@
               <div style="height: 100%; background: linear-gradient(90deg, var(--primary-color, #3b82f6), #a78bfa); border-radius: 4px; transition: width 0.2s ease; box-shadow: 0 0 12px rgba(59,130,246,0.35); width: {syncStatus.downloadProgress.pct}%;"></div>
             </div>
             <div style="display: flex; justify-content: space-between; margin-top: 4px; font-size: 0.7rem; color: #64748b;">
-              <span>Descargando base de datos</span>
+              <span>{t('cloud.descargando')}</span>
               <span>
                 {#if syncStatus.downloadProgress.total > 0}
                   {fmtBytes(syncStatus.downloadProgress.loaded)} / {fmtBytes(syncStatus.downloadProgress.total)} · {syncStatus.downloadProgress.pct}%
@@ -731,22 +730,22 @@
 
         <!-- Push button -->
         <div style="margin-bottom: 0.75rem;">
-          <button onclick={async () => { try { await driveSyncService.pushAll(); await refreshFiles(); } catch (e) { await emit("show-toast", { message: "❌ Error al crear respaldo: " + mensajeError(e), type: "error" }); } }} disabled={syncStatus.status === 'syncing'} title="Crea un respaldo con fecha y hora en Google Drive" style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(34,197,94,0.12) 0%, rgba(34,197,94,0.04) 100%); border: 1px solid rgba(34,197,94,0.2); border-radius: 12px; cursor: pointer; opacity: {syncStatus.status === 'syncing' ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;">
+          <button onclick={async () => { try { await driveSyncService.pushAll(); await refreshFiles(); } catch (e) { await emit("show-toast", { message: t('cloud.error.crearRespaldo', { e: mensajeError(e) }), type: "error" }); } }} disabled={syncStatus.status === 'syncing'} title={t('cloud.btn.crearTitle')} style="padding: 0.85rem 1rem; background: linear-gradient(135deg, rgba(34,197,94,0.12) 0%, rgba(34,197,94,0.04) 100%); border: 1px solid rgba(34,197,94,0.2); border-radius: 12px; cursor: pointer; opacity: {syncStatus.status === 'syncing' ? 0.5 : 1}; display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            <span style="color: #22c55e; font-weight: 600; font-size: 0.85rem;">Crear respaldo</span>
+            <span style="color: #22c55e; font-weight: 600; font-size: 0.85rem;">{t('cloud.btn.crear')}</span>
           </button>
         </div>
 
         <!-- Respaldo instantáneo tras cada guardado -->
-        <label style="display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.75rem; margin-bottom: 0.75rem; background: rgba(34,197,94,0.05); border: 1px solid rgba(34,197,94,0.15); border-radius: 12px; cursor: pointer; transition: all 0.2s ease;" title="Actualiza en Drive el archivo de respaldo cada vez que guardes notas, asistencia, estudiantes o cualquier catálogo. Los borrados van a la papelera de Drive, por eso se actualiza el mismo archivo en vez de crear uno nuevo.">
+        <label style="display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.75rem; margin-bottom: 0.75rem; background: rgba(34,197,94,0.05); border: 1px solid rgba(34,197,94,0.15); border-radius: 12px; cursor: pointer; transition: all 0.2s ease;" title={t('cloud.instantTitle')}>
           <span class="switch" style="margin: 0; flex-shrink: 0;">
             <input type="checkbox" checked={instantBackupOn} onchange={() => toggleInstantBackup()} />
             <span class="slider round" style="background: {instantBackupOn ? 'linear-gradient(135deg, #22c55e, #16a34a)' : 'rgba(255,255,255,0.12)'}; border-color: {instantBackupOn ? 'transparent' : 'rgba(255,255,255,0.18)'};"></span>
           </span>
           <span style="line-height: 1.25; min-width: 0;">
-            <span style="display: block; font-size: 0.8rem; color: #e2e8f0; font-weight: 600;">Respaldar con cada guardado</span>
+            <span style="display: block; font-size: 0.8rem; color: #e2e8f0; font-weight: 600;">{t('cloud.instantLabel')}</span>
             <span style="display: block; font-size: 0.68rem; color: {instantBackupOn ? '#22c55e' : '#94a3b8'};">
-              {instantBackupOn ? 'Se sube a Drive ~5 s después de guardar' : 'Desactivado: solo respaldos manuales'}
+              {instantBackupOn ? t('cloud.instantOnDesc') : t('cloud.instantOffDesc')}
             </span>
           </span>
         </label>
@@ -754,11 +753,11 @@
         <!-- Sync files -->
         <div>
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem;">
-            <h5 style="margin: 0; color: #e2e8f0; font-size: 0.85rem;">Respaldos en Drive {syncFiles.length > 0 ? `(${syncFiles.length})` : ''}</h5>
-            <button onclick={refreshFiles} disabled={isFetchingFiles} style="padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-size: 0.7rem;">{isFetchingFiles ? 'Cargando...' : '↻ Refrescar'}</button>
+            <h5 style="margin: 0; color: #e2e8f0; font-size: 0.85rem;">{t('cloud.respaldosTitulo')} {syncFiles.length > 0 ? `(${syncFiles.length})` : ''}</h5>
+            <button onclick={refreshFiles} disabled={isFetchingFiles} style="padding: 0.35rem 0.7rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-size: 0.7rem;">{isFetchingFiles ? t('cloud.cargando') : t('cloud.btn.refrescar')}</button>
           </div>
           {#if syncFiles.length === 0}
-            <div style="text-align: center; padding: 1.5rem; color: #64748b; font-size: 0.8rem;">No hay respaldos en Drive. Presiona "Crear respaldo" para subir el primero.</div>
+            <div style="text-align: center; padding: 1.5rem; color: #64748b; font-size: 0.8rem;">{t('cloud.sinRespaldos')}</div>
           {:else}
             <div style="display: flex; flex-direction: column; gap: 4px;">
               {#each syncFiles as file (file.id)}
@@ -768,19 +767,19 @@
                     <div style="display: flex; align-items: center; gap: 6px; color: #64748b; font-size: 0.65rem;">
                       <span>{fmtDate(file.modifiedTime || file.createdTime)} · {fmtSize(file.size)}</span>
                       {#if file.name.endsWith('_latest.db')}
-                        <span style="padding: 1px 6px; border-radius: 999px; background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.25); color: #4ade80; font-size: 0.6rem; font-weight: 600;">⚡ se actualiza al guardar</span>
+                        <span style="padding: 1px 6px; border-radius: 999px; background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.25); color: #4ade80; font-size: 0.6rem; font-weight: 600;">{t('cloud.chipLatest')}</span>
                       {/if}
                     </div>
                   </div>
                   <div style="display: flex; gap: 4px; flex-shrink: 0;">
-                    <button onclick={() => requestRestore(file)} style="padding: 0.3rem 0.55rem; border-radius: 5px; border: 1px solid rgba(var(--primary-rgb),0.3); background: rgba(var(--primary-rgb),0.1); color: var(--primary-color); cursor: pointer; font-size: 0.65rem;">Restaurar</button>
+                    <button onclick={() => requestRestore(file)} style="padding: 0.3rem 0.55rem; border-radius: 5px; border: 1px solid rgba(var(--primary-rgb),0.3); background: rgba(var(--primary-rgb),0.1); color: var(--primary-color); cursor: pointer; font-size: 0.65rem;">{t('cloud.btn.restaurar')}</button>
                     <button onclick={() => requestDelete(file)} style="padding: 0.3rem 0.55rem; border-radius: 5px; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); color: #f87171; cursor: pointer; font-size: 0.65rem;">🗑</button>
                   </div>
                 </div>
               {/each}
             </div>
             <div style="margin-top: 0.5rem; display: flex; align-items: center; gap: 6px; color: #64748b; font-size: 0.7rem;">
-              <span>💾 Se conservan 2 respaldos: el que se actualiza al guardar y el snapshot más reciente.</span>
+              <span>{t('cloud.notaRespaldos')}</span>
             </div>
           {/if}
         </div>
