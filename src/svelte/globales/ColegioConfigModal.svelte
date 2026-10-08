@@ -20,6 +20,7 @@
   import { ask } from "@tauri-apps/plugin-dialog";
   import { onDataChange } from "../../lib/autoSync";
   import { portalToBody } from "../../lib/portalToBody";
+  import { t } from "../../lib/i18n.svelte";
 
   export interface ColegioItem { id: number; nombre: string; cualitativo?: boolean; }
   interface AsignaturaItem { id: number; nombre: string; cualitativo?: boolean; }
@@ -33,12 +34,15 @@
   let { colegio = null, onClose }: { colegio?: ColegioItem | null; onClose?: () => void } = $props();
 
   const DIAS: Dia[] = ["lunes", "martes", "miercoles", "jueves", "viernes"];
-  const TABS = [
-    { id: "tipo", label: "🏫 Tipo" },
-    { id: "dias", label: "📅 Días" },
-    { id: "asignaturas", label: "📚 Asignaturas" },
-    { id: "grados", label: "📊 Grados" },
-  ] as const;
+  // `$derived` (no `const`): las etiquetas usan `t()` y deben re-traducirse al
+  // cambiar el idioma. OJO: el `each` de abajo NO puede llamarse `t` porque
+  // taparía la función de i18n.
+  const TABS = $derived([
+    { id: "tipo", label: t('ccm.tab.tipo') },
+    { id: "dias", label: t('ccm.tab.dias') },
+    { id: "asignaturas", label: t('ccm.tab.asignaturas') },
+    { id: "grados", label: t('ccm.tab.grados') },
+  ] as const);
   type TabId = typeof TABS[number]["id"];
 
   let tab = $state<TabId>("tipo");
@@ -125,8 +129,8 @@
   /** Cierra el modal; si hay cambios sin guardar, pregunta. */
   export function cerrar() {
     if (!hayCambios) { onClose?.(); return; }
-    ask("Hay cambios sin guardar en este modal.\n¿Descartarlos?", {
-      title: "Cambios sin guardar", kind: "warning", okLabel: "Descartar", cancelLabel: "Seguir editando",
+    ask(t('ccm.ask.cerrarMsg'), {
+      title: t('ccm.ask.cerrarTitulo'), kind: "warning", okLabel: t('ccm.ask.descartar'), cancelLabel: t('ccm.ask.seguirEditando'),
     }).then(ok => { if (ok) onClose?.(); });
   }
 
@@ -150,15 +154,15 @@
 
   async function guardarDias() {
     if (!dias || !colegio || !diasDirty) return;
-    if (!await ask(`¿Aplicar la configuración de días de "${colegio.nombre}"?`, { title: "Confirmar cambios", kind: "info", okLabel: "Guardar", cancelLabel: "Cancelar" })) return;
+    if (!await ask(t('ccm.ask.aplicarDias', { nombre: colegio.nombre }), { title: t('ccm.ask.confirmarTitulo'), kind: "info", okLabel: t('comun.guardar'), cancelLabel: t('comun.cancelar') })) return;
     saving = true;
     try {
       await invoke("save_colegio_dias_asistencia", { config: dias });
       diasOriginal = JSON.stringify(dias);
       onDataChange("colegio_dias_asistencia");
-      await emit("show-toast", { message: "✅ Configuración guardada", type: "success" });
+      await emit("show-toast", { message: t('ccm.toast.configGuardada'), type: "success" });
       await emit("catalog-updated");
-    } catch (e) { await emit("show-toast", { message: "❌ Error guardando configuración: " + e, type: "error" }); }
+    } catch (e) { await emit("show-toast", { message: t('ccm.toast.errorConfig', { e: String(e) }), type: "error" }); }
     finally { saving = false; }
   }
 
@@ -168,7 +172,7 @@
 
   async function guardarAsignaturas() {
     if (!colegio || !asignaturasDirty) return;
-    if (!await ask(`¿Aplicar las asignaturas de "${colegio.nombre}"?`, { title: "Confirmar cambios", kind: "info", okLabel: "Guardar", cancelLabel: "Cancelar" })) return;
+    if (!await ask(t('ccm.ask.aplicarAsig', { nombre: colegio.nombre }), { title: t('ccm.ask.confirmarTitulo'), kind: "info", okLabel: t('comun.guardar'), cancelLabel: t('comun.cancelar') })) return;
     saving = true;
     try {
       const prev: number[] = JSON.parse(asignadasOriginal);
@@ -192,16 +196,16 @@
       asignaturasCualOriginal = mapa;
       onDataChange("colegio_asignatura");
       if (tocoCualitativo) onDataChange("asignatura", { immediate: true });
-      await emit("show-toast", { message: "✅ Asignación guardada", type: "success" });
+      await emit("show-toast", { message: t('ccm.toast.asigGuardada'), type: "success" });
       await emit("subjects-updated");
       await emit("catalog-updated");
-    } catch (e) { await emit("show-toast", { message: "❌ Error al guardar asignación: " + e, type: "error" }); }
+    } catch (e) { await emit("show-toast", { message: t('ccm.toast.errorAsig', { e: String(e) }), type: "error" }); }
     finally { saving = false; }
   }
 
   async function guardarGrados() {
     if (!colegio || !gradosDirty) return;
-    if (!await ask(`¿Aplicar los grados de "${colegio.nombre}"?`, { title: "Confirmar cambios", kind: "info", okLabel: "Guardar", cancelLabel: "Cancelar" })) return;
+    if (!await ask(t('ccm.ask.aplicarGrados', { nombre: colegio.nombre }), { title: t('ccm.ask.confirmarTitulo'), kind: "info", okLabel: t('comun.guardar'), cancelLabel: t('comun.cancelar') })) return;
     saving = true;
     try {
       const act: Record<number, boolean> = {};
@@ -223,15 +227,15 @@
       gradosCualOriginal = cua;
       onDataChange("colegio_grado");
       if (tocoCualitativo) onDataChange("grado", { immediate: true });
-      await emit("show-toast", { message: "✅ Grados guardados", type: "success" });
+      await emit("show-toast", { message: t('ccm.toast.gradosGuardados'), type: "success" });
       await emit("catalog-updated");
-    } catch (e) { await emit("show-toast", { message: "❌ Error guardando grados: " + e, type: "error" }); }
+    } catch (e) { await emit("show-toast", { message: t('ccm.toast.errorGrados', { e: String(e) }), type: "error" }); }
     finally { saving = false; }
   }
 
   async function eliminarGrado(g: ColegioGrado) {
     if (!colegio) return;
-    if (!await ask(`¿Eliminar "${g.nombre}" de "${colegio.nombre}"?\n\nEl grado dejará de estar disponible en este colegio.`, { title: "Eliminar grado", kind: "warning", okLabel: "Eliminar", cancelLabel: "Cancelar" })) return;
+    if (!await ask(t('ccm.ask.eliminarGradoMsg', { grado: g.nombre, colegio: colegio.nombre }), { title: t('ccm.ask.eliminarGradoTitulo'), kind: "warning", okLabel: t('comun.eliminar'), cancelLabel: t('comun.cancelar') })) return;
     try {
       await invoke("delete_colegio_grado", { colegioId: colegio.id, gradoId: g.id });
       grados = grados.filter(x => x.id !== g.id);
@@ -242,8 +246,8 @@
       gradosCualOriginal = { ...gradosCualOriginal };
       onDataChange("colegio_grado");
       await emit("catalog-updated");
-      await emit("show-toast", { message: "🗑 Grado eliminado del colegio", type: "success" });
-    } catch (e) { await emit("show-toast", { message: "❌ Error eliminando grado: " + e, type: "error" }); }
+      await emit("show-toast", { message: t('ccm.toast.gradoEliminado'), type: "success" });
+    } catch (e) { await emit("show-toast", { message: t('ccm.toast.errorEliminarGrado', { e: String(e) }), type: "error" }); }
   }
 
   async function guardarTipo() {
@@ -253,8 +257,8 @@
       await invoke("update_colegio", { id: colegio.id, nombre: colegio.nombre, cualitativo: colegio.cualitativo || false, tipo });
       onDataChange("colegio");
       await emit("catalog-updated");
-      await emit("show-toast", { message: "✅ Tipo de colegio guardado", type: "success" });
-    } catch (e) { await emit("show-toast", { message: "❌ Error al guardar: " + e, type: "error" }); }
+      await emit("show-toast", { message: t('ccm.toast.tipoGuardado'), type: "success" });
+    } catch (e) { await emit("show-toast", { message: t('ccm.toast.errorGuardar', { e: String(e) }), type: "error" }); }
     finally { saving = false; }
   }
 
@@ -267,8 +271,8 @@
       await invoke("update_colegio", { id: colegio.id, nombre: nuevo, cualitativo: colegio.cualitativo || false, tipo });
       onDataChange("colegio");
       await emit("catalog-updated");
-      await emit("show-toast", { message: "✅ Nombre actualizado", type: "success" });
-    } catch (e) { await emit("show-toast", { message: "❌ Error al renombrar: " + e, type: "error" }); }
+      await emit("show-toast", { message: t('ccm.toast.nombreActualizado'), type: "success" });
+    } catch (e) { await emit("show-toast", { message: t('ccm.toast.errorRenombrar', { e: String(e) }), type: "error" }); }
     finally { saving = false; }
   }
 </script>
@@ -285,21 +289,21 @@
 
       <!-- Editar nombre -->
       <div style="display:flex;align-items:center;gap:0.5rem;padding:0.5rem 1rem;margin-top:0.5rem;">
-        <input bind:value={nombreEdit} placeholder="Nombre del colegio"
+        <input bind:value={nombreEdit} placeholder={t('ccm.ph.nombre')}
           style="flex:1;padding:0.45rem 0.7rem;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.06);color:#e2e8f0;font-size:0.85rem;outline:none;" />
         {#if nombreEdit !== colegio.nombre}
           <button onclick={guardarNombre} disabled={saving}
             style="padding:0.45rem 0.8rem;border-radius:8px;border:none;background:linear-gradient(135deg,#818cf8,#6366f1);color:white;font-weight:600;font-size:0.78rem;cursor:pointer;white-space:nowrap;">
-            {saving ? '...' : '💾 Renombrar'}
+            {saving ? '...' : t('ccm.btn.renombrar')}
           </button>
         {/if}
       </div>
 
       <!-- Segmented control -->
       <div style="display:flex;gap:4px;padding:6px;margin:0.5rem 1rem 0;background:rgba(255,255,255,0.04);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
-        {#each TABS as t}
-          <button onclick={() => tab = t.id}
-            style="flex:1;padding:0.45rem 0.5rem;border-radius:8px;border:none;font-size:0.78rem;font-weight:600;cursor:pointer;transition:all 0.2s;{tab === t.id ? 'background:linear-gradient(135deg,#34d399,#10b981);color:white;box-shadow:0 2px 8px rgba(52,211,153,0.3);' : 'background:transparent;color:#94a3b8;'}">{t.label}</button>
+        {#each TABS as pestania}
+          <button onclick={() => tab = pestania.id}
+            style="flex:1;padding:0.45rem 0.5rem;border-radius:8px;border:none;font-size:0.78rem;font-weight:600;cursor:pointer;transition:all 0.2s;{tab === t.id ? 'background:linear-gradient(135deg,#34d399,#10b981);color:white;box-shadow:0 2px 8px rgba(52,211,153,0.3);' : 'background:transparent;color:#94a3b8;'}">{pestania.label}</button>
         {/each}
       </div>
 
