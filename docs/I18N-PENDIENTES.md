@@ -26,61 +26,62 @@ powershell -File docs\i18n-status.ps1
 
 | | Archivos | Textos |
 |---|---|---|
-| **Traducido** | 8 | ~379 |
-| **Pendiente** | 40 | ~545 |
+| **Traducido** | 9 | ~424 |
+| **Pendiente** | 38 | ~471 |
 
 Traducidos: `WelcomePage`, `AjustesPage`, `AsistenciaPage`, `NotasPage`,
-`EstudiantesPage`, `ConfirmDialog`, `BrowserPicker`, `LanguagePicker`
-(+ `main.ts` para el arranque del idioma).
+`EstudiantesPage`, `ConfiguracionPage` (+ `CategoryTabContent`, que ya no
+aparece en el listado porque quedó sin textos sueltos), `ConfirmDialog`,
+`BrowserPicker`, `LanguagePicker` (+ `main.ts` para el arranque del idioma).
 
-Del total pendiente, ~430 están en páginas `.svelte` (lo que el usuario ve) y
-~115 en servicios `.ts` (mayormente `show-toast`).
+Del total pendiente, ~360 están en páginas `.svelte` (lo que el usuario ve) y
+~110 en servicios `.ts` (mayormente `show-toast`).
 
 ## Pendientes, por impacto
 
-Ordenado por cantidad de textos. Las tres primeras son el grueso del trabajo
-y las que el usuario usa todos los días.
+Ordenado por cantidad de textos. Las dos primeras son el grueso del trabajo
+que queda y las que el usuario usa todos los días.
 
 | # | Archivo | Textos | Líneas | Nota |
 |---|---|---|---|---|
-| 1 | `src/svelte/ConfiguracionPage.svelte` | ~67 | 496 | Configuración de catálogos |
-| 2 | `src/svelte/InformePage.svelte` | ~65 | 1341 | Informe de asistencia |
-| 3 | `src/svelte/ReportesPage.svelte` | ~54 | 1453 | Reportes de notas |
-| 4 | `src/lib/driveSyncService.ts` | ~34 | 1092 | Avisos de respaldo Drive |
-| 5 | `src/svelte/EvaluacionesPage.svelte` | ~25 | 515 | Indicadores y criterios |
-| 6 | `src/lib/cloudLogin.ts` | ~24 | 430 | Mensajes de login |
-| 7 | `src/svelte/DashboardPage.svelte` | ~20 | 514 | |
-| 8 | `src/svelte/CloudPage.svelte` | ~20 | 844 | Nube / respaldos |
-| 9 | `src/lib/excel.ts` | ~19 | 489 | ⚠️ Ver nota abajo |
-| 10 | `src/svelte/GoogleDriveBackup.svelte` | ~18 | 390 | Legacy, no se monta |
-| 11 | `src/svelte/ajustes/DebugPage.svelte` | ~16 | 594 | |
-| 12 | `src/svelte/globales/ColegioConfigModal.svelte` | ~16 | 468 | |
-| 13 | `src/svelte/AccountPage.svelte` | ~16 | 407 | |
-| 14 | `src/svelte/Sidebar.svelte` | ~12 | 184 | |
-| 15 | `src/lib/instrumentosPdf.ts` | ~12 | 294 | ⚠️ Encabezados de PDF |
-| 16 | `src/lib/deviceHandover.ts` | ~11 | 121 | |
-| 17 | `src/lib/wsSyncService.ts` | ~10 | 230 | Avisos de sync |
-| 18 | `src/svelte/FiltersModalAndroid.svelte` | ~10 | 187 | Modal de filtros en Android |
-| 19 | `src/svelte/ajustes/InfoPage.svelte` | ~10 | 199 | |
-| 20 | `src/App.svelte` | ~9 | 584 | Shell, tabs |
-| 21 | `src/lib/driveAutoBackup.ts` | ~9 | 445 | |
-| 22 | `src/svelte/CloudCards.svelte` | ~8 | 541 | |
+| 1 | `src/svelte/InformePage.svelte` | ~65 | 1341 | Informe de asistencia |
+| 2 | `src/svelte/ReportesPage.svelte` | ~54 | 1453 | Reportes de notas |
+| 3 | `src/lib/driveSyncService.ts` | ~34 | 1092 | Avisos de respaldo Drive |
+| 4 | `src/svelte/EvaluacionesPage.svelte` | ~25 | 515 | Indicadores y criterios |
+| 5 | `src/lib/cloudLogin.ts` | ~24 | 430 | Mensajes de login |
+| 6 | `src/svelte/DashboardPage.svelte` | ~20 | 514 | |
+| 7 | `src/svelte/CloudPage.svelte` | ~20 | 844 | Nube / respaldos |
+| 8 | `src/lib/excel.ts` | ~19 | 489 | ⚠️ Ver nota abajo |
+| 9 | `src/svelte/GoogleDriveBackup.svelte` | ~18 | 390 | Legacy, no se monta |
+| 10 | `src/svelte/ajustes/DebugPage.svelte` | ~16 | 594 | |
+| 11 | `src/svelte/globales/ColegioConfigModal.svelte` | ~16 | 468 | |
+| 12 | `src/svelte/AccountPage.svelte` | ~16 | 407 | |
+| 13 | `src/svelte/Sidebar.svelte` | ~12 | 184 | |
+| 14 | `src/lib/instrumentosPdf.ts` | ~12 | 294 | ⚠️ Encabezados de PDF |
+| 15 | `src/lib/deviceHandover.ts` | ~11 | 121 | |
+| 16 | `src/lib/wsSyncService.ts` | ~10 | 230 | Avisos de sync |
+| 17 | `src/svelte/FiltersModalAndroid.svelte` | ~10 | 187 | Modal de filtros en Android |
+| 18 | `src/svelte/ajustes/InfoPage.svelte` | ~10 | 199 | |
+| 19 | `src/App.svelte` | ~9 | 584 | Shell, tabs |
+| 20 | `src/lib/driveAutoBackup.ts` | ~9 | 445 | |
+| 21 | `src/svelte/CloudCards.svelte` | ~8 | 541 | |
+| 22 | `src/svelte/notificaciones/NotificacionesPage.svelte` | ~7 | 633 | Solo Android |
 | 23 | `src/lib/d1SyncService.ts` | ~7 | 380 | Avisos de sync |
-| 24 | `src/svelte/notificaciones/NotificacionesPage.svelte` | ~7 | 633 | Solo Android |
-| 25 | `src/svelte/CategoryTabContent.svelte` | ~7 | 749 | Genérico de configuración |
-| 26 | `src/lib/botones.ts` | ~6 | 51 | |
-| 27 | `src/svelte/globales/CalificacionesConfig.svelte` | ~6 | 142 | |
-| 28 | `src/svelte/globales/MultiplicadoresConfig.svelte` | ~5 | 116 | |
-| 29 | `src/svelte/globales/GradoConfigModal.svelte` | ~3 | 146 | |
-| 30 | `src/lib/driveInstantBackup.ts` | ~3 | 223 | |
-| 31 | `src/svelte/SearchInput.svelte` | ~3 | 39 | Placeholder |
-| 32 | `src/svelte/AndroidDrawer.svelte` | ~3 | 235 | |
-| 33 | `src/svelte/asistencia/AsistenciaMainPage.svelte` | ~2 | 223 | Wrapper de sub-tabs |
-| 34 | `src/svelte/FilterSelect.svelte` | ~2 | 29 | Genérico |
-| 35 | `src/lib/instrumentosExcel.ts` | ~1 | 299 | ⚠️ Hoja/encabezado de Excel |
-| 36 | `src/svelte/notas/NotasMainPage.svelte` | ~1 | 230 | Wrapper de sub-tabs |
-| 37 | `src/svelte/DatePickerGlass.svelte` | ~1 | 390 | Placeholder |
-| 38 | `src/svelte/FilterGroup.svelte`, `FilterContainer.svelte`, `BotonMod.svelte` | ~3 | — | Genéricos, casi sin texto |
+| 24 | `src/svelte/globales/CalificacionesConfig.svelte` | ~6 | 142 | |
+| 25 | `src/lib/botones.ts` | ~6 | 51 | |
+| 26 | `src/svelte/globales/MultiplicadoresConfig.svelte` | ~5 | 116 | |
+| 27 | `src/svelte/globales/GradoConfigModal.svelte` | ~3 | 146 | |
+| 28 | `src/lib/driveInstantBackup.ts` | ~3 | 223 | |
+| 29 | `src/svelte/SearchInput.svelte` | ~3 | 39 | Placeholder |
+| 30 | `src/svelte/AndroidDrawer.svelte` | ~3 | 235 | |
+| 31 | `src/svelte/asistencia/AsistenciaMainPage.svelte` | ~2 | 223 | Wrapper de sub-tabs |
+| 32 | `src/svelte/FilterSelect.svelte` | ~2 | 29 | Genérico |
+| 33 | `src/lib/instrumentosExcel.ts` | ~1 | 299 | ⚠️ Hoja/encabezado de Excel |
+| 34 | `src/svelte/notas/NotasMainPage.svelte` | ~1 | 230 | Wrapper de sub-tabs |
+| 35 | `src/svelte/DatePickerGlass.svelte` | ~1 | 390 | Placeholder |
+| 36 | `src/svelte/BotonMod.svelte` | ~1 | 46 | Genérico |
+| 37 | `src/svelte/FilterContainer.svelte` | ~1 | 20 | Genérico |
+| 38 | `src/svelte/FilterGroup.svelte` | ~1 | 17 | Genérico |
 
 ### Servicios `.ts` (textos de `show-toast` y avisos)
 
@@ -140,7 +141,15 @@ Estas decisiones son **deliberadas**. No "se olvidaron":
 6. **Traducir en el call site** cuando el valor de dominio no se toca pero la
    etiqueta sí: `handleCardClick(t('x.y'), stats)` en vez de traducir dentro
    del handler.
-7. **Verificar**:
+7. **Un identificador de dominio que además se muestra** (ej.
+   `config.title === "Colegio"` en `CategoryTabContent`): NO se traduce el
+   valor; se agrega una clave de etiqueta aparte y se traduce solo el display.
+   Si se traduce el valor, todas las comparaciones rompen en silencio.
+   Patrón: `const titulo = $derived(RECORD[config.table] ?? config.title)`.
+   ⚠️ No usar `` t(`prefijo.${x}`) `` si `x` es `string`: el tipo de clave de
+   `t()` es unión de literales y `tsc` no lo acepta. Con `x` tipado como union
+   (ej. `o.id as InstrumentoTipo`) sí funciona.
+8. **Verificar**:
    ```powershell
    npx svelte-check --threshold error   # 0 errores
    npm run build                          # tsc + vite en verde

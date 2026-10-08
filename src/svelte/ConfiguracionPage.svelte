@@ -4,6 +4,9 @@
     import { onMount, onDestroy, tick, untrack } from "svelte";
 
   import { registerBackHandler } from "../lib/androidBack";
+  // OJO: `t()` de i18n. Nunca declarar una variable local llamada `t` en este
+  // archivo: taparía la función y el error de runtime apuntaría a otra línea.
+  import { t } from "../lib/i18n.svelte";
   import { getAppSettings, saveAppSettings, loadAppSettings, onAppSettingsChange } from "../lib/appSettings";
   import CategoryTabContent from "./CategoryTabContent.svelte";
   import CalificacionesConfig from "./globales/CalificacionesConfig.svelte";
@@ -57,50 +60,69 @@
     id: string; label: string; icono: string; color: string; grupo: string;
     cat?: CategoryConfig; contador?: string; soloAndroid?: boolean;
   }
+  // Los grupos son claves de dominio (se usan para agrupar `s.grupo`); la
+  // etiqueta visible va aparte en GRUPO_LABEL para poder traducirla.
   const GRUPOS = ['Académico', 'Aplicación', 'Sistema'] as const;
 
-  /** Una línea que explica qué hace cada sección, bajo el título. */
-  const DESCRIPCIONES: Record<string, string> = {
-    'ano-lectivo': 'Años lectivos del centro. Se ingresan como año calendario de 4 dígitos (2026, 2027) y el sistema los usa como tales para la vista mensual.',
-    'corte': 'Períodos de evaluación (1er, 2do, 3er, 4to corte) contra los que se capturan y reportan notas.',
-    'asignaturas': 'Catálogo de materias. De aquí sale el selector de asignatura en Notas y Reportes.',
-    'colegios': 'Centros educativos. El tipo (Primaria o Secundaria) define qué grados ofrece cada uno.',
-    'grados': 'Grados disponibles. Se comparten entre años lectivos; se configuran por colegio desde su ficha.',
-    'secciones': 'Secciones de cada grado. Se comparten entre grados, por eso cada ficha las asocia a un grado concreto.',
-    'notas': 'Calificaciones cualitativas (color y mínimo) y sus multiplicadores para el cálculo automático de la nota final.',
-    'evaluaciones': 'Creación de los indicadores y criterios de evaluación: aquí se define qué se evalúa y con cuántos puntos.',
-    'general': 'Color de resaltado, valores por defecto de año lectivo y colegio, y comportamiento de la sincronización.',
-    'notificaciones': 'Avisos cuando un colegio tiene grados sin asistencia, dentro de su ventana horaria y con la app cerrada.',
-    'nube': 'Conexión con Cloudflare D1 y respaldo en Google Drive. Estado de la sincronización y recuperación de datos.',
-    'cuenta': 'Cuentas de Google vinculadas, cambio de perfil y datos de la cuenta activa.',
-    'debug': 'Herramientas de diagnóstico y purga. Actúa sobre la base local y la nube: usá con precaución.',
-    'info': 'Versión de la app, ruta de la base de datos y detalle de las funciones disponibles.',
-  };
+  /**
+   * Una línea que explica qué hace cada sección, bajo el título.
+   * Va en `$derived` (y no en `const`) porque lee `t()`: con un `const` se
+   * evaluaría una sola vez al importar el módulo y nunca cambiaría de idioma.
+   */
+  const DESCRIPCIONES = $derived<Record<string, string>>({
+    'ano-lectivo': t('cfg.desc.ano-lectivo'),
+    'corte': t('cfg.desc.corte'),
+    'asignaturas': t('cfg.desc.asignaturas'),
+    'colegios': t('cfg.desc.colegios'),
+    'grados': t('cfg.desc.grados'),
+    'secciones': t('cfg.desc.secciones'),
+    'notas': t('cfg.desc.notas'),
+    // Antes faltaba 'multiplicadores' y el encabezado imprimía `undefined`.
+    'multiplicadores': t('cfg.desc.multiplicadores'),
+    'evaluaciones': t('cfg.desc.evaluaciones'),
+    'general': t('cfg.desc.general'),
+    'notificaciones': t('cfg.desc.notificaciones'),
+    'nube': t('cfg.desc.nube'),
+    'cuenta': t('cfg.desc.cuenta'),
+    'debug': t('cfg.desc.debug'),
+    'info': t('cfg.desc.info'),
+  });
 
-  const SECCIONES: Seccion[] = [
-    { id: 'evaluaciones', label: 'Evaluaciones', icono: '✏️', color: '#c084fc', grupo: 'Académico' },
-    { id: 'notas', label: 'Notas', icono: '⭐', color: '#fbbf24', grupo: 'Académico', contador: 'get_grade_configs' },
-    { id: 'multiplicadores', label: 'Multiplicadores', icono: '✖️', color: '#a78bfa', grupo: 'Académico', contador: 'get_multiplicadores' },
-    { id: 'ano-lectivo', label: 'Año Lectivo', icono: '📅', color: '#818cf8', grupo: 'Académico', cat: CATEGORIES[0], contador: 'get_anos' },
-    { id: 'corte', label: 'Corte Evaluativo', icono: '✂️', color: '#f472b6', grupo: 'Académico', cat: CATEGORIES[1], contador: 'get_cortes' },
-    { id: 'asignaturas', label: 'Asignatura', icono: '📚', color: '#60a5fa', grupo: 'Académico', cat: CATEGORIES[2], contador: 'get_asignaturas' },
-    { id: 'colegios', label: 'Colegio', icono: '🏫', color: '#34d399', grupo: 'Académico', cat: CATEGORIES[3], contador: 'get_colegios' },
-    { id: 'grados', label: 'Grado', icono: '📊', color: '#fb923c', grupo: 'Académico', cat: CATEGORIES[4], contador: 'get_grados' },
-    { id: 'secciones', label: 'Sección', icono: '👥', color: '#a78bfa', grupo: 'Académico', cat: CATEGORIES[5], contador: 'get_secciones' },
-    { id: 'general', label: 'General', icono: '⚙️', color: '#60a5fa', grupo: 'Aplicación' },
-    { id: 'notificaciones', label: 'Notif. Asistencia', icono: '🔔', color: '#fbbf24', grupo: 'Aplicación', soloAndroid: true },
-    { id: 'nube', label: 'Nube', icono: '☁️', color: '#38bdf8', grupo: 'Aplicación' },
-    { id: 'cuenta', label: 'Cuenta', icono: '👤', color: '#f472b6', grupo: 'Aplicación' },
-    { id: 'debug', label: 'Debug', icono: '🐛', color: '#ef4444', grupo: 'Sistema' },
-    { id: 'info', label: 'Info', icono: '📖', color: '#a78bfa', grupo: 'Sistema' },
-  ];
+  /** Etiqueta visible de cada grupo (GRUPOS conserva la clave de dominio). */
+  const GRUPO_LABEL = $derived<Record<string, string>>({
+    'Académico': t('cfg.grupo.academico'),
+    'Aplicación': t('cfg.grupo.aplicacion'),
+    'Sistema': t('cfg.grupo.sistema'),
+  });
+
+  // `$derived` y no `const`: las etiquetas cambian al cambiar el idioma.
+  const SECCIONES = $derived<Seccion[]>([
+    { id: 'evaluaciones', label: t('cfg.sec.evaluaciones'), icono: '✏️', color: '#c084fc', grupo: 'Académico' },
+    { id: 'notas', label: t('cfg.sec.notas'), icono: '⭐', color: '#fbbf24', grupo: 'Académico', contador: 'get_grade_configs' },
+    { id: 'multiplicadores', label: t('cfg.sec.multiplicadores'), icono: '✖️', color: '#a78bfa', grupo: 'Académico', contador: 'get_multiplicadores' },
+    { id: 'ano-lectivo', label: t('cfg.sec.ano-lectivo'), icono: '📅', color: '#818cf8', grupo: 'Académico', cat: CATEGORIES[0], contador: 'get_anos' },
+    { id: 'corte', label: t('cfg.sec.corte'), icono: '✂️', color: '#f472b6', grupo: 'Académico', cat: CATEGORIES[1], contador: 'get_cortes' },
+    { id: 'asignaturas', label: t('cfg.sec.asignaturas'), icono: '📚', color: '#60a5fa', grupo: 'Académico', cat: CATEGORIES[2], contador: 'get_asignaturas' },
+    { id: 'colegios', label: t('cfg.sec.colegios'), icono: '🏫', color: '#34d399', grupo: 'Académico', cat: CATEGORIES[3], contador: 'get_colegios' },
+    { id: 'grados', label: t('cfg.sec.grados'), icono: '📊', color: '#fb923c', grupo: 'Académico', cat: CATEGORIES[4], contador: 'get_grados' },
+    { id: 'secciones', label: t('cfg.sec.secciones'), icono: '👥', color: '#a78bfa', grupo: 'Académico', cat: CATEGORIES[5], contador: 'get_secciones' },
+    { id: 'general', label: t('cfg.sec.general'), icono: '⚙️', color: '#60a5fa', grupo: 'Aplicación' },
+    { id: 'notificaciones', label: t('cfg.sec.notificaciones'), icono: '🔔', color: '#fbbf24', grupo: 'Aplicación', soloAndroid: true },
+    { id: 'nube', label: t('cfg.sec.nube'), icono: '☁️', color: '#38bdf8', grupo: 'Aplicación' },
+    { id: 'cuenta', label: t('cfg.sec.cuenta'), icono: '👤', color: '#f472b6', grupo: 'Aplicación' },
+    { id: 'debug', label: t('cfg.sec.debug'), icono: '🐛', color: '#ef4444', grupo: 'Sistema' },
+    { id: 'info', label: t('cfg.sec.info'), icono: '📖', color: '#a78bfa', grupo: 'Sistema' },
+  ]);
 
   const seccionesVisibles = $derived(SECCIONES.filter(s => !s.soloAndroid || isAndroid));
   /** Sección que se abre siempre que se entra a Configuración. */
   const SECCION_POR_DEFECTO = 'evaluaciones';
   // En escritorio se abre directamente la sección pedida (por defecto Notas):
   // el rail es navegación secundaria, no una pantalla de bienvenida.
-  let activa = $state<Seccion | null>(isAndroidMobile ? null : SECCIONES.find(s => s.id === SECCION_POR_DEFECTO) ?? null);
+  // Se guarda SOLO la id y `activa` se deriva de SECCIONES: con el objeto
+  // guardado, la etiqueta se quedaría con la traducción vieja al cambiar idioma.
+  let activaId = $state<string | null>(isAndroidMobile ? null : SECCION_POR_DEFECTO);
+  const activa = $derived(activaId ? SECCIONES.find(s => s.id === activaId) ?? null : null);
   // Modales de configuracion de catalogo (⚙️ de Colegio y de Grado).
   let colegioConfig = $state<{ id: number; nombre: string; cualitativo?: boolean } | null>(null);
   let gradoConfig = $state<{ id: number; nombre: string; cualitativo?: boolean } | null>(null);
@@ -142,12 +164,12 @@
     // Se guarda la posición ANTES de que la lista se desmonte.
     const sc = scrollerDe(listaRef);
     if (sc) scrollGuardado = sc.scrollTop;
-    activa = s;
+    activaId = s.id;
     seccion = s.id;
     busqueda = '';
     if (s.contador && !contadoresCargados.has(s.id)) cargarContador(s);
   }
-  function cerrar() { activa = null; }
+  function cerrar() { activaId = null; }
 
   /**
    * Al volver a la lista se restaura el scroll. Necesita `tick()` porque la lista
@@ -246,7 +268,7 @@
     const previo = fueVisible;
     fueVisible = ahora;
     if (!ahora || previo) return;
-    if (isAndroidMobile) { activa = null; }
+    if (isAndroidMobile) { activaId = null; }
     else { abrirPorId(seccion); }
     void cargarTodosLosContadores(true);
   });
@@ -303,15 +325,15 @@
   <div style="display:flex;align-items:center;gap:0.6rem;padding:0.75rem 1rem;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.15);border-radius:12px;">
     <span style="font-size:1rem;line-height:1">📅</span>
     <span style="font-size:0.75rem;color:#c7d2fe;line-height:1.4">
-      El año lectivo se ingresa como <strong>año calendario</strong> de 4 dígitos (Ej: 2026, 2027), no como rango. El sistema lo trata como año calendario: si es 2026, la vista mensual muestra 2026.
+      {t('cfg.anio.p1')}<strong>{t('cfg.anio.p2')}</strong>{t('cfg.anio.p3')}
     </span>
   </div>
   <div style="display:flex;align-items:center;justify-content:space-between;padding:0.75rem 1rem;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.15);border-radius:12px;margin-top:0.5rem">
     <div style="display:flex;flex-direction:column;gap:2px;">
-      <span style="font-size:0.8rem;color:#e2e8f0;font-weight:600;">Mostrar selector en otras páginas</span>
-      <span style="font-size:0.7rem;color:#94a3b8;">Muestra/oculta el dropdown de Año Lectivo en Notas, Asistencia y Reportes</span>
+      <span style="font-size:0.8rem;color:#e2e8f0;font-weight:600;">{t('cfg.anio.selector')}</span>
+      <span style="font-size:0.7rem;color:#94a3b8;">{t('cfg.anio.selectorDesc')}</span>
     </div>
-    <label class="switch" title={showAnoDropdown ? "Ocultar dropdown" : "Mostrar dropdown"}>
+    <label class="switch" title={showAnoDropdown ? t('cfg.anio.ocultar') : t('cfg.anio.mostrar')}>
       <input type="checkbox" checked={showAnoDropdown} onchange={toggleAnoDropdown} />
       <span class="slider round"></span>
     </label>
@@ -355,12 +377,12 @@
   <div class="page-container">
     {#if !activa}
       <div style="padding:1rem;" bind:this={listaRef}>
-        <h1 style="font-size:1.5rem;font-weight:700;color:#f1f5f9;margin-bottom:1.5rem;text-align:center;">Configuración</h1>
+        <h1 style="font-size:1.5rem;font-weight:700;color:#f1f5f9;margin-bottom:1.5rem;text-align:center;">{t('cfg.titulo')}</h1>
         <div style="display:flex;flex-direction:column;gap:0.75rem;">
           {#each GRUPOS as grupo (grupo)}
             {@const delGrupo = filtradas.filter(s => s.grupo === grupo)}
             {#if delGrupo.length > 0}
-              <div style="font-size:0.62rem;letter-spacing:0.6px;text-transform:uppercase;color:#64748b;font-weight:700;padding:0.35rem 0.25rem 0.1rem">{grupo}</div>
+              <div style="font-size:0.62rem;letter-spacing:0.6px;text-transform:uppercase;color:#64748b;font-weight:700;padding:0.35rem 0.25rem 0.1rem">{GRUPO_LABEL[grupo]}</div>
               {#each delGrupo as s (s.id)}
                 <button onclick={() => abrir(s)}
                   style="display:flex;align-items:center;gap:1rem;padding:1rem 1.25rem;background:rgba(51,65,85,0.5);border:1px solid rgba(255,255,255,0.08);border-left:3px solid {s.color};border-radius:12px;cursor:pointer;width:100%;transition:all 0.2s ease"
@@ -388,15 +410,15 @@
       onmouseenter={() => railExpandido = true}
       onmouseleave={() => { railExpandido = false; if (!busqueda.trim()) railFijado = false; cancelarHover(); }}>
       <div class="rail-busca">
-        <span class="lupa" onclick={() => { railExpandido = true; railFijado = true; }} title="Buscar sección">🔍</span>
-        <input placeholder="Buscar sección" bind:value={busqueda} onfocus={() => railFijado = true} onkeydown={onSearchKey} />
+        <span class="lupa" onclick={() => { railExpandido = true; railFijado = true; }} title={t('cfg.buscarSec')}>🔍</span>
+        <input placeholder={t('cfg.buscarSec')} bind:value={busqueda} onfocus={() => railFijado = true} onkeydown={onSearchKey} />
       </div>
 
       <div class="rail-scroll">
         {#each GRUPOS as grupo (grupo)}
           {@const delGrupo = filtradas.filter(s => s.grupo === grupo)}
           {#if delGrupo.length > 0}
-            <div class="rail-grupo">{grupo}</div>
+            <div class="rail-grupo">{GRUPO_LABEL[grupo]}</div>
             {#each delGrupo as s (s.id)}
               <button class="rail-item" class:activo={activa?.id === s.id} class:invisible={!activaVisible && activa?.id !== s.id}
                 style="--acento:{s.color}" onclick={() => abrir(s)}
@@ -412,7 +434,7 @@
           {/if}
         {/each}
         {#if filtradas.length === 0}
-          <div class="rail-vacio">Sin coincidencias</div>
+          <div class="rail-vacio">{t('cfg.sinCoincidencias')}</div>
         {/if}
       </div>
     </nav>
@@ -433,7 +455,7 @@
           {@render contenidoSeccion()}
         </div>
       {:else}
-        <div class="cont-placeholder">Elegí una sección del menú</div>
+        <div class="cont-placeholder">{t('cfg.placeholder')}</div>
       {/if}
     </section>
   </div>

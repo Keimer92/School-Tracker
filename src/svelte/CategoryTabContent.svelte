@@ -5,6 +5,8 @@
   import { ask, message } from "@tauri-apps/plugin-dialog";
   import { onDataChange } from "../lib/autoSync";
   import { registerBackHandler } from "../lib/androidBack";
+  // OJO: `t()` de i18n. Nunca declarar una variable local llamada `t` aquí.
+  import { t } from "../lib/i18n.svelte";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
   interface CategoryConfig {
@@ -31,6 +33,24 @@
   } = $props();
 
   const isAndroid = /Android/i.test(navigator.userAgent);
+
+  /**
+   * Título visible del catálogo. Se deriva de `config.table` (id de dominio) y
+   * NO de `config.title`: ese valor en español se sigue usando para las
+   * comparaciones (`config.title === "Colegio"`), que no se traducen.
+   * Va en `$derived` (no en `const`) para que cambie al cambiar el idioma.
+   * Mapa y no `t(\`cfg.cat.${...}\`)`: `config.table` es `string` y el tipo de
+   * clave de `t()` es una unión de literales, así que el template no compila.
+   */
+  const CAT_TITULOS = $derived<Record<string, string>>({
+    'ano_lectivo': t('cfg.cat.ano_lectivo'),
+    'corte_evaluativo': t('cfg.cat.corte_evaluativo'),
+    'asignatura': t('cfg.cat.asignatura'),
+    'colegio': t('cfg.cat.colegio'),
+    'grado': t('cfg.cat.grado'),
+    'seccion': t('cfg.cat.seccion'),
+  });
+  const titulo = $derived(CAT_TITULOS[config.table] ?? config.title);
 
   // ---- Estado: lista del servidor (snapshot) + draft local ----
   let items: CategoryItem[] = $state([]);
@@ -134,8 +154,8 @@
   }
 
   async function descartarConConfirmacion() {
-    const ok = await ask(`Hay cambios sin guardar en "${config.title}".\n¿Descartarlos?`, {
-      title: "Cambios sin guardar", kind: "warning", okLabel: "Descartar", cancelLabel: "Seguir editando",
+    const ok = await ask(t('cat.sinCambiosMensaje', { x: titulo }), {
+      title: t('cat.sinCambiosTitulo'), kind: "warning", okLabel: t('cat.sinCambiosOk'), cancelLabel: t('cat.seguirEditando'),
     });
     if (ok) { items = JSON.parse(JSON.stringify(original)); nuevos = []; }
   }
@@ -183,11 +203,13 @@
   function esAnioLectivoValido(name: string): boolean {
     return /^(19|20)\d{2}$/.test(name);
   }
-  const AVISO_ANIO = "⚠️ El año lectivo debe ser un año calendario de 4 dígitos (Ej: 2026, 2027)";
+  // `$derived` (no `const`): se lee dentro de handleAdd/handleEdit en el momento
+  // del clic, así que tiene que responder al idioma activo.
+  const AVISO_ANIO = $derived(t('cat.avisoAnio'));
 
   function handleAdd() {
-    const placeholder = config.table === 'ano_lectivo' ? 'Ej: 2027' : '';
-    openPrompt(`Nuevo ${config.title.toLowerCase()}`, "Nombre", "", (nombre) => {
+    const placeholder = config.table === 'ano_lectivo' ? t('cat.ejAnio') : '';
+    openPrompt(t('cat.nuevoTitulo', { x: titulo }), t('cat.nombre'), "", (nombre) => {
       if (!nombre || !nombre.trim()) return;
       const name = nombre.trim();
       if (config.table === 'ano_lectivo' && !esAnioLectivoValido(name)) {
@@ -195,7 +217,7 @@
         return;
       }
       if ([...items, ...nuevos].some(i => i.nombre.toLowerCase() === name.toLowerCase())) {
-        emit("show-toast", { message: "⚠️ Ya existe un elemento con ese nombre", type: "warning" });
+        emit("show-toast", { message: t('cat.existe'), type: "warning" });
         return;
       }
       nuevos = [...nuevos, { tempId: tempCounter--, nombre: name, cualitativo: false }];
@@ -203,7 +225,7 @@
   }
 
   function handleEdit(item: CategoryItem & { esNuevo?: boolean }) {
-    openPrompt(`Editar ${config.title.toLowerCase()}`, "Nombre", item.nombre, (nuevoNombre) => {
+    openPrompt(t('cat.editarTitulo', { x: titulo }), t('cat.nombre'), item.nombre, (nuevoNombre) => {
       if (!nuevoNombre || !nuevoNombre.trim() || nuevoNombre.trim() === item.nombre) return;
       const name = nuevoNombre.trim();
       if (config.table === 'ano_lectivo' && !esAnioLectivoValido(name)) {
@@ -250,7 +272,7 @@
 
     if (item.activo) {
       emit('show-toast', {
-        message: `«${item.nombre}» ya está activo. Activá otro para cambiarlo.`,
+        message: t('cat.activoYa', { n: item.nombre }),
         type: 'info',
       });
       return;
@@ -261,7 +283,7 @@
       const mayor = itemMayorAnio(items);
       if (mayor && mayor.id !== item.id) {
         emit('show-toast', {
-          message: `El año activo debe ser el mayor. Activá «${mayor.nombre}».`,
+          message: t('cat.anioMayor', { n: mayor.nombre }),
           type: 'info',
         });
         return;
@@ -279,8 +301,8 @@
     const total = countCambios() + (orderChanged() ? 1 : 0);
     if (total === 0) return;
     const ok = await ask(
-      `¿Aplicar ${total} cambio(s) en "${config.title}"?\n\nLos cambios se guardarán y sincronizarán.`,
-      { title: "Confirmar cambios", kind: "info", okLabel: "Guardar", cancelLabel: "Cancelar" },
+      t('cat.aplicarMensaje', { n: total, x: titulo }),
+      { title: t('cat.aplicarTitulo'), kind: "info", okLabel: t('comun.guardar'), cancelLabel: t('comun.cancelar') },
     );
     if (!ok) return;
     saving = true;
@@ -318,12 +340,12 @@
         await invoke(config.endpoints.updateOrder, { items: orderedIds });
       }
       onDataChange(config.table);
-      await emit("show-toast", { message: `✅ ${total} cambio(s) guardados`, type: "success" });
+      await emit("show-toast", { message: t('cat.guardadosToast', { n: total }), type: "success" });
       await emit("catalog-updated");
       await fetchItems();
     } catch (error) {
       console.error("Error guardando cambios:", error);
-      await emit("show-toast", { message: "❌ Error al guardar: " + error, type: "error" });
+      await emit("show-toast", { message: t('cat.errorGuardar', { msg: String(error) }), type: "error" });
       await fetchItems();
     } finally { saving = false; }
   }
@@ -336,18 +358,18 @@
       const hasDeps = check.hasStudents || check.hasNotes || check.hasAttendance || check.hasGrades;
       if (hasDeps) {
         const warnings: string[] = [];
-        if (check.hasGrades) warnings.push(`• Asignaciones al currículo y grados`);
-        if (check.hasStudents) warnings.push(`• ${check.studentCount} estudiantes registrados`);
-        if (check.hasNotes) warnings.push(`• ${check.noteCount} calificaciones`);
-        if (check.hasAttendance) warnings.push(`• ${check.attendanceCount} registros de asistencia`);
+        if (check.hasGrades) warnings.push(t('cat.dep.curriculo'));
+        if (check.hasStudents) warnings.push(t('cat.dep.estudiantes', { n: check.studentCount }));
+        if (check.hasNotes) warnings.push(t('cat.dep.notas', { n: check.noteCount }));
+        if (check.hasAttendance) warnings.push(t('cat.dep.asistencia', { n: check.attendanceCount }));
         await message(
-          `No se puede eliminar "${item.nombre}" porque tiene datos asociados:\n\n${warnings.join("\n")}\n\nElimina primero los estudiantes desde la página de Estudiantes.`,
-          { title: "Eliminación bloqueada", kind: "warning", okLabel: "Entendido" },
+          t('cat.bloqueadoMensaje', { x: item.nombre, lista: warnings.join("\n") }),
+          { title: t('cat.bloqueadoTitulo'), kind: "warning", okLabel: t('cat.bloqueadoOk') },
         );
         return;
       }
-      const ok = await ask(`¿Está seguro de eliminar "${item.nombre}"?\n\nEsta acción no se puede deshacer.`, {
-        title: "Confirmar eliminación", kind: "warning", okLabel: "Eliminar", cancelLabel: "Cancelar",
+      const ok = await ask(t('cat.delMensaje', { x: item.nombre }), {
+        title: t('cat.delTitulo'), kind: "warning", okLabel: t('cat.eliminar'), cancelLabel: t('comun.cancelar'),
       });
       if (!ok) return;
       isDeleting = true;
@@ -355,12 +377,12 @@
       items = items.filter(i => i.id !== item.id);
       original = original.filter(i => i.id !== item.id);
       selectedIds = new Set([...selectedIds].filter(id => id !== item.id));
-      await emit("show-toast", { message: `✅ ${config.title} eliminado`, type: "success" });
+      await emit("show-toast", { message: t('cat.eliminadoToast', { x: titulo }), type: "success" });
       onDataChange(config.table);
       await emit("catalog-updated");
     } catch (error) {
       console.error("Error en handleDelete:", error);
-      await emit("show-toast", { message: "❌ Error al eliminar: " + error, type: "error" });
+      await emit("show-toast", { message: t('cat.errorEliminar', { msg: String(error) }), type: "error" });
     } finally { isDeleting = false; }
   }
 
@@ -378,10 +400,10 @@
   async function handleBatchDelete() {
     if (selectedIds.size === 0) return;
     const nombres = items.filter(i => selectedIds.has(i.id)).map(i => `"${i.nombre}"`).slice(0, 8).join(", ");
-    const resto = selectedIds.size > 8 ? ` y ${selectedIds.size - 8} más` : "";
+    const resto = selectedIds.size > 8 ? t('cat.loteResto', { n: selectedIds.size - 8 }) : "";
     const ok = await ask(
-      `¿Eliminar ${selectedIds.size} ${config.title.toLowerCase()}(s)?\n\n${nombres}${resto}\n\nTodos los datos asociados se eliminarán permanentemente.`,
-      { title: "Confirmar eliminación masiva", kind: "warning", okLabel: "Eliminar todo", cancelLabel: "Cancelar" },
+      t('cat.loteMensaje', { n: selectedIds.size, x: titulo, lista: nombres, resto }),
+      { title: t('cat.loteTitulo'), kind: "warning", okLabel: t('cat.loteOk'), cancelLabel: t('comun.cancelar') },
     );
     if (!ok) return;
     isDeleting = true;
@@ -391,11 +413,11 @@
       items = items.filter(i => !ids.includes(i.id));
       original = original.filter(i => !ids.includes(i.id));
       selectedIds = new Set();
-      await emit("show-toast", { message: `✅ ${ids.length} ${config.title.toLowerCase()}(s) eliminados`, type: "success" });
+      await emit("show-toast", { message: t('cat.loteToast', { n: ids.length, x: titulo }), type: "success" });
       onDataChange(config.table);
       await emit("catalog-updated");
     } catch (error) {
-      await emit("show-toast", { message: "❌ Error al eliminar en lote: " + error, type: "error" });
+      await emit("show-toast", { message: t('cat.errorLote', { msg: String(error) }), type: "error" });
     } finally { isDeleting = false; }
   }
 
@@ -455,9 +477,9 @@
   <div class="cat-head">
     <div class="cat-head-left">
       <div style="width:36px;height:36px;border-radius:10px;background:{accentColor}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">{accentIcon}</div>
-      <h2 style="margin: 0; font-size: 1.25rem; color: #f1f5f9; font-weight: 700; letter-spacing: -0.02em;">{config.title}</h2>
+      <h2 style="margin: 0; font-size: 1.25rem; color: #f1f5f9; font-weight: 700; letter-spacing: -0.02em;">{titulo}</h2>
       {#if hasUnsavedChanges}
-        <span title="Cambios sin guardar" style="width:10px;height:10px;border-radius:50%;background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,0.6);flex-shrink:0;"></span>
+        <span title={t('cat.sinCambiosTitulo')} style="width:10px;height:10px;border-radius:50%;background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,0.6);flex-shrink:0;"></span>
       {/if}
       {#if items.length > 0 && config.title !== "Corte Evaluativo" && config.title !== "Grado"}
         <label class="cat-select-all" class:active={selectedIds.size > 0} onclick={(e) => e.stopPropagation()}>
@@ -465,7 +487,7 @@
           <span class="cat-selectbox" class:checked={selectedIds.size === items.length}>
             <svg class="cat-selectbox-check" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
           </span>
-          <span class="cat-select-all-text">Todo{selectedIds.size > 0 ? ` · ${selectedIds.size}` : ""}</span>
+          <span class="cat-select-all-text">{t('cat.todo')}{selectedIds.size > 0 ? ` · ${selectedIds.size}` : ""}</span>
         </label>
         {#if selectedIds.size > 0}
           <button onclick={handleBatchDelete} disabled={isDeleting} style="padding:0.3rem 0.6rem;font-size:0.7rem;border-radius:6px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);cursor:pointer;font-weight:600;color:#fca5a5;transition:all 0.2s;">🗑 {selectedIds.size}</button>
@@ -477,10 +499,10 @@
              parta en dos tramos descolocados. -->
         <div
           class="cat-qual-note"
-          title="El cualitativo de cada asignatura se cambia en el ⚙️ del Colegio, en la pestaña Asignaturas.">
-          <span>Cualitativo</span>
+          title={t('cat.cualitativoAsigTitle')}>
+          <span>{t('cat.cualitativo')}</span>
           <span class="cat-qual-note-sep">·</span>
-          <span>se cambia en ⚙️ Colegio</span>
+          <span>{t('cat.seCambiaEnColegio')}</span>
         </div>
       {/if}
     </div>
@@ -490,7 +512,7 @@
       onmouseleave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
       onmousedown={(e) => e.currentTarget.style.transform = 'translateY(1px)'}
       onmouseup={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}>
-      <span style="margin-right:0.4rem;font-size:1rem;">+</span> Agregar {config.title}
+      <span style="margin-right:0.4rem;font-size:1rem;">+</span> {t('cat.agregar', { x: titulo })}
     </button>
     {/if}
   </div>
@@ -503,11 +525,11 @@
     {#if vista.length === 0}
       <div style="padding:3rem 2rem;text-align:center;background:rgba(255,255,255,0.02);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:14px;border:1px dashed rgba(255,255,255,0.08);">
         <div style="font-size: 2.5rem; margin-bottom: 1rem; opacity: 0.7;">{accentIcon}</div>
-        <p style="margin: 0; font-size: 1rem; color: #94a3b8; font-weight: 500;">No hay {config.title.toLowerCase()}s registrados</p>
+        <p style="margin: 0; font-size: 1rem; color: #94a3b8; font-weight: 500;">{t('cat.vacio', { x: titulo })}</p>
         {#if config.noAdd}
-          <p style="margin: 0.75rem 0 0 0; font-size: 0.85rem; color: #64748b;">Están definidos por el sistema (4 cortes evaluativos).</p>
+          <p style="margin: 0.75rem 0 0 0; font-size: 0.85rem; color: #64748b;">{t('cat.definidosSistema')}</p>
         {:else}
-          <p style="margin: 0.75rem 0 0 0; font-size: 0.85rem; color: #64748b;">Haz clic en "<strong style="color: var(--primary-color);">+ Agregar</strong>" para crear uno nuevo</p>
+          <p style="margin: 0.75rem 0 0 0; font-size: 0.85rem; color: #64748b;">{t('cat.clicA')}<strong style="color: var(--primary-color);">+ {t('cat.agregar', { x: titulo })}</strong>{t('cat.clicB')}</p>
         {/if}
       </div>
     {:else}
@@ -538,19 +560,19 @@
           <span style="flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: {item.cualitativo ? '#a78bfa' : ((item.activo && config.title !== 'Colegio') ? '#4ade80' : '#e2e8f0')}; font-weight: {((item.activo && config.title !== 'Colegio') || item.cualitativo) ? '700' : '500'}; font-size: 0.9rem; letter-spacing: 0.01em;">
             {item.nombre}
             {#if item.esNuevo}
-              <span style="margin-left: 0.5rem; font-size: 0.65rem; color: var(--primary-color); font-weight: 700; text-transform: uppercase; background: rgba(var(--primary-rgb), 0.12); padding: 0.15rem 0.4rem; border-radius: 4px; letter-spacing: 0.04em;">+ Nuevo</span>
+              <span style="margin-left: 0.5rem; font-size: 0.65rem; color: var(--primary-color); font-weight: 700; text-transform: uppercase; background: rgba(var(--primary-rgb), 0.12); padding: 0.15rem 0.4rem; border-radius: 4px; letter-spacing: 0.04em;">{t('cat.nuevoChip')}</span>
             {/if}
             {#if item.activo && config.title !== "Colegio"}
-              <span style="margin-left: 0.5rem; font-size: 0.65rem; color: #4ade80; font-weight: 700; text-transform: uppercase; background: rgba(74, 222, 128, 0.12); padding: 0.15rem 0.4rem; border-radius: 4px; letter-spacing: 0.04em;">✓ Activo</span>
+              <span style="margin-left: 0.5rem; font-size: 0.65rem; color: #4ade80; font-weight: 700; text-transform: uppercase; background: rgba(74, 222, 128, 0.12); padding: 0.15rem 0.4rem; border-radius: 4px; letter-spacing: 0.04em;">{t('cat.activoChip')}</span>
             {/if}
             {#if item.cualitativo}
-              <span style="margin-left: 0.5rem; font-size: 0.65rem; color: #a78bfa; font-weight: 700; background: rgba(167, 139, 250, 0.12); padding: 0.15rem 0.4rem; border-radius: 4px; letter-spacing: 0.04em;">♢ Cualitativo</span>
+              <span style="margin-left: 0.5rem; font-size: 0.65rem; color: #a78bfa; font-weight: 700; background: rgba(167, 139, 250, 0.12); padding: 0.15rem 0.4rem; border-radius: 4px; letter-spacing: 0.04em;">{t('cat.cualitativoChip')}</span>
             {/if}
           </span>
           <div style="display: flex; gap: 0.35rem; flex-shrink: 0; align-items: center;">
             {#if config.endpoints.setActive && !config.hideDefault && !item.esNuevo && !(config.ocultarToggleSiUnico && items.length <= 1)}
               <span class="cat-toggle-slot">
-                <label class="switch" title="Activar">
+                <label class="switch" title={t('cat.activar')}>
                   <input type="checkbox" checked={item.activo || false} onchange={() => handleSetActive(item.id)} />
                   <span class="slider round"></span>
                 </label>
@@ -561,7 +583,7 @@
                    de configuracion del Colegio. Se muestra el estado, no se cambia. -->
               <span class="cat-toggle-slot">
                 {#if item.cualitativo}
-                  <span class="cat-qual-chip" title="Cualitativo — se cambia en ⚙️ del Colegio">✦ Cualitativo</span>
+                  <span class="cat-qual-chip" title={t('cat.cualitativoChipTitle')}>{t('cat.cualitativoChip')}</span>
                 {/if}
               </span>
             {/if}
@@ -569,19 +591,19 @@
               <!-- Solo lectura: el cualitativo se edita en ⚙️ del Colegio. -->
               <span class="cat-toggle-slot">
                 {#if item.cualitativo}
-                  <span class="cat-qual-chip" title="Cualitativo — se cambia en ⚙️ del Colegio">✦ Cualitativo</span>
+                  <span class="cat-qual-chip" title={t('cat.cualitativoChipTitle')}>{t('cat.cualitativoChip')}</span>
                 {/if}
               </span>
-              <button onclick={() => onConfigClick(item)} title="Configurar grado" style="background:rgba(var(--primary-rgb),0.1);border:1px solid rgba(var(--primary-rgb),0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.1)'}>⚙️</button>
+              <button onclick={() => onConfigClick(item)} title={t('cat.configGrado')} style="background:rgba(var(--primary-rgb),0.1);border:1px solid rgba(var(--primary-rgb),0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.1)'}>⚙️</button>
             {/if}
             {#if config.title === "Colegio" && onConfigClick && !item.esNuevo}
-              <button onclick={() => onConfigClick(item)} title="Configurar colegio" style="background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(52,211,153,0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(52,211,153,0.1)'}>⚙️</button>
+              <button onclick={() => onConfigClick(item)} title={t('cat.configColegio')} style="background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(52,211,153,0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(52,211,153,0.1)'}>⚙️</button>
             {/if}
             {#if config.title !== "Colegio" && !(config.title === "Grado" && onConfigClick)}
-              <button onclick={() => handleEdit(item)} title="Editar" style="background:rgba(var(--primary-rgb),0.1);border:1px solid rgba(var(--primary-rgb),0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.1)'}>✎</button>
+              <button onclick={() => handleEdit(item)} title={t('cat.editar')} style="background:rgba(var(--primary-rgb),0.1);border:1px solid rgba(var(--primary-rgb),0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(var(--primary-rgb),0.1)'}>✎</button>
             {/if}
             {#if config.title !== "Corte Evaluativo" && config.title !== "Grado"}
-              <button onclick={() => handleDelete(item)} disabled={isDeleting} title="Eliminar" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}>🗑</button>
+              <button onclick={() => handleDelete(item)} disabled={isDeleting} title={t('cat.eliminar')} style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:7px;padding:0.4rem 0.5rem;cursor:pointer;font-size:1rem;transition:all 0.15s;" onmouseenter={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.2)'} onmouseleave={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.1)'}>🗑</button>
             {/if}
           </div>
         </div>
@@ -592,10 +614,10 @@
   <!-- Barra Guardar / Descartar (aparece solo con cambios pendientes) -->
   {#if hasUnsavedChanges}
     <div class="cat-savebar">
-      <span style="font-size:0.78rem;color:#fbbf24;font-weight:600;">⚠️ {countCambios() + (orderChanged() ? 1 : 0)} cambio(s) sin guardar</span>
+      <span style="font-size:0.78rem;color:#fbbf24;font-weight:600;">{t('cat.cambiosSinGuardar', { n: countCambios() + (orderChanged() ? 1 : 0) })}</span>
       <div style="display:flex;gap:0.5rem;">
-        <button onclick={descartar} disabled={saving} class="cat-btn-ghost">Descartar</button>
-        <button onclick={handleSave} disabled={saving} class="cat-btn-save">{saving ? "Guardando..." : "💾 Guardar cambios"}</button>
+        <button onclick={descartar} disabled={saving} class="cat-btn-ghost">{t('cat.descartar')}</button>
+        <button onclick={handleSave} disabled={saving} class="cat-btn-save">{saving ? t('cat.guardando') : t('cat.guardarCambios')}</button>
       </div>
     </div>
   {/if}
@@ -615,13 +637,13 @@
           onblur={(e) => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'} />
         {#if config.table === 'ano_lectivo'}
           <div style="margin-top:0.5rem;padding:0.5rem 0.6rem;border-radius:8px;background:rgba(129,140,248,0.12);border:1px solid rgba(129,140,248,0.3);font-size:0.7rem;color:#c7d2fe;line-height:1.4">
-            📅 Se ingresa como <strong>año calendario</strong> de 4 dígitos (Ej: 2026, 2027), no como rango. El sistema lo usa como año calendario: si es 2026, la vista mensual muestra 2026.
+            {t('cat.ano.p1')}<strong>{t('cfg.anio.p2')}</strong>{t('cat.ano.p3')}
           </div>
         {/if}
       </div>
       <div style="display:flex;justify-content:flex-end;gap:0.75rem;">
-        <button onclick={() => showPrompt = false} style="padding:0.5rem 1rem;font-size:0.8rem;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);color:#94a3b8;cursor:pointer;font-weight:600;transition:all 0.15s;">Cancelar</button>
-        <button onclick={() => { if (promptOnConfirm) promptOnConfirm(promptValue); showPrompt = false; }} style="padding:0.5rem 1.25rem;font-size:0.8rem;border-radius:8px;border:none;background:linear-gradient(135deg,{accentColor},{accentColor}dd);color:white;font-weight:700;cursor:pointer;box-shadow:0 4px 14px {accentColor}4d;transition:all 0.15s;">Aceptar</button>
+        <button onclick={() => showPrompt = false} style="padding:0.5rem 1rem;font-size:0.8rem;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);color:#94a3b8;cursor:pointer;font-weight:600;transition:all 0.15s;">{t('comun.cancelar')}</button>
+        <button onclick={() => { if (promptOnConfirm) promptOnConfirm(promptValue); showPrompt = false; }} style="padding:0.5rem 1.25rem;font-size:0.8rem;border-radius:8px;border:none;background:linear-gradient(135deg,{accentColor},{accentColor}dd);color:white;font-weight:700;cursor:pointer;box-shadow:0 4px 14px {accentColor}4d;transition:all 0.15s;">{t('cat.aceptar')}</button>
       </div>
     </div>
   </div>
