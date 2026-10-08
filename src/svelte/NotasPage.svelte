@@ -2076,16 +2076,16 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             }} />
             <BotonMod opts={{
               onclick: redo, disabled: redoStack.length === 0,
-              icono: '↪️', etiqueta: 'Rehacer', tono: 'ambar',
-              sub: redoStack.length === 0 ? 'Nada que rehacer' : `${redoStack.length} por rehacer`,
-              title: 'Rehacer (Ctrl+Y)',
+              icono: '↪️', etiqueta: t('notas.btn.rehacer'), tono: 'ambar',
+              sub: redoStack.length === 0 ? t('notas.rehacerNada') : t('notas.porRehacer', { n: redoStack.length }),
+              title: t('notas.rehacer'),
             }} />
             <BotonMod opts={{
               onclick: handleGuardarNotas,
               disabled: !hasUnsavedChanges || saving || estudiantes.length === 0,
-              icono: saving ? '⏳' : '💾', etiqueta: saving ? 'Guardando' : 'Guardar', tono: 'verde',
-              sub: saving ? 'Escribiendo en la BD' : (hasUnsavedChanges ? `${cambiosPendientes} cambios` : 'Sin cambios'),
-              title: 'Guardar Notas (Ctrl+G)',
+              icono: saving ? '⏳' : '💾', etiqueta: saving ? t('notas.btn.guardando') : t('notas.btn.guardarCorto'), tono: 'verde',
+              sub: saving ? t('notas.guardado.escribiendo') : (hasUnsavedChanges ? t('notas.cambiosPendientes', { n: cambiosPendientes }) : t('notas.guardado.limpio')),
+              title: t('notas.btn.guardar'),
             }} />
           </div>
 
@@ -2094,14 +2094,14 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
 
       {#if isAndroidMobile}
         <div class="category-card" style="padding: 0.4rem 0.5rem; margin-top: 0.4rem;">
-          <SearchFab bind:value={searchTerm} placeholder="Buscar estudiante o nota..." conMargen={false} />
+          <SearchFab bind:value={searchTerm} placeholder={t('notas.buscar.placeholder')} conMargen={false} />
         </div>
         <div class="category-card" style="padding: 0.5rem; margin-top: 0.4rem; display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
           <button type="button" onclick={() => { showFiltersModal = true; }}
             style="height:38px;padding:0 0.8rem;font-size:0.78rem;background:rgba(96,165,250,0.18);color:#bfdbfe;border:1px solid rgba(96,165,250,0.4);border-radius:8px;display:flex;align-items:center;justify-content:center;gap:5px;font-weight:600;cursor:pointer;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
             <span>🔍</span>
               <span style="overflow:hidden;text-overflow:ellipsis;">
-                {(colegios.find(c => c.id === selectedColegio)?.nombre)?.split(' ')[0] || 'Colegio'} · {grados.find(g => g.id === selectedGrado)?.nombre || 'Grado'} · {secciones.find(s => s.id === selectedSeccion)?.nombre || 'Sección'} · {cortes.find(c => c.id === selectedCorte)?.nombre || 'Corte'}{selectedSexo ? ` · ${selectedSexo === 'M' ? 'Masc' : 'Fem'}` : ''}
+                {(colegios.find(c => c.id === selectedColegio)?.nombre)?.split(' ')[0] || t('notas.chip.colegio')} · {grados.find(g => g.id === selectedGrado)?.nombre || t('notas.chip.grado')} · {secciones.find(s => s.id === selectedSeccion)?.nombre || t('notas.chip.seccion')} · {cortes.find(c => c.id === selectedCorte)?.nombre || t('notas.corte')}{selectedSexo ? ` · ${selectedSexo === 'M' ? t('notas.filtro.masc') : t('notas.filtro.fem')}` : ''}
               </span>
           </button>
         </div>
@@ -2119,21 +2119,21 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           <BotonMod opts={{
             onclick: handleGuardarNotas,
             disabled: !hasUnsavedChanges || saving || estudiantes.length === 0,
-            icono: saving ? '⏳' : '💾', etiqueta: saving ? 'Guardando' : 'Guardar', tono: 'verde',
-            sub: saving ? 'Escribiendo en la BD' : (hasUnsavedChanges ? `${cambiosPendientes} cambios` : 'Sin cambios'),
-            title: 'Guardar Notas (Ctrl+G)', compacto: true
+            icono: saving ? '⏳' : '💾', etiqueta: saving ? t('notas.btn.guardando') : t('notas.btn.guardarCorto'), tono: 'verde',
+            sub: saving ? t('notas.guardado.escribiendo') : (hasUnsavedChanges ? t('notas.cambiosPendientes', { n: cambiosPendientes }) : t('notas.guardado.limpio')),
+            title: t('notas.btn.guardar'), compacto: true
           }} />
           <BotonMod opts={{
             onclick: undo, disabled: history.length === 0,
             icono: '↩️', etiqueta: t('notas.btn.deshacer'), tono: 'ambar',
-            sub: history.length === 0 ? 'Sin cambios' : `${history.length} en historial`,
-            title: 'Deshacer (Ctrl+Z)', compacto: true
+            sub: history.length === 0 ? t('notas.guardado.limpio') : t('notas.historial', { n: history.length }),
+            title: t('notas.deshacer'), compacto: true
           }} />
           <BotonMod opts={{
             onclick: redo, disabled: redoStack.length === 0,
-            icono: '↪️', etiqueta: 'Rehacer', tono: 'ambar',
-            sub: redoStack.length === 0 ? 'Nada que rehacer' : `${redoStack.length} por rehacer`,
-            title: 'Rehacer (Ctrl+Y)', compacto: true
+            icono: '↪️', etiqueta: t('notas.btn.rehacer'), tono: 'ambar',
+            sub: redoStack.length === 0 ? t('notas.rehacerNada') : t('notas.porRehacer', { n: redoStack.length }),
+            title: t('notas.rehacer'), compacto: true
           }} />
         </div>
 
@@ -2151,7 +2151,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                 {filteredNotas[currentStudentIdx]?.estudianteNombre || ''}
               </div>
               <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">
-                {currentStudentIdx + 1} de {filteredNotas.length} — tap para lista
+                {t('notas.movil.indice', { i: currentStudentIdx + 1, n: filteredNotas.length })}
               </div>
             </div>
             <button onclick={goNextStudent} disabled={currentStudentIdx >= filteredNotas.length - 1}
@@ -2161,10 +2161,10 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           {#if filteredNotas[currentStudentIdx]}
             {@const est = filteredNotas[currentStudentIdx]}
             <div style="margin-bottom: 0; padding: 0.6rem; border-radius: 12px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(34, 197, 94, 0.3); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
-                  <div style="color: #94a3b8; font-weight: bold; font-size: 0.85rem;">Nota Final</div>
+                  <div style="color: #94a3b8; font-weight: bold; font-size: 0.85rem;">{t('notas.col.notaFinal')}</div>
                   <div style="display: flex; align-items: center; gap: 0.4rem;">
                     {#if !isQualitative}
-                      <span title="Escala 0-100" style="font-size: 0.9rem; color: #e2e8f0;">{(() => {
+                      <span title={t('notas.escala0a100')} style="font-size: 0.9rem; color: #e2e8f0;">{(() => {
                         const rawFinal = activeIndicadores.reduce((sum, ind) => sum + ind.criterios.reduce((s, c) => {
                           const qv = notasCualitativas[`${est.estudianteId}-${c.id}`];
                           if (qv && ['AA','AS','AF','AI'].includes(qv)) return s + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
@@ -2205,7 +2205,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
     </div>
 
     {#if loading}
-      <div style="text-align: center; padding: {isMobile ? '0.5rem' : '2rem'}; font-size: {isMobile ? '0.75rem' : '1rem'};">Cargando datos...</div>
+      <div style="text-align: center; padding: {isMobile ? '0.5rem' : '2rem'}; font-size: {isMobile ? '0.75rem' : '1rem'};">{t('notas.cargando')}</div>
     {/if}
 
     <!-- Mobile: Card View -->
@@ -2225,7 +2225,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                       onclick={(e) => abrirPopover('indicador', ind.id, 0, e)}
                       onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirPopover('indicador', ind.id, 0, e as unknown as MouseEvent); } }}
                       style="color: {ind.activo ? 'var(--text-secondary)' : '#64748b'}; font-weight: bold; font-size: 0.8rem; cursor: pointer;">
-                      Indicador {ind.orden} ⚙{#if !ind.activo}<span style="font-size: 0.6rem; color: #64748b;"> · no suma</span>{/if}
+                      {t('notas.indicador', { n: ind.orden })} ⚙{#if !ind.activo}<span style="font-size: 0.6rem; color: #64748b;">{' '}{t('notas.noSuma')}</span>{/if}
                     </div>
                     <div style="color: {ind.activo ? (() => {
                       const totalInd = ind.criterios.reduce((sum, c) => {
@@ -2296,8 +2296,8 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
         <div style="position: relative; background: linear-gradient(180deg, rgba(30, 41, 59, 0.98), rgba(15, 23, 42, 0.99)); border: 1px solid rgba(255,255,255,0.08); border-bottom: none; border-radius: 20px 20px 0 0; width: 100%; max-height: 70vh; display: flex; flex-direction: column; box-shadow: 0 -10px 40px rgba(0,0,0,0.5);">
           <div style="padding: 1rem 1rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
             <div>
-              <div style="color: #f1f5f9; font-weight: bold; font-size: 1rem;">Estudiantes</div>
-              <div style="color: #64748b; font-size: 0.75rem;">{filteredNotas.length} estudiantes</div>
+              <div style="color: #f1f5f9; font-weight: bold; font-size: 1rem;">{t('notas.estudiantes')}</div>
+              <div style="color: #64748b; font-size: 0.75rem;">{t('notas.estudiantesConteo', { n: filteredNotas.length })}</div>
             </div>
             <button onclick={() => showStudentList = false} style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; border-radius: 10px; padding: 0.3rem 0.7rem; font-size: 0.85rem; cursor: pointer;">✕</button>
           </div>
@@ -2332,19 +2332,19 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
       <div class="category-card" style="flex: 1; min-height: 0; width: 100%; max-width: 100%; overflow: hidden; display: flex; flex-direction: column; padding: 0.75rem;">
         <div class="category-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-shrink: 0;">
           <h3 style="margin: 0; font-size: 1.2rem; display: flex; align-items: center; gap: 0.5rem;">
-            📝 Estudiantes <span style="opacity: 0.7; font-size: 0.8em;">({filteredNotas.length})</span>
+            📝 {t('notas.estudiantes')} <span style="opacity: 0.7; font-size: 0.8em;">({filteredNotas.length})</span>
           </h3>
           <div style="font-size: 0.9rem; color: #94a3b8; display: flex; align-items: center; gap: 0.35rem;">
-            <span title="Indicadores que suman en esta sección. Se cambia con el ⚙ de cada indicador." style="cursor: help;">Suman en esta sección:</span>
+            <span title={t('notas.sumanTitulo')} style="cursor: help;">{t('notas.sumanSeccion')}</span>
             <span style="font-weight: bold; color: {activeIndicadores.length > MAX_INDICADORES_ACTIVOS ? '#fbbf24' : '#fff'};">{activeIndicadores.length}/{MAX_INDICADORES_ACTIVOS}</span>
             {#if seccionTieneExcepciones}
-              <span title="Esta sección tiene indicadores distintos a los globales. Usa ⚙ → Restablecer para volver a los valores por defecto." style="font-size: 0.7rem; color: #a78bfa; cursor: help;">· 📌 config propia de la sección</span>
+              <span title={t('notas.configPropiaTitulo')} style="font-size: 0.7rem; color: #a78bfa; cursor: help;">{t('notas.configPropia')}</span>
             {/if}
             {#if indicadoresSeccion.length > activeIndicadores.length}
-              <span title="Los indicadores inactivos también se muestran y se pueden calificar, pero sus notas NO suman al total de 100 pts ni los toca el modal de distribución." style="font-size: 0.7rem; color: #64748b;">· {indicadoresSeccion.length - activeIndicadores.length} no suman</span>
+              <span title={t('notas.noSumanTitulo')} style="font-size: 0.7rem; color: #64748b;">{t('notas.noSumanCount', { n: indicadoresSeccion.length - activeIndicadores.length })}</span>
             {/if}
             {#if maxPuntosTotales !== 100}
-              <span title="Con {activeIndicadores.length} indicadores el máximo real es {maxPuntosTotales} pts. La columna Final se muestra en escala 0-100." style="font-size: 0.7rem; color: #fbbf24;">· máx real {maxPuntosTotales} pts</span>
+              <span title={t('notas.maxRealTitulo', { n: activeIndicadores.length, pts: maxPuntosTotales })} style="font-size: 0.7rem; color: #fbbf24;">{t('notas.maxReal', { pts: maxPuntosTotales })}</span>
             {/if}
           </div>
         </div>
@@ -2354,21 +2354,21 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             <thead style="position: sticky; top: 0; z-index: 100;">
               <tr style="background: #1e293b;">
                 <th style="padding: 0.3rem; text-align: center; font-weight: bold; color: #94a3b8; position: sticky; left: 0; z-index: 110; background: #1e293b; border-bottom: 2px solid rgba(255,255,255,0.1); width: 35px;">Nº</th>
-                <th style="padding: 0.3rem; text-align: left; font-weight: bold; color: #94a3b8; position: sticky; left: 35px; z-index: 110; background: #1e293b; border-bottom: 2px solid rgba(255,255,255,0.1); min-width: 130px; max-width: 150px;">Estudiante</th>
+                <th style="padding: 0.3rem; text-align: left; font-weight: bold; color: #94a3b8; position: sticky; left: 35px; z-index: 110; background: #1e293b; border-bottom: 2px solid rgba(255,255,255,0.1); min-width: 130px; max-width: 150px;">{t('notas.col.estudiante')}</th>
                 {#each indicadoresSeccion as ind}
                   <th colspan={ind.criterios.length + 1} style="padding: 0.2rem; text-align: center; font-weight: bold; border-bottom: 2px solid {ind.activo ? 'rgba(255,255,255,0.1)' : 'rgba(100,116,139,0.25)'};">
                     <div
                       role="button" tabindex="0"
                       onclick={(e) => abrirPopover('indicador', ind.id, 0, e)}
                       onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirPopover('indicador', ind.id, 0, e as unknown as MouseEvent); } }}
-                      title={ind.activo ? (ind.descripcion || `Indicador ${ind.orden}`) : `${ind.descripcion || `Indicador ${ind.orden}`} · INACTIVO: sus notas no suman al total de 100 pts`}
+                      title={ind.activo ? (ind.descripcion || t('notas.indicador', { n: ind.orden })) : `${ind.descripcion || t('notas.indicador', { n: ind.orden })} · ${t('notas.indicadorInactivo')}`}
                       style="background: {ind.activo ? 'rgba(var(--primary-rgb), 0.15)' : 'rgba(100,116,139,0.08)'}; padding: 0.2rem; border-radius: 4px; border: 1px solid {ind.activo ? 'rgba(var(--primary-rgb), 0.4)' : 'rgba(100,116,139,0.3)'}; color: {ind.activo ? 'var(--text-secondary)' : '#64748b'}; cursor: pointer; {ind.activo ? '' : 'border-style: dashed;'} transition: all 0.15s ease;">
                       <div style="font-weight: bold; font-size: 0.7rem;">Ind. {ind.orden}{ind.activo ? '' : ' ·'} ⚙</div>
                     </div>
                   </th>
                 {/each}
-                <th title="Escala 0-100 (igual que el modal de distribución). Pasa el cursor sobre la nota para ver los puntos crudos." style="padding: 0.3rem; text-align: center; font-weight: bold; color: #4ade80; background: #1e293b; border-bottom: 2px solid rgba(34, 197, 94, 0.4); position: sticky; right: 0; z-index: 110; width: 60px;">
-                  <div style="font-weight: bold; font-size: 0.7rem;">Final</div>
+                <th title={t('notas.col.finalTitulo')} style="padding: 0.3rem; text-align: center; font-weight: bold; color: #4ade80; background: #1e293b; border-bottom: 2px solid rgba(34, 197, 94, 0.4); position: sticky; right: 0; z-index: 110; width: 60px;">
+                  <div style="font-weight: bold; font-size: 0.7rem;">{t('notas.col.final')}</div>
                   <div style="font-size: 0.55rem; color: #94a3b8;">{isQualitative ? 'Cual.' : '100'}</div>
                 </th>
               </tr>
@@ -2381,14 +2381,14 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                       role="button" tabindex="0"
                       onclick={(e) => abrirPopover('criterio', ind.id, crit.id, e)}
                       onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirPopover('criterio', ind.id, crit.id, e as unknown as MouseEvent); } }}
-                      title="{crit.descripcion || 'Sin descripción'} — clic para ver opciones del criterio"
+                      title={(crit.descripcion || t('notas.sinDescripcion')) + t('notas.criterioClic')}
                       style="padding: 0.2rem; text-align: center; color: {ind.activo ? '#94a3b8' : '#64748b'}; font-size: 0.65rem; border-bottom: 1px solid rgba(255,255,255,0.1); cursor: pointer;">
                       <div style="font-weight: bold;">C{crit.orden} ⚙</div>
                       {#if !isQualitative}<div style="font-size: 0.55rem; color: {ind.activo ? '#4ade80' : '#64748b'};">{crit.puntajeMaximo}</div>{/if}
                     </th>
                   {/each}
                   <th style="padding: 0.2rem; text-align: center; color: {ind.activo ? '#94a3b8' : '#64748b'}; font-weight: bold; background: {ind.activo ? 'rgba(var(--primary-rgb), 0.08)' : 'rgba(100,116,139,0.06)'}; border-bottom: 1px solid rgba(255,255,255,0.1);">
-                    <div style="color: {ind.activo ? '#4ade80' : '#64748b'}; font-size: 0.6rem;">{ind.activo ? (isQualitative ? 'Cual.' : 'Tot') : 'no suma'}</div>
+                    <div style="color: {ind.activo ? '#4ade80' : '#64748b'}; font-size: 0.6rem;">{ind.activo ? (isQualitative ? 'Cual.' : 'Tot') : t('notas.noSumaCorto')}</div>
                   </th>
                 {/each}
                 <th style="padding: 0.2rem; text-align: center; color: #94a3b8; font-weight: bold; background: #1e293b; position: sticky; right: 0; z-index: 110; border-bottom: 1px solid rgba(34, 197, 94, 0.4);">
@@ -2476,12 +2476,12 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                         {@const gradeConfig = getGradeFromScore(totalEscalado)}
                         {@const qualitativeGrade = isQualitative ? calcularNotaCualitativaFinal(indicador.criterios.map(c => notasCualitativas[`${est.estudianteId}-${c.id}`] || '')) : (gradeConfig?.id || 'AI')}
                         {@const displayColor = indicador.activo ? (qualitativeGrade ? getGradeColor(qualitativeGrade) : '#94a3b8') : '#64748b'}
-                        <div title={indicador.activo ? `Suma al total: ${totalIndicadorRedondeado} de ${maximoIndicador} pts` : `Indicador inactivo: ${totalIndicadorRedondeado} de ${maximoIndicador} pts — NO suma al total`} style="color: {displayColor}; font-size: 0.75rem; font-weight: bold; {indicador.activo ? '' : 'opacity: 0.75;'}">
+                        <div title={indicador.activo ? t('notas.tooltip.sumaTotal', { a: totalIndicadorRedondeado, b: maximoIndicador }) : t('notas.tooltip.inactivo', { a: totalIndicadorRedondeado, b: maximoIndicador })} style="color: {displayColor}; font-size: 0.75rem; font-weight: bold; {indicador.activo ? '' : 'opacity: 0.75;'}">
                           {#if indicador.activo}
                             {isQualitative ? qualitativeGrade : `${totalIndicadorRedondeado}${qualitativeGrade ? ` (${qualitativeGrade})` : ''}`}
                           {:else}
                             <span style="font-size: 0.7rem;">{isQualitative ? qualitativeGrade || '—' : totalIndicadorRedondeado}</span>
-                            <span style="display: block; font-size: 0.5rem; font-weight: 400; color: #64748b;">no suma</span>
+                            <span style="display: block; font-size: 0.5rem; font-weight: 400; color: #64748b;">{t('notas.noSumaCorto')}</span>
                           {/if}
                         </div>
                       {/each}
@@ -2962,7 +2962,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.7rem; background: {ind.activo ? 'rgba(255,255,255,0.03)' : 'rgba(100,116,139,0.06)'}; border: 1px solid {ind.activo ? 'rgba(255,255,255,0.06)' : 'rgba(100,116,139,0.22)'}; border-radius: 12px; margin-bottom: 0.45rem; flex-wrap: wrap;">
               <span style="width: 26px; height: 26px; border-radius: 8px; background: {ind.activo ? 'rgba(14,165,233,0.15)' : 'rgba(100,116,139,0.15)'}; color: {ind.activo ? '#7dd3fc' : '#94a3b8'}; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.72rem; flex-shrink: 0;">{ind.orden}</span>
               <div style="flex: 1; min-width: 140px;">
-                <div style="color: {ind.activo ? '#e2e8f0' : '#94a3b8'}; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{ind.descripcion || '(Sin descripción)'}{#if !ind.activo}<span style="font-size: 0.62rem; color: #64748b;"> · no suma al total</span>{/if}</div>
+                <div style="color: {ind.activo ? '#e2e8f0' : '#94a3b8'}; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{ind.descripcion || t('notas.sinDescripcionPar')}{#if !ind.activo}<span style="font-size: 0.62rem; color: #64748b;">{' '}{t('notas.noSumaTotal')}</span>{/if}</div>
                 <div style="color: #64748b; font-size: 0.65rem;">{ind.criterios.length} criterio(s)</div>
               </div>
               <select value={disponibles.some(t => t.id === tipoActual) ? tipoActual : (disponibles[0]?.id ?? tipoActual)}

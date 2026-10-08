@@ -348,6 +348,7 @@ export const es = {
   'notas.cargando': 'Cargando datos...',
   'notas.noSuma': '· no suma',
   'notas.noSumaCorto': 'no suma',
+  'notas.noSumaTotal': '· no suma al total',
   'notas.estudiantes': 'Estudiantes',
   'notas.sumanSeccion': 'Suman en esta sección:',
   'notas.configPropia': '· 📌 config propia de la sección',
@@ -395,6 +396,18 @@ export const es = {
   'notas.maxReal': '· máx real {pts} pts',
   'notas.col.finalTitulo':
     'Escala 0-100 (igual que el modal de distribución). Pasa el cursor sobre la nota para ver los puntos crudos.',
+  'notas.vacio.sinResultados': 'No se encontró ningún estudiante que coincida con "{q}"',
+  'notas.vacio.sinEstudiantes':
+    'No hay estudiantes registrados para {grado} - {seccion}. Por favor, registre estudiantes en la sección de Estudiantes.',
+  'notas.vacio.seleccioneDesc':
+    'Seleccione un año, corte, colegio, asignatura, grado y sección para ver y calificar a los estudiantes.',
+  'notas.tooltip.sumaTotal': 'Suma al total: {a} de {b} pts',
+  'notas.tooltip.inactivo': 'Indicador inactivo: {a} de {b} pts — NO suma al total',
+  'notas.tooltip.total': '{a} de {b} pts',
+  'notas.btn.instrumentosTitulo': 'Instrumentos de evaluación',
+  'notas.btn.instrumentosSub': 'PDF y XLSX de los {a} de {b} activos',
+  'notas.btn.distribuirSub': 'Reparto automático de {n} activos',
+  'notas.del.previa': '⚠️ Seleccione un corte y asignatura primero',
   'notas.alcanceSeccion': 'esta sección',
   'notas.activo.activarTitulo': '✔ Activar indicador',
   'notas.activo.desactivarTitulo': '👁 Desactivar indicador',

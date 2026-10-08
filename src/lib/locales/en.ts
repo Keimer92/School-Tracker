@@ -338,6 +338,7 @@ export const en: Record<Clave, string> = {
   'notas.cargando': 'Loading data...',
   'notas.noSuma': '· does not count',
   'notas.noSumaCorto': 'does not count',
+  'notas.noSumaTotal': '· does not count toward the total',
   'notas.estudiantes': 'Students',
   'notas.sumanSeccion': 'Counting in this section:',
   'notas.configPropia': '· 📌 section-specific config',
@@ -384,6 +385,18 @@ export const en: Record<Clave, string> = {
   'notas.maxReal': '· real max {pts} pts',
   'notas.col.finalTitulo':
     '0-100 scale (same as the distribute modal). Hover over the grade to see the raw points.',
+  'notas.vacio.sinResultados': 'No student matched "{q}"',
+  'notas.vacio.sinEstudiantes':
+    'There are no students registered for {grado} - {seccion}. Please register students in the Students section.',
+  'notas.vacio.seleccioneDesc':
+    'Select a school year, term, school, subject, grade and section to view and grade the students.',
+  'notas.tooltip.sumaTotal': 'Counts toward the total: {a} of {b} pts',
+  'notas.tooltip.inactivo': 'Inactive indicator: {a} of {b} pts — does NOT count',
+  'notas.tooltip.total': '{a} of {b} pts',
+  'notas.btn.instrumentosTitulo': 'Assessment instruments',
+  'notas.btn.instrumentosSub': 'PDF and XLSX for {a} of {b} active',
+  'notas.btn.distribuirSub': 'Automatic distribution of {n} active',
+  'notas.del.previa': '⚠️ Select a term and a subject first',
   'notas.alcanceSeccion': 'this section',
   'notas.activo.activarTitulo': '✔ Activate indicator',
   'notas.activo.desactivarTitulo': '👁 Deactivate indicator',
