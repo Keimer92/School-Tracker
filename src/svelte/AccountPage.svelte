@@ -3,6 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { emit } from "@tauri-apps/api/event";
   import { ask } from "@tauri-apps/plugin-dialog";
+import { t } from "../lib/i18n.svelte";
   import {
     getPerfilLocal, setPerfilLocal, clearPerfilLocal,
     getValidAuthToken, getAuthToken,
@@ -43,13 +44,13 @@
         perfil = getPerfilLocal();
         await loadDbPath();
         await emit("show-toast", {
-          message: perfil?.rol === 'admin' ? "👑 Sesión de administrador iniciada" : "✅ Sesión iniciada con Google",
+          message: perfil?.rol === 'admin' ? t('acc.toast.adminLogin') : t('acc.toast.loginOk'),
           type: "success",
         });
       } else if (res.status === 'cancelled') {
-        await emit("show-toast", { message: "Autenticación cancelada", type: "info" });
+        await emit("show-toast", { message: t('acc.toast.cancelada'), type: "info" });
       } else if (res.status === 'sin-nube') {
-        await emit("show-toast", { message: "🔑 Sesión iniciada, pero tu cuenta no está autorizada en esta nube. Drive funciona igual; la nube D1 no.", type: "info" });
+        await emit("show-toast", { message: t('acc.toast.sinNube'), type: "info" });
       } else {
         await emit("show-toast", { message: "❌ " + res.error, type: "error" });
       }
@@ -64,7 +65,7 @@
     perfil = null;
     adminUsers = [];
     showAdminPanel = false;
-    emit("show-toast", { message: "👋 Sesión cerrada (la nube y tus datos permanecen intactos)", type: "info" });
+    emit("show-toast", { message: t('acc.toast.sesionCerrada'), type: "info" });
   }
 
   /**
@@ -80,32 +81,32 @@
   async function traspasar() {
     if (handoverBusy) return;
     const ok = await ask(
-      'Se borrarán los datos locales de esta app y el vínculo con la nube.\n\n' +
-      'Primero se sube un respaldo a tu Google Drive. Si esa subida falla, no se borra nada.\n\n' +
-      'Después la app vuelve a la pantalla de inicio para que la otra persona entre con su cuenta.\n\n' +
-      '¿Continuar?',
-      { title: 'Traspasar dispositivo', kind: 'warning', okLabel: 'Sí, respaldar y traspasar', cancelLabel: 'Cancelar' }
+      t('acc.borrarDatos') + '\n\n' +
+      t('acc.primeroRespaldo') + '\n\n' +
+      t('acc.volverInicio') + '\n\n' +
+      t('acc.continuarPregunta'),
+      { title: t('acc.traspasarDispositivo'), kind: 'warning', okLabel: t('acc.respaldarYTraspasar'), cancelLabel: t('comun.cancelar') }
     );
     if (!ok) return;
     handoverBusy = true;
-    handoverEtapa = 'Respaldando...';
+    handoverEtapa = t('acc.respaldando');
     try {
       const { traspasarDispositivo } = await import('../lib/deviceHandover');
       const res = await traspasarDispositivo({
         onEtapa: (etapa) => { handoverEtapa = etapa; },
       });
       if (res.ok) {
-        handoverEtapa = 'Listo. Reiniciando...';
-        await emit("show-toast", { message: "📦 Dispositivo traspasado. Se recargará la app.", type: "success" });
+        handoverEtapa = t('acc.listoReiniciando');
+        await emit("show-toast", { message: t('acc.toast.traspasado'), type: "success" });
       } else {
         handoverEtapa = '';
-        await emit("show-toast", { message: "❌ " + (res.motivo || 'No se pudo completar el traspaso'), type: "error" });
+        await emit("show-toast", { message: t('acc.toast.error') + (res.motivo || t('acc.noCompletoTraspaso')), type: "error" });
       }
     } catch (e: any) {
       handoverEtapa = '';
-      await emit("show-toast", { message: "❌ Error en el traspaso: " + (e?.message || e), type: "error" });
+      await emit("show-toast", { message: t('acc.toast.errorTraspaso') + (e?.message || e), type: "error" });
     } finally {
-      if (handoverEtapa !== 'Listo. Reiniciando...') handoverBusy = false;
+      if (handoverEtapa !== t('acc.listoReiniciando')) handoverBusy = false;
     }
   }
   // ── Admin panel ──
@@ -116,22 +117,22 @@
 
   async function cargarUsuarios() {
     const token = await getValidAuthToken();
-    if (!token) { await emit("show-toast", { message: "⚠️ Inicia sesión con Google para administrar usuarios", type: "warning" }); return; }
+    if (!token) { await emit("show-toast", { message: t('acc.toast.sinSesionAdmin'), type: "warning" }); return; }
     adminLoading = true;
     try {
       const d1c = await invoke<any>("d1_get_config");
       const workerUrl = d1c?.workerUrl || undefined;
       adminUsers = await fetchAdminUsers(workerUrl);
     } catch (e) {
-      await emit("show-toast", { message: "❌ Error cargando usuarios: " + e, type: "error" });
+      await emit("show-toast", { message: t('acc.toast.errorUsuarios') + e, type: "error" });
     } finally { adminLoading = false; }
   }
 
   async function toggleSuspend(u: AdminUserInfo) {
-    const accion = u.suspendido ? "restaurar el acceso de" : "suspender a";
-    const ok = await ask(`¿Seguro que deseas ${accion} "${u.nombre}" (${u.email})?${u.suspendido ? "" : "\n\nNo podrá sincronizar hasta que lo restaures. Sus datos NO se borran."}`, {
-      title: u.suspendido ? "Restaurar usuario" : "Suspender usuario",
-      kind: "warning", okLabel: u.suspendido ? "Restaurar" : "Suspender", cancelLabel: "Cancelar",
+    const accion = u.suspendido ? t('acc.ask.accionRestaurar') : t('acc.ask.accionSuspender');
+    const ok = await ask(t('acc.ask.suspenderMsg', { accion, nombre: u.nombre, email: u.email, extra: u.suspendido ? "" : t('acc.ask.noSincroniza') }), {
+      title: u.suspendido ? t('acc.ask.restaurarTitulo') : t('acc.ask.suspenderTitulo'),
+      kind: "warning", okLabel: u.suspendido ? t('acc.restaurar') : t('acc.suspender'), cancelLabel: t('comun.cancelar'),
     });
     if (!ok) return;
     adminActionBusy = true;
@@ -139,23 +140,23 @@
       await suspendUser(u.email, !u.suspendido);
       u.suspendido = !u.suspendido;
       adminUsers = [...adminUsers];
-      await emit("show-toast", { message: u.suspendido ? "🚫 Acceso suspendido" : "✅ Acceso restaurado", type: "success" });
+      await emit("show-toast", { message: u.suspendido ? t('acc.toast.suspendido') : t('acc.toast.restaurado'), type: "success" });
     } catch (e) {
-      await emit("show-toast", { message: "❌ Error: " + e, type: "error" });
+      await emit("show-toast", { message: t('acc.toast.error') + e, type: "error" });
     } finally { adminActionBusy = false; }
   }
 
   async function purgarDatos(u: AdminUserInfo) {
-    const ok = await ask(`⚠️ ¿ELIMINAR TODOS LOS DATOS en la nube de "${u.nombre}" (${u.email})?\n\nEsta acción es PERMANENTE e IRREVERSIBLE. Los datos locales de sus dispositivos NO se tocan, pero se borrarán al intentar sincronizar.`, {
-      title: "Eliminar base de datos del usuario", kind: "warning", okLabel: "Eliminar todo", cancelLabel: "Cancelar",
+    const ok = await ask(t('acc.ask.purgarMsg', { nombre: u.nombre, email: u.email }), {
+      title: t('acc.ask.purgarTitulo'), kind: "warning", okLabel: t('acc.ask.eliminarTodo'), cancelLabel: t('comun.cancelar'),
     });
     if (!ok) return;
     adminActionBusy = true;
     try {
       const n = await deleteUserData(u.email);
-      await emit("show-toast", { message: `🗑️ ${n} filas eliminadas de la nube para ${u.email}`, type: "success" });
+      await emit("show-toast", { message: t('acc.toast.purgado', { n, email: u.email }), type: "success" });
     } catch (e) {
-      await emit("show-toast", { message: "❌ Error: " + e, type: "error" });
+      await emit("show-toast", { message: t('acc.toast.error') + e, type: "error" });
     } finally { adminActionBusy = false; }
   }
 
@@ -172,20 +173,20 @@
         <h3>
           <span class="header-badge">
             <svg width="22" height="22" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 0 1 0-4.2V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 0 0 2.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z"/></svg>
-            Cuenta
+            {t('acc.titulo')}
           </span>
         </h3>
       </div>
       <div class="account-card-body" style="text-align: center;">
-        <p style="color: #94a3b8; font-size: 0.88rem; margin: 0 0 1.1rem;">Inicia sesión con Google para sincronizar tus datos en la nube y administrar tu cuenta.</p>
+        <p style="color: #94a3b8; font-size: 0.88rem; margin: 0 0 1.1rem;">{t('acc.loginGoogle')}</p>
         {#if loginLoading}
           <div style="display:flex;flex-direction:column;align-items:center;gap:0.6rem;">
-            <button disabled class="btn-google-loading">Continuando...</button>
+            <button disabled class="btn-google-loading">{t('acc.continuing')}</button>
             {#if loginMsg}<p style="color:#94a3b8;font-size:0.78rem;margin:0;">{loginMsg}</p>{/if}
           </div>
         {:else}
           <button onclick={handleLogin} class="btn-google">
-            🔵 Continuar con Google
+            {t('acc.btnGoogle')}
           </button>
         {/if}
       </div>
@@ -204,16 +205,16 @@
         <div style="flex:1;min-width:140px;">
           <div style="color:#f1f5f9;font-weight:700;font-size:0.95rem;display:flex;align-items:center;gap:6px;">
             {perfil.nombre}
-            {#if perfil.rol === 'admin'}<span class="badge-admin">Admin</span>{/if}
+            {#if perfil.rol === 'admin'}<span class="badge-admin">{t('acc.admin')}</span>{/if}
           </div>
           <div style="color:#94a3b8;font-size:0.78rem;">{perfil.email}</div>
         </div>
-        <button onclick={cerrarSesion} class="btn-logout">Cerrar sesión</button>
+        <button onclick={cerrarSesion} class="btn-logout">{t('acc.cerrarSesion')}</button>
       </div>
 
       {#if dbPath}
         <div class="db-path-row">
-          <span class="label-sm">BASE DE DATOS ACTIVA</span>
+          <span class="label-sm">{t('acc.baseDatosActiva')}</span>
           <span class="db-path" title={dbPath}>{dbPath.split(/[/\\]/).pop()}</span>
         </div>
       {/if}
@@ -222,14 +223,14 @@
         <div style="padding: 0 1.5rem 1.1rem;">
           <button onclick={() => { showAdminPanel = !showAdminPanel; if (showAdminPanel && adminUsers.length === 0) cargarUsuarios(); }}
             class="btn-admin-toggle">
-            🛡️ Panel de administración {showAdminPanel ? '▲' : '▼'}
+            {t('acc.panelAdmin')} {showAdminPanel ? '▲' : '▼'}
           </button>
           {#if showAdminPanel}
             <div class="admin-panel">
               {#if adminLoading}
-                <p style="color:#94a3b8;font-size:0.8rem;margin:0.4rem;">Cargando usuarios...</p>
+                <p style="color:#94a3b8;font-size:0.8rem;margin:0.4rem;">{t('acc.cargandoUsuarios')}</p>
               {:else if adminUsers.length === 0}
-                <p style="color:#64748b;font-size:0.8rem;margin:0.4rem;">Sin usuarios registrados aún.</p>
+                <p style="color:#64748b;font-size:0.8rem;margin:0.4rem;">{t('acc.sinUsuarios')}</p>
               {:else}
                 {#each adminUsers as u (u.email)}
                   <div class="admin-user-row">
@@ -239,24 +240,24 @@
                       <div class="admin-user-pic admin-user-pic-fallback">👤</div>
                     {/if}
                     <div style="flex:1;min-width:0;">
-                      <div style="color:#e2e8f0;font-size:0.8rem;font-weight:600;{u.suspendido ? 'text-decoration:line-through;opacity:0.6;' : ''}">{u.nombre}{u.rol === 'admin' ? ' · admin' : ''}</div>
-                      <div style="color:#64748b;font-size:0.68rem;">{u.email} · alta {u.creado?.slice(0, 10)}</div>
+                      <div style="color:#e2e8f0;font-size:0.8rem;font-weight:600;{u.suspendido ? 'text-decoration:line-through;opacity:0.6;' : ''}">{u.nombre}{u.rol === 'admin' ? ' · ' + t('acc.adminBadge') : ''}</div>
+                      <div style="color:#64748b;font-size:0.68rem;">{u.email} · {t('acc.alta')} {u.creado?.slice(0, 10)}</div>
                     </div>
                     {#if u.rol !== 'admin'}
                       <button onclick={() => toggleSuspend(u)} disabled={adminActionBusy}
                         class="btn-admin-action" style="border-color:{u.suspendido ? 'rgba(34,197,94,0.3)' : 'rgba(245,158,11,0.3)'};background:{u.suspendido ? 'rgba(34,197,94,0.1)' : 'rgba(245,158,11,0.1)'};color:{u.suspendido ? '#4ade80' : '#fbbf24'};">
-                        {u.suspendido ? 'Restaurar' : 'Suspender'}
+                        {u.suspendido ? t('acc.restaurar') : t('acc.suspender')}
                       </button>
                       <button onclick={() => purgarDatos(u)} disabled={adminActionBusy}
                         class="btn-admin-action" style="border-color:rgba(239,68,68,0.3);background:rgba(239,68,68,0.1);color:#fca5a5;">
-                        🗑 Datos
+                        {t('acc.datos')}
                       </button>
                     {/if}
                   </div>
                 {/each}
               {/if}
               <button onclick={cargarUsuarios} disabled={adminLoading} class="btn-admin-reload">
-                {adminLoading ? 'Cargando...' : '🔄 Recargar lista'}
+                {adminLoading ? t('acc.cargando') : t('acc.recargarLista')}
               </button>
             </div>
           {/if}
@@ -271,7 +272,7 @@
       <h3>
         <span class="header-badge">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4285F4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a7 7 0 0 1 14 0v1"/></svg>
-          Traspasar dispositivo
+          {t('acc.traspasarDispositivo')}
         </span>
       </h3>
     </div>
@@ -285,18 +286,14 @@
         en esta app.
       -->
       <p style="color:#94a3b8;font-size:0.8rem;line-height:1.5;margin:0 0 0.8rem;">
-        Para que otra persona use este equipo: se guarda un respaldo en tu Google
-        Drive, se borran los datos locales y la nube, y la app vuelve a la
-        pantalla de inicio para que entre con su cuenta.
+        {t('acc.traspasar.p1')}
       </p>
       <p style="color:#64748b;font-size:0.72rem;line-height:1.5;margin:0 0 0.8rem;">
-        El respaldo de Drive se sube con tu cuenta actual, así que queda a tu
-        nombre: la otra persona no lo ve. Tu archivo de base anterior no se borra
-        de disco, pero la app deja de usarlo.
+        {t('acc.traspasar.p2')}
       </p>
       <button onclick={traspasar} disabled={handoverBusy} class="btn-switch"
         style="background:rgba(239,68,68,0.1);border-color:rgba(239,68,68,0.3);color:#fca5a5;">
-        {handoverBusy ? handoverEtapa : '📦 Respaldar, borrar y traspasar'}
+        {handoverBusy ? handoverEtapa : t('acc.btnTraspasar')}
       </button>
     </div>
   </div>
