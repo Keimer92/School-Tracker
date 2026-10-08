@@ -950,6 +950,13 @@
     <span class="orb orb-b"></span>
     <span class="orb orb-c"></span>
   </div>
+  <!-- Selector de idioma flotante. Va ACÁ (hijo directo de `.welcome-page`)
+       y no dentro de cada vista: así está en la portada, en el asistente y en
+       la pantalla de nube, y también en Android (antes el
+       `{#if !isAndroidMobile}` lo escondía justo en el primer arranque).
+       `position: fixed` lo mantiene anclado aunque la vista haga scroll; el
+       popover se cierra al tocar afuera o con Escape. -->
+  <LanguagePicker flotante />
   {#if view === 'landing'}
     <div class="welcome-container" class:android={isAndroidMobile}>
       <div class="welcome-brand">
@@ -1001,10 +1008,6 @@
            tarjetas de entrada. -->
       {#if !isAndroidMobile}
         <BrowserPicker compacto />
-        <!-- El idioma también se elige acá, y no solo en Ajustes: si el único
-             lugar fuera Ajustes, el usuario no podría cambiarlo en el primer
-             arranque, que es justo cuando más lo necesita. -->
-        <LanguagePicker compacto />
       {/if}
       {#if driveSinRespaldo}
         <!-- El respaldo de Drive no sirvió. Las otras dos opciones siguen

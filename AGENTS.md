@@ -37,6 +37,37 @@ y `en.ts`. Picker en `src/svelte/LanguagePicker.svelte`.
 con el script `docs/i18n-status.ps1` que lo recalcula. Ahi esta el checklist para
 traducir una pagina nueva y las decisiones de que NO se traduce.
 
+### El picker en WelcomePage es un POPOVER FLOTANTE (2026-10)
+
+`LanguagePicker` tiene **dos modos**: `flotante` (WelcomePage) y completo sin
+props (Ajustes). El de WelcomePage es un boton 🌐 con popover, montado como
+**hijo directo de `.welcome-page`** y NO dentro de cada vista:
+
+- Asi cubre portada, asistente (wizard) y pantalla de nube. Antes el selector
+  solo existia en la portada, asi que estando en el asistente no se podia
+  cambiar de idioma.
+- **Esta visible en Android**: estaba detras de un `{#if !isAndroidMobile}`, o
+  sea escondida justo en el primer arranque, que es cuando mas se necesita.
+
+Notas de implementacion:
+
+- El boton va con `position: fixed`, NO `absolute`: `.welcome-page` tiene
+  `overflow-y: auto` y con `absolute` el boton se iria con el scroll del
+  asistente. Es seguro porque **ningun ancestro** (`.app-layout`,
+  `.welcome-page`) tiene `transform` ni `backdrop-filter`; si alguno lo
+  tuviera, ese ancestro pasaria a ser el bloque contenedor (GOTCHA de
+  `position: fixed` mas abajo). Aun asi la degradacion seria benigna porque
+  `.app-layout` ocupa todo el viewport.
+- El `overflow` de `.welcome-page` **no** recorta al `fixed`: ese overflow solo
+  recorta descendientes cuyo bloque contenedor esta en la cadena, y aca el
+  bloque contenedor es la ventana.
+- El popover se cierra con `pointerdown` (capture) afuera del componente y con
+  Escape, registrado en un `$effect` que solo corre `expandido && flotante`, asi
+  no deja listeners huerfdos cuando esta cerrado.
+- Al tocar el boton se usa `ev.target instanceof Element` antes de `closest()`:
+  `closest` vive en `Element`, no en `Node`, y `tsc` lo reclama.
+- `setLocale(o.id)` cierra el popover apenas se elige.
+
 ### El tipado es la garantia, no un script
 
 `es.ts` es la fuente de verdad (`export type Clave = keyof typeof es`) y `en.ts`

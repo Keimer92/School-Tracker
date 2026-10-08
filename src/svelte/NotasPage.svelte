@@ -17,6 +17,11 @@ import { primerColegio } from "../lib/catalogo";
   import { readFile } from "@tauri-apps/plugin-fs";
   import { ask } from "@tauri-apps/plugin-dialog";
   import { registerBackHandler } from "../lib/androidBack";
+  // OJO al importar `t`: en este archivo ya hubo dos `const t = ev.target`
+  // (renombrados a `nodo`). Si vuelve a aparecer una variable llamada `t`
+  // en un scope donde se llama `t('clave')`, el error de runtime apunta a la
+  // línea equivocada y es un infierno de depurar.
+  import { t } from "../lib/i18n.svelte";
 
   // Visible = la página contenedora está activa Y este es el sub-tab seleccionado.
   let { visible = true }: { visible?: boolean } = $props();
@@ -99,14 +104,14 @@ import { primerColegio } from "../lib/catalogo";
     return m ? m[1] : n;
   }
 
-  let corteActualNombre = $derived(cortes.find(c => c.id === selectedCorte)?.nombre || 'Corte actual');
+  let corteActualNombre = $derived(cortes.find(c => c.id === selectedCorte)?.nombre || t('notas.filtro.corteActual'));
 
   /** Chips de contexto del header del modal: colegio, grado, sección y asignatura (con el color de acento de cada categoría). */
   let contextoChips = $derived([
-    { icon: '🏫', color: '#34d399', titulo: 'Colegio', label: colegios.find(c => c.id === selectedColegio)?.nombre || '' },
-    { icon: '📊', color: '#fb923c', titulo: 'Grado', label: grados.find(g => g.id === selectedGrado)?.nombre || '' },
-    { icon: '👥', color: '#a78bfa', titulo: 'Sección', label: secciones.find(s => s.id === selectedSeccion)?.nombre || '' },
-    { icon: '📚', color: '#60a5fa', titulo: 'Asignatura', label: asignaturas.find(a => a.id === selectedAsignatura)?.nombre || '' },
+    { icon: '🏫', color: '#34d399', titulo: t('notas.chip.colegio'), label: colegios.find(c => c.id === selectedColegio)?.nombre || '' },
+    { icon: '📊', color: '#fb923c', titulo: t('notas.chip.grado'), label: grados.find(g => g.id === selectedGrado)?.nombre || '' },
+    { icon: '👥', color: '#a78bfa', titulo: t('notas.chip.seccion'), label: secciones.find(s => s.id === selectedSeccion)?.nombre || '' },
+    { icon: '📚', color: '#60a5fa', titulo: t('notas.chip.asignatura'), label: asignaturas.find(a => a.id === selectedAsignatura)?.nombre || '' },
   ]);
 
   /**
@@ -335,10 +340,12 @@ import { primerColegio } from "../lib/catalogo";
   $effect(() => {
     if (!popAcciones) return;
     const onPointerDown = (ev: PointerEvent) => {
-      const t = ev.target as Node | null;
+      // `nodo` y no `t`: el nombre `t` taparía la función de traducción `t()`
+      // importada en este componente (ver AGENTS.md, trampas del i18n).
+      const nodo = ev.target as Node | null;
       // Clic sobre el propio disparador: no cerrar aquí, lo hace su onclick.
-      if (t && popAccionesBtn?.contains(t)) return;
-      if (t && popAccionesPanelEl?.contains(t)) return;
+      if (nodo && popAccionesBtn?.contains(nodo)) return;
+      if (nodo && popAccionesPanelEl?.contains(nodo)) return;
       cerradoPorEsteClick = true;
       cerrarPopAcciones();
       // Se libera tras el click para no swallow-ear el siguiente clic real.
@@ -408,8 +415,9 @@ import { primerColegio } from "../lib/catalogo";
   $effect(() => {
     if (!popover) return;
     const onPointerDown = (ev: PointerEvent) => {
-      const t = ev.target as Node | null;
-      if (t && (popoverPanelEl?.contains(t) || popoverTriggerEl?.contains(t))) return;
+      // `nodo` y no `t`: ver la nota en el handler equivalente de arriba.
+      const nodo = ev.target as Node | null;
+      if (nodo && (popoverPanelEl?.contains(nodo) || popoverTriggerEl?.contains(nodo))) return;
       cerrarPopover();
     };
     const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') cerrarPopover(); };
@@ -483,22 +491,27 @@ import { primerColegio } from "../lib/catalogo";
       }
     }
     cerrarPopover();
-    const nombreSeccion = secciones.find(s => s.id === selectedSeccion)?.nombre || 'esta sección';
+    const nombreSeccion = secciones.find(s => s.id === selectedSeccion)?.nombre || t('notas.alcanceSeccion');
     const ok = await ask(
       nuevoEstado
-        ? `¿Sumar el Indicador ${ind.orden} en la sección ${nombreSeccion}?\n\nSolo cambia en esta sección; las demás no se tocan.`
-        : `¿Dejar de sumar el Indicador ${ind.orden} en la sección ${nombreSeccion}?\n\nSus notas dejan de sumar al total de esta sección, pero no se borra nada.`,
-      { title: nuevoEstado ? '✔ Activar indicador' : '👁 Desactivar indicador', kind: 'info', okLabel: nuevoEstado ? 'Activar' : 'Desactivar', cancelLabel: 'Cancelar' }
+        ? t('notas.activo.sumarMsg', { n: ind.orden, seccion: nombreSeccion })
+        : t('notas.activo.noSumarMsg', { n: ind.orden, seccion: nombreSeccion }),
+      {
+        title: nuevoEstado ? t('notas.activo.activarTitulo') : t('notas.activo.desactivarTitulo'),
+        kind: 'info',
+        okLabel: nuevoEstado ? t('notas.activo.activarBtn') : t('notas.activo.desactivarBtn'),
+        cancelLabel: t('comun.cancelar'),
+      }
     );
     if (!ok) return;
     procesandoAccion = true;
     try {
       await invoke('set_indicador_colegio_seccion_activo', { colegioId: selectedColegio, seccionId: selectedSeccion, indicadorId: ind.id, activo: nuevoEstado });
       await cargarActivosDeSeccion(selectedSeccion);
-      await emit("show-toast", { message: `✅ Indicador ${ind.orden} ${nuevoEstado ? 'suma' : 'no suma'} en la sección ${nombreSeccion}`, type: 'success' });
+      await emit("show-toast", { message: t('notas.activo.exito', { n: ind.orden, estado: nuevoEstado ? t('notas.activo.exitoSuma') : t('notas.activo.exitoNoSuma'), seccion: nombreSeccion }), type: 'success' });
       emit("indicadores-updated");
     } catch (e) {
-      await emit("show-toast", { message: "❌ Error: " + e, type: "error" });
+      await emit("show-toast", { message: t('notas.errorGenerico', { msg: String(e) }), type: "error" });
     } finally { procesandoAccion = false; }
   }
 
@@ -506,10 +519,11 @@ import { primerColegio } from "../lib/catalogo";
   async function restablecerActivosSeccion() {
     const n = seccionTieneExcepciones ? activeIndicadores.length : 0;
     const ok = await ask(
-      `La sección volverá a usar los indicadores globales por defecto.\n\n` +
-      `Se borran sus excepciones (quedan ${n} activo(s) en la BD local para esta sección).\n` +
-      `Los indicadores, sus notas y los criterios NO se borran.`,
-      { title: '↩ Restablecer a valores globales', kind: 'info', okLabel: 'Restablecer', cancelLabel: 'Cancelar' }
+      t('notas.reestablecer.msg', { n }),
+      {
+        title: t('notas.reestablecer.titulo'), kind: 'info',
+        okLabel: t('notas.reestablecer.btn'), cancelLabel: t('comun.cancelar'),
+      }
     );
     if (!ok) return;
     procesandoAccion = true;
@@ -523,10 +537,10 @@ import { primerColegio } from "../lib/catalogo";
       });
 
       await cargarActivosDeSeccion(selectedSeccion);
-      await emit("show-toast", { message: `↩ ${borradas} excepción(es) borrada(s). La sección usa los valores globales.`, type: 'success' });
+      await emit("show-toast", { message: t('notas.reestablecer.exito', { n: borradas }), type: 'success' });
       emit("indicadores-updated");
     } catch (e) {
-      await emit("show-toast", { message: "❌ Error: " + e, type: "error" });
+      await emit("show-toast", { message: t('notas.errorGenerico', { msg: String(e) }), type: "error" });
     } finally { procesandoAccion = false; }
   }
 
@@ -540,21 +554,31 @@ import { primerColegio } from "../lib/catalogo";
     if (!isQualitative && ptsNuevo > MAX_PTS_POR_INDICADOR) {
       cerrarPopover();
       await emit("show-toast", {
-        message: `❌ El Indicador ${nuevo.orden} suma ${ptsNuevo} pts y el máximo por indicador es ${MAX_PTS_POR_INDICADOR}.\nCorrige sus puntos en Evaluaciones antes de activarlo.`,
+        message: t('notas.intercambio.excesoPts', { n: nuevo.orden, pts: ptsNuevo, max: MAX_PTS_POR_INDICADOR }),
         type: 'error'
       });
       return;
     }
     cerrarPopover();
     const conNotaSaliente = estudiantesConNota(saliente);
+    // IMPORTANTE: el texto es placeholder ({nuevo}, {puntosNuevo}…), NO template
+    // literal. Antes estaba como `${...}`/`{...}` mezclado y salía "En esta
+    // sección: {nuevo.orden} suma" a la vista del usuario (faltaba el `$`).
     const ok = await ask(
-      `Intercambio de indicadores:\n\n` +
-      `✔ Activar: Indicador ${nuevo.orden} "${nuevo.descripcion || ''}" (${isQualitative ? 'cualitativo' : ptsNuevo + ' pts'})\n` +
-      `👁 Desactivar: Indicador ${saliente.orden} "${saliente.descripcion || ''}"${conNotaSaliente > 0 ? ` (conserva sus ${conNotaSaliente} nota(s))` : ''}\n\n` +
-      `Los ${MAX_INDICADORES_ACTIVOS} activos seguirán sumando ${isQualitative ? '' : MAX_INDICADORES_ACTIVOS * MAX_PTS_POR_INDICADOR + ' pts'}.\n` +
-      `El indicador desactivado NO se borra: sigue con sus notas y criterios,\n` +
-      `solo deja de sumar al total. Puedes volver a activarlo cuando quieras.`,
-      { title: '🔄 Intercambiar indicadores', kind: 'info', okLabel: 'Hacer cambio', cancelLabel: 'Cancelar' }
+      t('notas.intercambio.msg', {
+        ordenNuevo: nuevo.orden,
+        descNuevo: nuevo.descripcion || '',
+        puntosNuevo: isQualitative ? t('notas.intercambio.cualitativo') : `${ptsNuevo} pts`,
+        ordenSaliente: saliente.orden,
+        descSaliente: saliente.descripcion || '',
+        conserva: conNotaSaliente > 0 ? t('notas.intercambio.conserva', { n: conNotaSaliente }) : '',
+        max: MAX_INDICADORES_ACTIVOS,
+        total: isQualitative ? '' : `${MAX_INDICADORES_ACTIVOS * MAX_PTS_POR_INDICADOR} pts`,
+      }),
+      {
+        title: t('notas.intercambio.titulo'), kind: 'info',
+        okLabel: t('notas.intercambio.btn'), cancelLabel: t('comun.cancelar'),
+      }
     );
     if (!ok) return;
     procesandoAccion = true;
@@ -562,10 +586,10 @@ import { primerColegio } from "../lib/catalogo";
       await invoke('set_indicador_colegio_seccion_activo', { colegioId: selectedColegio, seccionId: selectedSeccion, indicadorId: saliente.id, activo: false });
       await invoke('set_indicador_colegio_seccion_activo', { colegioId: selectedColegio, seccionId: selectedSeccion, indicadorId: nuevo.id, activo: true });
       await cargarActivosDeSeccion(selectedSeccion);
-      await emit("show-toast", { message: `🔄 En esta sección: {nuevo.orden} suma · {saliente.orden} no suma (conserva sus notas)`, type: 'success' });
+      await emit("show-toast", { message: t('notas.intercambio.exito', { nuevo: nuevo.orden, saliente: saliente.orden }), type: 'success' });
       emit("indicadores-updated");
     } catch (e) {
-      await emit("show-toast", { message: "❌ Error en el intercambio: " + e, type: "error" });
+      await emit("show-toast", { message: t('notas.intercambio.error', { msg: String(e) }), type: "error" });
     } finally { procesandoAccion = false; }
   }
 
@@ -577,18 +601,24 @@ import { primerColegio } from "../lib/catalogo";
   async function vaciarNotasIndicador(ind: Indicador) {
     cerrarPopover();
     if (selectedCorte <= 0 || selectedAsignatura <= 0) {
-      await emit("show-toast", { message: "⚠️ Selecciona corte y asignatura antes de vaciar", type: 'warning' });
+      await emit("show-toast", { message: t('notas.vaciar.previo'), type: 'warning' });
       return;
     }
-    const nombreCorte = cortes.find(c => c.id === selectedCorte)?.nombre || 'corte actual';
+    const nombreCorte = cortes.find(c => c.id === selectedCorte)?.nombre || t('notas.filtro.corteActual');
     const conNota = notas.filter(n => ind.criterios.some(c => notasCualitativas[`${n.estudianteId}-${c.id}`])).length;
     const ok = await ask(
-      `Se borrarán las notas de los ${ind.criterios.length} criterio(s) del Indicador ${ind.orden} "${ind.descripcion || ''}".\n\n` +
-      `· Solo en "${nombreCorte}" (${asignaturas.find(a => a.id === selectedAsignatura)?.nombre || 'la asignatura actual'}).\n` +
-      `· ${conNota} estudiante(s) de esta vista quedan con las celdas vacías.\n` +
-      `· Los demás cortes evaluativos NO se modifican.\n\n` +
-      `El indicador y sus criterios se conservan; solo se vacían las notas.\nEsta acción no se puede deshacer.`,
-      { title: '🧹 Vaciar notas del indicador', kind: 'warning', okLabel: 'Sí, vaciar este corte', cancelLabel: 'Cancelar' }
+      t('notas.vaciar.msg', {
+        criterios: ind.criterios.length,
+        orden: ind.orden,
+        descripcion: ind.descripcion || '',
+        corte: nombreCorte,
+        asignatura: asignaturas.find(a => a.id === selectedAsignatura)?.nombre || t('notas.chip.asignatura'),
+        estudiantes: conNota,
+      }),
+      {
+        title: t('notas.vaciar.titulo'), kind: 'warning',
+        okLabel: t('notas.vaciar.btn'), cancelLabel: t('comun.cancelar'),
+      }
     );
     if (!ok) return;
     procesandoAccion = true;
@@ -600,10 +630,10 @@ import { primerColegio } from "../lib/catalogo";
       // esto no se dispara ni el push a D1 ni el respaldo a Drive. Las notas
       // vaciadas volverían del otro dispositivo en el próximo pull.
       onDataChange('nota', { immediate: true });
-      await emit("show-toast", { message: `🧹 Indicador ${ind.orden}: ${borradas} nota(s) vaciada(s) en ${nombreCorte}`, type: 'success' });
+      await emit("show-toast", { message: t('notas.vaciar.exito', { orden: ind.orden, n: borradas, corte: nombreCorte }), type: 'success' });
       await recargarIndicadoresYNotas();
     } catch (e) {
-      await emit("show-toast", { message: "❌ Error al vaciar: " + e, type: "error" });
+      await emit("show-toast", { message: t('notas.vaciar.error', { msg: String(e) }), type: "error" });
     } finally { procesandoAccion = false; }
   }
 
@@ -612,10 +642,16 @@ import { primerColegio } from "../lib/catalogo";
     cerrarPopover();
     const conNota = notas.filter(n => notasCualitativas[`${n.estudianteId}-${crit.id}`]).length;
     const ok = await ask(
-      `Se eliminará el Criterio ${crit.orden} del Indicador ${ind.orden}.\n\n` +
-      `· ${conNota} nota(s) se borrarán de TODOS los cortes evaluativos.\n` +
-      `· En esta vista afecta a ${filteredNotas.length} estudiante(s).\n\nEsta acción no se puede deshacer.`,
-      { title: '🗑 Eliminar criterio', kind: 'warning', okLabel: 'Sí, eliminar', cancelLabel: 'Cancelar' }
+      t('notas.criterio.msg', {
+        c: crit.orden,
+        i: ind.orden,
+        notas: conNota,
+        estudiantes: filteredNotas.length,
+      }),
+      {
+        title: t('notas.criterio.titulo'), kind: 'warning',
+        okLabel: t('notas.criterio.btn'), cancelLabel: t('comun.cancelar'),
+      }
     );
     if (!ok) return;
     procesandoAccion = true;
@@ -626,10 +662,10 @@ import { primerColegio } from "../lib/catalogo";
       // desde otro dispositivo.
       onDataChange('nota', { immediate: true });
       onDataChange('criterio', { immediate: true });
-      await emit("show-toast", { message: `🗑 Criterio ${crit.orden} eliminado`, type: 'success' });
+      await emit("show-toast", { message: t('notas.criterio.exito', { n: crit.orden }), type: 'success' });
       await recargarIndicadoresYNotas();
     } catch (e) {
-      await emit("show-toast", { message: "❌ Error al eliminar: " + e, type: "error" });
+      await emit("show-toast", { message: t('notas.criterio.error', { msg: String(e) }), type: "error" });
     } finally { procesandoAccion = false; }
   }
 
@@ -647,15 +683,22 @@ import { primerColegio } from "../lib/catalogo";
       return;
     }
     const ok = await ask(
-      `Se aplicará ${letra} al Criterio ${crit.orden} del Indicador ${ind.orden} ` +
-      `a ${destino.length} estudiante(s)${soloVacias ? ' (solo celdas vacías)' : ' (sobrescribe)'}.\n\n` +
-      `Recuerda que aún debes pulsar Guardar para escribirlo en la base de datos.`,
-      { title: `✍ Nota masiva ${letra}`, kind: 'info', okLabel: `Aplicar ${letra}`, cancelLabel: 'Cancelar' }
+      t('notas.masiva.msg', {
+        letra,
+        c: crit.orden,
+        i: ind.orden,
+        n: destino.length,
+        alcance: soloVacias ? t('notas.masiva.soloVacias') : t('notas.masiva.sobrescribe'),
+      }),
+      {
+        title: t('notas.masiva.titulo', { letra }), kind: 'info',
+        okLabel: t('notas.masiva.btn', { letra }), cancelLabel: t('comun.cancelar'),
+      }
     );
     if (!ok) return;
     pushHistory({ ...notasCualitativas });
     for (const n of destino) handleNotaChange(n.estudianteId, crit.id, letra);
-    await emit("show-toast", { message: `✍ ${letra} aplicado a ${destino.length} estudiante(s) en C${crit.orden}`, type: 'success' });
+    await emit("show-toast", { message: t('notas.masiva.exito', { letra, n: destino.length, c: crit.orden }), type: 'success' });
   }
 
   /** Recarga indicadores + notas del filtro actual (tras borrar estructura). */
@@ -1928,7 +1971,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
 
 <div class="page-container notas-page-root" style="height: 100%; min-height: 0;">
   <div class="category-grid" style="display: flex; flex-direction: column; height: 100%;">
-    {#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder="Buscar estudiante o nota..." />{/if}
+    {#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder={t('notas.buscar.placeholder')} />{/if}
     <div style="{isAndroid && isMobile ? 'position: sticky; top: 0; z-index: 50; background: #0f172a; padding-bottom: 0.2rem; margin-bottom: 0.3rem;' : ''}">
       <FiltersModalAndroid
         bind:open={showFiltersModal}
@@ -1939,7 +1982,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
       >
         {#snippet extras()}
           <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
-            <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Corte:</label>
+            <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('notas.filtro.corte')}</label>
             <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px"
               bind:value={selectedCorte}>
               {#each cortes as c}
@@ -1948,7 +1991,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             </select>
           </div>
           <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
-            <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Asignatura:</label>
+            <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('notas.filtro.asignatura')}</label>
             <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px"
               value={selectedAsignatura}
               onchange={(e) => { selectedAsignatura = Number((e.currentTarget as HTMLSelectElement).value); localStorage.setItem('notas-last-asignatura', String(selectedAsignatura)); }}>
@@ -1963,7 +2006,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
       {#if !isAndroidMobile}
       <FilterContainer {isMobile}>
         {#if showAnoDropdown}
-        <FilterGroup label="Año Lectivo:" {isMobile}>
+        <FilterGroup label={t('notas.filtro.anoLectivo')} {isMobile}>
           <SelectChip
             value={selectedAno}
             onchange={(v) => { selectedAno = Number(v); }}
@@ -1971,46 +2014,46 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
         </FilterGroup>
         {/if}
 
-        <FilterGroup label="Corte:" {isMobile}>
+        <FilterGroup label={t('notas.filtro.corte')} {isMobile}>
           <SelectChip
             value={selectedCorte}
             onchange={(v) => { selectedCorte = Number(v); }}
             options={cortes.map(c => ({ value: c.id, label: c.nombre }))} />
         </FilterGroup>
 
-        <FilterGroup label="Colegio:" {isMobile}>
+        <FilterGroup label={t('notas.filtro.colegio')} {isMobile}>
           <SelectChip
             value={selectedColegio}
             onchange={(v) => { selectedColegio = Number(v); }}
             options={colegios.map(col => ({ value: col.id, label: col.nombre }))} />
         </FilterGroup>
 
-        <FilterGroup label="Grado:" {isMobile}>
+        <FilterGroup label={t('notas.filtro.grado')} {isMobile}>
           <SelectChip
             value={selectedGrado}
             onchange={(v) => { selectedGrado = Number(v); localStorage.setItem('notas-last-grado', String(selectedGrado)); }}
             options={grados.map(g => ({ value: g.id, label: g.nombre }))} />
         </FilterGroup>
 
-        <FilterGroup label="Sección:" {isMobile}>
+        <FilterGroup label={t('notas.filtro.seccion')} {isMobile}>
           <SelectChip
             value={selectedSeccion}
             onchange={(v) => { selectedSeccion = Number(v); }}
             options={secciones.map(s => ({ value: s.id, label: s.nombre }))} />
         </FilterGroup>
 
-        <FilterGroup label="Sexo:" {isMobile}>
+        <FilterGroup label={t('notas.filtro.sexo')} {isMobile}>
           <SelectChip
             value={selectedSexo}
             onchange={(v) => { selectedSexo = String(v); }}
             options={[
-              { value: '', label: 'Todos' },
-              { value: 'M', label: 'Masculino' },
-              { value: 'F', label: 'Femenino' },
+              { value: '', label: t('notas.filtro.todos') },
+              { value: 'M', label: t('notas.filtro.masculino') },
+              { value: 'F', label: t('notas.filtro.femenino') },
             ]} />
         </FilterGroup>
 
-        <FilterGroup label="Asignatura:" {isMobile}>
+        <FilterGroup label={t('notas.filtro.asignatura')} {isMobile}>
           <SelectChip
             value={selectedAsignatura}
             onchange={(v) => { selectedAsignatura = Number(v); localStorage.setItem('notas-last-asignatura', String(selectedAsignatura)); }}
@@ -2020,16 +2063,16 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '0 0 auto'};{isMobile ? 'overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;' : ''}">
             <BotonMod bind:ref={popAccionesBtn} opts={{
               onclick: togglePopAcciones,
-              icono: popAcciones ? '✕' : '⋯', etiqueta: 'Acciones', tono: 'violeta',
-              sub: `${activeIndicadores.length} activos · ${filteredNotas.length} notas`,
-              title: 'Instrumentos, distribuir y eliminar notas',
+              icono: popAcciones ? '✕' : '⋯', etiqueta: t('notas.acciones'), tono: 'violeta',
+              sub: t('notas.activos', { n: activeIndicadores.length, m: filteredNotas.length }),
+              title: t('notas.btn.acciones'),
             }} />
 
             <BotonMod opts={{
               onclick: undo, disabled: history.length === 0,
-              icono: '↩️', etiqueta: 'Deshacer', tono: 'ambar',
-              sub: history.length === 0 ? 'Sin cambios' : `${history.length} en historial`,
-              title: 'Deshacer (Ctrl+Z)',
+              icono: '↩️', etiqueta: t('notas.btn.deshacer'), tono: 'ambar',
+              sub: history.length === 0 ? t('notas.guardado.limpio') : t('notas.historial', { n: history.length }),
+              title: t('notas.deshacer'),
             }} />
             <BotonMod opts={{
               onclick: redo, disabled: redoStack.length === 0,
@@ -2065,9 +2108,9 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
         <div class="category-card" style="padding: 0.5rem; margin-top: 0.3rem; display:flex;gap:0.3rem;align-items:center;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;">
           <BotonMod bind:ref={popAccionesBtn} opts={{
             onclick: togglePopAcciones,
-            icono: popAcciones ? '✕' : '⋯', etiqueta: 'Acciones', tono: 'violeta',
+            icono: popAcciones ? '✕' : '⋯', etiqueta: t('notas.acciones'), tono: 'violeta',
             sub: `${activeIndicadores.length}/${indicadores.length} · ${filteredNotas.length}`,
-            title: 'Instrumentos, distribuir y eliminar notas', compacto: true
+            title: t('notas.btn.acciones'), compacto: true
           }} />
 
           <!-- Guardar va antes que Deshacer/Rehacer: es la acción que se usa en
@@ -2082,7 +2125,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           }} />
           <BotonMod opts={{
             onclick: undo, disabled: history.length === 0,
-            icono: '↩️', etiqueta: 'Deshacer', tono: 'ambar',
+            icono: '↩️', etiqueta: t('notas.btn.deshacer'), tono: 'ambar',
             sub: history.length === 0 ? 'Sin cambios' : `${history.length} en historial`,
             title: 'Deshacer (Ctrl+Z)', compacto: true
           }} />
