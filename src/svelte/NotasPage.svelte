@@ -2500,7 +2500,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                       {@const gradeConfig = getGradeFromScore(totalEscaladoFinal)}
                       {@const qualitativeFinal = isQualitative ? calcularNotaCualitativaFinal(activeIndicadores.map(i => calcularNotaCualitativaFinal(i.criterios.map(c => notasCualitativas[`${est.estudianteId}-${c.id}`] || '')))) : (gradeConfig?.id || 'AI')}
                       {@const displayColor = qualitativeFinal ? getGradeColor(qualitativeFinal) : '#94a3b8'}
-                      <div title="{totalFinal} de {maximoTotal} pts" style="color: {displayColor}; font-size: 0.8rem; font-weight: bold; padding: 0.15rem 0.3rem; border-radius: 4px; display: inline-block;">
+                      <div title={t('notas.tooltip.total', { a: totalFinal, b: maximoTotal })} style="color: {displayColor}; font-size: 0.8rem; font-weight: bold; padding: 0.15rem 0.3rem; border-radius: 4px; display: inline-block;">
                         {isQualitative ? qualitativeFinal : `${Math.round(totalEscaladoFinal)}${qualitativeFinal ? ` (${qualitativeFinal})` : ''}`}
                       </div>
                     {/each}
@@ -2518,25 +2518,24 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
       {#if estudiantes.length > 0 && filteredNotas.length === 0}
         <div style="text-align: center; padding: 5rem 2rem; border: 2px dashed rgba(255, 255, 255, 0.1); border-radius: 16px; margin: 1rem 0;">
           <div style="font-size: 3rem; margin-bottom: 1rem;">🔍</div>
-          <h4 style="color: #cbd5e1; margin-bottom: 0.5rem;">No se encontraron resultados</h4>
-          <p style="color: #94a3b8; max-width: 400px; margin: 0 auto;">No se encontró ningún estudiante que coincida con "{searchTerm}"</p>
-          <button class="secondary" onclick={() => searchTerm = ""} style="margin-top: 1.5rem; padding: 0.5rem 1rem;">Limpiar búsqueda</button>
+          <h4 style="color: #cbd5e1; margin-bottom: 0.5rem;">{t('notas.vacio.titulo')}</h4>
+          <p style="color: #94a3b8; max-width: 400px; margin: 0 auto;">{t('notas.vacio.sinResultados', { q: searchTerm })}</p>
+          <button class="secondary" onclick={() => searchTerm = ""} style="margin-top: 1.5rem; padding: 0.5rem 1rem;">{t('notas.limpiarBusqueda')}</button>
         </div>
       {:else if estudiantes.length === 0 && selectedGrado > 0 && selectedSeccion > 0}
         <div style="text-align: center; padding: 5rem 2rem; border: 2px dashed rgba(255, 255, 255, 0.1); border-radius: 16px; margin: 1rem 0;">
           <div style="font-size: 3rem; margin-bottom: 1rem;">👥</div>
-          <h4 style="color: #cbd5e1; margin-bottom: 0.5rem;">No hay estudiantes para mostrar</h4>
+          <h4 style="color: #cbd5e1; margin-bottom: 0.5rem;">{t('notas.vacio.tituloAlt')}</h4>
           <p style="color: #94a3b8; max-width: 400px; margin: 0 auto;">
-            No hay estudiantes registrados para {grados.find(g => g.id === selectedGrado)?.nombre} - {secciones.find(s => s.id === selectedSeccion)?.nombre}.
-            Por favor, registre estudiantes en la sección de Estudiantes.
+            {t('notas.vacio.sinEstudiantes', { grado: grados.find(g => g.id === selectedGrado)?.nombre || '', seccion: secciones.find(s => s.id === selectedSeccion)?.nombre || '' })}
           </p>
         </div>
       {:else if !selectedGrado || !selectedSeccion}
         <div style="text-align: center; padding: 5rem 2rem; border: 2px dashed rgba(255, 255, 255, 0.1); border-radius: 16px; margin: 1rem 0;">
           <div style="font-size: 3rem; margin-bottom: 1rem;">📋</div>
-          <h4 style="color: #cbd5e1; margin-bottom: 0.5rem;">Seleccione los filtros</h4>
+          <h4 style="color: #cbd5e1; margin-bottom: 0.5rem;">{t('notas.vacio.seleccioneFiltros')}</h4>
           <p style="color: #94a3b8; max-width: 400px; margin: 0 auto;">
-            Seleccione un año, corte, colegio, asignatura, grado y sección para ver y calificar a los estudiantes.
+            {t('notas.vacio.seleccioneDesc')}
           </p>
         </div>
       {/if}
@@ -2552,45 +2551,45 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
         <button
           role="menuitem" disabled={indicadores.length === 0}
           onclick={() => accionPop(() => { showInstrumentosModal = true; })}
-          title="Instrumentos de evaluación"
+          title={t('notas.btn.instrumentosTitulo')}
           style="width:100%;display:flex;align-items:center;gap:0.55rem;padding:0.5rem 0.55rem;border-radius:9px;border:1px solid rgba(96,165,250,0.22);background:rgba(96,165,250,0.08);color:#bfdbfe;cursor:pointer;text-align:left;transition:all 0.15s ease;opacity:{indicadores.length === 0 ? 0.45 : 1};"
           onmouseenter={(e) => { e.currentTarget.style.background = 'rgba(96,165,250,0.16)'; }}
           onmouseleave={(e) => { e.currentTarget.style.background = 'rgba(96,165,250,0.08)'; }}>
           <span style="font-size:0.9rem;">📋</span>
           <span style="flex:1;min-width:0;">
-            <span style="display:block;font-weight:700;font-size:0.76rem;">Instrumentos</span>
-            <span style="display:block;font-size:0.62rem;color:#94a3b8;">PDF y XLSX de los {activeIndicadores.length} de {indicadores.length} activos</span>
+            <span style="display:block;font-weight:700;font-size:0.76rem;">{t('notas.btn.instrumentos')}</span>
+            <span style="display:block;font-size:0.62rem;color:#94a3b8;">{t('notas.btn.instrumentosSub', { a: activeIndicadores.length, b: indicadores.length })}</span>
           </span>
         </button>
 
         <button
           role="menuitem" disabled={activeIndicadores.length === 0 || filteredNotas.length === 0}
           onclick={() => accionPop(() => { distribuirTargets = {}; distribuirOverwrite = true; showDistribuirModal = true; })}
-          title="Distribuir notas automáticamente"
+          title={t('notas.popover.distribuirAuto')}
           style="width:100%;display:flex;align-items:center;gap:0.55rem;padding:0.5rem 0.55rem;border-radius:9px;border:1px solid rgba(168,85,247,0.22);background:rgba(168,85,247,0.08);color:#e9d5ff;cursor:pointer;text-align:left;transition:all 0.15s ease;opacity:{activeIndicadores.length === 0 || filteredNotas.length === 0 ? 0.45 : 1};"
           onmouseenter={(e) => { e.currentTarget.style.background = 'rgba(168,85,247,0.16)'; }}
           onmouseleave={(e) => { e.currentTarget.style.background = 'rgba(168,85,247,0.08)'; }}>
           <span style="font-size:0.9rem;">✨</span>
           <span style="flex:1;min-width:0;">
-            <span style="display:block;font-weight:700;font-size:0.76rem;">Distribuir</span>
-            <span style="display:block;font-size:0.62rem;color:#94a3b8;">Reparto automático de {activeIndicadores.length} activos</span>
+            <span style="display:block;font-weight:700;font-size:0.76rem;">{t('notas.btn.distribuir')}</span>
+            <span style="display:block;font-size:0.62rem;color:#94a3b8;">{t('notas.btn.distribuirSub', { n: activeIndicadores.length })}</span>
           </span>
         </button>
 
         <button
           role="menuitem" disabled={estudiantes.length === 0}
           onclick={() => accionPop(() => {
-            if (!selectedCorte || !selectedAsignatura) { emit("show-toast", { message: "⚠️ Seleccione un corte y asignatura primero", type: "warning" }); return; }
+            if (!selectedCorte || !selectedAsignatura) { emit("show-toast", { message: t('notas.del.previa'), type: "warning" }); return; }
             deleteMode = 'all'; deleteStudentId = 0; deleteIndicatorId = 0; showDeleteModal = true;
           })}
-          title="Eliminar notas"
+          title={t('notas.btn.eliminarNotas')}
           style="width:100%;display:flex;align-items:center;gap:0.55rem;padding:0.5rem 0.55rem;border-radius:9px;border:1px solid rgba(239,68,68,0.22);background:rgba(239,68,68,0.08);color:#fecaca;cursor:pointer;text-align:left;transition:all 0.15s ease;opacity:{estudiantes.length === 0 ? 0.45 : 1};"
           onmouseenter={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.16)'; }}
           onmouseleave={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.08)'; }}>
           <span style="font-size:0.9rem;">🗑️</span>
           <span style="flex:1;min-width:0;">
-            <span style="display:block;font-weight:700;font-size:0.76rem;">Eliminar notas</span>
-            <span style="display:block;font-size:0.62rem;color:#94a3b8;">Borra las {filteredNotas.length} notas del filtro actual</span>
+            <span style="display:block;font-weight:700;font-size:0.76rem;">{t('notas.btn.eliminarNotas')}</span>
+            <span style="display:block;font-size:0.62rem;color:#94a3b8;">{t('notas.btn.eliminarNotasSub', { n: filteredNotas.length })}</span>
           </span>
         </button>
       </div>
@@ -2602,12 +2601,12 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
       {@const critPop = popoverCriterio()}
       <div
         bind:this={popoverPanelEl}
-        role="dialog" aria-label="Opciones"
+        role="dialog" aria-label={t('notas.popover.opciones')}
         style="position: fixed; z-index: 99995; left: {Math.max(8, Math.min(popover.x, (typeof window !== 'undefined' ? window.innerWidth : 1920) - Math.max(228, popover.ancho + 12)))}px; top: {popover.y}px; min-width: 220px; max-width: 280px; background: rgba(20,24,31,0.97); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; box-shadow: 0 18px 40px -10px rgba(0,0,0,0.65); padding: 0.45rem; box-sizing: border-box;">
         {#if popover.tipo === 'indicador' && indPop && popover.modo === 'elegir'}
           <div style="padding: 0.35rem 0.5rem 0.45rem; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 0.3rem;">
-            <div style="font-size: 0.78rem; font-weight: 700; color: #f1f5f9;">Ya hay {MAX_INDICADORES_ACTIVOS} indicadores activos</div>
-            <div style="font-size: 0.66rem; color: #64748b; line-height: 1.35;">Para activar el Indicador {indPop.orden}, elige cuál se desactiva. <strong style="color:#94a3b8;">No se borra nada:</strong> el que salga conserva sus notas.</div>
+            <div style="font-size: 0.78rem; font-weight: 700; color: #f1f5f9;">{t('notas.elegir.lleno', { n: MAX_INDICADORES_ACTIVOS })}</div>
+            <div style="font-size: 0.66rem; color: #64748b; line-height: 1.35;">{t('notas.elegir.desc1', { n: indPop.orden })} <strong style="color:#94a3b8;">{t('notas.elegir.desc2')}</strong> {t('notas.elegir.desc3')}</div>
           </div>
           <div style="max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;">
             {#each activeIndicadores as cand (cand.id)}
@@ -2616,15 +2615,15 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
               <button
                 onclick={() => intercambiarActivo(indPop, cand)}
                 disabled={procesandoAccion}
-                title="Desactivar el Indicador {cand.orden} y activar el {indPop.orden}"
+                title={t('notas.elegir.swapTitle', { a: cand.orden, b: indPop.orden })}
                 style="width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.45rem 0.5rem; border-radius: 9px; border: 1px solid rgba(251,191,36,0.28); background: rgba(251,191,36,0.07); color: #fde68a; font-size: 0.74rem; cursor: pointer; text-align: left; transition: all 0.15s ease;">
                 <span style="font-size: 0.85rem;">🔄</span>
                 <span style="flex: 1; min-width: 0;">
-                  <span style="display: block; font-weight: 700; font-size: 0.74rem;">Indicador {cand.orden} · {isQualitative ? 'cualitativo' : ptsCand + ' pts'}</span>
-                  <span style="display: block; font-size: 0.62rem; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{cand.descripcion || 'Sin descripción'}</span>
+                  <span style="display: block; font-weight: 700; font-size: 0.74rem;">{t('notas.indicador', { n: cand.orden })} · {isQualitative ? t('notas.elegir.cualitativo') : ptsCand + ' pts'}</span>
+                  <span style="display: block; font-size: 0.62rem; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{cand.descripcion || t('notas.sinDescripcion')}</span>
                 </span>
-                <span style="font-size: 0.6rem; padding: 0.1rem 0.3rem; border-radius: 5px; background: {nConNota > 0 ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.06)'}; color: {nConNota > 0 ? '#4ade80' : '#64748b'}; white-space: nowrap; flex-shrink: 0;" title={nConNota > 0 ? `Conserva ${nConNota} nota(s)` : 'Sin notas cargadas'}>
-                  {nConNota > 0 ? `${nConNota} nota(s)` : 'vacío'}
+                <span style="font-size: 0.6rem; padding: 0.1rem 0.3rem; border-radius: 5px; background: {nConNota > 0 ? 'rgba(34,197,94,0.15)' : 'rgba(255,255,255,0.06)'}; color: {nConNota > 0 ? '#4ade80' : '#64748b'}; white-space: nowrap; flex-shrink: 0;" title={nConNota > 0 ? t('notas.elegir.conservaTitle', { n: nConNota }) : t('notas.sinNotas')}>
+                  {nConNota > 0 ? t('notas.elegir.conservaCount', { n: nConNota }) : t('notas.elegir.vacio')}
                 </span>
               </button>
             {/each}
@@ -2632,38 +2631,38 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           </div>
           <button
             onclick={cerrarPopover}
-            style="width: 100%; margin-top: 0.35rem; padding: 0.4rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; font-size: 0.72rem; font-weight: 600; cursor: pointer;">Cancelar</button>
+            style="width: 100%; margin-top: 0.35rem; padding: 0.4rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; font-size: 0.72rem; font-weight: 600; cursor: pointer;">{t('comun.cancelar')}</button>
         {:else if popover.tipo === 'indicador' && indPop}
           {@const sumaEnSeccion = idsActivos.includes(indPop.id)}
           <div style="padding: 0.35rem 0.5rem 0.45rem; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 0.3rem;">
-            <div style="font-size: 0.78rem; font-weight: 700; color: #f1f5f9;">Indicador {indPop.orden}</div>
-            <div style="font-size: 0.66rem; color: #64748b;">{indPop.descripcion || 'Sin descripción'} · {indPop.criterios.length} criterio(s) · {isQualitative ? 'cualitativo' : puntosDeIndicador(indPop) + ' pts'}</div>
-            <div style="font-size: 0.62rem; color: #64748b; margin-top: 0.15rem;">{colegios.find(c => c.id === selectedColegio)?.nombre || '—'} · Sección <strong style="color:#94a3b8;">{secciones.find(s => s.id === selectedSeccion)?.nombre || '—'}</strong> · {sumaEnSeccion ? 'suma' : 'no suma'} aquí</div>
+            <div style="font-size: 0.78rem; font-weight: 700; color: #f1f5f9;">{t('notas.indicador', { n: indPop.orden })}</div>
+            <div style="font-size: 0.66rem; color: #64748b;">{indPop.descripcion || t('notas.sinDescripcion')} · {t('notas.criteriosCount', { n: indPop.criterios.length })} · {isQualitative ? t('notas.elegir.cualitativo') : puntosDeIndicador(indPop) + ' pts'}</div>
+            <div style="font-size: 0.62rem; color: #64748b; margin-top: 0.15rem;">{colegios.find(c => c.id === selectedColegio)?.nombre || '—'} · {t('notas.chip.seccion')} <strong style="color:#94a3b8;">{secciones.find(s => s.id === selectedSeccion)?.nombre || '—'}</strong> · {sumaEnSeccion ? t('notas.popover.sumaAqui') : t('notas.popover.noSumaAqui')}</div>
           </div>
           <button
             onclick={() => alternarActivoIndicador(indPop)}
             disabled={procesandoAccion}
             style="width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.55rem; border-radius: 9px; border: 1px solid {sumaEnSeccion ? 'rgba(251,191,36,0.3)' : 'rgba(34,197,94,0.3)'}; background: {sumaEnSeccion ? 'rgba(251,191,36,0.1)' : 'rgba(34,197,94,0.1)'}; color: {sumaEnSeccion ? '#fbbf24' : '#4ade80'}; font-size: 0.78rem; font-weight: 600; cursor: pointer; text-align: left; transition: all 0.15s ease;">
             <span style="font-size: 0.9rem;">{sumaEnSeccion ? '👁' : '✔'}</span>
-            <span>{sumaEnSeccion ? 'Dejar de sumar aquí' : 'Sumar en esta sección'}</span>
+            <span>{sumaEnSeccion ? t('notas.popover.dejarSumar') : t('notas.popover.sumarSeccion')}</span>
           </button>
           <div style="font-size: 0.62rem; color: #64748b; padding: 0.2rem 0.55rem 0.35rem; line-height: 1.3;">
             {#if sumaEnSeccion}
-              Deja de sumar en esta sección, pero conserva sus notas.
+              {t('notas.popover.ayuda1')}
             {:else if activeIndicadores.length >= MAX_INDICADORES_ACTIVOS}
-              Ya hay {MAX_INDICADORES_ACTIVOS} que suman aquí ({activeIndicadores.length}). Te pediré cuál dejar de sumar.
+              {t('notas.popover.ayuda2', { n: MAX_INDICADORES_ACTIVOS, a: activeIndicadores.length })}
             {:else}
-              Sumará sus notas en esta sección ({activeIndicadores.length} de {MAX_INDICADORES_ACTIVOS}).
+              {t('notas.popover.ayuda3', { a: activeIndicadores.length, b: MAX_INDICADORES_ACTIVOS })}
             {/if}
           </div>
           {#if seccionTieneExcepciones}
             <button
               onclick={restablecerActivosSeccion}
               disabled={procesandoAccion}
-              title="Borrar las excepciones de esta sección y volver a los valores globales"
+              title={t('notas.popover.restablecerTitulo')}
               style="width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.45rem 0.55rem; border-radius: 9px; border: 1px solid rgba(148,163,184,0.3); background: rgba(148,163,184,0.08); color: #cbd5e1; font-size: 0.74rem; font-weight: 600; cursor: pointer; text-align: left; transition: all 0.15s ease; margin-bottom: 0.3rem;">
               <span style="font-size: 0.85rem;">↩</span>
-              <span>Restablecer a valores globales</span>
+              <span>{t('notas.popover.restablecer')}</span>
             </button>
           {/if}
           <button
@@ -2671,23 +2670,23 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             disabled={procesandoAccion}
             style="width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.55rem; border-radius: 9px; border: 1px solid rgba(245,158,11,0.3); background: rgba(245,158,11,0.1); color: #fbbf24; font-size: 0.78rem; font-weight: 600; cursor: pointer; text-align: left; transition: all 0.15s ease;">
             <span style="font-size: 0.9rem;">🧹</span>
-            <span>Vaciar notas del indicador</span>
+            <span>{t('notas.popover.vaciar')}</span>
           </button>
-          <div style="font-size: 0.62rem; color: #64748b; padding: 0.2rem 0.55rem 0.1rem; line-height: 1.3;">Deja las {indPop.criterios.length} columnas vacías para volver a llenarlas, solo en {cortes.find(c => c.id === selectedCorte)?.nombre || 'este corte'}. El indicador no se borra.</div>
+          <div style="font-size: 0.62rem; color: #64748b; padding: 0.2rem 0.55rem 0.1rem; line-height: 1.3;">{t('notas.popover.vaciarAyuda', { n: indPop.criterios.length, corte: cortes.find(c => c.id === selectedCorte)?.nombre || t('notas.esteCorte') })}</div>
         {:else if popover.tipo === 'criterio' && indPop && critPop}
           <div style="padding: 0.35rem 0.5rem 0.45rem; border-bottom: 1px solid rgba(255,255,255,0.08); margin-bottom: 0.3rem;">
-            <div style="font-size: 0.78rem; font-weight: 700; color: #f1f5f9;">Criterio {critPop.orden} · Indicador {indPop.orden}</div>
-            <div style="font-size: 0.66rem; color: #64748b;">{critPop.descripcion || 'Sin descripción'}{!isQualitative ? ' · máx ' + critPop.puntajeMaximo + ' pts' : ''}</div>
+            <div style="font-size: 0.78rem; font-weight: 700; color: #f1f5f9;">{t('notas.popover.criterioTitulo', { c: critPop.orden, i: indPop.orden })}</div>
+            <div style="font-size: 0.66rem; color: #64748b;">{critPop.descripcion || t('notas.sinDescripcion')}{!isQualitative ? t('notas.popover.maxPts', { n: critPop.puntajeMaximo }) : ''}</div>
           </div>
-          <div style="font-size: 0.68rem; color: #a78bfa; font-weight: 700; padding: 0.15rem 0.55rem 0.35rem; text-transform: uppercase; letter-spacing: 0.4px;">Aplicar nota a todos</div>
+          <div style="font-size: 0.68rem; color: #a78bfa; font-weight: 700; padding: 0.15rem 0.55rem 0.35rem; text-transform: uppercase; letter-spacing: 0.4px;">{t('notas.popover.aplicarTodos')}</div>
           <label style="display: flex; align-items: center; gap: 0.45rem; padding: 0.3rem 0.5rem 0.4rem 0.35rem; cursor: pointer;">
             <span class="switch" style="margin: 0;">
               <input type="checkbox" checked={aplicarSoloVacias} onchange={() => aplicarSoloVacias = !aplicarSoloVacias} />
               <span class="slider round" style="background: {aplicarSoloVacias ? 'linear-gradient(135deg, #38bdf8, #0284c7)' : 'rgba(255,255,255,0.12)'}; border-color: {aplicarSoloVacias ? 'transparent' : 'rgba(255,255,255,0.18)'};"></span>
             </span>
             <span style="line-height: 1.2;">
-              <span style="display: block; font-size: 0.7rem; color: #cbd5e1; font-weight: 500;">Solo celdas vacías</span>
-              <span style="display: block; font-size: 0.62rem; color: {aplicarSoloVacias ? '#38bdf8' : '#94a3b8'};">{aplicarSoloVacias ? 'No sobrescribe lo escrito' : 'Sobrescribe todas'}</span>
+              <span style="display: block; font-size: 0.7rem; color: #cbd5e1; font-weight: 500;">{t('notas.popover.soloVacias')}</span>
+              <span style="display: block; font-size: 0.62rem; color: {aplicarSoloVacias ? '#38bdf8' : '#94a3b8'};">{aplicarSoloVacias ? t('notas.popover.soloVaciasEstado') : t('notas.popover.sobrescribeEstado')}</span>
             </span>
           </label>
           <div style="display: flex; gap: 4px; padding: 0 0.5rem 0.4rem;">
@@ -2703,9 +2702,9 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
             disabled={procesandoAccion}
             style="width: 100%; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.55rem; border-radius: 9px; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); color: #fca5a5; font-size: 0.78rem; font-weight: 600; cursor: pointer; text-align: left; transition: all 0.15s ease; margin-top: 0.15rem;">
             <span style="font-size: 0.9rem;">🗑</span>
-            <span>Eliminar este criterio</span>
+            <span>{t('notas.popover.eliminarCriterio')}</span>
           </button>
-          <div style="font-size: 0.62rem; color: #64748b; padding: 0.2rem 0.55rem 0.1rem; line-height: 1.3;">Borra solo C{critPop.orden} de este indicador y todas sus notas en todos los cortes.</div>
+          <div style="font-size: 0.62rem; color: #64748b; padding: 0.2rem 0.55rem 0.1rem; line-height: 1.3;">{t('notas.popover.eliminarAyuda', { n: critPop.orden })}</div>
         {/if}
       </div>
     {/if}
@@ -2718,18 +2717,18 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           <div style="display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 0.5rem;">
             <div style="width: 44px; height: 44px; border-radius: 14px; background: rgba(139, 92, 246, 0.12); border: 1px solid rgba(139, 92, 246, 0.2); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; flex-shrink: 0;">✨</div>
             <div style="min-width: 0;">
-              <h3 style="margin: 0; color: #f1f5f9; font-size: 1.15rem; font-weight: 700;">Distribuir notas automáticamente</h3>
-               <p style="margin: 0.2rem 0 0; color: #94a3b8; font-size: 0.75rem;">{isQualitative ? `C1, C2${distribuirC3 ? ' y C3' : ''} = nota objetivo${distribuirC3 ? '' : ', C3 = AA'}. Solo AA, AS, AF disponibles.` : `Ingrese el porcentaje total deseado (0-100). C1, C2${distribuirC3 ? ' y C3' : ''} se calculan automáticamente.`}</p>
+              <h3 style="margin: 0; color: #f1f5f9; font-size: 1.15rem; font-weight: 700;">{t('notas.dist.titulo')}</h3>
+               <p style="margin: 0.2rem 0 0; color: #94a3b8; font-size: 0.75rem;">{isQualitative ? t('notas.dist.subCual', { c3: distribuirC3 ? t('notas.dist.subCualC3') : '', sinC3: distribuirC3 ? '' : t('notas.dist.subCualSinC3') }) : t('notas.dist.subNum', { c3: distribuirC3 ? t('notas.dist.subCualC3') : '' })}</p>
               {#if !isQualitative}
                 <p style="margin: 0.25rem 0 0; color: #64748b; font-size: 0.68rem;">
-                  💡 El desempeño nunca retrocede: siempre <strong style="color:#a78bfa;">C1 ≤ C2 ≤ C3</strong>. Cuando se puede, la letra más baja va al C1 y las más altas al C3, sin perder la nota pedida.
+                  {t('notas.dist.consejo1')}<strong style="color:#a78bfa;">C1 ≤ C2 ≤ C3</strong>{t('notas.dist.consejo2')}
                 </p>
               {/if}
               {#if contextoChips.some(c => c.label)}
                 <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.4rem;">
                   {#each contextoChips as chip (chip.icon)}
                     {#if chip.label}
-                      <span title="{chip.titulo}: {chip.label}" style="display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.18rem 0.5rem; border-radius: 999px; background: {chip.color}14; border: 1px solid {chip.color}33; font-size: 0.7rem; color: #e2e8f0; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis;">
+                      <span title={t('notas.dist.chipTitle', { titulo: chip.titulo, label: chip.label })} style="display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.18rem 0.5rem; border-radius: 999px; background: {chip.color}14; border: 1px solid {chip.color}33; font-size: 0.7rem; color: #e2e8f0; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis;">
                         <span style="font-size: 0.75rem;">{chip.icon}</span>{chip.label}
                       </span>
                     {/if}
@@ -2746,8 +2745,8 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                 <span class="slider round" style="background: {distribuirOverwrite ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)' : 'rgba(255,255,255,0.12)'}; border-color: {distribuirOverwrite ? 'transparent' : 'rgba(255,255,255,0.18)'};"></span>
               </span>
               <span style="line-height: 1.2;">
-                <span style="display: block; font-size: 0.78rem; color: #cbd5e1; font-weight: 500;">Sobrescribir notas existentes</span>
-                <span style="display: block; font-size: 0.68rem; color: {distribuirOverwrite ? '#a78bfa' : '#22c55e'};">{distribuirOverwrite ? 'Se reemplazarán todas las notas' : 'Solo se llenarán criterios vacíos'}</span>
+                <span style="display: block; font-size: 0.78rem; color: #cbd5e1; font-weight: 500;">{t('notas.popover.sobrescribir')}</span>
+                <span style="display: block; font-size: 0.68rem; color: {distribuirOverwrite ? '#a78bfa' : '#22c55e'};">{distribuirOverwrite ? t('notas.dist.overwriteOn') : t('notas.dist.overwriteOff')}</span>
               </span>
             </label>
             <label style="display: flex; align-items: center; gap: 0.55rem; padding: 0.4rem 0.75rem 0.4rem 0.55rem; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; cursor: pointer; transition: all 0.2s ease;">
@@ -2756,8 +2755,8 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                 <span class="slider round" style="background: {distribuirC3 ? 'linear-gradient(135deg, #f472b6, #db2777)' : 'rgba(255,255,255,0.12)'}; border-color: {distribuirC3 ? 'transparent' : 'rgba(255,255,255,0.18)'};"></span>
               </span>
               <span style="line-height: 1.2;">
-                <span style="display: block; font-size: 0.78rem; color: #cbd5e1; font-weight: 500;">Modificar también el C3</span>
-                <span style="display: block; font-size: 0.68rem; color: {distribuirC3 ? '#f472b6' : '#f59e0b'};">{distribuirC3 ? 'C1, C2 y C3 se distribuyen' : 'C3 siempre será AA'}</span>
+                <span style="display: block; font-size: 0.78rem; color: #cbd5e1; font-weight: 500;">{t('notas.popover.modificarC3')}</span>
+                <span style="display: block; font-size: 0.68rem; color: {distribuirC3 ? '#f472b6' : '#f59e0b'};">{distribuirC3 ? t('notas.dist.c3On') : t('notas.dist.c3Off')}</span>
               </span>
             </label>
             {#if cortesPrecios.length > 0}
