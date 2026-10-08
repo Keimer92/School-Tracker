@@ -151,6 +151,25 @@ dominio, y una funcion traduce solo la etiqueta.
 - Las abreviaturas de una letra en las tarjetas compactas de movil (`F:`, `M:`, `E:`,
   `P:`, `A:`, `J:`) se dejaron como estan: son casi universales y la etiqueta completa ya
   aparece en las tarjetas de escritorio. Traducirlas rompe el ancho de esa fila.
+- ⚠️ **Las claves nuevas van DENTRO del objeto, antes del `} as const;`.** Si se
+  agregan despues del cierre, TypeScript las lee como codigo suelto y el error no
+  senala la causa: aparecen decenas de `';' expected` / `Cannot find name 'as'`
+  apuntando a la linea donde se agregaron (69 errores en un caso real, todos de
+  este mismo bug). Al agregar un bloque grande de claves, verificar que el
+  `oldString` del edit termine en `} as const;` para que el reemplazo lo conserve.
+- ⚠️ **Dos archivos NO pueden compartir el mismo nombre de clave.** Con
+  `ccm.sinGuardar` en dos modulos distintos salta
+  `An object literal cannot have multiple properties with the same name`, y el
+  mensaje muestra la clave COMPARTIDA pero no cual de los dos archivos sobra.
+  Prefijar por archivo (`cc_calificaciones.*`, `ccm.*`) cuando el modulo es nuevo.
+- ⚠️ **`t()` NO va dentro de un literal de string en el template.**
+  `{saving ? '⏳ {t('ccm.guardando')}' : ...}` rompe con `js_parse_error` porque
+  Svelte intenta parsear el `{t(` como expresion dentro del ternario. La forma
+  correcta es la expresion pelada: `{saving ? t('ccm.guardando') : t('ccm.btn.guardarCambios')}`.
+- ⚠️ **Cuidado con `replaceAll` sobre un string entre comillas.** Reemplazar
+  `'⏳ Guardando...'` por `{t('ccm.guardando')}` deja las comillas originales y
+  produce `{saving ? {t('ccm.guardando')} : ...}` (doble llave) → error de parseo.
+  Revisar el diff despues de un replaceAll masivo.
 
 ## Estructura
 ```
