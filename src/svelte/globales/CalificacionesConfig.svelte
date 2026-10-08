@@ -10,6 +10,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { emit } from "@tauri-apps/api/event";
   import { onDataChange } from "../../lib/autoSync";
+import { t } from "../../lib/i18n.svelte";
 
   interface GradeConfig { id: string; nombre: string; color: string; minimo: number; }
 
@@ -65,9 +66,9 @@
 </script>
 
 <div class="category-card" style="border-left:3px solid #fbbf24;">
-  <div class="category-header"><h3>⭐ Configuración de Calificaciones</h3></div>
+  <div class="category-header"><h3>{t('cc_calificaciones.titulo')}</h3></div>
   <div style="padding:1.5rem 2rem;">
-    <p style="margin:0 0 1.5rem 0;color:#94a3b8;font-size:0.85rem;">Personaliza las escalas de calificación cualitativa, sus colores y puntajes mínimos.</p>
+    <p style="margin:0 0 1.5rem 0;color:#94a3b8;font-size:0.85rem;">{t('cc_calificaciones.desc')}</p>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:1rem;">
       {#each gradeConfigs as grade (grade.id)}
         <div style="position:relative;background:rgba(255,255,255,0.03);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:16px;border:1px solid rgba(255,255,255,0.08);overflow:hidden;transition:all 0.25s ease"
@@ -131,12 +132,12 @@
 
 {#if hasUnsaved}
   <div style="position:sticky;bottom:0;display:flex;justify-content:flex-end;align-items:center;gap:0.75rem;padding:0.85rem 1.25rem;background:rgba(15,23,42,0.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(96,165,250,0.35);border-radius:14px;box-shadow:0 -8px 28px rgba(0,0,0,0.4)">
-    <span style="font-size:0.78rem;color:#94a3b8">Calificaciones sin guardar</span>
+    <span style="font-size:0.78rem;color:#94a3b8">{t('cc_calificaciones.sinGuardar')}</span>
     <button onclick={save} disabled={saving}
       style="padding:0.6rem 1.4rem;background:linear-gradient(135deg,#60a5fa,#3b82f6);border:none;border-radius:10px;color:#fff;font-size:0.85rem;font-weight:700;cursor:pointer;box-shadow:0 6px 22px rgba(59,130,246,0.3);display:flex;align-items:center;gap:0.5rem;{saving ? 'opacity:0.6;cursor:not-allowed;' : ''}"
       onmouseenter={(e) => { if (!saving) e.currentTarget.style.transform = 'translateY(-2px)'; }}
       onmouseleave={(e) => { if (!saving) e.currentTarget.style.transform = 'translateY(0)'; }}>
-      {saving ? '⏳ Guardando...' : '💾 Guardar cambios'}
+      {saving ? t('cc_calificaciones.guardando') : t('cc_calificaciones.btn.guardarCambios')}
     </button>
   </div>
 {/if}

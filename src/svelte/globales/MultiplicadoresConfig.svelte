@@ -14,6 +14,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { emit } from "@tauri-apps/api/event";
   import { onDataChange } from "../../lib/autoSync";
+import { t } from "../../lib/i18n.svelte";
 
   interface MultiplicadorItem { id: string; multiplicador: number; }
   interface GradeRef { id: string; nombre: string; color: string; }
@@ -72,9 +73,9 @@
 </script>
 
 <div class="category-card" style="border-left:3px solid #a78bfa;">
-  <div class="category-header"><h3>📊 Multiplicadores de Criterios</h3></div>
+  <div class="category-header"><h3>{t('ccm.multiplicadores.titulo')}</h3></div>
   <div style="padding:1.5rem 2rem;">
-    <p style="margin:0 0 1.5rem 0;color:#94a3b8;font-size:0.85rem;">Define el factor de ponderación que cada calificación cualitativa aplica por criterio.</p>
+    <p style="margin:0 0 1.5rem 0;color:#94a3b8;font-size:0.85rem;">{t('ccm.multiplicadores.desc')}</p>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:1rem;">
       {#if multiplicadores.length === 0}
         <div style="grid-column:1/-1;text-align:center;padding:1.5rem;color:#64748b;font-size:0.85rem;">Cargando multiplicadores...</div>
@@ -105,12 +106,12 @@
 
 {#if hasUnsaved}
   <div style="position:sticky;bottom:0;display:flex;justify-content:flex-end;align-items:center;gap:0.75rem;padding:0.85rem 1.25rem;background:rgba(15,23,42,0.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(96,165,250,0.35);border-radius:14px;box-shadow:0 -8px 28px rgba(0,0,0,0.4)">
-    <span style="font-size:0.78rem;color:#94a3b8">Multiplicadores sin guardar</span>
+    <span style="font-size:0.78rem;color:#94a3b8">{t('ccm.sinGuardar')}</span>
     <button onclick={save} disabled={saving}
       style="padding:0.6rem 1.4rem;background:linear-gradient(135deg,#60a5fa,#3b82f6);border:none;border-radius:10px;color:#fff;font-size:0.85rem;font-weight:700;cursor:pointer;box-shadow:0 6px 22px rgba(59,130,246,0.3);display:flex;align-items:center;gap:0.5rem;{saving ? 'opacity:0.6;cursor:not-allowed;' : ''}"
       onmouseenter={(e) => { if (!saving) e.currentTarget.style.transform = 'translateY(-2px)'; }}
       onmouseleave={(e) => { if (!saving) e.currentTarget.style.transform = 'translateY(0)'; }}>
-      {saving ? '⏳ Guardando...' : '💾 Guardar cambios'}
+      {saving ? t('ccm.guardando') : t('ccm.btn.guardarCambios')}
     </button>
   </div>
 {/if}

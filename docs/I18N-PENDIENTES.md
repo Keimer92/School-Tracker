@@ -26,8 +26,8 @@ powershell -File docs\i18n-status.ps1
 
 | | Archivos | Textos |
 |---|---|---|
-| **Traducido** | 17 | ~542 |
-| **Pendiente** | 30 | ~213 |
+| **LISTO** | 18 | ~546 |
+| **PENDIENTE** | 27 | ~186 |
 
 Traducidos: `WelcomePage`, `AjustesPage`, `AsistenciaPage`, `NotasPage`,
 `EstudiantesPage`, `ConfiguracionPage` (+ `CategoryTabContent`), `InformePage`,
