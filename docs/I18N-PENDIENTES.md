@@ -26,16 +26,16 @@ powershell -File docs\i18n-status.ps1
 
 | | Archivos | Textos |
 |---|---|---|
-| **Traducido** | 11 | ~498 |
-| **Pendiente** | 36 | ~352 |
+| **Traducido** | 12 | ~509 |
+| **Pendiente** | 35 | ~327 |
 
 Traducidos: `WelcomePage`, `AjustesPage`, `AsistenciaPage`, `NotasPage`,
 `EstudiantesPage`, `ConfiguracionPage` (+ `CategoryTabContent`, que ya no
 aparece en el listado porque quedó sin textos sueltos), `InformePage`,
-`ReportesPage`, `ConfirmDialog`, `BrowserPicker`, `LanguagePicker`
-(+ `main.ts` para el arranque del idioma).
+`ReportesPage`, `EvaluacionesPage`, `ConfirmDialog`, `BrowserPicker`,
+`LanguagePicker` (+ `main.ts` para el arranque del idioma).
 
-Del total pendiente, ~250 están en páginas `.svelte` (lo que el usuario ve) y
+Del total pendiente, ~220 están en páginas `.svelte` (lo que el usuario ve) y
 ~105 en servicios `.ts` (mayormente `show-toast`).
 
 > ⚠️ El script marca `LISTO` en cuanto el archivo importa `i18n.svelte`, así
@@ -72,41 +72,40 @@ secundarias (Configuración → globales, Ajustes → Depuración, Nube).
 | # | Archivo | Textos | Líneas | Nota |
 |---|---|---|---|---|
 | 1 | `src/lib/driveSyncService.ts` | ~34 | 1092 | Avisos de respaldo Drive |
-| 2 | `src/svelte/EvaluacionesPage.svelte` | ~25 | 515 | Indicadores y criterios |
-| 3 | `src/lib/cloudLogin.ts` | ~24 | 430 | Mensajes de login |
-| 4 | `src/svelte/DashboardPage.svelte` | ~20 | 514 | |
-| 5 | `src/svelte/CloudPage.svelte` | ~20 | 844 | Nube / respaldos |
-| 6 | `src/lib/excel.ts` | ~19 | 489 | ⚠️ Ver nota abajo |
-| 7 | `src/svelte/GoogleDriveBackup.svelte` | ~18 | 390 | Legacy, no se monta |
-| 8 | `src/svelte/ajustes/DebugPage.svelte` | ~16 | 594 | |
-| 9 | `src/svelte/globales/ColegioConfigModal.svelte` | ~16 | 468 | |
-| 10 | `src/svelte/AccountPage.svelte` | ~16 | 407 | |
-| 11 | `src/svelte/Sidebar.svelte` | ~12 | 184 | |
-| 12 | `src/lib/instrumentosPdf.ts` | ~12 | 294 | ⚠️ Encabezados de PDF |
-| 13 | `src/lib/deviceHandover.ts` | ~11 | 121 | |
-| 14 | `src/lib/wsSyncService.ts` | ~10 | 230 | Avisos de sync |
-| 15 | `src/svelte/FiltersModalAndroid.svelte` | ~10 | 187 | Modal de filtros en Android |
-| 16 | `src/svelte/ajustes/InfoPage.svelte` | ~10 | 199 | |
-| 17 | `src/App.svelte` | ~9 | 584 | Shell, tabs |
-| 18 | `src/lib/driveAutoBackup.ts` | ~9 | 445 | |
-| 19 | `src/svelte/CloudCards.svelte` | ~8 | 541 | |
-| 20 | `src/svelte/notificaciones/NotificacionesPage.svelte` | ~7 | 633 | Solo Android |
-| 21 | `src/lib/d1SyncService.ts` | ~7 | 380 | Avisos de sync |
-| 22 | `src/svelte/globales/CalificacionesConfig.svelte` | ~6 | 142 | |
-| 23 | `src/lib/botones.ts` | ~6 | 51 | |
-| 24 | `src/svelte/globales/MultiplicadoresConfig.svelte` | ~5 | 116 | |
-| 25 | `src/svelte/globales/GradoConfigModal.svelte` | ~3 | 146 | |
-| 26 | `src/lib/driveInstantBackup.ts` | ~3 | 223 | |
-| 27 | `src/svelte/SearchInput.svelte` | ~3 | 39 | Placeholder |
-| 28 | `src/svelte/AndroidDrawer.svelte` | ~3 | 235 | |
-| 29 | `src/svelte/asistencia/AsistenciaMainPage.svelte` | ~2 | 223 | Wrapper de sub-tabs |
-| 30 | `src/svelte/FilterSelect.svelte` | ~2 | 29 | Genérico |
-| 31 | `src/lib/instrumentosExcel.ts` | ~1 | 299 | ⚠️ Hoja/encabezado de Excel |
-| 32 | `src/svelte/notas/NotasMainPage.svelte` | ~1 | 230 | Wrapper de sub-tabs |
-| 33 | `src/svelte/DatePickerGlass.svelte` | ~1 | 390 | Placeholder |
-| 34 | `src/svelte/BotonMod.svelte` | ~1 | 46 | Genérico |
-| 35 | `src/svelte/FilterContainer.svelte` | ~1 | 20 | Genérico |
-| 36 | `src/svelte/FilterGroup.svelte` | ~1 | 17 | Genérico |
+| 2 | `src/lib/cloudLogin.ts` | ~24 | 430 | Mensajes de login |
+| 3 | `src/svelte/DashboardPage.svelte` | ~20 | 514 | |
+| 4 | `src/svelte/CloudPage.svelte` | ~20 | 844 | Nube / respaldos |
+| 5 | `src/lib/excel.ts` | ~19 | 489 | ⚠️ Ver nota abajo |
+| 6 | `src/svelte/GoogleDriveBackup.svelte` | ~18 | 390 | Legacy, no se monta |
+| 7 | `src/svelte/ajustes/DebugPage.svelte` | ~16 | 594 | |
+| 8 | `src/svelte/globales/ColegioConfigModal.svelte` | ~16 | 468 | |
+| 9 | `src/svelte/AccountPage.svelte` | ~16 | 407 | |
+| 10 | `src/svelte/Sidebar.svelte` | ~12 | 184 | |
+| 11 | `src/lib/instrumentosPdf.ts` | ~12 | 294 | ⚠️ Encabezados de PDF |
+| 12 | `src/lib/deviceHandover.ts` | ~11 | 121 | |
+| 13 | `src/lib/wsSyncService.ts` | ~10 | 230 | Avisos de sync |
+| 14 | `src/svelte/FiltersModalAndroid.svelte` | ~10 | 187 | Modal de filtros en Android |
+| 15 | `src/svelte/ajustes/InfoPage.svelte` | ~10 | 199 | |
+| 16 | `src/App.svelte` | ~9 | 584 | Shell, tabs |
+| 17 | `src/lib/driveAutoBackup.ts` | ~9 | 445 | |
+| 18 | `src/svelte/CloudCards.svelte` | ~8 | 541 | |
+| 19 | `src/svelte/notificaciones/NotificacionesPage.svelte` | ~7 | 633 | Solo Android |
+| 20 | `src/lib/d1SyncService.ts` | ~7 | 380 | Avisos de sync |
+| 21 | `src/svelte/globales/CalificacionesConfig.svelte` | ~6 | 142 | |
+| 22 | `src/lib/botones.ts` | ~6 | 51 | |
+| 23 | `src/svelte/globales/MultiplicadoresConfig.svelte` | ~5 | 116 | |
+| 24 | `src/svelte/globales/GradoConfigModal.svelte` | ~3 | 146 | |
+| 25 | `src/lib/driveInstantBackup.ts` | ~3 | 223 | |
+| 26 | `src/svelte/SearchInput.svelte` | ~3 | 39 | Placeholder |
+| 27 | `src/svelte/AndroidDrawer.svelte` | ~3 | 235 | |
+| 28 | `src/svelte/asistencia/AsistenciaMainPage.svelte` | ~2 | 223 | Wrapper de sub-tabs |
+| 29 | `src/svelte/FilterSelect.svelte` | ~2 | 29 | Genérico |
+| 30 | `src/lib/instrumentosExcel.ts` | ~1 | 299 | ⚠️ Hoja/encabezado de Excel |
+| 31 | `src/svelte/notas/NotasMainPage.svelte` | ~1 | 230 | Wrapper de sub-tabs |
+| 32 | `src/svelte/DatePickerGlass.svelte` | ~1 | 390 | Placeholder |
+| 33 | `src/svelte/BotonMod.svelte` | ~1 | 46 | Genérico |
+| 34 | `src/svelte/FilterContainer.svelte` | ~1 | 20 | Genérico |
+| 35 | `src/svelte/FilterGroup.svelte` | ~1 | 17 | Genérico |
 
 ### Servicios `.ts` (textos de `show-toast` y avisos)
 
