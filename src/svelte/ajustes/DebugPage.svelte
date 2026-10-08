@@ -16,6 +16,7 @@
   import { copyFile } from "@tauri-apps/plugin-fs";
   import { untrack } from "svelte";
   import { portalToBody } from "../../lib/portalToBody";
+  import { t, tagLocale } from "../../lib/i18n.svelte";
 
   const isAndroid = /Android/i.test(navigator.userAgent);
   const ACCENT = "#ef4444";
@@ -287,9 +288,9 @@
       if (syncErrores) {
         await emit("show-toast", { message: `✅ Base importada y migrada. ⚠️ Sync completo no pudo ejecutarse: ${syncErrores}.`, type: "warning" });
       } else {
-        await emit("show-toast", { message: `✅ Base importada, migrada y sincronizada (${sincronizada} filas en la nube). Reinicie la app si algo no responde.`, type: "success" });
+        await emit("show-toast", { message: t('dbg.toast.importOk', { n: sincronizada }), type: "success" });
       }
-    } catch (error) { await emit("show-toast", { message: "❌ Error al importar: " + error, type: "error" }); }
+    } catch (error) { await emit("show-toast", { message: t('dbg.toast.importErr', { e: String(error) }), type: "error" }); }
     finally { isImporting = false; }
   }
 
@@ -300,12 +301,8 @@
    */
   async function handleWipeProfileData() {
     const ok = await ask(
-      "¡ATENCIÓN MÁXIMA! Esto dejará en CERO el perfil actual:\n\n" +
-      "1️⃣ Borrará TODOS los datos de la NUBE (Cloudflare D1) de esta cuenta.\n" +
-      "2️⃣ Reiniciará la base de datos LOCAL (con datos semilla por defecto).\n\n" +
-      "Los demás dispositivos sincronizados también perderán los datos.\n" +
-      "Después podrás importar tu base de datos buena.\n\n¿Continuar?",
-      { title: "🚨 Purgar Perfil (Nube + Local)", kind: "warning", okLabel: "Sí, purgar todo", cancelLabel: "Cancelar" }
+      t('dbg.askWipeMsg'),
+      { title: t('dbg.askWipeTitulo'), kind: "warning", okLabel: t('dbg.askWipeOk'), cancelLabel: t('comun.cancelar') }
     );
     if (!ok) return;
     isWipingProfile = true;
@@ -324,14 +321,14 @@
       await emit("data-updated");
       await emit("show-toast", {
         message: nubeOk
-          ? "✅ Perfil purgado (nube + local en cero). Ahora importa tu base buena. Recargando…"
-          : "⚠️ Local reiniciada; la nube NO se purgó (D1 sin configurar). Recargando…",
+          ? t('dbg.toast.wipeOk')
+          : t('dbg.toast.wipeWarn'),
         type: nubeOk ? "success" : "warning",
       });
       setTimeout(() => location.reload(), 1800);
     } catch (error) {
       console.error("[Wipe] error:", error);
-      await emit("show-toast", { message: "❌ Error al purgar perfil: " + error, type: "error" });
+      await emit("show-toast", { message: t('dbg.toast.wipeErr', { e: String(error) }), type: "error" });
     } finally {
       isWipingProfile = false;
     }
@@ -342,15 +339,15 @@
   <div class="category-card" style="border-left: 3px solid {ACCENT};">
     <div class="category-header" style="border-left: none;">
       <div style="width:36px;height:36px;border-radius:10px;background:{ACCENT}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">🐛</div>
-      <h3>Depuración y Datos</h3>
+      <h3>{t('dbg.titulo')}</h3>
     </div>
 
     <div class="dbg-body">
       <!-- EXPORTAR -->
       <div class="dbg-box">
-        <div class="dbg-box-head"><span style="font-size: 1.2rem;">📤</span><h5>Exportar datos</h5></div>
-        <p class="dbg-desc">Guarda una copia completa de la base de datos en <strong>{CARPETA_BACKUPS}</strong> {isAndroid ? "(Descargas)" : "(Documentos)"}.</p>
-        <button onclick={handleExportDB} class="dbg-btn dbg-btn-verde">📤 Exportar base de datos</button>
+        <div class="dbg-box-head"><span style="font-size: 1.2rem;">📤</span><h5>{t('dbg.exportar.titulo')}</h5></div>
+        <p class="dbg-desc">{@html t('dbg.exportar.desc', { carpeta: CARPETA_BACKUPS, carpeta2: isAndroid ? t('dbg.exportar.descargas') : t('dbg.exportar.docs') })}</p>
+        <button onclick={handleExportDB} class="dbg-btn dbg-btn-verde">{t('dbg.exportar.btn')}</button>
 
         <!-- Backup automático: botón completo, no un ícono suelto (en un ⏱ de
              30px no se descubría). Al tocarlo abre el popover de intervalos. -->
@@ -359,12 +356,12 @@
           class:on={backupActivo}
           onclick={() => showBackupPopover = !showBackupPopover}
           disabled={savingBackupCfg}
-          aria-label="Configurar backup automático"
+          aria-label={t('dbg.ariaBackup')}
           aria-expanded={showBackupPopover}>
           <span class="dbg-auto-ico">⏱</span>
           <span class="dbg-auto-txt">
-            <strong>Backup automático</strong>
-            <small>{backupActivo ? `Activo · cada ${backupIntervaloMin / 60} h` : "Desactivado"}</small>
+            <strong>{t('dbg.backup.titulo')}</strong>
+            <small>{backupActivo ? t('dbg.backup.subActivo', { h: backupIntervaloMin / 60 }) : t('dbg.backup.subDesactivado')}</small>
           </span>
           <span class="dbg-auto-chev">›</span>
         </button>
@@ -374,14 +371,14 @@
           <div class="dbg-pop" use:portalToBody>
             <div class="dbg-pop-card">
               <div class="dbg-pop-head">
-                <span>⏱ Backup automático</span>
-                <button class="dbg-pop-x" onclick={() => showBackupPopover = false} aria-label="Cerrar">✕</button>
+                <span>{t('dbg.pop.titulo')}</span>
+                <button class="dbg-pop-x" onclick={() => showBackupPopover = false} aria-label={t('comun.cerrar')}>✕</button>
               </div>
               <p class="dbg-pop-desc">
-                Guarda una copia cada intervalo y conserva las <strong>2 más recientes</strong> (las anteriores se borran).
+                {@html t('dbg.pop.desc')}
                 {isAndroid
-                  ? "Sigue funcionando con la app cerrada: lo programa una alarma del sistema."
-                  : "Mientras la app esté abierta; con la app cerrada no hay proceso que la ejecute."}
+                  ? t('dbg.pop.descAppCerrada')
+                  : t('dbg.pop.descAppAbierta')}
               </p>
               <div class="dbg-pop-opts">
                 {#each INTERVALOS as o}
@@ -395,7 +392,7 @@
                 {/each}
               </div>
               <button onclick={hacerBackupAhora} disabled={runningBackup} class="dbg-btn dbg-btn-ghost" style="margin-top:0.6rem;">
-                {runningBackup ? "⏳ Generando..." : "💾 Hacer un backup ahora"}
+                {runningBackup ? t('dbg.pop.generando') : t('dbg.pop.backupAhora')}
               </button>
             </div>
           </div>
@@ -405,22 +402,22 @@
 
       <!-- IMPORTAR -->
       <div class="dbg-box">
-        <div class="dbg-box-head"><span style="font-size: 1.2rem;">📥</span><h5>Importar datos</h5></div>
-        <p class="dbg-desc">Restaura desde un archivo <code>.db</code> exportado antes. Sobrescribe los datos actuales, corre las migraciones y sincroniza con la nube.</p>
+        <div class="dbg-box-head"><span style="font-size: 1.2rem;">📥</span><h5>{t('dbg.importar.titulo')}</h5></div>
+        <p class="dbg-desc">{t('dbg.importar.desc')}</p>
         <button onclick={handleImportDB} disabled={isImporting} class="dbg-btn dbg-btn-rojo">
-          {isImporting ? "⏳ Importando + sincronizando…" : "📥 Importar base de datos"}
+          {isImporting ? t('dbg.importar.importando') : t('dbg.importar.btn')}
         </button>
-        <div class="dbg-hint">⚠️ La importación sobrescribirá los datos actuales.</div>
+        <div class="dbg-hint">{t('dbg.importar.hint')}</div>
       </div>
 
       <!-- PURGAR -->
       <div class="dbg-box dbg-box-peligro">
-        <div class="dbg-box-head"><span style="font-size: 1.2rem;">🧨</span><h5 class="dbg-peligro-titulo">Purgar perfil</h5></div>
-        <p class="dbg-desc">Deja el perfil en cero: borra los datos de la <strong>nube</strong> de esta cuenta y reinicia la base <strong>local</strong>. Los demás dispositivos también perderán los datos.</p>
+        <div class="dbg-box-head"><span style="font-size: 1.2rem;">🧨</span><h5 class="dbg-peligro-titulo">{t('dbg.purgar.titulo')}</h5></div>
+        <p class="dbg-desc">{@html t('dbg.purgar.desc')}</p>
         <button onclick={handleWipeProfileData} disabled={isWipingProfile} class="dbg-btn-peligro">
-          {isWipingProfile ? "⏳ Purgando…" : "🧨 Purgar perfil (Nube + Local)"}
+          {isWipingProfile ? t('dbg.purgar.purgando') : t('dbg.purgar.btn')}
         </button>
-        <div class="dbg-hint">Úsalo solo si vas a importar una base buena justo después.</div>
+        <div class="dbg-hint">{t('dbg.purgar.hint')}</div>
       </div>
 
       <!-- SISTEMA -->
