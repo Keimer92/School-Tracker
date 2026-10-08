@@ -5,6 +5,10 @@
   import { syncService } from "../lib/syncService";
   import { onDataChange } from "../lib/autoSync";
   import { registerBackHandler } from "../lib/androidBack";
+  // OJO: en este archivo ya hubo un `const t = e.target` (renombrado a `nodo`).
+  // Una variable llamada `t` tapa la función `t()` de i18n y el error de
+  // runtime apunta a la línea equivocada.
+  import { t } from "../lib/i18n.svelte";
 import { primerColegio } from "../lib/catalogo";
   import { ask } from "@tauri-apps/plugin-dialog";
   import FilterContainer from "./FilterContainer.svelte";
@@ -53,9 +57,9 @@ import SelectChip from "./SelectChip.svelte";
     const input = e.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) { alert('Por favor selecciona una imagen válida'); return; }
+    if (!file.type.startsWith('image/')) { alert(t('est.fotoInvalida')); return; }
     try { photoPreview = await fileToBase64(file) as string; }
-    catch (err) { console.error('Error al procesar imagen:', err); alert('Error al procesar la imagen'); }
+    catch (err) { console.error('Error al procesar imagen:', err); alert(t('est.fotoError')); }
     if (fileInputEl) fileInputEl.value = '';
   }
 
@@ -1334,7 +1338,7 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
           <input type="file" accept="image/*" capture="environment" onchange={handleFileChange} style="display: none;" bind:this={fileInputEl} />
 
           <div class="input-container" style="grid-column: span 2; margin-bottom: 0;">
-            <input name="nombre" placeholder="Nombre completo" value={formData.nombre} oninput={(e) => { const t = e.target as HTMLInputElement; const start = t.selectionStart; const transformed = toTitleCase(t.value); if (transformed !== t.value) { t.value = transformed; t.setSelectionRange?.(start, start); } formData = { ...formData, nombre: transformed }; }} required style="width: 100%; padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,23,42,0.6); color: #e2e8f0; font-size: 0.9rem; outline: none; box-sizing: border-box;" />
+            <input name="nombre" placeholder="Nombre completo" value={formData.nombre} oninput={(e) => { const nodo = e.target as HTMLInputElement; const start = nodo.selectionStart; const transformed = toTitleCase(nodo.value); if (transformed !== nodo.value) { nodo.value = transformed; nodo.setSelectionRange?.(start, start); } formData = { ...formData, nombre: transformed }; }} required style="width: 100%; padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,23,42,0.6); color: #e2e8f0; font-size: 0.9rem; outline: none; box-sizing: border-box;" />
           </div>
           <div class="input-container" style="margin-bottom: 0;">
             <input name="codigo" placeholder="Auto-generado" value={formData.codigo} disabled style="width: 100%; padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,23,42,0.3); color: #64748b; font-size: 0.9rem; outline: none; box-sizing: border-box; cursor: not-allowed;" />
