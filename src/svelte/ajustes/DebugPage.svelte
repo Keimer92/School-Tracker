@@ -51,15 +51,15 @@
 
   /** Cuenta regresiva formateada: "12 min" / "1 h 05 min" / "ahora". */
   const cuentaRegresiva = (proximo: number | null | undefined) => {
-    if (!proximo) return "sin programar";
+    if (!proximo) return t('dbg.cron.sinProgramar');
     const min = Math.max(0, Math.round((proximo - ahora) / 60000));
-    if (min <= 0) return "en cualquier momento";
-    if (min < 60) return `en ${min} min`;
-    return `en ${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")} min`;
+    if (min <= 0) return t('dbg.cron.cualquierMomento');
+    if (min < 60) return t('dbg.cron.enMin', { min });
+    return t('dbg.cron.enH', { h: Math.floor(min / 60), mm: String(min % 60).padStart(2, "0") });
   };
 
   const marcaTiempo = (ms: number | null | undefined) =>
-    ms ? new Date(ms).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" }) : "nunca";
+    ms ? new Date(ms).toLocaleString(tagLocale(), { dateStyle: "short", timeStyle: "short" }) : t('dbg.cron.nunca');
 
   const forzarRespaldoDrive = async () => {
     abSubiendo = true;
@@ -70,18 +70,17 @@
       // el botón avisa en vez de fingir que subió.
       const res = await driveAutoBackup.runOnce("manual");
       abMensaje = res.ran
-        ? "✓ Respaldo subido a Drive."
-        : `No se subió (${res.reason ?? "sin motivo"}). ${
-            res.reason === "no_changes"
-              ? "No hay cambios locales pendientes."
+        ? t('dbg.res.subido')
+        : t('dbg.res.noSubio', { motivo: res.reason ?? t('dbg.res.sinMotivo') }) +
+            (res.reason === "no_changes"
+              ? t('dbg.res.noChanges')
               : res.reason === "throttled"
-                ? "Pasaron menos de 15 min desde el último respaldo."
+                ? t('dbg.res.throttled')
                 : res.reason === "disabled"
-                  ? "El respaldo automático está desactivado."
-                  : ""
-          }`;
+                  ? t('dbg.res.disabled')
+                  : "");
     } catch (e) {
-      abMensaje = `✗ Error: ${(e as Error)?.message ?? e}`;
+      abMensaje = t('dbg.res.error', { e: String((e as Error)?.message ?? e) });
     } finally {
       abSubiendo = false;
       await leerEstadoDrive();
@@ -105,14 +104,14 @@
   let savingBackupCfg = $state(false);
   let runningBackup = $state(false);
 
-  const INTERVALOS = [
-    { min: 0, label: "Desactivado" },
-    { min: 60, label: "Cada hora" },
-    { min: 180, label: "Cada 3 horas" },
-    { min: 360, label: "Cada 6 horas" },
-    { min: 720, label: "Cada 12 horas" },
-    { min: 1440, label: "Cada día" },
-  ];
+  const INTERVALOS = $derived([
+    { min: 0, label: t('dbg.intervalo.desactivado') },
+    { min: 60, label: t('dbg.intervalo.cadaHora') },
+    { min: 180, label: t('dbg.intervalo.cada3Horas') },
+    { min: 360, label: t('dbg.intervalo.cada6Horas') },
+    { min: 720, label: t('dbg.intervalo.cada12Horas') },
+    { min: 1440, label: t('dbg.intervalo.cadaDia') },
+  ]);
 
   invoke<string>("get_db_path").then(p => dbPath = p).catch(() => dbPath = "");
 
