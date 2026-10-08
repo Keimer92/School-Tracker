@@ -4,6 +4,7 @@ import SelectChip from "./SelectChip.svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { registerBackHandler } from "../lib/androidBack";
+  import { t } from "../lib/i18n.svelte";
 
   /** Permite que el aviso de "sin estudiantes" mande al usuario a esa página. */
   let { onNavigate }: { onNavigate?: (tab: string) => void } = $props();
@@ -44,18 +45,27 @@ import SelectChip from "./SelectChip.svelte";
   );
 
   interface DetalleItem { nombre: string; colegio: string | null; actualizado: string; }
-  let detalle = $state<{ titulo: string; items: DetalleItem[] } | null>(null);
+  type DetalleTipo = 'colegio' | 'grado' | 'seccion' | 'asignatura';
+  // En $state va SOLO el id: si guardáramos el título ya traducido, el modal
+  // conservaría el idioma viejo al cambiar el idioma de la app.
+  let detalle = $state<{ tipo: DetalleTipo; items: DetalleItem[] } | null>(null);
+  const TITULOS_DETALLE = $derived<Record<DetalleTipo, string>>({
+    colegio: t('dash.detalle.colegio'),
+    grado: t('dash.detalle.grado'),
+    seccion: t('dash.detalle.seccion'),
+    asignatura: t('dash.detalle.asignatura'),
+  });
+  let detalleTitulo = $derived(detalle ? TITULOS_DETALLE[detalle.tipo] : '');
 
   $effect(() => {
     if (!detalle) return;
     return registerBackHandler(() => { detalle = null; return true; });
   });
 
-  async function verDetalle(tipo: 'colegio' | 'grado' | 'seccion' | 'asignatura') {
+  async function verDetalle(tipo: DetalleTipo) {
     try {
       const items = await invoke<DetalleItem[]>('get_dashboard_detalle', { tipo, colegioId: selectedColegio });
-      const titulos = { colegio: '🏫 Colegios', grado: '📚 Grados', seccion: '🏷️ Secciones', asignatura: '📖 Asignaturas' } as const;
-      detalle = { titulo: titulos[tipo], items };
+      detalle = { tipo, items };
     } catch (e) {
       console.error('Error cargando detalle:', e);
     }
@@ -133,21 +143,21 @@ import SelectChip from "./SelectChip.svelte";
   {#if loading}
     <div class="loading-container">
       <div class="loading-spinner"></div>
-      <span>Cargando dashboard...</span>
+      <span>{t('dash.cargando')}</span>
     </div>
   {:else if error}
     <div class="error-container">
       <span class="error-icon">⚠️</span>
-      <span>Error al cargar: {error}</span>
-      <button class="retry-btn" onclick={() => loadStats()}>Reintentar</button>
+      <span>{t('dash.error', { e: error })}</span>
+      <button class="retry-btn" onclick={() => loadStats()}>{t('dash.reintentar')}</button>
     </div>
   {:else if stats}
     <div class="dashboard-header">
       <div class="header-left">
-        <h1 class="dashboard-title">Dashboard</h1>
+        <h1 class="dashboard-title">{t('dash.titulo')}</h1>
         <p class="dashboard-subtitle">
-          Año lectivo: <strong>{stats.anoActivo || "—"}</strong>
-          · Colegio: <strong>{stats.colegioActivo || "Todos"}</strong>
+          {t('dash.anoLectivo')} <strong>{stats.anoActivo || "—"}</strong>
+          · {t('dash.colegioLabel')} <strong>{stats.colegioActivo || t('dash.todos')}</strong>
         </p>
       </div>
       <div class="header-right">
@@ -156,7 +166,7 @@ import SelectChip from "./SelectChip.svelte";
           value={selectedColegio}
           onchange={(v) => { selectedColegio = v === null ? null : Number(v); loadStats(); }}
           options={[
-            { value: null, label: 'Todos los colegios' },
+            { value: null, label: t('rep.subtitulo.todosColegios') },
             ...colegios.map(c => ({ value: c.id as string | number | null, label: c.nombre })),
           ]} />
       </div>
@@ -170,16 +180,15 @@ import SelectChip from "./SelectChip.svelte";
       <div class="empty-hint">
         <div class="empty-hint-icon">👨‍🎓</div>
         <div class="empty-hint-body">
-          <div class="empty-hint-title">Todavía no hay estudiantes</div>
+          <div class="empty-hint-title">{t('dash.vacio.titulo')}</div>
           <p class="empty-hint-text">
-            Agrega al menos un estudiante para que todo funcione. Los contadores de
-            <strong>Grados</strong> y <strong>Secciones</strong> marcan 0 porque cuentan las
-            combinaciones que <em>están en uso</em>, no las del catálogo: sin estudiantes
-            no hay ninguna. Los desplegables de grado y sección de Notas, Asistencia y
-            Reportes también salen vacíos por lo mismo.
+            {t('dash.vacio.a')}
+            <strong>{t('dash.vacio.grados')}</strong> {t('dash.vacio.y')} <strong>{t('dash.vacio.secciones')}</strong>
+            {t('dash.vacio.b')}
+            <em>{t('dash.vacio.enUso')}</em>{t('dash.vacio.c')}
           </p>
           <button class="empty-hint-btn" onclick={() => onNavigate?.('estudiantes')}>
-            👨‍🎓 Ir a Estudiantes
+            {t('dash.vacio.ir')}
           </button>
         </div>
       </div>
@@ -191,56 +200,56 @@ import SelectChip from "./SelectChip.svelte";
         <div class="card-icon">👨‍🎓</div>
         <div class="card-content">
           <span class="card-value">{stats.totalEstudiantes}</span>
-          <span class="card-label">Estudiantes</span>
+          <span class="card-label">{t('dash.card.estudiantes')}</span>
         </div>
       </div>
       <div class="summary-card" style="--card-accent: #3b82f6">
         <div class="card-icon">📓</div>
         <div class="card-content">
           <span class="card-value">{stats.totalNotas}</span>
-          <span class="card-label">Notas</span>
+          <span class="card-label">{t('dash.card.notas')}</span>
         </div>
       </div>
       <div class="summary-card" style="--card-accent: #10b981">
         <div class="card-icon">📅</div>
         <div class="card-content">
           <span class="card-value">{stats.totalAsistencias}</span>
-          <span class="card-label">Asistencias</span>
+          <span class="card-label">{t('dash.card.asistencias')}</span>
         </div>
       </div>
-      <div class="summary-card clickable" style="--card-accent: #f59e0b" onclick={() => verDetalle('grado')} title="Ver grados">
+      <div class="summary-card clickable" style="--card-accent: #f59e0b" onclick={() => verDetalle('grado')} title={t('dash.ver.grados')}>
         <div class="card-icon">📚</div>
         <div class="card-content">
           <span class="card-value">{stats.totalGrados}</span>
-          <span class="card-label">Grados</span>
+          <span class="card-label">{t('dash.card.grados')}</span>
         </div>
       </div>
-      <div class="summary-card clickable" style="--card-accent: #ec4899" onclick={() => verDetalle('seccion')} title="Ver secciones">
+      <div class="summary-card clickable" style="--card-accent: #ec4899" onclick={() => verDetalle('seccion')} title={t('dash.ver.secciones')}>
         <div class="card-icon">🏷️</div>
         <div class="card-content">
           <span class="card-value">{stats.totalSecciones}</span>
-          <span class="card-label">Secciones</span>
+          <span class="card-label">{t('dash.card.secciones')}</span>
         </div>
       </div>
-      <div class="summary-card clickable" style="--card-accent: #ef4444" onclick={() => verDetalle('colegio')} title="Ver colegios">
+      <div class="summary-card clickable" style="--card-accent: #ef4444" onclick={() => verDetalle('colegio')} title={t('dash.ver.colegios')}>
         <div class="card-icon">🏫</div>
         <div class="card-content">
           <span class="card-value">{stats.totalColegios}</span>
-          <span class="card-label">Colegios</span>
+          <span class="card-label">{t('dash.card.colegios')}</span>
         </div>
       </div>
-      <div class="summary-card clickable" style="--card-accent: #06b6d4" onclick={() => verDetalle('asignatura')} title="Ver asignaturas">
+      <div class="summary-card clickable" style="--card-accent: #06b6d4" onclick={() => verDetalle('asignatura')} title={t('dash.ver.asignaturas')}>
         <div class="card-icon">📖</div>
         <div class="card-content">
           <span class="card-value">{stats.totalAsignaturas}</span>
-          <span class="card-label">Asignaturas</span>
+          <span class="card-label">{t('dash.card.asignaturas')}</span>
         </div>
       </div>
     </div>
 
     <!-- Students per grade + section -->
     <div class="glass-card grade-card">
-      <h2 class="card-title">Estudiantes por Grado y Sección</h2>
+      <h2 class="card-title">{t('dash.porGradoSeccion')}</h2>
       {#if stats.estudiantesPorGradoSeccion.length > 0}
         <div class="grade-list">
           {#each stats.estudiantesPorGradoSeccion as gs}
@@ -259,7 +268,7 @@ import SelectChip from "./SelectChip.svelte";
       {:else}
         <div class="empty-state-sm">
           <span>📭</span>
-          <span>No hay estudiantes registrados</span>
+          <span>{t('dash.sinEstudiantes')}</span>
         </div>
       {/if}
     </div>
@@ -269,10 +278,10 @@ import SelectChip from "./SelectChip.svelte";
 {#if detalle}
   <div class="modal-overlay" onclick={() => (detalle = null)}>
     <div class="modal-content" onclick={(e) => e.stopPropagation()}>
-      <h3 class="detalle-titulo">{detalle.titulo}</h3>
+      <h3 class="detalle-titulo">{detalleTitulo}</h3>
       <div class="detalle-list">
         {#if detalle.items.length === 0}
-          <div class="empty-state-sm"><span>📭</span><span>Sin registros</span></div>
+          <div class="empty-state-sm"><span>📭</span><span>{t('dash.sinRegistros')}</span></div>
         {:else}
           {#each detalle.items as it}
             <div class="detalle-row">
@@ -280,12 +289,12 @@ import SelectChip from "./SelectChip.svelte";
                 <div class="det-nombre">{it.nombre}</div>
                 {#if it.colegio}<div class="det-sub">{it.colegio}</div>{/if}
               </div>
-              <span class="det-fecha" title="Última modificación">{it.actualizado || '—'}</span>
+              <span class="det-fecha" title={t('dash.ultimaModificacion')}>{it.actualizado || '—'}</span>
             </div>
           {/each}
         {/if}
       </div>
-      <button class="detalle-cerrar" onclick={() => (detalle = null)}>Cerrar</button>
+      <button class="detalle-cerrar" onclick={() => (detalle = null)}>{t('comun.cerrar')}</button>
     </div>
   </div>
 {/if}
