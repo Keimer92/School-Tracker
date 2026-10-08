@@ -143,7 +143,7 @@ import { primerColegio } from "../lib/catalogo";
       comparacionCortes = mapa;
     } catch (e) {
       console.error('[Comparación cortes] Error cargando cortes anteriores:', e);
-      await emit('show-toast', { message: '❌ No se pudieron cargar las notas de cortes anteriores: ' + (e instanceof Error ? e.message : String(e)), type: 'error' });
+      await emit('show-toast', { message: t('notas.dist.errorPrevias', { msg: e instanceof Error ? e.message : String(e) }), type: 'error' });
     } finally { cargandoComparacion = false; }
   }
 
@@ -1438,7 +1438,7 @@ import { primerColegio } from "../lib/catalogo";
     });
     const hasIncomplete = Object.values(notasCualitativas).some(v => v === 'A');
     if (hasIncomplete) {
-      await emit("show-toast", { message: "⚠️ Hay notas incompletas (solo 'A'). Por favor complételas (AA, AS, AF, AI) o bórrelas antes de guardar.", type: 'error' });
+      await emit("show-toast", { message: t('notas.guardar.incompletas'), type: 'error' });
       return;
     }
     for (const notaEst of notasActualizadas) {
@@ -1447,12 +1447,12 @@ import { primerColegio } from "../lib/catalogo";
         if (isQualitative) continue;
         const totalIndicador = calcularTotalIndicador(notaEst.notas, indicador);
         if (totalIndicador > 20) {
-          await emit("show-toast", { message: `⚠️ El estudiante ${notaEst.estudianteNombre} tiene ${totalIndicador} pts en el Indicador ${indicador.orden} (máximo 20)`, type: 'error' });
+          await emit("show-toast", { message: t('notas.guardar.maxPts', { nombre: notaEst.estudianteNombre, pts: totalIndicador, n: indicador.orden }), type: 'error' });
           return;
         }
       }
     }
-    const okGuardar = await ask("¿Guardar las notas?\n\nSe registrarán los cambios en la base de datos local.", { title: "💾 Confirmar guardado", kind: "info", okLabel: "Guardar", cancelLabel: "Cancelar" });
+    const okGuardar = await ask(t('notas.guardar.confirmar'), { title: t('notas.guardar.titulo'), kind: "info", okLabel: t('comun.guardar'), cancelLabel: t('comun.cancelar') });
     if (!okGuardar) return;
     saving = true;
     try {
@@ -1471,8 +1471,8 @@ import { primerColegio } from "../lib/catalogo";
       saving = false;
       await emit("show-toast", {
         message: totalBorrados > 0
-          ? `✅ Notas guardadas · ${totalBorrados} nota(s) borrada(s)`
-          : `✅ Notas guardadas localmente`,
+          ? t('notas.guardar.okBorrados', { n: totalBorrados })
+          : t('notas.guardar.okSimple'),
         type: 'success'
       });
       onDataChange('nota', { immediate: true });
@@ -1480,21 +1480,21 @@ import { primerColegio } from "../lib/catalogo";
       setTimeout(() => fetchEstudiantes(undefined, true), 200);
     } catch (error) {
       console.error("Error saving notes:", error);
-      await emit("show-toast", { message: "❌ Error al guardar notas: " + error, type: "error" });
+      await emit("show-toast", { message: t('notas.guardar.error', { msg: String(error) }), type: "error" });
       saving = false;
     }
   }
 
   // Delete
   async function handleDeleteNotas() {
-    if (deleteMode === 'student' && !deleteStudentId) { await emit("show-toast", { message: "⚠️ Seleccione un estudiante", type: "warning" }); return; }
-    if (deleteMode === 'indicator' && !deleteIndicatorId) { await emit("show-toast", { message: "⚠️ Seleccione un indicador", type: "warning" }); return; }
+    if (deleteMode === 'student' && !deleteStudentId) { await emit("show-toast", { message: t('notas.del.selUnEstudiante'), type: "warning" }); return; }
+    if (deleteMode === 'indicator' && !deleteIndicatorId) { await emit("show-toast", { message: t('notas.del.selUnIndicador'), type: "warning" }); return; }
     const mensaje = deleteMode === 'all'
-      ? '¿Está seguro de eliminar TODAS las notas mostradas para este corte y asignatura? Esta acción no se puede deshacer.'
+      ? t('notas.del.confirmarTodas')
       : deleteMode === 'student'
-        ? `¿Está seguro de eliminar todas las notas de "${filteredNotas.find(n => n.estudianteId === deleteStudentId)?.estudianteNombre || ''}" para este corte y asignatura?`
-        : `¿Está seguro de eliminar todas las notas del ${indicadores.find(i => i.id === deleteIndicatorId) ? `Indicador ${indicadores.find(i => i.id === deleteIndicatorId)!.orden}` : 'indicador seleccionado'} para este corte y asignatura?`;
-    const ok = await ask(mensaje, { title: "🗑️ Confirmar eliminación", kind: "warning", okLabel: "Sí, eliminar", cancelLabel: "Cancelar" });
+        ? t('notas.del.confirmarEstudiante', { nombre: filteredNotas.find(n => n.estudianteId === deleteStudentId)?.estudianteNombre || '' })
+        : t('notas.del.confirmarIndicador', { indicador: indicadores.find(i => i.id === deleteIndicatorId) ? t('notas.indicador', { n: indicadores.find(i => i.id === deleteIndicatorId)!.orden }) : t('notas.del.indicadorSel') });
+    const ok = await ask(mensaje, { title: t('notas.del.confirmarTitulo'), kind: "warning", okLabel: t('notas.del.confirmarOk'), cancelLabel: t('comun.cancelar') });
     if (!ok) return;
     try {
       deleting = true;
@@ -1509,7 +1509,7 @@ import { primerColegio } from "../lib/catalogo";
         seccionId: selectedSeccion || 0,
       });
       showDeleteModal = false;
-      await emit("show-toast", { message: `✅ Notas eliminadas`, type: "success" });
+      await emit("show-toast", { message: t('notas.del.ok'), type: "success" });
       savedBaseline = {};
       history = [];
       redoStack = [];
@@ -1519,28 +1519,33 @@ import { primerColegio } from "../lib/catalogo";
       setTimeout(() => fetchEstudiantes(undefined, true), 200);
     } catch (error) {
       console.error("Error deleting notas:", error);
-      await emit("show-toast", { message: "❌ Error al eliminar notas: " + error, type: "error" });
+      await emit("show-toast", { message: t('notas.del.error', { msg: String(error) }), type: "error" });
     } finally { deleting = false; }
   }
 
   // ── Instrumentos de evaluación ──
-  const INSTRUMENTO_TIPOS: { id: InstrumentoTipo; label: string }[] = INSTRUMENTO_OPS.map(o => ({ id: o.id as InstrumentoTipo, label: o.label }));
+  // $derived, no const: si fuera const se evaluaría una sola vez al montar y las
+  // opciones del selector no cambiarían de idioma al cambiar el idioma de la app.
+  const INSTRUMENTO_TIPOS: { id: InstrumentoTipo; label: string }[] = $derived(
+    INSTRUMENTO_OPS.map(o => ({ id: o.id as InstrumentoTipo, label: t(`notas.tipo.${o.id}`) }))
+  );
 
   const normTipo = (v: any): InstrumentoTipo =>
     ['cotejo', 'escala', 'rubrica'].includes(v) ? v : 'escala';
 
-  function labelTipo(t: InstrumentoTipo): string {
-    return INSTRUMENTO_TIPOS.find(o => o.id === t)?.label ?? t;
+  // OJO: el parámetro se llama `tipo`, no `t` — `t()` es la función de i18n.
+  function labelTipo(tipo: InstrumentoTipo): string {
+    return INSTRUMENTO_TIPOS.find(o => o.id === tipo)?.label ?? tipo;
   }
 
   async function setInstrumento(ind: Indicador, tipo: InstrumentoTipo) {
     try {
       await invoke('update_indicador', { id: ind.id, descripcion: ind.descripcion, activo: ind.activo, instrumento: tipo });
       indicadores = indicadores.map(i => i.id === ind.id ? { ...i, instrumento: tipo } : i);
-      await emit("show-toast", { message: `✅ Indicador ${ind.orden}: ${INSTRUMENTO_OPS.find(o => o.id === tipo)?.label}`, type: "success" });
+      await emit("show-toast", { message: t('notas.inst.ok', { n: ind.orden, label: t(`notas.tipo.${tipo}`) }), type: "success" });
       emit("indicadores-updated");
     } catch (e) {
-      await emit("show-toast", { message: "❌ Error guardando instrumento: " + e, type: "error" });
+      await emit("show-toast", { message: t('notas.inst.error', { msg: String(e) }), type: "error" });
     }
   }
 
@@ -2766,11 +2771,11 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                   <span class="slider round" style="background: {mostrarComparacion ? 'linear-gradient(135deg, #a78bfa, #7c3aed)' : 'rgba(255,255,255,0.12)'}; border-color: {mostrarComparacion ? 'transparent' : 'rgba(255,255,255,0.18)'};"></span>
                 </span>
                 <span style="line-height: 1.2;">
-                  <span style="display: block; font-size: 0.78rem; color: #cbd5e1; font-weight: 500;">Comparar cortes previos</span>
+                  <span style="display: block; font-size: 0.78rem; color: #cbd5e1; font-weight: 500;">{t('notas.popover.compararCortes')}</span>
                   <span style="display: block; font-size: 0.68rem; color: {cargandoComparacion ? '#a78bfa' : '#64748b'};">
-                    {#if cargandoComparacion}⏳ Cargando notas anteriores…
-                    {:else if mostrarComparacion}{cortesPrecios.length} columna{cortesPrecios.length > 1 ? 's' : ''} con la nota final
-                    {:else}Nota final de cada corte anterior{/if}
+                    {#if cargandoComparacion}{t('notas.dist.cargandoAnt')}
+                    {:else if mostrarComparacion}{t(cortesPrecios.length > 1 ? 'notas.dist.colConNotaN' : 'notas.dist.colConNota1', { n: cortesPrecios.length })}
+                    {:else}{t('notas.dist.notaFinalAnterior')}{/if}
                   </span>
                 </span>
               </label>
@@ -2781,25 +2786,25 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
               <thead>
                 <tr style="position: sticky; top: 0; z-index: 1;">
                   <th class="col-idx" style="width: 30px; text-align: left; padding: 0.4rem 0.5rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">#</th>
-                  <th style="min-width: 150px; text-align: left; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">Estudiante</th>
+                  <th style="min-width: 150px; text-align: left; padding: 0.4rem 0.6rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.06);">{t('notas.col.estudiante')}</th>
                   {#if mostrarComparacion}
                     {#each cortesPrecios as corte (corte.id)}
                       <th class="col-num" title={corte.nombre} style="text-align: center; padding: 0.3rem 0.3rem; background: rgba(15, 23, 42, 0.95); border-bottom: 1px solid rgba(167,139,250,0.15);">
                         <div style="font-size: 0.66rem; color: #a78bfa; font-weight: 700; white-space: nowrap;">{nombreCortoCorte(corte.nombre)}</div>
-                        <div style="font-size: 0.5rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px;">corte</div>
+                        <div style="font-size: 0.5rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.3px;">{t('notas.dist.corte')}</div>
                       </th>
                     {/each}
                   {/if}
-                  <th class="col-num" title="Corte que se está distribuyendo: {corteActualNombre}" style="text-align: center; padding: 0.3rem 0.3rem; background: rgba(244,114,182,0.16); border-bottom: 2px solid rgba(244,114,182,0.5); border-left: 1px solid rgba(244,114,182,0.2); border-right: 1px solid rgba(244,114,182,0.2);">
+                  <th class="col-num" title={t('notas.dist.corteDistribuyendo', { nombre: corteActualNombre })} style="text-align: center; padding: 0.3rem 0.3rem; background: rgba(244,114,182,0.16); border-bottom: 2px solid rgba(244,114,182,0.5); border-left: 1px solid rgba(244,114,182,0.2); border-right: 1px solid rgba(244,114,182,0.2);">
                     <div style="font-size: 0.68rem; color: #fbcfe8; font-weight: 700; white-space: nowrap;">{nombreCortoCorte(corteActualNombre)}</div>
-                    <div style="font-size: 0.5rem; color: #f472b6; text-transform: uppercase; letter-spacing: 0.3px;">corte actual</div>
+                    <div style="font-size: 0.5rem; color: #f472b6; text-transform: uppercase; letter-spacing: 0.3px;">{t('notas.dist.corteActual')}</div>
                   </th>
                   <!-- Se quitó la columna "Meta" (solo cualitativo): repetía literalmente
                        la letra elegida en la columna "Nota objetivo" de la derecha, sin
                        aportar nada. Su sentido de "total objetivo" solo aplica a las notas
                        numéricas, y ese caso ya tiene su propia columna "Nuevo total". -->
-                  <th class="col-num" title={isQualitative ? 'Nota final que quedará al aplicar la letra elegida' : 'Total que resultará de aplicar el nuevo total'} style="text-align: center; padding: 0.4rem 0.4rem; background: rgba(15, 23, 42, 0.95); color: #a78bfa; font-weight: 600; white-space: nowrap; border-bottom: 1px solid rgba(139,92,246,0.15);">{isQualitative ? 'Nueva Nota' : '→ Resultante'}</th>
-                  <th class="col-num" style="text-align: center; padding: 0.4rem 0.4rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; white-space: nowrap; border-bottom: 1px solid rgba(255,255,255,0.06);">{isQualitative ? 'Nota objetivo' : 'Nuevo total'}</th>
+                  <th class="col-num" title={isQualitative ? t('notas.dist.metaCual') : t('notas.dist.metaNum')} style="text-align: center; padding: 0.4rem 0.4rem; background: rgba(15, 23, 42, 0.95); color: #a78bfa; font-weight: 600; white-space: nowrap; border-bottom: 1px solid rgba(139,92,246,0.15);">{isQualitative ? t('notas.dist.nuevaNota') : t('notas.dist.resultante')}</th>
+                  <th class="col-num" style="text-align: center; padding: 0.4rem 0.4rem; background: rgba(15, 23, 42, 0.95); color: #94a3b8; font-weight: 600; white-space: nowrap; border-bottom: 1px solid rgba(255,255,255,0.06);">{isQualitative ? t('notas.dist.notaObjetivo') : t('notas.dist.nuevoTotal')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -2811,7 +2816,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                       {#each cortesPrecios as corte (corte.id)}
                         {@const pctPrevCorte = comparacionCortes[corte.id]?.[est.estudianteId] ?? null}
                         {@const gradePrevCorte = pctPrevCorte === null ? '' : (getGradeFromScore(pctPrevCorte)?.id || '')}
-                          <td class="col-num" title="{corte.nombre}: {pctPrevCorte === null ? 'sin notas' : isQualitative ? gradePrevCorte : pctPrevCorte}" style="padding: 0.3rem 0.3rem; text-align: center; white-space: nowrap; font-size: 0.74rem; font-weight: 600; color: {isQualitative ? (gradePrevCorte ? getGradeColor(gradePrevCorte) : '#94a3b8') : colorPctAnterior(pctPrevCorte)};">
+                          <td class="col-num" title={t('notas.dist.corteTitulo', { nombre: corte.nombre, valor: pctPrevCorte === null ? t('notas.dist.sinNotas') : (isQualitative ? gradePrevCorte : pctPrevCorte) })} style="padding: 0.3rem 0.3rem; text-align: center; white-space: nowrap; font-size: 0.74rem; font-weight: 600; color: {isQualitative ? (gradePrevCorte ? getGradeColor(gradePrevCorte) : '#94a3b8') : colorPctAnterior(pctPrevCorte)};">
 
                           {#if pctPrevCorte === null}
                             —
@@ -2823,7 +2828,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
                         </td>
                       {/each}
                     {/if}
-                    <td class="col-num" title="Nota final actual ({corteActualNombre})" style="padding: 0.3rem 0.3rem; text-align: center; white-space: nowrap; background: rgba(244,114,182,0.07); border-left: 1px solid rgba(244,114,182,0.2); border-right: 1px solid rgba(244,114,182,0.2);">
+                    <td class="col-num" title={t('notas.dist.notaFinalActual', { nombre: corteActualNombre })} style="padding: 0.3rem 0.3rem; text-align: center; white-space: nowrap; background: rgba(244,114,182,0.07); border-left: 1px solid rgba(244,114,182,0.2); border-right: 1px solid rgba(244,114,182,0.2);">
                       {#if isQualitative}
                         {@const qualValues = allCriterios.map(c => notasCualitativas[`${est.estudianteId}-${c.id}`] || '')}
                         {@const gradeActual = calcularNotaCualitativaFinal(qualValues) || getGradeFromScore(calcularPctActual(est.estudianteId))?.id || ''}
@@ -2889,10 +2894,10 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           </div>
           <div style="display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.06);">
             <button onclick={() => showDistribuirModal = false}
-              style="padding: 0.5rem 1rem; border-radius: 10px; background: transparent; border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; font-weight: 600; font-size: 0.82rem; cursor: pointer;">Cancelar</button>
+              style="padding: 0.5rem 1rem; border-radius: 10px; background: transparent; border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; font-weight: 600; font-size: 0.82rem; cursor: pointer;">{t('comun.cancelar')}</button>
             <button onclick={distribuirNotas}
               style="padding: 0.5rem 1.2rem; border-radius: 10px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; color: white; font-weight: 700; font-size: 0.82rem; cursor: pointer; box-shadow: 0 4px 14px rgba(139, 92, 246, 0.35);">
-              ✨ Aplicar
+              {t('notas.dist.aplicar')}
             </button>
           </div>
         </div>
@@ -2905,50 +2910,50 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
         <div onclick={() => showInstrumentosModal = false} style="position: absolute; inset: 0; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(4px);"></div>
         <div style="position: relative; background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98)); border: 1px solid rgba(14, 165, 233, 0.25); border-radius: 20px; padding: 1.75rem; width: min(560px, 94vw); max-height: 86vh; overflow-y: auto; box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.6);">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
-            <h3 style="margin: 0; color: #f1f5f9; font-size: 1.15rem; font-weight: 700;">📋 Instrumentos de evaluación</h3>
+            <h3 style="margin: 0; color: #f1f5f9; font-size: 1.15rem; font-weight: 700;">{t('notas.inst.titulo')}</h3>
             <button onclick={() => showInstrumentosModal = false} style="background: transparent; border: none; color: #64748b; font-size: 1.2rem; cursor: pointer;">✕</button>
           </div>
 
           <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
             <button onclick={generarTodosInstrumentos} disabled={generatingPdf}
               style="flex: 1; padding: 0.55rem; border-radius: 10px; border: none; background: linear-gradient(135deg, #0ea5e9, #0284c7); color: #fff; font-weight: 700; font-size: 0.8rem; cursor: pointer; opacity: {generatingPdf ? 0.6 : 1};">
-              {generatingPdf ? '⏳ Generando…' : '📄 Generar todos'}
+              {generatingPdf ? t('notas.inst.generando') : t('notas.inst.generarTodos')}
             </button>
             <button onclick={() => mostrarAyudaExcel = !mostrarAyudaExcel}
               style="padding: 0.55rem 0.8rem; border-radius: 10px; border: 1px dashed rgba(34,197,94,0.5); background: rgba(34,197,94,0.08); color: #86efac; font-weight: 700; font-size: 0.8rem; cursor: pointer;">
-              ❓ Ayuda Excel
+              {t('notas.inst.ayudaExcel')}
             </button>
           </div>
 
           <!-- Plantilla Excel de la carpeta fija -->
           <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; padding: 0.65rem 0.8rem; background: rgba(34,197,94,0.07); border: 1px solid rgba(34,197,94,0.3); border-radius: 12px; margin-bottom: 1rem;">
-            <span style="color: #86efac; font-weight: 700; font-size: 0.72rem;">📗 Plantilla:</span>
+            <span style="color: #86efac; font-weight: 700; font-size: 0.72rem;">{t('notas.inst.plantillaTitulo')}</span>
             {#if cargandoPlantillas}
-              <span style="color:#64748b;font-size:0.72rem;">cargando…</span>
+              <span style="color:#64748b;font-size:0.72rem;">{t('notas.inst.cargandoPlantillas')}</span>
             {:else if plantillas.length === 0}
-              <span style="color:#fbbf24;font-size:0.72rem;">Sin plantillas — abre la carpeta y copia tus .xlsx (nombre con Rubrica/Cotejo/Escala)</span>
+              <span style="color:#fbbf24;font-size:0.72rem;">{t('notas.inst.sinPlantillas')}</span>
             {:else}
               <select bind:value={plantillaSel}
                 style="flex: 1; min-width: 180px; padding: 0.3rem 0.4rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(15,23,42,0.8); color: #e2e8f0; font-size: 0.72rem; outline: none;">
-                <option value="">(Auto — según el tipo del indicador)</option>
+                <option value="">{t('notas.inst.auto')}</option>
                 {#each plantillas as p (p.ruta)}
-                  <option value={p.nombre}>{p.tipo === 'rubrica' ? '🟣 Rúbrica' : p.tipo === 'cotejo' ? '🟢 Cotejo' : '🔵 Escala'} — {p.nombre}</option>
+                  <option value={p.nombre}>{p.tipo === 'rubrica' ? t('notas.inst.tipoRubrica') : p.tipo === 'cotejo' ? t('notas.inst.tipoCotejo') : t('notas.inst.tipoEscala')} — {p.nombre}</option>
                 {/each}
               </select>
             {/if}
-            <button onclick={abrirCarpetaDePlantillas} title="Abrir carpeta de plantillas"
-              style="padding: 0.3rem 0.6rem; border-radius: 8px; border: 1px solid rgba(34,197,94,0.4); background: rgba(34,197,94,0.12); color: #86efac; cursor: pointer; font-size: 0.68rem; font-weight: 700; flex-shrink: 0;">📂 Carpeta</button>
-            <button onclick={() => void recargarPlantillas()} disabled={cargandoPlantillas} title="Recargar lista"
+            <button onclick={abrirCarpetaDePlantillas} title={t('notas.inst.abrirCarpeta')}
+              style="padding: 0.3rem 0.6rem; border-radius: 8px; border: 1px solid rgba(34,197,94,0.4); background: rgba(34,197,94,0.12); color: #86efac; cursor: pointer; font-size: 0.68rem; font-weight: 700; flex-shrink: 0;">{t('notas.inst.carpeta')}</button>
+            <button onclick={() => void recargarPlantillas()} disabled={cargandoPlantillas} title={t('notas.inst.recargar')}
               style="padding: 0.3rem 0.5rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: transparent; color: #94a3b8; cursor: pointer; font-size: 0.68rem; flex-shrink: 0;">↻</button>
           </div>
 
           {#if mostrarAyudaExcel}
             <div style="margin-bottom: 1rem; border: 1px solid rgba(34,197,94,0.35); border-radius: 12px; overflow: hidden;">
               <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.6rem 0.8rem; background: rgba(34,197,94,0.1);">
-                <span style="color: #86efac; font-weight: 700; font-size: 0.75rem;">📗 Cómo crear tu plantilla en Excel</span>
+                <span style="color: #86efac; font-weight: 700; font-size: 0.75rem;">{t('notas.inst.ayudaTitulo')}</span>
                 <button onclick={copiarAyudaPlantilla}
                   style="padding: 0.3rem 0.6rem; border-radius: 6px; border: 1px solid rgba(34,197,94,0.4); background: rgba(34,197,94,0.15); color: #86efac; cursor: pointer; font-size: 0.65rem; font-weight: 700; flex-shrink: 0;">
-                  📋 Copiar instrucciones
+                  {t('notas.inst.copiarInstrucciones')}
                 </button>
               </div>
               <pre style="white-space: pre-wrap; margin: 0; padding: 0.8rem; background: rgba(0,0,0,0.3); color: #cbd5e1; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.62rem; line-height: 1.55;">{AYUDA_PLANTILLA_XLSX}</pre>
@@ -2957,54 +2962,49 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
 
           {#each indicadoresSeccion as ind (ind.id)}
             {@const tipoActual = normTipo((ind as any).instrumento)}
-            {@const disponibles = INSTRUMENTO_TIPOS.filter(t => plantillas.some(p => p.tipo === t.id))}
+            {@const disponibles = INSTRUMENTO_TIPOS.filter(tipo => plantillas.some(p => p.tipo === tipo.id))}
             <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.7rem; background: {ind.activo ? 'rgba(255,255,255,0.03)' : 'rgba(100,116,139,0.06)'}; border: 1px solid {ind.activo ? 'rgba(255,255,255,0.06)' : 'rgba(100,116,139,0.22)'}; border-radius: 12px; margin-bottom: 0.45rem; flex-wrap: wrap;">
               <span style="width: 26px; height: 26px; border-radius: 8px; background: {ind.activo ? 'rgba(14,165,233,0.15)' : 'rgba(100,116,139,0.15)'}; color: {ind.activo ? '#7dd3fc' : '#94a3b8'}; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.72rem; flex-shrink: 0;">{ind.orden}</span>
               <div style="flex: 1; min-width: 140px;">
                 <div style="color: {ind.activo ? '#e2e8f0' : '#94a3b8'}; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{ind.descripcion || t('notas.sinDescripcionPar')}{#if !ind.activo}<span style="font-size: 0.62rem; color: #64748b;">{' '}{t('notas.noSumaTotal')}</span>{/if}</div>
-                <div style="color: #64748b; font-size: 0.65rem;">{ind.criterios.length} criterio(s)</div>
+                <div style="color: #64748b; font-size: 0.65rem;">{t('notas.criteriosCount', { n: ind.criterios.length })}</div>
               </div>
-              <select value={disponibles.some(t => t.id === tipoActual) ? tipoActual : (disponibles[0]?.id ?? tipoActual)}
+              <select value={disponibles.some(tipo => tipo.id === tipoActual) ? tipoActual : (disponibles[0]?.id ?? tipoActual)}
                 onchange={(e) => setInstrumento(ind, (e.target as HTMLSelectElement).value as InstrumentoTipo)}
                 disabled={disponibles.length === 0}
-                title={disponibles.length === 0 ? 'No hay plantillas en la carpeta Plantillas' : ''}
+                title={disponibles.length === 0 ? t('notas.inst.sinPlantillasTitulo') : ''}
                 style="padding: 0.3rem 0.4rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(15,23,42,0.8); color: {disponibles.length === 0 ? '#64748b' : '#e2e8f0'}; font-size: 0.72rem; outline: none; max-width: 150px;">
                 {#each disponibles as op}
                   <option value={op.id}>{op.label}</option>
                 {/each}
               </select>
               <button onclick={() => generarPDFInstrumento(ind)} disabled={generatingPdf}
-                title="Generar PDF de este instrumento"
+                title={t('notas.inst.tituloPdf')}
                 style="padding: 0.35rem 0.6rem; border-radius: 8px; border: 1px solid rgba(14,165,233,0.35); background: rgba(14,165,233,0.12); color: #7dd3fc; cursor: pointer; font-size: 0.7rem; font-weight: 700; flex-shrink: 0;">PDF</button>
               <button onclick={() => generarExcelInstrumento(ind)} disabled={excelGenerating}
-                title="Generar desde tu plantilla Excel (.xlsx) con marcadores"
+                title={t('notas.inst.tituloXls')}
                 style="padding: 0.35rem 0.55rem; border-radius: 8px; border: 1px solid rgba(34,197,94,0.4); background: rgba(34,197,94,0.12); color: #86efac; cursor: pointer; font-size: 0.68rem; font-weight: 700; flex-shrink: 0;">XLS</button>
             </div>
           {:else}
-            <div style="text-align: center; padding: 1rem; color: #64748b; font-size: 0.8rem;">No hay indicadores configurados</div>
+            <div style="text-align: center; padding: 1rem; color: #64748b; font-size: 0.8rem;">{t('notas.inst.sinIndicadores')}</div>
           {/each}
 
           <p style="margin: 0.75rem 0 0; color: #64748b; font-size: 0.68rem; text-align: center;">
-            El instrumento se guarda por indicador y se sincroniza entre dispositivos. Los PDF se generan con las notas actuales.
+            {t('notas.inst.pie')}
           </p>
 
           <!-- Guía plantilla Excel -->
           <div style="margin-top: 0.75rem; padding: 0.7rem 0.8rem; background: rgba(34,197,94,0.06); border: 1px dashed rgba(34,197,94,0.35); border-radius: 12px;">
-            <div style="color: #86efac; font-weight: 700; font-size: 0.72rem; margin-bottom: 0.4rem;">📗 Plantilla propia en Excel</div>
+            <div style="color: #86efac; font-weight: 700; font-size: 0.72rem; margin-bottom: 0.4rem;">{t('notas.inst.guiaTitulo')}</div>
             <p style="margin: 0 0 0.4rem; color: #94a3b8; font-size: 0.68rem; line-height: 1.5;">
-              Diseña tu formato en Excel y escribe estos marcadores donde quieras los datos.
-              El botón <span style="color:#86efac;font-weight:700;">XLS</span> rellena tu archivo
-              <span style="color:#e2e8f0;">conservando todo tu diseño</span> (bordes, colores, logo, celdas combinadas).
+              {t('notas.inst.guia1a')}<span style="color:#86efac;font-weight:700;">XLS</span>{t('notas.inst.guia1b')}<span style="color:#e2e8f0;">{t('notas.inst.guia1diseno')}</span>{t('notas.inst.guia1c')}
             </p>
             <div style="font-family: monospace; font-size: 0.62rem; color: #86efac; line-height: 1.6;">
               {'{COLEGIO}'} {'{ANO}'} {'{CORTE}'} {'{ASIGNATURA}'} {'{GRADO}'} {'{SECCION}'}<br>
               {'{IND_ORDEN}'} {'{IND_TEXTO}'} {'{CRITERIOS_LISTA}'}
             </div>
             <p style="margin: 0.4rem 0 0; color: #94a3b8; font-size: 0.66rem; line-height: 1.5;">
-              <span style="color:#e2e8f0;">Fila de estudiantes:</span> en una fila escribe
-              <span style="font-family: monospace; color:#86efac;">{'{{FILAS}}'}</span> en la primera celda (bandera) y en las demás:
-              <span style="font-family: monospace; color:#86efac;">{'{NUM} {NOMBRE} {SEXO} {LETRA_1} {LETRA_2} … {VAL_IND}'}</span>.
-              Esa fila se clona por estudiante. Evita celdas combinadas dentro de esa fila.
+              <span style="color:#e2e8f0;">{t('notas.inst.guia2a')}</span>{t('notas.inst.guia2b')}<span style="font-family: monospace; color:#86efac;">{'{{FILAS}}'}</span>{t('notas.inst.guia2c')}<span style="font-family: monospace; color:#86efac;">{'{NUM} {NOMBRE} {SEXO} {LETRA_1} {LETRA_2} … {VAL_IND}'}</span>{t('notas.inst.guia2d')}
             </p>
           </div>
         </div>
@@ -3019,8 +3019,8 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
           <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem;">
             <div style="width: 48px; height: 48px; border-radius: 14px; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.2); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0;">🗑️</div>
             <div>
-              <h3 style="margin: 0; color: #f1f5f9; font-size: 1.2rem; font-weight: 700;">Eliminar Notas</h3>
-              <p style="margin: 0.25rem 0 0; color: #94a3b8; font-size: 0.8rem;">Esta acción no se puede deshacer</p>
+              <h3 style="margin: 0; color: #f1f5f9; font-size: 1.2rem; font-weight: 700;">{t('notas.del.titulo')}</h3>
+              <p style="margin: 0.25rem 0 0; color: #94a3b8; font-size: 0.8rem;">{t('notas.del.noDeshacer')}</p>
             </div>
           </div>
 
@@ -3030,8 +3030,8 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
               style="display: flex; align-items: flex-start; gap: 0.75rem; cursor: pointer; padding: 0.85rem 1rem; border-radius: 12px; background: {deleteMode === 'all' ? 'rgba(239, 68, 68, 0.08)' : 'transparent'}; border: {deleteMode === 'all' ? '1.5px solid rgba(239, 68, 68, 0.4)' : '1.5px solid rgba(255,255,255,0.06)'}; transition: all 0.2s ease;">
               <div style="width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; margin-top: 1px; border: {deleteMode === 'all' ? '6px solid #ef4444' : '2px solid rgba(255,255,255,0.2)'}; background: {deleteMode === 'all' ? '#ef4444' : 'transparent'};"></div>
               <div>
-                <div style="color: #f1f5f9; font-weight: 600; font-size: 0.9rem;">Todas las notas mostradas</div>
-                <div style="color: #64748b; font-size: 0.75rem; margin-top: 2px;">Elimina todas las notas del corte y asignatura actuales</div>
+                <div style="color: #f1f5f9; font-weight: 600; font-size: 0.9rem;">{t('notas.del.todas')}</div>
+                <div style="color: #64748b; font-size: 0.75rem; margin-top: 2px;">{t('notas.del.todasDesc')}</div>
               </div>
             </div>
 
@@ -3040,12 +3040,12 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
               style="display: flex; align-items: flex-start; gap: 0.75rem; cursor: pointer; padding: 0.85rem 1rem; border-radius: 12px; background: {deleteMode === 'student' ? 'rgba(var(--primary-rgb), 0.08)' : 'transparent'}; border: {deleteMode === 'student' ? '1.5px solid rgba(var(--primary-rgb), 0.4)' : '1.5px solid rgba(255,255,255,0.06)'};">
               <div style="width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; margin-top: 1px; border: {deleteMode === 'student' ? '6px solid var(--primary-color)' : '2px solid rgba(255,255,255,0.2)'}; background: {deleteMode === 'student' ? 'var(--primary-color)' : 'transparent'};"></div>
               <div style="flex: 1;">
-                <div style="color: #f1f5f9; font-weight: 600; font-size: 0.9rem;">Por estudiante</div>
-                <div style="color: #64748b; font-size: 0.75rem; margin-top: 2px;">Elimina todas las notas de un estudiante específico</div>
+                <div style="color: #f1f5f9; font-weight: 600; font-size: 0.9rem;">{t('notas.del.porEstudiante')}</div>
+                <div style="color: #64748b; font-size: 0.75rem; margin-top: 2px;">{t('notas.del.porEstudianteDesc')}</div>
                 {#if deleteMode === 'student'}
                   <select value={deleteStudentId} onchange={(e) => deleteStudentId = Number((e.currentTarget as HTMLSelectElement).value)} onclick={(e) => e.stopPropagation()}
                     style="width: 100%; margin-top: 0.5rem; padding: 0.5rem 0.75rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15, 23, 42, 0.6); color: #e2e8f0; font-size: 0.82rem; cursor: pointer; outline: none;">
-                    <option value={0}>Seleccione estudiante...</option>
+                    <option value={0}>{t('notas.del.selEstudiante')}</option>
                     {#each filteredNotas as n}
                       <option value={n.estudianteId}>{n.estudianteNombre}</option>
                     {/each}
@@ -3059,14 +3059,14 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
               style="display: flex; align-items: flex-start; gap: 0.75rem; cursor: pointer; padding: 0.85rem 1rem; border-radius: 12px; background: {deleteMode === 'indicator' ? 'rgba(245, 158, 11, 0.08)' : 'transparent'}; border: {deleteMode === 'indicator' ? '1.5px solid rgba(245, 158, 11, 0.4)' : '1.5px solid rgba(255,255,255,0.06)'};">
               <div style="width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; margin-top: 1px; border: {deleteMode === 'indicator' ? '6px solid #f59e0b' : '2px solid rgba(255,255,255,0.2)'}; background: {deleteMode === 'indicator' ? '#f59e0b' : 'transparent'};"></div>
               <div style="flex: 1;">
-                <div style="color: #f1f5f9; font-weight: 600; font-size: 0.9rem;">Por indicador</div>
-                <div style="color: #64748b; font-size: 0.75rem; margin-top: 2px;">Elimina todas las notas de un indicador específico</div>
+                <div style="color: #f1f5f9; font-weight: 600; font-size: 0.9rem;">{t('notas.del.porIndicador')}</div>
+                <div style="color: #64748b; font-size: 0.75rem; margin-top: 2px;">{t('notas.del.porIndicadorDesc')}</div>
                 {#if deleteMode === 'indicator'}
                   <select value={deleteIndicatorId} onchange={(e) => deleteIndicatorId = Number((e.currentTarget as HTMLSelectElement).value)} onclick={(e) => e.stopPropagation()}
                     style="width: 100%; margin-top: 0.5rem; padding: 0.5rem 0.75rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15, 23, 42, 0.6); color: #e2e8f0; font-size: 0.82rem; cursor: pointer; outline: none;">
-                    <option value={0}>Seleccione indicador...</option>
+                    <option value={0}>{t('notas.del.selIndicador')}</option>
                     {#each indicadoresSeccion.filter(i => i.activo) as ind}
-                      <option value={ind.id}>Indicador {ind.orden}: {ind.descripcion || `Indicador ${ind.orden}`}</option>
+                      <option value={ind.id}>{t('notas.indicador', { n: ind.orden })}: {ind.descripcion || t('notas.indicador', { n: ind.orden })}</option>
                     {/each}
                   </select>
                 {/if}
@@ -3076,10 +3076,10 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`;
 
           <div style="display: flex; gap: 0.75rem; justify-content: flex-end; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 1rem;">
             <button onclick={() => showDeleteModal = false}
-              style="padding: 0.6rem 1.2rem; border-radius: 10px; background: transparent; border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: all 0.15s ease;">Cancelar</button>
+              style="padding: 0.6rem 1.2rem; border-radius: 10px; background: transparent; border: 1px solid rgba(255,255,255,0.1); color: #94a3b8; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: all 0.15s ease;">{t('comun.cancelar')}</button>
             <button onclick={handleDeleteNotas} disabled={deleting}
               style="padding: 0.6rem 1.4rem; border-radius: 10px; background: {deleting ? 'rgba(239, 68, 68, 0.5)' : 'linear-gradient(135deg, #ef4444, #dc2626)'}; border: none; color: white; font-weight: 700; font-size: 0.85rem; cursor: {deleting ? 'not-allowed' : 'pointer'}; transition: all 0.2s ease; box-shadow: {deleting ? 'none' : '0 4px 14px rgba(239, 68, 68, 0.35)'};">
-              {deleting ? 'Eliminando...' : 'Continuar'}
+              {deleting ? t('notas.del.eliminando') : t('comun.continuar')}
             </button>
           </div>
         </div>
