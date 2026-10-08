@@ -13,6 +13,9 @@ import SelectChip from "./SelectChip.svelte";
   import PageLayout from "./PageLayout.svelte";
   import FiltersModalAndroid from "./FiltersModalAndroid.svelte";
   import { registerBackHandler } from "../lib/androidBack";
+  // OJO: `t()` de i18n. Nunca declarar una variable local llamada `t` en este
+  // archivo: taparía la función y el error de runtime apuntaría a otra línea.
+  import { t } from "../lib/i18n.svelte";
 import { portalToBody } from "../lib/portalToBody";
   import { loadAppSettings, onAppSettingsChange } from "../lib/appSettings";
 import { primerColegio } from "../lib/catalogo";
@@ -205,10 +208,12 @@ import { primerColegio } from "../lib/catalogo";
   });
 
   /** Subtítulo del botón "PDF colegio": a qué colegio aplica. */
-  let subtituloColegio = $derived(selectedNames.colegio || 'Todos los grados');
+  let subtituloColegio = $derived(selectedNames.colegio || t('rep.subtitulo.todosGrados'));
   /** Subtítulo del botón "Exportar Todo": cuántos colegios entran. */
   let subtituloTodos = $derived(
-    colegios.length > 0 ? `${colegios.length} colegio${colegios.length === 1 ? '' : 's'}` : 'Todos los colegios'
+    colegios.length === 0
+      ? t('rep.subtitulo.todosColegios')
+      : t(colegios.length === 1 ? 'rep.subtitulo.colegio' : 'rep.subtitulo.colegios', { n: colegios.length })
   );
 
   onMount(() => {
@@ -376,7 +381,7 @@ import { primerColegio } from "../lib/catalogo";
       selectedColegio = activeColegio;
     } catch (error) {
       console.error("Error fetching catalogs:", error);
-      await emit("show-toast", { message: "❌ Error al cargar catálogos: " + error, type: "error" });
+      await emit("show-toast", { message: t('rep.error.catalogos', { msg: String(error) }), type: "error" });
     }
   }
 
@@ -405,7 +410,7 @@ import { primerColegio } from "../lib/catalogo";
       else if (filteredAsignaturas.length === 0) selectedAsignatura = 0;
     } catch (error) {
       console.error("Error fetching grados y asignaturas:", error);
-      await emit("show-toast", { message: "❌ Error al cargar grados y asignaturas: " + error, type: "error" });
+      await emit("show-toast", { message: t('rep.error.gradosAsig', { msg: String(error) }), type: "error" });
     }
   }
 
@@ -417,14 +422,14 @@ import { primerColegio } from "../lib/catalogo";
       else if (data.length === 0) selectedSeccion = 0;
     } catch (error) {
       console.error("Error fetching secciones:", error);
-      await emit("show-toast", { message: "❌ Error al cargar secciones: " + error, type: "error" });
+      await emit("show-toast", { message: t('rep.error.secciones', { msg: String(error) }), type: "error" });
     }
   }
 
   async function fetchReporte(lid: number) {
     try {
       const cortesIds = resolverCortesIds();
-      if (cortesIds.length === 0) throw new Error("No se pudieron determinar los cortes evaluativos.");
+      if (cortesIds.length === 0) throw new Error(t('rep.error.cortes'));
 
       const indicadoresArrays = await Promise.all(cortesIds.map(cId =>
         invoke<Indicador[]>("get_evaluation_config", { gradoId: selectedGrado, asignaturaId: selectedAsignatura, corteEvaluativoId: cId, anoLectivoId: selectedAno })
@@ -452,7 +457,7 @@ import { primerColegio } from "../lib/catalogo";
 
       if (indicadoresBase.length === 0) {
         configIndicadores = []; estudiantes = [];
-        await emit("show-toast", { message: "⚠️ No hay indicadores configurados.", type: "warning" });
+        await emit("show-toast", { message: t('rep.error.sinIndicadores'), type: "warning" });
         return;
       }
 
@@ -568,7 +573,7 @@ import { primerColegio } from "../lib/catalogo";
 
       if (specialCorte) {
         const indicadoresEspeciales = cortesIds.map((cId, idx) => ({
-          id: cId, orden: idx + 1, descripcion: cortes.find(c => c.id === cId)?.nombre || `Corte ${idx + 1}`, activo: true, criterios: []
+          id: cId, orden: idx + 1, descripcion: cortes.find(c => c.id === cId)?.nombre || t('rep.corte.n', { n: idx + 1 }), activo: true, criterios: []
         }));
         configIndicadores = indicadoresEspeciales as any;
       }
@@ -576,7 +581,7 @@ import { primerColegio } from "../lib/catalogo";
       estudiantes = selectedSexo ? reporte.filter(est => est.sexo === selectedSexo) : reporte;
     } catch (error) {
       console.error("Error fetching reporte:", error);
-      await emit("show-toast", { message: "❌ Error al cargar el reporte: " + error, type: 'error' });
+      await emit("show-toast", { message: t('rep.error.reporte', { msg: String(error) }), type: 'error' });
     }
   }
 
@@ -592,19 +597,19 @@ import { primerColegio } from "../lib/catalogo";
     const esTodos = alcance === 'todos';
     if (!selectedAno || !selectedAsignatura || (!esTodos && !selectedColegio)) {
       await emit("show-toast", { message: esTodos
-        ? "⚠️ Seleccione año, asignatura y corte para exportar todo"
-        : "⚠️ Seleccione colegio, año y asignatura", type: 'warning' });
+        ? t('rep.export.sinAnoTodo')
+        : t('rep.export.sinAnoColegio'), type: 'warning' });
       return;
     }
     let cortesIds = resolverCortesIds();
     if (cortesIds.length === 0) {
-      await emit("show-toast", { message: "⚠️ Seleccione un corte evaluativo", type: 'warning' });
+      await emit("show-toast", { message: t('rep.export.sinCorte'), type: 'warning' });
       return;
     }
 
     try {
       exportandoMasivo = true;
-      progresoMasivo = 'Preparando...';
+      progresoMasivo = t('inf.export.preparando');
       const names = selectedNames;
       const sanitize = (s: string) => s.replace(/[<>:"/\\|?*]/g, '_');
       const docsPath = await documentDir();
@@ -619,7 +624,7 @@ import { primerColegio } from "../lib/catalogo";
         ? colegios
         : colegios.filter(c => c.id === selectedColegio);
       if (colegiosScope.length === 0) {
-        await emit("show-toast", { message: "⚠️ No hay colegios para exportar", type: 'warning' });
+        await emit("show-toast", { message: t('inf.export.sinColegios'), type: 'warning' });
         exportandoMasivo = false;
         return;
       }
@@ -641,7 +646,7 @@ import { primerColegio } from "../lib/catalogo";
       }
 
       if (pares.length === 0) {
-        await emit("show-toast", { message: "⚠️ No se encontraron grados con secciones", type: 'warning' });
+        await emit("show-toast", { message: t('inf.export.sinGrados'), type: 'warning' });
         exportandoMasivo = false;
         return;
       }
@@ -651,7 +656,7 @@ import { primerColegio } from "../lib/catalogo";
       let fallaronDescargas = 0;
       for (const pair of pares) {
         processed++;
-        progresoMasivo = `${processed}/${pares.length} - ${pair.colegioNombre} ${pair.gradoNombre} Seccion ${pair.seccionNombre}`;
+        progresoMasivo = t('rep.export.progreso', { p: `${processed}/${pares.length}`, col: pair.colegioNombre, grado: pair.gradoNombre, sec: pair.seccionNombre });
 
         const listaEstudiantes: any[] = await invoke("get_estudiantes_by_filters", { gradoId: pair.gradoId, seccionId: pair.seccionId });
         if (!listaEstudiantes || listaEstudiantes.length === 0) continue;
@@ -776,19 +781,19 @@ import { primerColegio } from "../lib/catalogo";
 
       exportandoMasivo = false;
       const destino = isAndroid ? "Descargas/School Tracker" : "Documents/School Tracker";
-      const alcanceTxt = esTodos ? "todos los colegios" : colegios.find(c => c.id === selectedColegio)?.nombre || "el colegio";
+      const alcanceTxt = esTodos ? t('rep.export.todosColegios') : colegios.find(c => c.id === selectedColegio)?.nombre || t('rep.export.elColegio');
       if (processed === 0) {
-        await emit("show-toast", { message: `⚠️ No se encontraron grados con estudiantes en ${alcanceTxt}`, type: 'warning' });
+        await emit("show-toast", { message: t('rep.export.sinEstudiantesEn', { alcance: alcanceTxt }), type: 'warning' });
       } else if (isAndroid && fallaronDescargas > 0) {
-        await emit("show-toast", { message: `⚠️ ${copiados} PDFs en ${destino}/${subfolder} · ${fallaronDescargas} quedaron solo en la app`, type: 'warning' });
+        await emit("show-toast", { message: t('rep.export.pdfsParcial', { copiados, ruta: `${destino}/${subfolder}`, fallaron: fallaronDescargas }), type: 'warning' });
       } else {
-        await emit("show-toast", { message: `✅ ${isAndroid ? copiados : processed} PDFs de ${alcanceTxt} en ${destino}/${subfolder}`, type: 'success' });
+        await emit("show-toast", { message: t('rep.export.pdfsOk', { n: isAndroid ? copiados : processed, alcance: alcanceTxt, ruta: `${destino}/${subfolder}` }), type: 'success' });
       }
       if (!isAndroid) { try { await openUrl("file:///" + baseDir.replace(/\\/g, '/')); } catch {} }
     } catch (error) {
       console.error("Error en exportación masiva:", error);
       exportandoMasivo = false;
-      await emit("show-toast", { message: "❌ Error en exportación masiva: " + (error instanceof Error ? error.message : String(error)), type: 'error' });
+      await emit("show-toast", { message: t('rep.export.error', { msg: error instanceof Error ? error.message : String(error) }), type: 'error' });
     }
   }
 
@@ -854,9 +859,9 @@ import { primerColegio } from "../lib/catalogo";
     const tsv = [headers.join('\t'), ...rows].join('\n');
     try {
       await navigator.clipboard.writeText(tsv);
-      await emit('show-toast', { message: `✅ ${filteredReporte.length} estudiantes copiados con su nota final. Pega en Excel (Ctrl+V).`, type: 'success' });
+      await emit('show-toast', { message: t('rep.copiar.okTabla', { n: filteredReporte.length }), type: 'success' });
     } catch (e) {
-      await emit('show-toast', { message: `❌ Error al copiar: ${e}`, type: 'error' });
+      await emit('show-toast', { message: t('rep.copiar.error', { e: String(e) }), type: 'error' });
     }
     showClipboardMenu = false;
   }
@@ -866,9 +871,9 @@ import { primerColegio } from "../lib/catalogo";
     const values = filteredReporte.map(getNotaFinalValue).join('\n');
     try {
       await navigator.clipboard.writeText(values);
-      await emit('show-toast', { message: `✅ ${filteredReporte.length} notas copiadas. Pega en Excel (Ctrl+V).`, type: 'success' });
+      await emit('show-toast', { message: t('rep.copiar.okNotas', { n: filteredReporte.length }), type: 'success' });
     } catch (e) {
-      await emit('show-toast', { message: `❌ Error al copiar: ${e}`, type: 'error' });
+      await emit('show-toast', { message: t('rep.copiar.error', { e: String(e) }), type: 'error' });
     }
     showClipboardMenu = false;
   }
@@ -880,8 +885,9 @@ import { primerColegio } from "../lib/catalogo";
     // abre el menú lo cerraría en el mismo gesto. Se ignora el interior del
     // panel y el propio disparador (que vive en la cinta, no en el portal).
     const onPointerDown = (ev: PointerEvent) => {
-      const t = ev.target as Node | null;
-      if (t && (clipboardPanelEl?.contains(t) || clipboardBtn?.contains(t))) return;
+      // `nodo`, no `t`: `t` es la función de i18n importada arriba.
+      const nodo = ev.target as Node | null;
+      if (nodo && (clipboardPanelEl?.contains(nodo) || clipboardBtn?.contains(nodo))) return;
       closeClipboardMenu();
     };
     const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') closeClipboardMenu(); };
@@ -897,9 +903,9 @@ import { primerColegio } from "../lib/catalogo";
   });
 
   async function handlePrintWithIframe() {
-    if (estudiantes.length === 0) { await emit("show-toast", { message: "⚠️ No hay datos para imprimir", type: 'warning' }); return; }
+    if (estudiantes.length === 0) { await emit("show-toast", { message: t('inf.print.sinDatos'), type: 'warning' }); return; }
     try {
-      await emit("show-toast", { message: "✅ Preparando reporte...", type: 'success' });
+      await emit("show-toast", { message: t('inf.print.preparando'), type: 'success' });
       const names = selectedNames; const date = new Date().toLocaleDateString();
       const mostrarIndicadores = false;
       const headers = ["Estudiante", "Sexo", ...(mostrarIndicadores ? configIndicadores.map(ind => `Ind. ${ind.orden}`) : []), "Nota Final"];
@@ -933,7 +939,7 @@ import { primerColegio } from "../lib/catalogo";
       </body></html>`;
     } catch (error) {
       console.error("Error generando reporte:", error);
-      await emit("show-toast", { message: "❌ Error al generar el reporte", type: 'error' });
+      await emit("show-toast", { message: t('inf.error.reporteGen'), type: 'error' });
     }
   }
 </script>
@@ -943,16 +949,16 @@ import { primerColegio } from "../lib/catalogo";
       style="height:42px;padding:0 {compacto || isMobile ? '0.55rem' : '1rem'};font-size:{compacto || isMobile ? '0.75rem' : '0.85rem'};background:linear-gradient(135deg,rgba(168,85,247,0.16),rgba(147,51,234,0.06));border:1px solid rgba(168,85,247,0.28);color:#e9d5ff;border-radius:10px;display:flex;align-items:center;gap:{compacto ? '0.45rem' : '9px'};font-weight:700;cursor:{filteredReporte.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;flex-shrink:0;white-space:nowrap;opacity:{filteredReporte.length === 0 || loading ? 0.6 : 1}"
       onmouseenter={(e) => { if (filteredReporte.length > 0 && !loading) (e.currentTarget as HTMLElement).style.background = 'linear-gradient(135deg,rgba(168,85,247,0.28),rgba(147,51,234,0.12))'; }}
       onmouseleave={(e) => { (e.currentTarget as HTMLElement).style.background = 'linear-gradient(135deg,rgba(168,85,247,0.16),rgba(147,51,234,0.06))'; }}
-      title="Copiar al portapapeles: estudiante con su nota final, o solo las notas">
+      title={t('rep.copiar.title')}>
       <span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:rgba(168,85,247,0.35);color:#f3e8ff;flex-shrink:0">
         <svg width="{compacto ? '13' : '12'}" height="{compacto ? '13' : '12'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
       </span>
       {#if compacto}
-        <span>Copiar</span>
+        <span>{t('rep.copiar.btn')}</span>
       {:else}
         <span style="display:flex;flex-direction:column;align-items:flex-start;line-height:1.15;gap:1px;min-width:0">
-          <span>Copiar</span>
-          <span style="font-size:0.6rem;font-weight:600;color:#c4b5fd;letter-spacing:0.2px">{filteredReporte.length} estudiantes · 2 formatos</span>
+          <span>{t('rep.copiar.btn')}</span>
+          <span style="font-size:0.6rem;font-weight:600;color:#c4b5fd;letter-spacing:0.2px">{t('rep.copiar.resumen', { n: filteredReporte.length })}</span>
         </span>
       {/if}
       {#if showClipboardMenu}
@@ -967,7 +973,7 @@ import { primerColegio } from "../lib/catalogo";
     bind:this={clipboardPanelEl}
     use:portalToBody
     role="menu"
-    aria-label="Opciones para copiar"
+    aria-label={t('rep.copiar.menu')}
     style="position:fixed; z-index:99995; left:{clipboardPos.x}px; top:{clipboardPos.y}px; bottom:{clipboardPos.abajo}; min-width:240px; background:rgba(20,24,31,0.97); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); border:1px solid rgba(255,255,255,0.1); border-radius:12px; box-shadow:0 25px 60px -12px rgba(0,0,0,0.6); padding:0.4rem; box-sizing:border-box; overflow:hidden; animation:fadeIn 0.15s ease-out"
   >
     <button role="menuitem" onclick={copyFullTable}
@@ -975,21 +981,21 @@ import { primerColegio } from "../lib/catalogo";
       onmouseenter={(e) => e.currentTarget.style.backgroundColor = 'rgba(168,85,247,0.15)'}
       onmouseleave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
-      Estudiantes + Nota Final
+      {t('rep.copiar.completo')}
     </button>
     <button role="menuitem" onclick={copyFinalGradesOnly}
       style="display:flex;align-items:center;gap:8px;width:100%;padding:0.65rem 0.75rem;font-size:0.8rem;background:transparent;color:#e2e8f0;border:none;border-radius:8px;cursor:pointer;transition:all 0.15s ease;white-space:nowrap;text-align:left"
       onmouseenter={(e) => e.currentTarget.style.backgroundColor = 'rgba(168,85,247,0.15)'}
       onmouseleave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-      Solo Nota Final
+      {t('rep.copiar.soloNota')}
     </button>
   </div>
 {/snippet}
 
 
 <div class="page-container" style="height:100%;min-height:0">
-  {#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder="Buscar..." />{/if}
+  {#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder={t('inf.buscar')} />{/if}
   <style>
     @media print {
       :root{color-scheme:light!important}
@@ -1051,14 +1057,14 @@ import { primerColegio } from "../lib/catalogo";
       <div class="category-card sticky-filters" style="margin-bottom:1rem;padding:0.8rem;position:sticky;top:0;z-index:999;background:rgba(26,26,26,0.8);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 4px 12px rgba(0,0,0,0.2);border-radius:0 0 12px 12px;border:1px solid rgba(255,255,255,0.05);border-top:none">
         <div class="filters-row" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8rem;flex-wrap:wrap;gap:0.8rem">
           <div style="display:flex;align-items:center;gap:0.5rem;flex:1 1 auto">
-            <h3 style="margin:0;color:#f1f5f9;display:flex;align-items:center;gap:0.3rem;font-size:1.1rem">📊 Reportes</h3>
+            <h3 style="margin:0;color:#f1f5f9;display:flex;align-items:center;gap:0.3rem;font-size:1.1rem">{t('rep.titulo')}</h3>
             <div style="height:16px;width:1px;background-color:rgba(255,255,255,0.1)"></div>
-            <p style="margin:0;color:#94a3b8;font-size:0.75rem" class="hide-mobile">Rendimiento</p>
+            <p style="margin:0;color:#94a3b8;font-size:0.75rem" class="hide-mobile">{t('rep.subtitulo')}</p>
           </div>
           <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
             <div class="reportes-tabs">
-              <button class="reportes-tab" class:active={activeSlide === 'tabla'} onclick={() => activeSlide = 'tabla'}>Tabla</button>
-              <button class="reportes-tab" class:active={activeSlide === 'estadisticas'} onclick={() => activeSlide = 'estadisticas'}>Stats</button>
+              <button class="reportes-tab" class:active={activeSlide === 'tabla'} onclick={() => activeSlide = 'tabla'}>{t('rep.tab.tabla')}</button>
+              <button class="reportes-tab" class:active={activeSlide === 'estadisticas'} onclick={() => activeSlide = 'estadisticas'}>{t('rep.tab.stats')}</button>
             </div>
           </div>
         </div>
@@ -1067,11 +1073,11 @@ import { primerColegio } from "../lib/catalogo";
           <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background-color:rgba(0,0,0,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99999;padding:20px">
             <div style="background-color:white;border-radius:12px;width:100%;max-width:900px;height:90vh;display:flex;flex-direction:column;overflow:hidden">
               <div style="padding:15px 20px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;background-color:#f8fafc">
-                <span style="font-size:16px;font-weight:600;color:#1e293b">Vista Previa de Impresión</span>
+                <span style="font-size:16px;font-weight:600;color:#1e293b">{t('inf.print.titulo')}</span>
                 <div style="display:flex;gap:10px">
                   <button onclick={() => { const iframe = document.querySelector('iframe'); if (iframe?.contentWindow) iframe.contentWindow.print(); }}
-                    style="padding:8px 16px;background-color:var(--primary-color);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:500">🖨️ Imprimir</button>
-                  <button onclick={() => printHtml = null} style="padding:8px 16px;background-color:#64748b;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:500">Cerrar</button>
+                    style="padding:8px 16px;background-color:var(--primary-color);color:white;border:none;border-radius:8px;cursor:pointer;font-weight:500">{t('inf.print.imprimir')}</button>
+                  <button onclick={() => printHtml = null} style="padding:8px 16px;background-color:#64748b;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:500">{t('comun.cerrar')}</button>
                 </div>
               </div>
               <iframe srcdoc={printHtml} style="flex:1;width:100%;border:none" title="Print Preview" />
@@ -1081,14 +1087,14 @@ import { primerColegio } from "../lib/catalogo";
 
         {#if isAndroidMobile}
           <div style="width:100%;padding:0.1rem 0 0.3rem;">
-            <SearchFab bind:value={searchTerm} placeholder="Buscar..." conMargen={false} />
+            <SearchFab bind:value={searchTerm} placeholder={t('inf.buscar')} conMargen={false} />
           </div>
           <div class="category-card" style="padding: 0.5rem; margin-bottom: 0.5rem; display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
             <button type="button" onclick={() => { showFiltersModal = true; }}
               style="height:38px;padding:0 0.8rem;font-size:0.78rem;background:rgba(96,165,250,0.18);color:#bfdbfe;border:1px solid rgba(96,165,250,0.4);border-radius:8px;display:flex;align-items:center;justify-content:center;gap:5px;font-weight:600;cursor:pointer;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
               <span>🔍</span>
               <span style="overflow:hidden;text-overflow:ellipsis;">
-                {(colegios.find(c => c.id === selectedColegio)?.nombre)?.split(' ')[0] || 'Colegio'} · {grados.find(g => g.id === selectedGrado)?.nombre || 'Grado'} · {secciones.find(s => s.id === selectedSeccion)?.nombre || 'Sección'}{selectedSexo ? ` · ${selectedSexo === 'M' ? 'Masc' : 'Fem'}` : ''}
+                {(colegios.find(c => c.id === selectedColegio)?.nombre)?.split(' ')[0] || t('inf.fallback.colegio')} · {grados.find(g => g.id === selectedGrado)?.nombre || t('inf.fallback.grado')} · {secciones.find(s => s.id === selectedSeccion)?.nombre || t('inf.fallback.seccion')}{selectedSexo ? ` · ${selectedSexo === 'M' ? t('rep.filtro.masc') : t('rep.filtro.fem')}` : ''}
               </span>
             </button>
           </div>
@@ -1096,13 +1102,13 @@ import { primerColegio } from "../lib/catalogo";
             {#if !isAndroid}
               <button onclick={handlePrintWithIframe} disabled={estudiantes.length === 0 || loading}
                 style="height:42px;padding:0 0.4rem;font-size:0.75rem;background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{estudiantes.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(16,185,129,0.4);flex-shrink:0;white-space:nowrap;opacity:{estudiantes.length === 0 || loading ? 0.7 : 1}"
-                title="Imprimir">
+                title={t('inf.btn.imprimir')}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
               </button>
             {/if}
             <button onclick={() => exportarPdfs('colegio')} disabled={exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura || !selectedCorte}
               style="height:42px;padding:0 0.55rem;display:flex;align-items:center;gap:0.45rem;flex-shrink:0;border:1px solid rgba(248,113,113,0.5);border-radius:10px;background:linear-gradient(135deg,rgba(244,63,94,0.26),rgba(251,146,60,0.2));backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:#ffe4e6;font-weight:700;font-size:0.75rem;cursor:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura || !selectedCorte ? 'default' : 'pointer'};box-shadow:0 6px 18px rgba(225,29,72,0.26);white-space:nowrap;opacity:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura || !selectedCorte ? 0.65 : 1};transition:transform 0.15s ease,box-shadow 0.2s ease"
-              title="Un PDF por cada grado y sección del colegio filtrado">
+              title={t('rep.btn.pdfColegioTitle')}>
               <span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:rgba(244,63,94,0.4);color:#fecdd3;flex-shrink:0">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
               </span>
@@ -1110,23 +1116,23 @@ import { primerColegio } from "../lib/catalogo";
             </button>
             <button onclick={() => exportarPdfs('todos')} disabled={exportandoMasivo || !selectedAno || !selectedAsignatura || !selectedCorte}
               style="height:42px;padding:0 0.55rem;display:flex;align-items:center;gap:0.45rem;flex-shrink:0;border:1px solid rgba(129,140,248,0.5);border-radius:10px;background:linear-gradient(135deg,rgba(99,102,241,0.28),rgba(56,189,248,0.22));backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:#e0e7ff;font-weight:700;font-size:0.75rem;cursor:{exportandoMasivo || !selectedAno || !selectedAsignatura || !selectedCorte ? 'default' : 'pointer'};box-shadow:0 6px 18px rgba(79,70,229,0.28);white-space:nowrap;opacity:{exportandoMasivo || !selectedAno || !selectedAsignatura || !selectedCorte ? 0.65 : 1};transition:transform 0.15s ease,box-shadow 0.2s ease"
-              title="Un PDF por cada grado y sección de todos los colegios del año lectivo">
+              title={t('rep.btn.exportarTodoTitle')}>
               <span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:rgba(99,102,241,0.45);color:#c7d2fe;flex-shrink:0">📚</span>
-              {exportandoMasivo ? progresoMasivo : 'Todo'}
+              {exportandoMasivo ? progresoMasivo : t('rep.btn.todo')}
             </button>
             {@render botonCopiar(true)}
           </div>
         {:else}
         <FilterContainer {isMobile} style="padding:0.5rem">
           {#if showAnoDropdown}
-          <FilterGroup label="Año:" {isMobile}>
+          <FilterGroup label={t('rep.filtro.ano')} {isMobile}>
             <SelectChip
               value={selectedAno}
               onchange={(v) => { selectedAno = Number(v); }}
               options={anos.map(a => ({ value: a.id, label: a.nombre }))} />
           </FilterGroup>
           {/if}
-          <FilterGroup label="Corte:" {isMobile}>
+          <FilterGroup label={t('rep.filtro.corte')} {isMobile}>
             <SelectChip
               value={specialCorte || selectedCorte}
               onchange={(v) => {
@@ -1135,58 +1141,58 @@ import { primerColegio } from "../lib/catalogo";
                 else { specialCorte = ""; selectedCorte = Number(val); }
               }}
               options={[
-                ...cortes.map(c => ({ value: c.id as string | number, label: c.nombre, grupo: 'Cortes individuales' })),
-                { value: '1S', label: '1er Semestre', grupo: 'Promedios' },
-                { value: '2S', label: '2do Semestre', grupo: 'Promedios' },
-                { value: 'NF', label: 'Nota Final', grupo: 'Promedios' },
+                ...cortes.map(c => ({ value: c.id as string | number, label: c.nombre, grupo: t('rep.grupo.cortesIndividuales') })),
+                { value: '1S', label: t('rep.corte.1s'), grupo: t('rep.grupo.promedios') },
+                { value: '2S', label: t('rep.corte.2s'), grupo: t('rep.grupo.promedios') },
+                { value: 'NF', label: t('rep.corte.nf'), grupo: t('rep.grupo.promedios') },
               ]} />
           </FilterGroup>
-          <FilterGroup label="Colegio:" {isMobile}>
+          <FilterGroup label={t('inf.filtro.colegio')} {isMobile}>
             <SelectChip
               value={selectedColegio}
               onchange={(v) => { selectedColegio = Number(v); }}
               options={colegios.map(c => ({ value: c.id, label: c.nombre }))} />
           </FilterGroup>
-          <FilterGroup label="Grado:" {isMobile}>
+          <FilterGroup label={t('inf.filtro.grado')} {isMobile}>
             <SelectChip
               value={selectedGrado}
               onchange={(v) => { selectedGrado = Number(v); }}
               options={grados.map(g => ({ value: g.id, label: g.nombre }))} />
           </FilterGroup>
-          <FilterGroup label="Sección:" {isMobile}>
+          <FilterGroup label={t('inf.filtro.seccion')} {isMobile}>
             <SelectChip
               value={selectedSeccion}
               onchange={(v) => { selectedSeccion = Number(v); }}
               options={secciones.map(s => ({ value: s.id, label: s.nombre }))} />
           </FilterGroup>
-          <FilterGroup label="Sexo:" {isMobile}>
+          <FilterGroup label={t('inf.filtro.sexo')} {isMobile}>
             <SelectChip
               value={selectedSexo}
               onchange={(v) => { selectedSexo = String(v); }}
               options={[
-                { value: '', label: 'Todos' },
-                { value: 'M', label: 'Masculino' },
-                { value: 'F', label: 'Femenino' },
+                { value: '', label: t('asis.filtro.todos') },
+                { value: 'M', label: t('asis.filtros.masculino') },
+                { value: 'F', label: t('asis.filtros.femenino') },
               ]} />
           </FilterGroup>
-          <FilterGroup label="Asignatura:" {isMobile}>
+          <FilterGroup label={t('rep.filtro.asignatura')} {isMobile}>
             <SelectChip
               value={selectedAsignatura}
               onchange={(v) => { selectedAsignatura = Number(v); }}
-              placeholder={asignaturas.length === 0 ? 'Sin asignaturas' : '—'}
+              placeholder={asignaturas.length === 0 ? t('rep.sinAsignaturas') : '—'}
               options={asignaturas.map(a => ({ value: a.id, label: a.nombre }))} />
           </FilterGroup>
           <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '0 0 auto'};{isMobile ? 'overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;' : ''}">
             {#if !isAndroid}
               <button onclick={handlePrintWithIframe} disabled={estudiantes.length === 0 || loading}
                 style="height:42px;padding:0 {isMobile ? '0.4rem' : '1.25rem'};font-size:{isMobile ? '0.75rem' : '0.85rem'};background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{estudiantes.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(16,185,129,0.4);flex-shrink:0;white-space:nowrap;opacity:{estudiantes.length === 0 || loading ? 0.7 : 1}"
-                title={(isMobile || isAndroid) ? 'Compartir PDF' : 'Imprimir'}>
+                title={(isMobile || isAndroid) ? t('rep.btn.compartirPdf') : t('inf.btn.imprimir')}>
                 <svg width="{isMobile ? '12' : '14'}" height="{isMobile ? '12' : '14'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                {#if !isMobile}Imprimir{/if}
+                {#if !isMobile}{t('inf.btn.imprimir')}{/if}
               </button>
             {/if}
             <button onclick={() => exportarPdfs('colegio')} disabled={exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura || !selectedCorte}
-              title="Un PDF por cada grado y sección del colegio filtrado"
+              title={t('rep.btn.pdfColegioTitle')}
               style="height:42px;padding:0 {isMobile ? '0.55rem' : '0.95rem'};display:flex;align-items:center;gap:0.5rem;flex-shrink:0;border:1px solid rgba(248,113,113,0.5);border-radius:10px;background:linear-gradient(135deg,rgba(244,63,94,0.26),rgba(251,146,60,0.2));backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:#ffe4e6;font-weight:700;font-size:{isMobile ? '0.78rem' : '0.8rem'};cursor:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura || !selectedCorte ? 'default' : 'pointer'};box-shadow:0 6px 18px rgba(225,29,72,0.26);white-space:nowrap;opacity:{exportandoMasivo || !selectedColegio || !selectedAno || !selectedAsignatura || !selectedCorte ? 0.65 : 1};transition:transform 0.15s ease,box-shadow 0.2s ease"
               onmouseenter={(e) => { if (!exportandoMasivo) e.currentTarget.style.transform = 'translateY(-1px)'; }}
               onmouseleave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
@@ -1199,13 +1205,13 @@ import { primerColegio } from "../lib/catalogo";
                 <span>{exportandoMasivo ? progresoMasivo : 'PDF'}</span>
               {:else}
                 <span style="display:flex;flex-direction:column;align-items:flex-start;line-height:1.15;gap:1px;min-width:0">
-                  <span>{exportandoMasivo ? progresoMasivo : 'PDF colegio'}</span>
-                  <span style="font-size:0.6rem;font-weight:600;color:#fda4af;letter-spacing:0.2px;max-width:150px;overflow:hidden;text-overflow:ellipsis">{exportandoMasivo ? 'Generando PDF' : subtituloColegio}</span>
+                  <span>{exportandoMasivo ? progresoMasivo : t('rep.btn.pdfColegio')}</span>
+                  <span style="font-size:0.6rem;font-weight:600;color:#fda4af;letter-spacing:0.2px;max-width:150px;overflow:hidden;text-overflow:ellipsis">{exportandoMasivo ? t('inf.btn.generandoPdf') : subtituloColegio}</span>
                 </span>
               {/if}
             </button>
             <button onclick={() => exportarPdfs('todos')} disabled={exportandoMasivo || !selectedAno || !selectedAsignatura || !selectedCorte}
-              title="Un PDF por cada grado y sección de todos los colegios del año lectivo"
+              title={t('rep.btn.exportarTodoTitle')}
               style="height:42px;padding:0 {isMobile ? '0.55rem' : '0.95rem'};display:flex;align-items:center;gap:0.5rem;flex-shrink:0;border:1px solid rgba(129,140,248,0.5);border-radius:10px;background:linear-gradient(135deg,rgba(99,102,241,0.28),rgba(56,189,248,0.22));backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:#e0e7ff;font-weight:700;font-size:{isMobile ? '0.78rem' : '0.8rem'};cursor:{exportandoMasivo || !selectedAno || !selectedAsignatura || !selectedCorte ? 'default' : 'pointer'};box-shadow:0 6px 18px rgba(79,70,229,0.28);white-space:nowrap;opacity:{exportandoMasivo || !selectedAno || !selectedAsignatura || !selectedCorte ? 0.65 : 1};transition:transform 0.15s ease,box-shadow 0.2s ease"
               onmouseenter={(e) => { if (!exportandoMasivo) e.currentTarget.style.transform = 'translateY(-1px)'; }}
               onmouseleave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
@@ -1213,11 +1219,11 @@ import { primerColegio } from "../lib/catalogo";
               onmouseup={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}>
               <span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:rgba(99,102,241,0.45);color:#c7d2fe;flex-shrink:0">📚</span>
               {#if isMobile}
-                <span>{exportandoMasivo ? progresoMasivo : 'Todo'}</span>
+                <span>{exportandoMasivo ? progresoMasivo : t('rep.btn.todo')}</span>
               {:else}
                 <span style="display:flex;flex-direction:column;align-items:flex-start;line-height:1.15;gap:1px;min-width:0">
-                  <span>{exportandoMasivo ? progresoMasivo : 'Exportar Todo'}</span>
-                  <span style="font-size:0.6rem;font-weight:600;color:#a5b4fc;letter-spacing:0.2px;max-width:150px;overflow:hidden;text-overflow:ellipsis">{exportandoMasivo ? 'Generando PDF' : subtituloTodos}</span>
+                  <span>{exportandoMasivo ? progresoMasivo : t('inf.btn.exportarTodo')}</span>
+                  <span style="font-size:0.6rem;font-weight:600;color:#a5b4fc;letter-spacing:0.2px;max-width:150px;overflow:hidden;text-overflow:ellipsis">{exportandoMasivo ? t('inf.btn.generandoPdf') : subtituloTodos}</span>
                 </span>
               {/if}
             </button>
@@ -1234,17 +1240,17 @@ import { primerColegio } from "../lib/catalogo";
       {#if loading}
         <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:5rem">
           <div class="loading-spinner" style="width:50px;height:50px;border:4px solid rgba(var(--primary-rgb),0.1);border-top:4px solid var(--primary-color);border-radius:50%;animation:spin 1s linear infinite;margin-bottom:1rem"></div>
-          <p style="color:#94a3b8;font-weight:500">Generando reporte...</p>
+          <p style="color:#94a3b8;font-weight:500">{t('rep.vacio.generando')}</p>
         </div>
       {:else if filteredReporte.length === 0}
         <div style="text-align:center;padding:5rem 2rem;border:2px dashed rgba(255,255,255,0.1);border-radius:16px">
           <div style="font-size:3rem;margin-bottom:1rem">{searchTerm ? '🔍' : '📋'}</div>
-          <h4 style="color:#cbd5e1;margin-bottom:0.5rem">{searchTerm ? 'No se encontraron resultados' : 'No hay datos para mostrar'}</h4>
+          <h4 style="color:#cbd5e1;margin-bottom:0.5rem">{searchTerm ? t('inf.vacio.resultados') : t('inf.vacio.datos')}</h4>
           <p style="color:#94a3b8;max-width:400px;margin:0 auto">
-            {searchTerm ? `No se encontró ningún estudiante que coincida con "${searchTerm}"` : 'Seleccione todos los filtros necesarios para generar el reporte.'}
+            {searchTerm ? t('inf.vacio.busqueda', { q: searchTerm }) : t('rep.vacio.seleccione')}
           </p>
           {#if searchTerm}
-            <button class="secondary" onclick={() => searchTerm = ""} style="margin-top:1.5rem;padding:0.5rem 1rem">Limpiar búsqueda</button>
+            <button class="secondary" onclick={() => searchTerm = ""} style="margin-top:1.5rem;padding:0.5rem 1rem">{t('asis.limpiarBusqueda')}</button>
           {/if}
         </div>
       {:else}
@@ -1300,11 +1306,11 @@ import { primerColegio } from "../lib/catalogo";
                         {/each}
                       {:else}
                         <div style="padding:0.35rem 0;font-size:0.75rem;color:#64748b;">
-                          Vista de nota final consolidada — no hay indicadores individuales
+                          {t('rep.vistaConsolidada')}
                         </div>
                       {/if}
                       <div style="display:flex;align-items:center;justify-content:space-between;padding:0.45rem 0 0.2rem;margin-top:0.2rem;border-top:1px solid rgba(var(--primary-rgb),0.15);">
-                        <span style="font-size:0.8rem;color:var(--text-secondary);font-weight:bold;">Nota Final</span>
+                        <span style="font-size:0.8rem;color:var(--text-secondary);font-weight:bold;">{t('rep.corte.nf')}</span>
                         <span style="font-size:0.9rem;font-weight:bold;color:{finalColor};">
                           {#if isQualitative}
                             {estudiante.notaFinalCualitativa || '-'}
@@ -1324,8 +1330,8 @@ import { primerColegio } from "../lib/catalogo";
               <table style="width:100%;min-width:max-content;border-collapse:separate;border-spacing:0">
                 <thead style="position:sticky;top:0;z-index:100">
                   <tr>
-                    <th style="padding:1rem;text-align:left;background-color:#1e293b;border-bottom:2px solid rgba(255,255,255,0.1);color:var(--text-secondary);position:sticky;left:0;z-index:110">Estudiante</th>
-                    <th style="padding:1rem;text-align:center;background-color:rgba(255,255,255,0.05);border-bottom:2px solid rgba(255,255,255,0.1);color:#94a3b8">Sexo</th>
+                    <th style="padding:1rem;text-align:left;background-color:#1e293b;border-bottom:2px solid rgba(255,255,255,0.1);color:var(--text-secondary);position:sticky;left:0;z-index:110">{t('rep.tabla.estudiante')}</th>
+                    <th style="padding:1rem;text-align:center;background-color:rgba(255,255,255,0.05);border-bottom:2px solid rgba(255,255,255,0.1);color:#94a3b8">{t('rep.tabla.sexo')}</th>
                     {#if !specialCorte}
                       {#each configIndicadores as ind}
                         <th title={ind.descripcion} style="padding:1rem;text-align:center;background-color:rgba(255,255,255,0.05);border-bottom:2px solid rgba(255,255,255,0.1);color:var(--text-secondary);font-size:0.85rem;cursor:help">
@@ -1333,7 +1339,7 @@ import { primerColegio } from "../lib/catalogo";
                         </th>
                       {/each}
                     {/if}
-                    <th style="padding:1rem;text-align:center;background-color:rgba(var(--primary-rgb),0.1);border-bottom:2px solid rgba(var(--primary-rgb),0.3);color:var(--text-secondary);font-weight:bold">Nota Final</th>
+                    <th style="padding:1rem;text-align:center;background-color:rgba(var(--primary-rgb),0.1);border-bottom:2px solid rgba(var(--primary-rgb),0.3);color:var(--text-secondary);font-weight:bold">{t('rep.corte.nf')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1381,7 +1387,7 @@ import { primerColegio } from "../lib/catalogo";
         <div class="statistics-slide-container" class:active={activeSlide === 'estadisticas'} style="animation:{activeSlide === 'estadisticas' ? 'fadeIn 0.3s ease-out' : 'none'}">
           <div class="asistencia-summary" style="margin:0;padding:0.5rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem">
             <div class="summary-card students">
-              <span class="summary-label">{searchTerm ? 'Resultados' : 'Estudiantes'}</span>
+              <span class="summary-label">{searchTerm ? t('rep.stats.resultados') : t('rep.stats.estudiantes')}</span>
               <span class="summary-value">{filteredReporte.length}</span>
               <div class="gender-labels">
                 <span class="gender-m">M: {filteredReporte.filter(e => e.sexo === 'M').length}</span>
@@ -1389,7 +1395,7 @@ import { primerColegio } from "../lib/catalogo";
               </div>
             </div>
             <div class="summary-card p">
-              <span class="summary-label">Promedio Grupal</span>
+              <span class="summary-label">{t('rep.stats.promedioGrupal')}</span>
               <div class="summary-value" style="color: {promedioGrupalColor}">
                 {promedioGrupalLabel}
               </div>
@@ -1397,12 +1403,12 @@ import { primerColegio } from "../lib/catalogo";
             {#each configIndicadores.filter(i => i.activo) as ind}
               <div class="summary-card" style="border-left:3px solid var(--primary-color)">
                 <span class="summary-label">Ind. {ind.orden}</span>
-                <span class="summary-value" style="font-size:0.7rem;color:var(--text-secondary);font-weight:400;line-height:1.2;word-break:break-word">{ind.descripcion || "Sin descripción"}</span>
+                <span class="summary-value" style="font-size:0.7rem;color:var(--text-secondary);font-weight:400;line-height:1.2;word-break:break-word">{ind.descripcion || t('rep.sinDescripcion')}</span>
               </div>
             {/each}
             {#if configIndicadores.filter(i => i.activo).length === 0}
               <div class="summary-card" style="grid-column:1/-1">
-                <span class="summary-label" style="color:#64748b;font-style:italic">No hay indicadores activos configurados.</span>
+                <span class="summary-label" style="color:#64748b;font-style:italic">{t('rep.sinIndicadoresActivos')}</span>
               </div>
             {/if}
           </div>
@@ -1420,7 +1426,7 @@ import { primerColegio } from "../lib/catalogo";
   >
     {#snippet extras()}
       <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
-        <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Corte:</label>
+        <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('rep.filtro.corte')}</label>
         <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px"
           value={specialCorte || selectedCorte}
           onchange={(e) => {
@@ -1428,18 +1434,18 @@ import { primerColegio } from "../lib/catalogo";
             if (val === "1S" || val === "2S" || val === "NF") { specialCorte = val; selectedCorte = 0; }
             else { specialCorte = ""; selectedCorte = Number(val); }
           }}>
-          <optgroup label="Cortes Individuales">
+          <optgroup label={t('rep.grupo.cortesIndividuales')}>
             {#each cortes as c}<option value={c.id}>{c.nombre}</option>{/each}
           </optgroup>
-          <optgroup label="Promedios">
-            <option value="1S">1er Semestre</option>
-            <option value="2S">2do Semestre</option>
-            <option value="NF">Nota Final</option>
+          <optgroup label={t('rep.grupo.promedios')}>
+            <option value="1S">{t('rep.corte.1s')}</option>
+            <option value="2S">{t('rep.corte.2s')}</option>
+            <option value="NF">{t('rep.corte.nf')}</option>
           </optgroup>
         </select>
       </div>
       <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
-        <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Asignatura:</label>
+        <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('rep.filtro.asignatura')}</label>
         <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px"
           bind:value={selectedAsignatura} disabled={asignaturas.length === 0}>
           {#each asignaturas as a}<option value={a.id}>{a.nombre}</option>{/each}
