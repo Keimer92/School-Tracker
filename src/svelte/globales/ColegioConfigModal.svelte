@@ -311,10 +311,10 @@
         <!-- TIPO -->
         {#if tab === "tipo"}
           <div style="display:flex;flex-direction:column;gap:0.75rem;">
-            <p style="margin:0;color:#94a3b8;font-size:0.8rem;">Define el nivel del colegio para filtrar grados automáticamente.</p>
+            <p style="margin:0;color:#94a3b8;font-size:0.8rem;">{t('ccm.tipo.desc')}</p>
             {#each [
-              { value: "Primaria", label: "Primaria", desc: "1er grado a 6to grado", icon: "🏫", color: "#34d399" },
-              { value: "Secundaria", label: "Secundaria", desc: "7mo grado a 11mo grado", icon: "🎓", color: "#818cf8" },
+              { value: "Primaria", label: "Primaria", desc: t('ccm.tipo.primariaDesc'), icon: "🏫", color: "#34d399" },
+              { value: "Secundaria", label: "Secundaria", desc: t('ccm.tipo.secundariaDesc'), icon: "🎓", color: "#818cf8" },
             ] as option}
               <button onclick={() => tipo = option.value}
                 style="display:flex;align-items:center;gap:0.75rem;padding:0.85rem 1rem;border-radius:12px;border:2px solid {tipo === option.value ? option.color : 'rgba(255,255,255,0.08)'};background:{tipo === option.value ? option.color + '18' : 'rgba(255,255,255,0.03)'};cursor:pointer;transition:all 0.2s;text-align:left;width:100%;">
@@ -330,7 +330,7 @@
             {/each}
             <button onclick={guardarTipo} disabled={saving}
               style="margin-top:0.5rem;padding:0.6rem 1.25rem;border-radius:10px;border:none;background:linear-gradient(135deg,#34d399,#10b981);color:white;font-weight:700;font-size:0.85rem;cursor:pointer;box-shadow:0 4px 14px rgba(52,211,153,0.3);transition:all 0.2s;">
-              {saving ? '⏳ Guardando...' : '💾 Guardar tipo'}
+              {saving ? '⏳ Guardando...' : t('ccm.btn.guardarTipo')}
             </button>
           </div>
 
@@ -338,8 +338,8 @@
         {:else if tab === "dias"}
           <div style="display:flex;flex-direction:column;gap:0.5rem;">
             <div style="display:flex;gap:0.4rem;margin-bottom:0.5rem;">
-              <button onclick={() => bulkDias(true)} class="bulk-on">Marcar todos</button>
-              <button onclick={() => bulkDias(false)} class="bulk-off">Desmarcar todos</button>
+              <button onclick={() => bulkDias(true)} class="bulk-on">{t('ccm.dias.marcarTodos')}</button>
+              <button onclick={() => bulkDias(false)} class="bulk-off">{t('ccm.dias.desmarcarTodos')}</button>
             </div>
             {#each DIAS as day}
               {@const on = dias?.[day] ?? false}
