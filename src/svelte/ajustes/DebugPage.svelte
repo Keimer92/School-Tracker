@@ -422,45 +422,44 @@
 
       <!-- SISTEMA -->
       <div class="dbg-box">
-        <div class="dbg-box-head"><span style="font-size: 1.2rem;">📊</span><h5>Información del sistema</h5></div>
+        <div class="dbg-box-head"><span style="font-size: 1.2rem;">📊</span><h5>{t('dbg.info.titulo')}</h5></div>
         <dl class="dbg-info">
-          <div><dt>Versión de la app</dt><dd>1.2.0</dd></div>
-          <div><dt>Ruta de la base de datos</dt><dd class="dbg-path">{dbPath || "Cargando…"}</dd></div>
-          <div><dt>Plataforma</dt><dd>{isAndroid ? "Android" : "Escritorio"}</dd></div>
+          <div><dt>{t('dbg.info.version')}</dt><dd>1.2.0</dd></div>
+          <div><dt>{t('dbg.info.ruta')}</dt><dd class="dbg-path">{dbPath || t('dbg.info.cargando')}</dd></div>
+          <div><dt>{t('dbg.info.plataforma')}</dt><dd>{isAndroid ? "Android" : t('dbg.info.escritorio')}</dd></div>
         </dl>
       </div>
 
       <!-- RESPALDO AUTOMATICO A GOOGLE DRIVE -->
       <div class="dbg-box">
-        <div class="dbg-box-head"><span style="font-size: 1.2rem;">☁️</span><h5>Respaldo automático a Drive</h5></div>
+        <div class="dbg-box-head"><span style="font-size: 1.2rem;">☁️</span><h5>{t('dbg.drive.titulo')}</h5></div>
         {#if !abEstado}
-          <p class="dbg-desc">Cargando estado…</p>
+          <p class="dbg-desc">{t('dbg.drive.cargando')}</p>
         {:else}
           <dl class="dbg-info">
             <div>
-              <dt>Planificador</dt>
+              <dt>{t('dbg.drive.planificador')}</dt>
               <dd>
-                {abEstado.enabled ? "Activo" : "Desactivado"}
-                {#if !abEstado.enabled}<span style="color:#f87171;"> (no sube nada)</span>{/if}
+                {abEstado.enabled ? t('dbg.drive.activo') : t('dbg.drive.desactivado')}
+                {#if !abEstado.enabled}<span style="color:#f87171;"> {t('dbg.drive.noSube')}</span>{/if}
               </dd>
             </div>
-            <div><dt>Próxima subida automática</dt><dd>{cuentaRegresiva(abEstado.nextRunAt)}</dd></div>
-            <div><dt>Intervalo actual</dt><dd>cada {abEstado.currentIntervalMin} min (±{abEstado.jitterMin})</dd></div>
-            <div><dt>Último respaldo</dt><dd>{marcaTiempo(abEstado.lastSuccessAt)}</dd></div>
-            <div><dt>Subidas totales</dt><dd>{abEstado.totalUploads}</dd></div>
+            <div><dt>{t('dbg.drive.proxima')}</dt><dd>{cuentaRegresiva(abEstado.nextRunAt)}</dd></div>
+            <div><dt>{t('dbg.drive.intervalo')}</dt><dd>{t('dbg.drive.cada', { n: abEstado.currentIntervalMin, j: abEstado.jitterMin })}</dd></div>
+            <div><dt>{t('dbg.drive.ultimo')}</dt><dd>{marcaTiempo(abEstado.lastSuccessAt)}</dd></div>
+            <div><dt>{t('dbg.drive.subidas')}</dt><dd>{abEstado.totalUploads}</dd></div>
             {#if abEstado.lastErrorAt}
-              <div><dt>Último error</dt><dd style="color:#f87171;">{marcaTiempo(abEstado.lastErrorAt)} · {abEstado.consecutiveFails} seguidos</dd></div>
+              <div><dt>{t('dbg.drive.ultimoError')}</dt><dd style="color:#f87171;">{marcaTiempo(abEstado.lastErrorAt)} · {t('dbg.drive.seguidos', { n: abEstado.consecutiveFails })}</dd></div>
             {/if}
             {#if abEstado.onlyWifi}
-              <div><dt>Solo con buena red</dt><dd>sí</dd></div>
+              <div><dt>{t('dbg.drive.soloRed')}</dt><dd>{t('dbg.drive.si')}</dd></div>
             {/if}
           </dl>
           <p class="dbg-desc">
-            Además, cada guardado en la app sube un respaldo instantáneo a los 5 s
-            (no espera al temporizador).
+            {t('dbg.drive.nota')}
           </p>
           <button onclick={forzarRespaldoDrive} class="dbg-btn dbg-btn-verde" disabled={abSubiendo}>
-            {abSubiendo ? "Subiendo…" : "☁️ Forzar respaldo ahora"}
+            {abSubiendo ? t('dbg.drive.subiendo') : t('dbg.drive.forzar')}
           </button>
           {#if abMensaje}
             <p class="dbg-desc" style="margin-top:0.5rem;">{abMensaje}</p>
