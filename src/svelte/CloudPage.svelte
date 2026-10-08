@@ -11,6 +11,7 @@
   import { navegadorLoginArg } from "../lib/oauthBrowser";
   import { registerBackHandler, setBackAuthInProgress } from "../lib/androidBack";
   import { ask } from "@tauri-apps/plugin-dialog";
+  import { t, tagLocale } from "../lib/i18n.svelte";
   import {
     getPerfilLocal, getValidAuthToken,
     DEFAULT_WORKER_URL,
@@ -58,8 +59,8 @@
     if (isNaN(d.getTime())) return '—';
     const hoy = new Date();
     const mismoDia = d.toDateString() === hoy.toDateString();
-    const hora = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    return mismoDia ? `Hoy ${hora}` : d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const hora = d.toLocaleTimeString(tagLocale(), { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return mismoDia ? `${t('cloud.hoy')} ${hora}` : d.toLocaleString(tagLocale(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }
   const storedSyncSeconds = parseInt(localStorage.getItem('periodic_sync_interval_seconds') || '300', 10);
   let syncInterval = $state(Math.round((storedSyncSeconds || 300) / 60));
@@ -190,7 +191,7 @@
         await invoke("gd_start_native_signin", { serverClientId: settings.clientId });
       } catch (e) {
         console.error('Native Google Auth failed:', e);
-        await emit("show-toast", { message: "❌ Error al abrir selector de Google: " + e, type: "error" });
+        await emit("show-toast", { message: t('cloud.error.selectorGoogle', { e: String(e) }), type: "error" });
         isAuthLoading = false;
         return;
       }
@@ -214,7 +215,7 @@
       }
       if (!gotResult && !authHandled) {
         isAuthLoading = false;
-        await emit("show-toast", { message: "⏱ Tiempo de espera agotado en el selector de Google", type: "error" });
+        await emit("show-toast", { message: t('cloud.error.timeoutSelector'), type: "error" });
       }
       return;
     }
@@ -231,7 +232,7 @@
     } catch (e) {
       if (!authHandled) {
         console.error('Google Auth failed:', e);
-        await emit("show-toast", { message: "❌ Error al autenticar con Google: " + e, type: "error" });
+        await emit("show-toast", { message: t('cloud.error.autenticar', { e: String(e) }), type: "error" });
       }
     } finally { isAuthLoading = false; setBackAuthInProgress(false); }
   }
@@ -277,11 +278,11 @@
       settings.tokenExpiry = Date.now() + (data.expires_in * 1000);
       saveSettings();
       await fetchUserInfo(data.access_token);
-      await emit("show-toast", { message: "✅ Google Drive vinculado exitosamente", type: "success" });
+      await emit("show-toast", { message: t('cloud.toast.vinculado'), type: "success" });
       await refreshFiles();
     } catch (e) {
       console.error('Token exchange failed:', e);
-      await emit("show-toast", { message: "❌ Error al vincular Google Drive", type: "error" });
+      await emit("show-toast", { message: t('cloud.error.vincular'), type: "error" });
     } finally { isAuthLoading = false; }
   }
 
@@ -303,14 +304,14 @@
     try {
       const result = await driveSyncService.testConnection();
       if (result.ok) {
-        await emit("show-toast", { message: "✅ Conexión con Google Drive exitosa", type: "success" });
+        await emit("show-toast", { message: t('cloud.toast.conexionOk'), type: "success" });
         const token = await getValidToken();
         if (token) await fetchUserInfo(token);
       } else {
-        await emit("show-toast", { message: "❌ Error de conexión: " + (result.error || 'Desconocido'), type: "error" });
+        await emit("show-toast", { message: t('cloud.error.conexion', { e: result.error || t('cloud.desconocido') }), type: "error" });
       }
     } catch (e) {
-      await emit("show-toast", { message: "❌ Error: " + e, type: "error" });
+      await emit("show-toast", { message: t('cloud.error.generico', { e: String(e) }), type: "error" });
     } finally { isTesting = false; }
   }
 
@@ -318,7 +319,7 @@
     setBackAuthInProgress(false);
     try { await invoke("gd_cancel_oauth"); } catch {}
     isAuthLoading = false;
-    await emit("show-toast", { message: "Autenticación cancelada", type: "info" });
+    await emit("show-toast", { message: t('cloud.toast.cancelada'), type: "info" });
   }
 
   async function disconnect() {
@@ -330,7 +331,7 @@
     settings.googleUserProfilePic = null;
     saveSettings();
     syncFiles = [];
-    await emit("show-toast", { message: "✅ Google Drive desconectado", type: "success" });
+    await emit("show-toast", { message: t('cloud.toast.desconectado'), type: "success" });
   }
 
   async function refreshFiles() {
@@ -345,7 +346,7 @@
         driveSyncService.setLastUploadFromDrive(syncFiles[0] ?? null);
       }
     } catch (e) {
-      await emit("show-toast", { message: "❌ No se pudo refrescar la lista de respaldos: " + mensajeError(e), type: "error" });
+      await emit("show-toast", { message: t('cloud.error.refrescar', { e: mensajeError(e) }), type: "error" });
     } finally { isFetchingFiles = false; }
   }
 
@@ -365,43 +366,41 @@
     instantBackupOn = next;
     setInstantBackupEnabled(next);
     await emit("show-toast", {
-      message: next
-        ? "✅ Respaldo instantáneo activado: se sube a Drive tras cada guardado"
-        : "ℹ️ Respaldo instantáneo desactivado (siguen los manuales y programados)",
+      message: next ? t('cloud.toast.instantOn') : t('cloud.toast.instantOff'),
       type: next ? "success" : "info",
     });
   }
 
   function fmtDate(iso: string): string {
     if (!iso) return '—';
-    return new Date(iso).toLocaleString('es-ES');
+    return new Date(iso).toLocaleString(tagLocale());
   }
 
   /** Confirmación nativa del sistema (Tauri ask). Ejecuta action solo si el usuario acepta. */
   async function confirm(msg: string, title: string, variant: 'danger' | 'warning' | 'info', action: () => Promise<void>) {
     const kind = variant === 'danger' ? 'warning' : variant === 'info' ? 'info' : 'warning';
-    const ok = await ask(msg, { title, kind, okLabel: 'Confirmar', cancelLabel: 'Cancelar' });
+    const ok = await ask(msg, { title, kind, okLabel: t('comun.confirmar'), cancelLabel: t('comun.cancelar') });
     if (ok) await action();
   }
 
   async function requestRestore(file: DriveFile) {
-    confirm(`¿Restaurar "${file.name}"?\n\nSe sobrescribirá la base de datos actual.\nEsta acción no se puede deshacer.`, "⚠️ Restaurar Respaldo", 'danger', async () => {
+    confirm(t('cloud.ask.restaurarMensaje', { name: file.name }), t('cloud.ask.restaurarTitulo'), 'danger', async () => {
       try {
         await driveSyncService.pullById(file.id);
-        await emit("show-toast", { message: "✅ Respaldo restaurado", type: "success" });
+        await emit("show-toast", { message: t('cloud.toast.restaurado'), type: "success" });
       } catch (e) {
-        await emit("show-toast", { message: "❌ Error al restaurar: " + mensajeError(e), type: "error" });
+        await emit("show-toast", { message: t('cloud.error.restaurar', { e: mensajeError(e) }), type: "error" });
       }
     });
   }
 
   async function requestDelete(file: DriveFile) {
-    confirm(`¿Eliminar "${file.name}" de Google Drive?`, "🗑️ Eliminar Respaldo", 'warning', async () => {
+    confirm(t('cloud.ask.eliminarMensaje', { name: file.name }), t('cloud.ask.eliminarTitulo'), 'warning', async () => {
       const token = await getValidToken();
       if (!token) return;
       await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
       syncFiles = syncFiles.filter(f => f.id !== file.id);
-      await emit("show-toast", { message: "✅ Respaldo eliminado", type: "success" });
+      await emit("show-toast", { message: t('cloud.toast.eliminado'), type: "success" });
     });
   }
 
@@ -420,7 +419,7 @@
     isD1Syncing = true;
     try {
       await invoke("d1_sync_all", { force: true });
-      await emit("show-toast", { message: "✅ Sincronización completa", type: "success" });
+      await emit("show-toast", { message: t('cloud.toast.syncCompleta'), type: "success" });
     } catch (e) {
       console.error('[D1] sync manual falló:', e);
       await emit("show-toast", { message: "❌ Error al sincronizar: " + mensajeError(e), type: "error" });
