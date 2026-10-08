@@ -1386,6 +1386,23 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'drive.op.eliminar': 'eliminar datos remotos',
   'drive.sync.syncing': 'Sincronizando {op}...',
   'drive.sync.error': 'Error en {op}: {e}',
+
+  // ── Login de nube (cloudLogin) ──
+  'cl.msj.configReemplazar': 'Ya existe una conexión a la nube con OTRAS credenciales.\n\n¿Reemplazarla? Se generará un nuevo ID de dispositivo y los datos locales se sincronizarán con la nube nueva.',
+  'cl.msj.reemplazarTitulo': 'Reemplazar conexión',
+  'cl.msj.siReemplazar': 'Sí, reemplazar',
+  'cl.error.faltClientId': 'Falta VITE_GOOGLE_CLIENT_ID en .env',
+  'cl.status.abriendo': 'Abriendo Google Sign-In...',
+  'cl.error.signIn': 'Google Sign-In ({code}): {error}',
+  'cl.error.sinTokenGoogle': 'No se obtuvo el token de Google',
+  'cl.status.navegador': 'Se abrió tu navegador: inicia sesión con Google allí...',
+  'cl.status.verificando': 'Verificando identidad...',
+  'cl.error.intercambio': 'Error intercambiando código: {e}',
+  'cl.error.sinIdToken': 'Google no devolvió id_token',
+  'cl.status.ingresando': 'Ingresando a la nube...',
+  'cl.status.cuentaCreada': 'Cuenta creada. Preparando tu nube...',
+  'cl.status.bienvenido': 'Bienvenido de nuevo...',
+  'cl.status.vinculando': 'Vinculando Google Drive...',
 } as const;
 
 export type Clave = keyof typeof es;

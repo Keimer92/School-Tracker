@@ -13,6 +13,7 @@ import { invalidateD1Cache, syncService } from "./syncService";
 import { ensureWsSync, stopWsSync } from "./wsSyncService";
 import { getProfile, saveProfile, setCurrentEmail } from "./accountProfiles";
 import { navegadorLoginArg } from "./oauthBrowser";
+import { t } from "./i18n.svelte";
 
 export interface CloudLoginTokens {
   idToken: string;
@@ -92,8 +93,8 @@ async function conectarConCredenciales(workerUrl: string, schoolKey: string, opt
   const previa = await d1SyncService.getConfig();
   if (previa && (previa.workerUrl !== workerUrl || previa.schoolKey !== schoolKey)) {
     const ok = await ask(
-      'Ya existe una conexión a la nube con OTRAS credenciales.\n\n¿Reemplazarla? Se generará un nuevo ID de dispositivo y los datos locales se sincronizarán con la nube nueva.',
-      { title: 'Reemplazar conexión', kind: 'warning', okLabel: 'Sí, reemplazar', cancelLabel: 'Cancelar' }
+      t('cl.msj.configReemplazar'),
+      { title: t('cl.msj.reemplazarTitulo'), kind: 'warning', okLabel: t('cl.msj.siReemplazar'), cancelLabel: t('comun.cancelar') }
     );
     if (!ok) { if (unlisten) unlisten(); return; }
     await d1SyncService.clearConfig();
@@ -184,14 +185,14 @@ export async function iniciarSesionGoogleConNube(opts?: {
   preferredKey?: string;
 }): Promise<CloudLoginResult> {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-    if (!clientId) return { status: 'error', error: 'Falta VITE_GOOGLE_CLIENT_ID en .env' };
+    if (!clientId) return { status: 'error', error: t('cl.error.faltClientId') };
   let driveAuthCode = '';
   try {
     let idToken = '';
     let accessToken: string | null = null;
     let refreshToken: string | null = null;
     if (/Android/i.test(navigator.userAgent)) {
-      opts?.onStatus?.('Abriendo Google Sign-In...');
+      opts?.onStatus?.(t('cl.status.abriendo'));
       await invoke('gd_start_native_signin', { serverClientId: clientId });
       const deadline = Date.now() + 180000;
       let done = false;
@@ -203,7 +204,7 @@ export async function iniciarSesionGoogleConNube(opts?: {
             const parsed: any = typeof res === 'string' ? JSON.parse(res) : res;
             if (!parsed.ok) {
               if (parsed.cancelled) return { status: 'cancelled' };
-              return { status: 'error', error: `Google Sign-In (${parsed.statusCode ?? '?' }): ${parsed.error ?? ''}` };
+              return { status: 'error', error: t('cl.error.signIn', { code: parsed.statusCode ?? '?', error: parsed.error ?? '' }) };
             }
             idToken = parsed.idToken || '';
             driveAuthCode = parsed.serverAuthCode || '';
@@ -214,7 +215,7 @@ export async function iniciarSesionGoogleConNube(opts?: {
           if (e?.message?.includes('Sign-In')) return { status: 'error', error: e.message };
         }
       }
-      if (!done || !idToken) return { status: 'error', error: 'No se obtuvo el token de Google' };
+      if (!done || !idToken) return { status: 'error', error: t('cl.error.sinTokenGoogle') };
     } else {
       opts?.setBackAuth?.(true);
       const redirectUri = 'http://localhost:51733/callback';
@@ -225,7 +226,7 @@ export async function iniciarSesionGoogleConNube(opts?: {
       // el modal sin confirmación.
       const prompt = opts?.forceSelectAccount ? 'select_account consent' : 'consent';
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent('openid email profile https://www.googleapis.com/auth/drive.file')}&access_type=offline&prompt=${encodeURIComponent(prompt)}`;
-      opts?.onStatus?.('Se abrió tu navegador: inicia sesión con Google allí...');
+      opts?.onStatus?.(t('cl.status.navegador'));
       // El flag del "botón atrás" se baja en `finally`: si el usuario cancela o
       // el login expira, `invoke` lanza y el flag quedaba en `true` para
       // siempre (todo back posterior terminaba en `gd_cancel_oauth`).
@@ -238,24 +239,24 @@ export async function iniciarSesionGoogleConNube(opts?: {
       } finally {
         opts?.setBackAuth?.(false);
       }
-      opts?.onStatus?.('Verificando identidad...');
+      opts?.onStatus?.(t('cl.status.verificando'));
       const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ client_id: clientId, client_secret: import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '', code, grant_type: 'authorization_code', redirect_uri: redirectUri }),
       });
-      if (!tokenRes.ok) return { status: 'error', error: 'Error intercambiando código: ' + (await tokenRes.text()) };
+      if (!tokenRes.ok) return { status: 'error', error: t('cl.error.intercambio', { e: await tokenRes.text() }) };
       const tokenData = await tokenRes.json();
       idToken = tokenData.id_token || '';
       accessToken = tokenData.access_token || null;
       refreshToken = tokenData.refresh_token || null;
-      if (!idToken) return { status: 'error', error: 'Google no devolvió id_token' };
+      if (!idToken) return { status: 'error', error: t('cl.error.sinIdToken') };
       await guardarSesionDrive(clientId, tokenData);
       // El refresh_token NO expira: permite renovar el id_token sin re-login.
       guardarTokenSesion(idToken, tokenData.refresh_token);
     }
 
-    opts?.onStatus?.('Ingresando a la nube...');
+    opts?.onStatus?.(t('cl.status.ingresando'));
     /**
      * El login de Drive ya quedó guardado ANTES de este punto (guardarSesionDrive
      * en ambas ramas). Por eso un 403 de `/auth` —la lista ALLOWED_EMAILS del
@@ -285,7 +286,7 @@ export async function iniciarSesionGoogleConNube(opts?: {
       };
     }
     guardarTokenSesion(idToken, getRefreshToken());
-    opts?.onStatus?.(result.creado ? 'Cuenta creada. Preparando tu nube...' : 'Bienvenido de nuevo...');
+    opts?.onStatus?.(result.creado ? t('cl.status.cuentaCreada') : t('cl.status.bienvenido'));
 
     const email = (result.perfil?.email || '').toLowerCase();
     /**
@@ -389,7 +390,7 @@ export async function iniciarSesionGoogleConNube(opts?: {
 
     if (/Android/i.test(navigator.userAgent)) {
       if (driveAuthCode) {
-        opts?.onStatus?.('Vinculando Google Drive...');
+        opts?.onStatus?.(t('cl.status.vinculando'));
         try {
           const tokens = await exchangeServerAuthCode(driveAuthCode);
           await guardarSesionDrive(clientId, tokens);
