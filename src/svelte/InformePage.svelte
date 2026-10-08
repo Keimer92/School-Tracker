@@ -9,6 +9,9 @@
   import { generarPdfAsistencia } from "../lib/asistenciaPdf";
   import type { TablaAsistenciaPdf } from "../lib/asistenciaPdf";
   import { registerBackHandler } from "../lib/androidBack";
+  // OJO: `t()` de i18n. Nunca declarar una variable local llamada `t` en este
+  // archivo: taparía la función y el error de runtime apuntaría a otra línea.
+  import { t, tagLocale } from "../lib/i18n.svelte";
   import { loadAppSettings, onAppSettingsChange } from "../lib/appSettings";
 import { primerColegio } from "../lib/catalogo";
   import FilterContainer from "./FilterContainer.svelte";
@@ -118,6 +121,17 @@ $effect(() => {
   // ── Modo semanal: popover mes + semanas ──
   const pad2 = (n: number) => String(n).padStart(2, '0');
   const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  /**
+   * Meses traducidos, SOLO para la pantalla (botón de período y popover de
+   * semanas). `MESES` se queda en español porque alimenta `fechaLarga()` y
+   * `periodoEtiqueta`, que van al PDF/impresión y al nombre del archivo.
+   */
+  const MESES_LOCAL = $derived<Record<number, string>>({
+    1: t('inf.mes.1'), 2: t('inf.mes.2'), 3: t('inf.mes.3'), 4: t('inf.mes.4'),
+    5: t('inf.mes.5'), 6: t('inf.mes.6'), 7: t('inf.mes.7'), 8: t('inf.mes.8'),
+    9: t('inf.mes.9'), 10: t('inf.mes.10'), 11: t('inf.mes.11'), 12: t('inf.mes.12'),
+  });
+  function nombreMesLocal(m: number): string { return MESES_LOCAL[m] ?? ''; }
   function lunesDeISO(iso: string): string {
     const b = new Date(iso + 'T12:00:00');
     const off = (b.getDay() + 6) % 7;
@@ -200,7 +214,7 @@ $effect(() => {
 
   /** Etiqueta corta del período, para mostrar en el botón. */
   let resumenPeriodo = $derived(
-    periodo === 'semanal' ? `Semana ${semanaActiva}` : `${nombreMes(mesSeleccionado)} ${anoSeleccionado}`
+    periodo === 'semanal' ? t('asis.sinClases.semanaN', { n: semanaActiva }) : `${nombreMesLocal(mesSeleccionado)} ${anoSeleccionado}`
   );
 
   function elegirSemanaInforme(s: SemanaOpt) {
@@ -289,11 +303,20 @@ $effect(() => {
     fetchDiasSinClases();
   });
   /** Nota para PDF/impresión con los días sin clases del período. */
-  let diasSinClasesNota = $derived.by(() => {
-    const marcados = diasSinClases.filter(d => d.fecha >= fechaInicio && d.fecha <= fechaFin);
-    if (marcados.length === 0) return '';
-    return 'Sin clases: ' + marcados.map(d => `${fmtDM(d.fecha)} (${d.descripcion})`).join(', ');
-  });
+  let diasSinClasesMarcados = $derived(
+    diasSinClases.filter(d => d.fecha >= fechaInicio && d.fecha <= fechaFin)
+  );
+  /**
+   * Solo la lista, sin el prefijo: se muestra en el banner de pantalla
+   * (donde el prefijo va traducido aparte) y dentro de `diasSinClasesNota`.
+   */
+  let diasSinClasesLista = $derived(
+    diasSinClasesMarcados.map(d => `${fmtDM(d.fecha)} (${d.descripcion})`).join(', ')
+  );
+  /** Nota para PDF/impresión con los días sin clases del período (español). */
+  let diasSinClasesNota = $derived(
+    diasSinClasesMarcados.length === 0 ? '' : 'Sin clases: ' + diasSinClasesLista
+  );
   /**
    * Primer día hábil de la semana según la configuración del colegio, en el
    * formato de `Date.getDay()` (0 = domingo). Un colegio que trabaja de martes a
@@ -323,7 +346,9 @@ $effect(() => {
   }
 
   function motivoSinClases(fecha: string): string {
-    return diasSinClases.find(d => d.fecha === fecha)?.descripcion || 'Sin clases';
+    // La descripción es dato del usuario (motivo escrito a mano): NO se toca.
+    // Solo el fallback genérico se traduce.
+    return diasSinClases.find(d => d.fecha === fecha)?.descripcion || t('asis.sinClases.motivoVacio');
   }
   function motivoSinClasesEn(fecha: string): string { return motivoSinClases(fecha); }
 
@@ -387,7 +412,7 @@ $effect(() => {
       selectedColegio = activeColegio;
     } catch (error) {
       console.error("Error fetching catalogs:", error);
-      await emit("show-toast", { message: "❌ Error al cargar catálogos: " + error, type: "error" });
+      await emit("show-toast", { message: t('inf.error.catalogos', { msg: String(error) }), type: "error" });
     }
   }
 
@@ -400,7 +425,7 @@ $effect(() => {
       } else { selectedGrado = 0; }
     } catch (error) {
       console.error("Error fetching grados:", error);
-      await emit("show-toast", { message: "❌ Error al cargar grados: " + error, type: "error" });
+      await emit("show-toast", { message: t('inf.error.grados', { msg: String(error) }), type: "error" });
     }
   }
 
@@ -413,7 +438,7 @@ $effect(() => {
       } else { selectedSeccion = 0; }
     } catch (error) {
       console.error("Error fetching secciones:", error);
-      await emit("show-toast", { message: "❌ Error al cargar secciones: " + error, type: "error" });
+      await emit("show-toast", { message: t('inf.error.secciones', { msg: String(error) }), type: "error" });
     }
   }
 
@@ -435,7 +460,7 @@ $effect(() => {
       });
     } catch (error) {
       console.error("Error fetching attendance report:", error);
-      await emit("show-toast", { message: "❌ Error al cargar reporte: " + error, type: "error" });
+      await emit("show-toast", { message: t('inf.error.reporte', { msg: String(error) }), type: "error" });
     } finally {
       loading = false;
       fetching = false;
@@ -556,18 +581,18 @@ $effect(() => {
    */
   async function exportarPdfAsistencia() {
     if (!selectedAno || !fechaInicio || !fechaFin) {
-      await emit("show-toast", { message: "⚠️ Seleccione año y período", type: 'warning' });
+      await emit("show-toast", { message: t('inf.export.sinAno'), type: 'warning' });
       return;
     }
 
     try {
       exportandoMasivo = true;
-      progresoMasivo = 'Preparando...';
+      progresoMasivo = t('inf.export.preparando');
 
       const anoNombre = anos.find(a => a.id === selectedAno)?.nombre || String(selectedAno);
       const colegiosScope: CategoryItem[] = colegios;
       if (colegiosScope.length === 0) {
-        await emit("show-toast", { message: "⚠️ No hay colegios para exportar", type: 'warning' });
+        await emit("show-toast", { message: t('inf.export.sinColegios'), type: 'warning' });
         exportandoMasivo = false;
         return;
       }
@@ -587,7 +612,7 @@ $effect(() => {
         }
       }
       if (pares.length === 0) {
-        await emit("show-toast", { message: "⚠️ No se encontraron grados con secciones", type: 'warning' });
+        await emit("show-toast", { message: t('inf.export.sinGrados'), type: 'warning' });
         exportandoMasivo = false;
         return;
       }
@@ -597,7 +622,7 @@ $effect(() => {
 
       for (let i = 0; i < pares.length; i++) {
         const p = pares[i];
-        progresoMasivo = `${i + 1}/${pares.length} - ${p.gradoNombre} Seccion ${p.seccionNombre}`;
+        progresoMasivo = t('inf.export.progreso', { p: `${i + 1}/${pares.length}`, s: `${p.gradoNombre} - ${p.seccionNombre}` });
 
         if (!configCache.has(p.colegioId)) {
           try { configCache.set(p.colegioId, await invoke<ColegioDiasAsistencia>("get_colegio_dias_asistencia", { colegioId: p.colegioId })); }
@@ -636,12 +661,12 @@ $effect(() => {
       }
 
       if (tablas.length === 0) {
-        await emit("show-toast", { message: "⚠️ No se encontraron estudiantes en el período", type: 'warning' });
+        await emit("show-toast", { message: t('inf.export.sinEstudiantes'), type: 'warning' });
         exportandoMasivo = false;
         return;
       }
 
-      progresoMasivo = 'Generando PDF...';
+      progresoMasivo = t('inf.export.generandoPdf');
       const sanitize = (s: string) => s.replace(/[<>:"/\\|?*]/g, '_');
 
       const lineas = [`Período ${encabezadoPeriodo}`];
@@ -671,18 +696,18 @@ $effect(() => {
         }).catch(() => "");
         if (ruta) {
           try { await invoke('share_pdf', { path: ruta }); } catch { }
-          await emit("show-toast", { message: `✅ ${tablas.length} hojas en ${destino}/${subfolder}`, type: 'success' });
+          await emit("show-toast", { message: t('inf.export.hojas', { n: tablas.length, destino: `${destino}/${subfolder}` }), type: 'success' });
         } else {
-          await emit("show-toast", { message: `✅ PDF en la app (no se pudo copiar a Descargas)`, type: 'warning' });
+          await emit("show-toast", { message: t('inf.export.sinDescargas'), type: 'warning' });
         }
       } else {
         await openUrl("file:///" + baseDir.replace(/\\/g, "/"));
-        await emit("show-toast", { message: `✅ ${tablas.length} hojas en ${destino}/${subfolder}`, type: 'success' });
+        await emit("show-toast", { message: t('inf.export.hojas', { n: tablas.length, destino: `${destino}/${subfolder}` }), type: 'success' });
       }
     } catch (error) {
       console.error("Error al exportar PDF de asistencia:", error);
       exportandoMasivo = false;
-      await emit("show-toast", { message: "❌ Error al generar el PDF: " + (error instanceof Error ? error.message : String(error)), type: 'error' });
+      await emit("show-toast", { message: t('inf.error.pdf', { msg: error instanceof Error ? error.message : String(error) }), type: 'error' });
     }
   }
 
@@ -708,9 +733,9 @@ $effect(() => {
   }
 
   async function handlePrintWithIframe() {
-    if (reporteFiltrado.length === 0) { await emit("show-toast", { message: "⚠️ No hay datos para imprimir", type: 'warning' }); return; }
+    if (reporteFiltrado.length === 0) { await emit("show-toast", { message: t('inf.print.sinDatos'), type: 'warning' }); return; }
     try {
-      await emit("show-toast", { message: "✅ Preparando reporte...", type: 'success' });
+      await emit("show-toast", { message: t('inf.print.preparando'), type: 'success' });
       const anoNombrePrint = anos.find(a => a.id === selectedAno)?.nombre || String(selectedAno);
       const fechasCols = getFechasUnicas();
       const headers = ["Estudiante", "Sexo", ...fechasCols.map(f => f.split('-').slice(1).reverse().join('/')), "P", "A", "J"];
@@ -768,7 +793,7 @@ $effect(() => {
       </body></html>`;
     } catch (error) {
       console.error("Error generando reporte:", error);
-      await emit("show-toast", { message: "❌ Error al generar el reporte", type: 'error' });
+      await emit("show-toast", { message: t('inf.error.reporteGen'), type: 'error' });
     }
   }
 
@@ -776,7 +801,7 @@ $effect(() => {
 
 
 <div class="page-container" style="height: 100%; min-height: 0;">
-  {#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder="Buscar..." />{/if}
+  {#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder={t('inf.buscar')} />{/if}
   <style>
     .summary-card{background:rgba(255,255,255,0.02);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:0.5rem 0.25rem;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:60px;min-width:0;transition:all 0.25s cubic-bezier(0.4,0,0.2,1);user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;position:relative;overflow:hidden;cursor:pointer}
     .summary-card:hover{transform:translateY(-2px);border-color:rgba(255,255,255,0.12);background:rgba(255,255,255,0.04)}
@@ -845,7 +870,7 @@ $effect(() => {
       <FilterContainer {isMobile} style="padding:{isAndroidMobile ? '0.5rem' : ''}">
         <div style="display:flex;{isAndroidMobile ? 'flex-wrap:wrap' : 'flex-wrap:nowrap'};gap:0.4rem;width:100%;align-items:flex-end">
           {#if !isAndroidMobile && showAnoDropdown}
-            <FilterGroup label="Año Lectivo:" {isMobile}>
+            <FilterGroup label={t('inf.filtro.ano')} {isMobile}>
               <SelectChip
                 value={selectedAno}
                 onchange={(v) => { selectedAno = Number(v); }}
@@ -853,32 +878,32 @@ $effect(() => {
             </FilterGroup>
           {/if}
           {#if !isAndroidMobile}
-            <FilterGroup label="Período:" {isMobile}>
+            <FilterGroup label={t('inf.filtro.periodo')} {isMobile}>
               <SelectChip
                 value={periodo}
                 onchange={(v) => { periodo = String(v) as typeof periodo; }}
                 options={[
-                  { value: 'mensual', label: 'Mensual' },
-                  { value: 'semanal', label: 'Semanal' },
+                  { value: 'mensual', label: t('asis.periodo.mensual') },
+                  { value: 'semanal', label: t('asis.periodo.semanal') },
                 ]} />
             </FilterGroup>
           {/if}
 
           {#if periodo === "semanal"}
             {#if !isAndroidMobile}
-              <FilterGroup label="Semana de:" {isMobile}>
+              <FilterGroup label={t('asis.periodo.semanaDe')} {isMobile}>
                 <div class="pop-wrap" bind:this={popRootEl}>
                   <button type="button" class="filter-select pop-trigger" onclick={() => popSemanaAbierta = !popSemanaAbierta}>
-                    <span>Semana {semanaActiva} · {semanasOpts.find(s => s.n === semanaActiva)?.rango ?? ''}</span>
+                    <span>{t('inf.sem.semanaRango', { n: semanaActiva, rango: semanasOpts.find(s => s.n === semanaActiva)?.rango ?? '' })}</span>
                     <span class="pop-caret">▾</span>
                   </button>
 
                   {#if popSemanaAbierta}
                     <div class="pop-panel" tabindex="-1">
                       <div class="pop-mes">
-                        <button type="button" class="pop-nav" onclick={() => cambiarMesSemInforme(-1)} title="Mes anterior">‹</button>
-                        <span class="pop-mes-txt">{nombreMes(mesSeleccionado)} {anoSeleccionado}</span>
-                        <button type="button" class="pop-nav" onclick={() => cambiarMesSemInforme(1)} title="Mes siguiente">›</button>
+                        <button type="button" class="pop-nav" onclick={() => cambiarMesSemInforme(-1)} title={t('inf.sem.mesAnterior')}>‹</button>
+                        <span class="pop-mes-txt">{nombreMesLocal(mesSeleccionado)} {anoSeleccionado}</span>
+                        <button type="button" class="pop-nav" onclick={() => cambiarMesSemInforme(1)} title={t('inf.sem.mesSiguiente')}>›</button>
                       </div>
 
                       <div class="pop-sems">
@@ -889,7 +914,7 @@ $effect(() => {
                             class:sel={semanaActiva === s.n}
                             onclick={() => elegirSemanaInforme(s)}
                           >
-                            <span class="pop-sem-n">Semana {s.n}</span>
+                            <span class="pop-sem-n">{t('asis.sinClases.semanaN', { n: s.n })}</span>
                             <span class="pop-sem-rango">{s.rango}</span>
                           </button>
                         {/each}
@@ -901,15 +926,15 @@ $effect(() => {
             {/if}
           {:else}
             {#if !isAndroidMobile}
-              <FilterGroup label="Mes:" {isMobile}>
+              <FilterGroup label={t('asis.periodo.mes')} {isMobile}>
                 <SelectChip
                   value={mesSeleccionado}
                   onchange={(v) => { mesSeleccionado = Number(v); }}
                   options={[
-                    { value: 1, label: 'Enero' }, { value: 2, label: 'Febrero' }, { value: 3, label: 'Marzo' },
-                    { value: 4, label: 'Abril' }, { value: 5, label: 'Mayo' }, { value: 6, label: 'Junio' },
-                    { value: 7, label: 'Julio' }, { value: 8, label: 'Agosto' }, { value: 9, label: 'Septiembre' },
-                    { value: 10, label: 'Octubre' }, { value: 11, label: 'Noviembre' }, { value: 12, label: 'Diciembre' },
+                    { value: 1, label: t('inf.mes.1') }, { value: 2, label: t('inf.mes.2') }, { value: 3, label: t('inf.mes.3') },
+                    { value: 4, label: t('inf.mes.4') }, { value: 5, label: t('inf.mes.5') }, { value: 6, label: t('inf.mes.6') },
+                    { value: 7, label: t('inf.mes.7') }, { value: 8, label: t('inf.mes.8') }, { value: 9, label: t('inf.mes.9') },
+                    { value: 10, label: t('inf.mes.10') }, { value: 11, label: t('inf.mes.11') }, { value: 12, label: t('inf.mes.12') },
                   ]} />
               </FilterGroup>
             {/if}
@@ -917,45 +942,45 @@ $effect(() => {
 
           {#if isAndroidMobile}
             <div style="width:100%;padding:0.1rem 0 0.3rem;">
-              <SearchFab bind:value={searchTerm} placeholder="Buscar..." conMargen={false} />
+              <SearchFab bind:value={searchTerm} placeholder={t('inf.buscar')} conMargen={false} />
             </div>
-            <button onclick={() => showFiltersModal = true} title="Filtros (Período · Año · Colegio · Grado · Sección · Sexo · Semana/Mes)"
+            <button onclick={() => showFiltersModal = true} title={t('inf.filtrosTitle')}
               style="width:100%;height:42px;padding:0 0.9rem;font-size:0.85rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#e2e8f0;border-radius:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all 0.15s;white-space:nowrap;margin-bottom:0.3rem"
               onmouseenter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.08)'; }}
               onmouseleave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}>
               <span>🔍</span>
-              <span style="overflow:hidden;text-overflow:ellipsis;">{(colegios.find(c => c.id === selectedColegio)?.nombre)?.split(' ')[0] || 'Colegio'} · {grados.find(g => g.id === selectedGrado)?.nombre || 'Grado'} · {secciones.find(s => s.id === selectedSeccion)?.nombre || 'Sección'}</span>
+              <span style="overflow:hidden;text-overflow:ellipsis;">{(colegios.find(c => c.id === selectedColegio)?.nombre)?.split(' ')[0] || t('inf.fallback.colegio')} · {grados.find(g => g.id === selectedGrado)?.nombre || t('inf.fallback.grado')} · {secciones.find(s => s.id === selectedSeccion)?.nombre || t('inf.fallback.seccion')}</span>
             </button>
           {:else}
-            <FilterGroup label="Colegio:" {isMobile}>
+            <FilterGroup label={t('inf.filtro.colegio')} {isMobile}>
               <SelectChip
                 value={selectedColegio}
                 onchange={(v) => { selectedColegio = Number(v); }}
                 options={colegios.map(c => ({ value: c.id, label: c.nombre }))} />
             </FilterGroup>
 
-            <FilterGroup label="Grado:" {isMobile}>
+            <FilterGroup label={t('inf.filtro.grado')} {isMobile}>
               <SelectChip
                 value={selectedGrado}
                 onchange={(v) => { selectedGrado = Number(v); }}
                 options={grados.map(g => ({ value: g.id, label: g.nombre }))} />
             </FilterGroup>
 
-            <FilterGroup label="Sección:" {isMobile}>
+            <FilterGroup label={t('inf.filtro.seccion')} {isMobile}>
               <SelectChip
                 value={selectedSeccion}
                 onchange={(v) => { selectedSeccion = Number(v); }}
                 options={secciones.map(s => ({ value: s.id, label: s.nombre }))} />
             </FilterGroup>
 
-            <FilterGroup label="Sexo:" {isMobile}>
+            <FilterGroup label={t('inf.filtro.sexo')} {isMobile}>
               <SelectChip
                 value={selectedSexo}
                 onchange={(v) => { selectedSexo = String(v); }}
                 options={[
-                  { value: '', label: 'Todos' },
-                  { value: 'M', label: 'Masculino' },
-                  { value: 'F', label: 'Femenino' },
+                  { value: '', label: t('asis.filtro.todos') },
+                  { value: 'M', label: t('asis.filtros.masculino') },
+                  { value: 'F', label: t('asis.filtros.femenino') },
                 ]} />
             </FilterGroup>
           {/if}
@@ -964,13 +989,13 @@ $effect(() => {
             {#if !isAndroid}
               <button onclick={handlePrintWithIframe} disabled={reporteFiltrado.length === 0 || loading}
                 style="height:42px;padding:0 1.25rem;font-size:0.85rem;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;flex-shrink:0;gap:6px;border:none;border-radius:8px;color:#fff;font-weight:700;cursor:{reporteFiltrado.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(16,185,129,0.4);letter-spacing:0.3px;white-space:nowrap;opacity:{reporteFiltrado.length === 0 || loading ? 0.7 : 1}"
-                title={isMobile ? "Compartir reporte" : "Imprimir reporte"}>
+                title={isMobile ? t('inf.btn.compartirReporte') : t('inf.btn.imprimirReporte')}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                Imprimir
+                {t('inf.btn.imprimir')}
               </button>
             {/if}
             <button onclick={exportarPdfAsistencia} disabled={exportandoMasivo || !selectedAno}
-              title="Genera un único PDF con una hoja por cada grado y sección de todos los colegios del año lectivo, para el período y la asignatura seleccionados"
+              title={t('inf.btn.exportarTitle')}
               style="height:42px;padding:0 {isMobile ? '0.55rem' : '0.95rem'};display:flex;align-items:center;gap:0.5rem;flex-shrink:0;border:1px solid rgba(129,140,248,0.5);border-radius:10px;background:linear-gradient(135deg,rgba(99,102,241,0.28),rgba(56,189,248,0.22));backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:#e0e7ff;font-weight:700;font-size:{isMobile ? '0.78rem' : '0.8rem'};cursor:{exportandoMasivo || !selectedAno ? 'default' : 'pointer'};box-shadow:0 6px 18px rgba(79,70,229,0.28);white-space:nowrap;opacity:{exportandoMasivo || !selectedAno ? 0.65 : 1};transition:transform 0.15s ease,box-shadow 0.2s ease,background 0.2s ease"
               onmouseenter={(e) => { if (!exportandoMasivo) e.currentTarget.style.transform = 'translateY(-1px)'; }}
               onmouseleave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
@@ -983,8 +1008,8 @@ $effect(() => {
                 <span>{exportandoMasivo ? progresoMasivo : 'PDF'}</span>
               {:else}
                 <span style="display:flex;flex-direction:column;align-items:flex-start;line-height:1.15;gap:1px;min-width:0">
-                  <span>{exportandoMasivo ? progresoMasivo : 'Exportar Todo'}</span>
-                  <span style="font-size:0.6rem;font-weight:600;color:#a5b4fc;letter-spacing:0.2px;max-width:150px;overflow:hidden;text-overflow:ellipsis">{exportandoMasivo ? 'Generando PDF' : resumenPeriodo}</span>
+                  <span>{exportandoMasivo ? progresoMasivo : t('inf.btn.exportarTodo')}</span>
+                  <span style="font-size:0.6rem;font-weight:600;color:#a5b4fc;letter-spacing:0.2px;max-width:150px;overflow:hidden;text-overflow:ellipsis">{exportandoMasivo ? t('inf.btn.generandoPdf') : resumenPeriodo}</span>
                 </span>
               {/if}
             </button>
@@ -1018,19 +1043,19 @@ $effect(() => {
           </div>
         </div>
         <div style="display:flex;align-items:center;justify-content:space-around;gap:0.3rem;background:rgba(255,255,255,0.05);border-radius:8px;padding:0 0.3rem;flex:1;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none">
-          <div onclick={() => handleCardClick('Total', statsTotal)} style="display:flex;align-items:center;gap:2px;cursor:pointer">
+          <div onclick={() => handleCardClick(t('asis.stats.total'), statsTotal)} style="display:flex;align-items:center;gap:2px;cursor:pointer">
             <span style="color:#06b6d4;font-weight:bold;font-size:0.8rem">E:</span>
             <span style="color:#fff;font-weight:bold;font-size:0.9rem">{statsTotal.total}</span>
           </div>
-          <div onclick={() => handleCardClick('Presentes', statsP)} style="display:flex;align-items:center;gap:2px;cursor:pointer">
+          <div onclick={() => handleCardClick(t('inf.stats.presentes'), statsP)} style="display:flex;align-items:center;gap:2px;cursor:pointer">
             <span style="color:#10b981;font-weight:bold;font-size:0.8rem">P:</span>
             <span style="color:#fff;font-weight:bold;font-size:0.9rem">{statsP.total}</span>
           </div>
-          <div onclick={() => handleCardClick('Ausentes', statsA)} style="display:flex;align-items:center;gap:2px;cursor:pointer">
+          <div onclick={() => handleCardClick(t('inf.stats.ausentes'), statsA)} style="display:flex;align-items:center;gap:2px;cursor:pointer">
             <span style="color:#ef4444;font-weight:bold;font-size:0.8rem">A:</span>
             <span style="color:#fff;font-weight:bold;font-size:0.9rem">{statsA.total}</span>
           </div>
-          <div onclick={() => handleCardClick('Justificados', statsJ)} style="display:flex;align-items:center;gap:2px;cursor:pointer">
+          <div onclick={() => handleCardClick(t('inf.stats.justificados'), statsJ)} style="display:flex;align-items:center;gap:2px;cursor:pointer">
             <span style="color:#f59e0b;font-weight:bold;font-size:0.8rem">J:</span>
             <span style="color:#fff;font-weight:bold;font-size:0.9rem">{statsJ.total}</span>
           </div>
@@ -1040,32 +1065,32 @@ $effect(() => {
 
     {#if !isMobile && reporteFiltrado.length > 0}
       <div class="ireport-grid" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0.4rem;margin:0.5rem 0;padding:0;width:100%;max-width:100%">
-        <div class="summary-card" onclick={() => handleCardClick('Total', statsTotal)}>
+        <div class="summary-card" onclick={() => handleCardClick(t('asis.stats.total'), statsTotal)}>
           <div class="card-accent" style="background:#06b6d4"></div>
           <span class="card-icon">📋</span>
           <span class="card-value">{statsTotal.total}</span>
-          <span class="card-label">Total</span>
+          <span class="card-label">{t('asis.stats.total')}</span>
           <div class="card-gender"><span class="gender-m">M:{statsTotal.m}</span><span class="gender-f">F:{statsTotal.f}</span></div>
         </div>
-        <div class="summary-card" onclick={() => handleCardClick('Presentes', statsP)}>
+        <div class="summary-card" onclick={() => handleCardClick(t('inf.stats.presentes'), statsP)}>
           <div class="card-accent" style="background:#10b981"></div>
           <span class="card-icon">✅</span>
           <span class="card-value">{statsP.total}</span>
-          <span class="card-label">Presentes</span>
+          <span class="card-label">{t('inf.stats.presentes')}</span>
           <div class="card-gender"><span class="gender-m">M:{statsP.m}</span><span class="gender-f">F:{statsP.f}</span></div>
         </div>
-        <div class="summary-card" onclick={() => handleCardClick('Ausentes', statsA)}>
+        <div class="summary-card" onclick={() => handleCardClick(t('inf.stats.ausentes'), statsA)}>
           <div class="card-accent" style="background:#ef4444"></div>
           <span class="card-icon">❌</span>
           <span class="card-value">{statsA.total}</span>
-          <span class="card-label">Ausentes</span>
+          <span class="card-label">{t('inf.stats.ausentes')}</span>
           <div class="card-gender"><span class="gender-m">M:{statsA.m}</span><span class="gender-f">F:{statsA.f}</span></div>
         </div>
-        <div class="summary-card" onclick={() => handleCardClick('Justificados', statsJ)}>
+        <div class="summary-card" onclick={() => handleCardClick(t('inf.stats.justificados'), statsJ)}>
           <div class="card-accent" style="background:#f59e0b"></div>
           <span class="card-icon">⚠️</span>
           <span class="card-value">{statsJ.total}</span>
-          <span class="card-label">Justificados</span>
+          <span class="card-label">{t('inf.stats.justificados')}</span>
           <div class="card-gender"><span class="gender-m">M:{statsJ.m}</span><span class="gender-f">F:{statsJ.f}</span></div>
         </div>
       </div>
@@ -1075,26 +1100,26 @@ $effect(() => {
       <div class="dsc-banner">
         <div class="dsc-icon">🚫</div>
         <div style="flex:1;min-width:0;text-align:left">
-          <h3 style="margin:0 0 .25rem;color:#fbbf24;font-size:1.05rem">No hubo clases en todo el período</h3>
-          <p style="margin:0;color:#e2e8f0;font-size:.88rem;font-weight:600">{diasSinClasesNota.replace('Sin clases: ', '')}</p>
-          <p style="margin:.25rem 0 0;color:#94a3b8;font-size:.75rem;text-transform:capitalize">{fechaInicio} al {fechaFin}</p>
+          <h3 style="margin:0 0 .25rem;color:#fbbf24;font-size:1.05rem">{t('inf.dsc.titulo')}</h3>
+          <p style="margin:0;color:#e2e8f0;font-size:.88rem;font-weight:600">{diasSinClasesLista}</p>
+          <p style="margin:.25rem 0 0;color:#94a3b8;font-size:.75rem;text-transform:capitalize">{t('inf.dsc.rango', { a: fechaInicio, b: fechaFin })}</p>
         </div>
-        <span class="dsc-badge">{(() => { const c = diasSinClases.find(d => d.fecha >= fechaInicio && d.fecha <= fechaFin); return c ? (c.grado_id === null ? '🏫 Todo el colegio' : '🚪 Esta sección') : ''; })()}</span>
+        <span class="dsc-badge">{(() => { const c = diasSinClases.find(d => d.fecha >= fechaInicio && d.fecha <= fechaFin); return c ? (c.grado_id === null ? t('asis.sinClases.badgeTodo') : t('asis.sinClases.badgeSeccion')) : ''; })()}</span>
       </div>
     {/if}
 
     <ScrollableTable>
       {#if loading}
-        <div class="loading-container">Cargando reporte...</div>
+        <div class="loading-container">{t('inf.vacio.cargando')}</div>
       {:else if reporteFiltrado.length === 0}
         <div style="text-align:center;padding:5rem 2rem;border:2px dashed rgba(255,255,255,0.1);border-radius:16px;margin:0 1rem">
           <div style="font-size:3rem;margin-bottom:1rem">{searchTerm ? '🔍' : '📊'}</div>
-          <h4 style="color:#cbd5e1;margin-bottom:0.5rem">{searchTerm ? 'No se encontraron resultados' : 'No hay datos para mostrar'}</h4>
+          <h4 style="color:#cbd5e1;margin-bottom:0.5rem">{searchTerm ? t('inf.vacio.resultados') : t('inf.vacio.datos')}</h4>
           <p style="color:#94a3b8;max-width:400px;margin:0 auto">
-            {searchTerm ? `No se encontró ningún estudiante que coincida con "${searchTerm}"` : 'No se encontraron registros de asistencia para los filtros seleccionados.'}
+            {searchTerm ? t('inf.vacio.busqueda', { q: searchTerm }) : t('inf.vacio.registros')}
           </p>
           {#if searchTerm}
-            <button class="secondary" onclick={() => searchTerm = ""} style="margin-top:1.5rem;padding:0.5rem 1rem">Limpiar búsqueda</button>
+            <button class="secondary" onclick={() => searchTerm = ""} style="margin-top:1.5rem;padding:0.5rem 1rem">{t('asis.limpiarBusqueda')}</button>
           {/if}
         </div>
       {:else if isAndroidMobile}
@@ -1110,11 +1135,11 @@ $effect(() => {
                 <div style="display:flex;gap:0.4rem;overflow-x:auto;padding-bottom:0.2rem">
                   {#each fechasColumnas as fecha}
                     {@const est = getEstadoEnFecha(item, fecha)}
-                    {@const dayName = new Date(fecha + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short' }).replace('.','')}
+                    {@const dayName = new Date(fecha + "T12:00:00").toLocaleDateString(tagLocale(), { weekday: 'short' }).replace('.','')}
                     <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;min-width:68px">
                       <span style="font-size:0.55rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.2px;white-space:nowrap">{dayName}</span>
                       <div class="semanal-status" class:estado-p={est === 'P'} class:estado-a={est === 'A'} class:estado-j={est === 'J'}>
-                        {est === 'P' ? 'Pres' : est === 'A' ? 'Aus' : est === 'J' ? 'Just' : '—'}
+                        {est === 'P' ? t('inf.stats.pres') : est === 'A' ? t('inf.stats.aus') : est === 'J' ? t('inf.stats.just') : '—'}
                       </div>
                     </div>
                   {/each}
@@ -1124,7 +1149,7 @@ $effect(() => {
                   {#each fechasColumnas as fecha}
                     {@const est = getEstadoEnFecha(item, fecha)}
                     <div class="mensual-chip" class:estado-p={est === 'P'} class:estado-a={est === 'A'} class:estado-j={est === 'J'}
-                      title={new Date(fecha + "T12:00:00").toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}>
+                      title={new Date(fecha + "T12:00:00").toLocaleDateString(tagLocale(), { day: 'numeric', month: 'short' })}>
                       {new Date(fecha + "T12:00:00").getDate()}
                     </div>
                   {/each}
@@ -1138,12 +1163,12 @@ $effect(() => {
           <thead>
             <tr>
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
-              <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;width:220px">Estudiante</th>
+              <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;width:220px">{t('inf.tabla.estudiante')}</th>
               {#each fechasVisibles as f}
                 <th class:dsc-th={esSinClases(f)}
                   style="min-width:105px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;font-size:0.7rem;font-weight:600;padding:0.3rem 0.15rem"
                   title={esSinClases(f) ? motivoSinClasesEn(f) : undefined}>
-                  {esSinClases(f) ? '🚫 ' : ''}{new Date(f + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric' }).replace('.','').replace(',','')}
+                  {esSinClases(f) ? '🚫 ' : ''}{new Date(f + "T12:00:00").toLocaleDateString(tagLocale(), { weekday: 'short', day: 'numeric' }).replace('.','').replace(',','')}
                 </th>
               {/each}
             </tr>
@@ -1154,7 +1179,7 @@ $effect(() => {
                 <td><span class="student-number-badge">{index + 1}</span></td>
                 <td style="text-align:left">
                   <span style="font-weight:bold;font-size:0.85rem;cursor:pointer;white-space:normal;word-break:break-word;line-height:1.25" onclick={() => selectedStudentDetail = item}>{item.nombre}</span>
-                  <div style="font-size:0.65rem;opacity:0.6">{item.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
+                  <div style="font-size:0.65rem;opacity:0.6">{item.sexo === 'F' ? t('asis.filtros.femenino') : t('asis.filtros.masculino')}</div>
                 </td>
                 {#each fechasVisibles as f}
                   {#if esSinClases(f)}
@@ -1169,11 +1194,11 @@ $effect(() => {
                     {@const obs = getObservacionEnFecha(item, f)}
                     <td style="text-align:center;padding:0.15rem;min-width:105px">
                       <div class="semanal-status" class:estado-p={est === 'P'} class:estado-a={est === 'A'} class:estado-j={est === 'J'}
-                        title={est === 'P' ? 'Presente' : est === 'A' ? 'Ausente' : est === 'J' ? 'Justificado' : 'Sin registro'}>
-                        {est === 'P' ? 'Presente' : est === 'A' ? 'Ausente' : est === 'J' ? 'Justificado' : '—'}
+                        title={est === 'P' ? t('asis.estado.presente') : est === 'A' ? t('asis.estado.ausente') : est === 'J' ? t('asis.estado.justificado') : t('inf.tabla.sinRegistro')}>
+                        {est === 'P' ? t('asis.estado.presente') : est === 'A' ? t('asis.estado.ausente') : est === 'J' ? t('asis.estado.justificado') : '—'}
                       </div>
                       {#if obs}
-                        <div class="semanal-obs" style="cursor:default" title={`Observación: ${obs}`}>{obs}</div>
+                        <div class="semanal-obs" style="cursor:default" title={t('inf.tabla.observacion', { x: obs })}>{obs}</div>
                       {/if}
                     </td>
                   {/if}
@@ -1187,15 +1212,15 @@ $effect(() => {
           <thead>
             <tr>
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
-              <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;min-width:200px">Estudiante</th>
+              <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;min-width:200px">{t('inf.tabla.estudiante')}</th>
               {#each fechasVisibles as f, iFecha}
                 <th class:dsc-th={esSinClases(f)} class:sep-semana={esInicioSemana(f, iFecha)}
                   style="font-size:0.7rem;white-space:nowrap;position:sticky;top:0;background:#1e293b;z-index:10;min-width:48px;padding:0.35rem 0.45rem"
-                  title="{esSinClases(f) ? motivoSinClasesEn(f) : ''}{numeroSemanaDe(f) ? `Semana ${numeroSemanaDe(f)}` : ''}">
+                  title="{esSinClases(f) ? motivoSinClasesEn(f) : ''}{numeroSemanaDe(f) ? ` ${t('asis.sinClases.semanaN', { n: numeroSemanaDe(f) as number })}` : ''}">
                   {#if esInicioSemana(f, iFecha) && numeroSemanaDe(f)}
                     <div class="semana-badge">S{numeroSemanaDe(f)}</div>
                   {/if}
-                  <div style="font-size:0.6rem;opacity:0.7">{esSinClases(f) ? '🚫 ' : ''}{new Date(f + "T12:00:00").toLocaleDateString('es-ES', { weekday: 'short' })}</div>
+                  <div style="font-size:0.6rem;opacity:0.7">{esSinClases(f) ? '🚫 ' : ''}{new Date(f + "T12:00:00").toLocaleDateString(tagLocale(), { weekday: 'short' })}</div>
                   {f.split('-').slice(1).reverse().join('/')}
                 </th>
               {/each}
@@ -1216,7 +1241,7 @@ $effect(() => {
                     <span style="font-size:1.1rem;flex-shrink:0">{item.sexo === 'F' ? '👩' : '👨'}</span>
                     <span style="white-space:normal;word-break:break-word;line-height:1.25">{item.nombre}</span>
                   </div>
-                  <div style="font-size:0.7rem;opacity:0.6;margin-left:22px">{item.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
+                  <div style="font-size:0.7rem;opacity:0.6;margin-left:22px">{item.sexo === 'F' ? t('asis.filtros.femenino') : t('asis.filtros.masculino')}</div>
                 </td>
                 {#each fechasVisibles as f, iFecha}
                   {#if esSinClases(f)}
@@ -1250,21 +1275,21 @@ $effect(() => {
         <h3 style="margin-top:0;color:var(--primary-color);font-size:1.2rem;margin-bottom:1rem">📊 {showSummaryModal.type}</h3>
         <div style="display:flex;flex-direction:column;gap:0.8rem">
           <div style="background:rgba(255,255,255,0.05);padding:0.8rem;border-radius:10px;display:flex;justify-content:space-between;align-items:center">
-            <span style="color:#94a3b8">Total:</span>
+            <span style="color:#94a3b8">{t('asis.filtros.total')}</span>
             <span style="font-size:1.3rem;font-weight:bold;color:#fff">{showSummaryModal.stats?.total}</span>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem">
             <div style="background:rgba(96,165,250,0.1);padding:0.8rem;border-radius:10px;display:flex;flex-direction:column;gap:2px">
-              <span style="color:#60a5fa;font-size:0.8rem">Masculino</span>
+              <span style="color:#60a5fa;font-size:0.8rem">{t('asis.filtros.masculino')}</span>
               <span style="font-size:1.2rem;font-weight:bold;color:#60a5fa">{showSummaryModal.stats?.m}</span>
             </div>
             <div style="background:rgba(244,114,182,0.1);padding:0.8rem;border-radius:10px;display:flex;flex-direction:column;gap:2px">
-              <span style="color:#f472b6;font-size:0.8rem">Femenino</span>
+              <span style="color:#f472b6;font-size:0.8rem">{t('asis.filtros.femenino')}</span>
               <span style="font-size:1.2rem;font-weight:bold;color:#f472b6">{showSummaryModal.stats?.f}</span>
             </div>
           </div>
         </div>
-        <button class="primary" onclick={() => showSummaryModal = { ...showSummaryModal, show: false }} style="margin-top:1.5rem;width:100%">Cerrar</button>
+        <button class="primary" onclick={() => showSummaryModal = { ...showSummaryModal, show: false }} style="margin-top:1.5rem;width:100%">{t('comun.cerrar')}</button>
       </div>
     </div>
   {/if}
@@ -1280,30 +1305,30 @@ $effect(() => {
   >
     {#snippet extras()}
       <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
-        <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Período:</label>
+        <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('inf.filtro.periodo')}</label>
         <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px" bind:value={periodo}>
-          <option value="mensual">Mensual</option>
-          <option value="semanal">Semanal</option>
+          <option value="mensual">{t('asis.periodo.mensual')}</option>
+          <option value="semanal">{t('asis.periodo.semanal')}</option>
         </select>
       </div>
       {#if periodo === "semanal"}
         <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
-          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Semana de:</label>
+          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('asis.periodo.semanaDe')}</label>
           <button type="button" class="filter-select filter-select-solid pop-trigger"
             onclick={() => { showFiltersModal = false; setTimeout(() => popSemanaAbierta = true, 50); }}
             style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px;text-align:left;cursor:pointer">
-            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">Semana {semanaActiva} · {semanasOpts.find(s => s.n === semanaActiva)?.rango ?? ''}</span>
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">{t('inf.sem.semanaRango', { n: semanaActiva, rango: semanasOpts.find(s => s.n === semanaActiva)?.rango ?? '' })}</span>
           </button>
         </div>
       {/if}
       {#if periodo === "mensual"}
         <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
-          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">Mes:</label>
+          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('asis.periodo.mes')}</label>
           <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px" bind:value={mesSeleccionado}>
-            <option value={1}>Enero</option><option value={2}>Febrero</option><option value={3}>Marzo</option>
-            <option value={4}>Abril</option><option value={5}>Mayo</option><option value={6}>Junio</option>
-            <option value={7}>Julio</option><option value={8}>Agosto</option><option value={9}>Septiembre</option>
-            <option value={10}>Octubre</option><option value={11}>Noviembre</option><option value={12}>Diciembre</option>
+            <option value={1}>{t('inf.mes.1')}</option><option value={2}>{t('inf.mes.2')}</option><option value={3}>{t('inf.mes.3')}</option>
+            <option value={4}>{t('inf.mes.4')}</option><option value={5}>{t('inf.mes.5')}</option><option value={6}>{t('inf.mes.6')}</option>
+            <option value={7}>{t('inf.mes.7')}</option><option value={8}>{t('inf.mes.8')}</option><option value={9}>{t('inf.mes.9')}</option>
+            <option value={10}>{t('inf.mes.10')}</option><option value={11}>{t('inf.mes.11')}</option><option value={12}>{t('inf.mes.12')}</option>
           </select>
         </div>
       {/if}
@@ -1316,9 +1341,9 @@ $effect(() => {
         <div style="width:60px;height:60px;border-radius:50%;background-color:var(--primary-light);color:var(--primary-color);display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin:0 auto">👤</div>
         <div>
           <h3 style="margin:0.5rem 0;color:#fff;font-size:1.2rem">{selectedStudentDetail.nombre}</h3>
-          <div style="display:inline-block;padding:0.3rem 0.8rem;border-radius:20px;background:{selectedStudentDetail.sexo === 'M' ? 'rgba(96,165,250,0.1)' : 'rgba(244,114,182,0.1)'};color:{selectedStudentDetail.sexo === 'M' ? '#60a5fa' : '#f472b6'};font-size:0.85rem;font-weight:600;margin-top:0.3rem">{selectedStudentDetail.sexo === 'M' ? 'Masculino' : 'Femenino'}</div>
+          <div style="display:inline-block;padding:0.3rem 0.8rem;border-radius:20px;background:{selectedStudentDetail.sexo === 'M' ? 'rgba(96,165,250,0.1)' : 'rgba(244,114,182,0.1)'};color:{selectedStudentDetail.sexo === 'M' ? '#60a5fa' : '#f472b6'};font-size:0.85rem;font-weight:600;margin-top:0.3rem">{selectedStudentDetail.sexo === 'M' ? t('asis.filtros.masculino') : t('asis.filtros.femenino')}</div>
         </div>
-        <button class="primary" onclick={() => selectedStudentDetail = null} style="margin-top:1rem;width:100%">Cerrar</button>
+        <button class="primary" onclick={() => selectedStudentDetail = null} style="margin-top:1rem;width:100%">{t('comun.cerrar')}</button>
       </div>
     </div>
   {/if}
@@ -1327,11 +1352,11 @@ $effect(() => {
     <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background-color:rgba(0,0,0,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99999;padding:20px">
       <div style="background-color:white;border-radius:12px;width:100%;max-width:900px;height:90vh;display:flex;flex-direction:column;overflow:hidden">
         <div style="padding:15px 20px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;background-color:#f8fafc">
-          <span style="font-size:16px;font-weight:600;color:#1e293b">Vista Previa de Impresión</span>
+          <span style="font-size:16px;font-weight:600;color:#1e293b">{t('inf.print.titulo')}</span>
           <div style="display:flex;gap:10px">
             <button onclick={() => { const iframe = document.querySelector('iframe'); if (iframe?.contentWindow) iframe.contentWindow.print(); }}
-              style="padding:8px 16px;background-color:#10b981;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:500">🖨️ Imprimir</button>
-            <button onclick={() => printHtml = null} style="padding:8px 16px;background-color:#64748b;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:500">Cerrar</button>
+              style="padding:8px 16px;background-color:#10b981;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:500">{t('inf.print.imprimir')}</button>
+            <button onclick={() => printHtml = null} style="padding:8px 16px;background-color:#64748b;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:500">{t('comun.cerrar')}</button>
           </div>
         </div>
         <iframe srcdoc={printHtml} style="flex:1;width:100%;border:none" title="Print Preview" />
