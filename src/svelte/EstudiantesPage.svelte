@@ -499,7 +499,7 @@ async function fetchData(preserveFilters = false) {
       await emit("show-toast", { message: `✅ Importación Finalizada\nÉxito: ${importedCount} | Omitidos: ${skippedCount} | Errores: ${errors}`, type: 'success' });
     } catch (err) {
       console.error("Error crítico en importación:", err);
-      await emit("show-toast", { message: "❌ Error de Importación: " + ((err as any).message || "Fallo al abrir el archivo"), type: 'error' });
+      await emit("show-toast", { message: t('est.import.error', { msg: (err as any).message || t('est.import.errorFallback') }), type: 'error' });
     } finally { isImporting = false; }
   }
 
@@ -519,7 +519,7 @@ async function fetchData(preserveFilters = false) {
       const path = await save({ filters: [{ name: "Excel", extensions: ["xlsx"] }], defaultPath: "plantilla_importacion_estudiantes.xlsx" });
       if (path) {
         await writeFile(path, out);
-        emit("show-toast", { message: `✅ Plantilla guardada en ${path}`, type: "success" });
+        emit("show-toast", { message: t('est.plantilla.guardada', { ruta: path }), type: "success" });
         openUrl(path);
       }
     } catch {
@@ -645,42 +645,42 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
         onDataChange('estudiante', { immediate: true });
         await emit("student-updated", { timestamp: Date.now() });
         await emit("catalog-updated", { timestamp: Date.now() });
-        await emit("show-toast", { message: '✅ Estudiante actualizado correctamente', type: 'success' });
+        await emit("show-toast", { message: t('est.guardado.okEditado'), type: 'success' });
       } else {
         const newStudentWithFoto = { ...studentToSave, foto: photoPreview || undefined };
         const newId = await invoke<number>("add_student", { student: newStudentWithFoto });
         onDataChange('estudiante', { immediate: true });
         await emit("student-updated", { timestamp: Date.now() });
         await emit("catalog-updated", { timestamp: Date.now() });
-        await emit("show-toast", { message: '✅ Estudiante registrado correctamente', type: 'success' });
+        await emit("show-toast", { message: t('est.guardado.okCreado'), type: 'success' });
       }
       formData = { ...emptyStudent };
       await fetchData(true);
       isModalOpen = false;
     } catch (error) {
       console.error("Error saving student:", error);
-      await emit("show-toast", { message: "❌ Error al guardar: " + error, type: 'error' });
+      await emit("show-toast", { message: t('est.guardado.error', { msg: String(error) }), type: 'error' });
     }
   }
 
   async function handleDelete(id: number) {
-    let impactMessage = '¿Está seguro de eliminar este estudiante?';
+    let impactMessage = t('est.del.seguro');
     try {
       const impact = await invoke<{ totalNotas: number; totalAsistencias: number }>("get_student_impact", { studentId: id });
       const student = students.find(s => s.id === id);
-      const studentName = student ? student.nombre : 'este estudiante';
-      impactMessage = `¿Está seguro de eliminar a ${studentName}?`;
+      const studentName = student ? student.nombre : t('est.del.nombreFallback');
+      impactMessage = t('est.del.seguroA', { nombre: studentName });
       if (impact.totalNotas > 0 || impact.totalAsistencias > 0) {
-        impactMessage += `\n\n⚠️ ATENCIÓN: Esta acción eliminará permanentemente:`;
-        if (impact.totalNotas > 0) impactMessage += `\n- ${impact.totalNotas} Calificaciones registradas`;
-        if (impact.totalAsistencias > 0) impactMessage += `\n- ${impact.totalAsistencias} Registros de asistencia`;
-        impactMessage += `\n\nEsta acción no se puede deshacer.`;
+        impactMessage += t('est.del.atencion');
+        if (impact.totalNotas > 0) impactMessage += t('est.del.notas', { n: impact.totalNotas });
+        if (impact.totalAsistencias > 0) impactMessage += t('est.del.asistencias', { n: impact.totalAsistencias });
+        impactMessage += t('est.del.noDeshacer');
       }
     } catch (error) {
       console.error("Error getting student impact:", error);
     }
     studentToDeleteId = id;
-    const ok = await ask(impactMessage, { title: 'Eliminar estudiante', kind: 'warning', okLabel: 'Eliminar', cancelLabel: 'Cancelar' });
+    const ok = await ask(impactMessage, { title: t('est.del.titulo'), kind: 'warning', okLabel: t('est.eliminar'), cancelLabel: t('comun.cancelar') });
     if (ok) await confirmDelete();
   }
 
@@ -692,13 +692,13 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
       await invoke("delete_student", { id: idToDelete });
       students = students.filter(s => s.id !== idToDelete);
       studentToDeleteId = null;
-      await emit("show-toast", { message: '✅ Estudiante eliminado correctamente', type: 'success' });
+      await emit("show-toast", { message: t('est.del.okEstudiante'), type: 'success' });
       await emit("student-updated", { timestamp: Date.now() });
       onDataChange('estudiante', { immediate: true });
       setTimeout(() => { fetchData(true); }, 200);
     } catch (error) {
       console.error("Error deleting student:", error);
-      await emit("show-toast", { message: "❌ Error al eliminar: " + error, type: 'error' });
+      await emit("show-toast", { message: t('est.del.error', { msg: String(error) }), type: 'error' });
     } finally { isDeleting = false; }
   }
 
