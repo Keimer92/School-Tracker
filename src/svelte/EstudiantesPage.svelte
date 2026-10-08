@@ -272,7 +272,7 @@ import SelectChip from "./SelectChip.svelte";
       }
     } catch (e) {
       console.error("Error exportando Excel:", e);
-      await emit("show-toast", { message: "❌ Error al exportar: " + ((e as Error)?.message || e), type: "error" });
+      await emit("show-toast", { message: t('est.export.error', { msg: String((e as Error)?.message || e) }), type: "error" });
     } finally {
       exportando = false;
     }
@@ -496,7 +496,7 @@ async function fetchData(preserveFilters = false) {
         await emit("student-updated", { timestamp: Date.now() }); await emit("catalog-updated");
         setTimeout(async () => { await fetchData(true); }, 100);
       } else { await emit("student-updated", { timestamp: Date.now() }); await emit("catalog-updated"); await fetchData(true); }
-      await emit("show-toast", { message: `✅ Importación Finalizada\nÉxito: ${importedCount} | Omitidos: ${skippedCount} | Errores: ${errors}`, type: 'success' });
+      await emit("show-toast", { message: t('est.import.resumen', { ok: importedCount, skip: skippedCount, err: errors }), type: 'success' });
     } catch (err) {
       console.error("Error crítico en importación:", err);
       await emit("show-toast", { message: t('est.import.error', { msg: (err as any).message || t('est.import.errorFallback') }), type: 'error' });
@@ -529,7 +529,7 @@ async function fetchData(preserveFilters = false) {
       a.href = url; a.download = 'plantilla_importacion_estudiantes.xlsx';
       document.body.appendChild(a); a.click();
       document.body.removeChild(a); URL.revokeObjectURL(url);
-      emit("show-toast", { message: "✅ Plantilla descargada: plantilla_importacion_estudiantes.xlsx", type: "success" });
+      emit("show-toast", { message: t('est.import.plantillaOk', { archivo: "plantilla_importacion_estudiantes.xlsx" }), type: "success" });
     }
   }
 
@@ -1369,18 +1369,18 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
             </select>
           </div>
           <div class="input-container" style="margin-bottom: 0;">
-            <label style="display: block; margin-bottom: 0.3rem; font-size: 0.7rem; color: #94a3b8; font-weight: 600;">Grado</label>
+            <label style="display: block; margin-bottom: 0.3rem; font-size: 0.7rem; color: #94a3b8; font-weight: 600;">{t('est.modal.grado')}</label>
             <select name="gradoId" value={formData.gradoId} onchange={handleFormChange} style="width: 100%; padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,23,42,0.6); color: #e2e8f0; font-size: 0.9rem; outline: none; box-sizing: border-box;">
-              <option value={0}>Seleccione grado</option>
+              <option value={0}>{t('est.modal.selGrado')}</option>
               {#each modalGrados as opt}
                 <option value={opt.id}>{opt.nombre}</option>
               {/each}
             </select>
           </div>
           <div class="input-container" style="margin-bottom: 0;">
-            <label style="display: block; margin-bottom: 0.3rem; font-size: 0.7rem; color: #94a3b8; font-weight: 600;">Sección</label>
+            <label style="display: block; margin-bottom: 0.3rem; font-size: 0.7rem; color: #94a3b8; font-weight: 600;">{t('est.modal.seccion')}</label>
             <select name="seccionId" value={formData.seccionId} onchange={handleFormChange} style="width: 100%; padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,23,42,0.6); color: #e2e8f0; font-size: 0.9rem; outline: none; box-sizing: border-box;">
-              <option value={0}>Seleccione sección</option>
+              <option value={0}>{t('est.modal.selSeccion')}</option>
               {#each modalSecciones as opt}
                 <option value={opt.id}>{opt.nombre}</option>
               {/each}
@@ -1405,8 +1405,8 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
           <div style="display: flex; align-items: center; gap: 0.75rem;">
             <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(14,165,233,0.14); border: 1px solid rgba(14,165,233,0.28); display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">📊</div>
             <div>
-              <h3 style="margin: 0; font-size: 1.05rem; color: #f1f5f9;">Exportar estudiantes a Excel</h3>
-              <p style="margin: 2px 0 0; font-size: 0.7rem; color: #64748b;">Un archivo .xlsx por colegio, con sus grados y secciones agrupadas</p>
+              <h3 style="margin: 0; font-size: 1.05rem; color: #f1f5f9;">{t('est.export.titulo')}</h3>
+              <p style="margin: 2px 0 0; font-size: 0.7rem; color: #64748b;">{t('est.export.sub')}</p>
             </div>
           </div>
           <button onclick={() => showExportModal = false} disabled={exportando} style="background: transparent; border: none; color: #94a3b8; font-size: 1.2rem; cursor: pointer;">✕</button>
@@ -1414,36 +1414,36 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
 
         <div style="display: flex; flex-direction: column; gap: 0.9rem; padding: 1rem 1.25rem;">
           <div style="display: flex; flex-direction: column; gap: 0.35rem;">
-            <label style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Año lectivo</label>
+            <label style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">{t('est.export.ano')}</label>
             <select value={exportAno} disabled={exportando}
               onchange={(e) => exportAno = Number((e.target as HTMLSelectElement).value)}
               style="width: 100%; padding: 0.55rem 0.7rem; border-radius: 8px; background: rgba(15,23,42,0.7); border: 1px solid rgba(255,255,255,0.1); color: #e2e8f0; font-size: 0.85rem; outline: none;">
-              {#each anos as a}<option value={a.id}>{a.nombre}{#if a.activo} ✓ (Activo){/if}</option>{/each}
+              {#each anos as a}<option value={a.id}>{a.nombre}{#if a.activo} {t('est.activoCon')}{/if}</option>{/each}
             </select>
           </div>
 
           <div style="display: flex; flex-direction: column; gap: 0.4rem;">
             <div style="display: flex; align-items: center; justify-content: space-between;">
-              <label style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Colegios a exportar</label>
+              <label style="font-size: 0.68rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">{t('est.export.colegios')}</label>
               <div style="display: flex; gap: 0.35rem;">
                 <button onclick={() => exportColegioIds = []} disabled={exportando}
-                  style="padding: 0.2rem 0.55rem; border-radius: 6px; border: 1px solid {exportColegioIds.length === 0 ? 'rgba(14,165,233,0.5)' : 'rgba(255,255,255,0.12)'}; background: {exportColegioIds.length === 0 ? 'rgba(14,165,233,0.15)' : 'transparent'}; color: {exportColegioIds.length === 0 ? '#7dd3fc' : '#94a3b8'}; font-size: 0.68rem; cursor: pointer;">Todos</button>
+                  style="padding: 0.2rem 0.55rem; border-radius: 6px; border: 1px solid {exportColegioIds.length === 0 ? 'rgba(14,165,233,0.5)' : 'rgba(255,255,255,0.12)'}; background: {exportColegioIds.length === 0 ? 'rgba(14,165,233,0.15)' : 'transparent'}; color: {exportColegioIds.length === 0 ? '#7dd3fc' : '#94a3b8'}; font-size: 0.68rem; cursor: pointer;">{t('est.export.todos')}</button>
                 <button onclick={() => exportColegioIds = colegios.map(c => c.id)} disabled={exportando}
-                  style="padding: 0.2rem 0.55rem; border-radius: 6px; border: 1px solid {exportColegioIds.length === colegios.length ? 'rgba(14,165,233,0.5)' : 'rgba(255,255,255,0.12)'}; background: {exportColegioIds.length === colegios.length ? 'rgba(14,165,233,0.15)' : 'transparent'}; color: {exportColegioIds.length === colegios.length ? '#7dd3fc' : '#94a3b8'}; font-size: 0.68rem; cursor: pointer;">Todos marcados</button>
+                  style="padding: 0.2rem 0.55rem; border-radius: 6px; border: 1px solid {exportColegioIds.length === colegios.length ? 'rgba(14,165,233,0.5)' : 'rgba(255,255,255,0.12)'}; background: {exportColegioIds.length === colegios.length ? 'rgba(14,165,233,0.15)' : 'transparent'}; color: {exportColegioIds.length === colegios.length ? '#7dd3fc' : '#94a3b8'}; font-size: 0.68rem; cursor: pointer;">{t('est.export.todosMarcados')}</button>
               </div>
             </div>
             <div style="display: flex; flex-direction: column; gap: 0.35rem; max-height: 190px; overflow-y: auto;">
               {#each exportResumen as r (r.colegio.id)}
                 {@const marcado = exportColegioIds.includes(r.colegio.id)}
                 <button onclick={() => toggleExportColegio(r.colegio.id)} disabled={exportando}
-                  title={marcado ? 'Quitar de la exportación' : 'Añadir a la exportación'}
+                  title={marcado ? t('est.export.quitar') : t('est.export.anadir')}
                   style="display: flex; align-items: center; gap: 0.6rem; padding: 0.4rem 0.7rem 0.4rem 0.55rem; border-radius: 12px; cursor: pointer; text-align: left; width: 100%; font-family: inherit; transition: all 0.2s ease; background: {marcado ? 'rgba(14,165,233,0.14)' : 'rgba(255,255,255,0.03)'}; border: 1px solid {marcado ? 'rgba(14,165,233,0.5)' : 'rgba(255,255,255,0.06)'}">
                   <span class="switch" style="margin: 0; pointer-events: none;">
                     <input type="checkbox" checked={marcado} tabindex="-1" readonly />
                     <span class="slider round" style="background: {marcado ? 'linear-gradient(135deg, #38bdf8, #0284c7)' : 'rgba(255,255,255,0.12)'}; border-color: {marcado ? 'transparent' : 'rgba(255,255,255,0.18)'};"></span>
                   </span>
                   <span style="flex: 1; min-width: 0; color: #e2e8f0; font-size: 0.82rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{r.colegio.nombre}</span>
-                  <span style="color: #64748b; font-size: 0.7rem; white-space: nowrap;">{r.estudiantes} est. · {r.grados} grado{r.grados === 1 ? '' : 's'}</span>
+                  <span style="color: #64748b; font-size: 0.7rem; white-space: nowrap;">{r.grados === 1 ? t('est.export.resumenUno', { n: r.estudiantes, g: r.grados }) : t('est.export.resumenN', { n: r.estudiantes, g: r.grados })}</span>
                 </button>
               {/each}
             </div>
@@ -1456,9 +1456,9 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
               <span class="slider round" style="background: {exportIncluirGradosVacios ? 'linear-gradient(135deg, #38bdf8, #0284c7)' : 'rgba(255,255,255,0.12)'}; border-color: {exportIncluirGradosVacios ? 'transparent' : 'rgba(255,255,255,0.18)'};"></span>
             </span>
             <span style="line-height: 1.2;">
-              <span style="display: block; font-size: 0.78rem; color: #cbd5e1; font-weight: 500;">Incluir grados sin estudiantes</span>
+              <span style="display: block; font-size: 0.78rem; color: #cbd5e1; font-weight: 500;">{t('est.export.incluirVacios')}</span>
               <span style="display: block; font-size: 0.68rem; color: {exportIncluirGradosVacios ? '#7dd3fc' : '#64748b'};">
-                {exportIncluirGradosVacios ? 'Se incluyen hojas de grados vacíos' : 'Solo grados con estudiantes'}
+                {exportIncluirGradosVacios ? t('est.export.vaciosOn') : t('est.export.vaciosOff')}
               </span>
             </span>
           </label>
@@ -1466,11 +1466,11 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
           <div style="display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.75rem; background: linear-gradient(135deg, rgba(14,165,233,0.1), rgba(14,165,233,0.03)); border: 1px solid rgba(14,165,233,0.22); border-radius: 10px;">
             <span style="font-size: 1rem;">📁</span>
             <div style="font-size: 0.75rem; color: #bae6fd; line-height: 1.4;">
-              Se generarán <strong>{exportResumen.filter(r => r.estudiantes > 0).length}</strong> archivo(s) con <strong>{exportTotal}</strong> estudiante(s) de {anos.find(a => a.id === exportAno)?.nombre || '—'}.
+              {t('est.export.generarA')}<strong>{exportResumen.filter(r => r.estudiantes > 0).length}</strong>{t('est.export.generarB')}<strong>{exportTotal}</strong>{t('est.export.generarC')}{anos.find(a => a.id === exportAno)?.nombre || '—'}.
               {#if isAndroid}
-                <span style="display: block; color: #64748b; font-size: 0.68rem; margin-top: 2px;">Se guardarán en Descargas/School Tracker</span>
+                <span style="display: block; color: #64748b; font-size: 0.68rem; margin-top: 2px;">{t('est.export.guardarAndroid')}</span>
               {:else if exportUltimaCarpeta}
-                <span style="display: block; color: #64748b; font-size: 0.68rem; margin-top: 2px;">Última carpeta: {exportUltimaCarpeta}</span>
+                <span style="display: block; color: #64748b; font-size: 0.68rem; margin-top: 2px;">{t('est.export.ultimaCarpeta', { p: exportUltimaCarpeta })}</span>
               {/if}
             </div>
           </div>
@@ -1481,7 +1481,7 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
             style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-weight: 600;">{t('comun.cancelar')}</button>
           <button onclick={exportarEstudiantesExcel} disabled={exportando || exportTotal === 0}
             style="padding: 0.5rem 1.25rem; font-size: 0.85rem; border-radius: 8px; border: none; background: linear-gradient(135deg, #0284c7, #0ea5e9); color: white; font-weight: 700; cursor: {exportando || exportTotal === 0 ? 'default' : 'pointer'}; box-shadow: 0 4px 14px rgba(14,165,233,0.4); opacity: {exportando || exportTotal === 0 ? 0.5 : 1};">
-            {exportando ? '⏳ Generando...' : '📊 Exportar Excel'}
+            {exportando ? t('est.export.generando') : t('est.export.exportarExcel')}
           </button>
         </div>
       </div>
