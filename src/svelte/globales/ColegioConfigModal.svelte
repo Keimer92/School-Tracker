@@ -303,7 +303,7 @@
       <div style="display:flex;gap:4px;padding:6px;margin:0.5rem 1rem 0;background:rgba(255,255,255,0.04);border-radius:10px;border:1px solid rgba(255,255,255,0.06);">
         {#each TABS as pestania}
           <button onclick={() => tab = pestania.id}
-            style="flex:1;padding:0.45rem 0.5rem;border-radius:8px;border:none;font-size:0.78rem;font-weight:600;cursor:pointer;transition:all 0.2s;{tab === t.id ? 'background:linear-gradient(135deg,#34d399,#10b981);color:white;box-shadow:0 2px 8px rgba(52,211,153,0.3);' : 'background:transparent;color:#94a3b8;'}">{pestania.label}</button>
+            style="flex:1;padding:0.45rem 0.5rem;border-radius:8px;border:none;font-size:0.78rem;font-weight:600;cursor:pointer;transition:all 0.2s;{tab === pestania.id ? 'background:linear-gradient(135deg,#34d399,#10b981);color:white;box-shadow:0 2px 8px rgba(52,211,153,0.3);' : 'background:transparent;color:#94a3b8;'}">{pestania.label}</button>
         {/each}
       </div>
 
@@ -330,7 +330,7 @@
             {/each}
             <button onclick={guardarTipo} disabled={saving}
               style="margin-top:0.5rem;padding:0.6rem 1.25rem;border-radius:10px;border:none;background:linear-gradient(135deg,#34d399,#10b981);color:white;font-weight:700;font-size:0.85rem;cursor:pointer;box-shadow:0 4px 14px rgba(52,211,153,0.3);transition:all 0.2s;">
-              {saving ? '⏳ Guardando...' : t('ccm.btn.guardarTipo')}
+              {saving ? t('ccm.guardando') : t('ccm.btn.guardarTipo')}
             </button>
           </div>
 
@@ -352,7 +352,7 @@
             {/each}
             {#if diasDirty}
               <button onclick={guardarDias} disabled={saving} class="save-verde">
-                {saving ? '⏳ Guardando...' : '💾 Guardar días'}
+                {saving ? t('ccm.guardando') : t('ccm.btn.guardarDias')}
               </button>
             {/if}
           </div>
@@ -361,28 +361,28 @@
         {:else if tab === "asignaturas"}
           <div style="display:flex;flex-direction:column;gap:0.5rem;">
             <div style="display:flex;gap:0.4rem;margin-bottom:0.5rem;">
-              <button onclick={() => asignadasIds = todasAsignaturas.map(s => s.id)} class="bulk-on" style="border-color:rgba(96,165,250,0.3);background:rgba(96,165,250,0.1);color:#60a5fa;">Marcar todas</button>
-              <button onclick={() => asignadasIds = []} class="bulk-off">Desmarcar todas</button>
+              <button onclick={() => asignadasIds = todasAsignaturas.map(s => s.id)} class="bulk-on" style="border-color:rgba(96,165,250,0.3);background:rgba(96,165,250,0.1);color:#60a5fa;">{t('ccm.asig.marcarTodas')}</button>
+              <button onclick={() => asignadasIds = []} class="bulk-off">{t('ccm.asig.desmarcarTodas')}</button>
             </div>
             {#each todasAsignaturas as sub (sub.id)}
               {@const on = asignadasIds.includes(sub.id)}
               <div class="item-row cc-row" class:on>
                 <!-- Dos controles independientes: la fila es `div` (no `button`)
                      porque anidar botones seria HTML invalido. -->
-                <button class="cc-main" onclick={() => toggleAsignatura(sub.id)} title={on ? "Quitar del colegio" : "Agregar al colegio"}>
+                <button class="cc-main" onclick={() => toggleAsignatura(sub.id)} title={on ? t('ccm.asig.titleQuitar') : t('ccm.asig.titleAgregar')}>
                   <span class="switch" style="pointer-events:none;">
                     <span class="slider round" class:on={on}></span>
                   </span>
                   <span class="cc-label" class:on>{sub.nombre}</span>
                 </button>
-                <button class="switch" title={sub.cualitativo ? "Quitar cualitativo" : "Marcar cualitativo"} onclick={() => toggleAsignaturaCualitativo(sub)}>
+                <button class="switch" title={sub.cualitativo ? t('ccm.asig.titleQuitarCual') : t('ccm.asig.titleMarcarCual')} onclick={() => toggleAsignaturaCualitativo(sub)}>
                   <span class="slider round cc-cual" class:on={!!sub.cualitativo}></span>
                 </button>
               </div>
             {/each}
             {#if asignaturasDirty}
               <button onclick={guardarAsignaturas} disabled={saving} class="save-verde">
-                {saving ? '⏳ Guardando...' : '💾 Guardar asignaturas'}
+                {saving ? t('ccm.guardando') : t('ccm.btn.guardarAsig')}
               </button>
             {/if}
           </div>
@@ -390,24 +390,24 @@
         <!-- GRADOS -->
         {:else if tab === "grados"}
           <div style="display:flex;flex-direction:column;gap:0.5rem;">
-            <p style="margin:0;color:#94a3b8;font-size:0.78rem;">Activa o desactiva los grados que este colegio ofrece y marca los cualitativos. Los grados son fijos (según el tipo del colegio).</p>
+            <p style="margin:0;color:#94a3b8;font-size:0.78rem;">{t('ccm.grados.desc')}</p>
             {#each grados as g (g.id)}
               <div class="item-row" style="gap:12px;padding:0.5rem 0.75rem;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);transition:all 0.2s;{!g.activo ? 'opacity:0.55;' : ''}">
-                <button class="switch" title={g.activo ? "Desactivar grado" : "Activar grado"} onclick={() => toggleGradoActivo(g)}>
+                <button class="switch" title={g.activo ? t('ccm.grados.titleDesactivar') : t('ccm.grados.titleActivar')} onclick={() => toggleGradoActivo(g)}>
                   <span class="slider round" class:on={g.activo}></span>
                 </button>
                 <span style="flex:1;min-width:0;font-weight:{g.activo ? '700' : '500'};color:{g.activo ? '#e2e8f0' : '#94a3b8'};font-size:0.85rem;">{g.nombre}</span>
-                <button class="switch" title={g.cualitativo ? "Quitar cualitativo" : "Marcar cualitativo"} onclick={() => toggleGradoCualitativo(g)}>
+                <button class="switch" title={g.cualitativo ? t('ccm.asig.titleQuitarCual') : t('ccm.asig.titleMarcarCual')} onclick={() => toggleGradoCualitativo(g)}>
                   <span class="slider round cc-cual" class:on={g.cualitativo}></span>
                 </button>
-                <button onclick={() => eliminarGrado(g)} title="Eliminar grado del colegio" class="cc-del">🗑</button>
+                <button onclick={() => eliminarGrado(g)} title={t('ccm.grados.titleEliminar')} class="cc-del">🗑</button>
               </div>
             {:else}
-              <p style="color:#64748b;font-size:0.8rem;text-align:center;padding:1rem;">No hay grados configurados para este colegio.</p>
+              <p style="color:#64748b;font-size:0.8rem;text-align:center;padding:1rem;">{t('ccm.grados.vacio')}</p>
             {/each}
             {#if gradosDirty}
               <button onclick={guardarGrados} disabled={saving} class="save-naranja">
-                {saving ? '⏳ Guardando...' : '💾 Guardar grados'}
+                {saving ? t('ccm.guardando') : t('ccm.btn.guardarGrados')}
               </button>
             {/if}
           </div>

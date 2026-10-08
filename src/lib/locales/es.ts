@@ -16,6 +16,7 @@ export const es = {
   // ── Común ────────────────────────────────────────────────────────────────
   'comun.volver': 'Volver',
   'comun.cancelar': 'Cancelar',
+  'comun.eliminar': 'Eliminar',
   'comun.cerrar': 'Cerrar',
   'comun.continuar': 'Continuar',
   'comun.siguiente': 'Siguiente',
@@ -1531,6 +1532,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'ccm.toast.errorGuardar': '❌ Error al guardar: {e}',
   'ccm.toast.nombreActualizado': '✅ Nombre actualizado',
   'ccm.toast.errorRenombrar': '❌ Error al renombrar: {e}',
+  'ccm.guardando': '⏳ Guardando...',
 } as const;
 
 export type Clave = keyof typeof es;

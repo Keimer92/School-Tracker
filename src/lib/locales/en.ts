@@ -14,6 +14,7 @@ export const en: Record<Clave, string> = {
   // ── Common ───────────────────────────────────────────────────────────────
   'comun.volver': 'Back',
   'comun.cancelar': 'Cancel',
+  'comun.eliminar': 'Delete',
   'comun.cerrar': 'Close',
   'comun.continuar': 'Continue',
   'comun.siguiente': 'Next',
@@ -1511,4 +1512,5 @@ to print. It is saved in Documents/SchoolTrackerPro/Instruments.`,
   'ccm.toast.errorGuardar': '❌ Error saving: {e}',
   'ccm.toast.nombreActualizado': '✅ Name updated',
   'ccm.toast.errorRenombrar': '❌ Error renaming: {e}',
+  'ccm.guardando': '⏳ Saving...',
 };
