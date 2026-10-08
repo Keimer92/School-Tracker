@@ -62,12 +62,33 @@
   // altura/separación consistentes, independientemente de isMobile.
   const modalSelectStyle = 'height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px';
 
+  /**
+   * Cierre por toque en el fondo. Dos defensas, y las dos hacen falta:
+   *
+   * 1. `pointerdown`, NO `click`. En el WebView de Android el `<select>` se
+   *    pinta como un popup NATIVO del sistema (ventana aparte). Cuando el
+   *    usuario elige una opción y ese popup se cierra, el WebView re-despacha
+   *    un evento sintético sobre lo que hay en esas coordenadas, y su target
+   *    ya no es el `<select>`: cae en el fondo del modal. Ese sintético es un
+   *    `click` (el `pointerdown` ocurrió ANTES de que se abriera el popup), así
+   *    que escuchando `pointerdown` el evento fantasma nunca llega. Con
+   *    `onclick={close}` a secas el modal se cerraba solo al tocar cualquier
+   *    desplegable de Período.
+   * 2. `e.target === e.currentTarget`: solo cierra si el toque es
+   *    DIRECTAMENTE sobre el fondo. Un toque que venga de un hijo (select,
+   *    botón, scroll) tiene otro target y no debe cerrar. Es el mismo patrón
+   *    que usa el popover de semana en `AsistenciaPage.svelte` (línea ~1991).
+   */
+  function cerrarEnFondo(e: PointerEvent) {
+    if (e.target === e.currentTarget) close();
+  }
+
   function close() { open = false; }
 </script>
 
 {#if open && isAndroidMobile}
-  <div class="modal-overlay" onclick={close} style="z-index:2000">
-    <div class="modal-content filters-solid" onclick={(e) => e.stopPropagation()}
+  <div class="modal-overlay" onpointerdown={cerrarEnFondo} style="z-index:2000">
+    <div class="modal-content filters-solid"
       style="width:min(380px, calc(100vw - 32px));max-width:min(380px, calc(100vw - 32px));max-height:85vh;overflow-y:auto;padding:1rem;text-align:left;position:relative">
       <button type="button" onclick={close} title="Cerrar"
         style="position:absolute;top:.5rem;right:.5rem;width:28px;height:28px;border-radius:7px;border:1px solid rgba(255,255,255,.2);background:#1e293b;color:#e2e8f0;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1">✕</button>

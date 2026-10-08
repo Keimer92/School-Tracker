@@ -985,6 +985,57 @@ espacio vertical. Patrón (referencia: `src/svelte/AsistenciaPage.svelte`):
 **NO aplica** a: Período (diario/semanal/mensual) ni selectores de fecha —
 esos se quedan inline porque cambian el contenido principal de la página
 y el usuario necesita verlos permanentemente.
+⚠️ **Excepción ya vigente**: desde 2026-10 el modal SÍ lleva el Período, pero
+inyectado por el padre vía el snippet `extras` de `FiltersModalAndroid`
+(`AsistenciaPage` e `InformePage`). La barra principal sigue mostrando el
+resumen; el despliegue fino vive en el modal.
+
+### ⚠️ GOTCHA: un `<select>` dentro del modal lo cerraba solo (2026-10)
+
+Síntoma: en Android, al tocar el desplegable de **Período** del modal de
+filtros de `AsistenciaPage`, el modal se cerraba sin haber elegido nada.
+
+**Causa raíz — dos piezas que se potencian:**
+
+1. En el WebView de Android, un `<select>` **no se pinta como lista
+   desplegable HTML**: se renderiza como un **popup nativo del sistema**, que
+   es una ventana aparte. Cuando el usuario elige una opción y ese popup se
+   cierra, el WebView re-despacha un evento sintético sobre lo que haya en esas
+   coordenadas. El `target` de ese evento **ya no es el `<select>` original**:
+   cae en el fondo del modal.
+2. Ese evento sintético es un **`click`**, no un `pointerdown`: el `pointerdown`
+   ocurrió *antes* de que se abriera el popup nativo, así que el único evento
+   que sobrevive al cierre del popup es el `click`.
+
+Como el overlay cerraba con `onclick={close}` y la única defensa era el
+`stopPropagation()` del contenido, el evento fantasma llegaba al overlay y
+cerraba el modal. Dependía al 100 % de que `stopPropagation` frenara un evento
+cuyo target ni siquiera pasaba por el contenido.
+
+**Fix aplicado en `FiltersModalAndroid.svelte`** (`cerrarEnFondo`), con dos
+defensas independientes:
+
+```svelte
+<div class="modal-overlay" onpointerdown={cerrarEnFondo} style="z-index:2000">
+```
+
+```ts
+function cerrarEnFondo(e: PointerEvent) {
+  if (e.target === e.currentTarget) close();
+}
+```
+
+- `pointerdown` en vez de `click`: el sintético del popup nativo es un `click`,
+  así que escuchando `pointerdown` nunca llega.
+- `e.target === e.currentTarget`: solo cierra si el toque es **directamente**
+  sobre el fondo. Es el patrón que ya usaba el popover de semana en
+  `AsistenciaPage.svelte` (línea ~1991), que por eso no tenía el bug.
+
+**Regla**: en cualquier modal que contenga `<select>` y se toque en Android,
+cerrar por `pointerdown` + `e.target === e.currentTarget`, nunca por
+`onclick={close}` con `stopPropagation()` como única defensa. El fix cubre a
+los cuatro consumidores del componente (`AsistenciaPage`, `InformePage`,
+`NotasPage`, `ReportesPage`).
 
 ## Comandos
 - `npm run dev` — servidor Vite (frontend) en http://localhost:1420 (usado por Tauri dev).
