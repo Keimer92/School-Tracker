@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { registerBackHandler } from '../lib/androidBack';
+  import { t } from '../lib/i18n.svelte';
 
-  let { isOpen, title, message, confirmText = 'Confirmar', cancelText = 'Cancelar', variant = 'danger', onConfirm, onCancel }: {
+  let { isOpen, title, message, confirmText, cancelText, variant = 'danger', onConfirm, onCancel }: {
     isOpen: boolean;
     title: string;
     message: string;
@@ -12,6 +13,12 @@
     onConfirm: () => void;
     onCancel: () => void;
   } = $props();
+
+  // Los textos por defecto van en $derived y NO en los defaults del
+  // destructuring: esos se evalúan una sola vez al montar, así que el diálogo
+  // no cambiaría de idioma hasta recargar la app.
+  const textoConfirmar = $derived(confirmText ?? t('comun.confirmar'));
+  const textoCancelar = $derived(cancelText ?? t('comun.cancelar'));
 
   let isVisible = $state(false);
 
@@ -67,11 +74,11 @@
           <button
             onclick={onCancel}
             style="flex: 1; padding: 0.75rem; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; color: #e2e8f0; font-weight: bold; font-size: 0.9rem; cursor: pointer; transition: all 0.15s ease;"
-          >{cancelText}</button>
+          >{textoCancelar}</button>
           <button
             onclick={onConfirm}
             style="flex: 1; padding: 0.75rem; background: {style.confirmBg}; border: none; border-radius: 10px; color: white; font-weight: bold; font-size: 0.9rem; cursor: pointer; transition: all 0.15s ease;"
-          >{confirmText}</button>
+          >{textoConfirmar}</button>
         </div>
       </div>
     </div>

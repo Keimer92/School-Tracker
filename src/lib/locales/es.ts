@@ -27,6 +27,7 @@ export const es = {
   'comun.cargando': 'Cargando…',
   'comun.guardando': 'Guardando…',
   'comun.guardar': 'Guardar',
+  'comun.confirmar': 'Confirmar',
 
   // ── Selector de idioma ───────────────────────────────────────────────────
   'idioma.titulo': 'Idioma',
@@ -511,6 +512,78 @@ export const es = {
   'notas.inst.guia2b': ' en una fila escribe ',
   'notas.inst.guia2c': ' en la primera celda (bandera) y en las demás: ',
   'notas.inst.guia2d': '. Esa fila se clona por estudiante. Evita celdas combinadas dentro de esa fila.',
+  'notas.ayudaPlantilla': `OBJETIVO
+Crear una plantilla Excel (.xlsx) que la app School Tracker rellenará
+automáticamente con los datos reales (encabezado, indicador, criterios y
+estudiantes con sus notas cualitativas), conservando TODO tu diseño.
+
+HERRAMIENTAS VÁLIDAS
+- Microsoft Excel o LibreOffice Calc: guardar como .xlsx.
+- Google Sheets: Archivo > Descargar > Microsoft Excel (.xlsx).
+
+DÓNDE GUARDAR LA PLANTILLA
+En la carpeta que abre el botón "Carpeta" de este modal:
+  Documentos/SchoolTrackerPro/Plantillas/
+La app la detecta sola y aparece en la lista desplegable.
+
+TIPOS DE INSTRUMENTO (según el nombre del archivo)
+El NOMBRE del archivo .xlsx debe contener la palabra clave del tipo:
+  ...Rubrica... / ...Rúbrica...  -> Rúbrica
+  ...Cotejo...                   -> Lista de cotejo
+  ...Escala...                   -> Escala valorativa
+Ejemplos válidos: "Rubrica_MINED.xlsx", "Mi cotejo de lectura.xlsx",
+"Escala semestral.xlsx". Sin palabra clave = se trata como Escala.
+
+SELECCIÓN AUTOMÁTICA
+Cada indicador tiene un tipo configurado (selector en este modal; solo se
+muestran los tipos que tienen plantilla en la carpeta). Al pulsar XLS, la app
+usa automáticamente la plantilla cuyo nombre coincida con ese tipo. Si
+prefieres otra, selecciónala manualmente en el desplegable.
+
+REGLA DE ORO
+- Todo marcador debe estar COMPLETO dentro de una sola celda.
+- Guarda siempre como .xlsx (no .xls, no .ods).
+
+PASO 1 — ENCABEZADO (filas libres arriba)
+Diseña tu encabezado como quieras (colores, logo, celdas combinadas) y coloca
+estos marcadores donde correspondan:
+  {COLEGIO}   {ANO}   {CORTE}   {ASIGNATURA}   {GRADO}   {SECCION}
+  {IND_ORDEN}  -> número del indicador
+  {IND_TEXTO}  -> texto del indicador
+  {CRITERIOS_LISTA} -> lista numerada "1. descripción (puntos)" de todos los criterios
+
+PASO 2 — FILA REPETIBLE DE ESTUDIANTES
+Elige UNA fila que servirá de plantilla para cada estudiante. En su PRIMERA
+celda escribe exactamente la bandera: {{FILAS}}
+En las demás celdas de esa misma fila coloca estos marcadores:
+  {NUM}      -> número correlativo (1, 2, 3...)
+  {NOMBRE}   -> nombre del estudiante
+  {SEXO}     -> M o F
+  {LETRA_1}  -> nota cualitativa del criterio 1 (AA, AS, AF, AI o vacía)
+  {LETRA_2}  -> criterio 2 ... {LETRA_N} según cantidad de criterios
+  {VAL_IND}  -> valoración cualitativa del indicador completo
+
+La app CLONará esa fila una vez por estudiante, manteniendo su formato, y
+correrá hacia abajo todo lo que esté debajo.
+
+REGLAS IMPORTANTES
+1. NO uses celdas combinadas DENTRO de la fila repetible (encima sí).
+2. Los marcadores no deben dividirse entre varias celdas.
+3. Un solo bloque {{FILAS}} por hoja. Puedes tener varias hojas.
+4. Deja unas filas libres entre el encabezado y la fila bandera si necesitas espacio.
+
+EJEMPLO DE MAQUETACIÓN
+  Fila 1-4: título, {COLEGIO}, {GRADO}-{SECCION}, {CORTE}
+  Fila 5:   {IND_ORDEN}. {IND_TEXTO}
+  Fila 6:   Criterios: {CRITERIOS_LISTA}
+  Fila 8:   {{FILAS}} | {NUM} | {NOMBRE} | {LETRA_1} | {LETRA_2} | {VAL_IND}
+
+RESULTADO
+Guarda tu plantilla en la carpeta "SchoolTrackerPro/Plantillas" (botón
+"Carpeta" del modal). Al pulsar XLS, la app rellena esa plantilla y entrega
+un .xlsx idéntico a tu diseño pero con todos los datos reales, listo para
+imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
+  'notas.ayudaCopiada': '📋 Instrucciones copiadas al portapapeles',
   'notas.del.titulo': 'Eliminar Notas',
   'notas.del.noDeshacer': 'Esta acción no se puede deshacer',
   'notas.del.todas': 'Todas las notas mostradas',

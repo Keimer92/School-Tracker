@@ -25,6 +25,7 @@ export const en: Record<Clave, string> = {
   'comun.cargando': 'Loading…',
   'comun.guardando': 'Saving…',
   'comun.guardar': 'Save',
+  'comun.confirmar': 'Confirm',
 
   // ── Language picker ──────────────────────────────────────────────────────
   'idioma.titulo': 'Language',
@@ -496,6 +497,78 @@ export const en: Record<Clave, string> = {
   'notas.inst.guia2b': ' in one row type ',
   'notas.inst.guia2c': ' in the first cell (flag) and in the others: ',
   'notas.inst.guia2d': '. That row is cloned per student. Avoid merged cells inside that row.',
+  'notas.ayudaPlantilla': `GOAL
+Create an Excel template (.xlsx) that the School Tracker app will fill in
+automatically with the real data (header, indicator, criteria and students
+with their qualitative grades), keeping ALL of your design.
+
+VALID TOOLS
+- Microsoft Excel or LibreOffice Calc: save as .xlsx.
+- Google Sheets: File > Download > Microsoft Excel (.xlsx).
+
+WHERE TO SAVE THE TEMPLATE
+In the folder opened by the "Folder" button of this modal:
+  Documents/SchoolTrackerPro/Templates/
+The app detects it automatically and it shows up in the dropdown.
+
+INSTRUMENT TYPES (based on the file name)
+The file NAME of the .xlsx must contain the keyword for the type:
+  ...Rubrica... / ...Rúbrica...  -> Rubric
+  ...Cotejo...                   -> Checklist
+  ...Escala...                   -> Rating scale
+Valid examples: "Rubrica_MINED.xlsx", "My reading checklist.xlsx",
+"Semester scale.xlsx". No keyword = treated as a rating scale.
+
+AUTOMATIC SELECTION
+Each indicator has a configured type (selector in this modal; only the types
+that have a template in the folder are shown). When you press XLS, the app
+automatically uses the template whose name matches that type. If you prefer
+another one, pick it manually from the dropdown.
+
+GOLDEN RULE
+- Every marker must be COMPLETE inside a single cell.
+- Always save as .xlsx (not .xls, not .ods).
+
+STEP 1 — HEADER (free rows on top)
+Design your header however you like (colors, logo, merged cells) and place
+these markers wherever they belong:
+  {COLEGIO}   {ANO}   {CORTE}   {ASIGNATURA}   {GRADO}   {SECCION}
+  {IND_ORDEN}  -> indicator number
+  {IND_TEXTO}  -> indicator text
+  {CRITERIOS_LISTA} -> numbered list "1. description (points)" of all criteria
+
+STEP 2 — REPEATABLE STUDENT ROW
+Pick ONE row that will serve as the template for each student. In its FIRST
+cell type exactly the flag: {{FILAS}}
+In the other cells of that same row place these markers:
+  {NUM}      -> running number (1, 2, 3...)
+  {NOMBRE}   -> student name
+  {SEXO}     -> M or F
+  {LETRA_1}  -> qualitative grade of criterion 1 (AA, AS, AF, AI or empty)
+  {LETRA_2}  -> criterion 2 ... {LETRA_N} depending on the number of criteria
+  {VAL_IND}  -> qualitative assessment of the whole indicator
+
+The app will CLONE that row once per student, keeping its formatting, and
+push down everything below it.
+
+IMPORTANT RULES
+1. Do NOT use merged cells INSIDE the repeatable row (above it is fine).
+2. Markers must not be split across several cells.
+3. Only one {{FILAS}} block per sheet. You can have several sheets.
+4. Leave some free rows between the header and the flag row if you need space.
+
+LAYOUT EXAMPLE
+  Row 1-4: title, {COLEGIO}, {GRADO}-{SECCION}, {CORTE}
+  Row 5:   {IND_ORDEN}. {IND_TEXTO}
+  Row 6:   Criteria: {CRITERIOS_LISTA}
+  Row 8:   {{FILAS}} | {NUM} | {NOMBRE} | {LETRA_1} | {LETRA_2} | {VAL_IND}
+
+RESULT
+Save your template in the "SchoolTrackerPro/Templates" folder (the "Folder"
+button of the modal). When you press XLS, the app fills in that template and
+delivers an .xlsx identical to your design but with all the real data, ready
+to print. It is saved in Documents/SchoolTrackerPro/Instruments.`,
+  'notas.ayudaCopiada': '📋 Instructions copied to the clipboard',
   'notas.del.titulo': 'Delete Grades',
   'notas.del.noDeshacer': 'This action cannot be undone',
   'notas.del.todas': 'All displayed grades',

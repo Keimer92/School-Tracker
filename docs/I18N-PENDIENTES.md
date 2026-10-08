@@ -26,52 +26,51 @@ powershell -File docs\i18n-status.ps1
 
 | | Archivos | Textos |
 |---|---|---|
-| **Traducido** | 5 | ~169 |
-| **Pendiente** | ~47 | ~940 |
+| **Traducido** | 6 | ~260 |
+| **Pendiente** | ~42 | ~742 |
 
-Traducidos: `WelcomePage`, `AjustesPage`, `AsistenciaPage`, `BrowserPicker`,
-`LanguagePicker` (+ `main.ts` para el arranque del idioma).
+Traducidos: `WelcomePage`, `AjustesPage`, `AsistenciaPage`, `NotasPage`,
+`BrowserPicker`, `LanguagePicker` (+ `main.ts` para el arranque del idioma).
 
-Del total pendiente, ~800 están en páginas `.svelte` (lo que el usuario ve) y
+Del total pendiente, ~600 están en páginas `.svelte` (lo que el usuario ve) y
 ~140 en servicios `.ts` (mayormente `show-toast`).
 
 ## Pendientes, por impacto
 
-Ordenado por cantidad de textos. Las cuatro primeras son el grueso del trabajo
+Ordenado por cantidad de textos. Las tres primeras son el grueso del trabajo
 y las que el usuario usa todos los días.
 
 | # | Archivo | Textos | Líneas | Nota |
 |---|---|---|---|---|
-| 1 | `src/svelte/NotasPage.svelte` | ~198 | 3050 | El más grande. sharing con `NotasMainPage` |
-| 2 | `src/svelte/EstudiantesPage.svelte` | ~183 | 1483 | |
-| 3 | `src/svelte/ConfiguracionPage.svelte` | ~67 | 496 | Configuración de catálogos |
-| 4 | `src/svelte/InformePage.svelte` | ~65 | 1341 | Informe de asistencia |
-| 5 | `src/svelte/ReportesPage.svelte` | ~54 | 1453 | Reportes de notas |
-| 6 | `src/svelte/EvaluacionesPage.svelte` | ~25 | 515 | Indicadores y criterios |
-| 7 | `src/svelte/CloudPage.svelte` | ~20 | 844 | Nube / respaldos |
-| 8 | `src/svelte/DashboardPage.svelte` | ~20 | 514 | |
-| 9 | `src/svelte/GoogleDriveBackup.svelte` | ~18 | 390 | Legacy, no se monta |
-| 10 | `src/svelte/globales/ColegioConfigModal.svelte` | ~16 | 468 | |
-| 11 | `src/svelte/AccountPage.svelte` | ~16 | 407 | |
-| 12 | `src/svelte/ajustes/DebugPage.svelte` | ~16 | 594 | |
-| 13 | `src/svelte/ConfirmDialog.svelte` | ~14 | 79 | **Vale hacerlo temprano**: es un componente compartido, lo usan casi todas las pantallas |
-| 14 | `src/svelte/Sidebar.svelte` | ~12 | 184 | |
-| 15 | `src/svelte/ajustes/InfoPage.svelte` | ~10 | 199 | |
-| 16 | `src/svelte/FiltersModalAndroid.svelte` | ~10 | 187 | Modal de filtros en Android |
-| 17 | `src/App.svelte` | ~9 | 584 | Shell, tabs |
-| 18 | `src/svelte/CloudCards.svelte` | ~8 | 541 | |
-| 19 | `src/svelte/notificaciones/NotificacionesPage.svelte` | ~7 | 633 | Solo Android |
-| 20 | `src/svelte/CategoryTabContent.svelte` | ~7 | 749 | Genérico de configuración |
-| 21 | `src/svelte/globales/CalificacionesConfig.svelte` | ~6 | 142 | |
-| 22 | `src/svelte/globales/MultiplicadoresConfig.svelte` | ~5 | 116 | |
-| 23 | `src/svelte/globales/GradoConfigModal.svelte` | ~3 | 146 | |
-| 24 | `src/svelte/AndroidDrawer.svelte` | ~3 | 235 | |
-| 25 | `src/svelte/SearchInput.svelte` | ~3 | 39 | Placeholder |
-| 26 | `src/svelte/DatePickerGlass.svelte` | ~1 | 390 | Placeholders |
-| 27 | `src/svelte/BotonMod.svelte` | ~1 | 46 | Genérico |
-| 28 | `src/svelte/notas/NotasMainPage.svelte` | ~1 | 230 | Wrapper de sub-tabs |
-| 29 | `src/svelte/asistencia/AsistenciaMainPage.svelte` | ~2 | 223 | Wrapper de sub-tabs |
-| 30 | `src/svelte/FilterSelect.svelte`, `FilterGroup.svelte`, `FilterContainer.svelte` | ~4 | — | Genéricos, casi sin texto |
+| 1 | `src/svelte/EstudiantesPage.svelte` | ~183 | 1483 | |
+| 2 | `src/svelte/ConfiguracionPage.svelte` | ~67 | 496 | Configuración de catálogos |
+| 3 | `src/svelte/InformePage.svelte` | ~65 | 1341 | Informe de asistencia |
+| 4 | `src/svelte/ReportesPage.svelte` | ~54 | 1453 | Reportes de notas |
+| 5 | `src/svelte/EvaluacionesPage.svelte` | ~25 | 515 | Indicadores y criterios |
+| 6 | `src/svelte/CloudPage.svelte` | ~20 | 844 | Nube / respaldos |
+| 7 | `src/svelte/DashboardPage.svelte` | ~20 | 514 | |
+| 8 | `src/svelte/GoogleDriveBackup.svelte` | ~18 | 390 | Legacy, no se monta |
+| 9 | `src/svelte/globales/ColegioConfigModal.svelte` | ~16 | 468 | |
+| 10 | `src/svelte/AccountPage.svelte` | ~16 | 407 | |
+| 11 | `src/svelte/ajustes/DebugPage.svelte` | ~16 | 594 | |
+| 12 | `src/svelte/ConfirmDialog.svelte` | ~14 | 79 | **Vale hacerlo temprano**: es un componente compartido, lo usan casi todas las pantallas |
+| 13 | `src/svelte/Sidebar.svelte` | ~12 | 184 | |
+| 14 | `src/svelte/ajustes/InfoPage.svelte` | ~10 | 199 | |
+| 15 | `src/svelte/FiltersModalAndroid.svelte` | ~10 | 187 | Modal de filtros en Android |
+| 16 | `src/App.svelte` | ~9 | 584 | Shell, tabs |
+| 17 | `src/svelte/CloudCards.svelte` | ~8 | 541 | |
+| 18 | `src/svelte/notificaciones/NotificacionesPage.svelte` | ~7 | 633 | Solo Android |
+| 19 | `src/svelte/CategoryTabContent.svelte` | ~7 | 749 | Genérico de configuración |
+| 20 | `src/svelte/globales/CalificacionesConfig.svelte` | ~6 | 142 | |
+| 21 | `src/svelte/globales/MultiplicadoresConfig.svelte` | ~5 | 116 | |
+| 22 | `src/svelte/globales/GradoConfigModal.svelte` | ~3 | 146 | |
+| 23 | `src/svelte/AndroidDrawer.svelte` | ~3 | 235 | |
+| 24 | `src/svelte/SearchInput.svelte` | ~3 | 39 | Placeholder |
+| 25 | `src/svelte/DatePickerGlass.svelte` | ~1 | 390 | Placeholders |
+| 26 | `src/svelte/BotonMod.svelte` | ~1 | 46 | Genérico |
+| 27 | `src/svelte/notas/NotasMainPage.svelte` | ~1 | 230 | Wrapper de sub-tabs |
+| 28 | `src/svelte/asistencia/AsistenciaMainPage.svelte` | ~2 | 223 | Wrapper de sub-tabs |
+| 29 | `src/svelte/FilterSelect.svelte`, `FilterGroup.svelte`, `FilterContainer.svelte` | ~4 | — | Genéricos, casi sin texto |
 
 ### Servicios `.ts` (textos de `show-toast` y avisos)
 
