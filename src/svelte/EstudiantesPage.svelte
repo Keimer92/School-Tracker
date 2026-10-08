@@ -183,20 +183,20 @@ import SelectChip from "./SelectChip.svelte";
   async function exportarEstudiantesExcel() {
     if (exportando) return;
     const anoSel = anos.find(a => a.id === exportAno);
-    if (!anoSel) { await emit("show-toast", { message: "⚠️ Selecciona un año lectivo", type: "warning" }); return; }
+    if (!anoSel) { await emit("show-toast", { message: t('est.export.selAno'), type: "warning" }); return; }
     const lista = colegiosExportables();
-    if (lista.length === 0) { await emit("show-toast", { message: "⚠️ No hay colegios seleccionados", type: "warning" }); return; }
+    if (lista.length === 0) { await emit("show-toast", { message: t('est.export.selColegios'), type: "warning" }); return; }
     const conDatos = lista.filter(c => students.some(s => Number(s.anoLectivoId) === Number(anoSel.id) && Number(s.colegioId) === c.id));
-    if (conDatos.length === 0) { await emit("show-toast", { message: `⚠️ No hay estudiantes en ${anoSel.nombre}`, type: "warning" }); return; }
+    if (conDatos.length === 0) { await emit("show-toast", { message: t('est.export.vacioAno', { ano: anoSel.nombre }), type: "warning" }); return; }
 
     // En Android no se pide carpeta: el selector devuelve una URI de contenido y
     // no se puede escribir con una ruta cruda. El archivo va directo a la carpeta
     // pública Descargas/School Tracker vía MediaStore (sin permisos).
     const ok = await ask(
       isAndroid
-        ? `Se generarán ${conDatos.length} archivo(s) Excel (uno por colegio) con los estudiantes de ${anoSel.nombre}.\n\nSe guardarán en Descargas/School Tracker.`
-        : `Se generarán ${conDatos.length} archivo(s) Excel (uno por colegio) con los estudiantes de ${anoSel.nombre}.\n\nElige la carpeta donde guardarlos.`,
-      { title: "📊 Exportar estudiantes", kind: "info", okLabel: isAndroid ? "Exportar" : "Elegir carpeta", cancelLabel: "Cancelar" }
+        ? t('est.export.confirmarAndroid', { n: conDatos.length, ano: anoSel.nombre })
+        : t('est.export.confirmarDesktop', { n: conDatos.length, ano: anoSel.nombre }),
+      { title: t('est.export.tituloAsk'), kind: "info", okLabel: isAndroid ? t('est.btn.exportar') : t('est.export.elegirCarpeta'), cancelLabel: t('comun.cancelar') }
     );
     if (!ok) return;
 
@@ -205,12 +205,12 @@ import SelectChip from "./SelectChip.svelte";
     if (!isAndroid) {
       try {
         const { open } = await import("@tauri-apps/plugin-dialog");
-        const sel = await open({ directory: true, multiple: false, title: "Carpeta destino para los archivos Excel" });
+        const sel = await open({ directory: true, multiple: false, title: t('est.export.carpetaTitulo') });
         if (!sel || Array.isArray(sel)) return;
         carpeta = String(sel);
       } catch (e) {
         console.error("Error abriendo selector de carpeta:", e);
-        await emit("show-toast", { message: "❌ No se pudo elegir la carpeta", type: "error" });
+        await emit("show-toast", { message: t('est.export.carpetaError'), type: "error" });
         return;
       }
     }
@@ -623,13 +623,13 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
     e.preventDefault();
     const esEdicion = isEditing;
     const mensaje = esEdicion
-      ? `¿Guardar los cambios de "${toTitleCase(formData.nombre).trim()}"?`
-      : "¿Registrar este nuevo estudiante?";
+      ? t('est.form.confirmarEditar', { nombre: toTitleCase(formData.nombre).trim() })
+      : t('est.form.confirmarNuevo');
     const ok = await ask(mensaje, {
-      title: esEdicion ? "✏️ Confirmar edición" : "➕ Confirmar registro",
+      title: esEdicion ? t('est.form.tituloEdit') : t('est.form.tituloNuevo'),
       kind: "info",
-      okLabel: esEdicion ? "Guardar" : "Registrar",
-      cancelLabel: "Cancelar",
+      okLabel: esEdicion ? t('est.form.okEditar') : t('est.form.okNuevo'),
+      cancelLabel: t('comun.cancelar'),
     });
     if (!ok) return;
     try {
@@ -705,18 +705,18 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
   async function handleBatchDelete() {
     const ids = filteredStudents.map(s => s.id!);
     if (ids.length === 0) return;
-    const ok = await ask(`¿Eliminar TODOS los estudiantes filtrados (${ids.length})? Esta acción no se puede deshacer.`, { title: 'Eliminar en lote', kind: 'warning', okLabel: 'Eliminar', cancelLabel: 'Cancelar' });
+    const ok = await ask(t('est.del.loteConfirmar', { n: ids.length }), { title: t('est.del.loteTitulo'), kind: 'warning', okLabel: t('est.eliminar'), cancelLabel: t('comun.cancelar') });
     if (!ok) return;
     isDeleting = true;
     try {
       await invoke("delete_student_batch", { ids });
       students = students.filter(s => !ids.includes(s.id!));
-      await emit("show-toast", { message: `✅ ${ids.length} estudiantes eliminados correctamente`, type: "success" });
+      await emit("show-toast", { message: t('est.del.loteOk', { n: ids.length }), type: "success" });
       await emit("student-updated", { timestamp: Date.now() });
       onDataChange('estudiante', { immediate: true });
       setTimeout(() => { fetchData(true); }, 200);
     } catch (error) {
-      await emit("show-toast", { message: "❌ Error al eliminar en lote: " + error, type: "error" });
+      await emit("show-toast", { message: t('est.del.loteError', { msg: String(error) }), type: "error" });
     } finally { isDeleting = false; }
   }
 
@@ -739,7 +739,7 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
   async function deleteSelected() {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
-    const ok = await ask(`¿Eliminar los ${ids.length} estudiantes seleccionados? Esta acción no se puede deshacer.`, { title: 'Eliminar selección', kind: 'warning', okLabel: 'Eliminar', cancelLabel: 'Cancelar' });
+    const ok = await ask(t('est.del.selConfirmar', { n: ids.length }), { title: t('est.del.selTitulo'), kind: 'warning', okLabel: t('est.eliminar'), cancelLabel: t('comun.cancelar') });
     if (!ok) return;
     isDeletingSelected = true;
     const count = ids.length;
@@ -748,12 +748,12 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
       students = students.filter(s => !ids.includes(s.id!));
       selectedIds = new Set();
       selectMode = false;
-      await emit("show-toast", { message: `✅ ${count} estudiantes eliminados correctamente`, type: "success" });
+      await emit("show-toast", { message: t('est.del.loteOk', { n: count }), type: "success" });
       await emit("student-updated", { timestamp: Date.now() });
       onDataChange('estudiante', { immediate: true });
       setTimeout(() => { fetchData(true); }, 200);
     } catch (error) {
-      await emit("show-toast", { message: "❌ Error al eliminar: " + error, type: "error" });
+      await emit("show-toast", { message: t('est.del.error', { msg: String(error) }), type: "error" });
     } finally { isDeletingSelected = false; }
   }
 
@@ -804,7 +804,7 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
     if (!promoteFromAno || !promoteToAno) return;
     const ok = await ask(
       `¿Promover ${promoteStudentCount} estudiantes de "${promoteFromAno.nombre}" a "${promoteToAno.nombre}"?\n\nLos estudiantes subirán de grado (1er→2do, 2do→3ro...). Los de 11mo grado se marcarán como graduados.\n\nLos estudiantes de6to grado (Primaria) serán migrados a un colegio Secundaria si existe.`,
-      { title: "📈 Confirmar promoción", kind: "info", okLabel: "Promover", cancelLabel: "Cancelar" }
+      { title: t('est.promo.confirmarTitulo'), kind: "info", okLabel: t('est.promo.confirmarOk'), cancelLabel: t('comun.cancelar') }
     );
     if (!ok) return;
     isPromoting = true;
@@ -827,8 +827,8 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
         }
       }
 
-      let msg = `✅ Promoción completada: ${result.promoted} promovidos`;
-      if (result.graduated > 0) msg += `, ${result.graduated} graduados`;
+      let msg = t('est.promo.ok', { prom: result.promoted });
+      if (result.graduated > 0) msg += t('est.promo.graduados', { n: result.graduated });
       await emit("show-toast", { message: msg, type: "success" });
       await emit("student-updated", { timestamp: Date.now() });
       await emit("catalog-updated", { timestamp: Date.now() });
@@ -837,7 +837,7 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
       await fetchData(true);
     } catch (e) {
       console.error("Error promoting:", e);
-      await emit("show-toast", { message: "❌ Error al promover: " + e, type: "error" });
+      await emit("show-toast", { message: t('est.promo.error', { msg: String(e) }), type: "error" });
     } finally {
       isPromoting = false;
     }
@@ -858,8 +858,8 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
         toAnoId: promoteToAno.id,
         colegioDestinoMap,
       });
-      let msg = `✅ Promoción completada: ${result.promoted} promovidos`;
-      if (result.graduated > 0) msg += `, ${result.graduated} graduados`;
+      let msg = t('est.promo.ok', { prom: result.promoted });
+      if (result.graduated > 0) msg += t('est.promo.graduados', { n: result.graduated });
       await emit("show-toast", { message: msg, type: "success" });
       await emit("student-updated", { timestamp: Date.now() });
       await emit("catalog-updated", { timestamp: Date.now() });
@@ -868,7 +868,7 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
       await fetchData(true);
     } catch (e) {
       console.error("Error promoting:", e);
-      await emit("show-toast", { message: "❌ Error al promover: " + e, type: "error" });
+      await emit("show-toast", { message: t('est.promo.error', { msg: String(e) }), type: "error" });
     } finally {
       isPromoting = false;
       pendingSixthGraders = [];
@@ -892,46 +892,46 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
   });
 </script>
 <div class="page-container" id="estudiantes-page" style="height: 100%; min-height: 0;">
-  {#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder="Nombre o código..." />{/if}
+  {#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder={t('est.buscarPh')} />{/if}
   {#if isAndroidMobile}
     <div class="category-card" style="padding: 0.4rem 0.5rem; margin-bottom: 0.4rem;">
-      <SearchFab bind:value={searchTerm} placeholder="Buscar nombre o código..." conMargen={false} />
+      <SearchFab bind:value={searchTerm} placeholder={t('est.buscarPhAndroid')} conMargen={false} />
     </div>
     <div class="category-card" style="padding: 0.5rem; margin-bottom: 0.4rem; display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
       <button type="button" onclick={() => { showFiltersModal = true; }}
         style="height:38px;padding:0 0.8rem;font-size:0.78rem;background:rgba(96,165,250,0.18);color:#bfdbfe;border:1px solid rgba(96,165,250,0.4);border-radius:8px;display:flex;align-items:center;justify-content:center;gap:5px;font-weight:600;cursor:pointer;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
         <span>🔍</span>
         <span style="overflow:hidden;text-overflow:ellipsis;">
-          {(colegios.find(c => c.id === filters.colegioId)?.nombre)?.split(' ')[0] || 'Colegio'} · {grados.find(g => g.id === filters.gradoId)?.nombre || 'Grado'} · {secciones.find(s => s.id === filters.seccionId)?.nombre || 'Sección'}{filters.sexo ? ` · ${filters.sexo === 'M' ? 'Masc' : 'Fem'}` : ''}
+          {(colegios.find(c => c.id === filters.colegioId)?.nombre)?.split(' ')[0] || t('est.fallback.colegio')} · {grados.find(g => g.id === filters.gradoId)?.nombre || t('est.fallback.grado')} · {secciones.find(s => s.id === filters.seccionId)?.nombre || t('est.fallback.seccion')}{filters.sexo ? ` · ${filters.sexo === 'M' ? t('est.resumen.masculinoCorto') : t('est.resumen.femeninoCorto')}` : ''}
         </span>
       </button>
     </div>
     <div class="category-card" style="padding: 0.5rem; margin-bottom: 0.4rem; display:flex;gap:0.3rem;align-items:center;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;">
       <BotonMod opts={{
         onclick: openAddModal,
-        icono: '👨‍🎓', etiqueta: 'Nuevo', tono: 'azul',
-        sub: `${stats.total} en filtro`, title: 'Agregar estudiante', compacto: true
+        icono: '👨‍🎓', etiqueta: t('est.btn.nuevo'), tono: 'azul',
+        sub: t('est.sub.enFiltroCorto', { n: stats.total }), title: t('est.title.agregar'), compacto: true
       }} />
       <BotonMod opts={{
         onclick: handleImportExcel, disabled: isImporting,
         icono: isImporting ? '⏳' : '📗',
-        etiqueta: isImporting ? 'Importando' : 'Importar', tono: 'verde',
-        sub: `${students.length} en base`, title: 'Importar estudiantes desde Excel', compacto: true
+        etiqueta: isImporting ? t('est.btn.importando') : t('est.btn.importarCorto'), tono: 'verde',
+        sub: t('est.sub.enBaseCorto', { n: students.length }), title: t('est.title.importarExcelCorto'), compacto: true
       }} />
       <BotonMod opts={{
         onclick: handleDownloadTemplate,
-        icono: '📋', etiqueta: 'Plantilla', tono: 'violeta',
-        sub: '.xlsx', title: 'Descargar plantilla Excel', compacto: true
+        icono: '📋', etiqueta: t('est.btn.plantilla'), tono: 'violeta',
+        sub: '.xlsx', title: t('est.title.plantilla'), compacto: true
       }} />
       <BotonMod opts={{
         onclick: abrirModalExport, disabled: exportando,
-        icono: '📊', etiqueta: exportando ? 'Exportando' : 'Exportar', tono: 'azul',
-        sub: `${stats.total} estud.`, title: 'Exportar todos los colegios a Excel', compacto: true
+        icono: '📊', etiqueta: exportando ? t('est.btn.exportando') : t('est.btn.exportar'), tono: 'azul',
+        sub: t('est.sub.estudCorto', { n: stats.total }), title: t('est.title.exportarCorto'), compacto: true
       }} />
       <BotonMod opts={{
         onclick: () => showImportHelp = true,
-        icono: '❓', etiqueta: 'Ayuda', tono: 'ambar',
-        sub: 'Formato', title: 'Ayuda de importación', compacto: true
+        icono: '❓', etiqueta: t('est.btn.ayuda'), tono: 'ambar',
+        sub: t('est.sub.formatoCorto'), title: t('est.title.ayuda'), compacto: true
       }} />
     </div>
 
@@ -939,20 +939,20 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
       <div class="modal-overlay" onclick={() => showFiltersModal = false} style="z-index:2000">
         <div class="modal-content" onclick={(e) => e.stopPropagation()}
           style="width:min(380px, calc(100vw - 32px));max-width:min(380px, calc(100vw - 32px));max-height:85vh;overflow-y:auto;background:#1e293b;border:1px solid rgba(148,163,184,0.35);border-radius:18px;box-shadow:0 20px 50px rgba(0,0,0,0.6);padding:1.25rem;text-align:left;position:relative">
-          <button type="button" onclick={() => showFiltersModal = false} title="Cerrar"
+          <button type="button" onclick={() => showFiltersModal = false} title={t('est.filtros.cerrar')}
             style="position:absolute;top:.6rem;right:.6rem;width:32px;height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:#1e293b;color:#e2e8f0;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1">✕</button>
-          <h3 style="margin:0 0 1rem;color:#f1f5f9;font-size:1.05rem;padding-right:2.2rem">🔍 Filtros</h3>
+          <h3 style="margin:0 0 1rem;color:#f1f5f9;font-size:1.05rem;padding-right:2.2rem">{t('est.filtros.titulo')}</h3>
           <div style="display:flex;flex-direction:column;gap:0.6rem">
             <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-              <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Año lectivo:</label>
+              <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">{t('est.filtro.ano')}</label>
               <select class="filter-select"
                 style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;background:#0f172a;border:1px solid rgba(148,163,184,0.45);color:#f1f5f9;font-weight:600;appearance:none;-webkit-appearance:none;background-image:url(&quot;data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e&quot;);background-repeat:no-repeat;background-position:right 0.6rem center;background-size:14px;padding-right:1.8rem"
                 value={filters.anoLectivoId} onchange={(e) => { filters = { ...filters, anoLectivoId: Number((e.target as HTMLSelectElement).value), gradoId: 0, seccionId: 0 }; }}>
-                {#each anos as a}<option value={a.id}>{a.nombre}{#if a.activo} ✓ (Activo){/if}</option>{/each}
+                {#each anos as a}<option value={a.id}>{a.nombre}{#if a.activo} {t('est.activoCon')}{/if}</option>{/each}
               </select>
             </div>
             <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-              <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Colegio:</label>
+              <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">{t('est.filtro.colegio')}</label>
               <select class="filter-select"
                 style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;background:#0f172a;border:1px solid rgba(148,163,184,0.45);color:#f1f5f9;font-weight:600;appearance:none;-webkit-appearance:none;background-image:url(&quot;data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e&quot;);background-repeat:no-repeat;background-position:right 0.6rem center;background-size:14px;padding-right:1.8rem"
                 value={filters.colegioId} onchange={(e) => { filters = { ...filters, colegioId: Number((e.target as HTMLSelectElement).value), gradoId: 0, seccionId: 0 }; }}>
@@ -960,7 +960,7 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
               </select>
             </div>
             <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-              <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Grado:</label>
+              <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">{t('est.filtro.grado')}</label>
               <select class="filter-select"
                 style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;background:#0f172a;border:1px solid rgba(148,163,184,0.45);color:#f1f5f9;font-weight:600;appearance:none;-webkit-appearance:none;background-image:url(&quot;data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e&quot;);background-repeat:no-repeat;background-position:right 0.6rem center;background-size:14px;padding-right:1.8rem"
                 value={filters.gradoId} onchange={(e) => { filters = { ...filters, gradoId: Number((e.target as HTMLSelectElement).value), seccionId: 0 }; }}>
@@ -968,7 +968,7 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
               </select>
             </div>
             <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-              <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Sección:</label>
+              <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">{t('est.filtro.seccion')}</label>
               <select class="filter-select"
                 style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;background:#0f172a;border:1px solid rgba(148,163,184,0.45);color:#f1f5f9;font-weight:600;appearance:none;-webkit-appearance:none;background-image:url(&quot;data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e&quot;);background-repeat:no-repeat;background-position:right 0.6rem center;background-size:14px;padding-right:1.8rem"
                 value={filters.seccionId} onchange={(e) => { filters = { ...filters, seccionId: Number((e.target as HTMLSelectElement).value) }; }}>
@@ -976,54 +976,54 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
               </select>
             </div>
             <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-              <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">Sexo:</label>
+              <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">{t('est.filtro.sexo')}</label>
               <select class="filter-select"
                 style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;background:#0f172a;border:1px solid rgba(148,163,184,0.45);color:#f1f5f9;font-weight:600;appearance:none;-webkit-appearance:none;background-image:url(&quot;data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e&quot;);background-repeat:no-repeat;background-position:right 0.6rem center;background-size:14px;padding-right:1.8rem"
                 value={filters.sexo} onchange={(e) => { filters = { ...filters, sexo: (e.target as HTMLSelectElement).value }; }}>
-                <option value="">Todos</option>
-                <option value="M">Masculino</option>
-                <option value="F">Femenino</option>
+                <option value="">{t('est.todos')}</option>
+                <option value="M">{t('est.masculino')}</option>
+                <option value="F">{t('est.femenino')}</option>
               </select>
             </div>
           </div>
-          <button class="primary" onclick={() => showFiltersModal = false} style="margin-top:1.25rem;width:100%">✓ Aplicar</button>
+          <button class="primary" onclick={() => showFiltersModal = false} style="margin-top:1.25rem;width:100%">{t('est.filtro.aplicar')}</button>
         </div>
       </div>
     {/if}
   {:else}
   <FilterContainer {isMobile}>
-      <FilterGroup label="Año Lectivo:" {isMobile}>
+      <FilterGroup label={t('est.modal.anoLectivo')} {isMobile}>
           <SelectChip
             value={filters.anoLectivoId}
             onchange={(v) => setFilter('anoLectivoId', v)}
-            options={anos.map(a => ({ value: a.id, label: a.nombre, sub: a.activo ? 'Activo' : undefined }))} />
+            options={anos.map(a => ({ value: a.id, label: a.nombre, sub: a.activo ? t('est.activo') : undefined }))} />
       </FilterGroup>
-      <FilterGroup label="Colegio:" {isMobile}>
+      <FilterGroup label={t('est.filtro.colegio')} {isMobile}>
           <SelectChip
             value={filters.colegioId}
             onchange={(v) => setFilter('colegioId', v)}
             options={colegios.map(c => ({ value: c.id, label: c.nombre }))} />
       </FilterGroup>
-      <FilterGroup label="Grado:" {isMobile}>
+      <FilterGroup label={t('est.filtro.grado')} {isMobile}>
           <SelectChip
             value={filters.gradoId}
             onchange={(v) => setFilter('gradoId', v)}
             options={grados.map(g => ({ value: g.id, label: g.nombre }))} />
       </FilterGroup>
-  <FilterGroup label="Sección:" {isMobile}>
+  <FilterGroup label={t('est.filtro.seccion')} {isMobile}>
     <SelectChip
       value={filters.seccionId}
       onchange={(v) => setFilter('seccionId', v)}
       options={secciones.map(s => ({ value: s.id, label: s.nombre }))} />
   </FilterGroup>
-      <FilterGroup label="Sexo:" {isMobile}>
+      <FilterGroup label={t('est.filtro.sexo')} {isMobile}>
           <SelectChip
             value={filters.sexo}
             onchange={(v) => setFilter('sexo', v)}
             options={[
-              { value: '', label: 'Todos' },
-              { value: 'M', label: 'Masculino' },
-              { value: 'F', label: 'Femenino' },
+              { value: '', label: t('est.todos') },
+              { value: 'M', label: t('est.masculino') },
+              { value: 'F', label: t('est.femenino') },
             ]} />
       </FilterGroup>
       <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '0 0 auto'}">
@@ -1031,35 +1031,35 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
         </div>
         <BotonMod opts={{
           onclick: openAddModal,
-          icono: '👨‍🎓', etiqueta: 'Nuevo', tono: 'azul',
-          sub: `${stats.total} en el filtro`,
-          title: 'Agregar estudiante',
+          icono: '👨‍🎓', etiqueta: t('est.btn.nuevo'), tono: 'azul',
+          sub: t('est.sub.enFiltro', { n: stats.total }),
+          title: t('est.title.agregar'),
         }} />
         <BotonMod opts={{
           onclick: handleImportExcel, disabled: isImporting,
           icono: isImporting ? '⏳' : '📗',
-          etiqueta: isImporting ? 'Importando' : 'Importar Excel', tono: 'verde',
-          sub: isImporting ? 'Leyendo filas' : `${students.length} en la base`,
-          title: 'Importar estudiantes desde un archivo Excel',
+          etiqueta: isImporting ? t('est.btn.importando') : t('est.btn.importar'), tono: 'verde',
+          sub: isImporting ? t('est.sub.leyendo') : t('est.sub.enBase', { n: students.length }),
+          title: t('est.title.importarExcel'),
         }} />
         <BotonMod opts={{
           onclick: handleDownloadTemplate,
-          icono: '📋', etiqueta: 'Plantilla', tono: 'violeta',
-          sub: 'Formato .xlsx',
-          title: 'Descargar plantilla Excel',
+          icono: '📋', etiqueta: t('est.btn.plantilla'), tono: 'violeta',
+          sub: t('est.sub.formato'),
+          title: t('est.title.plantilla'),
         }} />
         <BotonMod opts={{
           onclick: abrirModalExport, disabled: exportando,
           icono: '📊',
-          etiqueta: exportando ? 'Exportando' : 'Exportar', tono: 'azul',
-          sub: exportando ? 'Generando libros' : `${stats.total} estudiantes`,
-          title: 'Exportar todos los colegios a Excel (un libro por colegio)',
+          etiqueta: exportando ? t('est.btn.exportando') : t('est.btn.exportar'), tono: 'azul',
+          sub: exportando ? t('est.sub.generandoLibros') : t('est.sub.estudiantes', { n: stats.total }),
+          title: t('est.title.exportar'),
         }} />
         <BotonMod opts={{
           onclick: () => showImportHelp = true,
-          icono: '❓', etiqueta: 'Ayuda', tono: 'ambar',
-          sub: 'Formato del Excel',
-          title: 'Ayuda de importación',
+          icono: '❓', etiqueta: t('est.btn.ayuda'), tono: 'ambar',
+          sub: t('est.sub.formatoExcel'),
+          title: t('est.title.ayuda'),
         }} />
       </div>
   </FilterContainer>
@@ -1070,19 +1070,19 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
       <div style="display: flex; align-items: center; gap: 0.75rem; {isMobile ? 'flex-wrap: wrap;' : ''}">
         <div style="width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #8b5cf6); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">📈</div>
         <div style="flex: 1; min-width: 0;">
-          <div style="font-weight: 700; color: #e0e7ff; font-size: {isMobile ? '0.8rem' : '0.9rem'};">Promover estudiantes</div>
+          <div style="font-weight: 700; color: #e0e7ff; font-size: {isMobile ? '0.8rem' : '0.9rem'};">{t('est.promo.titulo')}</div>
           <div style="color: #c7d2fe; font-size: {isMobile ? '0.7rem' : '0.8rem'}; margin-top: 2px;">
-            <strong>{promoteStudentCount}</strong> estudiantes en <strong>{promoteFromAno.nombre}</strong> → <strong>{promoteToAno.nombre}</strong>
+            <strong>{promoteStudentCount}</strong>{t('est.promo.conteoA')}<strong>{promoteFromAno.nombre}</strong> → <strong>{promoteToAno.nombre}</strong>
           </div>
         </div>
         <div style="display: flex; gap: 0.5rem; {isMobile ? 'width: 100%;' : ''}">
           <button onclick={handlePromoteStudents} disabled={isPromoting}
             style="{isMobile ? 'flex: 1;' : ''} padding: 0.45rem 1rem; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; font-size: 0.8rem; white-space: nowrap;">
-            {isPromoting ? '⏳ Promoviendo...' : '📈 Promover'}
+            {isPromoting ? t('est.promo.promoviendo') : t('est.promo.promover')}
           </button>
           <button onclick={() => showPromoteBanner = false}
             style="padding: 0.45rem 0.8rem; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: #c7d2fe; font-weight: 600; cursor: pointer; font-size: 0.8rem;">
-            Descartar
+            {t('est.promo.descartar')}
           </button>
         </div>
       </div>
@@ -1095,13 +1095,13 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
         <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem">
           <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:1.2rem">🏫</div>
           <div>
-            <div style="font-weight:700;color:#e0e7ff;font-size:1rem">Migrar6to grado a Secundaria</div>
-            <div style="color:#94a3b8;font-size:0.75rem;margin-top:2px">Hay {pendingSixthGraders.length} estudiante{pendingSixthGraders.length > 1 ? 's' : ''} de6to grado que {pendingSixthGraders.length > 1 ? 'necesitan' : 'necesita'} un colegio Secundaria</div>
+            <div style="font-weight:700;color:#e0e7ff;font-size:1rem">{t('est.picker.titulo')}</div>
+            <div style="color:#94a3b8;font-size:0.75rem;margin-top:2px">{pendingSixthGraders.length > 1 ? t('est.picker.descPlural', { n: pendingSixthGraders.length }) : t('est.picker.descSingular', { n: pendingSixthGraders.length })}</div>
           </div>
         </div>
 
         <div style="margin-bottom:1rem">
-          <div style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;margin-bottom:0.5rem;font-weight:600">Estudiantes afectados</div>
+          <div style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;margin-bottom:0.5rem;font-weight:600">{t('est.picker.afectados')}</div>
           <div style="display:flex;flex-direction:column;gap:0.35rem;max-height:120px;overflow-y:auto">
             {#each pendingSixthGraders as pg}
               <div style="display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.6rem;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:8px">
@@ -1113,7 +1113,7 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
         </div>
 
         <div style="margin-bottom:1.25rem">
-          <div style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;margin-bottom:0.5rem;font-weight:600">Mover a colegio Secundaria</div>
+          <div style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.5px;color:#64748b;margin-bottom:0.5rem;font-weight:600">{t('est.picker.mover')}</div>
           <div style="display:flex;flex-direction:column;gap:0.35rem">
             {#each secundariaColegios as col}
               <button onclick={() => selectedColegioId = col.id}
@@ -1132,11 +1132,11 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
         <div style="display:flex;gap:0.5rem;justify-content:flex-end">
           <button onclick={() => { showColegioPicker = false; pendingSixthGraders = []; }}
             style="padding:0.5rem 1rem;border-radius:8px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#94a3b8;font-weight:600;cursor:pointer;font-size:0.8rem;font-family:inherit;transition:all 0.2s ease">
-            Cancelar
+            {t('comun.cancelar')}
           </button>
           <button onclick={handleColegioSelected} disabled={selectedColegioId === 0}
             style="padding:0.5rem 1.25rem;border-radius:8px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;color:white;font-weight:600;cursor:pointer;font-size:0.8rem;font-family:inherit;transition:all 0.2s ease;opacity:{selectedColegioId === 0 ? 0.5 : 1}">
-            Confirmar migración
+            {t('est.picker.confirmar')}
           </button>
         </div>
       </div>
@@ -1145,20 +1145,20 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
 
   {#if filteredStudents.length > 0}
     <div class="student-summary-row" style="display: flex; gap: 0.5rem; margin-top: 0.8rem; padding-top: 0.8rem; border-top: 1px solid rgba(255, 255, 255, 0.1); width: 100%; {isMobile ? 'gap: 0.4rem;' : ''}">
-      <div style="flex: 1; min-width: 0; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: {isMobile ? '0.3rem 0.3rem' : '0.5rem'}; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; {isMobile ? 'min-height: 40px;' : 'min-height: 50px;'} border-left: 3px solid #a855f7;" title="Total de estudiantes en todos los colegios">
-        <span style="font-size: {isMobile ? '0.5rem' : '0.65rem'}; color: #94a3b8; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; white-space: nowrap;">{isMobile ? 'Gen' : 'General'}</span>
+      <div style="flex: 1; min-width: 0; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: {isMobile ? '0.3rem 0.3rem' : '0.5rem'}; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; {isMobile ? 'min-height: 40px;' : 'min-height: 50px;'} border-left: 3px solid #a855f7;" title={t('est.resumen.totalTitle')}>
+        <span style="font-size: {isMobile ? '0.5rem' : '0.65rem'}; color: #94a3b8; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; white-space: nowrap;">{isMobile ? t('est.resumen.generalCorto') : t('est.resumen.general')}</span>
         <span style="font-size: {isMobile ? '0.95rem' : '1.1rem'}; font-weight: 800; line-height: 1; color: #a855f7;">{students.length}</span>
       </div>
-      <div style="flex: 1; min-width: 0; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: {isMobile ? '0.3rem 0.3rem' : '0.5rem'}; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; {isMobile ? 'min-height: 40px;' : 'min-height: 50px;'} border-left: 3px solid #06b6d4;" title="Total de estudiantes con los filtros actuales">
-        <span style="font-size: {isMobile ? '0.5rem' : '0.65rem'}; color: #94a3b8; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; white-space: nowrap;">{isMobile ? 'Tot' : 'Total'}</span>
+      <div style="flex: 1; min-width: 0; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: {isMobile ? '0.3rem 0.3rem' : '0.5rem'}; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; {isMobile ? 'min-height: 40px;' : 'min-height: 50px;'} border-left: 3px solid #06b6d4;" title={t('est.resumen.totalTitleFiltro')}>
+        <span style="font-size: {isMobile ? '0.5rem' : '0.65rem'}; color: #94a3b8; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; white-space: nowrap;">{isMobile ? t('est.resumen.totalCorto') : t('est.resumen.total')}</span>
         <span style="font-size: {isMobile ? '0.95rem' : '1.1rem'}; font-weight: 800; line-height: 1; color: #06b6d4;">{stats.total}</span>
       </div>
-      <div style="flex: 1; min-width: 0; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: {isMobile ? '0.3rem 0.3rem' : '0.5rem'}; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; {isMobile ? 'min-height: 40px;' : 'min-height: 50px;'} border-left: 3px solid #f472b6;" title="Cantidad de estudiantes femenino con los filtros actuales">
-        <span style="font-size: {isMobile ? '0.5rem' : '0.65rem'}; color: #94a3b8; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; white-space: nowrap;">{isMobile ? 'Fem' : 'Femenino'}</span>
+      <div style="flex: 1; min-width: 0; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: {isMobile ? '0.3rem 0.3rem' : '0.5rem'}; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; {isMobile ? 'min-height: 40px;' : 'min-height: 50px;'} border-left: 3px solid #f472b6;" title={t('est.resumen.femTitle')}>
+        <span style="font-size: {isMobile ? '0.5rem' : '0.65rem'}; color: #94a3b8; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; white-space: nowrap;">{isMobile ? t('est.resumen.femeninoCorto') : t('est.resumen.femenino')}</span>
         <span style="font-size: {isMobile ? '0.95rem' : '1.1rem'}; font-weight: 800; line-height: 1; color: #f472b6;">{stats.f}</span>
       </div>
-      <div style="flex: 1; min-width: 0; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: {isMobile ? '0.3rem 0.3rem' : '0.5rem'}; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; {isMobile ? 'min-height: 40px;' : 'min-height: 50px;'} border-left: 3px solid #60a5fa;" title="Cantidad de estudiantes masculino con los filtros actuales">
-        <span style="font-size: {isMobile ? '0.5rem' : '0.65rem'}; color: #94a3b8; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; white-space: nowrap;">{isMobile ? 'Masc' : 'Masculino'}</span>
+      <div style="flex: 1; min-width: 0; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: {isMobile ? '0.3rem 0.3rem' : '0.5rem'}; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; {isMobile ? 'min-height: 40px;' : 'min-height: 50px;'} border-left: 3px solid #60a5fa;" title={t('est.resumen.mascTitle')}>
+        <span style="font-size: {isMobile ? '0.5rem' : '0.65rem'}; color: #94a3b8; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; white-space: nowrap;">{isMobile ? t('est.resumen.masculinoCorto') : t('est.resumen.masculino')}</span>
         <span style="font-size: {isMobile ? '0.95rem' : '1.1rem'}; font-weight: 800; line-height: 1; color: #60a5fa;">{stats.m}</span>
       </div>
     </div>
@@ -1168,8 +1168,8 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
     <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.8); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 2rem;">
       <div class="category-card" style="max-width: 800px; width: 100%; max-height: 90vh; overflow-y: auto; position: relative; padding: 2rem;">
         <button onclick={() => showImportHelp = false} style="position: absolute; top: 1rem; right: 1rem; background: transparent; border: none; color: #94a3b8; font-size: 1.5rem; cursor: pointer;">×</button>
-        <h2 style="margin-bottom: 1.5rem; color: var(--primary-color);">Guía de Importación Excel</h2>
-        <p style="margin-bottom: 1rem; color: #cbd5e1;">El sistema es inteligente y detectará automáticamente las columnas. Cada hoja del Excel se procesará como un colegio separado (el nombre de la hoja será el nombre del colegio por defecto).</p>
+        <h2 style="margin-bottom: 1.5rem; color: var(--primary-color);">{t('est.ayuda.titulo')}</h2>
+        <p style="margin-bottom: 1rem; color: #cbd5e1;">{t('est.ayuda.intro')}</p>
         <div style="overflow-x: auto; margin-bottom: 1.5rem;">
           <table style="width: 100%; border-collapse: collapse; background: rgba(0,0,0,0.2); border-radius: 8px; overflow: hidden;">
             <thead>
@@ -1183,30 +1183,33 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
                 <th style="padding: 0.75rem; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1);">Teléfono</th>
               </tr>
             </thead>
+            <!-- Encabezados y filas de ejemplo: coinciden con las columnas REALES
+                 del .xlsx generado (ver handleDownloadTemplate), que no se
+                 traducen porque el importador las busca por ese nombre. -->
             <tbody>
-              <tr><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">Juan Pérez</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">2026</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">San José</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">1ro</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">A</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">M</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05); color: #64748b; font-style: italic;">Opcional</td></tr>
-              <tr><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">María Sosa</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">2026</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">San José</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">1ro</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">(vacío)</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">F</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05); color: #64748b; font-style: italic;">Opcional</td></tr>
+              <tr><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">Juan Pérez</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">2026</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">San José</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">1ro</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">A</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">M</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05); color: #64748b; font-style: italic;">{t('est.ayuda.opcional')}</td></tr>
+              <tr><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">María Sosa</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">2026</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">San José</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">1ro</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">{t('est.ayuda.vacio')}</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05);">F</td><td style="padding: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05); color: #64748b; font-style: italic;">{t('est.ayuda.opcional')}</td></tr>
             </tbody>
           </table>
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; font-size: 0.9rem;">
           <ul style="color: #94a3b8; padding-left: 1.2rem;">
-            <li style="margin-bottom: 0.5rem;"><strong>Nombre:</strong> Nombre completo del alumno. Obligatorio.</li>
-            <li style="margin-bottom: 0.5rem;"><strong>Año:</strong> Período escolar (2024, 2025, 2026...). Se usa el filtro actual si está vacío.</li>
-            <li style="margin-bottom: 0.5rem;"><strong>Colegio:</strong> Nombre del centro. Si está vacío, usa el nombre de la hoja como colegio.</li>
-            <li style="margin-bottom: 0.5rem;"><strong>Grado:</strong> Acepta "1", "1ro", "1er", "Primero", "1 grado", etc.</li>
+            <li style="margin-bottom: 0.5rem;"><strong>Nombre:</strong> {t('est.ayuda.descNombre')}</li>
+            <li style="margin-bottom: 0.5rem;"><strong>Año:</strong> {t('est.ayuda.descAno')}</li>
+            <li style="margin-bottom: 0.5rem;"><strong>Colegio:</strong> {t('est.ayuda.descColegio')}</li>
+            <li style="margin-bottom: 0.5rem;"><strong>Grado:</strong> {t('est.ayuda.descGrado')}</li>
           </ul>
           <ul style="color: #94a3b8; padding-left: 1.2rem;">
-            <li style="margin-bottom: 0.5rem;"><strong>Sección:</strong> Grupo (A, B, Unica). Si está vacío, usa "Unica".</li>
-            <li style="margin-bottom: 0.5rem;"><strong>Sexo:</strong> M (Masculino) o F (Femenino).</li>
-            <li style="margin-bottom: 0.5rem;"><strong>Duplicados:</strong> Se ignoran estudiantes que ya existan.</li>
+            <li style="margin-bottom: 0.5rem;"><strong>Sección:</strong> {t('est.ayuda.descSeccion')}</li>
+            <li style="margin-bottom: 0.5rem;"><strong>Sexo:</strong> {t('est.ayuda.descSexo')}</li>
+            <li style="margin-bottom: 0.5rem;"><strong>Duplicados:</strong> {t('est.ayuda.descDuplicados')}</li>
           </ul>
         </div>
         <div style="margin-top: 1.5rem; padding: 1rem; background: rgba(var(--primary-rgb), 0.1); border-radius: 8px; border: 1px solid rgba(var(--primary-rgb), 0.2);">
-          <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;"><strong>💡 Consejo:</strong> Si tienes un Excel con estudiantes de diferentes colegios, organízalos en hojas separadas. Cada hoja se importará como un colegio distinto.</p>
+          <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;"><strong>{t('est.ayuda.consejoLabel')}</strong> {t('est.ayuda.consejo')}</p>
         </div>
         <div style="margin-top: 2rem; text-align: center;">
-          <button class="primary" onclick={() => showImportHelp = false}>Entendido</button>
+          <button class="primary" onclick={() => showImportHelp = false}>{t('est.ayuda.entendido')}</button>
         </div>
       </div>
     </div>
@@ -1218,28 +1221,28 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
         {#if selectedIds.size > 0}
           <BotonMod opts={{
             onclick: deleteSelected, disabled: isDeletingSelected,
-            icono: isDeletingSelected ? '⏳' : '🗑️', etiqueta: 'Eliminar', tono: 'rojo',
-            sub: `${selectedIds.size} de ${stats.total} seleccionados`,
-            title: 'Eliminar los estudiantes seleccionados', compacto: true
+            icono: isDeletingSelected ? '⏳' : '🗑️', etiqueta: t('est.eliminar'), tono: 'rojo',
+            sub: t('est.sub.seleccionados', { a: selectedIds.size, b: stats.total }),
+            title: t('est.title.eliminarSel'), compacto: true
           }} />
           <BotonMod opts={{
             onclick: clearSelection,
-            icono: '☐', etiqueta: 'Deseleccionar', tono: 'ambar',
-            sub: 'Quitar la selección',
-            title: 'Deseleccionar todos', compacto: true
+            icono: '☐', etiqueta: t('est.btn.deseleccionar'), tono: 'ambar',
+            sub: t('est.sub.quitarSel'),
+            title: t('est.title.deseleccionar'), compacto: true
           }} />
         {:else}
           <BotonMod opts={{
             onclick: selectAllFiltered,
-            icono: '☑️', etiqueta: 'Seleccionar', tono: 'azul',
-            sub: `${stats.total} en el filtro`,
-            title: 'Seleccionar todos los estudiantes del filtro', compacto: true
+            icono: '☑️', etiqueta: t('est.btn.seleccionar'), tono: 'azul',
+            sub: t('est.sub.enFiltro', { n: stats.total }),
+            title: t('est.title.seleccionar'), compacto: true
           }} />
           <BotonMod opts={{
             onclick: handleBatchDelete, disabled: isDeleting,
-            icono: isDeleting ? '⏳' : '🗑️', etiqueta: 'Eliminar todos', tono: 'rojo',
-            sub: `${filteredStudents.length} del filtro`,
-            title: 'Eliminar todos los estudiantes del filtro actual', compacto: true
+            icono: isDeleting ? '⏳' : '🗑️', etiqueta: t('est.btn.eliminarTodos'), tono: 'rojo',
+            sub: t('est.sub.delFiltro', { n: filteredStudents.length }),
+            title: t('est.title.eliminarFiltro'), compacto: true
           }} />
         {/if}
       </div>
@@ -1250,12 +1253,12 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
     {#if filteredStudents.length === 0}
       <div style="text-align: center; padding: 5rem 2rem; border: 2px dashed rgba(255, 255, 255, 0.1); border-radius: 16px; width: 100%; box-sizing: border-box;">
         <div style="font-size: 3rem; margin-bottom: 1rem;">{searchTerm ? '🔍' : '👥'}</div>
-        <h4 style="color: #cbd5e1; margin-bottom: 0.5rem;">{searchTerm ? 'No se encontraron resultados' : 'No hay estudiantes registrados'}</h4>
+        <h4 style="color: #cbd5e1; margin-bottom: 0.5rem;">{searchTerm ? t('est.vacio.tituloSinResultados') : t('est.vacio.titulo')}</h4>
         <p style="color: #94a3b8; max-width: 400px; margin: 0 auto;">
-          {searchTerm ? `No se encontró ningún estudiante que coincida con "${searchTerm}"` : 'No hay estudiantes registrados para los filtros seleccionados (Año, Colegio, Grado, Sección).'}
+          {searchTerm ? t('est.vacio.sinResultados', { q: searchTerm }) : t('est.vacio.sinFiltros')}
         </p>
         {#if searchTerm}
-          <button class="secondary" onclick={() => searchTerm = ""} style="margin-top: 1.5rem; padding: 0.5rem 1rem;">Limpiar búsqueda</button>
+          <button class="secondary" onclick={() => searchTerm = ""} style="margin-top: 1.5rem; padding: 0.5rem 1rem;">{t('est.vacio.limpiar')}</button>
         {/if}
       </div>
     {:else}
@@ -1297,11 +1300,11 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
                 <button onclick={() => { openMenuStudentId = null; openEditModal(st); }}
                   style="display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.9rem; border: none; background: rgba(56,189,248,0.12); color: #38bdf8; font-size: 0.8rem; border-radius: 8px; cursor: pointer; font-weight: 600; transition: background 0.12s; white-space: nowrap;"
                   onmouseenter={(e) => e.currentTarget.style.background = 'rgba(56,189,248,0.22)'}
-                  onmouseleave={(e) => e.currentTarget.style.background = 'rgba(56,189,248,0.12)'}>✏️ Editar</button>
+                  onmouseleave={(e) => e.currentTarget.style.background = 'rgba(56,189,248,0.12)'}>{t('est.card.editar')}</button>
                 <button onclick={() => { openMenuStudentId = null; handleDelete(st.id!); }}
                   style="display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.9rem; border: none; background: rgba(239,68,68,0.12); color: #f87171; font-size: 0.8rem; border-radius: 8px; cursor: pointer; font-weight: 600; transition: background 0.12s; white-space: nowrap;"
                   onmouseenter={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.22)'}
-                  onmouseleave={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.12)'}>🗑 Eliminar</button>
+                  onmouseleave={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.12)'}>{t('est.card.eliminar')}</button>
               </div>
             {/if}
           </div>
@@ -1315,50 +1318,50 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
     <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) isModalOpen = false; }} style="position: fixed; inset: 0; z-index: 99999; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6);">
       <div class="modal-content category-card" style="width: 450px; max-width: 95%; max-height: 90vh; overflow-y: auto; position: relative; background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98)); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; box-shadow: 0 25px 60px -12px rgba(0,0,0,0.6); animation: slideUp 0.15s ease-out;">
         <div class="category-header" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.06);">
-          <h3 style="margin: 0; font-size: 1.1rem; color: #f1f5f9;">{isEditing ? "Editar Estudiante" : "Registrar Estudiante"}</h3>
+          <h3 style="margin: 0; font-size: 1.1rem; color: #f1f5f9;">{isEditing ? t('est.modal.editar') : t('est.modal.registrar')}</h3>
           <button onclick={() => isModalOpen = false} style="background: transparent; border: none; color: #94a3b8; font-size: 1.2rem; cursor: pointer;">✕</button>
         </div>
         <form onsubmit={handleSubmit} style="display: grid; gap: 0.6rem; grid-template-columns: 1fr 1fr; padding: 1rem 1.25rem; width: 100%; box-sizing: border-box;">
           <div style="grid-column: span 2; display: flex; flex-direction: column; align-items: center; gap: 0.4rem; margin-bottom: 0.5rem;">
             <div style="width: 80px; height: 80px; border-radius: 50%; background: rgba(255,255,255,0.05); border: 2px dashed rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer;" onclick={openCamera}>
               {#if photoPreview}
-                <img src={photoPreview} alt="Foto estudiante" style="width: 100%; height: 100%; object-fit: cover;" />
+                <img src={photoPreview} alt={t('est.modal.fotoAlt')} style="width: 100%; height: 100%; object-fit: cover;" />
               {:else}
                 <div style="text-align: center; color: #64748b;">
                   <div style="font-size: 1.5rem;">📷</div>
-                  <div style="font-size: 0.65rem;">Foto</div>
+                  <div style="font-size: 0.65rem;">{t('est.modal.foto')}</div>
                 </div>
               {/if}
             </div>
             {#if photoPreview}
-              <button type="button" onclick={clearPhoto} style="font-size: 0.65rem; color: #f87171; background: none; border: none; cursor: pointer; text-decoration: underline;">🗑️ Eliminar</button>
+              <button type="button" onclick={clearPhoto} style="font-size: 0.65rem; color: #f87171; background: none; border: none; cursor: pointer; text-decoration: underline;">{t('est.modal.quitarFoto')}</button>
             {/if}
           </div>
 
           <input type="file" accept="image/*" capture="environment" onchange={handleFileChange} style="display: none;" bind:this={fileInputEl} />
 
           <div class="input-container" style="grid-column: span 2; margin-bottom: 0;">
-            <input name="nombre" placeholder="Nombre completo" value={formData.nombre} oninput={(e) => { const nodo = e.target as HTMLInputElement; const start = nodo.selectionStart; const transformed = toTitleCase(nodo.value); if (transformed !== nodo.value) { nodo.value = transformed; nodo.setSelectionRange?.(start, start); } formData = { ...formData, nombre: transformed }; }} required style="width: 100%; padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,23,42,0.6); color: #e2e8f0; font-size: 0.9rem; outline: none; box-sizing: border-box;" />
+            <input name="nombre" placeholder={t('est.modal.nombrePh')} value={formData.nombre} oninput={(e) => { const nodo = e.target as HTMLInputElement; const start = nodo.selectionStart; const transformed = toTitleCase(nodo.value); if (transformed !== nodo.value) { nodo.value = transformed; nodo.setSelectionRange?.(start, start); } formData = { ...formData, nombre: transformed }; }} required style="width: 100%; padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,23,42,0.6); color: #e2e8f0; font-size: 0.9rem; outline: none; box-sizing: border-box;" />
           </div>
           <div class="input-container" style="margin-bottom: 0;">
-            <input name="codigo" placeholder="Auto-generado" value={formData.codigo} disabled style="width: 100%; padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,23,42,0.3); color: #64748b; font-size: 0.9rem; outline: none; box-sizing: border-box; cursor: not-allowed;" />
+            <input name="codigo" placeholder={t('est.modal.codigoPh')} value={formData.codigo} disabled style="width: 100%; padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,23,42,0.3); color: #64748b; font-size: 0.9rem; outline: none; box-sizing: border-box; cursor: not-allowed;" />
           </div>
           <div class="input-container" style="margin-bottom: 0;">
             <select name="sexo" value={formData.sexo} onchange={handleFormChange} style="width: 100%; padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,23,42,0.6); color: #e2e8f0; font-size: 0.9rem; outline: none; box-sizing: border-box;">
-              <option value="M">Masculino</option>
-              <option value="F">Femenino</option>
+              <option value="M">{t('est.masculino')}</option>
+              <option value="F">{t('est.femenino')}</option>
             </select>
           </div>
           <div class="input-container" style="margin-bottom: 0;">
-            <label style="display: block; margin-bottom: 0.3rem; font-size: 0.7rem; color: #94a3b8; font-weight: 600;">Año Lectivo</label>
+            <label style="display: block; margin-bottom: 0.3rem; font-size: 0.7rem; color: #94a3b8; font-weight: 600;">{t('est.modal.anoLectivo')}</label>
             <select name="anoLectivoId" value={formData.anoLectivoId} onchange={handleFormChange} style="width: 100%; padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,23,42,0.6); color: #e2e8f0; font-size: 0.9rem; outline: none; box-sizing: border-box;">
               {#each anos as opt}
-                <option value={opt.id}>{opt.nombre}{#if opt.activo} (Activo){/if}</option>
+                <option value={opt.id}>{opt.nombre}{#if opt.activo} {t('est.activoCon')}{/if}</option>
               {/each}
             </select>
           </div>
           <div class="input-container" style="margin-bottom: 0;">
-            <label style="display: block; margin-bottom: 0.3rem; font-size: 0.7rem; color: #94a3b8; font-weight: 600;">Colegio</label>
+            <label style="display: block; margin-bottom: 0.3rem; font-size: 0.7rem; color: #94a3b8; font-weight: 600;">{t('est.modal.colegio')}</label>
             <select name="colegioId" value={formData.colegioId} onchange={handleFormChange} style="width: 100%; padding: 0.5rem 0.8rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); background: rgba(15,23,42,0.6); color: #e2e8f0; font-size: 0.9rem; outline: none; box-sizing: border-box;">
               {#each colegios as opt}
                 <option value={opt.id}>{opt.nombre}</option>
@@ -1384,8 +1387,8 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
             </select>
           </div>
           <div style="grid-column: span 2; display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 0.75rem;">
-            <button type="button" onclick={() => isModalOpen = false} style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-weight: 600;">Cancelar</button>
-            <button type="submit" style="padding: 0.5rem 1.25rem; font-size: 0.85rem; border-radius: 8px; border: none; background: linear-gradient(135deg, var(--primary-hover), var(--primary-color)); color: white; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(var(--primary-rgb), 0.4);">Guardar</button>
+            <button type="button" onclick={() => isModalOpen = false} style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-weight: 600;">{t('comun.cancelar')}</button>
+            <button type="submit" style="padding: 0.5rem 1.25rem; font-size: 0.85rem; border-radius: 8px; border: none; background: linear-gradient(135deg, var(--primary-hover), var(--primary-color)); color: white; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(var(--primary-rgb), 0.4);">{t('comun.guardar')}</button>
           </div>
         </form>
       </div>
@@ -1475,7 +1478,7 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
 
         <div style="display: flex; justify-content: flex-end; gap: 0.6rem; padding: 0.85rem 1.25rem 1.1rem; border-top: 1px solid rgba(255,255,255,0.06);">
           <button onclick={() => showExportModal = false} disabled={exportando}
-            style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-weight: 600;">Cancelar</button>
+            style="padding: 0.5rem 1rem; font-size: 0.85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: transparent; color: #94a3b8; cursor: pointer; font-weight: 600;">{t('comun.cancelar')}</button>
           <button onclick={exportarEstudiantesExcel} disabled={exportando || exportTotal === 0}
             style="padding: 0.5rem 1.25rem; font-size: 0.85rem; border-radius: 8px; border: none; background: linear-gradient(135deg, #0284c7, #0ea5e9); color: white; font-weight: 700; cursor: {exportando || exportTotal === 0 ? 'default' : 'pointer'}; box-shadow: 0 4px 14px rgba(14,165,233,0.4); opacity: {exportando || exportTotal === 0 ? 0.5 : 1};">
             {exportando ? '⏳ Generando...' : '📊 Exportar Excel'}
