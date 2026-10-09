@@ -564,10 +564,13 @@
       <span>{t('cloud.btn.crear')}</span>
     </button>
 
-    <!-- Instant backup after every save -->
-    <button class="instant" onclick={toggleInstantBackup} title={t('cloud.instantTitle')} type="button">
+    <!-- Instant backup after every save.
+     It stays a <label>, NOT a <button>: nesting a checkbox inside a button is
+     invalid HTML and the input stops responding, so the toggle would look fine
+     and do nothing. The label is what forwards the tap to the checkbox. -->
+    <label class="instant" title={t('cloud.instantTitle')}>
       <span class="switch" style="margin:0;flex-shrink:0;">
-        <input type="checkbox" checked={instantBackupOn} onchange={() => {}} />
+        <input type="checkbox" checked={instantBackupOn} onchange={toggleInstantBackup} />
         <span class="slider round" style={instantBackupOn ? 'background: linear-gradient(135deg, #22c55e, #16a34a); border-color: transparent;' : 'background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.18);'}></span>
       </span>
       <span class="instant-txt">
@@ -576,7 +579,7 @@
           {instantBackupOn ? t('cloud.instantOnDesc') : t('cloud.instantOffDesc')}
         </span>
       </span>
-    </button>
+    </label>
 
     <!-- Backup list -->
     <div class="lista">
