@@ -52,8 +52,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   });
   let gradeConfigs = $state<{ id: string; nombre: string; color: string; minimo: number }[]>([]);
   let highlightColor = $state(localStorage.getItem("student-highlight-color") || "#4ade80");
-  /** Último valor persistido, para no reescribir (y re-sincronizar) en cada effect. */
-  let ultimoHighlightGuardado = $state<string | null>(null);
 
   let { themeMode = "sistema", setThemeMode = () => {}, pageActive = false, tabRequest = null as string | null, seccion = null as string | null, soloContenido = false } = $props();
 
@@ -88,15 +86,20 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     setThemeMode(mode);
     saveAppSettings({ ...getAppSettings(), theme: mode });
   }
-  // Guarda SOLO si el valor cambió de verdad. Antes guardaba en cada corrida
-  // del effect, y `saveAppSettings` dispara `onDataChange(..., immediate)` →
-  // `flush()` → respaldo a Drive + sync a Cloudflare. Como `highlightColor`
-  // también llega por `onAppSettingsChange`, el guardado rearmaba el ciclo.
-  $effect(() => {
-    if (highlightColor === ultimoHighlightGuardado) return;
-    ultimoHighlightGuardado = highlightColor;
-    void saveAppSettings({ ...getAppSettings(), highlightColor });
-  });
+  // The highlight colour is persisted from the user action itself
+  // (`handleUpdateHighlightColor`), NOT from an effect watching the state.
+  //
+  // Why it matters: `saveAppSettings` calls `onDataChange(..., immediate)` →
+  // `flush()` → Cloudflare push+pull AND an instant Drive upload. An effect that
+  // saves on every mount meant that merely OPENING a rail section (the rail
+  // mounts pages on hover after 200 ms) fired a full sync of both clouds
+  // without the user having changed anything: `ultimoHighlightGuardado` starts
+  // at `null`, so the first run of the effect always looked like a change.
+  function handleUpdateHighlightColor(color: string) {
+    highlightColor = color;
+    void saveAppSettings({ ...getAppSettings(), highlightColor: color });
+    emit("highlight-color-updated", color);
+  }
 
   // El callback NO puede ser `async`: todo lo que sigue a un `await` se ejecuta
   // fuera del contexto de inicialización del componente, y `onDestroy`lanza
@@ -128,8 +131,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
       await emit("show-toast", { message: "❌ " + t("ajustes.config.error", { msg: String(error) }), type: "error" });
     }
   }
-
-  function handleUpdateHighlightColor(color: string) { highlightColor = color; emit("highlight-color-updated", color); }
 
   /** Android: pide el permiso POST_NOTIFICATIONS (segunda vía si el diálogo
    *  inicial del Welcome no apareció o fue denegado). */

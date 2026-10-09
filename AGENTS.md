@@ -2001,6 +2001,43 @@ worker (`TABLES`, `ensureSchema`).
   InformePage seguía mostrando asistencia ya limpiada.
 - Botón Limpiar usa diálogo nativo `ask` (modal custom eliminado).
 
+## Interruptor conectar/desconectar Cloudflare (2026-10)
+
+**Por qué existe**: restaurar un `.db` de Google Drive NO alcanza. El camino de
+restore llama `d1_reset_device_id`, que pone `last_sync = NULL`; el siguiente
+sync hace entonces un **pull COMPLETO** de la nube y vuelve a pisar la base que
+el usuario acaba de restaurar (que es más nueva). Nada dentro del sync puede
+distinguir "la nube tiene la razón" de "la nube está vieja".
+
+- **Estado**: `src/lib/d1Connection.svelte.ts` (`d1Conectado()` reactivo +
+  `persistirD1Conectado()`). Vive en **localStorage** (`stp_d1_conectado`), NO
+  en `d1_config`, y a propósito:
+  · es una decisión **por dispositivo**, no un dato que deba viajar a la nube;
+  · un respaldo restaurado trae su propio `d1_config`: un flag guardado ahí se
+    volvería a poner solo al restaurar ese `.db`;
+  · sobrevive al reinicio de la app, que es justo lo que se pidió.
+  Solo un `"false"` explícito desconecta: un valor corrupto nunca frena el sync.
+- **Orquestación**: `syncService.setD1Connected(v)`.
+  · Desconectar → `stopPeriodicSync()` + `stopWsSync()` (nada sigue bajando datos).
+  · Conectar → `d1_sync_all {full: true, force: true}` (**push completo**: la
+    base local gana; un incremental volvería a mezclar la nube vieja) y recién
+    después se rearma el timer.
+- **Guardas** (defensa en capas): `isD1Configured()` devuelve `false`;
+  `d1SyncService.syncAllSilent()` corta; `ensurePeriodicSync()` ni arma el timer;
+  el restore de Drive solo llama `d1_reset_device_id` si está conectado.
+- Drive sigue respaldando con normalidad estando desconectado: lo de Cloudflare
+  es `autoSync.flush()` → `syncService.syncAllSilent()`, y `scheduleInstantBackup()`
+  va por su cuenta.
+
+⚠️ **GOTCHA: no montar el sync en un `$effect` que escriba en la BD.**
+`saveAppSettings()` llama `onDataChange(..., immediate)` → `flush()` → **push a
+Cloudflare + subida a Drive**. Un efecto que guarde en cada montaje dispara las
+dos nubes sin que el usuario haya tocado nada: el rail de Configuración monta
+las páginas al pasar el cursor (`hoverAbrir`, 200 ms), así que "abrir el rail y
+llegar a Depuración" gastaba dos sincronizaciones reales. Persistir SIEMPRE desde
+la acción del usuario (`handleUpdateHighlightColor`), nunca desde un efecto que
+observe el estado.
+
 ## Nube como MODALES (2026-10) — `CloudPage` y `AccountPage` eliminados
 
 `CloudPage` (página) y `AccountPage` (página) **ya no existen**. Motivo: con la

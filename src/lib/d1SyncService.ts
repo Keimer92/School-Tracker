@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
 import { markDirty, markAllDirty, markAllClean, getDirtyTables } from './dirtyTracker';
+import { d1Conectado } from './d1Connection.svelte';
 import { t } from './i18n.svelte';
 
 /** Minutos entre sincronizaciones periódicas. Fijo, sin ajuste en la UI. */
@@ -143,6 +144,10 @@ export const d1SyncService = {
 
   syncAllSilent: async (dispatchEvents: boolean = true): Promise<D1SyncResult | null> => {
     const self = d1SyncService as any;
+    // Disconnected by the user (switch in the D1 panel): this device neither
+    // pushes nor pulls. The dirty tables stay marked, so reconnecting pushes
+    // everything that happened meanwhile. See `lib/d1Connection.svelte.ts`.
+    if (!d1Conectado()) return null;
     if (self._syncLock) {
       // Coalescer en vez de encolar: el sync en vuelo ya recogera los cambios
       // que se acabaron de marcar, asi que basta con dejar constancia de que
@@ -261,6 +266,9 @@ export const d1SyncService = {
   },
 
   ensurePeriodicSync: () => {
+    // Disconnected: don't even arm the timer, otherwise the interval would be
+    // ticking every 20 min only to bail out inside `syncAllSilent`.
+    if (!d1Conectado()) return;
     if ((d1SyncService as any)._periodicTimer) return;
     d1SyncService.startPeriodicSync();
   },
@@ -275,6 +283,10 @@ export const d1SyncService = {
 
     if ((d1SyncService as any)._periodicTimer) clearInterval((d1SyncService as any)._periodicTimer);
     (d1SyncService as any)._periodicTimer = setInterval(async () => {
+      if (!d1Conectado()) {
+        d1SyncService.stopPeriodicSync();
+        return;
+      }
       const cfg = await getConfig();
       if (!cfg) {
         d1SyncService.stopPeriodicSync();

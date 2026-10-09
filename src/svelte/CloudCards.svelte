@@ -3,6 +3,7 @@
   import { d1SyncManager, syncManager } from '../lib/syncService';
   import { driveSyncService } from '../lib/driveSyncService';
   import { openCloudPanel } from '../lib/cloudPanels.svelte';
+  import { d1Conectado } from '../lib/d1Connection.svelte';
   import { t } from '../lib/i18n.svelte';
   import type { D1Status } from '../lib/syncService';
 
@@ -120,7 +121,13 @@
     }
   }
 
+  // Disconnected (switch in the D1 panel) wins over the status: while it is off
+  // the state stays 'idle' and the card would otherwise show a green "OK" that
+  // is a lie — nothing is syncing.
+  const d1ConectadoAhora = $derived(d1Conectado());
+
   const d1Chip = $derived.by(() => {
+    if (!d1ConectadoAhora) return t('ccards.estado.desconectado');
     switch (d1.status) {
       case 'syncing': return t('ccards.estado.syncing');
       case 'success': return t('ccards.estado.ok');
@@ -130,9 +137,10 @@
     }
   });
 
-  // Los cortos (Sync/OK/Err/Off/Esp) se quedan literal: abreviaturas casi
-  // universales y traducirlas cambiaria el ancho del chip (ver ccards.* en es.ts).
+  // Short labels stay literal: they are near-universal abbreviations and
+  // translating them changes the chip width (see ccards.* in es.ts).
   const d1ChipShort = $derived.by(() => {
+    if (!d1ConectadoAhora) return 'Off';
     switch (d1.status) {
       case 'syncing': return 'Sync';
       case 'success': return 'OK';
@@ -147,7 +155,8 @@
   {#if !ocultarD1}
   <div
     class="cloud-card clickable {justSynced ? 'flash' : ''}"
-    class:d1-ok={d1.status === 'success' || d1.status === 'idle'}
+    class:d1-ok={d1ConectadoAhora && (d1.status === 'success' || d1.status === 'idle')}
+    class:d1-off={!d1ConectadoAhora}
     onclick={abrirD1}
     onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirD1(); } }}
     role="button"
@@ -155,9 +164,9 @@
     title={t('ccards.irNube')}
   >
     <div class="cloud-head">
-      <span class="cloud-dot {d1.status}"></span>
+      <span class="cloud-dot {d1ConectadoAhora ? d1.status : 'd1-off'}"></span>
       <span class="cloud-title">{t('ccards.nubeD1')}</span>
-      <span class="cloud-chip {d1.status}">{compact ? d1ChipShort : d1Chip}</span>
+      <span class="cloud-chip {d1ConectadoAhora ? d1.status : 'd1-off'}">{compact ? d1ChipShort : d1Chip}</span>
     </div>
     {#if !compact}
       {#if d1.status === 'syncing'}
@@ -363,6 +372,17 @@
 
   .cloud-dot.drive.active {
     box-shadow: 0 0 8px rgba(79, 142, 247, 0.8);
+  }
+
+  .cloud-dot.d1-off {
+    background: #475569;
+    box-shadow: 0 0 6px rgba(71, 85, 105, 0.5);
+  }
+
+  .cloud-chip.d1-off {
+    color: #94a3b8;
+    border-color: rgba(148, 163, 184, 0.3);
+    background: rgba(148, 163, 184, 0.1);
   }
 
   @keyframes dotPulse {

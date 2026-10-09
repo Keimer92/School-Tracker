@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
 import { markDirty, markAllDirty, markAllClean, hasDirtyTables } from './dirtyTracker';
+import { d1Conectado } from './d1Connection.svelte';
 import { esAndroid, esLinux, esMacOS, esWindows } from './platform';
 import { t } from './i18n.svelte';
 
@@ -574,7 +575,15 @@ async function downloadAndRestore(token: string, fileId: string): Promise<void> 
   // La identidad del dispositivo NUNCA debe viajar dentro de un respaldo:
   // si el backup incluyó la tabla d1_config, restaurarla duplicaría el
   // device_id entre dispositivos y rompería el push en tiempo real.
-  try { await invoke('d1_reset_device_id'); } catch {}
+  //
+  // OJO: si el usuario dejó Cloudflare DESCONECTADO (interruptor del panel D1,
+  // ver `lib/d1Connection.svelte.ts`) NO se toca el cursor. `d1_reset_device_id`
+  // pone `last_sync = NULL`, y eso arma un pull COMPLETO de la nube en el
+  // siguiente sync: justo lo que el usuario quiere evitar, porque la nube es más
+  // vieja que el respaldo que acaba de restaurar y se le pisaría la base.
+  if (d1Conectado()) {
+    try { await invoke('d1_reset_device_id'); } catch {}
+  }
   syncManager.setState({ lastDownload: now() });
   markAllClean();
   // Refrescar TODAS las páginas con los datos del respaldo recién restaurado.

@@ -1,5 +1,7 @@
 import { driveSyncService, syncManager } from './driveSyncService';
 import { d1SyncService, d1SyncManager } from './d1SyncService';
+import { d1Conectado, persistirD1Conectado } from './d1Connection.svelte';
+import { stopWsSync } from './wsSyncService';
 import { invoke } from '@tauri-apps/api/core';
 
 export type { SyncStatus } from './driveSyncService';
@@ -9,7 +11,16 @@ export { d1SyncManager };
 
 let cachedD1Configured: boolean | null = null;
 
+/**
+ * Is the cloud sync ACTIVE? Two conditions, and the second one is easy to
+ * forget: having credentials is not the same as being connected.
+ *
+ * `d1Conectado()` is the user switch in the D1 panel (see
+ * `lib/d1Connection.svelte.ts`): after restoring a database from Drive the user
+ * can turn the cloud off so its older rows don't overwrite the restored data.
+ */
 export async function isD1Configured(): Promise<boolean> {
+  if (!d1Conectado()) return false;
   if (cachedD1Configured !== null) return cachedD1Configured;
   try {
     const cfg = await invoke<unknown | null>('d1_get_config');
@@ -22,6 +33,46 @@ export async function isD1Configured(): Promise<boolean> {
 
 export function invalidateD1Cache() {
   cachedD1Configured = null;
+}
+
+/**
+ * Turns the Cloudflare connection on/off and does the housekeeping that goes
+ * with it. Called from the D1 panel; the flag itself is persisted by
+ * `d1Connection.svelte.ts`.
+ *
+ * On DISCONNECT: stop the periodic timer and the WebSocket, so nothing keeps
+ * pulling in the background while the user works on the restored database.
+ *
+ * On CONNECT: a FULL sync (`full: true`) — the local database wins. A plain
+ * incremental sync would merge with the stale cloud and could re-apply exactly
+ * the rows the user just replaced; a full push re-stamps every local row as the
+ * newest in the worker, so the cloud ends up matching what is on disk. `force`
+ * skips the retry brake of a previous failed push, which at this point is
+ * meaningless.
+ */
+export async function setD1Connected(v: boolean): Promise<void> {
+  if (d1Conectado() === v) return;
+  persistirD1Conectado(v);
+  invalidateD1Cache();
+
+  if (!v) {
+    d1SyncService.stopPeriodicSync();
+    stopWsSync();
+    d1SyncManager.setState({ status: 'idle', message: null });
+    return;
+  }
+
+  if (!(await isD1Configured())) return;   // no credentials: nothing to start
+  try {
+    await invoke('d1_sync_all', { full: true, force: true });
+    // The state is set here instead of calling `syncAllSilent` again: that
+    // would be a second full round-trip right after the first one.
+    d1SyncManager.setState({ status: 'success', lastSync: new Date().toISOString(), message: null });
+  } catch (e) {
+    d1SyncManager.setState({ status: 'error', message: String(e) });
+    console.error('[D1] falló el sync al reconectar:', e);
+  }
+  d1SyncService.ensurePeriodicSync();
 }
 
 async function active(): Promise<typeof driveSyncService | typeof d1SyncService> {
@@ -44,6 +95,8 @@ export const forcePullNotas = async (
 };
 
 export const syncService = {
+  /** Connect/disconnect Cloudflare D1 (persisted; stops/starts the machinery). */
+  setD1Connected,
   ensurePeriodicSync: async (): Promise<void> => {
     const svc = await active();
     svc.ensurePeriodicSync();

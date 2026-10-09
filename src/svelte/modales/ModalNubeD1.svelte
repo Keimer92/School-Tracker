@@ -18,10 +18,9 @@
   import { emit } from '@tauri-apps/api/event';
   import { open, ask } from '@tauri-apps/plugin-dialog';
   import { onMount } from 'svelte';
-  import {
-    d1SyncService, d1SyncManager, SYNC_PERIODICO_MIN, type D1Config,
-  } from '../../lib/d1SyncService';
-  import { invalidateD1Cache } from '../../lib/syncService';
+  import { d1SyncService, d1SyncManager, SYNC_PERIODICO_MIN, type D1Config } from '../../lib/d1SyncService';
+  import { invalidateD1Cache, setD1Connected } from '../../lib/syncService';
+  import { d1Conectado } from '../../lib/d1Connection.svelte';
   import { isCloudPanelOpen, closeCloudPanel } from '../../lib/cloudPanels.svelte';
   import { t, tagLocale } from '../../lib/i18n.svelte';
   import ModalBase from './ModalBase.svelte';
@@ -65,7 +64,7 @@
    * (see AGENTS.md → D1 retry brake).
    */
   async function syncD1() {
-    if (isD1Syncing) return;
+    if (isD1Syncing || !d1Conectado()) return;
     isD1Syncing = true;
     try {
       await invoke('d1_sync_all', { force: true });
@@ -147,6 +146,40 @@
     } finally { isImporting = false; }
   }
 
+  /**
+   * Connect/disconnect the cloud.
+   *
+   * This is the escape hatch for the case the sync itself cannot solve: the
+   * Drive backup is newer than the cloud, and any sync would re-apply the cloud
+   * rows. Turning it off stops the periodic sync and the WebSocket, and the
+   * flag persists across restarts (`lib/d1Connection.svelte.ts`). Turning it
+   * back on does a FULL sync so the local database wins.
+   */
+  let cambiandoConexion = $state(false);
+
+  async function alternarConexion() {
+    if (cambiandoConexion) return;
+    const hacia = !d1Conectado();
+    if (!hacia) {
+      const ok = await ask(t('d1m.conectar.askDesconectarMsg'), {
+        title: t('d1m.conectar.askDesconectarTitulo'),
+        kind: 'warning',
+        okLabel: t('d1m.conectar.desconectar'),
+        cancelLabel: t('comun.cancelar'),
+      });
+      if (!ok) return;
+    }
+    cambiandoConexion = true;
+    try {
+      await setD1Connected(hacia);
+      await loadD1Config();
+      await emit('show-toast', {
+        message: hacia ? t('d1m.conectar.toastConectado') : t('d1m.conectar.toastDesconectado'),
+        type: hacia ? 'success' : 'info',
+      });
+    } finally { cambiandoConexion = false; }
+  }
+
   /** `stp_f83f…7290` → `••••••7290`: last 4 chars are enough to recognise it. */
   function claveMascarada(clave: string | undefined | null): string {
     if (!clave) return '—';
@@ -163,6 +196,7 @@
   });
 
   const abierto = $derived(isCloudPanelOpen('d1'));
+  const conectado = $derived(d1Conectado());
 </script>
 
 <ModalBase
@@ -173,27 +207,46 @@
   onCerrar={closeCloudPanel}
 >
   {#if d1Cfg}
-    {#if d1SyncState.message && d1SyncState.status !== 'error'}
+    <!-- Connect / disconnect switch. Always visible: it is the only way to stop
+         the cloud from overwriting a database restored from Drive. -->
+    <label class="conexion-fila">
+      <span class="switch" style="margin:0;flex-shrink:0;">
+        <input type="checkbox" checked={conectado} onchange={alternarConexion} disabled={cambiandoConexion} />
+        <span class="slider round" style={conectado
+          ? 'background: linear-gradient(135deg, #f6821f, #fb923c); border-color: transparent;'
+          : 'background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.18);'}></span>
+      </span>
+      <span class="conexion-txt">
+        <span class="conexion-label2">{t('d1m.conectar.titulo')}</span>
+        <span class="conexion-desc">{conectado ? t('d1m.conectar.activo') : t('d1m.conectar.inactivo')}</span>
+      </span>
+    </label>
+
+    {#if !conectado}
+      <div class="aviso desconectado">
+        {t('d1m.conectar.aviso')}
+      </div>
+    {:else if d1SyncState.message && d1SyncState.status !== 'error'}
       <div class="aviso">
         {d1SyncState.message}
       </div>
     {/if}
 
     <div class="fila-principal">
-      <button class="btn-sync" onclick={syncD1} disabled={isD1Syncing} title={t('cloud.sync.title')} type="button">
+      <button class="btn-sync" onclick={syncD1} disabled={isD1Syncing || !conectado} title={t('cloud.sync.title')} type="button">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F6821F" stroke-width="2" stroke-linecap="round" style={isD1Syncing ? 'animation: d1m-spin 1s linear infinite;' : ''}><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
         <span>{isD1Syncing ? t('cloud.sync.btn.syncing') : t('cloud.sync.btn.sync')}</span>
       </button>
       <div class="info-sync">
         <span class="info-sync-line">
           {t('cloud.sync.ultima')}
-          <strong>{d1SyncState.lastSync ? new Date(d1SyncState.lastSync).toLocaleString(tagLocale()) : '—'}</strong>
+          <strong>{conectado && d1SyncState.lastSync ? new Date(d1SyncState.lastSync).toLocaleString(tagLocale()) : '—'}</strong>
         </span>
-        <span class="info-sync-auto">{t('cloud.sync.auto', { n: SYNC_PERIODICO_MIN })}</span>
+        <span class="info-sync-auto">{conectado ? t('cloud.sync.auto', { n: SYNC_PERIODICO_MIN }) : t('d1m.conectar.sinAuto')}</span>
       </div>
     </div>
 
-    {#if d1SyncState.status === 'error' && d1SyncState.message}
+    {#if conectado && d1SyncState.status === 'error' && d1SyncState.message}
       <div class="caja-error">
         <div class="caja-error-titulo">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -245,6 +298,32 @@
     background: rgba(0, 0, 0, 0.2);
     color: var(--text-secondary);
   }
+
+  .aviso.desconectado {
+    border-left-color: #94a3b8;
+    color: #cbd5e1;
+    line-height: 1.5;
+  }
+
+  .conexion-fila {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    text-align: left;
+    padding: 0.6rem 0.75rem;
+    margin-bottom: 0.75rem;
+    background: rgba(246, 130, 31, 0.05);
+    border: 1px solid rgba(246, 130, 31, 0.15);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .conexion-fila:has(input:disabled) { opacity: 0.6; cursor: default; }
+
+  .conexion-txt { line-height: 1.25; min-width: 0; }
+  .conexion-label2 { display: block; font-size: 0.8rem; color: #e2e8f0; font-weight: 600; }
+  .conexion-desc { display: block; font-size: 0.68rem; color: #94a3b8; }
 
   .fila-principal {
     display: flex;
