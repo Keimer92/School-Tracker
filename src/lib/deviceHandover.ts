@@ -20,6 +20,8 @@
  * Borrarlo es opcional y debe pedir confirmación aparte.
  */
 
+import { t } from './i18n.svelte';
+
 /** Claves de localStorage que identifican a la persona que se va. */
 const CLAVES_A_LIMPIAR = [
   'schooltracker-google-drive-settings',
@@ -51,13 +53,13 @@ export async function traspasarDispositivo(opts?: {
 
   if (confirmar) {
     const ok = await confirmar();
-    if (!ok) return { ok: false, motivo: 'Cancelado por el usuario' };
+    if (!ok) return { ok: false, motivo: t('traspaso.cancelado') };
   }
 
   // ── 1. Respaldo a Drive. Es la única red de recuperación: si falla, abortar.
   let respaldo = '';
   try {
-    onEtapa?.('Respaldando en Google Drive...');
+    onEtapa?.(t('traspaso.etapa.respaldandoDrive'));
     const { driveSyncService } = await import('./driveSyncService');
     await driveSyncService.pushAll();
     respaldo = driveSyncService.latestFileName();
@@ -66,12 +68,12 @@ export async function traspasarDispositivo(opts?: {
     console.error('[Traspaso] falló el respaldo a Drive:', e);
     return {
       ok: false,
-      motivo: 'No se pudo respaldar en Google Drive, así que no se borró nada. ' + msg,
+      motivo: t('traspaso.sinRespaldoDrive', { error: msg }),
     };
   }
 
   // ── 2. Frenar todo lo que pueda escribir mientras se borra.
-  onEtapa?.('Deteniendo la sincronización...');
+  onEtapa?.(t('traspaso.etapa.deteniendoSync'));
   try { const { syncService } = await import('./syncService'); await syncService.stopPeriodicSync(); } catch {}
   try { const { stopWsSync } = await import('./wsSyncService'); stopWsSync(); } catch {}
   try { const { driveSyncService } = await import('./driveSyncService'); driveSyncService.stopPeriodicSync(); } catch {}
@@ -82,7 +84,7 @@ export async function traspasarDispositivo(opts?: {
   // ── 3. Quitar el vínculo con la nube y reabrir la base por defecto.
   //    `desvincular_cuenta` borra `d1_config`, así que el siguiente usuario no
   //    hereda el namespace de esta persona.
-  onEtapa?.('Desvinculando la nube...');
+  onEtapa?.(t('traspaso.etapa.desvinculando'));
   const { invoke } = await import('@tauri-apps/api/core');
   try {
     await invoke('desvincular_cuenta');
@@ -90,24 +92,24 @@ export async function traspasarDispositivo(opts?: {
     console.error('[Traspaso] falló desvincular_cuenta:', e);
     return {
       ok: false,
-      motivo: 'No se pudo desvincular la nube. El respaldo ' + respaldo + ' quedó subido, pero los datos locales no se tocaron.',
+      motivo: t('traspaso.sinDesvinculacion', { respaldo }),
     };
   }
 
   // ── 4. Vaciar los datos locales.
-  onEtapa?.('Borrando los datos locales...');
+  onEtapa?.(t('traspaso.etapa.borrandoLocal'));
   try {
     await invoke('reset_local_database');
   } catch (e: any) {
     console.error('[Traspaso] falló reset_local_database:', e);
     return {
       ok: false,
-      motivo: 'El respaldo ' + respaldo + ' quedó subido, pero no se pudieron borrar los datos locales: ' + (e?.message || e),
+      motivo: t('traspaso.sinBorrarLocal', { respaldo, error: e?.message || e }),
     };
   }
 
   // ── 5. Estado del frontend y recarga.
-  onEtapa?.('Reiniciando la aplicación...');
+  onEtapa?.(t('traspaso.reiniciando'));
   for (const k of CLAVES_A_LIMPIAR) {
     try { localStorage.removeItem(k); } catch { /* ignorable */ }
   }
