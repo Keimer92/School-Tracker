@@ -955,11 +955,19 @@ $effect(() => {
   function esDiaSinClases(fecha: string): boolean { return !!coberturaSinClases(fecha); }
 
   async function fetchDiasSinClases() {
-    if (!selectedColegio || !selectedSeccion) { diasSinClases = []; return; }
+    // Only the school is required. Right after changing school the grade/section
+    // are still 0, and bailing out there wiped `diasSinClases`: the school-wide
+    // marks ("todo el colegio", "todos los colegios") disappeared until something
+    // else refetched, so the motive of the period was missing depending on which
+    // school was selected. Passing null for grade/section returns the school-wide
+    // marks; section marks arrive as soon as the section is known.
+    if (!selectedColegio) { diasSinClases = []; return; }
     try {
       const fechas = getFechasPeriodo();
       const data = await invoke<DiaSinClase[]>('get_dias_sin_clases', {
-        colegioId: selectedColegio, gradoId: selectedGrado, seccionId: selectedSeccion,
+        colegioId: selectedColegio,
+        gradoId: selectedGrado || null,
+        seccionId: selectedSeccion || null,
         fechaInicio: fechas[0], fechaFin: fechas[fechas.length - 1],
       });
       // Evitar reasignar si el contenido no cambió (rompe dependencias sin motivo)
@@ -1008,17 +1016,16 @@ $effect(() => {
   });
 
   /**
-   * Motives of the days that are marked "sin clases" in this period, unique and
-   * in order. Read through `coberturaSinClases` so the text is the one of the
-   * mark that ACTUALLY covers each day (school-wide vs this section) instead of
-   * whatever row happens to come first in the list.
+   * Motives of the days marked "sin clases" in this period, unique and in
+   * order. Goes through `motivoSinClasesEn` so a day covered by a mark without
+   * a description still shows the reason from whichever mark does have it.
    */
   let motivosPeriodoSinClases = $derived.by(() => {
     const base = getDiasHabilitadosBase(getFechasPeriodo()).filter(f => esDiaSinClases(f));
     const out: string[] = [];
     for (const f of base) {
-      const desc = (coberturaSinClases(f)?.descripcion || '').trim();
-      if (desc && !out.includes(desc)) out.push(desc);
+      const desc = motivoSinClasesEn(f);
+      if (desc && desc !== t('asis.sinClases.motivoVacio') && !out.includes(desc)) out.push(desc);
     }
     return out;
   });
@@ -1090,8 +1097,22 @@ $effect(() => {
   function semanaSinClasesTotal(s: { numero: number; fechas: string[] }): boolean {
     return s.fechas.length > 0 && s.fechas.every(f => esDiaSinClases(f));
   }
+  /**
+   * Motive of a day marked as "sin clases".
+   *
+   * `coberturaSinClases` answers with the FIRST row that covers the day, and the
+   * list is ordered by date only. With two marks on the same date (a school-wide
+   * one and a leftover section one) the row that answers can be the one without
+   * a description — the motive then showed for one school and vanished for
+   * another, depending on which section happened to match. So: take the covering
+   * mark, and if it has no description fall back to any other row of that date
+   * that does.
+   */
   function motivoSinClasesEn(fecha: string): string {
-    return coberturaSinClases(fecha)?.descripcion || t('asis.sinClases.motivoVacio');
+    const directa = (coberturaSinClases(fecha)?.descripcion || '').trim();
+    if (directa) return directa;
+    const alternativa = diasSinClases.find(d => d.fecha === fecha && (d.descripcion || '').trim());
+    return (alternativa?.descripcion || '').trim() || t('asis.sinClases.motivoVacio');
   }
 
   /** Días seleccionables en el calendario: hábiles del colegio y no marcados sin clases. */
@@ -1397,7 +1418,9 @@ $effect(() => {
   $effect(() => {
     const c = selectedColegio, g = selectedGrado, s = selectedSeccion;
     void c; void g; void s; void periodo; void selectedFecha; void mesSeleccionado; void anoSeleccionado;
-    if (!c || !g || !s) { diasSinClases = []; return; }
+    // Solo el colegio es obligatorio (ver `fetchDiasSinClases`): exigir también
+    // grado y sección dejaba el período sin motivo tras cambiar de colegio.
+    if (!c) { diasSinClases = []; return; }
     untrack(() => fetchDiasSinClases());
   });
 
@@ -2468,38 +2491,43 @@ $effect(() => {
         {#if loading}
           <div class="loading-state">{t('asis.cargando')}</div>
         {:else if fechasPeriodo.length === 0}
-          {#if periodoTodoSinClases}
-            <!-- Período completo marcado "sin clases": es un estado válido, no un
-                 error. Antes caía en la caja roja de "sin días hábiles", que además
-                 venía con un toast de error del fetch. -->
-            <div style="padding:40px;text-align:center;background:rgba(251,191,36,0.08);border-radius:12px;border:1px dashed #fbbf24;color:#fcd34d">
-              <h3>{t('asis.sinClases.vacioTitulo')}</h3>
-              <p style="color:#94a3b8">{t('asis.sinClases.vacioDesc', {
-                alcance: sinClasesNivelColegio ? t('asis.sinClases.alcanceTodo') : t('asis.sinClases.alcanceSoloSeccion'),
-              })}</p>
-              <!-- The motive the user typed when marking (it is mandatory there),
-                   so they recognise WHY the week is off instead of just seeing
-                   that it is. -->
-              {#if motivosPeriodoSinClases.length > 0}
-                <p style="margin:.75rem 0 0;color:#fde68a;font-size:.9rem">
-                  {#each motivosPeriodoSinClases as motivo, i (motivo)}
-                    {i > 0 ? ' · ' : ''}{t('asis.sinClases.vacioMotivo', { motivo })}
-                  {/each}
-                </p>
-              {:else}
-                <p style="margin:.75rem 0 0;color:#64748b;font-size:.8rem">{t('asis.sinClases.vacioSinMotivo')}</p>
-              {/if}
+          <!-- One panel for "this period has no working days", whichever the cause:
+               same layout, same slots (reason, scope, motive, action). Before,
+               the "marked off" case and the "school doesn't work these days" case
+               were two different boxes with different information, and the motive
+               only appeared on some of them. -->
+          <div
+            style="padding:40px;text-align:center;border-radius:12px;border:1px dashed;{periodoTodoSinClases
+              ? 'background:rgba(251,191,36,0.08);border-color:#fbbf24;color:#fcd34d'
+              : 'background:rgba(239,68,68,0.1);border-color:#ef4444;color:#ef4444'}"
+          >
+            <h3>{periodoTodoSinClases ? t('asis.sinClases.vacioTitulo') : t('asis.sinDiasHabiles.titulo')}</h3>
+            <p style="color:#94a3b8">
+              {periodoTodoSinClases
+                ? t('asis.sinClases.vacioDesc', {
+                    alcance: sinClasesNivelColegio ? t('asis.sinClases.alcanceTodo') : t('asis.sinClases.alcanceSoloSeccion'),
+                  })
+                : t('asis.sinDiasHabiles.desc')}
+            </p>
+            <!-- Motive of the marks, so you recognise WHY instead of just seeing
+                 that the week is off. Listed once each: a period marked with two
+                 different reasons shows both. -->
+            {#if motivosPeriodoSinClases.length > 0}
+              <p style="margin:.75rem 0 0;color:#fde68a;font-size:.9rem">
+                {#each motivosPeriodoSinClases as motivo, i (motivo)}
+                  {i > 0 ? ' · ' : ''}{t('asis.sinClases.vacioMotivo', { motivo })}
+                {/each}
+              </p>
+            {:else if periodoTodoSinClases}
+              <p style="margin:.75rem 0 0;color:#64748b;font-size:.8rem">{t('asis.sinClases.vacioSinMotivo')}</p>
+            {/if}
+            {#if periodoTodoSinClases}
               <button class="secondary" onclick={() => desactivarSinClases()}
                 style="margin-top:1.25rem;padding:0.5rem 1rem">
                 ♻️ {t('asis.sinClases.reactivar')}
               </button>
-            </div>
-          {:else}
-            <div style="padding:40px;text-align:center;background:rgba(239,68,68,0.1);border-radius:12px;border:1px dashed #ef4444;color:#ef4444">
-              <h3>{t('asis.sinDiasHabiles.titulo')}</h3>
-              <p>{t('asis.sinDiasHabiles.desc')}</p>
-            </div>
-          {/if}
+            {/if}
+          </div>
         {:else if filteredEstudiantesMulti.length === 0}
           <div style="text-align:center;padding:5rem 2rem;border:2px dashed rgba(255,255,255,0.1);border-radius:16px;margin:0 1rem">
             <div style="font-size:3rem;margin-bottom:1rem">{searchTerm ? '🔍' : '📋'}</div>

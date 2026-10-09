@@ -2029,6 +2029,21 @@ distinguir "la nube tiene la razón" de "la nube está vieja".
   es `autoSync.flush()` → `syncService.syncAllSilent()`, y `scheduleInstantBackup()`
   va por su cuenta.
 
+⚠️ **GOTCHA: leer el motivo de un día marcado tiene que tolerar marcas duplicadas.**
+`coberturaSinClases()` responde con la PRIMERA fila que cubre el día y la consulta
+viene `ORDER BY fecha` solamente. Si el mismo día tiene dos marcas (una de colegio
++ una de sección que quedó de antes), la que responde puede ser la que no tiene
+descripción: el motivo aparecía para un colegio y desaparecía para otro según qué
+sección coincidía. `motivoSinClasesEn()` ahora cae a cualquier otra fila de esa
+fecha que sí tenga motivo.
+
+Relacionado: `fetchDiasSinClases()` exige **solo** el colegio, y manda
+`gradoId/seccionId` en `null` cuando aún valen 0. Antes exigía también grado y
+sección, y justo tras cambiar de colegio esas dos valen 0 → se vaciaba
+`diasSinClases` y el período se quedaba sin motivo hasta que otro fetch lo
+llenara. Las marcas a nivel colegio son las que produce "Marcar todo este colegio"
+y "Marcar en TODOS los colegios", así que son las que no pueden faltar.
+
 ⚠️ **GOTCHA: `invoke()` con un argumento `undefined` rompe el comando, no la app.**
 El payload se serializa con `JSON.stringify`, y las claves cuyo valor es
 `undefined` **se pierden**. Rust recibe entonces un mapa sin la clave y contesta
