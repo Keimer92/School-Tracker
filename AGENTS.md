@@ -2029,6 +2029,18 @@ distinguir "la nube tiene la razón" de "la nube está vieja".
   es `autoSync.flush()` → `syncService.syncAllSilent()`, y `scheduleInstantBackup()`
   va por su cuenta.
 
+⚠️ **GOTCHA: sin `colegio_dias_asistencia`, el fallback de días hábiles NO puede
+ser "los 7 días".** `getDiasHabilitadosBase()` / `getDiasHabilitados()` devuelven
+`soloSinDomingo(fechas)` cuando el colegio no tiene config semanal. Antes
+devolvían los 7 días, y como "Marcar en TODOS los colegios" marca los 7 días del
+calendario a propósito (ver `objetivosSinClases`), ese colegio siempre tenía días
+"laborables" sin marcar: la semana marcada JAMÁS se veía completa y la página
+seguía mostrando la grilla por días con el motivo en cada columna, en vez del
+panel de "período sin clases". Resultado visible: la misma semana se veía con dos
+presentaciones distintas según el colegio del dropdown (el que tiene config
+mostraba el panel, el que no tenía la grilla). Solo cae el domingo: sábado no,
+porque los colegios martes-sábado son un caso real.
+
 ⚠️ **GOTCHA: leer el motivo de un día marcado tiene que tolerar marcas duplicadas.**
 `coberturaSinClases()` responde con la PRIMERA fila que cubre el día y la consulta
 viene `ORDER BY fecha` solamente. Si el mismo día tiene dos marcas (una de colegio

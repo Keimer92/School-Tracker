@@ -871,7 +871,10 @@ $effect(() => {
   }
 
   function getDiasHabilitados(fechas: string[]): string[] {
-    if (!colegioConfig) return fechas;
+    // Same Sunday fallback as `getDiasHabilitadosBase`: without it a school with
+    // no weekly config keeps a Sunday column in the grid and the period never
+    // looks fully off. See `sinDomingos`.
+    if (!colegioConfig) return sinDomingos(fechas).filter(f => !esDiaSinClases(f));
     const dayNames = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
     return fechas.filter(f => {
       const d = new Date(f + "T12:00:00");
@@ -992,9 +995,29 @@ $effect(() => {
 
   /** Días hábiles según configuración semanal del colegio, SIN filtrar días sin clases. */
   function getDiasHabilitadosBase(fechas: string[]): string[] {
-    if (!colegioConfig) return fechas;
+    if (!colegioConfig) return sinDomingos(fechas);
     const dayNames = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
     return fechas.filter(f => colegioConfig[dayNames[new Date(f + "T12:00:00").getDay()]] !== false);
+  }
+
+  /**
+   * Fallback cuando el colegio NO tiene `colegio_dias_asistencia` cargado: antes
+   * se asumían los 7 días, y eso rompía la vista de "período sin clases".
+   *
+   * Al marcar una semana "para todos los colegios" las marcas caen sobre los 7
+   * días del calendario a propósito (ver `objetivosSinClases`), así que con el
+   * supuesto de 7 días un colegio sin config siempre tenía días "laborables" sin
+   * marcar: la semana NUNCA se veía completa y la página seguía mostrando la
+   * tabla por días con el motivo en cada columna, en vez del panel de período sin
+   * clases. Con ello la misma semana se veía de una forma en el colegio que SÍ
+   * tiene config (panel) y de otra en el que no la tiene (tabla).
+   *
+   * Solo cae el domingo: es el único día que por defecto ningún colegio trabaja.
+   * El sábado NO, porque los colegios martes-sábado son un caso real (y la
+   * semana del calendario se arma desde el lunes).
+   */
+  function sinDomingos(fechas: string[]): string[] {
+    return fechas.filter(f => new Date(f + "T12:00:00").getDay() !== 0);
   }
   /** Fechas objetivo del botón: días hábibles de la semana/día actual. */
   function fechasObjetivoSinClases(): string[] {
