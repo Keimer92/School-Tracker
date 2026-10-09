@@ -240,6 +240,8 @@ export const es = {
   'asis.sinClases.vacioTitulo': '🚫 Período completo sin clases',
   'asis.sinClases.vacioDesc':
     'Todos los días hábiles de este período están marcados sin clases ({alcance}). No hay qué tomar asistencia.',
+  'asis.sinClases.vacioMotivo': 'Motivo: {motivo}',
+  'asis.sinClases.vacioSinMotivo': 'Estas marcas no tienen motivo guardado.',
   'asis.sinClases.elegirSemana': 'Elegir semana',
   'asis.sinClases.descSemana': 'Dejar una semana del mes sin clases',
   'asis.sinClases.descPeriodo': 'Marcar el período actual sin clases',

@@ -1007,6 +1007,22 @@ $effect(() => {
     return base.length > 0 && base.every(f => esDiaSinClases(f));
   });
 
+  /**
+   * Motives of the days that are marked "sin clases" in this period, unique and
+   * in order. Read through `coberturaSinClases` so the text is the one of the
+   * mark that ACTUALLY covers each day (school-wide vs this section) instead of
+   * whatever row happens to come first in the list.
+   */
+  let motivosPeriodoSinClases = $derived.by(() => {
+    const base = getDiasHabilitadosBase(getFechasPeriodo()).filter(f => esDiaSinClases(f));
+    const out: string[] = [];
+    for (const f of base) {
+      const desc = (coberturaSinClases(f)?.descripcion || '').trim();
+      if (desc && !out.includes(desc)) out.push(desc);
+    }
+    return out;
+  });
+
   /** Días hábiles del período para pintar la tabla (incluye los sin clases con su marca). */
   let fechasVisibles = $derived.by(() => {
     return getDiasHabilitadosBase(getFechasPeriodo()).map(f => ({
@@ -2458,9 +2474,21 @@ $effect(() => {
                  venía con un toast de error del fetch. -->
             <div style="padding:40px;text-align:center;background:rgba(251,191,36,0.08);border-radius:12px;border:1px dashed #fbbf24;color:#fcd34d">
               <h3>{t('asis.sinClases.vacioTitulo')}</h3>
-              <p style="color:#94a3b8">{@html t('asis.sinClases.vacioDesc', {
+              <p style="color:#94a3b8">{t('asis.sinClases.vacioDesc', {
                 alcance: sinClasesNivelColegio ? t('asis.sinClases.alcanceTodo') : t('asis.sinClases.alcanceSoloSeccion'),
               })}</p>
+              <!-- The motive the user typed when marking (it is mandatory there),
+                   so they recognise WHY the week is off instead of just seeing
+                   that it is. -->
+              {#if motivosPeriodoSinClases.length > 0}
+                <p style="margin:.75rem 0 0;color:#fde68a;font-size:.9rem">
+                  {#each motivosPeriodoSinClases as motivo, i (motivo)}
+                    {i > 0 ? ' · ' : ''}{t('asis.sinClases.vacioMotivo', { motivo })}
+                  {/each}
+                </p>
+              {:else}
+                <p style="margin:.75rem 0 0;color:#64748b;font-size:.8rem">{t('asis.sinClases.vacioSinMotivo')}</p>
+              {/if}
               <button class="secondary" onclick={() => desactivarSinClases()}
                 style="margin-top:1.25rem;padding:0.5rem 1rem">
                 ♻️ {t('asis.sinClases.reactivar')}
