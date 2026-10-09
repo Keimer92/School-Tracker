@@ -207,8 +207,6 @@
   onCerrar={closeCloudPanel}
 >
   {#if d1Cfg}
-    <!-- Connect / disconnect switch. Always visible: it is the only way to stop
-         the cloud from overwriting a database restored from Drive. -->
     <label class="conexion-fila">
       <span class="switch" style="margin:0;flex-shrink:0;">
         <input type="checkbox" checked={conectado} onchange={alternarConexion} disabled={cambiandoConexion} />

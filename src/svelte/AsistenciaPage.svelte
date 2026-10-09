@@ -2578,9 +2578,6 @@ $effect(() => {
           {@render panelSinClases(false)}
         {:else}
           {#if periodoTieneMarcas}
-            <!-- Partial marks: the grid stays (there ARE days with classes) but the
-                 same panel goes on top, so the reason and the restore action are in
-                 the same place in every case. -->
             {@render panelSinClases(true)}
           {/if}
           {#if filteredEstudiantesMulti.length === 0}
