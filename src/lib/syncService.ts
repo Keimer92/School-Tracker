@@ -26,7 +26,7 @@ export function invalidateD1Cache() {
 
 async function active(): Promise<typeof driveSyncService | typeof d1SyncService> {
   // Google Drive ya no se usa para sync automático: solo respaldo manual desde
-  // CloudPage. Todo sync/data-change/periodic se delega a D1 (no-op si no está configurado).
+  // modal de Cloudflare D1 (`modales/ModalNubeD1.svelte`). Todo sync/data-change/periodic se delega a D1 (no-op si no está configurado).
   return d1SyncService;
 }
 

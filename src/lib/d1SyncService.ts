@@ -267,7 +267,7 @@ export const d1SyncService = {
 
       startPeriodicSync: () => {
         // Intervalo FIJO de 20 minutos. Antes se leía de localStorage y había un
-        // control en CloudPage para cambiarlo; el sync es crítico y una ventana
+        // control en la UI de nube para cambiarlo; el sync es crítico y una ventana
         // más corta solo gasta cuota de D1 (que ya es el límite que se está
         // topando). La clave vieja se limpia para que un valor previo no sobreviva.
         localStorage.removeItem('periodic_sync_interval_seconds');

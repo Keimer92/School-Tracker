@@ -36,16 +36,22 @@ componente legacy que no se monta.
 
 Traducidos: `WelcomePage`, `AjustesPage`, `AsistenciaPage`, `NotasPage`,
 `EstudiantesPage`, `ConfiguracionPage` (+ `CategoryTabContent`), `InformePage`,
-`ReportesPage`, `EvaluacionesPage`, `DashboardPage`, `CloudPage`,
+`ReportesPage`, `EvaluacionesPage`, `DashboardPage`,
 `ConfirmDialog`, `BrowserPicker`, `LanguagePicker`, `Sidebar`, `AndroidDrawer`,
 `CloudCards`, `App`, `FiltersModalAndroid`, `NotificacionesPage`,
 `GradoConfigModal`, `ColegioConfigModal`, `CalificacionesConfig`,
 `MultiplicadoresConfig`, `SearchInput`, los wrappers `AsistenciaMainPage` /
-`NotasMainPage`, `DatePickerGlass`, `AccountPage`, `InfoPage` y los servicios
-`driveSyncService`, `d1SyncService`, `cloudLogin`, `driveAutoBackup`,
+`NotasMainPage`, `DatePickerGlass`, `InfoPage`, los modales de nube
+(`modales/ModalBase`, `modales/ModalNubeD1`, `modales/ModalNubeDrive`) y los
+servicios `driveSyncService`, `d1SyncService`, `cloudLogin`, `driveAutoBackup`,
 `driveInstantBackup`, `deviceHandover` (+ `main.ts` para el arranque del
 idioma). (`DashboardPage` y varios `.ts` quedaron con 0 textos sueltos: el
 contador los saca del listado.)
+
+> ℹ️ `CloudPage` y `AccountPage` se eliminaron (2026-10): la nube pasó a ser
+> modales y la cuenta dejó de tener uso con la nube de un solo usuario. Sus
+> claves (`acc.*`, `cfg.sec/desc.nube|cuenta`) se borraron de los diccionarios;
+> el traspaso de dispositivo quedó en `DebugPage` con el prefijo `dpg.traspaso.*`.
 
 > ⚠️ El script marca `LISTO` en cuanto el archivo importa `i18n.svelte`, así
 > que el número de "textos" de un archivo LISTO es el total que **tenía**, no

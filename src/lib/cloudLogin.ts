@@ -170,7 +170,7 @@ async function finalizarSoloDrive(
 
 /**
  * LOGIN/REGISTRO con Google para el sync Cloudflare + vinculación de Drive
- * con la MISMA cuenta. Reutilizable desde WelcomePage y CloudPage.
+ * con la MISMA cuenta. Reutilizable desde WelcomePage.
  *  - Android: selector nativo (idToken + serverAuthCode con scope drive.file).
  *  - Desktop: OAuth en el NAVEGADOR DEL SISTEMA con openid + drive.file (una
  *    sola consentición). A pesar del nombre, `gd_open_auth_webview` abre el

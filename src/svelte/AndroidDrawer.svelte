@@ -87,7 +87,7 @@
     {#if driveUp}
       <span class="drive-bar"><span style="width: {driveUp.pct}%;"></span></span>
     {/if}
-  </div>
+  </button>
   <!-- Cloudflare D1 status chip (tap → opens the D1 panel) -->
   <button
     class="mobile-sync-chip"

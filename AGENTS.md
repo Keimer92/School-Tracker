@@ -211,7 +211,20 @@ src/
      ConfiguracionPage.svelte shell de Configuración: rail (desktop) o lista
                               (Android) + sub-navegación. Guarda el scroll de
                               la lista al entrar/salir de una sección
-     CloudCards.svelte        cards Nube D1 / Respaldo Drive (drawer móvil + header desktop)
+     CloudCards.svelte        cards Nube D1 / Respaldo Drive del sidebar. Cada
+                              una abre SU modal (no navegan a ninguna página)
+     modales/                 modales REUSABLES de nube (2026-10, antes
+                              CloudPage + AccountPage):
+       ModalBase.svelte         caparazón glass: overlay portalToBody, título,
+                                ✕, `onpointerdown`+target para cerrar con el
+                                fondo y `registerBackHandler` (back Android y
+                                Escape de escritorio)
+       ModalNubeD1.svelte       panel Cloudflare D1: última sync, botón
+                                sincronizar, diagnóstico del error, worker +
+                                clave enmascarada e **importación del .key**
+       ModalNubeDrive.svelte    panel de Drive: login, resumen del último
+                                respaldo, "crear respaldo", respaldo
+                                instantáneo y lista con restaurar/eliminar
      CategoryTabContent.svelte  card/config de cada categoría en el catálogo
                               (modales add/edit, switch activo, savebar). El
                               botón ⚙️ SOLO se renderiza si recibe `onConfigClick`
@@ -1532,7 +1545,8 @@ Cada página usa `$effect` (Svelte 5) que registra el handler mientras el modal/
 está abierto, y solo cuando la página está activa (prop `pageActive`):
 - `EstudiantesPage.svelte` → `isModalOpen` (form de estudiante)
 - `AsistenciaPage.svelte` / `InformePage.svelte` → `selectedStudentDetail` (detalle)
-- `CloudPage.svelte` → `showConfirm`
+- `CloudPage.svelte` → eliminada; el cierre lo hace `modales/ModalBase.svelte`
+  (`registerBackHandler` mientras el panel está abierto)
 - `ConfiguracionPage.svelte` → vuelve a la lista desde una sección (`activa` a
   `null`; solo Android) y cierra primero los modales de catálogo abiertos
   (`colegioConfig` / `gradoConfig`). Además restaura el scroll de la lista, que
@@ -1987,21 +2001,72 @@ worker (`TABLES`, `ensureSchema`).
   InformePage seguía mostrando asistencia ya limpiada.
 - Botón Limpiar usa diálogo nativo `ask` (modal custom eliminado).
 
-## Credenciales Cloudflare (.key) + Welcome (2026-08)
+## Nube como MODALES (2026-10) — `CloudPage` y `AccountPage` eliminados
 
-- **Formato .key**: JSON `{workerUrl, schoolKey}` (plantilla `schooltracker.key`
-  en raíz del proyecto, añadida a `.gitignore`).
-- **Exportar**: CloudPage botón "📤 Exportar clave" (diálogo save nativo).
-- **Importar**: WelcomePage 3ra tarjeta "Tengo un archivo de conexión" → `open`
-  dialog → valores pasan UNA vez a `d1_save_config` (solo SQLite/d1_config;
-  nunca localStorage ni bundle). Ejecuta primer `d1_sync_all`; nube vacía → wizard.
-- **Protección anti-mezcla**: si la config existente difiere del .key (p. ej. una
-  BD restaurada desde Drive trae su propia `d1_config`), se avisa y reemplaza
-  LIMPIO: `d1_clear_config` antes de guardar → nuevo device_id, cursores en cero,
-  re-sync completo. Implementado en CloudPage y WelcomePage.
-- **Modal Configurar D1**: ya no tiene inputs; SOLO importa archivo .key.
-- **Clave enmascarada** en UI: card muestra `••••••••{últimos 4}`; formulario
-  manual eliminado.
+`CloudPage` (página) y `AccountPage` (página) **ya no existen**. Motivo: con la
+nube de un solo usuario la página de cuenta no aportaba nada, y el contenido de
+nube se usa desde cualquier parte, no desde un destino de navegación.
+
+- **Estado global**: `src/lib/cloudPanels.svelte.ts` con
+  `openCloudPanel('d1' | 'drive')`, `closeCloudPanel()`, `isCloudPanelOpen(panel)`.
+  Es un `let` + `$state` en un módulo **`.svelte.ts`** (igual que `i18n.svelte.ts`):
+  leído desde el template queda como dependencia y Svelte re-renderiza solo. Con
+  un `let` normal en un `.ts`, abrir el panel no re-renderizaría nada.
+- **Montaje**: `<ModalNubeD1 />` y `<ModalNubeDrive />` se montan UNA vez en
+  `App.svelte` (fuera del layout), no en el componente que dispara el click. Es lo
+  que mantiene una sola fuente de verdad de la sesión de Drive y del estado D1.
+  Ambos devuelven vacío (`{#if abierto}`) mientras no están abiertos.
+- **Puntos de entrada**: card ☁️ y card Drive del sidebar (`CloudCards`, solo
+  desktop) y los chips del header de Android (`mobile-sync-chip` / `mobile-drive-btn`).
+  Ambos chips del header ahora abren panel (el de Drive antes era solo informativo).
+- **Rail de Configuración**: sin entradas "Nube" ni "Cuenta". Los destinos legacy
+  `cloud`/`account` en `App.TAB_A_SECCION_AJUSTES` caen en `general`.
+- **Traspaso de dispositivo**: vivía en AccountPage; ahora es una caja en
+  `ajustes/DebugPage.svelte` con claves `dpg.traspaso.*` (el orden de borrado lo
+  sigue mandando `lib/deviceHandover.ts`).
+
+**Para abrir un modal de nube desde cualquier página nueva**:
+
+```ts
+import { openCloudPanel } from "../lib/cloudPanels.svelte";
+// ...
+onclick={() => openCloudPanel('d1')}     // o 'drive'
+```
+
+⚠️ **GOTCHA: no volver a navegar a una sección de nube**. Si el panel se necesita
+en otro lugar, se abre el store. Duplicar la sesión de Drive en dos componentes
+es un error difícil de ver: el dispositivo queda con dos tokens distintos y el
+respaldo manual falla sin explicación.
+
+⚠️ **GOTCHA (lectura del .key)**: el `.key` se lee con el comando Rust
+`gd_read_file_base64` + `TextDecoder`, **no** con `readTextFile` del plugin-fs:
+las capabilities de `src-tauri/capabilities/default.json` no incluyen
+`fs:allow-read-text-file`, y el scope de `fs:allow-read-file` solo cubre
+AppData/Downloads/Documents/Home/Temp (un `.key` en otra unidad fallaría).
+
+## Credenciales Cloudflare (.key): generación e importación (2026-08, ajustado 2026-10)
+
+- **Formato .key**: JSON `{workerUrl, schoolKey}`.
+- **Generar**: `cloudflare-sync/scripts/generate-key.mjs` (node ≥ 18).
+  - Sin args: re-emite la clave YA aprovisionada de `cloud-keys.json` → es el caso
+    habitual para dar de alta otro equipo.
+  - `--nueva`: acuña una `stp_` + 18 hex, la registra en el KV `SCHOOL_ROUTING`
+    apuntando a la misma base D1 y actualiza `school-keys.json` (necesita wrangler).
+  - `--slug`, `--out`, `--url`, `--key`, `--solo-json` para casos puntuales.
+  - La URL del worker se resuelve en este orden: `--url` → `DEFAULT_WORKER_URL` de
+    `src/lib/cloudAuth.ts` (misma URL que usa el login) → `wrangler deployments list`.
+    Si no aparece, aborta con instrucción en vez de adivinar.
+  - Salida por defecto: `<repo>/schooltracker-<slug>.key`. **`.key` está en
+    `.gitignore` (raíz y `cloudflare-sync/`): es una credencial.**
+- **Importar**: `modales/ModalNubeD1.svelte` → "🔑 Importar .key" (`open` dialog →
+  `gd_read_file_base64` → `d1_save_config` → `d1_sync_all {force:true}`).
+  El acceso por `.key` del Welcome se quitó en 2026-09 a propósito; el modal D1
+  es ahora el único punto de importación.
+- **Protección anti-mezcla**: si la config existente difiere del `.key`, se avisa
+  con `ask` y, si acepta, `d1_clear_config` antes de guardar → nuevo device_id,
+  cursores en cero. El primer sync va en try/catch aparte: la clave ya quedó
+  guardada, así que un fallo de red no debe reportarse como importación fallida.
+- **Clave enmascarada** en la UI (`••••••` + últimos 4).
 - **Notificaciones Android**: comando `gd_request_notification_permission`
   (JNI → `MainActivity.requestNotificationPermissionNow()`, POST_NOTIFICATIONS)
   se invoca al completar la primera ejecución (ambos caminos del Welcome).

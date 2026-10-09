@@ -918,7 +918,7 @@ export const driveSyncService = {
 
   startPeriodicSync: () => {
     // Google Drive ya no sincroniza automáticamente: solo se usa como respaldo
-    // manual desde la página de nube (CloudPage).
+    // manual desde el modal de Drive (`modales/ModalNubeDrive.svelte`).
   },
 
   stopPeriodicSync: () => {
