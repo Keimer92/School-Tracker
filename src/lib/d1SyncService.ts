@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
 import { markDirty, markAllDirty, markAllClean, getDirtyTables } from './dirtyTracker';
+import { t } from './i18n.svelte';
 
 /** Minutos entre sincronizaciones periódicas. Fijo, sin ajuste en la UI. */
 export const SYNC_PERIODICO_MIN = 20;
@@ -136,7 +137,7 @@ export const d1SyncService = {
 
   syncAll: async (): Promise<D1SyncResult> => {
     const result = await d1SyncService.syncAllSilent(true);
-    if (!result) throw new Error('Sync D1 falló');
+    if (!result) throw new Error(t('d1s.fallo'));
     return result;
   },
 
@@ -154,10 +155,10 @@ export const d1SyncService = {
       const cfg = await getConfig();
       if (!cfg) return null;
       if (!navigator.onLine) {
-        d1SyncManager.setState({ status: 'offline', message: 'Sin conexión' });
+        d1SyncManager.setState({ status: 'offline', message: t('drive.error.sinConexion') });
         return null;
       }
-      d1SyncManager.setState({ status: 'syncing', message: `Sincronizando con la nube D1...` });
+      d1SyncManager.setState({ status: 'syncing', message: t('d1s.sincronizando') });
       console.debug(`[D1Debug] sync INICIO · tablas sucias: [${getDirtyTables().join(', ') || 'ninguna'}]`);
       const result = await invoke<D1SyncResult>('d1_sync_all');
       console.debug('[D1Debug] sync resultado crudo:', JSON.stringify(result).slice(0, 1500));
@@ -184,7 +185,7 @@ export const d1SyncService = {
       if (result?.pushOmitido) {
         d1SyncManager.setState({
           status: 'success',
-          message: 'Subida a la nube en pausa tras un error anterior (se reintenta solo). Los datos locales están seguros.',
+          message: t('d1s.pushPausado'),
         });
       }
       markAllClean();
@@ -215,7 +216,7 @@ export const d1SyncService = {
       console.warn('[D1Sync] contexto:', { online: detalle.online, ts: detalle.ts, msgLen: detalle.mensaje.length });
       d1SyncManager.setState({
         status: 'error',
-        message: `Error en sync: ${detalle.mensaje} (detalle completo en consola [D1Sync] o window.__d1LastError)`,
+        message: t('d1s.errorSync', { msg: detalle.mensaje }),
       });
       console.error('[D1Sync] Error en syncAllSilent:', e);
       return null;

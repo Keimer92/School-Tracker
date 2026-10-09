@@ -27,6 +27,7 @@
  */
 import { invoke } from '@tauri-apps/api/core';
 import { driveSyncService } from './driveSyncService';
+import { t } from './i18n.svelte';
 
 const STATE_KEY = 'drive_auto_backup_state';
 const LEGACY_KEY = 'drive_auto_backup_minutes';
@@ -141,9 +142,11 @@ function isGoodNetwork(): boolean {
   if (!c) return true; // sin API → asumir bien
   if (c.saveData) return false;
   if (c.type === 'wifi') return true;
-  const t = c.effectiveType;
-  if (t === '4g') return true;
-  if (t === 'wifi') return true;
+  // Se llama `efectiva`, no `t`: `t` es la funcion de i18n importada arriba
+  // y un `const t` local la taparia en todo el archivo (GOTCHA de AGENTS.md).
+  const efectiva = c.effectiveType;
+  if (efectiva === '4g') return true;
+  if (efectiva === 'wifi') return true;
   // 3g/2g/slow-2g/edge → rechazar
   return false;
 }
@@ -213,8 +216,8 @@ async function recordSuccess(reason: TriggerReason) {
   );
   if (wasFailing || shouldNotifySuccess()) {
     await notifyAndroid(
-      '☁️ Respaldo guardado',
-      `Última copia: ${new Date().toLocaleTimeString()}`
+      t('ab.notif.guardadoTitulo'),
+      t('ab.notif.guardadoCuerpo', { hora: new Date().toLocaleTimeString() })
     );
   }
 }
@@ -229,7 +232,7 @@ function recordFailure(err: string) {
   console.warn(`[AutoBackup] fail #${state.consecutiveFails}: ${err}`);
   if (state.consecutiveFails === MAX_CONSECUTIVE_FAILS) {
     void notifyAndroid(
-      '❌ Respaldo a Drive falló 3 veces',
+      t('ab.notif.fallasTitulo'),
       err.slice(0, 120)
     );
   }
@@ -354,8 +357,8 @@ async function checkReminder() {
   if (!(await driveSyncService.hasLocalChanges())) return;
   lastReminderAt = Date.now();
   await notifyAndroid(
-    '⚠️ Cambios sin respaldar',
-    'Tienes cambios locales con más de 24h sin subir a Drive.'
+    t('ab.notif.cambiosTitulo'),
+    t('ab.notif.cambiosCuerpo')
   );
 }
 
@@ -403,8 +406,8 @@ async function flushBeforeAccountSwap(): Promise<void> {
         await driveSyncService.forcePushAll();
         await recordSuccess('account_swap');
         await notifyAndroid(
-          '📤 Cuenta anterior respaldada',
-          'Subido a Drive antes del cambio de cuenta.'
+          t('ab.notif.swapTitulo'),
+          t('ab.notif.swapCuerpo')
         );
       } catch (e) {
         console.warn('[AutoBackup] flushBeforeAccountSwap falló:', e);

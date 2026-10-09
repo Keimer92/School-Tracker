@@ -1685,6 +1685,22 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'sb.tema.oscuro': 'Oscuro',
   'sb.tema.sistema': 'Sistema',
 
+  // ── d1SyncService (mensajes de estado que muestra la card de Nube) ──
+  'd1s.fallo': 'Sync D1 falló',
+  'd1s.sincronizando': 'Sincronizando con la nube D1...',
+  'd1s.pushPausado':
+    'Subida a la nube en pausa tras un error anterior (se reintenta solo). Los datos locales están seguros.',
+  'd1s.errorSync': 'Error en sync: {msg} (detalle completo en consola [D1Sync] o window.__d1LastError)',
+
+  // ── driveAutoBackup (notificaciones Android) ──
+  'ab.notif.guardadoTitulo': '☁️ Respaldo guardado',
+  'ab.notif.guardadoCuerpo': 'Última copia: {hora}',
+  'ab.notif.fallasTitulo': '❌ Respaldo a Drive falló 3 veces',
+  'ab.notif.cambiosTitulo': '⚠️ Cambios sin respaldar',
+  'ab.notif.cambiosCuerpo': 'Tienes cambios locales con más de 24h sin subir a Drive.',
+  'ab.notif.swapTitulo': '📤 Cuenta anterior respaldada',
+  'ab.notif.swapCuerpo': 'Subido a Drive antes del cambio de cuenta.',
+
   // ── CalificacionesConfig ──
   'cc_calificaciones.titulo': 'Configuración de Calificaciones',
   'cc_calificaciones.desc': 'Personaliza las escalas de calificación cualitativa, sus colores y puntajes mínimos.',

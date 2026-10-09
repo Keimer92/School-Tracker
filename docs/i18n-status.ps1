@@ -10,8 +10,10 @@ param(
 #   - Literales de cadena en el <script> que parecen texto de interfaz
 #     (dos o mas palabras, o con acento).
 #
-# Excluye a proposito: console.log/warn/error (mensajes de desarrollo),
-# valores de CSS, y rutas/nombres de simbolo.
+# Excluye a proposito: console.log/warn/error/debug y los llamadores tipo
+# wsLog() (mensajes de desarrollo), incluidas sus concatenaciones multilinea,
+# valores de CSS, y rutas/nombres de simbolo. Un archivo cuyos "textos" son
+# solo logs no figura en la lista (ej. wsSyncService.ts).
 #
 # LIMITACION: el conteo es un limite superior. No distingue un 'title=' de un
 # '<h2>', ni un mensaje de dialogo de un texto suelto. Sirve para ordenar el
@@ -72,8 +74,24 @@ foreach ($f in $files) {
 
   $nText = 0
   $nLit = 0
+  $enLog = $false   # dentro de una llamada a console/wsLog que se abre multilinea
   for ($i = 0; $i -lt $lines.Length; $i++) {
     $l = $lines[$i]
+    $trim = $l.Trim()
+
+    # Console / logger: sus literales son mensajes de desarrollo, no UI.
+    # Cubre la llamada multilinea: mientras la sentencia siga abierta
+    # (termina en '+', ',', '(' o un operador), las lineas siguientes son
+    # continuacion y tampoco se cuentan.
+    if ($enLog) {
+      if ($trim -match '\+$|,$|\($|&&$|\|\|$') { continue }
+      $enLog = $false
+      continue
+    }
+    if ($l -match '(console\.(log|info|warn|error|debug|trace)|\bwsLog)\s*\(') {
+      if ($trim -match '\+$|,$|\($|&&$|\|\|$') { $enLog = $true }
+      continue
+    }
 
     foreach ($m in [regex]::Matches($l, '>([^<>{}]{2,120})<')) {
       $v = $m.Groups[1].Value.Trim()

@@ -1666,6 +1666,22 @@ to print. It is saved in Documents/SchoolTrackerPro/Instruments.`,
   'sb.tema.oscuro': 'Dark',
   'sb.tema.sistema': 'System',
 
+  // ── d1SyncService (status messages shown on the Cloud card) ──
+  'd1s.fallo': 'D1 sync failed',
+  'd1s.sincronizando': 'Syncing with D1 cloud...',
+  'd1s.pushPausado':
+    'Cloud upload paused after a previous error (retries automatically). Your local data is safe.',
+  'd1s.errorSync': 'Sync error: {msg} (full detail in console [D1Sync] or window.__d1LastError)',
+
+  // ── driveAutoBackup (Android notifications) ──
+  'ab.notif.guardadoTitulo': '☁️ Backup saved',
+  'ab.notif.guardadoCuerpo': 'Last copy: {hora}',
+  'ab.notif.fallasTitulo': '❌ Drive backup failed 3 times',
+  'ab.notif.cambiosTitulo': '⚠️ Unbacked changes',
+  'ab.notif.cambiosCuerpo': 'You have local changes older than 24h not uploaded to Drive.',
+  'ab.notif.swapTitulo': '📤 Previous account backed up',
+  'ab.notif.swapCuerpo': 'Uploaded to Drive before the account switch.',
+
   // ── CalificacionesConfig ──
   'cc_calificaciones.titulo': 'Grade Configuration',
   'cc_calificaciones.desc': 'Customize qualitative grade scales, their colors and minimum scores.',
