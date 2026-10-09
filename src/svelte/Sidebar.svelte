@@ -1,20 +1,11 @@
 <script lang="ts">
   import CloudCards from './CloudCards.svelte';
   import appIcon from '../assets/app-icon.png';
-  import { emit } from '@tauri-apps/api/event';
   import { t } from '../lib/i18n.svelte';
 
-  // Nube, Cuenta y Evaluaciones ya no son tabs: son secciones del rail de
-  // Configuración, a las que se llega con el evento `open-ajustes`.
+  // Nube y Cuenta ya no son tabs ni secciones: la nube se abre en modales desde
+  // las cards de abajo y la página de Cuenta se eliminó.
   export type Tab = "dashboard" | "notas" | "estudiantes" | "ajustes" | "asistencia";
-
-  const SECCION_AJUSTES: Record<string, string> = { cloud: 'nube', account: 'cuenta', evaluaciones: 'evaluaciones' };
-
-  /** Traduce un destino heredado (p. ej. desde CloudCards) a una sección del rail. */
-  async function irAAjustes(destino: string) {
-    const seccion = SECCION_AJUSTES[destino];
-    if (seccion) await emit('open-ajustes', { section: seccion });
-  }
 
   let {
     activeTab,
@@ -87,7 +78,7 @@ setThemeMode: (mode: string) => void;
   </div>
 
   {#if !isMobile}
-    <CloudCards onTabChange={onTabChange} />
+    <CloudCards />
   {/if}
 
   <div class="sidebar-section-header" style="padding-top: 6px;">{t('sb.apariencia')}</div>

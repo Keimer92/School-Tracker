@@ -1,8 +1,9 @@
 <script lang="ts">
   import appIcon from "../assets/app-icon.png";
-  import { emit } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
-  import { driveSyncService, syncManager } from "../lib/driveSyncService";
+  import { syncManager } from "../lib/driveSyncService";
+  import { openCloudPanel } from "../lib/cloudPanels.svelte";
+  import { tagLocale } from "../lib/i18n.svelte";
   import { t } from "../lib/i18n.svelte";
 
   interface Props {
@@ -10,7 +11,6 @@
     d1Status?: string;
     toggleDrawer: () => void;
     closeDrawer: () => void;
-    onNavigate: (tab: any) => void;
   }
 
   let {
@@ -18,7 +18,6 @@
     d1Status = "idle",
     toggleDrawer,
     closeDrawer,
-    onNavigate
   }: Props = $props();
 
   let respaldando = $state(false);
@@ -35,7 +34,7 @@
     if (!iso) return '';
     const d = new Date(iso);
     if (isNaN(d.getTime())) return '';
-    return d.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleString(tagLocale(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   }
 
   onMount(() => syncManager.subscribe((s) => {
@@ -43,18 +42,11 @@
     driveUltimo = { when: s.lastUpload ?? null, bytes: s.lastUploadBytes ?? null };
   }));
 
-  /** Nube es sección del rail de Ajustes, no un tab. */
-  async function abrirNube() {
-    try {
-      await emit("open-ajustes", { section: "nube" });
-    } catch (e) {
-      console.warn("[Drawer] no se pudo abrir la sección Nube:", e);
-      onNavigate("cloud");
-    }
-  }
-
-  // El respaldo de Drive ya NO se dispara desde acá: el botón es informativo
-  // y el guardado corre por el temporizador automático (o desde CloudPage).
+  // The header chips open the cloud panels. The Drive chip used to be read-only
+  // and the D1 one navigated to the "Nube" rail section, which no longer exists;
+  // both panels are now opened from here.
+  const abrirD1 = () => openCloudPanel('d1');
+  const abrirDrive = () => openCloudPanel('drive');
 </script>
 
 <div class="mobile-header" class:encima-drawer={drawerOpen}>
@@ -70,10 +62,11 @@
     <img class="mobile-title-icon" src={appIcon} alt="" draggable="false" />
     School Tracker
   </span>
-  <!-- Indicador de Drive (solo informativo: no dispara respaldo al tocar) -->
-  <div
+  <!-- Drive indicator: opens the Drive panel (the tap does not trigger a backup) -->
+  <button
     class="mobile-drive-btn"
     class:respaldando={respaldando || !!driveUp}
+    onclick={abrirDrive}
     title={driveUp
       ? t('ccards.subiendoDrive', { actual: fmtBytes(driveUp.loaded), total: fmtBytes(driveUp.total), pct: driveUp.pct })
       : (driveUltimo.when ? t('drawer.ultimoRespaldo', { momento: fmtMomento(driveUltimo.when), tam: driveUltimo.bytes ? ` · ${fmtBytes(driveUltimo.bytes)}` : '' }) : t('drawer.driveDesc'))}
@@ -95,13 +88,13 @@
       <span class="drive-bar"><span style="width: {driveUp.pct}%;"></span></span>
     {/if}
   </div>
-  <!-- Card/chip de nube a la derecha del título (tap → pestaña Nube) -->
+  <!-- Cloudflare D1 status chip (tap → opens the D1 panel) -->
   <button
     class="mobile-sync-chip"
     class:ok={d1Status === 'success' || d1Status === 'idle'}
     class:syncing={d1Status === 'syncing'}
     class:err={d1Status === 'error' || d1Status === 'offline'}
-    onclick={() => { void abrirNube(); }}
+    onclick={abrirD1}
     title="Estado Sincronización Nube D1"
   >
     <span class="msc-dot"></span><span>☁️</span>

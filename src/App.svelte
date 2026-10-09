@@ -22,13 +22,16 @@
   import Sidebar from "./svelte/Sidebar.svelte";
   import WelcomePage from "./svelte/WelcomePage.svelte";
   import AndroidDrawer from "./svelte/AndroidDrawer.svelte";
+  import ModalNubeD1 from "./svelte/modales/ModalNubeD1.svelte";
+  import ModalNubeDrive from "./svelte/modales/ModalNubeDrive.svelte";
 
   type Tab = "dashboard" | "notas" | "estudiantes" | "ajustes" | "asistencia";
 
-  // Todas las páginas se montan desde el arranque; `visitedTabs` solo conserva
-  // el historial para rehidratarlo sin parpadeo. Debe incluir siempre la tab
-  // activa o su bloque no se renderiza y el área de contenido queda vacía.
-  // Nube, Cuenta y Evaluaciones ya no son tabs: son secciones del rail de Ajustes.
+  // Every page mounts from startup; `visitedTabs` only keeps the history so it
+  // can be rehydrated without flickering. It must always include the active tab
+  // or its block is not rendered and the content area stays empty.
+  // The cloud (Cloudflare D1 + Drive) is no longer a tab: it lives in modals
+  // opened from the sidebar cards / Android header chips. The Cuenta page is gone.
   const DEFAULT_TABS: Tab[] = ["dashboard", "notas", "estudiantes", "ajustes", "asistencia"];
 
   /** ¿El string recibido corresponde a una tab vigente? */

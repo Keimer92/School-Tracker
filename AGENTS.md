@@ -1,4 +1,4 @@
-# AGENTS.md — School Tracker Pro
+# AGENTS.md — School Tracker
 
 Guía para agentes (IA) que trabajen en este repositorio. Describe la arquitectura,
 convenciones, comandos y los "tropezones" frecuentes.
@@ -14,7 +14,7 @@ Cada cuenta de Google tiene su propio archivo SQLite local (ver sección
 "Cambio de cuentas / per-account DBs"). Al cambiar de cuenta se abre el
 archivo correspondiente; no se borran datos.
 
-Idioma del código y comentarios: **español**. Mantener así.
+Idioma del código y comentarios: **Ingles**. Mantener así.
 
 ## Stack
 - **Frontend**: Svelte 5 (runes: `$state`, `$derived`, `$effect`), TypeScript, Vite 7.
@@ -1710,7 +1710,8 @@ px wrangler tail: [push] device=… enviadas=X cambiosReales=Y.
 ### Frontend (src/lib/wsSyncService.ts)
 
 - Auto-arranque 1.2s post-load (desacoplado de App.svelte).
-- Reconexión backoff 1s?30s; reintentos en online y isibilitychange.
+- Reconexión backoff 1s?30s; reintentos en online y 
+isibilitychange.
 - Ping cada 25s (respondido sin despertar el DO).
 - Filtra avisos propios (rom === myDeviceId) — requiere IDs únicos (ver abajo).
 - Debug: window.__wsDebug(); prefijo [WsSync-Debug] (console.debug).
@@ -1751,7 +1752,7 @@ px wrangler deploy --dry-run y validar rutas
 - Errores de red TLS puntuales (10054) son transitorios: el siguiente
   disparador/tick recupera todo; no agregar retries agresivos.
 - Diagnóstico rápido: consola Windows filtro Debug ([D1Debug],
-  [WsSync-Debug]), Android db logcat -s RustStdoutStderr (líneas [D1]
+  [WsSync-Debug]), Android  db logcat -s RustStdoutStderr (líneas [D1]
   sync INICIO/PUSH/PULL/FIN con cursores y contadores), servidor
   
 px wrangler tail.
@@ -1764,7 +1765,8 @@ props { pageActive, subTabRequest }, montaje perezoso (cada hijo se monta al
 primera visita y queda oculto con display:none — preserva estado/drafts),
 siempre abren en el sub-tab principal salvo subTabRequest (quick-actions del
 Dashboard mapean en App.handleTabChange: 'informe'→asistencia, 'reportes'→notas).
-Hijos reciben isible para condicionar 
+Hijos reciben 
+isible para condicionar 
 egisterBackHandler. Swipe
 horizontal Android alterna sub-tabs (ignora gestos sobre scroll-x propios o
 modales fixed z=100).

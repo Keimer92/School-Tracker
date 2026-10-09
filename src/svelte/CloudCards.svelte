@@ -1,35 +1,28 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { emit } from '@tauri-apps/api/event';
   import { d1SyncManager, syncManager } from '../lib/syncService';
   import { driveSyncService } from '../lib/driveSyncService';
+  import { openCloudPanel } from '../lib/cloudPanels.svelte';
   import { t } from '../lib/i18n.svelte';
   import type { D1Status } from '../lib/syncService';
 
   let {
     compact = false,
     ocultarD1 = false,
-    onTabChange,
   } = $props<{
     compact?: boolean;
     /** Oculta la card de Nube D1 (p. ej. drawer móvil, donde hay chip en el header). */
     ocultarD1?: boolean;
-    onTabChange: (tab: string) => void;
   }>();
 
   /**
-   * Nube ya no es un tab: es una sección del rail de Configuración.
-   * Se sigue usando onTabChange como fallback por si el consumidor no escucha
-   * el evento, pero la vía principal es `open-ajustes`.
+   * The cloud is no longer a page: each card opens ITS panel (Cloudflare D1 or
+   * Drive). Both used to navigate to the "Nube" section of the Configuración
+   * rail, which no longer exists; the state now lives in
+   * `lib/cloudPanels.svelte.ts` and the modals are mounted once in App.svelte.
    */
-  async function abrirNube() {
-    try {
-      await emit('open-ajustes', { section: 'nube' });
-    } catch (e) {
-      console.warn('[CloudCards] no se pudo abrir la sección Nube:', e);
-      onTabChange('cloud');
-    }
-  }
+  const abrirD1 = () => openCloudPanel('d1');
+  const abrirDrive = () => openCloudPanel('drive');
 
   interface CloudD1State {
     status: D1Status;
@@ -155,8 +148,8 @@
   <div
     class="cloud-card clickable {justSynced ? 'flash' : ''}"
     class:d1-ok={d1.status === 'success' || d1.status === 'idle'}
-    onclick={() => { void abrirNube(); }}
-    onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); void abrirNube(); } }}
+    onclick={abrirD1}
+    onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirD1(); } }}
     role="button"
     tabindex="0"
     title={t('ccards.irNube')}
@@ -185,13 +178,17 @@
   {/if}
 
   <!--
-    Card de Drive SOLO informativa (decisión 2026-09): ya no dispara el
-    respaldo manual al hacer clic. El respaldo corre por el temporizador
-    automático y, si se quiere forzar uno, se hace desde CloudPage.
-    Se conserva el progreso de subida en vivo cuando hay una en curso.
+    Drive card: opens the Drive panel (it used to be read-only and the manual
+    backup was forced from CloudPage; removing that page left no way in). The tap
+    does NOT trigger a backup: it opens the panel, where "Crear respaldo" and
+    the list live. Live upload progress is still shown while one is running.
   -->
   <div
-    class="cloud-card drive-card {respaldando || drive.uploadProgress ? 'respaldando' : ''}"
+    class="cloud-card drive-card clickable {respaldando || drive.uploadProgress ? 'respaldando' : ''}"
+    onclick={abrirDrive}
+    onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirDrive(); } }}
+    role="button"
+    tabindex="0"
     title={drive.uploadProgress
       ? t('ccards.subiendoDrive', { actual: fmtBytes(drive.uploadProgress.loaded), total: fmtBytes(drive.uploadProgress.total), pct: drive.uploadProgress.pct })
       : (drive.lastUploadBytes ? t('ccards.ultimoRespaldo', { tam: fmtBytes(drive.lastUploadBytes), titulo: driveCardTitle() }) : driveCardTitle())}
@@ -242,9 +239,7 @@
     overflow: hidden;
   }
 
-  /* Solo las cards accionables cambian el borde al pasar el cursor. La de Drive
-     es informativa desde 2026-09: sin cursor ni hover, para no sugerir un clic
-     que ya no hace nada. */
+  /* Only the actionable cards change border on hover. */
   .cloud-card.clicable:hover {
     border-color: rgba(var(--primary-rgb), 0.35);
     background: rgba(255, 255, 255, 0.045);

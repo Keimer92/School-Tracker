@@ -1,18 +1,18 @@
 <script lang="ts">
   /**
-   * ModalNubeD1 — panel de Cloudflare D1 (sincronización bilateral).
+   * ModalNubeD1 — Cloudflare D1 panel (bilateral sync).
    *
-   * Reemplaza la card de Cloudflare que vivía dentro de CloudPage. Se abre
-   * desde `abrirNube('d1')` (store en `lib/nubeModales.svelte.ts`) y se monta
-   * una sola vez en App.svelte, así que cualquier parte del sistema puede
-   * abrirlo sin duplicar estado.
+   * Replaces the Cloudflare card that lived inside CloudPage. Opened with
+   * `openCloudPanel('d1')` (store in `lib/cloudPanels.svelte.ts`) and mounted
+   * once in App.svelte, so any part of the app can open it without duplicating
+   * state.
    *
-   * Vista minimalista a propósito: el sync es automático y no se administra acá.
-   * Queda lo que sirve cuando algo se rompe — última sincronización, botón de
-   * sincronizar y el diagnóstico del error — más la importación del `.key`.
-   * Lo que se sacó de la versión anterior (intervalo, regenerar ID, "sync
-   * completo", probar, desconectar) sigue en Depuración o directamente no hace
-   * falta: tocar esas cosas a mano es la forma más rápida de romper el sync.
+   * Deliberately minimal: the sync runs on its own and is not administered here.
+   * What is left is what matters when something breaks — last sync, the sync
+   * button and the error diagnostics — plus `.key` import. Everything dropped
+   * from the old card (interval, regenerate device id, "full sync", test,
+   * disconnect) either lives in Debug or is not needed: touching those by hand
+   * is the fastest way to break the sync.
    */
   import { invoke } from '@tauri-apps/api/core';
   import { emit } from '@tauri-apps/api/event';
@@ -22,7 +22,7 @@
     d1SyncService, d1SyncManager, SYNC_PERIODICO_MIN, type D1Config,
   } from '../../lib/d1SyncService';
   import { invalidateD1Cache } from '../../lib/syncService';
-  import { panelNubeVisible, cerrarNube } from '../../lib/nubeModales.svelte';
+  import { isCloudPanelOpen, closeCloudPanel } from '../../lib/cloudPanels.svelte';
   import { t, tagLocale } from '../../lib/i18n.svelte';
   import ModalBase from './ModalBase.svelte';
 
@@ -35,7 +35,7 @@
   let isD1Syncing = $state(false);
   let isImporting = $state(false);
 
-  /** Diagnóstico: lo llena `d1SyncService` en `window.__d1LastError`. */
+  /** Filled by `d1SyncService` in `window.__d1LastError`. */
   let d1ErrorDetalle = $state('');
 
   function refreshD1ErrorDetalle() {
@@ -58,11 +58,11 @@
   }
 
   /**
-   * Sincronización manual: push + pull.
+   * Manual sync: push + pull.
    *
-   * `force: true` saltea el freno de reintentos del push: si el usuario aprieta
-   * "Sincronizar" a propósito, no se le hace esperar a que venza la espera que
-   * dejó el último push fallido (ver AGENTS.md → freno de reintentos de D1).
+   * `force: true` skips the push retry brake: if the user pressed "Sync" on
+   * purpose, they should not wait out the cooldown left by the last failed push
+   * (see AGENTS.md → D1 retry brake).
    */
   async function syncD1() {
     if (isD1Syncing) return;
@@ -71,19 +71,19 @@
       await invoke('d1_sync_all', { force: true });
       await emit('show-toast', { message: t('cloud.toast.syncCompleta'), type: 'success' });
     } catch (e) {
-      console.error('[D1] sync manual falló:', e);
+      console.error('[D1] manual sync failed:', e);
       await emit('show-toast', { message: t('cloud.error.sync', { e: String(e) }), type: 'error' });
     } finally { isD1Syncing = false; }
   }
 
   /**
-   * Importa un `.key` generado por `cloudflare-sync/scripts/generate-key.mjs`.
+   * Imports a `.key` produced by `cloudflare-sync/scripts/generate-key.mjs`.
    *
-   * El archivo es `{ workerUrl, schoolKey }`. Se lee con `gd_read_file_base64`
-   * (comando Rust) en vez de `readTextFile` del plugin-fs porque las
-   * capabilities NO incluyen `fs:allow-read-text-file`, y así el path puede ser
-   * cualquiera (el scope de `fs:allow-read-file` solo cubre AppData/Downloads/
-   * Documents/Home/Temp).
+   * The file is `{ workerUrl, schoolKey }`. It is read through the Rust command
+   * `gd_read_file_base64` instead of the fs plugin's `readTextFile` because the
+   * capabilities do NOT include `fs:allow-read-text-file`, and this way the path
+   * can be anything (the `fs:allow-read-file` scope only covers
+   * AppData/Downloads/Documents/Home/Temp).
    */
   async function importarKey() {
     if (isImporting) return;
@@ -111,10 +111,10 @@
       catch { throw new Error(t('d1m.error.formato')); }
       if (!cfg?.workerUrl || !cfg?.schoolKey) throw new Error(t('d1m.error.formato'));
 
-      // Protección anti-mezcla: si ya hay una conexión y el archivo apunta a
-      // OTRA nube, reemplazar a ciegas deja cursores y device_id de la nube
-      // vieja mezclados con los datos nuevos. Se avisa y, si acepta, se borra la
-      // config primero (device_id nuevo + cursores en cero).
+      // Anti-mix guard: when a connection already exists and the file points at
+      // a DIFFERENT cloud, replacing it silently leaves the old cursors and
+      // device id mixed with the new data. Ask first, and on accept wipe the
+      // config (fresh device id + zeroed cursors).
       if (d1Cfg && (d1Cfg.workerUrl !== cfg.workerUrl || d1Cfg.schoolKey !== cfg.schoolKey)) {
         const ok = await ask(t('d1m.ask.reemplazarMsg'), {
           title: t('d1m.ask.reemplazarTitulo'),
@@ -131,12 +131,12 @@
       await loadD1Config();
       await emit('show-toast', { message: t('d1m.toast.importado'), type: 'success' });
 
-      // El primer sync tras importar es best-effort: la clave YA quedó guardada,
-      // así que un fallo de red no puede revertir lo importado.
+      // The first sync after importing is best-effort: the key is already saved,
+      // so a network failure must not undo what was imported.
       try {
         await invoke('d1_sync_all', { force: true });
       } catch (e) {
-        console.warn('[D1] el sync tras importar falló:', e);
+        console.warn('[D1] sync after import failed:', e);
         await emit('show-toast', { message: t('d1m.error.syncTrasImportar', { e: String(e) }), type: 'warning' });
       }
     } catch (e) {
@@ -147,7 +147,7 @@
     } finally { isImporting = false; }
   }
 
-  /** `stp_f83f…7290` → `••••••7290`: se ven los últimos 4 para poder compararlo. */
+  /** `stp_f83f…7290` → `••••••7290`: last 4 chars are enough to recognise it. */
   function claveMascarada(clave: string | undefined | null): string {
     if (!clave) return '—';
     return `••••••${clave.slice(-4)}`;
@@ -162,7 +162,7 @@
     return unsub;
   });
 
-  const abierto = $derived(panelNubeVisible('d1'));
+  const abierto = $derived(isCloudPanelOpen('d1'));
 </script>
 
 <ModalBase
@@ -170,7 +170,7 @@
   titulo={t('d1m.titulo')}
   subtitulo={t('cloud.sync.subtitle')}
   ancho="520px"
-  onCerrar={cerrarNube}
+  onCerrar={closeCloudPanel}
 >
   {#if d1Cfg}
     {#if d1SyncState.message && d1SyncState.status !== 'error'}
@@ -204,8 +204,8 @@
       </div>
     {/if}
 
-    <!-- Conexión activa + importación. La clave va enmascarada: alcanza para
-         reconocerla, no para filtrarla en una captura de pantalla. -->
+    <!-- Active connection + import. The key is masked: enough to recognise it,
+         not enough to leak it in a screenshot. -->
     <div class="pie-conexion">
       <div class="conexion-datos">
         <span class="conexion-item">

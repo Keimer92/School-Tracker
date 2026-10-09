@@ -1,24 +1,24 @@
 <script lang="ts">
   /**
-   * ModalBase — caparazón de modal reusable (glass, con título y botón ✕).
+   * ModalBase — reusable glass modal shell (title + close button).
    *
-   * Envuelve overlays + contenido y deja el contenido a cargo del llamador vía
-   * el snippet `children`. Lo usan `ModalNubeD1` y `ModalNubeDrive` (los dos
-   * panels que reemplazaron a CloudPage) y sirve para cualquier modal futuro
-   * del sistema sin reescribir el marco.
+   * Wraps overlay + card and leaves the content to the caller via the
+   * `children` snippet. It backs `ModalNubeD1` and `ModalNubeDrive` (the two
+   * panels that replaced CloudPage) and is the shell to reuse for any future
+   * modal in the app.
    *
-   * Decisiones que importan:
-   *  · `use:portalToBody`: `.modal-overlay` es `position: fixed` y tiene
-   *    `backdrop-filter`; dentro de un contenedor con `transform` o
-   *    `backdrop-filter` (los paneles glass del rail, la sidebar) quedaría
-   *    confinado al ancestro y descentrado. Ver AGENTS.md → `position: fixed`.
-   *  · `onpointerdown` + `e.target === e.currentTarget` para cerrar con el
-   *    fondo: en Android el `<select>` es un popup nativo que re-despacha un
-   *    `click` sintético sobre el fondo y cerraría el modal sin elegir nada
-   *    (GOTCHA documentado en AGENTS.md → modales unificados).
-   *  · `registerBackHandler`: la pila de back de Android y la tecla Escape
-   *    global de escritorio pasan por `handleBack()`, así que con esto el modal
-   *    se cierra con el botón físico y con Escape sin código extra.
+   * Decisions that matter:
+   *  · `use:portalToBody`: `.modal-overlay` is `position: fixed` and uses
+   *    `backdrop-filter`. Inside a container with `transform`/`backdrop-filter`
+   *    (the glass rail panels, the sidebar) it would be confined to that ancestor
+   *    and end up off-centre. See AGENTS.md → `position: fixed` gotcha.
+   *  · `onpointerdown` + `e.target === e.currentTarget` to close on backdrop
+   *    tap: on Android a `<select>` is a native popup that re-dispatches a
+   *    synthetic `click` on whatever is under it, closing the modal without a
+   *    selection ever being made (gotcha in AGENTS.md → unified modals).
+   *  · `registerBackHandler`: the Android back button and the desktop Escape key
+   *    both go through `handleBack()`, so registering here makes the modal close
+   *    on either without extra code.
    */
   import type { Snippet } from 'svelte';
   import { portalToBody } from '../../lib/portalToBody';
@@ -33,18 +33,18 @@
     ancho = '520px',
     children,
   }: {
-    /** Mientras sea `false` no se renderiza nada. */
+    /** Nothing is rendered while this is `false`. */
     abierto: boolean;
     titulo: string;
-    /** Texto atenuado al lado del título (ej. "(Sincronización bilateral)"). */
+    /** Dimmed text next to the title (e.g. "(bilateral sync)"). */
     subtitulo?: string;
     onCerrar: () => void;
     ancho?: string;
     children: Snippet;
   } = $props();
 
-  // Back de Android / Escape de escritorio: cierra este modal y consume el
-  // evento (`true`). Al desmontarse el efecto se desregistra solo.
+  // Android back / desktop Escape: closes this modal and consumes the event
+  // (`true`). The effect unregisters itself when the modal goes away.
   $effect(() => {
     if (!abierto) return;
     return registerBackHandler(() => { onCerrar(); return true; });
@@ -139,8 +139,8 @@
     overflow-y: auto;
   }
 
-  /* En pantallas angostas el modal ocupa todo el ancho útil sin márgenes
-     grandes: el overlay ya pone padding y el card no necesita más. */
+  /* On narrow screens the overlay already provides the padding; the card must
+     not add more, otherwise the content column gets too narrow. */
   @media (max-width: 600px) {
     .mb-cuerpo { padding: 0.9rem 1rem 1.1rem; }
   }
