@@ -188,6 +188,31 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
               <div style="color: #64748b; font-size: 0.75rem;">{t("ajustes.config.vistaPreviaEjemplo")}</div>
             </div>
           </div>
+
+          <!-- ── Navegador del login de Google (solo escritorio) ──
+               Windows no siempre abre el navegador que uno usa: decide con la
+               asociación http/https del usuario, y Edge se auto-registra al
+               instalarse, así que esa asociación suele seguir apuntando a Edge.
+               Acá se elige con qué navegador se hace el login, sin depender de
+               eso. Si el elegido no está instalado se cae al del sistema. -->
+          <div style="margin-top: 2rem; background: rgba(96,165,250,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(96,165,250,0.18);">
+            <h4 style="margin: 0 0 0.5rem 0; color: #e2e8f0;">🌐 {t("nav.titulo")}</h4>
+            <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 0.25rem;">
+              {t("nav.desc")}
+            </p>
+            <BrowserPicker />
+          </div>
+
+          <!-- ── Idioma de la aplicación ──
+               También en el WelcomePage: el idioma tiene que poder elegirse
+               ANTES de entrar a la app (ver LanguagePicker.svelte). -->
+          <div style="margin-top: 2rem; background: rgba(167,139,250,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(167,139,250,0.18);">
+            <h4 style="margin: 0 0 0.5rem 0; color: #e2e8f0;">🌐 {t("idioma.titulo")}</h4>
+            <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 0.25rem;">
+              {t("idioma.descripcion")}
+            </p>
+            <LanguagePicker />
+          </div>
         </div>
       </div>
       {/if}
@@ -286,22 +311,6 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                   <button onclick={pedirPermisoNotificaciones} style="padding: 0.7rem 1.2rem; border-radius: 10px; border: 1px solid rgba(245,158,11,0.35); background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer;">
                     {t("ajustes.notif.activar")}
                   </button>
-                </div>
-              {/if}
-
-              <!-- ── Navegador del login de Google (solo escritorio) ──
-                   Windows no siempre abre el navegador que uno usa: decide con la
-                   asociación http/https del usuario, y Edge se auto-registra al
-                   instalarse, así que esa asociación suele seguir apuntando a Edge.
-                   Acá se elige con qué navegador se hace el login, sin depender de
-                   eso. Si el elegido no está instalado se cae al del sistema. -->
-              {#if !isAndroid}
-                <div style="margin-top: 2rem; background: rgba(96,165,250,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(96,165,250,0.18);">
-                  <h4 style="margin: 0 0 0.5rem 0; color: #e2e8f0;">🌐 {t("nav.titulo")}</h4>
-                  <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 0.25rem;">
-                    {t("nav.desc")}
-                  </p>
-                  <BrowserPicker />
                 </div>
               {/if}
 
