@@ -26,18 +26,26 @@ powershell -File docs\i18n-status.ps1
 
 | | Archivos | Textos |
 |---|---|---|
-| **LISTO** | 22 | ~562 |
-| **PENDIENTE** | 22 | ~133 |
+| **LISTO** | 23 | ~499 |
+| **PENDIENTE** | 4 | ~50 |
+
+**La traducción está completa.** Todo texto visible de UI está trasladado a
+`t()`. Los 4 archivos que siguen marcados como PENDIENTE son **exclusión
+deliberada** (ver tabla abajo): encabezados de reportes PDF/Excel y un
+componente legacy que no se monta.
 
 Traducidos: `WelcomePage`, `AjustesPage`, `AsistenciaPage`, `NotasPage`,
 `EstudiantesPage`, `ConfiguracionPage` (+ `CategoryTabContent`), `InformePage`,
 `ReportesPage`, `EvaluacionesPage`, `DashboardPage`, `CloudPage`,
-`ConfirmDialog`, `BrowserPicker`, `LanguagePicker`, `driveSyncService`,
-`cloudLogin`, `DebugPage` (+ `main.ts` para el arranque del idioma).
-(`DashboardPage` quedó con 0 textos sueltos: el contador lo saca del listado.)
-
-Del total pendiente, ~145 están en páginas `.svelte` (lo que el usuario ve) y
-~70 en servicios `.ts` (mayormente `show-toast` y `console.*` que no se traducen).
+`ConfirmDialog`, `BrowserPicker`, `LanguagePicker`, `Sidebar`, `AndroidDrawer`,
+`CloudCards`, `App`, `FiltersModalAndroid`, `NotificacionesPage`,
+`GradoConfigModal`, `ColegioConfigModal`, `CalificacionesConfig`,
+`MultiplicadoresConfig`, `SearchInput`, los wrappers `AsistenciaMainPage` /
+`NotasMainPage`, `DatePickerGlass`, `AccountPage`, `InfoPage` y los servicios
+`driveSyncService`, `d1SyncService`, `cloudLogin`, `driveAutoBackup`,
+`driveInstantBackup`, `deviceHandover` (+ `main.ts` para el arranque del
+idioma). (`DashboardPage` y varios `.ts` quedaron con 0 textos sueltos: el
+contador los saca del listado.)
 
 > ⚠️ El script marca `LISTO` en cuanto el archivo importa `i18n.svelte`, así
 > que el número de "textos" de un archivo LISTO es el total que **tenía**, no
@@ -66,48 +74,28 @@ Del total pendiente, ~145 están en páginas `.svelte` (lo que el usuario ve) y
 
 ## Pendientes, por impacto
 
-Ordenado por cantidad de textos. Ya no quedan páginas del día a día en la
-lista: lo que sigue son sobre todo servicios `.ts` (avisos), el Sidebar y
-páginas/generales secundarios.
+Los 4 archivos restantes son **exclusión deliberada**, no trabajo pendiente:
+si algún día se decide traducirlos, hay que actualizar también la sección
+"Qué NO se traduce" de este documento.
 
-| # | Archivo | Textos | Líneas | Nota |
+| # | Archivo | Textos | Líneas | Motivo de la exclusión |
 |---|---|---|---|---|
-| 1 | `src/lib/excel.ts` | 19 | 489 | ⚠️ Ver nota abajo |
-| 2 | `src/svelte/GoogleDriveBackup.svelte` | 18 | 390 | Legacy, no se monta |
-| 3 | `src/svelte/Sidebar.svelte` | 12 | 184 | |
-| 4 | `src/lib/instrumentosPdf.ts` | 12 | 294 | ⚠️ Encabezados de PDF |
-| 5 | `src/lib/deviceHandover.ts` | 11 | 121 | Claves `traspaso.*` agregadas, falta aplicar |
-| 6 | `src/lib/wsSyncService.ts` | 10 | 230 | Avisos de sync |
-| 7 | `src/lib/driveAutoBackup.ts` | 9 | 445 | |
-| 8 | `src/lib/d1SyncService.ts` | 7 | 380 | Avisos de sync |
-| 9 | `src/svelte/notificaciones/NotificacionesPage.svelte` | 7 | 633 | Solo Android |
-| 10 | `src/lib/botones.ts` | 6 | 51 | |
-| 11 | `src/svelte/globales/GradoConfigModal.svelte` | 3 | 146 | |
-| 12 | `src/svelte/AndroidDrawer.svelte` | 3 | 235 | |
-| 13 | `src/lib/driveInstantBackup.ts` | 3 | 223 | |
-| 14 | `src/svelte/SearchInput.svelte` | 3 | 39 | Placeholder |
-| 15 | `src/svelte/asistencia/AsistenciaMainPage.svelte` | 2 | 223 | Wrapper de sub-tabs |
-| 16 | `src/svelte/FilterSelect.svelte` | 2 | 29 | Genérico |
-| 17 | `src/lib/instrumentosExcel.ts` | 1 | 299 | ⚠️ Hoja/encabezado de Excel |
-| 18 | `src/svelte/notas/NotasMainPage.svelte` | 1 | 230 | Wrapper de sub-tabs |
-| 19 | `src/svelte/BotonMod.svelte` | 1 | 46 | Genérico |
-| 20 | `src/svelte/DatePickerGlass.svelte` | 1 | 390 | Placeholder |
-| 21 | `src/svelte/FilterGroup.svelte` | 1 | 17 | Genérico |
-| 22 | `src/svelte/FilterContainer.svelte` | 1 | 20 | Genérico |
+| 1 | `src/lib/excel.ts` | 19 | 489 | ⚠️ Encabezados/portada de reportes Excel (ver nota abajo) |
+| 2 | `src/svelte/GoogleDriveBackup.svelte` | 18 | 390 | Legacy: no se monta en `App.svelte` |
+| 3 | `src/lib/instrumentosPdf.ts` | 12 | 294 | ⚠️ Encabezados de PDF de instrumentos |
+| 4 | `src/lib/instrumentosExcel.ts` | 1 | 299 | ⚠️ Hoja/encabezado de Excel de instrumentos |
 
-### Servicios `.ts` (textos de `show-toast` y avisos)
+`GoogleDriveBackup.svelte` usa además el comando antiguo
+`gd_start_oauth_server`; si algún día se resucita, traducir junto con el resto.
 
-| Archivo | Textos | Nota |
-|---|---|---|
-| `src/lib/driveSyncService.ts` | ~34 | Casi todos `console`; solo los toasts |
-| `src/lib/cloudLogin.ts` | ~24 | Mensajes del login |
-| `src/lib/excel.ts` | ~19 | ⚠️ **No traducir** (ver decisiones) |
-| `src/lib/instrumentosPdf.ts` / `instrumentosExcel.ts` | ~13 | ⚠️ **No traducir** |
-| `src/lib/deviceHandover.ts` | ~11 | Mensajes de traspaso de dispositivo |
-| `src/lib/wsSyncService.ts` | ~10 | Casi todos `console` |
-| `src/lib/driveAutoBackup.ts` | ~9 | Logs |
-| `src/lib/d1SyncService.ts` | ~7 | 1 mensaje visible + console |
-| `src/lib/botones.ts` | ~6 | Etiquetas de botones reutilizables |
+Los componentes genéricos que antes figuraban acá (`SearchInput`,
+`FilterSelect`, `FilterContainer`, `FilterGroup`, `BotonMod`) tenían solo
+valores CSS como "textos" (falsos positivos del script, ya excluidos) o dos
+etiquetas reales (`SearchInput`: placeholder y aria-label) que quedaron
+resueltas con claves existentes (`inf.buscar`, `asis.limpiarBusqueda`).
+`wsSyncService.ts`, `botones.ts` y los demás servicios `.ts` quedaron LISTO o
+con 0 textos: sus literales son `console.*`/`wsLog` (desarrollo) y el script ya
+los excluye.
 
 ## Qué NO se traduce (decisiones tomadas)
 

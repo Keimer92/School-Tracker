@@ -15,7 +15,8 @@
   import { emit } from "@tauri-apps/api/event";
   import { getLocalDateISOString } from "../../lib/dateUtils";
   import { getAppSettings, saveAppSettings } from "../../lib/appSettings";
-import { onMount } from "svelte";
+  import { onMount } from "svelte";
+  import { t } from "../../lib/i18n.svelte";
 
   interface ColegioItem { id: number; nombre: string; }
 
@@ -44,7 +45,10 @@ import { onMount } from "svelte";
 
   // ── Sonido de la alarma (solo Android) ──────────────────────────────
   interface RingtoneState { ok: boolean; uri: string; label: string; canalExiste?: boolean; }
-  let ringtone = $state<RingtoneState>({ ok: true, uri: "", label: "Sonido por defecto del sistema" });
+  // Label vacio a proposito: lo reemplaza el nativo (cargarRingtone) o, si no
+  // llega, el fallback con t() en el template. Inicializarlo aqui con t()
+  // lo dejaria congelado en el idioma del arranque.
+  let ringtone = $state<RingtoneState>({ ok: true, uri: "", label: "" });
   let abriendoSonido = $state(false);
 
   const isAndroid = /Android/i.test(navigator.userAgent);
@@ -72,7 +76,7 @@ import { onMount } from "svelte";
     } catch (e) {
       abriendoSonido = false;
       console.error("[Notif] No se pudo abrir el selector:", e);
-      await emit("show-toast", { message: "❌ No se pudo abrir el selector de sonido", type: "error" });
+      await emit("show-toast", { message: t("notif.toast.sinSelector"), type: "error" });
     }
     // `abriendoSonido` se baja recién en el evento o al volver a la app, por si
     // el usuario cancela el picker (en ese caso no llega ningún evento).
@@ -100,7 +104,7 @@ import { onMount } from "svelte";
       if (detail.ok) {
         ringtone = detail;
         void emit("show-toast", {
-          message: detail.uri ? `🔔 Sonido: ${detail.label}` : "🔔 Sonido por defecto del sistema",
+          message: detail.uri ? t("notif.toast.sonido", { label: detail.label }) : "🔔 " + t("notif.sonidoDefecto"),
           type: "success",
         });
       }
@@ -226,7 +230,7 @@ import { onMount } from "svelte";
 
       if (!config.enabled) {
         await invoke("cancel_attendance_alarm");
-        await emit("show-toast", { message: "🔕 Notificaciones desactivadas", type: "info" });
+        await emit("show-toast", { message: t("notif.toast.desactivadas"), type: "info" });
         return;
       }
 
@@ -237,15 +241,15 @@ import { onMount } from "svelte";
       try {
         const dbPath = await invoke<string>("get_db_path");
         await invoke("schedule_attendance_alarm", { config: JSON.stringify(config), dbPath });
-        await emit("show-toast", { message: "🔔 Guardado · " + detalle.join(", "), type: "success" });
+        await emit("show-toast", { message: t("notif.toast.guardado", { detalle: detalle.join(", ") }), type: "success" });
       } catch (alarmErr) {
         console.error("[Notif] Error programando alarma:", alarmErr);
         const msg = alarmErr instanceof Error ? alarmErr.message : alarmErr;
-        await emit("show-toast", { message: `✅ Config guardada · ⚠️ no se pudo programar la alarma: ${msg}`, type: "warning" });
+        await emit("show-toast", { message: t("notif.toast.guardadoSinAlarma", { msg: String(msg) }), type: "warning" });
       }
     } catch (error) {
       console.error("[Notif] Error guardando:", error);
-      await emit("show-toast", { message: "❌ Error al guardar: " + error, type: "error" });
+      await emit("show-toast", { message: t("notif.toast.errorGuardar", { error: String(error) }), type: "error" });
     } finally {
       saving = false;
     }
@@ -256,7 +260,7 @@ import { onMount } from "svelte";
     // `testColegio` ya viene elegido por `elegirColegioDePrueba`; el `||` solo
     // cubre el caso sin colegios configurados.
     const cid = Number(testColegio) || colegios[0]?.id;
-    if (!cid) { await emit("show-toast", { message: "⚠️ No hay colegios configurados", type: "warning" }); return; }
+    if (!cid) { await emit("show-toast", { message: t("notif.toast.sinColegiosPrueba"), type: "warning" }); return; }
     testing = true;
     try {
       const fecha = getLocalDateISOString();
@@ -266,24 +270,24 @@ import { onMount } from "svelte";
       const nombre = colegios.find(c => c.id === cid)?.nombre || "";
       if (!pendientes || pendientes.length === 0) {
         // Distinguir motivo: dia no habil vs todo registrado.
-        let motivo = "todo está registrado hoy ✅";
+        let motivo = t("notif.motivo.todoRegistrado");
         try {
           const dias = await invoke<Record<string, boolean>>("get_colegio_dias_asistencia", { colegioId: cid });
-          if (dias && dias[DIAS[dayOfWeek()]] === false) motivo = "hoy NO es día hábil para este colegio 🚫";
+          if (dias && dias[DIAS[dayOfWeek()]] === false) motivo = t("notif.motivo.noHabil");
         } catch { /* la tabla puede no existir: se deja el motivo por defecto */ }
-        await emit("show-toast", { message: `ℹ️ Sin pendientes: ${motivo}`, type: "info" });
+        await emit("show-toast", { message: t("notif.toast.sinPendientes", { motivo }), type: "info" });
         return;
       }
       const lista = pendientes.slice(0, 5).map(p => `${p.grado} ${p.seccion}`).join(", ");
-      const resto = pendientes.length > 5 ? ` y ${pendientes.length - 5} más` : "";
+      const resto = pendientes.length > 5 ? t("notif.yMas", { n: pendientes.length - 5 }) : "";
       await invoke("notify_attendance_reminder", {
-        title: "Asistencia pendiente",
-        body: `Sin asistencia hoy (${nombre}): ${lista}${resto}`,
+        title: t("notif.alarm.titulo"),
+        body: t("notif.alarm.cuerpo", { nombre, lista, resto }),
       });
-      await emit("show-toast", { message: `🔔 Notificación enviada con ${pendientes.length} grado(s) pendiente(s)`, type: "success" });
+      await emit("show-toast", { message: t("notif.toast.enviada", { n: pendientes.length }), type: "success" });
     } catch (error) {
       console.error("[Notif] Error en la prueba:", error);
-      await emit("show-toast", { message: "❌ Error: " + error, type: "error" });
+      await emit("show-toast", { message: t("notif.toast.error", { error: String(error) }), type: "error" });
     } finally {
       testing = false;
     }
@@ -294,9 +298,9 @@ import { onMount } from "svelte";
     try {
       await invoke("dismiss_attendance_today");
       silencedToday = true;
-      await emit("show-toast", { message: "🔕 Recordatorios silenciados para hoy", type: "success" });
+      await emit("show-toast", { message: t("notif.silenciadoHoy"), type: "success" });
     } catch (error) {
-      await emit("show-toast", { message: "❌ Error: " + error, type: "error" });
+      await emit("show-toast", { message: t("notif.toast.error", { error: String(error) }), type: "error" });
     } finally {
       dismissing = false;
     }
@@ -306,9 +310,9 @@ import { onMount } from "svelte";
     try {
       await invoke("set_attendance_silenced_today", { silenced: false });
       silencedToday = false;
-      await emit("show-toast", { message: "🔔 Recordatorios reactivados para hoy", type: "success" });
+      await emit("show-toast", { message: t("notif.toast.reactivados"), type: "success" });
     } catch (error) {
-      await emit("show-toast", { message: "❌ Error: " + error, type: "error" });
+      await emit("show-toast", { message: t("notif.toast.error", { error: String(error) }), type: "error" });
     }
   }
 
@@ -326,8 +330,8 @@ import { onMount } from "svelte";
   <div class="notif-hero">
     <div class="notif-hero-icon">🔔</div>
     <div style="flex:1;min-width:0">
-      <h3 style="margin:0 0 2px;font-size:1.05rem;color:#f1f5f9;">Notificaciones de Asistencia</h3>
-      <p style="margin:0;font-size:0.75rem;color:#94a3b8;line-height:1.45;">Avisa cuando un colegio tenga grados sin asistencia, dentro de su ventana horaria. Funciona con la app cerrada.</p>
+      <h3 style="margin:0 0 2px;font-size:1.05rem;color:#f1f5f9;">{t('notif.titulo')}</h3>
+      <p style="margin:0;font-size:0.75rem;color:#94a3b8;line-height:1.45;">{t('notif.desc')}</p>
     </div>
     <label class="switch" style="flex-shrink:0">
       <input type="checkbox" bind:checked={enabled} />
@@ -348,15 +352,15 @@ import { onMount } from "svelte";
           {#if c0.activo}
             <div class="notif-colegio-body">
               <div class="notif-campo">
-                <label>Desde</label>
+                <label>{t('notif.desde')}</label>
                 <input type="time" value={c0.inicio} onchange={(e) => setCfg(c.id, { inicio: e.currentTarget.value })} />
               </div>
               <div class="notif-campo">
-                <label>Hasta</label>
+                <label>{t('notif.hasta')}</label>
                 <input type="time" value={c0.fin} onchange={(e) => setCfg(c.id, { fin: e.currentTarget.value })} />
               </div>
               <div class="notif-campo" style="flex:1.3">
-                <label>Repetir cada</label>
+                <label>{t('notif.repetirCada')}</label>
                 <!-- `String(m)` en las options: con numero nunca coincidia el
                      `value` del select y volvia siempre a la primera opcion. -->
                 <select
@@ -368,22 +372,22 @@ import { onMount } from "svelte";
                 </select>
               </div>
             </div>
-            <div class="notif-resumen">⏱ De {c0.inicio} a {c0.fin} · cada {c0.intervaloMin} min si hay grados pendientes</div>
+            <div class="notif-resumen">{t('notif.resumen', { inicio: c0.inicio, fin: c0.fin, intervalo: c0.intervaloMin })}</div>
           {/if}
         </div>
       {:else}
-        <div class="notif-empty"><span>👆</span><span>No hay colegios configurados</span></div>
+        <div class="notif-empty"><span>👆</span><span>{t('notif.sinColegios')}</span></div>
       {/each}
       {#if Object.values(cfg).filter(c => c.activo).length === 0 && colegios.length > 0}
-        <div class="notif-empty"><span>👆</span><span>Toca un colegio para configurar su horario</span></div>
+        <div class="notif-empty"><span>👆</span><span>{t('notif.tocaColegio')}</span></div>
       {/if}
     </div>
 
     <!-- Acciones -->
     <div class="notif-campo" style="width:100%;padding:0 0.75rem;">
-      <label>Colegio para la prueba</label>
+      <label>{t('notif.colegioPrueba')}</label>
       {#if colegios.length === 0}
-        <select disabled><option>Sin colegios configurados</option></select>
+        <select disabled><option>{t('notif.sinColegiosCfg')}</option></select>
       {:else}
         <select bind:value={testColegio}>
           {#each colegios as c (c.id)}
@@ -394,41 +398,38 @@ import { onMount } from "svelte";
     </div>
     <div class="notif-acciones">
       <button class="notif-btn-primary" onclick={save} disabled={saving}>
-        {saving ? "Guardando..." : "💾 Guardar"}
+        {saving ? t('notif.guardando') : t('notif.btn.guardar')}
       </button>
       <button class="notif-btn-ghost" onclick={test} disabled={testing || colegios.length === 0}>
-        {testing ? "Probando..." : "🔔 Probar real"}
+        {testing ? t('notif.probando') : t('notif.btn.probar')}
       </button>
     </div>
 
     <!-- Sonido de la alarma (solo Android) -->
     {#if isAndroid}
       <div class="notif-campo" style="width:100%;padding:0 0.75rem;">
-        <label>Sonido de la alarma</label>
+        <label>{t('notif.sonido')}</label>
         <div class="notif-sonido-actual">
           <span style="font-size:1.1rem;">🔔</span>
           <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-            {ringtone.label || "Sonido por defecto del sistema"}
+            {ringtone.label || t('notif.sonidoDefecto')}
           </span>
         </div>
         <div class="notif-sonido-btns">
           <button class="notif-btn-ghost" onclick={() => elegirSonido("sistema")}
             disabled={abriendoSonido} style="width:auto;">
-            {abriendoSonido ? "Abriendo…" : "📱 Del sistema"}
+            {abriendoSonido ? t('notif.abriendo') : t('notif.delSistema')}
           </button>
           <button class="notif-btn-ghost" onclick={() => elegirSonido("archivo")}
             disabled={abriendoSonido} style="width:auto;">
-            🎵 Archivo
+            {t('notif.archivo')}
           </button>
           {#if ringtone.uri}
-            <button class="notif-btn-ghost" onclick={resetSonido} style="width:auto;">↺ Default</button>
+            <button class="notif-btn-ghost" onclick={resetSonido} style="width:auto;">{t('notif.default')}</button>
           {/if}
         </div>
         <p style="margin:0.4rem 0 0;font-size:0.7rem;color:#64748b;line-height:1.45;">
-          El archivo se copia por referencia y queda accesible aunque lo muevas.
-          Al cambiar el sonido se recrea el canal de la notificación, así que
-          Android reinicia la importancia y la vibración de ese canal a sus
-          valores por defecto.
+          {t('notif.sonidoNota')}
         </p>
       </div>
     {/if}
@@ -436,20 +437,20 @@ import { onMount } from "svelte";
     <!-- Silenciar hoy -->
     {#if silencedToday}
       <div class="notif-banner-ok" style="margin:0 0.75rem;">
-        <span>🔕 Recordatorios silenciados para hoy</span>
-        <button onclick={reactivateToday} class="notif-btn-mini">Reactivar</button>
+        <span>{t('notif.silenciadoHoy')}</span>
+        <button onclick={reactivateToday} class="notif-btn-mini">{t('notif.reactivar')}</button>
       </div>
     {:else}
       <button class="notif-btn-ghost" onclick={dismissToday} disabled={dismissing} style="align-self:flex-start;width:auto;">
-        {dismissing ? "Silenciando..." : "🔕 Silenciar recordatorios de hoy"}
+        {dismissing ? t('notif.silenciando') : t('notif.silenciarHoy')}
       </button>
     {/if}
 
     <div class="notif-nota">
-       ⚠️ En Android 12+ la precisión exacta requiere el permiso "Alarmas y recordatorios exactos" (Sistema → Apps → School Tracker).
+       {t('notif.notaAndroid')}
     </div>
   {:else}
-    <div class="notif-empty"><span>🔕</span><span>Las notificaciones están desactivadas</span></div>
+    <div class="notif-empty"><span>🔕</span><span>{t('notif.desactivadas')}</span></div>
   {/if}
 </div>
 

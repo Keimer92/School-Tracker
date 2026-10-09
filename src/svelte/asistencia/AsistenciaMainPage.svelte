@@ -1,6 +1,7 @@
 <script lang="ts">
   import AsistenciaPage from "../AsistenciaPage.svelte";
   import InformePage from "../InformePage.svelte";
+  import { t } from "../../lib/i18n.svelte";
 
   type SubTab = "tomar" | "informe";
 
@@ -72,9 +73,10 @@
 
   function onContentTouchStart(e: TouchEvent) {
     if (!isAndroidUA || e.touches.length !== 1) { swipeEligible = false; return; }
-    const t = e.touches[0];
-    swipeStartX = t.clientX;
-    swipeStartY = t.clientY;
+    // Se llama `toque`, no `t`: `t` es la funcion de i18n (GOTCHA de AGENTS.md).
+    const toque = e.touches[0];
+    swipeStartX = toque.clientX;
+    swipeStartY = toque.clientY;
     swipeEligible = !isSwipeBlockedTarget(e);
   }
 
@@ -82,9 +84,9 @@
     if (!isAndroidUA) return;
     if (!swipeEligible) { swipeEligible = false; return; }
     swipeEligible = false;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - swipeStartX;
-    const dy = t.clientY - swipeStartY;
+    const toque = e.changedTouches[0];
+    const dx = toque.clientX - swipeStartX;
+    const dy = toque.clientY - swipeStartY;
     if (Math.abs(dx) >= 70 && Math.abs(dx) > Math.abs(dy) * 1.5) {
       if (dx < 0 && activeSub === "tomar") switchTo("informe");
       else if (dx > 0 && activeSub === "informe") switchTo("tomar");
@@ -96,21 +98,21 @@
   <div class="asistencia-subtabs">
     <button class="subtab-btn" class:active={activeSub === 'tomar'} onclick={() => switchTo('tomar')} type="button">
       <span class="subtab-icon">✏️</span>
-      <span>Tomar asistencia</span>
+      <span>{t('subtab.tomarAsistencia')}</span>
     </button>
     <button class="subtab-btn" class:active={activeSub === 'informe'} onclick={() => switchTo('informe')} type="button">
       <span class="subtab-icon">📊</span>
-      <span>Informe</span>
+      <span>{t('subtab.informe')}</span>
     </button>
   </div>
 
   <div style="flex:1;min-height:0;position:relative" ontouchstart={onContentTouchStart} ontouchend={onContentTouchEnd}>
     {#if isAndroidUA}
       <div class="asistencia-subtabs-float">
-        <button class="subtab-btn" class:active={activeSub === 'tomar'} onclick={() => switchTo('tomar')} type="button" aria-label="Tomar asistencia">
+        <button class="subtab-btn" class:active={activeSub === 'tomar'} onclick={() => switchTo('tomar')} type="button" aria-label={t('subtab.tomarAsistencia')}>
           <span class="subtab-icon">✏️</span>
         </button>
-        <button class="subtab-btn" class:active={activeSub === 'informe'} onclick={() => switchTo('informe')} type="button" aria-label="Informe">
+        <button class="subtab-btn" class:active={activeSub === 'informe'} onclick={() => switchTo('informe')} type="button" aria-label={t('subtab.informe')}>
           <span class="subtab-icon">📊</span>
         </button>
       </div>

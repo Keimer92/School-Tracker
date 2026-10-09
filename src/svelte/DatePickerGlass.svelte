@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { registerBackHandler } from '../lib/androidBack';
+  import { t } from '../lib/i18n.svelte';
 
   /**
    * Calendario glassmorphism rosa/cian — reemplaza al <input type="date"> nativo.
@@ -187,7 +188,7 @@
               class:sel={esSel}
               class:deshab={!habilitado(c.iso)}
               disabled={!habilitado(c.iso)}
-              title={habilitado(c.iso) ? undefined : 'Día sin clases o no hábil para este colegio'}
+              title={habilitado(c.iso) ? undefined : t('dpg.sinClases')}
               onclick={() => habilitado(c.iso) && seleccionar(c.iso)}
             >{c.dia}</button>
           {/if}
@@ -195,7 +196,7 @@
       </div>
 
       <div class="dg-foot">
-        <button class="dg-hoy" onclick={irHoy} disabled={!habilitado(hoyIso())}>● Hoy</button>
+        <button class="dg-hoy" onclick={irHoy} disabled={!habilitado(hoyIso())}>● {t('cloud.hoy')}</button>
       </div>
     </div>
   {/if}

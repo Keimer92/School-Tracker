@@ -3,6 +3,7 @@
   import { emit } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
   import { driveSyncService, syncManager } from "../lib/driveSyncService";
+  import { t } from "../lib/i18n.svelte";
 
   interface Props {
     drawerOpen: boolean;
@@ -61,7 +62,7 @@
   <button
     class="mobile-menu-btn {drawerOpen ? 'drawer-abierto' : ''}"
     onclick={toggleDrawer}
-    aria-label={drawerOpen ? 'Cerrar menú' : 'Abrir menú'}
+    aria-label={drawerOpen ? t('drawer.cerrar') : t('drawer.abrir')}
   >
     <span class="menu-icon">{drawerOpen ? '✕' : '☰'}</span>
   </button>
@@ -74,18 +75,18 @@
     class="mobile-drive-btn"
     class:respaldando={respaldando || !!driveUp}
     title={driveUp
-      ? `Subiendo a Drive: ${fmtBytes(driveUp.loaded)} / ${fmtBytes(driveUp.total)} (${driveUp.pct}%)`
-      : (driveUltimo.when ? `Último respaldo: ${fmtMomento(driveUltimo.when)}${driveUltimo.bytes ? ` · ${fmtBytes(driveUltimo.bytes)}` : ''}` : 'Respaldo automático de Google Drive')}
+      ? t('ccards.subiendoDrive', { actual: fmtBytes(driveUp.loaded), total: fmtBytes(driveUp.total), pct: driveUp.pct })
+      : (driveUltimo.when ? t('drawer.ultimoRespaldo', { momento: fmtMomento(driveUltimo.when), tam: driveUltimo.bytes ? ` · ${fmtBytes(driveUltimo.bytes)}` : '' }) : t('drawer.driveDesc'))}
   >
     {#if driveUp}
       <span class="drive-ring" style="--pct: {driveUp.pct}"></span>
       <span class="drive-pct">{driveUp.pct}%</span>
     {:else if respaldando}
       <span class="drive-spinner"></span>
-      <span>Drive</span>
+      <span>{t('ccards.drive')}</span>
     {:else}
       <span class="drive-dot" class:ok={!!driveUltimo.when}></span>
-      <span>Drive</span>
+      <span>{t('ccards.drive')}</span>
       {#if driveUltimo.when}
         <span class="drive-meta">{fmtMomento(driveUltimo.when)}{driveUltimo.bytes ? ` · ${fmtBytes(driveUltimo.bytes)}` : ''}</span>
       {/if}

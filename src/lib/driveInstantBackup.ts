@@ -22,6 +22,7 @@
  */
 import { emit } from '@tauri-apps/api/event';
 import { driveSyncService, syncManager } from './driveSyncService';
+import { t } from './i18n.svelte';
 
 const ENABLED_KEY = 'drive_instant_backup_enabled';
 /** Espera de inactividad antes de subir (agrupa guardados seguidos). */
@@ -60,8 +61,8 @@ function mostrarToastExito() {
   const bytes = syncManager.getState().lastUploadBytes;
   const tam = bytes ? ` · ${fmtBytes(bytes)}` : '';
   const mensaje = n > 1
-    ? `☁️ ${n} respaldos actualizados en Google Drive${tam}`
-    : `☁️ Respaldo actualizado en Google Drive${tam} · ${horaActual()}`;
+    ? t('dib.actualizados', { n, tam })
+    : t('dib.actualizado', { tam, hora: horaActual() });
   void emit('show-toast', { message: mensaje, type: 'success' });
 }
 
@@ -81,7 +82,7 @@ function notificarError(motivo: string) {
   const now = Date.now();
   if (now - ultimoErrorToastAt < TOAST_ERROR_GAP_MS) return;
   ultimoErrorToastAt = now;
-  void emit('show-toast', { message: `⚠️ No se pudo respaldar en Drive: ${motivo}`, type: 'error' });
+  void emit('show-toast', { message: t('dib.errorRespaldar', { motivo }), type: 'error' });
 }
 
 function isEnabled(): boolean {
@@ -147,7 +148,7 @@ async function run(): Promise<void> {
       console.debug(`[DriveInstant] omitido: ${res.reason}`);
       if (res.reason === 'no_drive') {
         // Se quedó sin token: el usuario debe vincular Drive otra vez.
-        notificarError('vuelve a vincular tu cuenta de Google');
+        notificarError(t('dib.motivo.revincular'));
       }
     }
   } catch (e) {

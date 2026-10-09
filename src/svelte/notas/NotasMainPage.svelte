@@ -1,6 +1,7 @@
 <script lang="ts">
   import NotasPage from "../NotasPage.svelte";
   import ReportesPage from "../ReportesPage.svelte";
+  import { t } from "../../lib/i18n.svelte";
 
   type SubTab = "registrar" | "reportes";
 
@@ -77,9 +78,10 @@
     // Sin swipe lateral en modo horizontal (landscape): la tabla de notas usa
     // scroll horizontal propio y el gesto conflictúa con la navegación de sub-tabs.
     if (window.innerHeight <= window.innerWidth) { swipeEligible = false; return; }
-    const t = e.touches[0];
-    swipeStartX = t.clientX;
-    swipeStartY = t.clientY;
+    // Se llama `toque`, no `t`: `t` es la funcion de i18n (GOTCHA de AGENTS.md).
+    const toque = e.touches[0];
+    swipeStartX = toque.clientX;
+    swipeStartY = toque.clientY;
     swipeEligible = !isSwipeBlockedTarget(e);
   }
 
@@ -89,9 +91,9 @@
     swipeEligible = false;
     // Solo en vertical (portrait) se alternan sub-tabs con swipe.
     if (window.innerHeight <= window.innerWidth) return;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - swipeStartX;
-    const dy = t.clientY - swipeStartY;
+    const toque = e.changedTouches[0];
+    const dx = toque.clientX - swipeStartX;
+    const dy = toque.clientY - swipeStartY;
     if (Math.abs(dx) >= 70 && Math.abs(dx) > Math.abs(dy) * 1.5) {
       if (dx < 0 && activeSub === "registrar") switchTo("reportes");
       else if (dx > 0 && activeSub === "reportes") switchTo("registrar");
@@ -103,21 +105,21 @@
   <div class="notas-subtabs">
     <button class="subtab-btn" class:active={activeSub === 'registrar'} onclick={() => switchTo('registrar')} type="button">
       <span class="subtab-icon">✏️</span>
-      <span>Registrar</span>
+      <span>{t('subtab.registrar')}</span>
     </button>
     <button class="subtab-btn" class:active={activeSub === 'reportes'} onclick={() => switchTo('reportes')} type="button">
       <span class="subtab-icon">📊</span>
-      <span>Reportes</span>
+      <span>{t('subtab.reportes')}</span>
     </button>
   </div>
 
   <div style="flex:1;min-height:0;position:relative" ontouchstart={onContentTouchStart} ontouchend={onContentTouchEnd}>
     {#if isAndroidUA}
       <div class="notas-subtabs-float">
-        <button class="subtab-btn" class:active={activeSub === 'registrar'} onclick={() => switchTo('registrar')} type="button" aria-label="Registrar">
+        <button class="subtab-btn" class:active={activeSub === 'registrar'} onclick={() => switchTo('registrar')} type="button" aria-label={t('subtab.registrar')}>
           <span class="subtab-icon">✏️</span>
         </button>
-        <button class="subtab-btn" class:active={activeSub === 'reportes'} onclick={() => switchTo('reportes')} type="button" aria-label="Reportes">
+        <button class="subtab-btn" class:active={activeSub === 'reportes'} onclick={() => switchTo('reportes')} type="button" aria-label={t('subtab.reportes')}>
           <span class="subtab-icon">📊</span>
         </button>
       </div>

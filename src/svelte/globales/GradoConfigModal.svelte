@@ -10,6 +10,7 @@
   import { ask } from "@tauri-apps/plugin-dialog";
   import { onDataChange } from "../../lib/autoSync";
   import { portalToBody } from "../../lib/portalToBody";
+  import { t } from "../../lib/i18n.svelte";
 
   export interface GradoItem { id: number; nombre: string; cualitativo?: boolean; }
   interface AsignaturaItem { id: number; nombre: string; }
@@ -81,10 +82,10 @@
 
       <div style="padding:0.5rem 1rem 1rem;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
-          <span style="font-size:0.8rem;font-weight:700;color:#e2e8f0;">📚 Asignaturas</span>
+          <span style="font-size:0.8rem;font-weight:700;color:#e2e8f0;">{t('gcm.titulo')}</span>
           <div style="display:flex;gap:0.3rem;">
-            <button onclick={() => asignadasIds = todasAsignaturas.map(s => s.id)} class="bulk-on">Todas</button>
-            <button onclick={() => asignadasIds = []} class="bulk-off">Ninguna</button>
+            <button onclick={() => asignadasIds = todasAsignaturas.map(s => s.id)} class="bulk-on">{t('gcm.todas')}</button>
+            <button onclick={() => asignadasIds = []} class="bulk-off">{t('gcm.ninguna')}</button>
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:0.4rem;max-height:300px;overflow-y:auto;">
@@ -100,7 +101,7 @@
         </div>
         {#if dirty}
           <button onclick={guardar} disabled={saving} class="save-verde">
-            {saving ? '⏳ Guardando...' : '💾 Guardar asignaturas'}
+            {saving ? t('gcm.guardando') : t('gcm.guardarAsignaturas')}
           </button>
         {/if}
       </div>

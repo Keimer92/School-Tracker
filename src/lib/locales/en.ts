@@ -1682,6 +1682,82 @@ to print. It is saved in Documents/SchoolTrackerPro/Instruments.`,
   'ab.notif.swapTitulo': '📤 Previous account backed up',
   'ab.notif.swapCuerpo': 'Uploaded to Drive before the account switch.',
 
+  // ── NotificacionesPage (Android only) ──
+  'notif.titulo': 'Attendance Notifications',
+  'notif.desc': 'Notifies when a school has grades without attendance, within its time window. Works with the app closed.',
+  'notif.desde': 'From',
+  'notif.hasta': 'To',
+  'notif.repetirCada': 'Repeat every',
+  'notif.resumen': '⏱ From {inicio} to {fin} · every {intervalo} min if there are pending grades',
+  'notif.sinColegios': 'No schools configured',
+  'notif.tocaColegio': 'Tap a school to configure its schedule',
+  'notif.colegioPrueba': 'School for the test',
+  'notif.sinColegiosCfg': 'No schools configured',
+  'notif.btn.guardar': '💾 Save',
+  'notif.btn.probar': '🔔 Send real test',
+  'notif.probando': 'Testing...',
+  'notif.guardando': 'Saving...',
+  'notif.sonido': 'Alarm sound',
+  'notif.sonidoDefecto': 'System default sound',
+  'notif.abriendo': 'Opening…',
+  'notif.delSistema': '📱 System',
+  'notif.archivo': '🎵 File',
+  'notif.default': '↺ Default',
+  'notif.sonidoNota':
+    'The file is copied by reference and stays accessible even if you move it. Changing the sound recreates the notification channel, so Android resets that channel importance and vibration to their defaults.',
+  'notif.silenciadoHoy': '🔕 Reminders silenced for today',
+  'notif.reactivar': 'Reactivate',
+  'notif.silenciando': 'Silencing...',
+  'notif.silenciarHoy': "🔕 Silence today's reminders",
+  'notif.notaAndroid':
+    '⚠️ On Android 12+ exact precision requires the "Alarms & reminders" permission (Settings → Apps → School Tracker).',
+  'notif.desactivadas': 'Notifications are disabled',
+  'notif.toast.sinSelector': '❌ Could not open the sound picker',
+  'notif.toast.sonido': '🔔 Sound: {label}',
+  'notif.toast.desactivadas': '🔕 Notifications disabled',
+  'notif.toast.guardado': '🔔 Saved · {detalle}',
+  'notif.toast.guardadoSinAlarma': '✅ Settings saved · ⚠️ could not schedule the alarm: {msg}',
+  'notif.toast.errorGuardar': '❌ Error saving: {error}',
+  'notif.toast.sinColegiosPrueba': '⚠️ No schools configured',
+  'notif.motivo.todoRegistrado': 'everything is recorded today ✅',
+  'notif.motivo.noHabil': 'today is NOT a school day for this school 🚫',
+  'notif.toast.sinPendientes': 'ℹ️ Nothing pending: {motivo}',
+  'notif.alarm.titulo': 'Attendance pending',
+  'notif.alarm.cuerpo': 'No attendance today ({nombre}): {lista}{resto}',
+  'notif.yMas': ' and {n} more',
+  'notif.toast.enviada': '🔔 Notification sent with {n} pending grade(s)',
+  'notif.toast.error': '❌ Error: {error}',
+  'notif.toast.reactivados': '🔔 Reminders reactivated for today',
+
+  // ── GradoConfigModal (grade subjects) ──
+  'gcm.titulo': '📚 Subjects',
+  'gcm.todas': 'All',
+  'gcm.ninguna': 'None',
+  'gcm.guardando': '⏳ Saving...',
+  'gcm.guardarAsignaturas': '💾 Save subjects',
+
+  // ── AndroidDrawer ──
+  // The 'Drive' chip reuses ccards.drive; upload reuses ccards.* too
+  'drawer.abrir': 'Open menu',
+  'drawer.cerrar': 'Close menu',
+  'drawer.driveDesc': 'Automatic Google Drive backup',
+  'drawer.ultimoRespaldo': 'Last backup: {momento}{tam}',
+
+  // ── Sub-tabs of the wrappers (AsistenciaMainPage / NotasMainPage) ──
+  'subtab.tomarAsistencia': 'Take attendance',
+  'subtab.informe': 'Report',
+  'subtab.registrar': 'Record',
+  'subtab.reportes': 'Reports',
+
+  // ── DatePickerGlass ──
+  'dpg.sinClases': 'No classes / not a school day for this school',
+
+  // ── driveInstantBackup (instant backup toasts) ──
+  'dib.actualizado': '☁️ Backup updated on Google Drive{tam} · {hora}',
+  'dib.actualizados': '☁️ {n} backups updated on Google Drive{tam}',
+  'dib.errorRespaldar': '⚠️ Could not back up to Drive: {motivo}',
+  'dib.motivo.revincular': 'link your Google account again',
+
   // ── CalificacionesConfig ──
   'cc_calificaciones.titulo': 'Grade Configuration',
   'cc_calificaciones.desc': 'Customize qualitative grade scales, their colors and minimum scores.',

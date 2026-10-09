@@ -1701,6 +1701,82 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'ab.notif.swapTitulo': '📤 Cuenta anterior respaldada',
   'ab.notif.swapCuerpo': 'Subido a Drive antes del cambio de cuenta.',
 
+  // ── NotificacionesPage (solo Android) ──
+  'notif.titulo': 'Notificaciones de Asistencia',
+  'notif.desc': 'Avisa cuando un colegio tenga grados sin asistencia, dentro de su ventana horaria. Funciona con la app cerrada.',
+  'notif.desde': 'Desde',
+  'notif.hasta': 'Hasta',
+  'notif.repetirCada': 'Repetir cada',
+  'notif.resumen': '⏱ De {inicio} a {fin} · cada {intervalo} min si hay grados pendientes',
+  'notif.sinColegios': 'No hay colegios configurados',
+  'notif.tocaColegio': 'Toca un colegio para configurar su horario',
+  'notif.colegioPrueba': 'Colegio para la prueba',
+  'notif.sinColegiosCfg': 'Sin colegios configurados',
+  'notif.btn.guardar': '💾 Guardar',
+  'notif.btn.probar': '🔔 Probar real',
+  'notif.probando': 'Probando...',
+  'notif.guardando': 'Guardando...',
+  'notif.sonido': 'Sonido de la alarma',
+  'notif.sonidoDefecto': 'Sonido por defecto del sistema',
+  'notif.abriendo': 'Abriendo…',
+  'notif.delSistema': '📱 Del sistema',
+  'notif.archivo': '🎵 Archivo',
+  'notif.default': '↺ Default',
+  'notif.sonidoNota':
+    'El archivo se copia por referencia y queda accesible aunque lo muevas. Al cambiar el sonido se recrea el canal de la notificación, así que Android reinicia la importancia y la vibración de ese canal a sus valores por defecto.',
+  'notif.silenciadoHoy': '🔕 Recordatorios silenciados para hoy',
+  'notif.reactivar': 'Reactivar',
+  'notif.silenciando': 'Silenciando...',
+  'notif.silenciarHoy': '🔕 Silenciar recordatorios de hoy',
+  'notif.notaAndroid':
+    '⚠️ En Android 12+ la precisión exacta requiere el permiso "Alarmas y recordatorios exactos" (Sistema → Apps → School Tracker).',
+  'notif.desactivadas': 'Las notificaciones están desactivadas',
+  'notif.toast.sinSelector': '❌ No se pudo abrir el selector de sonido',
+  'notif.toast.sonido': '🔔 Sonido: {label}',
+  'notif.toast.desactivadas': '🔕 Notificaciones desactivadas',
+  'notif.toast.guardado': '🔔 Guardado · {detalle}',
+  'notif.toast.guardadoSinAlarma': '✅ Config guardada · ⚠️ no se pudo programar la alarma: {msg}',
+  'notif.toast.errorGuardar': '❌ Error al guardar: {error}',
+  'notif.toast.sinColegiosPrueba': '⚠️ No hay colegios configurados',
+  'notif.motivo.todoRegistrado': 'todo está registrado hoy ✅',
+  'notif.motivo.noHabil': 'hoy NO es día hábil para este colegio 🚫',
+  'notif.toast.sinPendientes': 'ℹ️ Sin pendientes: {motivo}',
+  'notif.alarm.titulo': 'Asistencia pendiente',
+  'notif.alarm.cuerpo': 'Sin asistencia hoy ({nombre}): {lista}{resto}',
+  'notif.yMas': ' y {n} más',
+  'notif.toast.enviada': '🔔 Notificación enviada con {n} grado(s) pendiente(s)',
+  'notif.toast.error': '❌ Error: {error}',
+  'notif.toast.reactivados': '🔔 Recordatorios reactivados para hoy',
+
+  // ── GradoConfigModal (asignaturas del grado) ──
+  'gcm.titulo': '📚 Asignaturas',
+  'gcm.todas': 'Todas',
+  'gcm.ninguna': 'Ninguna',
+  'gcm.guardando': '⏳ Guardando...',
+  'gcm.guardarAsignaturas': '💾 Guardar asignaturas',
+
+  // ── AndroidDrawer ──
+  // 'Drive' (el chip) reusa ccards.drive; el subiendo tambien reusa ccards.*
+  'drawer.abrir': 'Abrir menú',
+  'drawer.cerrar': 'Cerrar menú',
+  'drawer.driveDesc': 'Respaldo automático de Google Drive',
+  'drawer.ultimoRespaldo': 'Último respaldo: {momento}{tam}',
+
+  // ── Sub-tabs de los wrappers (AsistenciaMainPage / NotasMainPage) ──
+  'subtab.tomarAsistencia': 'Tomar asistencia',
+  'subtab.informe': 'Informe',
+  'subtab.registrar': 'Registrar',
+  'subtab.reportes': 'Reportes',
+
+  // ── DatePickerGlass ──
+  'dpg.sinClases': 'Día sin clases o no hábil para este colegio',
+
+  // ── driveInstantBackup (toasts de respaldo instantáneo) ──
+  'dib.actualizado': '☁️ Respaldo actualizado en Google Drive{tam} · {hora}',
+  'dib.actualizados': '☁️ {n} respaldos actualizados en Google Drive{tam}',
+  'dib.errorRespaldar': '⚠️ No se pudo respaldar en Drive: {motivo}',
+  'dib.motivo.revincular': 'vuelve a vincular tu cuenta de Google',
+
   // ── CalificacionesConfig ──
   'cc_calificaciones.titulo': 'Configuración de Calificaciones',
   'cc_calificaciones.desc': 'Personaliza las escalas de calificación cualitativa, sus colores y puntajes mínimos.',

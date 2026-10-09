@@ -106,6 +106,9 @@ foreach ($f in $files) {
       if ($v -notmatch '\s' -and $v -notmatch $patAc) { continue }  # una palabra suelta
       if ($v -match '(Error|Cargando|Fall|fallo|Failed|rror )') { continue }   # console
       if ($v -match '^(rgba|linear-gradient|min|max|calc|var|#[0-9a-fA-F]|[0-9]+px)') { continue }
+      if ($v -match 'rgba\(') { continue }                                     # box-shadow / gradientes
+      if ($v -match '[0-9](px|rem|em|vh|vw|fr)') { continue }                  # unidades de CSS
+      if ($v -match '\b(padding|margin|style|grid|auto)\b') { continue }       # palabras de CSS
       if ($v -match '^\s*(--|/|\.|@)') { continue }
       $nLit++
     }

@@ -1,11 +1,17 @@
 <script lang="ts">
-  let { value, onChange, placeholder = 'Buscar...', isMobile = false, height }: {
+  import { t } from '../lib/i18n.svelte';
+
+  // El placeholder por defecto se resuelve en $derived (no en el default del
+  // prop): con `= t(...)` quedaria congelado en el idioma del arranque.
+  let { value, onChange, placeholder, isMobile = false, height }: {
     value: string;
     onChange: (v: string) => void;
     placeholder?: string;
     isMobile?: boolean;
     height?: string;
   } = $props();
+
+  const ph = $derived(placeholder ?? t('inf.buscar'));
 
   let focused = $state(false);
   let expanded = $derived(focused || value.length > 0);
@@ -22,7 +28,7 @@
   <input
     type="text"
     class="search-input search-input-with-icon"
-    placeholder={expanded ? placeholder : ''}
+    placeholder={expanded ? ph : ''}
     bind:value={value}
     onfocus={() => focused = true}
     onblur={() => focused = false}
@@ -33,7 +39,7 @@
     <button
       onclick={() => onChange('')}
       style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: transparent; border: none; color: white; cursor: pointer; font-size: 0.85rem; padding: 2px;"
-      aria-label="Limpiar búsqueda"
+      aria-label={t('asis.limpiarBusqueda')}
     >✕</button>
   {/if}
 </div>
