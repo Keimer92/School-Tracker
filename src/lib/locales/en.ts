@@ -1650,6 +1650,22 @@ to print. It is saved in Documents/SchoolTrackerPro/Instruments.`,
   'ccards.estado.espera': 'Idle',
   'app.sinAtras': 'No more pages to go back to',
 
+  // ── Sidebar ──
+  // "SCHOOL"/"TRACKER" is the brand: not translated. Theme ids
+  // (claro/oscuro/sistema) are domain values stored in localStorage;
+  // only the visible label is translated.
+  'sb.principal': 'MAIN',
+  'sb.inicio': 'Home',
+  'sb.asistencia': 'Attendance',
+  'sb.notas': 'Grades',
+  'sb.estudiantes': 'Students',
+  'sb.generales': 'GENERAL',
+  'sb.configuracion': 'Settings',
+  'sb.apariencia': 'APPEARANCE',
+  'sb.tema.claro': 'Light',
+  'sb.tema.oscuro': 'Dark',
+  'sb.tema.sistema': 'System',
+
   // ── CalificacionesConfig ──
   'cc_calificaciones.titulo': 'Grade Configuration',
   'cc_calificaciones.desc': 'Customize qualitative grade scales, their colors and minimum scores.',

@@ -2,6 +2,7 @@
   import CloudCards from './CloudCards.svelte';
   import appIcon from '../assets/app-icon.png';
   import { emit } from '@tauri-apps/api/event';
+  import { t } from '../lib/i18n.svelte';
 
   // Nube, Cuenta y Evaluaciones ya no son tabs: son secciones del rail de
   // Configuración, a las que se llega con el evento `open-ajustes`.
@@ -35,11 +36,14 @@
 setThemeMode: (mode: string) => void;
   }>();
 
-  const themeOptions = [
-    { id: "claro", label: "Claro", icon: "☀️" },
-    { id: "oscuro", label: "Oscuro", icon: "🌙" },
-    { id: "sistema", label: "Sistema", icon: "💻" },
-  ] as const;
+  // `$derived`, no `const`: los labels usan `t()`, y con `const` se quedarían
+  // en el idioma del arranque (no da error de compilación). El id de dominio
+  // (claro/oscuro/sistema) NO se traduce: viaja a localStorage.
+  const themeOptions = $derived([
+    { id: "claro", label: t('sb.tema.claro'), icon: "☀️" },
+    { id: "oscuro", label: t('sb.tema.oscuro'), icon: "🌙" },
+    { id: "sistema", label: t('sb.tema.sistema'), icon: "💻" },
+  ] as const);
 </script>
 
 <nav
@@ -62,23 +66,23 @@ setThemeMode: (mode: string) => void;
     {/if}
   </div>
   <div class="sidebar-nav">
-    <div class="sidebar-section-header">PRINCIPAL</div>
+    <div class="sidebar-section-header">{t('sb.principal')}</div>
     <button class="sidebar-button {activeTab === 'dashboard' ? 'active' : ''}" onclick={() => onTabChange('dashboard')} type="button">
-      <span>🏠</span><span>Inicio</span>
+      <span>🏠</span><span>{t('sb.inicio')}</span>
     </button>
     <button class="sidebar-button {activeTab === 'asistencia' ? 'active' : ''}" onclick={() => onTabChange('asistencia')} type="button">
-      <span>📅</span><span>Asistencia</span>
+      <span>📅</span><span>{t('sb.asistencia')}</span>
     </button>
     <button class="sidebar-button {activeTab === 'notas' ? 'active' : ''}" onclick={() => onTabChange('notas')} type="button">
-      <span>📓</span><span>Notas</span>
+      <span>📓</span><span>{t('sb.notas')}</span>
     </button>
     <button class="sidebar-button {activeTab === 'estudiantes' ? 'active' : ''}" onclick={() => onTabChange('estudiantes')} type="button">
-      <span>👨‍🎓</span><span>Estudiantes</span>
+      <span>👨‍🎓</span><span>{t('sb.estudiantes')}</span>
     </button>
 
-    <div class="sidebar-section-header">GENERALES</div>
+    <div class="sidebar-section-header">{t('sb.generales')}</div>
     <button class="sidebar-button {activeTab === 'ajustes' ? 'active' : ''}" onclick={() => onTabChange('ajustes')} type="button">
-      <span>⚙️</span><span>Configuración</span>
+      <span>⚙️</span><span>{t('sb.configuracion')}</span>
     </button>
   </div>
 
@@ -86,7 +90,7 @@ setThemeMode: (mode: string) => void;
     <CloudCards onTabChange={onTabChange} />
   {/if}
 
-  <div class="sidebar-section-header" style="padding-top: 6px;">APARIENCIA</div>
+  <div class="sidebar-section-header" style="padding-top: 6px;">{t('sb.apariencia')}</div>
   <div class="theme-selector">
     {#each themeOptions as opt}
       <button

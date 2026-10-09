@@ -1669,6 +1669,22 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'ccards.estado.espera': 'En espera',
   'app.sinAtras': 'No hay más páginas atrás',
 
+  // ── Sidebar ──
+  // "SCHOOL"/"TRACKER" es la marca: no se traduce. Los ids de tema
+  // (claro/oscuro/sistema) son valores de dominio que viajan a localStorage;
+  // solo se traduce la etiqueta visible.
+  'sb.principal': 'PRINCIPAL',
+  'sb.inicio': 'Inicio',
+  'sb.asistencia': 'Asistencia',
+  'sb.notas': 'Notas',
+  'sb.estudiantes': 'Estudiantes',
+  'sb.generales': 'GENERALES',
+  'sb.configuracion': 'Configuración',
+  'sb.apariencia': 'APARIENCIA',
+  'sb.tema.claro': 'Claro',
+  'sb.tema.oscuro': 'Oscuro',
+  'sb.tema.sistema': 'Sistema',
+
   // ── CalificacionesConfig ──
   'cc_calificaciones.titulo': 'Configuración de Calificaciones',
   'cc_calificaciones.desc': 'Personaliza las escalas de calificación cualitativa, sus colores y puntajes mínimos.',
