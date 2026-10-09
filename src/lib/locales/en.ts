@@ -233,6 +233,7 @@ export const en: Record<Clave, string> = {
   'asis.sinClases.vacioDesc':
     'Every working day of this period is marked as no classes ({alcance}). There is no attendance to take.',
   'asis.sinClases.vacioMotivo': 'Reason: {motivo}',
+  'asis.sinClases.avisoTitulo': '{n} day(s) marked as no classes in this period',
   'asis.sinClases.vacioSinMotivo': 'No reason was saved for these marks.',
   'asis.sinClases.elegirSemana': 'Pick a week',
   'asis.sinClases.descSemana': 'Leave one week of the month without classes',

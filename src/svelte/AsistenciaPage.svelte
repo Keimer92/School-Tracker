@@ -1053,6 +1053,15 @@ $effect(() => {
     return out;
   });
 
+  /**
+   * Days of the visible period that carry a "sin clases" mark, whatever their
+   * scope. `periodoTodoSinClases` (every working day off) is just the case
+   * where this covers all of them; both the banner and the empty panel read from
+   * here so the reason and the restore action are ALWAYS presented the same way.
+   */
+  let diasMarcadosPeriodo = $derived(getDiasHabilitadosBase(getFechasPeriodo()).filter(f => esDiaSinClases(f)));
+  let periodoTieneMarcas = $derived(diasMarcadosPeriodo.length > 0);
+
   /** Días hábiles del período para pintar la tabla (incluye los sin clases con su marca). */
   let fechasVisibles = $derived.by(() => {
     return getDiasHabilitadosBase(getFechasPeriodo()).map(f => ({
@@ -2014,6 +2023,58 @@ $effect(() => {
     .dsc-col{background:linear-gradient(180deg,rgba(245,158,11,.10),rgba(245,158,11,.02));text-align:center;vertical-align:middle;color:#f59e0b;font-weight:700;padding:.5rem .35rem;min-width:70px}
   </style>
 
+  /**
+   * Panel de "período sin clases" — UNA sola definición para los dos casos.
+   *
+   * Antes el mismo hecho se mostraba de dos formas según cómo se llegara al
+   * período (mover el dropdown de semana, cambiar de colegio…): si quedaba
+   * aunque fuera un solo día con clases salía la grilla con columnas 🚫, y si no
+   * salía un panel aparte. El motivo y el botón de reactivar quedaban en un
+   * sitio u otro según el caso.
+   *
+   * Ahora el mismo panel se usa:
+   *  · como aviso sobre la grilla cuando el período tiene días marcados, y
+   *  · en lugar de la grilla cuando el período estáEntero marcado
+   * con exactamente la misma información (alcance, motivo y acción), que es lo
+   * que hace que se vea igual en cualquier dropdown.
+   *
+   * `soloAviso` = variante compacta de arriba; sin él, la caja centrada completa.
+   */
+  {#snippet panelSinClases(soloAviso: boolean)}
+    <div
+      style={soloAviso
+        ? "display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin:0 0 .9rem;padding:.7rem .9rem;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.28);border-radius:12px"
+        : "padding:40px;text-align:center;background:rgba(251,191,36,0.08);border-radius:12px;border:1px dashed #fbbf24;color:#fcd34d"}
+    >
+      <span style="font-size:{soloAviso ? '1.1rem' : '1.6rem'};line-height:1">🚫</span>
+      <div style="flex:1;min-width:{soloAviso ? '220px' : '0'}">
+        <div style="color:#fde68a;font-weight:700;font-size:{soloAviso ? '.85rem' : '1rem'}">
+          {#if soloAviso}
+            {t('asis.sinClases.avisoTitulo', { n: diasMarcadosPeriodo.length })}
+          {:else}
+            {t('asis.sinClases.vacioTitulo')}
+          {/if}
+          <span style="font-weight:400;color:#94a3b8;font-size:.8rem;margin-left:.4rem">
+            ({sinClasesNivelColegio ? t('asis.sinClases.alcanceTodo') : t('asis.sinClases.alcanceSoloSeccion')})
+          </span>
+        </div>
+        {#if motivosPeriodoSinClases.length > 0}
+          <div style="color:#fcd34d;font-size:{soloAviso ? '.78rem' : '.9rem'};margin-top:.2rem">
+            {#each motivosPeriodoSinClases as motivo, i (motivo)}
+              {i > 0 ? ' · ' : ''}{t('asis.sinClases.vacioMotivo', { motivo })}
+            {/each}
+          </div>
+        {:else if !soloAviso}
+          <div style="color:#64748b;font-size:.8rem;margin-top:.2rem">{t('asis.sinClases.vacioSinMotivo')}</div>
+        {/if}
+      </div>
+      <button class="secondary" onclick={() => desactivarSinClases()}
+        style={soloAviso ? 'padding:.35rem .8rem;font-size:.78rem' : 'margin-top:1.25rem;padding:0.5rem 1rem'}>
+        ♻️ {t('asis.sinClases.reactivar')}
+      </button>
+    </div>
+  {/snippet}
+
   {#snippet overlayEstados(estId: number, fecha: string, actual: string | null)}
     <div class="rapido-overlay">
       <button
@@ -2514,51 +2575,22 @@ $effect(() => {
         {#if loading}
           <div class="loading-state">{t('asis.cargando')}</div>
         {:else if fechasPeriodo.length === 0}
-          <!-- One panel for "this period has no working days", whichever the cause:
-               same layout, same slots (reason, scope, motive, action). Before,
-               the "marked off" case and the "school doesn't work these days" case
-               were two different boxes with different information, and the motive
-               only appeared on some of them. -->
-          <div
-            style="padding:40px;text-align:center;border-radius:12px;border:1px dashed;{periodoTodoSinClases
-              ? 'background:rgba(251,191,36,0.08);border-color:#fbbf24;color:#fcd34d'
-              : 'background:rgba(239,68,68,0.1);border-color:#ef4444;color:#ef4444'}"
-          >
-            <h3>{periodoTodoSinClases ? t('asis.sinClases.vacioTitulo') : t('asis.sinDiasHabiles.titulo')}</h3>
-            <p style="color:#94a3b8">
-              {periodoTodoSinClases
-                ? t('asis.sinClases.vacioDesc', {
-                    alcance: sinClasesNivelColegio ? t('asis.sinClases.alcanceTodo') : t('asis.sinClases.alcanceSoloSeccion'),
-                  })
-                : t('asis.sinDiasHabiles.desc')}
-            </p>
-            <!-- Motive of the marks, so you recognise WHY instead of just seeing
-                 that the week is off. Listed once each: a period marked with two
-                 different reasons shows both. -->
-            {#if motivosPeriodoSinClases.length > 0}
-              <p style="margin:.75rem 0 0;color:#fde68a;font-size:.9rem">
-                {#each motivosPeriodoSinClases as motivo, i (motivo)}
-                  {i > 0 ? ' · ' : ''}{t('asis.sinClases.vacioMotivo', { motivo })}
-                {/each}
-              </p>
-            {:else if periodoTodoSinClases}
-              <p style="margin:.75rem 0 0;color:#64748b;font-size:.8rem">{t('asis.sinClases.vacioSinMotivo')}</p>
-            {/if}
-            {#if periodoTodoSinClases}
-              <button class="secondary" onclick={() => desactivarSinClases()}
-                style="margin-top:1.25rem;padding:0.5rem 1rem">
-                ♻️ {t('asis.sinClases.reactivar')}
-              </button>
-            {/if}
-          </div>
-        {:else if filteredEstudiantesMulti.length === 0}
-          <div style="text-align:center;padding:5rem 2rem;border:2px dashed rgba(255,255,255,0.1);border-radius:16px;margin:0 1rem">
-            <div style="font-size:3rem;margin-bottom:1rem">{searchTerm ? '🔍' : '📋'}</div>
-            <h4 style="color:#cbd5e1;margin-bottom:0.5rem">{searchTerm ? t('asis.vacio.titulo') : t('asis.vacio.tituloAlt')}</h4>
-            <p style="color:#94a3b8;max-width:400px;margin:0 auto">{searchTerm ? t('asis.vacio.busqueda', { q: searchTerm }) : t('asis.vacio.desc')}</p>
-            {#if searchTerm}<button class="secondary" onclick={() => searchTerm = ""} style="margin-top:1.5rem;padding:0.5rem 1rem">{t('asis.limpiarBusqueda')}</button>{/if}
-          </div>
-        {:else if isAndroidMobile && periodo === "semanal"}
+          {@render panelSinClases(false)}
+        {:else}
+          {#if periodoTieneMarcas}
+            <!-- Partial marks: the grid stays (there ARE days with classes) but the
+                 same panel goes on top, so the reason and the restore action are in
+                 the same place in every case. -->
+            {@render panelSinClases(true)}
+          {/if}
+          {#if filteredEstudiantesMulti.length === 0}
+            <div style="text-align:center;padding:5rem 2rem;border:2px dashed rgba(255,255,255,0.1);border-radius:16px;margin:0 1rem">
+              <div style="font-size:3rem;margin-bottom:1rem">{searchTerm ? '🔍' : '📋'}</div>
+              <h4 style="color:#cbd5e1;margin-bottom:0.5rem">{searchTerm ? t('asis.vacio.titulo') : t('asis.vacio.tituloAlt')}</h4>
+              <p style="color:#94a3b8;max-width:400px;margin:0 auto">{searchTerm ? t('asis.vacio.busqueda', { q: searchTerm }) : t('asis.vacio.desc')}</p>
+              {#if searchTerm}<button class="secondary" onclick={() => searchTerm = ""} style="margin-top:1.5rem;padding:0.5rem 1rem">{t('asis.limpiarBusqueda')}</button>{/if}
+            </div>
+          {:else if isAndroidMobile && periodo === "semanal"}
           <div style="display:flex;flex-direction:column;gap:0.5rem;padding:0.4rem 0">
             {#each filteredEstudiantesMulti as est, index (est.id)}
               <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:0.5rem 0.6rem">
@@ -2758,6 +2790,7 @@ $effect(() => {
             </tbody>
           </table>
         {/if}
+          {/if}
       </ScrollableTable>
     {/if}
   </PageLayout>

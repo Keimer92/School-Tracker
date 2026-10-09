@@ -2029,6 +2029,20 @@ distinguir "la nube tiene la razón" de "la nube está vieja".
   es `autoSync.flush()` → `syncService.syncAllSilent()`, y `scheduleInstantBackup()`
   va por su cuenta.
 
+⚠️ **GOTCHA: la info de "sin clases" se muestra con UN snippet, no con dos ramas.**
+El mismo hecho se mostraba de dos formas según cómo se llegara al período
+(mover el dropdown de semana, cambiar de colegio…): el panel de "período sin
+clases" salía solo si `fechasPeriodo` quedaba vacío, y si quedaba un solo día con
+clases salía la grilla con columnas 🚫 y el motivo solo en el `title`/celda
+combinada. Mover un dropdown cambiaba la representación entera.
+
+Ahora hay un `{#snippet panelSinClases(soloAviso)}` que se usa en los dos casos:
+en lugar de la grilla cuando el período está entero marcado, y **encima** de la
+grilla cuando solo hay días marcados (`periodoTieneMarcas`). Misma información
+—alcance, motivo y botón de reactivar— en el mismo sitio, y la grilla sigue
+visible cuando quedan días con clases (que es información que sí sirve).
+Cambiar el markup por duplicado es como volvió la inconsistencia.
+
 ⚠️ **GOTCHA: sin `colegio_dias_asistencia`, el fallback de días hábiles NO puede
 ser "los 7 días".** `getDiasHabilitadosBase()` / `getDiasHabilitados()` devuelven
 `soloSinDomingo(fechas)` cuando el colegio no tiene config semanal. Antes
