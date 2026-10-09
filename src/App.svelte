@@ -55,9 +55,9 @@
   /** Sección que se abre al entrar a Ajustes sin deep-link. */
   const SECCION_AJUSTES_POR_DEFECTO = 'evaluaciones';
 
-  /** Tabs que se reubicaron como secciones del rail de Ajustes. */
+  /** Legacy tab names that became sections of the Ajustes rail. */
   const TAB_A_SECCION_AJUSTES: Record<string, string> = {
-    cloud: 'nube', account: 'cuenta', evaluaciones: 'evaluaciones',
+    cloud: 'general', account: 'general', evaluaciones: 'evaluaciones',
   };
 
   // Estado de sync D1 para el chip del header móvil
@@ -191,9 +191,10 @@
       if (isMobile) drawerOpen = false;
       return;
     }
-    // Nube, Cuenta y Evaluaciones ya no son tabs: son secciones del rail de
-    // Ajustes. Cualquier llamador legado (CloudCards, drawer, páginas) que
-    // aún pida esos destinos aterriza en Ajustes con la sección equivalente.
+    // Evaluaciones ya no es tab: es una sección del rail de Ajustes. Cualquier
+    // llamador legado (páginas) que aún pida ese destino aterriza en Ajustes con
+    // la sección equivalente. Nube y Cuenta ya no tienen destino: el primero son
+    // modales (`abrirNube`), el segundo se eliminó.
     const seccionAjustes = TAB_A_SECCION_AJUSTES[tab];
     if (seccionAjustes) {
       ajustesSeccion = seccionAjustes;
@@ -338,9 +339,9 @@
         activeTab = "ajustes";
         localStorage.setItem("active-tab", "ajustes");
       }
-      // Nube, Cuenta y Evaluaciones dejaron de ser tabs: ahora son secciones
-      // del rail de Ajustes. Quien las tenía abiertas cae en Ajustes y se le
-      // remembers la sección equivalente para no perder el contexto.
+      // Cloud, account and Evaluaciones stopped being tabs: the cloud became
+      // modals and the Cuenta page was removed, so legacy values land on
+      // Ajustes at the closest remaining section.
       else if (saved === "cloud" || saved === "account" || saved === "evaluaciones") {
         activeTab = "ajustes";
         ajustesSeccion = TAB_A_SECCION_AJUSTES[saved];
@@ -439,7 +440,7 @@
       }).then(u => unlisten.push(u));
 
       // Sincronización automática SOLO con Cloudflare D1 (si está configurado).
-      // Google Drive: respaldo automático (push) cada N minutos + manual desde CloudPage.
+      // Google Drive: automatic backup (push) every N minutes + manual from the Drive panel.
       driveSyncService.ensureAutoBackup();
       // Scheduler híbrido de Drive (timer inteligente + triggers pasivos + cuenta).
       driveAutoBackup.start();
@@ -541,7 +542,6 @@
       {d1Status}
       {toggleDrawer}
       {closeDrawer}
-      onNavigate={handleTabChange}
     />
   {/if}
 
@@ -583,6 +583,18 @@
     <div class="toast-notification {toast.type}">{toast.message}</div>
   {/if}
 </div>
+
+<!--
+  Cloud panels (Cloudflare D1 + Drive), mounted ONCE for the whole app.
+
+  They are opened with `openCloudPanel('d1' | 'drive')` from anywhere: the
+  sidebar cards, the Android header chips, any future page. Mounting them here
+  (instead of inside the component that triggers them) is what keeps a single
+  source of truth for the Drive session and the D1 sync state; each panel renders
+  nothing until it is actually open.
+-->
+<ModalNubeD1 />
+<ModalNubeDrive />
 {:else}
   <WelcomePage />
 {/if}

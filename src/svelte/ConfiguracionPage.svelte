@@ -15,8 +15,10 @@
   import GradoConfigModal from "./globales/GradoConfigModal.svelte";
   import AjustesPage from "./AjustesPage.svelte";
   import EvaluacionesPage from "./EvaluacionesPage.svelte";
-  import CloudPage from "./CloudPage.svelte";
-  import AccountPage from "./AccountPage.svelte";
+  // CloudPage and AccountPage are gone: the cloud became the modals
+  // `modales/ModalNubeD1` + `modales/ModalNubeDrive` (opened from the sidebar
+  // cards and the Android header chips), and the account page had nothing left
+  // once the cloud was single-user. Device handover moved to DebugPage.
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
   interface CategoryConfig {
@@ -82,8 +84,6 @@
     'evaluaciones': t('cfg.desc.evaluaciones'),
     'general': t('cfg.desc.general'),
     'notificaciones': t('cfg.desc.notificaciones'),
-    'nube': t('cfg.desc.nube'),
-    'cuenta': t('cfg.desc.cuenta'),
     'debug': t('cfg.desc.debug'),
     'info': t('cfg.desc.info'),
   });
@@ -108,8 +108,6 @@
     { id: 'secciones', label: t('cfg.sec.secciones'), icono: '👥', color: '#a78bfa', grupo: 'Académico', cat: CATEGORIES[5], contador: 'get_secciones' },
     { id: 'general', label: t('cfg.sec.general'), icono: '⚙️', color: '#60a5fa', grupo: 'Aplicación' },
     { id: 'notificaciones', label: t('cfg.sec.notificaciones'), icono: '🔔', color: '#fbbf24', grupo: 'Aplicación', soloAndroid: true },
-    { id: 'nube', label: t('cfg.sec.nube'), icono: '☁️', color: '#38bdf8', grupo: 'Aplicación' },
-    { id: 'cuenta', label: t('cfg.sec.cuenta'), icono: '👤', color: '#f472b6', grupo: 'Aplicación' },
     { id: 'debug', label: t('cfg.sec.debug'), icono: '🐛', color: '#ef4444', grupo: 'Sistema' },
     { id: 'info', label: t('cfg.sec.info'), icono: '📖', color: '#a78bfa', grupo: 'Sistema' },
   ]);
@@ -246,19 +244,6 @@
     if (s) abrir(s);
   }
 
-  /**
-   * Navegación desde dentro del shell (CloudPage, AccountPage). Antes estas
-   * páginas vivían en tabs propios y pedían un cambio de tab; ahora que están
-   * dentro del rail, la traducción es abrir la sección equivalente.
-   */
-  function irAjustes(destino: string) {
-    if (destino === 'cloud') { abrirPorId('nube'); return; }
-    if (destino === 'account') { abrirPorId('cuenta'); return; }
-    if (destino === 'evaluaciones') { abrirPorId('evaluaciones'); return; }
-    // Cualquier otro destino (p. ej. "welcome") no aplica dentro del shell.
-    console.warn('[Ajustes] destino de navegación no soportado:', destino);
-  }
-
   // Al volver a la página: en Android se muestra la lista; en escritorio se
   // respeta la sección pedida por deep-link. Los contadores se recalculan porque
   // mientras la app estuvo en otra pestaña se pudieron agregar o borrar ítems.
@@ -364,10 +349,6 @@
     <MultiplicadoresConfig />
   {:else if activa.id === 'evaluaciones'}
     <div style="width:100%;height:100%;"><EvaluacionesPage /></div>
-  {:else if activa.id === 'nube'}
-    <div style="width:100%;height:100%;overflow-y:auto;"><CloudPage onNavigate={irAjustes} pageActive={pageActive} /></div>
-  {:else if activa.id === 'cuenta'}
-    <div style="width:100%;height:100%;overflow-y:auto;"><AccountPage onNavigate={irAjustes} /></div>
   {:else}
     <AjustesPage seccion={activa.id} pageActive={pageActive} soloContenido {themeMode} {setThemeMode} />
   {/if}
