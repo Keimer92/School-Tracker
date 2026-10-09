@@ -825,8 +825,6 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'cfg.sec.secciones': 'Sección',
   'cfg.sec.general': 'General',
   'cfg.sec.notificaciones': 'Notif. Asistencia',
-  'cfg.sec.nube': 'Nube',
-  'cfg.sec.cuenta': 'Cuenta',
   'cfg.sec.debug': 'Debug',
   'cfg.sec.info': 'Info',
   'cfg.desc.ano-lectivo':
@@ -851,10 +849,6 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
     'Color de resaltado, valores por defecto de año lectivo y colegio, y comportamiento de la sincronización.',
   'cfg.desc.notificaciones':
     'Avisos cuando un colegio tiene grados sin asistencia, dentro de su ventana horaria y con la app cerrada.',
-  'cfg.desc.nube':
-    'Conexión con Cloudflare D1 y respaldo en Google Drive. Estado de la sincronización y recuperación de datos.',
-  'cfg.desc.cuenta':
-    'Cuentas de Google vinculadas, cambio de perfil y datos de la cuenta activa.',
   'cfg.desc.debug':
     'Herramientas de diagnóstico y purga. Actúa sobre la base local y la nube: usá con precaución.',
   'cfg.desc.info':
