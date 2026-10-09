@@ -229,6 +229,9 @@ export const en: Record<Clave, string> = {
   'asis.sinClases.reactivar': 'Restore classes',
   'asis.sinClases.motivo': 'Reason for the day(s) without classes',
   'asis.sinClases.todoPeriodo': 'Whole period',
+  'asis.sinClases.vacioTitulo': '🚫 Whole period with no classes',
+  'asis.sinClases.vacioDesc':
+    'Every working day of this period is marked as no classes ({scope}). There is no attendance to take.',
   'asis.sinClases.elegirSemana': 'Pick a week',
   'asis.sinClases.descSemana': 'Leave one week of the month without classes',
   'asis.sinClases.descPeriodo': 'Mark the current period as having no classes',

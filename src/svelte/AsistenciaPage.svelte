@@ -995,6 +995,18 @@ $effect(() => {
     return base;
   }
 
+  /**
+   * The period has NO enabled days because every working day is marked as
+   * "sin clases", as opposed to "the school simply doesn't work these days".
+   * `sinClasesActivo` excludes the monthly view on purpose (marks there are per
+   * week), so this one covers all three periods and is what the empty state
+   * needs: a period fully marked off is a valid state, not a broken one.
+   */
+  let periodoTodoSinClases = $derived.by(() => {
+    const base = getDiasHabilitadosBase(getFechasPeriodo());
+    return base.length > 0 && base.every(f => esDiaSinClases(f));
+  });
+
   /** Días hábiles del período para pintar la tabla (incluye los sin clases con su marca). */
   let fechasVisibles = $derived.by(() => {
     return getDiasHabilitadosBase(getFechasPeriodo()).map(f => ({
@@ -1474,6 +1486,18 @@ $effect(() => {
     try {
       const fechas = getDiasHabilitados(getFechasPeriodo());
       fechasPeriodo = fechas;
+      // Whole period marked as "sin clases" (e.g. you just marked the week off):
+      // there is nothing to load. Bailing out here is REQUIRED, not just
+      // tidier — with an empty array `fechas[0]` is `undefined`, and
+      // JSON.stringify drops undefined keys, so the payload arrived at Rust
+      // without `fechaInicio` and the call failed with
+      // "missing required key fechaInicio" on every refresh.
+      if (fechas.length === 0) {
+        estudiantesMulti = [];
+        originalMulti = {};
+        monthlyPcts = {};
+        return;
+      }
       const data = await invoke<Array<{ id: number; nombre: string; codigo: string; sexo: string; dias: Array<{ fecha: string; estado: string | null; observacion: string | null }> }>>("get_asistencia_estudiantes_rango", {
         fechaInicio: fechas[0], fechaFin: fechas[fechas.length - 1],
         gradoId: selectedGrado, seccionId: selectedSeccion, sexo: selectedSexo || null,
@@ -2428,10 +2452,26 @@ $effect(() => {
         {#if loading}
           <div class="loading-state">{t('asis.cargando')}</div>
         {:else if fechasPeriodo.length === 0}
-          <div style="padding:40px;text-align:center;background:rgba(239,68,68,0.1);border-radius:12px;border:1px dashed #ef4444;color:#ef4444">
-            <h3>{t('asis.sinDiasHabiles.titulo')}</h3>
-            <p>{t('asis.sinDiasHabiles.desc')}</p>
-          </div>
+          {#if periodoTodoSinClases}
+            <!-- Período completo marcado "sin clases": es un estado válido, no un
+                 error. Antes caía en la caja roja de "sin días hábiles", que además
+                 venía con un toast de error del fetch. -->
+            <div style="padding:40px;text-align:center;background:rgba(251,191,36,0.08);border-radius:12px;border:1px dashed #fbbf24;color:#fcd34d">
+              <h3>{t('asis.sinClases.vacioTitulo')}</h3>
+              <p style="color:#94a3b8">{@html t('asis.sinClases.vacioDesc', {
+                alcance: sinClasesNivelColegio ? t('asis.sinClases.alcanceTodo') : t('asis.sinClases.alcanceSoloSeccion'),
+              })}</p>
+              <button class="secondary" onclick={() => desactivarSinClases()}
+                style="margin-top:1.25rem;padding:0.5rem 1rem">
+                ♻️ {t('asis.sinClases.reactivar')}
+              </button>
+            </div>
+          {:else}
+            <div style="padding:40px;text-align:center;background:rgba(239,68,68,0.1);border-radius:12px;border:1px dashed #ef4444;color:#ef4444">
+              <h3>{t('asis.sinDiasHabiles.titulo')}</h3>
+              <p>{t('asis.sinDiasHabiles.desc')}</p>
+            </div>
+          {/if}
         {:else if filteredEstudiantesMulti.length === 0}
           <div style="text-align:center;padding:5rem 2rem;border:2px dashed rgba(255,255,255,0.1);border-radius:16px;margin:0 1rem">
             <div style="font-size:3rem;margin-bottom:1rem">{searchTerm ? '🔍' : '📋'}</div>

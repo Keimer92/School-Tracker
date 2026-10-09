@@ -2029,6 +2029,27 @@ distinguir "la nube tiene la razón" de "la nube está vieja".
   es `autoSync.flush()` → `syncService.syncAllSilent()`, y `scheduleInstantBackup()`
   va por su cuenta.
 
+⚠️ **GOTCHA: `invoke()` con un argumento `undefined` rompe el comando, no la app.**
+El payload se serializa con `JSON.stringify`, y las claves cuyo valor es
+`undefined` **se pierden**. Rust recibe entonces un mapa sin la clave y contesta
+`missing required key <nombre>` en vez de "valor inválido", que es un mensaje
+confuso si el valor venía de `array[0]`.
+
+Caso real (2026-10): `fetchEstudiantesMulti` filtraba los días marcados "sin
+clases" (`getDiasHabilitados`) y pasaba `fechaInicio: fechas[0]`. Al marcar una
+semana entera sin clases el array queda VACÍO → `fechas[0]` es `undefined` → la
+clave desaparece → `get_asistencia_estudiantes_rango missing required key
+fechaInicio` en cada refresco, y la vista quedaba en el estado "sin días
+hábiles".
+
+**Regla**: antes de invocar con `algo[0]` / `algo[algo.length - 1]`, comprobar
+`length === 0` y salir con el estado vacío ya pintado en la UI. Un período
+completo marcado "sin clases" es un estado VÁLIDO: se muestra un panel ámbar con
+el motivo y un botón para reactivar, no la caja roja de "no hay días hábiles"
+(que es para cuando el colegio no trabaja ese día según su configuración
+semanal). Ojo: `fetchDiasSinClases` sí puede usar `getFechasPeriodo()` pelado
+porque una semana/mes siempre tiene al menos un día.
+
 ⚠️ **GOTCHA: no montar el sync en un `$effect` que escriba en la BD.**
 `saveAppSettings()` llama `onDataChange(..., immediate)` → `flush()` → **push a
 Cloudflare + subida a Drive**. Un efecto que guarde en cada montaje dispara las
