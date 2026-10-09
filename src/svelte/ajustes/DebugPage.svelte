@@ -30,6 +30,55 @@
   let isImporting = $state(false);
   let isWipingProfile = $state(false);
 
+  // ── Traspaso del dispositivo ──
+  // Vivía en la página "Cuenta", que se eliminó al quedar la nube de un solo
+  // usuario. Sigue siendo la única forma de entregar el equipo a otra persona:
+  // respaldo a Drive, borrado de lo local y vuelta al Welcome. El orden está en
+  // `lib/deviceHandover.ts` y es importante: si el respaldo falla, no se borra
+  // nada y se avisa.
+  let handoverBusy = $state(false);
+  let handoverEtapa = $state("");
+
+  async function traspasarDispositivo() {
+    if (handoverBusy) return;
+    const ok = await ask(
+      t('dpg.traspaso.borrarDatos') + '\n\n' +
+      t('dpg.traspaso.primeroRespaldo') + '\n\n' +
+      t('dpg.traspaso.volverInicio') + '\n\n' +
+      t('dpg.traspaso.continuarPregunta'),
+      {
+        title: t('dpg.traspaso.titulo'),
+        kind: 'warning',
+        okLabel: t('dpg.traspaso.respaldarYTraspasar'),
+        cancelLabel: t('comun.cancelar'),
+      }
+    );
+    if (!ok) return;
+    handoverBusy = true;
+    handoverEtapa = t('dpg.traspaso.respaldando');
+    try {
+      const { traspasarDispositivo: traspasar } = await import('../../lib/deviceHandover');
+      const res = await traspasar({ onEtapa: (etapa) => { handoverEtapa = etapa; } });
+      if (res.ok) {
+        handoverEtapa = t('dpg.traspaso.listoReiniciando');
+        await emit('show-toast', { message: t('dpg.traspaso.toastOk'), type: 'success' });
+      } else {
+        handoverEtapa = '';
+        await emit('show-toast', {
+          message: t('dpg.traspaso.toastError') + (res.motivo || t('dpg.traspaso.noCompleto')),
+          type: 'error',
+        });
+      }
+    } catch (e: any) {
+      handoverEtapa = '';
+      await emit('show-toast', { message: t('dpg.traspaso.toastError') + (e?.message || e), type: 'error' });
+    } finally {
+      // On success the app reloads on its own: keep the button disabled so the
+      // user cannot start a second handover while the first one finishes.
+      if (handoverEtapa !== t('dpg.traspaso.listoReiniciando')) handoverBusy = false;
+    }
+  }
+
   // ── Estado del respaldo automático a Google Drive ──
   // Existía como scheduler sin ninguna UI: era imposible saber si estaba
   // corriendo, armando el temporizador o saltándose por throttle. Este panel
@@ -418,6 +467,16 @@
           {isWipingProfile ? t('dbg.purgar.purgando') : t('dbg.purgar.btn')}
         </button>
         <div class="dbg-hint">{t('dbg.purgar.hint')}</div>
+      </div>
+
+      <!-- TRANSFER DEVICE -->
+      <div class="dbg-box dbg-box-peligro">
+        <div class="dbg-box-head"><span style="font-size: 1.2rem;">📦</span><h5 class="dbg-peligro-titulo">{t('dpg.traspaso.titulo')}</h5></div>
+        <p class="dbg-desc">{t('dpg.traspaso.p1')}</p>
+        <p class="dbg-desc">{t('dpg.traspaso.p2')}</p>
+        <button onclick={traspasarDispositivo} disabled={handoverBusy} class="dbg-btn-peligro">
+          {handoverBusy ? handoverEtapa : t('dpg.traspaso.btn')}
+        </button>
       </div>
 
       <!-- SISTEMA -->
