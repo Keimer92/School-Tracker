@@ -11,6 +11,7 @@
   import { ensureWsSync, stopWsSync } from "./lib/wsSyncService";
   import { loadAppSettings, saveAppSettings, getAppSettings, onAppSettingsChange } from "./lib/appSettings";
   import { getLocalDateISOString } from "./lib/dateUtils";
+  import { t } from "./lib/i18n.svelte";
   import appIcon from "./assets/app-icon.png";
   import AsistenciaMainPage from "./svelte/asistencia/AsistenciaMainPage.svelte";
   import NotasMainPage from "./svelte/notas/NotasMainPage.svelte";
@@ -222,7 +223,7 @@
       closeDrawer();
       return;
     }
-    showToast("No hay más páginas atrás", "info");
+    showToast(t("app.sinAtras"), "info");
   }
 
   function showToast(message: string, type: "success" | "error" | "info" = "success") {

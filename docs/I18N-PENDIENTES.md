@@ -26,8 +26,8 @@ powershell -File docs\i18n-status.ps1
 
 | | Archivos | Textos |
 |---|---|---|
-| **LISTO** | 19 | ~547 |
-| **PENDIENTE** | 26 | ~170 |
+| **LISTO** | 22 | ~562 |
+| **PENDIENTE** | 22 | ~133 |
 
 Traducidos: `WelcomePage`, `AjustesPage`, `AsistenciaPage`, `NotasPage`,
 `EstudiantesPage`, `ConfiguracionPage` (+ `CategoryTabContent`), `InformePage`,
@@ -67,41 +67,33 @@ Del total pendiente, ~145 están en páginas `.svelte` (lo que el usuario ve) y
 ## Pendientes, por impacto
 
 Ordenado por cantidad de textos. Ya no quedan páginas del día a día en la
-lista: lo que sigue son sobre todo servicios `.ts` (avisos) y páginas
-secundarias (Configuración → globales, Ajustes → Depuración, Nube).
+lista: lo que sigue son sobre todo servicios `.ts` (avisos), el Sidebar y
+páginas/generales secundarios.
 
 | # | Archivo | Textos | Líneas | Nota |
 |---|---|---|---|---|
-| 1 | `src/lib/excel.ts` | ~19 | 489 | ⚠️ Ver nota abajo |
-| 2 | `src/svelte/GoogleDriveBackup.svelte` | ~18 | 390 | Legacy, no se monta |
-| 3 | `src/svelte/globales/ColegioConfigModal.svelte` | ~16 | 468 | |
-| 4 | `src/svelte/AccountPage.svelte` | ~16 | 407 | |
-| 5 | `src/svelte/Sidebar.svelte` | ~12 | 184 | |
-| 6 | `src/lib/instrumentosPdf.ts` | ~12 | 294 | ⚠️ Encabezados de PDF |
-| 7 | `src/lib/deviceHandover.ts` | ~11 | 121 | |
-| 8 | `src/lib/wsSyncService.ts` | ~10 | 230 | Avisos de sync |
-| 9 | `src/svelte/FiltersModalAndroid.svelte` | ~10 | 187 | Modal de filtros en Android |
-| 10 | `src/svelte/ajustes/InfoPage.svelte` | ~10 | 199 | |
-| 11 | `src/App.svelte` | ~9 | 584 | Shell, tabs |
-| 12 | `src/lib/driveAutoBackup.ts` | ~9 | 445 | |
-| 13 | `src/svelte/CloudCards.svelte` | ~8 | 541 | |
-| 14 | `src/svelte/notificaciones/NotificacionesPage.svelte` | ~7 | 633 | Solo Android |
-| 15 | `src/lib/d1SyncService.ts` | ~7 | 380 | Avisos de sync |
-| 16 | `src/svelte/globales/CalificacionesConfig.svelte` | ~6 | 142 | |
-| 17 | `src/lib/botones.ts` | ~6 | 51 | |
-| 18 | `src/svelte/globales/MultiplicadoresConfig.svelte` | ~5 | 116 | |
-| 19 | `src/svelte/globales/GradoConfigModal.svelte` | ~3 | 146 | |
-| 20 | `src/lib/driveInstantBackup.ts` | ~3 | 223 | |
-| 21 | `src/svelte/SearchInput.svelte` | ~3 | 39 | Placeholder |
-| 22 | `src/svelte/AndroidDrawer.svelte` | ~3 | 235 | |
-| 23 | `src/svelte/asistencia/AsistenciaMainPage.svelte` | ~2 | 223 | Wrapper de sub-tabs |
-| 24 | `src/svelte/FilterSelect.svelte` | ~2 | 29 | Genérico |
-| 25 | `src/lib/instrumentosExcel.ts` | ~1 | 299 | ⚠️ Hoja/encabezado de Excel |
-| 26 | `src/svelte/notas/NotasMainPage.svelte` | ~1 | 230 | Wrapper de sub-tabs |
-| 27 | `src/svelte/DatePickerGlass.svelte` | ~1 | 390 | Placeholder |
-| 28 | `src/svelte/BotonMod.svelte` | ~1 | 46 | Genérico |
-| 29 | `src/svelte/FilterContainer.svelte` | ~1 | 20 | Genérico |
-| 30 | `src/svelte/FilterGroup.svelte` | ~1 | 17 | Genérico |
+| 1 | `src/lib/excel.ts` | 19 | 489 | ⚠️ Ver nota abajo |
+| 2 | `src/svelte/GoogleDriveBackup.svelte` | 18 | 390 | Legacy, no se monta |
+| 3 | `src/svelte/Sidebar.svelte` | 12 | 184 | |
+| 4 | `src/lib/instrumentosPdf.ts` | 12 | 294 | ⚠️ Encabezados de PDF |
+| 5 | `src/lib/deviceHandover.ts` | 11 | 121 | Claves `traspaso.*` agregadas, falta aplicar |
+| 6 | `src/lib/wsSyncService.ts` | 10 | 230 | Avisos de sync |
+| 7 | `src/lib/driveAutoBackup.ts` | 9 | 445 | |
+| 8 | `src/lib/d1SyncService.ts` | 7 | 380 | Avisos de sync |
+| 9 | `src/svelte/notificaciones/NotificacionesPage.svelte` | 7 | 633 | Solo Android |
+| 10 | `src/lib/botones.ts` | 6 | 51 | |
+| 11 | `src/svelte/globales/GradoConfigModal.svelte` | 3 | 146 | |
+| 12 | `src/svelte/AndroidDrawer.svelte` | 3 | 235 | |
+| 13 | `src/lib/driveInstantBackup.ts` | 3 | 223 | |
+| 14 | `src/svelte/SearchInput.svelte` | 3 | 39 | Placeholder |
+| 15 | `src/svelte/asistencia/AsistenciaMainPage.svelte` | 2 | 223 | Wrapper de sub-tabs |
+| 16 | `src/svelte/FilterSelect.svelte` | 2 | 29 | Genérico |
+| 17 | `src/lib/instrumentosExcel.ts` | 1 | 299 | ⚠️ Hoja/encabezado de Excel |
+| 18 | `src/svelte/notas/NotasMainPage.svelte` | 1 | 230 | Wrapper de sub-tabs |
+| 19 | `src/svelte/BotonMod.svelte` | 1 | 46 | Genérico |
+| 20 | `src/svelte/DatePickerGlass.svelte` | 1 | 390 | Placeholder |
+| 21 | `src/svelte/FilterGroup.svelte` | 1 | 17 | Genérico |
+| 22 | `src/svelte/FilterContainer.svelte` | 1 | 20 | Genérico |
 
 ### Servicios `.ts` (textos de `show-toast` y avisos)
 
