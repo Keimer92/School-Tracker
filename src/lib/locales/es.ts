@@ -1603,6 +1603,68 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'traspaso.sinBorrarLocal': 'El respaldo quedó subido, pero no se pudieron borrar los datos locales: ',
   'traspaso.reiniciando': 'Reiniciando la aplicación...',
 
+  // ── InfoPage ("Acerca de") ──
+  // Los nombres propios NO se traducen: "School Tracker", "Tauri v2 (Rust)",
+  // "React 19", "TypeScript", "Keimer".
+  'info.titulo': 'Acerca de la Aplicación',
+  'info.subtitulo': 'Sistema de Gestión Académica Profesional',
+  'info.badge': 'v1.2.0 - Edición Android y Nube',
+  'info.features.gestion.titulo': 'Gestión Académica',
+  'info.features.gestion.desc':
+    'Organiza años lectivos, colegios, grados, secciones y asignaturas. Crea y administra catálogos completos con relaciones entre grados y asignaturas por colegio.',
+  'info.features.notas.titulo': 'Notas y Evaluaciones',
+  'info.features.notas.desc':
+    'Registra notas por indicador y criterio dentro de cada corte evaluativo. Soporta calificaciones numéricas y cualitativas (AA, AS, AF, AI) con multiplicadores configurables.',
+  'info.features.asistencia.titulo': 'Asistencia',
+  'info.features.asistencia.desc':
+    'Control diario, semanal y mensual de asistencia por estudiante (Presente, Ausente, Justificado). Incluye días sin clases, informes por período y exportación.',
+  'info.features.informes.titulo': 'Informes y PDF',
+  'info.features.informes.desc':
+    'Genera boletines de calificaciones, listados de estudiantes y reportes de asistencia en formato PDF y Excel. Personaliza colores y diseño de encabezados.',
+  'info.features.nube.titulo': 'Sync en la Nube',
+  'info.features.nube.desc':
+    'Respaldo completo en Google Drive y sincronización bilateral en tiempo real con Cloudflare D1. Múltiples dispositivos siempre actualizados.',
+  'info.features.multi.titulo': 'Multiplataforma',
+  'info.features.multi.desc':
+    'Funciona en Windows, Android y navegadores web. Datos almacenados localmente en SQLite — no requiere conexión constante a internet.',
+  'info.changelog.titulo': '🚀 Últimas Actualizaciones (v1.2.0)',
+  'info.changelog.1': '📱 Rediseño Android: Nueva navegación de Ajustes optimizada.',
+  'info.changelog.2': '☁️ Sync Real-time: Estado de sincronización en vivo.',
+  'info.changelog.3': '⭐ Calificaciones Flexibles: Configuración dinámica de colores.',
+  'info.changelog.4': '🎨 Motor de Temas: Soporte para múltiples esquemas.',
+  'info.changelog.5': '🔄 Gestión de Orientación: Control de rotación en Android.',
+  'info.stack.titulo': 'Tecnologías de Vanguardia',
+  'info.stack.core': 'Core System',
+  'info.stack.dataCloud': 'Data & Cloud',
+  'info.stack.sqlite': 'SQLite Local',
+  'info.stack.drive': 'Google Drive',
+  'info.credito': 'Desarrollado con ❤️ por Keimer - v1.2.0',
+  'info.modal.cerrar': 'Cerrar',
+
+  // ── CloudCards (cards del sidebar/drawer) ──
+  // Los chips cortos (Sync/OK/Err/Off/Esp) NO se traducen: abreviaturas casi
+  // universales que no deben cambiar el ancho del chip (mismo criterio que
+  // F:/M:/E: en las tarjetas de asistencia).
+  'ccards.nubeD1': 'Nube D1',
+  'ccards.irNube': 'Ir a Nube',
+  'ccards.sincronizando': 'Sincronizando con la nube...',
+  'ccards.ultimaSync': 'Última sync: {hora}',
+  'ccards.sinSincronizar': 'Sin sincronizar aún',
+  'ccards.driveActivo': 'Respaldo automático activo',
+  'ccards.driveSinVincular': 'Drive sin vincular',
+  'ccards.subiendoDrive': 'Subiendo a Drive: {actual} / {total} ({pct}%)',
+  'ccards.ultimoRespaldo': 'Último respaldo: {tam} · {titulo}',
+  'ccards.subiendo': 'Subiendo…',
+  'ccards.drive': 'Drive',
+  'ccards.respaldoDrive': 'Respaldo Drive',
+  'ccards.progresoDe': '{actual} de {total}',
+  'ccards.estado.syncing': 'Sincronizando',
+  'ccards.estado.ok': 'Conectado',
+  'ccards.estado.error': 'Error',
+  'ccards.estado.offline': 'Offline',
+  'ccards.estado.espera': 'En espera',
+  'app.sinAtras': 'No hay más páginas atrás',
+
   // ── CalificacionesConfig ──
   'cc_calificaciones.titulo': 'Configuración de Calificaciones',
   'cc_calificaciones.desc': 'Personaliza las escalas de calificación cualitativa, sus colores y puntajes mínimos.',

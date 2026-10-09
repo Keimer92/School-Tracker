@@ -12,17 +12,21 @@
    */
   import appIcon from "../../assets/app-icon.png";
   import { portalToBody } from "../../lib/portalToBody";
+  import { t } from "../../lib/i18n.svelte";
 
   const ACCENT = "#a78bfa";
 
-  const FEATURES = [
-    { icon: "📋", title: "Gestión Académica", desc: "Organiza años lectivos, colegios, grados, secciones y asignaturas. Crea y administra catálogos completos con relaciones entre grados y asignaturas por colegio." },
-    { icon: "📝", title: "Notas y Evaluaciones", desc: "Registra notas por indicador y criterio dentro de cada corte evaluativo. Soporta calificaciones numéricas y cualitativas (AA, AS, AF, AI) con multiplicadores configurables." },
-    { icon: "✅", title: "Asistencia", desc: "Control diario, semanal y mensual de asistencia por estudiante (Presente, Ausente, Justificado). Incluye días sin clases, informes por período y exportación." },
-    { icon: "📊", title: "Informes y PDF", desc: "Genera boletines de calificaciones, listados de estudiantes y reportes de asistencia en formato PDF y Excel. Personaliza colores y diseño de encabezados." },
-    { icon: "☁️", title: "Sync en la Nube", desc: "Respaldo completo en Google Drive y sincronización bilateral en tiempo real con Cloudflare D1. Múltiples dispositivos siempre actualizados." },
-    { icon: "📱", title: "Multiplataforma", desc: "Funciona en Windows, Android y navegadores web. Datos almacenados localmente en SQLite — no requiere conexión constante a internet." },
-  ];
+  // `$derived`, NO `const`: los títulos y descripciones usan `t()`. Con `const`
+  // el array se evalúa una sola vez al importar el módulo y las features
+  // quedarían en el idioma del arranque (NO da error de compilación).
+  const FEATURES = $derived([
+    { icon: "📋", title: t('info.features.gestion.titulo'), desc: t('info.features.gestion.desc') },
+    { icon: "📝", title: t('info.features.notas.titulo'), desc: t('info.features.notas.desc') },
+    { icon: "✅", title: t('info.features.asistencia.titulo'), desc: t('info.features.asistencia.desc') },
+    { icon: "📊", title: t('info.features.informes.titulo'), desc: t('info.features.informes.desc') },
+    { icon: "☁️", title: t('info.features.nube.titulo'), desc: t('info.features.nube.desc') },
+    { icon: "📱", title: t('info.features.multi.titulo'), desc: t('info.features.multi.desc') },
+  ]);
 
   let selectedFeature = $state<(typeof FEATURES)[number] | null>(null);
 </script>
@@ -31,7 +35,7 @@
   <div class="category-card" style="border-left: 3px solid {ACCENT};">
     <div class="category-header" style="border-left: none;">
       <div style="width:36px;height:36px;border-radius:10px;background:{ACCENT}18;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><img src={appIcon} alt="" style="width:24px;height:24px;border-radius:6px;object-fit:contain;" /></div>
-      <h3>Acerca de la Aplicación</h3>
+      <h3>{t('info.titulo')}</h3>
     </div>
     <div class="info-body">
       <div class="info-hero">
@@ -40,8 +44,8 @@
         </div>
         <div class="info-hero-text">
           <h2 class="info-hero-title">School Tracker</h2>
-          <p class="info-hero-sub">Sistema de Gestión Académica Profesional</p>
-          <span class="info-badge">v1.2.0 - Android &amp; Cloud Edition</span>
+          <p class="info-hero-sub">{t('info.subtitulo')}</p>
+          <span class="info-badge">{t('info.badge')}</span>
         </div>
       </div>
 
@@ -55,31 +59,31 @@
       </div>
 
       <div class="info-box">
-        <h4 class="info-box-titulo">🚀 Últimas Actualizaciones (v1.2.0)</h4>
+        <h4 class="info-box-titulo">{t('info.changelog.titulo')}</h4>
         <ul class="info-lista">
-          <li>📱 Rediseño Android: Nueva navegación de Ajustes optimizada.</li>
-          <li>☁️ Sync Real-time: Estado de sincronización en vivo.</li>
-          <li>⭐ Calificaciones Flexibles: Configuración dinámica de colores.</li>
-          <li>🎨 Motor de Temas: Soporte para múltiples esquemas.</li>
-          <li>🔄 Gestión de Orientación: Control de rotación en Android.</li>
+          <li>{t('info.changelog.1')}</li>
+          <li>{t('info.changelog.2')}</li>
+          <li>{t('info.changelog.3')}</li>
+          <li>{t('info.changelog.4')}</li>
+          <li>{t('info.changelog.5')}</li>
         </ul>
       </div>
 
       <div class="info-box">
-        <h4 class="info-box-titulo">Tecnologías de Vanguardia</h4>
+        <h4 class="info-box-titulo">{t('info.stack.titulo')}</h4>
         <div class="info-grid">
           <div>
-            <div class="info-stack-titulo">Core System</div>
+            <div class="info-stack-titulo">{t('info.stack.core')}</div>
             <ul class="info-lista info-lista-sm"><li>Tauri v2 (Rust)</li><li>React 19</li><li>TypeScript</li></ul>
           </div>
           <div>
-            <div class="info-stack-titulo info-stack-titulo-alt">Data &amp; Cloud</div>
-            <ul class="info-lista info-lista-sm"><li>SQLite Local</li><li>Google Drive</li></ul>
+            <div class="info-stack-titulo info-stack-titulo-alt">{t('info.stack.dataCloud')}</div>
+            <ul class="info-lista info-lista-sm"><li>{t('info.stack.sqlite')}</li><li>{t('info.stack.drive')}</li></ul>
           </div>
         </div>
       </div>
 
-      <div class="info-credit">Desarrollado con ❤️ por Keimer - v1.2.0</div>
+      <div class="info-credit">{t('info.credito')}</div>
     </div>
   </div>
 </div>
@@ -94,7 +98,7 @@
         <h3 class="info-modal-title">{selectedFeature.title}</h3>
       </div>
       <p class="info-modal-desc">{selectedFeature.desc}</p>
-      <button class="info-modal-close" onclick={() => selectedFeature = null}>Cerrar</button>
+      <button class="info-modal-close" onclick={() => selectedFeature = null}>{t('info.modal.cerrar')}</button>
     </div>
   </div>
 {/if}

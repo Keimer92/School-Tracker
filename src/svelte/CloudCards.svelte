@@ -3,6 +3,7 @@
   import { emit } from '@tauri-apps/api/event';
   import { d1SyncManager, syncManager } from '../lib/syncService';
   import { driveSyncService } from '../lib/driveSyncService';
+  import { t } from '../lib/i18n.svelte';
   import type { D1Status } from '../lib/syncService';
 
   let {
@@ -71,7 +72,7 @@
       const s = localStorage.getItem('schooltracker-google-drive-settings');
       conectado = !!(s && JSON.parse(s)?.accessToken);
     } catch {}
-    return conectado ? 'Respaldo automático activo' : 'Drive sin vincular';
+    return conectado ? t('ccards.driveActivo') : t('ccards.driveSinVincular');
   }
 
   let lastSyncSeen: string | null = null;
@@ -82,8 +83,10 @@
     if (cur && cur !== lastSyncSeen) {
       lastSyncSeen = cur;
       justSynced = true;
-      const t = setTimeout(() => { justSynced = false; }, 2500);
-      return () => clearTimeout(t);
+      // OJO: se llama `timer`, no `t`: `t` es la funcion de i18n importada arriba
+      // y un `const t` local la taparia en todo este scope (GOTCHA de AGENTS.md).
+      const timer = setTimeout(() => { justSynced = false; }, 2500);
+      return () => clearTimeout(timer);
     }
   });
 
@@ -126,14 +129,16 @@
 
   const d1Chip = $derived.by(() => {
     switch (d1.status) {
-      case 'syncing': return 'Sincronizando';
-      case 'success': return 'Conectado';
-      case 'error': return 'Error';
-      case 'offline': return 'Offline';
-      default: return 'En espera';
+      case 'syncing': return t('ccards.estado.syncing');
+      case 'success': return t('ccards.estado.ok');
+      case 'error': return t('ccards.estado.error');
+      case 'offline': return t('ccards.estado.offline');
+      default: return t('ccards.estado.espera');
     }
   });
 
+  // Los cortos (Sync/OK/Err/Off/Esp) se quedan literal: abreviaturas casi
+  // universales y traducirlas cambiaria el ancho del chip (ver ccards.* en es.ts).
   const d1ChipShort = $derived.by(() => {
     switch (d1.status) {
       case 'syncing': return 'Sync';
@@ -154,16 +159,16 @@
     onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); void abrirNube(); } }}
     role="button"
     tabindex="0"
-    title="Ir a Nube"
+    title={t('ccards.irNube')}
   >
     <div class="cloud-head">
       <span class="cloud-dot {d1.status}"></span>
-      <span class="cloud-title">Nube D1</span>
+      <span class="cloud-title">{t('ccards.nubeD1')}</span>
       <span class="cloud-chip {d1.status}">{compact ? d1ChipShort : d1Chip}</span>
     </div>
     {#if !compact}
       {#if d1.status === 'syncing'}
-        <div class="cloud-line syncing-line"><span class="mini-spinner"></span> Sincronizando con la nube...</div>
+        <div class="cloud-line syncing-line"><span class="mini-spinner"></span> {t('ccards.sincronizando')}</div>
       {:else if d1.lastResult}
         <div class="cloud-line metrics">
           <span class="metric up">▲ {pushedTotal}</span>
@@ -171,9 +176,9 @@
           <span class="metric del">✕ {d1.lastResult.deletedApplied}</span>
         </div>
       {:else if d1.lastSync}
-        <div class="cloud-line muted">Última sync: {fmtTime(d1.lastSync)}</div>
+        <div class="cloud-line muted">{t('ccards.ultimaSync', { hora: fmtTime(d1.lastSync) })}</div>
       {:else}
-        <div class="cloud-line muted">Sin sincronizar aún</div>
+        <div class="cloud-line muted">{t('ccards.sinSincronizar')}</div>
       {/if}
     {/if}
   </div>
@@ -188,12 +193,12 @@
   <div
     class="cloud-card drive-card {respaldando || drive.uploadProgress ? 'respaldando' : ''}"
     title={drive.uploadProgress
-      ? `Subiendo a Drive: ${fmtBytes(drive.uploadProgress.loaded)} / ${fmtBytes(drive.uploadProgress.total)} (${drive.uploadProgress.pct}%)`
-      : (drive.lastUploadBytes ? `Último respaldo: ${fmtBytes(drive.lastUploadBytes)} · ` : '') + driveCardTitle()}
+      ? t('ccards.subiendoDrive', { actual: fmtBytes(drive.uploadProgress.loaded), total: fmtBytes(drive.uploadProgress.total), pct: drive.uploadProgress.pct })
+      : (drive.lastUploadBytes ? t('ccards.ultimoRespaldo', { tam: fmtBytes(drive.lastUploadBytes), titulo: driveCardTitle() }) : driveCardTitle())}
   >
     <div class="cloud-head">
       <span class="cloud-dot drive" class:active={!!drive.lastUpload}></span>
-      <span class="cloud-title">{respaldando ? 'Subiendo…' : (compact || ocultarD1 ? 'Drive' : 'Respaldo Drive')}</span>
+      <span class="cloud-title">{respaldando ? t('ccards.subiendo') : (compact || ocultarD1 ? t('ccards.drive') : t('ccards.respaldoDrive'))}</span>
       {#if drive.uploadProgress}
         <span class="cloud-time-inline" style="color:#7dd3fc;">{drive.uploadProgress.pct}%</span>
         <span class="mini-spinner"></span>
@@ -207,7 +212,7 @@
       {/if}
     </div>
     {#if drive.uploadProgress}
-      <div class="drive-progress" title="{fmtBytes(drive.uploadProgress.loaded)} de {fmtBytes(drive.uploadProgress.total)}">
+      <div class="drive-progress" title={t('ccards.progresoDe', { actual: fmtBytes(drive.uploadProgress.loaded), total: fmtBytes(drive.uploadProgress.total) })}>
         <div class="drive-progress-bar" style="width: {drive.uploadProgress.pct}%;"></div>
       </div>
       <div class="drive-progress-label">{fmtBytes(drive.uploadProgress.loaded)} / {fmtBytes(drive.uploadProgress.total)} → Drive</div>

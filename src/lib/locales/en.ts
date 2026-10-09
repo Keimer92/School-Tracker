@@ -1585,6 +1585,67 @@ to print. It is saved in Documents/SchoolTrackerPro/Instruments.`,
   'traspaso.sinBorrarLocal': 'The backup was uploaded, but local data could not be deleted: ',
   'traspaso.reiniciando': 'Restarting the application...',
 
+  // ── InfoPage ("About") ──
+  // Proper names are NOT translated: "School Tracker", "Tauri v2 (Rust)",
+  // "React 19", "TypeScript", "Keimer".
+  'info.titulo': 'About the Application',
+  'info.subtitulo': 'Professional Academic Management System',
+  'info.badge': 'v1.2.0 - Android & Cloud Edition',
+  'info.features.gestion.titulo': 'Academic Management',
+  'info.features.gestion.desc':
+    'Organize school years, schools, grades, sections and subjects. Create and manage full catalogs with grade/subject relationships per school.',
+  'info.features.notas.titulo': 'Grades and Evaluation',
+  'info.features.notas.desc':
+    'Record grades by indicator and criterion within each evaluation period. Supports numeric and qualitative grades (AA, AS, AF, AI) with configurable multipliers.',
+  'info.features.asistencia.titulo': 'Attendance',
+  'info.features.asistencia.desc':
+    'Daily, weekly and monthly attendance tracking per student (Present, Absent, Excused). Includes no-class days, period reports and exporting.',
+  'info.features.informes.titulo': 'Reports and PDF',
+  'info.features.informes.desc':
+    'Generate grade reports, student lists and attendance reports in PDF and Excel format. Customize colors and header design.',
+  'info.features.nube.titulo': 'Cloud Sync',
+  'info.features.nube.desc':
+    'Full backup on Google Drive and real-time bidirectional sync with Cloudflare D1. Multiple devices always up to date.',
+  'info.features.multi.titulo': 'Cross-platform',
+  'info.features.multi.desc':
+    'Runs on Windows, Android and web browsers. Data stored locally in SQLite — no constant internet connection required.',
+  'info.changelog.titulo': '🚀 Latest Updates (v1.2.0)',
+  'info.changelog.1': '📱 Android redesign: new optimized Settings navigation.',
+  'info.changelog.2': '☁️ Real-time Sync: live synchronization status.',
+  'info.changelog.3': '⭐ Flexible Grades: dynamic color configuration.',
+  'info.changelog.4': '🎨 Theme Engine: support for multiple schemes.',
+  'info.changelog.5': '🔄 Orientation Management: rotation control on Android.',
+  'info.stack.titulo': 'Cutting-edge Technology',
+  'info.stack.core': 'Core System',
+  'info.stack.dataCloud': 'Data & Cloud',
+  'info.stack.sqlite': 'Local SQLite',
+  'info.stack.drive': 'Google Drive',
+  'info.credito': 'Made with ❤️ by Keimer - v1.2.0',
+  'info.modal.cerrar': 'Close',
+
+  // ── CloudCards (sidebar/drawer cards) ──
+  // Short chips (Sync/OK/Err/Off/Esp) are NOT translated: near-universal
+  // abbreviations that must not change the chip width.
+  'ccards.nubeD1': 'D1 Cloud',
+  'ccards.irNube': 'Go to Cloud',
+  'ccards.sincronizando': 'Syncing with the cloud...',
+  'ccards.ultimaSync': 'Last sync: {hora}',
+  'ccards.sinSincronizar': 'Not synced yet',
+  'ccards.driveActivo': 'Automatic backup active',
+  'ccards.driveSinVincular': 'Drive not linked',
+  'ccards.subiendoDrive': 'Uploading to Drive: {actual} / {total} ({pct}%)',
+  'ccards.ultimoRespaldo': 'Last backup: {tam} · {titulo}',
+  'ccards.subiendo': 'Uploading…',
+  'ccards.drive': 'Drive',
+  'ccards.respaldoDrive': 'Drive Backup',
+  'ccards.progresoDe': '{actual} of {total}',
+  'ccards.estado.syncing': 'Syncing',
+  'ccards.estado.ok': 'Connected',
+  'ccards.estado.error': 'Error',
+  'ccards.estado.offline': 'Offline',
+  'ccards.estado.espera': 'Idle',
+  'app.sinAtras': 'No more pages to go back to',
+
   // ── CalificacionesConfig ──
   'cc_calificaciones.titulo': 'Grade Configuration',
   'cc_calificaciones.desc': 'Customize qualitative grade scales, their colors and minimum scores.',
