@@ -101,4 +101,7 @@ Desktop.ini
 .wrangler/
 cloudflare-sync/.wrangler/
 
+# Archivos de conexión (.key) que genera cloudflare-sync/scripts/generate-key.mjs:
+# contienen la schoolKey de la nube. NUNCA commitear.
+*.key
 schooltracker.key

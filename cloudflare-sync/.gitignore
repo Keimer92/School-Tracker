@@ -4,3 +4,5 @@ dist/
 school-keys.json
 .dev.vars
 *.log
+# Archivos de conexión que genera scripts/generate-key.mjs: llevan la schoolKey.
+*.key
