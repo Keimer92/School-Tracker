@@ -2121,6 +2121,12 @@ $effect(() => {
             {/if}
           {:else if periodo === "semanal"}
             {#if !isAndroidMobile}
+              <FilterGroup label="Mes:" {isMobile}>
+                <SelectChip
+                  value={mesSeleccionado}
+                  onchange={(v) => elegirMesSemanal(Number(v))}
+                  options={mesesOptions.map(m => ({ value: m.value, label: m.label }))} />
+              </FilterGroup>
               <FilterGroup label="Semana de:" {isMobile}>
                 <div class="pop-wrap" bind:this={popRootEl} style="min-width:0">
                   <button type="button" class="filter-select pop-trigger" onclick={() => popSemanaAbierta = !popSemanaAbierta} style="min-width:0">
@@ -2152,12 +2158,6 @@ $effect(() => {
                     </div>
                   {/if}
                 </div>
-              </FilterGroup>
-              <FilterGroup label="Mes:" {isMobile}>
-                <SelectChip
-                  value={mesSeleccionado}
-                  onchange={(v) => elegirMesSemanal(Number(v))}
-                  options={mesesOptions.map(m => ({ value: m.value, label: m.label }))} />
               </FilterGroup>
             {/if}
           {:else}
@@ -3025,19 +3025,19 @@ $effect(() => {
       </div>
       {#if periodo === "semanal"}
         <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
+          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('asis.periodo.mes')}</label>
+          <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px;min-width:100px"
+            value={mesSeleccionado} onchange={(e) => elegirMesSemanal(Number((e.target as HTMLSelectElement).value))}>
+            {#each mesesOptions as m}<option value={m.value}>{m.label}</option>{/each}
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
           <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('asis.periodo.semanaDe')}</label>
           <button type="button" class="filter-select filter-select-solid pop-trigger"
             onclick={() => { showFiltersModal = false; setTimeout(() => popSemanaAbierta = true, 50); }}
             style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px;text-align:left;cursor:pointer">
             <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">Semana {semanaActiva} · {semanasOpts.find(s => s.n === semanaActiva)?.rango ?? ''}</span>
           </button>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
-          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('asis.periodo.mes')}</label>
-          <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px;min-width:100px"
-            value={mesSeleccionado} onchange={(e) => elegirMesSemanal(Number((e.target as HTMLSelectElement).value))}>
-            {#each mesesOptions as m}<option value={m.value}>{m.label}</option>{/each}
-          </select>
         </div>
       {/if}
       {#if periodo === "mensual"}
