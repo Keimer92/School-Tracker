@@ -1877,6 +1877,47 @@ perdería el draft y el scroll del modo que se dejó.
 ((est.id)); NotasPage preserva currentStudentIdx en el refresh silencioso;
 nunca reconstruir toda la lista sin clave (salta scroll al inicio).
 
+#### `NotasPage` con `modo: 'registrar' | 'reportes'` (2026-10)
+
+`ReportesPage.svelte` (~1500 líneas) **se eliminó** y su contenido se mudó a
+`NotasPage`: eran ~40 % de código que ahora vive en un solo componente. Un solo
+`modo` prop decide si se **escribe** ("registrar") o solo se **lee** ("reportes").
+Lo que los separa:
+
+- **`enReporte`** = `$derived(modo === 'reportes')`. Gatea: todo el flujo de
+  escritura (handlers de celdas, popovers de edición, botón Guardar, deshacer,
+  distribución masiva, instrumentos) está envuelto en `{#if !enReporte}`. El
+  modo "reportes" es **estrictamente de solo lectura**.
+- **Estado de filtros totalmente independiente**: ambas mitades mantienen sus
+  propios `repSelected*` / `selected*`. Cambiar de modo restaura exactamente
+  lo que cada uno tenía seleccionado; el borrador escrito en "registrar"
+  sobrevive al viaje por "reportes" sin recargar.
+- **Catálogos compartidos (solo lectura)**: `gradeConfigs`, `multiplicadores`,
+  `notaMapping`, `qualitativeWeights`, `reverseQualitativeWeights`,
+  `calcularNotaCualitativaFinal`, `searchTerm`, `showAnoDropdown` son
+  **una sola copia**. Los fetches de catálogos (años, cortes, colegios,
+  asignaturas, grados, secciones) **no** se comparten: cada mitad tiene sus
+  propios `repAnos` / `anos`, etc., porque la lógica de selección/reseteo
+  difiere (reportes siempre setea el activo; registrar preserva lo que el
+  usuario eligió).
+- **`visible`** es **la página a la vista**, no "soy el sub-tab activo". Un
+  solo componente con dos mitades no puede tener dos `visible` distintos, y
+  no le hace falta: cambiar de modo **ya no dispara el refresco** al volver a
+  verse (que antes recargaba en silencio la mitad que entraba). Ese refresco
+  sigue pasando al reingresar a la página desde otra pestaña, que es cuando
+  de verdad hay datos nuevos.
+- **Swipe en Android**: idéntico a `AsistenciaPage` — el wrapper
+  (`NotasMainPage`) maneja el gesto; en escritorio el `ModoToggle` de la
+  barra de filtros lo hace.
+
+⚠️ `NotasMainPage` **no** debe volver al montaje perezoso por sub-tab: con un
+solo hijo no hay nada que montar por separado, y `display:none` por sub-tab
+perdería el draft de "registrar" y el estado de "reportes".
+
+**Refrescos silenciosos sin perder posición**: listas con each KEYED
+((est.id)); NotasPage preserva `currentStudentIdx` en el refresh silencioso;
+nunca reconstruir toda la lista sin clave (salta scroll al inicio).
+
 ## Días sin clases (2026-08) — feriados por sección o colegio
 
 Tabla `dia_sin_clases` (ver esquema; añadir fila en la lista de tablas).
