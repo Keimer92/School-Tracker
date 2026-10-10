@@ -1075,6 +1075,13 @@ los tres consumidores del componente (`AsistenciaPage`, `NotasPage`,
   rpm y appimage necesitan `rpmbuild` y `patchelf` (no instalados). Para solo deb:
   `npx tauri build --bundles deb`.
 
+## Reglas para el agente (IA)
+
+**NO HACER COMMITS**. Los commits los gestiona el usuario. El agente puede
+preparar cambios, ejecutar verificaciones (`tsc`, `svelte-check`, `build`), pero
+nunca debe ejecutar `git commit`, `git add` ni `git push`. Si el usuario quiere
+un commit, se lo pedirá explícitamente.
+
 ## Tareas frecuentes (plantilla)
 - **Agregar un campo a una tabla**: editar `CREATE TABLE` en `db.rs::init_database`.
   Si la columna puede faltar en bases existentes, añadir un `ALTER TABLE ... ADD COLUMN
