@@ -2494,10 +2494,12 @@ $effect(() => {
           <div style="color:#64748b;font-size:.8rem;margin-top:.2rem">{t('asis.sinClases.vacioSinMotivo')}</div>
         {/if}
       </div>
-      <button class="secondary" onclick={() => desactivarSinClases()}
-        style={soloAviso ? 'padding:.35rem .8rem;font-size:.78rem' : 'margin-top:1.25rem;padding:0.5rem 1rem'}>
-        ♻️ {t('asis.sinClases.reactivar')}
-      </button>
+      {#if !enInforme}
+        <button class="secondary" onclick={() => desactivarSinClases()}
+          style={soloAviso ? 'padding:.35rem .8rem;font-size:.78rem' : 'margin-top:1.25rem;padding:0.5rem 1rem'}>
+          ♻️ {t('asis.sinClases.reactivar')}
+        </button>
+      {/if}
     </div>
   {/snippet}
 
