@@ -1971,7 +1971,7 @@ import { primerColegio } from "../lib/catalogo";
   let repLoading = $state(false);
   let repRefreshTrigger = $state(0);
   let repSilentRefresh = $state(false);
-  let activeSlide = $state<'tabla' | 'estadisticas'>(typeof window !== 'undefined' && window.innerWidth <= 768 ? 'tabla' : 'estadisticas');
+  let activeSlide = $state<'estadisticas'>('estadisticas');
   let repIsMobile = $state(false);
   let repIsAndroid = $state(false);
   const repIsAndroidMobile = $derived(repIsAndroid || (repIsMobile && !isWindows));
@@ -1983,7 +1983,6 @@ import { primerColegio } from "../lib/catalogo";
   });
   let printHtml: string | null = $state(null);
   let exportandoMasivo = $state(false);
-  let expandedStudentId = $state(-1);
   let progresoMasivo = $state('');
   let repLoadId = 0;
 
@@ -2109,11 +2108,6 @@ import { primerColegio } from "../lib/catalogo";
     checkMobile();
     window.addEventListener('resize', checkMobile);
     window.addEventListener('schooltracker-sync', () => { repSilentRefresh = true; repRefreshTrigger++; });
-    window.addEventListener('keydown', (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-        activeSlide = activeSlide === 'tabla' ? 'estadisticas' : 'tabla';
-      }
-    });
     // Cargar configuraciones syncronizables
     loadAppSettings().then(s => { showAnoDropdown = s.showAnoDropdown; });
     const unsubSettings = onAppSettingsChange(s => { showAnoDropdown = s.showAnoDropdown; });
@@ -2909,10 +2903,6 @@ import { primerColegio } from "../lib/catalogo";
             <p style="margin:0;color:#94a3b8;font-size:0.75rem" class="hide-mobile">{t('rep.subtitulo')}</p>
           </div>
           <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
-            <div class="reportes-tabs">
-              <button class="reportes-tab" class:active={activeSlide === 'tabla'} onclick={() => activeSlide = 'tabla'}>{t('rep.tab.tabla')}</button>
-              <button class="reportes-tab" class:active={activeSlide === 'estadisticas'} onclick={() => activeSlide = 'estadisticas'}>{t('rep.tab.stats')}</button>
-            </div>
           </div>
         </div>
 
@@ -3115,164 +3105,32 @@ import { primerColegio } from "../lib/catalogo";
           {/if}
         </div>
       {:else}
-        <div class="table-slide-container" class:active={activeSlide === 'tabla'} style="animation:{activeSlide === 'tabla' ? 'fadeIn 0.3s ease-out' : 'none'};display:flex;flex-direction:column;flex:1;min-height:0">
-          {#if repIsMobile}
-            <div style="flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:0 0.3rem">
-              {#each filteredReporte as estudiante, idx}
-                {@const isExpanded = expandedStudentId === estudiante.id}
-                {@const finalColor = (estudiante.notaFinalCualitativa === "-" || !estudiante.notaFinalCualitativa) ? '#64748b' : getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa, totalPuntajeMaximoConfig)}
-                <div onclick={() => expandedStudentId = isExpanded ? -1 : estudiante.id}
-                  style="margin-bottom:0.3rem;border-radius:12px;border:1px solid rgba(255,255,255,{isExpanded ? '0.12' : '0.06'});background:{isExpanded ? 'rgba(30,41,59,0.8)' : 'rgba(15,23,42,0.5)'};overflow:hidden;cursor:pointer;transition:all 0.2s ease">
-                  <div style="display:flex;align-items:center;justify-content:space-between;padding:0.6rem 0.7rem;">
-                    <div style="display:flex;align-items:center;gap:0.5rem;min-width:0;flex:1">
-                      <div style="font-size:0.75rem;color:#64748b;min-width:28px;text-align:center;">{idx + 1}</div>
-                      <div style="font-size:0.85rem;color:#f1f5f9;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{estudiante.nombre}</div>
-                      <span style="font-size:0.65rem;color:#94a3b8;background:rgba(255,255,255,0.05);padding:0.1rem 0.4rem;border-radius:4px;flex-shrink:0">{estudiante.sexo}</span>
-                    </div>
-                    <div style="display:flex;align-items:center;gap:0.4rem;flex-shrink:0;">
-                      <span style="font-size:0.85rem;font-weight:bold;color:{finalColor}">
-                        {#if repIsQualitative}
-                          {estudiante.notaFinalCualitativa || '-'}
-                        {:else}
-                          {estudiante.notaFinalCualitativa && estudiante.notaFinalCualitativa !== "-" ? `${Math.round(estudiante.notaFinal)} (${estudiante.notaFinalCualitativa})` : '-'}
-                        {/if}
-                      </span>
-                      <span style="font-size:0.65rem;color:#64748b;transition:transform 0.2s ease;{isExpanded ? 'transform:rotate(180deg);' : ''}">▼</span>
-                    </div>
-                  </div>
-                  {#if isExpanded}
-                    <div style="border-top:1px solid rgba(255,255,255,0.06);padding:0.5rem 0.7rem;">
-                      {#if !specialCorte}
-                        {#each configIndicadores as ind}
-                          {@const nota = estudiante.notasIndicadores[ind.id] || 0}
-                          {@const label = estudiante.notasCualitativasIndicadores[ind.id] || ''}
-                          {@const isMissing = label === "-" || label === ""}
-                          {@const noteColor = isMissing ? '#64748b' : getNoteColor(repIsQualitative ? 0 : nota, label, getIndicatorMaxScore(ind.id))}
-                          <div style="display:flex;align-items:center;justify-content:space-between;padding:0.35rem 0;border-bottom:1px solid rgba(255,255,255,0.04);">
-                            <div style="display:flex;align-items:center;gap:0.3rem;min-width:0;flex:1">
-                              <div style="width:4px; height:4px; border-radius:50%; background:{noteColor}; flex-shrink:0;"></div>
-                              <span style="font-size:0.75rem;color:#94a3b8;">Ind. {ind.orden}</span>
-                              {#if ind.descripcion}
-                                <span style="font-size:0.65rem;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">— {ind.descripcion}</span>
-                              {/if}
-                            </div>
-                            <span style="font-size:0.8rem;font-weight:bold;color:{noteColor};flex-shrink:0;">
-                              {#if repIsQualitative}
-                                {isMissing ? '-' : label}
-                              {:else}
-                                {isMissing ? '-' : `${Math.round(nota)}${label ? ` ${label}` : ''}`}
-                              {/if}
-                            </span>
-                          </div>
-                        {/each}
-                      {:else}
-                        <div style="padding:0.35rem 0;font-size:0.75rem;color:#64748b;">
-                          {t('rep.vistaConsolidada')}
-                        </div>
-                      {/if}
-                      <div style="display:flex;align-items:center;justify-content:space-between;padding:0.45rem 0 0.2rem;margin-top:0.2rem;border-top:1px solid rgba(var(--primary-rgb),0.15);">
-                        <span style="font-size:0.8rem;color:var(--text-secondary);font-weight:bold;">{t('rep.corte.nf')}</span>
-                        <span style="font-size:0.9rem;font-weight:bold;color:{finalColor};">
-                          {#if repIsQualitative}
-                            {estudiante.notaFinalCualitativa || '-'}
-                          {:else}
-                            {estudiante.notaFinalCualitativa && estudiante.notaFinalCualitativa !== "-" ? `${Math.round(estudiante.notaFinal)} (${estudiante.notaFinalCualitativa})` : '-'}
-                          {/if}
-                        </span>
-                      </div>
-                    </div>
-                  {/if}
-                </div>
-              {/each}
-            </div>
-          {:else}
-          <div class="category-card table-card" style="padding:0;overflow:hidden;display:flex;flex-direction:column;flex:1;min-height:0">
-            <div class="notas-table-container" style="overflow:auto;padding:0;width:100%;max-width:100%;-webkit-overflow-scrolling:touch;border:1px solid rgba(255,255,255,0.1);border-radius:8px;flex:1;min-height:0">
-              <table style="width:100%;min-width:max-content;border-collapse:separate;border-spacing:0">
-                <thead style="position:sticky;top:0;z-index:100">
-                  <tr>
-                    <th style="padding:1rem;text-align:left;background-color:#1e293b;border-bottom:2px solid rgba(255,255,255,0.1);color:var(--text-secondary);position:sticky;left:0;z-index:110">{t('rep.tabla.estudiante')}</th>
-                    <th style="padding:1rem;text-align:center;background-color:rgba(255,255,255,0.05);border-bottom:2px solid rgba(255,255,255,0.1);color:#94a3b8">{t('rep.tabla.sexo')}</th>
-                    {#if !specialCorte}
-                      {#each configIndicadores as ind}
-                        <th title={ind.descripcion} style="padding:1rem;text-align:center;background-color:rgba(255,255,255,0.05);border-bottom:2px solid rgba(255,255,255,0.1);color:var(--text-secondary);font-size:0.85rem;cursor:help">
-                          Ind. {ind.orden}
-                        </th>
-                      {/each}
-                    {/if}
-                    <th style="padding:1rem;text-align:center;background-color:rgba(var(--primary-rgb),0.1);border-bottom:2px solid rgba(var(--primary-rgb),0.3);color:var(--text-secondary);font-weight:bold">{t('rep.corte.nf')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {#each filteredReporte as estudiante, idx}
-                    <tr class="table-row-hover" style="background-color:{idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)'}">
-                      <td style="padding:0.85rem 1rem;border-bottom:1px solid rgba(255,255,255,0.05);color:#f1f5f9;font-weight:500;position:sticky;left:0;background-color:{idx % 2 === 0 ? '#1e293b' : '#1a2234'};z-index:5">
-                        <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{estudiante.nombre}</div>
-                      </td>
-                      <td style="padding:0.85rem 1rem;text-align:center;border-bottom:1px solid rgba(255,255,255,0.05);color:#94a3b8">{estudiante.sexo}</td>
-                      {#if !specialCorte}
-                        {#each configIndicadores as ind}
-                          {@const nota = estudiante.notasIndicadores[ind.id] || 0}
-                          {@const label = estudiante.notasCualitativasIndicadores[ind.id] || (repIsQualitative ? '' : '')}
-                          {@const isMissing = label === "-" || label === ""}
-                          {@const noteColor = isMissing ? '#64748b' : getNoteColor(repIsQualitative ? 0 : nota, label, getIndicatorMaxScore(ind.id))}
-                          <td style="padding:0.85rem 1rem;text-align:center;border-bottom:1px solid rgba(255,255,255,0.05);color:{noteColor}">
-                            {#if repIsQualitative}
-                              <span style="font-weight:{isMissing ? 'normal' : 'bold'};color:{noteColor}">{isMissing ? "-" : label}</span>
-                            {:else}
-                              <span style="font-weight:{isMissing ? 'normal' : 'bold'};color:{noteColor}">{isMissing ? "-" : `${Math.round(nota)}${label ? ` ${label}` : ''}`}</span>
-                            {/if}
-                          </td>
-                        {/each}
-                      {/if}
-                      <td style="padding:0.85rem 1rem;text-align:center;border-bottom:1px solid rgba(255,255,255,0.05);font-weight:bold;color:{(estudiante.notaFinalCualitativa === "-" || !estudiante.notaFinalCualitativa) ? '#64748b' : getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa, totalPuntajeMaximoConfig)};background-color:rgba(var(--primary-rgb),0.05)">
-                        {#if repIsQualitative}
-                          <span style="color:{(estudiante.notaFinalCualitativa === "-" || !estudiante.notaFinalCualitativa) ? '#64748b' : getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa, totalPuntajeMaximoConfig)}">
-                            {(!estudiante.notaFinalCualitativa || estudiante.notaFinalCualitativa === "-") ? "-" : estudiante.notaFinalCualitativa}
-                          </span>
-                        {:else}
-                          <span style="color:{(estudiante.notaFinalCualitativa === "-" || !estudiante.notaFinalCualitativa) ? '#64748b' : getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa, totalPuntajeMaximoConfig)}">
-                            {(estudiante.notaFinalCualitativa === "-" || !estudiante.notaFinalCualitativa) ? "-" : `${Math.round(estudiante.notaFinal)}${estudiante.notaFinalCualitativa ? ` (${estudiante.notaFinalCualitativa})` : ''}`}
-                          </span>
-                        {/if}
-                      </td>
-                    </tr>
-                  {/each}
-                </tbody>
-              </table>
+        <div class="asistencia-summary" style="margin:0;padding:0.5rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem">
+          <div class="summary-card students">
+            <span class="summary-label">{searchTerm ? t('rep.stats.resultados') : t('rep.stats.estudiantes')}</span>
+            <span class="summary-value">{filteredReporte.length}</span>
+            <div class="gender-labels">
+              <span class="gender-m">M: {filteredReporte.filter(e => e.sexo === 'M').length}</span>
+              <span class="gender-f">F: {filteredReporte.filter(e => e.sexo === 'F').length}</span>
             </div>
           </div>
+          <div class="summary-card p">
+            <span class="summary-label">{t('rep.stats.promedioGrupal')}</span>
+            <div class="summary-value" style="color: {promedioGrupalColor}">
+              {promedioGrupalLabel}
+            </div>
+          </div>
+          {#each configIndicadores.filter(i => i.activo) as ind}
+            <div class="summary-card" style="border-left:3px solid var(--primary-color)">
+              <span class="summary-label">Ind. {ind.orden}</span>
+              <span class="summary-value" style="font-size:0.7rem;color:var(--text-secondary);font-weight:400;line-height:1.2;word-break:break-word">{ind.descripcion || t('rep.sinDescripcion')}</span>
+            </div>
+          {/each}
+          {#if configIndicadores.filter(i => i.activo).length === 0}
+            <div class="summary-card" style="grid-column:1/-1">
+              <span class="summary-label" style="color:#64748b;font-style:italic">{t('rep.sinIndicadoresActivos')}</span>
+            </div>
           {/if}
-        </div>
-
-        <div class="statistics-slide-container" class:active={activeSlide === 'estadisticas'} style="animation:{activeSlide === 'estadisticas' ? 'fadeIn 0.3s ease-out' : 'none'}">
-          <div class="asistencia-summary" style="margin:0;padding:0.5rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem">
-            <div class="summary-card students">
-              <span class="summary-label">{searchTerm ? t('rep.stats.resultados') : t('rep.stats.estudiantes')}</span>
-              <span class="summary-value">{filteredReporte.length}</span>
-              <div class="gender-labels">
-                <span class="gender-m">M: {filteredReporte.filter(e => e.sexo === 'M').length}</span>
-                <span class="gender-f">F: {filteredReporte.filter(e => e.sexo === 'F').length}</span>
-              </div>
-            </div>
-            <div class="summary-card p">
-              <span class="summary-label">{t('rep.stats.promedioGrupal')}</span>
-              <div class="summary-value" style="color: {promedioGrupalColor}">
-                {promedioGrupalLabel}
-              </div>
-            </div>
-            {#each configIndicadores.filter(i => i.activo) as ind}
-              <div class="summary-card" style="border-left:3px solid var(--primary-color)">
-                <span class="summary-label">Ind. {ind.orden}</span>
-                <span class="summary-value" style="font-size:0.7rem;color:var(--text-secondary);font-weight:400;line-height:1.2;word-break:break-word">{ind.descripcion || t('rep.sinDescripcion')}</span>
-              </div>
-            {/each}
-            {#if configIndicadores.filter(i => i.activo).length === 0}
-              <div class="summary-card" style="grid-column:1/-1">
-                <span class="summary-label" style="color:#64748b;font-style:italic">{t('rep.sinIndicadoresActivos')}</span>
-              </div>
-            {/if}
-          </div>
         </div>
       {/if}
     </div>
@@ -4457,8 +4315,7 @@ import { primerColegio } from "../lib/catalogo";
       :root{color-scheme:light!important}
       *,*::before,*::after{background-color:white!important;background-image:none!important;color:black;box-shadow:none!important;text-shadow:none!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;position:static!important}
       html,body,#root,.app-layout,.main-content,.page-container{background:white!important;background-color:white!important;color:black!important;margin:0!important;padding:0!important;width:100%!important;height:auto!important;overflow:visible!important;display:block!important;position:static!important}
-      nav,.sidebar,.navbar,.no-print,button,.filters-section,.background-decoration,.resizer,.loading-spinner,.input-container,.sidebar-nav,.sidebar-title,.filters-row,.category-card:not(.print-header):not(.table-card),.statistics-slide-container{display:none!important}
-      .table-slide-container{display:block!important;opacity:1!important;visibility:visible!important}
+      nav,.sidebar,.navbar,.no-print,button,.filters-section,.background-decoration,.resizer,.loading-spinner,.input-container,.sidebar-nav,.sidebar-title,.filters-row,.category-card:not(.print-header):not(.table-card){display:none!important}
       .print-header{display:block!important;visibility:visible!important;width:100%!important;margin-bottom:20px!important;border-bottom:2px solid black!important;padding-bottom:10px!important;position:relative!important}
       .print-title{text-align:center!important;font-size:20pt!important;font-weight:bold!important;margin-bottom:10px!important;color:black!important;display:block!important}
       .print-grid{display:grid!important;grid-template-columns:1fr 1fr!important;gap:5px 20px!important;font-size:11pt!important;color:black!important}
@@ -4472,18 +4329,11 @@ import { primerColegio } from "../lib/catalogo";
       .main-content{padding:0!important}::-webkit-scrollbar{display:none!important}
     }
     .print-header{display:none}
-    .table-slide-container,.statistics-slide-container{display:none}
-    .table-slide-container.active{display:flex;flex-direction:column;flex:1;min-height:0}
-    .statistics-slide-container.active{display:block}
     @media (max-width:768px){
-      .statistics-slide-container.active{overflow-y:auto;-webkit-overflow-scrolling:touch;max-height:calc(100dvh - 170px)}
+      .asistencia-summary{overflow-y:auto;-webkit-overflow-scrolling:touch;max-height:calc(100dvh - 170px)}
     }
     @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
     @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-    .reportes-tabs { display: inline-flex; padding: 2px; gap: 2px; background: var(--bg-elevated); border-radius: 10px; border: 1px solid var(--border); }
-    .reportes-tab { padding: 0.2rem 0.6rem; border-radius: 8px; border: none; background: transparent; color: var(--text-muted); font-size: 0.7rem; font-weight: 700; cursor: pointer; transition: all 0.2s ease; }
-    .reportes-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
-    .reportes-tab.active { background: var(--bg-active); color: var(--text-bright); }
     .table-row-hover:hover{background-color:rgba(255,255,255,0.04)!important}
     .filter-select{width:100%;background:rgba(15,23,42,0.8);border:1px solid rgba(255,255,255,0.1);color:white;padding:0.6rem;border-radius:8px;outline:none;cursor:pointer}
     .filter-select:focus{border-color:var(--primary-color)}
