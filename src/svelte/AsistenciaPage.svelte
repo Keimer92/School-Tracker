@@ -1555,22 +1555,17 @@ $effect(() => {
     if (!refreshingSilent) loading = true;
     refreshingSilent = false;
     try {
-      const fechas = getDiasHabilitados(getFechasPeriodo());
-      fechasPeriodo = fechas;
-      // Whole period marked as "sin clases" (e.g. you just marked the week off):
-      // there is nothing to load. Bailing out here is REQUIRED, not just
-      // tidier — with an empty array `fechas[0]` is `undefined`, and
-      // JSON.stringify drops undefined keys, so the payload arrived at Rust
-      // without `fechaInicio` and the call failed with
-      // "missing required key fechaInicio" on every refresh.
-      if (fechas.length === 0) {
+      const fechasHabilitadas = getDiasHabilitados(getFechasPeriodo());
+      const fechasBase = getDiasHabilitadosBase(getFechasPeriodo());
+      fechasPeriodo = fechasHabilitadas;
+      if (fechasBase.length === 0) {
         estudiantesMulti = [];
         originalMulti = {};
         monthlyPcts = {};
         return;
       }
       const data = await invoke<Array<{ id: number; nombre: string; codigo: string; sexo: string; dias: Array<{ fecha: string; estado: string | null; observacion: string | null }> }>>("get_asistencia_estudiantes_rango", {
-        fechaInicio: fechas[0], fechaFin: fechas[fechas.length - 1],
+        fechaInicio: fechasBase[0], fechaFin: fechasBase[fechasBase.length - 1],
         gradoId: selectedGrado, seccionId: selectedSeccion, sexo: selectedSexo || null,
       });
       estudiantesMulti = data.map(est => {
@@ -1580,7 +1575,7 @@ $effect(() => {
         }
         const savedDraft = draftMulti[est.id];
         if (savedDraft) {
-          for (const fecha of fechas) {
+          for (const fecha of fechasBase) {
             if (savedDraft[fecha]) {
               diasRecord[fecha] = { ...diasRecord[fecha], ...savedDraft[fecha] };
             }
@@ -1591,7 +1586,7 @@ $effect(() => {
       // Snapshot del estado SERVIDOR (clave id|fecha) antes de mezclar borradores
       const snapM: Record<string, { estado: string | null; observacion: string }> = {};
       for (const est of data) {
-        for (const f of fechas) {
+        for (const f of fechasBase) {
           const d = est.dias.find(x => x.fecha === f);
           snapM[`${est.id}|${f}`] = { estado: norm(d?.estado), observacion: d?.observacion || '' };
         }
