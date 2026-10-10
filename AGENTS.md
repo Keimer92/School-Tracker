@@ -2043,6 +2043,15 @@ grilla cuando solo hay días marcados (`periodoTieneMarcas`). Misma información
 visible cuando quedan días con clases (que es información que sí sirve).
 Cambiar el markup por duplicado es como volvió la inconsistencia.
 
+⚠️ **GOTCHA: `/* … */` en el MARKUP de Svelte se renderiza como texto visible.**
+Un `/** … */` antes de un `{#snippet}` NO es un comentario para Svelte:
+el compilador lo compila como un nodo de texto
+(`$.from_html('<div>a</div> /** … */ <!>')`) y el usuario ve el
+comentario impreso en la página. En el markup solo valen los comentarios
+HTML `<!-- … -->` (nodo de comentario en el DOM, invisible) o nada;
+los comentarios de código van dentro de `<script>`. (Pasó en
+AsistenciaPage: el doc-comment del snippet salía en la UI.)
+
 ⚠️ **GOTCHA: sin `colegio_dias_asistencia`, el fallback de días hábiles NO puede
 ser "los 7 días".** `getDiasHabilitadosBase()` / `getDiasHabilitados()` devuelven
 `soloSinDomingo(fechas)` cuando el colegio no tiene config semanal. Antes

@@ -2023,23 +2023,6 @@ $effect(() => {
     .dsc-col{background:linear-gradient(180deg,rgba(245,158,11,.10),rgba(245,158,11,.02));text-align:center;vertical-align:middle;color:#f59e0b;font-weight:700;padding:.5rem .35rem;min-width:70px}
   </style>
 
-  /**
-   * Panel de "período sin clases" — UNA sola definición para los dos casos.
-   *
-   * Antes el mismo hecho se mostraba de dos formas según cómo se llegara al
-   * período (mover el dropdown de semana, cambiar de colegio…): si quedaba
-   * aunque fuera un solo día con clases salía la grilla con columnas 🚫, y si no
-   * salía un panel aparte. El motivo y el botón de reactivar quedaban en un
-   * sitio u otro según el caso.
-   *
-   * Ahora el mismo panel se usa:
-   *  · como aviso sobre la grilla cuando el período tiene días marcados, y
-   *  · en lugar de la grilla cuando el período estáEntero marcado
-   * con exactamente la misma información (alcance, motivo y acción), que es lo
-   * que hace que se vea igual en cualquier dropdown.
-   *
-   * `soloAviso` = variante compacta de arriba; sin él, la caja centrada completa.
-   */
   {#snippet panelSinClases(soloAviso: boolean)}
     <div
       style={soloAviso
@@ -2574,8 +2557,6 @@ $effect(() => {
       <ScrollableTable>
         {#if loading}
           <div class="loading-state">{t('asis.cargando')}</div>
-        {:else if fechasPeriodo.length === 0}
-          {@render panelSinClases(false)}
         {:else}
           {#if periodoTieneMarcas}
             {@render panelSinClases(true)}
