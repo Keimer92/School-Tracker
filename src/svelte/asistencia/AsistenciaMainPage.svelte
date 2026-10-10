@@ -1,6 +1,5 @@
 <script lang="ts">
   import AsistenciaPage from "../AsistenciaPage.svelte";
-  import InformePage from "../InformePage.svelte";
   import { t } from "../../lib/i18n.svelte";
 
   type SubTab = "tomar" | "informe";
@@ -13,11 +12,6 @@
   // Siempre abre en "Tomar asistencia"; un subTabRequest (ej. quick-action del Dashboard)
   // puede abrir directamente el Informe.
   let activeSub: SubTab = $state("tomar");
-
-  // Montaje perezoso: cada hijo se monta la primera vez que se visita y luego
-  // queda oculto con display:none para preservar estado/drafts.
-  let mountedRegistrar = $state(false);
-  let mountedInforme = $state(false);
 
   // Peticiones externas + reset al entrar:
   // Cada vez que la página pasa de oculta a visible vuelve a "Tomar asistencia",
@@ -32,12 +26,6 @@
     if (!pa) return;
     if (req === "informe") activeSub = "informe";
     else if (activated) activeSub = "tomar";
-  });
-
-  // Montaje perezoso según el sub-tab activo
-  $effect(() => {
-    if (activeSub === "tomar") mountedRegistrar = true;
-    else mountedInforme = true;
   });
 
   function switchTo(tab: SubTab) {
@@ -117,16 +105,13 @@
         </button>
       </div>
     {/if}
-    {#if mountedRegistrar}
-      <div style="display:{activeSub === 'tomar' ? 'block' : 'none'};height:100%">
-        <AsistenciaPage visible={pageActive && activeSub === 'tomar'} />
-      </div>
-    {/if}
-    {#if mountedInforme}
-      <div style="display:{activeSub === 'informe' ? 'block' : 'none'};height:100%">
-        <InformePage visible={pageActive && activeSub === 'informe'} />
-      </div>
-    {/if}
+    <!--
+      Un SOLO componente para los dos modos: `modo` decide si se escribe o solo
+      se lee, y `visible` sigue siendo "este sub-tab está a la vista". Así la
+      tabla, los filtros y las estadísticas existen una sola vez y se monta una
+      sola vez (sin display:none por sub-tab): el estado/drafts vive en el hijo.
+    -->
+    <AsistenciaPage modo={activeSub} visible={pageActive} />
   </div>
 </div>
 

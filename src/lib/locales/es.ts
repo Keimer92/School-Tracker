@@ -1156,8 +1156,9 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'inf.print.sinDatos': '⚠️ No hay datos para imprimir',
   'inf.print.preparando': '✅ Preparando reporte...',
   // ── Reportes de notas ──
-  // NOTA: igual que en InformePage, el printHtml y el bloque .print-header
-  // (encabezados con etiqueta y `headers` de la tabla) quedan en español.
+  // NOTA: igual que en el sub-tab Informe de AsistenciaPage, el printHtml y el
+  // bloque .print-header (encabezados con etiqueta y `headers` de la tabla)
+  // quedan en español.
   'rep.titulo': '📊 Reportes',
   'rep.subtitulo': 'Rendimiento',
   'rep.tab.tabla': 'Tabla',

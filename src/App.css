@@ -3029,7 +3029,7 @@ input:checked + .slider:before {
 }
 
 /* Regla global de impresion: elementos de UI que no deben salir en el PDF.
-   ReportesPage ya la declara en su CSS propio, pero InformePage no lo hacia
+   ReportesPage ya la declara en su CSS propio, pero otros componentes no, y
    y el buscador (un div, no un utton) se imprimia con el texto de
    busqueda arriba del reporte. */
 @media print {

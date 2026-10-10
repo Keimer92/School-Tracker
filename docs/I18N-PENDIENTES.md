@@ -34,8 +34,9 @@ powershell -File docs\i18n-status.ps1
 deliberada** (ver tabla abajo): encabezados de reportes PDF/Excel y un
 componente legacy que no se monta.
 
-Traducidos: `WelcomePage`, `AjustesPage`, `AsistenciaPage`, `NotasPage`,
-`EstudiantesPage`, `ConfiguracionPage` (+ `CategoryTabContent`), `InformePage`,
+Traducidos: `WelcomePage`, `AjustesPage`, `AsistenciaPage` (incluye el sub-tab
+Informe), `NotasPage`,
+`EstudiantesPage`, `ConfiguracionPage` (+ `CategoryTabContent`),
 `ReportesPage`, `EvaluacionesPage`, `DashboardPage`,
 `ConfirmDialog`, `BrowserPicker`, `LanguagePicker`, `Sidebar`, `AndroidDrawer`,
 `CloudCards`, `App`, `FiltersModalAndroid`, `NotificacionesPage`,
@@ -60,7 +61,8 @@ contador los saca del listado.)
 
 ### Textos que quedan en español a propósito dentro de archivos LISTO
 
-- **`InformePage`**: el bloque `.print-header` (`Reporte de Asistencia`,
+- **`AsistenciaPage` (sub-tab Informe)**: el bloque `.print-header`
+  (`Reporte de Asistencia`,
   `Colegio:`, `Grado:`, `Sección:`, `Período:`), el `titulo`/`subtitulo`/`chip`
   de las tablas del PDF, los encabezados `["Estudiante","Sexo",…,"P","A","J"]`,
   el `printHtml` y `fechaLarga`/`encabezadoPeriodo` (alimentan el PDF y el

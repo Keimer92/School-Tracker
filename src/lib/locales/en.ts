@@ -1136,8 +1136,9 @@ to print. It is saved in Documents/SchoolTrackerPro/Instruments.`,
   'inf.print.sinDatos': '⚠️ There is nothing to print',
   'inf.print.preparando': '✅ Preparing report...',
   // ── Grades reports ──
-  // NOTE: as in InformePage, printHtml and the .print-header block (labelled
-  // headers and the table `headers`) stay in Spanish.
+  // NOTE: as in the attendance "Informe" sub-tab, printHtml and the
+  // .print-header block (labelled headers and the table `headers`) stay in
+  // Spanish.
   'rep.titulo': '📊 Reports',
   'rep.subtitulo': 'Performance',
   'rep.tab.tabla': 'Table',

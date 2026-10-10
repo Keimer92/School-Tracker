@@ -16,7 +16,7 @@
   import { ask } from "@tauri-apps/plugin-dialog";
   import { generarPdfAsistencia } from "../lib/asistenciaPdf";
   import type { TablaAsistenciaPdf } from "../lib/asistenciaPdf";
-  import { separadorRuta, unirRuta, aFileURL } from "../lib/platform";
+  import { unirRuta, aFileURL } from "../lib/platform";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
   import SelectChip from "./SelectChip.svelte";
@@ -295,6 +295,11 @@
     return { value: i + 1, label: raw.charAt(0).toUpperCase() + raw.slice(1) };
   }));
 
+  // La lista filtrada (búsqueda) va ANTES de las estadísticas: las tarjetas se
+  // calculan sobre ella, y TS exige que el `let` exista antes de leerse.
+  let filteredEstudiantes = $derived(estudiantes.filter(est => est.nombre.toLowerCase().includes(searchTerm.toLowerCase())));
+  let filteredEstudiantesMulti = $derived(estudiantesMulti.filter(est => est.nombre.toLowerCase().includes(searchTerm.toLowerCase())));
+
   /**
    * Estadísticas sobre la lista YA filtrada (búsqueda + sexo): cambiar un filtro
    * tiene que cambiar los totales, si no las tarjetas contradicen la tabla.
@@ -314,9 +319,6 @@
   let statsJ = $derived(getStats('J'));
   let asistenciaPct = $derived(totalEstudiantes > 0 ? Math.round(statsP.total / totalEstudiantes * 100) : 0);
   let totalPosibleMulti = $derived(filteredEstudiantesMulti.length * fechasPeriodo.length);
-
-  let filteredEstudiantes = $derived(estudiantes.filter(est => est.nombre.toLowerCase().includes(searchTerm.toLowerCase())));
-  let filteredEstudiantesMulti = $derived(estudiantesMulti.filter(est => est.nombre.toLowerCase().includes(searchTerm.toLowerCase())));
 
   // ── Modo semanal: popover mes + semanas ──
   const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -3134,7 +3136,7 @@ $effect(() => {
                         {#if enInforme}
                           <div class="semanal-status" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
                             style="cursor:default"
-                            title={t('inf.tabla.observacion', { x: obsEnFecha(est, fv.fecha) || t('inf.tabla.sinRegistro') })}>
+                            title={effectiveEstado ? etiquetaEstado(effectiveEstado) : t('inf.tabla.sinRegistro')}>
                             {etiquetaEstado(effectiveEstado)}
                           </div>
                           {#if obsEnFecha(est, fv.fecha)}
@@ -3451,7 +3453,7 @@ $effect(() => {
         <div style="width:60px;height:60px;border-radius:50%;background-color:var(--primary-light);color:var(--primary-color);display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin:0 auto">👤</div>
         <div>
           <h3 style="margin:0.5rem 0;color:#fff;font-size:1.2rem">{selectedStudentDetail.nombre}</h3>
-          <div style="display:inline-block;padding:0.3rem 0.8rem;border-radius:20px;background:{selectedStudentDetail.sexo === 'M' ? 'rgba(96,165,250,0.1)' : 'rgba(244,114,182,0.1)'};color:{selectedStudentDetail.sexo === 'M' ? '#60a5fa' : '#f472b6'};font-size:0.85rem;font-weight:600;margin-top:0.3rem">{selectedStudentDetail.sexo === 'M' ? 'Masculino' : 'Femenino'}</div>
+          <div style="display:inline-block;padding:0.3rem 0.8rem;border-radius:20px;background:{selectedStudentDetail.sexo === 'M' ? 'rgba(96,165,250,0.1)' : 'rgba(244,114,182,0.1)'};color:{selectedStudentDetail.sexo === 'M' ? '#60a5fa' : '#f472b6'};font-size:0.85rem;font-weight:600;margin-top:0.3rem">{selectedStudentDetail.sexo === 'M' ? t('asis.filtros.masculino') : t('asis.filtros.femenino')}</div>
         </div>
         <button class="primary" onclick={() => selectedStudentDetail = null} style="margin-top:1rem;width:100%">{t('comun.cerrar')}</button>
       </div>
@@ -3556,8 +3558,9 @@ $effect(() => {
   /* pop-wrap/dg-root traen width:100% (pensados para filtros verticales);
      dentro de la fila nowrap deben medir lo justo para no empujar al resto. */
   .android-actions .pop-wrap{width:auto;}
-  /* El DatePicker ocupa el mismo alto/ancho que el de InformePage:
-     trigger a tamaño natural, estirado a la altura de la fila. */
+  /* El DatePicker ocupa el mismo alto/ancho que el del sub-tab Informe
+     (antes en InformePage): trigger a tamaño natural, estirado a la
+     altura de la fila. */
   .android-actions :global(.dg-root) { height: 100%; }
   .android-actions :global(.dg-trigger) { height: 100%; }
 </style>

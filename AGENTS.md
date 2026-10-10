@@ -187,7 +187,8 @@ src/
                              Páginas fusionadas: ver svelte/asistencia/ y svelte/notas/
   App.css
   svelte/                    páginas UI (*Page.svelte) y componentes reutilizables
-    asistencia/              AsistenciaMainPage.svelte (wrapper sub-tabs: AsistenciaPage + InformePage)
+    asistencia/              AsistenciaMainPage.svelte (wrapper sub-tabs: UN solo
+                              AsistenciaPage con prop `modo` = 'tomar' | 'informe')
     notas/                   NotasMainPage.svelte (wrapper sub-tabs: NotasPage + ReportesPage)
     ajustes/                 Configuración (antes AjustesGenerales). Submódulos
                               extraídos del page shell:
@@ -339,7 +340,7 @@ src-tauri/gen/               generado (ignorar; no editar a mano — EXCEPCIÓN:
   Validado en `CategoryTabContent.svelte` con `/^(19|20)\d{2}$/` (alta y edición)
   y explicado en la UI de Configuración.   Consecuencia asumida: el selector de año calendario del 
  mes desapareció de
-  AsistenciaPage/InformePage; `anoSeleccionado` se deriva
+  AsistenciaPage (tomar e informe); `anoSeleccionado` se deriva
   del año lectivo por `$effect`. Si el año lectivo es 2026, el mes se ve en 2026.
 - **`position: fixed` dentro de contenedores glass**: cualquier ancestro con
   `backdrop-filter` o `transform` se convierte en bloque contenedor de sus
@@ -1000,7 +1001,7 @@ esos se quedan inline porque cambian el contenido principal de la página
 y el usuario necesita verlos permanentemente.
 ⚠️ **Excepción ya vigente**: desde 2026-10 el modal SÍ lleva el Período, pero
 inyectado por el padre vía el snippet `extras` de `FiltersModalAndroid`
-(`AsistenciaPage` e `InformePage`). La barra principal sigue mostrando el
+(`AsistenciaPage`, en sus dos modos). La barra principal sigue mostrando el
 resumen; el despliegue fino vive en el modal.
 
 ### ⚠️ GOTCHA: un `<select>` dentro del modal lo cerraba solo (2026-10)
@@ -1047,8 +1048,8 @@ function cerrarEnFondo(e: PointerEvent) {
 **Regla**: en cualquier modal que contenga `<select>` y se toque en Android,
 cerrar por `pointerdown` + `e.target === e.currentTarget`, nunca por
 `onclick={close}` con `stopPropagation()` como única defensa. El fix cubre a
-los cuatro consumidores del componente (`AsistenciaPage`, `InformePage`,
-`NotasPage`, `ReportesPage`).
+los tres consumidores del componente (`AsistenciaPage`, `NotasPage`,
+`ReportesPage`).
 
 ## Comandos
 - `npm run dev` — servidor Vite (frontend) en http://localhost:1420 (usado por Tauri dev).
@@ -1544,7 +1545,8 @@ Al registrarla, `AppPlugin` enruta el back al JS y **nunca cierra la app por sí
 Cada página usa `$effect` (Svelte 5) que registra el handler mientras el modal/estado interno
 está abierto, y solo cuando la página está activa (prop `pageActive`):
 - `EstudiantesPage.svelte` → `isModalOpen` (form de estudiante)
-- `AsistenciaPage.svelte` / `InformePage.svelte` → `selectedStudentDetail` (detalle)
+- `AsistenciaPage.svelte` → `selectedStudentDetail` (detalle), `showSummaryModal`
+  (resumen), `obsModalStudent` (observación) y `printHtml` (vista de impresión)
 - `CloudPage.svelte` → eliminada; el cierre lo hace `modales/ModalBase.svelte`
   (`registerBackHandler` mientras el panel está abierto)
 - `ConfiguracionPage.svelte` → vuelve a la lista desde una sección (`activa` a
@@ -1775,15 +1777,60 @@ px wrangler tail.
 
 src/svelte/asistencia/AsistenciaMainPage.svelte y
 src/svelte/notas/NotasMainPage.svelte: wrappers con segmented control glass,
-props { pageActive, subTabRequest }, montaje perezoso (cada hijo se monta al
-primera visita y queda oculto con display:none — preserva estado/drafts),
-siempre abren en el sub-tab principal salvo subTabRequest (quick-actions del
-Dashboard mapean en App.handleTabChange: 'informe'→asistencia, 'reportes'→notas).
+props { pageActive, subTabRequest }, siempre abren en el sub-tab principal salvo
+subTabRequest (quick-actions del Dashboard mapean en App.handleTabChange:
+'informe'→asistencia, 'reportes'→notas).
 Hijos reciben 
 isible para condicionar 
 egisterBackHandler. Swipe
 horizontal Android alterna sub-tabs (ignora gestos sobre scroll-x propios o
 modales fixed z=100).
+
+**Los dos wrappers montan distinto**:
+
+| Wrapper | Hijos | Por qué |
+|---|---|---|
+| `AsistenciaMainPage` | **UN** `<AsistenciaPage modo={activeSub} visible={pageActive} />` | los dos modos son el mismo componente desde 2026-10 (ver abajo) |
+| `NotasMainPage` | `NotasPage` + `ReportesPage`, montaje perezoso con `display:none` | son dos componentes distintos; preserva drafts/scroll |
+
+#### `AsistenciaPage` con `modo: 'tomar' | 'informe'` (2026-10)
+
+`InformePage.svelte` (~1400 líneas) **se eliminó** y su contenido se mudó a
+`AsistenciaPage`: eran ~39 % de código duplicado (tabla, filtros, estadísticas,
+modales de detalle/resumen). Un solo `modo` prop decide si se escribe o solo se
+lee. Lo que los separa:
+
+- **`enInforme`** = `$derived(modo === 'informe')`. Gatea: `onclick` de celdas y
+  chips (`onclick={enInforme ? undefined : () => cicloEstado(...)}`), la fila de
+  acciones (imprimir/exportar vs Sin Clases/Limpiar/Rellenar/Guardar),
+  `handleFilterChange` (en informe no hay borradores que preguntar) y los
+  encabezados de fecha (sin `clickHeaderFecha` ni el tooltip "Click para marcar").
+- **`periodoEfectivo`** = `$derived(enInforme && periodo === 'diario' ? 'semanal' : periodo)`.
+  El informe no ofrece "Diario". **Todas** las comparaciones del archivo usan
+  `periodoEfectivo`; `periodo` crudo solo se lee en el init, en el `void` del
+  effect, en `localStorage.setItem` y en el `onchange` del select. Así volver a
+  Tomar asistencia restaura el "diario" del usuario.
+- **Mes cortado en HOY**: `getFechasPeriodo()` trunca el mes en curso cuando
+  `enInforme` (no anunciar días sin datos). En semanal ambos modos usan la semana
+  completa.
+- **Estadísticas**: `getStats`/`totalEstudiantes`/`totalM`/`totalF`/`asistenciaPct`
+  leen `filteredEstudiantes`; `getMultiStats`/`totalPosibleMulti` leen
+  `filteredEstudiantesMulti`. Cambiar un filtro cambia las tarjetas.
+- **Datos**: en informe la tabla se renderiza desde `estudiantesMulti`
+  (mismas filas que `get_asistencia_rango`, verificadas en `db.rs:4756/4842`);
+  `reporte`/`fetchReporte`/`getEstadoEnFecha` desaparecieron.
+- **Export/PDF mantienen su propio fetch** (`exportarPdfAsistencia` llama
+  `get_asistencia_rango` por cada pareja colegio×grado×sección): su alcance es
+  TODOS los colegios, no el filtro en pantalla.
+- **Refresco al cambiar de modo**: un `$effect` con el patrón `wasModo` cierra
+  los popovers de ambos modos y re-carga con el rango nuevo (el mes cortado en
+  hoy es distinto). Los effects con deps explícitas llevan `void modo;`.
+- **`visible`** ahora significa "la página está a la vista" para LOS DOS modos, no
+  "estoy en el sub-tab tomar".
+
+⚠️ `AsistenciaMainPage` **no** debe volver al montaje perezoso por sub-tab: con un
+solo hijo no hay nada que montar por separado, y `display:none` por sub-tab
+perdería el draft y el scroll del modo que se dejó.
 
 **Refrescos silenciosos sin perder posición**: listas con each KEYED
 ((est.id)); NotasPage preserva currentStudentIdx en el refresh silencioso;
@@ -1831,10 +1878,10 @@ píldora `S1`/`S2`… en su primera columna, y "Semana N" en el tooltip de cada 
 Al pasar el cursor por una semana en el popover de Sin Clases, esa semana se
 resalta en la tabla (`semanaHover`, `semanaHoverRango`).
 
-**InformePage**: columnas omitidas de reportes; nota en PDF/impresión
-("Sin clases: dd/mm (motivo)"); en mensual/semanal el día marcado lleva celda
-combinada (rowSpan autoTable / rowspan HTML); banner on-screen cuando el período
-entero está marcado (`dscPeriodoVacio`).
+**Sub-tab Informe (modo lectura de `AsistenciaPage`)**: columnas omitidas de
+reportes; nota en PDF/impresión ("Sin clases: dd/mm (motivo)"); en mensual/
+semanal el día marcado lleva celda combinada (rowSpan autoTable / rowspan HTML);
+banner on-screen cuando el período entero está marcado (`panelSinClases(true)`).
 
 **DatePickerGlass inteligente**: prop `diaHabilitado(iso)` — días no hábiles del
 colegio o marcados sin clases se ven tachados/no seleccionables (también "Hoy").
@@ -1998,7 +2045,7 @@ worker (`TABLES`, `ensureSchema`).
   disparaba el handler DOS veces (toggle anulado → parecía congelado).
 - `saveChanges`/`saveChangesMulti` BORRAN las celdas vaciadas
   (`delete_asistencia_batch`) antes de guardar: si no, quedaban huérfanas en BD y
-  InformePage seguía mostrando asistencia ya limpiada.
+  el sub-tab Informe seguía mostrando asistencia ya limpiada.
 - Botón Limpiar usa diálogo nativo `ask` (modal custom eliminado).
 
 ## Interruptor conectar/desconectar Cloudflare (2026-10)
@@ -2552,12 +2599,14 @@ grado/asignatura/corte/año); solo el **activo** se personaliza por colegio/secc
 
 ## Filtro de período en Asistencia/Informe (2026-09)
 
-- **Mensual es el predeterminado** en ambas páginas (`periodo` inicial `"mensual"`).
-  En InformePage el filtro "Diario" **se eliminó por completo**; en AsistenciaPage
-  solo se oculta en **Windows** (`{#if !isWindows}`), porque la pantalla es lo
-  bastante ancha para Semanal/Mensual.
+- **Mensual es el predeterminado** en ambos modos (`periodo` inicial `"mensual"`).
+  El sub-tab Informe **no ofrece "Diario"**: se resuelve con
+  `periodoEfectivo = $derived(enInforme && periodo === 'diario' ? 'semanal' : periodo)`,
+  así el valor persistido sigue siendo `periodo` crudo y volver a Tomar
+  asistencia restaura el "diario" que el usuario había elegido. Todas las
+  comparaciones del archivo usan `periodoEfectivo`, nunca `periodo`.
 - Si queda persistido `"diario"` en `localStorage['asistencia_periodo']` y se abre
-  en Windows, se migra a `"mensual"` al arrancar (si no, el `<select>` queda sin
+  en escritorio, se migra a `"mensual"` al arrancar (si no, el `<select>` queda sin
   opción coincidente). La preferencia guardada del usuario siempre se respeta.
 - Orden de los filtros en escritorio: **Año Lectivo → Período → control del
   período** (Fecha / Semana de / Mes) → Colegio, Grado, Sección, Sexo. En Android
@@ -2574,7 +2623,7 @@ grado/asignatura/corte/año); solo el **activo** se personaliza por colegio/secc
   todo se mezclarían configuración y datos de un colegio con los de otro.
 - En Android se copian a Descargas vía `guardar_en_descargas` (ver abajo).
 
-### Asistencia (InformePage) — `src/lib/asistenciaPdf.ts`
+### Asistencia (sub-tab Informe) — `src/lib/asistenciaPdf.ts`
 - Un solo PDF con **una hoja por grado/sección** de TODOS los colegios.
   Alcance único (se quitó el botón por colegio); el nombre del archivo es
   `Asistencia_<Mes o Semana N>_<Año>.pdf` (con espacios, SIN guiones bajos) y la
