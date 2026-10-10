@@ -27,6 +27,8 @@ export const en: Record<Clave, string> = {
   'comun.guardando': 'Saving…',
   'comun.guardar': 'Save',
   'comun.confirmar': 'Confirm',
+  /** Label of the segmented control that switches a sub-tab page's mode. */
+  'comun.modo': 'Mode:',
 
   // ── Language picker ──────────────────────────────────────────────────────
   'idioma.titulo': 'Language',
@@ -1740,9 +1742,14 @@ to print. It is saved in Documents/SchoolTrackerPro/Instruments.`,
   'drawer.ultimoRespaldo': 'Last backup: {momento}{tam}',
 
   // ── Sub-tabs of the wrappers (AsistenciaMainPage / NotasMainPage) ──
+  // `tomarAsistencia`/`registrar` are the LONG labels (the Android floating pill,
+  // which is icons-only and relies on aria-label). The `*Corto` ones go inside
+  // the segmented control in the filter bar, where horizontal room is scarce.
   'subtab.tomarAsistencia': 'Take attendance',
+  'subtab.tomarCorto': 'Attendance',
   'subtab.informe': 'Report',
   'subtab.registrar': 'Record',
+  'subtab.registrarCorto': 'Grades',
   'subtab.reportes': 'Reports',
 
   // ── DatePickerGlass ──

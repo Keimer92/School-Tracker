@@ -27,6 +27,7 @@
   import ScrollableTable from "./ScrollableTable.svelte";
   import DatePickerGlass from "./DatePickerGlass.svelte";
   import BotonMod from "./BotonMod.svelte";
+  import ModoToggle from "./ModoToggle.svelte";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
   interface EstudianteAsistencia { id: number; nombre: string; codigo: string; sexo: string; estado: string | null; observacion: string | null; }
@@ -51,7 +52,17 @@
   // `modo` decide si esta misma página es toma de asistencia (lectura/escritura)
   // o informe (solo lectura + exportar/imprimir): un único componente para no
   // mantener dos copias de la tabla, los filtros y las estadísticas.
-  let { modo = "tomar", visible = true }: { modo?: "tomar" | "informe"; visible?: boolean } = $props();
+  let {
+    modo = "tomar",
+    visible = true,
+    onModoChange = () => {},
+  }: {
+    modo?: "tomar" | "informe";
+    visible?: boolean;
+    /** El dueño del estado es el wrapper (AsistenciaMainPage): el control
+     *  segmentado de la barra de filtros solo avisa del cambio. */
+    onModoChange?: (m: "tomar" | "informe") => void;
+  } = $props();
 
   let anos: CategoryItem[] = $state([]);
   let colegios: CategoryItem[] = $state([]);
@@ -2514,6 +2525,21 @@ $effect(() => {
     {#snippet filters()}
       <FilterContainer {isMobile} style="padding:{isAndroidMobile ? '0.5rem' : '0.4rem'}">
         <div style="display:flex;{isAndroidMobile ? 'flex-wrap:wrap' : 'flex-wrap:nowrap'};gap:0.4rem;width:100%;align-items:flex-end">
+          <!-- El modo va PRIMERO porque es lo que define todo lo demás (en informe
+               no hay borradores ni marcado). En Android no se renderiza: ahí el
+               modo lo lleva la píldora flotante del wrapper. -->
+          {#if !isAndroidMobile}
+            <FilterGroup label={t('comun.modo')} {isMobile}>
+              <ModoToggle
+                valor={modo}
+                etiquetaGrupo={t('comun.modo')}
+                onchange={(id) => onModoChange(id as "tomar" | "informe")}
+                opciones={[
+                  { id: "tomar", etiqueta: t('subtab.tomarCorto'), titulo: t('subtab.tomarAsistencia') },
+                  { id: "informe", etiqueta: t('subtab.informe') },
+                ]} />
+            </FilterGroup>
+          {/if}
           {#if !isAndroidMobile && showAnoDropdown}
             <FilterGroup label={t('asis.filtro.ano')} {isMobile}>
               <SelectChip

@@ -232,6 +232,12 @@ src/
      DatePickerGlass.svelte   selector de fecha con dias no habiles tachados
      FiltersModalAndroid.svelte modal unico de filtros en Android (año lectivo
                               primero, luego el slot `extras` de cada página)
+     ModoToggle.svelte        control segmentado de 2 opciones que alterna el
+                              modo de una página con sub-tabs. Va DENTRO de la
+                              barra de filtros (FilterGroup "Modo:"); el estado
+                              vive en el wrapper y el hijo avisa por
+                              `onModoChange`. Solo escritorio (Android usa la
+                              píldora flotante del wrapper).
   lib/
     asistenciaPdf.ts         generador COMPARTIDO de PDFs de asistencia
                               multipágina (una hoja por grado/sección). Escala
@@ -1776,22 +1782,41 @@ px wrangler tail.
 ### Páginas fusionadas (sub-tabs) — patrón
 
 src/svelte/asistencia/AsistenciaMainPage.svelte y
-src/svelte/notas/NotasMainPage.svelte: wrappers con segmented control glass,
-props { pageActive, subTabRequest }, siempre abren en el sub-tab principal salvo
+src/svelte/notas/NotasMainPage.svelte: wrappers con props
+{ pageActive, subTabRequest }, siempre abren en el sub-tab principal salvo
 subTabRequest (quick-actions del Dashboard mapean en App.handleTabChange:
 'informe'→asistencia, 'reportes'→notas).
-Hijos reciben 
-isible para condicionar 
-egisterBackHandler. Swipe
+Hijos reciben `visible` para condicionar `registerBackHandler`. Swipe
 horizontal Android alterna sub-tabs (ignora gestos sobre scroll-x propios o
 modales fixed z=100).
+
+**El conmutador de sub-tabs vive en la barra de FILTROS del hijo, no en el
+wrapper** (`src/svelte/ModoToggle.svelte`, 2026-10). Antes cada wrapper dibujaba
+una caja glass con dos botones arriba del contenido; apilada con el SearchFab y
+con el FilterContainer eran TRES barras seguidas y la página se veía pesada.
+Ahora es un `FilterGroup` más (etiqueta `comun.modo` = "Modo:") al inicio de la
+fila, con el mismo alto que `.filter-select`, y `activeSub` sigue viviendo en el
+wrapper: el hijo solo avisa por `onModoChange`.
+
+- `AsistenciaPage` recibe `modo` + `onModoChange`; `NotasPage` y `ReportesPage`
+  reciben `subTab` + `onModoChange` (cada uno sabe cuál es SU id).
+- Etiquetas cortas: `subtab.tomarCorto` ("Asistencia") / `subtab.informe` y
+  `subtab.registrarCorto` ("Notas") / `subtab.reportes`. Las largas
+  (`tomarAsistencia`, `registrar`) quedan para el `aria-label` de la píldora
+  flotante de Android.
+- ⚠️ **Android NO renderiza el ModoToggle**: en un teléfono la altura es lo más
+  escaso, por eso la barra de sub-tabs ya estaba oculta. Ahí el modo lo lleva la
+  **píldora flotante** icons-only del wrapper (abajo-izquierda) + swipe. No
+  meterlo tampoco en el `FiltersModalAndroid`: lo escondería detrás de dos taps.
+- ⚠️ No volver a agregar una barra de sub-tabs en el wrapper: es exactamente lo
+  que se quitó. Si un wrapper necesita un control propio, que sea flotante.
 
 **Los dos wrappers montan distinto**:
 
 | Wrapper | Hijos | Por qué |
 |---|---|---|
-| `AsistenciaMainPage` | **UN** `<AsistenciaPage modo={activeSub} visible={pageActive} />` | los dos modos son el mismo componente desde 2026-10 (ver abajo) |
-| `NotasMainPage` | `NotasPage` + `ReportesPage`, montaje perezoso con `display:none` | son dos componentes distintos; preserva drafts/scroll |
+| `AsistenciaMainPage` | **UN** `<AsistenciaPage modo={activeSub} onModoChange={switchTo} visible={pageActive} />` | los dos modos son el mismo componente desde 2026-10 (ver abajo) |
+| `NotasMainPage` | `NotasPage` + `ReportesPage` (con `subTab={activeSub}` y `onModoChange={switchTo}`), montaje perezoso con `display:none` | son dos componentes distintos; preserva drafts/scroll |
 
 #### `AsistenciaPage` con `modo: 'tomar' | 'informe'` (2026-10)
 

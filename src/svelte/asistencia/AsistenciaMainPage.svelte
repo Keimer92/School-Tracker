@@ -83,17 +83,6 @@
 </script>
 
 <div class="asistencia-main" class:mobile={isAndroidUA} style="height:100%;min-height:0">
-  <div class="asistencia-subtabs">
-    <button class="subtab-btn" class:active={activeSub === 'tomar'} onclick={() => switchTo('tomar')} type="button">
-      <span class="subtab-icon">✏️</span>
-      <span>{t('subtab.tomarAsistencia')}</span>
-    </button>
-    <button class="subtab-btn" class:active={activeSub === 'informe'} onclick={() => switchTo('informe')} type="button">
-      <span class="subtab-icon">📊</span>
-      <span>{t('subtab.informe')}</span>
-    </button>
-  </div>
-
   <div style="flex:1;min-height:0;position:relative" ontouchstart={onContentTouchStart} ontouchend={onContentTouchEnd}>
     {#if isAndroidUA}
       <div class="asistencia-subtabs-float">
@@ -110,8 +99,13 @@
       se lee, y `visible` sigue siendo "este sub-tab está a la vista". Así la
       tabla, los filtros y las estadísticas existen una sola vez y se monta una
       sola vez (sin display:none por sub-tab): el estado/drafts vive en el hijo.
+
+      En escritorio NO hay barra de sub-tabs arriba: el control vive dentro de
+      la barra de filtros del hijo (ModoToggle), que es quien avisa del cambio
+      vía `onModoChange`. Dejarlo acá volvía a crear una segunda barra pegada al
+      SearchFab y a los filtros, y la página se veía pesada.
     -->
-    <AsistenciaPage modo={activeSub} visible={pageActive} />
+    <AsistenciaPage modo={activeSub} onModoChange={switchTo} visible={pageActive} />
   </div>
 </div>
 
@@ -120,18 +114,6 @@
     display: flex;
     flex-direction: column;
     width: 100%;
-  }
-  .asistencia-subtabs {
-    display: flex;
-    gap: 4px;
-    padding: 0.45rem 0.5rem;
-    margin: 0.25rem 0.5rem 0;
-    background: rgba(255, 255, 255, 0.03);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 12px;
-    width: fit-content;
   }
   .subtab-btn {
     display: flex;
@@ -172,12 +154,11 @@
     font-size: 0.85rem;
     line-height: 1;
   }
-  /* En Android la barra de pestañas se oculta para ahorrar espacio vertical:
-     se alterna con swipe o con este conmutador flotante (icons-only, absoluto). */
+  /* En escritorio no hay barra de sub-tabs: el modo lo controla el
+     ModoToggle de la barra de filtros del hijo. En Android ese control no se
+     renderiza (altura escasa), así que acá queda la píldora flotante
+     icons-only, que no ocupa espacio en el layout y sigue soportando swipe. */
   .asistencia-subtabs-float {
-    display: none;
-  }
-  .asistencia-main.mobile .asistencia-subtabs {
     display: none;
   }
   .asistencia-main.mobile .asistencia-subtabs-float {
@@ -198,13 +179,5 @@
   }
   .asistencia-main.mobile .asistencia-subtabs-float .subtab-btn {
     padding: 0.4rem 0.6rem;
-  }
-  @media (max-width: 480px) {
-    .subtab-btn span:last-child {
-      font-size: 0.72rem;
-    }
-    .subtab-btn {
-      padding: 0.38rem 0.65rem;
-    }
   }
 </style>

@@ -9,6 +9,7 @@
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
 import SelectChip from "./SelectChip.svelte";
+  import ModoToggle from "./ModoToggle.svelte";
   import SearchFab from "./SearchFab.svelte";
   import PageLayout from "./PageLayout.svelte";
   import FiltersModalAndroid from "./FiltersModalAndroid.svelte";
@@ -34,7 +35,18 @@ import { primerColegio } from "../lib/catalogo";
   interface GradeConfig { id: string; color: string; minimo: number; }
 
   // Visible = la página contenedora está activa Y este es el sub-tab seleccionado.
-  let { visible = true }: { visible?: boolean } = $props();
+  // `subTab` es el id de ESTA página: el ModoToggle de la barra de filtros lo usa
+  // como valor activo y avisa del cambio por `onModoChange` (el dueño del estado
+  // es el wrapper, NotasMainPage).
+  let {
+    visible = true,
+    subTab = "reportes",
+    onModoChange = () => {},
+  }: {
+    visible?: boolean;
+    subTab?: "registrar" | "reportes";
+    onModoChange?: (id: "registrar" | "reportes") => void;
+  } = $props();
 
   let anos: CategoryItem[] = $state([]);
   let cortes: CategoryItem[] = $state([]);
@@ -1124,6 +1136,20 @@ import { primerColegio } from "../lib/catalogo";
           </div>
         {:else}
         <FilterContainer {isMobile} style="padding:0.5rem">
+          <!-- El modo va PRIMERO: es lo que define si esta barra reporta o
+               captura notas. En Android no se renderiza, ahí lo lleva la
+               píldora flotante del wrapper. -->
+          <FilterGroup label={t('comun.modo')} {isMobile}>
+            <ModoToggle
+              valor={subTab}
+              etiquetaGrupo={t('comun.modo')}
+              onchange={(id) => onModoChange(id as "registrar" | "reportes")}
+              opciones={[
+                { id: "registrar", etiqueta: t('subtab.registrarCorto'), titulo: t('subtab.registrar') },
+                { id: "reportes", etiqueta: t('subtab.reportes') },
+              ]} />
+          </FilterGroup>
+
           {#if showAnoDropdown}
           <FilterGroup label={t('rep.filtro.ano')} {isMobile}>
             <SelectChip

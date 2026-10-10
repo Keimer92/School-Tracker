@@ -10,6 +10,7 @@ import { primerColegio } from "../lib/catalogo";
   import BotonMod from "./BotonMod.svelte";
   import FilterGroup from "./FilterGroup.svelte";
   import SelectChip from "./SelectChip.svelte";
+  import ModoToggle from "./ModoToggle.svelte";
   import SearchFab from "./SearchFab.svelte";
   import FiltersModalAndroid from "./FiltersModalAndroid.svelte";
   import { generarInstrumentoPDF, generarInstrumentosTodosPDF, INSTRUMENTO_OPS, type InstrumentoInput, type InstrumentoTipo } from "../lib/instrumentosPdf";
@@ -24,7 +25,18 @@ import { primerColegio } from "../lib/catalogo";
   import { t } from "../lib/i18n.svelte";
 
   // Visible = la página contenedora está activa Y este es el sub-tab seleccionado.
-  let { visible = true }: { visible?: boolean } = $props();
+  // `subTab` es el id de ESTA página: el ModoToggle de la barra de filtros lo usa
+  // como valor activo y avisa del cambio por `onModoChange` (el dueño del estado
+  // es el wrapper, NotasMainPage).
+  let {
+    visible = true,
+    subTab = "registrar",
+    onModoChange = () => {},
+  }: {
+    visible?: boolean;
+    subTab?: "registrar" | "reportes";
+    onModoChange?: (id: "registrar" | "reportes") => void;
+  } = $props();
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
   interface Criterio { id: number; orden: number; descripcion: string; puntajeMaximo: number; }
@@ -1943,6 +1955,20 @@ import { primerColegio } from "../lib/catalogo";
 
       {#if !isAndroidMobile}
       <FilterContainer {isMobile}>
+        <!-- El modo va PRIMERO: es lo que define si esta barra guarda o solo
+             muestra. En Android no se renderiza, ahí lo lleva la píldora
+             flotante del wrapper. -->
+        <FilterGroup label={t('comun.modo')} {isMobile}>
+          <ModoToggle
+            valor={subTab}
+            etiquetaGrupo={t('comun.modo')}
+            onchange={(id) => onModoChange(id as "registrar" | "reportes")}
+            opciones={[
+              { id: "registrar", etiqueta: t('subtab.registrarCorto'), titulo: t('subtab.registrar') },
+              { id: "reportes", etiqueta: t('subtab.reportes') },
+            ]} />
+        </FilterGroup>
+
         {#if showAnoDropdown}
         <FilterGroup label={t('notas.filtro.anoLectivo')} {isMobile}>
           <SelectChip

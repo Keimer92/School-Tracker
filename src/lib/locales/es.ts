@@ -29,6 +29,8 @@ export const es = {
   'comun.guardando': 'Guardando…',
   'comun.guardar': 'Guardar',
   'comun.confirmar': 'Confirmar',
+  /** Etiqueta del control segmentado que alterna el modo de una página con sub-tabs. */
+  'comun.modo': 'Modo:',
 
   // ── Selector de idioma ───────────────────────────────────────────────────
   'idioma.titulo': 'Idioma',
@@ -1760,9 +1762,14 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'drawer.ultimoRespaldo': 'Último respaldo: {momento}{tam}',
 
   // ── Sub-tabs de los wrappers (AsistenciaMainPage / NotasMainPage) ──
+  // `tomarAsistencia`/`registrar` son las etiquetas LARGAS (píldora flotante
+  // de Android, que solo tiene icono y aria-label). Las `*Corto` van dentro del
+  // control segmentado de la barra de filtros, donde el espacio es escaso.
   'subtab.tomarAsistencia': 'Tomar asistencia',
+  'subtab.tomarCorto': 'Asistencia',
   'subtab.informe': 'Informe',
   'subtab.registrar': 'Registrar',
+  'subtab.registrarCorto': 'Notas',
   'subtab.reportes': 'Reportes',
 
   // ── DatePickerGlass ──

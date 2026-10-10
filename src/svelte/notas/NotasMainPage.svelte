@@ -102,17 +102,6 @@
 </script>
 
 <div class="notas-main" class:mobile={isAndroidUA} style="height:100%;min-height:0">
-  <div class="notas-subtabs">
-    <button class="subtab-btn" class:active={activeSub === 'registrar'} onclick={() => switchTo('registrar')} type="button">
-      <span class="subtab-icon">✏️</span>
-      <span>{t('subtab.registrar')}</span>
-    </button>
-    <button class="subtab-btn" class:active={activeSub === 'reportes'} onclick={() => switchTo('reportes')} type="button">
-      <span class="subtab-icon">📊</span>
-      <span>{t('subtab.reportes')}</span>
-    </button>
-  </div>
-
   <div style="flex:1;min-height:0;position:relative" ontouchstart={onContentTouchStart} ontouchend={onContentTouchEnd}>
     {#if isAndroidUA}
       <div class="notas-subtabs-float">
@@ -124,14 +113,19 @@
         </button>
       </div>
     {/if}
+    <!--
+      En escritorio NO hay barra de sub-tabs arriba: cada hijo lleva su propio
+      ModoToggle dentro de su barra de filtros y avisa del cambio por
+      `onModoChange`, así que no se acumulan dos barras sobre los filtros.
+    -->
     {#if mountedRegistrar}
       <div style="display:{activeSub === 'registrar' ? 'block' : 'none'};height:100%">
-        <NotasPage visible={pageActive && activeSub === 'registrar'} />
+        <NotasPage subTab={activeSub} onModoChange={switchTo} visible={pageActive && activeSub === 'registrar'} />
       </div>
     {/if}
     {#if mountedReportes}
       <div style="display:{activeSub === 'reportes' ? 'block' : 'none'};height:100%">
-        <ReportesPage visible={pageActive && activeSub === 'reportes'} />
+        <ReportesPage subTab={activeSub} onModoChange={switchTo} visible={pageActive && activeSub === 'reportes'} />
       </div>
     {/if}
   </div>
@@ -142,18 +136,6 @@
     display: flex;
     flex-direction: column;
     width: 100%;
-  }
-  .notas-subtabs {
-    display: flex;
-    gap: 4px;
-    padding: 0.45rem 0.5rem;
-    margin: 0.25rem 0.5rem 0;
-    background: rgba(255, 255, 255, 0.03);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 12px;
-    width: fit-content;
   }
   .subtab-btn {
     display: flex;
@@ -194,12 +176,11 @@
     font-size: 0.85rem;
     line-height: 1;
   }
-  /* En Android la barra de pestañas se oculta para ahorrar espacio vertical:
-     se alterna con swipe o con este conmutador flotante (icons-only, absoluto). */
+  /* En escritorio no hay barra de sub-tabs: el modo lo controla el
+     ModoToggle de la barra de filtros de cada hijo. En Android ese control no
+     se renderiza (altura escasa), así que acá queda la píldora flotante
+     icons-only, que no ocupa espacio en el layout y sigue soportando swipe. */
   .notas-subtabs-float {
-    display: none;
-  }
-  .notas-main.mobile .notas-subtabs {
     display: none;
   }
   .notas-main.mobile .notas-subtabs-float {
@@ -220,13 +201,5 @@
   }
   .notas-main.mobile .notas-subtabs-float .subtab-btn {
     padding: 0.4rem 0.6rem;
-  }
-  @media (max-width: 480px) {
-    .subtab-btn span:last-child {
-      font-size: 0.72rem;
-    }
-    .subtab-btn {
-      padding: 0.38rem 0.65rem;
-    }
   }
 </style>
