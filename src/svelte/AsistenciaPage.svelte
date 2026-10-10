@@ -3,6 +3,9 @@
   import { untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { emit, listen } from "@tauri-apps/api/event";
+  import { documentDir } from "@tauri-apps/api/path";
+  import { writeFile, mkdir } from "@tauri-apps/plugin-fs";
+  import { openUrl } from "@tauri-apps/plugin-opener";
   import { syncService } from "../lib/syncService";
   import { onDataChange } from "../lib/autoSync";
   import { registerBackHandler } from "../lib/androidBack";
@@ -11,10 +14,13 @@
   import { primerColegio } from "../lib/catalogo";
   import { t, tagLocale, fmtFecha } from "../lib/i18n.svelte";
   import { ask } from "@tauri-apps/plugin-dialog";
+  import { generarPdfAsistencia } from "../lib/asistenciaPdf";
+  import type { TablaAsistenciaPdf } from "../lib/asistenciaPdf";
+  import { separadorRuta, unirRuta, aFileURL } from "../lib/platform";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
-import SelectChip from "./SelectChip.svelte";
-import { portalToBody } from "../lib/portalToBody";
+  import SelectChip from "./SelectChip.svelte";
+  import { portalToBody } from "../lib/portalToBody";
   import FiltersModalAndroid from "./FiltersModalAndroid.svelte";
   import SearchFab from "./SearchFab.svelte";
   import PageLayout from "./PageLayout.svelte";
@@ -26,10 +32,26 @@ import { portalToBody } from "../lib/portalToBody";
   interface EstudianteAsistencia { id: number; nombre: string; codigo: string; sexo: string; estado: string | null; observacion: string | null; }
   interface DiaEstado { estado: string | null; observacion: string | null; }
   interface DiaSinClase { id: number; colegio_id: number; grado_id: number | null; seccion_id: number | null; fecha: string; descripcion: string; }
+  interface ColegioDiasAsistencia {
+    colegioId: number; lunes: boolean; martes: boolean; miercoles: boolean;
+    jueves: boolean; viernes: boolean; sabado: boolean; domingo: boolean;
+  }
+
+  /** Fila del reporte que devuelve `get_asistencia_rango` (solo exportación). */
+  interface AsistenciaReporteItem {
+    id: number; nombre: string; sexo: string;
+    fechas: string[]; observaciones?: string[];
+  }
+
+  /** Estudiante con su grilla de días; es la fila que renderiza la tabla. */
+  interface EstudianteMulti { id: number; nombre: string; codigo: string; sexo: string; dias: Record<string, DiaEstado>; }
 
   // Visible = la página contenedora está activa Y este es el sub-tab seleccionado.
   // Controla el registro del back-handler y el refresco silencioso al volver a verse.
-  let { visible = true }: { visible?: boolean } = $props();
+  // `modo` decide si esta misma página es toma de asistencia (lectura/escritura)
+  // o informe (solo lectura + exportar/imprimir): un único componente para no
+  // mantener dos copias de la tabla, los filtros y las estadísticas.
+  let { modo = "tomar", visible = true }: { modo?: "tomar" | "informe"; visible?: boolean } = $props();
 
   let anos: CategoryItem[] = $state([]);
   let colegios: CategoryItem[] = $state([]);
@@ -130,7 +152,7 @@ import { portalToBody } from "../lib/portalToBody";
     if (selectedAno && selectedColegio && selectedGrado && selectedSeccion) {
       refreshingSilent = true;
       untrack(() => {
-        if (periodo === "diario") {
+        if (periodoEfectivo === "diario") {
           if (selectedFecha && isFechaHabilitada) fetchEstudiantes();
         } else {
           fetchEstudiantesMulti();
@@ -143,6 +165,32 @@ import { portalToBody } from "../lib/portalToBody";
   let refreshingSilent = $state(false);
   let skipNextRefresh = $state(false);
   let monthlyPcts = $state<Record<number, number>>({});
+
+  // Cambio de sub-tab (tomar ↔ informe): cierra los popovers propios de cada
+  // modo y recarga con el rango nuevo. Hace falta porque el informe corta el mes
+  // en curso en hoy, así que lo que había en pantalla ya no sirve.
+  let wasModo = modo;
+  $effect(() => {
+    const m = modo;
+    const prev = wasModo;
+    wasModo = m;
+    if (m === prev) return;
+    cerrarPopSinClases();
+    cerrarPopSemana();
+    cerrarPopEstado();
+    cerrarPopSel();
+    dpAbierto = false;
+    if (selectedAno && selectedColegio && selectedGrado && selectedSeccion) {
+      refreshingSilent = true;
+      untrack(() => {
+        if (periodoEfectivo === "diario") {
+          if (selectedFecha && isFechaHabilitada) fetchEstudiantes();
+        } else {
+          fetchEstudiantesMulti();
+        }
+      });
+    }
+  });
 
   let isMobile = $state(false);
   let isAndroid = $state(/Android/i.test(navigator.userAgent));
@@ -211,8 +259,21 @@ import { portalToBody } from "../lib/portalToBody";
     return guardado || (enEscritorio ? "mensual" : "diario");
   })());
 
+  /** ¿Estamos en el sub-tab Informe? (solo lectura + exportar/imprimir) */
+  let enInforme = $derived(modo === "informe");
+  /**
+   * El informe no ofrece "Diario": ahí lo más corto es la semana. El valor
+   * persistido sigue siendo `periodo` tal cual, así que volver a Tomar
+   * asistencia restaura el "diario" que el usuario había elegido.
+   *
+   * Todas las comparaciones de este archivo usan `periodoEfectivo`, nunca
+   * `periodo` crudo: así un solo `if` decide si corren los caminos de marcado
+   * (diario) o los de grilla (semanal/mensual) en ambos modos.
+   */
+  let periodoEfectivo = $derived<AsistenciaPeriodo>(enInforme && periodo === "diario" ? "semanal" : periodo);
 
-  let estudiantesMulti: Array<{ id: number; nombre: string; codigo: string; sexo: string; dias: Record<string, DiaEstado> }> = $state([]);
+
+  let estudiantesMulti: EstudianteMulti[] = $state([]);
   let fechasPeriodo: string[] = $state([]);
   let draftMulti: Record<number, Record<string, DiaEstado>> = $state({});
   let mesSeleccionado = $state(new Date().getMonth() + 1);
@@ -230,19 +291,25 @@ import { portalToBody } from "../lib/portalToBody";
     return { value: i + 1, label: raw.charAt(0).toUpperCase() + raw.slice(1) };
   }));
 
-  let totalEstudiantes = $derived(estudiantes.length);
-  let totalM = $derived(estudiantes.filter(e => e.sexo === 'M').length);
-  let totalF = $derived(estudiantes.filter(e => e.sexo === 'F').length);
+  /**
+   * Estadísticas sobre la lista YA filtrada (búsqueda + sexo): cambiar un filtro
+   * tiene que cambiar los totales, si no las tarjetas contradicen la tabla.
+   * En diario se cuentan estudiantes del día; en grilla (semanal/mensual) se
+   * cuentan pares estudiante×día.
+   */
+  let totalEstudiantes = $derived(filteredEstudiantes.length);
+  let totalM = $derived(filteredEstudiantes.filter(e => e.sexo === 'M').length);
+  let totalF = $derived(filteredEstudiantes.filter(e => e.sexo === 'F').length);
 
   function getStats(estado: string | null) {
-    const filtered = estudiantes.filter(e => e.estado === estado);
+    const filtered = filteredEstudiantes.filter(e => e.estado === estado);
     return { total: filtered.length, m: filtered.filter(e => e.sexo === 'M').length, f: filtered.filter(e => e.sexo === 'F').length };
   }
   let statsP = $derived(getStats('P'));
   let statsA = $derived(getStats('A'));
   let statsJ = $derived(getStats('J'));
   let asistenciaPct = $derived(totalEstudiantes > 0 ? Math.round(statsP.total / totalEstudiantes * 100) : 0);
-  let totalPosibleMulti = $derived(estudiantesMulti.length * fechasPeriodo.length);
+  let totalPosibleMulti = $derived(filteredEstudiantesMulti.length * fechasPeriodo.length);
 
   let filteredEstudiantes = $derived(estudiantes.filter(est => est.nombre.toLowerCase().includes(searchTerm.toLowerCase())));
   let filteredEstudiantesMulti = $derived(estudiantesMulti.filter(est => est.nombre.toLowerCase().includes(searchTerm.toLowerCase())));
@@ -835,7 +902,7 @@ $effect(() => {
   // Si el DatePicker deja de estar montado (cambio de período), el bindable
   // quedaría en true y la fila perdería su overflow scroll.
   $effect(() => {
-    if (!(isAndroidMobile && periodo === "diario")) dpAbierto = false;
+    if (!(isAndroidMobile && periodoEfectivo === "diario")) dpAbierto = false;
   });
 
   let nombreMesSel = $derived(
@@ -880,10 +947,25 @@ $effect(() => {
     return dates;
   }
 
+  /**
+   * Fechas del período visible. Es el punto único por el que pasan la grilla,
+   * los días sin clases, el borrador y la exportación: si el período cambia,
+   * todo cambia con él.
+   *
+   * En el informe el mes en curso termina HOY, no el último día del calendario:
+   * anunciar días que aún no tienen asistencia registrada como si fueran datos
+   * dejaría el reporte con columnas vacías al final. En Tomar asistencia el mes
+   * sí es completo — ahí el futuro es donde se va a marcar.
+   */
   function getFechasPeriodo(): string[] {
-    if (periodo === "semanal") return computeWeekDates(selectedFecha);
-    if (periodo === "mensual") return computeMonthDates(mesSeleccionado, anoSeleccionado);
-    return [selectedFecha];
+    const fechas =
+      periodoEfectivo === "semanal" ? computeWeekDates(selectedFecha) :
+      periodoEfectivo === "mensual" ? computeMonthDates(mesSeleccionado, anoSeleccionado) :
+      [selectedFecha];
+    if (!enInforme || periodoEfectivo !== "mensual") return fechas;
+    const hoy = getLocalDateISOString();
+    const corte = fechas.findIndex(f => f > hoy);
+    return corte === -1 ? fechas : fechas.slice(0, corte);
   }
 
   function getDiasHabilitados(fechas: string[]): string[] {
@@ -996,7 +1078,7 @@ $effect(() => {
 
   // ¿El período actual (diario/semanal) está totalmente marcado como sin clases?
   let sinClasesActivo = $derived.by(() => {
-    if (periodo === 'mensual') return false;
+    if (periodoEfectivo === 'mensual') return false;
     const objetivos = getDiasHabilitadosBase(getFechasPeriodo());
     return objetivos.length > 0 && objetivos.every(f => esDiaSinClases(f));
   });
@@ -1192,7 +1274,7 @@ $effect(() => {
    */
   function objetivosSinClases(paraTodosLosColegios = false): { fechas: string[]; etiqueta: string } | null {
     if (colFechaObjetivo) return { fechas: [colFechaObjetivo], etiqueta: t('asis.sinClases.eseDia') };
-    if (periodo === 'mensual') {
+    if (periodoEfectivo === 'mensual') {
       const lista = paraTodosLosColegios ? semanasMesBase : semanasMes;
       const sel = lista.find(w => w.numero === semanaSeleccionada);
       if (!sel) return null;
@@ -1230,7 +1312,7 @@ $effect(() => {
       cerrarPopSinClases();
       sinClasesDescripcion = '';
       await fetchDiasSinClases();
-      if (periodo !== 'diario') { refreshingSilent = true; fetchEstudiantesMulti(); }
+      if (periodoEfectivo !== 'diario') { refreshingSilent = true; fetchEstudiantesMulti(); }
       emit("show-toast", { message: t('asis.sinClases.exito', { nivel: nivelColegio ? t('asis.sinClases.nivelColegio') : t('asis.sinClases.nivelSeccion'), n: objetivos.length, motivo }), type: "success" });
     } catch (e) {
       console.error('Error marcando días sin clases:', e);
@@ -1257,7 +1339,7 @@ $effect(() => {
     }
     onDataChange('dia_sin_clases');
     await fetchDiasSinClases();
-    if (periodo !== 'diario') { refreshingSilent = true; fetchEstudiantesMulti(); }
+    if (periodoEfectivo !== 'diario') { refreshingSilent = true; fetchEstudiantesMulti(); }
   }
 
   async function activarSinClasesTodosColegios() {
@@ -1339,7 +1421,7 @@ $effect(() => {
       });
       onDataChange('dia_sin_clases');
       await fetchDiasSinClases();
-      if (periodo !== 'diario') { refreshingSilent = true; fetchEstudiantesMulti(); }
+      if (periodoEfectivo !== 'diario') { refreshingSilent = true; fetchEstudiantesMulti(); }
       emit("show-toast", { message: t('asis.sinClases.reactivarOk', { n: objetivos.length }), type: "success" });
     } catch (e) {
       console.error('Error reactivando clases:', e);
@@ -1391,7 +1473,7 @@ $effect(() => {
 
     function triggerRefresh() {
       if (selectedAno && selectedColegio && selectedGrado && selectedSeccion) {
-        if (periodo === "diario") {
+        if (periodoEfectivo === "diario") {
           if (selectedFecha && isFechaHabilitada) fetchEstudiantes();
         } else {
           fetchEstudiantesMulti();
@@ -1422,7 +1504,7 @@ $effect(() => {
   });
 
   $effect(() => {
-    if (periodo === "diario") {
+    if (periodoEfectivo === "diario") {
       if (!selectedFecha || !colegioConfig) { isFechaHabilitada = true; return; }
       const date = new Date(selectedFecha + "T12:00:00");
       const dayNames = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
@@ -1449,11 +1531,14 @@ $effect(() => {
     localStorage.setItem("selectedSexo", selectedSexo);
     sessionStorage.setItem("asistencia_selectedFecha_v2", selectedFecha);
     localStorage.setItem("asistencia_periodo", periodo);
+    // `periodoEfectivo` depende también de `modo` (el informe no ofrece diario):
+    // sin declararlo acá, cambiar de sub-tab no recargaba la grilla.
+    void modo;
     if (selectedAno && selectedColegio && selectedGrado && selectedSeccion) {
       // untrack: los fetch leen diasSinClases/colegioConfig al preparar parámetros;
       // sin esto, reasignar esos estados re-disparaba este efecto en bucle.
       untrack(() => {
-        if (periodo === "diario") {
+        if (periodoEfectivo === "diario") {
           if (selectedFecha && isFechaHabilitada) fetchEstudiantes();
         } else {
           fetchEstudiantesMulti();
@@ -1465,7 +1550,7 @@ $effect(() => {
   // Carga de días sin clases: efecto dedicado con dependencias acotadas
   $effect(() => {
     const c = selectedColegio, g = selectedGrado, s = selectedSeccion;
-    void c; void g; void s; void periodo; void selectedFecha; void mesSeleccionado; void anoSeleccionado;
+    void c; void g; void s; void periodo; void modo; void selectedFecha; void mesSeleccionado; void anoSeleccionado;
     // Solo el colegio es obligatorio (ver `fetchDiasSinClases`): exigir también
     // grado y sección dejaba el período sin motivo tras cambiar de colegio.
     if (!c) { diasSinClases = []; return; }
@@ -1759,14 +1844,14 @@ $effect(() => {
   }
 
   async function marcarTodos(estado: string) {
-    const n = periodo === "diario" ? getActiveStudentCount() : estudiantesMulti.length * fechasPeriodo.length;
+    const n = periodoEfectivo === "diario" ? getActiveStudentCount() : estudiantesMulti.length * fechasPeriodo.length;
     if (n === 0) return;
     const etiqueta = estado === 'P' ? 'Presente' : estado === 'A' ? 'Ausente' : 'Justificado';
-    const ok = await ask(`¿Marcar a TODOS como "${etiqueta}" (${estado}) para el período actual?\n\nSe aplicará a ${periodo === "diario" ? `${getActiveStudentCount()} estudiante(s)` : `${estudiantesMulti.length} estudiante(s) × ${fechasPeriodo.length} día(s)`}.`, {
+    const ok = await ask(`¿Marcar a TODOS como "${etiqueta}" (${estado}) para el período actual?\n\nSe aplicará a ${periodoEfectivo === "diario" ? `${getActiveStudentCount()} estudiante(s)` : `${estudiantesMulti.length} estudiante(s) × ${fechasPeriodo.length} día(s)`}.`, {
       title: `Marcar todos: ${etiqueta}`, kind: 'info', okLabel: `Sí, marcar todo`, cancelLabel: 'Cancelar',
     });
     if (!ok) return;
-    if (periodo === "diario") {
+    if (periodoEfectivo === "diario") {
       estudiantes.forEach(est => { draft[est.id] = { ...draft[est.id], estado }; });
       syncDraftToStorage();
       estudiantes = estudiantes.map(est => ({ ...est, estado }));
@@ -1789,7 +1874,7 @@ $effect(() => {
   }
 
   function confirmClearAllStatus() {
-    if (periodo === "diario") {
+    if (periodoEfectivo === "diario") {
       estudiantes.forEach(est => { draft[est.id] = { estado: "-", observacion: '' }; });
       syncDraftToStorage();
       estudiantes = estudiantes.map(est => ({ ...est, estado: "-", observacion: '' }));
@@ -1819,7 +1904,7 @@ $effect(() => {
       okLabel: t('comun.guardar'), cancelLabel: t('comun.cancelar'),
     });
     if (!ok) return;
-    if (periodo === "diario") {
+    if (periodoEfectivo === "diario") {
       saveChanges(estudiantes);
     } else {
       saveChangesMulti();
@@ -1883,11 +1968,25 @@ $effect(() => {
     return n;
   }
 
+  /**
+   * Etiqueta visible de un estado. El `id` ('P'/'A'/'J') es el valor de dominio
+   * que viaja a la BD y NO se traduce; solo la etiqueta.
+   */
+  function etiquetaEstado(estado: string | null): string {
+    if (estado === 'P') return t('asis.estado.presente');
+    if (estado === 'A') return t('asis.estado.ausente');
+    if (estado === 'J') return t('asis.estado.justificado');
+    return '—';
+  }
+
   async function handleFilterChange(setter: (v: any) => void, value: any) {
+    // En el informe no se escribe nada: no hay borradores que preguntar por
+    // guardar, el filtro simplemente se aplica.
+    if (enInforme) { setter(value); return; }
     if (hasUnsavedChanges) {
       const answer = await ask(t('asis.confirmar.sinGuardar'), { title: t('asis.confirmar.sinGuardarTitulo'), kind: 'warning', okLabel: t('comun.guardar'), cancelLabel: t('asis.confirmar.descartar') });
       if (answer) {
-        if (periodo === "diario") { await saveChanges(estudiantes); } else { await saveChangesMulti(); }
+        if (periodoEfectivo === "diario") { await saveChanges(estudiantes); } else { await saveChangesMulti(); }
         setter(value);
       } else {
         draft = {}; syncDraftToStorage(); draftMulti = {}; syncDraftMultiToStorage();
@@ -1911,13 +2010,13 @@ $effect(() => {
   }
 
   function getActiveStudentCount(): number {
-    if (periodo === "diario") return estudiantes.length;
+    if (periodoEfectivo === "diario") return estudiantes.length;
     return estudiantesMulti.length;
   }
 
   function getMultiStats(estado: string) {
     let total = 0, m = 0, f = 0;
-    for (const est of estudiantesMulti) {
+    for (const est of filteredEstudiantesMulti) {
       for (const fecha of fechasPeriodo) {
         const d = est.dias[fecha];
         const draftD = draftMulti[est.id]?.[fecha];
@@ -1931,11 +2030,327 @@ $effect(() => {
     }
     return { total, m, f };
   }
+
+  // ── Informe (solo lectura): rango, encabezados, impresión y exportación ──
+  // En "Tomar asistencia" nada de esto se usa; en el informe es lo único que
+  // hace falta además de la grilla, que ya es la misma en los dos modos.
+
+  /** Rango real del período visible. El informe corta el mes en curso en hoy. */
+  let rangoFechas = $derived.by(() => {
+    const fechas = getFechasPeriodo();
+    return { inicio: fechas[0] ?? '', fin: fechas[fechas.length - 1] ?? '' };
+  });
+  let fechaInicio = $derived(rangoFechas.inicio);
+  let fechaFin = $derived(rangoFechas.fin);
+
+  let colegioNombre = $derived(colegios.find(c => c.id === selectedColegio)?.nombre || "");
+  let gradoNombre = $derived(grados.find(g => g.id === selectedGrado)?.nombre || "");
+  let seccionNombre = $derived(secciones.find(s => s.id === selectedSeccion)?.nombre || "");
+
+  /**
+   * Meses en español SOLO para el PDF, la impresión y el nombre del archivo:
+   * un reporte que va a la dirección del colegio no cambia de idioma con la
+   * app. En pantalla los meses salen de `mesesOptions` (traducidos).
+   */
+  const MESES_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  function nombreMesEs(m: number): string { return MESES_ES[m - 1] ?? ''; }
+  /** Fecha en texto largo: "01 de Septiembre". */
+  function fechaLarga(iso: string): string {
+    if (!iso || iso.length < 10) return iso || '';
+    return `${iso.slice(8, 10)} de ${nombreMesEs(Number(iso.slice(5, 7)))}`;
+  }
+
+  /**
+   * Rango del período para los encabezados, entre paréntesis y con el mes en
+   * texto: "(01 de Septiembre al 30 de Septiembre)". Se usan las fechas reales
+   * del período, así que en el mes en curso termina el día de hoy.
+   */
+  let encabezadoPeriodo = $derived(`(${fechaLarga(fechaInicio)} al ${fechaLarga(fechaFin)})`);
+  /** Etiqueta del período: "Septiembre" (mensual) o "Semana 3 Septiembre" (semanal). */
+  let periodoEtiqueta = $derived(
+    periodoEfectivo === 'semanal'
+      ? `Semana ${semanaActiva} ${nombreMesEs(mesSeleccionado)}`
+      : nombreMesEs(mesSeleccionado)
+  );
+  /** Etiqueta corta del período, para mostrar debajo del botón de exportar. */
+  let resumenPeriodo = $derived(
+    periodoEfectivo === 'semanal'
+      ? t('asis.sinClases.semanaN', { n: semanaActiva })
+      : `${mesesOptions.find(m => m.value === mesSeleccionado)?.label ?? ''} ${anoSeleccionado}`
+  );
+
+  /** Columnas de fechas para imprimir/exportar: hábiles del período, sin los sin clases. */
+  let fechasColumnas = $derived(fechasVisibles.filter(fv => !fv.sinClases).map(fv => fv.fecha));
+
+  /** Nota en español para el PDF/impresión con los días sin clases del período. */
+  let diasSinClasesNota = $derived.by(() => {
+    const marcadas = diasSinClases.filter(d => d.fecha >= fechaInicio && d.fecha <= fechaFin);
+    if (marcadas.length === 0) return '';
+    return 'Sin clases: ' + marcadas.map(d => `${fmtDM(d.fecha)} (${d.descripcion})`).join(', ');
+  });
+
+  interface ParAsistencia {
+    colegioId: number; colegioNombre: string;
+    gradoId: number; gradoNombre: string;
+    seccionId: number; seccionNombre: string;
+  }
+
+  let exportandoMasivo = $state(false);
+  let progresoMasivo = $state('');
+  let printHtml: string | null = $state(null);
+
+  /** Estado efectivo (borrador incluido) de un estudiante en una fecha. */
+  function estadoEnFecha(est: EstudianteMulti, fecha: string): string {
+    const dDraft = draftMulti[est.id]?.[fecha];
+    const eff = dDraft?.estado !== undefined ? dDraft.estado : (est.dias[fecha]?.estado || null);
+    return eff ?? '-';
+  }
+
+  function obsEnFecha(est: EstudianteMulti, fecha: string): string {
+    const dDraft = draftMulti[est.id]?.[fecha];
+    return dDraft?.observacion ?? est.dias[fecha]?.observacion ?? '';
+  }
+
+  /** Estado de una fila devuelta por `get_asistencia_rango` (`"fecha:estado"`). */
+  function estadoDelReporte(item: AsistenciaReporteItem, fecha: string): string {
+    const found = item.fechas.find(f => f.startsWith(fecha));
+    return found ? found.split(':')[1] : '-';
+  }
+
+  /**
+   * Columnas de un período dado, según la config semanal del colegio y
+   * excluye los marcados como sin clases (no cuentan P/A/J).
+   */
+  function columnasDePeriodo(cfg: ColegioDiasAsistencia | null, sinClases: DiaSinClase[]): string[] {
+    const diasMap: Record<number, boolean> = {
+      0: cfg?.domingo ?? true, 1: cfg?.lunes ?? true, 2: cfg?.martes ?? true,
+      3: cfg?.miercoles ?? true, 4: cfg?.jueves ?? true, 5: cfg?.viernes ?? true, 6: cfg?.sabado ?? true,
+    };
+    const marcadas = new Set(sinClases.map(d => d.fecha));
+    const out: string[] = [];
+    const temp = new Date(fechaInicio + "T12:00:00");
+    const fin = new Date(fechaFin + "T12:00:00");
+    while (temp <= fin) {
+      const iso = getLocalDateISOString(temp);
+      if (diasMap[temp.getDay()] && !marcadas.has(iso)) out.push(iso);
+      temp.setDate(temp.getDate() + 1);
+    }
+    return out;
+  }
+
+  /**
+   * Un solo PDF con una hoja por cada grado/seccion de TODOS los colegios del
+   * año lectivo seleccionado. El nombre del archivo lleva el período:
+   * `Asistencia_Septiembre_2026.pdf` (mensual) o
+   * `Asistencia_Semana3_Septiembre_2026.pdf` (semanal).
+   *
+   * Trae sus propios datos por pareja (colegio, grado, sección) porque el
+   * alcance es TODOS los colegios, no el que está filtrado en pantalla.
+   */
+  async function exportarPdfAsistencia() {
+    if (!selectedAno || !fechaInicio || !fechaFin) {
+      await emit("show-toast", { message: t('inf.export.sinAno'), type: 'warning' });
+      return;
+    }
+
+    try {
+      exportandoMasivo = true;
+      progresoMasivo = t('inf.export.preparando');
+
+      const anoNombre = anos.find(a => a.id === selectedAno)?.nombre || String(selectedAno);
+      if (colegios.length === 0) {
+        await emit("show-toast", { message: t('inf.export.sinColegios'), type: 'warning' });
+        exportandoMasivo = false;
+        return;
+      }
+
+      const pares: ParAsistencia[] = [];
+      for (const col of colegios) {
+        const gradosList: CategoryItem[] = await invoke("get_grados_by_colegio", { colegioId: col.id, anoLectivoId: Number(selectedAno) });
+        for (const grado of gradosList) {
+          const seccionesList: CategoryItem[] = await invoke("get_secciones_by_grado_colegio", { gradoId: grado.id, colegioId: col.id, anoLectivoId: Number(selectedAno) });
+          for (const sec of seccionesList) {
+            pares.push({
+              colegioId: col.id, colegioNombre: col.nombre,
+              gradoId: grado.id!, gradoNombre: grado.nombre,
+              seccionId: sec.id!, seccionNombre: sec.nombre,
+            });
+          }
+        }
+      }
+      if (pares.length === 0) {
+        await emit("show-toast", { message: t('inf.export.sinGrados'), type: 'warning' });
+        exportandoMasivo = false;
+        return;
+      }
+
+      const configCache = new Map<number, ColegioDiasAsistencia | null>();
+      const tablas: TablaAsistenciaPdf[] = [];
+
+      for (let i = 0; i < pares.length; i++) {
+        const p = pares[i];
+        progresoMasivo = t('inf.export.progreso', { p: `${i + 1}/${pares.length}`, s: `${p.gradoNombre} - ${p.seccionNombre}` });
+
+        if (!configCache.has(p.colegioId)) {
+          try { configCache.set(p.colegioId, await invoke<ColegioDiasAsistencia>("get_colegio_dias_asistencia", { colegioId: p.colegioId })); }
+          catch { configCache.set(p.colegioId, null); }
+        }
+        const cfg = configCache.get(p.colegioId) || null;
+        const sinClases: DiaSinClase[] = await invoke<DiaSinClase[]>("get_dias_sin_clases", {
+          colegioId: p.colegioId, gradoId: p.gradoId, seccionId: p.seccionId, fechaInicio, fechaFin,
+        }).catch(() => [] as DiaSinClase[]);
+
+        const filas: AsistenciaReporteItem[] = await invoke("get_asistencia_rango", {
+          fechaInicio, fechaFin, anoLectivoId: Number(selectedAno),
+          colegioId: p.colegioId, gradoId: p.gradoId, seccionId: p.seccionId,
+        });
+        const conSexo = selectedSexo ? filas.filter(e => e.sexo === selectedSexo) : filas;
+        if (conSexo.length === 0) continue;
+
+        const notaSinClases = sinClases
+          .filter(d => d.fecha >= fechaInicio && d.fecha <= fechaFin)
+          .map(d => `${fmtDM(d.fecha)} (${d.descripcion})`).join(', ');
+
+        const fechasCols = columnasDePeriodo(cfg, sinClases);
+        tablas.push({
+          titulo: `${p.gradoNombre} - Sección ${p.seccionNombre}`,
+          subtitulo: `${p.colegioNombre} · Año lectivo ${anoNombre}`,
+          layout: 'fechas',
+          headers: ["Estudiante", "Sexo", ...fechasCols.map(f => f.split('-').slice(1).reverse().join('/')), "P", "A", "J"],
+          body: conSexo.map(est => {
+            const estados = fechasCols.map(f => estadoDelReporte(est, f));
+            const cuenta = (e: string) => estados.filter(x => x === e).length;
+            return [est.nombre, est.sexo, ...estados, cuenta('P'), cuenta('A'), cuenta('J')];
+          }),
+          nota: notaSinClases || undefined,
+          chip: `Sección: ${p.gradoNombre} - ${p.seccionNombre}`,
+        });
+      }
+
+      if (tablas.length === 0) {
+        await emit("show-toast", { message: t('inf.export.sinEstudiantes'), type: 'warning' });
+        exportandoMasivo = false;
+        return;
+      }
+
+      progresoMasivo = t('inf.export.generandoPdf');
+      const sanitize = (s: string) => s.replace(/[<>:"/\\|?*]/g, '_');
+
+      const lineas = [`Período ${encabezadoPeriodo}`];
+      if (selectedSexo) lineas.push(`Sexo: ${selectedSexo === 'M' ? 'Masculino' : 'Femenino'}`);
+
+      const bytes = await generarPdfAsistencia(
+        { titulo: 'Reporte de Asistencia', lineas },
+        tablas
+      );
+
+      const docsPath = await documentDir();
+      const folderName = "School Tracker";
+      const subfolder = `${sanitize(anoNombre)} - Asistencia ${sanitize(periodoEtiqueta)}`;
+      const baseDir = unirRuta(docsPath, folderName, subfolder);
+      await mkdir(baseDir, { recursive: true }).catch(e => console.log("mkdir:", e));
+
+      const fileName = `Asistencia ${sanitize(periodoEtiqueta)} ${sanitize(anoNombre)}.pdf`;
+      const filePath = unirRuta(baseDir, fileName);
+      await writeFile(filePath, bytes);
+
+      exportandoMasivo = false;
+      const destino = isAndroid ? "Descargas/School Tracker" : "Documents/School Tracker";
+      if (isAndroid) {
+        const ruta = await invoke<string>('guardar_en_descargas', {
+          path: filePath, mime: 'application/pdf', carpeta: `${folderName}/${subfolder}`, nombre: fileName,
+        }).catch(() => "");
+        if (ruta) {
+          try { await invoke('share_pdf', { path: ruta }); } catch { }
+          await emit("show-toast", { message: t('inf.export.hojas', { n: tablas.length, destino: `${destino}/${subfolder}` }), type: 'success' });
+        } else {
+          await emit("show-toast", { message: t('inf.export.sinDescargas'), type: 'warning' });
+        }
+      } else {
+        await openUrl(aFileURL(baseDir));
+        await emit("show-toast", { message: t('inf.export.hojas', { n: tablas.length, destino: `${destino}/${subfolder}` }), type: 'success' });
+      }
+    } catch (error) {
+      console.error("Error al exportar PDF de asistencia:", error);
+      exportandoMasivo = false;
+      await emit("show-toast", { message: t('inf.error.pdf', { msg: error instanceof Error ? error.message : String(error) }), type: 'error' });
+    }
+  }
+
+  /** Vista previa de impresión: una tabla HTML con las mismas filas de la grilla. */
+  async function handlePrintWithIframe() {
+    if (filteredEstudiantesMulti.length === 0) {
+      await emit("show-toast", { message: t('inf.print.sinDatos'), type: 'warning' });
+      return;
+    }
+    try {
+      await emit("show-toast", { message: t('inf.print.preparando'), type: 'success' });
+      const anoNombrePrint = anos.find(a => a.id === selectedAno)?.nombre || String(selectedAno);
+      const fechasCols = fechasColumnas;
+      const headers = ["Estudiante", "Sexo", ...fechasCols.map(f => f.split('-').slice(1).reverse().join('/')), "P", "A", "J"];
+      const rows = filteredEstudiantesMulti.map(est => {
+        const p = fechasCols.filter(f => estadoEnFecha(est, f) === 'P').length;
+        const a = fechasCols.filter(f => estadoEnFecha(est, f) === 'A').length;
+        const j = fechasCols.filter(f => estadoEnFecha(est, f) === 'J').length;
+        return `<tr><td class="nombre">${est.nombre}</td><td>${est.sexo}</td>${fechasCols.map(f => {
+          const estado = estadoEnFecha(est, f);
+          const cls = estado === 'P' ? 'estado-P' : estado === 'A' ? 'estado-A' : estado === 'J' ? 'estado-J' : '';
+          return `<td class="${cls}">${estado}</td>`;
+        }).join('')}<td class="estado-P">${p}</td><td class="estado-A">${a}</td><td class="estado-J">${j}</td></tr>`;
+      }).join('');
+      printHtml = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+        body{font-family:Helvetica,Arial,sans-serif;padding:12px;color:#111827}
+        .cab{display:flex;gap:7px;align-items:flex-start;margin-bottom:5px}
+        .barra{width:4px;align-self:stretch;min-height:26px;background:#10b981;border-radius:2px}
+        .titulo{font-size:18px;font-weight:700;color:#111827;line-height:1.15}
+        .subtitulo{font-size:11px;color:#4b5563;font-weight:600;margin-top:2px}
+        .chips{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 8px}
+        .chip{background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;border-radius:5px;padding:3px 8px;font-size:9.5px;font-weight:600;white-space:nowrap}
+        .chip-neutro{background:#f9fafb;border-color:#d1d5db;color:#374151}
+        .chip-alerta{background:#fffbeb;border-color:#fcd34d;color:#92400e}
+        table{border-collapse:collapse;width:100%;font-size:8.5px;table-layout:auto}
+        thead{display:table-header-group}
+        th,td{border:1.4px solid #111827;padding:3px 4px;text-align:center;line-height:1.15}
+        th{background:#d1fae5;color:#064e3b;font-weight:700;white-space:nowrap}
+        th:first-child{text-align:left}
+        td.nombre{color:#000;font-weight:700;text-align:left;white-space:nowrap}
+        tbody tr:nth-child(even){background:#f7fdfa}
+        .estado-P{color:#047857;font-weight:700}
+        .estado-A{color:#b91c1c;font-weight:700}
+        .estado-J{color:#a16207;font-weight:700}
+        @page{size:letter landscape;margin:8mm}
+        @media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+        th{background:#d1fae5!important}tbody tr:nth-child(even){background:#f7fdfa!important}
+        .estado-P{color:#047857!important}.estado-A{color:#b91c1c!important}.estado-J{color:#a16207!important}
+        tr{page-break-inside:avoid}}
+      </style></head><body>
+        <div class="cab">
+          <div class="barra"></div>
+          <div>
+            <div class="titulo">${gradoNombre} - Sección ${seccionNombre}</div>
+            <div class="subtitulo">${colegioNombre} · Año lectivo ${anoNombrePrint}</div>
+          </div>
+        </div>
+        <div class="chips">
+          <span class="chip">Reporte de Asistencia</span>
+          <span class="chip">Período ${encabezadoPeriodo}</span>
+          <span class="chip chip-neutro">Sección: ${gradoNombre} - ${seccionNombre}</span>
+          ${selectedSexo ? `<span class="chip chip-neutro">Sexo: ${selectedSexo === 'M' ? 'Masculino' : 'Femenino'}</span>` : ''}
+          ${diasSinClasesNota ? `<span class="chip chip-alerta">${diasSinClasesNota}</span>` : ''}
+        </div>
+        <table><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
+      </body></html>`;
+    } catch (error) {
+      console.error("Error generando reporte:", error);
+      await emit("show-toast", { message: t('inf.error.reporteGen'), type: 'error' });
+    }
+  }
 </script>
 
 
 <div class="page-container" style="height:100%;min-height:0">
-  {#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder="Buscar..." />{/if}
+  {#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder={t('asis.filtro.buscar')} />{/if}
   <style>
     .summary-card{background:rgba(255,255,255,0.02);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:0.5rem 0.25rem;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:60px;min-width:0;transition:all 0.25s cubic-bezier(0.4,0,0.2,1);user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;position:relative;overflow:hidden;cursor:pointer}
     .summary-card:hover{transform:translateY(-2px);border-color:rgba(255,255,255,0.12);background:rgba(255,255,255,0.04)}
@@ -2094,7 +2509,7 @@ $effect(() => {
       <FilterContainer {isMobile} style="padding:{isAndroidMobile ? '0.5rem' : '0.4rem'}">
         <div style="display:flex;{isAndroidMobile ? 'flex-wrap:wrap' : 'flex-wrap:nowrap'};gap:0.4rem;width:100%;align-items:flex-end">
           {#if !isAndroidMobile && showAnoDropdown}
-            <FilterGroup label="Año Lectivo:" {isMobile}>
+            <FilterGroup label={t('asis.filtro.ano')} {isMobile}>
               <SelectChip
                 value={selectedAno}
                 onchange={(v) => handleFilterChange((n: number) => selectedAno = n, Number(v))}
@@ -2102,44 +2517,44 @@ $effect(() => {
             </FilterGroup>
           {/if}
           {#if !isAndroidMobile}
-            <FilterGroup label="Período:" {isMobile}>
+            <FilterGroup label={t('asis.filtro.periodo')} {isMobile}>
               <SelectChip
-                value={periodo}
+                value={periodoEfectivo}
                 onchange={(v) => { periodo = String(v) as typeof periodo; }}
                 options={[
-                  ...(!esEscritorio ? [{ value: 'diario', label: 'Diario' }] : []),
-                  { value: 'semanal', label: 'Semanal' },
-                  { value: 'mensual', label: 'Mensual' },
+                  ...(!esEscritorio ? [{ value: 'diario', label: t('asis.periodo.diario') }] : []),
+                  { value: 'semanal', label: t('asis.periodo.semanal') },
+                  { value: 'mensual', label: t('asis.periodo.mensual') },
                 ]} />
             </FilterGroup>
           {/if}
-          {#if periodo === "diario"}
+          {#if periodoEfectivo === "diario"}
             {#if !isAndroidMobile}
-              <FilterGroup label="Fecha:" {isMobile}>
+              <FilterGroup label={t('asis.filtro.fecha')} {isMobile}>
                 <DatePickerGlass bind:value={selectedFecha} diaHabilitado={esDiaHabilCalendario} />
               </FilterGroup>
             {/if}
-          {:else if periodo === "semanal"}
+          {:else if periodoEfectivo === "semanal"}
             {#if !isAndroidMobile}
-              <FilterGroup label="Mes:" {isMobile}>
+              <FilterGroup label={t('asis.periodo.mes')} {isMobile}>
                 <SelectChip
                   value={mesSeleccionado}
                   onchange={(v) => elegirMesSemanal(Number(v))}
                   options={mesesOptions.map(m => ({ value: m.value, label: m.label }))} />
               </FilterGroup>
-              <FilterGroup label="Semana de:" {isMobile}>
+              <FilterGroup label={t('asis.periodo.semanaDe')} {isMobile}>
                 <div class="pop-wrap" bind:this={popRootEl} style="min-width:0">
                   <button type="button" class="filter-select pop-trigger" onclick={() => popSemanaAbierta = !popSemanaAbierta} style="min-width:0">
-                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Semana {semanaActiva} · {semanasOpts.find(s => s.n === semanaActiva)?.rango ?? ''}</span>
+                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{t('asis.sinClases.semanaN', { n: semanaActiva })} · {semanasOpts.find(s => s.n === semanaActiva)?.rango ?? ''}</span>
                     <span class="pop-caret">▾</span>
                   </button>
 
                   {#if popSemanaAbierta}
                     <div class="pop-panel" tabindex="-1">
                       <div class="pop-mes">
-                        <button class="pop-nav" onclick={() => cambiarMesSem(-1)} title="Mes anterior">‹</button>
+                        <button class="pop-nav" onclick={() => cambiarMesSem(-1)} title={t('inf.sem.mesAnterior')}>‹</button>
                         <span class="pop-mes-txt">{nombreMesSel} {anoSeleccionado}</span>
-                        <button class="pop-nav" onclick={() => cambiarMesSem(1)} title="Mes siguiente">›</button>
+                        <button class="pop-nav" onclick={() => cambiarMesSem(1)} title={t('inf.sem.mesSiguiente')}>›</button>
                       </div>
 
                       <div class="pop-sems">
@@ -2150,7 +2565,7 @@ $effect(() => {
                             class:sel={semanaActiva === s.n}
                             onclick={() => elegirSemana(s)}
                           >
-                            <span class="pop-sem-n">Semana {s.n}</span>
+                            <span class="pop-sem-n">{t('asis.sinClases.semanaN', { n: s.n })}</span>
                             <span class="pop-sem-rango">{s.rango}</span>
                           </button>
                         {/each}
@@ -2162,7 +2577,7 @@ $effect(() => {
             {/if}
           {:else}
             {#if !isAndroidMobile}
-              <FilterGroup label="Mes:" {isMobile}>
+              <FilterGroup label={t('asis.periodo.mes')} {isMobile}>
                 <SelectChip
                   value={mesSeleccionado}
                   onchange={(v) => { mesSeleccionado = Number(v); }}
@@ -2172,29 +2587,29 @@ $effect(() => {
           {/if}
           {#if isAndroidMobile}
             <div style="width:100%;padding:0.1rem 0 0.3rem;">
-              <SearchFab bind:value={searchTerm} placeholder="Buscar..." conMargen={false} />
+              <SearchFab bind:value={searchTerm} placeholder={t('asis.filtro.buscar')} conMargen={false} />
             </div>
-            <button onclick={() => showFiltersModal = true} title="Filtros (Período · Año · Colegio · Grado · Sección · Sexo · Semana/Mes)"
+            <button onclick={() => showFiltersModal = true} title={t('inf.filtrosTitle')}
               style="width:100%;height:42px;padding:0 0.9rem;font-size:0.85rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#e2e8f0;border-radius:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all 0.15s;white-space:nowrap;margin-bottom:0.3rem"
               onmouseenter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.08)'; }}
               onmouseleave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}>
               <span>🔍</span>
-              <span style="overflow:hidden;text-overflow:ellipsis;">{(colegios.find(c => c.id === selectedColegio)?.nombre)?.split(' ')[0] || 'Colegio'} · {grados.find(g => g.id === selectedGrado)?.nombre || 'Grado'} · {secciones.find(s => s.id === selectedSeccion)?.nombre || 'Sección'}</span>
+              <span style="overflow:hidden;text-overflow:ellipsis;">{(colegios.find(c => c.id === selectedColegio)?.nombre)?.split(' ')[0] || t('inf.fallback.colegio')} · {grados.find(g => g.id === selectedGrado)?.nombre || t('inf.fallback.grado')} · {secciones.find(s => s.id === selectedSeccion)?.nombre || t('inf.fallback.seccion')}</span>
             </button>
           {:else}
-            <FilterGroup label="Colegio:" {isMobile}>
+            <FilterGroup label={t('inf.filtro.colegio')} {isMobile}>
               <SelectChip
                 value={selectedColegio}
                 onchange={(v) => handleFilterChange((n: number) => selectedColegio = n, Number(v))}
                 options={colegios.map(c => ({ value: c.id, label: c.nombre }))} />
             </FilterGroup>
-            <FilterGroup label="Grado:" {isMobile}>
+            <FilterGroup label={t('inf.filtro.grado')} {isMobile}>
               <SelectChip
                 value={selectedGrado}
                 onchange={(v) => handleFilterChange((n: number) => selectedGrado = n, Number(v))}
                 options={grados.map(g => ({ value: g.id, label: g.nombre }))} />
             </FilterGroup>
-            <FilterGroup label="Sección:" {isMobile}>
+            <FilterGroup label={t('inf.filtro.seccion')} {isMobile}>
               <SelectChip
                 value={selectedSeccion}
                 onchange={(v) => handleFilterChange((n: number) => selectedSeccion = n, Number(v))}
@@ -2211,8 +2626,43 @@ $effect(() => {
                 ]} />
             </FilterGroup>
           {/if}
+          {#if enInforme}
+            <!-- Informe: las acciones son de LECTURA (imprimir / exportar). En
+                 Tomar asistencia la misma tira lleva Sin Clases, Limpiar,
+                 Rellenar y Guardar; un solo componente para no mantener dos
+                 barras de acciones iguales. -->
+            <div style="display:flex;gap:0.3rem;align-items:stretch;flex-shrink:0;{isAndroidMobile ? 'width:100%;flex-wrap:wrap' : ''}">
+              {#if !isAndroidMobile}
+                <button onclick={handlePrintWithIframe} disabled={filteredEstudiantesMulti.length === 0 || loading}
+                  style="height:42px;padding:0 1.25rem;font-size:0.85rem;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;flex-shrink:0;gap:6px;border:none;border-radius:8px;color:#fff;font-weight:700;cursor:{filteredEstudiantesMulti.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(16,185,129,0.4);letter-spacing:0.3px;white-space:nowrap;opacity:{filteredEstudiantesMulti.length === 0 || loading ? 0.7 : 1}"
+                  title={isMobile ? t('inf.btn.compartirReporte') : t('inf.btn.imprimirReporte')}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                  {t('inf.btn.imprimir')}
+                </button>
+              {/if}
+              <button onclick={exportarPdfAsistencia} disabled={exportandoMasivo || !selectedAno}
+                title={t('inf.btn.exportarTitle')}
+                style="height:42px;padding:0 {isMobile ? '0.55rem' : '0.95rem'};display:flex;align-items:center;gap:0.5rem;flex-shrink:0;border:1px solid rgba(129,140,248,0.5);border-radius:10px;background:linear-gradient(135deg,rgba(99,102,241,0.28),rgba(56,189,248,0.22));backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:#e0e7ff;font-weight:700;font-size:{isMobile ? '0.78rem' : '0.8rem'};cursor:{exportandoMasivo || !selectedAno ? 'default' : 'pointer'};box-shadow:0 6px 18px rgba(79,70,229,0.28);white-space:nowrap;opacity:{exportandoMasivo || !selectedAno ? 0.65 : 1};transition:transform 0.15s ease,box-shadow 0.2s ease,background 0.2s ease"
+                onmouseenter={(e) => { if (!exportandoMasivo) e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                onmouseleave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                onmousedown={(e) => e.currentTarget.style.transform = 'translateY(1px)'}
+                onmouseup={(e) => e.currentTarget.style.transform = 'translateY(-1px)'}>
+                <span style="display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:rgba(99,102,241,0.45);color:#c7d2fe;flex-shrink:0">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                </span>
+                {#if isMobile}
+                  <span>{exportandoMasivo ? progresoMasivo : 'PDF'}</span>
+                {:else}
+                  <span style="display:flex;flex-direction:column;align-items:flex-start;line-height:1.15;gap:1px;min-width:0">
+                    <span>{exportandoMasivo ? progresoMasivo : t('inf.btn.exportarTodo')}</span>
+                    <span style="font-size:0.6rem;font-weight:600;color:#a5b4fc;letter-spacing:0.2px;max-width:150px;overflow:hidden;text-overflow:ellipsis">{exportandoMasivo ? t('inf.btn.generandoPdf') : resumenPeriodo}</span>
+                  </span>
+                {/if}
+              </button>
+            </div>
+          {:else}
           <div class="android-actions" style="display:flex;gap:{isAndroidMobile ? '2px' : '0.3rem'};align-items:stretch;flex-shrink:0;{isAndroidMobile ? 'flex-wrap:nowrap;min-width:0;width:100%;max-width:100%;-webkit-overflow-scrolling:touch;' : 'overflow:visible'}overflow-x:{isAndroidMobile && dpAbierto ? 'visible' : isAndroidMobile ? 'auto' : 'visible'}">
-          {#if isAndroidMobile && periodo === "diario"}
+          {#if isAndroidMobile && periodoEfectivo === "diario"}
             <!-- Más ancho que antes: con 130px la fecha "dd/mm/aaaa" no entraba y el
                  año quedaba con puntos suspensivos. La fila es nowrap con scroll
                  horizontal, así que ensanchar no empuja a los demás de la vista. -->
@@ -2230,8 +2680,8 @@ $effect(() => {
               icono: sinClasesActivo ? '🏫' : '🚫',
               etiqueta: t('asis.sinClases.chip'),
               tono: sinClasesActivo ? 'ambar' : 'pizarra',
-              sub: sinClasesActivo ? t('asis.sinClases.todoPeriodo') : (periodo === 'mensual' ? t('asis.sinClases.elegirSemana') : periodo === 'semanal' ? t('asis.sinClases.semanaN', { n: semanaActiva }) : fmtDM(selectedFecha)),
-              title: periodo === 'mensual' ? t('asis.sinClases.descSemana') : t('asis.sinClases.descPeriodo'),
+              sub: sinClasesActivo ? t('asis.sinClases.todoPeriodo') : (periodoEfectivo === 'mensual' ? t('asis.sinClases.elegirSemana') : periodoEfectivo === 'semanal' ? t('asis.sinClases.semanaN', { n: semanaActiva }) : fmtDM(selectedFecha)),
+              title: periodoEfectivo === 'mensual' ? t('asis.sinClases.descSemana') : t('asis.sinClases.descPeriodo'),
               compacto: isAndroidMobile,
             }} />
           </div>
@@ -2241,10 +2691,10 @@ $effect(() => {
               <div bind:this={popModalSinClasesEl} class="pop-panel" tabindex="-1"
                 style="position:relative;top:auto;left:auto;right:auto;bottom:auto;width:{modalCardWidth};max-width:{modalCardWidth};max-height:85vh;overflow-y:auto;{isAndroidMobile ? '' : 'box-shadow:0 25px 60px -12px rgba(0,0,0,0.7);'}">
                 <button type="button" onclick={cerrarPopSinClases} title={t('comun.cerrar')} style="position:absolute;top:.6rem;right:.6rem;width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#cbd5e1;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1">✕</button>
-                <div class="pop-mes"><span class="pop-mes-txt">{colFechaObjetivo ? t('asis.sinClases.marcarFecha', { fecha: fmtDM(colFechaObjetivo) }) : periodo === 'mensual' ? t('asis.sinClases.tituloSemana') : t('asis.sinClases.motivo')}</span></div>
+                <div class="pop-mes"><span class="pop-mes-txt">{colFechaObjetivo ? t('asis.sinClases.marcarFecha', { fecha: fmtDM(colFechaObjetivo) }) : periodoEfectivo === 'mensual' ? t('asis.sinClases.tituloSemana') : t('asis.sinClases.motivo')}</span></div>
                 {#if colFechaObjetivo}
                   <div style="font-size:.65rem;color:#94a3b8;margin:-.3rem 0 .5rem">{t('asis.ausencia.soloEstaFecha')}</div>
-                {:else if periodo === 'mensual'}
+                {:else if periodoEfectivo === 'mensual'}
                   <div style="font-size:.65rem;color:#94a3b8;margin:-.3rem 0 .4rem">{t('asis.ausencia.hintSemana')}</div>
                   <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:.55rem">
                     {#each semanasMes as s (s.numero)}
@@ -2266,7 +2716,7 @@ $effect(() => {
                   bind:value={sinClasesDescripcion}
                   onkeydown={(e) => { if (e.key === 'Enter' && sinClasesDescripcion.trim()) activarSinClases(false); }} />
                 <div style="display:flex;flex-direction:column;gap:3px;margin-top:.55rem">
-                  {#if periodo === 'mensual' && semanaSeleccionada && semanaSinClasesTotal(semanasMes.find(w => w.numero === semanaSeleccionada)!)}
+                  {#if periodoEfectivo === 'mensual' && semanaSeleccionada && semanaSinClasesTotal(semanasMes.find(w => w.numero === semanaSeleccionada)!)}
                     <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #10b981" disabled={sinClasesGuardando}
                       onclick={() => { const s = semanasMes.find(w => w.numero === semanaSeleccionada); if (s) { cerrarPopSinClases(); desactivarSinClases(s.fechas); } }}>
                       ♻️ {t('asis.sinClases.reactivarSemana', { n: semanaSeleccionada })}
@@ -2275,7 +2725,7 @@ $effect(() => {
                       onclick={desactivarSinClasesTodosColegios}>
                       ♻️ {t('asis.sinClases.reactivarTodos')}
                     </button>
-                  {:else if periodo !== 'mensual' && sinClasesActivo}
+                  {:else if periodoEfectivo !== 'mensual' && sinClasesActivo}
                     <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #10b981" disabled={sinClasesGuardando}
                       onclick={desactivarSinClasesTodosColegios}>
                       ♻️ {t('asis.sinClases.reactivarTodos')}
@@ -2285,17 +2735,17 @@ $effect(() => {
                        tamaño de lo que tocan: la sección es la más suave y la que
                        abarca todos los colegios la más llamativa, que es justo el
                        aviso de "esto toca todo". -->
-                  <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #f472b6;background:linear-gradient(135deg,rgba(244,114,182,.20),rgba(236,113,182,.10));color:#fbcfe8" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || (periodo === 'mensual' && !semanaSeleccionada)}
+                  <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #f472b6;background:linear-gradient(135deg,rgba(244,114,182,.20),rgba(236,113,182,.10));color:#fbcfe8" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || (periodoEfectivo === 'mensual' && !semanaSeleccionada)}
                     onclick={() => activarSinClases(false)}
                     title={t('asis.sinClases.tituloSeccion', { seccion: secciones.find(s => s.id === selectedSeccion)?.nombre || t('asis.limpiar.alcanceSeccion'), grado: grados.find(g => g.id === selectedGrado)?.nombre || t('asis.limpiar.alcanceGrado') })}>
                     {t('asis.sinClases.marcarSeccion')}
                   </button>
-                  <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #34d399;background:linear-gradient(135deg,rgba(52,211,153,.20),rgba(16,185,129,.10));color:#a7f3d0" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || (periodo === 'mensual' && !semanaSeleccionada)}
+                  <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #34d399;background:linear-gradient(135deg,rgba(52,211,153,.20),rgba(16,185,129,.10));color:#a7f3d0" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || (periodoEfectivo === 'mensual' && !semanaSeleccionada)}
                     onclick={() => activarSinClases(true)}
                     title={t('asis.sinClases.tituloColegio', { colegio: colegios.find(c => c.id === selectedColegio)?.nombre || t('asis.limpiar.alcanceColegio') })}>
                     {t('asis.sinClases.marcarColegio')}
                   </button>
-                  <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #fbbf24;background:linear-gradient(135deg,rgba(251,191,36,.22),rgba(245,158,11,.10));color:#fde68a" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || (periodo === 'mensual' && !semanaSeleccionada)}
+                  <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #fbbf24;background:linear-gradient(135deg,rgba(251,191,36,.22),rgba(245,158,11,.10));color:#fde68a" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || (periodoEfectivo === 'mensual' && !semanaSeleccionada)}
                     onclick={activarSinClasesTodosColegios}
                     title={t('asis.sinClases.tituloTodos', { n: colegios.length })}>
                     {t('asis.sinClases.marcarTodos')}
@@ -2343,11 +2793,12 @@ $effect(() => {
           </div>
           {/if}
           </div>
+          {/if}
         </div>
       </FilterContainer>
     {/snippet}
 
-    {#if periodo === "diario"}
+    {#if periodoEfectivo === "diario"}
       {#if isAndroidMobile && filteredEstudiantes.length > 0}
         <div style="margin-top:0;margin-left:-0.4rem;margin-right:-0.4rem;padding:0.5rem 0.4rem 0.2rem;width:calc(100%+0.8rem);border-top:1px solid rgba(255,255,255,0.1);display:flex;gap:0.5rem;align-items:stretch">
           <div style="display:flex;align-items:center;justify-content:center;gap:0.8rem;background:rgba(255,255,255,0.05);border-radius:8px;padding:0 0.6rem;flex:0 0 auto">
@@ -2417,7 +2868,7 @@ $effect(() => {
       <ScrollableTable>
         {#if loading}
           <div class="loading-state">{t('asis.cargando')}</div>
-        {:else if !isFechaHabilitada && periodo === 'diario' && esDiaSinClases(selectedFecha)}
+        {:else if !isFechaHabilitada && periodoEfectivo === 'diario' && esDiaSinClases(selectedFecha)}
           {@const cov = coberturaSinClases(selectedFecha)}
           <div class="dsc-banner">
             <div class="dsc-icon">🚫</div>
@@ -2525,7 +2976,7 @@ $effect(() => {
             </div>
             {#each ['P', 'A', 'J'] as estado}
               {@const st = getMultiStats(estado)}
-              <div onclick={() => handleCardClick(estado === 'P' ? 'Presentes' : estado === 'A' ? 'Ausentes' : 'Justificados', st)}
+              <div onclick={() => handleCardClick(estado === 'P' ? t('asis.stats.presentes') : estado === 'A' ? t('asis.stats.ausentes') : t('asis.stats.justificados'), st)}
                 style="display:flex;align-items:center;gap:2px;cursor:pointer;position:relative">
                 <span style="color:{estado === 'P' ? '#10b981' : estado === 'A' ? '#ef4444' : '#f59e0b'};font-weight:bold;font-size:0.8rem">{estado}:</span>
                 <span style="color:#fff;font-weight:bold;font-size:0.9rem">{st.total}</span>
@@ -2549,12 +3000,12 @@ $effect(() => {
           </div>
           {#each ['P', 'A', 'J'] as estado}
             {@const st = getMultiStats(estado)}
-            <div class="summary-card" onclick={() => handleCardClick(estado === 'P' ? 'Presentes' : estado === 'A' ? 'Ausentes' : 'Justificados', st)}
+            <div class="summary-card" onclick={() => handleCardClick(estado === 'P' ? t('asis.stats.presentes') : estado === 'A' ? t('asis.stats.ausentes') : t('asis.stats.justificados'), st)}
               style="cursor:pointer;user-select:none">
               <div class="card-accent" style="background:{estado === 'P' ? '#10b981' : estado === 'A' ? '#ef4444' : '#f59e0b'}"></div>
               <span class="card-icon">{estado === 'P' ? '✅' : estado === 'A' ? '❌' : '⚠️'}</span>
               <span class="card-value">{st.total}</span>
-              <span class="card-label">{estado === 'P' ? 'Presentes' : estado === 'A' ? 'Ausentes' : 'Justificados'}</span>
+              <span class="card-label">{estado === 'P' ? t('asis.stats.presentes') : estado === 'A' ? t('asis.stats.ausentes') : t('asis.stats.justificados')}</span>
               <div class="card-gender"><span class="gender-m">M:{st.m}</span><span class="gender-f">F:{st.f}</span></div>
             </div>
           {/each}
@@ -2582,7 +3033,7 @@ $effect(() => {
               <p style="color:#94a3b8;max-width:400px;margin:0 auto">{searchTerm ? t('asis.vacio.busqueda', { q: searchTerm }) : t('asis.vacio.desc')}</p>
               {#if searchTerm}<button class="secondary" onclick={() => searchTerm = ""} style="margin-top:1.5rem;padding:0.5rem 1rem">{t('asis.limpiarBusqueda')}</button>{/if}
             </div>
-          {:else if isAndroidMobile && periodo === "semanal"}
+          {:else if isAndroidMobile && periodoEfectivo === "semanal"}
           <div style="display:flex;flex-direction:column;gap:0.5rem;padding:0.4rem 0">
             {#each filteredEstudiantesMulti as est, index (est.id)}
               <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:0.5rem 0.6rem">
@@ -2599,20 +3050,24 @@ $effect(() => {
                     {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
                     <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;min-width:68px">
                       <span style="font-size:0.55rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.2px;white-space:nowrap">{dayName}</span>
-                      <div class="semanal-status" style="font-size:0.6rem;padding:0.15rem 0.3rem" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
-                        onclick={() => cicloEstado(est.id, fecha)}>
+                      <div class="semanal-status" style="font-size:0.6rem;padding:0.15rem 0.3rem;{enInforme ? 'cursor:default' : ''}" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
+                        onclick={enInforme ? undefined : () => cicloEstado(est.id, fecha)}>
                         {effectiveEstado === 'P' ? 'Pres' : effectiveEstado === 'A' ? 'Aus' : effectiveEstado === 'J' ? 'Just' : '—'}
                       </div>
-                      <input type="text" placeholder="..." class="semanal-obs" style="width:100%;padding:0.1rem 0.25rem;font-size:0.5rem"
-                        value={getObsMulti(est.id, fecha)}
-                        oninput={(e) => handleObservacionChangeMulti(est.id, fecha, (e.target as HTMLInputElement).value)} />
+                      {#if enInforme}
+                        <div class="semanal-obs solo-lectura" style="font-size:0.5rem">{obsEnFecha(est, fecha)}</div>
+                      {:else}
+                        <input type="text" placeholder="..." class="semanal-obs" style="width:100%;padding:0.1rem 0.25rem;font-size:0.5rem"
+                          value={getObsMulti(est.id, fecha)}
+                          oninput={(e) => handleObservacionChangeMulti(est.id, fecha, (e.target as HTMLInputElement).value)} />
+                      {/if}
                     </div>
                   {/each}
                 </div>
               </div>
             {/each}
           </div>
-        {:else if isAndroidMobile && periodo === "mensual"}
+        {:else if isAndroidMobile && periodoEfectivo === "mensual"}
           <div style="display:flex;flex-direction:column;gap:0.5rem;padding:0.4rem 0">
             {#each filteredEstudiantesMulti as est, index (est.id)}
               <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:0.5rem 0.6rem">
@@ -2627,7 +3082,8 @@ $effect(() => {
                     {@const draftD = draftMulti[est.id]?.[fecha]}
                     {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
                     <div class="mensual-chip" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
-                      onclick={() => cicloEstado(est.id, fecha)}
+                      onclick={enInforme ? undefined : () => cicloEstado(est.id, fecha)}
+                      style={enInforme ? 'cursor:default' : ''}
                       title={fmtFecha(fecha, { day: 'numeric', month: 'short' })}>
                       {new Date(fecha + "T12:00:00").getDate()}
                     </div>
@@ -2636,16 +3092,16 @@ $effect(() => {
               </div>
             {/each}
           </div>
-        {:else if periodo === "semanal"}
+        {:else if periodoEfectivo === "semanal"}
           <table class="custom-table" style="width:100%;margin:0;overflow:visible">
             <thead><tr>
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
               <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;min-width:200px">{t('asis.col.estudiante')}</th>
               {#each fechasVisibles as fv (fv.fecha)}
-                <th class:dsc-th={fv.sinClases} class:fch-th={true}
+                <th class:dsc-th={fv.sinClases} class:fch-th={!enInforme}
                   style="min-width:105px;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;font-size:0.7rem;font-weight:600;padding:0.3rem 0.15rem"
-                  title={fv.sinClases ? `${motivoSinClasesEn(fv.fecha)} — Click para reactivar clases` : 'Click para marcar este día sin clases'}
-                  onclick={() => clickHeaderFecha(fv.fecha)}>
+                  title={enInforme ? (fv.sinClases ? motivoSinClasesEn(fv.fecha) : '') : (fv.sinClases ? `${motivoSinClasesEn(fv.fecha)} — Click para reactivar clases` : 'Click para marcar este día sin clases')}
+                  onclick={enInforme ? undefined : () => clickHeaderFecha(fv.fecha)}>
                   {fv.sinClases ? '🚫 ' : ''}{fmtFecha(fv.fecha, { weekday: 'short', day: 'numeric' }).replace('.','').replace(',','')}
                 </th>
               {/each}
@@ -2656,7 +3112,7 @@ $effect(() => {
                   <td><span class="student-number-badge">{index + 1}</span></td>
                   <td style="text-align:left">
                     <span style="font-weight:bold;font-size:0.85rem;cursor:pointer;white-space:normal;word-break:break-word;line-height:1.25" onclick={() => selectedStudentDetail = est as any}>{est.nombre}</span>
-                    <div style="font-size:0.65rem;opacity:0.6">{est.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
+                    <div style="font-size:0.65rem;opacity:0.6">{est.sexo === 'F' ? t('asis.filtros.femenino') : t('asis.filtros.masculino')}</div>
                   </td>
                   {#each fechasVisibles as fv (fv.fecha)}
                     {#if fv.sinClases}
@@ -2671,12 +3127,21 @@ $effect(() => {
                       {@const draftD = draftMulti[est.id]?.[fv.fecha]}
                       {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
                       <td style="text-align:center;padding:0.15rem;min-width:105px">
-                        {#if esEscritorio}
+                        {#if enInforme}
+                          <div class="semanal-status" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
+                            style="cursor:default"
+                            title={t('inf.tabla.observacion', { x: obsEnFecha(est, fv.fecha) || t('inf.tabla.sinRegistro') })}>
+                            {etiquetaEstado(effectiveEstado)}
+                          </div>
+                          {#if obsEnFecha(est, fv.fecha)}
+                            <div class="semanal-obs solo-lectura" title={t('inf.tabla.observacion', { x: obsEnFecha(est, fv.fecha) })}>{obsEnFecha(est, fv.fecha)}</div>
+                          {/if}
+                        {:else if esEscritorio}
                           <div class="celda-estado">
                             <div class="semanal-status" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
                               onclick={() => cicloEstado(est.id, fv.fecha)}
                               title="Clic para rotar · pasa el cursor sobre la observación para elegir el estado">
-                              {effectiveEstado === 'P' ? 'Presente' : effectiveEstado === 'A' ? 'Ausente' : effectiveEstado === 'J' ? 'Justificado' : '—'}
+                              {etiquetaEstado(effectiveEstado)}
                             </div>
                             <input type="text" placeholder="Obs..." class="semanal-obs"
                               value={getObsMulti(est.id, fv.fecha)}
@@ -2686,8 +3151,8 @@ $effect(() => {
                         {:else}
                           <div class="semanal-status" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
                             onclick={() => cicloEstado(est.id, fv.fecha)}
-                            title={effectiveEstado === 'P' ? 'Presente' : effectiveEstado === 'A' ? 'Ausente' : effectiveEstado === 'J' ? 'Justificado' : 'Sin marcar'}>
-                            {effectiveEstado === 'P' ? 'Presente' : effectiveEstado === 'A' ? 'Ausente' : effectiveEstado === 'J' ? 'Justificado' : '—'}
+                            title={etiquetaEstado(effectiveEstado)}>
+                            {etiquetaEstado(effectiveEstado)}
                           </div>
                           <input type="text" placeholder="Obs..." class="semanal-obs"
                             value={getObsMulti(est.id, fv.fecha)}
@@ -2700,19 +3165,21 @@ $effect(() => {
               {/each}
             </tbody>
           </table>
-        {:else if periodo === "mensual"}
+        {:else if periodoEfectivo === "mensual"}
           <table class="custom-table" style="width:100%;margin:0;overflow:visible">
             <thead><tr>
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
               <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;min-width:200px">{t('asis.col.estudiante')}</th>
               {#each fechasVisibles as fv, iFecha (fv.fecha)}
-                <th class:dsc-th={fv.sinClases} class:fch-th={true} class:sep-semana={esInicioSemana(fv.fecha, iFecha)}
+                <th class:dsc-th={fv.sinClases} class:fch-th={!enInforme} class:sep-semana={esInicioSemana(fv.fecha, iFecha)}
                   class:semana-hl={semanaHover !== null && numeroSemanaDe(fv.fecha) === semanaHover}
                   class:semana-hl-ini={semanaHoverRango?.ini === fv.fecha}
                   class:semana-hl-fin={semanaHoverRango?.fin === fv.fecha}
                   style="font-size:0.7rem;white-space:nowrap;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;min-width:48px;padding:0.35rem 0.45rem"
-                  title="{fv.sinClases ? motivoSinClasesEn(fv.fecha) + ' — Click para reactivar clases' : 'Click para marcar este día sin clases'}{numeroSemanaDe(fv.fecha) ? ` · Semana ${numeroSemanaDe(fv.fecha)}` : ''}"
-                  onclick={() => clickHeaderFecha(fv.fecha)}>
+                  title={enInforme
+                    ? `${fv.sinClases ? motivoSinClasesEn(fv.fecha) : ''}${numeroSemanaDe(fv.fecha) ? `${fv.sinClases ? ' · ' : ''}Semana ${numeroSemanaDe(fv.fecha)}` : ''}`
+                    : `${fv.sinClases ? motivoSinClasesEn(fv.fecha) + ' — Click para reactivar clases' : 'Click para marcar este día sin clases'}${numeroSemanaDe(fv.fecha) ? ` · Semana ${numeroSemanaDe(fv.fecha)}` : ''}`}
+                  onclick={enInforme ? undefined : () => clickHeaderFecha(fv.fecha)}>
                   {#if esInicioSemana(fv.fecha, iFecha) && numeroSemanaDe(fv.fecha)}
                     <div class="semana-badge">S{numeroSemanaDe(fv.fecha)}</div>
                   {/if}
@@ -2736,7 +3203,7 @@ $effect(() => {
                       <span style="font-size:1.1rem;flex-shrink:0">{est.sexo === 'F' ? '👩' : '👨'}</span>
                       <span style="white-space:normal;word-break:break-word;line-height:1.25">{est.nombre}</span>
                     </div>
-                    <div style="font-size:0.7rem;opacity:0.6;margin-left:22px">{est.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
+                    <div style="font-size:0.7rem;opacity:0.6;margin-left:22px">{est.sexo === 'F' ? t('asis.filtros.femenino') : t('asis.filtros.masculino')}</div>
                   </td>
                   {#each fechasVisibles as fv, iFecha (fv.fecha)}
                     {#if fv.sinClases}
@@ -2754,7 +3221,13 @@ $effect(() => {
                           class:semana-hl-ini={semanaHoverRango?.ini === fv.fecha}
                           class:semana-hl-fin={semanaHoverRango?.fin === fv.fecha}
                           style="text-align:center;padding:0.15rem">
-                          {#if esEscritorio}
+                          {#if enInforme}
+                            <div class="ciclo-cell" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
+                              style="cursor:default"
+                              title={fmtFecha(fv.fecha, { day: 'numeric', month: 'short' }) + ': ' + etiquetaEstado(effectiveEstado)}>
+                              {effectiveEstado ?? '-'}
+                            </div>
+                          {:else if esEscritorio}
                             <div class="celda-estado">
 
                             <div class="ciclo-cell" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
@@ -3017,13 +3490,13 @@ $effect(() => {
       <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
         <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('asis.periodo.etiqueta')}</label>
         <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px"
-          value={periodo} onchange={(e) => periodo = (e.target as HTMLSelectElement).value as AsistenciaPeriodo}>
+          value={periodoEfectivo} onchange={(e) => periodo = (e.target as HTMLSelectElement).value as AsistenciaPeriodo}>
           <option value="diario">{t('asis.periodo.diario')}</option>
           <option value="semanal">{t('asis.periodo.semanal')}</option>
           <option value="mensual">{t('asis.periodo.mensual')}</option>
         </select>
       </div>
-      {#if periodo === "semanal"}
+      {#if periodoEfectivo === "semanal"}
         <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
           <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('asis.periodo.mes')}</label>
           <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px;min-width:100px"
@@ -3040,7 +3513,7 @@ $effect(() => {
           </button>
         </div>
       {/if}
-      {#if periodo === "mensual"}
+      {#if periodoEfectivo === "mensual"}
         <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
           <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('asis.periodo.mes')}</label>
           <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px;min-width:100px"
