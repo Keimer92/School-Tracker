@@ -1,6 +1,5 @@
 <script lang="ts">
   import AsistenciaPage from "../AsistenciaPage.svelte";
-  import { t } from "../../lib/i18n.svelte";
 
   type SubTab = "tomar" | "informe";
 
@@ -33,6 +32,10 @@
   }
 
   // ── Swipe horizontal para alternar sub-tabs (solo Android) ──
+  // Es el ÚNICO control del modo en Android: no hay barra arriba ni píldora
+  // flotante. En escritorio el modo lo lleva el ModoToggle de la barra de
+  // filtros del hijo (onModoChange).
+  //
   // Deslizar a la izquierda → Informe · Deslizar a la derecha → Tomar asistencia.
   // Se ignora el gesto si inicia dentro de un elemento con scroll horizontal propio
   // (chips mensuales, filas semanales, tablas anchas) o dentro de un modal/overlay fijo.
@@ -82,28 +85,19 @@
   }
 </script>
 
-<div class="asistencia-main" class:mobile={isAndroidUA} style="height:100%;min-height:0">
+<div class="asistencia-main" style="height:100%;min-height:0">
   <div style="flex:1;min-height:0;position:relative" ontouchstart={onContentTouchStart} ontouchend={onContentTouchEnd}>
-    {#if isAndroidUA}
-      <div class="asistencia-subtabs-float">
-        <button class="subtab-btn" class:active={activeSub === 'tomar'} onclick={() => switchTo('tomar')} type="button" aria-label={t('subtab.tomarAsistencia')}>
-          <span class="subtab-icon">✏️</span>
-        </button>
-        <button class="subtab-btn" class:active={activeSub === 'informe'} onclick={() => switchTo('informe')} type="button" aria-label={t('subtab.informe')}>
-          <span class="subtab-icon">📊</span>
-        </button>
-      </div>
-    {/if}
     <!--
       Un SOLO componente para los dos modos: `modo` decide si se escribe o solo
       se lee, y `visible` sigue siendo "este sub-tab está a la vista". Así la
       tabla, los filtros y las estadísticas existen una sola vez y se monta una
       sola vez (sin display:none por sub-tab): el estado/drafts vive en el hijo.
 
-      En escritorio NO hay barra de sub-tabs arriba: el control vive dentro de
-      la barra de filtros del hijo (ModoToggle), que es quien avisa del cambio
-      vía `onModoChange`. Dejarlo acá volvía a crear una segunda barra pegada al
-      SearchFab y a los filtros, y la página se veía pesada.
+      No hay barra de sub-tabs ni píldora flotante: en escritorio el control es
+      el ModoToggle dentro de la barra de filtros del hijo (que avisa por
+      `onModoChange`) y en Android basta el swipe. Cualquier cosa que se ponga
+      acá arriba vuelve a apilarse con el SearchFab y con los filtros, que es
+      exactamente lo que se quitó.
     -->
     <AsistenciaPage modo={activeSub} onModoChange={switchTo} visible={pageActive} />
   </div>
@@ -114,70 +108,5 @@
     display: flex;
     flex-direction: column;
     width: 100%;
-  }
-  .subtab-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 0.42rem 0.9rem;
-    border-radius: 9px;
-    border: 1px solid transparent;
-    background: transparent;
-    color: #94a3b8;
-    font-size: 0.8rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    -webkit-tap-highlight-color: transparent;
-    user-select: none;
-    -webkit-user-select: none;
-    white-space: nowrap;
-  }
-  .subtab-btn:hover:not(.active) {
-    color: #e2e8f0;
-    background: rgba(255, 255, 255, 0.05);
-  }
-  .subtab-btn:active:not(.active) {
-    transform: scale(0.97);
-  }
-  .subtab-btn.active {
-    background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.18), rgba(var(--primary-rgb), 0.06));
-    border-color: rgba(var(--primary-rgb), 0.35);
-    color: #f1f5f9;
-    box-shadow: 0 2px 10px rgba(var(--primary-rgb), 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  }
-  .subtab-btn:focus-visible {
-    outline: none;
-    border-color: rgba(148, 163, 184, 0.4);
-  }
-  .subtab-icon {
-    font-size: 0.85rem;
-    line-height: 1;
-  }
-  /* En escritorio no hay barra de sub-tabs: el modo lo controla el
-     ModoToggle de la barra de filtros del hijo. En Android ese control no se
-     renderiza (altura escasa), así que acá queda la píldora flotante
-     icons-only, que no ocupa espacio en el layout y sigue soportando swipe. */
-  .asistencia-subtabs-float {
-    display: none;
-  }
-  .asistencia-main.mobile .asistencia-subtabs-float {
-    display: flex;
-    position: absolute;
-    bottom: 0.75rem;
-    left: 0.75rem;
-    right: auto;
-    z-index: 50;
-    gap: 4px;
-    padding: 4px;
-    background: rgba(15, 23, 42, 0.82);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 999px;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
-  }
-  .asistencia-main.mobile .asistencia-subtabs-float .subtab-btn {
-    padding: 0.4rem 0.6rem;
   }
 </style>

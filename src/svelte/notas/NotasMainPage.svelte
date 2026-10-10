@@ -1,7 +1,6 @@
 <script lang="ts">
   import NotasPage from "../NotasPage.svelte";
   import ReportesPage from "../ReportesPage.svelte";
-  import { t } from "../../lib/i18n.svelte";
 
   type SubTab = "registrar" | "reportes";
 
@@ -44,6 +43,10 @@
   }
 
   // ── Swipe horizontal para alternar sub-tabs (solo Android, solo en vertical) ──
+  // Es el ÚNICO control del modo en Android: no hay barra arriba ni píldora
+  // flotante. En escritorio el modo lo lleva el ModoToggle de la barra de
+  // filtros de cada hijo (onModoChange).
+  //
   // Deslizar a la izquierda → Reportes · Deslizar a la derecha → Registrar.
   // En modo horizontal (landscape) el swipe está DESHABILITADO: la tabla de notas
   // usa scroll horizontal propio y el gesto conflictúa con la navegación de sub-tabs.
@@ -101,22 +104,14 @@
   }
 </script>
 
-<div class="notas-main" class:mobile={isAndroidUA} style="height:100%;min-height:0">
+<div class="notas-main" style="height:100%;min-height:0">
   <div style="flex:1;min-height:0;position:relative" ontouchstart={onContentTouchStart} ontouchend={onContentTouchEnd}>
-    {#if isAndroidUA}
-      <div class="notas-subtabs-float">
-        <button class="subtab-btn" class:active={activeSub === 'registrar'} onclick={() => switchTo('registrar')} type="button" aria-label={t('subtab.registrar')}>
-          <span class="subtab-icon">✏️</span>
-        </button>
-        <button class="subtab-btn" class:active={activeSub === 'reportes'} onclick={() => switchTo('reportes')} type="button" aria-label={t('subtab.reportes')}>
-          <span class="subtab-icon">📊</span>
-        </button>
-      </div>
-    {/if}
     <!--
-      En escritorio NO hay barra de sub-tabs arriba: cada hijo lleva su propio
-      ModoToggle dentro de su barra de filtros y avisa del cambio por
-      `onModoChange`, así que no se acumulan dos barras sobre los filtros.
+      No hay barra de sub-tabs ni píldora flotante: en escritorio el control es
+      el ModoToggle dentro de la barra de filtros de cada hijo (que avisa por
+      `onModoChange`) y en Android basta el swipe. Cualquier cosa que se ponga
+      acá arriba vuelve a apilarse con los filtros, que es exactamente lo que se
+      quitó.
     -->
     {#if mountedRegistrar}
       <div style="display:{activeSub === 'registrar' ? 'block' : 'none'};height:100%">
@@ -136,70 +131,5 @@
     display: flex;
     flex-direction: column;
     width: 100%;
-  }
-  .subtab-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 0.42rem 0.9rem;
-    border-radius: 9px;
-    border: 1px solid transparent;
-    background: transparent;
-    color: #94a3b8;
-    font-size: 0.8rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    -webkit-tap-highlight-color: transparent;
-    user-select: none;
-    -webkit-user-select: none;
-    white-space: nowrap;
-  }
-  .subtab-btn:hover:not(.active) {
-    color: #e2e8f0;
-    background: rgba(255, 255, 255, 0.05);
-  }
-  .subtab-btn:active:not(.active) {
-    transform: scale(0.97);
-  }
-  .subtab-btn.active {
-    background: linear-gradient(135deg, rgba(var(--primary-rgb), 0.18), rgba(var(--primary-rgb), 0.06));
-    border-color: rgba(var(--primary-rgb), 0.35);
-    color: #f1f5f9;
-    box-shadow: 0 2px 10px rgba(var(--primary-rgb), 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  }
-  .subtab-btn:focus-visible {
-    outline: none;
-    border-color: rgba(148, 163, 184, 0.4);
-  }
-  .subtab-icon {
-    font-size: 0.85rem;
-    line-height: 1;
-  }
-  /* En escritorio no hay barra de sub-tabs: el modo lo controla el
-     ModoToggle de la barra de filtros de cada hijo. En Android ese control no
-     se renderiza (altura escasa), así que acá queda la píldora flotante
-     icons-only, que no ocupa espacio en el layout y sigue soportando swipe. */
-  .notas-subtabs-float {
-    display: none;
-  }
-  .notas-main.mobile .notas-subtabs-float {
-    display: flex;
-    position: fixed;
-    bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
-    left: 0.75rem;
-    right: auto;
-    z-index: 50;
-    gap: 4px;
-    padding: 4px;
-    background: rgba(15, 23, 42, 0.82);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 999px;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
-  }
-  .notas-main.mobile .notas-subtabs-float .subtab-btn {
-    padding: 0.4rem 0.6rem;
   }
 </style>

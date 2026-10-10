@@ -1742,9 +1742,11 @@ to print. It is saved in Documents/SchoolTrackerPro/Instruments.`,
   'drawer.ultimoRespaldo': 'Last backup: {momento}{tam}',
 
   // ── Sub-tabs of the wrappers (AsistenciaMainPage / NotasMainPage) ──
-  // `tomarAsistencia`/`registrar` are the LONG labels (the Android floating pill,
-  // which is icons-only and relies on aria-label). The `*Corto` ones go inside
-  // the segmented control in the filter bar, where horizontal room is scarce.
+  // The `*Corto` ones are the visible label of the segmented control
+  // (ModoToggle, in the filter bar) where horizontal room is scarce; the long
+  // ones (`tomarAsistencia`/`registrar`) are its `title`/tooltip, which is
+  // where the full mode name is spelled out. On Android there is no visible
+  // control: swipe only.
   'subtab.tomarAsistencia': 'Take attendance',
   'subtab.tomarCorto': 'Attendance',
   'subtab.informe': 'Report',

@@ -236,8 +236,8 @@ src/
                               modo de una página con sub-tabs. Va DENTRO de la
                               barra de filtros (FilterGroup "Modo:"); el estado
                               vive en el wrapper y el hijo avisa por
-                              `onModoChange`. Solo escritorio (Android usa la
-                              píldora flotante del wrapper).
+                              `onModoChange`. Solo escritorio; en Android no
+                              hay ningún control visible, solo swipe.
   lib/
     asistenciaPdf.ts         generador COMPARTIDO de PDFs de asistencia
                               multipágina (una hoja por grado/sección). Escala
@@ -1802,14 +1802,21 @@ wrapper: el hijo solo avisa por `onModoChange`.
   reciben `subTab` + `onModoChange` (cada uno sabe cuál es SU id).
 - Etiquetas cortas: `subtab.tomarCorto` ("Asistencia") / `subtab.informe` y
   `subtab.registrarCorto` ("Notas") / `subtab.reportes`. Las largas
-  (`tomarAsistencia`, `registrar`) quedan para el `aria-label` de la píldora
-  flotante de Android.
-- ⚠️ **Android NO renderiza el ModoToggle**: en un teléfono la altura es lo más
-  escaso, por eso la barra de sub-tabs ya estaba oculta. Ahí el modo lo lleva la
-  **píldora flotante** icons-only del wrapper (abajo-izquierda) + swipe. No
-  meterlo tampoco en el `FiltersModalAndroid`: lo escondería detrás de dos taps.
+  (`tomarAsistencia`, `registrar`) son el `title`/tooltip de cada opción.
+- ⚠️ **Android NO tiene NINGÚN control visible del modo: solo swipe.** En un
+  teléfono la altura es lo más escaso, por eso la barra de sub-tabs ya estaba
+  oculta; después se quitó también la píldora flotante que quedaba
+  (abajo-izquierda) para dejar únicamente el gesto. Tampoco va dentro del
+  `FiltersModalAndroid`: lo escondería detrás de dos taps.
+  - Ojo con este riesgo de descubribilidad: el swipe se **ignora** cuando
+    inicia en una zona con `overflow-x` propio (chips mensuales, filas
+    semanales, tablas anchas) o dentro de un modal, así que en esas zonas no
+    hay forma de cambiar de modo. Si algún día molesta en la práctica, la salida
+    es una pista o un control que NO sea una barra arriba (p. ej. un chip
+    discreto en la fila de resumen), no reapilar barras.
 - ⚠️ No volver a agregar una barra de sub-tabs en el wrapper: es exactamente lo
-  que se quitó. Si un wrapper necesita un control propio, que sea flotante.
+  que se quitó (tres barras seguidas sobre los filtros). Si un wrapper
+  necesita un control propio, que sea flotante y solo para desktop.
 
 **Los dos wrappers montan distinto**:
 

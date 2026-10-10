@@ -1762,9 +1762,10 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'drawer.ultimoRespaldo': 'Último respaldo: {momento}{tam}',
 
   // ── Sub-tabs de los wrappers (AsistenciaMainPage / NotasMainPage) ──
-  // `tomarAsistencia`/`registrar` son las etiquetas LARGAS (píldora flotante
-  // de Android, que solo tiene icono y aria-label). Las `*Corto` van dentro del
-  // control segmentado de la barra de filtros, donde el espacio es escaso.
+  // Las `*Corto` son la etiqueta visible del control segmentado (ModoToggle, en
+  // la barra de filtros), donde el ancho escasea; las largas
+  // (`tomarAsistencia`/`registrar`) son su `title`/tooltip, que es donde se
+  // explica el modo completo. En Android no hay control visible: solo swipe.
   'subtab.tomarAsistencia': 'Tomar asistencia',
   'subtab.tomarCorto': 'Asistencia',
   'subtab.informe': 'Informe',
