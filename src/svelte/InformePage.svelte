@@ -238,6 +238,22 @@ $effect(() => {
     }
   }
 
+  /**
+   * Cambia el mes desde el dropdown del filtro semanal: conserva el número de
+   * semana activo si el mes destino lo tiene (semana 3 → semana 3), si no cae
+   * a la última disponible. Sin esto, el dropdown cambiaría solo el mes y
+   * `fechaBase` quedaría apuntando a la semana del mes anterior.
+   */
+  function elegirMesSemanalInforme(m: number) {
+    const nSem = semanaActiva;
+    mesSeleccionado = m;
+    const opts = semanasOpts;
+    const objetivo = opts.find(s => s.n === Math.min(nSem, opts.length)) ?? opts[0];
+    if (objetivo && !(fechaBase >= objetivo.lunes && fechaBase <= sumaDias(objetivo.lunes, 6))) {
+      fechaBase = objetivo.lunes;
+    }
+  }
+
   // Cierre por clic fuera + Back de Android mientras el popover esté abierto
   $effect(() => {
     if (!popSemanaAbierta) return;
@@ -923,6 +939,17 @@ $effect(() => {
                   {/if}
                 </div>
               </FilterGroup>
+              <FilterGroup label={t('asis.periodo.mes')} {isMobile}>
+                <SelectChip
+                  value={mesSeleccionado}
+                  onchange={(v) => elegirMesSemanalInforme(Number(v))}
+                  options={[
+                    { value: 1, label: t('inf.mes.1') }, { value: 2, label: t('inf.mes.2') }, { value: 3, label: t('inf.mes.3') },
+                    { value: 4, label: t('inf.mes.4') }, { value: 5, label: t('inf.mes.5') }, { value: 6, label: t('inf.mes.6') },
+                    { value: 7, label: t('inf.mes.7') }, { value: 8, label: t('inf.mes.8') }, { value: 9, label: t('inf.mes.9') },
+                    { value: 10, label: t('inf.mes.10') }, { value: 11, label: t('inf.mes.11') }, { value: 12, label: t('inf.mes.12') },
+                  ]} />
+              </FilterGroup>
             {/if}
           {:else}
             {#if !isAndroidMobile}
@@ -1319,6 +1346,16 @@ $effect(() => {
             style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px;text-align:left;cursor:pointer">
             <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">{t('inf.sem.semanaRango', { n: semanaActiva, rango: semanasOpts.find(s => s.n === semanaActiva)?.rango ?? '' })}</span>
           </button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
+          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('asis.periodo.mes')}</label>
+          <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px"
+            value={mesSeleccionado} onchange={(e) => elegirMesSemanalInforme(Number((e.target as HTMLSelectElement).value))}>
+            <option value={1}>{t('inf.mes.1')}</option><option value={2}>{t('inf.mes.2')}</option><option value={3}>{t('inf.mes.3')}</option>
+            <option value={4}>{t('inf.mes.4')}</option><option value={5}>{t('inf.mes.5')}</option><option value={6}>{t('inf.mes.6')}</option>
+            <option value={7}>{t('inf.mes.7')}</option><option value={8}>{t('inf.mes.8')}</option><option value={9}>{t('inf.mes.9')}</option>
+            <option value={10}>{t('inf.mes.10')}</option><option value={11}>{t('inf.mes.11')}</option><option value={12}>{t('inf.mes.12')}</option>
+          </select>
         </div>
       {/if}
       {#if periodo === "mensual"}

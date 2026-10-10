@@ -320,6 +320,22 @@ import { portalToBody } from "../lib/portalToBody";
     }
   }
 
+  /**
+   * Cambia el mes desde el dropdown del filtro semanal: conserva el número de
+   * semana activo si el mes destino lo tiene (semana 3 → semana 3), si no cae
+   * a la última disponible. Sin esto, el dropdown cambiaría solo el mes y
+   * `selectedFecha` quedaría apuntando a la semana del mes anterior.
+   */
+  function elegirMesSemanal(m: number) {
+    const nSem = semanaActiva;
+    mesSeleccionado = m;
+    const opts = semanasOpts;
+    const objetivo = opts.find(s => s.n === Math.min(nSem, opts.length)) ?? opts[0];
+    if (objetivo && !(selectedFecha >= objetivo.lunes && selectedFecha <= sumaDiasISO(objetivo.lunes, 6))) {
+      selectedFecha = objetivo.lunes;
+    }
+  }
+
   function cerrarPopSemana() { popSemanaAbierta = false; }
 
   // Cierre por clic fuera + Back de Android
@@ -2137,6 +2153,12 @@ $effect(() => {
                   {/if}
                 </div>
               </FilterGroup>
+              <FilterGroup label="Mes:" {isMobile}>
+                <SelectChip
+                  value={mesSeleccionado}
+                  onchange={(v) => elegirMesSemanal(Number(v))}
+                  options={mesesOptions.map(m => ({ value: m.value, label: m.label }))} />
+              </FilterGroup>
             {/if}
           {:else}
             {#if !isAndroidMobile}
@@ -3009,6 +3031,13 @@ $effect(() => {
             style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px;text-align:left;cursor:pointer">
             <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">Semana {semanaActiva} · {semanasOpts.find(s => s.n === semanaActiva)?.rango ?? ''}</span>
           </button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
+          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('asis.periodo.mes')}</label>
+          <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px;min-width:100px"
+            value={mesSeleccionado} onchange={(e) => elegirMesSemanal(Number((e.target as HTMLSelectElement).value))}>
+            {#each mesesOptions as m}<option value={m.value}>{m.label}</option>{/each}
+          </select>
         </div>
       {/if}
       {#if periodo === "mensual"}
