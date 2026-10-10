@@ -2113,28 +2113,25 @@ $effect(() => {
                   </button>
 
                   {#if popSemanaAbierta}
-                    <div class="modal-overlay" onclick={(e) => { if (e.target === e.currentTarget) cerrarPopSemana(); }} style="z-index:2000">
-                      <div class="pop-panel" tabindex="-1" style="position:relative;top:auto;left:auto;right:auto;bottom:auto;width:{modalCardWidth};max-width:{modalCardWidth};max-height:85vh;overflow-y:auto;">
-                        <button type="button" onclick={cerrarPopSemana} title="Cerrar" style="position:absolute;top:.6rem;right:.6rem;width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#cbd5e1;font-size:.9rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1">✕</button>
-                        <div class="pop-mes" style="padding-right:2.2rem">
-                          <button class="pop-nav" onclick={() => cambiarMesSem(-1)} title="Mes anterior">‹</button>
-                          <span class="pop-mes-txt">{nombreMesSel} {anoSeleccionado}</span>
-                          <button class="pop-nav" onclick={() => cambiarMesSem(1)} title="Mes siguiente">›</button>
-                        </div>
+                    <div class="pop-panel" tabindex="-1">
+                      <div class="pop-mes">
+                        <button class="pop-nav" onclick={() => cambiarMesSem(-1)} title="Mes anterior">‹</button>
+                        <span class="pop-mes-txt">{nombreMesSel} {anoSeleccionado}</span>
+                        <button class="pop-nav" onclick={() => cambiarMesSem(1)} title="Mes siguiente">›</button>
+                      </div>
 
-                        <div class="pop-sems">
-                          {#each semanasOpts as s (s.n)}
-                            <button
-                              type="button"
-                              class="pop-sem"
-                              class:sel={semanaActiva === s.n}
-                              onclick={() => elegirSemana(s)}
-                            >
-                              <span class="pop-sem-n">Semana {s.n}</span>
-                              <span class="pop-sem-rango">{s.rango}</span>
-                            </button>
-                          {/each}
-                        </div>
+                      <div class="pop-sems">
+                        {#each semanasOpts as s (s.n)}
+                          <button
+                            type="button"
+                            class="pop-sem"
+                            class:sel={semanaActiva === s.n}
+                            onclick={() => elegirSemana(s)}
+                          >
+                            <span class="pop-sem-n">Semana {s.n}</span>
+                            <span class="pop-sem-rango">{s.rango}</span>
+                          </button>
+                        {/each}
                       </div>
                     </div>
                   {/if}
