@@ -1,6 +1,5 @@
 <script lang="ts">
   import NotasPage from "../NotasPage.svelte";
-  import ReportesPage from "../ReportesPage.svelte";
 
   type SubTab = "registrar" | "reportes";
 
@@ -12,11 +11,6 @@
   // Siempre abre en "Registrar"; un subTabRequest (ej. quick-action del Dashboard)
   // puede abrir directamente los Reportes.
   let activeSub: SubTab = $state("registrar");
-
-  // Montaje perezoso: cada hijo se monta la primera vez que se visita y luego
-  // queda oculto con display:none para preservar estado.
-  let mountedRegistrar = $state(false);
-  let mountedReportes = $state(false);
 
   // Peticiones externas + reset al entrar:
   // Cada vez que la página pasa de oculta a visible vuelve a "Registrar",
@@ -30,12 +24,6 @@
     if (!pa) return;
     if (req === "reportes") activeSub = "reportes";
     else if (activated) activeSub = "registrar";
-  });
-
-  // Montaje perezoso según el sub-tab activo
-  $effect(() => {
-    if (activeSub === "registrar") mountedRegistrar = true;
-    else mountedReportes = true;
   });
 
   function switchTo(tab: SubTab) {
@@ -108,21 +96,17 @@
   <div style="flex:1;min-height:0;position:relative" ontouchstart={onContentTouchStart} ontouchend={onContentTouchEnd}>
     <!--
       No hay barra de sub-tabs ni píldora flotante: en escritorio el control es
-      el ModoToggle dentro de la barra de filtros de cada hijo (que avisa por
+      el ModoToggle dentro de la barra de filtros de NotasPage (que avisa por
       `onModoChange`) y en Android basta el swipe. Cualquier cosa que se ponga
       acá arriba vuelve a apilarse con los filtros, que es exactamente lo que se
       quitó.
+
+      Un SOLO hijo: `modo` decide qué mitad se renderiza dentro de NotasPage
+      (mismo patrón que AsistenciaMainPage con AsistenciaPage). No hay montaje
+      perezoso ni display:none por sub-tab: el borrador de "Registrar" y las
+      dos cadenas de carga viven en el mismo componente.
     -->
-    {#if mountedRegistrar}
-      <div style="display:{activeSub === 'registrar' ? 'block' : 'none'};height:100%">
-        <NotasPage subTab={activeSub} onModoChange={switchTo} visible={pageActive && activeSub === 'registrar'} />
-      </div>
-    {/if}
-    {#if mountedReportes}
-      <div style="display:{activeSub === 'reportes' ? 'block' : 'none'};height:100%">
-        <ReportesPage subTab={activeSub} onModoChange={switchTo} visible={pageActive && activeSub === 'reportes'} />
-      </div>
-    {/if}
+    <NotasPage modo={activeSub} onModoChange={switchTo} visible={pageActive} />
   </div>
 </div>
 

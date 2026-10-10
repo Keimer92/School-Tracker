@@ -7,9 +7,9 @@
  * dos reportes se leen como hermanos aunque cada tabla tenga su propio layout.
  *
  * A diferencia de asistencia, acá cada par grado/sección se exporta a su propio
- * archivo (lo que hace el bucle de ReportesPage), por lo que este generador
- * produce un PDF de UNA hoja por grupo y por eso el pie no necesita la lógica de
- * "sección N de M" multipágina.
+ * archivo (lo que hace el bucle del modo "reportes" de NotasPage), por lo que este
+ * generador produce un PDF de UNA hoja por grupo y por eso el pie no necesita la
+ * lógica de "sección N de M" multipágina.
  *
  * jspdf y jspdf-autotable se cargan de forma LAZILY (`await import`).
  *

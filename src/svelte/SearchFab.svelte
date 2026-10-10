@@ -55,9 +55,10 @@
   });
 </script>
 
-<!-- `no-print`: el CSS de impresión de ReportesPage oculta `button`, pero esta
-     barra es un `div` con un `input`. Sin esta clase se imprimiría el buscador
-     con el texto de búsqueda arriba del reporte. -->
+<!-- `no-print`: el CSS de impresión de NotasPage (modo "reportes", antes
+     ReportesPage) oculta `button`, pero esta barra es un `div` con un `input`.
+     Sin esta clase se imprimiría el buscador con el texto de búsqueda arriba del
+     reporte. -->
 <div class="sfab-bar no-print" class:sin-margen={!conMargen} role="search">
   <span class="sfab-icon" aria-hidden="true">🔍</span>
   <input

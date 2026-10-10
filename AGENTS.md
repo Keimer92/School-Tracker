@@ -189,7 +189,8 @@ src/
   svelte/                    páginas UI (*Page.svelte) y componentes reutilizables
     asistencia/              AsistenciaMainPage.svelte (wrapper sub-tabs: UN solo
                               AsistenciaPage con prop `modo` = 'tomar' | 'informe')
-    notas/                   NotasMainPage.svelte (wrapper sub-tabs: NotasPage + ReportesPage)
+    notas/                   NotasMainPage.svelte (wrapper sub-tabs: UN solo
+                              NotasPage con prop `modo` = 'registrar' | 'reportes')
     ajustes/                 Configuración (antes AjustesGenerales). Submódulos
                               extraídos del page shell:
        DebugPage.svelte       gestión de datos (exportar/importar/purgar +
@@ -1798,8 +1799,9 @@ Ahora es un `FilterGroup` más (etiqueta `comun.modo` = "Modo:") al inicio de la
 fila, con el mismo alto que `.filter-select`, y `activeSub` sigue viviendo en el
 wrapper: el hijo solo avisa por `onModoChange`.
 
-- `AsistenciaPage` recibe `modo` + `onModoChange`; `NotasPage` y `ReportesPage`
-  reciben `subTab` + `onModoChange` (cada uno sabe cuál es SU id).
+- `AsistenciaPage` y `NotasPage` reciben `modo` + `onModoChange` (cada uno sabe
+  cuáles son SUS ids). Antes NotasPage/ReportesPage usaban el prop `subTab`: se
+  renombró a `modo` al fusionarlos.
 - Etiquetas cortas: `subtab.tomarCorto` ("Asistencia") / `subtab.informe` y
   `subtab.registrarCorto` ("Notas") / `subtab.reportes`. Las largas
   (`tomarAsistencia`, `registrar`) son el `title`/tooltip de cada opción.
@@ -1818,12 +1820,19 @@ wrapper: el hijo solo avisa por `onModoChange`.
   que se quitó (tres barras seguidas sobre los filtros). Si un wrapper
   necesita un control propio, que sea flotante y solo para desktop.
 
-**Los dos wrappers montan distinto**:
+**Los dos wrappers montan UN SOLO hijo** (mismo patrón desde 2026-10):
 
 | Wrapper | Hijos | Por qué |
 |---|---|---|
-| `AsistenciaMainPage` | **UN** `<AsistenciaPage modo={activeSub} onModoChange={switchTo} visible={pageActive} />` | los dos modos son el mismo componente desde 2026-10 (ver abajo) |
-| `NotasMainPage` | `NotasPage` + `ReportesPage` (con `subTab={activeSub}` y `onModoChange={switchTo}`), montaje perezoso con `display:none` | son dos componentes distintos; preserva drafts/scroll |
+| `AsistenciaMainPage` | `<AsistenciaPage modo={activeSub} onModoChange={switchTo} visible={pageActive} />` | los dos modos son el mismo componente (ver abajo) |
+| `NotasMainPage` | `<NotasPage modo={activeSub} onModoChange={switchTo} visible={pageActive} />` | ídem: `ReportesPage` se absorbió dentro de `NotasPage` |
+
+⚠️ `visible` es **la página a la vista**, no "soy el sub-tab activo". Un solo
+componente con dos mitades no puede tener dos `visible` distintos, y no le hace
+falta: cambiar de modo ya no dispara el refresco al volver a verse (que antes
+recargaba en silencio la mitad que entraba). Ese refresco sigue pasando al
+reingresar a la página desde otra pestaña, que es cuando de verdad hay datos
+nuevos.
 
 #### `AsistenciaPage` con `modo: 'tomar' | 'informe'` (2026-10)
 
