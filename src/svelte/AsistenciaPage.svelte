@@ -131,15 +131,19 @@
   });
 
   $effect(() => {
-    if (showSummaryModal.show) {
-      return registerBackHandler(() => { showSummaryModal = { ...showSummaryModal, show: false }; return true; });
-    }
+    if (!visible || !showSummaryModal.show) return;
+    return registerBackHandler(() => { showSummaryModal = { ...showSummaryModal, show: false }; return true; });
   });
 
   $effect(() => {
-    if (obsModalStudent) {
-      return registerBackHandler(() => { obsModalStudent = null; expandedObs = {}; return true; });
-    }
+    if (!visible || !obsModalStudent) return;
+    return registerBackHandler(() => { obsModalStudent = null; expandedObs = {}; return true; });
+  });
+
+  // Vista previa de impresión (informe): Escape/back la cierra igual que el ✕.
+  $effect(() => {
+    if (!visible || !printHtml) return;
+    return registerBackHandler(() => { printHtml = null; return true; });
   });
 
   // Refresco silencioso al volver a verse (transición oculto → visible)
@@ -415,15 +419,13 @@
     return () => document.removeEventListener('pointerdown', fuera, true);
   });
 $effect(() => {
-    if (popSemanaAbierta) {
+    if (!visible || !popSemanaAbierta) return;
       return registerBackHandler(() => { cerrarPopSemana(); return true; });
-    }
   });
 
   $effect(() => {
-    if (showFiltersModal && isAndroidMobile) {
+    if (!visible || !showFiltersModal || !isAndroidMobile) return;
       return registerBackHandler(() => { showFiltersModal = false; return true; });
-    }
   });
 
   // ── Popover de estado P/A/J ──
@@ -505,9 +507,8 @@ $effect(() => {
   });
 
   $effect(() => {
-    if (popEstado) {
-      return registerBackHandler(() => { cerrarPopEstado(); return true; });
-    }
+    if (!visible || !popEstado) return;
+    return registerBackHandler(() => { cerrarPopEstado(); return true; });
   });
 
   // ── Popover de acciones masivas sobre el período (Rellenar / Limpiar) ──
@@ -894,9 +895,8 @@ $effect(() => {
   });
 
   $effect(() => {
-    if (popSel) {
-      return registerBackHandler(() => { cerrarPopSel(); return true; });
-    }
+    if (!visible || !popSel) return;
+    return registerBackHandler(() => { cerrarPopSel(); return true; });
   });
 
   // Si el DatePicker deja de estar montado (cambio de período), el bindable
@@ -1445,7 +1445,7 @@ $effect(() => {
     return () => document.removeEventListener('pointerdown', fuera, true);
   });
   $effect(() => {
-    if (!popSinClasesAbierta) return;
+    if (!visible || !popSinClasesAbierta) return;
     return registerBackHandler(() => { cerrarPopSinClases(); return true; });
   });
 
@@ -2423,6 +2423,9 @@ $effect(() => {
     .semanal-status.estado-a{background:rgba(239,68,68,0.15);border-color:#ef4444;color:#ef4444}
     .semanal-status.estado-j{background:rgba(245,158,11,0.15);border-color:#f59e0b;color:#f59e0b}
     .semanal-obs{width:100%;padding:0.2rem 0.35rem;border-radius:4px;border:1px solid rgba(255,255,255,0.06);background:rgba(0,0,0,0.2);color:#fff;font-size:0.6rem;outline:none;box-sizing:border-box;margin-top:2px;transition:border-color 0.2s}
+    /* Informe: la observación se LEE, no se edita. Mismo ancho y fuente que el
+       input para que la celda no cambie de tamaño entre modos. */
+    .semanal-obs.solo-lectura{display:block;white-space:pre-wrap;text-align:left;cursor:default;color:#cbd5e1}
     .semanal-obs:focus{border-color:var(--primary-color)}
     .pop-wrap{position:relative;display:block;width:100%}
     .pop-trigger{display:flex;align-items:center;justify-content:space-between;gap:.4rem;text-align:left;cursor:pointer}
@@ -2447,6 +2450,7 @@ $effect(() => {
     .fch-th{cursor:pointer;transition:filter .15s ease,background .15s ease}
     .fch-th:hover{filter:brightness(1.35)}
     .dsc-col{background:linear-gradient(180deg,rgba(245,158,11,.10),rgba(245,158,11,.02));text-align:center;vertical-align:middle;color:#f59e0b;font-weight:700;padding:.5rem .35rem;min-width:70px}
+    .dsc-motivo{display:block;font-size:.62rem;line-height:1.35;word-break:break-word;margin-top:2px}
   </style>
 
   {#snippet panelSinClases(soloAviso: boolean)}
@@ -3491,7 +3495,7 @@ $effect(() => {
         <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('asis.periodo.etiqueta')}</label>
         <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px"
           value={periodoEfectivo} onchange={(e) => periodo = (e.target as HTMLSelectElement).value as AsistenciaPeriodo}>
-          <option value="diario">{t('asis.periodo.diario')}</option>
+          {#if !enInforme}<option value="diario">{t('asis.periodo.diario')}</option>{/if}
           <option value="semanal">{t('asis.periodo.semanal')}</option>
           <option value="mensual">{t('asis.periodo.mensual')}</option>
         </select>
@@ -3509,7 +3513,7 @@ $effect(() => {
           <button type="button" class="filter-select filter-select-solid pop-trigger"
             onclick={() => { showFiltersModal = false; setTimeout(() => popSemanaAbierta = true, 50); }}
             style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px;text-align:left;cursor:pointer">
-            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">Semana {semanaActiva} · {semanasOpts.find(s => s.n === semanaActiva)?.rango ?? ''}</span>
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">{t('asis.sinClases.semanaN', { n: semanaActiva })} · {semanasOpts.find(s => s.n === semanaActiva)?.rango ?? ''}</span>
           </button>
         </div>
       {/if}
@@ -3524,6 +3528,23 @@ $effect(() => {
       {/if}
     {/snippet}
   </FiltersModalAndroid>
+
+  {#if printHtml}
+    <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background-color:rgba(0,0,0,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99999;padding:20px"
+      onpointerdown={(e) => { if (e.target === e.currentTarget) printHtml = null; }}>
+      <div style="background-color:white;border-radius:12px;width:100%;max-width:900px;height:90vh;display:flex;flex-direction:column;overflow:hidden">
+        <div style="padding:15px 20px;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;background-color:#f8fafc">
+          <span style="font-size:16px;font-weight:600;color:#1e293b">{t('inf.print.titulo')}</span>
+          <div style="display:flex;gap:10px">
+            <button onclick={() => { const iframe = document.querySelector('iframe[srcdoc]'); if (iframe instanceof HTMLIFrameElement && iframe.contentWindow) iframe.contentWindow.print(); }}
+              style="padding:8px 16px;background-color:#10b981;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:500">{t('inf.print.imprimir')}</button>
+            <button onclick={() => printHtml = null} style="padding:8px 16px;background-color:#64748b;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:500">{t('comun.cerrar')}</button>
+          </div>
+        </div>
+        <iframe srcdoc={printHtml} style="flex:1;width:100%;border:none" title="Print Preview" />
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
