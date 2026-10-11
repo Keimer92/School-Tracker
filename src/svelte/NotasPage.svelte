@@ -29,7 +29,7 @@ import { primerColegio } from "../lib/catalogo";
   import { writeFile, mkdir } from "@tauri-apps/plugin-fs";
   import { openUrl } from "@tauri-apps/plugin-opener";
   import { generarPdfNotas } from "../lib/notasPdf";
-  import PageLayout from "./PageLayout.svelte";
+  
   import { portalToBody } from "../lib/portalToBody";
 
   // `visible`: the container page is active AND this mode is the selected one.
@@ -2894,19 +2894,8 @@ import { primerColegio } from "../lib/catalogo";
     </div>
   </div>
 
-  <PageLayout>
-    {#snippet filters()}
+  
       <div class="category-card sticky-filters" style="margin-bottom:1rem;padding:0.8rem;position:sticky;top:0;z-index:999;background:rgba(26,26,26,0.8);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 4px 12px rgba(0,0,0,0.2);border-radius:0 0 12px 12px;border:1px solid rgba(255,255,255,0.05);border-top:none">
-        <div class="filters-row" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8rem;flex-wrap:wrap;gap:0.8rem">
-          <div style="display:flex;align-items:center;gap:0.5rem;flex:1 1 auto">
-            <h3 style="margin:0;color:#f1f5f9;display:flex;align-items:center;gap:0.3rem;font-size:1.1rem">{t('rep.titulo')}</h3>
-            <div style="height:16px;width:1px;background-color:rgba(255,255,255,0.1)"></div>
-            <p style="margin:0;color:#94a3b8;font-size:0.75rem" class="hide-mobile">{t('rep.subtitulo')}</p>
-          </div>
-          <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
-          </div>
-        </div>
-
         {#if printHtml}
           <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background-color:rgba(0,0,0,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99999;padding:20px">
             <div style="background-color:white;border-radius:12px;width:100%;max-width:900px;height:90vh;display:flex;flex-direction:column;overflow:hidden">
@@ -3086,7 +3075,7 @@ import { primerColegio } from "../lib/catalogo";
         </FilterContainer>
         {/if}
       </div>
-    {/snippet}
+    
 
     <div style="position:relative;flex:1;min-height:400px;display:flex;flex-direction:column;overflow:hidden">
       {#if repLoading}
@@ -3268,7 +3257,7 @@ import { primerColegio } from "../lib/catalogo";
         </div>
       {/if}
     </div>
-  </PageLayout>
+  
 
   <FiltersModalAndroid
     bind:open={repShowFiltersModal}
