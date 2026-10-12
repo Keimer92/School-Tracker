@@ -41,7 +41,11 @@ class LocalBackupAlarmReceiver : BroadcastReceiver() {
         val nombre = "Backup_" + SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US).format(Date()) + ".db"
         val mime = "application/vnd.sqlite3"
         val folder = "School Tracker/Backups"
-        val keep = 2
+        // Mismo limite que el resto de los caminos de backup: `MAX_BACKUPS_LOCALES`
+        // en `db.rs` y el boton de Ajustes. Antes decia 2, y como este camino corre
+        // sin WebView no puede leer la constante de Rust: queda escrito en los tres
+        // lugares, y este es el que hay que mirar si el numero cambia solo en Android.
+        val keep = 5
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val ruta = DescargasSaver.rotar(context.contentResolver, db.absolutePath, mime, folder, nombre, keep)
