@@ -1376,7 +1376,7 @@ import { primerColegio } from "../lib/catalogo";
             invoke<Estudiante[]>("get_estudiantes_by_filters", { gradoId: grado, seccionId: seccion }),
             invoke<{ estudianteId: number; criterioId: number; valor: number }[]>("get_notas_by_filters", { gradoId: grado, seccionId: seccion, corteId: corte, asignaturaId: asignatura })
           ]);
-      const data = sexo ? dataRaw.filter(est => (est as any).sexo === sexo) : dataRaw;
+      const data = sexo ? dataRaw.filter(est => est.sexo === sexo) : dataRaw;
       estudiantes = data;
       const notasMap: Record<string, string> = {};
       const cuantitativasMap: Record<number, Record<number, number>> = {};
@@ -1417,6 +1417,7 @@ import { primerColegio } from "../lib/catalogo";
       notas = data.map(est => ({
         estudianteId: est.id,
         estudianteNombre: est.nombre,
+        sexo: est.sexo,
         notas: cuantitativasMap[est.id] || {}
       }));
       notasCualitativas = { ...notasMap };
@@ -4163,7 +4164,7 @@ import { primerColegio } from "../lib/catalogo";
                 {#each filteredNotas as est, idx}
                   <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
                     <td class="col-idx" style="padding: 0.3rem 0.5rem; color: #64748b; text-align: left;">{idx + 1}</td>
-                    <td title={est.estudianteNombre} style="padding: 0.3rem 0.6rem; color: #e2e8f0; font-weight: 500; white-space: nowrap;">{est.estudianteNombre}</td>
+                    <td title={est.estudianteNombre} style="padding: 0.3rem 0.6rem; color: {colorSexo(est.sexo)}; font-weight: 500; white-space: nowrap;">{est.estudianteNombre}</td>
                     {#if mostrarComparacion}
                       {#each cortesPrecios as corte (corte.id)}
                         {@const pctPrevCorte = comparacionCortes[corte.id]?.[est.estudianteId] ?? null}
