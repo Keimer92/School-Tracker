@@ -2665,7 +2665,12 @@ $effect(() => {
                  Tomar asistencia la misma tira lleva Sin Clases, Limpiar,
                  Rellenar y Guardar; un solo componente para no mantener dos
                  barras de acciones iguales. -->
-            <div style="display:flex;gap:0.3rem;align-items:stretch;flex-shrink:0;{isAndroidMobile ? 'width:100%;flex-wrap:wrap' : ''}">
+            <!-- Misma regla que `.android-actions` de tomar asistencia: en escritorio la
+         fila cede espacio (flex-shrink:1 + min-width:0) para que su
+         flex-wrap:wrap pueda bajar Imprimir/PDF a la siguiente línea en vez de
+         salirse por la derecha. Los botones NO encogen (flex-shrink:0 +
+         white-space:nowrap en .btn-mod): bajan enteros. -->
+            <div style="display:flex;gap:0.3rem;align-items:stretch;{isAndroidMobile ? 'width:100%;flex-shrink:0;flex-wrap:wrap' : 'flex-shrink:1;min-width:0;flex-wrap:wrap;padding-right:0.3rem'}">
               {#if !isAndroidMobile}
                 <button onclick={handlePrintWithIframe} disabled={filteredEstudiantesMulti.length === 0 || loading}
                   style="height:42px;padding:0 1.25rem;font-size:0.85rem;background:linear-gradient(135deg,#10b981,#059669);display:flex;align-items:center;justify-content:center;flex-shrink:0;gap:6px;border:none;border-radius:8px;color:#fff;font-weight:700;cursor:{filteredEstudiantesMulti.length === 0 || loading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(16,185,129,0.4);letter-spacing:0.3px;white-space:nowrap;opacity:{filteredEstudiantesMulti.length === 0 || loading ? 0.7 : 1}"
@@ -2695,7 +2700,7 @@ $effect(() => {
               </button>
             </div>
           {:else}
-          <div class="android-actions" style="display:flex;gap:{isAndroidMobile ? '2px' : '0.3rem'};align-items:stretch;flex-shrink:0;{isAndroidMobile ? 'flex-wrap:nowrap;min-width:0;width:100%;max-width:100%;-webkit-overflow-scrolling:touch;' : 'flex-wrap:wrap;padding-right:0.3rem'}overflow-x:{isAndroidMobile && dpAbierto ? 'visible' : isAndroidMobile ? 'auto' : 'visible'}">
+          <div class="android-actions" style="display:flex;gap:{isAndroidMobile ? '2px' : '0.3rem'};align-items:stretch;{isAndroidMobile ? 'flex-shrink:0;flex-wrap:nowrap;min-width:0;width:100%;max-width:100%;-webkit-overflow-scrolling:touch;' : 'flex-shrink:1;min-width:0;flex-wrap:wrap;padding-right:0.3rem'}overflow-x:{isAndroidMobile && dpAbierto ? 'visible' : isAndroidMobile ? 'auto' : 'visible'}">
           {#if isAndroidMobile && periodoEfectivo === "diario"}
             <!-- Más ancho que antes: con 130px la fecha "dd/mm/aaaa" no entraba y el
                  año quedaba con puntos suspensivos. La fila es nowrap con scroll
@@ -2707,7 +2712,13 @@ $effect(() => {
                  (fecha -> guardar) y queda a la vista sin tener que scrollear. -->
             <BotonMod opts={optsGuardar} />
           {/if}
-          <div class="pop-wrap" bind:this={popSinClasesEl} style="flex:0 1 auto; min-width:0;">
+          <!-- `flex:0 0 auto` a propósito: el chip NO debe encogerse, debe BAJAR
+               entero a la siguiente línea cuando la fila se queda sin ancho. El
+               que cede espacio es `.android-actions` (flex-shrink:1), que es lo
+               que permite que su flex-wrap:wrap interno entre en acción. Si este
+               div encogera, el `.btn-mod` de adentro (white-space:nowrap) se
+               desbordaría hacia afuera en vez de bajar. -->
+          <div class="pop-wrap" bind:this={popSinClasesEl} style="flex:0 0 auto;">
             <BotonMod opts={{
               onclick: handleSinClasesClick,
               disabled: sinClasesGuardando || !selectedSeccion,
