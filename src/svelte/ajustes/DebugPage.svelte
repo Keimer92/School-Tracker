@@ -248,7 +248,10 @@
     if (runningBackup) return;
     runningBackup = true;
     try {
-      const ruta = await invoke<string>("run_local_backup", { keep: 2 });
+      // Mismo límite que el respaldo de cierre (db::MAX_BACKUPS_LOCALES): si el
+    // botón usara otro número, la carpeta dependería de qué disparador generó
+    // el último backup, que es justo lo que no debe pasar.
+      const ruta = await invoke<string>("run_local_backup", { keep: 5 });
       await emit("show-toast", {
         message: ruta ? `✅ Backup guardado: ${ruta.split(/[\\/]/).pop()}` : "❌ No se pudo guardar el backup",
         type: ruta ? "success" : "error",

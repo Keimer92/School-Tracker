@@ -2419,6 +2419,40 @@ pub fn run() {
 
             Ok(())
         })
+        // ── Respaldo local al cerrar la app ──────────────────────────────
+        //
+        // En `CloseRequested` se copia la base a `School Tracker/Backups`
+        // (rotando a MAX_BACKUPS_LOCALES archivos). NO se llama
+        // `api.prevent_close()` justamente para poder seguir asi: sin el,
+        // Tauri espera a que el handler devuelva y recien ahi cierra la
+        // ventana, que es el orden buscado (backup -> cierre).
+        //
+        // Por que en Rust y no desde el frontend: al cerrar, el WebView ya
+        // puede estar empezando a desmontarse y un `invoke` en vuelo puede no
+        // resolver nunca, dejando el backup sin hacer. Aca no depende del
+        // WebView. Tampoco se usa `tauri::async_runtime::spawn`: la copia es
+        // sincrona y corta, y `on_window_event` corre en el hilo principal,
+        // que es el que hay que bloquear unos milisegundos.
+        .on_window_event(|window, event| {
+            if !matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
+                return;
+            }
+            let estado = window.state::<DbState>();
+            // El `;` es necesario: sin él, el `MutexGuard` del `match` se
+            // destructorea al final del closure, cuando `estado` ya fue
+            // soltado, y el borrow no dura lo suficiente (E0597).
+            match estado.conn.lock() {
+                Ok(conn) => match db::local_backup_con_conexion(
+                    window.app_handle(),
+                    &conn,
+                    db::MAX_BACKUPS_LOCALES,
+                ) {
+                    Ok(ruta) => println!("[Cierre] Backup local: {}", ruta),
+                    Err(e) => eprintln!("[Cierre] Fallo el backup local: {}", e),
+                },
+                Err(e) => eprintln!("[Cierre] BD ocupada, sin backup: {}", e),
+            };
+        })
         .invoke_handler(tauri::generate_handler![
             create_folder_and_save_file,
             get_anos,

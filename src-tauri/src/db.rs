@@ -6407,16 +6407,44 @@ pub async fn run_local_backup(
     keep: Option<i64>,
 ) -> Result<String, String> {
     let keep = keep.unwrap_or(2).clamp(1, 10) as usize;
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    local_backup_con_conexion(&app_handle, &conn, keep)
+}
+
+/// Cuerpo del backup local, con la conexion YA tomada.
+///
+/// Vive separado del comando porque el respaldo de cierre de la app necesita
+/// llamarlo sin pasar por `tauri::State` (el handler de `CloseRequested` saca
+/// el estado de la ventana). Se mantiene el lock durante checkpoint + copia:
+/// es justamente ese lock lo que impide que alguien escriba en medio del
+/// snapshot.
+pub fn local_backup_con_conexion(
+    app_handle: &tauri::AppHandle,
+    conn: &Connection,
+    keep: usize,
+) -> Result<String, String> {
     let db_path = {
-        let app_dir = crate::get_profile_app_dir(&app_handle)?;
-        let conn = state.conn.lock().map_err(|e| e.to_string())?;
-        let _ = &conn; // se toma solo el lock para no dejar la BD mutandose
+        let app_dir = crate::get_profile_app_dir(app_handle)?;
         crate::db::resolve_active_db_path(&app_dir)
     };
     if !std::path::Path::new(&db_path).exists() {
         return Err(format!("No se encontró la base de datos en {}", db_path.display()));
     }
     let nombre = nombre_backup_actual();
+
+    // Checkpoint ANTES de copiar. Sin esto el archivo `.db` sale incompleto:
+    // la base esta en modo WAL y los datos confirmados siguen en `school.db-wal`
+    // hasta que se vuelcan al `.db`. El respaldo se llevaria los datos menos
+    // los ultimos cambios, sin avisar. `TRUNCATE` deja ademas el `-wal` en 0.
+    match conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |r| {
+        Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?))
+    }) {
+        Ok((0, written, moved)) => {
+            println!("[Backup] WAL checkpoint: {} frames volcados, {} movidos", written, moved);
+        }
+        Ok(_) => { /* busy != 0: hay lectores; se copia igual */ }
+        Err(e) => println!("[Backup] sin checkpoint (base no está en WAL): {}", e),
+    }
 
     #[cfg(target_os = "android")]
     {
@@ -6494,6 +6522,12 @@ pub async fn run_local_backup(
         Ok(ruta)
     }
 }
+
+/// Cuantos respaldos locales se conservan en `School Tracker/Backups`.
+///
+/// Son 5 tanto en el timer de Ajustes como en el respaldo de cierre, para que
+/// el usuario no vea el numero cambiar segun de donde salio el backup.
+pub const MAX_BACKUPS_LOCALES: usize = 5;
 
 /// Guarda la configuracion del backup automatico y (re)programa la alarma.
 ///
