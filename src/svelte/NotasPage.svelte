@@ -61,8 +61,9 @@ import { primerColegio } from "../lib/catalogo";
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
   interface Criterio { id: number; orden: number; descripcion: string; puntajeMaximo: number; }
   interface Indicador { id: number; orden: number; descripcion: string; activo: boolean; instrumento?: string; criterios: Criterio[]; }
-  interface Estudiante { id: number; nombre: string; gradoId: number; seccionId: number; grado: string; seccion: string; }
-  interface NotaEstudiante { estudianteId: number; estudianteNombre: string; notas: Record<number, number>; }
+  interface Estudiante { id: number; nombre: string; gradoId: number; seccionId: number; grado: string; seccion: string; sexo: string; }
+  /** `sexo` se copia del estudiante para poder teñir el nombre en la grilla. */
+  interface NotaEstudiante { estudianteId: number; estudianteNombre: string; sexo: string; notas: Record<number, number>; }
   /** Primeras 3 letras distribuibles de un indicador (C1, C2, C3) y su peso. */
   interface IndDist { weight: number; c1: Criterio; c2: Criterio; c3: Criterio; }
 
@@ -1107,7 +1108,7 @@ import { primerColegio } from "../lib/catalogo";
         }
         studentNotas[crit.id] = numValue;
       }); });
-      return { estudianteId: est.id, estudianteNombre: est.nombre, notas: studentNotas };
+      return { estudianteId: est.id, estudianteNombre: est.nombre, sexo: est.sexo, notas: studentNotas };
     });
     notas = newNotas;
   }
@@ -1132,7 +1133,7 @@ import { primerColegio } from "../lib/catalogo";
         }
         studentNotas[crit.id] = numValue;
       }); });
-      return { estudianteId: est.id, estudianteNombre: est.nombre, notas: studentNotas };
+      return { estudianteId: est.id, estudianteNombre: est.nombre, sexo: est.sexo, notas: studentNotas };
     });
     notas = newNotas;
   }
@@ -3666,7 +3667,13 @@ import { primerColegio } from "../lib/catalogo";
               <div onclick={() => { currentStudentIdx = idx; showStudentList = false; }}
                 style="display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 1rem; background: {isCurrent ? 'rgba(var(--primary-rgb), 0.1)' : 'transparent'}; border-bottom: 1px solid rgba(255,255,255,0.03); cursor: pointer; transition: background 0.1s;">
                 <div style="width: 28px; height: 28px; border-radius: 50%; background: {isCurrent ? '#6366f1' : 'rgba(255,255,255,0.06)'}; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.75rem; color: {isCurrent ? '#fff' : '#94a3b8'}; flex-shrink: 0;">{idx + 1}</div>
-                <div style="flex: 1; font-weight: {isCurrent ? 'bold' : 'normal'}; font-size: 0.85rem; color: {isCurrent ? '#e2e8f0' : '#cbd5e1'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{est.estudianteNombre}</div>
+                <!-- El color de sexo cede ante el resaltado: cuando la fila es la del
+                     estudiante en curso, el nombre vuelve a su gris claro en
+                     negrita, porque ahí el color de fondo y el avatar ya
+                     marcan la selección y el nombre tiene que acompañar ese
+                     cambio de peso/glose. En el resto de la lista manda el
+                     color de sexo. -->
+                <div style="flex: 1; font-weight: {isCurrent ? 'bold' : 'normal'}; font-size: 0.85rem; color: {isCurrent ? '#e2e8f0' : colorSexo(est.sexo)}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{est.estudianteNombre}</div>
                 {#if grade}
                   <div style="color: {color}; font-weight: bold; font-size: 0.85rem;">{grade}</div>
                 {/if}
@@ -3751,7 +3758,7 @@ import { primerColegio } from "../lib/catalogo";
                 <tr class="notas-row" style="border-bottom: 2px solid rgba(255,255,255,0.08);">
                   <td class="sticky-cell student-number" style="padding: 0.3rem; text-align: center; position: sticky; left: 0; z-index: 5; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.65rem;">{index + 1}</td>
                   <td class="sticky-cell student-name" style="padding: 0.3rem; position: sticky; left: 35px; z-index: 5; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                    <div style="font-weight: bold; font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px;">{est.estudianteNombre}</div>
+                    <div style="font-weight: bold; font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; color: {colorSexo(est.sexo)};">{est.estudianteNombre}</div>
                   </td>
                   {#each indicadoresSeccion as ind}
                     {#each ind.criterios as crit}
