@@ -25,9 +25,14 @@ import { primerColegio } from "../lib/catalogo";
   import { t } from "../lib/i18n.svelte";
 
   // --- Imports used only by the report half ("reportes" mode) ---
-  import { join, tempDir, documentDir } from "@tauri-apps/api/path";
+  import {
+    rutaExportAbsoluta,
+    subcarpetaRelativa,
+    destinoParaToast,
+  } from "../lib/carpetasExport";
   import { writeFile, mkdir } from "@tauri-apps/plugin-fs";
   import { openUrl } from "@tauri-apps/plugin-opener";
+  import { unirRuta, aFileURL } from "../lib/platform";
   import { generarPdfNotas } from "../lib/notasPdf";
   
   import { portalToBody } from "../lib/portalToBody";
@@ -2495,11 +2500,10 @@ import { primerColegio } from "../lib/catalogo";
       progresoMasivo = t('inf.export.preparando');
       const names = selectedNames;
       const sanitize = (s: string) => s.replace(/[<>:"/\\|?*]/g, '_');
-      const docsPath = await documentDir();
-      const folderName = "School Tracker";
-      const subfolder = `${sanitize(names.ano)} - ${sanitize(names.corte)} - ${sanitize(names.asignatura)}`;
-      const sep = repIsAndroid ? '/' : '\\';
-      const baseDir = docsPath + sep + folderName + sep + subfolder;
+      // Destino: School Tracker/Notas/<Año Lectivo>/<Corte - Asignatura>.
+      // El año va como carpeta propia; corte y asignatura quedan debajo.
+      const detalle = `${names.corte} - ${names.asignatura}`;
+      const baseDir = await rutaExportAbsoluta('notas', names.ano, detalle);
       await mkdir(baseDir, { recursive: true });
 
       // Colegios a recorrer: el filtrado, o todos los del catalogo.
@@ -2650,12 +2654,13 @@ import { primerColegio } from "../lib/catalogo";
           })),
         });
         const fileName = `Notas ${sanitize(pair.colegioNombre)} ${sanitize(pair.gradoNombre)} - Seccion ${sanitize(pair.seccionNombre)}.pdf`;
-        const fullPath = baseDir + sep + fileName;
+        const fullPath = unirRuta(baseDir, fileName);
         await writeFile(fullPath, new Uint8Array(pdfData));
         if (repIsAndroid) {
           // Copia a Descargas/School Tracker (carpeta publica) con MediaStore.
           const ruta = await invoke<string>('guardar_en_descargas', {
-            path: fullPath, mime: 'application/pdf', carpeta: `${folderName}/${subfolder}`, nombre: fileName
+            path: fullPath, mime: 'application/pdf',
+            carpeta: subcarpetaRelativa('notas', names.ano, detalle), nombre: fileName
           }).catch(() => "");
           if (!ruta) fallaronDescargas++;
         }
@@ -2663,16 +2668,16 @@ import { primerColegio } from "../lib/catalogo";
       }
 
       exportandoMasivo = false;
-      const destino = repIsAndroid ? "Descargas/School Tracker" : "Documents/School Tracker";
+      const destino = destinoParaToast(repIsAndroid, 'notas', names.ano, detalle);
       const alcanceTxt = esTodos ? t('rep.export.todosColegios') : repColegios.find(c => c.id === repSelectedColegio)?.nombre || t('rep.export.elColegio');
       if (processed === 0) {
         await emit("show-toast", { message: t('rep.export.sinEstudiantesEn', { alcance: alcanceTxt }), type: 'warning' });
       } else if (repIsAndroid && fallaronDescargas > 0) {
-        await emit("show-toast", { message: t('rep.export.pdfsParcial', { copiados, ruta: `${destino}/${subfolder}`, fallaron: fallaronDescargas }), type: 'warning' });
+        await emit("show-toast", { message: t('rep.export.pdfsParcial', { copiados, ruta: destino, fallaron: fallaronDescargas }), type: 'warning' });
       } else {
-        await emit("show-toast", { message: t('rep.export.pdfsOk', { n: repIsAndroid ? copiados : processed, alcance: alcanceTxt, ruta: `${destino}/${subfolder}` }), type: 'success' });
+        await emit("show-toast", { message: t('rep.export.pdfsOk', { n: repIsAndroid ? copiados : processed, alcance: alcanceTxt, ruta: destino }), type: 'success' });
       }
-      if (!repIsAndroid) { try { await openUrl("file:///" + baseDir.replace(/\\/g, '/')); } catch {} }
+      if (!repIsAndroid) { try { await openUrl(aFileURL(baseDir)); } catch {} }
     } catch (error) {
       console.error("Error en exportación masiva:", error);
       exportandoMasivo = false;

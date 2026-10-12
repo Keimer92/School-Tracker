@@ -11,6 +11,7 @@
   import { t } from "../lib/i18n.svelte";
 import { primerColegio } from "../lib/catalogo";
   import { ask } from "@tauri-apps/plugin-dialog";
+  import { destinoParaToast, subcarpetaRelativa } from "../lib/carpetasExport";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
 import SelectChip from "./SelectChip.svelte";
@@ -189,12 +190,15 @@ import SelectChip from "./SelectChip.svelte";
     const conDatos = lista.filter(c => students.some(s => Number(s.anoLectivoId) === Number(anoSel.id) && Number(s.colegioId) === c.id));
     if (conDatos.length === 0) { await emit("show-toast", { message: t('est.export.vacioAno', { ano: anoSel.nombre }), type: "warning" }); return; }
 
+    // Destino unificado: School Tracker/Estudiantes/<Año Lectivo> (traducido).
+    const destino = destinoParaToast(isAndroid, 'estudiantes', anoSel.nombre);
+
     // En Android no se pide carpeta: el selector devuelve una URI de contenido y
     // no se puede escribir con una ruta cruda. El archivo va directo a la carpeta
     // pública Descargas/School Tracker vía MediaStore (sin permisos).
     const ok = await ask(
       isAndroid
-        ? t('est.export.confirmarAndroid', { n: conDatos.length, ano: anoSel.nombre })
+        ? t('est.export.confirmarAndroid', { n: conDatos.length, ano: anoSel.nombre, ruta: destino })
         : t('est.export.confirmarDesktop', { n: conDatos.length, ano: anoSel.nombre }),
       { title: t('est.export.tituloAsk'), kind: "info", okLabel: isAndroid ? t('est.btn.exportar') : t('est.export.elegirCarpeta'), cancelLabel: t('comun.cancelar') }
     );
@@ -245,7 +249,7 @@ import SelectChip from "./SelectChip.svelte";
         let ruta: string;
         try {
           ruta = isAndroid
-            ? await escribirLibroEnDescargas(libro, nombreBase)
+            ? await escribirLibroEnDescargas(libro, nombreBase, subcarpetaRelativa('estudiantes', anoSel.nombre).replace(/^School Tracker\//, ''))
             : await escribirLibroEnCarpeta(libro, carpeta, nombreBase);
         } catch (err) {
           // El error crudo de Tauri ("unexpected invoke body") no dice qué paso
@@ -260,7 +264,7 @@ import SelectChip from "./SelectChip.svelte";
       if (!isAndroid) exportUltimaCarpeta = carpeta;
       await emit("show-toast", {
         message: isAndroid
-          ? `✅ ${archivos.length} archivo(s) en Descargas/School Tracker · ${total} estudiantes`
+          ? t('est.export.okAndroid', { n: archivos.length, m: total, ruta: destino })
           : `✅ ${archivos.length} archivo(s) exportados · ${total} estudiantes`,
         type: "success",
       });

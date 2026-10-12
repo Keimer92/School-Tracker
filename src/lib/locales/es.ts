@@ -798,20 +798,27 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'est.export.generando': '⏳ Generando...',
   'est.export.exportarExcel': '📊 Exportar Excel',
   'est.export.okAndroid':
-    '✅ {n} archivo(s) en Descargas/School Tracker · {m} estudiantes',
+    '✅ {n} archivo(s) en {ruta} · {m} estudiantes',
   'est.export.ok': '✅ {n} archivo(s) exportados · {m} estudiantes',
   'est.export.error': '❌ Error al exportar: {msg}',
   'est.export.selAno': '⚠️ Selecciona un año lectivo',
   'est.export.selColegios': '⚠️ No hay colegios seleccionados',
   'est.export.vacioAno': '⚠️ No hay estudiantes en {ano}',
   'est.export.confirmarAndroid':
-    'Se generarán {n} archivo(s) Excel (uno por colegio) con los estudiantes de {ano}.\\n\\nSe guardarán en Descargas/School Tracker.',
+    'Se generarán {n} archivo(s) Excel (uno por colegio) con los estudiantes de {ano}.\\n\\nSe guardarán en {ruta}.',
   'est.export.confirmarDesktop':
     'Se generarán {n} archivo(s) Excel (uno por colegio) con los estudiantes de {ano}.\\n\\nElige la carpeta donde guardarlos.',
   'est.export.tituloAsk': '📊 Exportar estudiantes',
   'est.export.elegirCarpeta': 'Elegir carpeta',
   'est.export.carpetaTitulo': 'Carpeta destino para los archivos Excel',
   'est.export.carpetaError': '❌ No se pudo elegir la carpeta',
+  // ── Carpetas de exportación ──
+  // Categorías bajo "School Tracker/". Se traducen porque son carpetas que el
+  // usuario ve en su disco; "School Tracker" NO (nombre propio del producto).
+  'exp.carpeta.asistencias': 'Asistencias',
+  'exp.carpeta.notas': 'Notas',
+  'exp.carpeta.estudiantes': 'Estudiantes',
+
   'est.form.confirmarEditar': '¿Guardar los cambios de "{nombre}"?',
   'est.form.confirmarNuevo': '¿Registrar este nuevo estudiante?',
   'est.form.tituloEdit': '✏️ Confirmar edición',

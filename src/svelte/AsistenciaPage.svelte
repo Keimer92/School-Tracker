@@ -3,9 +3,13 @@
   import { untrack } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { emit, listen } from "@tauri-apps/api/event";
-  import { documentDir } from "@tauri-apps/api/path";
   import { writeFile, mkdir } from "@tauri-apps/plugin-fs";
   import { openUrl } from "@tauri-apps/plugin-opener";
+  import {
+    rutaExportAbsoluta,
+    subcarpetaRelativa,
+    destinoParaToast,
+  } from "../lib/carpetasExport";
   import { syncService } from "../lib/syncService";
   import { onDataChange } from "../lib/autoSync";
   import { registerBackHandler } from "../lib/androidBack";
@@ -2258,10 +2262,12 @@ $effect(() => {
         tablas
       );
 
-      const docsPath = await documentDir();
-      const folderName = "School Tracker";
-      const subfolder = `${sanitize(anoNombre)} - Asistencia ${sanitize(periodoEtiqueta)}`;
-      const baseDir = unirRuta(docsPath, folderName, subfolder);
+      // Destino: School Tracker/Asistencias/<Año Lectivo>/<Período>.
+      // El año va como carpeta propia para no depender del detalle del período.
+      // `periodoEtiqueta` va en español a propósito: los nombres de período de
+      // los reportes ya son español (convención del proyecto para PDF).
+      const detalle = periodoEtiqueta;
+      const baseDir = await rutaExportAbsoluta('asistencias', anoNombre, detalle);
       await mkdir(baseDir, { recursive: true }).catch(e => console.log("mkdir:", e));
 
       const fileName = `Asistencia ${sanitize(periodoEtiqueta)} ${sanitize(anoNombre)}.pdf`;
@@ -2269,20 +2275,21 @@ $effect(() => {
       await writeFile(filePath, bytes);
 
       exportandoMasivo = false;
-      const destino = isAndroid ? "Descargas/School Tracker" : "Documents/School Tracker";
+      const destino = destinoParaToast(isAndroid, 'asistencias', anoNombre, detalle);
       if (isAndroid) {
         const ruta = await invoke<string>('guardar_en_descargas', {
-          path: filePath, mime: 'application/pdf', carpeta: `${folderName}/${subfolder}`, nombre: fileName,
+          path: filePath, mime: 'application/pdf',
+          carpeta: subcarpetaRelativa('asistencias', anoNombre, detalle), nombre: fileName,
         }).catch(() => "");
         if (ruta) {
           try { await invoke('share_pdf', { path: ruta }); } catch { }
-          await emit("show-toast", { message: t('inf.export.hojas', { n: tablas.length, destino: `${destino}/${subfolder}` }), type: 'success' });
+          await emit("show-toast", { message: t('inf.export.hojas', { n: tablas.length, destino }), type: 'success' });
         } else {
           await emit("show-toast", { message: t('inf.export.sinDescargas'), type: 'warning' });
         }
       } else {
         await openUrl(aFileURL(baseDir));
-        await emit("show-toast", { message: t('inf.export.hojas', { n: tablas.length, destino: `${destino}/${subfolder}` }), type: 'success' });
+        await emit("show-toast", { message: t('inf.export.hojas', { n: tablas.length, destino }), type: 'success' });
       }
     } catch (error) {
       console.error("Error al exportar PDF de asistencia:", error);

@@ -779,20 +779,27 @@ to print. It is saved in Documents/SchoolTrackerPro/Instruments.`,
   'est.export.generando': '⏳ Generating...',
   'est.export.exportarExcel': '📊 Export to Excel',
   'est.export.okAndroid':
-    '✅ {n} file(s) in Downloads/School Tracker · {m} students',
+    '✅ {n} file(s) in {ruta} · {m} students',
   'est.export.ok': '✅ {n} file(s) exported · {m} students',
   'est.export.error': '❌ Export error: {msg}',
   'est.export.selAno': '⚠️ Select a school year',
   'est.export.selColegios': '⚠️ No schools selected',
   'est.export.vacioAno': '⚠️ There are no students in {ano}',
   'est.export.confirmarAndroid':
-    'This will generate {n} Excel file(s) (one per school) with the students of {ano}.\\n\\nThey will be saved to Downloads/School Tracker.',
+    'This will generate {n} Excel file(s) (one per school) with the students of {ano}.\\n\\nThey will be saved to {ruta}.',
   'est.export.confirmarDesktop':
     'This will generate {n} Excel file(s) (one per school) with the students of {ano}.\\n\\nChoose the folder where to save them.',
   'est.export.tituloAsk': '📊 Export students',
   'est.export.elegirCarpeta': 'Choose folder',
   'est.export.carpetaTitulo': 'Destination folder for the Excel files',
   'est.export.carpetaError': '❌ Could not choose the folder',
+  // ── Export folders ──
+  // Categories under "School Tracker/". Translated because these are folders the
+  // user browses on disk; "School Tracker" itself is NOT (product proper noun).
+  'exp.carpeta.asistencias': 'Attendance',
+  'exp.carpeta.notas': 'Grades',
+  'exp.carpeta.estudiantes': 'Students',
+
   'est.form.confirmarEditar': 'Save the changes of "{nombre}"?',
   'est.form.confirmarNuevo': 'Register this new student?',
   'est.form.tituloEdit': '✏️ Confirm edit',
