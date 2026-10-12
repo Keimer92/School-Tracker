@@ -49,7 +49,9 @@ import {
   dibujarTitulo,
   dibujarPie,
   resolverExport,
+  hexToRgb,
 } from "./pdfChrome";
+import { colorSexoExport } from "./coloresSexo.svelte";
 
 export interface FilaNotaPdf {
   nombre: string;
@@ -74,15 +76,6 @@ export interface MetaPdfNotas {
   filas: FilaNotaPdf[];
   /** Fecha de emisión; si se omite se usa la de hoy. */
   fecha?: string;
-}
-
-function hexToRgb(hex: string): [number, number, number] {
-  const h = hex.replace("#", "");
-  const n = h.length === 3
-    ? h.split("").map(c => c + c).join("")
-    : h;
-  const v = parseInt(n, 16);
-  return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
 }
 
 export async function generarPdfNotas(meta: MetaPdfNotas): Promise<Uint8Array> {
@@ -115,9 +108,11 @@ export async function generarPdfNotas(meta: MetaPdfNotas): Promise<Uint8Array> {
   chips.push({ texto: `Fecha: ${fecha}`, estilo: CHIP_NEUTRO });
   const y = dibujarChips(doc, chips, margins.left, yTitulo, anchoUtil);
 
-  const est = estiloPara(3, meta.filas.length);
-  const headers = ["Estudiante", "Sexo", "Nota Final"];
-  const body = meta.filas.map(f => [f.nombre, f.sexo, f.nota]);
+  // Sin columna "Sexo": el nombre ya va teñido con el color de sexo, así que la
+  // columna repetía la información y consumía ancho en la hoja.
+  const est = estiloPara(2, meta.filas.length);
+  const headers = ["Estudiante", "Nota Final"];
+  const body = meta.filas.map(f => [f.nombre, f.nota]);
 
   autoTable(doc, {
     startY: y,
@@ -149,12 +144,22 @@ export async function generarPdfNotas(meta: MetaPdfNotas): Promise<Uint8Array> {
     tableLineWidth: GROSOR_LINEA_TABLA,
     columnStyles: {
       0: { cellWidth: "auto", minCellWidth: 50, fontStyle: "bold", halign: "left" },
-      1: { cellWidth: 14, halign: "center" },
-      2: { cellWidth: 30, halign: "center", fontStyle: "bold" },
+      1: { cellWidth: 30, halign: "center", fontStyle: "bold" },
     },
     rowPageBreak: "avoid",
     didParseCell: (data: any) => {
-      if (data.section === "body" && data.column.index === 2) {
+      // El nombre se tiñe con el color de sexo elegido en Ajustes, para que el
+      // PDF se lea igual que la pantalla. Es el MISMO ajuste que usa la app
+      // (`coloresSexo.svelte.ts`), leído sincrónicamente porque acá no hay
+      // reactivity: al momento de exportar ya está cargado.
+      if (data.section === "body" && data.column.index === 0) {
+        const fila = meta.filas[data.row.index];
+        const [r, g, b] = hexToRgb(colorSexoExport(fila?.sexo));
+        data.cell.styles.textColor = [r, g, b];
+        data.cell.styles.fontStyle = "bold";
+        data.cell.styles.halign = "left";
+      }
+      if (data.section === "body" && data.column.index === 1) {
         const fila = meta.filas[data.row.index];
         if (fila?.color) {
           const [r, g, b] = hexToRgb(fila.color);

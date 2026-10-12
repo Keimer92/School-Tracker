@@ -230,6 +230,24 @@ export function dibujarPie(
 }
 
 /**
+ * Convierte un color hexadecimal a la terna RGB que quiere jsPDF.
+ *
+ * Vive acá porque lo usan los dos generadores (notas y asistencia) para teñir
+ * el nombre del estudiante con el color de sexo. Acepta `#rgb` y `#rrggbb`, con
+ * o sin `#`, porque el valor viene de un `<input type="color">` del usuario y
+ * de los defaults del ajuste, que no tienen por qué venir en el mismo formato.
+ * Un valor no recognized devuelve negro, que es el color por defecto de la
+ * tabla: antes que fallar, el nombre queda legible.
+ */
+export function hexToRgb(hex: string | undefined | null): [number, number, number] {
+  const h = String(hex ?? "").replace("#", "").trim();
+  const n = /^[0-9a-f]{3}$/i.test(h) ? h.split("").map(c => c + c).join("") : h;
+  if (!/^[0-9a-f]{6}$/i.test(n)) return [0, 0, 0];
+  const v = parseInt(n, 16);
+  return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+}
+
+/**
  * El export de jspdf/jspdf-autotable llega con distinta forma segun el
  * empaquetador: en Vite es `mod.default`, pero al correr el modulo fuera del
  * bundle (node, pruebas) queda anidado en `mod.default.default`. Se resuelve

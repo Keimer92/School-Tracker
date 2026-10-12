@@ -53,6 +53,25 @@ export function argb(hex: string): string {
 }
 
 /**
+ * Versión lavada de un color, para usarlo de FONDO de fila.
+ *
+ * Excel no tiene un canal alfa que se vea bien sobre el blanco del papel (un
+ * `fill` con alfa se exporta a PDF como un color sucio o directamente se
+ * pierde), así que en vez de transparentar se mezcla el color con blanco: el
+ * resultado es opaco y se imprime siempre igual. `fuerza` es cuánto se lava
+ * (0 = color puro, 1 = blanco).
+ */
+function lavar(hex: string, fuerza = 0.88): string {
+  const h = hex.replace('#', '').trim();
+  const n = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+  if (!/^[0-9a-f]{6}$/i.test(n)) return n.toUpperCase() || 'FFFFFF';
+  const v = parseInt(n, 16);
+  const mezcla = (c: number) => Math.round(c + (255 - c) * fuerza);
+  const r = mezcla((v >> 16) & 255), g = mezcla((v >> 8) & 255), b = mezcla(v & 255);
+  return ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0').toUpperCase();
+}
+
+/**
  * Paleta compartida: sigue la convención de acentos del proyecto
  * (AGENTS.md → "Acentos por categoría") para que los Excel se vean nativos.
  */
@@ -267,6 +286,7 @@ export function altoFila(ws: any, fila: number, puntos: number): void {
 }
 
 // ── Guardado en disco (Tauri) ────────────────────────────────────────────
+import { colorSexoExport } from "./coloresSexo.svelte";
 
 /** Escribe el libro en `carpeta` con `nombreBase` y devuelve la ruta completa. */
 export async function escribirLibroEnCarpeta(libro: any, carpeta: string, nombreBase: string): Promise<string> {
@@ -473,12 +493,20 @@ export async function crearLibroEstudiantes(opts: OpcionesLibroEstudiantes): Pro
       r = escribirCabecera(hoja, ['Nº', 'Código', 'Nombre', 'Sexo'], r);
       s.estudiantes.forEach((e, i) => {
         const fila = r;
-        escribirFila(hoja, fila, [i + 1, e.codigo, e.nombre, e.sexo === 'F' ? 'Femenino' : 'Masculino'], {
+        // La columna "Sexo" queda con la inicial (F/M): el nombre ya va
+        // teñido, pero la inicial sigue sirviendo para filtrar la hoja.
+        escribirFila(hoja, fila, [i + 1, e.codigo, e.nombre, e.sexo === 'F' ? 'F' : 'M'], {
           banda: i % 2 === 1,
           centrarTodas: true,
         });
         hoja.getCell(fila, 3).alignment = { horizontal: 'left', vertical: 'middle' };
-        hoja.getCell(fila, 4).font = { size: 10, bold: true, color: { argb: argb(e.sexo === 'F' ? PALETA.rosa : PALETA.azul) } };
+        // Color elegido en Ajustes, el mismo que se ve en pantalla.
+        const colorSexo = colorSexoExport(e.sexo);
+        hoja.getCell(fila, 3).font = { size: 10, bold: true, color: { argb: argb(colorSexo) } };
+        hoja.getCell(fila, 4).font = { size: 10, bold: true, color: { argb: argb(colorSexo) } };
+        // Fila teñida: reemplaza la banda gris alternada, que competiría con el
+        // color de sexo y haría el "¿rojo o banda?" imposible de leer.
+        for (let col = 1; col <= 4; col++) hoja.getCell(fila, col).fill = relleno(lavar(colorSexo));
         r++;
       });
     }

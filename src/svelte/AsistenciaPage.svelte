@@ -10,6 +10,7 @@
     subcarpetaRelativa,
     destinoParaToast,
   } from "../lib/carpetasExport";
+  import { colorSexo, colorSexoAlfa, colorSexoExport } from "../lib/coloresSexo.svelte";
   import { syncService } from "../lib/syncService";
   import { onDataChange } from "../lib/autoSync";
   import { registerBackHandler } from "../lib/androidBack";
@@ -2234,11 +2235,14 @@ $effect(() => {
           titulo: `${p.gradoNombre} - Sección ${p.seccionNombre}`,
           subtitulo: `${p.colegioNombre} · Año lectivo ${anoNombre}`,
           layout: 'fechas',
-          headers: ["Estudiante", "Sexo", ...fechasCols.map(f => f.split('-').slice(1).reverse().join('/')), "P", "A", "J"],
+          // Sin columna "Sexo": el nombre va teñido con el color de sexo. El dato viaja
+          // aparte en `sexos` para que el PDF pueda pintar cada fila.
+          headers: ["Estudiante", ...fechasCols.map(f => f.split('-').slice(1).reverse().join('/')), "P", "A", "J"],
+          sexos: conSexo.map(est => est.sexo),
           body: conSexo.map(est => {
             const estados = fechasCols.map(f => estadoDelReporte(est, f));
             const cuenta = (e: string) => estados.filter(x => x === e).length;
-            return [est.nombre, est.sexo, ...estados, cuenta('P'), cuenta('A'), cuenta('J')];
+            return [est.nombre, ...estados, cuenta('P'), cuenta('A'), cuenta('J')];
           }),
           nota: notaSinClases || undefined,
           chip: `Sección: ${p.gradoNombre} - ${p.seccionNombre}`,
@@ -2307,12 +2311,16 @@ $effect(() => {
       await emit("show-toast", { message: t('inf.print.preparando'), type: 'success' });
       const anoNombrePrint = anos.find(a => a.id === selectedAno)?.nombre || String(selectedAno);
       const fechasCols = fechasColumnas;
-      const headers = ["Estudiante", "Sexo", ...fechasCols.map(f => f.split('-').slice(1).reverse().join('/')), "P", "A", "J"];
+      // Sin columna "Sexo": el nombre va teñido con el color de sexo, el mismo que
+      // se ve en pantalla. El `!important` del bloque @media print es lo que
+      // hace que el color sobreviva al diálogo de impresión del navegador,
+      // que por defecto descarta los colores de fondo y de texto.
+      const headers = ["Estudiante", ...fechasCols.map(f => f.split('-').slice(1).reverse().join('/')), "P", "A", "J"];
       const rows = filteredEstudiantesMulti.map(est => {
         const p = fechasCols.filter(f => estadoEnFecha(est, f) === 'P').length;
         const a = fechasCols.filter(f => estadoEnFecha(est, f) === 'A').length;
         const j = fechasCols.filter(f => estadoEnFecha(est, f) === 'J').length;
-        return `<tr><td class="nombre">${est.nombre}</td><td>${est.sexo}</td>${fechasCols.map(f => {
+        return `<tr><td class="nombre" style="color:${colorSexoExport(est.sexo)}">${est.nombre}</td>${fechasCols.map(f => {
           const estado = estadoEnFecha(est, f);
           const cls = estado === 'P' ? 'estado-P' : estado === 'A' ? 'estado-A' : estado === 'J' ? 'estado-J' : '';
           return `<td class="${cls}">${estado}</td>`;
@@ -2341,6 +2349,9 @@ $effect(() => {
         @page{size:letter landscape;margin:8mm}
         @media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
         th{background:#d1fae5!important}tbody tr:nth-child(even){background:#f7fdfa!important}
+        /* El navegador anula el color de texto al imprimir salvo que se pida
+           explícitamente; sin esto el nombre del estudiante sale negro. */
+        td.nombre{print-color-adjust:exact!important;-webkit-print-color-adjust:exact!important}
         .estado-P{color:#047857!important}.estado-A{color:#b91c1c!important}.estado-J{color:#a16207!important}
         tr{page-break-inside:avoid}}
       </style></head><body>
@@ -2379,7 +2390,9 @@ $effect(() => {
     .card-value.small{font-size:0.9rem}
     .card-label{font-size:0.5rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.04em;font-weight:600}
     .card-gender{display:flex;gap:0.3rem;margin-top:2px;font-size:0.5rem;font-weight:600}
-    .gender-f{color:#f472b6}.gender-m{color:#60a5fa}
+    /* `.gender-m` / `.gender-f` viven en App.css (son globales). Ver el
+       comentario de ahí: al estar solo en el scope de esta página, los spans
+       de NotasPage no tomaban ningún color. */
     .pct-value{font-size:1.1rem;font-weight:800;line-height:1}
     .progress-bar-bg{width:100%;max-width:44px;height:3px;background:rgba(255,255,255,0.1);border-radius:2px;margin-top:3px;overflow:hidden}
     .progress-bar-fill{height:100%;border-radius:2px;transition:width 0.6s ease}
@@ -2853,8 +2866,8 @@ $effect(() => {
       {#if isAndroidMobile && filteredEstudiantes.length > 0}
         <div style="margin-top:0;margin-left:-0.4rem;margin-right:-0.4rem;padding:0.5rem 0.4rem 0.2rem;width:calc(100%+0.8rem);border-top:1px solid rgba(255,255,255,0.1);display:flex;gap:0.5rem;align-items:stretch">
           <div style="display:flex;align-items:center;justify-content:center;gap:0.8rem;background:rgba(255,255,255,0.05);border-radius:8px;padding:0 0.6rem;flex:0 0 auto">
-            <div style="display:flex;align-items:center;gap:2px"><span style="color:#f472b6;font-weight:bold;font-size:0.8rem">F:</span><span style="color:#fff;font-weight:bold;font-size:0.9rem">{totalF}</span></div>
-            <div style="display:flex;align-items:center;gap:2px"><span style="color:#60a5fa;font-weight:bold;font-size:0.8rem">M:</span><span style="color:#fff;font-weight:bold;font-size:0.9rem">{totalM}</span></div>
+            <div style="display:flex;align-items:center;gap:2px"><span style="color:{colorSexo('F')};font-weight:bold;font-size:0.8rem">F:</span><span style="color:#fff;font-weight:bold;font-size:0.9rem">{totalF}</span></div>
+            <div style="display:flex;align-items:center;gap:2px"><span style="color:{colorSexo('M')};font-weight:bold;font-size:0.8rem">M:</span><span style="color:#fff;font-weight:bold;font-size:0.9rem">{totalM}</span></div>
           </div>
           <div style="display:flex;align-items:center;justify-content:space-around;gap:0.3rem;background:rgba(255,255,255,0.05);border-radius:8px;padding:0 0.3rem;flex:1;user-select:none">
             <div onclick={() => handleCardClick(t('asis.stats.total'), { total: totalEstudiantes, m: totalM, f: totalF })} style="display:flex;align-items:center;gap:2px;cursor:pointer">
@@ -2948,8 +2961,7 @@ $effect(() => {
               <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:0.5rem 0.6rem">
                 <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.4rem">
                   <span style="font-size:0.7rem;color:#64748b;font-weight:bold;min-width:20px">{index + 1}</span>
-                  <span style="font-size:1rem;flex-shrink:0">{est.sexo === 'F' ? '👩' : '👨'}</span>
-                  <span style="flex:1;font-weight:bold;font-size:0.85rem;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" onclick={() => selectedStudentDetail = est}>{est.nombre}</span>
+                  <span style="flex:1;font-weight:bold;font-size:0.85rem;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:{colorSexo(est.sexo)}" onclick={() => selectedStudentDetail = est}>{est.nombre}</span>
                 </div>
                 <div style="display:flex;gap:0.4rem;margin-bottom:0.3rem">
                   <!-- Sin <input type=radio>: el label reenvía un clic sintético al
@@ -2984,11 +2996,9 @@ $effect(() => {
                 <tr>
                   <td><span class="student-number-badge">{index + 1}</span></td>
                   <td style="text-align:left">
-                    <div style="font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:8px" onclick={() => selectedStudentDetail = est}>
-                      <span style="font-size:1.1rem;flex-shrink:0">{est.sexo === 'F' ? '👩' : '👨'}</span>
+                    <div style="font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:8px;color:{colorSexo(est.sexo)}" onclick={() => selectedStudentDetail = est}>
                       <span style="white-space:nowrap">{est.nombre}</span>
                     </div>
-                    <div style="font-size:0.7rem;opacity:0.6;margin-left:30px">{est.sexo === 'F' ? 'Femenino' : 'Masculino'}</div>
                   </td>
                   <td style="text-align:center">
                     <div style="display:flex;gap:6px;justify-content:center">
@@ -3018,8 +3028,8 @@ $effect(() => {
       {#if isAndroidMobile && filteredEstudiantesMulti.length > 0}
         <div style="margin-top:0;margin-left:-0.4rem;margin-right:-0.4rem;padding:0.5rem 0.4rem 0.2rem;width:calc(100%+0.8rem);border-top:1px solid rgba(255,255,255,0.1);display:flex;gap:0.5rem;align-items:stretch">
           <div style="display:flex;align-items:center;justify-content:center;gap:0.8rem;background:rgba(255,255,255,0.05);border-radius:8px;padding:0 0.6rem;flex:0 0 auto">
-            <div style="display:flex;align-items:center;gap:2px"><span style="color:#f472b6;font-weight:bold;font-size:0.8rem">F:</span><span style="color:#fff;font-weight:bold;font-size:0.9rem">{filteredEstudiantesMulti.filter(e => e.sexo === 'F').length}</span></div>
-            <div style="display:flex;align-items:center;gap:2px"><span style="color:#60a5fa;font-weight:bold;font-size:0.8rem">M:</span><span style="color:#fff;font-weight:bold;font-size:0.9rem">{filteredEstudiantesMulti.filter(e => e.sexo === 'M').length}</span></div>
+            <div style="display:flex;align-items:center;gap:2px"><span style="color:{colorSexo('F')};font-weight:bold;font-size:0.8rem">F:</span><span style="color:#fff;font-weight:bold;font-size:0.9rem">{filteredEstudiantesMulti.filter(e => e.sexo === 'F').length}</span></div>
+            <div style="display:flex;align-items:center;gap:2px"><span style="color:{colorSexo('M')};font-weight:bold;font-size:0.8rem">M:</span><span style="color:#fff;font-weight:bold;font-size:0.9rem">{filteredEstudiantesMulti.filter(e => e.sexo === 'M').length}</span></div>
           </div>
           <div style="display:flex;align-items:center;justify-content:space-around;gap:0.3rem;background:rgba(255,255,255,0.05);border-radius:8px;padding:0 0.3rem;flex:1;user-select:none">
             <div onclick={() => handleCardClick(t('asis.stats.total'), { total: filteredEstudiantesMulti.length, m: filteredEstudiantesMulti.filter(e => e.sexo === 'M').length, f: filteredEstudiantesMulti.filter(e => e.sexo === 'F').length })} style="display:flex;align-items:center;gap:2px;cursor:pointer">
@@ -3090,8 +3100,7 @@ $effect(() => {
               <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:0.5rem 0.6rem">
                 <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.4rem">
                   <span style="font-size:0.7rem;color:#64748b;font-weight:bold;min-width:20px">{index + 1}</span>
-                  <span style="font-size:1rem;flex-shrink:0">{est.sexo === 'F' ? '👩' : '👨'}</span>
-                  <span style="flex:1;font-weight:bold;font-size:0.85rem;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{est.nombre}</span>
+                  <span style="flex:1;font-weight:bold;font-size:0.85rem;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:{colorSexo(est.sexo)}">{est.nombre}</span>
                 </div>
                 <div style="display:flex;gap:0.4rem;overflow-x:auto;padding-bottom:0.2rem">
                   {#each fechasPeriodo as fecha}
@@ -3124,8 +3133,7 @@ $effect(() => {
               <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:0.5rem 0.6rem">
                 <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.3rem">
                   <span style="font-size:0.7rem;color:#64748b;font-weight:bold;min-width:20px">{index + 1}</span>
-                  <span style="font-size:1rem;flex-shrink:0">{est.sexo === 'F' ? '👩' : '👨'}</span>
-                  <span style="flex:1;font-weight:bold;font-size:0.85rem;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{est.nombre}</span>
+                  <span style="flex:1;font-weight:bold;font-size:0.85rem;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:{colorSexo(est.sexo)}">{est.nombre}</span>
                 </div>
                 <div class="mensual-chip-row">
                   {#each fechasPeriodo as fecha}
@@ -3162,8 +3170,7 @@ $effect(() => {
                 <tr>
                   <td><span class="student-number-badge">{index + 1}</span></td>
                   <td style="text-align:left">
-                    <span style="font-weight:bold;font-size:0.85rem;cursor:pointer;white-space:normal;word-break:break-word;line-height:1.25" onclick={() => selectedStudentDetail = est as any}>{est.nombre}</span>
-                    <div style="font-size:0.65rem;opacity:0.6">{est.sexo === 'F' ? t('asis.filtros.femenino') : t('asis.filtros.masculino')}</div>
+                    <span style="font-weight:bold;font-size:0.85rem;cursor:pointer;white-space:normal;word-break:break-word;line-height:1.25;color:{colorSexo(est.sexo)}" onclick={() => selectedStudentDetail = est as any}>{est.nombre}</span>
                   </td>
                   {#each fechasVisibles as fv (fv.fecha)}
                     {#if fv.sinClases}
@@ -3250,11 +3257,9 @@ $effect(() => {
                 <tr>
                   <td><span class="student-number-badge">{index + 1}</span></td>
                   <td style="text-align:left;overflow:hidden">
-                    <div style="font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:6px;width:100%" onclick={() => selectedStudentDetail = est as any}>
-                      <span style="font-size:1.1rem;flex-shrink:0">{est.sexo === 'F' ? '👩' : '👨'}</span>
+                    <div style="font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:6px;width:100%;color:{colorSexo(est.sexo)}" onclick={() => selectedStudentDetail = est as any}>
                       <span style="white-space:normal;word-break:break-word;line-height:1.25">{est.nombre}</span>
                     </div>
-                    <div style="font-size:0.7rem;opacity:0.6;margin-left:22px">{est.sexo === 'F' ? t('asis.filtros.femenino') : t('asis.filtros.masculino')}</div>
                   </td>
                   {#each fechasVisibles as fv, iFecha (fv.fecha)}
                     {#if fv.sinClases}
@@ -3479,11 +3484,11 @@ $effect(() => {
             <span style="color:#94a3b8">{t('asis.filtros.total')}</span><span style="font-size:1.3rem;font-weight:bold;color:#fff">{showSummaryModal.stats?.total}</span>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem">
-            <div style="background:rgba(96,165,250,0.1);padding:0.8rem;border-radius:10px;display:flex;flex-direction:column;gap:2px">
-              <span style="color:#60a5fa;font-size:0.8rem">{t('asis.filtros.masculino')}</span><span style="font-size:1.2rem;font-weight:bold;color:#60a5fa">{showSummaryModal.stats?.m}</span>
+            <div style="background:{colorSexoAlfa('M', '1a')};padding:0.8rem;border-radius:10px;display:flex;flex-direction:column;gap:2px">
+              <span style="color:{colorSexo('M')};font-size:0.8rem">{t('asis.filtros.masculino')}</span><span style="font-size:1.2rem;font-weight:bold;color:{colorSexo('M')}">{showSummaryModal.stats?.m}</span>
             </div>
-            <div style="background:rgba(244,114,182,0.1);padding:0.8rem;border-radius:10px;display:flex;flex-direction:column;gap:2px">
-              <span style="color:#f472b6;font-size:0.8rem">{t('asis.filtros.femenino')}</span><span style="font-size:1.2rem;font-weight:bold;color:#f472b6">{showSummaryModal.stats?.f}</span>
+            <div style="background:{colorSexoAlfa('F', '1a')};padding:0.8rem;border-radius:10px;display:flex;flex-direction:column;gap:2px">
+              <span style="color:{colorSexo('F')};font-size:0.8rem">{t('asis.filtros.femenino')}</span><span style="font-size:1.2rem;font-weight:bold;color:{colorSexo('F')}">{showSummaryModal.stats?.f}</span>
             </div>
           </div>
         </div>
@@ -3498,7 +3503,7 @@ $effect(() => {
         <div style="width:60px;height:60px;border-radius:50%;background-color:var(--primary-light);color:var(--primary-color);display:flex;align-items:center;justify-content:center;font-size:1.5rem;margin:0 auto">👤</div>
         <div>
           <h3 style="margin:0.5rem 0;color:#fff;font-size:1.2rem">{selectedStudentDetail.nombre}</h3>
-          <div style="display:inline-block;padding:0.3rem 0.8rem;border-radius:20px;background:{selectedStudentDetail.sexo === 'M' ? 'rgba(96,165,250,0.1)' : 'rgba(244,114,182,0.1)'};color:{selectedStudentDetail.sexo === 'M' ? '#60a5fa' : '#f472b6'};font-size:0.85rem;font-weight:600;margin-top:0.3rem">{selectedStudentDetail.sexo === 'M' ? t('asis.filtros.masculino') : t('asis.filtros.femenino')}</div>
+          <div style="display:inline-block;padding:0.3rem 0.8rem;border-radius:20px;background:{colorSexoAlfa(selectedStudentDetail.sexo, '1a')};color:{colorSexo(selectedStudentDetail.sexo)};font-size:0.85rem;font-weight:600;margin-top:0.3rem">{selectedStudentDetail.sexo === 'M' ? t('asis.filtros.masculino') : t('asis.filtros.femenino')}</div>
         </div>
         <button class="primary" onclick={() => selectedStudentDetail = null} style="margin-top:1rem;width:100%">{t('comun.cerrar')}</button>
       </div>

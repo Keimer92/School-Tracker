@@ -812,7 +812,15 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'est.export.elegirCarpeta': 'Elegir carpeta',
   'est.export.carpetaTitulo': 'Carpeta destino para los archivos Excel',
   'est.export.carpetaError': '❌ No se pudo elegir la carpeta',
-  // ── Carpetas de exportación ──
+  // ── Color por sexo ──
+  'ajustes.config.colorSexo': 'Color por sexo',
+  'ajustes.config.colorSexoDesc': 'Elige el color de fuente con el que se muestran los estudiantes masculinos y femeninos en las tablas de Notas, Asistencia y Estudiantes.',
+  'ajustes.config.sexoMasculino': 'Masculino',
+  'ajustes.config.sexoFemenino': 'Femenino',
+  'ajustes.config.colorSexoEjemplo': 'Así se ven en las tablas',
+  'ajustes.config.restablecer': 'Restablecer al color por defecto',
+
+// ── Carpetas de exportación ──
   // Categorías bajo "School Tracker/". Se traducen porque son carpetas que el
   // usuario ve en su disco; "School Tracker" NO (nombre propio del producto).
   'exp.carpeta.asistencias': 'Asistencias',

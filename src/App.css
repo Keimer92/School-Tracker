@@ -3028,6 +3028,18 @@ input:checked + .slider:before {
   white-space: nowrap;
 }
 
+/* Color por sexo de los estudiantes. Las variables --sexo-m / --sexo-f las
+   escribe App.svelte en el <html> desde los ajustes (ver coloresSexo.svelte.ts),
+   así que el color elegido en Ajustes llega a TODAS las páginas, incluidas las
+   que no son de la tabla de asistencia.
+
+   Estas reglas viven acá y no en el CSS de una página porque las usan varias
+   (NotasPage y AsistenciaPage). Antes estaban solo en AsistenciaPage, con su
+   CSS de scope: en NotasPage los spans gender-m/gender-f no chocaban con
+   ninguna regla, salían del color heredado y el M:/F: salía sin distinguir. */
+.gender-m { color: var(--sexo-m, #60a5fa); }
+.gender-f { color: var(--sexo-f, #f472b6); }
+
 /* Regla global de impresion: elementos de UI que no deben salir en el PDF.
    ReportesPage ya la declara en su CSS propio, pero otros componentes no, y
    y el buscador (un div, no un utton) se imprimia con el texto de

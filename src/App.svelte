@@ -10,6 +10,7 @@
   import { driveAutoBackup } from "./lib/driveAutoBackup";
   import { ensureWsSync, stopWsSync } from "./lib/wsSyncService";
   import { loadAppSettings, saveAppSettings, getAppSettings, onAppSettingsChange } from "./lib/appSettings";
+  import { aplicarColoresSexo } from "./lib/coloresSexo.svelte";
   import { getLocalDateISOString } from "./lib/dateUtils";
   import { t } from "./lib/i18n.svelte";
   import appIcon from "./assets/app-icon.png";
@@ -392,12 +393,14 @@
           themeMode = s.theme;
           applyTheme(s.theme);
         }
+        aplicarColoresSexo(s);
       });
       const unsubSettings = onAppSettingsChange(s => {
         if (s.theme && s.theme !== themeMode) {
           themeMode = s.theme;
           applyTheme(s.theme);
         }
+        aplicarColoresSexo(s);
       });
       unlisten.push(unsubSettings);
 

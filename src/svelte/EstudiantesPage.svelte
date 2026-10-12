@@ -12,6 +12,7 @@
 import { primerColegio } from "../lib/catalogo";
   import { ask } from "@tauri-apps/plugin-dialog";
   import { destinoParaToast, subcarpetaRelativa } from "../lib/carpetasExport";
+  import { colorSexo } from "../lib/coloresSexo.svelte";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
 import SelectChip from "./SelectChip.svelte";
@@ -1157,13 +1158,13 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
         <span style="font-size: {isMobile ? '0.5rem' : '0.65rem'}; color: #94a3b8; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; white-space: nowrap;">{isMobile ? t('est.resumen.totalCorto') : t('est.resumen.total')}</span>
         <span style="font-size: {isMobile ? '0.95rem' : '1.1rem'}; font-weight: 800; line-height: 1; color: #06b6d4;">{stats.total}</span>
       </div>
-      <div style="flex: 1; min-width: 0; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: {isMobile ? '0.3rem 0.3rem' : '0.5rem'}; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; {isMobile ? 'min-height: 40px;' : 'min-height: 50px;'} border-left: 3px solid #f472b6;" title={t('est.resumen.femTitle')}>
+      <div style="flex: 1; min-width: 0; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: {isMobile ? '0.3rem 0.3rem' : '0.5rem'}; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; {isMobile ? 'min-height: 40px;' : 'min-height: 50px;'} border-left: 3px solid {colorSexo('F')};" title={t('est.resumen.femTitle')}>
         <span style="font-size: {isMobile ? '0.5rem' : '0.65rem'}; color: #94a3b8; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; white-space: nowrap;">{isMobile ? t('est.resumen.femeninoCorto') : t('est.resumen.femenino')}</span>
-        <span style="font-size: {isMobile ? '0.95rem' : '1.1rem'}; font-weight: 800; line-height: 1; color: #f472b6;">{stats.f}</span>
+        <span style="font-size: {isMobile ? '0.95rem' : '1.1rem'}; font-weight: 800; line-height: 1; color: {colorSexo('F')};">{stats.f}</span>
       </div>
-      <div style="flex: 1; min-width: 0; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: {isMobile ? '0.3rem 0.3rem' : '0.5rem'}; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; {isMobile ? 'min-height: 40px;' : 'min-height: 50px;'} border-left: 3px solid #60a5fa;" title={t('est.resumen.mascTitle')}>
+      <div style="flex: 1; min-width: 0; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: {isMobile ? '0.3rem 0.3rem' : '0.5rem'}; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; {isMobile ? 'min-height: 40px;' : 'min-height: 50px;'} border-left: 3px solid {colorSexo('M')};" title={t('est.resumen.mascTitle')}>
         <span style="font-size: {isMobile ? '0.5rem' : '0.65rem'}; color: #94a3b8; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; white-space: nowrap;">{isMobile ? t('est.resumen.masculinoCorto') : t('est.resumen.masculino')}</span>
-        <span style="font-size: {isMobile ? '0.95rem' : '1.1rem'}; font-weight: 800; line-height: 1; color: #60a5fa;">{stats.m}</span>
+        <span style="font-size: {isMobile ? '0.95rem' : '1.1rem'}; font-weight: 800; line-height: 1; color: {colorSexo('M')};">{stats.m}</span>
       </div>
     </div>
   {/if}
@@ -1286,7 +1287,7 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
               <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px;">
                 <div style="display: flex; align-items: center; gap: 0.4rem; min-width: 0;">
                   <span style="font-size: {isMobile ? '0.7rem' : '0.75rem'}; font-weight: bold; background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 1px 5px; border-radius: 4px; flex-shrink: 0; border: 1px solid rgba(56, 189, 248, 0.2);">#{index + 1}</span>
-                  <span style="font-size: {isMobile ? '0.85rem' : '0.9rem'}; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #f1f5f9;">{st.nombre}</span>
+                  <span style="font-size: {isMobile ? '0.85rem' : '0.9rem'}; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: {colorSexo(st.sexo)};">{st.nombre}</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; min-width: 0;">
                   {#if gradoName}

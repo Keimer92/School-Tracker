@@ -52,7 +52,9 @@ import {
   dibujarTitulo,
   dibujarPie,
   resolverExport,
+  hexToRgb,
 } from "./pdfChrome";
+import { colorSexoExport } from "./coloresSexo.svelte";
 
 export type CeldaPdf = string | number | { content: string | number; rowSpan?: number; styles?: Record<string, any> };
 
@@ -62,6 +64,13 @@ export interface TablaAsistenciaPdf {
   layout: "diario" | "fechas";
   headers: string[];
   body: CeldaPdf[][];
+  /**
+   * Sexo de cada fila de `body`, en el MISMO orden. No es una columna de la
+   * tabla: la tabla ya no lleva la columna "Sexo" (repetía lo que el color del
+   * nombre dice), pero el PDF necesita el dato para teñir cada nombre.
+   * Si falta, los nombres salen en negro.
+   */
+  sexos?: string[];
   combinada?: { indice: number; texto: string };
   /** Chip propio de esta hoja (p. ej. la sección que le corresponde). */
   chip?: string;
@@ -74,7 +83,6 @@ export interface MetaPdfAsistencia {
 }
 
 const ANCHO_NOMBRE_MIN = 50;
-const ANCHO_SEXO = 9;
 const ANCHO_TOTAL = 9;
 const EM_ANCHO_DDMM = 2.502;
 
@@ -88,12 +96,15 @@ function colorDeEstado(valor: string): readonly number[] | null {
 
 /**
  * Ancho de cada columna de fecha. Se reparte el espacio que dejan el nombre
- * (con un mínimo legible), el sexo y las tres columnas P/A/J, de modo que un
- * mes de 31 días no ahogue la columna del nombre. Se acota para que no crezca
- * de más cuando hay pocas fechas.
+ * (con un mínimo legible) y las tres columnas P/A/J, de modo que un mes de 31
+ * días no ahogue la columna del nombre. Se acota para que no crezca de más
+ * cuando hay pocas fechas.
+ *
+ * La columna "Sexo" ya no se cuenta: se eliminó de la tabla (ver
+ * `TablaAsistenciaPdf.sexos`), así que ese ancho vuelve a las fechas.
  */
 function anchoFechaPara(nFechas: number, anchoUtil: number): number {
-  const libre = anchoUtil - ANCHO_NOMBRE_MIN - ANCHO_SEXO - 3 * ANCHO_TOTAL;
+  const libre = anchoUtil - ANCHO_NOMBRE_MIN - 3 * ANCHO_TOTAL;
   return Math.max(5.2, Math.min(14, libre / Math.max(1, nFechas)));
 }
 
@@ -160,22 +171,23 @@ export async function generarPdfAsistencia(
     });
 
     const nCols = t.headers.length;
-    const nFechas = t.layout === "fechas" ? Math.max(0, nCols - 5) : 0;
+    // Columnas: 0 = nombre, luego N fechas, y al final P/A/J (3).
+    // La columna "Sexo" ya no existe: el nombre va teñido.
+    const nFechas = t.layout === "fechas" ? Math.max(0, nCols - 4) : 0;
     const anchoFecha = t.layout === "fechas" ? anchoFechaPara(nFechas, anchoUtil) : 0;
     const fontFecha = t.layout === "fechas" ? fontFechaCabe(anchoFecha, est.cellPadding, est.fontSize) : est.fontSize;
 
     const columnStyles: Record<number, any> = t.layout === "diario"
-      ? { 0: { cellWidth: 'auto' }, 1: { cellWidth: 16 }, 2: { cellWidth: 34 } }
+      ? { 0: { cellWidth: 'auto' }, 1: { cellWidth: 34 } }
       : {
           0: { cellWidth: 'auto', minCellWidth: ANCHO_NOMBRE_MIN, fontStyle: "bold", textColor: [0, 0, 0] },
-          1: { cellWidth: ANCHO_SEXO },
         };
     if (t.layout === "fechas") {
       const ultimaFecha = nCols - 4;
-      for (let c = 2; c <= ultimaFecha; c++) {
+      for (let c = 1; c <= ultimaFecha; c++) {
         columnStyles[c] = { cellWidth: anchoFecha, halign: "center", minCellWidth: 0 };
       }
-      for (let c = Math.max(2, ultimaFecha + 1); c < nCols; c++) {
+      for (let c = Math.max(1, ultimaFecha + 1); c < nCols; c++) {
         columnStyles[c] = { cellWidth: ANCHO_TOTAL, halign: "center", fontStyle: "bold", minCellWidth: 0 };
       }
     }
@@ -211,13 +223,17 @@ export async function generarPdfAsistencia(
       columnStyles,
       rowPageBreak: "avoid",
       didParseCell: (data: any) => {
-        if (data.section === "head" && t.layout === "fechas" && data.column.index >= 2 && data.column.index <= nCols - 4) {
+        if (data.section === "head" && t.layout === "fechas" && data.column.index >= 1 && data.column.index <= nCols - 4) {
           data.cell.styles.overflow = "visible";
           data.cell.styles.fontSize = fontFecha;
         }
         if (data.section === "body" && data.column.index === 0) {
+          // El nombre hereda el color de sexo elegido en Ajustes, igual que en
+          // la pantalla. Sin `sexos` (o sin dato) el nombre queda negro.
+          const sexo = t.sexos?.[data.row.index];
+          const [r, g, b] = hexToRgb(colorSexoExport(sexo));
           data.cell.styles.fontStyle = "bold";
-          data.cell.styles.textColor = [0, 0, 0];
+          data.cell.styles.textColor = sexo ? [r, g, b] : [0, 0, 0];
           data.cell.styles.halign = "left";
         }
         if (data.section === "body") {

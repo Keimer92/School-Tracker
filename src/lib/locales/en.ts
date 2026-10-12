@@ -793,7 +793,15 @@ to print. It is saved in Documents/SchoolTrackerPro/Instruments.`,
   'est.export.elegirCarpeta': 'Choose folder',
   'est.export.carpetaTitulo': 'Destination folder for the Excel files',
   'est.export.carpetaError': '❌ Could not choose the folder',
-  // ── Export folders ──
+  // ── Color per sex ──
+  'ajustes.config.colorSexo': 'Color by sex',
+  'ajustes.config.colorSexoDesc': 'Choose the font color used for male and female students in the Grades, Attendance and Students tables.',
+  'ajustes.config.sexoMasculino': 'Male',
+  'ajustes.config.sexoFemenino': 'Female',
+  'ajustes.config.colorSexoEjemplo': 'This is how they look in the tables',
+  'ajustes.config.restablecer': 'Reset to the default color',
+
+// ── Export folders ──
   // Categories under "School Tracker/". Translated because these are folders the
   // user browses on disk; "School Tracker" itself is NOT (product proper noun).
   'exp.carpeta.asistencias': 'Attendance',

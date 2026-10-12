@@ -5,6 +5,12 @@
   import { onDataChange } from "../lib/autoSync";
   import { registerBackHandler } from "../lib/androidBack";
   import { loadAppSettings, saveAppSettings, getAppSettings, onAppSettingsChange } from "../lib/appSettings";
+  import { PRESET_COLORS } from "../lib/presetsColor";
+  import {
+    COLOR_MASCULINO_POR_DEFECTO,
+    COLOR_FEMENINO_POR_DEFECTO,
+  } from "../lib/coloresSexo.svelte";
+  import ColorPickerSexo from "./ColorPickerSexo.svelte";
   import NotificacionesPage from "./notificaciones/NotificacionesPage.svelte";
   import DebugPage from "./ajustes/DebugPage.svelte";
   import InfoPage from "./ajustes/InfoPage.svelte";
@@ -25,9 +31,7 @@
     return { claro: t("ajustes.tab.temaClaro"), oscuro: t("ajustes.tab.temaOscuro"), sistema: t("ajustes.tab.temaSistema") }[color] || "";
   }
 
-const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff200","#22b14c","#00a2e8","#3f48cc","#a349a4","#ffffff","#c3c3c3","#b97a57","#ffaec9","#ffc90e","#efe4b0","#b5e61d","#99d9ea","#7092be","#c8bfe7","#C00000","#FF0000","#FFC000","#FFFF00","#92D050","#00B050","#00B0F0","#0070C0","#002060","#7030A0"];
-
-  // `$derived` y no `const`: las etiquetas salen de `t()`, que lee el rune
+// `$derived` y no `const`: las etiquetas salen de `t()`, que lee el rune
   // `$state` del idioma. Con un `const` se calcularían una sola vez al importar
   // el módulo y cambiar de idioma no las actualaría nunca.
   const TABS = $derived([
@@ -52,6 +56,8 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
   });
   let gradeConfigs = $state<{ id: string; nombre: string; color: string; minimo: number }[]>([]);
   let highlightColor = $state(localStorage.getItem("student-highlight-color") || "#4ade80");
+  let sexoMColor = $state(COLOR_MASCULINO_POR_DEFECTO);
+  let sexoFColor = $state(COLOR_FEMENINO_POR_DEFECTO);
 
   let { themeMode = "sistema", setThemeMode = () => {}, pageActive = false, tabRequest = null as string | null, seccion = null as string | null, soloContenido = false } = $props();
 
@@ -101,6 +107,22 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     emit("highlight-color-updated", color);
   }
 
+  /**
+   * Igual que el resaltado, se persiste desde la ACCIÓN del usuario y no desde
+   * un `$effect` que observe el estado: `saveAppSettings` dispara push a
+   * Cloudflare y respaldo a Drive, así que un efecto dispararía dos nubes
+   * cada vez que se abre la sección sin que se haya tocado nada.
+   */
+  function handleUpdateSexoColor(sexo: "M" | "F", color: string) {
+    if (sexo === "M") sexoMColor = color;
+    else sexoFColor = color;
+    void saveAppSettings({
+      ...getAppSettings(),
+      sexoMColor: sexo === "M" ? color : sexoMColor,
+      sexoFColor: sexo === "F" ? color : sexoFColor,
+    });
+  }
+
   // El callback NO puede ser `async`: todo lo que sigue a un `await` se ejecuta
   // fuera del contexto de inicialización del componente, y `onDestroy`lanza
   // `lifecycle_outside_component`. Por eso el cleanup se devuelve como valor
@@ -110,11 +132,17 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
     // La ruta de la BD la carga DebugPage por su cuenta (solo la usa esa sección).
     // Cargar configuraciones desde la tabla syncronizable
     loadAppSettings()
-      .then((settings) => { highlightColor = settings.highlightColor; })
+      .then((settings) => {
+        highlightColor = settings.highlightColor;
+        sexoMColor = settings.sexoMColor || COLOR_MASCULINO_POR_DEFECTO;
+        sexoFColor = settings.sexoFColor || COLOR_FEMENINO_POR_DEFECTO;
+      })
       .catch((e) => console.error("Error loading app settings:", e));
     // Suscribirse a cambios externos (sync desde otro dispositivo)
     const unsub = onAppSettingsChange((s) => {
       highlightColor = s.highlightColor;
+      sexoMColor = s.sexoMColor || COLOR_MASCULINO_POR_DEFECTO;
+      sexoFColor = s.sexoFColor || COLOR_FEMENINO_POR_DEFECTO;
     });
     return () => unsub();
   });
@@ -188,6 +216,18 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
               <div style="padding: 0.3rem 0.6rem; border-radius: 4px; background: {highlightColor}1a; border-left: 4px solid {highlightColor}; color: {highlightColor}; font-weight: bold; font-size: 0.8rem;">Juan Pérez García</div>
               <div style="color: #64748b; font-size: 0.75rem;">{t("ajustes.config.vistaPreviaEjemplo")}</div>
             </div>
+          </div>
+
+          <!-- ── Color por sexo ──
+               Afecta a las tablas y paneles de Notas, Asistencia y Estudiantes.
+               Los defaults son los que ya usaba la app: azul masculino, rosa
+               femenino. -->
+          <div style="margin-top: 2rem; background: rgba(244,114,182,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(244,114,182,0.18);">
+            <h4 style="margin: 0 0 0.5rem 0; color: #e2e8f0;">🎨 {t("ajustes.config.colorSexo")}</h4>
+            <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1rem;">
+              {t("ajustes.config.colorSexoDesc")}
+            </p>
+            <ColorPickerSexo colorM={sexoMColor} colorF={sexoFColor} onChange={handleUpdateSexoColor} />
           </div>
 
           <!-- ── Navegador del login de Google (solo escritorio) ──
@@ -303,6 +343,18 @@ const PRESET_COLORS = ["#000000","#7f7f7f","#880015","#ed1c24","#ff7f27","#fff20
                     <div style="color: #64748b; font-size: 0.8rem;">{t("ajustes.config.vistaPreviaEjemploLargo")}</div>
                   </div>
                 </div>
+              </div>
+
+              <!-- ── Color por sexo (Android) ──
+                   Mismo bloque que en escritorio: es un ajuste que se consulta
+                   desde cualquier pestaña, así que tiene que estar en las dos
+                   listas o en el teléfono no se llega. -->
+              <div style="margin-top: 2rem; background: rgba(244,114,182,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(244,114,182,0.18);">
+                <h4 style="margin: 0 0 0.5rem 0; color: #e2e8f0;">🎨 {t("ajustes.config.colorSexo")}</h4>
+                <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1rem;">
+                  {t("ajustes.config.colorSexoDesc")}
+                </p>
+                <ColorPickerSexo colorM={sexoMColor} colorF={sexoFColor} onChange={handleUpdateSexoColor} compacto />
               </div>
 
               {#if isAndroid}

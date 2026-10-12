@@ -33,6 +33,7 @@ import { primerColegio } from "../lib/catalogo";
   import { writeFile, mkdir } from "@tauri-apps/plugin-fs";
   import { openUrl } from "@tauri-apps/plugin-opener";
   import { unirRuta, aFileURL } from "../lib/platform";
+  import { colorSexo, colorSexoExport } from "../lib/coloresSexo.svelte";
   import { generarPdfNotas } from "../lib/notasPdf";
   
   import { portalToBody } from "../lib/portalToBody";
@@ -2796,9 +2797,10 @@ import { primerColegio } from "../lib/catalogo";
       await emit("show-toast", { message: t('inf.print.preparando'), type: 'success' });
       const names = selectedNames; const date = new Date().toLocaleDateString();
       const mostrarIndicadores = false;
-      const headers = ["Estudiante", "Sexo", ...(mostrarIndicadores ? configIndicadores.map(ind => `Ind. ${ind.orden}`) : []), "Nota Final"];
+      // Sin columna "Sexo": el nombre va teñido con el color de sexo de Ajustes.
+      const headers = ["Estudiante", ...(mostrarIndicadores ? configIndicadores.map(ind => `Ind. ${ind.orden}`) : []), "Nota Final"];
       const rows = repEstudiantes.map(est => {
-        const cells = [est.nombre, est.sexo,
+        const cells = [`<span style="color:${colorSexoExport(est.sexo)}">${est.nombre}</span>`,
           ...(mostrarIndicadores ? configIndicadores.map(ind => {
             const nota = est.notasIndicadores[ind.id] || 0; const label = est.notasCualitativasIndicadores[ind.id] || "";
             if (label === "-" || label === "") return "-";
@@ -3112,8 +3114,7 @@ import { primerColegio } from "../lib/catalogo";
                   <div style="display:flex;align-items:center;justify-content:space-between;padding:0.6rem 0.7rem;">
                     <div style="display:flex;align-items:center;gap:0.5rem;min-width:0;flex:1">
                       <div style="font-size:0.75rem;color:#64748b;min-width:28px;text-align:center;">{idx + 1}</div>
-                      <div style="font-size:0.85rem;color:#f1f5f9;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{estudiante.nombre}</div>
-                      <span style="font-size:0.65rem;color:#94a3b8;background:rgba(255,255,255,0.05);padding:0.1rem 0.4rem;border-radius:4px;flex-shrink:0">{estudiante.sexo}</span>
+                      <div style="font-size:0.85rem;color:{colorSexo(estudiante.sexo)};font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{estudiante.nombre}</div>
                     </div>
                     <div style="display:flex;align-items:center;gap:0.4rem;flex-shrink:0;">
                       <span style="font-size:0.85rem;font-weight:bold;color:{finalColor}">
@@ -3179,7 +3180,6 @@ import { primerColegio } from "../lib/catalogo";
                 <thead style="position:sticky;top:0;z-index:100">
                   <tr>
                     <th style="padding:1rem;text-align:left;background-color:#1e293b;border-bottom:2px solid rgba(255,255,255,0.1);color:var(--text-secondary);position:sticky;left:0;z-index:110">{t('rep.tabla.estudiante')}</th>
-                    <th style="padding:1rem;text-align:center;background-color:rgba(255,255,255,0.05);border-bottom:2px solid rgba(255,255,255,0.1);color:#94a3b8">{t('rep.tabla.sexo')}</th>
                     {#if !specialCorte}
                       {#each configIndicadores as ind}
                         <th title={ind.descripcion} style="padding:1rem;text-align:center;background-color:rgba(255,255,255,0.05);border-bottom:2px solid rgba(255,255,255,0.1);color:var(--text-secondary);font-size:0.85rem;cursor:help">
@@ -3193,10 +3193,9 @@ import { primerColegio } from "../lib/catalogo";
                 <tbody>
                   {#each filteredReporte as estudiante, idx}
                     <tr class="table-row-hover" style="background-color:{idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)'}">
-                      <td style="padding:0.85rem 1rem;border-bottom:1px solid rgba(255,255,255,0.05);color:#f1f5f9;font-weight:500;position:sticky;left:0;background-color:{idx % 2 === 0 ? '#1e293b' : '#1a2234'};z-index:5">
+                      <td style="padding:0.85rem 1rem;border-bottom:1px solid rgba(255,255,255,0.05);color:{colorSexo(estudiante.sexo)};font-weight:500;position:sticky;left:0;background-color:{idx % 2 === 0 ? '#1e293b' : '#1a2234'};z-index:5">
                         <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{estudiante.nombre}</div>
                       </td>
-                      <td style="padding:0.85rem 1rem;text-align:center;border-bottom:1px solid rgba(255,255,255,0.05);color:#94a3b8">{estudiante.sexo}</td>
                       {#if !specialCorte}
                         {#each configIndicadores as ind}
                           {@const nota = estudiante.notasIndicadores[ind.id] || 0}

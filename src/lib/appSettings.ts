@@ -7,6 +7,10 @@ export interface AppSettings {
   theme: string;
   notifEnabled: boolean;
   notifCfg: Record<number, { activo: boolean; inicio: string; fin: string; intervaloMin: number }>;
+  /** Color de fuente de los estudiantes masculinos en tablas y paneles. */
+  sexoMColor: string;
+  /** Color de fuente de los estudiantes femeninos en tablas y paneles. */
+  sexoFColor: string;
 }
 
 const DEFAULTS: AppSettings = {
@@ -15,6 +19,8 @@ const DEFAULTS: AppSettings = {
   theme: "sistema",
   notifEnabled: false,
   notifCfg: {},
+  sexoMColor: "#60a5fa",
+  sexoFColor: "#f472b6",
 };
 
 // Estado en memoria
@@ -32,6 +38,10 @@ function readLocalStorageFallback(): Partial<AppSettings> {
     if (ad !== null) result.showAnoDropdown = ad !== "false";
     const tm = localStorage.getItem("theme_mode");
     if (tm) result.theme = tm;
+    const sm = localStorage.getItem("stp_sexo_m_color");
+    if (sm) result.sexoMColor = sm;
+    const sf = localStorage.getItem("stp_sexo_f_color");
+    if (sf) result.sexoFColor = sf;
     const nf = localStorage.getItem("stp_attendance_notif_settings");
     if (nf) {
       const parsed = JSON.parse(nf);
@@ -58,6 +68,8 @@ function writeLocalStorageFallback(s: AppSettings) {
     localStorage.setItem("student-highlight-color", s.highlightColor);
     localStorage.setItem("stp_show_ano_dropdown", String(s.showAnoDropdown));
     localStorage.setItem("theme_mode", s.theme);
+    localStorage.setItem("stp_sexo_m_color", s.sexoMColor);
+    localStorage.setItem("stp_sexo_f_color", s.sexoFColor);
     const colegios = Object.entries(s.notifCfg)
       .filter(([, c]) => c.activo)
       .map(([id, c]) => ({ id: Number(id), inicio: c.inicio, fin: c.fin, intervaloMin: c.intervaloMin }));
