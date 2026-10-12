@@ -2262,12 +2262,11 @@ $effect(() => {
         tablas
       );
 
-      // Destino: School Tracker/Asistencias/<Año Lectivo>/<Período>.
-      // El año va como carpeta propia para no depender del detalle del período.
-      // `periodoEtiqueta` va en español a propósito: los nombres de período de
-      // los reportes ya son español (convención del proyecto para PDF).
-      const detalle = periodoEtiqueta;
-      const baseDir = await rutaExportAbsoluta('asistencias', anoNombre, detalle);
+      // Destino: School Tracker/Asistencias/<Año Lectivo>, SIN subcarpeta de mes.
+      // El período va en el NOMBRE del archivo, que es donde se distingue un
+      // PDF del otro: crear una carpeta por mes llenaba el año de carpetas de
+      // un solo archivo y costaba más encontrar los reportes que verlos juntos.
+      const baseDir = await rutaExportAbsoluta('asistencias', anoNombre);
       await mkdir(baseDir, { recursive: true }).catch(e => console.log("mkdir:", e));
 
       const fileName = `Asistencia ${sanitize(periodoEtiqueta)} ${sanitize(anoNombre)}.pdf`;
@@ -2275,11 +2274,11 @@ $effect(() => {
       await writeFile(filePath, bytes);
 
       exportandoMasivo = false;
-      const destino = destinoParaToast(isAndroid, 'asistencias', anoNombre, detalle);
+      const destino = destinoParaToast(isAndroid, 'asistencias', anoNombre);
       if (isAndroid) {
         const ruta = await invoke<string>('guardar_en_descargas', {
           path: filePath, mime: 'application/pdf',
-          carpeta: subcarpetaRelativa('asistencias', anoNombre, detalle), nombre: fileName,
+          carpeta: subcarpetaRelativa('asistencias', anoNombre), nombre: fileName,
         }).catch(() => "");
         if (ruta) {
           try { await invoke('share_pdf', { path: ruta }); } catch { }

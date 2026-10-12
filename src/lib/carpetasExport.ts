@@ -18,8 +18,14 @@
  * - El año lectivo va SIEMPRE como carpeta propia, para que la pregunta
  *   "¿de qué año es este PDF?" se responda mirando un solo nivel.
  *
- * El detalle (período, corte, asignatura) queda opcional y debajo del año, así
- * que el orden de las carpetas es estable aunque cambie el detalle.
+ * `<detalle>` es OPCIONAL y cada categoría decide si lo usa:
+ *
+ * - Asistencias: NO. El período va en el nombre del archivo. Una carpeta por
+ *   mes dejaba el año lleno de carpetas con un único PDF, y comparar los
+ *   reportes de un mes con los del siguiente costaba más que leer los nombres.
+ * - Notas: SÍ (corte + asignatura), porque de un mismo año salen decenas de
+ *   PDF y sin separarlos la carpeta es indistinguible.
+ * - Estudiantes: NO. Un archivo por colegio, y el colegio ya va en el nombre.
  */
 
 import { unirRuta } from "./platform";
