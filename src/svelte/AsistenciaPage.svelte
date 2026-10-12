@@ -2695,7 +2695,7 @@ $effect(() => {
               </button>
             </div>
           {:else}
-          <div class="android-actions" style="display:flex;gap:{isAndroidMobile ? '2px' : '0.3rem'};align-items:stretch;flex-shrink:0;{isAndroidMobile ? 'flex-wrap:nowrap;min-width:0;width:100%;max-width:100%;-webkit-overflow-scrolling:touch;' : 'flex-wrap:wrap;'}overflow-x:{isAndroidMobile && dpAbierto ? 'visible' : isAndroidMobile ? 'auto' : 'visible'}">
+          <div class="android-actions" style="display:flex;gap:{isAndroidMobile ? '2px' : '0.3rem'};align-items:stretch;flex-shrink:0;{isAndroidMobile ? 'flex-wrap:nowrap;min-width:0;width:100%;max-width:100%;-webkit-overflow-scrolling:touch;' : 'flex-wrap:wrap;padding-right:0.3rem'}overflow-x:{isAndroidMobile && dpAbierto ? 'visible' : isAndroidMobile ? 'auto' : 'visible'}">
           {#if isAndroidMobile && periodoEfectivo === "diario"}
             <!-- Más ancho que antes: con 130px la fecha "dd/mm/aaaa" no entraba y el
                  año quedaba con puntos suspensivos. La fila es nowrap con scroll
@@ -2707,7 +2707,7 @@ $effect(() => {
                  (fecha -> guardar) y queda a la vista sin tener que scrollear. -->
             <BotonMod opts={optsGuardar} />
           {/if}
-          <div class="pop-wrap" bind:this={popSinClasesEl} style="flex:0 0 auto;">
+          <div class="pop-wrap" bind:this={popSinClasesEl} style="flex:0 1 auto; min-width:0;">
             <BotonMod opts={{
               onclick: handleSinClasesClick,
               disabled: sinClasesGuardando || !selectedSeccion,
