@@ -267,39 +267,38 @@ function devicePlatform(): 'Windows' | 'macOS' | 'Linux' | 'Android' {
   return 'Windows';
 }
 
-/** Etiqueta de la cuenta actual para aislar los respaldos de Drive por cuenta. */
-function accountTag(): string {
-  const s = getSettings() as any;
-  const email = s?.googleUserEmail || '';
-  const tag = (email || 'default')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-  return tag || 'default';
-}
-
 /**
  * Nombre ESTABLE del archivo de respaldo. No lleva timestamp: se sobrescribe en
  * cada guardado (PATCH) en vez de crear un archivo nuevo, para no gastar cuota de
  * API de escritura ni dejar copias. Manual y automático usan el mismo nombre.
+ *
+ * ⚠️ SIN plataforma y SIN correo, a propósito. Antes era
+ * `SchoolTracker_Sync_<correo>_<plataforma>_latest.db`, lo que tenía dos fallas:
+ *
+ * 1. `findAnyExistingBackup()` busca el `_latest` sin filtrar por plataforma y lo
+ *    renombra al nombre de quien guarda. Windows y Android se peleaban el MISMO
+ *    archivo, y el nombre decía "quién guardó último", no "de quién son los
+ *    datos". Por eso un restore en Android podía meterse la base de Windows.
+ * 2. El correo viaja a Drive, que es visible para cualquiera con acceso.
+ *
+ * Un solo archivo, sobrescrito por todos los equipos, elimina la ambigüedad: hay
+ * un único "el respaldo", y no hay forma de confundir cuál es.
  */
 function latestFileName(): string {
-  return `${SYNC_FILE_PREFIX}_${accountTag()}_${devicePlatform()}_${LATEST_SUFFIX}.db`;
+  return `${SYNC_FILE_PREFIX}_${LATEST_SUFFIX}.db`;
 }
 
 /**
- * ¿Es el archivo "_latest" de esta cuenta?
+ * ¿Es el archivo "_latest"?
  *
- * Acepta cualquier plataforma: si el usuario guardó desde Windows y ahora
- * guarda desde Linux, los dos nombres son válidos y el archivo es el mismo
- * (el nombre real solo cambia cuando la app lo renombra por PATCH).
+ * Acepta también los nombres VIEJOS (con correo y plataforma), porque esos
+ * archivos ya están en Drive de los usuarios y hay que reconocerlos para
+ * migrarlos en vez de dejar un `_latest` huérfano al lado del nuevo.
  */
 function isLatestFile(f: DriveFile): boolean {
-  const esperado = `${SYNC_FILE_PREFIX}_`;
   return (
-    f.name.startsWith(esperado) &&
-    f.name.endsWith(`_${LATEST_SUFFIX}.db`) &&
-    f.name.includes(`_${accountTag()}_`)
+    f.name.startsWith(`${SYNC_FILE_PREFIX}_`) &&
+    f.name.endsWith(`_${LATEST_SUFFIX}.db`)
   );
 }
 
@@ -349,10 +348,10 @@ async function ensureBackupFolder(token: string): Promise<string | null> {
 }
 
 async function listSyncFilesRaw(token: string): Promise<DriveFile[]> {
-  // Solo los respaldos de ESTA cuenta (prefijo por tag), en la carpeta destino
-  // o en cualquier otro sitio por si la carpeta cambió. Sin podar.
-  const tag = accountTag();
-  const q = `name contains '${SYNC_FILE_PREFIX}_${tag}_' and trashed=false`;
+  // Prefijo simple, sin tag de cuenta. Trae TAMBIÉN los archivos viejos
+  // (`..._<correo>_<plataforma>_latest.db`) a propósito: hay que verlos para
+  // migrarlos/limpiarlos en vez de ignorarlos y dejar dos cadenas sueltas.
+  const q = `name contains '${SYNC_FILE_PREFIX}_' and trashed=false`;
   const resp = await fetch(
     `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&orderBy=createdTime desc&fields=files(id,name,size,createdTime,modifiedTime)`,
     { headers: { Authorization: `Bearer ${token}` } }

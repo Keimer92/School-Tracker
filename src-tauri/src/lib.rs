@@ -2259,49 +2259,23 @@ async fn open_account_db(
     app_handle: tauri::AppHandle,
     state: tauri::State<'_, DbState>,
     email: String,
-    migrate_from_default: bool,
+    _migrate_from_default: bool,
 ) -> Result<String, String> {
-    use std::fs;
     let app_dir = get_profile_app_dir(&app_handle)?;
     let email = email.trim().to_lowercase();
     if email.is_empty() {
         return Err("email de cuenta vacío".to_string());
     }
+
+    // La BD ya no lleva el correo en el nombre (ver `db::account_db_path`), así
+    // que acá solo se abre el archivo único. El marcador de cuenta se sigue
+    // escribiendo: lo usan otros flujos para saber con qué cuenta se inició
+    // sesión, aunque ya no decida el nombre del archivo.
     let target = db::account_db_path(&app_dir, &email);
-
-    // ¿Hay que migrar la BD por defecto (school.db) a la cuenta? Solo la primera
-    // vez y si aún no existe ningún archivo de cuenta.
-    let needs_migrate = !target.exists() && {
-        let default = app_dir.join("school.db");
-        let ya_hay_cuenta = fs::read_dir(&app_dir)
-            .map(|entries| {
-                entries
-                    .filter_map(|e| e.ok())
-                    .any(|e| {
-                        let n = e.file_name().to_string_lossy().to_string();
-                        n.starts_with("school_") && n.ends_with(".db")
-                    })
-            })
-            .unwrap_or(false);
-        default.exists() && migrate_from_default && !ya_hay_cuenta
-    };
-
-    // Abrir/reemplazar la conexión activa. Si vamos a mover school.db, primero
-    // soltamos el handle abierto (lo cambiamos por una BD en memoria) para poder
-    // renombrar el archivo en Windows sin el error "file used by another process".
-    // Se mantiene el lock durante toda la operación para evitar una condición de
-    // carrera con otros comandos.
     {
         let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
-        if needs_migrate {
-            *conn = Connection::open_in_memory()
-                .map_err(|e| format!("No se pudo liberar la BD actual: {}", e))?;
-            let default = app_dir.join("school.db");
-            fs::rename(&default, &target)
-                .map_err(|e| format!("No se pudo migrar la BD por defecto: {}", e))?;
-        }
         let new_conn = Connection::open(&target)
-            .map_err(|e| format!("No se pudo abrir la BD de la cuenta: {}", e))?;
+            .map_err(|e| format!("No se pudo abrir la base de datos: {}", e))?;
         db::init_database(&new_conn).map_err(|e| e.to_string())?;
         *conn = new_conn;
     }
@@ -2434,12 +2408,16 @@ pub fn run() {
             }
             let app_handle = app.handle().clone();
             let app_dir = get_profile_app_dir(&app_handle).expect("Failed to get profile dir");
-            let db_path = if let Some(email) = db::read_active_account(&app_dir) {
-                let p = db::account_db_path(&app_dir, &email);
-                if p.exists() { p } else { app_dir.join("school.db") }
-            } else {
-                app_dir.join("school.db")
-            };
+            // Unificación del nombre de la BD: si quedó un `school_<correo>.db`
+            // de una versión anterior, pasa a ser el `school.db`. Va ANTES de
+            // abrir la conexión; si se hiciera después, la app abriría un
+            // `school.db` inexistente (vacío) y parecería una pérdida de datos.
+            match db::migrar_bd_por_cunta_a_unica(&app_dir) {
+                Ok(Some(p)) => println!("[DB] Base migrada al nombre único: {}", p.display()),
+                Ok(None) => {}
+                Err(e) => println!("[DB] No se pudo migrar la base con nombre de cuenta: {}", e),
+            }
+            let db_path = db::resolve_active_db_path(&app_dir);
             let conn = Connection::open(db_path).expect("Failed to open database");
             // Modo WAL explícito: la app lee desde el WebView mientras el motor
             // de sync escribe por detrás, y en modo `delete` un guardado bloquea

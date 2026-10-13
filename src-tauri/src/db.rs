@@ -4955,21 +4955,84 @@ pub fn write_active_account(app_dir: &std::path::Path, email: &str) -> Result<()
         .map_err(|e| format!("No se pudo guardar la cuenta activa: {}", e))
 }
 
-/// Ruta del archivo SQLite de una cuenta concreta.
-pub fn account_db_path(app_dir: &std::path::Path, email: &str) -> std::path::PathBuf {
-    app_dir.join(format!("school_{}.db", sanitize_account_id(email)))
+/// Ruta del archivo SQLite. ÚNICA por instalación.
+///
+/// Antes era `school_<email>.db`: una base por cuenta de Google. Se unificó a
+/// un solo archivo porque el nombre con el correo traía dos problemas que no
+/// se ven hasta que duelen:
+///
+/// 1. **El correo viaja a Cloudflare Drive**, que es visible para cualquiera con
+///    acceso al Drive. Es un dato personal en un nombre de archivo.
+/// 2. **Un nombre distinto por equipo rompe el respaldo automático.** Cada
+///    dispositivo guarda en un archivo distinto, así que un `_Windows_latest` y
+///    un `_Android_latest` nunca se reconocen como el mismo conjunto de datos y
+///    la app no sabe cuál es el bueno. Terminás con dos cadenas de respaldos
+///    paralelas y, al restaurar, la pregunta de siempre: cuál.
+///
+/// ⚠️ CONSECUENCIA REAL: con un archivo único, dos cuentas de Google en el
+/// mismo equipo comparten la misma base. Si se necesita aislamiento, la
+/// separación va por instalación (o perfil), no por cuenta.
+pub fn account_db_path(app_dir: &std::path::Path, _email: &str) -> std::path::PathBuf {
+    app_dir.join("school.db")
 }
 
-/// Ruta de la BD que debe usarse ahora: la de la cuenta activa si existe,
-/// si no la BD por defecto (school.db) por compatibilidad con instalaciones previas.
+/// Ruta de la BD activa: siempre la misma.
+///
+/// Se conserva la firma con el email porque los llamadores ya la pasan; el
+/// parámetro se ignora a propósito (ver `account_db_path`).
 pub fn resolve_active_db_path(app_dir: &std::path::Path) -> std::path::PathBuf {
-    if let Some(email) = read_active_account(app_dir) {
-        let p = account_db_path(app_dir, &email);
-        if p.exists() {
-            return p;
-        }
-    }
     app_dir.join("school.db")
+}
+
+/// Migra una base antigua con nombre de cuenta al archivo único `school.db`.
+///
+/// Se llama al arrancar. Es lo que evita que, al unificar, la app abra un
+/// `school.db` vacío y parezca que se perdieron todos los datos: el archivo
+/// viejo pasa a ser el bueno.
+///
+/// Solo migra si hay EXACTAMENTE un archivo `school_*.db`. Si hay más de uno
+/// (varias cuentas existen en el disco) no se puede elegir sin criterio, así
+/// que no se toca nada y se avisa por consola en vez de adivinar.
+pub fn migrar_bd_por_cunta_a_unica(app_dir: &std::path::Path) -> Result<Option<std::path::PathBuf>, String> {
+    let destino = app_dir.join("school.db");
+    let candidatos: Vec<std::path::PathBuf> = match std::fs::read_dir(app_dir) {
+        Ok(entries) => entries
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| {
+                let n = p.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default();
+                n.starts_with("school_") && n.ends_with(".db")
+            })
+            .collect(),
+        Err(_) => return Ok(None),
+    };
+
+    if candidatos.is_empty() {
+        return Ok(None);
+    }
+    // Ya existe la unificada y hay archivos viejos: no se pisa nada. Puede
+    // significar que la migración ya corrió y quedaron restos, o que hay varias
+    // cuentas. En ambos casos, elegir a mano.
+    if destino.exists() {
+        return Ok(None);
+    }
+    if candidatos.len() > 1 {
+        println!(
+            "[DB] Hay {} bases con nombre de cuenta ({}); no se migra automáticamente a school.db",
+            candidatos.len(),
+            candidatos
+                .iter()
+                .filter_map(|p| p.file_name().map(|f| f.to_string_lossy().to_string()))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        return Ok(None);
+    }
+
+    let origen = &candidatos[0];
+    std::fs::rename(origen, &destino)
+        .map_err(|e| format!("No se pudo migrar la base {}: {}", origen.display(), e))?;
+    Ok(Some(destino))
 }
 
 #[tauri::command]
