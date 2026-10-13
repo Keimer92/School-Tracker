@@ -554,8 +554,6 @@
       {activeTab}
       {drawerOpen}
       {isMobile}
-      {themeMode}
-      setThemeMode={setThemeMode}
       onTabChange={handleTabChange}
       toggleDrawer={toggleDrawer}
       onDrawerClose={closeDrawer}
