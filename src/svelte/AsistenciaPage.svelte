@@ -1254,6 +1254,23 @@ $effect(() => {
     return s ? s.numero : null;
   }
 
+  /**
+   * ¿Esta fecha abre el bloque de su semana? (Primera columna visible del grupo.)
+   *
+   * ANTES la cabecera usaba `esInicioSemana(fecha)` para dibujar la píldora "S N",
+   * que exige que el día sea el PRIMER DÍA HÁBIL de la semana del colegio. El
+   * bloque 1 del mes casi nunca arranca ahí: si el mes empieza en jueves y la
+   * semana del colegio es lunes, el bloque 1 va del jueves al sábado y no
+   * contiene ningún lunes — la píldora "S1" NO SE DIBUJABA NUNCA, y el separador
+   * vertical tampoco. Solo aparecían de la semana 2 en adelante.
+   *
+   * Ahora se pregunta por el BLOQUE, que es lo que el usuario ve en pantalla.
+   */
+  function esPrimeraColumnaDeSemana(iso: string): boolean {
+    const s = semanasMes.find(w => w.fechas.includes(iso));
+    return !!s && s.fechas[0] === iso;
+  }
+
   /** Rango legible de una semana: "01/09 al 04/09". */
   function rangoSemana(s: { numero: number; fechas: string[] }): string {
     if (s.fechas.length === 0) return '';
@@ -2420,10 +2437,26 @@ $effect(() => {
     .asistencia-opt.j{background:rgba(245,158,11,0.15)!important;border-color:#f59e0b!important;color:#f59e0b!important}
     .asistencia-opt:active{transform:scale(0.92)}
     .obs-toggle-btn{width:34px!important;height:34px!important;min-width:34px!important;font-size:0.9rem!important;border-radius:8px!important}
-    /* Separador de semanas en la vista mensual: línea vertical antes del lunes */
+    /* Separador de semanas en la vista mensual: línea vertical al abrir cada bloque */
     .sep-semana{border-left:2px solid rgba(148,163,184,0.5)!important}
-    /* Número de semana en la cabecera, legible de un vistazo */
-    .semana-badge{display:inline-block;font-size:0.6rem;font-weight:800;letter-spacing:.4px;color:#c7d2fe;background:rgba(99,102,241,0.32);border:1px solid rgba(129,140,248,0.45);border-radius:5px;padding:1px 5px;margin-bottom:2px;line-height:1.25}
+    /* Fila 1 de la cabecera: una celda propia por semana. Fondo un tono más
+       oscuro que la de fechas para que la banda de semanas se lea como una
+       tira propia y no como otra fila de números. */
+    .custom-table thead tr.fila-semanas th{position:sticky;top:0;z-index:11;background:#151d2e!important;
+      border-bottom:1px solid rgba(129,140,248,0.28);text-align:center;padding:.25rem .3rem;vertical-align:middle}
+    /* Fila 2 (fechas): arranca debajo de la banda de semanas al hacer scroll
+       vertical. La altura es fija y coincide con el padding de arriba. */
+    .custom-table thead tr.fila-fechas th{position:sticky;top:30px;z-index:10;background:#1e293b!important;
+      font-size:0.7rem;white-space:nowrap;text-align:center;min-width:48px;padding:0.35rem 0.45rem}
+    /* Las celdas que cruzan las dos filas (#, Estudiante, P/A/J) se quedan arriba. */
+    .custom-table thead th.cab-cruce{position:sticky;top:0;z-index:12;background:#1e293b!important;font-size:0.7rem;text-align:center}
+    /* Píldora de semana: ahora ocupa toda la celda del bloque, así que puede
+      ir bastante más grande. Antes iba apretada dentro de una celda de fecha. */
+    .semana-badge{display:inline-flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:800;
+      letter-spacing:.5px;color:#e0e7ff;background:rgba(99,102,241,0.42);border:1px solid rgba(129,140,248,0.6);
+      border-radius:6px;padding:1px 8px;line-height:1.4}
+    .semana-rango{display:block;font-size:0.55rem;font-weight:600;color:#64748b;letter-spacing:.2px;
+      margin-top:1px;white-space:nowrap}
     /* Semana señalada desde el modal de Sin Clases */
     .custom-table thead th.semana-hl{background:rgba(99,102,241,0.5)!important}
     .semana-hl-ini{border-left:2px solid #818cf8!important}
@@ -3242,30 +3275,44 @@ $effect(() => {
           </table>
         {:else if periodoEfectivo === "mensual"}
           <table class="custom-table" style="width:100%;margin:0;overflow:visible">
-            <thead><tr>
-              <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
-              <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;min-width:200px">{t('asis.col.estudiante')}</th>
-              {#each fechasVisibles as fv, iFecha (fv.fecha)}
-                <th class:dsc-th={fv.sinClases} class:fch-th={!enInforme} class:sep-semana={esInicioSemana(fv.fecha, iFecha)}
-                  class:semana-hl={semanaHover !== null && numeroSemanaDe(fv.fecha) === semanaHover}
-                  class:semana-hl-ini={semanaHoverRango?.ini === fv.fecha}
-                  class:semana-hl-fin={semanaHoverRango?.fin === fv.fecha}
-                  style="font-size:0.7rem;white-space:nowrap;text-align:center;position:sticky;top:0;background:#1e293b;z-index:10;min-width:48px;padding:0.35rem 0.45rem"
-                  title={enInforme
-                    ? `${fv.sinClases ? motivoSinClasesEn(fv.fecha) : ''}${numeroSemanaDe(fv.fecha) ? `${fv.sinClases ? ' · ' : ''}Semana ${numeroSemanaDe(fv.fecha)}` : ''}`
-                    : `${fv.sinClases ? motivoSinClasesEn(fv.fecha) + ' — Click para reactivar clases' : 'Click para marcar este día sin clases'}${numeroSemanaDe(fv.fecha) ? ` · Semana ${numeroSemanaDe(fv.fecha)}` : ''}`}
-                  onclick={enInforme ? undefined : () => clickHeaderFecha(fv.fecha)}>
-                  {#if esInicioSemana(fv.fecha, iFecha) && numeroSemanaDe(fv.fecha)}
-                    <div class="semana-badge">S{numeroSemanaDe(fv.fecha)}</div>
-                  {/if}
-                  <div style="font-size:0.6rem;opacity:0.7">{fv.sinClases ? '🚫 ' : ''}{fmtFecha(fv.fecha, { weekday: 'short' })}</div>
-                  {fv.fecha.split('-').slice(1).reverse().join('/')}
-                </th>
-              {/each}
-              <th style="width:{isAndroidMobile ? '24px' : '30px'};position:sticky;top:0;background:#1e293b;z-index:10">P</th>
-              <th style="width:{isAndroidMobile ? '24px' : '30px'};position:sticky;top:0;background:#1e293b;z-index:10">A</th>
-              <th style="width:{isAndroidMobile ? '24px' : '30px'};position:sticky;top:0;background:#1e293b;z-index:10">J</th>
-            </tr></thead>
+            <thead>
+              <!-- Fila 1: la SEMANA. Cada bloque del mes tiene su propia celda
+                   (colspan = nº de columnas del bloque), así la píldora S1..Sn
+                   ocupa todo el ancho de su semana en vez de encogerse dentro de
+                   una celda de fecha. Antes "S1" no se veía nunca: la fila
+                   arrancaba en el día hábil del colegio y el bloque 1 del mes
+                   casi nunca contiene ese día. -->
+              <tr class="fila-semanas">
+                <th class="cab-cruce" rowspan="2" style="width:30px">#</th>
+                <th class="cab-cruce" rowspan="2" style="text-align:left;min-width:200px">{t('asis.col.estudiante')}</th>
+                {#each semanasMes as s (s.numero)}
+                  <th colspan={s.fechas.length} class:sep-semana={esPrimeraColumnaDeSemana(s.fechas[0])}
+                    class:semana-hl={semanaHover !== null && semanaHover === s.numero}
+                    title={`Semana ${s.numero} · ${rangoSemana(s)}${semanaSinClasesTotal(s) ? ' · 🚫 sin clases' : ''}`}>
+                    <div class="semana-badge">S{s.numero}</div>
+                    <div class="semana-rango">{rangoSemana(s)}</div>
+                  </th>
+                {/each}
+                <th class="cab-cruce" rowspan="2" style="width:{isAndroidMobile ? '24px' : '30px'}">P</th>
+                <th class="cab-cruce" rowspan="2" style="width:{isAndroidMobile ? '24px' : '30px'}">A</th>
+                <th class="cab-cruce" rowspan="2" style="width:{isAndroidMobile ? '24px' : '30px'}">J</th>
+              </tr>
+              <tr class="fila-fechas">
+                {#each fechasVisibles as fv, iFecha (fv.fecha)}
+                  <th class:dsc-th={fv.sinClases} class:fch-th={!enInforme} class:sep-semana={esPrimeraColumnaDeSemana(fv.fecha)}
+                    class:semana-hl={semanaHover !== null && numeroSemanaDe(fv.fecha) === semanaHover}
+                    class:semana-hl-ini={semanaHoverRango?.ini === fv.fecha}
+                    class:semana-hl-fin={semanaHoverRango?.fin === fv.fecha}
+                    title={enInforme
+                      ? `${fv.sinClases ? motivoSinClasesEn(fv.fecha) : ''}${numeroSemanaDe(fv.fecha) ? `${fv.sinClases ? ' · ' : ''}Semana ${numeroSemanaDe(fv.fecha)}` : ''}`
+                      : `${fv.sinClases ? motivoSinClasesEn(fv.fecha) + ' — Click para reactivar clases' : 'Click para marcar este día sin clases'}${numeroSemanaDe(fv.fecha) ? ` · Semana ${numeroSemanaDe(fv.fecha)}` : ''}`}
+                    onclick={enInforme ? undefined : () => clickHeaderFecha(fv.fecha)}>
+                    <div style="font-size:0.6rem;opacity:0.7">{fv.sinClases ? '🚫 ' : ''}{fmtFecha(fv.fecha, { weekday: 'short' })}</div>
+                    {fv.fecha.split('-').slice(1).reverse().join('/')}
+                  </th>
+                {/each}
+              </tr>
+            </thead>
             <tbody>
               {#each filteredEstudiantesMulti as est, index (est.id)}
                 {@const p = countMultiEstados(est.id, 'P')}
@@ -3290,7 +3337,7 @@ $effect(() => {
                       {@const d = est.dias[fv.fecha]}
                       {@const draftD = draftMulti[est.id]?.[fv.fecha]}
                       {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
-                        <td class:sep-semana={esInicioSemana(fv.fecha, iFecha)}
+                        <td class:sep-semana={esPrimeraColumnaDeSemana(fv.fecha)}
                           class:semana-hl-ini={semanaHoverRango?.ini === fv.fecha}
                           class:semana-hl-fin={semanaHoverRango?.fin === fv.fecha}
                           style="text-align:center;padding:0.15rem">
