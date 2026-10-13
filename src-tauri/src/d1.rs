@@ -932,19 +932,70 @@ pub async fn d1_sync_all(
         }
     };
 
+    // ---- 1b. Cursor de PUSH guardado YA, antes de tocar la nube.
+    //
+    // El push de arriba terminó bien: esas filas ESTÁN en D1. Antes, el cursor
+    // solo se guardaba dentro de la transacción del apply (más abajo), así que
+    // si el PULL fallaba la función abortaba con `?` y ese `UPDATE` nunca se
+    // ejecutaba. El `last_push_sync` se quedaba en su valor viejo y el
+    // SIGUIENTE trigger volvía a empujar exactamente las mismas filas.
+    //
+    // Con ~8.000 filas por push y los triggers que hay (arranque, volver a
+    // primer plano, `online`, cambio de pestaña, reconexión del WS, tick de
+    // 20 min), unas 12 subidas bastaban para vaciar la cuota diaria de 100.000
+    // filas de D1 — y el usuario no había tocado nada. El síntoma era siempre
+    // el mismo: "cuota agotada" al abrir la app, una y otra vez.
+    //
+    // Anotarlo acá es lo correcto: el dato ya está subido, así que recordarlo
+    // no inventa nada, y además un fallo de pull deja de costar una subida
+    // completa. Si el push se omitió por el freno NO se toca (los cambios
+    // siguen sin estar en la nube y hay que reintentarlos).
+    if !push_omitido {
+        if let Ok(conn) = state.conn.lock() {
+            let cursor_push = now_sqlite();
+            if let Err(e) = conn.execute(
+                "UPDATE d1_config SET last_push_sync = ?1, updated_at = datetime('now') WHERE id = 1",
+                params![cursor_push],
+            ) {
+                eprintln!("[D1] no se pudo guardar el cursor de push: {}", e);
+            }
+        }
+    }
+
     // ---- 2. PULL
     let pull_body = json!({
         "since": since,
         "deviceId": cfg.device_id,
     });
     let _ = app.emit("d1-sync-progress", json!({ "message": "Descargando cambios de la nube…" }));
-    let pull_resp = tauri::async_runtime::spawn_blocking({
+    let pull_resp = match tauri::async_runtime::spawn_blocking({
         let cfg = cfg.clone();
         let pull_body = pull_body.clone();
         move || http_post_json(&cfg.worker_url, &cfg.school_key, "/pull", pull_body)
     })
     .await
-    .map_err(|e| format!("Error en pull (hilo): {}", e))??;
+    {
+        Ok(Ok(v)) => v,
+        // Un pull fallido también frena el sync. Antes solo se registraba el
+        // push fallido, así que un error de red en `/pull` (muy fácil de tener
+        // cuando la cuota diaria ya está agotada) dejaba `push_fail_count` en 0
+        // y el freno sin armar: cada trigger repetía el ciclo push+pull sin
+        // pausa. Ahora cuenta igual y el backoff corta la insistencia.
+        Ok(Err(e)) => {
+            let motivo = format!("Error en pull: {}", e);
+            if let Ok(conn) = state.conn.lock() {
+                let _ = registrar_push_fallido(&conn, &motivo);
+            }
+            return Err(motivo);
+        }
+        Err(e) => {
+            let motivo = format!("Error en pull (hilo): {}", e);
+            if let Ok(conn) = state.conn.lock() {
+                let _ = registrar_push_fallido(&conn, &motivo);
+            }
+            return Err(motivo);
+        }
+    };
 
     // ---- 3. Apply
     let _ = app.emit("d1-sync-progress", json!({ "message": "Guardando datos localmente…" }));
