@@ -38,6 +38,12 @@
    * cualquier sección, dentro de Configuración no habría forma de pasar de una
    * sección a otra sin dos clicks.
    */
+  /** Contenedor del acordeón de configuración.
+   *  Se extiende lo suficiente como para que el hover desde el botón ⚙️
+   *  hasta la lista desplegada no cierre el menú antes de elegir una sección.
+   *  El `onmouseleave` solo se dispara cuando el cursor sale realmente de
+   *  esta área extendida, no al pasar por el hueco entre botón y lista.
+   */
   let ajustesAbierto = $state(false);
   let ajustesFijado = $state(false);
 

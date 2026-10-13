@@ -899,8 +899,12 @@ pub async fn d1_sync_all(
         None => false,
     };
 
+    let push_vacio = !push_omitido && total_push == 0 && deletions.is_empty();
     let push_resp: Value = if push_omitido {
         json!({ "ok": true, "applied": {}, "omitidoPorFreno": true })
+    } else if push_vacio {
+        println!("[D1] push omitido: no hay filas ni borrados pendientes");
+        json!({ "ok": true, "applied": {} })
     } else {
         let push_body = json!({
             "since": push_since,

@@ -476,18 +476,9 @@
           console.error('[D1Debug] error en sync disparado:', e);
         }
       };
-      const d1OnVisible = () => { if (!document.hidden) void d1TrySync('foreground'); };
-      const d1OnOnline = () => void d1TrySync('online');
-      document.addEventListener("visibilitychange", d1OnVisible);
-      window.addEventListener("online", d1OnOnline);
-      unlisten.push(() => {
-        document.removeEventListener("visibilitychange", d1OnVisible);
-        window.removeEventListener("online", d1OnOnline);
-      });
-
       // ARRANQUE: sync inicial + conexión al hub WebSocket de una sola vez.
-      // Sin esto, el WS no existía hasta que el usuario cambiara de ventana/página
-      // y los avisos en tiempo real del otro dispositivo se perdían.
+      // Los siguientes syncs pasivos (foreground/online) los gestiona el
+      // servicio WebSocket, que ya registra sus propios listeners globales.
       void d1TrySync('startup');
 
       invoke("seed_defaults_now");
