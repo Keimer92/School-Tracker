@@ -4918,35 +4918,9 @@ pub async fn get_pcts_por_corte(
     Ok(rows)
 }
 
-/// Normaliza un email de cuenta para usarlo como sufijo de archivo de BD.
-/// Ej: "Plbarostegui92@gmail.com" -> "plbarostegui92_gmail_com"
-pub fn sanitize_account_id(email: &str) -> String {
-    let mut s: String = email
-        .trim()
-        .to_lowercase()
-        .chars()
-        .map(|c| if c.is_alphanumeric() { c } else { '_' })
-        .collect();
-    while s.contains("__") {
-        s = s.replace("__", "_");
-    }
-    s.trim_matches('_').to_string()
-}
-
 /// Ruta del archivo que marca la cuenta de Google activa en este dispositivo.
 fn active_marker_path(app_dir: &std::path::Path) -> std::path::PathBuf {
     app_dir.join("active_account.txt")
-}
-
-/// Lee el email de la cuenta activa (o None si no hay ninguna marcada).
-pub fn read_active_account(app_dir: &std::path::Path) -> Option<String> {
-    match std::fs::read_to_string(active_marker_path(app_dir)) {
-        Ok(s) => {
-            let s = s.trim().to_string();
-            if s.is_empty() { None } else { Some(s) }
-        }
-        Err(_) => None,
-    }
 }
 
 /// Persiste el email de la cuenta activa para reabrir su BD al iniciar la app.
