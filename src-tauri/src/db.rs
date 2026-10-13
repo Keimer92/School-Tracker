@@ -2836,6 +2836,109 @@ pub async fn delete_student_batch(state: tauri::State<'_, DbState>, ids: Vec<i64
     Ok(())
 }
 
+/// Reporte de lo que encontró y borró una reparación.
+#[derive(Serialize)]
+#[allow(non_snake_case)]
+pub struct ReporteReparacionNotas {
+    /// Notas cuyo `estudiante_id` no existe (restos de un borrado duro).
+    huerfanas: usize,
+    /// Notas cuyo criterio pertenece a un grado distinto al del estudiante.
+    grado_ajeno: usize,
+    /// Suma de ambas: las filas realmente eliminadas.
+    borradas: usize,
+    /// Tombstones registrados para que la nube borre lo mismo.
+    tombstones: usize,
+}
+
+/// Repara la mezcla de notas por `id` colisionados.
+///
+/// ⚠️ ANTES DE EJECUTAR: hace un respaldo. No hay forma de reconstruir una nota
+/// borrada a mano; el comando solo las quita de la pantalla.
+///
+/// Qué limpia, y por qué son datos imposibles:
+///
+/// 1. **Huérfanas** — `estudiante_id` que no está en `estudiante`. Nacen cuando
+///    se borra un estudiante: el `ON DELETE CASCADE` se lleva sus notas en
+///    local, pero `delete_student` NO registraba tombstone de `nota` (sí de
+///    `asistencia`), así que la nube las conserva y el siguiente pull las
+///    devuelve ya sin dueño.
+/// 2. **Grado ajeno** — la nota es internamente coherente (el criterio existe)
+///    pero pertenece a otro grado. Es la mezcla por PK colisionados entre dos
+///    bases: en la base de origen el `estudiante_id` X era de grado 1, y al
+///    fusionar aterrizó sobre el estudiante X de ESTA base, que es de grado 5.
+///
+/// Las dos se borran porque una nota de grado 6 en la fila de un estudiante de
+/// grado 3 no es recuperable: no hay forma de saber de quién era.
+#[tauri::command]
+pub async fn reparar_integridad_notas(
+    state: tauri::State<'_, DbState>,
+) -> Result<ReporteReparacionNotas, String> {
+    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+
+    // Se seleccionan las claves ANTES de borrar: hace falta la PK completa para
+    // el tombstone, y `sync_pending_deletions_nota` no tiene una copia previa.
+    let seleccionar = |where_extra: &str| -> Result<Vec<(i64, i64, i64, i64)>, String> {
+        let sql = format!(
+            "SELECT n.estudiante_id, n.criterio_id, n.corte_evaluativo_id, n.asignatura_id
+             FROM nota n
+             JOIN criterio c ON c.id = n.criterio_id
+             JOIN indicador i ON i.id = c.indicador_id
+             LEFT JOIN estudiante e ON e.id = n.estudiante_id
+             WHERE {}",
+            where_extra
+        );
+        let mut stmt = tx.prepare(&sql).map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |r| {
+                Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
+            })
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?;
+        Ok(rows)
+    };
+
+    // 1. Huérfanas: el estudiante no existe (LEFT JOIN deja e.* en NULL).
+    let huerfanas = seleccionar("e.id IS NULL")?;
+    // 2. Grado ajeno: el estudiante existe pero es de otro grado que el criterio.
+    let grado_ajeno = seleccionar("e.id IS NOT NULL AND i.grado_id <> e.grado_id")?;
+
+    let mut tombstones = 0usize;
+    for (est_id, crit_id, corte_id, asig_id) in huerfanas.iter().chain(grado_ajeno.iter()) {
+        tx.execute(
+            "INSERT INTO sync_pending_deletions_nota
+                (estudiante_id, criterio_id, corte_evaluativo_id, asignatura_id)
+             VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params![est_id, crit_id, corte_id, asig_id],
+        )
+        .map_err(|e| e.to_string())?;
+        tx.execute(
+            "DELETE FROM nota
+             WHERE estudiante_id = ?1 AND criterio_id = ?2
+               AND corte_evaluativo_id = ?3 AND asignatura_id = ?4",
+            rusqlite::params![est_id, crit_id, corte_id, asig_id],
+        )
+        .map_err(|e| e.to_string())?;
+        tombstones += 1;
+    }
+
+    tx.commit().map_err(|e| e.to_string())?;
+    println!(
+        "[Reparación] {} notas huérfanas + {} de grado ajeno = {} borradas ({} tombstones)",
+        huerfanas.len(),
+        grado_ajeno.len(),
+        huerfanas.len() + grado_ajeno.len(),
+        tombstones
+    );
+    Ok(ReporteReparacionNotas {
+        huerfanas: huerfanas.len(),
+        grado_ajeno: grado_ajeno.len(),
+        borradas: huerfanas.len() + grado_ajeno.len(),
+        tombstones,
+    })
+}
+
 // Curriculum (Grade-Subject) Commands
 #[tauri::command]
 #[allow(non_snake_case)]

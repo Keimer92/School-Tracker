@@ -72,6 +72,7 @@ commands.allow = [
     "save_colegio_dias_asistencia",
     "get_dias_sin_clases",
     "set_dias_sin_clases",
+        "reparar_integridad_notas",
     "set_orientation",
     "check_category_dependencies",
     "delete_category_force",

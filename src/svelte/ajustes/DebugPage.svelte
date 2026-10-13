@@ -17,6 +17,7 @@
   import { untrack } from "svelte";
   import { portalToBody } from "../../lib/portalToBody";
   import { t, tagLocale } from "../../lib/i18n.svelte";
+  import { onDataChange } from "../../lib/autoSync";
 
   const isAndroid = /Android/i.test(navigator.userAgent);
   const ACCENT = "#ef4444";
@@ -29,6 +30,7 @@
   let dbPath = $state("");
   let isImporting = $state(false);
   let isWipingProfile = $state(false);
+  let isReparandoNotas = $state(false);
 
   // ── Traspaso del dispositivo ──
   // Vivía en la página "Cuenta", que se eliminó al quedar la nube de un solo
@@ -242,6 +244,25 @@
     } catch (e) {
       await emit("show-toast", { message: "❌ No se pudo guardar la config: " + e, type: "error" });
     } finally { savingBackupCfg = false; }
+  }
+
+  async function handleRepararNotas() {
+    if (isReparandoNotas) return;
+    const ok = await ask(t('dbg.reparar.confirmar'), { title: t('dbg.reparar.titulo'), kind: 'warning', okLabel: t('comun.confirmar'), cancelLabel: t('comun.cancelar') });
+    if (!ok) return;
+    isReparandoNotas = true;
+    try {
+      // Respaldo antes de tocar nada: las notas borradas no se reconstruyen a mano.
+      try { await invoke('gd_create_backup', {}); } catch { /* el respaldo automatico tambien corre */ }
+      const r = await invoke<{ huerfanas: number; gradoAjeno: number; borradas: number }>("reparar_integridad_notas", {});
+      await emit("show-toast", {
+        message: t('dbg.reparar.hecho', { h: r.huerfanas, g: r.gradoAjeno, n: r.borradas }),
+        type: r.borradas > 0 ? "success" : "info",
+      });
+      onDataChange('nota');
+    } catch (e) {
+      await emit("show-toast", { message: t('dbg.reparar.error', { msg: String(e) }), type: "error" });
+    } finally { isReparandoNotas = false; }
   }
 
   async function hacerBackupAhora() {
@@ -460,6 +481,16 @@
           {isImporting ? t('dbg.importar.importando') : t('dbg.importar.btn')}
         </button>
         <div class="dbg-hint">{t('dbg.importar.hint')}</div>
+      </div>
+
+      <!-- REPARAR NOTAS -->
+      <div class="dbg-box">
+        <div class="dbg-box-head"><span style="font-size: 1.2rem;">🩹</span><h5>{t('dbg.reparar.titulo')}</h5></div>
+        <p class="dbg-desc">{t('dbg.reparar.desc')}</p>
+        <button onclick={handleRepararNotas} disabled={isReparandoNotas} class="dbg-btn dbg-btn-rojo">
+          {isReparandoNotas ? t('dbg.reparar.trabajando') : t('dbg.reparar.btn')}
+        </button>
+        <div class="dbg-hint">{t('dbg.reparar.hint')}</div>
       </div>
 
       <!-- PURGAR -->
