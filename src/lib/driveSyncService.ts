@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { ask } from '@tauri-apps/plugin-dialog';
 import { emit } from '@tauri-apps/api/event';
 import { markDirty, markAllDirty, markAllClean, hasDirtyTables } from './dirtyTracker';
 import { d1Conectado } from './d1Connection.svelte';
@@ -504,6 +505,90 @@ async function hasLocalChanges(): Promise<boolean> {
 }
 
 /** Descarga un archivo de Drive y lo restaura como base de datos local. */
+interface Huella {
+  fecha: string | null;
+  origen: string | null;
+  estudiantes: number;
+  notas: number;
+  asistencias: number;
+  sinSello: boolean;
+}
+
+/**
+ * Compara el sello del respaldo descargado contra el de la base local.
+ *
+ * Devuelve una función que hay que `await`-ear, o `null` si no hay nada que
+ * advertir. Se deja así para no bloquear un segundo paso de escritura del
+ * blob si el caso es limpio.
+ *
+ * El respaldo se escribe en TEMP solo para que `leer_huella_archivo` lo pueda
+ * abrir en SQLite; se borra siempre. La base activa NO se toca acá.
+ */
+async function compararSellos(blob: Blob): Promise<(() => Promise<void>) | null> {
+  const tempPath = await invoke<string>('gd_write_temp_db', { contentBase64: await blobABase64(blob) });
+  try {
+    const [local, remoto] = await Promise.all([
+      invoke<Huella>('leer_huella_base'),
+      invoke<Huella>('leer_huella_archivo', { path: tempPath }),
+    ]);
+
+    const detalles: string[] = [];
+    // Más viejo: es el caso clásico de "traigo el de otro equipo".
+    const masViejo = !local.sinSello && !remoto.sinSello && remoto.fecha! < local.fecha!;
+    const menosEstudiantes = remoto.estudiantes < local.estudiantes;
+    const menosNotas = remoto.notas < local.notas;
+
+    if (!masViejo && !menosEstudiantes && !menosNotas) return null;
+
+    if (masViejo) {
+      detalles.push(t('drive.retro.masViejo', { remoto: fmtFechaLarga(remoto.fecha!), local: fmtFechaLarga(local.fecha!) }));
+    }
+    if (remoto.origen || local.origen) {
+      detalles.push(t('drive.retro.origenes', { remoto: remoto.origen ?? '?', local: local.origen ?? '?' }));
+    }
+    if (menosEstudiantes) {
+      detalles.push(t('drive.retro.estudiantes', { remoto: remoto.estudiantes, local: local.estudiantes }));
+    }
+    if (menosNotas) {
+      detalles.push(t('drive.retro.notas', { remoto: remoto.notas, local: local.notas }));
+    }
+
+    return async () => {
+      const ok = await ask(
+        `${t('drive.retro.titulo')}\n\n${detalles.join('\n')}\n\n${t('drive.retro.advertencia')}`,
+        {
+          title: t('drive.retro.titulo'),
+          kind: 'warning',
+          okLabel: t('drive.retro.forzar'),
+          cancelLabel: t('comun.cancelar'),
+        }
+      );
+      if (!ok) {
+        throw new Error(t('drive.retro.cancelado'));
+      }
+    };
+  } finally {
+    try { await invoke('gd_delete_backup', { path: tempPath }); } catch (_) {}
+  }
+}
+
+function fmtFechaLarga(iso: string): string {
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? iso : d.toLocaleString();
+}
+
+/** Blob → base64 sin pasar por un FileReader con dataURL (que agrega el prefijo). */
+async function blobABase64(blob: Blob): Promise<string> {
+  const buf = new Uint8Array(await blob.arrayBuffer());
+  let bin = '';
+  // En trozos: un solo += sobre 8 MB puede reventar el límite de argumentos.
+  const PASO = 0x8000;
+  for (let i = 0; i < buf.length; i += PASO) {
+    bin += String.fromCharCode.apply(null, Array.from(buf.subarray(i, i + PASO)));
+  }
+  return btoa(bin);
+}
+
 async function downloadAndRestore(token: string, fileId: string): Promise<void> {
   const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -551,6 +636,32 @@ async function downloadAndRestore(token: string, fileId: string): Promise<void> 
   if (!firma.startsWith('SQLite format 3')) {
     throw new Error(t('drive.error.dbNoValida'));
   }
+  /**
+   * FRENO DE RETROCESO.
+   *
+   * Antes de sobrescribir, se compara el sello del respaldo con el de la base
+   * local. El caso que motiva esto: el `_latest` de Drive lo renombra
+   * `findAnyExistingBackup()` sin filtrar por plataforma, así que Windows y
+   * Android se pelean el MISMO archivo y el nombre dice "quién guardó último",
+   * no "de quién son los datos". Un `pullAll` en Android podía meterse la base
+   * que Windows escribió ayer, borrando lo que el usuario cargó hoy — y como
+   * el nombre decía "Android", no había forma de sospecharlo.
+   *
+   * Si el respaldo es más viejo o tiene menos datos, se PREGUNTA en vez de
+   * sobrescribir. No se bloquea de forma absoluta: el usuario puede forzar,
+   * porque puede estar restaurando a propósito (recuperar un borrado). Lo que
+   * no puede es hacerlo sin haberlo leído.
+   */
+  try {
+    const veredicto = await compararSellos(blob);
+    if (veredicto) await veredicto();
+  } catch (e) {
+    // Si la comparación falla se sigue adelante: el freno es una ayuda, no una
+    // barrera. Bloquear el restore por un error de lectura sería peor que el
+    // problema que previene.
+    console.warn('[DriveSync] no se pudo comparar el respaldo:', e);
+  }
+
   // Copia de seguridad en TEMP (fuera de la carpeta de la app, que se pidió
   // dejar limpia) por si el restore resultara corrupto y hay que volver atrás.
   try { await invoke('gd_snapshot_db'); } catch (e) { console.warn('[DriveSync] sin copia previa:', e); }
@@ -697,6 +808,23 @@ async function pushLatestBackup(): Promise<{ ok: boolean; reason?: string; creat
     }
     // Snapshot en TEMP con nombre fijo: copia consistente del SQLite abierto
     // para subir, sin dejar archivos en la carpeta de la aplicación.
+    /**
+     * Sellar la base ANTES del snapshot.
+     *
+     * El orden importa: `gd_snapshot_db` copia el archivo a un temporal y eso
+     * es justamente lo que se sube a Drive. Si el sello se escribiera después,
+     * el `.db` remoto sería una copia sin identificar y en la próxima
+     * restauración no sabríamos de cuándo es. Por eso va acá y no más abajo.
+     */
+    try {
+      await invoke('escribir_huella_base', { fecha: now(), origen: devicePlatform() });
+    } catch (e) {
+      // No es crítico: sin sello el restore sigue funcionando, solo pierde la
+      // protección de antigüedad. Mejor un respaldo sin sello que ningún
+      // respaldo.
+      console.warn('[DriveSync] no se pudo sellar la base:', e);
+    }
+
     const localBackupPath = await invoke<string>('gd_snapshot_db');
     let dbBytes = 0;
     try {

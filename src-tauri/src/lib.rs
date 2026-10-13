@@ -2083,6 +2083,47 @@ async fn gd_snapshot_db(app_handle: tauri::AppHandle, state: tauri::State<'_, Db
     Ok(snap.to_string_lossy().into_owned())
 }
 
+/// Escribe un `.db` descargado de Drive en TEMP y devuelve su ruta, para poder
+/// leer su sello (`leer_huella_archivo`) SIN tocar la base activa.
+///
+/// Va a un archivo de nombre único y NO a `snapshot.db`: la comparación del
+/// freno de retroceso puede solaparse con un snapshot de `gd_snapshot_db`, y
+/// dos escrituras sobre el mismo path se pisarían. El que llama borra el
+/// archivo después.
+#[tauri::command]
+async fn gd_write_temp_db(content_base64: String) -> Result<String, String> {
+    use std::fs;
+
+    let tmp_dir = std::env::temp_dir().join("schooltracker");
+    fs::create_dir_all(&tmp_dir).map_err(|e| format!("Failed to create temp dir: {}", e))?;
+    let tmp = tmp_dir.join(format!("restore_check_{}.db", uuid_like()));
+
+    let bytes = base64_decode(&content_base64)?;
+    fs::write(&tmp, &bytes).map_err(|e| format!("Failed to write temp db: {}", e))?;
+    Ok(tmp.to_string_lossy().into_owned())
+}
+
+/// Sufijo pseudoaleatorio para nombres de temporales. No necesita ser
+/// criptográfico: solo tiene que evitar que dos escrituras simultáneas elijan
+/// el mismo archivo.
+fn uuid_like() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    format!("{:x}-{:x}", nanos, std::process::id())
+}
+
+/// Decodifica base64 estándar. Va en un helper porque lo usan tanto la
+/// escritura del temporal como el overwrite de la base activa.
+fn base64_decode(content: &str) -> Result<Vec<u8>, String> {
+    use base64::{Engine as _, engine::general_purpose};
+    general_purpose::STANDARD
+        .decode(content)
+        .map_err(|e| format!("Error decodificando base64: {}", e))
+}
+
 /// Copia de seguridad de la base activa en `backups/backup_<timestamp>.db`.
 ///
 /// Ya NO se usa para el ciclo de sincronización (ver `gd_snapshot_db`); queda
@@ -2487,6 +2528,10 @@ update_colegio,
             update_student,
             delete_student,
             reactivar_estudiante,
+            leer_huella_base,
+            leer_huella_archivo,
+            escribir_huella_base,
+            gd_write_temp_db,
             reactivar_estudiantes_batch,
             get_estudiantes_retirados,
             delete_student_batch,

@@ -190,6 +190,26 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
     )
     .map_err(|e| format!("Error creando tabla estudiante: {}", e))?;
 
+    // ── Metadatos del respaldo ─────────────────────────────────────────────
+    //
+    // Viaja DENTRO del .db que se sube a Drive, y eso es lo importante: el
+    // `modifiedTime` de Drive miente (cambia si alguien re-sube o copia el
+    // archivo) y el `appProperties` se pierde en cuanto el archivo se mueve.
+    // Lo único que viaja con los datos es la base misma.
+    //
+    // NO está en las tablas de sync de D1 a propósito: es información del
+    // archivo de Drive, no del estado del colegio. Si se sincronizara, un
+    // equipo pisaría la marca del otro y el bloqueo de retroceso mentiría.
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS respaldo_meta (
+            clave TEXT PRIMARY KEY,
+            valor TEXT NOT NULL
+        );
+        "#,
+    )
+    .map_err(|e| format!("Error creando tabla respaldo_meta: {}", e))?;
+
     // ── Retiro de estudiantes (baja lógica) ────────────────────────────────
     //
     // La fila del estudiante NO se borra de `estudiante`: queda acá marcada.
@@ -2887,6 +2907,90 @@ pub async fn delete_student_batch(state: tauri::State<'_, DbState>, ids: Vec<i64
         )
         .map_err(|e| format!("No se pudo retirar al estudiante {}: {}", id, e))?;
     }
+    Ok(())
+}
+
+/// Qué hay adentro de una base: el sello que permite decidir si un respaldo
+/// es más viejo o más pobre que lo que ya está en el equipo.
+#[derive(Serialize)]
+#[allow(non_snake_case)]
+pub struct HuellaBase {
+    /// Momento en que se creó el respaldo (ISO). Viene de `respaldo_meta`.
+    fecha: Option<String>,
+    /// De qué equipo salió (`Windows`, `Android`, ...).
+    origen: Option<String>,
+    /// Conteos de lo que importa. Son la prueba de "¿perdería datos?".
+    estudiantes: i64,
+    notas: i64,
+    asistencias: i64,
+    /// Por withdrew el respaldo no trae sello (o es anterior a esta función).
+    sinSello: bool,
+}
+
+/// Lee el sello de la base ACTIVA.
+#[tauri::command]
+pub fn leer_huella_base(state: tauri::State<'_, DbState>) -> Result<HuellaBase, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    leer_huella_con(&conn)
+}
+
+fn leer_huella_con(conn: &Connection) -> Result<HuellaBase, String> {
+    let leer_meta = |clave: &str| -> Option<String> {
+        conn.query_row("SELECT valor FROM respaldo_meta WHERE clave = ?1", [clave], |r| r.get(0))
+            .ok()
+    };
+    // Las vistas cuentan igual que las tablas. Se usa `estudiante_activo` a
+    // propósito: los RETIRADOS no son estudiantes que se puedan perder, así que
+    // no deben disparar una alarma falsa de "te faltan 3".
+    let contar = |sql: &str| -> i64 { conn.query_row(sql, [], |r| r.get(0)).unwrap_or(0) };
+    let estudiantes = contar("SELECT COUNT(*) FROM estudiante_activo");
+    let notas = contar("SELECT COUNT(*) FROM nota");
+    let asistencias = contar("SELECT COUNT(*) FROM asistencia");
+    let fecha = leer_meta("fecha");
+    Ok(HuellaBase {
+        sinSello: fecha.is_none(),
+        fecha,
+        origen: leer_meta("origen"),
+        estudiantes,
+        notas,
+        asistencias,
+    })
+}
+
+/// Lee el sello de un archivo `.db` de Drive SIN tocar la base activa.
+#[tauri::command]
+pub fn leer_huella_archivo(path: String) -> Result<HuellaBase, String> {
+    // `SQLITE_OPEN_READONLY` + `immutable=1`: el archivo ya fue validado como
+    // SQLite en el frontend y no debe escribirle nada (ni crear -wal/-shm).
+    let conn = Connection::open_with_flags(
+        &path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_URI,
+    )
+    .map_err(|e| format!("No se pudo leer el respaldo: {}", e))?;
+    leer_huella_con(&conn)
+}
+
+/// Escribe el sello en la base activa. Lo llama el frontend tras un push
+/// exitoso, para que el `.db` que se suba a Drive lleve su propia identificación.
+#[tauri::command]
+pub fn escribir_huella_base(
+    state: tauri::State<'_, DbState>,
+    fecha: String,
+    origen: String,
+) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO respaldo_meta (clave, valor) VALUES ('fecha', ?1)
+         ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor",
+        [&fecha],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO respaldo_meta (clave, valor) VALUES ('origen', ?1)
+         ON CONFLICT(clave) DO UPDATE SET valor = excluded.valor",
+        [&origen],
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 
