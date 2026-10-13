@@ -40,10 +40,7 @@ export default defineConfig(async () => ({
     port: devPort,
     strictPort: true,
     host: '0.0.0.0',
-    hmr: {
-      protocol: 'ws',
-      port: hmrPort,
-    },
+    hmr: false,
     watch: {
       ignored: ["**/src-tauri/**"],
     },
