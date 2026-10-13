@@ -772,6 +772,13 @@ desarmaría en el mismo sync que la armó y el freno no frenaría nada).
 
 - `d1_sync_all` no llama al endpoint `/push` si no hay filas nuevas ni borrados
   pendientes. Sigue haciendo `/pull` para recibir cambios remotos.
+- El cursor `last_push_sync` avanza hasta la marca `updated_at` más nueva que
+  realmente se incluyó en el push, además de la hora local actual. Así una fila
+  con timestamp futuro (por reloj adelantado) no vuelve a seleccionarse en cada
+  apertura.
+- `buildUpsert()` en el Worker solo ejecuta `DO UPDATE` si cambió alguna columna
+  de datos. `updated_at`, `device_id` y `sk` son metadatos re-sellados y no
+  cuentan como cambio; un reenvío idéntico no escribe filas ni emite broadcast.
 - `wsSyncService` es el dueño de los triggers pasivos de `visibilitychange` y
   `online`. No duplicarlos en `App.svelte`: el coalescer del sync no los elimina,
   sino que puede ejecutar un sync pendiente adicional tras el que ya está en vuelo.

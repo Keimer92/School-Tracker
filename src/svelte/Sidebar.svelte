@@ -218,23 +218,23 @@
   .acc-flecha-on { transform: rotate(90deg); opacity: 0.9; }
   .sidebar-button.acc-abierto { border-color: rgba(255,255,255,0.16); }
 
-  .acc-lista {
-    position: absolute;
-    left: 0;
-    top: calc(100% + 4px);
-    z-index: 40;
-    width: 100%;
-    min-width: 190px;
-    max-height: 62vh;
-    overflow-y: auto;
-    padding: 5px;
-    background: rgba(20, 26, 38, 0.97);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 12px;
-    box-shadow: 0 18px 40px -10px rgba(0,0,0,0.6);
-    display: flex;
+   .acc-lista {
+     position: absolute;
+     left: 0;
+     top: calc(100% - 2px);
+     z-index: 40;
+     width: 100%;
+     min-width: 190px;
+     max-height: 62vh;
+     overflow-y: auto;
+     padding: 5px;
+     background: rgba(20, 26, 38, 0.97);
+     backdrop-filter: blur(20px);
+     -webkit-backdrop-filter: blur(20px);
+     border: 1px solid rgba(255,255,255,0.1);
+     border-radius: 12px;
+     box-shadow: 0 18px 40px -10px rgba(0,0,0,0.6);
+     display: flex;
     flex-direction: column;
     gap: 1px;
     animation: acc-aparece 0.16s ease;
