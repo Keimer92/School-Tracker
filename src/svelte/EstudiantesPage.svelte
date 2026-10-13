@@ -693,23 +693,24 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
   }
 
   async function handleDelete(id: number) {
-    let impactMessage = t('est.del.seguro');
+    // El mensaje ya no es de "eliminación irreversible": ahora es una baja
+    // lógica, así que se dice qué se conserva y que es reversible.
+    let impactMessage = t('est.retirado.confirmar');
     try {
       const impact = await invoke<{ totalNotas: number; totalAsistencias: number }>("get_student_impact", { studentId: id });
       const student = students.find(s => s.id === id);
       const studentName = student ? student.nombre : t('est.del.nombreFallback');
-      impactMessage = t('est.del.seguroA', { nombre: studentName });
+      impactMessage = t('est.retirado.confirmarA', { nombre: studentName });
       if (impact.totalNotas > 0 || impact.totalAsistencias > 0) {
-        impactMessage += t('est.del.atencion');
         if (impact.totalNotas > 0) impactMessage += t('est.del.notas', { n: impact.totalNotas });
         if (impact.totalAsistencias > 0) impactMessage += t('est.del.asistencias', { n: impact.totalAsistencias });
-        impactMessage += t('est.del.noDeshacer');
+        impactMessage += t('est.retirado.seConserva');
       }
     } catch (error) {
       console.error("Error getting student impact:", error);
     }
     studentToDeleteId = id;
-    const ok = await ask(impactMessage, { title: t('est.del.titulo'), kind: 'warning', okLabel: t('est.eliminar'), cancelLabel: t('comun.cancelar') });
+    const ok = await ask(impactMessage, { title: t('est.retirado.confirmarTitulo'), kind: 'warning', okLabel: t('est.retirado.btn'), cancelLabel: t('comun.cancelar') });
     if (ok) await confirmDelete();
   }
 

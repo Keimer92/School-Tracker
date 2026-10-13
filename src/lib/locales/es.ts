@@ -1482,6 +1482,11 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'est.retirado.reactivarConfirmar': '¿Reactivar a {nombre}? Volverá a estar activo con todas sus notas y asistencias.',
   'est.retirado.reactivadoOk': '✅ {nombre} vuelve a estar activo',
   'est.retirado.fecha': 'Retirado el',
+  'est.retirado.btn': 'Retirar',
+  'est.retirado.confirmarTitulo': 'Retirar estudiante',
+  'est.retirado.confirmar': '¿Retirar a este estudiante? Dejará de aparecer en las listas, pero se conservan sus notas y asistencias.',
+  'est.retirado.confirmarA': '¿Retirar a {nombre}?\n\nDejará de aparecer en las listas. Podés reactivarlo después desde la pestaña Retirados.',
+  'est.retirado.seConserva': '\n\nSe conservan y se pueden consultar desde la pestaña Retirados.',
   'est.retirado.motivo': 'Motivo',
 
 // ── Reparar mezcla de notas ──
