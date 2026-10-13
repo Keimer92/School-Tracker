@@ -958,32 +958,44 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
       </button>
     </div>
     <div class="category-card" style="padding: 0.5rem; margin-bottom: 0.4rem; display:flex;gap:0.3rem;align-items:center;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;">
-      <BotonMod opts={{
-        onclick: openAddModal,
-        icono: '👨‍🎓', etiqueta: t('est.btn.nuevo'), tono: 'azul',
-        sub: t('est.sub.enFiltroCorto', { n: stats.total }), title: t('est.title.agregar'), compacto: true
-      }} />
-      <BotonMod opts={{
-        onclick: handleImportExcel, disabled: isImporting,
-        icono: isImporting ? '⏳' : '📗',
-        etiqueta: isImporting ? t('est.btn.importando') : t('est.btn.importarCorto'), tono: 'verde',
-        sub: t('est.sub.enBaseCorto', { n: students.length }), title: t('est.title.importarExcelCorto'), compacto: true
-      }} />
-      <BotonMod opts={{
-        onclick: handleDownloadTemplate,
-        icono: '📋', etiqueta: t('est.btn.plantilla'), tono: 'violeta',
-        sub: '.xlsx', title: t('est.title.plantilla'), compacto: true
-      }} />
-      <BotonMod opts={{
-        onclick: abrirModalExport, disabled: exportando,
-        icono: '📊', etiqueta: exportando ? t('est.btn.exportando') : t('est.btn.exportar'), tono: 'azul',
-        sub: t('est.sub.estudCorto', { n: stats.total }), title: t('est.title.exportarCorto'), compacto: true
-      }} />
-      <BotonMod opts={{
-        onclick: () => showImportHelp = true,
-        icono: '❓', etiqueta: t('est.btn.ayuda'), tono: 'ambar',
-        sub: t('est.sub.formatoCorto'), title: t('est.title.ayuda'), compacto: true
-      }} />
+      <!-- En RETIRADOS solo queda exportar a Excel: registrar, importar,
+           plantilla y ayuda no tienen sentido sobre gente que ya no cursa, y
+           "eliminar todos" sobre la lista de retirados sería una mezcla
+           imposible de leer. -->
+      {#if esRetirados}
+        <BotonMod opts={{
+          onclick: abrirModalExport, disabled: exportando,
+          icono: '📊', etiqueta: exportando ? t('est.btn.exportando') : t('est.btn.exportar'), tono: 'azul',
+          sub: t('est.sub.estudCorto', { n: stats.total }), title: t('est.title.exportarCorto'), compacto: true
+        }} />
+      {:else}
+        <BotonMod opts={{
+          onclick: openAddModal,
+          icono: '👨‍🎓', etiqueta: t('est.btn.nuevo'), tono: 'azul',
+          sub: t('est.sub.enFiltroCorto', { n: stats.total }), title: t('est.title.agregar'), compacto: true
+        }} />
+        <BotonMod opts={{
+          onclick: handleImportExcel, disabled: isImporting,
+          icono: isImporting ? '⏳' : '📗',
+          etiqueta: isImporting ? t('est.btn.importando') : t('est.btn.importarCorto'), tono: 'verde',
+          sub: t('est.sub.enBaseCorto', { n: students.length }), title: t('est.title.importarExcelCorto'), compacto: true
+        }} />
+        <BotonMod opts={{
+          onclick: handleDownloadTemplate,
+          icono: '📋', etiqueta: t('est.btn.plantilla'), tono: 'violeta',
+          sub: '.xlsx', title: t('est.title.plantilla'), compacto: true
+        }} />
+        <BotonMod opts={{
+          onclick: abrirModalExport, disabled: exportando,
+          icono: '📊', etiqueta: exportando ? t('est.btn.exportando') : t('est.btn.exportar'), tono: 'azul',
+          sub: t('est.sub.estudCorto', { n: stats.total }), title: t('est.title.exportarCorto'), compacto: true
+        }} />
+        <BotonMod opts={{
+          onclick: () => showImportHelp = true,
+          icono: '❓', etiqueta: t('est.btn.ayuda'), tono: 'ambar',
+          sub: t('est.sub.formatoCorto'), title: t('est.title.ayuda'), compacto: true
+        }} />
+      {/if}
     </div>
 
     {#if showFiltersModal}
@@ -1281,10 +1293,27 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
   {#if filteredStudents.length > 0}
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; margin-top: 0.2rem; flex-wrap: wrap; gap: 0.4rem;">
       <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
-        {#if selectedIds.size > 0}
+        {#if esRetirados}
+          <!-- En retirados la única acción masiva es reactivar. -->
+          <BotonMod opts={{
+            onclick: () => selectedIds.size > 0 ? reactivarSeleccionados() : reactivarTodos(),
+            disabled: reactivando,
+            icono: reactivando ? '⏳' : '♻️', etiqueta: t('est.retirado.reactivar'), tono: 'verde',
+            sub: selectedIds.size > 0
+              ? t('est.sub.seleccionados', { a: selectedIds.size, b: stats.total })
+              : t('est.sub.delFiltro', { n: filteredStudents.length }),
+            title: t('est.retirado.reactivarTodos'), compacto: true
+          }} />
+          <BotonMod opts={{
+            onclick: clearSelection,
+            icono: '☐', etiqueta: t('est.btn.deseleccionar'), tono: 'ambar',
+            sub: t('est.sub.quitarSel'),
+            title: t('est.title.deseleccionar'), compacto: true
+          }} />
+        {:else if selectedIds.size > 0}
           <BotonMod opts={{
             onclick: deleteSelected, disabled: isDeletingSelected,
-            icono: isDeletingSelected ? '⏳' : '🗑️', etiqueta: t('est.eliminar'), tono: 'rojo',
+            icono: isDeletingSelected ? '⏳' : '🚪', etiqueta: t('est.retirado.btn'), tono: 'ambar',
             sub: t('est.sub.seleccionados', { a: selectedIds.size, b: stats.total }),
             title: t('est.title.eliminarSel'), compacto: true
           }} />
@@ -1303,7 +1332,7 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
           }} />
           <BotonMod opts={{
             onclick: handleBatchDelete, disabled: isDeleting,
-            icono: isDeleting ? '⏳' : '🗑️', etiqueta: t('est.btn.eliminarTodos'), tono: 'rojo',
+            icono: isDeleting ? '⏳' : '🚪', etiqueta: t('est.btn.retirarTodos'), tono: 'ambar',
             sub: t('est.sub.delFiltro', { n: filteredStudents.length }),
             title: t('est.title.eliminarFiltro'), compacto: true
           }} />
