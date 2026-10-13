@@ -130,10 +130,9 @@
       ACORDEÓN DE CONFIGURACIÓN (solo escritorio).
 
       El `onmouseenter` abre la lista al pasar el cursor sobre el botón.
-      El `onmouseup` cierra la lista al hacer click fuera del contenedor
-      (captura mouseup en cualquier sitio que no sea el contenedor).
-      Esto evita que el menú se cierre al mover el cursor desde el botón
-      hacia la lista a través del hueco entre ambos.
+      El `onmouseleave` cierra la lista solo si el cursor sale del wrapper
+      y NO va a la lista (`acc-lista`), evitando el cierre al pasar el
+      cursor por el gap entre botón y lista.
 
       `PUEDE_HOVER` evita que en táctil un toque abra la lista por accidente
       (mismo criterio que usaba el rail anterior).
@@ -141,9 +140,16 @@
 <div
       class="acc-wrap"
       onmouseenter={() => { if (PUEDE_HOVER) ajustesAbierto = true; }}
-      onmouseup={(e) => {
-        if (PUEDE_HOVER && e.target && !e.currentTarget.contains(e.target as Node)) {
-          ajustesAbierto = false;
+      onmouseleave={(e) => {
+        if (PUEDE_HOVER) {
+          const related = e.relatedTarget as Node;
+          if (related && !e.currentTarget.contains(related)) {
+            // If moving to the dropdown, keep open
+            const dropdown = document.querySelector('.acc-lista');
+            if (!dropdown || !dropdown.contains(related)) {
+              ajustesAbierto = false;
+            }
+          }
         }
       }}
     >
