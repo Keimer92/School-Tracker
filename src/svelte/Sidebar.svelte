@@ -54,6 +54,12 @@
 
   /** Canales de secciones de Configuración, para el acordeón del sidebar. */
   const SECCIONES_AJUSTES = $derived([
+    // General primero, con el selector de temas incluido
+    { grupo: t('cfg.grupo.general'), items: [
+      { id: 'tema', label: t('sb.tema'), icono: '🎨', color: 'var(--acento)', esSelector: true },
+      { id: 'general', label: t('cfg.sec.general'), icono: '⚙️', color: '#60a5fa' },
+      ...(isAndroid ? [{ id: 'notificaciones', label: t('cfg.sec.notificaciones'), icono: '🔔', color: '#fbbf24' }] : []),
+    ]},
     { grupo: t('cfg.grupo.academico'), items: [
       { id: 'evaluaciones', label: t('cfg.sec.evaluaciones'), icono: '✏️', color: '#c084fc' },
       { id: 'notas', label: t('cfg.sec.notas'), icono: '⭐', color: '#fbbf24' },
@@ -65,15 +71,18 @@
       { id: 'grados', label: t('cfg.sec.grados'), icono: '📊', color: '#fb923c' },
       { id: 'secciones', label: t('cfg.sec.secciones'), icono: '👥', color: '#a78bfa' },
     ]},
-    { grupo: t('cfg.grupo.aplicacion'), items: [
-      { id: 'general', label: t('cfg.sec.general'), icono: '⚙️', color: '#60a5fa' },
-      ...(isAndroid ? [{ id: 'notificaciones', label: t('cfg.sec.notificaciones'), icono: '🔔', color: '#fbbf24' }] : []),
-    ]},
     { grupo: t('cfg.grupo.sistema'), items: [
       { id: 'debug', label: t('cfg.sec.debug'), icono: '🐛', color: '#ef4444' },
       { id: 'info', label: t('cfg.sec.info'), icono: '📖', color: '#a78bfa' },
     ]},
   ]);
+
+  /** Color de acento para cada modo de tema. */
+  function accColor(modo: string): string {
+    if (modo === 'claro') return 'rgba(30, 41, 59, 0.9)';
+    if (modo === 'oscuro') return 'rgba(255, 255, 255, 0.95)';
+    return 'rgba(100, 116, 139, 0.9)';
+  }
 
   /** Elegir una sección: abre Configuración en ella y deja el acordejo fijo. */
   function irASeccion(id: string) {
@@ -167,10 +176,29 @@
           {#each SECCIONES_AJUSTES as grupo (grupo.grupo)}
             <div class="acc-grupo">{grupo.grupo}</div>
             {#each grupo.items as s (s.id)}
-              <button class="acc-item" style="--acento:{s.color}" onclick={() => irASeccion(s.id)} type="button" title={s.label}>
-                <span class="acc-icono">{s.icono}</span>
-                <span class="acc-label">{s.label}</span>
-              </button>
+              {#if s.esSelector}
+                <div class="acc-tema-selector">
+                  <span class="acc-tema-label">{s.label}</span>
+                  <div class="acc-tema-grid">
+                    {#each themeOptions as opt}
+                      <button
+                        class="acc-tema-btn {themeMode === opt.id ? 'acc-tema-activo' : ''}"
+                        style="background: {accColor(opt.id)}"
+                        onclick={() => setThemeMode(opt.id)}
+                        type="button"
+                        title={opt.label}
+                      >
+                        <span class="acc-tema-icon">{opt.icon}</span>
+                      </button>
+                    {/each}
+                  </div>
+                </div>
+              {:else}
+                <button class="acc-item" style="--acento:{s.color}" onclick={() => irASeccion(s.id)} type="button" title={s.label}>
+                  <span class="acc-icono">{s.icono}</span>
+                  <span class="acc-label">{s.label}</span>
+                </button>
+              {/if}
             {/each}
           {/each}
         </div>
@@ -250,6 +278,45 @@
   .acc-item:hover { background: rgba(255,255,255,0.07); color: #f1f5f9; }
   .acc-icono { flex-shrink: 0; font-size: 0.85rem; }
   .acc-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .acc-tema-selector {
+    margin: 4px 0;
+    padding: 6px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 8px;
+  }
+  .acc-tema-label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+    font-size: 0.72rem;
+    color: #94a3b8;
+  }
+  .acc-tema-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+  }
+  .acc-tema-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: box-shadow 0.12s ease;
+    flex-shrink: 0;
+  }
+  .acc-tema-btn.acc-tema-activo {
+    box-shadow: 0 0 0 2px var(--primary-color);
+  }
+  .acc-tema-icon {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+  }
 
   .theme-selector {
     display: flex;
