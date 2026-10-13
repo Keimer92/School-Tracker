@@ -407,9 +407,14 @@ function buildUpsert(table: string, rows: any[], deviceId: string, serverNow: st
   }
 
   const setClause = setCols.map((c) => `${c} = excluded.${c}`).join(', ');
+  const changedCols = setCols.filter((c) => c !== 'updated_at' && c !== 'device_id' && c !== 'sk');
+  const changedClause = changedCols.length
+    ? changedCols.map((c) => `${table}.${c} IS NOT excluded.${c}`).join(' OR ')
+    : '0';
   return {
     sql: `INSERT INTO ${table} (${colList}) VALUES ${valueTuples.join(', ')}
-ON CONFLICT(${conflictTarget}) DO UPDATE SET ${setClause}`,
+ON CONFLICT(${conflictTarget}) DO UPDATE SET ${setClause}
+WHERE ${changedClause}`,
     params,
   };
 }

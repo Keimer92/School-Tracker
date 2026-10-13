@@ -863,6 +863,25 @@ pub async fn d1_sync_all(
         .as_object()
         .map(|m| m.values().filter_map(|v| v.as_array()).map(|a| a.len()).sum())
         .unwrap_or(0);
+    // A client clock can be ahead of the clock used when this cursor is
+    // persisted. Acknowledge at least the newest timestamp included in this
+    // successful push, otherwise the same future-dated rows are pushed on
+    // every launch until the local clock catches up.
+    let mut push_cursor = now_sqlite();
+    for rows in data
+        .as_object()
+        .into_iter()
+        .flat_map(|tables| tables.values())
+        .filter_map(Value::as_array)
+        .flat_map(|rows| rows.iter())
+    {
+        let Some(updated_at) = rows.get("updated_at").and_then(Value::as_str) else {
+            continue;
+        };
+        if updated_at > push_cursor.as_str() {
+            push_cursor = updated_at.to_string();
+        }
+    }
     println!(
         "[D1] push: {} filas en {} tablas, {} borrados pendientes",
         total_push,
@@ -960,10 +979,9 @@ pub async fn d1_sync_all(
     // siguen sin estar en la nube y hay que reintentarlos).
     if !push_omitido {
         if let Ok(conn) = state.conn.lock() {
-            let cursor_push = now_sqlite();
             if let Err(e) = conn.execute(
                 "UPDATE d1_config SET last_push_sync = ?1, updated_at = datetime('now') WHERE id = 1",
-                params![cursor_push],
+                params![push_cursor],
             ) {
                 eprintln!("[D1] no se pudo guardar el cursor de push: {}", e);
             }
@@ -1080,7 +1098,7 @@ pub async fn d1_sync_all(
         .unwrap_or_else(now_sqlite);
     println!("[D1] nuevo cursor last_sync=\"{}\" (fuente: {})", new_sync,
         if pull_resp.get("serverTime").is_some() { "servidor" } else { "reloj local (fallback)" });
-    let new_push_cursor = now_sqlite(); // reloj LOCAL: par del cursor de push
+    let new_push_cursor = push_cursor; // incluye los timestamps futuros enviados correctamente
     if push_omitido {
         // ⚠️ El push se saltó por el freno: `last_push_sync` NO puede avanzar.
         // Si avanzara, los cambios locales que nunca llegaron a la nube quedarían

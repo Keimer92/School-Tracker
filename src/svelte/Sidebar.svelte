@@ -46,6 +46,7 @@
    */
   let ajustesAbierto = $state(false);
   let ajustesFijado = $state(false);
+  let ultimaSeccionSeleccionada: string | null = $state(null);
 
   /** Canales de secciones de Configuración, para el acordeón del sidebar. */
   const SECCIONES_AJUSTES = $derived([
@@ -71,12 +72,26 @@
     ]},
   ]);
 
+  /** Get the color for a section ID */
+  function getSectionColor(sectionId: string): string {
+    for (const grupo of SECCIONES_AJUSTES) {
+      for (const item of grupo.items) {
+        if (item.id === sectionId) {
+          return item.color;
+        }
+      }
+    }
+    return '#60a5fa'; // fallback color
+  }
+
   /** Elegir una sección: abre Configuración en ella y deja el acordejo fijo. */
   function irASeccion(id: string) {
     ajustesAbierto = false;
     ajustesFijado = true;
+    ultimaSeccionSeleccionada = id;
     emit('open-ajustes', { section: id });
   }
+
 
   function irAPagina(tab: Tab) {
     // Cerrar al tocar una página principal es lo que pidió el usuario: fuera de
@@ -156,6 +171,7 @@
       <button
         class="sidebar-button {activeTab === 'ajustes' ? 'active' : ''}"
         class:acc-abierto={ajustesAbierto || ajustesFijado}
+        style="border-left: 3px solid {ultimaSeccionSeleccionada ? getSectionColor(ultimaSeccionSeleccionada) : 'none'}"
         onclick={() => {
           // Click alterna el acordeón Y entra a Configuración en la sección por
           // defecto. Un solo gesto para el caso común ("quiero Ajustes"), sin
