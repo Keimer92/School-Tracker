@@ -185,7 +185,6 @@
         <h4>{t("appearance.title")}</h4>
         <p>{t("appearance.description")}</p>
       </div>
-      <span class="appearance-mark" aria-hidden="true">✦</span>
     </div>
     <div class="appearance-section">
       <h5>{t("appearance.theme")}</h5>
@@ -486,17 +485,7 @@
     font-size: 0.82rem;
   }
 
-  .appearance-mark {
-    display: grid;
-    width: 38px;
-    height: 38px;
-    flex: 0 0 auto;
-    place-items: center;
-    border: 1px solid rgba(var(--primary-rgb), 0.3);
-    border-radius: 12px;
-    background: rgba(var(--primary-rgb), 0.12);
-    color: var(--primary-color);
-  }
+  
 
   .appearance-section + .appearance-section {
     margin-top: 1.1rem;
@@ -556,9 +545,7 @@
 
   .appearance-hint {
     margin: -0.3rem 0 0.75rem;
-  }
-
-  .appearance-accents {
+  }.appearance-accents {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.5rem;
