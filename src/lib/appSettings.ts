@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 // Tipado de configuraciones sincronizables
 export interface AppSettings {
   highlightColor: string;
+  accentColor: string;
   showAnoDropdown: boolean;
   theme: string;
   notifEnabled: boolean;
@@ -15,6 +16,7 @@ export interface AppSettings {
 
 const DEFAULTS: AppSettings = {
   highlightColor: "#4ade80",
+  accentColor: "indigo",
   showAnoDropdown: true,
   theme: "sistema",
   notifEnabled: false,
@@ -34,6 +36,8 @@ function readLocalStorageFallback(): Partial<AppSettings> {
   try {
     const hc = localStorage.getItem("student-highlight-color");
     if (hc) result.highlightColor = hc;
+    const ac = localStorage.getItem("stp_accent_color");
+    if (ac) result.accentColor = ac;
     const ad = localStorage.getItem("stp_show_ano_dropdown");
     if (ad !== null) result.showAnoDropdown = ad !== "false";
     const tm = localStorage.getItem("theme_mode");
@@ -66,6 +70,7 @@ function readLocalStorageFallback(): Partial<AppSettings> {
 function writeLocalStorageFallback(s: AppSettings) {
   try {
     localStorage.setItem("student-highlight-color", s.highlightColor);
+    localStorage.setItem("stp_accent_color", s.accentColor);
     localStorage.setItem("stp_show_ano_dropdown", String(s.showAnoDropdown));
     localStorage.setItem("theme_mode", s.theme);
     localStorage.setItem("stp_sexo_m_color", s.sexoMColor);

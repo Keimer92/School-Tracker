@@ -6,6 +6,7 @@
   import { registerBackHandler } from "../lib/androidBack";
   import { loadAppSettings, saveAppSettings, getAppSettings, onAppSettingsChange } from "../lib/appSettings";
   import { PRESET_COLORS } from "../lib/presetsColor";
+  import { ACCENT_PRESETS, applyAccentColor, DEFAULT_ACCENT, type AccentId } from "../lib/theme";
   import {
     COLOR_MASCULINO_POR_DEFECTO,
     COLOR_FEMENINO_POR_DEFECTO,
@@ -18,18 +19,6 @@
   import LanguagePicker from "./LanguagePicker.svelte";
   import { t } from "../lib/i18n.svelte";
   import appIcon from "../assets/app-icon.png";
-
-  function getThemeColor(color: string): string {
-    return { claro: "#f1f5f9", oscuro: "#0f172a", sistema: "var(--primary-color)" }[color] || "#0f172a";
-  }
-  function getThemeName(color: string): string {
-    // Los VALORES del tema ('claro'/'oscuro'/'sistema') no se traducen: son
-    // claves que viajan al resto de la app y al sistema. Solo las etiquetas.
-    return { claro: t("ajustes.tab.temaClaro"), oscuro: t("ajustes.tab.temaOscuro"), sistema: t("ajustes.tab.temaSistema") }[color] || t("ajustes.tab.temaOscuro");
-  }
-  function getThemeLabel(color: string): string {
-    return { claro: t("ajustes.tab.temaClaro"), oscuro: t("ajustes.tab.temaOscuro"), sistema: t("ajustes.tab.temaSistema") }[color] || "";
-  }
 
 // `$derived` y no `const`: las etiquetas salen de `t()`, que lee el rune
   // `$state` del idioma. Con un `const` se calcularían una sola vez al importar
@@ -56,6 +45,7 @@
   });
   let gradeConfigs = $state<{ id: string; nombre: string; color: string; minimo: number }[]>([]);
   let highlightColor = $state(localStorage.getItem("student-highlight-color") || "#4ade80");
+  let accentColor = $state(localStorage.getItem("stp_accent_color") || DEFAULT_ACCENT);
   let sexoMColor = $state(COLOR_MASCULINO_POR_DEFECTO);
   let sexoFColor = $state(COLOR_FEMENINO_POR_DEFECTO);
 
@@ -77,6 +67,11 @@
   };
   const seccionInterna = $derived(soloContenido && seccion ? (MAP_SECCION[seccion] ?? seccion) : null);
   const filtro = $derived(soloContenido ? (seccionInterna ?? activeTab) : null);
+  const THEME_OPTIONS = $derived([
+    { id: "claro", label: t("ajustes.tab.temaClaro"), icon: "☀️" },
+    { id: "oscuro", label: t("ajustes.tab.temaOscuro"), icon: "🌙" },
+    { id: "sistema", label: t("ajustes.tab.temaSistema"), icon: "◐" },
+  ] as const);
 
   // Dentro del shell la navegación la maneja el shell, no esta página.
   $effect(() => { if (seccionInterna) activeTab = seccionInterna as any; });
@@ -90,7 +85,13 @@
 
   function handleThemeChange(mode: string) {
     setThemeMode(mode);
-    saveAppSettings({ ...getAppSettings(), theme: mode });
+    void saveAppSettings({ ...getAppSettings(), theme: mode });
+  }
+
+  function handleAccentChange(color: AccentId) {
+    accentColor = color;
+    applyAccentColor(color);
+    void saveAppSettings({ ...getAppSettings(), accentColor: color });
   }
   // The highlight colour is persisted from the user action itself
   // (`handleUpdateHighlightColor`), NOT from an effect watching the state.
@@ -134,6 +135,8 @@
     loadAppSettings()
       .then((settings) => {
         highlightColor = settings.highlightColor;
+        accentColor = settings.accentColor || DEFAULT_ACCENT;
+        applyAccentColor(accentColor);
         sexoMColor = settings.sexoMColor || COLOR_MASCULINO_POR_DEFECTO;
         sexoFColor = settings.sexoFColor || COLOR_FEMENINO_POR_DEFECTO;
       })
@@ -141,6 +144,7 @@
     // Suscribirse a cambios externos (sync desde otro dispositivo)
     const unsub = onAppSettingsChange((s) => {
       highlightColor = s.highlightColor;
+      accentColor = s.accentColor || DEFAULT_ACCENT;
       sexoMColor = s.sexoMColor || COLOR_MASCULINO_POR_DEFECTO;
       sexoFColor = s.sexoFColor || COLOR_FEMENINO_POR_DEFECTO;
     });
@@ -174,6 +178,51 @@
 
 </script>
 
+{#snippet appearanceSettings()}
+  <section class="appearance-settings">
+    <div class="appearance-heading">
+      <div>
+        <h4>{t("appearance.title")}</h4>
+        <p>{t("appearance.description")}</p>
+      </div>
+      <span class="appearance-mark" aria-hidden="true">✦</span>
+    </div>
+    <div class="appearance-section">
+      <h5>{t("appearance.theme")}</h5>
+      <div class="appearance-themes" role="group" aria-label={t("appearance.theme")}>
+        {#each THEME_OPTIONS as option (option.id)}
+          <button
+            class:active={themeMode === option.id}
+            aria-pressed={themeMode === option.id}
+            onclick={() => handleThemeChange(option.id)}
+          >
+            <span class="theme-option-icon" aria-hidden="true">{option.icon}</span>
+            <span>{option.label}</span>
+          </button>
+        {/each}
+      </div>
+    </div>
+    <div class="appearance-section">
+      <h5>{t("appearance.accent")}</h5>
+      <p class="appearance-hint">{t("appearance.accentDescription")}</p>
+      <div class="appearance-accents" role="group" aria-label={t("appearance.accent")}>
+        {#each ACCENT_PRESETS as preset (preset.id)}
+          <button
+            class:active={accentColor === preset.id}
+            aria-label={t(preset.label)}
+            aria-pressed={accentColor === preset.id}
+            title={t(preset.label)}
+            onclick={() => handleAccentChange(preset.id)}
+          >
+            <span class="accent-swatch" style="--swatch-dark:{preset.dark.color};--swatch-light:{preset.light.color}"></span>
+            <span>{t(preset.label)}</span>
+          </button>
+        {/each}
+      </div>
+    </div>
+  </section>
+{/snippet}
+
 <div class="page-container" style="display: flex; flex-direction: column; width: 100%; align-items: stretch;{(soloContenido ? ';padding:0' : '')}">
 
   {#if !isAndroid}
@@ -189,6 +238,7 @@
           <h3>{t("ajustes.config.titulo")}</h3>
         </div>
         <div style="padding: 1.5rem 2rem;">
+          {@render appearanceSettings()}
           <h4 style="margin: 0 0 0.75rem 0; color: #e2e8f0; font-size: 0.95rem;">{t("ajustes.config.colorResaltado")}</h4>
           <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1rem;">{t("ajustes.config.colorResaltadoDesc")}</p>
           <div style="background: rgba(255,255,255,0.05); padding: 1.25rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
@@ -314,6 +364,7 @@
               <h3>{t("ajustes.config.titulo")}</h3>
             </div>
             <div style="padding: 2rem;">
+              {@render appearanceSettings()}
               <div style="margin-bottom: 2rem;">
                 <h4 style="margin: 0 0 1rem 0; color: #e2e8f0;">Personalización de Tabla de Notas</h4>
                 <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 1.5rem;">Configura el color de resaltado para el estudiante seleccionado en la página de notas.</p>
@@ -398,5 +449,145 @@
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
     gap: 1.25rem;
     align-items: start;
+  }
+
+  .appearance-settings {
+    margin: 0 0 1.5rem;
+    padding: 1.25rem;
+    border: 1px solid rgba(var(--primary-rgb), 0.22);
+    border-radius: 16px;
+    background:
+      radial-gradient(ellipse at top right, rgba(var(--primary-rgb), 0.12), transparent 60%),
+      var(--card-bg);
+  }
+
+  .appearance-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .appearance-heading h4,
+  .appearance-section h5 {
+    margin: 0;
+    color: var(--text-bright);
+  }
+
+  .appearance-heading h4 {
+    font-size: 1rem;
+  }
+
+  .appearance-heading p,
+  .appearance-hint {
+    margin: 0.3rem 0 0;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+  }
+
+  .appearance-mark {
+    display: grid;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 auto;
+    place-items: center;
+    border: 1px solid rgba(var(--primary-rgb), 0.3);
+    border-radius: 12px;
+    background: rgba(var(--primary-rgb), 0.12);
+    color: var(--primary-color);
+  }
+
+  .appearance-section + .appearance-section {
+    margin-top: 1.1rem;
+  }
+
+  .appearance-section h5 {
+    margin-bottom: 0.65rem;
+    font-size: 0.82rem;
+  }
+
+  .appearance-themes {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.55rem;
+  }
+
+  .appearance-themes button,
+  .appearance-accents button {
+    min-width: 0;
+    border: 1px solid var(--border);
+    background: var(--bg-hover);
+    color: var(--text-secondary);
+    font: inherit;
+    cursor: pointer;
+    transition: all 0.18s ease;
+  }
+
+  .appearance-themes button {
+    display: flex;
+    min-height: 48px;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 0.55rem;
+    border-radius: 11px;
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+
+  .appearance-themes button.active,
+  .appearance-accents button.active {
+    border-color: rgba(var(--primary-rgb), 0.65);
+    background: rgba(var(--primary-rgb), 0.14);
+    color: var(--primary-color);
+    box-shadow: 0 0 0 1px rgba(var(--primary-rgb), 0.12);
+  }
+
+  .appearance-themes button:hover,
+  .appearance-accents button:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+  }
+
+  .theme-option-icon {
+    font-size: 1rem;
+  }
+
+  .appearance-hint {
+    margin: -0.3rem 0 0.75rem;
+  }
+
+  .appearance-accents {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .appearance-accents button {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.55rem 0.65rem;
+    border-radius: 10px;
+    text-align: left;
+    font-size: 0.76rem;
+    font-weight: 600;
+  }
+
+  .accent-swatch {
+    width: 15px;
+    height: 15px;
+    flex: 0 0 auto;
+    border: 1px solid rgba(127, 127, 127, 0.2);
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--swatch-dark), var(--swatch-light));
+    box-shadow: 0 0 10px rgba(var(--primary-rgb), 0.2);
+  }
+
+  @media (max-width: 520px) {
+    .appearance-settings { padding: 1rem; }
+    .appearance-accents { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .appearance-themes button { flex-direction: column; gap: 0.15rem; }
   }
 </style>

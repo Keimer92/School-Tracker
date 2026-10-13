@@ -11,6 +11,7 @@
   import { ensureWsSync, stopWsSync } from "./lib/wsSyncService";
   import { loadAppSettings, saveAppSettings, getAppSettings, onAppSettingsChange } from "./lib/appSettings";
   import { aplicarColoresSexo } from "./lib/coloresSexo.svelte";
+  import { applyAccentColor, DEFAULT_ACCENT } from "./lib/theme";
   import { getLocalDateISOString } from "./lib/dateUtils";
   import { t } from "./lib/i18n.svelte";
   import appIcon from "./assets/app-icon.png";
@@ -92,14 +93,13 @@
   function applyTheme(mode: string) {
     const resolved = resolveTheme(mode);
     document.documentElement.setAttribute("data-theme", resolved);
+    applyAccentColor(getAppSettings().accentColor || DEFAULT_ACCENT);
     localStorage.setItem("app-theme", mode);
   }
 
   function setThemeMode(mode: string) {
     themeMode = mode;
     applyTheme(mode);
-    // Sync to app_settings table
-    saveAppSettings({ ...getAppSettings(), theme: mode }).catch(() => {});
   }
 
   $effect(() => {
@@ -391,15 +391,17 @@
       loadAppSettings().then(s => {
         if (s.theme && s.theme !== savedMode) {
           themeMode = s.theme;
-          applyTheme(s.theme);
         }
+        applyTheme(themeMode);
+        applyAccentColor(s.accentColor || DEFAULT_ACCENT);
         aplicarColoresSexo(s);
       });
       const unsubSettings = onAppSettingsChange(s => {
         if (s.theme && s.theme !== themeMode) {
           themeMode = s.theme;
-          applyTheme(s.theme);
         }
+        applyTheme(themeMode);
+        applyAccentColor(s.accentColor || DEFAULT_ACCENT);
         aplicarColoresSexo(s);
       });
       unlisten.push(unsubSettings);
