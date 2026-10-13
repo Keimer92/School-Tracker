@@ -2531,8 +2531,18 @@ $effect(() => {
     .dsc-th{background:#2b2410!important;color:#fbbf24!important}
     .fch-th{cursor:pointer;transition:filter .15s ease,background .15s ease}
     .fch-th:hover{filter:brightness(1.35)}
-    .dsc-col{background:linear-gradient(180deg,rgba(245,158,11,.10),rgba(245,158,11,.02));text-align:center;vertical-align:middle;color:#f59e0b;font-weight:700;padding:.5rem .35rem;min-width:70px}
-    .dsc-motivo{display:block;font-size:.62rem;line-height:1.35;word-break:break-word;margin-top:2px}
+    /* Columna de un día marcado como "sin clases".
+       El ancho va FIJO en `--ancho-dsc`: antes la celda solo tenía
+       `min-width`, y en una tabla con `table-layout:auto` el ancho lo fija el
+       contenido más ancho — al escribir un motivo largo la columna se estiraba
+       y empujaba todas las demás fuera de la vista.
+
+       El `width` del motivo es lo que realmente ancla la celda: un `max-width`
+       en el `<td>` es solo una sugerencia cuando la tabla es de ancho
+       automático. Fijarlo en el bloque de texto sí manda. */
+    .dsc-col{background:linear-gradient(180deg,rgba(245,158,11,.10),rgba(245,158,11,.02));text-align:center;vertical-align:top;color:#f59e0b;font-weight:700;padding:.45rem .3rem;max-width:calc(var(--ancho-dsc) + .6rem)}
+    .dsc-motivo{display:block;width:var(--ancho-dsc);font-size:.62rem;line-height:1.35;margin-top:2px;
+      word-break:break-word;overflow-wrap:anywhere;white-space:normal}
   </style>
 
   {#snippet panelSinClases(soloAviso: boolean)}
@@ -3202,7 +3212,7 @@ $effect(() => {
             {/each}
           </div>
         {:else if periodoEfectivo === "semanal"}
-          <table class="custom-table" style="width:100%;margin:0;overflow:visible">
+          <table class="custom-table" style="width:100%;margin:0;overflow:visible;--ancho-dsc:96px">
             <thead><tr>
               <th style="width:30px;position:sticky;top:0;background:#1e293b;z-index:10">#</th>
               <th style="text-align:left;position:sticky;top:0;background:#1e293b;z-index:10;min-width:200px">{t('asis.col.estudiante')}</th>
@@ -3274,7 +3284,7 @@ $effect(() => {
             </tbody>
           </table>
         {:else if periodoEfectivo === "mensual"}
-          <table class="custom-table" style="width:100%;margin:0;overflow:visible">
+          <table class="custom-table" style="width:100%;margin:0;overflow:visible;--ancho-dsc:96px">
             <thead>
               <!-- Fila 1: la SEMANA. Cada bloque del mes tiene su propia celda
                    (colspan = nº de columnas del bloque), así la píldora S1..Sn
@@ -3328,7 +3338,7 @@ $effect(() => {
                   {#each fechasVisibles as fv, iFecha (fv.fecha)}
                     {#if fv.sinClases}
                       {#if index === 0}
-                        <td class="dsc-col" rowspan={filteredEstudiantesMulti.length} style="min-width:48px">
+                        <td class="dsc-col" rowspan={filteredEstudiantesMulti.length}>
                           <span style="font-size:0.9rem">🚫</span>
                           <span class="dsc-motivo" style="font-size:.55rem">{motivoSinClasesEn(fv.fecha)}</span>
                         </td>
