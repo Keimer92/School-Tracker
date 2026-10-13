@@ -386,40 +386,15 @@
     {/if}
   </div>
 {:else}
+  <!--
+    ESCRITORIO: ya no hay rail.
+
+    La navegación por secciones vive ahora en el acordeón del botón ⚙️ del
+    sidebar (`Sidebar.svelte`). Este archivo conserva el CONTENIDO de la sección
+    y, en escritorio, abre directo la que le pidan (el sidebar manda la id vía
+    `open-ajustes`). Por eso el bloque solo se ocupa del contenido.
+  -->
   <div class="aj-gen">
-    <nav class="rail" class:expandido={railExpandido || railFijado || !!busqueda.trim()} style="width:{railAncho}"
-      onmouseenter={() => railExpandido = true}
-      onmouseleave={() => { railExpandido = false; if (!busqueda.trim()) railFijado = false; cancelarHover(); }}>
-      <div class="rail-busca">
-        <span class="lupa" onclick={() => { railExpandido = true; railFijado = true; }} title={t('cfg.buscarSec')}>🔍</span>
-        <input placeholder={t('cfg.buscarSec')} bind:value={busqueda} onfocus={() => railFijado = true} onkeydown={onSearchKey} />
-      </div>
-
-      <div class="rail-scroll">
-        {#each GRUPOS as grupo (grupo)}
-          {@const delGrupo = filtradas.filter(s => s.grupo === grupo)}
-          {#if delGrupo.length > 0}
-            <div class="rail-grupo">{GRUPO_LABEL[grupo]}</div>
-            {#each delGrupo as s (s.id)}
-              <button class="rail-item" class:activo={activa?.id === s.id} class:invisible={!activaVisible && activa?.id !== s.id}
-                style="--acento:{s.color}" onclick={() => abrir(s)}
-                onmouseenter={() => hoverAbrir(s)} onmouseleave={cancelarHover}
-                title={s.label}>
-                <span class="rail-icono">{s.icono}
-                  {#if contadores[s.id] !== undefined}<span class="rail-badge">{contadores[s.id]}</span>{/if}
-                </span>
-                <span class="rail-label">{s.label}</span>
-                {#if contadores[s.id] !== undefined}<span class="rail-count">{contadores[s.id]}</span>{/if}
-              </button>
-            {/each}
-          {/if}
-        {/each}
-        {#if filtradas.length === 0}
-          <div class="rail-vacio">{t('cfg.sinCoincidencias')}</div>
-        {/if}
-      </div>
-    </nav>
-
     <section class="contenido">
       {#if activa}
         <header class="cont-head" style="--acento:{activa.color}">
