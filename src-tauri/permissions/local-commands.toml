@@ -74,6 +74,7 @@ commands.allow = [
     "set_dias_sin_clases",
         "reparar_integridad_notas",
         "reactivar_estudiante",
+        "reactivar_estudiantes_batch",
         "get_estudiantes_retirados",
     "set_orientation",
     "check_category_dependencies",

@@ -8,7 +8,7 @@
   // OJO: en este archivo ya hubo un `const t = e.target` (renombrado a `nodo`).
   // Una variable llamada `t` tapa la función `t()` de i18n y el error de
   // runtime apunta a la línea equivocada.
-  import { t } from "../lib/i18n.svelte";
+  import { t, tagLocale } from "../lib/i18n.svelte";
 import { primerColegio } from "../lib/catalogo";
   import { ask } from "@tauri-apps/plugin-dialog";
   import { destinoParaToast, subcarpetaRelativa } from "../lib/carpetasExport";
@@ -21,7 +21,17 @@ import SelectChip from "./SelectChip.svelte";
   import BotonMod from "./BotonMod.svelte";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
-  interface Student { id?: number; nombre: string; codigo: string; sexo: string; anoLectivoId: number; gradoId: number; seccionId: number; colegioId: number; foto?: string | null; }
+  interface Student { id?: number; nombre: string; codigo: string; sexo: string; anoLectivoId: number; gradoId: number; seccionId: number; colegioId: number; foto?: string | null;
+    // Solo vienen en la lista de RETIRADOS (`get_estudiantes_retirados`).
+    fecha_retiro?: string; motivo_retiro?: string; }
+
+  /** La fecha de retiro viene como `YYYY-MM-DD HH:MM:SS` (datetime('now')), que
+   *  `toLocaleDateString` no parsea bien. Se recorta a la parte de fecha. */
+  function fmtFecha(iso: string): string {
+    const soloFecha = iso.slice(0, 10);
+    const d = new Date(soloFecha + 'T00:00:00');
+    return isNaN(d.getTime()) ? iso : d.toLocaleDateString(tagLocale());
+  }
 
   // Camera state
   let photoPreview: string | null = $state(null);
@@ -78,6 +88,7 @@ import SelectChip from "./SelectChip.svelte";
   // da "no overlap" porque parece imposible.
   let modo = $state<ModoEstudiantes>("activos");
   let esRetirados = $derived(modo === "retirados");
+  let reactivando = $state(false);
   let anos: CategoryItem[] = $state([]);
   let grados: CategoryItem[] = $state([]);
   let secciones: CategoryItem[] = $state([]);
@@ -753,6 +764,31 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
     }
   }
 
+  /** Reactivación masiva: los seleccionados, o todos los del filtro. */
+  async function reactivarMasivo(seleccion: boolean) {
+    const ids = seleccion ? [...selectedIds] : filteredStudents.map(s => s.id!);
+    if (ids.length === 0) return;
+    const ok = await ask(
+      t('est.retirado.reactivarLoteConfirmar', { n: ids.length }),
+      { title: t('est.retirado.reactivar'), kind: 'info', okLabel: t('est.retirado.reactivar'), cancelLabel: t('comun.cancelar') }
+    );
+    if (!ok) return;
+    reactivando = true;
+    try {
+      await invoke("reactivar_estudiantes_batch", { ids });
+      students = students.filter(s => !ids.includes(s.id!));
+      clearSelection();
+      await emit("show-toast", { message: t('est.retirado.reactivadoLoteOk', { n: ids.length }), type: 'success' });
+      await emit("student-updated", { timestamp: Date.now() });
+      onDataChange('estudiante_retirado', { immediate: true });
+      setTimeout(() => { fetchData(true); }, 200);
+    } catch (e) {
+      await emit("show-toast", { message: t('est.retirado.error', { msg: String(e) }), type: 'error' });
+    } finally { reactivando = false; }
+  }
+  const reactivarSeleccionados = () => reactivarMasivo(true);
+  const reactivarTodos = () => reactivarMasivo(false);
+
   async function handleBatchDelete() {
     const ids = filteredStudents.map(s => s.id!);
     if (ids.length === 0) return;
@@ -1384,6 +1420,18 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
                     <span style="font-size: 0.7rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">🏫 {colegioName}</span>
                   {/if}
                 </div>
+                <!-- Solo en la lista de RETIRADOS: cuándo se retiró y por qué.
+                     Son opcionales, así que solo aparecen si hay dato. -->
+                {#if esRetirados && (st.fecha_retiro || st.motivo_retiro)}
+                  <div style="display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; min-width: 0; margin-top: 2px;">
+                    {#if st.fecha_retiro}
+                      <span style="font-size: 0.7rem; color: #a78bfa; white-space: nowrap;">📅 {t('est.retirado.fecha')} {fmtFecha(st.fecha_retiro)}</span>
+                    {/if}
+                    {#if st.motivo_retiro}
+                      <span style="font-size: 0.7rem; color: #94a3b8; min-width: 0; overflow: hidden; text-overflow: ellipsis;">💬 {st.motivo_retiro}</span>
+                    {/if}
+                  </div>
+                {/if}
               </div>
             </div>
             <!-- Popover de acciones -->
@@ -1404,7 +1452,7 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
                   <button onclick={() => { openMenuStudentId = null; handleDelete(st.id!); }}
                     style="display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.9rem; border: none; background: rgba(239,68,68,0.12); color: #f87171; font-size: 0.8rem; border-radius: 8px; cursor: pointer; font-weight: 600; transition: background 0.12s; white-space: nowrap;"
                     onmouseenter={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.22)'}
-                    onmouseleave={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.12)'}>{t('est.card.eliminar')}</button>
+                    onmouseleave={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.12)'}>{t('est.card.retirar')}</button>
                 {/if}
               </div>
             {/if}

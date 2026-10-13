@@ -2852,6 +2852,27 @@ pub async fn reactivar_estudiante(state: tauri::State<'_, DbState>, id: i64) -> 
     Ok(())
 }
 
+/// Reactivación masiva desde la lista de retirados. Borra solo las filas de
+/// `estudiante_retirado`; el historial de cada uno sigue donde estaba.
+/// Devuelve cuántos quedaron realmente activos (los que ya lo estaban no
+/// cuentan, para que el toast no prometa más de lo que hizo).
+#[tauri::command]
+pub async fn reactivar_estudiantes_batch(
+    state: tauri::State<'_, DbState>,
+    ids: Vec<i64>,
+) -> Result<usize, String> {
+    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    let mut n = 0usize;
+    for &id in &ids {
+        n += tx
+            .execute("DELETE FROM estudiante_retirado WHERE estudiante_id = ?", [id])
+            .map_err(|e| e.to_string())?;
+    }
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(n)
+}
+
 /// Retiro masivo. Ver `delete_student`: es la misma baja lógica, sin borrar.
 #[tauri::command]
 pub async fn delete_student_batch(state: tauri::State<'_, DbState>, ids: Vec<i64>) -> Result<(), String> {
