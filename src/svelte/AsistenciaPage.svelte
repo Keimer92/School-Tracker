@@ -1041,6 +1041,23 @@ $effect(() => {
   // Semana señalada con el cursor en el selector: se resalta en la tabla.
   let semanaHover = $state<number | null>(null);
 
+  /**
+   * ¿Falta elegir semana para poder marcar?
+   *
+   * Solo aplica cuando lo que se va a marcar es una SEMANA del mes. Si el
+   * usuario hizo clic en la cabecera de una columna, queda `colFechaObjetivo`
+   * y el objetivo es ESE DÍA: el popover ni siquiera muestra el selector de
+   * semana (lo reemplaza por el aviso de "solo esta fecha"), así que exigirla
+   * dejaba los tres botones deshabilitados sin que hubiera forma de
+   * habilitarlos. Se escribía el motivo y los botones seguían sin responder.
+   *
+   * Por eso el `!colFechaObjetivo` es parte de la condición y no un detalle:
+   * con un día concreto hay que responder que no falta elegir nada.
+   */
+  let faltaElegirSemana = $derived(
+    periodoEfectivo === 'mensual' && !semanaSeleccionada && !colFechaObjetivo
+  );
+
   /** Primer y último día de la semana señalada, para dibujar el contorno. */
   let semanaHoverRango = $derived.by(() => {
     if (semanaHover === null) return null;
@@ -2799,17 +2816,17 @@ $effect(() => {
                        tamaño de lo que tocan: la sección es la más suave y la que
                        abarca todos los colegios la más llamativa, que es justo el
                        aviso de "esto toca todo". -->
-                  <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #f472b6;background:linear-gradient(135deg,rgba(244,114,182,.20),rgba(236,113,182,.10));color:#fbcfe8" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || (periodoEfectivo === 'mensual' && !semanaSeleccionada)}
+                  <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #f472b6;background:linear-gradient(135deg,rgba(244,114,182,.20),rgba(236,113,182,.10));color:#fbcfe8" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || faltaElegirSemana}
                     onclick={() => activarSinClases(false)}
                     title={t('asis.sinClases.tituloSeccion', { seccion: secciones.find(s => s.id === selectedSeccion)?.nombre || t('asis.limpiar.alcanceSeccion'), grado: grados.find(g => g.id === selectedGrado)?.nombre || t('asis.limpiar.alcanceGrado') })}>
                     {t('asis.sinClases.marcarSeccion')}
                   </button>
-                  <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #34d399;background:linear-gradient(135deg,rgba(52,211,153,.20),rgba(16,185,129,.10));color:#a7f3d0" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || (periodoEfectivo === 'mensual' && !semanaSeleccionada)}
+                  <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #34d399;background:linear-gradient(135deg,rgba(52,211,153,.20),rgba(16,185,129,.10));color:#a7f3d0" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || faltaElegirSemana}
                     onclick={() => activarSinClases(true)}
                     title={t('asis.sinClases.tituloColegio', { colegio: colegios.find(c => c.id === selectedColegio)?.nombre || t('asis.limpiar.alcanceColegio') })}>
                     {t('asis.sinClases.marcarColegio')}
                   </button>
-                  <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #fbbf24;background:linear-gradient(135deg,rgba(251,191,36,.22),rgba(245,158,11,.10));color:#fde68a" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || (periodoEfectivo === 'mensual' && !semanaSeleccionada)}
+                  <button type="button" class="pop-sem" style="justify-content:center;border-radius:10px;border-left:2px solid #fbbf24;background:linear-gradient(135deg,rgba(251,191,36,.22),rgba(245,158,11,.10));color:#fde68a" disabled={!sinClasesDescripcion.trim() || sinClasesGuardando || faltaElegirSemana}
                     onclick={activarSinClasesTodosColegios}
                     title={t('asis.sinClases.tituloTodos', { n: colegios.length })}>
                     {t('asis.sinClases.marcarTodos')}
