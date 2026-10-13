@@ -1495,30 +1495,28 @@ Los dos entornos corren **simultáneamente sin pelearse por puertos**:
 | Sesión | Comando | Vite | HMR |
 |---|---|---|---|
 | Windows | `npm run dev:win` (= `tauri dev`) | 1420 | 1421 |
-| Android | `npm run dev:android` (= `tauri android dev`) | **1422** | **1423** |
+| Android | `npm run dev:android` (= `tauri android dev`) | **1422** | desactivado |
 
-Cómo: `vite.config.ts` lee `VITE_PORT`/`HMR_PORT` del entorno;
+Cómo: `vite.config.ts` lee `VITE_PORT` del entorno;
 `src-tauri/tauri.android.conf.json` (auto-fusionado en comandos Android) fija
 `devUrl http://localhost:1422`; `scripts/vite-android.mjs` es el
-`beforeDevCommand` de esa config: hace `adb reverse tcp:1422/1423` y arranca
-Vite con los env vars. Sin reverse de 1423 el WebSocket de HMR falla
-(`ERR_CONNECTION_REFUSED`), Vite recarga la página y se pierden eventos/invoke
-pendientes (`Cannot redefine property: postMessage/__TAURI_PATTERN__`).
-Alternativa WiFi/emulador: `dev:android:hmr` / `dev:android:device`
-(`scripts/android-hmr.mjs`, setea `TAURI_DEV_HOST`).
+`beforeDevCommand` de esa config: hace `adb reverse tcp:1422` y arranca Vite
+en ese puerto. HMR está desactivado (`server.hmr: false`). El launcher
+`scripts/android-hmr.mjs` ejecuta `tauri android dev` sin `TAURI_DEV_HOST`,
+para conservar `localhost:1422` y usar el reverse USB. Lo necesita Developing
+Runner: si no encuentra ese archivo, fuerza la IP LAN de la PC; en redes
+públicas el firewall puede dejar al WebView esperando hasta
+`ERR_CONNECTION_TIMED_OUT`.
 
 
 **GOTCHAS**:
 - Todos estos comandos deben estar en `src-tauri/permissions/local-commands.toml`
   (`commands.allow`) o `invoke` falla en runtime.
-- En **dev Android el HMR de Vite está ACTIVO** (`vite.config.ts`: `server.hmr` con
-  `protocol: 'ws'`, `port: HMR_PORT` — 1421 desktop / 1423 Android). Antes estaba
-  deshabilitado porque el WebSocket de HMR se caía al abrir el navegador del sistema
-  durante el OAuth y recargaba la página; ese problema ya no existe.
-  Para que el HMR funcione en el dispositivo, la app debe cargar el dev server desde una IP
-  alcanzable (emulador `10.0.2.2` o IP LAN en dispositivo físico): usar
-  `npm run dev:android:hmr` / `npm run dev:android:device` (`scripts/android-hmr.mjs`, que
-  setea `TAURI_DEV_HOST`), no `npm run dev:android` (usa adb reverse solo para el puerto 1420).
+- En **dev Android el HMR de Vite está desactivado** (`vite.config.ts`:
+  `server.hmr: false`).
+  El launcher `scripts/android-hmr.mjs` usa el mismo reverse USB que
+  `scripts/vite-android.mjs`; no poner `TAURI_DEV_HOST` al ejecutar `tauri
+  android dev`, porque cambia el `devUrl` a una IP LAN y evita ese reverse.
 - Los `println!("[OAuth] ...")` de Rust son los logs de depuración del flujo (van a
   stdout/logcat, no a la consola del navegador).
 - `GoogleDriveBackup.svelte` usa el comando antiguo `gd_start_oauth_server` (otro flujo).
