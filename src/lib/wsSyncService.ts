@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { d1SyncService } from './d1SyncService';
+import { d1SyncManager, d1SyncService } from './d1SyncService';
 
 /**
  * Push en tiempo real via WebSocket contra el Worker (hub por school key).
@@ -218,7 +218,7 @@ let reconnectSyncing = false;
 async function syncAfterReconnect() {
   wsLog('red disponible / foreground: reconectando WS y sincronizando D1');
   void ensureWsSync();
-  if (reconnectSyncing) return;
+  if (reconnectSyncing || d1SyncManager.getState().status === 'syncing') return;
   reconnectSyncing = true;
   try {
     await d1SyncService.syncAllSilent();

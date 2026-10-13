@@ -768,6 +768,14 @@ ordenó):
 Los contadores del freno tampoco se limpian en ese camino (si no, la espera se
 desarmaría en el mismo sync que la armó y el freno no frenaría nada).
 
+### Evitar syncs de cuota sin cambios
+
+- `d1_sync_all` no llama al endpoint `/push` si no hay filas nuevas ni borrados
+  pendientes. Sigue haciendo `/pull` para recibir cambios remotos.
+- `wsSyncService` es el dueño de los triggers pasivos de `visibilitychange` y
+  `online`. No duplicarlos en `App.svelte`: el coalescer del sync no los elimina,
+  sino que puede ejecutar un sync pendiente adicional tras el que ya está en vuelo.
+
 ### Merge en vez de wipe al restaurar Drive (nuevo)
 
 `WelcomePage.sincronizarNubeTrasRestore()` consulta `d1_remote_stats` (endpoint

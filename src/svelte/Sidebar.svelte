@@ -129,18 +129,23 @@
     <!--
       ACORDEÓN DE CONFIGURACIÓN (solo escritorio).
 
-      El `onmouseenter`/`onmouseleave` va sobre un contenedor que ABRUYE Y CIERRA
-      la lista, no solo el botón: si el cursor baja a la lista y sale por el
-      costado, sin este contenedor el desplegable se cerraría antes de poder
-      elegir nada.
+      El `onmouseenter` abre la lista al pasar el cursor sobre el botón.
+      El `onmouseup` cierra la lista al hacer click fuera del contenedor
+      (captura mouseup en cualquier sitio que no sea el contenedor).
+      Esto evita que el menú se cierre al mover el cursor desde el botón
+      hacia la lista a través del hueco entre ambos.
 
       `PUEDE_HOVER` evita que en táctil un toque abra la lista por accidente
       (mismo criterio que usaba el rail anterior).
     -->
-    <div
+<div
       class="acc-wrap"
       onmouseenter={() => { if (PUEDE_HOVER) ajustesAbierto = true; }}
-      onmouseleave={() => { if (PUEDE_HOVER) ajustesAbierto = false; }}
+      onmouseup={(e) => {
+        if (PUEDE_HOVER && e.target && !e.currentTarget.contains(e.target as Node)) {
+          ajustesAbierto = false;
+        }
+      }}
     >
       <button
         class="sidebar-button {activeTab === 'ajustes' ? 'active' : ''}"
