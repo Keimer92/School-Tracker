@@ -12,6 +12,7 @@
 import { primerColegio } from "../lib/catalogo";
   import { ask } from "@tauri-apps/plugin-dialog";
   import { destinoParaToast, subcarpetaRelativa } from "../lib/carpetasExport";
+  import ModoToggle from "./ModoToggle.svelte";
   import { colorSexo } from "../lib/coloresSexo.svelte";
   import FilterContainer from "./FilterContainer.svelte";
   import FilterGroup from "./FilterGroup.svelte";
@@ -66,6 +67,17 @@ import SelectChip from "./SelectChip.svelte";
   }
 
   let students: Student[] = $state([]);
+
+  // Activos / Retirados. Mismo toggle segmentado que usa AsistenciaPage para
+  // Toma/Informe: los dos modos comparten la misma pantalla, los mismos
+  // dropdowns y las mismas tarjetas; lo único que cambia es de qué comando se
+  // leen los estudiantes y qué botón aparece en cada fila.
+  type ModoEstudiantes = "activos" | "retirados";
+  // `$state<...>("activos")` y no `$state("activos")`: sin el genérico TS
+  // infiere el literal `"activos"` y la comparación con `"retirados"` después
+  // da "no overlap" porque parece imposible.
+  let modo = $state<ModoEstudiantes>("activos");
+  let esRetirados = $derived(modo === "retirados");
   let anos: CategoryItem[] = $state([]);
   let grados: CategoryItem[] = $state([]);
   let secciones: CategoryItem[] = $state([]);
@@ -407,7 +419,19 @@ import SelectChip from "./SelectChip.svelte";
 async function fetchData(preserveFilters = false) {
   try {
     const [sData, aData, colData, gData, secData] = await Promise.all([
-      invoke<Student[]>("get_students"),
+      // Activos y retirados salen de comandos distintos: los activos excluyen a
+      // los retirados en el backend (vista `estudiante_activo`), y los
+      // retirados se piden con los mismos filtros para que la lista tenga la
+      // misma forma.
+      esRetirados
+        ? invoke<Student[]>("get_estudiantes_retirados", {
+            anoLectivoId: filters.anoLectivoId || null,
+            colegioId: filters.colegioId || null,
+            gradoId: filters.gradoId || null,
+            seccionId: filters.seccionId || null,
+            sexo: filters.sexo || null,
+          })
+        : invoke<Student[]>("get_students"),
       invoke<CategoryItem[]>("get_anos"),
       invoke<CategoryItem[]>("get_colegios"),
       invoke<CategoryItem[]>("get_grados"),
@@ -697,14 +721,35 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
       await invoke("delete_student", { id: idToDelete });
       students = students.filter(s => s.id !== idToDelete);
       studentToDeleteId = null;
-      await emit("show-toast", { message: t('est.del.okEstudiante'), type: 'success' });
+      await emit("show-toast", { message: t('est.retirado.ok'), type: 'success' });
       await emit("student-updated", { timestamp: Date.now() });
-      onDataChange('estudiante', { immediate: true });
+      // La tabla que cambia es `estudiante_retirado`: el estudiante no se tocó.
+      onDataChange('estudiante_retirado', { immediate: true });
       setTimeout(() => { fetchData(true); }, 200);
     } catch (error) {
-      console.error("Error deleting student:", error);
-      await emit("show-toast", { message: t('est.del.error', { msg: String(error) }), type: 'error' });
+      console.error("Error retirando student:", error);
+      await emit("show-toast", { message: t('est.retirado.error', { msg: String(error) }), type: 'error' });
     } finally { isDeleting = false; }
+  }
+
+  /** Vuelve a activo un estudiante retirado. Su historial sigue intacto. */
+  async function handleReactivar(id: number) {
+    const s = students.find(x => x.id === id);
+    const ok = await ask(
+      t('est.retirado.reactivarConfirmar', { nombre: s?.nombre ?? '' }),
+      { title: t('est.retirado.reactivar'), kind: 'info', okLabel: t('est.retirado.reactivar'), cancelLabel: t('comun.cancelar') }
+    );
+    if (!ok) return;
+    try {
+      await invoke("reactivar_estudiante", { id });
+      students = students.filter(x => x.id !== id);
+      await emit("show-toast", { message: t('est.retirado.reactivadoOk', { nombre: s?.nombre ?? '' }), type: 'success' });
+      await emit("student-updated", { timestamp: Date.now() });
+      onDataChange('estudiante_retirado', { immediate: true });
+      setTimeout(() => { fetchData(true); }, 200);
+    } catch (e) {
+      await emit("show-toast", { message: t('est.retirado.error', { msg: String(e) }), type: 'error' });
+    }
   }
 
   async function handleBatchDelete() {
@@ -716,9 +761,9 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
     try {
       await invoke("delete_student_batch", { ids });
       students = students.filter(s => !ids.includes(s.id!));
-      await emit("show-toast", { message: t('est.del.loteOk', { n: ids.length }), type: "success" });
+      await emit("show-toast", { message: t('est.retirado.loteOk', { n: ids.length }), type: "success" });
       await emit("student-updated", { timestamp: Date.now() });
-      onDataChange('estudiante', { immediate: true });
+      onDataChange('estudiante_retirado', { immediate: true });
       setTimeout(() => { fetchData(true); }, 200);
     } catch (error) {
       await emit("show-toast", { message: t('est.del.loteError', { msg: String(error) }), type: "error" });
@@ -997,6 +1042,18 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
     {/if}
   {:else}
   <FilterContainer {isMobile}>
+      <!-- Activos / Retirados: mismo toggle segmentado que usa AsistenciaPage.
+           Va primero porque decide de dónde sale la lista. -->
+      <FilterGroup label={t('comun.modo')} {isMobile}>
+        <ModoToggle
+          valor={modo}
+          etiquetaGrupo={t('comun.modo')}
+          onchange={(id) => { modo = id as ModoEstudiantes; fetchData(true); }}
+          opciones={[
+            { id: "activos", etiqueta: t('est.modo.activos'), titulo: t('est.modo.activosDesc') },
+            { id: "retirados", etiqueta: t('est.modo.retirados'), titulo: t('est.modo.retiradosDesc') },
+          ]} />
+      </FilterGroup>
       <FilterGroup label={t('est.modal.anoLectivo')} {isMobile}>
           <SelectChip
             value={filters.anoLectivoId}
@@ -1306,10 +1363,19 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
                   style="display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.9rem; border: none; background: rgba(56,189,248,0.12); color: #38bdf8; font-size: 0.8rem; border-radius: 8px; cursor: pointer; font-weight: 600; transition: background 0.12s; white-space: nowrap;"
                   onmouseenter={(e) => e.currentTarget.style.background = 'rgba(56,189,248,0.22)'}
                   onmouseleave={(e) => e.currentTarget.style.background = 'rgba(56,189,248,0.12)'}>{t('est.card.editar')}</button>
-                <button onclick={() => { openMenuStudentId = null; handleDelete(st.id!); }}
-                  style="display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.9rem; border: none; background: rgba(239,68,68,0.12); color: #f87171; font-size: 0.8rem; border-radius: 8px; cursor: pointer; font-weight: 600; transition: background 0.12s; white-space: nowrap;"
-                  onmouseenter={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.22)'}
-                  onmouseleave={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.12)'}>{t('est.card.eliminar')}</button>
+                <!-- En la lista de RETIRADOS el botón no es "eliminar" sino "reactivar": el
+                     estudiante vuelve a estar activo con su historial intacto. -->
+                {#if esRetirados}
+                  <button onclick={() => { openMenuStudentId = null; handleReactivar(st.id!); }}
+                    style="display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.9rem; border: none; background: rgba(34,197,94,0.12); color: #4ade80; font-size: 0.8rem; border-radius: 8px; cursor: pointer; font-weight: 600; transition: background 0.12s; white-space: nowrap;"
+                    onmouseenter={(e) => e.currentTarget.style.background = 'rgba(34,197,94,0.22)'}
+                    onmouseleave={(e) => e.currentTarget.style.background = 'rgba(34,197,94,0.12)'}>{t('est.retirado.reactivar')}</button>
+                {:else}
+                  <button onclick={() => { openMenuStudentId = null; handleDelete(st.id!); }}
+                    style="display: flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.9rem; border: none; background: rgba(239,68,68,0.12); color: #f87171; font-size: 0.8rem; border-radius: 8px; cursor: pointer; font-weight: 600; transition: background 0.12s; white-space: nowrap;"
+                    onmouseenter={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.22)'}
+                    onmouseleave={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.12)'}>{t('est.card.eliminar')}</button>
+                {/if}
               </div>
             {/if}
           </div>

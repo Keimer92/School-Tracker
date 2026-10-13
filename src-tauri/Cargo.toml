@@ -1,6 +1,6 @@
 [package]
 name = "school-tracker"
-version = "1.1.1"
+version = "1.1.5"
 description = "School Tracker"
 authors = ["you"]
 edition = "2021"

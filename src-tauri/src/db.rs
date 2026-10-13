@@ -190,6 +190,45 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
     )
     .map_err(|e| format!("Error creando tabla estudiante: {}", e))?;
 
+    // ── Retiro de estudiantes (baja lógica) ────────────────────────────────
+    //
+    // La fila del estudiante NO se borra de `estudiante`: queda acá marcada.
+    // Es lo que permite conservar el historial completo — sus notas y
+    // asistencias siguen enlazadas por `estudiante_id`, que es justo lo que se
+    // rompe si se mueve la fila a otra tabla.
+    //
+    // Por qué no se borran las notas al retirar: `nota` y `asistencia` tienen
+    // `ON DELETE CASCADE` contra `estudiante`, y `delete_student` no registraba
+    // tombstone de `nota` (sí de asistencia), así que la nube conservaba las
+    // notas y el siguiente pull las devolvía huérfanas. Con el retiro eso deja
+    // de pasar porque ya no se borra nada.
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS estudiante_retirado (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            estudiante_id INTEGER NOT NULL UNIQUE,
+            fecha_retiro TEXT NOT NULL,
+            motivo TEXT NOT NULL DEFAULT '',
+            updated_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY(estudiante_id) REFERENCES estudiante(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_estudiante_retirado_est
+            ON estudiante_retirado(estudiante_id);
+
+        -- Vista con los estudiantes que siguen activos. Todas las lecturas de
+        -- la app usan esta vista en vez de `estudiante`: centralizar el filtro
+        -- en un solo lado evita que una consulta nueva se olvide de excluir a
+        -- los retirados y los vuelva a mostrar.
+        DROP VIEW IF EXISTS estudiante_activo;
+        CREATE VIEW estudiante_activo AS
+            SELECT e.* FROM estudiante e
+            WHERE NOT EXISTS (
+                SELECT 1 FROM estudiante_retirado r WHERE r.estudiante_id = e.id
+            );
+        "#,
+    )
+    .map_err(|e| format!("Error creando tabla estudiante_retirado: {}", e))?;
+
     // Tablas de relaciones muchos a muchos
     conn.execute_batch(
         r#"
@@ -2434,7 +2473,7 @@ pub async fn get_secciones_by_grado_colegio(
 pub async fn get_students(state: tauri::State<'_, DbState>) -> Result<Vec<Student>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
-        .prepare("SELECT id, nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, colegio_id, foto FROM estudiante")
+        .prepare("SELECT id, nombre, codigo, sexo, ano_lectivo_id, grado_id, seccion_id, colegio_id, foto FROM estudiante_activo")
         .map_err(|e| e.to_string())?;
 
     let students = stmt
@@ -2766,74 +2805,138 @@ pub async fn remove_pending_deletion_colegio_asignatura(
     .map_err(|e| e.to_string())
 }
 
+/// Retira a un estudiante (baja lógica).
+///
+/// ⚠️ Antes esto BORRABA la fila. El cambio conserva el historial: el estudiante
+/// y todas sus notas/asistencias siguen en la base, solo queda marcado en
+/// `estudiante_retirado` y deja de aparecer en las listas.
+///
+/// De paso se termina la fuente de notas huérfanas: el borrado duro relied en el
+/// `ON DELETE CASCADE` de `nota`, pero registraba tombstone de asistencia y NO
+/// de nota, así que la nube conservaba las notas y el pull las devolvía sin
+/// dueño. Con el retiro no se borra nada, así que el problema desaparece.
+///
+/// El marcado para el sync lo hace el frontend con `onDataChange`.
 #[tauri::command]
-pub async fn delete_student(state: tauri::State<'_, DbState>, id: i64) -> Result<(), String> {
-    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
-    let tx = conn.transaction().map_err(|e| e.to_string())?;
-
-    // 1. Registrar eliminaciones pendientes de las filas dependientes
-    //    (asistencia/nota) ANTES del cascade, para que la nube también
-    //    las borre y no queden huérfanas que el pull revive.
-    let mut stmt = tx.prepare("SELECT id, fecha FROM asistencia WHERE estudiante_id = ?1").map_err(|e| e.to_string())?;
-    let filas: Vec<(i64, String)> = stmt
-        .query_map([id], |r| Ok((r.get(0)?, r.get(1)?)))
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
-    drop(stmt);
-    for (_, fecha) in &filas {
-        tx.execute(
-            "INSERT INTO sync_pending_deletions_asistencia (estudiante_id, fecha) VALUES (?, ?)",
-            rusqlite::params![id, fecha],
-        )
-        .map_err(|e| e.to_string())?;
-    }
-
-    // 2. Eliminar el estudiante
-    tx.execute("DELETE FROM estudiante WHERE id = ?", [id])
-        .map_err(|e| e.to_string())?;
-
-    // 3. Registrar la eliminación pendiente para sincronización
-    tx.execute(
-        "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)",
-        rusqlite::params!["estudiante", id],
+#[allow(non_snake_case)]
+pub async fn delete_student(
+    state: tauri::State<'_, DbState>,
+    id: i64,
+    motivo: Option<String>,
+) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO estudiante_retirado (estudiante_id, fecha_retiro, motivo)
+         VALUES (?1, datetime('now'), ?2)
+         ON CONFLICT(estudiante_id) DO UPDATE SET
+           fecha_retiro = datetime('now'),
+           motivo = excluded.motivo,
+           updated_at = datetime('now')",
+        rusqlite::params![id, motivo.unwrap_or_default()],
     )
-    .map_err(|e| e.to_string())?;
-
-    tx.commit().map_err(|e| e.to_string())?;
+    .map_err(|e| format!("No se pudo retirar al estudiante: {}", e))?;
     Ok(())
 }
 
+/// Reactivar retirados: borra solo la fila de `estudiante_retirado`. La fila del
+/// estudiante y todo su historial nunca se movieron, así que vuelve intacto.
+#[tauri::command]
+pub async fn reactivar_estudiante(state: tauri::State<'_, DbState>, id: i64) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let n = conn
+        .execute("DELETE FROM estudiante_retirado WHERE estudiante_id = ?", [id])
+        .map_err(|e| e.to_string())?;
+    if n == 0 {
+        return Err("Ese estudiante no está retirado".to_string());
+    }
+    Ok(())
+}
+
+/// Retiro masivo. Ver `delete_student`: es la misma baja lógica, sin borrar.
 #[tauri::command]
 pub async fn delete_student_batch(state: tauri::State<'_, DbState>, ids: Vec<i64>) -> Result<(), String> {
-    let mut conn = state.conn.lock().map_err(|e| e.to_string())?;
-    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
     for &id in &ids {
-        // Tombstones de asistencia antes del cascade (ver delete_student)
-        let mut stmt = tx.prepare("SELECT fecha FROM asistencia WHERE estudiante_id = ?1").map_err(|e| e.to_string())?;
-        let fechas: Vec<String> = stmt
-            .query_map([id], |r| r.get(0))
-            .map_err(|e| e.to_string())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| e.to_string())?;
-        drop(stmt);
-        for fecha in &fechas {
-            tx.execute(
-                "INSERT INTO sync_pending_deletions_asistencia (estudiante_id, fecha) VALUES (?, ?)",
-                rusqlite::params![id, fecha],
-            )
-            .map_err(|e| e.to_string())?;
-        }
-        tx.execute("DELETE FROM estudiante WHERE id = ?", [id])
-            .map_err(|e| e.to_string())?;
-        tx.execute(
-            "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES (?, ?)",
-            rusqlite::params!["estudiante", id],
+        conn.execute(
+            "INSERT INTO estudiante_retirado (estudiante_id, fecha_retiro, motivo)
+             VALUES (?1, datetime('now'), '')
+             ON CONFLICT(estudiante_id) DO UPDATE SET
+               fecha_retiro = datetime('now'), updated_at = datetime('now')",
+            [id],
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("No se pudo retirar al estudiante {}: {}", id, e))?;
     }
-    tx.commit().map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Estudiantes RETIRADOS, con los mismos filtros que la lista de activos.
+///
+/// Devuelve los mismos campos que la lista de activos más `fecha_retiro` y
+/// `motivo`, para que la vista de retirados use los mismos dropdowns, las
+/// mismas tarjetas y los mismos botones sin tener que adaptation.
+#[tauri::command]
+#[allow(non_snake_case)]
+pub async fn get_estudiantes_retirados(
+    state: tauri::State<'_, DbState>,
+    anoLectivoId: Option<i64>,
+    colegioId: Option<i64>,
+    gradoId: Option<i64>,
+    seccionId: Option<i64>,
+    sexo: Option<String>,
+) -> Result<Vec<serde_json::Value>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let mut sql = String::from(
+        "SELECT e.id, e.nombre, e.codigo, e.sexo, e.ano_lectivo_id, e.grado_id, e.seccion_id,
+                e.colegio_id, e.foto, r.fecha_retiro, r.motivo
+         FROM estudiante e
+         JOIN estudiante_retirado r ON r.estudiante_id = e.id
+         WHERE 1 = 1",
+    );
+    let mut ps: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+    if let Some(v) = anoLectivoId.filter(|v| *v > 0) {
+        sql.push_str(" AND e.ano_lectivo_id = ?");
+        ps.push(Box::new(v));
+    }
+    if let Some(v) = colegioId.filter(|v| *v > 0) {
+        sql.push_str(" AND e.colegio_id = ?");
+        ps.push(Box::new(v));
+    }
+    if let Some(v) = gradoId.filter(|v| *v > 0) {
+        sql.push_str(" AND e.grado_id = ?");
+        ps.push(Box::new(v));
+    }
+    if let Some(v) = seccionId.filter(|v| *v > 0) {
+        sql.push_str(" AND e.seccion_id = ?");
+        ps.push(Box::new(v));
+    }
+    if let Some(v) = sexo.filter(|v| !v.is_empty()) {
+        sql.push_str(" AND e.sexo = ?");
+        ps.push(Box::new(v));
+    }
+    sql.push_str(" ORDER BY r.fecha_retiro DESC, e.nombre");
+
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+    let params: Vec<&dyn rusqlite::ToSql> = ps.iter().map(|b| b.as_ref()).collect();
+    let filas = stmt
+        .query_map(params.as_slice(), |r| {
+            Ok(serde_json::json!({
+                "id": r.get::<_, i64>(0)?,
+                "nombre": r.get::<_, String>(1)?,
+                "codigo": r.get::<_, String>(2)?,
+                "sexo": r.get::<_, String>(3)?,
+                "ano_lectivo_id": r.get::<_, i64>(4)?,
+                "grado_id": r.get::<_, i64>(5)?,
+                "seccion_id": r.get::<_, i64>(6)?,
+                "colegio_id": r.get::<_, i64>(7)?,
+                "foto": r.get::<_, Option<String>>(8)?,
+                "fecha_retiro": r.get::<_, String>(9)?,
+                "motivo_retiro": r.get::<_, String>(10)?,
+            }))
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    Ok(filas)
 }
 
 /// Reporte de lo que encontró y borró una reparación.
@@ -4091,7 +4194,7 @@ pub async fn get_estudiantes_by_filters(
     let mut stmt = conn
         .prepare(
             "SELECT e.id, e.nombre, e.sexo, e.grado_id, e.seccion_id, g.nombre as grado, s.nombre as seccion, g.cualitativo
-             FROM estudiante e
+             FROM estudiante_activo e
              INNER JOIN grado g ON e.grado_id = g.id
              INNER JOIN seccion s ON e.seccion_id = s.id
              WHERE e.grado_id = ? AND e.seccion_id = ?
@@ -4773,7 +4876,7 @@ pub async fn get_asistencia_estudiantes(
 
 let mut query = String::from(
         "SELECT e.id, e.nombre, e.codigo, e.sexo, a.estado, COALESCE(a.observacion, '') as observacion
-         FROM estudiante e
+         FROM estudiante_activo e
          LEFT JOIN asistencia a ON e.id = a.estudiante_id AND a.fecha = ?
          WHERE e.grado_id = ? AND e.seccion_id = ?"
     );
@@ -4832,7 +4935,7 @@ pub async fn get_monthly_attendance_pct(
            CASE WHEN COUNT(a.id) > 0
              THEN ROUND(CAST(SUM(CASE WHEN a.estado = 'P' THEN 1 ELSE 0 END) AS REAL) / COUNT(a.id) * 100, 1)
              ELSE 0.0 END as pct
-         FROM estudiante e
+         FROM estudiante_activo e
          LEFT JOIN asistencia a ON e.id = a.estudiante_id AND a.fecha LIKE ?
          WHERE e.grado_id = ? AND e.seccion_id = ?
          GROUP BY e.id
@@ -4867,7 +4970,7 @@ pub async fn get_asistencia_estudiantes_rango(
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
 
     let mut sql = String::from(
-        "SELECT e.id, e.nombre, e.codigo, e.sexo FROM estudiante e
+        "SELECT e.id, e.nombre, e.codigo, e.sexo FROM estudiante_activo e
          WHERE e.grado_id = ? AND e.seccion_id = ?"
     );
     let mut params: Vec<Box<dyn rusqlite::ToSql>> = vec![Box::new(gradoId), Box::new(seccionId)];
@@ -4956,7 +5059,7 @@ pub async fn get_asistencia_rango(
     // 1. Obtener todos los estudiantes filtrados
     let mut stmt_est = conn
         .prepare(
-            "SELECT id, nombre, sexo FROM estudiante
+            "SELECT id, nombre, sexo FROM estudiante_activo
          WHERE grado_id = ? AND seccion_id = ?
          ORDER BY nombre",
         )
@@ -5472,7 +5575,7 @@ pub async fn get_dashboard_detalle(
             let (tabla, col) = if tipo == "grado" { ("grado", "g") } else { ("seccion", "s") };
             let sql = format!(
                 "SELECT DISTINCT c.nombre, {}.nombre, COALESCE({}.updated_at, '')
-                 FROM estudiante e
+                 FROM estudiante_activo e
                  JOIN {} {} ON e.{}_id = {}.id
                  JOIN colegio c ON e.colegio_id = c.id
                  WHERE (?1 IS NULL OR e.colegio_id = ?1)
@@ -5528,9 +5631,9 @@ pub async fn get_dashboard_stats(
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
 
     let total_estudiantes: i64 = if let Some(cid) = colegioId {
-        conn.query_row("SELECT COUNT(*) FROM estudiante WHERE colegio_id = ?1", rusqlite::params![cid], |row| row.get(0)).map_err(|e| e.to_string())?
+        conn.query_row("SELECT COUNT(*) FROM estudiante_activo WHERE colegio_id = ?1", rusqlite::params![cid], |row| row.get(0)).map_err(|e| e.to_string())?
     } else {
-        conn.query_row("SELECT COUNT(*) FROM estudiante", [], |row| row.get(0)).map_err(|e| e.to_string())?
+        conn.query_row("SELECT COUNT(*) FROM estudiante_activo", [], |row| row.get(0)).map_err(|e| e.to_string())?
     };
 
     let total_notas: i64 = if let Some(cid) = colegioId {
@@ -5551,7 +5654,7 @@ pub async fn get_dashboard_stats(
     let total_grados: i64 = conn
         .query_row(
             "SELECT COALESCE(COUNT(*), 0) FROM (
-               SELECT DISTINCT colegio_id, grado_id FROM estudiante
+               SELECT DISTINCT colegio_id, grado_id FROM estudiante_activo
                WHERE grado_id IS NOT NULL AND (?1 IS NULL OR colegio_id = ?1)
              )",
             rusqlite::params![colegioId], |row| row.get(0),
@@ -5565,7 +5668,7 @@ pub async fn get_dashboard_stats(
     let total_secciones: i64 = conn
         .query_row(
             "SELECT COALESCE(COUNT(*), 0) FROM (
-               SELECT DISTINCT colegio_id, seccion_id FROM estudiante
+               SELECT DISTINCT colegio_id, seccion_id FROM estudiante_activo
                WHERE seccion_id IS NOT NULL AND (?1 IS NULL OR colegio_id = ?1)
              )",
             rusqlite::params![colegioId], |row| row.get(0),
@@ -5610,7 +5713,7 @@ pub async fn get_dashboard_stats(
     let mut stmt_grado_seccion = conn
         .prepare(
             "SELECT g.nombre, s.nombre, c.nombre, COUNT(e.id)
-             FROM estudiante e
+             FROM estudiante_activo e
              JOIN grado g ON e.grado_id = g.id
              JOIN seccion s ON e.seccion_id = s.id
              JOIN colegio c ON e.colegio_id = c.id
@@ -5754,7 +5857,7 @@ pub fn grados_secciones_sin_asistencia(
 
     let sql = format!(
         "SELECT g.nombre, s.nombre
-         FROM estudiante e
+         FROM estudiante_activo e
          INNER JOIN grado g ON g.id = e.grado_id
          INNER JOIN seccion s ON s.id = e.seccion_id
          WHERE {}
@@ -6311,7 +6414,7 @@ pub async fn promote_students(
     let mut stmt = conn
         .prepare(
             "SELECT e.id, e.nombre, e.codigo, e.sexo, e.grado_id, e.seccion_id, e.colegio_id, e.foto, g.nombre as grado_nombre
-             FROM estudiante e
+             FROM estudiante_activo e
              JOIN grado g ON e.grado_id = g.id
              WHERE e.ano_lectivo_id = ?",
         )

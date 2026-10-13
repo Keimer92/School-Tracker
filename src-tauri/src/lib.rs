@@ -51,7 +51,7 @@ async fn get_all_local_data_json(state: tauri::State<'_, DbState>) -> Result<Str
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
         "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio", "indicador_colegio_seccion_activo",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia", "dia_sin_clases",
-        "asistencia", "nota", "app_settings",
+        "asistencia", "nota", "app_settings", "estudiante_retirado",
     ];
 
     let mut result = serde_json::Map::new();
@@ -101,7 +101,7 @@ async fn get_all_local_data_since(state: tauri::State<'_, DbState>, since: Strin
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
         "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio", "indicador_colegio_seccion_activo",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia", "dia_sin_clases",
-        "asistencia", "nota", "app_settings",
+        "asistencia", "nota", "app_settings", "estudiante_retirado",
     ];
 
     let mut result = serde_json::Map::new();
@@ -154,7 +154,7 @@ fn has_local_changes(state: tauri::State<'_, DbState>, since: String) -> Result<
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
         "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio", "indicador_colegio_seccion_activo",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia", "dia_sin_clases",
-        "asistencia", "nota", "app_settings",
+        "asistencia", "nota", "app_settings", "estudiante_retirado",
     ];
 
     for table in &table_names {
@@ -2486,6 +2486,8 @@ update_colegio,
             add_student,
             update_student,
             delete_student,
+            reactivar_estudiante,
+            get_estudiantes_retirados,
             delete_student_batch,
             get_subjects_by_grade,
             assign_subject_to_grade,

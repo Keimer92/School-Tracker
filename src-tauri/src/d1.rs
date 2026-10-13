@@ -302,7 +302,7 @@ pub fn contar_filas_sincronizables(state: tauri::State<'_, DbState>) -> Result<i
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion",
         "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio",
         "asistencia", "colegio_dias_asistencia", "nota", "dia_sin_clases",
-        "indicador_colegio_seccion_activo", "app_settings",
+        "indicador_colegio_seccion_activo", "estudiante_retirado", "app_settings",
     ];
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut total: i64 = 0;
@@ -338,6 +338,10 @@ fn pk_cols(table: &str) -> &'static [&'static str] {
         "colegio_dias_asistencia" => &["colegio_id"],
         "dia_sin_clases" => &["id"],
         "nota" => &["estudiante_id", "criterio_id", "corte_evaluativo_id", "asignatura_id"],
+        // El retiro viaja por `estudiante_id`: es UNO por estudiante (el UNIQUE
+        // de la tabla), así que esa es su identidad en la nube. Si se usara
+        // `id` (autoincrement local) el otro equipo vería retiros de otros.
+        "estudiante_retirado" => &["estudiante_id"],
         "indicador_colegio_seccion_activo" => &["colegio_id", "seccion_id", "indicador_id"],
         "asistencia" => &["estudiante_id", "fecha"],
         "app_settings" => &["key"],
@@ -372,7 +376,7 @@ fn collect_local_data_since(
         "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio", "indicador_colegio_seccion_activo",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion",
         "colegio_dias_asistencia", "asistencia", "nota",
-        "dia_sin_clases", "app_settings",
+        "dia_sin_clases", "estudiante_retirado", "app_settings",
     ];
 
     let mut result = Map::new();
@@ -1152,7 +1156,7 @@ pub async fn d1_wipe_remote(state: tauri::State<'_, DbState>) -> Result<Value, S
         "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio", "indicador_colegio_seccion_activo",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion",
         "colegio_dias_asistencia", "asistencia", "nota",
-        "dia_sin_clases", "app_settings",
+        "dia_sin_clases", "estudiante_retirado", "app_settings",
     ];
     let mut deletions: Vec<Value> = Vec::new();
     if let Some(rows) = resp.get("rows").and_then(|v| v.as_object()) {

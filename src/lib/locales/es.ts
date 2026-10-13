@@ -1470,7 +1470,21 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'dbg.importar.importando': '⏳ Importando + sincronizando…',
   'dbg.importar.btn': '📥 Importar base de datos',
   'dbg.importar.hint': '⚠️ La importación sobrescribirá los datos actuales.',
-  // ── Reparar mezcla de notas ──
+  // ── Retiro de estudiantes (baja lógica) ──
+  'est.modo.activos': 'Activos',
+  'est.modo.retirados': 'Retirados',
+  'est.modo.activosDesc': 'Estudiantes activos',
+  'est.modo.retiradosDesc': 'Estudiantes retirados. Se conservan sus notas y asistencias, y se pueden reactivar.',
+  'est.retirado.ok': '✅ Estudiante retirado. Podés reactivarlo desde la pestaña Retirados.',
+  'est.retirado.loteOk': '✅ {n} estudiante(s) retirados',
+  'est.retirado.error': '❌ Error: {msg}',
+  'est.retirado.reactivar': 'Reactivar estudiante',
+  'est.retirado.reactivarConfirmar': '¿Reactivar a {nombre}? Volverá a estar activo con todas sus notas y asistencias.',
+  'est.retirado.reactivadoOk': '✅ {nombre} vuelve a estar activo',
+  'est.retirado.fecha': 'Retirado el',
+  'est.retirado.motivo': 'Motivo',
+
+// ── Reparar mezcla de notas ──
   'dbg.reparar.titulo': 'Reparar notas mezcladas',
   'dbg.reparar.desc': 'Quita las notas que quedaron mezcladas al fusionar dos bases de datos: notas de estudiantes que ya no existen y notas de un grado atribuidas a un estudiante de otro grado. Ambas son datos imposibles que hacen aparecer notas de un alumno en la fila de otro.',
   'dbg.reparar.btn': 'Analizar y reparar notas',

@@ -122,6 +122,13 @@ const TABLES: Record<string, { pk: string[]; cols: string[] }> = {
     pk: ['id'],
     cols: ['id', 'nombre', 'codigo', 'sexo', 'ano_lectivo_id', 'grado_id', 'seccion_id', 'colegio_id', 'foto', 'updated_at'],
   },
+  // Baja lógica. La PK es `estudiante_id` (y no el `id` autoincrement local)
+  // porque el retiro es UNO por estudiante: si se usara `id`, cada equipo
+  // tendría su propio id y un retiro no ocultaría al estudiante en el otro.
+  estudiante_retirado: {
+    pk: ['estudiante_id'],
+    cols: ['estudiante_id', 'fecha_retiro', 'motivo', 'updated_at'],
+  },
   configuracion_calificacion: {
     pk: ['id'],
     cols: ['id', 'nombre', 'color', 'minimo', 'updated_at'],
@@ -198,6 +205,7 @@ async function ensureSchema(env: Env): Promise<void> {
     `CREATE TABLE IF NOT EXISTS indicador (id INTEGER PRIMARY KEY AUTOINCREMENT, grado_id INTEGER, asignatura_id INTEGER, corte_evaluativo_id INTEGER, ano_lectivo_id INTEGER DEFAULT 0, orden INTEGER, descripcion TEXT DEFAULT '', activo INTEGER DEFAULT 1, instrumento TEXT, updated_at TEXT)`,
     `CREATE TABLE IF NOT EXISTS criterio (id INTEGER PRIMARY KEY AUTOINCREMENT, indicador_id INTEGER NOT NULL, orden INTEGER NOT NULL, descripcion TEXT DEFAULT '', puntaje_maximo INTEGER NOT NULL, updated_at TEXT, UNIQUE(indicador_id, orden))`,
     `CREATE TABLE IF NOT EXISTS estudiante (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, codigo TEXT, sexo TEXT, ano_lectivo_id INTEGER, grado_id INTEGER, seccion_id INTEGER, colegio_id INTEGER, foto TEXT, updated_at TEXT)`,
+    `CREATE TABLE IF NOT EXISTS estudiante_retirado (estudiante_id INTEGER PRIMARY KEY, fecha_retiro TEXT, motivo TEXT, updated_at TEXT)`,
     `CREATE TABLE IF NOT EXISTS configuracion_calificacion (id TEXT PRIMARY KEY, nombre TEXT, color TEXT, minimo INTEGER, updated_at TEXT)`,
     `CREATE TABLE IF NOT EXISTS multiplicador_calificacion (id TEXT PRIMARY KEY, multiplicador REAL, updated_at TEXT)`,
     `CREATE TABLE IF NOT EXISTS colegio_dias_asistencia (colegio_id INTEGER PRIMARY KEY, lunes INTEGER DEFAULT 1, martes INTEGER DEFAULT 1, miercoles INTEGER DEFAULT 1, jueves INTEGER DEFAULT 1, viernes INTEGER DEFAULT 1, sabado INTEGER DEFAULT 1, domingo INTEGER DEFAULT 1, updated_at TEXT)`,
@@ -485,6 +493,7 @@ const DEUNIQUE_TABLES: Record<string, string> = {
   grado: `(id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, cualitativo INTEGER DEFAULT 0, updated_at TEXT, device_id TEXT, sk TEXT)`,
   seccion: `(id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, cualitativo INTEGER DEFAULT 0, updated_at TEXT, device_id TEXT, sk TEXT)`,
   estudiante: `(id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, codigo TEXT, sexo TEXT, ano_lectivo_id INTEGER, grado_id INTEGER, seccion_id INTEGER, colegio_id INTEGER, foto TEXT, updated_at TEXT, device_id TEXT, sk TEXT)`,
+  estudiante_retirado: `(estudiante_id INTEGER PRIMARY KEY, fecha_retiro TEXT, motivo TEXT, updated_at TEXT, device_id TEXT, sk TEXT)`,
 };
 
 async function deUniqueTables(env: Env): Promise<void> {
