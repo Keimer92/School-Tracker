@@ -1140,38 +1140,51 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
       <div style="display:flex;gap:0.3rem;align-items:flex-end;flex:{isMobile ? '1 1 100%' : '0 0 auto'}">
         <div style="flex:1;min-width:100px">
         </div>
-        <BotonMod opts={{
-          onclick: openAddModal,
-          icono: '👨‍🎓', etiqueta: t('est.btn.nuevo'), tono: 'azul',
-          sub: t('est.sub.enFiltro', { n: stats.total }),
-          title: t('est.title.agregar'),
-        }} />
-        <BotonMod opts={{
-          onclick: handleImportExcel, disabled: isImporting,
-          icono: isImporting ? '⏳' : '📗',
-          etiqueta: isImporting ? t('est.btn.importando') : t('est.btn.importar'), tono: 'verde',
-          sub: isImporting ? t('est.sub.leyendo') : t('est.sub.enBase', { n: students.length }),
-          title: t('est.title.importarExcel'),
-        }} />
-        <BotonMod opts={{
-          onclick: handleDownloadTemplate,
-          icono: '📋', etiqueta: t('est.btn.plantilla'), tono: 'violeta',
-          sub: t('est.sub.formato'),
-          title: t('est.title.plantilla'),
-        }} />
-        <BotonMod opts={{
-          onclick: abrirModalExport, disabled: exportando,
-          icono: '📊',
-          etiqueta: exportando ? t('est.btn.exportando') : t('est.btn.exportar'), tono: 'azul',
-          sub: exportando ? t('est.sub.generandoLibros') : t('est.sub.estudiantes', { n: stats.total }),
-          title: t('est.title.exportar'),
-        }} />
-        <BotonMod opts={{
-          onclick: () => showImportHelp = true,
-          icono: '❓', etiqueta: t('est.btn.ayuda'), tono: 'ambar',
-          sub: t('est.sub.formatoExcel'),
-          title: t('est.title.ayuda'),
-        }} />
+        <!-- Escritorio tiene su PROPIA barra de botones (la de arriba es la de
+             móvil). Si se gatea solo una, en la otra los botones siguen
+             apareciendo: hay que cerrar el set en las dos. -->
+        {#if esRetirados}
+          <BotonMod opts={{
+            onclick: abrirModalExport, disabled: exportando,
+            icono: '📊',
+            etiqueta: exportando ? t('est.btn.exportando') : t('est.btn.exportar'), tono: 'azul',
+            sub: exportando ? t('est.sub.generandoLibros') : t('est.sub.estudiantes', { n: stats.total }),
+            title: t('est.title.exportar'),
+          }} />
+        {:else}
+          <BotonMod opts={{
+            onclick: openAddModal,
+            icono: '👨‍🎓', etiqueta: t('est.btn.nuevo'), tono: 'azul',
+            sub: t('est.sub.enFiltro', { n: stats.total }),
+            title: t('est.title.agregar'),
+          }} />
+          <BotonMod opts={{
+            onclick: handleImportExcel, disabled: isImporting,
+            icono: isImporting ? '⏳' : '📗',
+            etiqueta: isImporting ? t('est.btn.importando') : t('est.btn.importar'), tono: 'verde',
+            sub: isImporting ? t('est.sub.leyendo') : t('est.sub.enBase', { n: students.length }),
+            title: t('est.title.importarExcel'),
+          }} />
+          <BotonMod opts={{
+            onclick: handleDownloadTemplate,
+            icono: '📋', etiqueta: t('est.btn.plantilla'), tono: 'violeta',
+            sub: t('est.sub.formato'),
+            title: t('est.title.plantilla'),
+          }} />
+          <BotonMod opts={{
+            onclick: abrirModalExport, disabled: exportando,
+            icono: '📊',
+            etiqueta: exportando ? t('est.btn.exportando') : t('est.btn.exportar'), tono: 'azul',
+            sub: exportando ? t('est.sub.generandoLibros') : t('est.sub.estudiantes', { n: stats.total }),
+            title: t('est.title.exportar'),
+          }} />
+          <BotonMod opts={{
+            onclick: () => showImportHelp = true,
+            icono: '❓', etiqueta: t('est.btn.ayuda'), tono: 'ambar',
+            sub: t('est.sub.formatoExcel'),
+            title: t('est.title.ayuda'),
+          }} />
+        {/if}
       </div>
   </FilterContainer>
   {/if}

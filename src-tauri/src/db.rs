@@ -2940,15 +2940,19 @@ pub async fn get_estudiantes_retirados(
     let params: Vec<&dyn rusqlite::ToSql> = ps.iter().map(|b| b.as_ref()).collect();
     let filas = stmt
         .query_map(params.as_slice(), |r| {
+            // ⚠️ Las claves van en camelCase, igual que `get_students` y no como
+            // en la tabla. El frontend filtrar con `s.anoLectivoId`; si esto
+            // devuelve `ano_lectivo_id` el campo queda `undefined` y el
+            // estudiante desaparece de la lista con cualquier filtro puesto.
             Ok(serde_json::json!({
                 "id": r.get::<_, i64>(0)?,
                 "nombre": r.get::<_, String>(1)?,
                 "codigo": r.get::<_, String>(2)?,
                 "sexo": r.get::<_, String>(3)?,
-                "ano_lectivo_id": r.get::<_, i64>(4)?,
-                "grado_id": r.get::<_, i64>(5)?,
-                "seccion_id": r.get::<_, i64>(6)?,
-                "colegio_id": r.get::<_, i64>(7)?,
+                "anoLectivoId": r.get::<_, i64>(4)?,
+                "gradoId": r.get::<_, i64>(5)?,
+                "seccionId": r.get::<_, i64>(6)?,
+                "colegioId": r.get::<_, i64>(7)?,
                 "foto": r.get::<_, Option<String>>(8)?,
                 "fecha_retiro": r.get::<_, String>(9)?,
                 "motivo_retiro": r.get::<_, String>(10)?,
