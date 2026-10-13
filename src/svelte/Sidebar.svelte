@@ -190,7 +190,7 @@
           {#each SECCIONES_AJUSTES as grupo (grupo.grupo)}
             <div class="acc-grupo">{grupo.grupo}</div>
             {#each grupo.items as s (s.id)}
-              <button class="acc-item" style="--acento:{s.color}" onclick={() => irASeccion(s.id)} type="button" title={s.label}>
+              <button class="acc-item {ultimaSeccionSeleccionada === s.id ? 'acc-item-activa' : ''}" style="--acento:{s.color}" onclick={() => irASeccion(s.id)} type="button" title={s.label}>
                 <span class="acc-icono">{s.icono}</span>
                 <span class="acc-label">{s.label}</span>
               </button>
@@ -271,6 +271,7 @@
     min-width: 0;
   }
   .acc-item:hover { background: rgba(255,255,255,0.07); color: #f1f5f9; }
+  .acc-item-activa { background: rgba(var(--primary-rgb), 0.14); border-left-color: var(--acento); color: var(--primary-color); }
   .acc-icono { flex-shrink: 0; font-size: 0.85rem; }
   .acc-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
