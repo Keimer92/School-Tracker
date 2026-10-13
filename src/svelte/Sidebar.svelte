@@ -1,23 +1,22 @@
 <script lang="ts">
-  import { emit } from '@tauri-apps/api/event';
-  import CloudCards from './CloudCards.svelte';
+  import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
+    import { onMount, onDestroy, tick, untrack } from "svelte";
+  import { t } from "../lib/i18n.svelte";
   import appIcon from '../assets/app-icon.png';
-  import { t } from '../lib/i18n.svelte';
+  import CloudCards from './CloudCards.svelte';
+  import { emit } from '@tauri-apps/api/event';
+
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  const isWindows = /Windows/i.test(navigator.userAgent);
+  const isMobile = window.innerWidth <= 768;
+  let sidebarWidth = $state(Math.min(Math.max(220, Math.floor(Number(window.innerWidth) * 0.16)), 260));
 
   // Nube y Cuenta ya no son tabs ni secciones: la nube se abre en modales desde
   // las cards de abajo y la página de Cuenta se eliminó.
-  export type Tab = "dashboard" | "notas" | "estudiantes" | "ajustes" | "asistencia";
+  type Tab = "dashboard" | "notas" | "estudiantes" | "ajustes" | "asistencia";
 
-  let {
-    activeTab,
-    drawerOpen,
-    isMobile,
-    onTabChange,
-    toggleDrawer,
-    onDrawerClose,
-    themeMode,
-    setThemeMode,
-  } = $props<{
+  let { activeTab, drawerOpen, onTabChange, toggleDrawer, onDrawerClose, themeMode, setThemeMode } = $props<{
     activeTab: Tab;
     drawerOpen: boolean;
     isMobile: boolean;
@@ -25,7 +24,7 @@
     toggleDrawer: () => void;
     onDrawerClose: () => void;
     themeMode: string;
-setThemeMode: (mode: string) => void;
+    setThemeMode: (mode: string) => void;
   }>();
 
   // `$derived`, no `const`: los labels usan `t()`, y con `const` se quedarían
@@ -52,16 +51,6 @@ setThemeMode: (mode: string) => void;
    */
   let ajustesAbierto = $state(false);
   let ajustesFijado = $state(false);
-
-  /**
-   * ¿Este dispositivo tiene hover real?
-   *
-   * En táctil no hay hover: un toque dispararía `mouseenter` al tocar y la lista
-   * se abriría mientras el usuario navega. Mismo criterio que usaba el rail.
-   */
-  const PUEDE_HOVER = typeof window !== 'undefined'
-    && typeof window.matchMedia === 'function'
-    && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
   /** Canales de secciones de Configuración, para el acordeón del sidebar. */
   const SECCIONES_AJUSTES = $derived([
@@ -99,13 +88,17 @@ setThemeMode: (mode: string) => void;
     if (tab !== 'ajustes') { ajustesAbierto = false; ajustesFijado = false; }
     onTabChange(tab);
   }
+
+  /** Canales de secciones de Configuración, para el acordeón del sidebar. */
+  const PUEDE_HOVER = typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 </script>
 
 <nav
   class="sidebar {isMobile ? 'drawer' : ''} {drawerOpen ? 'open' : ''}"
   onclick={(e) => e.stopPropagation()}
-  style="pointer-events: auto;"
->
+  style="pointer-events: auto;">
   <div class="sidebar-header-integrated">
     <div class="mode-badge">
       <img class="sidebar-app-icon" src={appIcon} alt="School Tracker" draggable="false" />
@@ -146,7 +139,7 @@ setThemeMode: (mode: string) => void;
       elegir nada.
 
       `PUEDE_HOVER` evita que en táctil un toque abra la lista por accidente
-      (mismo criterio que el rail anterior).
+      (mismo criterio que usaba el rail anterior).
     -->
     <div
       class="acc-wrap"
@@ -188,28 +181,9 @@ setThemeMode: (mode: string) => void;
   {#if !isMobile}
     <CloudCards />
   {/if}
-
-  <div class="sidebar-section-header" style="padding-top: 6px;">{t('sb.apariencia')}</div>
-  <div class="theme-selector">
-    {#each themeOptions as opt}
-      <button
-        class="theme-btn"
-        class:active={themeMode === opt.id}
-        onclick={() => setThemeMode(opt.id)}
-        type="button"
-        title={opt.label}
-      >
-        <span>{opt.icon}</span>
-      </button>
-    {/each}
-  </div>
 </nav>
 
 <style>
-  /* ── Acordeón de Configuración ──────────────────────────────────────────
-     El desplegable va en `position: absolute` y NO en el flujo: si ocupara
-     altura, el sidebar empuja hacia abajo las cards de nube y el selector de
-     tema al abrirse, y eso se ve como un salto. Flota encima. */
   .acc-wrap { position: relative; }
 
   .acc-flecha {
@@ -308,51 +282,5 @@ setThemeMode: (mode: string) => void;
   .theme-btn.active {
     background: var(--primary-light);
     border-color: var(--primary-color);
-  }
-
-  /* Cards de nube dentro del drawer: alineadas y sin desbordes */
-  .drawer-cloud {
-    padding: 0 12px 10px;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-  }
-  .drawer-cloud :global(.cloud-widget) {
-    width: 100%;
-    min-width: 0;
-    box-sizing: border-box;
-    margin-top: 0;
-    padding-top: 0.25rem;
-  }
-  .drawer-cloud :global(.cloud-head) {
-    min-width: 0;
-  }
-  .drawer-cloud :global(.cloud-title) {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .drawer-cloud :global(.cloud-chip),
-  .drawer-cloud :global(.cloud-time-inline) {
-    flex-shrink: 0;
-  }
-  .drawer-cloud :global(.cloud-chip) {
-    font-size: 0.55rem;
-    padding: 2px 6px;
-    letter-spacing: 0.03em;
-  }
-  /* Card de respaldo Drive en el drawer móvil: compacta y sin desbordes */
-  .drawer-cloud {
-    padding: 0 12px 8px;
-    min-width: 0;
-  }
-  .drawer-cloud :global(.cloud-widget) {
-    width: 100%;
-    min-width: 0;
-    box-sizing: border-box;
-    margin-top: 0;
-    padding-top: 0.25rem;
-    padding-bottom: 0;
   }
 </style>
