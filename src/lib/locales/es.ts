@@ -41,6 +41,14 @@ export const es = {
   // ── WelcomePage ──────────────────────────────────────────────────────────
   'welcome.appTitle': 'School Tracker',
   'welcome.subtitle': 'Selecciona cómo quieres iniciar',
+
+  // ── Base traspasada a un maestro nuevo (nombre único de BD) ──
+  'welcome.limpiar.titulo': 'Esta computadora ya tenía datos de otro maestro',
+  'welcome.limpiar.aviso': 'Hay {n} estudiante(s) guardados de una cuenta anterior. Si entrás con una cuenta nueva, los vas a ver como si fueran tuyos y se podrían subir a tu espacio en la nube.',
+  'welcome.limpiar.nuevo': 'Se borrarán los {n} estudiante(s) y sus notas de esta computadora, y la conexión con la nube actual.\n\nTu nube NO se borra: los datos quedan guardados en Drive y en Cloudflare.\n\n¿Continuar?',
+  'welcome.limpiar.btn': 'Empezar de cero',
+  'welcome.limpiar.ok': '✅ Base limpia. Ya podés entrar con la cuenta nueva.',
+  'welcome.limpiar.error': '❌ No se pudo limpiar la base',
   'welcome.cardGoogle.title': 'Continuar con Google',
   'welcome.cardGoogle.desc':
     'Entra con tu cuenta y recupera el último respaldo guardado en Google Drive.',

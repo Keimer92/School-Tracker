@@ -1381,6 +1381,42 @@ pub async fn reset_profile_account(state: tauri::State<'_, DbState>) -> Result<(
     Ok(())
 }
 
+/// Estado de la base local, para el primer arranque de un maestro nuevo.
+///
+/// Existe por el nombre único de la BD: al unificar `school.db`, un equipo que
+/// ya tenía datos (los del dueño anterior) puede recibir a otro maestro. En la
+/// nube los dos quedan separados por `sk`, pero LOCALMENTE el maestro nuevo
+/// arrancaría viendo los datos que ya estaban en la máquina, y el primer push
+/// los subiría a SU namespace en Cloudflare.
+///
+/// Esto no borra nada: solo informa, para que la UI ofrezca limpiar antes de
+/// empezar. Es el leer del botón, no el botón.
+#[derive(Serialize)]
+#[allow(non_snake_case)]
+pub struct EstadoBaseLocal {
+    /// Hay estudiantes cargados: la base NO está en cero.
+    tieneEstudiantes: bool,
+    estudiantes: i64,
+    /// Hay algún `schoolKey` de nube configurado (= esta base ya pertenece a
+    /// alguien). Es lo que distingue "instalación nueva" de "equipo traspasado".
+    tieneEscuela: bool,
+}
+
+#[tauri::command]
+pub fn estado_base_local(state: tauri::State<'_, DbState>) -> Result<EstadoBaseLocal, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let contar = |sql: &str| -> i64 { conn.query_row(sql, [], |r| r.get(0)).unwrap_or(0) };
+    let estudiantes = contar("SELECT COUNT(*) FROM estudiante_activo");
+    let key: String = conn
+        .query_row("SELECT COALESCE(school_key, '') FROM d1_config LIMIT 1", [], |r| r.get(0))
+        .unwrap_or_default();
+    Ok(EstadoBaseLocal {
+        tieneEstudiantes: estudiantes > 0,
+        estudiantes,
+        tieneEscuela: !key.trim().is_empty(),
+    })
+}
+
 #[tauri::command]
 pub async fn seed_defaults_now(state: tauri::State<'_, DbState>) -> Result<(), String> {
     let conn_guard = state.conn.lock().map_err(|e| e.to_string())?;

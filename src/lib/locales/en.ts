@@ -39,6 +39,14 @@ export const en: Record<Clave, string> = {
   // ── WelcomePage ──────────────────────────────────────────────────────────
   'welcome.appTitle': 'School Tracker',
   'welcome.subtitle': 'Choose how you want to start',
+
+  // ── Base handed over to a new teacher (single DB name) ──
+  'welcome.limpiar.titulo': 'This computer already had data from another teacher',
+  'welcome.limpiar.aviso': 'There are {n} student(s) stored from a previous account. If you sign in with a new account you would see them as if they were yours, and they could be uploaded to your cloud space.',
+  'welcome.limpiar.nuevo': 'The {n} student(s) and their grades will be deleted from this computer, along with the current cloud connection.\n\nYour cloud is NOT deleted: the data stays in Drive and Cloudflare.\n\nContinue?',
+  'welcome.limpiar.btn': 'Start from scratch',
+  'welcome.limpiar.ok': '✅ Clean database. You can sign in with the new account now.',
+  'welcome.limpiar.error': '❌ Could not clear the database',
   'welcome.cardGoogle.title': 'Continue with Google',
   'welcome.cardGoogle.desc': 'Sign in with your account and recover the latest backup saved in Google Drive.',
   'welcome.cardGoogle.tag1': 'Google Drive',

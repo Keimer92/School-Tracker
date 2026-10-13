@@ -75,6 +75,7 @@ commands.allow = [
         "reparar_integridad_notas",
         "reactivar_estudiante",
         "leer_huella_base",
+        "estado_base_local",
         "gd_write_temp_db",
         "leer_huella_archivo",
         "escribir_huella_base",

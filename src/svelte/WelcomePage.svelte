@@ -22,6 +22,51 @@
   let loadingMessage = $state('');
   let errorMsg = $state('');
 
+  /**
+   * La base local ya tiene datos de OTRO maestro.
+   *
+   * Desde que la BD se llama `school.db` (sin el correo en el nombre), un equipo
+   * que se traspasa conserva los datos del dueño anterior. En la nube cada uno
+   * queda separado por su `sk`, pero localmente el maestro nuevo arrancaría
+   * viendo el colegio del otro, y el primer push subiría esos datos a SU
+   * namespace. Se avisa ANTES de entrar y se ofrece limpiar: es la diferencia
+   * entre "el maestro ve datos ajenos" y "empezó en cero".
+   */
+  let baseConDatosAjenos = $state(false);
+  let estudiantesEnBase = $state(0);
+  let limpiando = $state(false);
+
+  async function detectarBaseConDatos() {
+    try {
+      const e = await invoke<{ tieneEstudiantes: boolean; estudiantes: number; tieneEscuela: boolean }>("estado_base_local");
+      // Solo interesa si hay datos SIN nube configurada: si ya hay `schoolKey`,
+      // esta base pertenece a alguien y el login la va a reasignar sola.
+      baseConDatosAjenos = e.tieneEstudiantes && !e.tieneEscuela;
+      estudiantesEnBase = e.estudiantes;
+    } catch (err) {
+      console.warn('[Welcome] no se pudo inspeccionar la base local:', err);
+    }
+  }
+
+  /** Deja la base en cero. Borra datos y sesión de nube: el maestro entra limpio. */
+  async function limpiarParaNuevoMaestro() {
+    const ok = await ask(
+      t('welcome.limpiar.nuevo'),
+      { title: t('welcome.limpiar.titulo'), kind: 'warning', okLabel: t('welcome.limpiar.btn'), cancelLabel: t('comun.cancelar') }
+    );
+    if (!ok) return;
+    limpiando = true;
+    try {
+      await invoke("reset_profile_account");
+      baseConDatosAjenos = false;
+      estudiantesEnBase = 0;
+      await emit("show-toast", { message: t('welcome.limpiar.ok'), type: 'success' });
+    } catch (err) {
+      console.error('[Welcome] no se pudo limpiar la base:', err);
+      await emit("show-toast", { message: t('welcome.limpiar.error'), type: 'error' });
+    } finally { limpiando = false; }
+  }
+
 
   // Detección de plataforma (mismo patrón que AsistenciaPage)
   let isAndroid = $state(/Android/i.test(navigator.userAgent));
@@ -941,7 +986,10 @@
   }
 
   // Suscripción al progreso de descarga (todas las plataformas)
-  onMount(() => syncManager.subscribe((s) => { downloadProgress = s.downloadProgress ?? null; }));
+  onMount(() => {
+    syncManager.subscribe((s) => { downloadProgress = s.downloadProgress ?? null; });
+    void detectarBaseConDatos();
+  });
 </script>
 
 <div class="welcome-page">
@@ -1000,6 +1048,21 @@
       </div>
       {#if errorMsg}
         <div class="welcome-error">{errorMsg}</div>
+      {/if}
+      <!-- Aviso de base traspasada: hay datos de otro maestro en esta máquina. -->
+      {#if baseConDatosAjenos}
+        <div class="welcome-card" style="border-left: 3px solid #f59e0b; cursor: default;">
+          <div class="welcome-card-icon">⚠️</div>
+          <div class="welcome-card-body">
+            <h3>{t('welcome.limpiar.titulo')}</h3>
+            <p>{t('welcome.limpiar.aviso', { n: estudiantesEnBase })}</p>
+            <div style="display:flex;gap:0.4rem;margin-top:0.5rem;flex-wrap:wrap;">
+              <button onclick={limpiarParaNuevoMaestro} disabled={limpiando} class="welcome-card" style="padding:0.4rem 0.7rem;font-size:0.78rem;">
+                {limpiando ? '⏳' : '🧹'} {t('welcome.limpiar.btn')}
+              </button>
+            </div>
+          </div>
+        </div>
       {/if}
       <!-- Selector de navegador del login. Tiene que estar AQUÍ y no solo en
            Ajustes: el login arranca en esta pantalla, así que un usuario a quien
