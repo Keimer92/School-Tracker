@@ -1986,26 +1986,31 @@ $effect(() => {
   /**
    * Marcado con los tres botones del mouse sobre una celda de la grilla.
    *
-   *   izquierdo = Ausente · derecho = Presente · medio/rueda = Justificado
+   *   izquierdo = Presente · derecho = Ausente · medio = Justificado
    *
    * Volver a apretar el mismo botón borra la marca (toggle).
    *
    * ⚠️ El botón central se atiende en `onmousedown` y NO en `onauxclick`: poner
-   * un `auxclick` explícito hacía que el mismo gesto disparara DOS veces (una por
-   * `mousedown`, otra por `auxclick`) y el toggle se cancelaba solo — la celda no
-   * cambiaba nunca. Igual con el derecho: `oncontextmenu` también dispara
-   * `mousedown`, así que el `contextmenu` solo cancela el menú nativo.
+   * un `auxclick` con la lógica hacía que el mismo gesto disparara DOS veces (una
+   * por `mousedown`, otra por `auxclick`) y el toggle se cancelaba solo — la
+   * celda no cambiaba nunca. Igual con el derecho: `oncontextmenu` también
+   * dispara `mousedown`, así que el `contextmenu` solo cancela el menú nativo.
    *
-   * ⚠️ `preventDefault()` SOLO en izquierdo y derecho. En el central,
-   * cancelarlo congela el autoscroll de la tabla al mover la rueda encima.
+   * ⚠️ El botón central dispara el "modo desplazamiento" de Windows (el cursor
+   * cambia a flecha y arrastrar panea la página). Se frena con
+   * `preventDefault()` en `mousedown` + un `onauxclick` que SOLO cancela: el
+   * primero evita la activación y el segundo impide que el autoscroll arranque al
+   * soltar. NO restrictarlo "para no romper la rueda": la rueda dispara `wheel`,
+   * no `mousedown`, así que nunca llega con `button === 1` y el scroll con la
+   * rueda sigue funcionando igual.
    */
   function handleMouseEstadoClick(e: MouseEvent, estId: number, fecha: string, boton: number) {
     if (enInforme) return;
-    // botón 0 = izquierdo, 1 = medio/rueda, 2 = derecho
-    const map: Record<number, string | null> = { 0: 'A', 2: 'P', 1: 'J' };
+    // botón 0 = izquierdo, 1 = medio, 2 = derecho
+    const map: Record<number, string | null> = { 0: 'P', 2: 'A', 1: 'J' };
     const nuevo = map[boton];
     if (nuevo === undefined) return;
-    if (boton !== 1) e.preventDefault();
+    e.preventDefault();
     // usar lógica existente de cambio de estado (toggle si repite el mismo botón)
     const est = estudiantesMulti.find(e => e.id === estId);
     if (!est) return;
@@ -3196,6 +3201,7 @@ $effect(() => {
                       <span style="font-size:0.55rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.2px;white-space:nowrap">{dayName}</span>
                       <div class="semanal-status" style="font-size:0.6rem;padding:0.15rem 0.3rem;{enInforme ? 'cursor:default' : ''}" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
                         onmousedown={(e) => handleMouseEstadoClick(e, est.id, fecha, e.button)}
+                        onauxclick={(e) => e.preventDefault()}
                         oncontextmenu={(e) => e.preventDefault()}>
                         {effectiveEstado === 'P' ? 'Pres' : effectiveEstado === 'A' ? 'Aus' : effectiveEstado === 'J' ? 'Just' : '—'}
                       </div>
@@ -3229,7 +3235,7 @@ $effect(() => {
                       onmousedown={(e) => handleMouseEstadoClick(e, est.id, fecha, e.button)}
                       oncontextmenu={(e) => e.preventDefault()}
                       style={enInforme ? 'cursor:default' : ''}
-                      title="D-izq: A | D-der: P | D-rueda: J (tocar de nuevo para limpiar)">
+                      title="D-izq: P | D-der: A | D-centro: J (tocar de nuevo para limpiar)">
                       {new Date(fecha + "T12:00:00").getDate()}
                     </div>
                   {/each}
@@ -3284,8 +3290,9 @@ $effect(() => {
                           <div class="celda-estado">
                             <div class="semanal-status" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
                               onmousedown={(e) => handleMouseEstadoClick(e, est.id, fv.fecha, e.button)}
+                              onauxclick={(e) => e.preventDefault()}
                               oncontextmenu={(e) => e.preventDefault()}
-                              title="D-izq: A | D-der: P | D-rueda: J (tocar de nuevo para limpiar)">
+                              title="D-izq: P | D-der: A | D-centro: J (tocar de nuevo para limpiar)">
                               {etiquetaEstado(effectiveEstado)}
                             </div>
                             <input type="text" placeholder="Obs..." class="semanal-obs"
@@ -3297,7 +3304,7 @@ $effect(() => {
                         <div class="semanal-status" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
                           onmousedown={(e) => handleMouseEstadoClick(e, est.id, fv.fecha, e.button)}
                           oncontextmenu={(e) => e.preventDefault()}
-                          title="D-izq: A | D-der: P | D-rueda: J (tocar de nuevo para limpiar)">
+                          title="D-izq: P | D-der: A | D-centro: J (tocar de nuevo para limpiar)">
                           {etiquetaEstado(effectiveEstado)}
                         </div>
                           <input type="text" placeholder="Obs..." class="semanal-obs"
@@ -3390,8 +3397,9 @@ $effect(() => {
 
                             <div class="ciclo-cell" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
                               onmousedown={(e) => handleMouseEstadoClick(e, est.id, fv.fecha, e.button)}
+                              onauxclick={(e) => e.preventDefault()}
                               oncontextmenu={(e) => e.preventDefault()}
-                              title="D-izq: A | D-der: P | D-rueda: J (tocar de nuevo para limpiar)">
+                              title="D-izq: P | D-der: A | D-centro: J (tocar de nuevo para limpiar)">
                               {effectiveEstado ?? '-'}
                             </div>
                             {@render overlayEstados(est.id, fv.fecha, effectiveEstado)}
@@ -3400,7 +3408,7 @@ $effect(() => {
                           <div class="ciclo-cell" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
                             onmousedown={(e) => handleMouseEstadoClick(e, est.id, fv.fecha, e.button)}
                             oncontextmenu={(e) => e.preventDefault()}
-                            title="D-izq: A | D-der: P | D-rueda: J (tocar de nuevo para limpiar)">
+                            title="D-izq: P | D-der: A | D-centro: J (tocar de nuevo para limpiar)">
                             {effectiveEstado ?? '-'}
                           </div>
                         {/if}
