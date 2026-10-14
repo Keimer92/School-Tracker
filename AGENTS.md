@@ -1495,18 +1495,19 @@ Los dos entornos corren **simultáneamente sin pelearse por puertos**:
 | Sesión | Comando | Vite | HMR |
 |---|---|---|---|
 | Windows | `npm run dev:win` (= `tauri dev`) | 1420 | 1421 |
-| Android | `npm run dev:android` / `dev:android:hmr` (= `tauri android dev --host localhost`) | **1422** | desactivado |
+| Android | `npm run dev:android` / `dev:android:hmr` (= `tauri android dev --host 127.0.0.1`) | **1422** | desactivado |
 
 Cómo: `src-tauri/tauri.android.conf.json` fija directamente `"beforeDevCommand": "npx vite --port 1422"`
 y `"devUrl": "http://localhost:1422"`. HMR está desactivado (`server.hmr: false`).
 
-⚠️ **REGLA CRÍTICA EN WINDOWS: `tauri android dev --host localhost`**:
-En Windows, el CLI de Tauri por defecto sustituye `localhost` por la dirección IP de red pública/LAN
+⚠️ **REGLA CRÍTICA EN WINDOWS: `tauri android dev --host 127.0.0.1`**:
+En Windows, el CLI de Tauri por defecto sustituye el host por la dirección IP de red pública/LAN
 de la PC (p. ej. `192.168.x.x`). El Firewall de Windows bloquea conexiones entrantes desde el teléfono
 hacia esa IP LAN, provocando un timeout seguido de `custom protocol timed out` y la pantalla de error
-`net::ERR_CONNECTION_REFUSED`.
+`net::ERR_CONNECTION_REFUSED`. La opción `--host` requiere una dirección IP, por eso `localhost`
+no es un valor válido; `127.0.0.1` conserva el acceso por loopback.
 Para evitarlo y canalizar todo el tráfico a través del cable USB mediante ADB reverse (`adb reverse tcp:1422 tcp:1422`),
-el comando **SIEMPRE debe llevar el flag `--host localhost`** en `package.json`. No se requieren scripts
+el comando **SIEMPRE debe llevar el flag `--host 127.0.0.1`** en `package.json`. No se requieren scripts
 envoltorios (`scripts/vite-android.mjs` o `scripts/android-hmr.mjs` fueron eliminados por innecesarios).
 
 
