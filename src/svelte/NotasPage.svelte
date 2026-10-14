@@ -1386,9 +1386,10 @@ import { primerColegio } from "../lib/catalogo";
         if (!stillExists) selectedSeccion = data[0].id;
       } else selectedSeccion = 0;
       filtersRef = { ano: selectedAno, corte: selectedCorte, colegio: selectedColegio, asignatura: selectedAsignatura, grado: selectedGrado, seccion: selectedSeccion, sexo: selectedSexo };
-      await cargarActivosDeSeccion(selectedSeccion);
-      // NO se llama `loadNotas` acá. Este `$effect` es el ÚNICO dueño de esa
-      // carga: la dispara cuando cambian grado o sección.
+      // NO se llama `loadNotas` ni `cargarActivosDeSeccion` acá: de ambas es
+      // dueño un `$effect`. Llamarlas desde los dos lados hacía doble trabajo
+      // (el "Cargando" duplicado que se veía al cambiar de grado) y además con
+      // datos cruzados.
       //
       // Antes se llamaba en ambos lados y al cambiar de grado se veía "Cargando"
       // dos veces seguidas (dos `loading = true` casi pegados). Peor todavía: la
@@ -1822,6 +1823,35 @@ import { primerColegio } from "../lib/catalogo";
   $effect(() => {
     if (selectedGrado && selectedColegio && selectedAno) { fetchSecciones(); }
     else { secciones = []; selectedSeccion = 0; }
+  });
+
+  /**
+   * Los activos por sección se releen SOLO cuando cambia la SECCIÓN.
+   *
+   * Antes no existía este efecto: los activos se cargaban únicamente dentro de
+   * `fetchSecciones`, que se dispara al cambiar GRADO. Elegir otra sección desde
+   * su dropdown no recargaba nada, así que la tabla seguía mostrando las
+   * excepciones de la sección anterior — y como `idsActivosSeccion` es la fuente
+   * de `indicadoresSeccion`, las columnas quedaban apagadas (o prendidas) según los
+   * datos de otra sección.
+   *
+   * Solo mira `selectedSeccion` a propósito: los cambios de grado, colegio,
+   * asignatura o corte ya pasan por `fetchSecciones` o por el `$effect` de
+   * `loadNotas`, y duplicar la llamada ahí reintroduciría la doble carga que se
+   * acaba de eliminar. Además vuelve a `null` mientras no haya filtro completo, en
+   * vez de dejar los datos de la sección anterior pegados.
+   */
+  $effect(() => {
+    const seccion = selectedSeccion;
+    const colegio = selectedColegio;
+    const grado = selectedGrado;
+    const asignatura = selectedAsignatura;
+    const corte = selectedCorte;
+    if (seccion > 0 && colegio > 0 && grado > 0 && asignatura > 0 && corte > 0) {
+      untrack(() => cargarActivosDeSeccion(seccion));
+    } else {
+      idsActivosSeccion = null;
+    }
   });
 
   /**
