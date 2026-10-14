@@ -1488,25 +1488,26 @@ GOTCHAS aprendidos (no repetir):
   streaming con `response.body.getReader()` vs header `Content-Length`; UI en
   WelcomePage (primera conexión) y CloudPage (restaurar).
 
-### Dev Android / Windows — sesiones independientes (2026-08)
+### Dev Android / Windows — sesiones independientes (2026-08 / 2026-10)
 
 Los dos entornos corren **simultáneamente sin pelearse por puertos**:
 
 | Sesión | Comando | Vite | HMR |
 |---|---|---|---|
 | Windows | `npm run dev:win` (= `tauri dev`) | 1420 | 1421 |
-| Android | `npm run dev:android` (= `tauri android dev`) | **1422** | desactivado |
+| Android | `npm run dev:android` / `dev:android:hmr` (= `tauri android dev --host localhost`) | **1422** | desactivado |
 
-Cómo: `vite.config.ts` lee `VITE_PORT` del entorno;
-`src-tauri/tauri.android.conf.json` (auto-fusionado en comandos Android) fija
-`devUrl http://localhost:1422`; `scripts/vite-android.mjs` es el
-`beforeDevCommand` de esa config: hace `adb reverse tcp:1422` y arranca Vite
-en ese puerto. HMR está desactivado (`server.hmr: false`). El launcher
-`scripts/android-hmr.mjs` ejecuta `tauri android dev` sin `TAURI_DEV_HOST`,
-para conservar `localhost:1422` y usar el reverse USB. Lo necesita Developing
-Runner: si no encuentra ese archivo, fuerza la IP LAN de la PC; en redes
-públicas el firewall puede dejar al WebView esperando hasta
-`ERR_CONNECTION_TIMED_OUT`.
+Cómo: `src-tauri/tauri.android.conf.json` fija directamente `"beforeDevCommand": "npx vite --port 1422"`
+y `"devUrl": "http://localhost:1422"`. HMR está desactivado (`server.hmr: false`).
+
+⚠️ **REGLA CRÍTICA EN WINDOWS: `tauri android dev --host localhost`**:
+En Windows, el CLI de Tauri por defecto sustituye `localhost` por la dirección IP de red pública/LAN
+de la PC (p. ej. `192.168.x.x`). El Firewall de Windows bloquea conexiones entrantes desde el teléfono
+hacia esa IP LAN, provocando un timeout seguido de `custom protocol timed out` y la pantalla de error
+`net::ERR_CONNECTION_REFUSED`.
+Para evitarlo y canalizar todo el tráfico a través del cable USB mediante ADB reverse (`adb reverse tcp:1422 tcp:1422`),
+el comando **SIEMPRE debe llevar el flag `--host localhost`** en `package.json`. No se requieren scripts
+envoltorios (`scripts/vite-android.mjs` o `scripts/android-hmr.mjs` fueron eliminados por innecesarios).
 
 
 **GOTCHAS**:
@@ -1514,9 +1515,8 @@ públicas el firewall puede dejar al WebView esperando hasta
   (`commands.allow`) o `invoke` falla en runtime.
 - En **dev Android el HMR de Vite está desactivado** (`vite.config.ts`:
   `server.hmr: false`).
-  El launcher `scripts/android-hmr.mjs` usa el mismo reverse USB que
-  `scripts/vite-android.mjs`; no poner `TAURI_DEV_HOST` al ejecutar `tauri
-  android dev`, porque cambia el `devUrl` a una IP LAN y evita ese reverse.
+- Asegurar que el reenvío de puertos USB esté activo si se reconecta el cable:
+  `adb reverse tcp:1422 tcp:1422`.
 - Los `println!("[OAuth] ...")` de Rust son los logs de depuración del flujo (van a
   stdout/logcat, no a la consola del navegador).
 - `GoogleDriveBackup.svelte` usa el comando antiguo `gd_start_oauth_server` (otro flujo).
