@@ -66,8 +66,11 @@ select,
    global (no viene con scope de Svelte), así que esta regla global sí pega sobre
    `.topbar`, que sí está scopeada en MobileTopBar.svelte. */
 .is-android .topbar {
-  backdrop-filter: blur(6px) !important;
-  -webkit-backdrop-filter: blur(6px) !important;
+  /* 18px en vez del 4px del header viejo: ahora hay contenido real scrolleando
+     por debajo (antes el fondo era un gradiente opaco y no había nada que
+     difuminar), así que el blur sí se nota y el efecto vale el costo. */
+  backdrop-filter: blur(18px) saturate(1.6) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(1.6) !important;
 }
 
 /* Asegurar que el body respete los safe areas */
@@ -82,6 +85,17 @@ html, body {
   /* Variables para safe areas */
   --system-top: 0px;
   --system-bottom: 0px;
+  /*
+    Altura de la barra superior de navegación en móvil (`MobileTopBar`).
+    Es UNA sola fuente para la barra y para el hueco que deja en el contenido:
+    si se escribieran los dos números por separado, cualquier cambio en el alto de
+    los botones dejaba una franja oscura o un hueco sin barra. Antes pasaba
+    exactamente eso con el header viejo (`56px` hardcodeado acá y otro `56px` en
+    su `height`), y al eliminarlo el padding se quedó solo.
+
+    56px = 44px de los botones (mínimo táctil) + 6px arriba + 6px abajo.
+  */
+  --topbar-h: calc(56px + env(safe-area-inset-top, 0px));
 }
 
 @media (max-width: 1024px) {
@@ -969,7 +983,7 @@ body {
     height: 100dvh !important;
     display: flex !important;
     flex-direction: column !important;
-    padding-top: 56px !important;
+    padding-top: var(--topbar-h) !important;
     margin: 0 !important;
     box-sizing: border-box !important;
     position: relative !important;
@@ -978,13 +992,10 @@ body {
   }
 
   .mobile-header {
-    display: flex !important;
-    flex-shrink: 0 !important;
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    z-index: 10000 !important;
+    /* Dead desde 2026-10: el header móvil fue reemplazado por `MobileTopBar`
+       (barra de navegación en el flujo del grid). Se deja la regla por si algún
+       markup viejo la referencia, pero ya nada la pinta. */
+    display: none !important;
   }
 
   .main-content {
@@ -1366,7 +1377,7 @@ label,
     height: 100dvh !important;
     display: flex !important;
     flex-direction: column !important;
-    padding-top: 56px !important;
+    padding-top: var(--topbar-h) !important;
     margin: 0 !important;
     box-sizing: border-box !important;
     position: relative !important;
@@ -1482,8 +1493,10 @@ label,
   }
 
   .app-layout {
-    /* El header es fijo; reservamos solo 56px (en landscape el inset superior suele ser 0) */
-    padding-top: 56px !important;
+    /* Hueco para la barra fija (`MobileTopBar`), con SU MISMA variable de altura.
+       No es un número suelto: si se escribieran 56px acá y 56px allá, cualquier
+       cambio en el alto de los botones dejaba franja oscura o barra solapada. */
+    padding-top: var(--topbar-h) !important;
   }
 
   .main-content {

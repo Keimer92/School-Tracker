@@ -148,18 +148,37 @@
     align-items: center;
     gap: 6px;
     width: 100%;
-    padding: calc(var(--sat, env(safe-area-inset-top, 0px)) + 6px) 8px 6px;
+    /* La altura sale de `--topbar-h` (definida en App.css) y el padding superior
+       se lo come el safe-area: `box-sizing: border-box` + `height` fijo es lo que
+       hace que los 56px sean REALES y no 56px + safe-area. */
+    height: var(--topbar-h, calc(56px + env(safe-area-inset-top, 0px)));
+    padding: calc(env(safe-area-inset-top, 0px) + 6px) 8px 6px;
     box-sizing: border-box;
-    /* Glass según el resto de la app */
-    background: rgba(255, 255, 255, 0.03);
-    backdrop-filter: blur(20px) saturate(1.2);
-    -webkit-backdrop-filter: blur(20px) saturate(1.2);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-    box-shadow: 0 2px 14px rgba(0, 0, 0, 0.22);
-    /* Fijo arriba: el contenido scrollea por debajo, como el header anterior.
-       `position: fixed` + ancestro con `backdrop-filter` no se mezclan: esta barra
-       es el elemento glass de primer nivel, no un descendiente de otro. */
-    flex-shrink: 0;
+    /* Glass: translúcido para que el `backdrop-filter` tenga algo que difuminar.
+       El alfa es BAJO a propósito — con un blanco más opaco el blur no se nota y
+       la barra queda como una franja gris plana. */
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(22px) saturate(1.6);
+    -webkit-backdrop-filter: blur(22px) saturate(1.6);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+    /* Brillo superior: es el detalle que hace que una superficie translúcida se
+       lea como vidrio en vez de como rectángulo. */
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.06) inset,
+      0 6px 20px rgba(0, 0, 0, 0.28);
+    /*
+      ⚠️ `fixed` a propósito: la barra se superpone al contenido y este scrollea
+      POR DEBAJO. Es lo único que hace que el `backdrop-filter` tenga algo que
+      difuminar — en flujo normal no hay nada detrás y el efecto se ve plano.
+
+      El hueco que deja lo compensa `.app-layout { padding-top: var(--topbar-h) }`
+      en App.css, que usa la MISMA variable: no pueden desincronizarse.
+    */
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10000;
   }
 
   .tb-logo {
