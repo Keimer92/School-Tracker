@@ -1983,19 +1983,43 @@ $effect(() => {
     else { obsModalStudent = est; expandedObs = { [est.id]: true }; }
   }
 
-  function cicloEstado(estudianteId: number, fecha: string) {
-    const est = estudiantesMulti.find(e => e.id === estudianteId);
+  /**
+   * Marcado con los tres botones del mouse sobre una celda de la grilla.
+   *
+   *   izquierdo = Ausente · derecho = Presente · medio/rueda = Justificado
+   *
+   * Volver a apretar el mismo botón borra la marca (toggle).
+   *
+   * ⚠️ El botón central se atiende en `onmousedown` y NO en `onauxclick`: poner
+   * un `auxclick` explícito hacía que el mismo gesto disparara DOS veces (una por
+   * `mousedown`, otra por `auxclick`) y el toggle se cancelaba solo — la celda no
+   * cambiaba nunca. Igual con el derecho: `oncontextmenu` también dispara
+   * `mousedown`, así que el `contextmenu` solo cancela el menú nativo.
+   *
+   * ⚠️ `preventDefault()` SOLO en izquierdo y derecho. En el central,
+   * cancelarlo congela el autoscroll de la tabla al mover la rueda encima.
+   */
+  function handleMouseEstadoClick(e: MouseEvent, estId: number, fecha: string, boton: number) {
+    if (enInforme) return;
+    // botón 0 = izquierdo, 1 = medio/rueda, 2 = derecho
+    const map: Record<number, string | null> = { 0: 'A', 2: 'P', 1: 'J' };
+    const nuevo = map[boton];
+    if (nuevo === undefined) return;
+    if (boton !== 1) e.preventDefault();
+    // usar lógica existente de cambio de estado (toggle si repite el mismo botón)
+    const est = estudiantesMulti.find(e => e.id === estId);
     if (!est) return;
     const current = est.dias[fecha]?.estado || null;
-    const currentDraft = draftMulti[estudianteId]?.[fecha]?.estado;
-    const effective = currentDraft !== undefined ? currentDraft : current;
-    const next = effective === 'P' ? 'A' : effective === 'A' ? 'J' : effective === 'J' ? null : 'P';
-    if (!draftMulti[estudianteId]) draftMulti[estudianteId] = {};
-    draftMulti[estudianteId][fecha] = { estado: next, observacion: est.dias[fecha]?.observacion || null };
+    const currentDraft = draftMulti[estId]?.[fecha]?.estado;
+    const effectiveCurrent = currentDraft !== undefined ? currentDraft : current;
+    const newEstado = effectiveCurrent === nuevo ? null : nuevo;
+    if (!draftMulti[estId]) draftMulti[estId] = {};
+    draftMulti[estId][fecha] = { estado: newEstado, observacion: est.dias[fecha]?.observacion || null };
     syncDraftMultiToStorage();
     estudiantesMulti = estudiantesMulti.map(e => {
-      if (e.id !== estudianteId) return e;
-      return { ...e, dias: { ...e.dias, [fecha]: { ...e.dias[fecha], estado: next } } };
+      if (e.id !== estId) return e;
+      const newDias = { ...e.dias, [fecha]: { ...e.dias[fecha], estado: newEstado } };
+      return { ...e, dias: newDias };
     });
   }
 
@@ -3171,7 +3195,8 @@ $effect(() => {
                     <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;min-width:68px">
                       <span style="font-size:0.55rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.2px;white-space:nowrap">{dayName}</span>
                       <div class="semanal-status" style="font-size:0.6rem;padding:0.15rem 0.3rem;{enInforme ? 'cursor:default' : ''}" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
-                        onclick={enInforme ? undefined : () => cicloEstado(est.id, fecha)}>
+                        onmousedown={(e) => handleMouseEstadoClick(e, est.id, fecha, e.button)}
+                        oncontextmenu={(e) => e.preventDefault()}>
                         {effectiveEstado === 'P' ? 'Pres' : effectiveEstado === 'A' ? 'Aus' : effectiveEstado === 'J' ? 'Just' : '—'}
                       </div>
                       {#if enInforme}
@@ -3201,9 +3226,10 @@ $effect(() => {
                     {@const draftD = draftMulti[est.id]?.[fecha]}
                     {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
                     <div class="mensual-chip" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
-                      onclick={enInforme ? undefined : () => cicloEstado(est.id, fecha)}
+                      onmousedown={(e) => handleMouseEstadoClick(e, est.id, fecha, e.button)}
+                      oncontextmenu={(e) => e.preventDefault()}
                       style={enInforme ? 'cursor:default' : ''}
-                      title={fmtFecha(fecha, { day: 'numeric', month: 'short' })}>
+                      title="D-izq: A | D-der: P | D-rueda: J (tocar de nuevo para limpiar)">
                       {new Date(fecha + "T12:00:00").getDate()}
                     </div>
                   {/each}
@@ -3257,8 +3283,9 @@ $effect(() => {
                         {:else if esEscritorio}
                           <div class="celda-estado">
                             <div class="semanal-status" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
-                              onclick={() => cicloEstado(est.id, fv.fecha)}
-                              title="Clic para rotar · pasa el cursor sobre la observación para elegir el estado">
+                              onmousedown={(e) => handleMouseEstadoClick(e, est.id, fv.fecha, e.button)}
+                              oncontextmenu={(e) => e.preventDefault()}
+                              title="D-izq: A | D-der: P | D-rueda: J (tocar de nuevo para limpiar)">
                               {etiquetaEstado(effectiveEstado)}
                             </div>
                             <input type="text" placeholder="Obs..." class="semanal-obs"
@@ -3267,11 +3294,12 @@ $effect(() => {
                             {@render overlayEstados(est.id, fv.fecha, effectiveEstado)}
                           </div>
                         {:else}
-                          <div class="semanal-status" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
-                            onclick={() => cicloEstado(est.id, fv.fecha)}
-                            title={etiquetaEstado(effectiveEstado)}>
-                            {etiquetaEstado(effectiveEstado)}
-                          </div>
+                        <div class="semanal-status" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
+                          onmousedown={(e) => handleMouseEstadoClick(e, est.id, fv.fecha, e.button)}
+                          oncontextmenu={(e) => e.preventDefault()}
+                          title="D-izq: A | D-der: P | D-rueda: J (tocar de nuevo para limpiar)">
+                          {etiquetaEstado(effectiveEstado)}
+                        </div>
                           <input type="text" placeholder="Obs..." class="semanal-obs"
                             value={getObsMulti(est.id, fv.fecha)}
                             oninput={(e) => handleObservacionChangeMulti(est.id, fv.fecha, (e.target as HTMLInputElement).value)} />
@@ -3361,16 +3389,18 @@ $effect(() => {
                             <div class="celda-estado">
 
                             <div class="ciclo-cell" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
-                              onclick={() => cicloEstado(est.id, fv.fecha)}
-                              title="Clic para rotar · pasa el cursor aquí para elegir el estado">
+                              onmousedown={(e) => handleMouseEstadoClick(e, est.id, fv.fecha, e.button)}
+                              oncontextmenu={(e) => e.preventDefault()}
+                              title="D-izq: A | D-der: P | D-rueda: J (tocar de nuevo para limpiar)">
                               {effectiveEstado ?? '-'}
                             </div>
                             {@render overlayEstados(est.id, fv.fecha, effectiveEstado)}
                           </div>
                         {:else}
                           <div class="ciclo-cell" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
-                            onclick={() => cicloEstado(est.id, fv.fecha)}
-                            title={fmtFecha(fv.fecha, { day: 'numeric', month: 'short' }) + ': ' + (effectiveEstado === 'P' ? t('asis.estado.presente') : effectiveEstado === 'A' ? t('asis.estado.ausente') : effectiveEstado === 'J' ? t('asis.estado.justificado') : t('asis.estado.sinMarcar'))}>
+                            onmousedown={(e) => handleMouseEstadoClick(e, est.id, fv.fecha, e.button)}
+                            oncontextmenu={(e) => e.preventDefault()}
+                            title="D-izq: A | D-der: P | D-rueda: J (tocar de nuevo para limpiar)">
                             {effectiveEstado ?? '-'}
                           </div>
                         {/if}
