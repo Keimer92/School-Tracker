@@ -1,6 +1,6 @@
 {
   "build": {
-    "beforeDevCommand": "node scripts/vite-android.mjs",
+    "beforeDevCommand": "npx vite --port 1422",
     "devUrl": "http://localhost:1422"
   }
 }
