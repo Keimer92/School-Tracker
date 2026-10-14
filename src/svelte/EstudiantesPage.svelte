@@ -981,46 +981,52 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
 <div class="page-container" id="estudiantes-page" style="height: 100%; min-height: 0;">
   {#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder={t('est.buscarPh')} />{/if}
   {#if isAndroidMobile}
-    <div class="category-card" style="padding: 0.4rem 0.5rem; margin-bottom: 0.4rem;">
-      <SearchFab bind:value={searchTerm} placeholder={t('est.buscarPhAndroid')} conMargen={false} />
-    </div>
     <!--
-      Activos / Retirados en Android: control VISIBLE, fuera del modal de filtros.
+      Fila 1: Activos / Retirados + buscador, en la MISMA línea.
 
-      No va en el modal a propósito. El modal agrupa selects de catálogo (Año,
-      Colegio, Grado, Sección, Sexo) para recuperar altura, pero Activos/Retirados
-      no es un filtro más: decide de dónde sale TODA la página, incluidas las
-      acciones masivas (en retirados solo queda exportar) y la tabla que se
-      muestra. Enterrarlo dos toques adentro dejaba el modo retirados
-      inalcanzable desde el teléfono: el `{#if esRetirados}` de la fila de
-      acciones nunca era verdadero y no había forma de cambiarlo.
+      El control va antes del buscador para que quede siempre visible y no se
+     no se desplace al medio: decide de dónde sale toda la página —en retirados la
+      fila de acciones se reduce a exportar y la tabla cambia— así que es la
+      decisión más importante de la vista, no un filtro más.
+
+      Compartir la fila con el buscador ahorra una barra completa, que en un
+      teléfono es altura que no sobra.
+
+      `flex: 0 0 auto` en el toggle para que NO se encoja ni empuje al buscador
+      (que a su vez usa `flex: 1`): con `min-width:0` ausente, el texto largo de
+      "Retirados" haría desbordar la fila en pantallas angostas. El toggle usa
+      `grande` porque los tamaños por defecto de `ModoToggle` están calibrados
+      para la barra densa de escritorio.
 
       El bloque de escritorio con este mismo control vive en la rama `{:else}` de
-      `{#if isAndroidMobile}`, que en Android no se renderiza — por eso hacía
-      falta una copia explícita acá y no alcanza con mover el existente.
-
-      Va en su propia fila (no dentro de la del botón de filtros) porque el
-      resumen de esa fila ya está al límite de caracteres con colegio · grado ·
-      sección · sexo. -->
-    <div class="category-card" style="padding: 0.35rem 0.5rem; margin-bottom: 0.4rem;">
-      <ModoToggle
-        valor={modo}
-        etiquetaGrupo={t('comun.modo')}
-        onchange={(id) => { modo = id as ModoEstudiantes; fetchData(true); }}
-        opciones={[
-          { id: "activos", etiqueta: t('est.modo.activos'), titulo: t('est.modo.activosDesc') },
-          { id: "retirados", etiqueta: t('est.modo.retirados'), titulo: t('est.modo.retiradosDesc') },
-        ]} />
+      `{#if isAndroidMobile}`, que en Android no se renderiza: por eso hace falta
+      una copia explícita acá y no alcanza con mover el existente. -->
+    <div class="category-card" style="padding: 0.4rem 0.5rem; margin-bottom: 0.4rem; display:flex; gap:0.5rem; align-items:center;">
+      <div style="flex: 0 0 auto;">
+        <ModoToggle
+          grande
+          valor={modo}
+          etiquetaGrupo={t('comun.modo')}
+          onchange={(id) => { modo = id as ModoEstudiantes; fetchData(true); }}
+          opciones={[
+            { id: "activos", etiqueta: t('est.modo.activos'), titulo: t('est.modo.activosDesc') },
+            { id: "retirados", etiqueta: t('est.modo.retirados'), titulo: t('est.modo.retiradosDesc') },
+          ]} />
+      </div>
+      <div style="flex: 1 1 auto; min-width: 0;">
+        <SearchFab bind:value={searchTerm} placeholder={t('est.buscarPhAndroid')} conMargen={false} />
+      </div>
     </div>
     <div class="category-card" style="padding: 0.5rem; margin-bottom: 0.4rem; display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
       <button type="button" onclick={() => { showFiltersModal = true; }}
         style="height:38px;padding:0 0.8rem;font-size:0.78rem;background:rgba(96,165,250,0.18);color:#bfdbfe;border:1px solid rgba(96,165,250,0.4);border-radius:8px;display:flex;align-items:center;justify-content:center;gap:5px;font-weight:600;cursor:pointer;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
         <span>🔍</span>
         <span style="overflow:hidden;text-overflow:ellipsis;">
-          <!-- El modo va PRIMERO en el resumen: en Android el toggle vive dentro del
-               modal de filtros (dos toques), así que sin esto no había ninguna señal
-               visible de que la lista venía de RETIRADOS y una lista vacía era
-               indistinguible de "no hay estudiantes con esos filtros". -->
+          <!-- El modo también se repite acá. El toggle está visible en la fila de arriba,
+               pero el botón de filtros ya está al límite de caracteres con
+               colegio · grado · sección · sexo, y sin esta señal una lista vacía
+               en RETIRADOS era indistinguible de "no hay estudiantes con estos
+               filtros". -->
           {esRetirados ? `🚪 ${t('est.modo.retirados')} · ` : ''}{(colegios.find(c => c.id === filters.colegioId)?.nombre)?.split(' ')[0] || t('est.fallback.colegio')} · {grados.find(g => g.id === filters.gradoId)?.nombre || t('est.fallback.grado')} · {secciones.find(s => s.id === filters.seccionId)?.nombre || t('est.fallback.seccion')}{filters.sexo ? ` · ${filters.sexo === 'M' ? t('est.resumen.masculinoCorto') : t('est.resumen.femeninoCorto')}` : ''}
         </span>
       </button>

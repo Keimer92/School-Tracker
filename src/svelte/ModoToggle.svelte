@@ -28,11 +28,18 @@
     opciones,
     onchange,
     etiquetaGrupo = '',
+    grande = false,
   }: {
     valor: string;
     opciones: ModoOpcion[];
     onchange: (id: string) => void;
     etiquetaGrupo?: string;
+    /** Letra más grande y control más alto, para cuando va en su propia fila
+     *  en móvil (lejos de la barra de filtros densa del escritorio).
+     *  Los `@media` de abajo ACHICAN el control para emparejarlo con
+     *  `.filter-select`, así que esta variante usa `.mt.mt-grande` para ganarle
+     *  en especificidad y no quedar de nuevo chica en un teléfono angosto. */
+    grande?: boolean;
   } = $props();
 
   // `elegir` en vez de `t`: `t` es la funcion de i18n (GOTCHA de AGENTS.md).
@@ -42,7 +49,7 @@
   }
 </script>
 
-<div class="mt" role="tablist" aria-label={etiquetaGrupo || undefined}>
+<div class="mt" class:mt-grande={grande} role="tablist" aria-label={etiquetaGrupo || undefined}>
   {#each opciones as o (o.id)}
     {@const act = o.id === valor}
     <button
@@ -128,5 +135,25 @@
   @media (max-width: 1400px) and (max-height: 800px) {
     .mt { height: 22px; }
     .mt-opt { font-size: 0.64rem; padding: 0 0.35rem; }
+  }
+
+  /* Variante grande para móvil. Va DESPUÉS de los `@media` y con doble clase a
+     propósito: en un teléfono suelen caer las dos consultas (ancho < 1400 y
+     alto < 800), que lo dejarían en 22px/0.64rem justo cuando se pidió más
+     legible. */
+  .mt.mt-grande {
+    height: 38px;
+    width: 100%;
+    gap: 3px;
+    padding: 3px;
+    border-radius: 10px;
+  }
+  .mt.mt-grande .mt-opt {
+    flex: 1 1 0;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    padding: 0 0.5rem;
+    border-radius: 8px;
   }
 </style>
