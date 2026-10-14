@@ -61,6 +61,14 @@ select,
   backdrop-filter: blur(4px) !important;
   -webkit-backdrop-filter: blur(4px) !important;
 }
+/* La barra superior de navegación es el otro elemento que vale la pena: sin
+   blur queda un rectángulo translúcido plano detrás de los iconos. App.css es
+   global (no viene con scope de Svelte), así que esta regla global sí pega sobre
+   `.topbar`, que sí está scopeada en MobileTopBar.svelte. */
+.is-android .topbar {
+  backdrop-filter: blur(6px) !important;
+  -webkit-backdrop-filter: blur(6px) !important;
+}
 
 /* Asegurar que el body respete los safe areas */
 html, body {

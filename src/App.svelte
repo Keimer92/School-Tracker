@@ -23,7 +23,7 @@
   import DashboardPage from "./svelte/DashboardPage.svelte";
   import Sidebar from "./svelte/Sidebar.svelte";
   import WelcomePage from "./svelte/WelcomePage.svelte";
-  import AndroidDrawer from "./svelte/AndroidDrawer.svelte";
+  import MobileTopBar from "./svelte/MobileTopBar.svelte";
   import ModalNubeD1 from "./svelte/modales/ModalNubeD1.svelte";
   import ModalNubeDrive from "./svelte/modales/ModalNubeDrive.svelte";
 
@@ -533,14 +533,21 @@
   style="grid-template-columns: {isMobile ? '0px 0px 1fr' : sidebarWidth + 'px 4px 1fr'}; padding-bottom: {isMobile ? 'env(safe-area-inset-bottom, 0px)' : '0'};"
 >
   {#if isMobile}
-    <AndroidDrawer
-      {drawerOpen}
-      {d1Status}
-      {toggleDrawer}
-      {closeDrawer}
-    />
-  {/if}
+    <!--
+      Barra superior de navegación en móvil. Reemplaza al `AndroidDrawer` + el
+      `Sidebar` en modo drawer (2026-10): ahora las páginas son un toque directo
+      desde arriba y las cards de nube quedan al final de la misma fila.
 
+      El `Sidebar` NO se renderiza en móvil por eso: sin hamburguesa ya no hay
+      forma de abrirlo, y dejarlo montado solo agregaría un panel fuera de
+      pantalla con los mismos destinos duplicados.
+    -->
+    <MobileTopBar
+      {activeTab}
+      {d1Status}
+      onTabChange={handleTabChange}
+    />
+  {:else}
     <Sidebar
       {activeTab}
       {drawerOpen}
@@ -549,6 +556,7 @@
       toggleDrawer={toggleDrawer}
       onDrawerClose={closeDrawer}
     />
+  {/if}
 
     <div
       class="resizer {isResizing ? 'resizing' : ''}"
