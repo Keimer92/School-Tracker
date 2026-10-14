@@ -1450,6 +1450,12 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'cl.error.faltClientId': 'Falta VITE_GOOGLE_CLIENT_ID en .env',
   'cl.status.abriendo': 'Abriendo Google Sign-In...',
   'cl.error.signIn': 'Google Sign-In ({code}): {error}',
+  // `statusCode` de Google Sign-In nativo en Android. El 10 es el que más
+  // aparece y NO es un problema de red: el cliente OAuth de Android no está
+  // registrado en Google Cloud con el paquete y el SHA-1 de esta build.
+  'cl.error.signIn.dev': 'Google rechazó el inicio de sesión (DEVELOPER_ERROR): el cliente OAuth de Android no está registrado en Google Cloud con el paquete y la huella de esta app. No es un problema de red.',
+  'cl.error.signIn.cancelado': 'Cancelaste el inicio de sesión.',
+  'cl.error.signIn.playServices': 'Google Play Services no está disponible o está desactualizado en el dispositivo.',
   'cl.error.sinTokenGoogle': 'No se obtuvo el token de Google',
   'cl.status.navegador': 'Se abrió tu navegador: inicia sesión con Google allí...',
   'cl.status.verificando': 'Verificando identidad...',

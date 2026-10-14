@@ -984,12 +984,44 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
     <div class="category-card" style="padding: 0.4rem 0.5rem; margin-bottom: 0.4rem;">
       <SearchFab bind:value={searchTerm} placeholder={t('est.buscarPhAndroid')} conMargen={false} />
     </div>
+    <!--
+      Activos / Retirados en Android: control VISIBLE, fuera del modal de filtros.
+
+      No va en el modal a propósito. El modal agrupa selects de catálogo (Año,
+      Colegio, Grado, Sección, Sexo) para recuperar altura, pero Activos/Retirados
+      no es un filtro más: decide de dónde sale TODA la página, incluidas las
+      acciones masivas (en retirados solo queda exportar) y la tabla que se
+      muestra. Enterrarlo dos toques adentro dejaba el modo retirados
+      inalcanzable desde el teléfono: el `{#if esRetirados}` de la fila de
+      acciones nunca era verdadero y no había forma de cambiarlo.
+
+      El bloque de escritorio con este mismo control vive en la rama `{:else}` de
+      `{#if isAndroidMobile}`, que en Android no se renderiza — por eso hacía
+      falta una copia explícita acá y no alcanza con mover el existente.
+
+      Va en su propia fila (no dentro de la del botón de filtros) porque el
+      resumen de esa fila ya está al límite de caracteres con colegio · grado ·
+      sección · sexo. -->
+    <div class="category-card" style="padding: 0.35rem 0.5rem; margin-bottom: 0.4rem;">
+      <ModoToggle
+        valor={modo}
+        etiquetaGrupo={t('comun.modo')}
+        onchange={(id) => { modo = id as ModoEstudiantes; fetchData(true); }}
+        opciones={[
+          { id: "activos", etiqueta: t('est.modo.activos'), titulo: t('est.modo.activosDesc') },
+          { id: "retirados", etiqueta: t('est.modo.retirados'), titulo: t('est.modo.retiradosDesc') },
+        ]} />
+    </div>
     <div class="category-card" style="padding: 0.5rem; margin-bottom: 0.4rem; display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
       <button type="button" onclick={() => { showFiltersModal = true; }}
         style="height:38px;padding:0 0.8rem;font-size:0.78rem;background:rgba(96,165,250,0.18);color:#bfdbfe;border:1px solid rgba(96,165,250,0.4);border-radius:8px;display:flex;align-items:center;justify-content:center;gap:5px;font-weight:600;cursor:pointer;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
         <span>🔍</span>
         <span style="overflow:hidden;text-overflow:ellipsis;">
-          {(colegios.find(c => c.id === filters.colegioId)?.nombre)?.split(' ')[0] || t('est.fallback.colegio')} · {grados.find(g => g.id === filters.gradoId)?.nombre || t('est.fallback.grado')} · {secciones.find(s => s.id === filters.seccionId)?.nombre || t('est.fallback.seccion')}{filters.sexo ? ` · ${filters.sexo === 'M' ? t('est.resumen.masculinoCorto') : t('est.resumen.femeninoCorto')}` : ''}
+          <!-- El modo va PRIMERO en el resumen: en Android el toggle vive dentro del
+               modal de filtros (dos toques), así que sin esto no había ninguna señal
+               visible de que la lista venía de RETIRADOS y una lista vacía era
+               indistinguible de "no hay estudiantes con esos filtros". -->
+          {esRetirados ? `🚪 ${t('est.modo.retirados')} · ` : ''}{(colegios.find(c => c.id === filters.colegioId)?.nombre)?.split(' ')[0] || t('est.fallback.colegio')} · {grados.find(g => g.id === filters.gradoId)?.nombre || t('est.fallback.grado')} · {secciones.find(s => s.id === filters.seccionId)?.nombre || t('est.fallback.seccion')}{filters.sexo ? ` · ${filters.sexo === 'M' ? t('est.resumen.masculinoCorto') : t('est.resumen.femeninoCorto')}` : ''}
         </span>
       </button>
     </div>

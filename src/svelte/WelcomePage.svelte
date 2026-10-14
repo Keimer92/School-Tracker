@@ -1331,6 +1331,12 @@
 
       {#if errorMsg}
         <div class="welcome-error">{errorMsg}</div>
+        {#if errorMsgTecnico}
+          <details class="welcome-error-detalle">
+            <summary>Detalle técnico</summary>
+            <pre>{errorMsgTecnico}</pre>
+          </details>
+        {/if}
         <p class="welcome-diag">
           Diagnóstico: cuenta <code>{driveAccount || '—'}</code> ·
           respaldos en Drive: <code>{driveFilesCount === null ? '?' : driveFilesCount}</code>
@@ -1625,6 +1631,26 @@
   .dl-progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary-color, #3b82f6), #a78bfa); border-radius: 4px; transition: width 0.2s ease; box-shadow: 0 0 12px rgba(59,130,246,0.35); }
   @keyframes loadingBar { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
   .welcome-error { color: #f87171; font-size: 0.85rem; text-align: center; padding: 0.6rem 1rem; background: rgba(248,113,113,0.08); border-radius: 10px; width: 100%; max-width: 400px; border: 1px solid rgba(248,113,113,0.15); }
+  /* Detalle técnico del fallo de conexión: plegado por default para no competir
+     con el mensaje principal, pero a un clic de distancia. Mismo patrón que el
+     bloque de diagnóstico de Drive, que ya existía para el mismo propósito. */
+  .welcome-error-detalle {
+    width: 100%; max-width: 400px; margin-top: 0.35rem;
+    background: rgba(0,0,0,0.25); border: 1px solid rgba(148,163,184,0.2);
+    border-radius: 8px; padding: 0.35rem 0.5rem; text-align: left;
+  }
+  .welcome-error-detalle summary {
+    cursor: pointer; color: #94a3b8; font-size: 0.7rem; font-weight: 600;
+    list-style: none; user-select: none;
+  }
+  .welcome-error-detalle summary::-webkit-details-marker { display: none; }
+  .welcome-error-detalle summary::before { content: '▸ '; }
+  .welcome-error-detalle[open] summary::before { content: '▾ '; }
+  .welcome-error-detalle pre {
+    margin: 0.4rem 0 0.2rem; color: #94a3b8; font-size: 0.68rem;
+    white-space: pre-wrap; word-break: break-word; max-height: 140px; overflow: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
 
   .wizard-progress { display: flex; align-items: center; gap: 0; width: 100%; max-width: 320px; }
   .wizard-step-dot { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); flex-shrink: 0; }

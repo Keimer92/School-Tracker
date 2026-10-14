@@ -169,6 +169,36 @@ async function finalizarSoloDrive(
 }
 
 /**
+ * Traduce el `statusCode` de Google Sign-In nativo a algo accionable.
+ *
+ * Antes devolvía `t('cl.error.signIn', {code, error})`, que para el caso que más
+ *_importa_ —el 10— llegaba al usuario como un número suelto sin explicación
+ * ("Google Sign-In (10):"). El 10 es `DEVELOPER_ERROR`: NO es un problema de red
+ * ni de sesión, es que el cliente OAuth de Android no está registrado en Google
+ * Cloud con el paquete + SHA-1 de esta app, y es justamente lo que documenta
+ * AGENTS.md. Decirlo explícito evita que se persiga una red intermitente.
+ *
+ * El detalle técnico crudo se conserva igual en `errorMsgTecnico` del Welcome,
+ * así que nada de información se pierde.
+ */
+function explicarSignInNativo(statusCode: number | undefined, error: string | undefined): string {
+  const codigo = statusCode ?? '?';
+  const extra = error ? ` (${error})` : '';
+  switch (codigo) {
+    case 10:
+      return t('cl.error.signIn.dev') + extra;
+    case 12501:
+      // Cancelación: llega por otra rama, pero se cubre por si cambia el mapeo.
+      return t('cl.error.signIn.cancelado') + extra;
+    case 4:
+    case 16:
+      return t('cl.error.signIn.playServices') + extra;
+    default:
+      return t('cl.error.signIn', { code: codigo, error: error ?? '' });
+  }
+}
+
+/**
  * LOGIN/REGISTRO con Google para el sync Cloudflare + vinculación de Drive
  * con la MISMA cuenta. Reutilizable desde WelcomePage.
  *  - Android: selector nativo (idToken + serverAuthCode con scope drive.file).
@@ -204,7 +234,7 @@ export async function iniciarSesionGoogleConNube(opts?: {
             const parsed: any = typeof res === 'string' ? JSON.parse(res) : res;
             if (!parsed.ok) {
               if (parsed.cancelled) return { status: 'cancelled' };
-              return { status: 'error', error: t('cl.error.signIn', { code: parsed.statusCode ?? '?', error: parsed.error ?? '' }) };
+              return { status: 'error', error: explicarSignInNativo(parsed.statusCode, parsed.error) };
             }
             idToken = parsed.idToken || '';
             driveAuthCode = parsed.serverAuthCode || '';

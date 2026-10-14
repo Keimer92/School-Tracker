@@ -1453,6 +1453,12 @@ to print. It is saved in Documents/SchoolTrackerPro/Instruments.`,
   'cl.error.faltClientId': 'Missing VITE_GOOGLE_CLIENT_ID in .env',
   'cl.status.abriendo': 'Opening Google Sign-In...',
   'cl.error.signIn': 'Google Sign-In ({code}): {error}',
+  // Google Sign-In native `statusCode` on Android. 10 is the most common one and
+  // is NOT a network problem: the Android OAuth client is not registered in
+  // Google Cloud with this build's package name and signing fingerprint.
+  'cl.error.signIn.dev': 'Google rejected the sign-in (DEVELOPER_ERROR): the Android OAuth client is not registered in Google Cloud with this app package and signing fingerprint. This is not a network problem.',
+  'cl.error.signIn.cancelado': 'You cancelled the sign-in.',
+  'cl.error.signIn.playServices': 'Google Play Services is unavailable or out of date on this device.',
   'cl.error.sinTokenGoogle': 'Could not get the Google token',
   'cl.status.navegador': 'Your browser was opened: sign in with Google there...',
   'cl.status.verificando': 'Verifying identity...',
