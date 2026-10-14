@@ -85,16 +85,50 @@ import { primerColegio } from "../lib/catalogo";
   let searchTerm = $state("");
 
   let indicadores: Indicador[] = $state([]);
+
+  /**
+   * ¿Los ids exentos son de ESTOS indicadores?
+   *
+   * `idsActivosSeccion` y `indicadores` se llenan por consultas separadas y no
+   * llegan en el mismo instante. Cuando se desincronizan (cambio de corte: los ids
+   * ya son nuevos pero `indicadores` todavía son los viejos), el `map` de abajo no
+   * encuentra coincidencia y apaga TODAS las columnas.
+   *
+   * Un id que no corresponde a ningún indicador de la lista actual es, por
+   * definición, de otra combinación de grado/asignatura/corte: se descarta y se
+   * usa el global. Es la diferencia entre "esta sección apagó estos indicadores"
+   * (caso válido: la lista tiene todos los ids y algunos faltan) y "estos ids son
+   * de otro corte" (basura temporal), que antes se confundían.
+   *
+   * Se exige que la lista tenga al menos un id conocido: si `indicadores` está
+   * vacía no hay nada que validar todavía y `[]` es un estado honesto.
+   *
+   * Va ANTES de `indicadoresSeccion` a propósito: este lee aquel, y los `$derived`
+   * son perezosos pero no hace falta depender de eso.
+   */
+  let idsActivosValidos = $derived.by(() => {
+    if (idsActivosSeccion === null) return null;
+    const conocidos = new Set(indicadores.map(i => i.id));
+    if (conocidos.size === 0) return idsActivosSeccion;
+    const filtrados = idsActivosSeccion.filter(id => conocidos.has(id));
+    // Ni uno solo es de otra combinación: toda la lista es basura para esta pantalla.
+    return filtrados.length === 0 ? null : filtrados;
+  });
+
   /**
    * Indicadores tal como los ve la SECCION actual: `activo` ya viene resuelto
    * (excepción de la sección si existe, si no el global). Todo el template y los
    * cálculos de notas leen este derivado, así que el cambio por sección es
    * automático en la tabla, los totales, la distribución y el guardado.
+   *
+   * Lee `idsActivosValidos`, no `idsActivosSeccion` directo: si la lista llegó de
+   * otra combinación, se descarta y rija el global.
    */
   let indicadoresSeccion = $derived.by(() => {
-    if (idsActivosSeccion === null) return indicadores;
-    return indicadores.map(i => i.activo === idsActivos.includes(i.id) ? i : { ...i, activo: idsActivos.includes(i.id) });
+    if (idsActivosValidos === null) return indicadores;
+    return indicadores.map(i => i.activo === idsActivosValidos.includes(i.id) ? i : { ...i, activo: idsActivosValidos.includes(i.id) });
   });
+
   let estudiantes: Estudiante[] = $state([]);
   let notas: NotaEstudiante[] = $state([]);
   let gradeConfigs: { id: string; nombre: string; color: string; minimo: number }[] = $state([]);
@@ -785,7 +819,10 @@ import { primerColegio } from "../lib/catalogo";
    */
   let idsActivosSeccion = $state<number[] | null>(null);
   let idsActivosPorDefecto = $derived(indicadores.filter(i => i.activo).map(i => i.id));
-  let idsActivos = $derived(idsActivosSeccion ?? idsActivosPorDefecto);
+  // `idsActivosValidos` y no `idsActivosSeccion`: si la lista es de otro corte,
+  // aquí daría `[]` y `seccionTieneExcepciones` marcaría TODOS los indicadores
+  // como "excepción de la sección", que es lo que dispara el botón de reactivar.
+  let idsActivos = $derived(idsActivosValidos ?? idsActivosPorDefecto);
   /** true = esta seccion tiene excepciones propias sobre el global. */
   let seccionTieneExcepciones = $derived(
     indicadores.some(i => i.activo !== idsActivos.includes(i.id))
@@ -1848,6 +1885,19 @@ import { primerColegio } from "../lib/catalogo";
     const asignatura = selectedAsignatura;
     const corte = selectedCorte;
     if (seccion > 0 && colegio > 0 && grado > 0 && asignatura > 0 && corte > 0) {
+      // ⚠️ Se invalidan los ids ANTES de pedir los nuevos. Es lo que hace que
+      // cambiar de corte no apague todas las columnas.
+      //
+      // Sin esto pasaba esto: al cambiar de corte, `indicadores` seguía con la
+      // lista del corte ANTERIOR mientras `idsActivosSeccion` ya traía los ids
+      // del corte NUEVO. Como `indicadoresSeccion` mapeaindicator por indicador
+      // buscando su id en esa lista, ninguno coincidía y TODOS quedaban con
+      // `activo: false`. Se veía la tabla entera apagada y sin sumar.
+      //
+      // Ponerlo en `null` hace que en esa ventana se use el global, que siempre
+      // es coherente con `indicadores` (vienen de la misma consulta). Cuando
+      // llega la respuesta real se reemplaza.
+      idsActivosSeccion = null;
       untrack(() => cargarActivosDeSeccion(seccion));
     } else {
       idsActivosSeccion = null;
