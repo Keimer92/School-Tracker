@@ -31,6 +31,8 @@
     subtitulo = '',
     onCerrar,
     ancho = '520px',
+    anchoMaximo = ancho,
+    ajustarAltura = false,
     children,
   }: {
     /** Nothing is rendered while this is `false`. */
@@ -40,6 +42,19 @@
     subtitulo?: string;
     onCerrar: () => void;
     ancho?: string;
+    /**
+     * Techo del ancho, por si el panel necesita tomar todo el disponible sin
+     * dejar de ser usable en un monitor grande. Por defecto igual a `ancho`.
+     */
+    anchoMaximo?: string;
+    /**
+     * El panel crece hasta llenar la ALTURA de la pantalla en vez de usar el
+     * `max-height` fijo del cuerpo. Para paneles largos (el de Drive, con su
+     * lista de respaldos) evita el scroll anidado: la card se estira y el
+     * contenido que no entra scrollea adentro, pero el recuadro ya ocupa toda la
+     * pantalla y no queda un borde de página asomando debajo.
+     */
+    ajustarAltura?: boolean;
     children: Snippet;
   } = $props();
 
@@ -58,7 +73,8 @@
     onpointerdown={(e) => { if (e.target === e.currentTarget) onCerrar(); }}
     role="presentation"
   >
-    <div class="modal-content mb-card" style="max-width: {ancho}; width: 100%;">
+    <div class="modal-content mb-card" class:mb-alto={ajustarAltura}
+      style="max-width: {anchoMaximo}; width: 100%;">
       <div class="mb-head">
         <div class="mb-titulos">
           <h3 class="mb-titulo">{titulo}</h3>
@@ -75,12 +91,31 @@
 
 <style>
   .mb-card {
-    background: var(--card-bg);
+    /* Fondo PROPIO y opaco, no `--card-bg`.
+       Ese token es el glass de las cards de la app (alfa 0.6 en oscuro) y para
+       un modal queda demasiado transparente: se ve el contenido de la página
+       detrás del texto y los valores de Drive/Cloudflare se leen con ruido. Un
+       modal va POR ENCIMA de todo lo demás, así que necesita contraste propio.
+
+       Se mantiene `backdrop-filter` por el borde y las esquinas redondeadas, pero
+       ya no tiene que cargar con la legibilidad.
+
+       El tema claro lo sobrescribe con `:global()` más abajo. */
+    background: linear-gradient(180deg, #1b222d 0%, #12161d 100%);
     border-radius: 20px;
-    border: 1px solid var(--card-border);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.7);
     overflow: hidden;
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
+  }
+
+  /* `:global()` porque la clase viene de este scope pero el atributo
+     `data-theme` vive en `<html>`: sin global, el selector no llegaría. */
+  :global(:root[data-theme="light"]) .mb-card {
+    background: linear-gradient(180deg, #ffffff 0%, #f4f5f7 100%);
+    border-color: rgba(0, 0, 0, 0.1);
+    box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.28);
   }
 
   .mb-head {
@@ -137,6 +172,37 @@
     padding: 1.1rem 1.25rem 1.25rem;
     max-height: min(70vh, 640px);
     overflow-y: auto;
+  }
+
+  /*
+    Modo "ajustar altura" (Drive): la card es una columna flex de altura completa
+    dentro del viewport y el cuerpo scrollea.
+
+    `flex: 1 1 auto` + `min-height: 0` en el cuerpo es el detalle que hace que
+    funcione: sin `min-height: 0`, un hijo flex no baja de su altura intrínseca y
+    el `overflow-y: auto` no kicks, dejando que la card crezca fuera de pantalla.
+    El `-8px` del padding inferior es para no quedarle hueco abajo cuando el
+    contenido es corto.
+  */
+  .mb-card.mb-alto {
+    max-height: calc(100dvh - 2rem);
+    display: flex;
+    flex-direction: column;
+  }
+  .mb-card.mb-alto .mb-head { flex-shrink: 0; }
+  .mb-card.mb-alto .mb-cuerpo {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Con el panel al alto completo el padding lateral estorba más que ayuda:
+     en un teléfono angosto se pierde ancho útil para el contenido. */
+  @media (max-width: 600px) {
+    .mb-card.mb-alto { max-height: calc(100dvh - 1rem); }
+    .mb-card.mb-alto .mb-cuerpo { padding: 0.85rem 0.85rem 1rem; }
   }
 
   /* On narrow screens the overlay already provides the padding; the card must

@@ -22,7 +22,6 @@
    * cinco pesos visualmente iguales (es lo que hace que un control segmentado
    * pase desapercibido en vez de leerse).
    */
-  import appIcon from "../assets/app-icon.png";
   import { onMount } from "svelte";
   import { syncManager } from "../lib/driveSyncService";
   import { openCloudPanel } from "../lib/cloudPanels.svelte";
@@ -76,8 +75,6 @@
 </script>
 
 <div class="topbar">
-  <img class="tb-logo" src={appIcon} alt="" draggable="false" />
-
   <!-- Páginas. Cada botón es un destino directo: no hay menú que abrir. -->
   <nav class="tb-paginas">
     {#each PAGINAS as p (p.id)}
@@ -189,6 +186,9 @@
     margin-right: 2px;
   }
 
+  /* Sin ícono de la app: los cinco botones son lo que hay que leer, y el logo
+     solo competía por ancho (la barra ya es un ícono de por sí). La identidad
+     sigue en el launcher y en el WelcomePage. */
   .tb-paginas {
     display: flex;
     align-items: center;

@@ -441,7 +441,9 @@
   {abierto}
   titulo={t('cloud.driveTitulo')}
   subtitulo={t('cloud.driveSubtitulo')}
-  ancho="560px"
+  ancho="100%"
+  anchoMaximo="1100px"
+  ajustarAltura
   onCerrar={closeCloudPanel}
 >
   {#if syncStatus.status === 'error' && syncStatus.message}
