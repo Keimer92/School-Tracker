@@ -185,6 +185,9 @@
     contenido es corto.
   */
   .mb-card.mb-alto {
+    /* El overlay deja 1.5rem por lado en escritorio y 0.5rem en móvil (ver la
+       regla en App.css), así que el aire vertical también cambia: se toma el
+       menor de los dos para no cortar la card en pantallas bajas. */
     max-height: calc(100dvh - 2rem);
     display: flex;
     flex-direction: column;

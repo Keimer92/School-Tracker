@@ -1412,6 +1412,9 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'cloud.cargando': 'Cargando...',
   'cloud.sinRespaldos': 'No hay respaldos en Drive. Presiona "Crear respaldo" para subir el primero.',
   'cloud.chipLatest': '⚡ se actualiza al guardar',
+  // Variante corta para móvil: el texto largo, junto al nombre del archivo y la
+  // fecha, desbordaba el renglón entero y empujaba los botones de la fila.
+  'cloud.chipLatestShort': 'auto',
   'cloud.btn.restaurar': 'Restaurar',
   'cloud.notaRespaldos': '💾 Se conservan 2 respaldos: el que se actualiza al guardar y el snapshot más reciente.',
   'cloud.ariaPaneles': 'Paneles de sincronización',

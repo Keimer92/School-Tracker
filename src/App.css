@@ -2077,6 +2077,17 @@ button.cancel:hover {
   padding: 1.5rem;
   z-index: 1000;
 }
+/* En teléfono el padding del overlay se comía 48px de 360 de pantalla (24 de
+   cada lado) y los modales se veían angostos: la card quedaba en 312px aunque su
+   contenido daría para más. Con 0.5rem la card llega al borde y respira sola.
+   El alto del overlay usa `100dvh` para no cortar los modales con ajuste de
+   altura cuando aparece la barra de direcciones del navegador. */
+@media (max-width: 600px) {
+  .modal-overlay {
+    padding: 0.5rem !important;
+    height: 100dvh;
+  }
+}
 
 .modal-content {
   margin: auto;

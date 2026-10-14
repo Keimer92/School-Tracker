@@ -598,7 +598,20 @@
               <div class="fila-meta">
                 <span>{fmtDate(file.modifiedTime || file.createdTime)} · {fmtSize(file.size)}</span>
                 {#if file.name.endsWith('_latest.db')}
-                  <span class="chip-latest">{t('cloud.chipLatest')}</span>
+                  <!--
+                    Indicador INLINE, no un badge. Antes era una píldora con
+                    "se actualiza al guardar" al lado de la fecha: en un teléfono
+                    el texto no entraba, saltaba de línea y empujaba los botones
+                    "Restaurar" fuera de la fila.
+
+                    Ahora es el rayo + una palabra, y a 380px solo queda el rayo
+                    (el significado ya está en la nota de abajo de la lista, y el
+                    `title` lo dice al pasar/tocar). El texto largo sigue en
+                    escritorio, donde hay ancho de sobra.
+                  -->
+                  <span class="chip-latest" title={t('cloud.chipLatest')}>
+                    <span class="cl-rayo">⚡</span><span class="cl-txt">{t('cloud.chipLatestShort')}</span>
+                  </span>
                 {/if}
               </div>
             </div>
@@ -891,15 +904,30 @@
     gap: 6px;
     color: #64748b;
     font-size: 0.65rem;
+    /* `min-width: 0` + wrap: la fecha y el indicador pueden ocupar dos renglones
+       sin desbordar la fila. Sin esto, en un teléfono el contenido se salía del
+       `div` y los botones de la derecha quedaban desalineados. */
+    flex-wrap: wrap;
+    min-width: 0;
   }
+  /* Indicador inline en vez de píldora: sin fondo ni borde se lee como una
+     etiqueta más de la línea, no como un botón, y no compite con "Restaurar". */
   .chip-latest {
-    padding: 1px 6px;
-    border-radius: 999px;
-    background: rgba(34, 197, 94, 0.12);
-    border: 1px solid rgba(34, 197, 94, 0.25);
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
     color: #4ade80;
     font-size: 0.6rem;
     font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .cl-rayo { font-size: 0.68rem; line-height: 1; }
+
+  /* En pantallas angostas queda solo el rayo: es un símbolo, no un texto que
+     haya que leer, y el `title` sigue dando la explicación completa. */
+  @media (max-width: 380px) {
+    .cl-txt { display: none; }
   }
   .fila-acciones { display: flex; gap: 4px; flex-shrink: 0; }
   .lista-nota {

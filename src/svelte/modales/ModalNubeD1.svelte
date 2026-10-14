@@ -203,7 +203,9 @@
   {abierto}
   titulo={t('d1m.titulo')}
   subtitulo={t('cloud.sync.subtitle')}
-  ancho="520px"
+  ancho="100%"
+  anchoMaximo="520px"
+  ajustarAltura
   onCerrar={closeCloudPanel}
 >
   {#if d1Cfg}
