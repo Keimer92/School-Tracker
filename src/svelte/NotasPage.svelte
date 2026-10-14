@@ -3712,7 +3712,7 @@ import { primerColegio } from "../lib/catalogo";
             <thead style="position: sticky; top: 0; z-index: 100;">
               <tr style="background: #1e293b;">
                 <th style="padding: 0.3rem; text-align: center; font-weight: bold; color: #94a3b8; position: sticky; left: 0; z-index: 110; background: #1e293b; border-bottom: 2px solid rgba(255,255,255,0.1); width: 35px;">Nº</th>
-                <th style="padding: 0.3rem; text-align: left; font-weight: bold; color: #94a3b8; position: sticky; left: 35px; z-index: 110; background: #1e293b; border-bottom: 2px solid rgba(255,255,255,0.1); min-width: 130px; max-width: 150px;">{t('notas.col.estudiante')}</th>
+                <th style="padding: 0.3rem; text-align: left; font-weight: bold; color: #94a3b8; position: sticky; left: 35px; z-index: 110; background: #1e293b; border-bottom: 2px solid rgba(255,255,255,0.1); min-width: 170px; width: 200px;">{t('notas.col.estudiante')}</th>
                 {#each indicadoresSeccion as ind}
                   <th colspan={ind.criterios.length + 1} style="padding: 0.2rem; text-align: center; font-weight: bold; border-bottom: 2px solid {ind.activo ? 'rgba(255,255,255,0.1)' : 'rgba(100,116,139,0.25)'};">
                     <div
@@ -3759,7 +3759,7 @@ import { primerColegio } from "../lib/catalogo";
                 <tr class="notas-row" style="border-bottom: 2px solid rgba(255,255,255,0.08);">
                   <td class="sticky-cell student-number" style="padding: 0.3rem; text-align: center; position: sticky; left: 0; z-index: 5; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.65rem;">{index + 1}</td>
                   <td class="sticky-cell student-name" style="padding: 0.3rem; position: sticky; left: 35px; z-index: 5; border-bottom: 1px solid rgba(255,255,255,0.05);">
-                    <div style="font-weight: bold; font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; color: {colorSexo(est.sexo)};">{est.estudianteNombre}</div>
+                    <div style="font-weight: bold; font-size: 0.75rem; color: {colorSexo(est.sexo)}; line-height: 1.25; white-space: normal; overflow-wrap: anywhere; hyphens: auto;">{est.estudianteNombre}</div>
                   </td>
                   {#each indicadoresSeccion as ind}
                     {#each ind.criterios as crit}
