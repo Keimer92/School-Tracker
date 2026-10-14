@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:android": "tauri android dev",
-    "dev:android:hmr": "tauri android dev",
+    "dev:android": "tauri android dev --host localhost",
+    "dev:android:hmr": "tauri android dev --host localhost",
     "dev:win": "tauri dev",
     "check:svelte": "svelte-check --threshold error --fail-on-warnings=false",
     "build": "npm run check:svelte && tsc && vite build",
