@@ -748,6 +748,12 @@ import { primerColegio } from "../lib/catalogo";
   let pendingRefreshOnSave = $state(false);
   let nextRefreshSilent = false;
   let loadId = 0;
+  /**
+   * Último juego de filtros que arrancó una carga (`ano|corte|colegio|
+   * asignatura|grado|seccion`). Ver la guarda en `loadNotas`: evita que el mismo
+   * par dispare dos cargas y se vea "Cargando" dos veces.
+   */
+  let ultimaCargaClave = '';
   let touchStartX = 0;
   let isUndoRedoAction = false;
 
@@ -1328,9 +1334,13 @@ import { primerColegio } from "../lib/catalogo";
 
   async function fetchSecciones() {
     try {
+      const grado = selectedGrado;
       const data: CategoryItem[] = await invoke("get_secciones_by_grado_colegio", {
-        gradoId: selectedGrado, colegioId: selectedColegio, anoLectivoId: selectedAno
+        gradoId: grado, colegioId: selectedColegio, anoLectivoId: selectedAno
       });
+      // El grado pudo cambiar otra vez mientras esperaba la respuesta: si ya no
+      // es el de la petición, el resultado es de otro grado y no debe pisar nada.
+      if (grado !== selectedGrado) return;
       secciones = data;
       if (data.length > 0) {
         const stillExists = data.some(s => s.id === selectedSeccion);
@@ -1338,7 +1348,15 @@ import { primerColegio } from "../lib/catalogo";
       } else selectedSeccion = 0;
       filtersRef = { ano: selectedAno, corte: selectedCorte, colegio: selectedColegio, asignatura: selectedAsignatura, grado: selectedGrado, seccion: selectedSeccion, sexo: selectedSexo };
       await cargarActivosDeSeccion(selectedSeccion);
-      await loadNotas(selectedAno, selectedCorte, selectedColegio, selectedAsignatura, selectedGrado, selectedSeccion);
+      // NO se llama `loadNotas` acá. Este `$effect` es el ÚNICO dueño de esa
+      // carga: la dispara cuando cambian grado o sección.
+      //
+      // Antes se llamaba en ambos lados y al cambiar de grado se veía "Cargando"
+      // dos veces seguidas (dos `loading = true` casi pegados). Peor todavía: la
+      // primera de las dos corría con la sección VIEJA — `fetchSecciones` todavía
+      // no había resuelto — así que pedía notas de un grado con una sección que ya
+      // no le pertenecía, y esa respuesta vieja se pintaba un instante antes de
+      // que llegara la buena.
     } catch (error) { console.error("Error fetching secciones:", error); }
   }
 
@@ -1767,11 +1785,54 @@ import { primerColegio } from "../lib/catalogo";
     else { secciones = []; selectedSeccion = 0; }
   });
 
+  /**
+   * Cambio de GRADO desde el dropdown.
+   *
+   * La sección se invalida en el MISMO gesto, antes de que corran los efectos.
+   * Sin esto, `selectedGrado` cambia y el `$effect` de carga ve la sección
+   * VIEJA (todavía no llegó la nueva de `fetchSecciones`) y dispara `loadNotas`
+   * con un par grado/sección incoherente: se pintaban las notas de una sección
+   * que ya no pertenece al grado elegido, y después se recargaba con la correcta.
+   *
+   * Ponerla en 0 hace que el guard de `loadNotas` (`seccion > 0`) corte la carga
+   * intermedia. La tabla se vacía en vez de mostrar datos de otro grado.
+   */
+  function cambiarGrado(grado: number) {
+    if (grado === selectedGrado) return;
+    localStorage.setItem('notas-last-grado', String(grado));
+    // Orden importante: primero se limpia el par, después se cambia el grado.
+    // Al revés, el efecto vería grado nuevo + sección vieja.
+    selectedSeccion = 0;
+    selectedGrado = grado;
+  }
+
   async function loadNotas(ano: number, corte: number, colegio: number, asignatura: number, grado: number, seccion: number) {
     if (!(ano > 0 && corte > 0 && colegio > 0 && asignatura > 0 && grado > 0 && seccion > 0)) {
       console.debug(`[NotasPage] loadNotas SKIPPED: ano=${ano} corte=${corte} colegio=${colegio} asignatura=${asignatura} grado=${grado} seccion=${seccion}`);
       return;
     }
+    /**
+     * Guarda de deduplicación por juego de filtros.
+     *
+     * Varios effects escriben en estos mismos estados (los de catálogos, el de
+     * secciones, el de la visibilidad) y Svelte los agrupa en un único lote, así
+     * que una sola interacción puede alcanzar a este `$effect` con el MISMO par
+     * ano/corte/colegio/asignatura/grado/seccion dos veces. Cada pasada prendía
+     * `loading` otra vez y se veía el "Cargando" duplicado.
+     *
+     * La guarda es INCONDICIONAL, sin mirar `loading`: si el par es idéntico al
+     * de la carga anterior, es que NINGUNA de las seis dependencias cambió (este
+     * `$effect` solo corre cuando cambia alguna), o sea que repetir la carga no
+     * puede dar un resultado distinto. Y si lo que se repite es el mismo efecto en
+     * el mismo lote, la carga anterior ni siquiera terminó — `loading` ya volvió
+     * a `false` y una guarda que lo mirara dejaría pasar la segunda.
+     *
+     * Un cambio real (otro grado, otra sección…) produce OTRA clave y la carga
+     * sigue. El `loadId` de abajo ya invalida las respuestas que queden atrás.
+     */
+    const clave = `${ano}|${corte}|${colegio}|${asignatura}|${grado}|${seccion}`;
+    if (clave === ultimaCargaClave) return;
+    ultimaCargaClave = clave;
     console.debug(`[NotasPage] loadNotas CALLED: ano=${ano} corte=${corte} colegio=${colegio} asignatura=${asignatura} grado=${grado} seccion=${seccion}`);
     const currentLoadId = ++loadId;
     loading = true;
@@ -1809,6 +1870,17 @@ import { primerColegio } from "../lib/catalogo";
     const seccion = selectedSeccion;
     if (ano > 0 && corte > 0 && colegio > 0 && asignatura > 0 && grado > 0 && seccion > 0) {
       loadNotas(ano, corte, colegio, asignatura, grado, seccion);
+    } else if (grado > 0 && seccion === 0) {
+      // Filtro incompleto (típicamente al cambiar de grado: `cargarGrado` deja la
+      // sección en 0 hasta que `fetchSecciones` responda). Se vacían las filas para
+      // que no queden notas del grado anterior bajo los indicadores nuevos, y NO se
+      // prende `loading`: no hay ninguna carga en curso.
+      loadId++;
+      ultimaCargaClave = '';
+      estudiantes = [];
+      notas = [];
+      indicadores = [];
+      loading = false;
     }
   });
 
@@ -3383,7 +3455,7 @@ import { primerColegio } from "../lib/catalogo";
         <FilterGroup label={t('notas.filtro.grado')} {isMobile}>
           <SelectChip
             value={selectedGrado}
-            onchange={(v) => { selectedGrado = Number(v); localStorage.setItem('notas-last-grado', String(selectedGrado)); }}
+            onchange={(v) => cambiarGrado(Number(v))}
             options={grados.map(g => ({ value: g.id, label: g.nombre }))} />
         </FilterGroup>
 
