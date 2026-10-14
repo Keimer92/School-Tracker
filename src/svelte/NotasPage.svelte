@@ -793,16 +793,55 @@ import { primerColegio } from "../lib/catalogo";
 
   let activeIndicadores = $derived(indicadoresSeccion.filter(i => i.activo));
 
+  /**
+   * Carga los indicadores activos del colegio + sección.
+   *
+   * ⚠️ `idsActivosSeccion` distingue TRES estados, y confundirlos apagaba
+   * columnas sin avisar:
+   *
+   *   `null` → todavía no sabemos (o el filtro está incompleto) → usar el global
+   *   `[]`   → esta sección no tiene NINGUNO activo → todas las columnas apagadas
+   *   `[..]` → la lista real de esta sección
+   *
+   * El backend devuelve `Ok([])` (no `null`) cuando grado/asignatura/corte
+   * llegan en 0, porque su firma es `Vec<i64>` y no tiene cómo expresar "no sé".
+   * Pero `idsActivos` resuelve con `idsActivosSeccion ?? idsActivosPorDefecto`, y
+   * `[] ?? global` devuelve `[]`: o sea, un filtro a medio completar apagaba TODOS
+   * los indicadores y la tabla dejaba de sumar. Como nada más vuelve a poner el
+   * global, solo se recuperaba accionando "Sumar en esta sección" a mano, que es
+   * exactamente lo que reportaste.
+   *
+   * La carrera era real: al cambiar de colegio/grado se vacían los catálogos
+   * (`selectedGrado = 0`, `selectedAsignatura = 0`) y el `$effect` de secciones
+   * dispara esta función justo en esa ventana. Un `[]` envenenado desactiva
+   * columnas que después ya nadie reactiva.
+   *
+   * Por eso acá se filtra: si falta grado, asignatura o corte, NO se pregunta y se
+   * deja `null` (se usa el global). Y una respuesta `[]` se acepta solo si el
+   * filtro estaba completo, que es el único caso en que "ninguno activo" es real.
+   */
   async function cargarActivosDeSeccion(seccionId: number) {
-    if (seccionId <= 0 || selectedColegio <= 0) { idsActivosSeccion = null; return; }
+    if (seccionId <= 0 || selectedColegio <= 0 || selectedGrado <= 0 || selectedAsignatura <= 0 || selectedCorte <= 0) {
+      idsActivosSeccion = null;
+      return;
+    }
+    // Se captura el filtro con el que se pregunta: si el usuario cambia algo
+    // mientras la respuesta viaja, esta ya no describe la pantalla actual.
+    const queried = { colegio: selectedColegio, seccion: seccionId, grado: selectedGrado, asignatura: selectedAsignatura, corte: selectedCorte };
     try {
       const ids = await invoke<number[]>('get_indicadores_activos_colegio_seccion', {
-        colegioId: selectedColegio,
-        seccionId,
-        gradoId: selectedGrado,
-        asignaturaId: selectedAsignatura,
-        corteEvaluativoId: selectedCorte
+        colegioId: queried.colegio,
+        seccionId: queried.seccion,
+        gradoId: queried.grado,
+        asignaturaId: queried.asignatura,
+        corteEvaluativoId: queried.corte
       });
+      if (queried.colegio !== selectedColegio || queried.seccion !== selectedSeccion
+        || queried.grado !== selectedGrado || queried.asignatura !== selectedAsignatura
+        || queried.corte !== selectedCorte) return;
+      // Sin excepciones guardadas para este par, la respuesta es la lista
+      // completa de la sección. Es indistinguible de `[]`, pero ambos casos son
+      // válidos acá porque el filtro ya está completo.
       idsActivosSeccion = ids;
     } catch (e) {
       console.error('[Notas] No se pudieron cargar los activos del colegio/sección:', e);
