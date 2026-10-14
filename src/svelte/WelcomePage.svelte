@@ -21,6 +21,19 @@
   let loading = $state(false);
   let loadingMessage = $state('');
   let errorMsg = $state('');
+  /**
+   * Detalle técnico del fallo de conexión, cuando lo hubo.
+   *
+   * `errorMsg` es el texto amable para el usuario; este es el mensaje crudo que
+   * devuelve el Worker o la capa de red. Se muestran los dos porque el amable
+   * es el mismo para causas muy distintas (timeout, econn, 403, DNS mal) y sin
+   * esto no hay forma de saber cuál falló.
+   *
+   * Es estado aparte, no un anexo de `errorMsg`, para poder limpiarlo sin tocar
+   * el texto principal y para que el `{#if}` del template no dependa de parsear
+   * el mensaje traducido.
+   */
+  let errorMsgTecnico = $state('');
 
   /**
    * La base local ya tiene datos de OTRO maestro.
@@ -238,6 +251,7 @@
   async function handleDriveLogin() {
     loading = true;
     errorMsg = '';
+    errorMsgTecnico = '';
     try {
       const res = await iniciarSesionGoogleConNube({
         onStatus: (m) => { loadingMessage = m; },
@@ -258,10 +272,26 @@
         // `CloudLoginResult` marca la cancelación con `status`, no con una
         // propiedad `cancelled`: preguntar por `res.cancelled` daba siempre
         // undefined y el usuario veía "error desconocido" al cancelar.
-        const motivo = res.status === 'cancelled'
-          ? 'Iniciá sesión con Google para continuar.'
-          : friendlyCloudError(res.error || 'error desconocido').body;
-        errorMsg = motivo;
+        if (res.status === 'cancelled') {
+          errorMsg = 'Iniciá sesión con Google para continuar.';
+          errorMsgTecnico = '';
+          return;
+        }
+        /**
+         * El mensaje amable NO reemplaza al técnico: se muestran los dos.
+         *
+         * Antes se guardaba solo `friendlyCloudError(...).body`, que para
+         * timeout/econn/HTTP ya viene redactado y sin detalle. El resultado era
+         * un "No se pudo conectar con la nube" idéntico para un proxy caído, un
+         * 403 del Worker y un DNS mal escrito, sin ninguna pista de cuál era.
+         *
+         * `errorMsgTecnico` se muestra aparte (como hace `cloudRetryError` en el
+         * reintento) y se limpia apenas arranca un login nuevo, así no queda de
+         * un intento anterior.
+         */
+        errorMsg = friendlyCloudError(res.error || 'error desconocido').body;
+        errorMsgTecnico = res.error || '';
+        console.warn('[Welcome] login sin conexión:', res.status, res.error);
         return;
       }
       // La nube queda configurada con la key autoritativa del Worker antes de
@@ -271,7 +301,12 @@
       loadingMessage = t('welcome.google.nueva');
       await restoreFromDrive();
     } catch (e: any) {
+      // El técnico va en su propio campo, no substituted en `errorMsg`: si el
+      // mensaje es largo o viene en JSON, pisar el texto principal dejaba la
+      // pantalla con un muro de caracteres y sin explicación.
       errorMsg = e?.message || String(e);
+      errorMsgTecnico = e?.stack || String(e);
+      console.warn('[Welcome] handleDriveLogin lanzó:', e);
     } finally {
       loading = false;
       loadingMessage = '';
@@ -282,6 +317,7 @@
     view = 'wizard';
     step = 1;
     errorMsg = '';
+    errorMsgTecnico = '';
     currentInput = '';
   }
 
@@ -296,6 +332,7 @@
   async function irAlWizardTrasAviso() {
     const aviso = errorMsg || 'No encontramos datos previos. Vamos a configurar tu base de datos desde cero.';
     errorMsg = '';
+    errorMsgTecnico = '';
     driveSinRespaldo = false;
     await emit("show-toast", { message: aviso, type: "info" });
     loadingMessage = t('welcome.wizard.preparando');
@@ -1048,6 +1085,12 @@
       </div>
       {#if errorMsg}
         <div class="welcome-error">{errorMsg}</div>
+      {/if}
+      {#if errorMsgTecnico}
+        <details class="welcome-error-detalle">
+          <summary>Detalle técnico</summary>
+          <pre>{errorMsgTecnico}</pre>
+        </details>
       {/if}
       <!-- Aviso de base traspasada: hay datos de otro maestro en esta máquina. -->
       {#if baseConDatosAjenos}
