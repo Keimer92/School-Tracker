@@ -198,12 +198,39 @@ const isConnected = $derived(isDriveSettingsLive(settings));
     if (r.token) {
       sesionFallida = '';
     } else {
-      // `motivo` es `'ok'` cuando hay token, así que acá ya se sabe que no:
-      // el narrowing explícito evita tener que correr un `''` de más.
       sesionFallida = r.motivo === 'ok' ? 'transitorio' : r.motivo;
       reloadSettings();
     }
     return r.token;
+  }
+
+  /**
+   * Credencial de dispositivo de Drive (Android).
+   *
+   * Reemplaza el canje del `serverAuthCode` por tokens. Ese canje no podía pedir
+   * `access_type=offline`, así que Google solo entregaba el refresh token en la
+   * primera autorización y la sesión moría a la hora. Con la credencial de
+   * dispositivo no hay código ni refresh que perder: Play Services reemite sola.
+   */
+  async function pedirTokenNativo(): Promise<{ ok: boolean; accessToken?: string; error?: string }> {
+    if (!isAndroid) return { ok: false, error: 'solo Android' };
+    try {
+      await invoke('gd_request_drive_token');
+    } catch (e) {
+      return { ok: false, error: String(e) };
+    }
+    const deadline = Date.now() + 30000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 500));
+      try {
+        const raw = await invoke<string | null>('gd_take_drive_token_result');
+        if (!raw) continue;
+        return JSON.parse(raw);
+      } catch (e) {
+        return { ok: false, error: String(e) };
+      }
+    }
+    return { ok: false, error: 'timeout esperando la credencial nativa' };
   }
 
   /**
@@ -277,6 +304,7 @@ const isConnected = $derived(isDriveSettingsLive(settings));
         await emit('show-toast', { message: t('cloud.error.timeoutSelector'), type: 'error' });
       }
       return;
+
     }
     setBackAuthInProgress(true);
     try {
@@ -312,13 +340,47 @@ const isConnected = $derived(isDriveSettingsLive(settings));
       return;
     }
     if (authHandled) return;
-    if (!res.serverAuthCode) {
+    // ⚠️ Ya NO se canjea `res.serverAuthCode` por tokens. Ese canje no puede
+    // pedir `access_type=offline`, así que Google solo entregaba el refresh token
+    // en la primera autorización y la sesión moría a la hora.
+    //
+    // Ahora, con la identidad ya resuelta (`res.email`), se pide una credencial
+    // de DISPOSITIVO a Play Services: no hay código ni refresh que perder, y
+    // Google la reemite solo cuando vence.
+    authHandled = true;
+    void vincularConTokenNativo(res.email || settings.googleUserEmail);
+  }
+
+  /**
+   * Guarda la credencial de dispositivo como sesión de Drive.
+   *
+   * El perfil (`email`, nombre, foto) se conserva del sign-in nativo: la
+   * credencial de dispositivo no trae esos datos, y son los que generan el tag
+   * del nombre de archivo en Drive. Sin eso los respaldos se guardarían como
+   * "default" y dejarían de encontrar los anteriores.
+   */
+  async function vincularConTokenNativo(email: string | null) {
+    isAuthLoading = true;
+    const r = await pedirTokenNativo();
+    if (!r.ok || !r.accessToken) {
       isAuthLoading = false;
-      emit('show-toast', { message: '❌ Google no devolvió código de autorización', type: 'error' });
+      authHandled = false;
+      await emit('show-toast', { message: `❌ ${t('cloud.error.credencialDrive')}: ${r.error ?? ''}`, type: 'error' });
       return;
     }
-    authHandled = true;
-    exchangeCode(res.serverAuthCode, '');
+    settings.accessToken = r.accessToken;
+    // Sin refresh token a propósito: en Android la renovación la hace Play
+    // Services. `getValidToken` lo tiene en cuenta y vuelve a pedir la credencial.
+    settings.refreshToken = null;
+    settings.tokenExpiry = Date.now() + 3300 * 1000;
+    if (email) settings.googleUserEmail = email;
+    saveSettings();
+    try {
+      await fetchUserInfo(r.accessToken);
+    } catch { /* el perfil ya está: no es crítico */ }
+    await emit('show-toast', { message: t('cloud.toast.vinculado'), type: 'success' });
+    isAuthLoading = false;
+    await refreshFiles();
   }
 
   async function exchangeCode(code: string, redirectUri: string) {

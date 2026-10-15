@@ -852,31 +852,33 @@ async fn gd_request_drive_token() -> Result<(), String> {
 }
 
 /// Lee (y consume) el último resultado de `gd_request_drive_token`.
+///
+/// Mismo patrón que `gd_take_last_native_result`: el valor vuelve como
+/// `JValue`, hay que bajarlo a `JObject` con `.l()` y recién ahí convertirlo.
 #[tauri::command]
-async fn gd_take_drive_token_result(
-    state: tauri::State<'_, DbState>,
-) -> Result<Option<String>, String> {
-    let _ = &state;
+async fn gd_take_drive_token_result() -> Result<Option<String>, String> {
     #[cfg(target_os = "android")]
     {
         let (vm, activity) = obtain_native_bridge()?;
         let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
-        let value = env
+        let j_val = env
             .call_method(
                 activity.as_obj(),
                 "takeLastDriveTokenResult",
                 "()Ljava/lang/String;",
                 &[],
             )
-            .map_err(|e| format!("Error JNI takeLastDriveTokenResult: {}", e))?;
-        let s = env.new_string("").ok();
-        let _ = s;
-        let result = env
-            .call_method(value, "toString", "()Ljava/lang/String;", &[])
-            .ok()
-            .and_then(|jstr| env.get_string(&jstr.into()).ok())
-            .map(|s| s.into());
-        Ok(result)
+            .map_err(|e| e.to_string())?
+            .l()
+            .map_err(|e| e.to_string())?;
+        if j_val.is_null() {
+            return Ok(None);
+        }
+        let s: String = env
+            .get_string(&jni::objects::JString::from(j_val))
+            .map_err(|e| e.to_string())?
+            .into();
+        Ok(Some(s))
     }
     #[cfg(not(target_os = "android"))]
     {

@@ -1424,6 +1424,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   // Android: el sign-in nativo no puede pedir `access_type=offline`, así que
   // Google no reemite el refresh token si la cuenta ya había autorizado la app.
   'cloud.sinRefresh.titulo': 'La sesión no se puede renovar sola',
+  'cloud.error.credencialDrive': 'No se pudo obtener el permiso de Drive',
   'cloud.sinRefresh.desc': 'Google no entregó un token de renovación, así que esta sesión va a expirar en aproximadamente 1 hora y habrá que volver a vincular Drive. Es un límite del inicio de sesión nativo de Android.',
   'cloud.sinRefresh.reintentar': 'Volver a vincular',
   // Acceso a la nube con la credencial ya guardada, sin pasar por Google.

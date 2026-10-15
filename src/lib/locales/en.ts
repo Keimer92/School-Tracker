@@ -1427,6 +1427,7 @@ to print. It is saved in Documents/SchoolTrackerPro/Instruments.`,
   // Android: the native sign-in cannot request `access_type=offline`, so Google
   // does not re-issue a refresh token if the account already authorized the app.
   'cloud.sinRefresh.titulo': 'The session cannot renew itself',
+  'cloud.error.credencialDrive': 'Could not obtain the Drive permission',
   'cloud.sinRefresh.desc': 'Google did not return a refresh token, so this session will expire in about 1 hour and Drive will have to be linked again. This is a limit of Android native sign-in.',
   'cloud.sinRefresh.reintentar': 'Link again',
   // Cloud access using the already-saved credential, without going through Google.
