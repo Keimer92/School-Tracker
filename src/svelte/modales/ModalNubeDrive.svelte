@@ -88,6 +88,25 @@
  * dependencia es reactiva y el derivado se recalcula al guardar la sesión.
  */
 const isConnected = $derived(isDriveSettingsLive(settings));
+  /**
+   * Rastro de POR QUÉ `isConnected` es falso, visible solo en la pantalla de
+   * vinculación.
+   *
+   * Los cuatro motivos posibles son distinguibles a simple vista: con esto no
+   * hace falta adivinar si el login falló, si el token no llegó, si el refresh
+   * falta o si el vencimiento se calculó como `NaN` (pasa si la respuesta del
+   * endpoint de tokens no trae `expires_in`).
+   */
+  const porQueNoConectado = $derived.by(() => {
+    if (isConnected) return '';
+    if (!settings.accessToken && !settings.refreshToken) return 'sin tokens';
+    if (!settings.accessToken) return 'llegó refresh pero NO access';
+    if (!settings.refreshToken) return 'llegó access pero NO refresh';
+    if (typeof settings.tokenExpiry !== 'number' || Number.isNaN(settings.tokenExpiry)) {
+      return 'tokenExpiry inválido: ' + String(settings.tokenExpiry);
+    }
+    return `expiró hace ${Math.round((Date.now() - settings.tokenExpiry) / 60000)} min`;
+  });
   const isAndroid = /Android/i.test(navigator.userAgent);
 
   function fmtBytes(n: number): string {
@@ -559,6 +578,7 @@ const isConnected = $derived(isDriveSettingsLive(settings));
     <div class="vacio">
       <div class="vacio-ico">☁️</div>
       <p class="vacio-txt">{t('cloud.driveDesc')}</p>
+      <p class="vacio-txt" style="opacity:0.65;font-size:0.68rem;">[dbg] {porQueNoConectado}</p>
       {#if settings.clientId}
         {#if isAuthLoading}
           <div class="conectando">
