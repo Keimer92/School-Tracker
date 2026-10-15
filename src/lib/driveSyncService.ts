@@ -5,7 +5,7 @@ import { markDirty, markAllDirty, markAllClean, hasDirtyTables } from './dirtyTr
 import { d1Conectado } from './d1Connection.svelte';
 import { esAndroid, esLinux, esMacOS, esWindows } from './platform';
 import { t, getLocale } from './i18n.svelte';
-import { fmtFechaHoraNica } from './fecha';
+import { fmtFechaHoraNica, fmtHoraNica } from './fecha';
 
 const STORAGE_KEY = 'schooltracker-google-drive-settings';
 const SYNC_FILE_PREFIX = 'SchoolTracker_Sync';

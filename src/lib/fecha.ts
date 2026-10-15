@@ -69,12 +69,33 @@ export const PM_AM = MERIDIEM;
  * `2026-09-14T10:40:00Z`, o un `Date`.
  */
 export function aFecha(valor: Date | string | number | null | undefined): Date | null {
-  if (valor == null || valor === '') return null;
-  if (valor instanceof Date) return isNaN(valor.getTime()) ? null : valor;
+  return aFechaConHora(valor).d;
+}
 
+/**
+ * Igual que `aFecha`, pero además dice si la entrada TRAÍA hora.
+ *
+ * Existe por un motivo concreto: una entrada solo-fecha (`2026-09-14`) se
+ * materializa a mediodía (12:00) para que el parseo en zona local sea estable.
+ * Sin este aviso, `fmtHoraNica('2026-09-14')` devolvería `12:00 p.m.`, que es
+ * una hora INVENTADA: en la base, asistencia y días sin clases guardan fecha
+ * sin hora, así que cualquier columna de "última sincronización" que se llenara
+ * con eso mostraría mediodía para todo.
+ *
+ * Con `tieneHora: false`, `fmtHoraNica` devuelve '' y quien lo pinte puede
+ * omitir la parte de hora en vez de mentir.
+ */
+export function aFechaConHora(
+  valor: Date | string | number | null | undefined
+): { d: Date | null; tieneHora: boolean } {
+  if (valor == null || valor === '') return { d: null, tieneHora: false };
+  // Un `Date` o un `number` SIEMPRE traen hora: se construyeron con una.
+  if (valor instanceof Date) {
+    return { d: isNaN(valor.getTime()) ? null : valor, tieneHora: true };
+  }
   if (typeof valor === 'number') {
     const d = new Date(valor);
-    return isNaN(d.getTime()) ? null : d;
+    return { d: isNaN(d.getTime()) ? null : d, tieneHora: true };
   }
 
   const s = String(valor).trim();
@@ -86,9 +107,9 @@ export function aFecha(valor: Date | string | number | null | undefined): Date |
       Number(soloFecha[1]),
       Number(soloFecha[2]) - 1,
       Number(soloFecha[3]),
-      12, 12, 0, 0
+      12, 0, 0, 0
     );
-    return isNaN(d.getTime()) ? null : d;
+    return { d: isNaN(d.getTime()) ? null : d, tieneHora: false };
   }
 
   // `YYYY-MM-DD HH:mm(:ss)`: el `T` de ISO no está, `Date` lo rechaza en varios
@@ -105,13 +126,14 @@ export function aFecha(valor: Date | string | number | null | undefined): Date |
       conHora[6] ? Number(conHora[6]) : 0,
       0
     );
-    return isNaN(d.getTime()) ? null : d;
+    return { d: isNaN(d.getTime()) ? null : d, tieneHora: true };
   }
 
   // Cualquier otra cosa (ISO completo con `Z`, o un `number` en string): se
-  // deja que `Date` lo resuelva, que sí sabe de zonas horarias.
+  // deja que `Date` lo resuelva, que sí sabe de zonas horarias. Se supone que
+  // trae hora, porque para eso no es `YYYY-MM-DD` pelado (caso de arriba).
   const d = new Date(s);
-  return isNaN(d.getTime()) ? null : d;
+  return { d: isNaN(d.getTime()) ? null : d, tieneHora: true };
 }
 
 function dos(n: number): string {
@@ -133,8 +155,10 @@ export function fmtFechaNica(valor: Date | string | number | null | undefined, i
  * con dos dígitos porque el estándar local la muestra así.
  */
 export function fmtHoraNica(valor: Date | string | number | null | undefined, idioma: IdiomaFecha = 'es'): string {
-  const d = aFecha(valor);
-  if (!d) return '';
+  const { d, tieneHora } = aFechaConHora(valor);
+  // Sin hora en la entrada NO hay nada que mostrar. Devolver el mediodía que
+  // se usa de relleno para el parseo sería inventar un dato.
+  if (!d || !tieneHora) return '';
   let h = d.getHours();
   const m = dos(d.getMinutes());
   const sufijo = h >= 12 ? MERIDIEM : AM_PM;
@@ -145,9 +169,11 @@ export function fmtHoraNica(valor: Date | string | number | null | undefined, id
 
 /** `14/Sep/2026 · 10:40 p.m.` — el separador es `·` para que no se confunda con el `/` de la fecha. */
 export function fmtFechaHoraNica(valor: Date | string | number | null | undefined, idioma: IdiomaFecha = 'es'): string {
-  const d = aFecha(valor);
+  const { d, tieneHora } = aFechaConHora(valor);
   if (!d) return '';
-  return `${fmtFechaNica(d, idioma)} · ${fmtHoraNica(d, idioma)}`;
+  const fecha = fmtFechaNica(d, idioma);
+  // Sin hora, se muestra solo la fecha en vez de dejar un `·` colgando.
+  return tieneHora ? `${fecha} · ${fmtHoraNica(d, idioma)}` : fecha;
 }
 
 /**
@@ -159,9 +185,10 @@ export function fmtFechaHoraNica(valor: Date | string | number | null | undefine
  * que un archivo y su contenido se lean igual.
  */
 export function fmtParaArchivo(valor: Date | string | number | null | undefined, idioma: IdiomaFecha = 'es'): string {
-  const d = aFecha(valor);
+  const { d, tieneHora } = aFechaConHora(valor);
   if (!d) return '';
-  return `${fmtFechaNica(d, idioma)} ${fmtHoraNica(d, idioma).replace(':', '.')}`;
+  const fecha = fmtFechaNica(d, idioma);
+  return tieneHora ? `${fecha} ${fmtHoraNica(d, idioma).replace(':', '.')}` : fecha;
 }
 
 /** `14-Sep-2026` — solo la fecha, segura para nombres de archivo. */
