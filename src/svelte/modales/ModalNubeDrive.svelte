@@ -178,6 +178,26 @@ const isConnected = $derived(isDriveSessionLive());
 
   async function initGoogleAuth(forceSelectAccount: boolean = false) {
     if (!settings.clientId) { await emit('show-toast', { message: t('cloud.noClientId'), type: 'error' }); return; }
+    /**
+     * `authHandled` se resetea al EMPEZAR cada intento.
+     *
+     * Antes quedaba en `true` para siempre después del primer login exitoso
+     * (se ponía en las líneas del intercambio de código y no lo bajaba nadie).
+     * Como el modal está montado una sola vez en `App.svelte`, el SEGUNDO intento
+     * moría en el acto:
+     *
+     *   1. `gd_take_last_native_result` devuelve el resultado
+     *   2. `handleGoogleNativeResult` → línea `if (authHandled) return;`
+     *   3. sale SIN limpiar `isAuthLoading` y SIN avisar nada
+     *   4. el polling ve `authHandled` y sale por el `break`
+     *   5. el aviso de timeout no se dispara, porque dice `&& !authHandled`
+     *
+     * Resultado: el botón queda en "Conectando" para siempre, sin error. Es el
+     * mismo auto-bloqueo que ya se había corregido una vez en este archivo
+     * (ver AGENTS.md → GOTCHAS del sign-in nativo), regresó por la misma causa:
+     * la flag se sube antes de terminar y nunca se baja.
+     */
+    authHandled = false;
     isAuthLoading = true;
     if (isAndroid) {
       // Native account picker: the app never loses the foreground, which avoids
