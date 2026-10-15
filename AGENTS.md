@@ -328,6 +328,10 @@ src-tauri/gen/               generado (ignorar; no editar a mano — EXCEPCIÓN:
 - **tsconfig** excluye únicamente `src/svelte/GoogleDriveBackup.svelte` (componente legacy de Drive).
 - **Android**: comandos de orientación/PDF/share usan JNI y están tras
   `#[cfg(target_os = "android")]`; en desktop devuelven `Err`/`Ok(())` según caso.
+  La orientación se controla desde `App.svelte`: todas las vistas quedan en
+  retrato salvo Notas, que usa el sensor completo (`SCREEN_ORIENTATION_FULL_SENSOR`)
+  para permitir la tabla en horizontal. `set_orientation` usa el puente JNI
+  inicializado desde `MainActivity`, no `ndk_context`.
 - **Build**: `npm run build` = `tsc && vite build` (estricto: `strict: true`, pero
   `noUnusedLocals/Parameters` están en `false`). Vite build tiene `minify: false`.
 - **Google Drive OAuth**: tokens guardados en `localStorage['schooltracker-google-drive-settings']`.
@@ -975,7 +979,7 @@ Kotlin que **NO son generados por Tauri** — son custom y se commitean a git:
 
 | Archivo | Función |
 |---------|---------|
-| `MainActivity.kt` | Activity principal, Google Sign-In nativo, JNI bridge, PDF/share, `saveToDownloads()` |
+| `MainActivity.kt` | Activity principal, Google Sign-In nativo, JNI bridge, orientación, PDF/share, `saveToDownloads()` |
 | `DescargasSaver.kt` | Guarda archivos en Descargas PÚBLICAS vía `MediaStore.Downloads` (API 29+) sin permisos; API ≤28 copia directa |
 | `AttendancePrefs.kt` | SharedPreferences para alarmas de asistencia |
 | `AttendanceScheduler.kt` | Programación de alarma diaria (AlarmManager) |

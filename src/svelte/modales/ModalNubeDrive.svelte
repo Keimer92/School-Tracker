@@ -151,8 +151,14 @@ const isConnected = $derived(isDriveSessionLive());
    */
   async function getValidToken(): Promise<string | null> {
     const r = await getDriveAccessToken();
-    sesionFallida = r.token ? '' : r.motivo;
-    if (!r.token) reloadSettings();
+    if (r.token) {
+      sesionFallida = '';
+    } else {
+      // `motivo` es `'ok'` cuando hay token, así que acá ya se sabe que no:
+      // el narrowing explícito evita tener que correr un `''` de más.
+      sesionFallida = r.motivo === 'ok' ? 'transitorio' : r.motivo;
+      reloadSettings();
+    }
     return r.token;
   }
 
@@ -688,6 +694,14 @@ const isConnected = $derived(isDriveSessionLive());
 
 <style>
   .mono { font-family: monospace; }
+
+  /* Aviso de sesión temporalmente inalcanzable: ámbar, no rojo. Rojo significa
+     "tu sesión se perdió, hay que entrar de nuevo", y un hueco de red no es eso. */
+  .alerta-info {
+    border-color: rgba(251, 191, 36, 0.3);
+    background: rgba(245, 158, 11, 0.12);
+    color: #fde68a;
+  }
 
   .alerta {
     margin-bottom: 1rem;
