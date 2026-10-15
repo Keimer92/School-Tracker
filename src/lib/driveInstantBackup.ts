@@ -149,6 +149,11 @@ async function run(): Promise<void> {
       if (res.reason === 'no_drive') {
         // Se quedó sin token: el usuario debe vincular Drive otra vez.
         notificarError(t('dib.motivo.revincular'));
+      } else if (res.reason === 'base_vacia') {
+        // La base local no tiene datos. Se AVISA porque si no el usuario cree
+        // que está respaldando y no lo está: es exactamente el caso en el que
+        // un respaldo bueno se perdería.
+        notificarError(t('dib.motivo.baseVacia'));
       }
     }
   } catch (e) {

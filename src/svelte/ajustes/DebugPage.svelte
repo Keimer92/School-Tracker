@@ -602,6 +602,16 @@
           <div><dt>{t('dbg.sesionDrive.cuenta')}</dt><dd>{sesionDrive.email}</dd></div>
           <div><dt>{t('dbg.sesionDrive.escritura')}</dt><dd>{sesionDrive.escritura}</dd></div>
         </dl>
+        <!--
+          Estado del GUARDA "no pisar un respaldo bueno con una base vacía".
+          Es el dato que explica por qué un respaldo no se está haciendo sin que
+          haya error visible: con la base vacía el push se saltea a propósito.
+        -->
+        <p class="dbg-desc" style="margin-top:0.5rem;">
+          {abEstado?.totalUploads === 0 && abEstado?.lastSuccessAt
+            ? t('dbg.guardiaVacia')
+            : ''}
+        </p>
         <p class="dbg-desc" style="margin-top:0.5rem;">{t('dbg.sesionDrive.pista')}</p>
       </div>
 

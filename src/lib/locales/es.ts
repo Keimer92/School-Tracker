@@ -1659,6 +1659,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'dbg.sesionDrive.sinEmail': 'Sin email: los respaldos se guardan como "default"',
   'dbg.sesionDrive.ok': 'Con tag de cuenta',
   'dbg.sesionDrive.tagDefault': '⚠️ Sin tag: no se encontrarán los respaldos anteriores',
+  'dbg.guardiaVacia': 'El respaldo se omite si la base local está vacía, para no pisar el respaldo bueno que ya está en Drive.',
   'dbg.drive.cargando': 'Cargando estado…',
   'dbg.drive.planificador': 'Planificador',
   'dbg.drive.activo': 'Activo',
@@ -1931,6 +1932,10 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'dib.actualizados': '☁️ {n} respaldos actualizados en Google Drive{tam}',
   'dib.errorRespaldar': '⚠️ No se pudo respaldar en Drive: {motivo}',
   'dib.motivo.revincular': 'vuelve a vincular tu cuenta de Google',
+  'dib.motivo.baseVacia': 'tu base local está vacía: no se respaldó para no pisar el respaldo bueno',
+  // El respaldo manual también se frena con una base vacía, y el mensaje tiene
+  // que decirlo: sin esto el usuario cree que respaldó y no lo hizo.
+  'drive.error.baseVacia': 'La base local está vacía. No se creó el respaldo para no pisar el que ya tenías en Drive.',
 
   // ── CalificacionesConfig ──
   'cc_calificaciones.titulo': 'Configuración de Calificaciones',

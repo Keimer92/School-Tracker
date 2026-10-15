@@ -955,6 +955,33 @@ async function uploadDbFile(
  */
 async function pushLatestBackup(): Promise<{ ok: boolean; reason?: string; created?: boolean }> {
   if (!navigator.onLine) return { ok: false, reason: 'offline' };
+  /**
+   * GUARDA: nunca subir una base vacía.
+   *
+   * `pushLatestBackup` SOBRESCRIBE el archivo `_latest.db`, que es el respaldo
+   * bueno que se usa para restaurar en otro equipo. Si la base local quedó vacía
+   * —un restore fallido, un "reiniciar local", un purge— cualquier guardado
+   * posterior lo pisaba con una copia en cero, y ahí se perdía: el respaldo
+   * bueno ya no estaba en ningún lado.
+   *
+   * Se verifica ANTES de gastar una sola petición de API, y también antes de
+   * enviar la snapshot, que es lo que realmente borra el respaldo bueno.
+   *
+   * `is_app_initialized` mira el flag `app_meta.initialized` y, como respaldo,
+   * si hay filas en `ano_lectivo`. Una base recién creada por el asistente ya
+   * tiene años lectivos sembrados, así que un alta legítima no se bloquea.
+   */
+  try {
+    const baseUtilizable = await invoke<boolean>('is_app_initialized');
+    if (!baseUtilizable) {
+      console.warn('[DriveSync] base local vacía: se omite el respaldo para no pisar el bueno');
+      return { ok: false, reason: 'base_vacia' };
+    }
+  } catch (e) {
+    // Si no se puede verificar, se SUBE igual: el riesgo de no respaldar es
+    // peor que el de pisar, y el caso raro es que el comando no exista.
+    console.warn('[DriveSync] no se pudo verificar si la base tiene datos; se sube igual:', e);
+  }
     const token = await getValidToken();
     if (!token) return { ok: false, reason: 'no_drive' };
     const fileName = latestFileName();
@@ -1137,6 +1164,7 @@ export const driveSyncService = {
         throw new Error(
           res.reason === 'offline' ? t('drive.error.sinConexion')
             : res.reason === 'no_drive' ? t('drive.error.noVinculado')
+            : res.reason === 'base_vacia' ? t('drive.error.baseVacia')
             : t('drive.error.crearRespaldo')
         );
       }

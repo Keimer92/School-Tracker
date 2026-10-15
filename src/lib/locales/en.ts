@@ -1638,6 +1638,7 @@ to print. It is saved in Documents/SchoolTrackerPro/Instruments.`,
   'dbg.sesionDrive.sinEmail': 'No email: backups are saved as "default"',
   'dbg.sesionDrive.ok': 'With account tag',
   'dbg.sesionDrive.tagDefault': '⚠️ No tag: previous backups will not be found',
+  'dbg.guardiaVacia': 'The backup is skipped when the local database is empty, so it cannot overwrite the good backup already in Drive.',
   'dbg.drive.cargando': 'Loading state…',
   'dbg.drive.planificador': 'Scheduler',
   'dbg.drive.activo': 'Active',
@@ -1911,6 +1912,10 @@ to print. It is saved in Documents/SchoolTrackerPro/Instruments.`,
   'dib.actualizados': '☁️ {n} backups updated on Google Drive{tam}',
   'dib.errorRespaldar': '⚠️ Could not back up to Drive: {motivo}',
   'dib.motivo.revincular': 'link your Google account again',
+  'dib.motivo.baseVacia': 'your local database is empty: not backed up, to avoid overwriting the good backup',
+  // The manual backup is blocked by an empty database too, and the message has
+  // to say it: otherwise the user believes they backed up and did not.
+  'drive.error.baseVacia': 'The local database is empty. No backup was created, to avoid overwriting the one you already have in Drive.',
 
   // ── CalificacionesConfig ──
   'cc_calificaciones.titulo': 'Grade Configuration',
