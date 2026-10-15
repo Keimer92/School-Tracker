@@ -1939,6 +1939,8 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'dib.motivo.baseVacia': 'tu base local está vacía: no se respaldó para no pisar el respaldo bueno',
   // El respaldo manual también se frena con una base vacía, y el mensaje tiene
   // que decirlo: sin esto el usuario cree que respaldó y no lo hizo.
+  // Encabezado de los reportes PDF: la fecha de emisión va con el formato estandar.
+  'pdf.fechaEmision': 'Fecha de emisión',
   'drive.error.baseVacia': 'La base local está vacía. No se creó el respaldo para no pisar el que ya tenías en Drive.',
 
   // ── CalificacionesConfig ──

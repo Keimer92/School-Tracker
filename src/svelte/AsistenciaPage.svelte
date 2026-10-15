@@ -17,7 +17,8 @@
   import { getLocalDateISOString } from "../lib/dateUtils";
   import { loadAppSettings, onAppSettingsChange } from "../lib/appSettings";
   import { primerColegio } from "../lib/catalogo";
-  import { t, tagLocale, fmtFecha } from "../lib/i18n.svelte";
+  import { t, tagLocale, fmtFecha, getLocale } from "../lib/i18n.svelte";
+import { fmtFechaCorta, fmtFechaLarga, fmtFechaNica, nombreMes } from "../lib/fecha";
   import { ask } from "@tauri-apps/plugin-dialog";
   import { generarPdfAsistencia } from "../lib/asistenciaPdf";
   import type { TablaAsistenciaPdf } from "../lib/asistenciaPdf";
@@ -348,8 +349,15 @@
     d.setDate(d.getDate() + n);
     return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
   }
-  function fmtDM(iso: string): string {
-    return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+  /**
+ * `01/09` -> `01/Sep`.
+ *
+ * Antes era un `slice` crudo sobre el ISO. Pasaba por alto el idioma activo (el
+ * mes siempre salía en inglés porque el slice era del número) y no aplicaba el
+ * formato estándar de la app. Ahora sale del módulo central.
+ */
+function fmtDM(iso: string): string {
+    return fmtFechaCorta(iso, getLocale()) || iso;
   }
 
   interface SemanaOpt { n: number; lunes: string; domingo: string; rango: string }
@@ -2060,17 +2068,17 @@ $effect(() => {
   let seccionNombre = $derived(secciones.find(s => s.id === selectedSeccion)?.nombre || "");
 
   /**
-   * Meses en español SOLO para el PDF, la impresión y el nombre del archivo:
-   * un reporte que va a la dirección del colegio no cambia de idioma con la
-   * app. En pantalla los meses salen de `mesesOptions` (traducidos).
-   */
-  const MESES_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-  function nombreMesEs(m: number): string { return MESES_ES[m - 1] ?? ''; }
-  /** Fecha en texto largo: "01 de Septiembre". */
+ * Meses en texto largo para el encabezado del período y el nombre del archivo.
+ *
+ * Antes eran una tabla fija en español (`MESES_ES`) y el encabezado quedaba en
+ * español aunque la app estuviera en inglés. Ahora salen de `lib/fecha.ts`, que
+ * tiene los dos idiomas. Se mantiene la función local porque el reporte lo
+ * consume en varios puntos y el nombre no cambia.
+ */
+  function nombreMesEs(m: number): string { return nombreMes(m, getLocale(), true); }
+  /** Fecha en texto largo: "1 de Septiembre" (es) / "September 1" (en). */
   function fechaLarga(iso: string): string {
-    if (!iso || iso.length < 10) return iso || '';
-    return `${iso.slice(8, 10)} de ${nombreMesEs(Number(iso.slice(5, 7)))}`;
+    return fmtFechaLarga(iso, getLocale()) || iso || '';
   }
 
   /**
@@ -2231,7 +2239,7 @@ $effect(() => {
           layout: 'fechas',
           // Sin columna "Sexo": el nombre va teñido con el color de sexo. El dato viaja
           // aparte en `sexos` para que el PDF pueda pintar cada fila.
-          headers: ["Estudiante", ...fechasCols.map(f => f.split('-').slice(1).reverse().join('/')), "P", "A", "J"],
+          headers: ["Estudiante", ...fechasCols.map(f => fmtFechaCorta(f, getLocale())), "P", "A", "J"],
           sexos: conSexo.map(est => est.sexo),
           body: conSexo.map(est => {
             const estados = fechasCols.map(f => estadoDelReporte(est, f));
@@ -2254,6 +2262,12 @@ $effect(() => {
 
       const lineas = [`Período ${encabezadoPeriodo}`];
       if (selectedSexo) lineas.push(`Sexo: ${selectedSexo === 'M' ? 'Masculino' : 'Femenino'}`);
+      // Fecha de emisión con el formato estándar (`14/Sep/2026`). Un reporte que
+      // va a la dirección del colegio tiene que decir cuándo se sackó, y con el
+      // mismo formato que el resto de la app, para que no circulen dos formatos
+      // distintos por el mismo colegio.
+      // circulando en el mismo colegio.
+      lineas.push(`${t('pdf.fechaEmision')}: ${fmtFechaNica(new Date(), getLocale())}`);
 
       const bytes = await generarPdfAsistencia(
         { titulo: 'Reporte de Asistencia', lineas },

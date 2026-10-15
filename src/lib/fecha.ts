@@ -44,6 +44,28 @@ const MESES: Record<IdiomaFecha, readonly string[]> = {
   en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
 };
 
+/**
+ * Meses en texto largo, para los encabezados que se leen como frase.
+ *
+ * El PDF de asistencia titula el período "(01 de Septiembre al 30 de
+ * Septiembre)", no con el formato numérico. Los nombres van aparte de las
+ * abreviaturas porque en español el largo y el corto NO derivan uno del otro
+ * (septiembre → `Sep`, no `Sept`), y hay que poder elegir sin condicionales en
+ * cada llamada.
+ */
+const MESES_LARGOS: Record<IdiomaFecha, readonly string[]> = {
+  es: ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+       'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'],
+  en: ['January', 'February', 'March', 'April', 'May', 'June',
+       'July', 'August', 'September', 'October', 'November', 'December'],
+};
+
+/** Nombre del mes, 1-12. `largo` elige entre la abreviatura y el nombre entero. */
+export function nombreMes(mes: number, idioma: IdiomaFecha = 'es', largo = false): string {
+  const lista = largo ? MESES_LARGOS[idioma] : MESES[idioma];
+  return lista[mes - 1] ?? '';
+}
+
 /** Sufijo de meridiem. Igual en ambos idiomas: 12h es 12h. */
 const MERIDIEM = 'p.m.';
 
@@ -205,4 +227,24 @@ export function fmtFechaCorta(valor: Date | string | number | null | undefined, 
   const d = aFecha(valor);
   if (!d) return '';
   return `${d.getDate()}/${MESES[idioma][d.getMonth()]}`;
+}
+
+/**
+ * Fecha en texto largo, para encabezados que se leen como frase.
+ *
+ *   es: `14 de Septiembre`      en: `September 14`
+ *
+ * El artículo va pegado al idioma a propósito: en español es `de`, en inglés no
+ * hay nada entre el mes y el día y el orden se INVIERTE. Meter el `de` siempre
+ * produciría "14 de September" en inglés, que es ilegible para quien lo lea.
+ *
+ * Sin el año a propósito: estos encabezados titulan un período o una hoja, donde
+ * el año ya está en el subtítulo. Para fecha de emisión está `fmtFechaNica`.
+ */
+export function fmtFechaLarga(valor: Date | string | number | null | undefined, idioma: IdiomaFecha = 'es'): string {
+  const d = aFecha(valor);
+  if (!d) return '';
+  const dia = d.getDate();
+  const mes = nombreMes(d.getMonth() + 1, idioma, true);
+  return idioma === 'en' ? `${mes} ${dia}` : `${dia} de ${mes}`;
 }

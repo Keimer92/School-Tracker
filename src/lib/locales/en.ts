@@ -1917,6 +1917,7 @@ to print. It is saved in Documents/SchoolTrackerPro/Instruments.`,
   'dib.motivo.baseVacia': 'your local database is empty: not backed up, to avoid overwriting the good backup',
   // The manual backup is blocked by an empty database too, and the message has
   // to say it: otherwise the user believes they backed up and did not.
+  'pdf.fechaEmision': 'Issue date',
   'drive.error.baseVacia': 'The local database is empty. No backup was created, to avoid overwriting the one you already have in Drive.',
 
   // ── CalificacionesConfig ──

@@ -287,6 +287,8 @@ export function altoFila(ws: any, fila: number, puntos: number): void {
 
 // ── Guardado en disco (Tauri) ────────────────────────────────────────────
 import { colorSexoExport } from "./coloresSexo.svelte";
+import { t, getLocale } from "./i18n.svelte";
+import { fmtFechaNica } from "./fecha";
 
 /** Escribe el libro en `carpeta` con `nombreBase` y devuelve la ruta completa. */
 export async function escribirLibroEnCarpeta(libro: any, carpeta: string, nombreBase: string): Promise<string> {
@@ -440,7 +442,11 @@ export async function crearLibroEstudiantes(opts: OpcionesLibroEstudiantes): Pro
   // ── Resumen ──
   const ws = agregarHoja(wb, nombreHojaSeguro('Resumen', usados), [20, 16, 12, 12, 10]);
   // Portada: colegio (1), año (2), total (3), separador (4), cabecera (5).
-  escribirPortada(ws, `COLEGIO: ${colegio.nombre}`, [`Año lectivo: ${anoNombre}`, `Total de estudiantes: ${total}`], 5);
+  escribirPortada(ws, `COLEGIO: ${colegio.nombre}`, [
+      `Año lectivo: ${anoNombre}`,
+      `Total de estudiantes: ${total}`,
+      `${t('pdf.fechaEmision')}: ${fmtFechaNica(new Date(), getLocale())}`,
+    ], 5);
   const filaCabecera = 5;
   const primeraFila = escribirCabecera(ws, ['Grado', 'Sección', 'Masculino', 'Femenino', 'Total'], filaCabecera);
   let f = primeraFila;
@@ -473,11 +479,15 @@ export async function crearLibroEstudiantes(opts: OpcionesLibroEstudiantes): Pro
   // ── Una hoja por grado, con secciones agrupadas ──
   for (const g of grupos) {
     const hoja = agregarHoja(wb, nombreHojaSeguro(g.nombre, usados), [6, 13, 38, 14]);
-    // Portada: grado (1), colegio·año (2), total (3), separador (4).
+    // Portada: grado (1), colegio·año (2), total (3), fecha (4), separador (5).
     let r = escribirPortada(
       hoja,
       `GRADO: ${g.nombre}`,
-      [`${colegio.nombre} · Año lectivo ${anoNombre}`, `Total: ${g.total} estudiante(s)`],
+      [
+        `${colegio.nombre} · Año lectivo ${anoNombre}`,
+        `Total: ${g.total} estudiante(s)`,
+        `${t('pdf.fechaEmision')}: ${fmtFechaNica(new Date(), getLocale())}`,
+      ],
       4
     );
     if (g.secciones.length === 0) {
