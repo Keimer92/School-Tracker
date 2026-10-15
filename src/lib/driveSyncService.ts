@@ -142,8 +142,35 @@ function getSettings(): DriveSettings | null {
   } catch { return null; }
 }
 
+/**
+ * Avisa a toda la app de que la sesión de Drive cambió (token renovado, sesión
+ * caída o cierre manual).
+ *
+ * Antes el modal de Drive maintainía una COPIA de los settings en su `$state`,
+ * cargada una sola vez al montar. Como `driveSyncService` refresca tokens por su
+ * cuenta (el respaldo automático, el sync) y escribe en `localStorage`, el modal
+ * quedaba con valores viejos: mostraba "conectado" con un `accessToken` que en
+ * realidad ya había vencido, y sus acciones fallaban con 401 sin explicación.
+ *
+ * Con este evento el modal vuelve a leer del almacenamiento cada vez que algo
+ * cambia, así que hay una sola verdad.
+ */
+export function subscribeDriveSession(cb: () => void): () => void {
+  const handler = () => cb();
+  window.addEventListener('drive-session-changed', handler);
+  return () => window.removeEventListener('drive-session-changed', handler);
+}
+
+export function notifyDriveSessionChanged() {
+  window.dispatchEvent(new Event('drive-session-changed'));
+}
+
 function saveSettings(settings: DriveSettings) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  // Toda escritura es un cambio de sesión observable: token renovado, sesión
+  // caída o cierre. El modal de Drive lo escucha para dejar de mostrar un
+  // estado viejo.
+  notifyDriveSessionChanged();
 }
 
 async function refreshAccessToken(): Promise<string | null> {
@@ -208,6 +235,50 @@ export async function ensureDriveSession(): Promise<boolean> {
   }
   const token = await refreshAccessToken();
   return !!token;
+}
+
+/**
+ * Token de acceso válido, renovándolo si hace falta. **ÚNICO dueño** del ciclo
+ * de vida del token: el modal de Drive la usa en vez de su propia copia.
+ *
+ * Devuelve además POR QUÉ no se pudo, para que la UI distinga:
+ *  · `'transitorio'` → sin red o error de Google pasajero. La sesión SIGUE viva:
+ *    no hay que pedir un re-login, solo reintentar. Mostrar "desconectado" acá
+ *    hacía que el usuario perdiera su Drive por un hueco de cobertura.
+ *  · `'revocada'`    → `invalid_grant`/`401`: la sesión ya no existe y hay que
+ *    volver a iniciar sesión. Es el único caso en que se limpia el token.
+ *  · `'sin-refresh'` → no hay `refreshToken` (nunca hubo o se desconectó).
+ */
+export async function getDriveAccessToken(): Promise<{ token: string | null; motivo: 'ok' | 'transitorio' | 'revocada' | 'sin-refresh' }> {
+  const settings = getSettings();
+  if (!settings) return { token: null, motivo: 'sin-refresh' };
+  // Un margen de 2 minutos evita renewar en el medio de una subida larga.
+  if (settings.accessToken && settings.tokenExpiry && settings.tokenExpiry > Date.now() + 120000) {
+    return { token: settings.accessToken, motivo: 'ok' };
+  }
+  const token = await refreshAccessToken();
+  if (token) return { token, motivo: 'ok' };
+  const post = getSettings();
+  // `refreshAccessToken` solo limpia el token en el rechazo definitivo; si sigue
+  // cargado, fue un fallo pasajero y la sesión sigue en pie.
+  if (!post?.accessToken && post?.refreshToken) return { token: null, motivo: 'revocada' };
+  if (!post?.refreshToken) return { token: null, motivo: 'sin-refresh' };
+  return { token: null, motivo: 'transitorio' };
+}
+
+/**
+ * ¿La sesión de Drive está realmente activa?
+ *
+ * No alcanza con `!!accessToken`: ese string sobrevive una hora después de
+ * expirar y la UI seguía mostrando "conectado" mientras la API devolvía 401 en
+ * cada llamada. Ahora además del refresh token se mira el vencimiento, con el
+ * mismo margen de 2 minutos que usa `getDriveAccessToken`.
+ */
+export function isDriveSessionLive(): boolean {
+  const settings = getSettings();
+  if (!settings?.accessToken || !settings.refreshToken) return false;
+  if (!settings.tokenExpiry) return false;
+  return settings.tokenExpiry > Date.now() + 120000;
 }
 
 /**

@@ -1415,6 +1415,12 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   // Variante corta para móvil: el texto largo, junto al nombre del archivo y la
   // fecha, desbordaba el renglón entero y empujaba los botones de la fila.
   'cloud.chipLatestShort': 'auto',
+  // Avisos de sesión de Drive. Se distinguen porque en Android el WebView se
+  // suspende en segundo plano y un fallo de redrenews la sesión a la fuerza si se
+  // lo trata como "desconectado".
+  'cloud.sesion.transitoria': 'Sin conexión con Google. Tu sesión sigue activa: se reintentará automáticamente.',
+  'cloud.sesion.revocada': 'La sesión de Google venció. Volvé a iniciar sesión para seguir usando Drive.',
+  'cloud.sesion.sinRefresh': 'No hay una sesión de Google guardada. Iniciá sesión para conectar Drive.',
   'cloud.btn.restaurar': 'Restaurar',
   'cloud.notaRespaldos': '💾 Se conservan 2 respaldos: el que se actualiza al guardar y el snapshot más reciente.',
   'cloud.ariaPaneles': 'Paneles de sincronización',

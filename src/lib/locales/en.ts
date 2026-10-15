@@ -1418,6 +1418,12 @@ to print. It is saved in Documents/SchoolTrackerPro/Instruments.`,
   // Short variant for mobile: the long text, next to the file name and the date,
   // overflowed the whole row and pushed the row's buttons out.
   'cloud.chipLatestShort': 'auto',
+  // Drive session notices. They are told apart because on Android the WebView is
+  // suspended in the background, and treating a network blip as "disconnected"
+  // would drop a session that is still valid.
+  'cloud.sesion.transitoria': 'No connection to Google. Your session is still active; it will be retried automatically.',
+  'cloud.sesion.revocada': 'Your Google session expired. Sign in again to keep using Drive.',
+  'cloud.sesion.sinRefresh': 'No Google session is stored. Sign in to connect Drive.',
   'cloud.btn.restaurar': 'Restore',
   'cloud.notaRespaldos': '💾 Two backups are kept: the one updated after every save and the most recent snapshot.',
   'cloud.ariaPaneles': 'Sync panels',

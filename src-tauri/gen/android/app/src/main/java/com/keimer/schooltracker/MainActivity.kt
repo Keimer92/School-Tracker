@@ -73,6 +73,17 @@ class MainActivity : TauriActivity() {
 
   private external fun initNativeBridge()
 
+  fun setOrientationFromWeb(orientation: String) {
+    val requestedOrientation = when (orientation) {
+      "portrait" -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+      "any" -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+      else -> return
+    }
+    runOnUiThread {
+      setRequestedOrientation(requestedOrientation)
+    }
+  }
+
   fun takeLastGoogleAuthResult(): String? {
     val value = lastNativeAuthResult
     lastNativeAuthResult = null

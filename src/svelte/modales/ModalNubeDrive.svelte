@@ -15,7 +15,13 @@
   import { invoke } from '@tauri-apps/api/core';
   import { emit, listen } from '@tauri-apps/api/event';
   import { ask } from '@tauri-apps/plugin-dialog';
-  import { driveSyncService, type DriveFile } from '../../lib/driveSyncService';
+  import {
+    driveSyncService,
+    type DriveFile,
+    getDriveAccessToken,
+    isDriveSessionLive,
+    subscribeDriveSession,
+  } from '../../lib/driveSyncService';
   import { isInstantBackupEnabled, setInstantBackupEnabled } from '../../lib/driveInstantBackup';
   import { syncManager, type SyncStatus } from '../../lib/syncService';
   import { navegadorLoginArg } from '../../lib/oauthBrowser';
@@ -63,7 +69,16 @@
   let imgError = $state(false);
   let authHandled = false;
 
-  const isConnected = $derived(!!settings.accessToken);
+  /**
+ * ¿La sesión está REALMENTE viva?
+ *
+ * Antes era `!!settings.accessToken`, que solo miraba que el string no estuviera
+ * vacío. Ese string sobrevive una hora después de expirar, así que el modal
+ * seguía mostrando "conectado" mientras la API de Drive devolvía 401 en cada
+ * llamada: conectado y muerto a la vez. Ahora delega en
+ * `isDriveSessionLive()`, que además mira el vencimiento.
+ */
+const isConnected = $derived(isDriveSessionLive());
   const isAndroid = /Android/i.test(navigator.userAgent);
 
   function fmtBytes(n: number): string {
@@ -115,42 +130,44 @@
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
   }
 
-  async function refreshAccessToken(): Promise<string | null> {
-    if (!settings.refreshToken) return null;
-    const clientSecret = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
-    if (!clientSecret) return null;
-    try {
-      const resp = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          client_id: settings.clientId,
-          client_secret: clientSecret,
-          refresh_token: settings.refreshToken,
-          grant_type: 'refresh_token',
-        }),
-      });
-      if (!resp.ok) {
-        // Drop the expired token so the UI renders as "disconnected"
-        settings.accessToken = '';
-        settings.tokenExpiry = 0;
-        saveSettings();
-        return null;
-      }
-      const data = await resp.json();
-      settings.accessToken = data.access_token;
-      settings.tokenExpiry = Date.now() + (data.expires_in * 1000);
-      if (data.refresh_token) settings.refreshToken = data.refresh_token;
-      saveSettings();
-      return data.access_token;
-    } catch { return null; }
+  /**
+   * Token de acceso para las llamadas de ESTE modal.
+   *
+   * Antes este archivo tenía su propia copia de `refreshAccessToken` y
+   * `getValidToken`, y la política era la OPUESTA a la de `driveSyncService`:
+   *
+   *   · ante CUALQUIER respuesta no-OK (incluidas 429/5xx) vaciaba el token, así
+   *     que un error pasajero de Google cerraba la sesión y obligaba a un
+   *     re-login sin motivo;
+   *   · ante un fallo de red (el caso típico en Android cuando la app queda en
+   *     segundo plano y el WebView se suspende) NO vaciaba nada, dejando un
+   *     `accessToken` vencido y lleno: la UI seguía diciendo "conectado" y cada
+   *     llamada a la API devolvía 401. De ahí el "se desconectó solo pero marca
+   *     conectado y el modal no responde".
+   *
+   * Ahora no hay lógica duplicada: se delega en `driveSyncService`, que ya
+   * distingue transitorio de definitivo, y se guarda el `motivo` para poder
+   * explicarle al usuario qué pasó en vez de dejar el modal mudo.
+   */
+  async function getValidToken(): Promise<string | null> {
+    const r = await getDriveAccessToken();
+    sesionFallida = r.token ? '' : r.motivo;
+    if (!r.token) reloadSettings();
+    return r.token;
   }
 
-  async function getValidToken(): Promise<string | null> {
-    if (settings.accessToken && settings.tokenExpiry && settings.tokenExpiry > Date.now() + 120000) {
-      return settings.accessToken;
-    }
-    return await refreshAccessToken();
+  /**
+   * Motivo del último fallo de sesión, para el aviso. Vacío = todo bien.
+   * `transitorio` NO es "desconectado": la sesión sigue viva y conviene reintentar.
+   */
+  let sesionFallida = $state<'' | 'transitorio' | 'revocada' | 'sin-refresh'>('');
+
+  /** Vuelve a leer `localStorage`: el estado local pudo quedar viejo. */
+  function reloadSettings() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) settings = { ...settings, ...JSON.parse(raw) };
+    } catch {}
   }
 
   async function initGoogleAuth(forceSelectAccount: boolean = false) {
@@ -316,6 +333,18 @@
         // real last backup in the cloud. It is mirrored into the global state so
         // the sidebar card and chips can show moment + size.
         driveSyncService.setLastUploadFromDrive(syncFiles[0] ?? null);
+      } else {
+        /**
+         * Antes no había `else`: sin token la lista quedaba vacía y el modal
+         * parecía muerto, sin error ni spinner. Ahora se distingue el motivo,
+         * porque no es lo mismo perder la sesión que no tener red:
+         *
+         *  · `transitorio` → la sesión sigue viva, solo faltó red. Decir
+         *    "desconectado" haría rehacer un login que no hace falta.
+         *  · `revocada` / `sin-refresh` → hay que volver a iniciar sesión.
+         */
+        syncFiles = [];
+        sesionFallida = sesionFallida || 'transitorio';
       }
     } catch (e) {
       await emit('show-toast', { message: t('cloud.error.refrescar', { e: mensajeError(e) }), type: 'error' });
@@ -381,6 +410,18 @@
     cargoAlAbrir = true;
     void refreshFiles();
   });
+
+  /**
+   * El token se renueva SOLO desde `driveSyncService` (respaldos, sync, refresh
+   * del propio modal). Como esas escrituras ocurren en otro módulo, este `$state`
+   * se quedaba viejo: había que volver a leer `localStorage` para enterarse.
+   * Sin esto, el modal seguía mostrando "conectado" con un token vencido mucho
+   * después de que el servicio lo hubiera renovado.
+   */
+  $effect(() => subscribeDriveSession(() => {
+    reloadSettings();
+    if (abierto && isDriveSessionLive()) { cargoAlAbrir = false; }
+  }));
 
   onMount(() => {
     const unsub = syncManager.subscribe((state) => { syncStatus = state; });
@@ -450,6 +491,24 @@
     <div class="alerta">
       <div class="alerta-titulo">⚠️ {t('cloud.errorSync.titulo')}</div>
       <div>{syncStatus.message}</div>
+    </div>
+  {/if}
+
+  <!--
+    Aviso de sesión caída o temporalmente inalcanzable.
+
+    Sin esto el modal quedaba mudo: la lista salía vacía sin explicación, con
+    el mismo aspecto que "no tenés respaldos". Y el caso de red, que en Android
+    pasa cada vez que la app vuelve del segundo plano, NO es una sesión perdida:
+    decirlo como tal empujaba a un re-login innecesario.
+  -->
+  {#if sesionFallida === 'transitorio'}
+    <div class="alerta alerta-info">
+      <div class="alerta-titulo">📡 {t('cloud.sesion.transitoria')}</div>
+    </div>
+  {:else if sesionFallida === 'revocada' || sesionFallida === 'sin-refresh'}
+    <div class="alerta">
+      <div class="alerta-titulo">⚠️ {t('cloud.sesion.revocada')}</div>
     </div>
   {/if}
 

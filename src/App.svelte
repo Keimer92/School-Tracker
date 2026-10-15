@@ -110,6 +110,14 @@
     document.documentElement.classList.toggle("is-android", isAndroid);
   });
 
+  $effect(() => {
+    if (!isAndroid) return;
+    const orientation = initialized === true && activeTab === "notas" ? "any" : "portrait";
+    void invoke("set_orientation", { orientation }).catch(error => {
+      console.error("[Orientation] No se pudo actualizar la orientación:", error);
+    });
+  });
+
   function checkMobile() {
     isMobile = window.innerWidth <= 768 || /Android/i.test(navigator.userAgent);
     isAndroid = /Android/i.test(navigator.userAgent);

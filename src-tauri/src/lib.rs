@@ -423,28 +423,19 @@ async fn set_orientation(_app_handle: tauri::AppHandle, _orientation: String) ->
     #[cfg(target_os = "android")]
     {
         use jni::objects::JValue;
-        let orientation_value = match _orientation.as_str() {
-            "portrait" => 1,
-            "landscape" => 0,
-            "any" => 4,
-            _ => -1,
-        };
-        unsafe {
-            let ctx = ndk_context::android_context();
-            let vm_ptr = ctx.vm();
-            let activity_ptr = ctx.context();
-            let vm = jni::JavaVM::from_raw(vm_ptr as *mut _).map_err(|e| e.to_string())?;
-            let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
-            let activity = jni::objects::JObject::from_raw(activity_ptr as *mut _);
-            let _ = env
-                .call_method(
-                    activity,
-                    "setRequestedOrientation",
-                    "(I)V",
-                    &[JValue::Int(orientation_value)],
-                )
-                .map_err(|e| e.to_string())?;
+        if !matches!(_orientation.as_str(), "portrait" | "any") {
+            return Err(format!("Orientación no válida: {}", _orientation));
         }
+        let (vm, activity) = obtain_native_bridge()?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        let mode = env.new_string(_orientation).map_err(|e| e.to_string())?;
+        env.call_method(
+            activity.as_obj(),
+            "setOrientationFromWeb",
+            "(Ljava/lang/String;)V",
+            &[JValue::Object(&mode)],
+        )
+        .map_err(|e| e.to_string())?;
     }
     Ok(())
 }
