@@ -2090,6 +2090,22 @@ async fn gd_cancel_oauth() -> Result<(), String> {
     Ok(())
 }
 
+/// Cierra la app. La usa el flujo de auto-actualización en Windows: el instalador
+/// NSIS no puede sobrescribir el `.exe` mientras está en uso, así que hay que
+/// cerrar el proceso antes de lanzar el instalador.
+///
+/// ⚠️ `@tauri-apps/api` (2.11.x) NO exporta `app.exit()`, y el plugin `process`
+/// no está en las dependencias: por eso el cierre va por un comando Rust.
+///
+/// `app.exit()` termina el proceso de inmediato, así que el `Ok(())` de abajo
+/// casi nunca llega a ejecutarse: es intencional, no un error.
+#[tauri::command]
+async fn gd_salir_app(app: tauri::AppHandle) -> Result<(), String> {
+    println!("[App] gd_salir_app: cerrando para ejecutar el instalador");
+    app.exit(0);
+    Ok(())
+}
+
 /// Snapshot consistente de la base ACTIVA, escrito en el directorio temporal
 /// del sistema y con nombre FIJO (se sobrescribe en cada llamada).
 ///
