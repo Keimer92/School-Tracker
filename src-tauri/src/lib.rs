@@ -824,6 +824,66 @@ async fn gd_start_native_signin(server_client_id: String) -> Result<(), String> 
     }
 }
 
+/// Pide una credencial de dispositivo para Drive (Android).
+///
+/// Reemplaza el canje del `serverAuthCode`: con esa vía Google solo entregaba el
+/// `refresh_token` en la primera autorización, así que la sesión moría a la hora.
+/// `GoogleAuthUtil.getToken` usa autorización a nivel de sistema, que Play
+/// Services reemite sola cuando vence.
+///
+/// El resultado NO vuelve por acá: la Activity lo emite como evento
+/// `drive-token-result` y además lo deja en `take_last_drive_token_result` (take),
+/// igual que el sign-in, para sobrevivir a una recarga del WebView.
+#[tauri::command]
+async fn gd_request_drive_token() -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        let (vm, activity) = obtain_native_bridge()?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        env.call_method(activity.as_obj(), "requestDriveToken", "()V", &[])
+            .map_err(|e| format!("Error JNI requestDriveToken: {}", e))?;
+        println!("[DriveAuth] requestDriveToken invocado");
+        Ok(())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        Err("La credencial nativa de Drive solo está disponible en Android".to_string())
+    }
+}
+
+/// Lee (y consume) el último resultado de `gd_request_drive_token`.
+#[tauri::command]
+async fn gd_take_drive_token_result(
+    state: tauri::State<'_, DbState>,
+) -> Result<Option<String>, String> {
+    let _ = &state;
+    #[cfg(target_os = "android")]
+    {
+        let (vm, activity) = obtain_native_bridge()?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        let value = env
+            .call_method(
+                activity.as_obj(),
+                "takeLastDriveTokenResult",
+                "()Ljava/lang/String;",
+                &[],
+            )
+            .map_err(|e| format!("Error JNI takeLastDriveTokenResult: {}", e))?;
+        let s = env.new_string("").ok();
+        let _ = s;
+        let result = env
+            .call_method(value, "toString", "()Ljava/lang/String;", &[])
+            .ok()
+            .and_then(|jstr| env.get_string(&jstr.into()).ok())
+            .map(|s| s.into());
+        Ok(result)
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        Ok(None)
+    }
+}
+
 /// Pide el permiso POST_NOTIFICATIONS (Android 13+) mostrando el diálogo
 /// nativo del sistema. Se invoca en la primera ejecución (WelcomePage).
 #[tauri::command]
@@ -2627,6 +2687,8 @@ update_colegio,
             set_attendance_silenced_today,
             dismiss_attendance_today,
             gd_start_native_signin,
+            gd_request_drive_token,
+            gd_take_drive_token_result,
             gd_request_notification_permission,
             gd_take_last_native_result,
             gd_battery_status,

@@ -164,6 +164,8 @@ commands.allow = [
     "set_attendance_silenced_today",
     "dismiss_attendance_today",
     "gd_start_native_signin",
+    "gd_request_drive_token",
+    "gd_take_drive_token_result",
     "gd_request_notification_permission",
     "gd_take_last_native_result",
     "gd_battery_status",

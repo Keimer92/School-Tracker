@@ -785,6 +785,88 @@
   /** `true` si el resync con la nube terminó bien. */
   let nubeSincronizada = $state(false);
 
+  // ── Acceso a la nube SIN Google ──
+  //
+  // El `schoolKey` es todo lo que hace falta para hablar con Cloudflare: es un
+  // string que viaja en el header `X-School-Key` y el Worker lo rutea por KV. Es
+  // decir, Cloudflare NO depende de Google para nada que no sea el alta inicial.
+  //
+  // Ese key se guarda en DOS lugares, y la diferencia importa acá:
+  //
+  //   · `d1_config` (dentro del .db)      → se pierde si borraste la base
+  //   · perfil de cuenta (localStorage)    → SOBREVIVE perder el .db
+  //
+  // Por eso se busca en el perfil primero: si perdiste la base por un Formatear o
+  // un "limpiar datos" de Android, seguís pudiendo volver a entrar con la nube
+  // sin pasar por Google.
+  let credencialNube = $state<{ schoolKey: string; workerUrl: string; email: string } | null>(null);
+
+  async function detectarCredencialNube() {
+    // 1) Perfil en localStorage (sobrevive a la pérdida del .db).
+    try {
+      const p = getProfile(getCurrentEmail());
+      if (p?.schoolKey) {
+        credencialNube = { schoolKey: p.schoolKey, workerUrl: p.workerUrl || DEFAULT_WORKER, email: getCurrentEmail() || '' };
+        return;
+      }
+    } catch { /* ignorable */ }
+    // 2) `d1_config` dentro del .db, por si el perfil no está.
+    try {
+      const cfg = await invoke<{ workerUrl?: string; schoolKey?: string } | null>('d1_get_config');
+      if (cfg?.schoolKey) {
+        credencialNube = { schoolKey: cfg.schoolKey, workerUrl: cfg.workerUrl || DEFAULT_WORKER, email: '' };
+      }
+    } catch { /* ignorable */ }
+  }
+
+  /**
+   * Restaura desde Cloudflare con la credencial YA GUARDADA, sin pasar por
+   * Google.
+   *
+   * Esta es la ruta que hace que Cloudflare no dependa de Google: si el
+   * dispositivo ya tuvo un alta, volver a entrar es un `d1_restore_from_cloud` y
+   * nada más. Antes, la única forma de recuperar la base era iniciar sesión con
+   * Google, lo que ataba la copia de seguridad de tu trabajo a que Google
+   * estuviera disponible y tu cuenta estuviera bien.
+   */
+  async function continuarConNubeGuardada() {
+    const cred = credencialNube;
+    if (!cred) return;
+    loading = true;
+    errorMsg = '';
+    errorMsgTecnico = '';
+    showCloudRetry = false;
+    loadingMessage = t('welcome.nube.restaurando');
+    try {
+      // Re-aplicar la config: si la base se perdió, `d1_config` también, y sin
+      // esto el restorecorrería contra un namespace vacío.
+      await invoke('d1_save_config', { workerUrl: cred.workerUrl, schoolKey: cred.schoolKey });
+      loadingMessage = t('welcome.nube.descargando');
+
+      await conTope(
+        async () => {
+          await invoke('d1_restore_from_cloud');
+          const hasData = await invoke<boolean>('is_app_initialized');
+          if (hasData) { await entrarALaApp(); return; }
+          // El Worker respondió bien pero la base llegó vacía. Es una respuesta
+          // CONCLUYENTE de que no hay nada que recuperar, no un fallo transitorio.
+          await irAlWizardTrasAviso();
+        },
+        40_000,
+        'la restauración desde la nube no respondió'
+      );
+      if (!appIniciada) await entrarALaApp().catch((e) => console.warn('[Welcome] entrarALaApp de emergencia fallo:', e));
+    } catch (e: any) {
+      const m = typeof e === 'string' ? e : (e?.message || String(e));
+      // Se ofrecen alternativas reales (reintentar, Google, Drive, wizard) en
+      // vez de dejar al usuario clavado en el spinner.
+      cloudRetryError = m;
+      showCloudRetry = true;
+    }
+    loading = false;
+    loadingMessage = '';
+  }
+
   async function entrarALaApp() {
     console.warn('[Welcome] set_app_initialized...');
     await invoke('set_app_initialized');
@@ -1026,6 +1108,10 @@
   onMount(() => {
     syncManager.subscribe((s) => { downloadProgress = s.downloadProgress ?? null; });
     void detectarBaseConDatos();
+    // ¿Hay credencial de nube ya guardada? Si la hay, aparece la vía de entrada
+    // SIN Google. Es una llamada a un comando local y otra a localStorage: no
+    // toca la red, así que no retrasa el primer render.
+    void detectarCredencialNube();
   });
 </script>
 
@@ -1060,6 +1146,30 @@
         {/if}
       </div>
       <div class="welcome-cards" class:android={isAndroidMobile}>
+        <!--
+          0. Volver a entrar con la nube YA configurada, sin Google.
+
+          Va PRIMERA y solo aparece si este dispositivo tiene un `schoolKey`
+          guardado. Es la vía que hace que Cloudflare no dependa de Google:
+          `d1_restore_from_cloud` habla con el Worker por header y listo. Antes,
+          la única forma de recuperar la base era pasar por Google, lo que ataba
+          tu copia de seguridad a que Google estuviera disponible.
+        -->
+        {#if credencialNube}
+          <button class="welcome-card card-google" class:android={isAndroidMobile} onclick={() => continuarConNubeGuardada()} disabled={loading}>
+            <div class="welcome-card-icon">☁️</div>
+            <div class="welcome-card-body">
+              <h3>{t('welcome.cardGuardada.title')}</h3>
+              <p>{t('welcome.cardGuardada.desc')}</p>
+              <span class="welcome-card-tags">
+                {#if credencialNube.email}<span class="welcome-tag">{credencialNube.email}</span>{/if}
+                <span class="welcome-tag">{t('welcome.cardGuardada.tagSinGoogle')}</span>
+              </span>
+            </div>
+            <div class="welcome-card-arrow">→</div>
+          </button>
+        {/if}
+
         <!-- 1. Google + restaurar el último respaldo de Drive -->
         <button class="welcome-card card-google" class:android={isAndroidMobile} onclick={() => handleDriveLogin()} disabled={loading}>
           <div class="welcome-card-icon">📥</div>

@@ -350,13 +350,68 @@ export async function ensureDriveAccountEmail(): Promise<boolean> {
   return false;
 }
 
+/**
+ * Credencial de dispositivo de Drive (solo Android).
+ *
+ * El sign-in nativo por `requestServerAuthCode` no puede pedir
+ * `access_type=offline`, así que Google solo entregaba `refresh_token` en la
+ * primera autorización: la sesión moría a la hora y había que revincular. Con
+ * `GoogleAuthUtil.getToken` no hay canje de código ni refresh token que perder —
+ * Play Services reemite la credencial cuando vence, sola.
+ *
+ * Se cachea el resultado en `d1_config`… no: en el mismo `localStorage` de Drive,
+ * para no cambiar la base ni el esquema. Solo Android; en escritorio la vía sigue
+ * siendo el refresh token de OAuth de cliente web.
+ */
+async function tokenNativoAndroid(): Promise<string | null> {
+  if (!/Android/i.test(navigator.userAgent)) return null;
+  const { invoke } = await import('@tauri-apps/api/core');
+  try { await invoke('gd_request_drive_token'); } catch (e) {
+    console.warn('[DriveSync] no se pudo pedir la credencial nativa:', e);
+    return null;
+  }
+  // `getToken` es bloqueante con red, así que puede tardar. Se sondea con el
+  // mismo patrón que usa el sign-in (evento + take por JNI), y con tope para no
+  // dejar la llamada colgada si algo falla del lado nativo.
+  const deadline = Date.now() + 30000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 500));
+    try {
+      const raw = await invoke<string | null>('gd_take_drive_token_result');
+      if (!raw) continue;
+      const res = JSON.parse(raw);
+      if (!res?.ok) {
+        console.warn('[DriveSync] la credencial nativa falló:', res?.error);
+        return null;
+      }
+      const settings = getSettings();
+      if (settings) {
+        settings.accessToken = res.accessToken;
+        settings.tokenExpiry = Date.now() + ((res.expiresInSec || 3300) * 1000);
+        // Sin refresh token: en Android la renovación la hace Play Services.
+        settings.refreshToken = null;
+        saveSettings(settings);
+      }
+      return res.accessToken;
+    } catch (e) {
+      console.warn('[DriveSync] no se pudo leer la credencial nativa:', e);
+    }
+  }
+  console.warn('[DriveSync] la credencial nativa no llegó a tiempo');
+  return null;
+}
+
 async function getValidToken(): Promise<string | null> {
   const settings = getSettings();
   if (!settings) return null;
   if (settings.accessToken && settings.tokenExpiry && settings.tokenExpiry > Date.now() + 120000) {
     return settings.accessToken;
   }
-  return await refreshAccessToken();
+  // Refresh token (escritorio, o Android con una sesión antigua que lo tenga).
+  const porRefresh = await refreshAccessToken();
+  if (porRefresh) return porRefresh;
+  // Sin refresh token, y en Android: credencial de dispositivo.
+  return await tokenNativoAndroid();
 }
 
 /**

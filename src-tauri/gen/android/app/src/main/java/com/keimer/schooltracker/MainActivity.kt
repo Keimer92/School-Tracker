@@ -35,12 +35,14 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.auth.GoogleAuthUtil
 import com.google.android.gms.common.api.Scope
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ProcessLifecycleOwner
 import org.json.JSONObject
 import java.io.File
 import java.util.Calendar
+import java.util.concurrent.Executors
 
 class MainActivity : TauriActivity() {
   private var webView: WebView? = null
@@ -56,6 +58,12 @@ class MainActivity : TauriActivity() {
 
     @Volatile
     var lastNativeAuthResult: String? = null
+
+    /** Resultado del último pedido de credencial de Drive (ver `requestDriveToken`).
+     *  Se guarda aparte del de sign-in porque son dos flujos distintos: uno
+     *  identifica al usuario, el otro autoriza el acceso a Drive. */
+    @Volatile
+    var lastDriveTokenResult: String? = null
 
     @Volatile
     var isForeground: Boolean = false
@@ -87,6 +95,84 @@ class MainActivity : TauriActivity() {
   fun takeLastGoogleAuthResult(): String? {
     val value = lastNativeAuthResult
     lastNativeAuthResult = null
+    return value
+  }
+
+  // ── Autorización NATIVA de Drive (credential de dispositivo) ──
+  //
+  // Reemplaza al canje del `serverAuthCode` por tokens. Con `requestServerAuthCode`
+  // no hay forma de pedir `access_type=offline`, así que Google solo entregaba el
+  // `refresh_token` en la PRIMERA autorización: en Android la sesión moría a la
+  // hora y había que revincular cada vez.
+  //
+  // `GoogleAuthUtil.getToken` no usa el canje de código en absoluto: pide una
+  // credencial de DISPOSITIVO, que Google Play Services autoriza a nivel de
+  // sistema (igual que hace la app de Drive) y reemite solo cuando vence. Por eso
+  // no hay refresh token que se pierda: cuando el access expira, se vuelve a
+  // llamar y vuelve a salir.
+  //
+  // Requisitos ya cumplidos: el package y el SHA-1 están registrados en Google
+  // Cloud (sin eso, Play Services responde 10 / DEVELOPER_ERROR). No requiere
+  // ninguna declaración nueva en el AndroidManifest.
+  //
+  // Es una API deprecada a favor de `AuthorizationClient` (Google Identity
+  // Services), que quedó afuera a propósito: exige una declaración de API en el
+  // manifest que no se pudo verificar al momento de escribir esto, y acertar mal
+  // ahí hace crashear la app al arrancar. El cambio a la moderna, cuando se
+  // confirme el requisito, es contenido en esta función.
+  private val driveTokenExecutor = Executors.newSingleThreadExecutor()
+  private val DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
+
+  fun requestDriveToken() {
+    // Sin cuenta de Google en el dispositivo no hay credencial que emitir: hay
+    // que pasar antes por el selector nativo.
+    val account = GoogleSignIn.getLastSignedInAccount(this)
+    if (account == null) {
+      emitDriveTokenResult("""{"ok":false,"error":"sin cuenta de Google en el dispositivo"}""")
+      return
+    }
+    // `getToken` ES BLOQUEANTE (hace red): en el hilo principal lanzaría
+    // NetworkOnMainThreadException. Por eso el executor.
+    driveTokenExecutor.execute {
+      try {
+        val token = GoogleAuthUtil.getToken(this, account, DRIVE_SCOPE)
+        // Las credenciales de dispositivo duran ~1 hora. Se acota a 55 minutos
+        // para que el margen de refresco de 2 min del frontend caiga siempre acá
+        // y renueve antes de que Google la considere vencida.
+        val json = JSONObject().apply {
+          put("ok", true)
+          put("accessToken", token)
+          put("expiresInSec", 3300)
+        }
+        emitDriveTokenResult(json.toString())
+      } catch (e: Exception) {
+        android.util.Log.e("DriveAuth", "getToken falló: ${e.message}")
+        val json = JSONObject().apply {
+          put("ok", false)
+          put("error", e.message?.replace("\"", "'") ?: "sin token de Drive")
+        }
+        emitDriveTokenResult(json.toString())
+      }
+    }
+  }
+
+  private fun emitDriveTokenResult(json: String) {
+    lastDriveTokenResult = json
+    val escaped = json.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n")
+    val js = """
+      (function(){
+        try { if (window.__TAURI__ && window.__TAURI__.event) { window.__TAURI__.event.emit('drive-token-result', JSON.parse('$escaped')); } } catch(e) {}
+        try { window.dispatchEvent(new CustomEvent('drive-token-result', { detail: JSON.parse('$escaped') })); } catch(e) {}
+      })();
+    """.trimIndent()
+    webView?.post {
+      webView?.evaluateJavascript(js, null)
+    }
+  }
+
+  fun takeLastDriveTokenResult(): String? {
+    val value = lastDriveTokenResult
+    lastDriveTokenResult = null
     return value
   }
 
