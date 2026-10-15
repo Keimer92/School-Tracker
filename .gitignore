@@ -105,3 +105,19 @@ cloudflare-sync/.wrangler/
 # contienen la schoolKey de la nube. NUNCA commitear.
 *.key
 schooltracker.key
+
+# --- Credenciales de firma de Android (NUNCA commitear) ---
+#
+# `keystore.properties` ya estaba ignorado por `src-tauri/gen/android/.gitignore`,
+# pero el keystore BINARIO (`keimer.keystore`) NO lo estaba y terminó
+# versionado. Un keystore de release en el repo permite firmar updates de la
+# app: cualquiera con acceso de lectura podría publicar una versión "oficial"
+# que el usuario instalaría creyendo que es del desarrollador. Sus SHA-1 ya
+# están registrados en Google Cloud Console, así que no se puede simplemente
+# regenerar sin dar de alta las claves nuevas.
+#
+# En CI se reconstruye desde secrets (ver `.github/workflows/release.yaml`).
+*.jks
+*.keystore
+keystore.properties
+key.properties

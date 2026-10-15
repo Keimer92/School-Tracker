@@ -1,30 +1,116 @@
 name: Build and Release
 
+# ── Se dispara al hacer push a `main`, NO al subir un tag ──
+#
+# Antes el trigger era `push: tags: 'v*'`, que obliga a subir un tag a mano y
+# además se desincroniza de la app: la versión de `tauri.conf.json` nunca se
+# comparaba con el tag, así que era posible publicar `v1.2.0` con una app que
+# todavía decía `1.1.5`, sin que nada avisara.
+#
+# Ahora el push a `main` dispara el pipeline y el primer job decide:
+#   · la versión de `tauri.conf.json` es IGUAL al último tag -> no hace nada
+#   · es DISTINTA -> crea el tag, publica la release y compila
+# Es decir, la release sigue al archivo, que es de donde sale el número que ve
+# el usuario al instalar.
 on:
   push:
-    tags:
-      - 'v*' # Se activa al subir un tag como v1.0.0, v1.2.1, etc.
+    branches: [main]
+  # Se conserva el disparo manual por tag para publicar un build exacto sin
+  # esperar un push. El job `prepare` es idempotente: si el tag ya existe, lo
+  # reutiliza en vez de fallar al volver a crearlo.
+  workflow_dispatch:
+
+# `softprops/action-gh-release` crea la release y sube los assets. Sin este
+# permiso el paso falla en los repos donde el GITHUB_TOKEN por defecto es de
+# solo lectura.
+permissions:
+  contents: write
+
+# No se cancela una release a medio subir: dos builds escribiendo los mismos
+# assets se pisan. `cancel-in-progress: false` deja que la primera termine.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  create-release:
+  # ── Detecta el cambio de versión y crea el tag ──
+  prepare:
+    name: Detectar cambio de versión
     runs-on: ubuntu-latest
     outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      release: ${{ steps.check.outputs.release }}
+      version: ${{ steps.check.outputs.version }}
+      tag: ${{ steps.check.outputs.tag }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      # `fetch-depth: 0` es OBLIGATORIO: sin el historial completo no hay tags y
+      # la comparación contra el último tag da siempre "no hay ninguno", lo que
+      # haría publicar una release en cada push.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: check
+        name: Comparar versión con el último tag
+        run: |
+          VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          TAG="v$VERSION"
+          # `--sort=-v:refname` ordena por versión, no lexicográficamente:
+          # sin esto "v1.9.0" sería "mayor" que "v1.10.0".
+          LATEST=$(git tag --list 'v[0-9]*' --sort=-v:refname | head -n 1)
+          echo "version en tauri.conf.json : $VERSION"
+          echo "ultimo tag de release      : ${LATEST:-(ninguno)}"
+
+          if [ -z "$LATEST" ] || [ "$TAG" != "$LATEST" ]; then
+            echo "Hay cambio de versión: se publica $TAG"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "La versión no cambió: no se publica nada"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Crear y subir el tag
+        if: steps.check.outputs.release == 'true'
+        run: |
+          # Si el tag ya existe (disparo manual, o push duplicado) se REUTILIZA.
+          # Reintentarlo con `git tag` abortaría el pipeline entero.
+          if git rev-parse "refs/tags/${{ steps.check.outputs.tag }}" >/dev/null 2>&1; then
+            echo "El tag ${{ steps.check.outputs.tag }} ya existe: se reutiliza"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.check.outputs.tag }}"
+          git push origin "${{ steps.check.outputs.tag }}"
+
+  # ── Release ──
+  #
+  # Se crea ANTES de compilar a propósito: si un build falla, la release ya
+  # existe con las notas de cambios y se puede re-subir el artefacto. Al revés,
+  # un build fallido dejaría una release sin nada.
+  create-release:
+    name: Crear release
+    needs: prepare
+    if: needs.prepare.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Create GitHub Release
-        id: create_release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: ${{ needs.prepare.outputs.tag }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # --- COMPILACIÓN PARA WINDOWS ---
+  # ── Windows ──
   build-windows:
-    needs: create-release
+    name: Compilar Windows
+    needs: [prepare, create-release]
+    if: needs.prepare.outputs.release == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,10 +125,17 @@ jobs:
         uses: dtolnay/rust-action@stable
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
+      # Vite INLINEA estas variables en el bundle al compilar. Sin ellas el
+      # ejecutable sale con el `client_id` de Google vacío y tanto el Sign-In
+      # como Drive fallan en la release publicada.
       - name: Build Windows App
-        run: npm run tauri build # O el comando de compilación correspondiente para Windows
+        run: npm run tauri build
+        env:
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+          VITE_GOOGLE_CLIENT_SECRET: ${{ secrets.VITE_GOOGLE_CLIENT_SECRET }}
+          VITE_D1_WORKER_URL: ${{ secrets.VITE_D1_WORKER_URL }}
 
       - name: Upload Windows Artifacts to Release
         uses: softprops/action-gh-release@v2
@@ -50,13 +143,15 @@ jobs:
           files: |
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/nsis/*.exe
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ needs.prepare.outputs.tag }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # --- COMPILACIÓN PARA ANDROID ---
+  # ── Android ──
   build-android:
-    needs: create-release
+    name: Compilar Android
+    needs: [prepare, create-release]
+    if: needs.prepare.outputs.release == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,11 +165,21 @@ jobs:
       - name: Setup Java (JDK 17)
         uses: actions/setup-java@v4
         with:
-          distribution: 'templ'
+          distribution: 'temurin'
           java-version: '17'
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+
+      # NDK explícito. `build.gradle.kts` no declara `ndkVersion`, así que el
+      # Android Gradle Plugin descarga la que él quiera: funciona, pero cada
+      # runner puede agarrar una distinta y los fallos de link aparecen sin
+      # relación con el cambio que los provocar. Fijarla hace la compilación
+      # reproducible y más rápida (queda cacheada).
+      - name: Install Android NDK and CMake
+        run: sdkmanager "ndk;26.1.10909125" "cmake;3.22.1"
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
 
       - name: Install Rust stable & Android targets
         uses: dtolnay/rust-action@stable
@@ -82,10 +187,32 @@ jobs:
           targets: aarch64-linux-android, armv7-linux-androideabi, i686-linux-android, x86_64-linux-android
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
+      # `keystore.properties` está en el .gitignore de `gen/android` (contiene
+      # contraseñas), así que no existe en el runner. `build.gradle.kts` lo lee
+      # con `?: ""`, o sea que sin este paso `storeFile` queda vacío y el
+      # APK release sale sin firmar: no instala, y aunque instale, la
+      # actualización sobre una versión firmada con otra clave falla.
+      - name: Reconstruir credenciales de firma
+        run: |
+          cat > src-tauri/gen/android/app/keystore.properties <<EOF
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=keimer.keystore
+          EOF
+
+      # NO invocar `./gradlew assembleRelease` directo: falla con
+      # "A problem occurred starting process 'npm.bat'" porque el PATH que
+      # Gradle hereda no incluye npm. Hay que pasar por el CLI de Tauri, que
+      # arma el PATH y corre el bundling completo.
       - name: Build Android App (APK / AAB)
-        run: npm run tauri android build # Ajusta según tu framework (Flutter/Tauri)
+        run: npm run tauri android build
+        env:
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+          VITE_GOOGLE_CLIENT_SECRET: ${{ secrets.VITE_GOOGLE_CLIENT_SECRET }}
+          VITE_D1_WORKER_URL: ${{ secrets.VITE_D1_WORKER_URL }}
 
       - name: Upload Android Artifacts to Release
         uses: softprops/action-gh-release@v2
@@ -93,6 +220,6 @@ jobs:
           files: |
             src-tauri/gen/android/app/build/outputs/apk/release/*.apk
             src-tauri/gen/android/app/build/outputs/bundle/release/*.aab
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ needs.prepare.outputs.tag }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
