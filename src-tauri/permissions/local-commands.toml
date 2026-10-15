@@ -189,6 +189,7 @@ commands.allow = [
     "d1_clear_config",
     "d1_reset_device_id",
     "d1_remote_stats",
+    "d1_push_en_espera",
     "contar_filas_sincronizables",
     "d1_status",
     "d1_sync_all",

@@ -251,6 +251,22 @@ fn limpiar_push_fallidos(conn: &rusqlite::Connection) {
     );
 }
 
+/// ¿Está armado el freno de reintentos (quota de D1 agotada o push fallido)?
+///
+/// Se expone como comando porque hay decisiones de FRONTEND que dependen de él:
+/// tras restaurar un respaldo de Drive, el `WelcomePage` decide si reconciliar
+/// la nube. Si el freno está activo, reconciliar solo gastaría cuota en un push
+/// que va a fallar igual, así que tiene que poder consultarlo antes.
+///
+/// `D1Config` NO expone `push_retry_after` a propósito: son campos de
+/// configuración que edita el usuario, y este es estado interno del freno. Por
+/// eso va en un comando aparte en vez de agregarlo al struct serializado.
+#[tauri::command]
+pub fn d1_push_en_espera(state: tauri::State<'_, DbState>) -> Result<bool, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    Ok(push_en_espera(&conn).is_some())
+}
+
 /// ¿Estamos dentro de la ventana de espera del freno?
 fn push_en_espera(conn: &rusqlite::Connection) -> Option<String> {
     let hasta: Option<String> = conn

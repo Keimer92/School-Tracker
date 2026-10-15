@@ -685,6 +685,33 @@
       // Aviso si el respaldo quedó más viejo que la última sincronización D1.
       const cfg = await invoke<any>('d1_get_config').catch(() => null);
       const d1LastSync = cfg?.lastSync || null;
+      /**
+       * ¿El respaldo de Drive es MÁS NUEVO que la última sincronización de la nube?
+       *
+       * Es el caso inverso al aviso de abajo, y decide si reconciliar D1 tiene
+       * sentido. Si el respaldo de Drive es más nuevo, la nube está atrasada por
+       * definición: un merge solo podría traer filas viejas de la nube hacia
+       * la base buena que acabamos de restaurar, y un push completo gastaría
+       * cuota para subir datos que el propio Drive ya tiene.
+       *
+       * `last_sync` se lee del `.db` YA RESTAURADO (el pull de Drive sobrescribe
+       * el archivo), así que es "cuándo se sincronizó la nube en el momento en
+       * que se hizo el respaldo" — un proxy razonable de qué tan atrasada está.
+       *
+       * Si `last_sync` es null no se puede comparar: se deja el resync correr,
+       * porque "no saber" no es lo mismo que "saber que está atrasada".
+       */
+      let driveMasNuevoQueNube = false;
+      if (d1LastSync && restaurado.modified) {
+        const driveTime = Date.parse(restaurado.modified);
+        const d1Time = Date.parse(d1LastSync.replace(' ', 'T') + 'Z');
+        if (!isNaN(d1Time) && !isNaN(driveTime)) {
+          // Margen de 1 min: los timestamps de Drive y del Worker tienen
+          // precisión de segundos y el reloj local puede arrastrar unos
+          // segundos; sin el margen, un empate technical disparaba el push.
+          driveMasNuevoQueNube = driveTime > d1Time + 60_000;
+        }
+      }
       if (d1LastSync && restaurado.modified) {
         const driveTime = Date.parse(restaurado.modified);
         const d1Time = Date.parse(d1LastSync.replace(' ', 'T') + 'Z');
