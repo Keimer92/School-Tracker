@@ -7,6 +7,7 @@
   import { setBackAuthInProgress, registerBackHandler } from "../lib/androidBack";
   import { iniciarSesionGoogleConNube } from "../lib/cloudLogin";
   import { getProfile, getCurrentEmail } from "../lib/accountProfiles";
+  import { importarKeyDesdeArchivo, conectarConKeyManual } from "../lib/d1KeyImport";
   import appIcon from "../assets/app-icon.png";
   import BrowserPicker from "./BrowserPicker.svelte";
   import LanguagePicker from "./LanguagePicker.svelte";
@@ -34,6 +35,40 @@
    * el mensaje traducido.
    */
   let errorMsgTecnico = $state('');
+
+  // ── Vista de Cloudflare, SEPARADA de Drive ──
+  //
+  // Antes la nube no tenía tarjeta propia: solo existía como *fallback* dentro
+  // del flujo de Drive (`retryCloudRestore` cuando el Drive venía vacío). Eso
+  // mezclaba dos servicios que no dependen uno del otro y hacía que un problema
+  // en Drive pareciera un problema de la nube.
+  //
+  // Ahora son dos entradas independientes:
+  //   · Cloudflare → D1, con la `schoolKey` (guardada, `.key` o escrita a mano)
+  //   · Drive      → respaldo de archivo, con Google
+  //
+  // Y en ninguno de los dos hace falta Google para recuperar: la `schoolKey` es
+  // la credencial, y Google solo interviene en el alta inicial de Drive.
+  let viewNube = $state(false);
+  /** Datos para conectar a mano cuando no hay credencial guardada ni archivo .key. */
+  let keyManual = $state('');
+  let workerManual = $state('');
+
+  async function conectarDesdeViewNube() {
+    const sk = keyManual.trim();
+    if (!sk) {
+      errorMsg = t('welcome.nube.faltaClave');
+      return;
+    }
+    const wu = workerManual.trim() || DEFAULT_WORKER;
+    const ok = await conectarConKeyManual(wu, sk);
+    if (!ok) return;
+    viewNube = false;
+    // La credencial recién guardada habilita la restauración directa.
+    await detectarCredencialNube();
+    await continuarConNubeGuardada();
+  }
+
 
   /**
    * La base local ya tiene datos de OTRO maestro.
@@ -1147,30 +1182,36 @@
       </div>
       <div class="welcome-cards" class:android={isAndroidMobile}>
         <!--
-          0. Volver a entrar con la nube YA configurada, sin Google.
+          1. CLOUDFLARE — servicio propio, sin Google.
 
-          Va PRIMERA y solo aparece si este dispositivo tiene un `schoolKey`
-          guardado. Es la vía que hace que Cloudflare no dependa de Google:
-          `d1_restore_from_cloud` habla con el Worker por header y listo. Antes,
-          la única forma de recuperar la base era pasar por Google, lo que ataba
-          tu copia de seguridad a que Google estuviera disponible.
+          Antes la nube no tenía entrada propia: solo era un fallback dentro del
+          flujo de Drive. Eso mezclaba dos servicios independientes y hacía que
+          un problema de uno pareciera del otro. Ahora la tarjeta abre una vista
+          con las tres vías para llegar al namespace:
+
+            · credencial ya guardada → restaurar directo (un toque)
+            · archivo .key          → equipo nuevo, sin Google
+            · pegar la clave a mano → si no tenés el archivo
+
+          En las tres, la `schoolKey` es la credencial. Google no aparece.
         -->
-        {#if credencialNube}
-          <button class="welcome-card card-google" class:android={isAndroidMobile} onclick={() => continuarConNubeGuardada()} disabled={loading}>
-            <div class="welcome-card-icon">☁️</div>
-            <div class="welcome-card-body">
-              <h3>{t('welcome.cardGuardada.title')}</h3>
-              <p>{t('welcome.cardGuardada.desc')}</p>
-              <span class="welcome-card-tags">
-                {#if credencialNube.email}<span class="welcome-tag">{credencialNube.email}</span>{/if}
-                <span class="welcome-tag">{t('welcome.cardGuardada.tagSinGoogle')}</span>
-              </span>
-            </div>
-            <div class="welcome-card-arrow">→</div>
-          </button>
-        {/if}
+        <button class="welcome-card card-google" class:android={isAndroidMobile} onclick={() => { viewNube = true; errorMsg = ''; }} disabled={loading}>
+          <div class="welcome-card-icon">☁️</div>
+          <div class="welcome-card-body">
+            <h3>{t('welcome.cardNube.title')}</h3>
+            <p>{t('welcome.cardNube.desc')}</p>
+            <span class="welcome-card-tags">
+              {#if credencialNube}
+                <span class="welcome-tag">{t('welcome.cardNube.tagGuardada')}</span>
+              {/if}
+              <span class="welcome-tag">{t('welcome.cardNube.tagSinGoogle')}</span>
+            </span>
+          </div>
+          <div class="welcome-card-arrow">→</div>
+        </button>
 
-        <!-- 1. Google + restaurar el último respaldo de Drive -->
+        <!-- 2. Google Drive: respaldo de archivo. Servicio aparte de la nube. -->
+
         <button class="welcome-card card-google" class:android={isAndroidMobile} onclick={() => handleDriveLogin()} disabled={loading}>
           <div class="welcome-card-icon">📥</div>
           <div class="welcome-card-body">
@@ -1230,6 +1271,87 @@
              accesibles desde la portada, así que solo alcanza con volver. -->
         <button class="welcome-link" onclick={() => { driveSinRespaldo = false; errorMsg = ''; }}>{t("welcome.wizard.volver")}</button>
       {/if}
+    </div>
+
+  {:else if viewNube}
+    <!--
+      Vista de CLOUDFLARE. Deliberadamente aparte de la de Drive: son dos
+      servicios sin relación, con credenciales distintas y modos de falla
+      distintos. Mezclarlos hacía que un Drive vacío pareciera "la nube no
+      funciona" y empujara a un login con Google innecesario.
+    -->
+    <div class="welcome-container wizard-container">
+      <button class="welcome-back" onclick={() => { viewNube = false; errorMsg = ''; }}>{t("welcome.wizard.volverBoton")}</button>
+
+      <div style="text-align:center;margin:1rem 0 1.5rem;">
+        <div style="font-size:2.5rem;">☁️</div>
+        <h1 class="welcome-title">{t('welcome.nube.vistaTitulo')}</h1>
+        <p class="welcome-subtitle">{t('welcome.nube.vistaSubtitulo')}</p>
+      </div>
+
+      {#if errorMsg}<div class="welcome-error">{errorMsg}</div>{/if}
+      {#if errorMsgTecnico}
+        <details class="welcome-error-detalle">
+          <summary>Detalle técnico</summary>
+          <pre>{errorMsgTecnico}</pre>
+        </details>
+      {/if}
+
+      <!-- Vía 1: credencial ya guardada. Es la del uso normal. -->
+      {#if credencialNube}
+        <div class="welcome-card" style="border-left:3px solid #22c55e;margin-bottom:1rem;cursor:default;">
+          <div class="welcome-card-body">
+            <h3>{t('welcome.nube.tieneClave')}</h3>
+            <p>{credencialNube.email || t('welcome.nube.sinEmailGuardado')}</p>
+          </div>
+        </div>
+        <button class="welcome-card card-google" class:android={isAndroidMobile} onclick={() => continuarConNubeGuardada()} disabled={loading}>
+          <div class="welcome-card-icon">⤓</div>
+          <div class="welcome-card-body">
+            <h3>{t('welcome.nube.restaurar')}</h3>
+            <p>{t('welcome.nube.restaurarDesc')}</p>
+          </div>
+          <div class="welcome-card-arrow">→</div>
+        </button>
+      {/if}
+
+      <!-- Vía 2: archivo .key. Para un equipo nuevo, sin pasar por Google. -->
+      <button class="welcome-card card-manual" class:android={isAndroidMobile}
+        onclick={async () => {
+          const actual = await invoke<any>('d1_get_config').catch(() => null);
+          const ok = await importarKeyDesdeArchivo({ actual: actual?.schoolKey ? { workerUrl: actual.workerUrl, schoolKey: actual.schoolKey } : null });
+          if (!ok) return;
+          await detectarCredencialNube();
+          viewNube = false;
+          await continuarConNubeGuardada();
+        }}
+        disabled={loading}>
+        <div class="welcome-card-icon">🔑</div>
+        <div class="welcome-card-body">
+          <h3>{t('welcome.nube.importarKey')}</h3>
+          <p>{t('welcome.nube.importarKeyDesc')}</p>
+        </div>
+        <div class="welcome-card-arrow">→</div>
+      </button>
+
+      <!-- Vía 3: pegar la clave a mano, para cuando no hay archivo. -->
+      <div class="category-card" style="margin-top:1rem;padding:1.1rem;">
+        <h3 style="margin:0 0 0.35rem;font-size:0.95rem;color:#e2e8f0;">{t('welcome.nube.manualTitulo')}</h3>
+        <p style="margin:0 0 0.85rem;font-size:0.8rem;color:#94a3b8;">{t('welcome.nube.manualDesc')}</p>
+        <input
+          class="obs-inline"
+          placeholder={t('welcome.nube.manualPhClave')}
+          bind:value={keyManual}
+          style="margin-bottom:0.5rem;" />
+        <input
+          class="obs-inline"
+          placeholder={t('welcome.nube.manualPhWorker')}
+          bind:value={workerManual}
+          style="margin-bottom:0.85rem;" />
+        <button class="primary" onclick={conectarDesdeViewNube} disabled={loading} style="width:100%;">
+          {t('welcome.nube.manualBoton')}
+        </button>
+      </div>
     </div>
 
   {:else if view === 'wizard'}

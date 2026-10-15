@@ -20,6 +20,7 @@
   import { onMount } from 'svelte';
   import { d1SyncService, d1SyncManager, SYNC_PERIODICO_MIN, type D1Config } from '../../lib/d1SyncService';
   import { invalidateD1Cache, setD1Connected } from '../../lib/syncService';
+  import { importarKeyDesdeArchivo } from '../../lib/d1KeyImport';
   import { d1Conectado } from '../../lib/d1Connection.svelte';
   import { isCloudPanelOpen, closeCloudPanel } from '../../lib/cloudPanels.svelte';
   import { t, tagLocale } from '../../lib/i18n.svelte';
@@ -86,63 +87,24 @@
    */
   async function importarKey() {
     if (isImporting) return;
-    let ruta: string | null = null;
-    try {
-      ruta = await open({
-        title: t('d1m.importTitulo'),
-        filters: [{ name: t('d1m.filtro'), extensions: ['key', 'json'] }],
-        multiple: false,
-      });
-    } catch (e) {
-      await emit('show-toast', { message: t('d1m.error.dialogo', { e: String(e) }), type: 'error' });
-      return;
-    }
-    if (!ruta || typeof ruta !== 'string') return;
-
     isImporting = true;
     try {
-      const b64 = await invoke<string>('gd_read_file_base64', { path: ruta });
-      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-      const texto = new TextDecoder().decode(bytes);
-
-      let cfg: any;
-      try { cfg = JSON.parse(texto); }
-      catch { throw new Error(t('d1m.error.formato')); }
-      if (!cfg?.workerUrl || !cfg?.schoolKey) throw new Error(t('d1m.error.formato'));
-
-      // Anti-mix guard: when a connection already exists and the file points at
-      // a DIFFERENT cloud, replacing it silently leaves the old cursors and
-      // device id mixed with the new data. Ask first, and on accept wipe the
-      // config (fresh device id + zeroed cursors).
-      if (d1Cfg && (d1Cfg.workerUrl !== cfg.workerUrl || d1Cfg.schoolKey !== cfg.schoolKey)) {
-        const ok = await ask(t('d1m.ask.reemplazarMsg'), {
-          title: t('d1m.ask.reemplazarTitulo'),
-          kind: 'warning',
-          okLabel: t('d1m.ask.reemplazarOk'),
-          cancelLabel: t('comun.cancelar'),
-        });
-        if (!ok) return;
-        await d1SyncService.clearConfig();
-      }
-
-      await d1SyncService.saveConfig(cfg.workerUrl, cfg.schoolKey);
-      invalidateD1Cache();
+      // La lógica vive en `lib/d1KeyImport.ts` porque la necesita también la
+      // portada del WelcomePage. Dos copias se desincronizarían justo en la
+      // parte que protege los datos (la protección anti-mezcla).
+      const cfg = await importarKeyDesdeArchivo({
+        actual: d1Cfg?.schoolKey ? { workerUrl: d1Cfg.workerUrl, schoolKey: d1Cfg.schoolKey } : null,
+      });
+      if (!cfg) return;
       await loadD1Config();
-      await emit('show-toast', { message: t('d1m.toast.importado'), type: 'success' });
-
-      // The first sync after importing is best-effort: the key is already saved,
-      // so a network failure must not undo what was imported.
+      // El primer sync tras importar es best-effort: la clave ya quedó guardada,
+      // así que un fallo de red no debe deshacer lo importado.
       try {
         await invoke('d1_sync_all', { force: true, source: 'key-import' });
       } catch (e) {
         console.warn('[D1] sync after import failed:', e);
         await emit('show-toast', { message: t('d1m.error.syncTrasImportar', { e: String(e) }), type: 'warning' });
       }
-    } catch (e) {
-      await emit('show-toast', {
-        message: t('d1m.error.importar', { e: e instanceof Error ? e.message : String(e) }),
-        type: 'error',
-      });
     } finally { isImporting = false; }
   }
 
