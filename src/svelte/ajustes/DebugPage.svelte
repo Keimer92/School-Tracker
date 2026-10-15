@@ -113,6 +113,64 @@
   const marcaTiempo = (ms: number | null | undefined) =>
     ms ? new Date(ms).toLocaleString(tagLocale(), { dateStyle: "short", timeStyle: "short" }) : t('dbg.cron.nunca');
 
+  /**
+   * Estado REAL de la sesión de Google Drive.
+   *
+   * Existe porque la UI decía "conectado" mirando solo que el `accessToken`
+   * estuviera lleno, y ese string sobrevive una hora después de expirar: la app
+   * se veía conectada mientras la API devolvía 401 en cada llamada. Con esta
+   * caja se ve de un vistazo si hay sesión de verdad, y sobre todo si el
+   * `refreshToken` sigue existiendo — que es lo que determina si hay que
+   * re-loguear o no.
+   *
+   * El dato clave para el caso "se me desconectó solo": si `refreshToken` sigue
+   * presente pero el `accessToken` venció, NO hace falta iniciar sesión: se
+   * renueva solo. Si `refreshToken` NO está, Google lo revocó y sí hay que
+   * entrar de nuevo (típico cuando la pantalla de consentimiento quedó en
+   * estado "Testing", que las revoca a los 7 días).
+   *
+   * Todo se lee de `localStorage`, sin red: es seguro mostrarlo siempre.
+   */
+  const sesionDrive = $derived.by(() => {
+    const leer = () => {
+      try {
+        const s = JSON.parse(localStorage.getItem("schooltracker-google-drive-settings") || "{}");
+        return s as {
+          accessToken?: string | null; refreshToken?: string | null;
+          tokenExpiry?: number | null; googleUserEmail?: string | null;
+        };
+      } catch { return {}; }
+    };
+    const s = leer();
+    const acceso = !!s.accessToken;
+    const refresco = !!s.refreshToken;
+    const expira = typeof s.tokenExpiry === "number" ? s.tokenExpiry : 0;
+    const vivo = acceso && refresco && expira > Date.now() + 120000;
+
+    let texto: string; let tono: string;
+    if (!acceso && !refresco) { texto = t('dbg.sesionDrive.sinSesion'); tono = "#94a3b8"; }
+    else if (!refresco) { texto = t('dbg.sesionDrive.revocada'); tono = "#f87171"; }
+    else if (!acceso) { texto = t('dbg.sesionDrive.renovar'); tono = "#fbbf24"; }
+    else if (expira && expira <= Date.now() + 120000) { texto = t('dbg.sesionDrive.vencida'); tono = "#f87171"; }
+    else { texto = t('dbg.sesionDrive.viva'); tono = "#4ade80"; }
+
+    // El "escritura" dice quién puede escribir hoy: el nombre del archivo lleva
+    // el tag de la cuenta, así que sin email los respaldos se guardan como
+    // "default" y dejan de encontrarse los anteriores.
+    const email = s.googleUserEmail || t('dbg.sesionDrive.sinEmail');
+    const escritura = s.googleUserEmail ? t('dbg.sesionDrive.ok') : t('dbg.sesionDrive.tagDefault');
+
+    return {
+      texto, tono, email, escritura,
+      access: acceso ? `${t('dbg.sesionDrive.hay')} (${s.accessToken!.slice(0, 12)}…)` : t('dbg.sesionDrive.noHay'),
+      refresh: refresco ? t('dbg.sesionDrive.hay') : t('dbg.sesionDrive.noHay'),
+      expira: expira
+        ? `${marcaTiempo(expira)}${expira <= Date.now() ? ` · ${t('dbg.sesionDrive.vencido')}` : ` · ${cuentaRegresiva(expira)}`}`
+        : t('dbg.sesionDrive.sinExpiry'),
+      vivo,
+    };
+  });
+
   const forzarRespaldoDrive = async () => {
     abSubiendo = true;
     abMensaje = "";
@@ -521,6 +579,24 @@
           <div><dt>{t('dbg.info.ruta')}</dt><dd class="dbg-path">{dbPath || t('dbg.info.cargando')}</dd></div>
           <div><dt>{t('dbg.info.plataforma')}</dt><dd>{isAndroid ? "Android" : t('dbg.info.escritorio')}</dd></div>
         </dl>
+      </div>
+
+      <!-- DIAGNÓSTICO DE SESIÓN DE GOOGLE DRIVE -->
+      <div class="dbg-box">
+        <div class="dbg-box-head"><span style="font-size: 1.2rem;">🔑</span><h5>{t('dbg.sesionDrive.titulo')}</h5></div>
+        <p class="dbg-desc">{t('dbg.sesionDrive.desc')}</p>
+        <dl class="dbg-info">
+          <div>
+            <dt>{t('dbg.sesionDrive.estado')}</dt>
+            <dd style="color:{sesionDrive.tono};font-weight:700;">{sesionDrive.texto}</dd>
+          </div>
+          <div><dt>{t('dbg.sesionDrive.accessToken')}</dt><dd>{sesionDrive.access}</dd></div>
+          <div><dt>{t('dbg.sesionDrive.refreshToken')}</dt><dd>{sesionDrive.refresh}</dd></div>
+          <div><dt>{t('dbg.sesionDrive.expira')}</dt><dd>{sesionDrive.expira}</dd></div>
+          <div><dt>{t('dbg.sesionDrive.cuenta')}</dt><dd>{sesionDrive.email}</dd></div>
+          <div><dt>{t('dbg.sesionDrive.escritura')}</dt><dd>{sesionDrive.escritura}</dd></div>
+        </dl>
+        <p class="dbg-desc" style="margin-top:0.5rem;">{t('dbg.sesionDrive.pista')}</p>
       </div>
 
       <!-- RESPALDO AUTOMATICO A GOOGLE DRIVE -->

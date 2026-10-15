@@ -67,6 +67,18 @@
   };
   const seccionInterna = $derived(soloContenido && seccion ? (MAP_SECCION[seccion] ?? seccion) : null);
   const filtro = $derived(soloContenido ? (seccionInterna ?? activeTab) : null);
+  /**
+   * Sección que se está mostrando ahora, venga de donde venga.
+   *
+   * Dentro de Configuración manda el shell (`soloContenido` + `seccion`), y
+   * afuera manda la navegación propia (`activeTab`). Leer solo uno de los dos
+   * hacía que, en Android, la rama de contenido no mostrara nada: el shell
+   * elegante solo a `configuracion`/`notificaciones` y nada de
+   * `debugging`/`acercaDe`, así que Depuración y Acerca de salían VACÍAS en el
+   * teléfono (en escritorio sí funcionaban, porque esos bloques viven en el
+   * `{#if !isAndroid}`).
+   */
+  const tabActual = $derived(filtro ?? activeTab);
   const THEME_OPTIONS = $derived([
     { id: "claro", label: t("ajustes.tab.temaClaro"), icon: "☀️" },
     { id: "oscuro", label: t("ajustes.tab.temaOscuro"), icon: "🌙" },
@@ -351,12 +363,12 @@
       <!-- El back nativo de Android ya maneja la vuelta (registerBackHandler) -->
       <div class="settings-content-wrapper" style="width:100%;min-width:0;">
         <!-- NOTIFICACIONES DE ASISTENCIA (solo Android) — modulo propio -->
-        {#if activeTab === "notificaciones"}
+        {#if tabActual === "notificaciones"}
           <NotificacionesPage />
         {/if}
 
         <!-- CONFIGURACIÓN -->
-        {#if activeTab === "configuracion"}
+        {#if tabActual === "configuracion"}
           <div class="category-card" style="border-left: 3px solid {TAB_COLORS.configuracion};">
             <div class="category-header" style="border-left: none;">
               <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.configuracion}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">⚙️</div>
@@ -430,6 +442,20 @@
             </div>
           </div>
 {/if}
+
+        <!-- DEPURACIÓN y ACERCA DE.
+             Faltaban en la rama de Android: los únicos bloques que los montaban
+             estaban en el `{#if !isAndroid}` de arriba, así que desde
+             Configuración en el teléfono se abría la sección y no se veía NADA.
+             Se usa `tabActual` (no `activeTab`) porque en `soloContenido` manda
+             el `seccion` que pasó el shell. -->
+        {#if tabActual === "debugging"}
+          <DebugPage />
+        {/if}
+
+        {#if tabActual === "acercaDe"}
+          <InfoPage />
+        {/if}
 
   </div>
     </div>
