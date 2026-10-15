@@ -1443,9 +1443,12 @@ Cadena completa:
 1. Frontend (`WelcomePage.handleDriveConnect` / `CloudPage.initGoogleAuth`) detecta
    Android → `invoke("gd_start_native_signin", { serverClientId })`.
 2. Rust JNI (`obtain_native_bridge`) → `MainActivity.startGoogleSignIn(serverClientId)`
-   → lanza intent de GoogleSignIn vía `googleSignInLauncher`
-   (`registerForActivityResult` en `onCreate`). Antes hace `signOut()` (async;
-   normalmente Google auto-selecciona la última cuenta = "Welcome back" sin picker).
+   → lanza intent de GoogleSignIn vía `googleSignInLauncher` (`registerForActivityResult`
+   en `onCreate`). El selector nativo de Google se encarga de la elección de cuenta;
+   no se llama `signOut()` asíncrono antes de lanzar el picker (era race condition:
+   `signOut()` podía borrar la cuenta recién seleccionada entre el picker y
+   `getLastSignedInAccount()` en `requestDriveToken`, dejando el segundo login sin
+   sesión y sin forma de reintentar).
 3. Resultado → `handleGoogleSignInResult` → JSON `{ok, serverAuthCode, email,
    displayName, photoUrl}` o `{ok:false, cancelled, statusCode, error}`
    (statusCode 12501 = cancelado por usuario; 10 = DEVELOPER_ERROR → falta registrar

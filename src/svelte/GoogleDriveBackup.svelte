@@ -285,7 +285,7 @@
       <h4 style="color: #e2e8f0; margin: 0 0 0.5rem 0;">Google Drive Backup</h4>
       <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 1.5rem;">Vincula tu cuenta de Google para respaldar automáticamente tu base de datos.</p>
       {#if settings.clientId}
-        <button onclick={initGoogleAuth} disabled={isLoading} style="padding: 0.8rem 2rem; background: linear-gradient(135deg, #4285F4, #34A853); border: none; color: white; border-radius: 12px; font-weight: 600; font-size: 1rem; cursor: pointer; box-shadow: 0 4px 16px rgba(66,133,244,0.3);">{isLoading ? 'Conectando...' : '🔗 Vincular Google Drive'}</button>
+        <button onclick={initGoogleAuth} disabled={isLoading} style="padding: 0.8rem 2rem; background: linear-gradient(135deg, #4285F4, #34A853); border: none; color: white; border-radius: 12px; font-weight: 600; font-size: 1rem; cursor: pointer; box-shadow: 0 4px 16px rgba(66,133,244,0.3);">{isLoading ? 'Iniciando sesión...' : 'Iniciar sesión con Google'}</button>
       {:else}
         <div style="background: rgba(234,179,8,0.1); border: 1px solid rgba(234,179,8,0.2); border-radius: 8px; padding: 0.8rem; font-size: 0.8rem; color: #eab308; max-width: 400px; margin: 0 auto;">
           ⚠️ No hay Client ID configurado. Define VITE_GOOGLE_CLIENT_ID en tu archivo .env

@@ -10,15 +10,16 @@
    *   · "Reiniciar Local"      -> la purga ya reinicia la base local, asi que
    *                              quedaban dos botones para lo mismo.
    */
-  import { invoke } from "@tauri-apps/api/core";
-  import { emit } from "@tauri-apps/api/event";
-  import { open, ask } from "@tauri-apps/plugin-dialog";
-  import { copyFile } from "@tauri-apps/plugin-fs";
-  import { untrack } from "svelte";
-  import { portalToBody } from "../../lib/portalToBody";
-  import { t, getLocale } from "../../lib/i18n.svelte";
-  import { fmtFechaHoraNica } from "../../lib/fecha";
-  import { onDataChange } from "../../lib/autoSync";
+import { invoke } from "@tauri-apps/api/core";
+import { emit } from "@tauri-apps/api/event";
+import { open, ask } from "@tauri-apps/plugin-dialog";
+import { copyFile } from "@tauri-apps/plugin-fs";
+import { untrack } from "svelte";
+import { portalToBody } from "../../lib/portalToBody";
+import { t, getLocale } from "../../lib/i18n.svelte";
+import { fmtFechaHoraNica } from "../../lib/fecha";
+import { onDataChange } from "../../lib/autoSync";
+import { consultarActualizacion, descargarYInstalar, ignorarVersion, type InfoActualizacion } from "../../lib/updateService";
 
   const isAndroid = /Android/i.test(navigator.userAgent);
   const ACCENT = "#ef4444";
@@ -28,10 +29,63 @@
    */
   const CARPETA_BACKUPS = "School Tracker/Backups";
 
-  let dbPath = $state("");
-  let isImporting = $state(false);
-  let isWipingProfile = $state(false);
-  let isReparandoNotas = $state(false);
+let dbPath = $state("");
+let isImporting = $state(false);
+let isWipingProfile = $state(false);
+let isReparandoNotas = $state(false);
+
+// ── Actualizaciones ──
+let updateInfo = $state<InfoActualizacion | null>(null);
+let checkingUpdate = $state(false);
+let downloadingUpdate = $state(false);
+let downloadPct = $state(0);
+let downloadText = $state("");
+let updateError = $state("");
+let showUpdateModal = $state(false);
+
+const checkForUpdate = async () => {
+  checkingUpdate = true;
+  updateError = "";
+  try {
+    const info = await consultarActualizacion(getLocale());
+    updateInfo = info;
+    if (info) {
+      showUpdateModal = true;
+    }
+  } catch (e) {
+    updateError = String(e);
+  } finally {
+    checkingUpdate = false;
+  }
+};
+
+const handleUpdate = async () => {
+  if (!updateInfo) return;
+  downloadingUpdate = true;
+  downloadPct = 0;
+  downloadText = "";
+  try {
+    const res = await descargarYInstalar(updateInfo, (pct, texto) => {
+      downloadPct = pct;
+      downloadText = texto;
+    });
+    if (!res.ok) {
+      updateError = res.motivo || "Error desconocido";
+    }
+  } catch (e) {
+    updateError = String(e);
+  } finally {
+    downloadingUpdate = false;
+  }
+};
+
+const handleIgnoreUpdate = () => {
+  if (updateInfo) {
+    ignorarVersion(updateInfo.version);
+  }
+  showUpdateModal = false;
+  updateInfo = null;
+};
 
   // ── Traspaso del dispositivo ──
   // Vivía en la página "Cuenta", que se eliminó al quedar la nube de un solo

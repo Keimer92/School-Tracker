@@ -597,7 +597,10 @@ class MainActivity : TauriActivity() {
     try {
       android.util.Log.i("GoogleNativeAuth", "Iniciando sign-in nativo")
       lastNativeAuthResult = null
-      GoogleSignIn.getClient(this, GoogleSignInOptions.DEFAULT_SIGN_IN).signOut()
+      // No signOut() antes de lanzar el picker: signOut() es asíncrono y puede
+      // borrar la cuenta recién seleccionada tras el resultado del picker,
+      // haciendo que getLastSignedInAccount() retorne null en requestDriveToken.
+      // Dejamos que el selector nativo de Google gestione la elección de cuenta.
 
       val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
         .requestEmail()
