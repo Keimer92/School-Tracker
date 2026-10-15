@@ -286,6 +286,9 @@ const handleIgnoreUpdate = () => {
 
   invoke<string>("get_db_path").then(p => dbPath = p).catch(() => dbPath = "");
 
+// Auto-check para actualizaciones al montar (una vez, silencioso).
+void checkForUpdate();
+
   // Carga la config guardada (via el mismo canal que el resto de app_settings).
   (async () => {
     try {
@@ -632,6 +635,45 @@ const handleIgnoreUpdate = () => {
         </button>
       </div>
 
+      <!-- ACTUALIZACIONES -->
+      <div class="dbg-box">
+        <div class="dbg-box-head"><span style="font-size: 1.2rem;">🔄</span><h5>{t('dbg.update.titulo')}</h5></div>
+        {#if checkingUpdate}
+          <p class="dbg-desc">{t('dbg.update.comprobando')}</p>
+        {:else if updateInfo}
+          <div class="dbg-update-info">
+            <p><strong>{t('dbg.update.version_actual')}: {updateInfo.version}</strong></p>
+            {#if updateInfo.nota}
+              <p>{@html updateInfo.nota}</p>
+            {/if}
+            {#if updateInfo.asset}
+              <p>{t('dbg.update.disponible', { plataforma: isAndroid ? 'Android' : 'Windows' })}</p>
+            {:else}
+              <p>{t('dbg.update.no_disponible')}</p>
+            {/if}
+          </div>
+          <div class="dbg-update-actions">
+            {#if !downloadingUpdate}
+              <button onclick={handleUpdate} class="dbg-btn dbg-btn-verde" disabled={downloadPct > 0}>
+                {downloadPct > 0 ? t('dbg.update.descargando') : t('dbg.update.actualizar')}
+              </button>
+              <button onclick={handleIgnoreUpdate} class="dbg-btn">{t('dbg.update.ignorar')}</button>
+            {:else}
+              <p class="dbg-desc">{downloadText || t('dbg.update.en_progreso')}</p>
+            {/if}
+          </div>
+          {#if updateError}
+            <p class="dbg-desc" style="color:#f87171;">{updateError}</p>
+          {/if}
+{:else}
+           <div class="dbg-update-actions">
+             <button onclick={checkForUpdate} class="dbg-btn">
+               {t('dbg.update.comprobar')}
+             </button>
+           </div>
+        {/if}
+      </div>
+
       <!-- SISTEMA -->
       <div class="dbg-box">
         <div class="dbg-box-head"><span style="font-size: 1.2rem;">📊</span><h5>{t('dbg.info.titulo')}</h5></div>
@@ -787,11 +829,33 @@ const handleIgnoreUpdate = () => {
     color: #34d399; font-weight: 700;
   }
   .dbg-pop-opt:disabled { opacity: 0.6; cursor: not-allowed; }
-  .dbg-btn-ghost {
-    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); color: #e2e8f0;
-  }
-  .dbg-btn-ghost:hover { background: rgba(255,255,255,0.12); }
-  .dbg-peligro-titulo { color: #f87171 !important; }
+.dbg-btn-ghost {
+     background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.14); color: #e2e8f0;
+   }
+   .dbg-btn-ghost:hover { background: rgba(255,255,255,0.12); }
+
+   .dbg-update-info {
+     margin: 0.5rem 0;
+     padding: 0.7rem;
+     background: rgba(255,255,255,0.03);
+     border-radius: 8px;
+     border: 1px solid rgba(255,255,255,0.06);
+   }
+   .dbg-update-info p {
+     margin: 0.3rem 0;
+     color: #cbd5e1;
+     font-size: 0.85rem;
+   }
+   .dbg-update-info p:first-child { margin-top: 0; }
+   .dbg-update-info p:last-child { margin-bottom: 0; }
+   .dbg-update-actions {
+     display: flex;
+     flex-direction: column;
+     gap: 0.5rem;
+     margin-top: 0.7rem;
+   }
+
+   .dbg-peligro-titulo { color: #f87171 !important; }
   .dbg-desc { margin: 0 0 0.9rem; color: #94a3b8; font-size: 0.82rem; line-height: 1.5; }
   .dbg-desc code {
     font-family: monospace; font-size: 0.95em;
