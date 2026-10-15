@@ -34,9 +34,18 @@ concurrency:
 
 jobs:
   # ── Detecta el cambio de versión y crea el tag ──
+  #
+  # `ubuntu-24.04` FIJO, no `ubuntu-latest`: la etiqueta `latest` migra a Ubuntu
+  # 26 durante octubre de 2026 y el toolchain de Android (NDK + CMake) cambia
+  # con ella. Un build que hoy funciona puede empezar a fallar solo por la
+  # migración de la imagen. Fijar la versión hace la compilación reproducible.
+  #
+  # Lo mismo con las versiones de las actions: todas están fijadas a su major
+  # actual y corren en node24. La anterior (`dtolnay/rust-action`) además ya no
+  # existe: el repo se renombró a `rust-toolchain`.
   prepare:
     name: Detectar cambio de versión
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       release: ${{ steps.check.outputs.release }}
       version: ${{ steps.check.outputs.version }}
@@ -45,7 +54,7 @@ jobs:
       # `fetch-depth: 0` es OBLIGATORIO: sin el historial completo no hay tags y
       # la comparación contra el último tag da siempre "no hay ninguno", lo que
       # haría publicar una release en cada push.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -93,12 +102,12 @@ jobs:
     name: Crear release
     needs: prepare
     if: needs.prepare.outputs.release == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           name: ${{ needs.prepare.outputs.tag }}
@@ -113,16 +122,16 @@ jobs:
     if: needs.prepare.outputs.release == 'true'
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: 'npm'
 
       - name: Install Rust stable
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install dependencies
         run: npm ci
@@ -138,7 +147,7 @@ jobs:
           VITE_D1_WORKER_URL: ${{ secrets.VITE_D1_WORKER_URL }}
 
       - name: Upload Windows Artifacts to Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             src-tauri/target/release/bundle/msi/*.msi
@@ -152,24 +161,24 @@ jobs:
     name: Compilar Android
     needs: [prepare, create-release]
     if: needs.prepare.outputs.release == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: 'npm'
 
       - name: Setup Java (JDK 17)
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
           java-version: '17'
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       # NDK explícito. `build.gradle.kts` no declara `ndkVersion`, así que el
       # Android Gradle Plugin descarga la que él quiera: funciona, pero cada
@@ -182,7 +191,7 @@ jobs:
           ANDROID_HOME: ${{ env.ANDROID_HOME }}
 
       - name: Install Rust stable & Android targets
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android, armv7-linux-androideabi, i686-linux-android, x86_64-linux-android
 
@@ -215,7 +224,7 @@ jobs:
           VITE_D1_WORKER_URL: ${{ secrets.VITE_D1_WORKER_URL }}
 
       - name: Upload Android Artifacts to Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             src-tauri/gen/android/app/build/outputs/apk/release/*.apk
