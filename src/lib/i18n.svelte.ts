@@ -1,5 +1,6 @@
 import { es, type Clave } from './locales/es';
 import { en } from './locales/en';
+import { fmtFechaNica, fmtHoraNica, fmtFechaHoraNica } from './fecha';
 
 export type Locale = 'es' | 'en';
 export type { Clave };
@@ -158,13 +159,31 @@ export function tagLocale(): string {
 }
 
 /**
- * Fecha formateada en el idioma activo.
+ * Fecha formateada en el idioma activo, formato local `14/Sep/2026`.
  *
- * Atajo de `new Date(...).toLocaleDateString(tagLocale(), opts)` para no
- * repetir el `tagLocale()` en cada llamada dentro de los templates.
+ * Delega en `lib/fecha.ts`, que es la ÚNICA definición del formato en la app
+ * (ver ese archivo para por qué no se usa `Intl`). Este wrapper existe solo para
+ * que los templates no tengan que pasar el idioma a mano: al leer el rune
+ * `locale` acá adentro, la llamada dentro de un `$derived` sigue siendo
+ * reactiva y la fecha se re-formatea al cambiar el idioma.
+ *
+ * `opts` ya no se usa y se conserva por compatibilidad con las llamadas
+ * antiguas. Se ignora a propósito: aceptarlo sin efecto sería peor que
+ * quitarlo en una pasada aparte, porque alguien podría creer que un
+ * `{ year: 'numeric' }` suyo está haciendo algo.
  */
-export function fmtFecha(iso: string, opts: Intl.DateTimeFormatOptions): string {
-  return new Date(iso + 'T12:00:00').toLocaleDateString(tagLocale(), opts);
+export function fmtFecha(iso: string, _opts?: Intl.DateTimeFormatOptions): string {
+  return fmtFechaNica(iso, locale);
+}
+
+/** `10:40 p.m.` en el idioma activo. Mismo razonamiento reactivo que `fmtFecha`. */
+export function fmtHora(iso: string): string {
+  return fmtHoraNica(iso, locale);
+}
+
+/** `14/Sep/2026 · 10:40 p.m.` en el idioma activo. */
+export function fmtFechaHora(iso: string): string {
+  return fmtFechaHoraNica(iso, locale);
 }
 
 /** Aplica el idioma guardado al `<html lang>` al arrancar. */

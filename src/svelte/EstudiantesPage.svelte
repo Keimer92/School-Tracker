@@ -8,7 +8,8 @@
   // OJO: en este archivo ya hubo un `const t = e.target` (renombrado a `nodo`).
   // Una variable llamada `t` tapa la función `t()` de i18n y el error de
   // runtime apunta a la línea equivocada.
-  import { t, tagLocale } from "../lib/i18n.svelte";
+  import { t, getLocale } from "../lib/i18n.svelte";
+  import { fmtFechaNica } from "../lib/fecha";
 import { primerColegio } from "../lib/catalogo";
   import { ask } from "@tauri-apps/plugin-dialog";
   import { destinoParaToast, subcarpetaRelativa } from "../lib/carpetasExport";
@@ -28,9 +29,7 @@ import SelectChip from "./SelectChip.svelte";
   /** La fecha de retiro viene como `YYYY-MM-DD HH:MM:SS` (datetime('now')), que
    *  `toLocaleDateString` no parsea bien. Se recorta a la parte de fecha. */
   function fmtFecha(iso: string): string {
-    const soloFecha = iso.slice(0, 10);
-    const d = new Date(soloFecha + 'T00:00:00');
-    return isNaN(d.getTime()) ? iso : d.toLocaleDateString(tagLocale());
+    return fmtFechaNica(iso, getLocale()) || iso;
   }
 
   // Camera state

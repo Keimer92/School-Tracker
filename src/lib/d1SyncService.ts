@@ -2,7 +2,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { emit } from '@tauri-apps/api/event';
 import { markDirty, markAllDirty, markAllClean, getDirtyTables } from './dirtyTracker';
 import { d1Conectado } from './d1Connection.svelte';
-import { t } from './i18n.svelte';
+import { t, getLocale } from './i18n.svelte';
+import { fmtHoraNica } from './fecha';
 
 /** Minutos entre sincronizaciones periódicas. Fijo, sin ajuste en la UI. */
 export const SYNC_PERIODICO_MIN = 20;
@@ -78,7 +79,7 @@ function nowIso() {
 }
 
 function fmtTime() {
-  return new Date().toLocaleTimeString();
+  return fmtHoraNica(new Date(), getLocale());
 }
 
 async function emitUpdates() {

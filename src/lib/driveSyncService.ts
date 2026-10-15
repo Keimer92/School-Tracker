@@ -4,7 +4,8 @@ import { emit } from '@tauri-apps/api/event';
 import { markDirty, markAllDirty, markAllClean, hasDirtyTables } from './dirtyTracker';
 import { d1Conectado } from './d1Connection.svelte';
 import { esAndroid, esLinux, esMacOS, esWindows } from './platform';
-import { t } from './i18n.svelte';
+import { t, getLocale } from './i18n.svelte';
+import { fmtFechaHoraNica } from './fecha';
 
 const STORAGE_KEY = 'schooltracker-google-drive-settings';
 const SYNC_FILE_PREFIX = 'SchoolTracker_Sync';
@@ -646,7 +647,7 @@ function now() {
 }
 
 function fmtTime() {
-  return new Date().toLocaleTimeString();
+  return fmtHoraNica(new Date(), getLocale());
 }
 
 function toSqliteUtc(iso: string | null): string | null {
@@ -737,8 +738,10 @@ async function compararSellos(blob: Blob): Promise<(() => Promise<void>) | null>
 }
 
 function fmtFechaLarga(iso: string): string {
-  const d = new Date(iso);
-  return isNaN(d.getTime()) ? iso : d.toLocaleString();
+  const out = fmtFechaHoraNica(iso, getLocale());
+  // Si no se pudo parsear, se devuelve el original: es preferible mostrar el
+  // ISO crudo que una celda vacía, porque al menos dice algo.
+  return out || iso;
 }
 
 /** Blob → base64 sin pasar por un FileReader con dataURL (que agrega el prefijo). */

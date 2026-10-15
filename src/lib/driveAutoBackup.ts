@@ -27,7 +27,8 @@
  */
 import { invoke } from '@tauri-apps/api/core';
 import { driveSyncService } from './driveSyncService';
-import { t } from './i18n.svelte';
+import { t, getLocale } from './i18n.svelte';
+import { fmtHoraNica } from './fecha';
 
 const STATE_KEY = 'drive_auto_backup_state';
 const LEGACY_KEY = 'drive_auto_backup_minutes';
@@ -217,7 +218,7 @@ async function recordSuccess(reason: TriggerReason) {
   if (wasFailing || shouldNotifySuccess()) {
     await notifyAndroid(
       t('ab.notif.guardadoTitulo'),
-      t('ab.notif.guardadoCuerpo', { hora: new Date().toLocaleTimeString() })
+      t('ab.notif.guardadoCuerpo', { hora: fmtHoraNica(new Date(), getLocale()) })
     );
   }
 }

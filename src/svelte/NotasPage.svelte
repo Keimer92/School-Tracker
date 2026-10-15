@@ -22,7 +22,8 @@ import { primerColegio } from "../lib/catalogo";
   // (renombrados a `nodo`). Si vuelve a aparecer una variable llamada `t`
   // en un scope donde se llama `t('clave')`, el error de runtime apunta a la
   // línea equivocada y es un infierno de depurar.
-  import { t } from "../lib/i18n.svelte";
+  import { t, getLocale } from "../lib/i18n.svelte";
+  import { fmtFechaNica } from "../lib/fecha";
 
   // --- Imports used only by the report half ("reportes" mode) ---
   import {
@@ -2988,7 +2989,7 @@ import { primerColegio } from "../lib/catalogo";
     if (repEstudiantes.length === 0) { await emit("show-toast", { message: t('inf.print.sinDatos'), type: 'warning' }); return; }
     try {
       await emit("show-toast", { message: t('inf.print.preparando'), type: 'success' });
-      const names = selectedNames; const date = new Date().toLocaleDateString();
+      const names = selectedNames; const date = fmtFechaNica(new Date(), getLocale());
       const mostrarIndicadores = false;
       // Sin columna "Sexo": el nombre va teñido con el color de sexo de Ajustes.
       const headers = ["Estudiante", ...(mostrarIndicadores ? configIndicadores.map(ind => `Ind. ${ind.orden}`) : []), "Nota Final"];
@@ -3089,7 +3090,7 @@ import { primerColegio } from "../lib/catalogo";
       <div><strong>Sección:</strong> {selectedNames.seccion}</div>
       <div><strong>Asignatura:</strong> {selectedNames.asignatura}</div>
       <div><strong>Corte:</strong> {selectedNames.corte}</div>
-      <div><strong>Fecha:</strong> {new Date().toLocaleDateString()}</div>
+      <div><strong>Fecha:</strong> {fmtFechaNica(new Date(), getLocale())}</div>
       <div><strong>Sexo:</strong> {repSelectedSexo === "M" ? "Masculino" : repSelectedSexo === "F" ? "Femenino" : "Todos"}</div>
     </div>
   </div>

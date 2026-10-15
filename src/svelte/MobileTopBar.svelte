@@ -25,7 +25,8 @@
   import { onMount } from "svelte";
   import { syncManager } from "../lib/driveSyncService";
   import { openCloudPanel } from "../lib/cloudPanels.svelte";
-  import { tagLocale, t } from "../lib/i18n.svelte";
+  import { t, getLocale } from "../lib/i18n.svelte";
+  import { fmtFechaHoraNica } from "../lib/fecha";
 
   type Tab = "dashboard" | "asistencia" | "notas" | "estudiantes" | "ajustes";
 
@@ -62,7 +63,7 @@
     if (!iso) return '';
     const d = new Date(iso);
     if (isNaN(d.getTime())) return '';
-    return d.toLocaleString(tagLocale(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return fmtFechaHoraNica(d, getLocale());
   }
 
   onMount(() => syncManager.subscribe((s) => {

@@ -16,7 +16,8 @@
   import { copyFile } from "@tauri-apps/plugin-fs";
   import { untrack } from "svelte";
   import { portalToBody } from "../../lib/portalToBody";
-  import { t, tagLocale } from "../../lib/i18n.svelte";
+  import { t, getLocale } from "../../lib/i18n.svelte";
+  import { fmtFechaHoraNica } from "../../lib/fecha";
   import { onDataChange } from "../../lib/autoSync";
 
   const isAndroid = /Android/i.test(navigator.userAgent);
@@ -111,7 +112,7 @@
   };
 
   const marcaTiempo = (ms: number | null | undefined) =>
-    ms ? new Date(ms).toLocaleString(tagLocale(), { dateStyle: "short", timeStyle: "short" }) : t('dbg.cron.nunca');
+    ms ? fmtFechaHoraNica(ms, getLocale()) : t('dbg.cron.nunca');
 
   /**
    * Estado REAL de la sesión de Google Drive.

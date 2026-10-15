@@ -23,7 +23,8 @@
   import { importarKeyDesdeArchivo } from '../../lib/d1KeyImport';
   import { d1Conectado } from '../../lib/d1Connection.svelte';
   import { isCloudPanelOpen, closeCloudPanel } from '../../lib/cloudPanels.svelte';
-  import { t, tagLocale } from '../../lib/i18n.svelte';
+  import { t, getLocale } from '../../lib/i18n.svelte';
+  import { fmtFechaHoraNica } from '../../lib/fecha';
   import ModalBase from './ModalBase.svelte';
 
   let d1Cfg = $state<D1Config | null>(null);
@@ -202,7 +203,7 @@
       <div class="info-sync">
         <span class="info-sync-line">
           {t('cloud.sync.ultima')}
-          <strong>{conectado && d1SyncState.lastSync ? new Date(d1SyncState.lastSync).toLocaleString(tagLocale()) : '—'}</strong>
+          <strong>{conectado && d1SyncState.lastSync ? fmtFechaHoraNica(d1SyncState.lastSync, getLocale()) : '-'}</strong>
         </span>
         <span class="info-sync-auto">{conectado ? t('cloud.sync.auto', { n: SYNC_PERIODICO_MIN }) : t('d1m.conectar.sinAuto')}</span>
       </div>

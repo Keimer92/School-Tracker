@@ -4,7 +4,8 @@
   import { driveSyncService } from '../lib/driveSyncService';
   import { openCloudPanel } from '../lib/cloudPanels.svelte';
   import { d1Conectado } from '../lib/d1Connection.svelte';
-  import { t } from '../lib/i18n.svelte';
+  import { t, getLocale } from '../lib/i18n.svelte';
+  import { fmtHoraNica } from '../lib/fecha';
   import type { D1Status } from '../lib/syncService';
 
   let {
@@ -115,7 +116,7 @@
   function fmtTime(iso: string | null): string {
     if (!iso) return '—';
     try {
-      return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return fmtHoraNica(iso, getLocale()) || '—';
     } catch {
       return '—';
     }

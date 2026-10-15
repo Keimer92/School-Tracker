@@ -11,7 +11,8 @@
   import appIcon from "../assets/app-icon.png";
   import BrowserPicker from "./BrowserPicker.svelte";
   import LanguagePicker from "./LanguagePicker.svelte";
-  import { t } from "../lib/i18n.svelte";
+  import { t, getLocale } from "../lib/i18n.svelte";
+  import { fmtFechaHoraNica } from "../lib/fecha";
 
   /** Misma fuente que usa cloudLogin.ts para no divergir. */
   const DEFAULT_WORKER = import.meta.env.VITE_D1_WORKER_URL
@@ -729,7 +730,7 @@
         const driveTime = Date.parse(restaurado.modified);
         const d1Time = Date.parse(d1LastSync.replace(' ', 'T') + 'Z');
         if (!isNaN(d1Time) && !isNaN(driveTime) && driveTime < d1Time - 60_000) {
-          const fmt = (iso: string) => new Date(iso).toLocaleString();
+          const fmt = (iso: string) => fmtFechaHoraNica(iso, getLocale()) || iso;
           const ok = await ask(
             '⚠️ ' + t('welcome.drive.antiguoAviso', {
               fecha: fmt(restaurado.modified),

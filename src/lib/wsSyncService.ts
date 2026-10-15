@@ -1,5 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { d1SyncManager, d1SyncService } from './d1SyncService';
+import { getLocale } from './i18n.svelte';
+import { fmtHoraNica } from './fecha';
 
 /**
  * Push en tiempo real via WebSocket contra el Worker (hub por school key).
@@ -65,7 +67,7 @@ let openedOnce = false;
   url: currentUrl,
   deviceId: myDeviceId,
   openedOnce,
-  lastMsgAt: lastMsgAt ? new Date(lastMsgAt).toLocaleTimeString() : null,
+  lastMsgAt: lastMsgAt ? fmtHoraNica(lastMsgAt, getLocale()) : null,
   lastClose,
   reconnectAttempts,
   intentionalClose,

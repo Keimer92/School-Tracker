@@ -1401,6 +1401,9 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'cloud.probar': 'Probar',
   'cloud.probando': 'Probando...',
   'cloud.desconectar': 'Desconectar',
+  // "Desconectar" sonaba a apagar el servicio; lo que hace es cerrar la sesión
+  // de Google en ESTE equipo. El nombre tiene que decir eso.
+  'cloud.cerrarSesion': 'Cerrar sesión',
   'cloud.descargando': 'Descargando base de datos',
   'cloud.btn.crear': 'Crear respaldo',
   'cloud.btn.crearTitle': 'Crea un respaldo con fecha y hora en Google Drive',
@@ -1453,6 +1456,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'welcome.nube.faltaClave': 'Escribí la clave de la escuela para continuar.',
   'welcome.nube.descargando': 'Descargando tu última base…',
   'cloud.btn.restaurar': 'Restaurar',
+  'cloud.btn.eliminar': 'Eliminar',
   'cloud.notaRespaldos': '💾 Se conservan 2 respaldos: el que se actualiza al guardar y el snapshot más reciente.',
   'cloud.ariaPaneles': 'Paneles de sincronización',
   // ── Respaldo en Google Drive (driveSyncService) ──

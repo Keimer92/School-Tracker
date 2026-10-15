@@ -22,7 +22,8 @@
  */
 import { emit } from '@tauri-apps/api/event';
 import { driveSyncService, syncManager } from './driveSyncService';
-import { t } from './i18n.svelte';
+import { t, getLocale } from './i18n.svelte';
+import { fmtHoraNica } from './fecha';
 
 const ENABLED_KEY = 'drive_instant_backup_enabled';
 /** Espera de inactividad antes de subir (agrupa guardados seguidos). */
@@ -51,7 +52,7 @@ function fmtBytes(n: number): string {
 }
 
 function horaActual(): string {
-  return new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  return fmtHoraNica(new Date(), getLocale());
 }
 
 function mostrarToastExito() {

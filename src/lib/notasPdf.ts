@@ -52,6 +52,8 @@ import {
   hexToRgb,
 } from "./pdfChrome";
 import { colorSexoExport } from "./coloresSexo.svelte";
+import { getLocale } from "./i18n.svelte";
+import { fmtFechaNica } from "./fecha";
 
 export interface FilaNotaPdf {
   nombre: string;
@@ -88,7 +90,7 @@ export async function generarPdfNotas(meta: MetaPdfNotas): Promise<Uint8Array> {
   const margins = { top: 10, bottom: 12, left: 10, right: 10 };
   const anchoPagina = doc.internal.pageSize.getWidth();
   const anchoUtil = anchoPagina - margins.left - margins.right;
-  const fecha = meta.fecha || new Date().toLocaleDateString();
+  const fecha = meta.fecha || fmtFechaNica(new Date(), getLocale());
 
   const titulo = `Notas ${meta.grado} - Sección ${meta.seccion}`;
   const subtitulo = meta.colegio;

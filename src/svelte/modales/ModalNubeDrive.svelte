@@ -28,7 +28,8 @@
   import { navegadorLoginArg } from '../../lib/oauthBrowser';
   import { setBackAuthInProgress } from '../../lib/androidBack';
   import { isCloudPanelOpen, closeCloudPanel } from '../../lib/cloudPanels.svelte';
-  import { t, tagLocale } from '../../lib/i18n.svelte';
+  import { t, getLocale } from '../../lib/i18n.svelte';
+  import { fmtFechaHoraNica, fmtHoraNica } from '../../lib/fecha';
   import ModalBase from './ModalBase.svelte';
 
   const DEFAULT_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
@@ -64,7 +65,6 @@
 
   let isFetchingFiles = $state(false);
   let isAuthLoading = $state(false);
-  let isTesting = $state(false);
   let syncFiles: DriveFile[] = $state([]);
   let instantBackupOn = $state(isInstantBackupEnabled());
   let imgError = $state(false);
@@ -129,16 +129,24 @@ const isConnected = $derived(isDriveSettingsLive(settings));
   }
   function fmtDate(iso: string): string {
     if (!iso) return '—';
-    return new Date(iso).toLocaleString(tagLocale());
+    return fmtFechaHoraNica(iso, getLocale()) || '—';
   }
+  /**
+   * "Hoy 10:40 p.m." si es de hoy, si no la fecha y hora completas.
+   *
+   * Se sigue comparando con `toDateString` a propósito: es una coincidencia de
+   * CALENDARIO local, no un formateo, y `Intl` no tiene equivalente. El formato
+   * de lo que se muestra sí sale del módulo central (`lib/fecha.ts`).
+   */
   function fmtMomento(iso: string | null | undefined): string {
     if (!iso) return '—';
     const d = new Date(iso);
     if (isNaN(d.getTime())) return '—';
     const hoy = new Date();
     const mismoDia = d.toDateString() === hoy.toDateString();
-    const hora = d.toLocaleTimeString(tagLocale(), { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    return mismoDia ? `${t('cloud.hoy')} ${hora}` : d.toLocaleString(tagLocale(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    return mismoDia
+      ? `${t('cloud.hoy')} ${fmtHoraNica(d, getLocale())}`
+      : fmtFechaHoraNica(d, getLocale());
   }
   function mensajeError(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
@@ -420,22 +428,6 @@ const isConnected = $derived(isDriveSettingsLive(settings));
     } catch {}
   }
 
-  async function testConnection() {
-    isTesting = true;
-    try {
-      const result = await driveSyncService.testConnection();
-      if (result.ok) {
-        await emit('show-toast', { message: t('cloud.toast.conexionOk'), type: 'success' });
-        const token = await getValidToken();
-        if (token) await fetchUserInfo(token);
-      } else {
-        await emit('show-toast', { message: t('cloud.error.conexion', { e: result.error || t('cloud.desconocido') }), type: 'error' });
-      }
-    } catch (e) {
-      await emit('show-toast', { message: t('cloud.error.generico', { e: String(e) }), type: 'error' });
-    } finally { isTesting = false; }
-  }
-
   async function cancelAuth() {
     setBackAuthInProgress(false);
     try { await invoke('gd_cancel_oauth'); } catch {}
@@ -458,7 +450,6 @@ const isConnected = $derived(isDriveSettingsLive(settings));
     syncFiles = [];
     sesionFallida = '';
     isAuthLoading = false;
-    isTesting = false;
     isFetchingFiles = false;
     imgError = false;
     authHandled = false;
@@ -842,8 +833,21 @@ const isConnected = $derived(isDriveSettingsLive(settings));
               </div>
             </div>
             <div class="fila-acciones">
-              <button class="btn-chico" onclick={() => requestRestore(file)} type="button">{t('cloud.btn.restaurar')}</button>
-              <button class="btn-chico peligro" onclick={() => requestDelete(file)} title={t('cloud.ask.eliminarTitulo')} type="button">🗑</button>
+              <!--
+                Icono + TEXTO en los dos. El de eliminar era solo el emoji 🗑, y
+                un botón sin etiqueta no dice qué acción hace: en una lista de
+                respaldos, "restaurar" y "eliminar" son decisiones distintas y
+                una de ellas destructiva. Un 🗑 a secas es el que más errores
+                causa.
+              -->
+              <button class="btn-accion btn-accion-restaurar" onclick={() => requestRestore(file)} type="button">
+                <span class="ba-icono" aria-hidden="true">♻️</span>
+                <span class="ba-txt">{t('cloud.btn.restaurar')}</span>
+              </button>
+              <button class="btn-accion btn-accion-eliminar" onclick={() => requestDelete(file)} title={t('cloud.ask.eliminarTitulo')} type="button">
+                <span class="ba-icono" aria-hidden="true">🗑️</span>
+                <span class="ba-txt">{t('cloud.btn.eliminar')}</span>
+              </button>
             </div>
           </div>
         {/each}
@@ -1164,6 +1168,71 @@ const isConnected = $derived(isDriveSettingsLive(settings));
     .cl-txt { display: none; }
   }
   .fila-acciones { display: flex; gap: 4px; flex-shrink: 0; }
+
+  /*
+    Botones de acción de cada respaldo.
+
+    Siguen el patrón glass del resto de la app, pero con dos diferencias que
+    importan acá: llevan SU PROPIO color (restaurar = acento azul/verde,
+    eliminar = rojo) y el icono va dentro de un disco translúcido, así que se
+    lee como un botón y no como dos emojis sueltos pegados al texto.
+
+    El de eliminar NO lleva gradiente: es una acción destructiva y el brillo se
+    reserva para la que el usuario quiere hacer. El hover sube el fondo en vez
+    de cambiar el color de golpe, para que el estado se lea en la transición.
+  */
+  .btn-accion {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.55rem 0.3rem 0.35rem;
+    border-radius: 8px;
+    border: 1px solid var(--ba-borde, rgba(255, 255, 255, 0.1));
+    background: var(--ba-fondo, rgba(255, 255, 255, 0.05));
+    color: var(--ba-color, #cbd5e1);
+    cursor: pointer;
+    font-size: 0.68rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+  }
+  .btn-accion:hover { background: var(--ba-hover, rgba(255, 255, 255, 0.1)); transform: translateY(-1px); }
+  .btn-accion:active { transform: translateY(1px); }
+
+  .ba-icono {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.15rem;
+    height: 1.15rem;
+    border-radius: 5px;
+    background: var(--ba-icono-fondo, rgba(255, 255, 255, 0.08));
+    font-size: 0.7rem;
+    line-height: 1;
+  }
+  .ba-txt { line-height: 1; }
+
+  .btn-accion-restaurar {
+    --ba-borde: rgba(96, 165, 250, 0.28);
+    --ba-fondo: rgba(96, 165, 250, 0.10);
+    --ba-hover: rgba(96, 165, 250, 0.20);
+    --ba-icono-fondo: rgba(96, 165, 250, 0.18);
+    --ba-color: #93c5fd;
+  }
+  .btn-accion-eliminar {
+    --ba-borde: rgba(239, 68, 68, 0.28);
+    --ba-fondo: rgba(239, 68, 68, 0.10);
+    --ba-hover: rgba(239, 68, 68, 0.20);
+    --ba-icono-fondo: rgba(239, 68, 68, 0.18);
+    --ba-color: #fca5a5;
+  }
+
+  /* En pantallas angostas la lista de respaldos se apila y el nombre del archivo
+     ya ocupa el ancho completo: los botones bajan de tamaño pero NUNCA pierden
+     la etiqueta. Un botón solo-icono era justo lo que había antes. */
+  @media (max-width: 480px) {
+    .btn-accion { padding: 0.32rem 0.5rem 0.32rem 0.32rem; font-size: 0.66rem; }
+  }
   .lista-nota {
     margin-top: 0.5rem;
     display: flex;
