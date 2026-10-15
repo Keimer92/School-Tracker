@@ -559,6 +559,19 @@
    *   que no se coman las filas recien subidas.
    */
   async function sincronizarNubeTrasRestore(): Promise<boolean> {
+    /**
+     * ⚠️ Ninguna de estas llamadas lleva `force: true`.
+     *
+     * Antes todas lo llevaban, y eso era un error: `force` existe para que los
+     * BOTONES MANUALES del usuario ignoren el freno de reintentos, pero este
+     * es un trigger automático (el usuario solo restauró desde Drive y espera
+     * entrar). Con `force`, un push completo por cuota agotada se reintentaba
+     * en vez de hacer pull-silencioso, y con ~8.000 filas eso vaciaba el día
+     * entero de escrituras sin que nadie tocara nada.
+     *
+     * El freno ya está consultado por el llamador (`d1_push_en_espera`), así
+     * que si está armado ni siquiera llegamos acá.
+     */
     // Cuantas filas sincronizables hay ahora mismo en la base local.
     let filasLocales = 0;
     try {
@@ -587,10 +600,10 @@
     if (nubeVacia && tombstones > 0) {
       console.log(`[Cloud] nube casi vacía (${enNube} filas) con ${tombstones} tombstones: se purga antes de subir`);
       await invoke('d1_reset_remote');
-      await invoke('d1_sync_all', { full: true, force: true, source: 'drive-restore' });
+      await invoke('d1_sync_all', { full: true, source: 'drive-restore' });
     } else if (nubeVacia) {
       console.log(`[Cloud] nube casi vacía (${enNube} de ${filasLocales} filas locales): push completo`);
-      await invoke('d1_sync_all', { full: true, force: true, source: 'drive-restore' });
+      await invoke('d1_sync_all', { full: true, source: 'drive-restore' });
     } else {
       console.log(
         `[Cloud] nube con ${enNube} filas vs ${filasLocales} locales: merge incremental (push de lo nuevo + pull de fusión)`
@@ -764,6 +777,42 @@
           }
 
           loadingMessage = t('welcome.nube.sincronizando');
+          /**
+           * ¿Saltear la reconciliación con D1?
+           *
+           * Es un trigger AUTOMÁTICO (el usuario ya restorationó desde Drive y
+           * solo está esperando entrar), y por lo tanto NO lleva `force`: el
+           * freno de reintentos de la cuota tiene que poder aplicarse. Hay dos
+           * casos en que no tiene sentido intentarlo:
+           *
+           *  · El respaldo de Drive es más nuevo que la nube → la nube está
+           *    atrasada; un merge solo traería filas viejas hacia la base
+           *    buena, y un push completo gastaría cuota en subir lo que Drive
+           *    ya tiene.
+           *  · El freno de cuota está armado → el push va a fallar igual, y
+           *    cada intento consume el día entero de escrituras.
+           *
+           * Saltarlo NO pierde datos: el `last_push_sync` no avanza y la nube se
+           * reconcilia sola en el próximo sync que sí tenga cuota.
+           */
+          let motivoSalteo = '';
+          if (driveMasNuevoQueNube) {
+            motivoSalteo = 'el respaldo de Drive es más nuevo que la nube';
+          } else {
+            try {
+              if (await invoke<boolean>('d1_push_en_espera')) {
+                motivoSalteo = 'la nube está en pausa por un push fallido previo (cuota)';
+              }
+            } catch (e) {
+              // No se pudo consultar el freno: se intenta igual, porque quedarse
+              // sin nube configurada es peor que gastar una petición.
+              paso('no se pudo consultar el freno de cuota: ' + e);
+            }
+          }
+
+          if (motivoSalteo) {
+            paso('resync con la nube OMITIDO: ' + motivoSalteo);
+          } else {
           try {
             await sincronizarNubeTrasRestore();
             nubeSincronizada = true;
@@ -776,6 +825,7 @@
               const { syncService } = await import('../lib/syncService');
               await syncService.stopPeriodicSync();
             } catch {}
+          }
           }
           paso('entrando a la app...');
           await entrarALaApp();
