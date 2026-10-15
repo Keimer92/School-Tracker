@@ -135,7 +135,16 @@ class MainActivity : TauriActivity() {
     // NetworkOnMainThreadException. Por eso el executor.
     driveTokenExecutor.execute {
       try {
-        val token = GoogleAuthUtil.getToken(this, account, DRIVE_SCOPE)
+                // `getToken` NO acepta `GoogleSignInAccount`: pide un `android.accounts.Account`.
+        // Los dos overloads son `(Context, Account, String)` y `(Context, String, String)`,
+        // así que pasar el `GoogleSignInAccount` directamente da "None of the following
+        // functions can be called with the arguments supplied". El tipo de cuenta para
+        // una cuenta Google es "com.google".
+        //
+        // `email` es un tipo de plataforma: Kotlin lo ve como `String?`. Si fuera null,
+        // `getToken` tira y lo agarra el `catch` de abajo, que ya emite el JSON de error.
+        val gmsAccount = android.accounts.Account(account.email ?: "", "com.google")
+        val token = GoogleAuthUtil.getToken(this, gmsAccount, DRIVE_SCOPE)
         // Las credenciales de dispositivo duran ~1 hora. Se acota a 55 minutos
         // para que el margen de refresco de 2 min del frontend caiga siempre acá
         // y renueve antes de que Google la considere vencida.
