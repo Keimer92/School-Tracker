@@ -180,6 +180,27 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
 
+      # Comprobación ANTES de instalar NDK: si el andamiaje de Gradle faltara,
+      # el error real de Gradle es "Directory ... does not contain a Gradle
+      # build", que no dice que el problema es que el repo no trae el proyecto.
+      # Fallar acá con un mensaje claro ahorra la descarga del NDK (~2 GB) y
+      # deja el log entendible.
+      - name: Verificar proyecto Gradle
+        run: |
+          set -e
+          G=src-tauri/gen/android
+          FALTAN=""
+          for f in settings.gradle build.gradle.kts gradle.properties buildSrc/build.gradle.kts; do
+            [ -f "$G/$f" ] || FALTAN="$FALTAN $f"
+          done
+          if [ -n "$FALTAN" ]; then
+            echo "::error::Falta el andamiaje de Gradle en $G:$FALTAN"
+            echo "::error::Se versiona a proposito (ver .gitignore). Si agregaste una"
+            echo "::error::regla que lo ignora, el build de Android no puede compilar en CI."
+            exit 1
+          fi
+          echo "Andamiaje de Gradle presente."
+
       # NDK explícito. `build.gradle.kts` no declara `ndkVersion`, así que el
       # Android Gradle Plugin descarga la que él quiera: funciona, pero cada
       # runner puede agarrar una distinta y los fallos de link aparecen sin

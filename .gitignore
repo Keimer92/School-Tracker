@@ -20,10 +20,24 @@ dist/
 build/
 
 # --- Android nativo (auto-generado por 'npx tauri android init') ---
-# Ignorar src-tauri/gen/ excepto archivos Android custom (commiteados).
 # Ver AGENTS.md → "Archivos Android custom en gen/"
 src-tauri/gen/schemas/
-# Auto-generado por Tauri (NO commitear):
+
+# ⚠️ EXCEPCIÓN IMPORTANTE: el ANDAMIAJE DE GRADLE SÍ SE VERSIONA.
+#
+# Antes estas cuatro rutas estaban ignoradas y el build de Android en CI fallaba
+# con "Directory ... does not contain a Gradle build". La causa: el repo es un
+# checkout limpio y el andamiaje lo genera `tauri android init`, que solo se
+# había ejecutado en la máquina del desarrollador. `tauri android build` NO lo
+# genera: da por hecho que el proyecto existe.
+#
+# Se versionan SOLO los 6 archivos que Gradle necesita para reconocer el
+# proyecto y compilar:
+#   settings.gradle, build.gradle.kts, gradle.properties, buildSrc/**
+#
+# Se siguen ignorando los archivos que Tauri regenera en cada build
+# (`tauri.settings.gradle`, `app/tauri.build.gradle.kts`, `tauri.properties`) y
+# los binarios del wrapper: el CLI invoca el `gradle` del PATH, no `./gradlew`.
 src-tauri/gen/android/app/build/
 src-tauri/gen/android/app/src/main/java/com/keimer/schooltracker/generated/
 src-tauri/gen/android/app/tauri.build.gradle.kts
@@ -41,10 +55,9 @@ src-tauri/gen/android/build/
 src-tauri/gen/android/.gitignore
 src-tauri/gen/android/.editorconfig
 src-tauri/gen/android/.idea/
-src-tauri/gen/android/build.gradle.kts
-src-tauri/gen/android/settings.gradle
-src-tauri/gen/android/gradle.properties
-src-tauri/gen/android/buildSrc/
+# Build de `buildSrc` (carpeta de compilación, no fuente):
+src-tauri/gen/android/buildSrc/build/
+src-tauri/gen/android/buildSrc/.gradle/
 src-tauri/gen/android/app/src/main/res/drawable/
 src-tauri/gen/android/app/src/main/res/drawable-v24/
 src-tauri/gen/android/app/src/main/res/layout/
