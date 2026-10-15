@@ -718,8 +718,7 @@ const isConnected = $derived(isDriveSettingsLive(settings));
         <div class="usuario-email">{settings.googleUserEmail || ''}</div>
       </div>
       <div class="usuario-acciones">
-        <button class="btn-chico" onclick={testConnection} disabled={isTesting} type="button">{isTesting ? '...' : t('cloud.probar')}</button>
-        <button class="btn-chico peligro" onclick={disconnect} type="button">{t('cloud.desconectar')}</button>
+        <button class="btn-chico peligro" onclick={disconnect} type="button">{t('cloud.cerrarSesion')}</button>
       </div>
     </div>
 
