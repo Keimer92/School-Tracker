@@ -64,7 +64,7 @@ export async function setD1Connected(v: boolean): Promise<void> {
 
   if (!(await isD1Configured())) return;   // no credentials: nothing to start
   try {
-    await invoke('d1_sync_all', { full: true, force: true });
+    await invoke('d1_sync_all', { full: true, force: true, source: 'reconnect' });
     // The state is set here instead of calling `syncAllSilent` again: that
     // would be a second full round-trip right after the first one.
     d1SyncManager.setState({ status: 'success', lastSync: new Date().toISOString(), message: null });
@@ -101,9 +101,9 @@ export const syncService = {
     const svc = await active();
     svc.ensurePeriodicSync();
   },
-  syncAllSilent: async (dispatchEvents: boolean = true): Promise<void> => {
+  syncAllSilent: async (dispatchEvents: boolean = true, source: string = 'unspecified'): Promise<void> => {
     const svc = await active();
-    await svc.syncAllSilent(dispatchEvents);
+    await svc.syncAllSilent(dispatchEvents, source);
   },
   diagnoseRemote: async (): Promise<string | null> => {
     const svc = await active();

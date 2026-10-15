@@ -104,7 +104,7 @@ async function conectarConCredenciales(workerUrl: string, schoolKey: string, opt
   stopWsSync();
   await ensureWsSync();
   syncService.ensurePeriodicSync();
-  try { if (!opts?.skipSync) await invoke('d1_sync_all'); } catch (e) { console.error('[Cloud] primer sync falló:', e); }
+  try { if (!opts?.skipSync) await invoke('d1_sync_all', { source: 'cloud-login' }); } catch (e) { console.error('[Cloud] primer sync falló:', e); }
   if (unlisten) unlisten();
 }
 

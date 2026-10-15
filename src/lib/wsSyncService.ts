@@ -51,7 +51,7 @@ function schedulePull() {
   pullTimer = setTimeout(() => {
     pullTimer = null;
     console.debug('[WsSync-Debug] pull disparado por aviso remoto');
-    void d1SyncService.syncAllSilent();
+    void d1SyncService.syncAllSilent(true, 'remote-change');
   }, PULL_DEBOUNCE_MS);
 }
 
@@ -199,29 +199,29 @@ export function stopWsSync(): void {
 function bindGlobalListeners() {
   if (listenersBound) return;
   listenersBound = true;
-  window.addEventListener('online', () => { void syncAfterReconnect(); });
+  window.addEventListener('online', () => { void syncAfterReconnect('online'); });
   // Android (MainActivity.kt registerConnectivityListener) despacha 'connectivity-android'
   // con {online:true} cuando el sistema recupera la red, incluso en segundo plano
   // (el NetworkCallback vive a nivel de proceso, no de Activity en primer plano).
   window.addEventListener('connectivity-android', (e: Event) => {
     const detail = (e as CustomEvent<{ online?: boolean }>).detail;
-    if (detail && detail.online) void syncAfterReconnect();
+    if (detail && detail.online) void syncAfterReconnect('android-connectivity');
   });
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) void syncAfterReconnect();
+    if (!document.hidden) void syncAfterReconnect('foreground');
   });
 }
 
 let reconnectSyncing = false;
 /** Al recuperar la conexión (o volver a primer plano) fuerza un sync D1 inmediato
  *  (empuja los cambios locales en cola por estar offline + jala los remotos). */
-async function syncAfterReconnect() {
-  wsLog('red disponible / foreground: reconectando WS y sincronizando D1');
+async function syncAfterReconnect(source: string) {
+  wsLog(`red disponible / foreground (${source}): reconectando WS y sincronizando D1`);
   void ensureWsSync();
   if (reconnectSyncing || d1SyncManager.getState().status === 'syncing') return;
   reconnectSyncing = true;
   try {
-    await d1SyncService.syncAllSilent();
+    await d1SyncService.syncAllSilent(true, source);
   } catch (e) {
     console.error('[WsSync-Debug] syncAllSilent tras reconexion fallo:', e);
   } finally {

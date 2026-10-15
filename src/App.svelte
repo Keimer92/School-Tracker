@@ -479,7 +479,7 @@
           // Revivir el timer periódico si hubiera muerto (idempotente)
           syncService.ensurePeriodicSync();
           await ensureWsSync();
-          await syncService.syncAllSilent();
+          await syncService.syncAllSilent(true, 'startup');
         } catch (e) {
           console.error('[D1Debug] error en sync disparado:', e);
         }
@@ -502,7 +502,7 @@
       initialized = true;
       driveSyncService.ensureAutoBackup();
       if (await isD1Configured()) {
-        syncService.syncAllSilent();
+        syncService.syncAllSilent(true, 'welcome-complete');
         syncService.ensurePeriodicSync();
       }
     });

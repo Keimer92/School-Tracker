@@ -67,7 +67,7 @@
     if (isD1Syncing || !d1Conectado()) return;
     isD1Syncing = true;
     try {
-      await invoke('d1_sync_all', { force: true });
+      await invoke('d1_sync_all', { force: true, source: 'manual-button' });
       await emit('show-toast', { message: t('cloud.toast.syncCompleta'), type: 'success' });
     } catch (e) {
       console.error('[D1] manual sync failed:', e);
@@ -133,7 +133,7 @@
       // The first sync after importing is best-effort: the key is already saved,
       // so a network failure must not undo what was imported.
       try {
-        await invoke('d1_sync_all', { force: true });
+        await invoke('d1_sync_all', { force: true, source: 'key-import' });
       } catch (e) {
         console.warn('[D1] sync after import failed:', e);
         await emit('show-toast', { message: t('d1m.error.syncTrasImportar', { e: String(e) }), type: 'warning' });

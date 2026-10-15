@@ -552,15 +552,15 @@
     if (nubeVacia && tombstones > 0) {
       console.log(`[Cloud] nube casi vacía (${enNube} filas) con ${tombstones} tombstones: se purga antes de subir`);
       await invoke('d1_reset_remote');
-      await invoke('d1_sync_all', { full: true, force: true });
+      await invoke('d1_sync_all', { full: true, force: true, source: 'drive-restore' });
     } else if (nubeVacia) {
       console.log(`[Cloud] nube casi vacía (${enNube} de ${filasLocales} filas locales): push completo`);
-      await invoke('d1_sync_all', { full: true, force: true });
+      await invoke('d1_sync_all', { full: true, force: true, source: 'drive-restore' });
     } else {
       console.log(
         `[Cloud] nube con ${enNube} filas vs ${filasLocales} locales: merge incremental (push de lo nuevo + pull de fusión)`
       );
-      await invoke('d1_sync_all');
+      await invoke('d1_sync_all', { source: 'drive-restore-merge' });
     }
     return true;
   }

@@ -137,12 +137,12 @@ export const d1SyncService = {
   },
 
   syncAll: async (): Promise<D1SyncResult> => {
-    const result = await d1SyncService.syncAllSilent(true);
+    const result = await d1SyncService.syncAllSilent(true, 'manual');
     if (!result) throw new Error(t('d1s.fallo'));
     return result;
   },
 
-  syncAllSilent: async (dispatchEvents: boolean = true): Promise<D1SyncResult | null> => {
+  syncAllSilent: async (dispatchEvents: boolean = true, source: string = 'unspecified'): Promise<D1SyncResult | null> => {
     const self = d1SyncService as any;
     // Disconnected by the user (switch in the D1 panel): this device neither
     // pushes nor pulls. The dirty tables stay marked, so reconnecting pushes
@@ -153,6 +153,7 @@ export const d1SyncService = {
       // que se acabaron de marcar, asi que basta con dejar constancia de que
       // hay otro pendiente. Ver la nota de `_syncPending`.
       self._syncPending = true;
+      self._syncPendingSource = source;
       return null;
     }
     self._syncLock = true;
@@ -164,8 +165,8 @@ export const d1SyncService = {
         return null;
       }
       d1SyncManager.setState({ status: 'syncing', message: t('d1s.sincronizando') });
-      console.debug(`[D1Debug] sync INICIO · tablas sucias: [${getDirtyTables().join(', ') || 'ninguna'}]`);
-      const result = await invoke<D1SyncResult>('d1_sync_all');
+      console.debug(`[D1Debug] sync INICIO · origen=${source} · tablas sucias: [${getDirtyTables().join(', ') || 'ninguna'}]`);
+      const result = await invoke<D1SyncResult>('d1_sync_all', { source });
       console.debug('[D1Debug] sync resultado crudo:', JSON.stringify(result).slice(0, 1500));
       d1SyncManager.setState({
         status: 'success',
@@ -231,7 +232,9 @@ export const d1SyncService = {
       // cada llamador). Se hace fuera del lock para no re-entrar en cola.
       if ((d1SyncService as any)._syncPending) {
         (d1SyncService as any)._syncPending = false;
-        void d1SyncService.syncAllSilent(dispatchEvents);
+        const pendingSource = (d1SyncService as any)._syncPendingSource || 'unknown';
+        (d1SyncService as any)._syncPendingSource = null;
+        void d1SyncService.syncAllSilent(dispatchEvents, `coalesced:${pendingSource}`);
       }
     }
   },
@@ -294,7 +297,7 @@ export const d1SyncService = {
       }
       // Bilateral: sincroniza SIEMPRE (push de cambios locales + PULL de cambios
       // remotos) y con eventos activos: si trajo datos, las páginas se refrescan.
-      await d1SyncService.syncAllSilent(true);
+      await d1SyncService.syncAllSilent(true, 'periodic');
     }, interval);
   },
 

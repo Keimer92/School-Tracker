@@ -18,7 +18,7 @@ async function flush() {
       const tables = [...pendingTables];
       pendingTables = new Set();
       huboCambios = true;
-      await syncService.syncAllSilent();
+      await syncService.syncAllSilent(true, "data-change");
       tables.forEach(t => markClean(t));
     }
   } catch (e) {

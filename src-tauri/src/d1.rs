@@ -747,8 +747,10 @@ pub async fn d1_sync_all(
     state: tauri::State<'_, DbState>,
     full: Option<bool>,
     force: Option<bool>,
+    source: Option<String>,
 ) -> Result<Value, String> {
     let force = force.unwrap_or(false);
+    let source = source.unwrap_or_else(|| "native-or-legacy".to_string());
     // Fase local (síncrona). Se acota el lock en este bloque para que el
     // MutexGuard NO cruce ningún .await (el futuro del comando debe ser Send).
     // Todo el trabajo de BD ocurre aquí, antes de lanzar la red con spawn_blocking.
@@ -822,7 +824,8 @@ pub async fn d1_sync_all(
             .clone()
             .unwrap_or_else(|| "1970-01-01 00:00:00".to_string());
         println!(
-            "[D1] sync INICIO device={}… schoolKey={}… push_since=\"{}\" pull_since=\"{}\"",
+            "[D1] sync INICIO source={} device={}… schoolKey={}… push_since=\"{}\" pull_since=\"{}\"",
+            source,
             &cfg.device_id[..cfg.device_id.len().min(16)],
             &cfg.school_key[..cfg.school_key.len().min(10)],
             push_since,

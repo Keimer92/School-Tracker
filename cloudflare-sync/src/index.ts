@@ -353,7 +353,7 @@ async function queryRows(db: D1Database, sql: string, params: unknown[] = []): P
 }
 
 /** Convierte `{ sql, params }[]` en un batch. Devuelve resultados + cambios reales por sentencia. */
-async function batchExec(db: D1Database, statements: { sql: string; params: any[] }[]): Promise<{ results: any[]; changes: number }[]> {
+async function batchExec(db: D1Database, statements: { sql: string; params: any[] }[]): Promise<{ results: any[]; changes: number; rowsRead: number }[]> {
   if (statements.length === 0) return [];
   const stmts = statements.map((s) => db.prepare(s.sql).bind(...s.params));
   try {
@@ -361,7 +361,11 @@ async function batchExec(db: D1Database, statements: { sql: string; params: any[
     for (const r of res) {
       if (!r.success) throw new Error(`D1 batch error: ${r.error || 'desconocido'}`);
     }
-    return res.map((r) => ({ results: r.results as any[], changes: r.meta?.changes ?? 0 }));
+    return res.map((r) => ({
+      results: r.results as any[],
+      changes: r.meta?.changes ?? 0,
+      rowsRead: r.meta?.rows_read ?? 0,
+    }));
   } catch (e: any) {
     throw new Error(`D1 batch error: ${e?.message || String(e)}`);
   }
@@ -830,11 +834,13 @@ ON CONFLICT(tabla, pk, sk) DO UPDATE SET updated_at = excluded.updated_at, devic
         }
 
         let realChanges = 0;
+        let rowsRead = 0;
         for (let i = 0; i < statements.length; i += BATCH_STMT) {
           const batchRes = await batchExec(env.DB, statements.slice(i, i + BATCH_STMT));
           realChanges += batchRes.reduce((a, b) => a + b.changes, 0);
+          rowsRead += batchRes.reduce((a, b) => a + b.rowsRead, 0);
         }
-        console.log(`[push] device=${deviceId} enviadas=${Object.values(stats).reduce((a, b) => a + b, 0)} cambiosReales=${realChanges} del=${delCount}`);
+        console.log(`[push] device=${deviceId.slice(0, 8)} rows_read=${rowsRead} enviadas=${Object.values(stats).reduce((a, b) => a + b, 0)} cambiosReales=${realChanges} del=${delCount}`);
 
         const appliedTables = Object.keys(stats);
         if ((realChanges > 0 || delCount > 0) && schoolKey && env.SYNC_HUB) {
@@ -875,6 +881,16 @@ ON CONFLICT(tabla, pk, sk) DO UPDATE SET updated_at = excluded.updated_at, devic
           params: [sk, since, deviceId],
         });
         const results = await batchExec(env.DB, statements);
+        const rowsRead = results.reduce((total, result) => total + result.rowsRead, 0);
+        const returnedRows = results
+          .slice(0, Object.keys(TABLES).length)
+          .reduce((total, result) => total + result.results.length, 0);
+        const readByTable = Object.fromEntries(
+          [...Object.keys(TABLES), 'sync_tombstone'].map((table, index) => [table, results[index].rowsRead]),
+        );
+        console.log(
+          `[pull] device=${deviceId.slice(0, 8)} since=${since} rows_read=${rowsRead} rows_returned=${returnedRows} reads_by_table=${JSON.stringify(readByTable)} tombstones=${results[results.length - 1]?.results.length ?? 0}`,
+        );
 
         const rows: Record<string, any[]> = {};
         Object.keys(TABLES).forEach((table, i) => {
