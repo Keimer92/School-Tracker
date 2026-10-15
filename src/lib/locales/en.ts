@@ -1625,17 +1625,7 @@ to print. It is saved in Documents/SchoolTrackerPro/Instruments.`,
   'dbg.update.actualizar': 'Update now',
   'dbg.update.ignorar': 'Ignore this version',
   'dbg.update.error': 'Error checking updates: {error}',
-  'dbg.drive.titulo': 'Automatic backup to Drive',
-  'dbg.info.titulo': 'System information',
-  'dbg.info.version': 'App version',
-  'dbg.info.ruta': 'Database path',
-  'dbg.info.plataforma': 'Platform',
-  'dbg.info.escritorio': 'Desktop',
-  'dbg.info.cargando': 'Loading…',
-  // Google Drive session diagnostic. It tells apart "you must sign in again"
-  // from "it renews on its own", which is the confusion that made the user think
-  // the session was lost when only the access token had expired.
-  'dbg.sesionDrive.titulo': 'Google Drive session',
+  // Google Drive session diagnostic.
   'dbg.sesionDrive.desc': 'Real state of the credentials stored on this device.',
   'dbg.sesionDrive.estado': 'Status',
   'dbg.sesionDrive.accessToken': 'Access token',
