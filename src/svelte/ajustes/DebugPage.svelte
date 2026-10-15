@@ -145,20 +145,27 @@
     const acceso = !!s.accessToken;
     const refresco = !!s.refreshToken;
     const expira = typeof s.tokenExpiry === "number" ? s.tokenExpiry : 0;
-    const vivo = acceso && refresco && expira > Date.now() + 120000;
-
-    let texto: string; let tono: string;
-    if (!acceso && !refresco) { texto = t('dbg.sesionDrive.sinSesion'); tono = "#94a3b8"; }
-    else if (!refresco) { texto = t('dbg.sesionDrive.revocada'); tono = "#f87171"; }
-    else if (!acceso) { texto = t('dbg.sesionDrive.renovar'); tono = "#fbbf24"; }
-    else if (expira && expira <= Date.now() + 120000) { texto = t('dbg.sesionDrive.vencida'); tono = "#f87171"; }
-    else { texto = t('dbg.sesionDrive.viva'); tono = "#4ade80"; }
 
     // El "escritura" dice quién puede escribir hoy: el nombre del archivo lleva
     // el tag de la cuenta, así que sin email los respaldos se guardan como
     // "default" y dejan de encontrarse los anteriores.
     const email = s.googleUserEmail || t('dbg.sesionDrive.sinEmail');
     const escritura = s.googleUserEmail ? t('dbg.sesionDrive.ok') : t('dbg.sesionDrive.tagDefault');
+
+    // Sin refresh token la sesión funciona pero MUERE sola en ~1 h: es el caso
+    // típico de Android, donde el sign-in nativo no puede pedir
+    // `access_type=offline` y Google no reemite el token si la cuenta ya
+    // había autorizado la app.
+    let texto: string; let tono: string;
+    if (!acceso && !refresco) { texto = t('dbg.sesionDrive.sinSesion'); tono = "#94a3b8"; }
+    else if (!acceso) { texto = t('dbg.sesionDrive.renovar'); tono = "#fbbf24"; }
+    else if (refresco) {
+      texto = expira > Date.now() + 120000 ? t('dbg.sesionDrive.viva') : t('dbg.sesionDrive.vencida');
+      tono = expira > Date.now() + 120000 ? "#4ade80" : "#fbbf24";
+    } else {
+      texto = t('dbg.sesionDrive.sinRenovar');
+      tono = "#fbbf24";
+    }
 
     return {
       texto, tono, email, escritura,
@@ -167,7 +174,6 @@
       expira: expira
         ? `${marcaTiempo(expira)}${expira <= Date.now() ? ` · ${t('dbg.sesionDrive.vencido')}` : ` · ${cuentaRegresiva(expira)}`}`
         : t('dbg.sesionDrive.sinExpiry'),
-      vivo,
     };
   });
 

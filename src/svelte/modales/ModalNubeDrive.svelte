@@ -107,6 +107,16 @@ const isConnected = $derived(isDriveSettingsLive(settings));
     }
     return `expiró hace ${Math.round((Date.now() - settings.tokenExpiry) / 60000)} min`;
   });
+  /**
+   * Conectado, pero sin forma de renovar solo.
+   *
+   * En Android el sign-in nativo no puede pedir `access_type=offline`, así que
+   * cuando la cuenta ya había autorizado la app, Google no emite refresh token.
+   * El acceso funciona durante su hora de vigencia y después se cae: eso es
+   * exactamente el "se desconecta después de cierto tiempo" que se venía
+   * reportando, y antes pasaba en silencio.
+   */
+  const sinRenovacionAutomatica = $derived(isConnected && !settings.refreshToken);
   const isAndroid = /Android/i.test(navigator.userAgent);
 
   function fmtBytes(n: number): string {
@@ -372,14 +382,28 @@ const isConnected = $derived(isDriveSettingsLive(settings));
   }
 
   async function disconnect() {
+    // Se vacían TODOS los campos de sesión, no solo los tokens: si sobrevive
+    // alguno (el email o la foto) el bloque de "cuenta" seguía mostrando datos
+    // de una sesión que ya no existe, y eso es lo que hacía confuso al modal.
     settings.accessToken = null;
     settings.refreshToken = null;
     settings.tokenExpiry = null;
     settings.googleUserEmail = null;
     settings.googleUserName = null;
     settings.googleUserProfilePic = null;
-    saveSettings();
+    // Estado de la UI: sin esto el modal podía quedar con la lista de respaldos
+    // de la sesión anterior y con el spinner de autenticación levantado.
     syncFiles = [];
+    sesionFallida = '';
+    isAuthLoading = false;
+    isTesting = false;
+    isFetchingFiles = false;
+    imgError = false;
+    authHandled = false;
+    // `cargoAlAbrir` se resetea para que al volver a vincular se recargue la
+    // lista; si queda en `true`, el efecto de apertura no vuelve a disparar.
+    cargoAlAbrir = false;
+    saveSettings();
     await emit('show-toast', { message: t('cloud.toast.desconectado'), type: 'success' });
   }
 
@@ -564,6 +588,16 @@ const isConnected = $derived(isDriveSettingsLive(settings));
     pasa cada vez que la app vuelve del segundo plano, NO es una sesión perdida:
     decirlo como tal empujaba a un re-login innecesario.
   -->
+  {#if sinRenovacionAutomatica}
+    <div class="alerta alerta-info">
+      <div class="alerta-titulo">🔑 {t('cloud.sinRefresh.titulo')}</div>
+      <div style="margin-top:0.35rem;">{t('cloud.sinRefresh.desc')}</div>
+      <button class="btn-chico" style="margin-top:0.6rem;" onclick={() => initGoogleAuth(true)} type="button">
+        {t('cloud.sinRefresh.reintentar')}
+      </button>
+    </div>
+  {/if}
+
   {#if sesionFallida === 'transitorio'}
     <div class="alerta alerta-info">
       <div class="alerta-titulo">📡 {t('cloud.sesion.transitoria')}</div>
@@ -579,6 +613,15 @@ const isConnected = $derived(isDriveSettingsLive(settings));
       <div class="vacio-ico">☁️</div>
       <p class="vacio-txt">{t('cloud.driveDesc')}</p>
       <p class="vacio-txt" style="opacity:0.65;font-size:0.68rem;">[dbg] {porQueNoConectado}</p>
+      <!--
+        Estado "desconectado" explícito. Antes de esta marca no había forma de
+        distinguir "nunca conecté" de "me desconecté y volví a entrar": en los dos
+        casos aparecía el mismo formulario, y el usuario no sabía si su cuenta
+        seguía vinculada.
+      -->
+      {#if settings.googleUserEmail || settings.googleUserName}
+        <p class="vacio-txt" style="color:#fbbf24;font-size:0.75rem;">⚠️ {t('cloud.sesion.revocada')}</p>
+      {/if}
       {#if settings.clientId}
         {#if isAuthLoading}
           <div class="conectando">

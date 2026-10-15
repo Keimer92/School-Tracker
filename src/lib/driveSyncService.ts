@@ -292,9 +292,32 @@ export function isDriveSessionLive(): boolean {
  * formulario no se iba nunca.
  */
 export function isDriveSettingsLive(settings: { accessToken?: string | null; refreshToken?: string | null; tokenExpiry?: number | null } | null | undefined): boolean {
-  if (!settings?.accessToken || !settings.refreshToken) return false;
+  // ⚠️ NO se exige `refreshToken` para considerar la sesión viva.
+  //
+  // En Android el sign-in nativo (`requestServerAuthCode`) NO tiene forma de
+  // pedir `access_type=offline`, así que cuando la cuenta ya autorizó la app
+  // antes, Google no vuelve a emitir el refresh token. Exigirlo dejaba el modal
+  // en "Conectar" para siempre pese a tener un access token perfectamente válido,
+  // y hacía que el usuario reintentara el login en bucle sin cambiar nada.
+  //
+  // El access token alcanza para trabajar durante su hora de vigencia; la
+  // ausencia del refresh no significa "desconectado". Lo que sí se marca aparte
+  // es `driveHasRefreshToken()`, para poder avisar de que la sesión NO se va a
+  // poder renovar sola.
+  if (!settings?.accessToken) return false;
   if (!settings.tokenExpiry) return false;
   return settings.tokenExpiry > Date.now() + 120000;
+}
+
+/**
+ * ¿Hay con qué renovar la sesión cuando el access token venza?
+ *
+ * Separate de "está conectada" a propósito: se puede estar conectado y, aun
+ * así, no renovar (ver la nota de `isDriveSettingsLive`). Es el dato que explica
+ * por qué una sesión muere sola al cabo de una hora.
+ */
+export function driveHasRefreshToken(): boolean {
+  return !!getSettings()?.refreshToken;
 }
 
 /**
