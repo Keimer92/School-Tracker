@@ -237,6 +237,13 @@ async function ensureSchema(env: Env): Promise<void> {
   ];
   const stmts = [...schemaStmts];
 
+  // Migration markers persist across Worker isolates; the in-memory
+  // `schemaReady` flag does not. Create this before checking any one-time
+  // migration marker.
+  await env.DB.prepare(
+    "CREATE TABLE IF NOT EXISTS sync_metadata (key TEXT PRIMARY KEY, value INTEGER NOT NULL DEFAULT 0)",
+  ).run();
+
   // Reshape de dia_sin_clases antiguo sin grado_id
   try {
     const dscCols = await queryRows(env.DB, "SELECT name FROM pragma_table_info('dia_sin_clases')");
@@ -279,30 +286,57 @@ async function ensureSchema(env: Env): Promise<void> {
     }
   } catch { /* best effort */ }
 
-  // Migración: UNIQUE(indicador_id, orden) en criterio (tablas viejas).
-  // Antes de crear el índice, deduplicar en la nube: si dos ids comparten
-  // (indicador_id, orden), conservar el que tenga más notas (empate → id menor).
-  // Sin esto, CREATE UNIQUE falla y el ON CONFLICT del upsert tampoco funciona.
-  try {
-    await env.DB.prepare(`
-      DELETE FROM criterio WHERE id NOT IN (
-        SELECT id FROM (
-          SELECT id, ROW_NUMBER() OVER (
-            PARTITION BY indicador_id, orden
-            ORDER BY (SELECT COUNT(*) FROM nota n WHERE n.criterio_id = criterio.id) DESC, id ASC
-          ) AS rn
-          FROM criterio
-        ) WHERE rn = 1
-      )
-    `).run();
+  for (const sql of stmts) {
+    try { await env.DB.prepare(sql).run(); } catch { /* ya existe */ }
+  }
+
+  // One-time migration: this dedup joins each criterion against nota and can
+  // read the full notes table. `schemaReady` is isolate-local, so gate the
+  // expensive work with a durable marker and never treat a marker-read error
+  // (for example a D1 quota error) as "migration not done".
+  const criterioUniqueMigrado = await env.DB.prepare(
+    "SELECT value FROM sync_metadata WHERE key = 'criterio_unique_v1'",
+  ).first();
+  if (!criterioUniqueMigrado) {
+    const indexes = await queryRows(env.DB, "PRAGMA index_list('criterio')");
+    let hasUniquePair = false;
+    let deduplicated = false;
+    for (const index of indexes) {
+      if (Number(index.unique) !== 1) continue;
+      const indexName = String(index.name).replace(/'/g, "''");
+      const columns = await queryRows(env.DB, `PRAGMA index_info('${indexName}')`);
+      if (columns.map((column: any) => column.name).join('|') === 'indicador_id|orden') {
+        hasUniquePair = true;
+        break;
+      }
+    }
+
+    if (!hasUniquePair) {
+      const hasDuplicates = await env.DB.prepare(
+        "SELECT 1 FROM criterio GROUP BY indicador_id, orden HAVING COUNT(*) > 1 LIMIT 1",
+      ).first();
+      if (hasDuplicates) {
+        await env.DB.prepare(`
+          DELETE FROM criterio WHERE id NOT IN (
+            SELECT id FROM (
+              SELECT id, ROW_NUMBER() OVER (
+                PARTITION BY indicador_id, orden
+                ORDER BY (SELECT COUNT(*) FROM nota n WHERE n.criterio_id = criterio.id) DESC, id ASC
+              ) AS rn
+              FROM criterio
+            ) WHERE rn = 1
+          )
+        `).run();
+        deduplicated = true;
+      }
+    }
     await env.DB.prepare(
       "CREATE UNIQUE INDEX IF NOT EXISTS idx_criterio_indicador_orden ON criterio(indicador_id, orden)"
     ).run();
-    console.log('[migración] criterio: dedup + índice UNIQUE(indicador_id, orden)');
-  } catch (e) { console.warn('[migración] criterio UNIQUE (best effort):', e); }
-
-  for (const sql of stmts) {
-    try { await env.DB.prepare(sql).run(); } catch { /* ya existe */ }
+    await env.DB.prepare(
+      "INSERT OR REPLACE INTO sync_metadata (key, value) VALUES ('criterio_unique_v1', 1)",
+    ).run();
+    console.log(`[migración] criterio: índice UNIQUE(indicador_id, orden) listo (dedup=${deduplicated})`);
   }
 
   // Reconstruir tablas con UNIQUE globales (una sola vez) ANTES de tocar columnas
@@ -506,10 +540,8 @@ const DEUNIQUE_TABLES: Record<string, string> = {
 };
 
 async function deUniqueTables(env: Env): Promise<void> {
-  const done = await env.DB.prepare(`SELECT value FROM sync_metadata WHERE key = 'deunique_v2'`).first().catch(() => null);
+  const done = await env.DB.prepare(`SELECT value FROM sync_metadata WHERE key = 'deunique_v2'`).first();
   if (done) return;
-  // Asegurar que sync_metadata exista (ensureSchema aún no corrió sus stmts si falla el .first)
-  try { await env.DB.prepare(`CREATE TABLE IF NOT EXISTS sync_metadata (key TEXT PRIMARY KEY, value INTEGER NOT NULL DEFAULT 0)`).run(); } catch {}
   for (const [table, def] of Object.entries(DEUNIQUE_TABLES)) {
     let renamed = false;
     try {
