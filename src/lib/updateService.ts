@@ -29,7 +29,7 @@
  */
 
 import { getVersion } from '@tauri-apps/api/app';
-import { exit } from '@tauri-apps/api/app';
+import { invoke } from '@tauri-apps/api/core';
 import { writeFile, BaseDirectory } from '@tauri-apps/plugin-fs';
 import { appCacheDir, join } from '@tauri-apps/api/path';
 import { openPath } from '@tauri-apps/plugin-opener';
@@ -256,8 +256,8 @@ export async function descargarYInstalar(
     const dir = await appCacheDir();
     // El nombre puede traer caracteres que Windows/Android no aceptan en rutas;
     // se conserva la extensión, que es la que decide cómo se abre el archivo.
-    const ext = (asset.name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
-    const base = (asset.name
+    const ext = (asset.nombre.match(/\.[^.]+$/) || [''])[0].toLowerCase();
+    const base = (asset.nombre
       .replace(/\.[^.]+$/, '')
       .replace(/[^\w.-]+/g, '_')
       .slice(0, 60) || `school_tracker_${info.version}`);
@@ -282,7 +282,8 @@ export async function descargarYInstalar(
   // el instalador NSIS se queda esperando. En Android ya está resuelto por el
   // sistema y salir solo cerraría la app sin más.
   if (esWindows()) {
-    try { await exit(0); } catch { /* si no se puede salir, el usuario cierra a mano */ }
+    // @tauri-apps/api 2.11 no exporta exit, así que el cierra va por Rust.
+    try { await invoke('gd_salir_app'); } catch (e) { console.warn('[Update] no se pudo cerrar la app:', e); }
   }
 
   return { ok: true };
