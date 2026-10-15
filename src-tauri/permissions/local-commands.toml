@@ -90,6 +90,7 @@ commands.allow = [
     "get_asistencia_all",
     "get_student_impact",
     "reset_local_database",
+    "clear_app_initialized",
     "reset_profile_account",
     "get_grados_by_colegio",
     "get_secciones_by_grado_colegio",

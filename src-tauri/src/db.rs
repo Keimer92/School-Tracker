@@ -1381,6 +1381,25 @@ pub async fn reset_profile_account(state: tauri::State<'_, DbState>) -> Result<(
     Ok(())
 }
 
+/// Marca la instalación como NO inicializada, para que el próximo arranque
+/// vuelva al Welcome.
+///
+/// Existe porque `reset_local_database` NO puede servir para esto: conserva
+/// `app_meta` a propósito (no quiere desvincular la nube) y por lo tanto deja
+/// `initialized = 'true'`; además `seed_default_data` vuelve a sembrar
+/// `ano_lectivo`. Con cualquiera de las dos cosas, `is_app_initialized`
+/// devuelve `true` y la app entra directo a la aplicación en vez de mostrar la
+/// portada, que es justo lo que se le pidió al reinicio del dispositivo.
+///
+/// No borra nada: solo baja la bandera. Es reversible y no destructiva.
+#[tauri::command]
+pub async fn clear_app_initialized(state: tauri::State<'_, DbState>) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM app_meta WHERE key = 'initialized'", [])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// Estado de la base local, para el primer arranque de un maestro nuevo.
 ///
 /// Existe por el nombre único de la BD: al unificar `school.db`, un equipo que
