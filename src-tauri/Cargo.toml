@@ -26,7 +26,22 @@ tauri-build = { version = "2", features = [] }
 custom-protocol = ["tauri/custom-protocol"]
 
 [dependencies]
-tauri = { version = "2", features = [] }
+# `devtools` NO es un feature por defecto de Tauri (su lista `default` es
+# `wry, compression, common-controls-v6, dynamic-acl, x11, dbus`).
+#
+# Los métodos `open_devtools` / `close_devtools` / `is_devtools_open` de
+# `WebviewWindow` están detrás de `#[cfg(any(debug_assertions,
+# feature = "devtools"))]`. En `cargo check` (dev) pasan porque `debug_assertions`
+# está activo; en `cargo build --release` —que es lo que corre CI—
+# `debug_assertions` se apaga y los métodos DESAPARECEN, con un E0599 que
+# apunta al uso pero no a la causa.
+#
+# Se activa a propósito en release: el flujo de diagnóstico de este proyecto
+# depende de DevTools (los `console.warn` de [Welcome]/[Drive]/[D1] se leen en
+# la consola del WebView en la app instalada, y DevTools oculta `console.debug`
+# salvo nivel "Verbose"). Sin DevTools en release no hay forma de diagnosticar
+# un problema de un usuario real.
+tauri = { version = "2", features = ["devtools"] }
 jni = "0.21"
 ndk-context = "0.1"
 serde = { version = "1", features = ["derive"] }
