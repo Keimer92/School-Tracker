@@ -19,7 +19,8 @@
     driveSyncService,
     type DriveFile,
     getDriveAccessToken,
-    isDriveSessionLive,
+    isDriveSettingsLive,
+    notifyDriveSessionChanged,
     subscribeDriveSession,
   } from '../../lib/driveSyncService';
   import { isInstantBackupEnabled, setInstantBackupEnabled } from '../../lib/driveInstantBackup';
@@ -72,13 +73,21 @@
   /**
  * ¿La sesión está REALMENTE viva?
  *
- * Antes era `!!settings.accessToken`, que solo miraba que el string no estuviera
- * vacío. Ese string sobrevive una hora después de expirar, así que el modal
- * seguía mostrando "conectado" mientras la API de Drive devolvía 401 en cada
- * llamada: conectado y muerto a la vez. Ahora delega en
- * `isDriveSessionLive()`, que además mira el vencimiento.
+ * Dos cosas se corrigieron acá:
+ *
+ * 1. Antes era `!!settings.accessToken`, que solo miraba que el string no
+ *    estuviera vacío. Ese string sobrevive una hora después de expirar, así que
+ *    el modal decía "conectado" mientras la API devolvía 401 en cada llamada.
+ * 2. Después pasó a `isDriveSessionLive()`, que lee `localStorage` de forma
+ *    imperativa. Un `$derived` así NO se recalcula nunca (el storage no es
+ *    dependencia reactiva): quedaba clavado en el valor inicial y el modal nunca
+ *    cambiaba del formulario al panel de "ya conectado", aunque el login
+ *    hubiera funcionado.
+ *
+ * Por eso usa la versión PURA y le pasa el `$state` de `settings`: con eso la
+ * dependencia es reactiva y el derivado se recalcula al guardar la sesión.
  */
-const isConnected = $derived(isDriveSessionLive());
+const isConnected = $derived(isDriveSettingsLive(settings));
   const isAndroid = /Android/i.test(navigator.userAgent);
 
   function fmtBytes(n: number): string {
@@ -128,6 +137,12 @@ const isConnected = $derived(isDriveSessionLive());
 
   function saveSettings() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    // Avisa al resto de la app (card del sidebar, chips, barra superior) de que
+    // la sesión cambió. `driveSyncService` dispara el mismo evento en SUS
+    // escrituras, pero este modal escribe por su cuenta al iniciar sesión: sin
+    // esto, el login desde acá no se reflejaba en ningún otro lugar hasta que
+    // el servicio tocara el storage.
+    notifyDriveSessionChanged();
   }
 
   /**
@@ -446,7 +461,9 @@ const isConnected = $derived(isDriveSessionLive());
    */
   $effect(() => subscribeDriveSession(() => {
     reloadSettings();
-    if (abierto && isDriveSessionLive()) { cargoAlAbrir = false; }
+    // `settings` se acaba de reasignar en `reloadSettings`, así que `isConnected`
+    // ya es `true` si hay sesión viva y la lista se puede recargar sola.
+    if (abierto && isConnected) { cargoAlAbrir = false; }
   }));
 
   onMount(() => {

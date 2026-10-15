@@ -275,7 +275,23 @@ export async function getDriveAccessToken(): Promise<{ token: string | null; mot
  * mismo margen de 2 minutos que usa `getDriveAccessToken`.
  */
 export function isDriveSessionLive(): boolean {
-  const settings = getSettings();
+  return isDriveSettingsLive(getSettings());
+}
+
+/**
+ * ¿Estos settings describen una sesión de Drive viva? (versión PURA)
+ *
+ * Existe para los componentes Svelte. Un `$derived` que llame a
+ * `isDriveSessionLive()` NO vuelve a calcularse nunca: la función lee
+ * `localStorage` de forma imperativa, y eso no es una dependencia reactiva, así
+ * que el derivado se evalúa una vez y se queda con ese valor para siempre.
+ *
+ * Pasándole el `$state` del componente como argumento, la dependencia pasa a ser
+ * ese estado y el derivado sí reacciona. Sin esto, el modal seguía mostrando
+ * "Conectar" después de un login exitoso: el toast decía "cuenta vinculada" y el
+ * formulario no se iba nunca.
+ */
+export function isDriveSettingsLive(settings: { accessToken?: string | null; refreshToken?: string | null; tokenExpiry?: number | null } | null | undefined): boolean {
   if (!settings?.accessToken || !settings.refreshToken) return false;
   if (!settings.tokenExpiry) return false;
   return settings.tokenExpiry > Date.now() + 120000;
