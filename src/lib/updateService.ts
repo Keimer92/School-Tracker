@@ -15,11 +15,19 @@
  *   antes: mientras corre, el .exe está bloqueado y el instalador no puede
  *   sobrescribirlo.
  *
- *   Android: descarga el APK y lo abre con `openPath`. Android responde con el
- *   instalador de paquetes del sistema, que pide confirmación al usuario. La app
- *   NO se puede actualizar a sí misma: sin root ni instalador privilegiado,
- *   Android ignora una reinstalación automática. El usuario termina el paso con
- *   un toque, igual que al instalar desde el navegador.
+ *   Android: descarga el APK y lo entrega al instalador del sistema con
+ *   `gd_instalar_actualizacion` (JNI + FileProvider). Android responde con el
+ *   instalador de paquetes, que pide confirmación al usuario. La app NO se puede
+ *   actualizar a sí misma: sin root ni instalador privilegiado, Android ignora
+ *   una reinstalación automática. El usuario termina el paso con un toque, igual
+ *   que al instalar desde el navegador, y necesita tener habilitado "instalar
+ *   apps desconocidas" para School Tracker (permiso REQUEST_INSTALL_PACKAGES).
+ *
+ *   Los dos caminos pasan por el MISMO comando Rust a propósito: el archivo
+ *   queda en la caché privada de la app, así que abrirlo desde JS no es una
+ *   opción (en Android `file://` lanza FileUriExposedException desde la API 24,
+ *   y con `openPath` del plugin-opener Android abriría un `Intent` sin
+ *   `content://`). En Rust, en cambio, no se paga el scope de capabilities.
  *
  * ── Seguridad ──
  *
@@ -30,9 +38,8 @@
 
 import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
-import { writeFile, BaseDirectory } from '@tauri-apps/plugin-fs';
+import { writeFile, mkdir, BaseDirectory } from '@tauri-apps/plugin-fs';
 import { appCacheDir, join } from '@tauri-apps/api/path';
-import { openPath } from '@tauri-apps/plugin-opener';
 import { esAndroid, esWindows } from './platform';
 import { fmtFechaNica, type IdiomaFecha } from './fecha';
 
@@ -250,10 +257,17 @@ export async function descargarYInstalar(
   }
 
   // ── Escritura ──
-  // $TEMP es de escritura libre y no requiere confirmación del usuario.
+  // La caché de la app ($APPCACHE) es de escritura libre y no requiere
+  // confirmación del usuario; está habilitada en `fs:allow-appcache-write-recursive`
+  // (capabilities/default.json). ⚠️ NO usar $TEMP en Android: temp_dir() apunta
+  // a /data/local/tmp, que la app no puede escribir.
   let ruta: string;
   try {
     const dir = await appCacheDir();
+    // Normalmente ya existe (en Windows es la carpeta de datos del WebView2 y en
+    // Android getCacheDir()), pero crearla es barato y evita un fallo raro en una
+    // instalación limpia. Mismo patrón que instrumentosExcel.ts.
+    await mkdir(dir, { recursive: true }).catch(() => {});
     // El nombre puede traer caracteres que Windows/Android no aceptan en rutas;
     // se conserva la extensión, que es la que decide cómo se abre el archivo.
     const ext = (asset.nombre.match(/\.[^.]+$/) || [''])[0].toLowerCase();
@@ -270,10 +284,11 @@ export async function descargarYInstalar(
   onProgreso?.(100, '100%');
 
   // ── Instalación ──
-  // `openPath` abre el archivo con la asociación del sistema: en Windows ejecuta
-  // el .exe, en Android levanta el instalador de paquetes.
+  // Un solo comando Rust para las dos plataformas: en Windows lanza el .exe con
+  // el ShellExecute del sistema, en Android comparte el APK por FileProvider y
+  // abre el instalador de paquetes.
   try {
-    await openPath(ruta);
+    await invoke('gd_instalar_actualizacion', { ruta });
   } catch (e) {
     return { ok: false, motivo: `abrir: ${e instanceof Error ? e.message : String(e)}` };
   }

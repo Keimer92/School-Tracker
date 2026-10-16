@@ -10,6 +10,7 @@
    *   · "Reiniciar Local"      -> la purga ya reinicia la base local, asi que
    *                              quedaban dos botones para lo mismo.
    */
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { open, ask } from "@tauri-apps/plugin-dialog";
@@ -30,6 +31,8 @@ import { consultarActualizacion, descargarYInstalar, ignorarVersion, type InfoAc
   const CARPETA_BACKUPS = "School Tracker/Backups";
 
 let dbPath = $state("");
+/** Version real de la app (tauri.conf.json), no un literal del template. */
+let appVersion = $state("");
 let isImporting = $state(false);
 let isWipingProfile = $state(false);
 let isReparandoNotas = $state(false);
@@ -285,6 +288,9 @@ const handleIgnoreUpdate = () => {
   ]);
 
   invoke<string>("get_db_path").then(p => dbPath = p).catch(() => dbPath = "");
+// Version que ve el usuario: la usa tanto el bloque SISTEMA como el comparador
+// de actualizaciones (updateService llama a getVersion() por su lado).
+getVersion().then(v => appVersion = v).catch(() => appVersion = "");
 
 // Auto-check para actualizaciones al montar (una vez, silencioso).
 void checkForUpdate();
@@ -643,8 +649,8 @@ void checkForUpdate();
         {:else if updateInfo}
           <div class="dbg-update-info">
             <p><strong>{t('dbg.update.version_actual')}: {updateInfo.version}</strong></p>
-            {#if updateInfo.nota}
-              <p>{@html updateInfo.nota}</p>
+            {#if updateInfo.notas}
+              <p>{@html updateInfo.notas}</p>
             {/if}
             {#if updateInfo.asset}
               <p>{t('dbg.update.disponible', { plataforma: isAndroid ? 'Android' : 'Windows' })}</p>
@@ -678,7 +684,7 @@ void checkForUpdate();
       <div class="dbg-box">
         <div class="dbg-box-head"><span style="font-size: 1.2rem;">📊</span><h5>{t('dbg.info.titulo')}</h5></div>
         <dl class="dbg-info">
-          <div><dt>{t('dbg.info.version')}</dt><dd>1.2.0</dd></div>
+          <div><dt>{t('dbg.info.version')}</dt><dd>{appVersion || '—'}</dd></div>
           <div><dt>{t('dbg.info.ruta')}</dt><dd class="dbg-path">{dbPath || t('dbg.info.cargando')}</dd></div>
           <div><dt>{t('dbg.info.plataforma')}</dt><dd>{isAndroid ? "Android" : t('dbg.info.escritorio')}</dd></div>
         </dl>

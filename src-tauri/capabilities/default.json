@@ -44,6 +44,7 @@
     },
     "fs:allow-appdata-write-recursive",
     "fs:allow-appdata-read-recursive",
+    "fs:allow-appcache-write-recursive",
     "allow-local-commands",
     "core:webview:allow-create-webview",
     "core:window:allow-create",

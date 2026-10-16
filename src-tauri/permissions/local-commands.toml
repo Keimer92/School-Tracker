@@ -136,6 +136,7 @@ commands.allow = [
     "gd_has_pending_oauth_code",
     "gd_cancel_oauth",
     "gd_salir_app",
+    "gd_instalar_actualizacion",
   "gd_snapshot_db",
   "desvincular_cuenta",
   "gd_create_backup",

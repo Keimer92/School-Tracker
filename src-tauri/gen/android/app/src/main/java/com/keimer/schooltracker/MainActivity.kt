@@ -475,6 +475,49 @@ class MainActivity : TauriActivity() {
   }
 
   /**
+   * Le pasa un APK ya descargado al instalador de paquetes del sistema. NO lo
+   * instala por si misma: Android siempre pide confirmacion al usuario (y exige
+   * que la app tenga habilitado "instalar apps desconocidas", que se declara
+   * con REQUEST_INSTALL_PACKAGES en el manifest). La invoca Rust por JNI desde
+   * `gd_instalar_actualizacion`.
+   *
+   * El APK vive en la cache privada de la app, asi que NO se puede pasar como
+   * `file://`: desde Android 7 compartir un archivo con otra app por `file://`
+   * lanza FileUriExposedException. Va por FileProvider, que da un `content://`
+   * cubierto por `res/xml/file_paths.xml` (cache-path). El authority tiene que
+   * ser el mismo que declara el manifest: "${applicationId}.fileprovider".
+   *
+   * Devuelve "" si el instalador se abrio, o el motivo del fallo.
+   */
+  fun installApk(path: String): String {
+    return try {
+      val apk = File(path)
+      if (!apk.exists() || !apk.isFile) {
+        android.util.Log.e("MainActivity", "installApk: no existe $path")
+        return "no_existe"
+      }
+      val uri = androidx.core.content.FileProvider.getUriForFile(
+        this,
+        "$packageName.fileprovider",
+        apk
+      )
+      val intent = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, "application/vnd.android.package-archive")
+        // Sin FLAG_GRANT_READ_URI_PERMISSION el instalador no puede leer el
+        // content:// y falla con SecurityException.
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      }
+      startActivity(intent)
+      android.util.Log.i("MainActivity", "installApk: instalador abierto para ${apk.name}")
+      ""
+    } catch (e: Exception) {
+      android.util.Log.e("MainActivity", "installApk error: ${e.message}")
+      e.message ?: "error"
+    }
+  }
+
+  /**
    * Guarda la config del backup automatico y (re)programa la alarma.
    * La invoca Rust por JNI desde `set_local_backup_config`.
    */

@@ -2106,6 +2106,61 @@ async fn gd_salir_app(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Entrega un instalador ya descargado al sistema (flujo de auto-actualización).
+///
+/// Un solo comando para las dos plataformas porque el archivo vive en la caché
+/// privada de la app y abrirlo desde JS no es viable:
+///
+/// · Windows/desktop: `open_path` del plugin-opener, pero por su **API de Rust**,
+///   no por su comando IPC. Así no hace falta habilitar
+///   `opener:allow-open-path` ni un scope en `capabilities`. Es el
+///   `ShellExecuteExW` del sistema, igual que un doble clic en el instalador.
+/// · Android: JNI a `MainActivity.installApk`, que comparte el APK por
+///   FileProvider (`content://`) y abre el instalador de paquetes. Con `file://`
+///   Android 7+ (minSdk 24) lanza FileUriExposedException.
+///
+/// En Android NO instala nada por sí solo: el sistema pide confirmación al
+/// usuario. Cerrar la app en Windows es cosa aparte (`gd_salir_app`).
+#[tauri::command]
+async fn gd_instalar_actualizacion(ruta: String) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        use jni::objects::JValue;
+        println!("[Update] gd_instalar_actualizacion -> {}", ruta);
+        let (vm, activity) = obtain_native_bridge()?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        let j_ruta = env.new_string(&ruta).map_err(|e| e.to_string())?;
+        let j_obj = env
+            .call_method(
+                activity.as_obj(),
+                "installApk",
+                "(Ljava/lang/String;)Ljava/lang/String;",
+                &[JValue::Object(&j_ruta)],
+            )
+            .map_err(|e| format!("Error JNI installApk: {}", e))?
+            .l()
+            .map_err(|e| e.to_string())?;
+        // Kotlin devuelve "" en exito, o el motivo del fallo.
+        let motivo: String = if j_obj.is_null() {
+            String::new()
+        } else {
+            env.get_string(&jni::objects::JString::from(j_obj))
+                .map_err(|e| e.to_string())?
+                .into()
+        };
+        if motivo.is_empty() {
+            Ok(())
+        } else {
+            Err(format!("El instalador no se pudo abrir: {}", motivo))
+        }
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        tauri_plugin_opener::open_path(&ruta, None::<&str>)
+            .map_err(|e| format!("No se pudo abrir el instalador: {}", e))
+    }
+}
+
 /// Snapshot consistente de la base ACTIVA, escrito en el directorio temporal
 /// del sistema y con nombre FIJO (se sobrescribe en cada llamada).
 ///
@@ -2686,6 +2741,7 @@ update_colegio,
             gd_has_pending_oauth_code,
             gd_cancel_oauth,
             gd_salir_app,
+            gd_instalar_actualizacion,
     gd_snapshot_db,
     desvincular_cuenta,
     gd_create_backup,
