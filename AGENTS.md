@@ -1440,7 +1440,7 @@ Google Sign-In clásico (`com.google.android.gms:play-services-auth:21.2.0`) con
 primer plano** → evita el congelamiento del proceso que mataba el flujo por navegador.
 
 Cadena completa:
-1. Frontend (`WelcomePage.handleDriveConnect` / `CloudPage.initGoogleAuth`) detecta
+1. Frontend (`WelcomePage.handleDriveConnect` / `ModalNubeDrive.initGoogleAuth`) detecta
    Android → `invoke("gd_start_native_signin", { serverClientId })`.
 2. Rust JNI (`obtain_native_bridge`) → `MainActivity.startGoogleSignIn(serverClientId)`
    → lanza intent de GoogleSignIn vía `googleSignInLauncher` (`registerForActivityResult`
@@ -1494,6 +1494,57 @@ GOTCHAS aprendidos (no repetir):
 - Barra de progreso de descarga: `syncManager.downloadProgress {loaded,total,pct}`;
   streaming con `response.body.getReader()` vs header `Content-Length`; UI en
   WelcomePage (primera conexión) y CloudPage (restaurar).
+
+#### Credencial de DISPOSITIVO de Drive (2026-10) — el otro camino de Android
+
+El `serverAuthCode` (paso 5) sirve para el **primer** login del WelcomePage, pero
+tiene un techo: ese canje no puede pedir `access_type=offline`, así que Google solo
+entrega el `refresh_token` en la PRIMERA autorización y la sesión moría a la hora.
+Por eso la vinculación desde el modal de Drive ya **no canjea el código**: pide una
+credencial de dispositivo, que Play Services reemite sola cuando vence.
+
+| Pieza | Dónde |
+|---|---|
+| `requestDriveToken()` + `emitDriveTokenResult` + `takeLastDriveTokenResult` | `MainActivity.kt` (ejecutor propio: `getToken` es bloqueante con red) |
+| `gd_request_drive_token` / `gd_take_drive_token_result` | `lib.rs` (JNI, patrón take) |
+| Vinculación inicial | `ModalNubeDrive.pedirTokenNativo()` |
+| Renovación automática (cuando el access vence) | `driveSyncService.tokenNativoAndroid()`, último recurso de `getValidToken` |
+
+⚠️ **El scope NECESITA el prefijo `oauth2:`.** `GoogleAuthUtil.getToken` documenta
+`scope` como *"a String representing the authentication scope, **prefixed with
+`oauth2:`"*, y así es como decide el flujo la implementación de referencia
+(`service.startsWith("oauth2:")` → si no, lo trata como un `service` heredado). Un
+scope pelado (`https://www.googleapis.com/auth/drive.file`) hace que la petición NO
+sea de OAuth2: `getToken` falla o devuelve algo que la API de Drive rechaza. **Es un
+string, así que ni `tsc`, ni `cargo check`, ni `compileUniversalDebugKotlin` lo
+detectan** — solo se ve en un dispositivo. Correcto:
+`"oauth2:https://www.googleapis.com/auth/drive.file"` (y `requestScopes(Scope("https://…"))`
+en el sign-in, que ahí SÍ va sin prefijo).
+
+⚠️ **`drive.file` NO habilita `oauth2/v2/userinfo`.** Pedir el perfil con esa
+credencial da 403. El email/nombre/foto salen del propio selector nativo
+(`res.email` / `res.displayName` / `res.photoUrl`), así que `vincularConTokenNativo`
+recibe el perfil COMPLETO y no llama a `fetchUserInfo` (era una petición muerta; en
+escritorio sí se usa, porque ese OAuth pide además `userinfo.email`/`userinfo.profile`).
+
+⚠️ **Cancelar no puede cerrar el selector nativo.** El bottom sheet de Google no se
+cierra por código, así que su resultado llega igual después de "Cancelar". Sin el flag
+`authCancelled`, el `while` del sondeo seguía escuchando y el login cancelado se
+concretaba solo. Ahora `cancelAuth()` lo pone, el sondeo corta ANTES de consumir el
+resultado (que queda en el slot nativo para el próximo intento) y
+`handleGoogleNativeResult` lo descarta por el camino del evento.
+
+⚠️ **Sin refresh token es lo NORMAL en Android**, no una sesión rota: el cartel
+`sinRenovacionAutomatica` (que sí aplica en escritorio, donde el OAuth pide
+`offline`) tiene que excluir Android o empuja a revincular en bucle justo después de
+vincularse. Si la renovación falla de verdad, el aviso sale igual por
+`sesionFallida === 'sin-refresh'`.
+
+El error del picker se traduce con **`lib/googleSignInError.ts`** (`explicarSignInNativo`):
+el `statusCode` 10 es `DEVELOPER_ERROR` y hay que decirlo explícito, porque es el
+fallo más común (cliente OAuth de Android sin registrar en GCP con el paquete + SHA-1)
+y un `(10)` pelado no dice nada. Lo usan los DOS call sites: `cloudLogin.ts` y
+`ModalNubeDrive.svelte`.
 
 ### Dev Android / Windows — sesiones independientes (2026-08 / 2026-10)
 

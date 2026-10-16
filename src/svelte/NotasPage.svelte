@@ -3357,7 +3357,16 @@ import { primerColegio } from "../lib/catalogo";
                             {#if repIsQualitative}
                               <span style="font-weight:{isMissing ? 'normal' : 'bold'};color:{noteColor}">{isMissing ? "-" : label}</span>
                             {:else}
-                              <span style="font-weight:{isMissing ? 'normal' : 'bold'};color:{noteColor}">{isMissing ? "-" : `${Math.round(nota)}${label ? ` ${label}` : ''}`}</span>
+                              <!--
+                              Número y sigla van en DOS spans: en el teléfono la
+                              sigla escribiéndose junto ("12 AA") ensanchaba cada
+                              celda y la tabla horizontalmente llegaba más lejos;
+                              ahora, la sigla se muestra como un subíndice
+                              reducido `.rep-sigla` y solo en ese punto, así la
+                              tabla entra con menos scroll horizontal.
+                            -->
+                            <span style="font-weight:{isMissing ? 'normal' : 'bold'};color:{noteColor}">{isMissing ? "-" : `${Math.round(nota)}`}</span>
+                            {#if !isMissing && label}<span class="rep-sigla">{label}</span>{/if}
                             {/if}
                           </td>
                         {/each}
@@ -3396,16 +3405,24 @@ import { primerColegio } from "../lib/catalogo";
                 {promedioGrupalLabel}
               </div>
             </div>
-            {#each configIndicadores.filter(i => i.activo) as ind}
-              <div class="summary-card" style="border-left:3px solid var(--primary-color)">
-                <span class="summary-label">Ind. {ind.orden}</span>
-                <span class="summary-value" style="font-size:0.7rem;color:var(--text-secondary);font-weight:400;line-height:1.2;word-break:break-word">{ind.descripcion || t('rep.sinDescripcion')}</span>
-              </div>
-            {/each}
-            {#if configIndicadores.filter(i => i.activo).length === 0}
-              <div class="summary-card" style="grid-column:1/-1">
-                <span class="summary-label" style="color:#64748b;font-style:italic">{t('rep.sinIndicadoresActivos')}</span>
-              </div>
+            <!--
+              Las tarjetas por indicador (descripción + sigla) ceden el espacio en
+              el teléfono: duplican lo que ya dicen los encabezados de la tabla y
+              con 5 indicadores ocupaban casi media pantalla, apretando la tabla
+              (que es la que importa). En escritorio se mantienen.
+            -->
+            {#if !repIsAndroidMobile}
+              {#each configIndicadores.filter(i => i.activo) as ind}
+                <div class="summary-card" style="border-left:3px solid var(--primary-color)">
+                  <span class="summary-label">Ind. {ind.orden}</span>
+                  <span class="summary-value rep-desc" style="font-size:0.7rem;color:var(--text-secondary);font-weight:400;line-height:1.2;word-break:break-word;margin-top:2px">{ind.descripcion || t('rep.sinDescripcion')}</span>
+                </div>
+              {/each}
+              {#if configIndicadores.filter(i => i.activo).length === 0}
+                <div class="summary-card" style="grid-column:1/-1">
+                  <span class="summary-label" style="color:#64748b;font-style:italic">{t('rep.sinIndicadoresActivos')}</span>
+                </div>
+              {/if}
             {/if}
           </div>
         </div>
@@ -4633,8 +4650,52 @@ import { primerColegio } from "../lib/catalogo";
       .main-content{padding:0!important}::-webkit-scrollbar{display:none!important}
     }
     .print-header{display:none}
-    @media (max-width:768px){
-      .asistencia-summary{overflow-y:auto;-webkit-overflow-scrolling:touch;max-height:calc(100dvh - 170px)}
+    /* Tarjetas de las estadísticas del reporte: en NotasPage no existía ese
+       estilo (los nombres de clase vienen del port de AsistenciaPage, pero el
+       CSS es scoped a ese componente y acá nunca aplicó) → se veían como texto
+       pelado. Se define acá, para que en ambos dispositivos aparezcan como
+       tarjetas glass compactas. */
+    .summary-card{background:rgba(255,255,255,.02);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:.6rem .35rem;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-width:0;position:relative;overflow:hidden;transition:all .25s cubic-bezier(.4,0,.2,1)}
+    .summary-card:hover{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.12);transform:translateY(-2px)}
+    .summary-label{font-size:.63rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text-secondary,#94a3b8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+    .summary-value{font-size:1.05rem;font-weight:700;line-height:1.15;color:#fff}
+    .gender-labels{display:flex;gap:.5rem;justify-content:center;margin-top:2px;font-size:.6rem;color:var(--text-secondary,#94a3b8)}
+    .gender-m{color:var(--sexo-m,#60a5fa)}
+    .gender-f{color:var(--sexo-f,#f472b6)}
+    .rep-sigla{font-size:.62rem;font-weight:700;letter-spacing:.3px;color:var(--text-secondary,#94a3b8);margin-left:.25rem;opacity:.75;vertical-align:middle}
+
+    /*
+      Pérdida de altura del REPORTE en pantalla angosta (móvil/tablet, Android
+      incluido): la card de la tabla y `.asistencia-summary` se reparten la MISMA
+      columna de altura fija, y las estadísticas ganaban siempre.
+
+      Las estadísticas vienen con `flex-shrink:0` (estilo EN LÍNEA) y un tope de
+      `calc(100dvh - 170px)`, que es casi toda la pantalla; con 5 indicadores sus
+      tarjetas superan los ~380px. Como la card de la tabla es
+      `flex:1; min-height:0`, terminaba aplastada a una tira de pocos píxeles: en
+      Android el reporte se veía como "una card comprimida" y la tabla no
+      aparecía (el bloque de estadísticas se la comía entera).
+
+      Se le da piso a la tabla (45 % del alto de la ventana) y se deja que las
+      estadísticas tomen lo que sobra, con su propio scroll interno.
+
+      Los `!important` son a propósito: `flex-shrink` y `min-height` están
+      escritos como estilo en línea en esos dos divs, y el estilo en línea gana a
+      cualquier regla de clase (misma razón que el `!important` del padding de
+      `.rep-tabla`, más arriba).
+    */
+    /* Compactación del reporte en pantalla angosta (móvil / tablet / Android). */
+    @media (max-width:1024px){
+      .rep-tabla th,.rep-tabla td{padding-left:.35rem!important;padding-right:.35rem!important}
+      .rep-tabla thead th{font-size:.72rem!important}
+      .rep-tabla tbody td{font-size:.77rem!important}
+      .rep-tabla tbody td div{min-width:110px!important}
+      .asistencia-summary{overflow-y:auto;-webkit-overflow-scrolling:touch;grid-template-columns:repeat(auto-fit,minmax(100px,1fr))!important;gap:.4rem!important;padding:.4rem!important;max-height:calc(100dvh - 170px);flex-shrink:1!important;min-height:0!important}
+      .summary-card{min-height:50px!important;padding:.3rem .2rem!important}
+      .summary-label{font-size:.56rem!important}
+      .summary-value{font-size:.88rem!important}
+      .gender-labels{font-size:.52rem!important}
+      .table-card{min-height:45dvh!important}
     }
     @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
     @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}

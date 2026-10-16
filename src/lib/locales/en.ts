@@ -1425,11 +1425,11 @@ to print. It is saved in Documents/SchoolTrackerPro/Instruments.`,
   'cloud.sesion.transitoria': 'No connection to Google. Your session is still active; it will be retried automatically.',
   'cloud.sesion.revocada': 'Your Google session expired. Sign in again to keep using Drive.',
   'cloud.sesion.sinRefresh': 'No Google session is stored. Sign in to connect Drive.',
-  // Android: the native sign-in cannot request `access_type=offline`, so Google
-  // does not re-issue a refresh token if the account already authorized the app.
+  // Only reachable on DESKTOP: on Android the device credential renews itself
+  // (Play Services), so nothing is missing there.
   'cloud.sinRefresh.titulo': 'The session cannot renew itself',
   'cloud.error.credencialDrive': 'Could not obtain the Drive permission',
-  'cloud.sinRefresh.desc': 'Google did not return a refresh token, so this session will expire in about 1 hour and Drive will have to be linked again. This is a limit of Android native sign-in.',
+  'cloud.sinRefresh.desc': 'Google did not return a refresh token, so this session will expire in about 1 hour and Drive will have to be linked again.',
   'cloud.sinRefresh.reintentar': 'Link again',
   // Cloud access using the already-saved credential, without going through Google.
   'welcome.cardGuardada.title': 'Continue with your cloud',

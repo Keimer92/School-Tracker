@@ -26,6 +26,7 @@
   import { isInstantBackupEnabled, setInstantBackupEnabled } from '../../lib/driveInstantBackup';
   import { syncManager, type SyncStatus } from '../../lib/syncService';
   import { navegadorLoginArg } from '../../lib/oauthBrowser';
+  import { explicarSignInNativo } from '../../lib/googleSignInError';
   import { setBackAuthInProgress } from '../../lib/androidBack';
   import { isCloudPanelOpen, closeCloudPanel } from '../../lib/cloudPanels.svelte';
   import { t, getLocale } from '../../lib/i18n.svelte';
@@ -69,6 +70,15 @@
   let instantBackupOn = $state(isInstantBackupEnabled());
   let imgError = $state(false);
   let authHandled = false;
+  /**
+   * El usuario tocó "Cancelar" en este intento.
+   *
+   * El selector NATIVO de cuentas no se puede cerrar por código, así que su
+   * resultado llega igual después de cancelar. Sin esta flag, un login cancelado
+   * se concretaba solo (el `while` del sondeo seguía escuchando y
+   * `handleGoogleNativeResult` procesaba el resultado).
+   */
+  let authCancelled = false;
 
   /**
  * ¿La sesión está REALMENTE viva?
@@ -110,14 +120,27 @@ const isConnected = $derived(isDriveSettingsLive(settings));
   /**
    * Conectado, pero sin forma de renovar solo.
    *
-   * En Android el sign-in nativo no puede pedir `access_type=offline`, así que
-   * cuando la cuenta ya había autorizado la app, Google no emite refresh token.
-   * El acceso funciona durante su hora de vigencia y después se cae: eso es
-   * exactamente el "se desconecta después de cierto tiempo" que se venía
-   * reportando, y antes pasaba en silencio.
+   * En Android esto NO aplica: la sesión se vincula con una credencial de
+   * DISPOSITIVO que Play Services reemite sola (`tokenNativoAndroid` en
+   * `driveSyncService`), así que ahí la ausencia de refresh token es lo normal y
+   * no un problema. Avisarlo igual mostraba un cartel falso ("va a expirar en
+   * 1 hora") y empujaba a revincular en bucle justo después de haberse vinculado.
+   *
+   * En escritorio sí importa: el OAuth pide `access_type=offline` y, si Google no
+   * entrega el refresh token, la sesión muere a la hora de verdad.
    */
-  const sinRenovacionAutomatica = $derived(isConnected && !settings.refreshToken);
   const isAndroid = /Android/i.test(navigator.userAgent);
+  const sinRenovacionAutomatica = $derived(isConnected && !settings.refreshToken && !isAndroid);
+
+  /**
+   * Rastro de depuración del estado de la sesión (`[dbg] …`).
+   *
+   * Es útil para diagnosticar "por qué me pide Conectar si ya me vinculé", pero
+   * es texto interno ("llegó access pero NO refresh"): en una build de producción
+   * el usuario no tiene por qué verlo. `import.meta.env.DEV` lo compila fuera de
+   * la release, así que sigue estando para desarrollar sin ensuciar la UI.
+   */
+  const mostrarDiagnostico = import.meta.env.DEV;
 
   function fmtBytes(n: number): string {
     if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
@@ -277,6 +300,7 @@ const isConnected = $derived(isDriveSettingsLive(settings));
      * la flag se sube antes de terminar y nunca se baja.
      */
     authHandled = false;
+    authCancelled = false;
     isAuthLoading = true;
     if (isAndroid) {
       // Native account picker: the app never loses the foreground, which avoids
@@ -293,8 +317,14 @@ const isConnected = $derived(isDriveSettingsLive(settings));
       // sitting in MainActivity.
       const deadline = Date.now() + 180000;
       let gotResult = false;
-      while (Date.now() < deadline) {
+      // El selector nativo no se cierra por código: tras "Cancelar" el bottom
+      // sheet sigue ahí y su resultado llega igual. El chequeo corta el sondeo
+      // ANTES de consumir el resultado, así que un login cancelado no se concreta
+      // y además el resultado queda en el slot del lado nativo para el próximo
+      // intento (que empieza con `authCancelled = false`).
+      while (Date.now() < deadline && !authCancelled) {
         await new Promise((r) => setTimeout(r, 1000));
+        if (authCancelled || authHandled) break;
         try {
           const res = await invoke<string | null>('gd_take_last_native_result');
           if (res) {
@@ -305,9 +335,8 @@ const isConnected = $derived(isDriveSettingsLive(settings));
         } catch (e) {
           console.error('[NativePoll] invoke falló:', e);
         }
-        if (authHandled) break;
       }
-      if (!gotResult && !authHandled) {
+      if (!gotResult && !authHandled && !authCancelled) {
         isAuthLoading = false;
         await emit('show-toast', { message: t('cloud.error.timeoutSelector'), type: 'error' });
       }
@@ -320,12 +349,17 @@ const isConnected = $derived(isDriveSettingsLive(settings));
       const redirectUri = `${isAndroid ? 'http://127.0.0.1' : 'http://localhost'}:${port}/callback`;
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${settings.clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent('https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile')}&access_type=offline&prompt=${forceSelectAccount ? 'select_account' : 'consent'}`;
       const code = await invoke<string>('gd_open_auth_webview', { url: authUrl, browser: navegadorLoginArg() });
-      if (code && !authHandled) {
+      // `!authCancelled`: cancelar limpia el código del lado de Rust, pero si el
+      // canje llegara igual (carrera) el login cancelado se concretaba solo.
+      if (code && !authHandled && !authCancelled) {
         authHandled = true;
         await exchangeCode(code, redirectUri);
       }
     } catch (e) {
-      if (!authHandled) {
+      // Si el usuario canceló, el error es el propio aborto del flujo: ya avisó
+      // "Cancelada" y no corresponde un segundo toast rojo ("no se pudo
+      // autenticar") por algo que el usuario hizo a propósito.
+      if (!authHandled && !authCancelled) {
         console.error('Google Auth failed:', e);
         await emit('show-toast', { message: t('cloud.error.autenticar', { e: String(e) }), type: 'error' });
       }
@@ -340,9 +374,16 @@ const isConnected = $derived(isDriveSettingsLive(settings));
       try { res = JSON.parse(res); } catch { return; }
     }
     if (!res) return;
+    // Este camino lo puede llamar el EVENTO (no solo el sondeo), y el evento
+    // llega aunque el usuario haya cancelado: el selector nativo no se cierra
+    // por código. Sin este corte, cancelar no cancelaba nada.
+    if (authCancelled) return;
     if (!res.ok) {
       if (!authHandled && !res.cancelled) {
-        emit('show-toast', { message: `❌ Error de Google Sign-In (${res.statusCode ?? '?'}): ${res.error ?? ''}`, type: 'error' });
+        // `explicarSignInNativo` traduce el `statusCode` (el 10 es DEVELOPER_ERROR:
+        // el cliente OAuth de Android no está registrado en GCP con este paquete +
+        // SHA-1). Antes se imprimía el código pelado y no decía nada.
+        emit('show-toast', { message: `❌ ${explicarSignInNativo(res.statusCode, res.error)}`, type: 'error' });
       }
       isAuthLoading = false;
       return;
@@ -352,22 +393,29 @@ const isConnected = $derived(isDriveSettingsLive(settings));
     // pedir `access_type=offline`, así que Google solo entregaba el refresh token
     // en la primera autorización y la sesión moría a la hora.
     //
-    // Ahora, con la identidad ya resuelta (`res.email`), se pide una credencial
-    // de DISPOSITIVO a Play Services: no hay código ni refresh que perder, y
-    // Google la reemite solo cuando vence.
+    // Ahora, con la identidad ya resuelta, se pide una credencial de DISPOSITIVO
+    // a Play Services: no hay código ni refresh que perder, y Google la reemite
+    // solo cuando vence. Se pasa el PERFIL COMPLETO porque, al no canjear el
+    // código, esta es la única fuente de nombre y foto (ver `vincularConTokenNativo`).
     authHandled = true;
-    void vincularConTokenNativo(res.email || settings.googleUserEmail);
+    void vincularConTokenNativo(res);
   }
 
   /**
    * Guarda la credencial de dispositivo como sesión de Drive.
    *
-   * El perfil (`email`, nombre, foto) se conserva del sign-in nativo: la
-   * credencial de dispositivo no trae esos datos, y son los que generan el tag
-   * del nombre de archivo en Drive. Sin eso los respaldos se guardarían como
-   * "default" y dejarían de encontrar los anteriores.
+   * El perfil (email, nombre, foto) sale del SELECTOR NATIVO: la credencial de
+   * dispositivo no trae esos datos, y son los que generan el tag del nombre de
+   * archivo en Drive. Sin eso los respaldos se guardarían como "default" y
+   * dejarían de encontrar los anteriores.
+   *
+   * ⚠️ Acá NO se llama a `fetchUserInfo`: el scope pedido es `drive.file`, que no
+   * habilita `oauth2/v2/userinfo`, así que esa petición daba 403 y solo se salvaba
+   * por el `email` que ya venía del picker (era una llamada muerta). El camino de
+   * escritorio sí la usa en `exchangeCode`, porque ahí el OAuth pide además
+   * `userinfo.email` y `userinfo.profile`.
    */
-  async function vincularConTokenNativo(email: string | null) {
+  async function vincularConTokenNativo(perfil: { email?: string; displayName?: string; photoUrl?: string }) {
     isAuthLoading = true;
     const r = await pedirTokenNativo();
     if (!r.ok || !r.accessToken) {
@@ -381,11 +429,12 @@ const isConnected = $derived(isDriveSettingsLive(settings));
     // Services. `getValidToken` lo tiene en cuenta y vuelve a pedir la credencial.
     settings.refreshToken = null;
     settings.tokenExpiry = Date.now() + 3300 * 1000;
-    if (email) settings.googleUserEmail = email;
+    // Cada campo se pisa solo si el picker lo trajo: así un dato que falte no
+    // borra el que ya estaba guardado.
+    if (perfil.email) settings.googleUserEmail = perfil.email;
+    if (perfil.displayName) settings.googleUserName = perfil.displayName;
+    if (perfil.photoUrl) settings.googleUserProfilePic = perfil.photoUrl;
     saveSettings();
-    try {
-      await fetchUserInfo(r.accessToken);
-    } catch { /* el perfil ya está: no es crítico */ }
     await emit('show-toast', { message: t('cloud.toast.vinculado'), type: 'success' });
     isAuthLoading = false;
     await refreshFiles();
@@ -430,6 +479,9 @@ const isConnected = $derived(isDriveSettingsLive(settings));
 
   async function cancelAuth() {
     setBackAuthInProgress(false);
+    // Corta el sondeo del sign-in nativo y descarta el resultado que llegue
+    // después: el bottom sheet de Google no se puede cerrar por código.
+    authCancelled = true;
     try { await invoke('gd_cancel_oauth'); } catch {}
     isAuthLoading = false;
     await emit('show-toast', { message: t('cloud.toast.cancelada'), type: 'info' });
@@ -665,7 +717,9 @@ const isConnected = $derived(isDriveSettingsLive(settings));
     <div class="vacio">
       <div class="vacio-ico">☁️</div>
       <p class="vacio-txt">{t('cloud.driveDesc')}</p>
-      <p class="vacio-txt" style="opacity:0.65;font-size:0.68rem;">[dbg] {porQueNoConectado}</p>
+      {#if mostrarDiagnostico}
+        <p class="vacio-txt" style="opacity:0.65;font-size:0.68rem;">[dbg] {porQueNoConectado}</p>
+      {/if}
       <!--
         Estado "desconectado" explícito. Antes de esta marca no había forma de
         distinguir "nunca conecté" de "me desconecté y volví a entrar": en los dos

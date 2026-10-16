@@ -1424,11 +1424,11 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'cloud.sesion.transitoria': 'Sin conexión con Google. Tu sesión sigue activa: se reintentará automáticamente.',
   'cloud.sesion.revocada': 'La sesión de Google venció. Volvé a iniciar sesión para seguir usando Drive.',
   'cloud.sesion.sinRefresh': 'No hay una sesión de Google guardada. Iniciá sesión para conectar Drive.',
-  // Android: el sign-in nativo no puede pedir `access_type=offline`, así que
-  // Google no reemite el refresh token si la cuenta ya había autorizado la app.
+  // Solo puede aparecer en ESCRITORIO: en Android la credencial de dispositivo
+  // se renueva sola (Play Services), así que ahí no falta nada.
   'cloud.sinRefresh.titulo': 'La sesión no se puede renovar sola',
   'cloud.error.credencialDrive': 'No se pudo obtener el permiso de Drive',
-  'cloud.sinRefresh.desc': 'Google no entregó un token de renovación, así que esta sesión va a expirar en aproximadamente 1 hora y habrá que volver a vincular Drive. Es un límite del inicio de sesión nativo de Android.',
+  'cloud.sinRefresh.desc': 'Google no entregó un token de renovación, así que esta sesión va a expirar en aproximadamente 1 hora y habrá que volver a vincular Drive.',
   'cloud.sinRefresh.reintentar': 'Volver a vincular',
   // Acceso a la nube con la credencial ya guardada, sin pasar por Google.
   'welcome.cardGuardada.title': 'Continuar con tu nube',

@@ -121,7 +121,14 @@ class MainActivity : TauriActivity() {
   // ahí hace crashear la app al arrancar. El cambio a la moderna, cuando se
   // confirme el requisito, es contenido en esta función.
   private val driveTokenExecutor = Executors.newSingleThreadExecutor()
-  private val DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file"
+  // ⚠️ El prefijo `oauth2:` NO es decorativo. `GoogleAuthUtil.getToken` lo exige
+  // para pedir un access token de OAuth2: la doc dice textualmente que `scope` es
+  // "a String representing the authentication scope, **prefixed with 'oauth2:'**".
+  // Sin el prefijo el scope viaja como un `service` heredado (así lo trata la
+  // implementación de referencia: `service.startsWith("oauth2:")`), o sea que la
+  // petición NO es de OAuth2: `getToken` falla, o devuelve algo que la API de
+  // Drive rechaza con 401. Es un solo carácter el que decide el flujo.
+  private val DRIVE_SCOPE = "oauth2:https://www.googleapis.com/auth/drive.file"
 
   fun requestDriveToken() {
     // Sin cuenta de Google en el dispositivo no hay credencial que emitir: hay
