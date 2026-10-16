@@ -134,3 +134,6 @@ schooltracker.key
 *.keystore
 keystore.properties
 key.properties
+
+# Secretos generados por compass
+github-secrets.txt
