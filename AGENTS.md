@@ -2753,3 +2753,109 @@ grado/asignatura/corte/año); solo el **activo** se personaliza por colegio/secc
 - `carpeta` acepta ruta anidada: se pasa `School Tracker/<subcarpeta>` para no
   dejar los archivos sueltos en `Download/School Tracker/`.
 - En desktop el mismo comando devuelve `""` (no-op) y se abre la carpeta.
+
+## Auto-actualización desde GitHub Releases (2026-10)
+
+La app se actualiza bajando el asset del último release publicado en GitHub.
+Vive en `src/lib/updateService.ts` (detección + descarga + instalación) y la UI
+en `src/svelte/ajustes/DebugPage.svelte` (card 🔄, claves `dbg.update.*`). El
+release lo arma `.github/workflows/release.yaml` (Windows + Android) y **solo se
+crea si la versión de `tauri.conf.json` difiere del último tag**, así que un
+`workflow_dispatch` sin cambios de versión no publica nada.
+
+Flujo: `releases/latest` → `elegirAsset()` → descarga por `fetch` con progreso →
+escribe en `$APPCACHE` → `invoke('gd_instalar_actualizacion')` → en Windows
+`gd_salir_app` (el .exe en uso no se puede sobrescribir y el NSIS se quedaría
+esperando).
+
+### ⚠️ GOTCHA: `openPath` del plugin-opener NO estaba habilitado
+
+`opener:default` es solo `allow-open-url` + `allow-reveal-item-in-dir` +
+`allow-default-urls`. **`open_path` NO está incluido**, así que el `invoke`
+moría con "not allowed" en Windows y en Android. El precedente del repo es
+siempre `openUrl(aFileURL(...))`; nunca se había usado `openPath`.
+
+### ⚠️ GOTCHA: `$APPCACHE` no estaba en ningún scope de escritura
+
+`fs:allow-write-file` solo listaba `$APPDATA`, `$DOWNLOAD`, `$DOCUMENT`, `$HOME`
+y `$TEMP`, y `fs:default` deja los directorios de la app en **solo lectura**. El
+instalador se escribe en `appCacheDir()` → `writeFile` fallaba. Se habilitó
+`fs:allow-appcache-write-recursive` (que es `write-all` + scope recursivo de
+APPCACHE, no un `allow-write-file` suelto).
+
+⚠️ **No cambiar a `$TEMP`** pensando que es "más libre": en Android `temp_dir()`
+es `/data/local/tmp`, que la app **no puede escribir**. Y no hay que crear el
+directorio a mano: en Windows `$APPCACHE` es la carpeta de datos del WebView2 y
+en Android es `getCacheDir()`, ambos ya existen (igual se deja un
+`mkdir(..., {recursive:true}).catch(()=>{})` defensivo, como en
+`instrumentosExcel.ts`).
+
+### ⚠️ GOTCHA: en Android `file://` no sirve, va FileProvider
+
+Con `targetSdk 36` (y desde la API 24, el `minSdk` del proyecto) compartir un
+archivo con otra app por `file://` lanza `FileUriExposedException`. El
+plugin-opener arma `Intent(ACTION_VIEW, path.toUri())`, o sea que **en Android
+`openPath` habría fallado aunque tuviera el permiso**. El APK va por FileProvider:
+`content://<applicationId>.fileprovider/...`, cubierto por
+`res/xml/file_paths.xml` (`cache-path`). Además hay que declarar
+
+```xml
+<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+```
+
+en `gen/android/app/src/main/AndroidManifest.xml`, o el instalador rechaza el
+origen de la instalación (desde Android 8 es obligatorio para instalar APKs
+propios).
+
+### La salida limpia: un solo comando Rust `gd_instalar_actualizacion`
+
+Un comando para las dos plataformas, justamente porque el archivo está en la
+caché privada de la app y abrirlo desde JS no es viable:
+
+| Plataforma | Qué hace |
+|---|---|
+| Desktop | `tauri_plugin_opener::open_path` por la **API de Rust**, no por su comando IPC → no hay que abrir `opener:allow-open-path` ni ningún scope. Es el `ShellExecuteExW` del sistema, igual que un doble clic |
+| Android | JNI → `MainActivity.installApk` → `FileProvider.getUriForFile(this, "$packageName.fileprovider", apk)` + `ACTION_VIEW` (MIME `application/vnd.android.package-archive`) + `FLAG_GRANT_READ_URI_PERMISSION` |
+
+⚠️ **El scope de una capability solo se paga desde el comando IPC del plugin.**
+Llamando a la API de Rust dentro de un comando propio `gd_*` (ya cubierto por
+`allow-local-commands`) no hay scope que habilitar. Es el mismo patrón que ya
+usaba `gd_open_url_browser` con `app.opener().open_url(...)`.
+
+⚠️ **La app NO se instala sola**: Android siempre pide confirmación del usuario
+(no hay update silencioso sin root ni sin instalador privilegiado). El comando
+solo abre el instalador del sistema.
+
+### Firma: el APK de Android solo instala sobre la misma keystore
+
+Si el equipo tiene instalado un build de `npm run dev:android` (debug) o una
+versión de Play Store, el APK de la release dará **"Aplicación no instalada"**:
+Android exige que la firma coincida con la de la app ya instalada. El primer uso
+además pide habilitar "Instalar aplicaciones desconocidas" para School Tracker
+(lo gestiona el instalador del sistema). El `versionCode` no es problema: sale
+de `app/tauri.properties`, que el CLI autogenera desde la versión
+(`1.1.8` → `1001008`) y está gitignoreado.
+
+### Dos bugs silenciosos que no detecta el build
+
+- `DebugPage.svelte` leía `updateInfo.nota` cuando el campo real es **`notas`**:
+  las notas del release nunca se veían. Ni `tsc` ni `vite build` lo detectan
+  porque **`tsc` no revisa las plantillas `.svelte`** (mismo hueco que el
+  `js_parse_error` del GOTCHA de Svelte).
+- La versión en el bloque SISTEMA era un literal `1.2.0` cuando
+  `tauri.conf.json` decía `1.1.8`; ahora sale de `getVersion()`.
+
+### Verificar sin dispositivo
+
+```powershell
+npm run build                                   # tsc + vite (NO mira plantillas .svelte)
+cd src-tauri; cargo check                       # rama desktop + VALIDA las capabilities
+cargo check --target aarch64-linux-android      # rama JNI de Android
+cd gen\android; .\gradlew.bat :app:compileUniversalDebugKotlin
+```
+
+⚠️ El task del gradle es **`compileUniversalDebugKotlin`**: `compileDebugKotlin`
+es **ambiguo** (`compileArmDebugKotlin`, `compileUniversalDebugKotlin`, …) y
+Gradle falla antes de compilar nada. Un `--dry-run` confirma además que ese task
+**no** arrastra `cargo build`, así que es un chequeo de Kotlin barato (segundos)
+sin tocar el Rust de Android.
