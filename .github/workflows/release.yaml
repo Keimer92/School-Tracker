@@ -219,6 +219,35 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # ⚠️ El keystore BINARIO NO está en el repo: se purgó del historial (un
+      # keystore de release versionado permite firmar updates falsos; ver la
+      # nota en `.gitignore`). Hay que reconstruirlo en el runner desde
+      # `KEYSTORE_BASE64`.
+      #
+      # ⚠️ NO alcanza con `keystore.properties` solo, y el fallo que produce es
+      # ENGAÑOSO: `build.gradle.kts` crea `signingConfigs.release` con solo
+      # comprobar que exista el `.properties`, y ahí apunta a `keimer.keystore`.
+      # Si el archivo no existe, AGP revienta en `:app:validateSigningRelease`
+      # con "Keystore file not found for signing config 'release'", y el CLI de
+      # Tauri solo imprime `failed to build APK: Failed to assemble APK with
+      # Io(BeforeSpawn(...))` — el mensaje NO menciona el keystore por ningún
+      # lado. (Sin `.properties` el build sí pasa, pero el APK sale sin firmar.)
+      #
+      # Para generar el valor del secret en la máquina de desarrollo:
+      #   [Convert]::ToBase64String([IO.File]::ReadAllBytes(
+      #     "src-tauri\gen\android\app\keimer.keystore"))
+      # Debe ser una sola línea; `printf` evita el salto final.
+      - name: Reconstruir el keystore de firma
+        run: |
+          set -e
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d \
+            > src-tauri/gen/android/app/keimer.keystore
+          # Falla con un mensaje claro si el secret no está creado o está vacío,
+          # en vez de dejar que lo haga AGP con el error opaco de arriba.
+          test -s src-tauri/gen/android/app/keimer.keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+
       # `keystore.properties` está en el .gitignore de `gen/android` (contiene
       # contraseñas), así que no existe en el runner. `build.gradle.kts` lo lee
       # con `?: ""`, o sea que sin este paso `storeFile` queda vacío y el

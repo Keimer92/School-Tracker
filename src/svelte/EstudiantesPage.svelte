@@ -152,6 +152,37 @@ import SelectChip from "./SelectChip.svelte";
 
   let filters = $state({ anoLectivoId: 0, colegioId: 0, gradoId: 0, seccionId: 0, sexo: "" });
 
+  // ── Opciones de los desplegables de filtro ──
+  //
+  // En RETIRADOS el backend arma la lista CON los filtros puestos
+  // (`get_estudiantes_retirados` filtra en SQL), así que este modo puede
+  // permitirse el grado "Todos" (0 = sin filtro) y mostrar de una los retirados
+  // de TODO el colegio: es la opción por defecto, porque un retirado ya no
+  // pertenece a una sección en curso y lo normal es querer ver el listado
+  // completo antes de acotarlo.
+  //
+  // En ACTIVOS se conserva el comportamiento de siempre: siempre hay un grado y
+  // una sección elegidos, y son los dos `$effect` de abajo los que los rellenan
+  // con el primero de la lista cuando valen 0.
+  let gradoOpciones = $derived(
+    esRetirados
+      ? [{ value: 0, label: t('est.todos') }, ...grados.map(g => ({ value: g.id, label: g.nombre }))]
+      : grados.map(g => ({ value: g.id, label: g.nombre }))
+  );
+
+  // Secciones de RETIRADOS: las que de verdad aparecen entre los retirados ya
+  // cargados (que ya vienen acotados al colegio). Se derivan en vez de usar
+  // `secciones` porque esa lista la trae `fetchSecciones`, y ese comando exige
+  // un grado elegido: con "Todos" en grado quedaría vacía y el desplegable solo
+  // ofrecería "Todos", que parece un filtro roto.
+  let seccionOpciones = $derived.by(() => {
+    const base = esRetirados
+      ? allSecciones.filter(s => students.some(est => est.seccionId === s.id))
+      : secciones;
+    const opciones = base.map(s => ({ value: s.id, label: s.nombre }));
+    return esRetirados ? [{ value: 0, label: t('est.todos') }, ...opciones] : opciones;
+  });
+
   // ── Exportar estudiantes a Excel (1 libro por colegio) ──
   let showExportModal = $state(false);
   let exportAno = $state(0);
@@ -578,13 +609,47 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
   if (campo === 'colegioId' || campo === 'anoLectivoId') { newFilters.gradoId = 0; newFilters.seccionId = 0; }
   else if (campo === 'gradoId') newFilters.seccionId = 0;
   filters = newFilters;
+  // En RETIRADOS la lista la filtra el backend, así que hay que volver a
+  // pedirla: `filteredStudents` no puede completar filas que no llegaron (solo
+  // recorta lo recibido), y sin esto cambiar de grado mostraría —o vaciaría— la
+  // lista del grado anterior. En ACTIVOS `get_students` trae todo y el filtro es
+  // en cliente, así que no hace falta ninguna llamada.
+  if (esRetirados) fetchData(true);
+}
+
+/** Cambia entre Activos y Retirados.
+ *
+ *  Al entrar a RETIRADOS el grado vuelve a "Todos" (y la sección también): el
+ *  grado que estaba elegido en activos dejaría la lista acotada a ese grado sin
+ *  que nadie lo haya pedido en este modo, que es justo lo contrario de "ver los
+ *  retirados del colegio".
+ *
+ *  Al volver a ACTIVOS no se toca nada: el grado 0 lo rellena el efecto de
+ *  grados con el primero de la lista (para eso lee `esRetirados`), y el de
+ *  secciones encadena detrás. */
+function cambiarModo(id: string) {
+  modo = id as ModoEstudiantes;
+  if (modo === "retirados") filters = { ...filters, gradoId: 0, seccionId: 0 };
+  fetchData(true);
 }
 
 
   $effect(() => {
+    // `esRetirados` se lee de forma SÍNCRONA a propósito: al volver de RETIRADOS
+    // el grado puede haber quedado en 0 ("Todos") y este efecto tiene que correr
+    // de nuevo para rellenarlo con el primero de la lista, igual que en un
+    // montaje. Sin esta lectura, cambiar de modo no lo despierta (sus otras
+    // dependencias son colegio/año, que no cambiaron) y ACTIVOS se quedaría con
+    // el desplegable en "Todos", que ahí no existe.
+    void esRetirados;
     if (filters.colegioId > 0 && filters.anoLectivoId > 0) {
       fetchGrados(filters.colegioId, filters.anoLectivoId).then(loadedGrados => {
-        if (filters.gradoId === 0 && loadedGrados.length > 0) {
+        // En RETIRADOS el grado "Todos" es una elección válida y por defecto: si
+        // acá se auto-seleccionara el primero, el desplegable nunca podría
+        // quedarse en "Todos" (volvería a un grado en el siguiente render) y la
+        // lista dejaría de mostrar todo el colegio. Igual se trae la lista de
+        // grados, que son las opciones del desplegable.
+        if (!esRetirados && filters.gradoId === 0 && loadedGrados.length > 0) {
           filters = { ...filters, gradoId: loadedGrados[0].id };
         }
       });
@@ -592,9 +657,13 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
   });
 
   $effect(() => {
+    // Misma razón que arriba: al volver a ACTIVOS hay que re-armar la sección
+    // del grado con el que se entra (en retirados puede estar en 0).
+    void esRetirados;
     if (filters.gradoId > 0 && filters.colegioId > 0 && filters.anoLectivoId > 0) {
       fetchSecciones(filters.gradoId, filters.colegioId, filters.anoLectivoId).then(loadedSecciones => {
-        if (filters.seccionId === 0 && loadedSecciones.length > 0) {
+        // Mismo caso que el grado: en retirados la sección arranca en "Todos".
+        if (!esRetirados && filters.seccionId === 0 && loadedSecciones.length > 0) {
           filters = { ...filters, seccionId: loadedSecciones[0].id };
         }
       });
@@ -1006,7 +1075,7 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
           grande
           valor={modo}
           etiquetaGrupo={t('comun.modo')}
-          onchange={(id) => { modo = id as ModoEstudiantes; fetchData(true); }}
+          onchange={(id) => cambiarModo(id)}
           opciones={[
             { id: "activos", etiqueta: t('est.modo.activos'), titulo: t('est.modo.activosDesc') },
             { id: "retirados", etiqueta: t('est.modo.retirados'), titulo: t('est.modo.retiradosDesc') },
@@ -1026,7 +1095,7 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
                colegio · grado · sección · sexo, y sin esta señal una lista vacía
                en RETIRADOS era indistinguible de "no hay estudiantes con estos
                filtros". -->
-          {esRetirados ? `🚪 ${t('est.modo.retirados')} · ` : ''}{(colegios.find(c => c.id === filters.colegioId)?.nombre)?.split(' ')[0] || t('est.fallback.colegio')} · {grados.find(g => g.id === filters.gradoId)?.nombre || t('est.fallback.grado')} · {secciones.find(s => s.id === filters.seccionId)?.nombre || t('est.fallback.seccion')}{filters.sexo ? ` · ${filters.sexo === 'M' ? t('est.resumen.masculinoCorto') : t('est.resumen.femeninoCorto')}` : ''}
+          {esRetirados ? `🚪 ${t('est.modo.retirados')} · ` : ''}{(colegios.find(c => c.id === filters.colegioId)?.nombre)?.split(' ')[0] || t('est.fallback.colegio')} · {gradoOpciones.find(o => o.value === filters.gradoId)?.label || t('est.fallback.grado')} · {seccionOpciones.find(o => o.value === filters.seccionId)?.label || t('est.fallback.seccion')}{filters.sexo ? ` · ${filters.sexo === 'M' ? t('est.resumen.masculinoCorto') : t('est.resumen.femeninoCorto')}` : ''}
         </span>
       </button>
     </div>
@@ -1083,7 +1152,7 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
               <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">{t('est.filtro.ano')}</label>
               <select class="filter-select"
                 style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;background:#0f172a;border:1px solid rgba(148,163,184,0.45);color:#f1f5f9;font-weight:600;appearance:none;-webkit-appearance:none;background-image:url(&quot;data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e&quot;);background-repeat:no-repeat;background-position:right 0.6rem center;background-size:14px;padding-right:1.8rem"
-                value={filters.anoLectivoId} onchange={(e) => { filters = { ...filters, anoLectivoId: Number((e.target as HTMLSelectElement).value), gradoId: 0, seccionId: 0 }; }}>
+                value={filters.anoLectivoId} onchange={(e) => setFilter('anoLectivoId', (e.target as HTMLSelectElement).value)}>
                 {#each anos as a}<option value={a.id}>{a.nombre}{#if a.activo} {t('est.activoCon')}{/if}</option>{/each}
               </select>
             </div>
@@ -1091,7 +1160,7 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
               <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">{t('est.filtro.colegio')}</label>
               <select class="filter-select"
                 style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;background:#0f172a;border:1px solid rgba(148,163,184,0.45);color:#f1f5f9;font-weight:600;appearance:none;-webkit-appearance:none;background-image:url(&quot;data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e&quot;);background-repeat:no-repeat;background-position:right 0.6rem center;background-size:14px;padding-right:1.8rem"
-                value={filters.colegioId} onchange={(e) => { filters = { ...filters, colegioId: Number((e.target as HTMLSelectElement).value), gradoId: 0, seccionId: 0 }; }}>
+                value={filters.colegioId} onchange={(e) => setFilter('colegioId', (e.target as HTMLSelectElement).value)}>
                 {#each colegios as c}<option value={c.id}>{c.nombre}</option>{/each}
               </select>
             </div>
@@ -1099,23 +1168,23 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
               <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">{t('est.filtro.grado')}</label>
               <select class="filter-select"
                 style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;background:#0f172a;border:1px solid rgba(148,163,184,0.45);color:#f1f5f9;font-weight:600;appearance:none;-webkit-appearance:none;background-image:url(&quot;data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e&quot;);background-repeat:no-repeat;background-position:right 0.6rem center;background-size:14px;padding-right:1.8rem"
-                value={filters.gradoId} onchange={(e) => { filters = { ...filters, gradoId: Number((e.target as HTMLSelectElement).value), seccionId: 0 }; }}>
-                {#each grados as g}<option value={g.id}>{g.nombre}</option>{/each}
+                value={filters.gradoId} onchange={(e) => setFilter('gradoId', (e.target as HTMLSelectElement).value)}>
+                {#each gradoOpciones as g}<option value={g.value}>{g.label}</option>{/each}
               </select>
             </div>
             <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
               <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">{t('est.filtro.seccion')}</label>
               <select class="filter-select"
                 style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;background:#0f172a;border:1px solid rgba(148,163,184,0.45);color:#f1f5f9;font-weight:600;appearance:none;-webkit-appearance:none;background-image:url(&quot;data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e&quot;);background-repeat:no-repeat;background-position:right 0.6rem center;background-size:14px;padding-right:1.8rem"
-                value={filters.seccionId} onchange={(e) => { filters = { ...filters, seccionId: Number((e.target as HTMLSelectElement).value) }; }}>
-                {#each secciones as s}<option value={s.id}>{s.nombre}</option>{/each}
+                value={filters.seccionId} onchange={(e) => setFilter('seccionId', (e.target as HTMLSelectElement).value)}>
+                {#each seccionOpciones as s}<option value={s.value}>{s.label}</option>{/each}
               </select>
             </div>
             <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
               <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">{t('est.filtro.sexo')}</label>
               <select class="filter-select"
                 style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;background:#0f172a;border:1px solid rgba(148,163,184,0.45);color:#f1f5f9;font-weight:600;appearance:none;-webkit-appearance:none;background-image:url(&quot;data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e&quot;);background-repeat:no-repeat;background-position:right 0.6rem center;background-size:14px;padding-right:1.8rem"
-                value={filters.sexo} onchange={(e) => { filters = { ...filters, sexo: (e.target as HTMLSelectElement).value }; }}>
+                value={filters.sexo} onchange={(e) => setFilter('sexo', (e.target as HTMLSelectElement).value)}>
                 <option value="">{t('est.todos')}</option>
                 <option value="M">{t('est.masculino')}</option>
                 <option value="F">{t('est.femenino')}</option>
@@ -1134,7 +1203,7 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
         <ModoToggle
           valor={modo}
           etiquetaGrupo={t('comun.modo')}
-          onchange={(id) => { modo = id as ModoEstudiantes; fetchData(true); }}
+          onchange={(id) => cambiarModo(id)}
           opciones={[
             { id: "activos", etiqueta: t('est.modo.activos'), titulo: t('est.modo.activosDesc') },
             { id: "retirados", etiqueta: t('est.modo.retirados'), titulo: t('est.modo.retiradosDesc') },
@@ -1156,13 +1225,13 @@ function setFilter(campo: 'anoLectivoId' | 'colegioId' | 'gradoId' | 'seccionId'
           <SelectChip
             value={filters.gradoId}
             onchange={(v) => setFilter('gradoId', v)}
-            options={grados.map(g => ({ value: g.id, label: g.nombre }))} />
+            options={gradoOpciones} />
       </FilterGroup>
   <FilterGroup label={t('est.filtro.seccion')} {isMobile}>
     <SelectChip
       value={filters.seccionId}
       onchange={(v) => setFilter('seccionId', v)}
-      options={secciones.map(s => ({ value: s.id, label: s.nombre }))} />
+      options={seccionOpciones} />
   </FilterGroup>
       <FilterGroup label={t('est.filtro.sexo')} {isMobile}>
           <SelectChip
