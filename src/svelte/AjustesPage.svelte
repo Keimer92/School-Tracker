@@ -369,79 +369,82 @@
 
         <!-- CONFIGURACIÓN -->
         {#if tabActual === "configuracion"}
-          <div class="category-card" style="border-left: 3px solid {TAB_COLORS.configuracion};">
-            <div class="category-header" style="border-left: none;">
-              <div style="width:36px;height:36px;border-radius:10px;background:{TAB_COLORS.configuracion}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">⚙️</div>
-              <h3>{t("ajustes.config.titulo")}</h3>
-            </div>
-            <div style="padding: 2rem;">
-              {@render appearanceSettings()}
-              <div style="margin-bottom: 2rem;">
-                <h4 style="margin: 0 0 1rem 0; color: #e2e8f0;">Personalización de Tabla de Notas</h4>
-                <p style="color: #94a3b8; font-size: 0.9rem; margin-bottom: 1.5rem;">Configura el color de resaltado para el estudiante seleccionado en la página de notas.</p>
-                <div style="background: rgba(255,255,255,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
-                  <div style="display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 2rem;">
-                    <div style="flex: 1;">
-                      <h5 style="margin: 0 0 0.5rem 0; color: #e2e8f0;">{t("ajustes.config.colorResaltado")}</h5>
-                      <p style="color: #94a3b8; font-size: 0.85rem; margin: 0;">{t("ajustes.config.colorResaltadoLargo")}</p>
-                    </div>
-                    <div style="display: flex; align-items: center; gap: 1rem;">
-                      <div style="width: 45px; height: 45px; border-radius: 8px; background-color: {highlightColor}; border: 2px solid rgba(255,255,255,0.2); cursor: pointer; position: relative; overflow: hidden;" onclick={() => document.getElementById("highlight-color-picker")?.click()}>
-                        <input id="highlight-color-picker" type="color" value={highlightColor} oninput={(e) => handleUpdateHighlightColor((e.target as HTMLInputElement).value)} style="position: absolute; top: -10px; left: -10px; width: 200%; height: 200%; opacity: 0; cursor: pointer;" />
-                      </div>
-                      <span style="font-family: monospace; color: #94a3b8; font-size: 0.9rem;">{highlightColor.toUpperCase()}</span>
-                    </div>
-                  </div>
-                  <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 1.5rem;">
-                    {#each PRESET_COLORS as preset}
-                      <button onclick={() => handleUpdateHighlightColor(preset)} style="width: 24px; height: 24px; background-color: {preset}; border: {highlightColor.toLowerCase() === preset.toLowerCase() ? '2px solid white' : '1px solid rgba(255,255,255,0.2)'}; border-radius: 4px; cursor: pointer; padding: 0;" title={preset}></button>
-                    {/each}
-                  </div>
-                </div>
-                <div style="margin-top: 2rem; background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 8px; border: 1px dotted rgba(255,255,255,0.1);">
-                  <h5 style="margin: 0 0 0.5rem 0; color: #e2e8f0; font-size: 0.9rem;">Vista Previa</h5>
-                  <div style="background: rgba(15, 23, 42, 0.5); padding: 1rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; gap: 1rem;">
-                    <div style="padding: 0.4rem 0.8rem; border-radius: 4px; background: {highlightColor}1a; border-left: 4px solid {highlightColor}; color: {highlightColor}; font-weight: bold; font-size: 0.85rem;">Juan Pérez García</div>
-                    <div style="color: #64748b; font-size: 0.8rem;">{t("ajustes.config.vistaPreviaEjemploLargo")}</div>
-                  </div>
+          <!-- Una tarjeta glass por bloque, con el padding de la propia tarjeta.
+               Antes todo iba dentro de un `category-card` con `padding:2rem` y
+               cada bloque con `padding:1.5rem`: en un teléfono quedaban ~200px
+               útiles y todo se veía angosto. Sin el card externo no hay doble
+               marco ni padding duplicado. -->
+          <section class="and-settings">
+            <!-- Apariencia (tema + tono de énfasis): snippet COMPARTIDO con
+                 escritorio, misma presentación en los dos. -->
+            {@render appearanceSettings()}
+
+            <!-- Color de resaltado de la tabla de notas -->
+            <div class="and-card">
+              <div class="and-head">
+                <div class="and-head-icon" style="background:#60a5fa18">🖍️</div>
+                <div class="and-head-text">
+                  <h4>{t("ajustes.config.colorResaltado")}</h4>
+                  <p>{t("ajustes.config.colorResaltadoLargo")}</p>
                 </div>
               </div>
-
-              <!-- ── Color por sexo (Android) ──
-                   Mismo bloque que en escritorio: es un ajuste que se consulta
-                   desde cualquier pestaña, así que tiene que estar en las dos
-                   listas o en el teléfono no se llega. -->
-              <div style="margin-top: 2rem; background: rgba(244,114,182,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(244,114,182,0.18);">
-                <h4 style="margin: 0 0 0.5rem 0; color: #e2e8f0;">🎨 {t("ajustes.config.colorSexo")}</h4>
-                <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1rem;">
-                  {t("ajustes.config.colorSexoDesc")}
-                </p>
-                <ColorPickerSexo colorM={sexoMColor} colorF={sexoFColor} onChange={handleUpdateSexoColor} compacto />
-              </div>
-
-              {#if isAndroid}
-                <div style="margin-top: 2rem; background: rgba(245,158,11,0.06); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(245,158,11,0.2);">
-                  <h4 style="margin: 0 0 0.5rem 0; color: #e2e8f0;">🔔 {t("ajustes.notif.titulo")}</h4>
-                  <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 1rem;">{t("ajustes.notif.desc")}</p>
-                  <button onclick={pedirPermisoNotificaciones} style="padding: 0.7rem 1.2rem; border-radius: 10px; border: 1px solid rgba(245,158,11,0.35); background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; font-weight: 600; font-size: 0.85rem; cursor: pointer;">
-                    {t("ajustes.notif.activar")}
-                  </button>
+              <div class="and-row">
+                <span class="and-hex">{highlightColor.toUpperCase()}</span>
+                <div class="and-swatch" style="background-color:{highlightColor}" onclick={() => document.getElementById("highlight-color-picker-and")?.click()}>
+                  <input id="highlight-color-picker-and" type="color" value={highlightColor} oninput={(e) => handleUpdateHighlightColor((e.target as HTMLInputElement).value)} />
                 </div>
-              {/if}
-
-              <!-- ── Idioma de la aplicación ──
-                   También en el WelcomePage: el idioma tiene que poder elegirse
-                   ANTES de entrar a la app (ver LanguagePicker.svelte). -->
-              <div style="margin-top: 2rem; background: rgba(167,139,250,0.05); padding: 1.5rem; border-radius: 12px; border: 1px solid rgba(167,139,250,0.18);">
-                <h4 style="margin: 0 0 0.5rem 0; color: #e2e8f0;">🌐 {t("idioma.titulo")}</h4>
-                <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 0.25rem;">
-                  {t("idioma.descripcion")}
-                </p>
-                <LanguagePicker />
+              </div>
+              <div class="and-presets">
+                {#each PRESET_COLORS as preset}
+                  <button class="and-preset" class:on={highlightColor.toLowerCase() === preset.toLowerCase()} style="background-color:{preset}" onclick={() => handleUpdateHighlightColor(preset)} title={preset} aria-label={preset}></button>
+                {/each}
+              </div>
+              <div class="and-preview-box">
+                <h5>{t("ajustes.config.vistaPrevia")}</h5>
+                <div class="and-preview">
+                  <div class="and-preview-chip" style="background:{highlightColor}1a;border-left:4px solid {highlightColor};color:{highlightColor}">Juan Pérez García</div>
+                  <span class="and-preview-note">{t("ajustes.config.vistaPreviaEjemplo")}</span>
+                </div>
               </div>
             </div>
-          </div>
-{/if}
+
+            <!-- Color por sexo -->
+            <div class="and-card">
+              <div class="and-head">
+                <div class="and-head-icon" style="background:#f472b618">🎨</div>
+                <div class="and-head-text">
+                  <h4>{t("ajustes.config.colorSexo")}</h4>
+                  <p>{t("ajustes.config.colorSexoDesc")}</p>
+                </div>
+              </div>
+              <ColorPickerSexo colorM={sexoMColor} colorF={sexoFColor} onChange={handleUpdateSexoColor} compacto />
+            </div>
+
+            <!-- Notificaciones de asistencia (solo Android, AlarmManager) -->
+            <div class="and-card">
+              <div class="and-head">
+                <div class="and-head-icon" style="background:#f59e0b18">🔔</div>
+                <div class="and-head-text">
+                  <h4>{t("ajustes.notif.titulo")}</h4>
+                  <p>{t("ajustes.notif.desc")}</p>
+                </div>
+              </div>
+              <button class="and-btn" onclick={pedirPermisoNotificaciones}>{t("ajustes.notif.activar")}</button>
+            </div>
+
+            <!-- Idioma (también en WelcomePage: debe elegirse ANTES de entrar) -->
+            <div class="and-card">
+              <div class="and-head">
+                <div class="and-head-icon" style="background:#a78bfa18">🌐</div>
+                <div class="and-head-text">
+                  <h4>{t("idioma.titulo")}</h4>
+                  <p>{t("idioma.descripcion")}</p>
+                </div>
+              </div>
+              <LanguagePicker />
+            </div>
+          </section>
+        {/if}
 
         <!-- DEPURACIÓN y ACERCA DE.
              Faltaban en la rama de Android: los únicos bloques que los montaban
@@ -598,9 +601,183 @@
     box-shadow: 0 0 10px rgba(var(--primary-rgb), 0.2);
   }
 
+  /* ── Ajustes → General en Android ──────────────────────────────────────
+     Una tarjeta glass por bloque. El padding lo aporta la propia tarjeta
+     (`0.9rem`): antes cada bloque traía `1.5rem` y el contenedor un `2rem`
+     extra, así que en un teléfono el contenido quedaba ~200px de ancho. */
+  .and-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* Apariencia ya es una tarjeta: se le quita el margen inferior para que el
+     `gap` del contenedor gobierne la separación (no duplicar aire). */
+  .and-settings .appearance-settings {
+    margin: 0;
+  }
+
+  .and-card {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 0.9rem;
+    border: 1px solid var(--card-border);
+    border-radius: 16px;
+    background: var(--card-bg);
+  }
+
+  .and-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+    min-width: 0;
+  }
+
+  .and-head-icon {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    border-radius: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.05rem;
+  }
+
+  .and-head-text { min-width: 0; }
+
+  .and-head-text h4 {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-bright);
+  }
+
+  .and-head-text p {
+    margin: 0.15rem 0 0;
+    font-size: 0.76rem;
+    line-height: 1.4;
+    color: var(--text-secondary);
+  }
+
+  .and-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 0.85rem;
+  }
+
+  .and-hex {
+    font-family: ui-monospace, monospace;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    color: var(--text-secondary);
+  }
+
+  .and-swatch {
+    width: 46px;
+    height: 46px;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+    border-radius: 12px;
+    border: 2px solid rgba(255, 255, 255, 0.18);
+    cursor: pointer;
+  }
+
+  .and-swatch input {
+    position: absolute;
+    inset: -25%;
+    width: 150%;
+    height: 150%;
+    border: none;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .and-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 0.85rem;
+  }
+
+  .and-preset {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+
+  .and-preset.on {
+    border: 2px solid #fff;
+    transform: scale(1.08);
+  }
+
+  .and-preview-box {
+    margin-top: 0.85rem;
+    padding: 0.7rem;
+    border-radius: 12px;
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .and-preview-box h5 {
+    margin: 0 0 0.5rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+  }
+
+  .and-preview {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+
+  .and-preview-chip {
+    padding: 0.3rem 0.65rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+
+  .and-preview-note {
+    font-size: 0.74rem;
+    color: #64748b;
+  }
+
+  .and-btn {
+    width: 100%;
+    margin-top: 0.85rem;
+    padding: 0.7rem 1.1rem;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    border-radius: 11px;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .and-btn:active { transform: translateY(1px); }
+
   @media (max-width: 520px) {
     .appearance-settings { padding: 1rem; }
     .appearance-accents { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .appearance-themes button { flex-direction: column; gap: 0.15rem; }
+    .and-card { padding: 0.8rem; border-radius: 14px; }
   }
 </style>

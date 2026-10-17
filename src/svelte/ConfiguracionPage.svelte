@@ -166,6 +166,12 @@
     seccion = s.id;
     busqueda = '';
     if (s.contador && !contadoresCargados.has(s.id)) cargarContador(s);
+    // El scroller es un ANCESTRO de la lista (el scroll no vive en la lista),
+    // así que al desmontarla conserva su `scrollTop`. Sin volver arriba, la
+    // sección entraba "empezando" por donde estaba la lista: General abría en
+    // "Personalización de tabla de notas" y no en Apariencia/Tema. Se resetea
+    // cuando el contenido nuevo ya está montado (`tick`).
+    if (sc) void tick().then(() => { sc.scrollTop = 0; });
   }
   function cerrar() { activaId = null; }
 
