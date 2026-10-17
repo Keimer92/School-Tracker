@@ -2053,6 +2053,60 @@ perdería el draft de "registrar" y el estado de "reportes".
 ((est.id)); NotasPage preserva `currentStudentIdx` en el refresh silencioso;
 nunca reconstruir toda la lista sin clave (salta scroll al inicio).
 
+##### Layout Android de `NotasPage`: riel de filtros, bandas fusionadas y pestañas de indicador (2026-10)
+
+El chrome de `registrar` en Android eran **5 tarjetas apiladas** (buscador,
+botón de filtros, acciones, navegación de estudiante, Nota Final) ≈ **300px**
+sobre los ~712px útiles: ~42 % de la pantalla antes de ver una nota. Ahora son
+~3 filas compactas ≈ **135px**.
+
+Qué se cambió (aplica a `registrar` y `reportes`):
+
+1. **Los filtros de catálogo ya NO van en `FiltersModalAndroid`**; van en un
+   riel inline de `<select>` (`.filtro-rail`, 32px de alto, `overflow-x`). Esto
+   es una **EXCEPCIÓN justificada a la "Regla de modales unificados — Filtros en
+   Android"** de más abajo, que sigue vigente para las demás páginas:
+   - La premisa de esa regla era "inline cuesta espacio vertical". El riel
+     compacto **desarma la premisa**: ocupa lo mismo que ocupaba el botón que
+     abría el modal, y ahorra el rodeo Filtros → elegir → Aplicar.
+   - Sacarlos del modal **no** reintroduce el GOTCHA del "cierre fantasma": ese
+     bug era del overlay (el `click` sintético del popup nativo caía en el
+     fondo), no del `<select>`. Inline el popup nativo queda sobre la página y
+     no hay overlay que se cierre.
+   - `NotasPage` es la página con **más** chrome de la app (6 filtros + corte +
+     asignatura + 4 acciones); es la candidata natural, no una regla general.
+2. **Las filas de utilería dejaron de ser tarjetas**: buscador y acciones ya no
+   llevan `class="category-card"` (`.acciones-rail`), así no pagan `padding` +
+   `margin` + marco cada una.
+3. **Estudiante + Nota Final se fusionaron en UNA fila** (`.notas-barra-estudiante`,
+   ~52px): eran dos tarjetas apiladas (~125px) para la misma unidad de
+   información ("en qué estudiante estoy y cómo va").
+4. **Los indicadores son PESTAÑAS, no un scroll vertical** (`.ind-tabs` +
+   `.ind-tab`). Con 1-3 criterios por indicador, uno solo entra holgado en el
+   área: en vez de apilar los 5 (bajar hasta el 5to era el viaje) se salta con
+   un tap. El punto de cada pestaña lleva el color de la nota del indicador.
+   - ⚠️ **NO convertir esto en carrusel con swipe**: el swipe horizontal ya lo
+     usa el wrapper para cambiar de modo (`registrar` ↔ `reportes`) y se
+     pelearían.
+   - El estado es `indicadorSelId` (**el `id`, no el índice**): al cambiar de
+     asignatura/corte `indicadoresSeccion` se reconstruye entero y un índice
+     quedaría apuntando a otro indicador (o fuera de rango). Con el `id` la
+     pestaña activa sobrevive y cae al primero si desaparece.
+   - **NO se resetea al cambiar de estudiante**: el flujo real es "cargo el
+     indicador 2 a todos"; si saltar de alumno volviera al indicador 1, cada uno
+     costaría una pestaña extra.
+5. **`resumenIndicador(estudianteId, ind)`** centraliza el cálculo
+   (total/máximo/escala/sigla/color) que antes estaba **duplicado en dos IIFE**
+   distintas del markup (una para el color, otra para el texto). Ahora lo usan
+   las pestañas y el encabezado del indicador abierto.
+
+⚠️ `FiltersModalAndroid` **sigue existiendo y usándose** en `AsistenciaPage` y
+`EstudiantesPage`. `NotasPage` ya no lo importa.
+
+Clases CSS nuevas (en el `<style>` de `NotasPage`, no en otros componentes):
+`.filtro-rail`, `.acciones-rail`, `.notas-barra-estudiante`, `.nav-est-fila`,
+`.nf-est`, `.ind-tabs`, `.ind-tab`, `.ind-tab-dot`, `.ind-tab-val`.
+
 ## Días sin clases (2026-08) — feriados por sección o colegio
 
 Tabla `dia_sin_clases` (ver esquema; añadir fila en la lista de tablas).

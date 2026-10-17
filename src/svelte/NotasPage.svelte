@@ -12,7 +12,6 @@ import { primerColegio } from "../lib/catalogo";
   import SelectChip from "./SelectChip.svelte";
   import ModoToggle from "./ModoToggle.svelte";
   import SearchFab from "./SearchFab.svelte";
-  import FiltersModalAndroid from "./FiltersModalAndroid.svelte";
   import { generarInstrumentoPDF, generarInstrumentosTodosPDF, INSTRUMENTO_OPS, type InstrumentoInput, type InstrumentoTipo } from "../lib/instrumentosPdf";
   import { generarInstrumentoExcel, listarPlantillas, asegurarCarpetaPlantillas, abrirCarpetaPlantillas, plantillasDir, type ExcelInstrumentoInput } from "../lib/instrumentosExcel";
   import { readFile } from "@tauri-apps/plugin-fs";
@@ -269,12 +268,6 @@ import { primerColegio } from "../lib/catalogo";
   const isAndroid = /Android/i.test(navigator.userAgent);
   const isWindows = /Windows/i.test(navigator.userAgent);
   const isAndroidMobile = $derived(isAndroid || (isMobile && !isWindows));
-  let showFiltersModal = $state(false);
-  $effect(() => {
-    if (showFiltersModal) {
-      return registerBackHandler(() => { showFiltersModal = false; return true; });
-    }
-  });
   let currentStudentIdx = $state(0);
   let showStudentList = $state(false);
 
@@ -832,6 +825,24 @@ import { primerColegio } from "../lib/catalogo";
   let activeIndicadores = $derived(indicadoresSeccion.filter(i => i.activo));
 
   /**
+   * Indicador abierto en las PESTAÑAS del modo móvil (ver la sección "Indicators
+   * Wrapper" del markup).
+   *
+   * Se guarda el `id` y no el índice a propósito: al cambiar de asignatura o
+   * corte, `indicadoresSeccion` se reconstruye entero y un índice quedaría
+   * apuntando a otro indicador (o fuera de rango). Con el id, la pestaña activa
+   * sobrevive mientras el indicador exista y cae al primero si desaparece.
+   *
+   * NO se resetea al cambiar de estudiante: el flujo real es "cargo el indicador
+   * 2 a todos" — si saltar de estudiante volviera al indicador 1, cada alumno
+   * costaría una pestaña extra.
+   */
+  let indicadorSelId = $state(0);
+  const indicadorSel = $derived(
+    indicadoresSeccion.find(i => i.id === indicadorSelId) ?? indicadoresSeccion[0] ?? null
+  );
+
+  /**
    * Carga los indicadores activos del colegio + sección.
    *
    * ⚠️ `idsActivosSeccion` distingue TRES estados, y confundirlos apagaba
@@ -984,6 +995,26 @@ import { primerColegio } from "../lib/catalogo";
       return s;
     }, 0), 0);
     return Math.round((rawTotal / maxTotal) * 100);
+  }
+
+  /**
+   * Resumen de UN indicador para UN estudiante: total, máximo, escala 0-100,
+   * sigla cualitativa y color. Lo usan las pestañas de indicador y el
+   * encabezado del indicador abierto; antes el MISMO cálculo estaba duplicado
+   * en dos IIFE distintas del markup.
+   */
+  function resumenIndicador(estudianteId: number, ind: Indicador) {
+    const total = ind.criterios.reduce((sum, c) => {
+      const qv = notasCualitativas[`${estudianteId}-${c.id}`];
+      if (qv && ['AA', 'AS', 'AF', 'AI'].includes(qv)) return sum + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
+      return sum;
+    }, 0);
+    const max = ind.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0);
+    const esc = max > 0 ? (total / max) * 100 : 0;
+    const qual = isQualitative
+      ? calcularNotaCualitativaFinal(ind.criterios.map(c => notasCualitativas[`${estudianteId}-${c.id}`] || ''))
+      : (getGradeFromScore(esc)?.id || 'AI');
+    return { total, max, esc, qual, color: qual ? getGradeColor(qual) : '#94a3b8' };
   }
 
   const GRADES: string[] = ['AA', 'AS', 'AF', 'AI'];
@@ -2195,12 +2226,6 @@ import { primerColegio } from "../lib/catalogo";
    * helpers, otra presentación para otra geometría de pantalla.
    */
   const repEsBoleta = $derived(repIsAndroidMobile && repEsPortrait);
-  let repShowFiltersModal = $state(false);
-  $effect(() => {
-    if (repShowFiltersModal) {
-      return registerBackHandler(() => { repShowFiltersModal = false; return true; });
-    }
-  });
   let printHtml: string | null = $state(null);
   let exportandoMasivo = $state(false);
   let progresoMasivo = $state('');
@@ -3160,7 +3185,7 @@ import { primerColegio } from "../lib/catalogo";
   </div>
 
   
-      <div class="category-card sticky-filters" style="margin-bottom:1rem;padding:0.8rem;position:sticky;top:0;z-index:999;background:rgba(26,26,26,0.8);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 4px 12px rgba(0,0,0,0.2);border-radius:0 0 12px 12px;border:1px solid rgba(255,255,255,0.05);border-top:none">
+      <div class="category-card sticky-filters" style="margin-bottom:0.3rem;padding:0.8rem;position:sticky;top:0;z-index:999;background:rgba(26,26,26,0.8);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 4px 12px rgba(0,0,0,0.2);border-radius:0 0 12px 12px;border:1px solid rgba(255,255,255,0.05);border-top:none">
         {#if printHtml}
           <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background-color:rgba(0,0,0,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99999;padding:20px">
             <div style="background-color:white;border-radius:12px;width:100%;max-width:900px;height:90vh;display:flex;flex-direction:column;overflow:hidden">
@@ -3178,19 +3203,58 @@ import { primerColegio } from "../lib/catalogo";
         {/if}
 
         {#if repIsAndroidMobile}
-          <div style="width:100%;padding:0.1rem 0 0.3rem;">
+          <div style="width:100%;padding:0 0 0.3rem;">
             <SearchFab bind:value={searchTerm} placeholder={t('inf.buscar')} conMargen={false} />
           </div>
-          <div class="category-card" style="padding: 0.5rem; margin-bottom: 0.5rem; display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
-            <button type="button" onclick={() => { repShowFiltersModal = true; }}
-              style="height:38px;padding:0 0.8rem;font-size:0.78rem;background:rgba(96,165,250,0.18);color:#bfdbfe;border:1px solid rgba(96,165,250,0.4);border-radius:8px;display:flex;align-items:center;justify-content:center;gap:5px;font-weight:600;cursor:pointer;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-              <span>🔍</span>
-              <span style="overflow:hidden;text-overflow:ellipsis;">
-                {(repColegios.find(c => c.id === repSelectedColegio)?.nombre)?.split(' ')[0] || t('inf.fallback.colegio')} · {repGrados.find(g => g.id === repSelectedGrado)?.nombre || t('inf.fallback.grado')} · {repSecciones.find(s => s.id === repSelectedSeccion)?.nombre || t('inf.fallback.seccion')}{repSelectedSexo ? ` · ${repSelectedSexo === 'M' ? t('rep.filtro.masc') : t('rep.filtro.fem')}` : ''}
-              </span>
-            </button>
+          <!--
+            FILTROS INLINE (Android): en el WebView un `<select>` abre el popup
+            NATIVO del sistema, así que sacarlos del modal no reintroduce el bug
+            del "cierre fantasma" (ese bug era del overlay, no del select) y
+            ahorra el rodeo Filtros → elegir → Aplicar. El riel ocupa lo mismo
+            que ocupaba el botón que abría el modal.
+          -->
+          <div class="filtro-rail" style="margin-bottom:0.3rem;">
+            {#if showAnoDropdown}
+              <select bind:value={repSelectedAno} title={t('rep.filtro.ano')}>
+                {#each repAnos as a}<option value={a.id}>{a.nombre}</option>{/each}
+              </select>
+            {/if}
+            <select
+              value={specialCorte || repSelectedCorte}
+              onchange={(e) => {
+                const val = (e.currentTarget as HTMLSelectElement).value;
+                if (val === "1S" || val === "2S" || val === "NF") { specialCorte = val; repSelectedCorte = 0; }
+                else { specialCorte = ""; repSelectedCorte = Number(val); }
+              }}
+              title={t('rep.filtro.corte')}>
+              <optgroup label={t('rep.grupo.cortesIndividuales')}>
+                {#each repCortes as c}<option value={c.id}>{c.nombre}</option>{/each}
+              </optgroup>
+              <optgroup label={t('rep.grupo.promedios')}>
+                <option value="1S">{t('rep.corte.1s')}</option>
+                <option value="2S">{t('rep.corte.2s')}</option>
+                <option value="NF">{t('rep.corte.nf')}</option>
+              </optgroup>
+            </select>
+            <select bind:value={repSelectedColegio} title={t('inf.filtro.colegio')}>
+              {#each repColegios as c}<option value={c.id}>{c.nombre}</option>{/each}
+            </select>
+            <select bind:value={repSelectedGrado} title={t('inf.filtro.grado')}>
+              {#each repGrados as g}<option value={g.id}>{g.nombre}</option>{/each}
+            </select>
+            <select bind:value={repSelectedSeccion} title={t('inf.filtro.seccion')}>
+              {#each repSecciones as s}<option value={s.id}>{s.nombre}</option>{/each}
+            </select>
+            <select bind:value={repSelectedAsignatura} disabled={repAsignaturas.length === 0} title={t('rep.filtro.asignatura')}>
+              {#each repAsignaturas as a}<option value={a.id}>{a.nombre}</option>{/each}
+            </select>
+            <select bind:value={repSelectedSexo} title={t('inf.filtro.sexo')}>
+              <option value="">{t('asis.filtro.todos')}</option>
+              <option value="M">{t('asis.filtros.masculino')}</option>
+              <option value="F">{t('asis.filtros.femenino')}</option>
+            </select>
           </div>
-          <div class="category-card" style="padding: 0.5rem; margin-bottom: 0.5rem; display:flex;gap:0.3rem;align-items:center;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;">
+          <div class="acciones-rail" style="margin-bottom:0.3rem;">
             {#if !repIsAndroid}
               <button onclick={handlePrintWithIframe} disabled={repEstudiantes.length === 0 || repLoading}
                 style="height:42px;padding:0 0.4rem;font-size:0.75rem;background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{repEstudiantes.length === 0 || repLoading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(16,185,129,0.4);flex-shrink:0;white-space:nowrap;opacity:{repEstudiantes.length === 0 || repLoading ? 0.7 : 1}"
@@ -3504,42 +3568,6 @@ import { primerColegio } from "../lib/catalogo";
     </div>
   
 
-  <FiltersModalAndroid
-    bind:open={repShowFiltersModal}
-    isAndroidMobile={repIsAndroidMobile} isMobile={repIsMobile}
-    showAno={showAnoDropdown}
-    bind:anos={repAnos} bind:colegios={repColegios} bind:grados={repGrados} bind:secciones={repSecciones}
-    bind:selectedAno={repSelectedAno} bind:selectedColegio={repSelectedColegio} bind:selectedGrado={repSelectedGrado} bind:selectedSeccion={repSelectedSeccion} bind:selectedSexo={repSelectedSexo}
-  >
-    {#snippet extras()}
-      <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
-        <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('rep.filtro.corte')}</label>
-        <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px"
-          value={specialCorte || repSelectedCorte}
-          onchange={(e) => {
-            const val = (e.target as HTMLSelectElement).value;
-            if (val === "1S" || val === "2S" || val === "NF") { specialCorte = val; repSelectedCorte = 0; }
-            else { specialCorte = ""; repSelectedCorte = Number(val); }
-          }}>
-          <optgroup label={t('rep.grupo.cortesIndividuales')}>
-            {#each repCortes as c}<option value={c.id}>{c.nombre}</option>{/each}
-          </optgroup>
-          <optgroup label={t('rep.grupo.promedios')}>
-            <option value="1S">{t('rep.corte.1s')}</option>
-            <option value="2S">{t('rep.corte.2s')}</option>
-            <option value="NF">{t('rep.corte.nf')}</option>
-          </optgroup>
-        </select>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
-        <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('rep.filtro.asignatura')}</label>
-        <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px"
-          bind:value={repSelectedAsignatura} disabled={repAsignaturas.length === 0}>
-          {#each repAsignaturas as a}<option value={a.id}>{a.nombre}</option>{/each}
-        </select>
-      </div>
-    {/snippet}
-  </FiltersModalAndroid>
   {#if showClipboardMenu}
     {@render menuCopiar()}
   {/if}
@@ -3550,36 +3578,6 @@ import { primerColegio } from "../lib/catalogo";
   <div class="category-grid" style="display: flex; flex-direction: column; height: 100%;">
     {#if !isAndroidMobile}<SearchFab bind:value={searchTerm} placeholder={t('notas.buscar.placeholder')} />{/if}
     <div style="{isAndroid && isMobile ? 'position: sticky; top: 0; z-index: 50; background: #0f172a; padding-bottom: 0.2rem; margin-bottom: 0.3rem;' : ''}">
-      <FiltersModalAndroid
-        bind:open={showFiltersModal}
-        {isAndroidMobile} {isMobile}
-        showAno={showAnoDropdown}
-        bind:anos bind:colegios bind:grados bind:secciones
-        bind:selectedAno bind:selectedColegio bind:selectedGrado bind:selectedSeccion bind:selectedSexo
-      >
-        {#snippet extras()}
-          <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
-            <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('notas.filtro.corte')}</label>
-            <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px"
-              bind:value={selectedCorte}>
-              {#each cortes as c}
-                <option value={c.id}>{c.nombre}</option>
-              {/each}
-            </select>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
-            <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('notas.filtro.asignatura')}</label>
-            <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px"
-              value={selectedAsignatura}
-              onchange={(e) => { selectedAsignatura = Number((e.currentTarget as HTMLSelectElement).value); localStorage.setItem('notas-last-asignatura', String(selectedAsignatura)); }}>
-              {#each asignaturas as a}
-                <option value={a.id}>{a.nombre}</option>
-              {/each}
-            </select>
-          </div>
-        {/snippet}
-      </FiltersModalAndroid>
-
       {#if !isAndroidMobile}
       <FilterContainer {isMobile}>
         <!-- El modo va PRIMERO: es lo que define si esta barra guarda o solo
@@ -3684,19 +3682,48 @@ import { primerColegio } from "../lib/catalogo";
       {/if}
 
       {#if isAndroidMobile}
-        <div class="category-card" style="padding: 0.4rem 0.5rem; margin-top: 0.4rem;">
+        <div style="width:100%;padding-top:0.4rem;">
           <SearchFab bind:value={searchTerm} placeholder={t('notas.buscar.placeholder')} conMargen={false} />
         </div>
-        <div class="category-card" style="padding: 0.5rem; margin-top: 0.4rem; display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
-          <button type="button" onclick={() => { showFiltersModal = true; }}
-            style="height:38px;padding:0 0.8rem;font-size:0.78rem;background:rgba(96,165,250,0.18);color:#bfdbfe;border:1px solid rgba(96,165,250,0.4);border-radius:8px;display:flex;align-items:center;justify-content:center;gap:5px;font-weight:600;cursor:pointer;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-            <span>🔍</span>
-              <span style="overflow:hidden;text-overflow:ellipsis;">
-                {(colegios.find(c => c.id === selectedColegio)?.nombre)?.split(' ')[0] || t('notas.chip.colegio')} · {grados.find(g => g.id === selectedGrado)?.nombre || t('notas.chip.grado')} · {secciones.find(s => s.id === selectedSeccion)?.nombre || t('notas.chip.seccion')} · {cortes.find(c => c.id === selectedCorte)?.nombre || t('notas.corte')}{selectedSexo ? ` · ${selectedSexo === 'M' ? t('notas.filtro.masc') : t('notas.filtro.fem')}` : ''}
-              </span>
-          </button>
+        <!--
+          FILTROS INLINE (Android): en el WebView un `<select>` abre el popup
+          NATIVO del sistema, así que sacarlos del modal no reintroduce el bug
+          del "cierre fantasma" (ese bug era del overlay, no del select) y
+          ahorra el rodeo Filtros → elegir → Aplicar. El riel ocupa lo mismo
+          que ocupaba el botón que abría el modal.
+        -->
+        <div class="filtro-rail" style="margin-top:0.3rem;">
+          {#if showAnoDropdown}
+            <select bind:value={selectedAno} title={t('notas.filtro.anoLectivo')}>
+              {#each anos as a}<option value={a.id}>{a.nombre}</option>{/each}
+            </select>
+          {/if}
+          <select bind:value={selectedColegio} title={t('notas.filtro.colegio')}>
+            {#each colegios as col}<option value={col.id}>{col.nombre}</option>{/each}
+          </select>
+          <select value={selectedGrado}
+            onchange={(e) => cambiarGrado(Number((e.currentTarget as HTMLSelectElement).value))}
+            title={t('notas.filtro.grado')}>
+            {#each grados as g}<option value={g.id}>{g.nombre}</option>{/each}
+          </select>
+          <select bind:value={selectedSeccion} title={t('notas.filtro.seccion')}>
+            {#each secciones as s}<option value={s.id}>{s.nombre}</option>{/each}
+          </select>
+          <select bind:value={selectedCorte} title={t('notas.filtro.corte')}>
+            {#each cortes as c}<option value={c.id}>{c.nombre}</option>{/each}
+          </select>
+          <select value={selectedAsignatura}
+            onchange={(e) => { selectedAsignatura = Number((e.currentTarget as HTMLSelectElement).value); localStorage.setItem('notas-last-asignatura', String(selectedAsignatura)); }}
+            title={t('notas.filtro.asignatura')}>
+            {#each asignaturas as a}<option value={a.id}>{a.nombre}</option>{/each}
+          </select>
+          <select bind:value={selectedSexo} title={t('notas.filtro.sexo')}>
+            <option value="">{t('notas.filtro.todos')}</option>
+            <option value="M">{t('notas.filtro.masculino')}</option>
+            <option value="F">{t('notas.filtro.femenino')}</option>
+          </select>
         </div>
-        <div class="category-card" style="padding: 0.5rem; margin-top: 0.3rem; display:flex;gap:0.3rem;align-items:center;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;">
+        <div class="acciones-rail" style="margin-top:0.3rem;">
           <BotonMod bind:ref={popAccionesBtn} opts={{
             onclick: togglePopAcciones,
             icono: popAcciones ? '✕' : '⋯', etiqueta: t('notas.acciones'), tono: 'violeta',
@@ -3732,9 +3759,14 @@ import { primerColegio } from "../lib/catalogo";
 
       <!-- Mobile: Card View -->
       {#if isMobile && !loading && estudiantes.length > 0}
-        <!-- Top Elements Wrapper -->
-        <div class="category-card" style="width: 100%; max-width: 100%; display: flex; flex-direction: column; padding: 0.3rem; flex-shrink: 0; margin-top: 0.5rem;">
-          <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.4rem; margin-bottom: 0.3rem; background: rgba(15, 23, 42, 0.6); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); user-select: none; flex-shrink: 0;">
+        <!--
+          Estudiante + Nota Final en UNA sola fila (~52px). Antes eran dos
+          tarjetas apiladas (~125px) para la misma unidad de información ("en qué
+          estudiante estoy y cómo va"), y cada tarjeta pagaba su propio padding,
+          margen y marco.
+        -->
+        <div class="notas-barra-estudiante">
+          <div class="nav-est-fila">
             <button onclick={goPrevStudent} disabled={currentStudentIdx === 0}
               style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: {currentStudentIdx === 0 ? '#475569' : '#e2e8f0'}; border-radius: 10px; padding: 0.5rem 0.7rem; font-size: 1.1rem; cursor: {currentStudentIdx === 0 ? 'not-allowed' : 'pointer'}; opacity: {currentStudentIdx === 0 ? 0.4 : 1}; display: flex; align-items: center; justify-content: center; min-width: 40px;">◀</button>
             <div style="flex: 1; text-align: center; min-width: 0; padding: 0 0.5rem; cursor: pointer;" onclick={() => showStudentList = true}>
@@ -3751,7 +3783,7 @@ import { primerColegio } from "../lib/catalogo";
 
           {#if filteredNotas[currentStudentIdx]}
             {@const est = filteredNotas[currentStudentIdx]}
-            <div style="margin-bottom: 0; padding: 0.6rem; border-radius: 12px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(34, 197, 94, 0.3); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
+            <div class="nf-est">
                   <div style="color: #94a3b8; font-weight: bold; font-size: 0.85rem;">{t('notas.col.notaFinal')}</div>
                   <div style="display: flex; align-items: center; gap: 0.4rem;">
                     {#if !isQualitative}
@@ -3803,12 +3835,37 @@ import { primerColegio } from "../lib/catalogo";
     {#if isMobile && !loading && estudiantes.length > 0}
       <!-- Indicators Wrapper -->
       <div class="category-card" style="flex: 1; min-height: 0; width: 100%; max-width: 100%; display: flex; flex-direction: column; padding: 0.3rem;">
+        {#if filteredNotas[currentStudentIdx]}
+          {@const estTab = filteredNotas[currentStudentIdx]}
+          <!--
+            PESTAÑAS DE INDICADOR en vez de scroll vertical: con 1-3 criterios por
+            indicador uno solo entra holgado acá, así que en vez de apilar los 5
+            (bajar hasta el 5to era el viaje) se salta con un tap. El punto de
+            cada pestaña lleva el color de la nota del indicador, así de un
+            vistazo se ve cuáles ya tienen nota.
+            ⚠️ NO convertir esto en carrusel con swipe: el swipe horizontal ya lo
+            usa el wrapper para cambiar de modo (registrar ↔ reportes).
+          -->
+          <div class="ind-tabs">
+            {#each indicadoresSeccion as ind}
+              {@const r = resumenIndicador(estTab.estudianteId, ind)}
+              <button class="ind-tab" class:activo={ind.id === indicadorSel?.id} class:sin-suma={!ind.activo}
+                onclick={() => { indicadorSelId = ind.id; }}
+                title={ind.activo ? t('notas.indicador', { n: ind.orden }) : `${t('notas.indicador', { n: ind.orden })} ${t('notas.noSuma')}`}>
+                <span class="ind-tab-dot" style="background: {ind.activo ? r.color : '#475569'}"></span>
+                <span>{ind.orden}</span>
+                {#if !isQualitative}<span class="ind-tab-val">{Math.round(r.total)}</span>{/if}
+              </button>
+            {/each}
+          </div>
+        {/if}
         <div bind:this={notasScrollRef} style="flex: 1; overflow: auto; padding: 0 0.15rem; -webkit-overflow-scrolling: touch; height: {notasScrollHeight};"
           ontouchstart={handleTouchStart} ontouchend={handleTouchEnd}>
           {#if filteredNotas[currentStudentIdx]}
             {@const est = filteredNotas[currentStudentIdx]}
             <div>
-              {#each indicadoresSeccion as ind}
+              {#each (indicadorSel ? [indicadorSel] : []) as ind}
+                {@const r = resumenIndicador(est.estudianteId, ind)}
                 <div style="margin-bottom: 0.5rem; border-radius: 12px; border: 1px solid {ind.activo ? 'rgba(var(--primary-rgb), 0.25)' : 'rgba(100,116,139,0.3)'}; background: {ind.activo ? 'rgba(30, 41, 59, 0.5)' : 'rgba(30, 41, 59, 0.28)'};">
                   <div style="padding: 0.4rem 0.6rem; background: rgba(30, 41, 59, 0.95); backdrop-filter: blur(8px); border-bottom: 1px solid {ind.activo ? 'rgba(var(--primary-rgb), 0.15)' : 'rgba(100,116,139,0.2)'}; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; border-top-left-radius: 11px; border-top-right-radius: 11px;">
                     <div
@@ -3818,28 +3875,10 @@ import { primerColegio } from "../lib/catalogo";
                       style="color: {ind.activo ? 'var(--text-secondary)' : '#64748b'}; font-weight: bold; font-size: 0.8rem; cursor: pointer;">
                       {t('notas.indicador', { n: ind.orden })} ⚙{#if !ind.activo}<span style="font-size: 0.6rem; color: #64748b;">{' '}{t('notas.noSuma')}</span>{/if}
                     </div>
-                    <div style="color: {ind.activo ? (() => {
-                      const totalInd = ind.criterios.reduce((sum, c) => {
-                        const qv = notasCualitativas[`${est.estudianteId}-${c.id}`];
-                        if (qv && ['AA','AS','AF','AI'].includes(qv)) return sum + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
-                        return sum;
-                      }, 0);
-                      const maxInd = ind.criterios.reduce((sum, c) => sum + (c.puntajeMaximo || 0), 0);
-                      const esc = maxInd > 0 ? (totalInd / maxInd) * 100 : 0;
-                      const qualGrade = isQualitative ? calcularNotaCualitativaFinal(ind.criterios.map(c => notasCualitativas[`${est.estudianteId}-${c.id}`] || '')) : (getGradeFromScore(esc)?.id || 'AI');
-                      return qualGrade ? getGradeColor(qualGrade) : '#94a3b8';
-                    })() : '#64748b'}; font-weight: bold; font-size: 0.75rem; {ind.activo ? '' : 'opacity: 0.75;'}">
-                      {(() => {
-                        const totalInd = ind.criterios.reduce((sum, c) => {
-                          const qv = notasCualitativas[`${est.estudianteId}-${c.id}`];
-                          if (qv && ['AA','AS','AF','AI'].includes(qv)) return sum + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
-                          return sum;
-                        }, 0);
-                        const maxInd = ind.criterios.reduce((sum, c) => sum + (c.puntajeMaximo || 0), 0);
-                        const esc = maxInd > 0 ? (totalInd / maxInd) * 100 : 0;
-                        const qualGrade = isQualitative ? calcularNotaCualitativaFinal(ind.criterios.map(c => notasCualitativas[`${est.estudianteId}-${c.id}`] || '')) : (getGradeFromScore(esc)?.id || 'AI');
-                        return isQualitative ? qualGrade : `${Math.round(totalInd)} (${qualGrade})`;
-                      })()}
+                    <!-- Score del indicador: sale de `resumenIndicador` (el mismo
+                         helper que alimenta las pestañas), no de un IIFE duplicado. -->
+                    <div style="color: {ind.activo ? r.color : '#64748b'}; font-weight: bold; font-size: 0.75rem;{ind.activo ? '' : ' opacity: 0.75;'}">
+                      {isQualitative ? r.qual : `${Math.round(r.total)} (${r.qual})`}
                     </div>
                   </div>
                   {#each ind.criterios as crit}
@@ -4835,6 +4874,59 @@ import { primerColegio } from "../lib/catalogo";
     .kpi-strip .summary-label{font-size:.68rem!important}
     .kpi-strip .summary-value{font-size:1.05rem!important;white-space:nowrap}
     .kpi-strip .gender-labels{margin:0 0 0 auto!important;font-size:.66rem!important;white-space:nowrap}
+
+    /* ─────────────────────────────────────────────────────────────────────
+       NotasPage en Android: riel de filtros inline, acciones sin marco y la
+       barra de estudiante + Nota Final fusionada. Reemplaza 5 tarjetas
+       apiladas (~300px) por ~3 filas compactas (~135px).
+       ───────────────────────────────────────────────────────────────────── */
+    .filtro-rail{
+      display:flex;align-items:center;gap:.35rem;
+      overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:.1rem;
+    }
+    .filtro-rail select{
+      flex:0 0 auto;height:32px;padding:0 1.7rem 0 .55rem;
+      font-size:.75rem;font-weight:600;border-radius:8px;
+      background-color:#0f172a;border:1px solid rgba(148,163,184,.35);color:#f1f5f9;
+      appearance:none;-webkit-appearance:none;
+      background-image:url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e");
+      background-repeat:no-repeat;background-position:right .45rem center;background-size:13px;
+    }
+    .filtro-rail select:focus{border-color:var(--primary-color);outline:none}
+    .filtro-rail select option,.filtro-rail select optgroup{background:#0f172a;color:#f1f5f9}
+    .acciones-rail{
+      display:flex;gap:.3rem;align-items:center;
+      overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;padding-bottom:.15rem;
+    }
+
+    /* Estudiante + Nota Final en una sola fila (~52px en vez de ~125px). */
+    .notas-barra-estudiante{
+      display:flex;align-items:center;gap:.35rem;padding:.3rem;margin-top:.4rem;flex-shrink:0;
+      background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.06);border-radius:12px;
+    }
+    .nav-est-fila{
+      flex:1;min-width:0;display:flex;align-items:center;justify-content:space-between;
+      padding:.15rem;user-select:none;
+    }
+    .nf-est{
+      flex:0 0 auto;display:flex;align-items:center;gap:.4rem;padding:.35rem .5rem;
+      border-radius:10px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.3);
+    }
+
+    /* Pestañas de indicador: un solo indicador visible, sin scroll vertical. */
+    .ind-tabs{
+      display:flex;gap:.3rem;overflow-x:auto;-webkit-overflow-scrolling:touch;
+      padding:0 .05rem .35rem;flex-shrink:0;
+    }
+    .ind-tab{
+      flex:0 0 auto;display:flex;align-items:center;gap:.28rem;height:34px;padding:0 .6rem;
+      border-radius:9px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);
+      color:#94a3b8;font-weight:700;font-size:.78rem;cursor:pointer;transition:all .15s ease;
+    }
+    .ind-tab.activo{background:rgba(var(--primary-rgb),.16);border-color:rgba(var(--primary-rgb),.55);color:#e2e8f0}
+    .ind-tab.sin-suma{opacity:.55}
+    .ind-tab-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+    .ind-tab-val{font-size:.68rem;color:#cbd5e1;font-weight:600}
 
     @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
     @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
