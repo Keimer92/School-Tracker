@@ -12,6 +12,9 @@ import { primerColegio } from "../lib/catalogo";
   import SelectChip from "./SelectChip.svelte";
   import ModoToggle from "./ModoToggle.svelte";
   import SearchFab from "./SearchFab.svelte";
+  import FiltroRail from "./FiltroRail.svelte";
+  import BtnRail from "./BtnRail.svelte";
+  import AccionesRail from "./AccionesRail.svelte";
   import { generarInstrumentoPDF, generarInstrumentosTodosPDF, INSTRUMENTO_OPS, type InstrumentoInput, type InstrumentoTipo } from "../lib/instrumentosPdf";
   import { generarInstrumentoExcel, listarPlantillas, asegurarCarpetaPlantillas, abrirCarpetaPlantillas, plantillasDir, type ExcelInstrumentoInput } from "../lib/instrumentosExcel";
   import { readFile } from "@tauri-apps/plugin-fs";
@@ -3261,7 +3264,7 @@ import { primerColegio } from "../lib/catalogo";
             ahorra el rodeo Filtros → elegir → Aplicar. El riel ocupa lo mismo
             que ocupaba el botón que abría el modal.
           -->
-          <div class="filtro-rail" style="margin-bottom:0.3rem;">
+          <FiltroRail estilo="margin-bottom:0.3rem">
             {#if showAnoDropdown}
               <select bind:value={repSelectedAno} title={t('rep.filtro.ano')}>
                 {#each repAnos as a}<option value={a.id}>{a.nombre}</option>{/each}
@@ -3293,16 +3296,16 @@ import { primerColegio } from "../lib/catalogo";
             <select bind:value={repSelectedSeccion} title={t('inf.filtro.seccion')}>
               {#each repSecciones as s}<option value={s.id}>{s.nombre}</option>{/each}
             </select>
-            <select bind:value={repSelectedAsignatura} disabled={repAsignaturas.length === 0} title={t('rep.filtro.asignatura')}>
-              {#each repAsignaturas as a}<option value={a.id}>{a.nombre}</option>{/each}
-            </select>
             <select bind:value={repSelectedSexo} title={t('inf.filtro.sexo')}>
               <option value="">{t('asis.filtro.todos')}</option>
               <option value="M">{t('asis.filtros.masculino')}</option>
               <option value="F">{t('asis.filtros.femenino')}</option>
             </select>
-          </div>
-          <div class="acciones-rail" style="margin-bottom:0.3rem;">
+            <select bind:value={repSelectedAsignatura} disabled={repAsignaturas.length === 0} title={t('rep.filtro.asignatura')}>
+              {#each repAsignaturas as a}<option value={a.id}>{a.nombre}</option>{/each}
+            </select>
+          </FiltroRail>
+          <AccionesRail estilo="margin-bottom:0.3rem">
             {#if !repIsAndroid}
               <button onclick={handlePrintWithIframe} disabled={repEstudiantes.length === 0 || repLoading}
                 style="height:42px;padding:0 0.4rem;font-size:0.75rem;background:linear-gradient(135deg,#10b981,#059669);color:#fff;border:none;border-radius:8px;display:flex;align-items:center;justify-content:center;gap:4px;font-weight:700;cursor:{repEstudiantes.length === 0 || repLoading ? 'default' : 'pointer'};transition:all 0.2s ease;box-shadow:0 4px 14px rgba(16,185,129,0.4);flex-shrink:0;white-space:nowrap;opacity:{repEstudiantes.length === 0 || repLoading ? 0.7 : 1}"
@@ -3325,7 +3328,7 @@ import { primerColegio } from "../lib/catalogo";
               {exportandoMasivo ? progresoMasivo : t('rep.btn.todo')}
             </button>
             {@render botonCopiar(true)}
-          </div>
+          </AccionesRail>
         {:else}
         <FilterContainer isMobile={repIsMobile} style="padding:0.5rem">
           <!-- El modo va PRIMERO: es lo que define si esta barra reporta o
@@ -3758,12 +3761,19 @@ import { primerColegio } from "../lib/catalogo";
           ahorra el rodeo Filtros → elegir → Aplicar. El riel ocupa lo mismo
           que ocupaba el botón que abría el modal.
         -->
-        <div class="filtro-rail" style="margin-top:0.3rem;">
+        <FiltroRail estilo="margin-top:0.3rem">
           {#if showAnoDropdown}
             <select bind:value={selectedAno} title={t('notas.filtro.anoLectivo')}>
               {#each anos as a}<option value={a.id}>{a.nombre}</option>{/each}
             </select>
           {/if}
+          <!-- Mismo orden que el branch de escritorio: Año → Corte → Colegio →
+               Grado → Sección → Sexo → Asignatura. El corte va antes del colegio
+               a propósito (lo pidió el usuario): es una decisión de vista, no
+               cambia la lógica. -->
+          <select bind:value={selectedCorte} title={t('notas.filtro.corte')}>
+            {#each cortes as c}<option value={c.id}>{c.nombre}</option>{/each}
+          </select>
           <select bind:value={selectedColegio} title={t('notas.filtro.colegio')}>
             {#each colegios as col}<option value={col.id}>{col.nombre}</option>{/each}
           </select>
@@ -3775,20 +3785,17 @@ import { primerColegio } from "../lib/catalogo";
           <select bind:value={selectedSeccion} title={t('notas.filtro.seccion')}>
             {#each secciones as s}<option value={s.id}>{s.nombre}</option>{/each}
           </select>
-          <select bind:value={selectedCorte} title={t('notas.filtro.corte')}>
-            {#each cortes as c}<option value={c.id}>{c.nombre}</option>{/each}
+          <select bind:value={selectedSexo} title={t('notas.filtro.sexo')}>
+            <option value="">{t('notas.filtro.todos')}</option>
+            <option value="M">{t('notas.filtro.masculino')}</option>
+            <option value="F">{t('notas.filtro.femenino')}</option>
           </select>
           <select value={selectedAsignatura}
             onchange={(e) => { selectedAsignatura = Number((e.currentTarget as HTMLSelectElement).value); localStorage.setItem('notas-last-asignatura', String(selectedAsignatura)); }}
             title={t('notas.filtro.asignatura')}>
             {#each asignaturas as a}<option value={a.id}>{a.nombre}</option>{/each}
           </select>
-          <select bind:value={selectedSexo} title={t('notas.filtro.sexo')}>
-            <option value="">{t('notas.filtro.todos')}</option>
-            <option value="M">{t('notas.filtro.masculino')}</option>
-            <option value="F">{t('notas.filtro.femenino')}</option>
-          </select>
-        </div>
+        </FiltroRail>
         <!--
           DOS filas de botones (3 + 3) en vez de "fila + popover ⋯": las 6
           acciones quedan visibles de entrada, sin abrir nada. Misma idea que el
@@ -3796,7 +3803,7 @@ import { primerColegio } from "../lib/catalogo";
           Los tres que antes vivían en el popover (instrumentos, distribuir,
           eliminar notas) bajan a la segunda fila con su mismo tono e ícono.
         -->
-        <div class="btn-rail">
+        <BtnRail>
           <!-- Guardar va antes que Deshacer/Rehacer: es la acción que se usa en
                cada cambio de nota, así que queda a la vista sin scrollear, igual
                que en Asistencia. El orden de escritorio no cambia. -->
@@ -3819,8 +3826,8 @@ import { primerColegio } from "../lib/catalogo";
             sub: redoStack.length === 0 ? t('notas.rehacerNada') : t('notas.porRehacer', { n: redoStack.length }),
             title: t('notas.rehacer')
           }} />
-        </div>
-        <div class="btn-rail">
+        </BtnRail>
+        <BtnRail>
           <BotonMod opts={{
             onclick: () => { showInstrumentosModal = true; },
             disabled: indicadores.length === 0,
@@ -3845,7 +3852,7 @@ import { primerColegio } from "../lib/catalogo";
             sub: t('notas.btn.eliminarNotasSub', { n: filteredNotas.length }),
             title: t('notas.btn.eliminarNotas')
           }} />
-        </div>
+        </BtnRail>
 
       {/if}
 
@@ -4986,39 +4993,10 @@ import { primerColegio } from "../lib/catalogo";
        barra de estudiante + Nota Final fusionada. Reemplaza 5 tarjetas
        apiladas (~300px) por ~3 filas compactas (~135px).
        ───────────────────────────────────────────────────────────────────── */
-    /* Rejilla que ENVUELVE en vez de scroll lateral: en un teléfono de 360px
-       entran ~4 por fila, así las 7 se ven en 2 filas sin arrastrar de lado.
-       Antes era `flex` de una sola fila con `overflow-x`, y quedaban ~3
-       visibles: los filtros de la derecha existían pero no se descubrían. */
-    .filtro-rail{
-      display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:.3rem;
-    }
-    .filtro-rail select{
-      width:100%;min-width:0;height:32px;padding:0 1.35rem 0 .45rem;
-      font-size:.72rem;font-weight:600;border-radius:8px;
-      background-color:#0f172a;border:1px solid rgba(148,163,184,.35);color:#f1f5f9;
-      appearance:none;-webkit-appearance:none;
-      text-overflow:ellipsis;white-space:nowrap;overflow:hidden;
-      background-image:url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e");
-      background-repeat:no-repeat;background-position:right .35rem center;background-size:12px;
-    }
-    .filtro-rail select:focus{border-color:var(--primary-color);outline:none}
-    .filtro-rail select option,.filtro-rail select optgroup{background:#0f172a;color:#f1f5f9}
-    .acciones-rail{
-      display:flex;gap:.3rem;align-items:center;
-      overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;padding-bottom:.15rem;
-    }
-
-    /* Dos filas de 3 botones (registrar en Android), con el mismo criterio que
-       `.filtro-rail`. `:global` porque `.btn-mod` es el nodo raíz de BotonMod y
-       NO lleva el hash de scope de esta página: sin él las reglas no matchean.
-       `min-width:0` en el botón es lo que permite que la etiqueta se recorte con
-       elipsis en vez de forzar la columna a crecer. */
-    .btn-rail{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.3rem;margin-top:.3rem}
-    .btn-rail :global(.btn-mod){width:100%;padding:0 .45rem;font-size:.74rem}
-    .btn-rail :global(.btn-mod .txt){min-width:0;overflow:hidden}
-    .btn-rail :global(.btn-mod .txt > span:first-child){max-width:100%;overflow:hidden;text-overflow:ellipsis}
-    .btn-rail :global(.btn-mod .sub){max-width:100%;overflow:hidden;text-overflow:ellipsis}
+    /* El riel de filtros, la fila de acciones y la rejilla de botones ahora
+       viven en los componentes compartidos `FiltroRail`, `AccionesRail` y
+       `BtnRail` (ver sus comentarios): así Asistencia y Estudiantes reutilizan
+       el mismo layout sin copiar CSS. */
 
     /* Estudiante + Nota Final en DOS filas: el nombre completo necesita todo el
        ancho (envuelve a 2 líneas si es largo), así que la Nota Final baja a su

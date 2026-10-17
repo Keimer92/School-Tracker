@@ -20,6 +20,8 @@ import { primerColegio } from "../lib/catalogo";
 import SelectChip from "./SelectChip.svelte";
   import SearchFab from "./SearchFab.svelte";
   import BotonMod from "./BotonMod.svelte";
+  import FiltroRail from "./FiltroRail.svelte";
+  import BtnRail from "./BtnRail.svelte";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; }
   interface Student { id?: number; nombre: string; codigo: string; sexo: string; anoLectivoId: number; gradoId: number; seccionId: number; colegioId: number; foto?: string | null;
@@ -135,12 +137,6 @@ import SelectChip from "./SelectChip.svelte";
   const isAndroid = /Android/i.test(navigator.userAgent);
   const isWindows = /Windows/i.test(navigator.userAgent);
   const isAndroidMobile = $derived(isAndroid || (isMobile && !isWindows));
-  let showFiltersModal = $state(false);
-  $effect(() => {
-    if (showFiltersModal) {
-      return registerBackHandler(() => { showFiltersModal = false; return true; });
-    }
-  });
   let openMenuStudentId: number | null = $state(null);
   let isImporting = $state(false);
   let showImportHelp = $state(false);
@@ -1085,21 +1081,37 @@ function cambiarModo(id: string) {
         <SearchFab bind:value={searchTerm} placeholder={t('est.buscarPhAndroid')} conMargen={false} />
       </div>
     </div>
-    <div class="category-card" style="padding: 0.5rem; margin-bottom: 0.4rem; display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;">
-      <button type="button" onclick={() => { showFiltersModal = true; }}
-        style="height:38px;padding:0 0.8rem;font-size:0.78rem;background:rgba(96,165,250,0.18);color:#bfdbfe;border:1px solid rgba(96,165,250,0.4);border-radius:8px;display:flex;align-items:center;justify-content:center;gap:5px;font-weight:600;cursor:pointer;flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-        <span>🔍</span>
-        <span style="overflow:hidden;text-overflow:ellipsis;">
-          <!-- El modo también se repite acá. El toggle está visible en la fila de arriba,
-               pero el botón de filtros ya está al límite de caracteres con
-               colegio · grado · sección · sexo, y sin esta señal una lista vacía
-               en RETIRADOS era indistinguible de "no hay estudiantes con estos
-               filtros". -->
-          {esRetirados ? `🚪 ${t('est.modo.retirados')} · ` : ''}{(colegios.find(c => c.id === filters.colegioId)?.nombre)?.split(' ')[0] || t('est.fallback.colegio')} · {gradoOpciones.find(o => o.value === filters.gradoId)?.label || t('est.fallback.grado')} · {seccionOpciones.find(o => o.value === filters.seccionId)?.label || t('est.fallback.seccion')}{filters.sexo ? ` · ${filters.sexo === 'M' ? t('est.resumen.masculinoCorto') : t('est.resumen.femeninoCorto')}` : ''}
-        </span>
-      </button>
-    </div>
-    <div class="category-card" style="padding: 0.5rem; margin-bottom: 0.4rem; display:flex;gap:0.3rem;align-items:center;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;">
+    <!--
+      Riel de filtros INLINE (Android): mismos selects y mismo orden que la barra
+      de escritorio (Año → Colegio → Grado → Sección → Sexo), sin el rodeo del
+      modal Filtros → elegir → Aplicar. El resumen inline del botón desaparece
+      con él: el estado de cada filtro se lee directamente en su select.
+    -->
+    <FiltroRail estilo="margin-bottom:0.4rem">
+      <select value={filters.anoLectivoId} title={t('est.filtro.ano')}
+        onchange={(e) => setFilter('anoLectivoId', (e.currentTarget as HTMLSelectElement).value)}>
+        {#each anos as a}<option value={a.id}>{a.nombre}{#if a.activo} {t('est.activoCon')}{/if}</option>{/each}
+      </select>
+      <select value={filters.colegioId} title={t('est.filtro.colegio')}
+        onchange={(e) => setFilter('colegioId', (e.currentTarget as HTMLSelectElement).value)}>
+        {#each colegios as c}<option value={c.id}>{c.nombre}</option>{/each}
+      </select>
+      <select value={filters.gradoId} title={t('est.filtro.grado')}
+        onchange={(e) => setFilter('gradoId', (e.currentTarget as HTMLSelectElement).value)}>
+        {#each gradoOpciones as g}<option value={g.value}>{g.label}</option>{/each}
+      </select>
+      <select value={filters.seccionId} title={t('est.filtro.seccion')}
+        onchange={(e) => setFilter('seccionId', (e.currentTarget as HTMLSelectElement).value)}>
+        {#each seccionOpciones as s}<option value={s.value}>{s.label}</option>{/each}
+      </select>
+      <select value={filters.sexo} title={t('est.filtro.sexo')}
+        onchange={(e) => setFilter('sexo', (e.currentTarget as HTMLSelectElement).value)}>
+        <option value="">{t('est.todos')}</option>
+        <option value="M">{t('est.masculino')}</option>
+        <option value="F">{t('est.femenino')}</option>
+      </select>
+    </FiltroRail>
+    <BtnRail estilo="margin-bottom:0.4rem">
       <!-- En RETIRADOS solo queda exportar a Excel: registrar, importar,
            plantilla y ayuda no tienen sentido sobre gente que ya no cursa, y
            "eliminar todos" sobre la lista de retirados sería una mezcla
@@ -1138,63 +1150,8 @@ function cambiarModo(id: string) {
           sub: t('est.sub.formatoCorto'), title: t('est.title.ayuda'), compacto: true
         }} />
       {/if}
-    </div>
+    </BtnRail>
 
-    {#if showFiltersModal}
-      <div class="modal-overlay" onclick={() => showFiltersModal = false} style="z-index:2000">
-        <div class="modal-content" onclick={(e) => e.stopPropagation()}
-          style="width:min(380px, calc(100vw - 32px));max-width:min(380px, calc(100vw - 32px));max-height:85vh;overflow-y:auto;background:#1e293b;border:1px solid rgba(148,163,184,0.35);border-radius:18px;box-shadow:0 20px 50px rgba(0,0,0,0.6);padding:1.25rem;text-align:left;position:relative">
-          <button type="button" onclick={() => showFiltersModal = false} title={t('est.filtros.cerrar')}
-            style="position:absolute;top:.6rem;right:.6rem;width:32px;height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:#1e293b;color:#e2e8f0;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1">✕</button>
-          <h3 style="margin:0 0 1rem;color:#f1f5f9;font-size:1.05rem;padding-right:2.2rem">{t('est.filtros.titulo')}</h3>
-          <div style="display:flex;flex-direction:column;gap:0.6rem">
-            <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-              <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">{t('est.filtro.ano')}</label>
-              <select class="filter-select"
-                style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;background:#0f172a;border:1px solid rgba(148,163,184,0.45);color:#f1f5f9;font-weight:600;appearance:none;-webkit-appearance:none;background-image:url(&quot;data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e&quot;);background-repeat:no-repeat;background-position:right 0.6rem center;background-size:14px;padding-right:1.8rem"
-                value={filters.anoLectivoId} onchange={(e) => setFilter('anoLectivoId', (e.target as HTMLSelectElement).value)}>
-                {#each anos as a}<option value={a.id}>{a.nombre}{#if a.activo} {t('est.activoCon')}{/if}</option>{/each}
-              </select>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-              <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">{t('est.filtro.colegio')}</label>
-              <select class="filter-select"
-                style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;background:#0f172a;border:1px solid rgba(148,163,184,0.45);color:#f1f5f9;font-weight:600;appearance:none;-webkit-appearance:none;background-image:url(&quot;data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e&quot;);background-repeat:no-repeat;background-position:right 0.6rem center;background-size:14px;padding-right:1.8rem"
-                value={filters.colegioId} onchange={(e) => setFilter('colegioId', (e.target as HTMLSelectElement).value)}>
-                {#each colegios as c}<option value={c.id}>{c.nombre}</option>{/each}
-              </select>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-              <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">{t('est.filtro.grado')}</label>
-              <select class="filter-select"
-                style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;background:#0f172a;border:1px solid rgba(148,163,184,0.45);color:#f1f5f9;font-weight:600;appearance:none;-webkit-appearance:none;background-image:url(&quot;data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e&quot;);background-repeat:no-repeat;background-position:right 0.6rem center;background-size:14px;padding-right:1.8rem"
-                value={filters.gradoId} onchange={(e) => setFilter('gradoId', (e.target as HTMLSelectElement).value)}>
-                {#each gradoOpciones as g}<option value={g.value}>{g.label}</option>{/each}
-              </select>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-              <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">{t('est.filtro.seccion')}</label>
-              <select class="filter-select"
-                style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;background:#0f172a;border:1px solid rgba(148,163,184,0.45);color:#f1f5f9;font-weight:600;appearance:none;-webkit-appearance:none;background-image:url(&quot;data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e&quot;);background-repeat:no-repeat;background-position:right 0.6rem center;background-size:14px;padding-right:1.8rem"
-                value={filters.seccionId} onchange={(e) => setFilter('seccionId', (e.target as HTMLSelectElement).value)}>
-                {#each seccionOpciones as s}<option value={s.value}>{s.label}</option>{/each}
-              </select>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:4px;flex:1 1 100%">
-              <label style="font-size:0.7rem;color:#94a3b8;font-weight:600">{t('est.filtro.sexo')}</label>
-              <select class="filter-select"
-                style="width:100%;height:38px;padding:0 0.6rem;font-size:0.85rem;border-radius:8px;background:#0f172a;border:1px solid rgba(148,163,184,0.45);color:#f1f5f9;font-weight:600;appearance:none;-webkit-appearance:none;background-image:url(&quot;data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e&quot;);background-repeat:no-repeat;background-position:right 0.6rem center;background-size:14px;padding-right:1.8rem"
-                value={filters.sexo} onchange={(e) => setFilter('sexo', (e.target as HTMLSelectElement).value)}>
-                <option value="">{t('est.todos')}</option>
-                <option value="M">{t('est.masculino')}</option>
-                <option value="F">{t('est.femenino')}</option>
-              </select>
-            </div>
-          </div>
-          <button class="primary" onclick={() => showFiltersModal = false} style="margin-top:1.25rem;width:100%">{t('est.filtro.aplicar')}</button>
-        </div>
-      </div>
-    {/if}
   {:else}
   <FilterContainer {isMobile}>
       <!-- Activos / Retirados: mismo toggle segmentado que usa AsistenciaPage.
