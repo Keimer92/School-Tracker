@@ -40,7 +40,7 @@ interface CuentaSync {
 
 function contar(obj: unknown): number {
   if (!obj || typeof obj !== 'object') return 0;
-  return Object.values(obj as Record<string, unknown>).reduce(
+  return (Object.values(obj as Record<string, unknown>) as unknown[]).reduce<number>(
     (a, b) => a + Number(b || 0),
     0
   );

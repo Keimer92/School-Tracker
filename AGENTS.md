@@ -1825,6 +1825,29 @@ navegación entre tabs · tick periódico (input en CloudPage, min 3 min).
 emitUpdates() SOLO si el sync trajo/aplicó cambios ? páginas refrescan en
 sitio (listas con {#each … (est.id)} keyed: sin saltos de scroll).
 
+### Aviso (toast) de sync en Android (2026-10)
+
+`src/lib/d1SyncNotify.ts`: cuando un sync mueve datos, **solo en Android**, sale
+un toast (el mismo `emit('show-toast', ...)` que usan las páginas, que pinta
+`App.svelte`).
+
+- Se llama **en un solo sitio**: dentro de `syncAllSilent`, y solo si
+  `hadChanges`. No lo llames desde los triggers: es un aviso, no un
+  orquestador, y regarlo por los triggers es cómo se termina avisando dos veces
+  del mismo sync.
+- **Solo si movió datos** (push, pull o borrados). Un tick sin cambios no avisa:
+  con los triggers pasivos (visibilitychange, online, WS, tick de 20 min) el
+  aviso saldría cada pocos minutos y perdería todo su valor.
+- **Anti-spam calcado de `driveInstantBackup`**: mínimo 45 s entre avisos, y los
+  que caen dentro de la ventana se consolidan en "{n} sincronizaciones". Es el
+  otro flujo del proyecto que avisa "se subió/bajó algo" y ya tenía resuelto el
+  mismo problema; miralo antes de inventar otra convención.
+- Un **push omitido** por el freno de reintentos no se avisa: no salió nada, y
+  avisar de una sincronización que no ocurrió es peor que no avisar. Si además
+  hubo pull, los datos sí bajaron y el aviso sale igual.
+- Claves i18n `d1n.*` en `es.ts` / `en.ts` (el tipado `Record<Clave,string>`
+  obliga a traducir las dos).
+
 ### Identidad de dispositivo (¡crítico!)
 
 d1_config.device_id es POR INSTALACIÓN. El respaldo de Google Drive copia
@@ -1988,6 +2011,39 @@ Lo que los separa:
 - **Swipe en Android**: idéntico a `AsistenciaPage` — el wrapper
   (`NotasMainPage`) maneja el gesto; en escritorio el `ModoToggle` de la
   barra de filtros lo hace.
+
+##### El reporte tiene DOS presentaciones, según la geometría (2026-10)
+
+| Geometría | Presentación | Por qué |
+|---|---|---|
+| Android en **vertical** | `.rep-boleta`: una tarjeta por estudiante (nombre + NF + chips `Ind. N`) | la tabla de 7 columnas (nombre + hasta 5 indicadores + NF) necesita `min-width:max-content`, así que en ~380px obliga a scroll horizontal y solo se ven 2 columnas: leer la fila de un estudiante es ir y volver |
+| Escritorio y Android en **horizontal** | `.rep-tabla` de siempre | ahí sí hay ancho para las 7 columnas, y es de donde sale el PDF/impresión |
+
+- El interruptor es `repEsBoleta = $derived(repIsAndroidMobile && repEsPortrait)`;
+  `repEsPortrait` se recalcula en el `checkMobile` que ya escuchaba `resize`
+  (rotar en Android lo dispara, no hace falta un listener propio).
+- ⚠️ Esto **no revierte** el commit `bde8320` ("mobile report view to use a table
+  layout"). Aquel cambio quitó una lista de tarjetas que era un **segundo
+  componente con su propia carga de datos**. La boleta es el mismo
+  `filteredReporte` con los mismos helpers (`getNoteColor`,
+  `getIndicatorMaxScore`, `colorSexo`, `totalPuntajeMaximoConfig`), y con
+  `specialCorte` oculta los chips igual que la tabla oculta las columnas.
+  **No crear un componente aparte ni volver a consultar la BD para la boleta.**
+- Las estadísticas viven en un `{#snippet estadisticasReporte(kpi)}` porque se
+  pintan en dos sitios: con la boleta van ARRIBA como tira de KPIs horizontal
+  (`.kpi-strip`: una sola línea, `overflow-x`, etiquetas a `.68rem`) y con la
+  tabla van DEBAJO como la grilla de siempre. Duplicar el markup es como se
+  desincronizan las dos vistas.
+- El `#each` de la boleta va **keyed** por `estudiante.id` (refrescos silenciosos
+  sin perder scroll), igual que las listas de asistencia.
+- ⚠️ Se **quitó** el parche `.table-card{min-height:45dvh}` del bug "el reporte
+  se ve como una card comprimida": en vertical ya no se dibuja la tabla, así que
+  no hay dos bloques compitiendo por la misma altura. No volver a agregarlo; si
+  la tabla se aplasta, el problema es la competencia de alturas (ver el
+  `@media (max-width:1024px)` de `NotasPage`), no la falta de un piso.
+- ⚠️ En el MARKUP solo valen los comentarios `<!-- -->`. Un `{# ... #}` o un
+  `/* ... */` se compilan como nodo de texto y el usuario ve el comentario
+  impreso (mismo GOTCHA que en `AsistenciaPage`).
 
 ⚠️ `NotasMainPage` **no** debe volver al montaje perezoso por sub-tab: con un
 solo hijo no hay nada que montar por separado, y `display:none` por sub-tab

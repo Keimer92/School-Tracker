@@ -3424,80 +3424,80 @@ import { primerColegio } from "../lib/catalogo";
               el nombre no se vaya con el scroll horizontal. Notas habilita el
               sensor de orientación justamente para poder rotar y verla completa.
             -->
-          <div class="category-card table-card" style="padding:0;overflow:hidden;display:flex;flex-direction:column;flex:1;min-height:0">
-            <div class="notas-table-container" style="overflow:auto;padding:0;width:100%;max-width:100%;-webkit-overflow-scrolling:touch;border:1px solid rgba(255,255,255,0.1);border-radius:8px;flex:1;min-height:0">
-              <table class="rep-tabla" style="width:100%;min-width:max-content;border-collapse:separate;border-spacing:0">
-                <thead style="position:sticky;top:0;z-index:100">
-                  <tr>
-                    <th style="padding:0.85rem 1rem;text-align:left;background-color:#1e293b;border-bottom:2px solid rgba(255,255,255,0.1);color:var(--text-secondary);position:sticky;left:0;z-index:110">{t('rep.tabla.estudiante')}</th>
-                    {#if !specialCorte}
-                      {#each configIndicadores as ind}
-                        <th title={ind.descripcion} style="padding:1rem;text-align:center;background-color:rgba(255,255,255,0.05);border-bottom:2px solid rgba(255,255,255,0.1);color:var(--text-secondary);font-size:0.85rem;cursor:help">
-                          Ind. {ind.orden}
-                        </th>
-                      {/each}
-                    {/if}
-                    <th style="padding:1rem;text-align:center;background-color:rgba(var(--primary-rgb),0.1);border-bottom:2px solid rgba(var(--primary-rgb),0.3);color:var(--text-secondary);font-weight:bold">{t('rep.corte.nf')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {#each filteredReporte as estudiante, idx}
-                    <tr class="table-row-hover" style="background-color:{idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)'}">
-                      <td style="padding:0.85rem 1rem;border-bottom:1px solid rgba(255,255,255,0.05);color:{colorSexo(estudiante.sexo)};font-weight:500;position:sticky;left:0;background-color:{idx % 2 === 0 ? '#1e293b' : '#1a2234'};z-index:5">
-                        <!--
-                          El nombre se muestra COMPLETO, en varias líneas si hace
-                          falta. Estaba en `nowrap` + `ellipsis`, que en escritorio
-                          no se notaba pero en un teléfono cortaba el nombre a la
-                          mitad sin más pista: la columna es `sticky left`, así que
-                          es la única que queda fija cuando se scrollea la tabla,
-                          y si el nombre no se lee no sirve de nada que siga
-                          visible.
-                        -->
-                        <div style="white-space:normal;overflow-wrap:anywhere;min-width:150px">{estudiante.nombre}</div>
-                      </td>
+            <div class="category-card table-card" style="padding:0;overflow:hidden;display:flex;flex-direction:column;flex:1;min-height:0">
+              <div class="notas-table-container" style="overflow:auto;padding:0;width:100%;max-width:100%;-webkit-overflow-scrolling:touch;border:1px solid rgba(255,255,255,0.1);border-radius:8px;flex:1;min-height:0">
+                <table class="rep-tabla" style="width:100%;min-width:max-content;border-collapse:separate;border-spacing:0">
+                  <thead style="position:sticky;top:0;z-index:100">
+                    <tr>
+                      <th style="padding:0.85rem 1rem;text-align:left;background-color:#1e293b;border-bottom:2px solid rgba(255,255,255,0.1);color:var(--text-secondary);position:sticky;left:0;z-index:110">{t('rep.tabla.estudiante')}</th>
                       {#if !specialCorte}
                         {#each configIndicadores as ind}
-                          {@const nota = estudiante.notasIndicadores[ind.id] || 0}
-                          {@const label = estudiante.notasCualitativasIndicadores[ind.id] || (repIsQualitative ? '' : '')}
-                          {@const isMissing = label === "-" || label === ""}
-                          {@const noteColor = isMissing ? '#64748b' : getNoteColor(repIsQualitative ? 0 : nota, label, getIndicatorMaxScore(ind.id))}
-                          <td style="padding:0.85rem 1rem;text-align:center;border-bottom:1px solid rgba(255,255,255,0.05);color:{noteColor}">
-                            {#if repIsQualitative}
-                              <span style="font-weight:{isMissing ? 'normal' : 'bold'};color:{noteColor}">{isMissing ? "-" : label}</span>
-                            {:else}
-                              <!--
-                              Número y sigla van en DOS spans: en el teléfono la
-                              sigla escribiéndose junto ("12 AA") ensanchaba cada
-                              celda y la tabla horizontalmente llegaba más lejos;
-                              ahora, la sigla se muestra como un subíndice
-                              reducido `.rep-sigla` y solo en ese punto, así la
-                              tabla entra con menos scroll horizontal.
-                            -->
-                            <span style="font-weight:{isMissing ? 'normal' : 'bold'};color:{noteColor}">{isMissing ? "-" : `${Math.round(nota)}`}</span>
-                            {#if !isMissing && label}<span class="rep-sigla">{label}</span>{/if}
-                            {/if}
-                          </td>
+                          <th title={ind.descripcion} style="padding:1rem;text-align:center;background-color:rgba(255,255,255,0.05);border-bottom:2px solid rgba(255,255,255,0.1);color:var(--text-secondary);font-size:0.85rem;cursor:help">
+                            Ind. {ind.orden}
+                          </th>
                         {/each}
                       {/if}
-                      <td style="padding:0.85rem 1rem;text-align:center;border-bottom:1px solid rgba(255,255,255,0.05);font-weight:bold;color:{(estudiante.notaFinalCualitativa === "-" || !estudiante.notaFinalCualitativa) ? '#64748b' : getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa, totalPuntajeMaximoConfig)};background-color:rgba(var(--primary-rgb),0.05)">
-                        {#if repIsQualitative}
-                          <span style="color:{(estudiante.notaFinalCualitativa === "-" || !estudiante.notaFinalCualitativa) ? '#64748b' : getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa, totalPuntajeMaximoConfig)}">
-                            {(!estudiante.notaFinalCualitativa || estudiante.notaFinalCualitativa === "-") ? "-" : estudiante.notaFinalCualitativa}
-                          </span>
-                        {:else}
-                          <span style="color:{(estudiante.notaFinalCualitativa === "-" || !estudiante.notaFinalCualitativa) ? '#64748b' : getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa, totalPuntajeMaximoConfig)}">
-                            {(estudiante.notaFinalCualitativa === "-" || !estudiante.notaFinalCualitativa) ? "-" : `${Math.round(estudiante.notaFinal)}${estudiante.notaFinalCualitativa ? ` (${estudiante.notaFinalCualitativa})` : ''}`}
-                          </span>
-                        {/if}
-                      </td>
+                      <th style="padding:1rem;text-align:center;background-color:rgba(var(--primary-rgb),0.1);border-bottom:2px solid rgba(var(--primary-rgb),0.3);color:var(--text-secondary);font-weight:bold">{t('rep.corte.nf')}</th>
                     </tr>
-                  {/each}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {#each filteredReporte as estudiante, idx}
+                      <tr class="table-row-hover" style="background-color:{idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)'}">
+                        <td style="padding:0.85rem 1rem;border-bottom:1px solid rgba(255,255,255,0.05);color:{colorSexo(estudiante.sexo)};font-weight:500;position:sticky;left:0;background-color:{idx % 2 === 0 ? '#1e293b' : '#1a2234'};z-index:5">
+                          <!--
+                            El nombre se muestra COMPLETO, en varias líneas si hace
+                            falta. Estaba en `nowrap` + `ellipsis`, que en escritorio
+                            no se notaba pero en un teléfono cortaba el nombre a la
+                            mitad sin más pista: la columna es `sticky left`, así que
+                            es la única que queda fija cuando se scrollea la tabla,
+                            y si el nombre no se lee no sirve de nada que siga
+                            visible.
+                          -->
+                          <div style="white-space:normal;overflow-wrap:anywhere;min-width:150px">{estudiante.nombre}</div>
+                        </td>
+                        {#if !specialCorte}
+                          {#each configIndicadores as ind}
+                            {@const nota = estudiante.notasIndicadores[ind.id] || 0}
+                            {@const label = estudiante.notasCualitativasIndicadores[ind.id] || (repIsQualitative ? '' : '')}
+                            {@const isMissing = label === "-" || label === ""}
+                            {@const noteColor = isMissing ? '#64748b' : getNoteColor(repIsQualitative ? 0 : nota, label, getIndicatorMaxScore(ind.id))}
+                            <td style="padding:0.85rem 1rem;text-align:center;border-bottom:1px solid rgba(255,255,255,0.05);color:{noteColor}">
+                              {#if repIsQualitative}
+                                <span style="font-weight:{isMissing ? 'normal' : 'bold'};color:{noteColor}">{isMissing ? "-" : label}</span>
+                              {:else}
+                                <!--
+                                Número y sigla van en DOS spans: en el teléfono la
+                                sigla escribiéndose junto ("12 AA") ensanchaba cada
+                                celda y la tabla horizontalmente llegaba más lejos;
+                                ahora, la sigla se muestra como un subíndice
+                                reducido `.rep-sigla` y solo en ese punto, así la
+                                tabla entra con menos scroll horizontal.
+                              -->
+                              <span style="font-weight:{isMissing ? 'normal' : 'bold'};color:{noteColor}">{isMissing ? "-" : `${Math.round(nota)}`}</span>
+                              {#if !isMissing && label}<span class="rep-sigla">{label}</span>{/if}
+                              {/if}
+                            </td>
+                          {/each}
+                        {/if}
+                        <td style="padding:0.85rem 1rem;text-align:center;border-bottom:1px solid rgba(255,255,255,0.05);font-weight:bold;color:{(estudiante.notaFinalCualitativa === "-" || !estudiante.notaFinalCualitativa) ? '#64748b' : getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa, totalPuntajeMaximoConfig)};background-color:rgba(var(--primary-rgb),0.05)">
+                          {#if repIsQualitative}
+                            <span style="color:{(estudiante.notaFinalCualitativa === "-" || !estudiante.notaFinalCualitativa) ? '#64748b' : getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa, totalPuntajeMaximoConfig)}">
+                              {(!estudiante.notaFinalCualitativa || estudiante.notaFinalCualitativa === "-") ? "-" : estudiante.notaFinalCualitativa}
+                            </span>
+                          {:else}
+                            <span style="color:{(estudiante.notaFinalCualitativa === "-" || !estudiante.notaFinalCualitativa) ? '#64748b' : getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa, totalPuntajeMaximoConfig)}">
+                              {(estudiante.notaFinalCualitativa === "-" || !estudiante.notaFinalCualitativa) ? "-" : `${Math.round(estudiante.notaFinal)}${estudiante.notaFinalCualitativa ? ` (${estudiante.notaFinalCualitativa})` : ''}`}
+                            </span>
+                          {/if}
+                        </td>
+                      </tr>
+                    {/each}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
 
-          {@render estadisticasReporte(false)}
+            {@render estadisticasReporte(false)}
           {/if}
         </div>
       {/if}
