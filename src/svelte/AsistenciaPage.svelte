@@ -293,7 +293,17 @@ import { fmtFechaCorta, fmtFechaLarga, fmtFechaNica, nombreMes } from "../lib/fe
 
 
   let estudiantesMulti: EstudianteMulti[] = $state([]);
-  let fechasPeriodo: string[] = $state([]);
+  /**
+   * Días hábiles del período, ya sin los marcados "sin clases".
+   *
+   * Es un `$derived` y NO un `$state` que se llene dentro de `fetchEstudiantesMulti`:
+   * ese fetch va en `untrack()`, así que asignar ahí dejaba la lista congelada con
+   * los `diasSinClases` previos. Al entrar a semanal/mensual, la carga de
+   * estudiantes corría antes de que llegaran las marcas del período nuevo, el día
+   * sin clases entraba en la lista y se veía como marcable; solo se corregía al
+   * recargar. Derivado, reacciona a `diasSinClases` y a `colegioConfig`.
+   */
+  let fechasPeriodo = $derived(getDiasHabilitados(getFechasPeriodo()));
   let draftMulti: Record<number, Record<string, DiaEstado>> = $state({});
   let mesSeleccionado = $state(new Date().getMonth() + 1);
   let anoSeleccionado = $state(new Date().getFullYear());
@@ -540,12 +550,9 @@ $effect(() => {
    * Días que el selector de "Rellenar" ofrece: los hábiles del colegio, sin los
    * días marcados sin clases.
    *
-   * NO usa `fechasPeriodo`: ese `$state` se llena dentro del fetch de
-   * estudiantes, que va en `untrack()` (a propósito, para no re-disparar el
-   * efecto en bucle) y por lo tanto no depende de `colegioConfig`. Si la carga
-   * corre antes de que llegue la config del colegio, `getDiasHabilitados`
-   * devuelve los 7 días y el snapshot queda con fines de semana; la grilla no lo
-   * sufre porque usa un `$derived`, pero este selector sí. Se calcula al vuelo.
+   * Misma expresión que `fechasPeriodo` (ambas `$derived`, calculadas al vuelo
+   * sobre `colegioConfig` + `diasSinClases`). Se deja aparte por nombre: esta
+   * lista es la de "qué se puede rellenar", no la de las columnas del período.
    *
    * Tampoco se cruza con las claves de `est.dias`: el servidor solo devuelve los
    * días que YA tienen registro, así que una celda vacía no aparece ahí. Cruzar
@@ -1628,9 +1635,7 @@ $effect(() => {
     if (!refreshingSilent) loading = true;
     refreshingSilent = false;
     try {
-      const fechasHabilitadas = getDiasHabilitados(getFechasPeriodo());
       const fechasBase = getDiasHabilitadosBase(getFechasPeriodo());
-      fechasPeriodo = fechasHabilitadas;
       if (fechasBase.length === 0) {
         estudiantesMulti = [];
         originalMulti = {};
@@ -3155,28 +3160,43 @@ $effect(() => {
                   <span style="font-size:0.7rem;color:#64748b;font-weight:bold;min-width:20px">{index + 1}</span>
                   <span style="flex:1;font-weight:bold;font-size:0.85rem;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:{colorSexo(est.sexo)}">{est.nombre}</span>
                 </div>
-                <div style="display:flex;gap:0.4rem;overflow-x:auto;padding-bottom:0.2rem">
-                  {#each fechasPeriodo as fecha}
+                <!-- Columnas de día dentro del panel: `flex:1` reparte el ancho
+                     (antes `overflow-x:auto` + `min-width:68px` obligaba a
+                     scrollear de lado) y `align-items:center` centra el
+                     contenido. Se recorre `fechasVisibles` —no `fechasPeriodo`—
+                     para respetar los días sin clases: van con 🚫 y NO son
+                     marcables, la misma convención que la tabla de escritorio. -->
+                <div style="display:flex;gap:0.3rem">
+                  {#each fechasVisibles as fv (fv.fecha)}
+                    {@const fecha = fv.fecha}
                     {@const dayName = fmtFecha(fecha, { weekday: 'short' }).replace('.','')}
-                    {@const d = est.dias[fecha]}
-                    {@const draftD = draftMulti[est.id]?.[fecha]}
-                    {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
-                    <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0;min-width:68px">
-                      <span style="font-size:0.55rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.2px;white-space:nowrap">{dayName}</span>
-                      <div class="semanal-status" style="font-size:0.6rem;padding:0.15rem 0.3rem;{enInforme ? 'cursor:default' : ''}" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
-                        onmousedown={(e) => handleMouseEstadoClick(e, est.id, fecha, e.button)}
-                        onauxclick={(e) => e.preventDefault()}
-                        oncontextmenu={(e) => e.preventDefault()}>
-                        {effectiveEstado === 'P' ? 'Pres' : effectiveEstado === 'A' ? 'Aus' : effectiveEstado === 'J' ? 'Just' : '—'}
+                    {#if fv.sinClases}
+                      <div style="flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px">
+                        <span style="font-size:0.55rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.2px;white-space:nowrap">{dayName}</span>
+                        <div title={motivoSinClasesEn(fecha)}
+                          style="width:100%;box-sizing:border-box;text-align:center;font-size:0.7rem;padding:0.15rem 0.3rem;border-radius:6px;border:1px solid rgba(245,158,11,0.4);background:rgba(245,158,11,0.12);color:#f59e0b;cursor:default">🚫</div>
                       </div>
-                      {#if enInforme}
-                        <div class="semanal-obs solo-lectura" style="font-size:0.5rem">{obsEnFecha(est, fecha)}</div>
-                      {:else}
-                        <input type="text" placeholder="..." class="semanal-obs" style="width:100%;padding:0.1rem 0.25rem;font-size:0.5rem"
-                          value={getObsMulti(est.id, fecha)}
-                          oninput={(e) => handleObservacionChangeMulti(est.id, fecha, (e.target as HTMLInputElement).value)} />
-                      {/if}
-                    </div>
+                    {:else}
+                      {@const d = est.dias[fecha]}
+                      {@const draftD = draftMulti[est.id]?.[fecha]}
+                      {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
+                      <div style="flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px">
+                        <span style="font-size:0.55rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.2px;white-space:nowrap">{dayName}</span>
+                        <div class="semanal-status" style="font-size:0.6rem;padding:0.15rem 0.3rem;{enInforme ? 'cursor:default' : ''}" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
+                          onmousedown={(e) => handleMouseEstadoClick(e, est.id, fecha, e.button)}
+                          onauxclick={(e) => e.preventDefault()}
+                          oncontextmenu={(e) => e.preventDefault()}>
+                          {effectiveEstado === 'P' ? 'Pres' : effectiveEstado === 'A' ? 'Aus' : effectiveEstado === 'J' ? 'Just' : '—'}
+                        </div>
+                        {#if enInforme}
+                          <div class="semanal-obs solo-lectura" style="font-size:0.5rem">{obsEnFecha(est, fecha)}</div>
+                        {:else}
+                          <input type="text" placeholder="..." class="semanal-obs" style="width:100%;padding:0.1rem 0.25rem;font-size:0.5rem"
+                            value={getObsMulti(est.id, fecha)}
+                            oninput={(e) => handleObservacionChangeMulti(est.id, fecha, (e.target as HTMLInputElement).value)} />
+                        {/if}
+                      </div>
+                    {/if}
                   {/each}
                 </div>
               </div>

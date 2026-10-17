@@ -1996,9 +1996,10 @@ lee. Lo que los separa:
   - El control de período en el riel Android es nativo (`<select>` de mes y de
     semana) en vez del popover de escritorio: en el WebView el `<select>` abre el
     popup del sistema y así no hay que duplicar el `pop-wrap`. El **DatePicker de
-    diario vive SOLO en el riel** (`grid-column:1/-1`), que es donde está en
-    escritorio (es un filtro). Antes quedaba además en la fila de acciones →
-    **se veía duplicado**.
+    diario vive SOLO en el riel**, como una celda normal de la rejilla (va justo
+    después del selector de Período y usa `.rail-fecha` para igualar la altura/
+    tipografía de los `<select>`), que es donde está en escritorio (es un filtro).
+    Antes quedaba además en la fila de acciones → **se veía duplicado**.
   - La fila de acciones `.android-actions` es una **rejilla**, no un flex que
     envuelve ni un scroll lateral: en Android es **2 columnas (2×2)** —con
     `class:acc-grid` y las reglas `:global(.btn-mod…)` en el `<style>` de la
@@ -2010,6 +2011,22 @@ lee. Lo que los separa:
     (era un bug real, no un rediseño). El estado `dpAbierto` (que existía para
     desactivar el `overflow-x` mientras el DatePicker estaba abierto) se eliminó
     junto con el DatePicker duplicado.
+  - **La tarjeta semanal Android usa `fechasVisibles`, no `fechasPeriodo`**
+    (2026-10). Listaba `fechasPeriodo` en un `overflow-x:auto` con
+    `min-width:68px` por día: el día marcado sin clases aparecía **marcable** (no
+    seguía la convención de escritorio) y las columnas no entraban en el panel.
+    Ahora recorre `fechasVisibles` —igual que la tabla de escritorio— y los días
+    `fv.sinClases` se pintan con un chip 🚫 **no interactivo** (con el motivo en
+    el `title`), nunca un `P/A/J`. Las columnas van con **`flex:1 1 0;min-width:0`**
+    (reparten el ancho del panel y quedan centradas), no con scroll lateral.
+  - **`fechasPeriodo` es `$derived`, no `$state`** (2026-10). Se llenaba dentro de
+    `fetchEstudiantesMulti`, que corre en `untrack()`: al entrar a semanal/mensual
+    la carga de estudiantes leía los `diasSinClases` **viejos**, el día sin clases
+    entraba en la lista y solo se corregía al recargar el período. Como `$derived`
+    (`getDiasHabilitados(getFechasPeriodo())`) reacciona a `diasSinClases` y
+    `colegioConfig`. Regla: **si un valor depende de `diasSinClases`, tiene que ser
+    `$derived` o recalcularse al cambiar las marcas, nunca asignarse dentro de un
+    fetch que va en `untrack()`**.
 
 ⚠️ `AsistenciaMainPage` **no** debe volver al montaje perezoso por sub-tab: con un
 solo hijo no hay nada que montar por separado, y `display:none` por sub-tab
