@@ -1312,6 +1312,29 @@ distinguirse visualmente. Este patrón se aplica en `ConfiguracionPage` y `Ajust
 **Regla**: Al crear una nueva página con secciones/categorías, usar siempre
 el mapa de colores definido y pasar `accentColor`/`accentIcon` a los cards.
 
+### Ajustes → General en Android: tarjetas compactas (2026-10)
+
+La rama Android de `AjustesPage` (`tabActual === "configuracion"`) es una **columna
+de tarjetas glass** (`section.and-settings` + `div.and-card`), una por bloque:
+Apariencia (el snippet `appearanceSettings()`, COMPARTIDO con escritorio: una sola
+presentación), Color de resaltado, Color por sexo, Notificaciones e Idioma.
+
+- **Sin `category-card` externo.** Antes había un card con `padding:2rem` y cada
+  bloque con `padding:1.5rem` encima: en un teléfono quedaban ~200px útiles y todo
+  se veía "angosto". Ahora el padding lo aporta solo la tarjeta (`0.9rem`;
+  `0.8rem` ≤520px) y el ancho es pleno.
+- Encabezado uniforme por bloque con `.and-head` / `.and-head-icon` (34px) /
+  `.and-head-text`, y piezas `.and-row`, `.and-swatch`, `.and-presets`,
+  `.and-preset`, `.and-preview-box`, `.and-preview-chip`, `.and-btn`. Nada de
+  estilos inline repetidos para el layout.
+- Los textos del bloque de resaltado salieron de `t()` (antes estaban
+  **hardcodeados en español**: "Personalización de Tabla de Notas", "Vista
+  Previa"): ahora usan `ajustes.config.*`.
+- ⚠️ El input `<input type="color">` de Android usa el id
+  `highlight-color-picker-and` para no duplicar el `highlight-color-picker` del
+  bloque de escritorio (con `!isAndroid` nunca coexisten, pero distintos ids
+  evitan confusiones al editar).
+
 ## Flujo de sincronización con Google Drive
 
 ### Visión general
@@ -1660,6 +1683,14 @@ está abierto, y solo cuando la página está activa (prop `pageActive`):
   `null`; solo Android) y cierra primero los modales de catálogo abiertos
   (`colegioConfig` / `gradoConfig`). Además restaura el scroll de la lista, que
   se pierde porque al entrar a una sección la lista se desmonta entera.
+  - ⚠️ **Al ABRIR una sección hay que volver el scroll ARRIBA** (`abrir()` hace
+    `tick().then(() => sc.scrollTop = 0)`). El scroller es un ANCESTRO de la lista
+    (el scroll no vive en la lista), así que al desmontarla **conserva su
+    `scrollTop`**: sin el reset, la sección entraba "empezando" por donde estaba
+    la lista — General abría en "Personalización de tabla de notas" y no en
+    Apariencia/Tema. El reset va dentro del `tick` porque el contenido nuevo
+    todavía no está montado; el `scrollerDe(listaRef)` sí sirve porque el ancestro
+    sigue montado.
 - `AjustesPage.svelte` → sub-tab (`activeTab !== null` → vuelve a la lista; solo Android)
 - `CategoryTabContent.svelte` → modales `showPrompt` / `showDeleteConfirm` / `showBatchDeleteConfirm`
 - `GoogleDriveBackup.svelte` es legacy (no se monta en `App.svelte`); no se toca.
