@@ -27,7 +27,7 @@ import { fmtFechaCorta, fmtFechaLarga, fmtFechaNica, nombreMes } from "../lib/fe
   import FilterGroup from "./FilterGroup.svelte";
   import SelectChip from "./SelectChip.svelte";
   import { portalToBody } from "../lib/portalToBody";
-  import FiltersModalAndroid from "./FiltersModalAndroid.svelte";
+  import FiltroRail from "./FiltroRail.svelte";
   import SearchFab from "./SearchFab.svelte";
   import PageLayout from "./PageLayout.svelte";
   import ScrollableTable from "./ScrollableTable.svelte";
@@ -386,9 +386,6 @@ function fmtDM(iso: string): string {
   let popSemanaAbierta = $state(false);
   let popRootEl: HTMLElement | null = $state(null);
 
-  // Modal de filtros (solo Android): agrupa Año/Colegio/Grado/Sección/Sexo para
-  // liberar espacio vertical en móvil.
-  let showFiltersModal = $state(false);
   // Calendario abierto: la fila de acciones pasa de overflow-x:auto a visible
   // para que el panel del DatePicker no quede recortado por el contenedor.
   let dpAbierto = $state(false);
@@ -446,11 +443,6 @@ function fmtDM(iso: string): string {
 $effect(() => {
     if (!visible || !popSemanaAbierta) return;
       return registerBackHandler(() => { cerrarPopSemana(); return true; });
-  });
-
-  $effect(() => {
-    if (!visible || !showFiltersModal || !isAndroidMobile) return;
-      return registerBackHandler(() => { showFiltersModal = false; return true; });
   });
 
   // ── Estados P/A/J ──
@@ -2642,16 +2634,79 @@ $effect(() => {
             {/if}
           {/if}
           {#if isAndroidMobile}
-            <div style="width:100%;padding:0.1rem 0 0.3rem;">
+            <!--
+              Layout Android: mismo control de modo que escritorio (ya no el swipe
+              del wrapper), buscador y un riel INLINE de filtros. Se eliminó
+              `FiltersModalAndroid` de esta página: los `<select>` abren el popup
+              NATIVO del WebView, así que no había motivo para el rodeo modal.
+              Orden IGUAL al de escritorio: Año → Período → [fecha/semana/mes] →
+              Colegio → Grado → Sección → Sexo.
+            -->
+            <div style="width:100%">
+              <ModoToggle
+                grande
+                valor={modo}
+                etiquetaGrupo={t('comun.modo')}
+                onchange={(id) => onModoChange(id as "tomar" | "informe")}
+                opciones={[
+                  { id: "tomar", etiqueta: t('subtab.tomarCorto'), titulo: t('subtab.tomarAsistencia') },
+                  { id: "informe", etiqueta: t('subtab.informe') },
+                ]} />
+            </div>
+            <div style="width:100%;padding:0.3rem 0 0.2rem;">
               <SearchFab bind:value={searchTerm} placeholder={t('asis.filtro.buscar')} conMargen={false} />
             </div>
-            <button onclick={() => showFiltersModal = true} title={t('inf.filtrosTitle')}
-              style="width:100%;height:42px;padding:0 0.9rem;font-size:0.85rem;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);color:#e2e8f0;border-radius:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all 0.15s;white-space:nowrap;margin-bottom:0.3rem"
-              onmouseenter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.08)'; }}
-              onmouseleave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}>
-              <span>🔍</span>
-              <span style="overflow:hidden;text-overflow:ellipsis;">{(colegios.find(c => c.id === selectedColegio)?.nombre)?.split(' ')[0] || t('inf.fallback.colegio')} · {grados.find(g => g.id === selectedGrado)?.nombre || t('inf.fallback.grado')} · {secciones.find(s => s.id === selectedSeccion)?.nombre || t('inf.fallback.seccion')}</span>
-            </button>
+            <FiltroRail estilo="width:100%;margin-bottom:0.3rem">
+              {#if showAnoDropdown}
+                <select value={selectedAno} title={t('asis.filtro.ano')}
+                  onchange={(e) => handleFilterChange((n: number) => selectedAno = n, Number((e.currentTarget as HTMLSelectElement).value))}>
+                  {#each anos as a}<option value={a.id}>{a.nombre}</option>{/each}
+                </select>
+              {/if}
+              <select value={periodoEfectivo} title={t('asis.filtro.periodo')}
+                onchange={(e) => periodo = (e.currentTarget as HTMLSelectElement).value as AsistenciaPeriodo}>
+                {#if !enInforme}<option value="diario">{t('asis.periodo.diario')}</option>{/if}
+                <option value="semanal">{t('asis.periodo.semanal')}</option>
+                <option value="mensual">{t('asis.periodo.mensual')}</option>
+              </select>
+              {#if periodoEfectivo === "diario"}
+                <div style="grid-column:1/-1;min-width:0">
+                  <DatePickerGlass bind:value={selectedFecha} diaHabilitado={esDiaHabilCalendario} />
+                </div>
+              {:else if periodoEfectivo === "semanal"}
+                <select value={mesSeleccionado} title={t('asis.periodo.mes')}
+                  onchange={(e) => elegirMesSemanal(Number((e.currentTarget as HTMLSelectElement).value))}>
+                  {#each mesesOptions as m}<option value={m.value}>{m.label}</option>{/each}
+                </select>
+                <select value={semanaActiva} title={t('asis.periodo.semanaDe')}
+                  onchange={(e) => { const s = semanasOpts.find(x => x.n === Number((e.currentTarget as HTMLSelectElement).value)); if (s) elegirSemana(s); }}>
+                  {#each semanasOpts as s}<option value={s.n}>{t('asis.sinClases.semanaN', { n: s.n })} · {s.rango}</option>{/each}
+                </select>
+              {:else}
+                <select value={mesSeleccionado} title={t('asis.periodo.mes')}
+                  onchange={(e) => { mesSeleccionado = Number((e.currentTarget as HTMLSelectElement).value); }}>
+                  {#each mesesOptions as m}<option value={m.value}>{m.label}</option>{/each}
+                </select>
+              {/if}
+              <select value={selectedColegio} title={t('inf.filtro.colegio')}
+                onchange={(e) => handleFilterChange((n: number) => selectedColegio = n, Number((e.currentTarget as HTMLSelectElement).value))}>
+                {#each colegios as c}<option value={c.id}>{c.nombre}</option>{/each}
+              </select>
+              <select value={selectedGrado} title={t('inf.filtro.grado')}
+                onchange={(e) => handleFilterChange((n: number) => selectedGrado = n, Number((e.currentTarget as HTMLSelectElement).value))}>
+                {#each grados as g}<option value={g.id}>{g.nombre}</option>{/each}
+              </select>
+              <select value={selectedSeccion} title={t('inf.filtro.seccion')}
+                onchange={(e) => handleFilterChange((n: number) => selectedSeccion = n, Number((e.currentTarget as HTMLSelectElement).value))}>
+                {#each secciones as s}<option value={s.id}>{s.nombre}</option>{/each}
+              </select>
+              <select value={selectedSexo} title={t('asis.filtro.sexo')}
+                onchange={(e) => handleFilterChange((s: string) => selectedSexo = s, (e.currentTarget as HTMLSelectElement).value)}>
+                <option value="">{t('asis.filtro.todos')}</option>
+                <option value="M">{t('asis.filtros.masculino')}</option>
+                <option value="F">{t('asis.filtros.femenino')}</option>
+              </select>
+            </FiltroRail>
           {:else}
             <FilterGroup label={t('inf.filtro.colegio')} {isMobile}>
               <SelectChip
@@ -3528,55 +3583,6 @@ $effect(() => {
       </div>
     </div>
   {/if}
-
-  <!-- Modal de filtros Android: componente reutilizable con extras
-       (Período, Semana, Mes, Año) inyectados vía snippet. -->
-  <FiltersModalAndroid
-    bind:open={showFiltersModal}
-    {isAndroidMobile}
-    {isMobile}
-    showAno={showAnoDropdown}
-    bind:anos bind:colegios bind:grados bind:secciones
-    bind:selectedAno bind:selectedColegio bind:selectedGrado bind:selectedSeccion bind:selectedSexo
-  >
-    {#snippet extras()}
-      <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
-        <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('asis.periodo.etiqueta')}</label>
-        <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px"
-          value={periodoEfectivo} onchange={(e) => periodo = (e.target as HTMLSelectElement).value as AsistenciaPeriodo}>
-          {#if !enInforme}<option value="diario">{t('asis.periodo.diario')}</option>{/if}
-          <option value="semanal">{t('asis.periodo.semanal')}</option>
-          <option value="mensual">{t('asis.periodo.mensual')}</option>
-        </select>
-      </div>
-      {#if periodoEfectivo === "semanal"}
-        <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
-          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('asis.periodo.mes')}</label>
-          <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px;min-width:100px"
-            value={mesSeleccionado} onchange={(e) => elegirMesSemanal(Number((e.target as HTMLSelectElement).value))}>
-            {#each mesesOptions as m}<option value={m.value}>{m.label}</option>{/each}
-          </select>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
-          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('asis.periodo.semanaDe')}</label>
-          <button type="button" class="filter-select filter-select-solid pop-trigger"
-            onclick={() => { showFiltersModal = false; setTimeout(() => popSemanaAbierta = true, 50); }}
-            style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px;text-align:left;cursor:pointer">
-            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block">{t('asis.sinClases.semanaN', { n: semanaActiva })} · {semanasOpts.find(s => s.n === semanaActiva)?.rango ?? ''}</span>
-          </button>
-        </div>
-      {/if}
-      {#if periodoEfectivo === "mensual"}
-        <div style="display:flex;flex-direction:column;gap:2px;flex:1 1 100%">
-          <label style="font-size:0.65rem;color:#94a3b8;font-weight:600">{t('asis.periodo.mes')}</label>
-          <select class="filter-select filter-select-solid" style="width:100%;height:32px;padding:0 0.55rem;font-size:0.8rem;border-radius:7px;min-width:100px"
-            value={mesSeleccionado} onchange={(e) => mesSeleccionado = Number((e.target as HTMLSelectElement).value)}>
-            {#each mesesOptions as m}<option value={m.value}>{m.label}</option>{/each}
-          </select>
-        </div>
-      {/if}
-    {/snippet}
-  </FiltersModalAndroid>
 
   {#if printHtml}
     <div style="position:fixed;top:0;left:0;width:100vw;height:100vh;background-color:rgba(0,0,0,0.85);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:99999;padding:20px"

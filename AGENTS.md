@@ -231,14 +231,28 @@ src/
                               (modales add/edit, switch activo, savebar). El
                               botón ⚙️ SOLO se renderiza si recibe `onConfigClick`
      DatePickerGlass.svelte   selector de fecha con dias no habiles tachados
-     FiltersModalAndroid.svelte modal unico de filtros en Android (año lectivo
-                              primero, luego el slot `extras` de cada página)
+     FiltersModalAndroid.svelte LEFTOVER (2026-10): modal de filtros Android que
+                              quedó SIN consumidores al pasar NotasPage,
+                              AsistenciaPage y EstudiantesPage al riel inline
+                              `FiltroRail`. Se conserva por referencia; el GOTCHA
+                              del `<select>` que lo cerraba solo está más abajo.
+     FiltroRail.svelte        riel de filtros INLINE para Android: rejilla de
+                              `<select>` que ENVUELVE (no scroll lateral). Layout
+                              compartido por NotasPage, AsistenciaPage y
+                              EstudiantesPage; los estilos de los `<select>` (con
+                              `:global`) viven acá para no duplicarlos.
+     BtnRail.svelte           riel de BOTONES: rejilla de 3 columnas que
+                              envuelve, reemplaza las filas con `overflow-x`. Los
+                              BotonMod van SIN `compacto` (inyecta padding que
+                              gana al CSS de la rejilla).
+     AccionesRail.svelte      fila de acciones que sí scrollea de lado (una línea
+                              con `overflow-x`), para botones anchos y pocos.
      ModoToggle.svelte        control segmentado de 2 opciones que alterna el
                               modo de una página con sub-tabs. Va DENTRO de la
-                              barra de filtros (FilterGroup "Modo:"); el estado
-                              vive en el wrapper y el hijo avisa por
-                              `onModoChange`. Solo escritorio; en Android no
-                              hay ningún control visible, solo swipe.
+                              barra/riel de filtros; el estado vive en el wrapper
+                              y el hijo avisa por `onModoChange`. Es visible
+                              TAMBIÉN en Android (variante `grande`, 2026-10): ya
+                              no hay swipe en Notas ni en Asistencia.
   lib/
     asistenciaPdf.ts         generador COMPARTIDO de PDFs de asistencia
                               multipágina (una hoja por grado/sección). Escala
@@ -1025,10 +1039,17 @@ espacio vertical. Patrón (referencia: `src/svelte/AsistenciaPage.svelte`):
 **NO aplica** a: Período (diario/semanal/mensual) ni selectores de fecha —
 esos se quedan inline porque cambian el contenido principal de la página
 y el usuario necesita verlos permanentemente.
-⚠️ **Excepción ya vigente**: desde 2026-10 el modal SÍ lleva el Período, pero
-inyectado por el padre vía el snippet `extras` de `FiltersModalAndroid`
-(`AsistenciaPage`, en sus dos modos). La barra principal sigue mostrando el
-resumen; el despliegue fino vive en el modal.
+⚠️ **SUPERADA (2026-10) por el riel inline.** `NotasPage`, `AsistenciaPage` y
+`EstudiantesPage` ya NO abren modal de filtros: sus selectores de catálogo viven
+en un riel inline de `<select>` (`FiltroRail`, ver "Estructura") con el MISMO
+orden que la barra de escritorio (**Modo → Año → Corte → Colegio → Grado →
+Sección → Sexo → Asignatura**; Asistencia mete Período + su control —fecha,
+semana, mes— después de Año). El riel desarma la premisa de esta regla ("inline
+cuesta altura"): ocupa lo mismo que el botón que abría el modal y ahorra el
+rodeo. Sacar el `<select>` del modal NO revive el GOTCHA del cierre fantasma —ese
+bug era del overlay del modal, no del select—. El componente
+`FiltersModalAndroid.svelte` quedó sin consumidores; esta regla sigue vigente para
+páginas NUEVAS que todavía no tengan riel.
 
 ### ⚠️ GOTCHA: un `<select>` dentro del modal lo cerraba solo (2026-10)
 
