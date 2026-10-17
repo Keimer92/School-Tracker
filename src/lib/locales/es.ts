@@ -1962,5 +1962,9 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'cc_calificaciones.toast.error': '❌ Error al guardar calificaciones: {error}',
   'cc_calificaciones.guardando': '⏳ Guardando...',
   'cc_calificaciones.btn.guardarCambios': '💾 Guardar cambios',
+
+  // ── d1SyncNotify (toast de sync con Cloudflare D1, solo Android) ──
+  'd1n.sincronizado': '☁️ Nube sincronizada · {detalle}',
+  'd1n.sincronizados': '☁️ {n} sincronizaciones con la nube',
 } as const;
 export type Clave = keyof typeof es;

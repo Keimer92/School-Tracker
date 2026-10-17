@@ -1937,4 +1937,8 @@ to print. It is saved in Documents/SchoolTrackerPro/Instruments.`,
   'cc_calificaciones.toast.error': '❌ Error saving grades: {error}',
   'cc_calificaciones.guardando': '⏳ Saving...',
   'cc_calificaciones.btn.guardarCambios': '💾 Save changes',
+
+  // ── d1SyncNotify (Cloudflare D1 sync toast, Android only) ──
+  'd1n.sincronizado': '☁️ Cloud synced · {detalle}',
+  'd1n.sincronizados': '☁️ {n} cloud syncs',
 } as const;

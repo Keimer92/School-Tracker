@@ -4,6 +4,7 @@ import { markDirty, markAllDirty, markAllClean, getDirtyTables } from './dirtyTr
 import { d1Conectado } from './d1Connection.svelte';
 import { t, getLocale } from './i18n.svelte';
 import { fmtHoraNica } from './fecha';
+import { notificarSyncD1 } from './d1SyncNotify';
 
 /** Minutos entre sincronizaciones periódicas. Fijo, sin ajuste en la UI. */
 export const SYNC_PERIODICO_MIN = 20;
@@ -187,6 +188,10 @@ export const d1SyncService = {
       } else {
         console.debug(`[D1Debug] sync OK · push=${p} pull=${l} del=${d} (sin cambios)`);
       }
+      // Aviso al usuario (solo Android, y solo si movió datos): ver
+      // `lib/d1SyncNotify`. Va acá, en el único embudo real de sync, para no
+      // depender de que cada trigger se acuerde de avisar.
+      if (hadChanges) notificarSyncD1(result);
       // El push puede haberse saltado por el freno de reintentos: no es un
       // error, pero conviene decirlo para que no parezca que todo vanished.
       if (result?.pushOmitido) {

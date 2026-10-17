@@ -4739,26 +4739,27 @@ import { primerColegio } from "../lib/catalogo";
     .rep-sigla{font-size:.62rem;font-weight:700;letter-spacing:.3px;color:var(--text-secondary,#94a3b8);margin-left:.25rem;opacity:.75;vertical-align:middle}
 
     /*
-      Pérdida de altura del REPORTE en pantalla angosta (móvil/tablet, Android
-      incluido): la card de la tabla y `.asistencia-summary` se reparten la MISMA
-      columna de altura fija, y las estadísticas ganaban siempre.
+      Compactación del reporte en pantalla angosta (móvil/tablet, Android incluido).
 
-      Las estadísticas vienen con `flex-shrink:0` (estilo EN LÍNEA) y un tope de
-      `calc(100dvh - 170px)`, que es casi toda la pantalla; con 5 indicadores sus
-      tarjetas superan los ~380px. Como la card de la tabla es
-      `flex:1; min-height:0`, terminaba aplastada a una tira de pocos píxeles: en
-      Android el reporte se veía como "una card comprimida" y la tabla no
-      aparecía (el bloque de estadísticas se la comía entera).
+      ⚠️ Acá vivía el parche del bug "el reporte se ve como una card comprimida":
+      la card de la tabla y `.asistencia-summary` se reparten la MISMA columna de
+      altura, y las estadísticas (con `flex-shrink:0` en línea y un tope de
+      `calc(100dvh - 170px)`) se la comían entera, dejando la tabla en una tira de
+      pocos píxeles. El parche era darle a la tabla un piso de `45dvh` con
+      `!important`.
 
-      Se le da piso a la tabla (45 % del alto de la ventana) y se deja que las
-      estadísticas tomen lo que sobra, con su propio scroll interno.
+      Ese piso YA NO HACE FALTA, y por eso se quitó: en Android vertical el
+      reporte no dibuja la tabla, dibuja la boleta (ver `.rep-boleta`), así que no
+      hay dos bloques compitiendo por la misma altura. Lo que queda es (a) la
+      compactación de `.rep-tabla`, que sirve a la tabla de escritorio y a la de
+      Android en horizontal, y (b) dejar que las estadísticas CEDAN espacio en vez
+      de ganarlo, que sigue siendo correcto donde la tabla sí se dibuja.
 
-      Los `!important` son a propósito: `flex-shrink` y `min-height` están
-      escritos como estilo en línea en esos dos divs, y el estilo en línea gana a
-      cualquier regla de clase (misma razón que el `!important` del padding de
-      `.rep-tabla`, más arriba).
+      Los `!important` son a propósito: `flex-shrink`, `min-height` y
+      `grid-template-columns` están escritos como estilo EN LÍNEA en esos divs, y
+      el estilo en línea gana a cualquier regla de clase (misma razón que el
+      `!important` del padding de `.rep-tabla`, más arriba).
     */
-    /* Compactación del reporte en pantalla angosta (móvil / tablet / Android). */
     @media (max-width:1024px){
       .rep-tabla th,.rep-tabla td{padding-left:.35rem!important;padding-right:.35rem!important}
       .rep-tabla thead th{font-size:.72rem!important}
@@ -4769,7 +4770,6 @@ import { primerColegio } from "../lib/catalogo";
       .summary-label{font-size:.56rem!important}
       .summary-value{font-size:.88rem!important}
       .gender-labels{font-size:.52rem!important}
-      .table-card{min-height:45dvh!important}
     }
 
     /*
