@@ -2175,6 +2175,26 @@ import { primerColegio } from "../lib/catalogo";
   let repIsMobile = $state(false);
   let repIsAndroid = $state(false);
   const repIsAndroidMobile = $derived(repIsAndroid || (repIsMobile && !isWindows));
+  /**
+   * Orientación real del dispositivo. En Android el evento `resize` se dispara
+   * al rotar, así que `checkMobile` ya la recalcula sin listener extra.
+   */
+  let repEsPortrait = $state(true);
+  /**
+   * "Boleta": el reporte en un teléfono VERTICAL se dibuja como una tarjeta por
+   * estudiante en vez de la tabla.
+   *
+   * La tabla de 7 columnas (nombre + hasta 5 indicadores + NF) necesita
+   * `min-width:max-content` para no aplastarse, así que en ~380px obliga a
+   * scroll horizontal y solo se ven 2 columnas a la vez: para leer la fila
+   * completa del estudiante hay que ir y volver. La boleta muestra todo el
+   * estudiante de una y no tiene scroll horizontal.
+   *
+   * En HORIZONTAL (y en escritorio) sigue la tabla, que ahí sí entra. No es un
+   * segundo diseño del dato: es el mismo `filteredReporte` con los mismos
+   * helpers, otra presentación para otra geometría de pantalla.
+   */
+  const repEsBoleta = $derived(repIsAndroidMobile && repEsPortrait);
   let repShowFiltersModal = $state(false);
   $effect(() => {
     if (repShowFiltersModal) {
@@ -2304,7 +2324,7 @@ import { primerColegio } from "../lib/catalogo";
   );
 
   onMount(() => {
-    const checkMobile = () => { repIsMobile = window.innerWidth <= 768; repIsAndroid = /Android/i.test(navigator.userAgent); };
+    const checkMobile = () => { repIsMobile = window.innerWidth <= 768; repIsAndroid = /Android/i.test(navigator.userAgent); repEsPortrait = window.innerHeight >= window.innerWidth; };
     checkMobile();
     window.addEventListener('resize', checkMobile);
     window.addEventListener('schooltracker-sync', () => { repSilentRefresh = true; repRefreshTrigger++; });
@@ -3077,6 +3097,51 @@ import { primerColegio } from "../lib/catalogo";
   </div>
 {/snippet}
 
+<!--
+  Estadísticas del reporte, en un snippet porque se pintan en DOS sitios según
+  la geometría: en la boleta (Android vertical) van ARRIBA como tira de KPIs
+  (pocos, legibles, sin scroll vertical interno) y en la tabla van DEBAJO como
+  la grilla de siempre. Duplicar el markup es como se desincronizan las dos
+  vistas.
+-->
+{#snippet estadisticasReporte(kpi: boolean)}
+  <div class="asistencia-summary" class:kpi-strip={kpi} style="margin:0;padding:0.5rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;flex-shrink:0">
+    <div class="summary-card students">
+      <span class="summary-label">{searchTerm ? t('rep.stats.resultados') : t('rep.stats.estudiantes')}</span>
+      <span class="summary-value">{filteredReporte.length}</span>
+      <div class="gender-labels">
+        <span class="gender-m">M: {filteredReporte.filter(e => e.sexo === 'M').length}</span>
+        <span class="gender-f">F: {filteredReporte.filter(e => e.sexo === 'F').length}</span>
+      </div>
+    </div>
+    <div class="summary-card p">
+      <span class="summary-label">{t('rep.stats.promedioGrupal')}</span>
+      <div class="summary-value" style="color: {promedioGrupalColor}">
+        {promedioGrupalLabel}
+      </div>
+    </div>
+    <!--
+      Las tarjetas por indicador (descripción + sigla) ceden el espacio en
+      el teléfono: duplican lo que ya dicen los encabezados de la tabla y
+      con 5 indicadores ocupaban casi media pantalla, apretando la tabla
+      (que es la que importa). En escritorio se mantienen.
+    -->
+    {#if !kpi && !repIsAndroidMobile}
+      {#each configIndicadores.filter(i => i.activo) as ind}
+        <div class="summary-card" style="border-left:3px solid var(--primary-color)">
+          <span class="summary-label">Ind. {ind.orden}</span>
+          <span class="summary-value rep-desc" style="font-size:0.7rem;color:var(--text-secondary);font-weight:400;line-height:1.2;word-break:break-word;margin-top:2px">{ind.descripcion || t('rep.sinDescripcion')}</span>
+        </div>
+      {/each}
+      {#if configIndicadores.filter(i => i.activo).length === 0}
+        <div class="summary-card" style="grid-column:1/-1">
+          <span class="summary-label" style="color:#64748b;font-style:italic">{t('rep.sinIndicadoresActivos')}</span>
+        </div>
+      {/if}
+    {/if}
+  </div>
+{/snippet}
+
 
 <div class="page-container" style="height:100%;min-height:0">
   {#if !repIsAndroidMobile}<SearchFab bind:value={searchTerm} placeholder={t('inf.buscar')} />{/if}
@@ -3296,26 +3361,69 @@ import { primerColegio } from "../lib/catalogo";
         </div>
       {:else}
         <div style="display:flex;flex-direction:column;flex:1;min-height:0;gap:0.5rem">
-          <!--
-            Tabla, en TODAS las plataformas (incluido Android).
+          {#if repEsBoleta}
+            <!--
+              BOLETA (Android en VERTICAL): una tarjeta por estudiante.
 
-            Antes había un `{#if repIsMobile}` que, por debajo de 768px, cambiaba
-            la tabla por una lista de tarjetas con un desplegable por estudiante.
-            En Android eso se cumplía SIEMPRE —un teléfono en vertical es angosto
-            por definición—, así que la tabla de notas era prácticamente
-            inalcanzable: en la pantalla el reporte salía como tarjetas y nunca
-            se veía la tabla.
+              Por qué existe, si antes se quitó una lista de tarjetas: aquella
+              lista era un SEGUNDO componente con su propia carga de datos. Esta
+              es el MISMO `filteredReporte` y los MISMOS helpers que la tabla
+              (`getNoteColor`, `getIndicatorMaxScore`, `colorSexo`), solo otra
+              presentación para la geometría donde la tabla no sirve.
 
-            La tabla ya tenía lo que necesita para andar en un teléfono:
-            contenedor con `overflow:auto` + scroll táctil, `min-width:max-content`
-            para que las columnas no se aplasten y la primera columna `sticky`
-            para que el nombre no se vaya con el scroll horizontal. Por eso se
-            quitó la rama de tarjetas en vez de intentar arreglarla: la vista de
-            tarjetas era un segundo diseño del MISMO dato, y dos versiones del
-            mismo reporte es exactamente lo que hace que uno se quede sin
-            mantener. Notas además habilita el sensor de orientación para poder
-            poner el teléfono en horizontal y ver la tabla completa.
-          -->
+              La tabla de 7 columnas necesita `min-width:max-content`, así que en
+              ~380px obliga a scroll horizontal y se ven 2 columnas a la vez: leer
+              la fila de un estudiante es ir y volver. Acá el nombre y la NF son
+              el héroe (lo que el profesor mira) y los indicadores van como chips
+              que envuelven, sin scroll lateral.
+            -->
+            <div class="rep-boleta" style="flex:1;min-height:0">
+              {#each filteredReporte as estudiante (estudiante.id)}
+                {@const nfVacia = estudiante.notaFinalCualitativa === "-" || !estudiante.notaFinalCualitativa}
+                {@const nfColor = nfVacia ? '#64748b' : getNoteColor(estudiante.notaFinal, estudiante.notaFinalCualitativa, totalPuntajeMaximoConfig)}
+                {@const nfTexto = nfVacia ? '—' : (repIsQualitative ? (estudiante.notaFinalCualitativa ?? '—') : `${Math.round(estudiante.notaFinal)}`)}
+                {@const nfSigla = (!repIsQualitative && !nfVacia) ? (estudiante.notaFinalCualitativa ?? '') : ''}
+                <div class="boleta-card">
+                  <div class="boleta-top">
+                    <span class="boleta-nombre" style="color:{colorSexo(estudiante.sexo)}">{estudiante.nombre}</span>
+                    <span class="boleta-nf">
+                      <span style="color:{nfColor}">{nfTexto}</span>
+                      {#if nfSigla}<i style="color:{nfColor}">{nfSigla}</i>{/if}
+                    </span>
+                  </div>
+                  {#if !specialCorte}
+                    <div class="boleta-chips">
+                      {#each configIndicadores as ind}
+                        {@const nota = estudiante.notasIndicadores[ind.id] || 0}
+                        {@const label = estudiante.notasCualitativasIndicadores[ind.id] || ''}
+                        {@const isMissing = label === "-" || label === ""}
+                        {@const noteColor = isMissing ? '#64748b' : getNoteColor(repIsQualitative ? 0 : nota, label, getIndicatorMaxScore(ind.id))}
+                        <span class="boleta-chip" title={ind.descripcion}>
+                          <em>Ind. {ind.orden}</em>
+                          {#if repIsQualitative}
+                            <b style="color:{noteColor}">{isMissing ? '—' : label}</b>
+                          {:else}
+                            <b style="color:{noteColor}">{isMissing ? '—' : Math.round(nota)}</b>
+                            {#if !isMissing && label}<i style="color:{noteColor}">{label}</i>{/if}
+                          {/if}
+                        </span>
+                      {/each}
+                    </div>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <!--
+              TABLA (escritorio, y Android en HORIZONTAL).
+
+              Donde la tabla es legítima: en horizontal hay ancho para las 7
+              columnas y el PDF/impresión sale de acá. Contenedor con
+              `overflow:auto` + scroll táctil, `min-width:max-content` para que
+              las columnas no se aplasten y la primera columna `sticky` para que
+              el nombre no se vaya con el scroll horizontal. Notas habilita el
+              sensor de orientación justamente para poder rotar y verla completa.
+            -->
           <div class="category-card table-card" style="padding:0;overflow:hidden;display:flex;flex-direction:column;flex:1;min-height:0">
             <div class="notas-table-container" style="overflow:auto;padding:0;width:100%;max-width:100%;-webkit-overflow-scrolling:touch;border:1px solid rgba(255,255,255,0.1);border-radius:8px;flex:1;min-height:0">
               <table class="rep-tabla" style="width:100%;min-width:max-content;border-collapse:separate;border-spacing:0">
@@ -3389,42 +3497,8 @@ import { primerColegio } from "../lib/catalogo";
             </div>
           </div>
 
-          <!-- Estadísticas -->
-          <div class="asistencia-summary" style="margin:0;padding:0.5rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;flex-shrink:0">
-            <div class="summary-card students">
-              <span class="summary-label">{searchTerm ? t('rep.stats.resultados') : t('rep.stats.estudiantes')}</span>
-              <span class="summary-value">{filteredReporte.length}</span>
-              <div class="gender-labels">
-                <span class="gender-m">M: {filteredReporte.filter(e => e.sexo === 'M').length}</span>
-                <span class="gender-f">F: {filteredReporte.filter(e => e.sexo === 'F').length}</span>
-              </div>
-            </div>
-            <div class="summary-card p">
-              <span class="summary-label">{t('rep.stats.promedioGrupal')}</span>
-              <div class="summary-value" style="color: {promedioGrupalColor}">
-                {promedioGrupalLabel}
-              </div>
-            </div>
-            <!--
-              Las tarjetas por indicador (descripción + sigla) ceden el espacio en
-              el teléfono: duplican lo que ya dicen los encabezados de la tabla y
-              con 5 indicadores ocupaban casi media pantalla, apretando la tabla
-              (que es la que importa). En escritorio se mantienen.
-            -->
-            {#if !repIsAndroidMobile}
-              {#each configIndicadores.filter(i => i.activo) as ind}
-                <div class="summary-card" style="border-left:3px solid var(--primary-color)">
-                  <span class="summary-label">Ind. {ind.orden}</span>
-                  <span class="summary-value rep-desc" style="font-size:0.7rem;color:var(--text-secondary);font-weight:400;line-height:1.2;word-break:break-word;margin-top:2px">{ind.descripcion || t('rep.sinDescripcion')}</span>
-                </div>
-              {/each}
-              {#if configIndicadores.filter(i => i.activo).length === 0}
-                <div class="summary-card" style="grid-column:1/-1">
-                  <span class="summary-label" style="color:#64748b;font-style:italic">{t('rep.sinIndicadoresActivos')}</span>
-                </div>
-              {/if}
-            {/if}
-          </div>
+          {@render estadisticasReporte(false)}
+          {/if}
         </div>
       {/if}
     </div>
@@ -4697,6 +4771,71 @@ import { primerColegio } from "../lib/catalogo";
       .gender-labels{font-size:.52rem!important}
       .table-card{min-height:45dvh!important}
     }
+
+    /*
+      BOLETA (Android en vertical): una tarjeta por estudiante.
+
+      Elegida en vez de achicar más la tabla: con 7 columnas y
+      `min-width:max-content` el scroll horizontal obligaba a ir y volver para
+      leer una fila. Acá no hay scroll lateral y la NF (lo que el profesor mira)
+      va destacada a la derecha del nombre.
+    */
+    .rep-boleta{
+      display:flex;flex-direction:column;gap:.45rem;
+      overflow-y:auto;-webkit-overflow-scrolling:touch;
+      overscroll-behavior:contain;padding-right:2px;
+    }
+    .boleta-card{
+      background:rgba(255,255,255,.02);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+      border:1px solid rgba(255,255,255,.06);border-radius:14px;
+      padding:.55rem .7rem;display:flex;flex-direction:column;gap:.4rem;
+      transition:all .2s ease;
+    }
+    .boleta-top{display:flex;align-items:center;gap:.5rem}
+    .boleta-nombre{flex:1;min-width:0;font-size:.86rem;font-weight:600;line-height:1.2;overflow-wrap:anywhere}
+    .boleta-nf{
+      flex-shrink:0;display:inline-flex;align-items:baseline;gap:.2rem;
+      font-size:.95rem;font-weight:800;line-height:1;
+      padding:.25rem .5rem;border-radius:9px;
+      background:rgba(var(--primary-rgb),.12);border:1px solid rgba(var(--primary-rgb),.25);
+      white-space:nowrap;
+    }
+    .boleta-nf i{font-style:normal;font-size:.62rem;font-weight:700;opacity:.85}
+    .boleta-chips{display:flex;flex-wrap:wrap;gap:.3rem}
+    .boleta-chip{
+      display:inline-flex;align-items:baseline;gap:.3rem;
+      padding:.18rem .42rem;border-radius:8px;line-height:1.1;
+      background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
+    }
+    .boleta-chip em{font-style:normal;font-size:.6rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:var(--text-secondary,#94a3b8)}
+    .boleta-chip b{font-size:.8rem;font-weight:800}
+    .boleta-chip i{font-style:normal;font-size:.62rem;font-weight:700;opacity:.85}
+
+    /*
+      TIRA DE KPIs: las mismas estadísticas, en una sola línea horizontal, arriba
+      de la boleta. Pisa la grilla compacta del bloque `@media` (que bajaba las
+      etiquetas a .56rem y las volvía ilegibles) con reglas de mayor
+      especificidad: `.kpi-strip .summary-card` (0,2,0) le gana a
+      `.summary-card` (0,1,0) aunque las dos sean `!important`. El `!important`
+      es imprescindible porque `display:grid` y las columnas van como estilo EN
+      LÍNEA en el div.
+    */
+    .asistencia-summary.kpi-strip{
+      display:flex!important;flex-wrap:nowrap!important;
+      grid-template-columns:none!important;
+      overflow-x:auto!important;overflow-y:hidden!important;-webkit-overflow-scrolling:touch;
+      gap:.45rem!important;padding:0 0 .15rem!important;margin:0!important;
+      flex-shrink:0!important;min-height:0!important;max-height:none!important;
+    }
+    .kpi-strip .summary-card{
+      flex:0 0 auto!important;min-width:0!important;min-height:0!important;
+      flex-direction:row!important;align-items:center!important;justify-content:flex-start!important;
+      text-align:left!important;gap:.45rem!important;padding:.45rem .6rem!important;
+    }
+    .kpi-strip .summary-label{font-size:.68rem!important}
+    .kpi-strip .summary-value{font-size:1.05rem!important;white-space:nowrap}
+    .kpi-strip .gender-labels{margin:0 0 0 auto!important;font-size:.66rem!important;white-space:nowrap}
+
     @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
     @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
     .table-row-hover:hover{background-color:rgba(255,255,255,0.04)!important}
