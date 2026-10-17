@@ -1928,17 +1928,14 @@ wrapper: el hijo solo avisa por `onModoChange`.
 - Etiquetas cortas: `subtab.tomarCorto` ("Asistencia") / `subtab.informe` y
   `subtab.registrarCorto` ("Notas") / `subtab.reportes`. Las largas
   (`tomarAsistencia`, `registrar`) son el `title`/tooltip de cada opción.
-- ⚠️ **Android NO tiene NINGÚN control visible del modo: solo swipe.** En un
-  teléfono la altura es lo más escaso, por eso la barra de sub-tabs ya estaba
-  oculta; después se quitó también la píldora flotante que quedaba
-  (abajo-izquierda) para dejar únicamente el gesto. Tampoco va dentro del
-  `FiltersModalAndroid`: lo escondería detrás de dos taps.
-  - Ojo con este riesgo de descubribilidad: el swipe se **ignora** cuando
-    inicia en una zona con `overflow-x` propio (chips mensuales, filas
-    semanales, tablas anchas) o dentro de un modal, así que en esas zonas no
-    hay forma de cambiar de modo. Si algún día molesta en la práctica, la salida
-    es una pista o un control que NO sea una barra arriba (p. ej. un chip
-    discreto en la fila de resumen), no reapilar barras.
+- ✅ **CAMBIÓ (2026-10): el modo es igual que en Windows.** El `ModoToggle` es
+  visible TAMBIÉN en Android (variante `grande`, primera pieza del header/riel) y
+  el **swipe horizontal se eliminó** en `NotasMainPage` Y `AsistenciaMainPage`.
+  Antes Android no tenía ningún control visible del modo (solo swipe), y el
+  swipe se **ignoraba** cuando iniciaba en una zona con `overflow-x` propio
+  (chips mensuales, filas semanales, tablas anchas): en esas zonas no había forma
+  de cambiar de modo. Ahora el control está siempre visible, con el mismo
+  componente que escritorio.
 - ⚠️ No volver a agregar una barra de sub-tabs en el wrapper: es exactamente lo
   que se quitó (tres barras seguidas sobre los filtros). Si un wrapper
   necesita un control propio, que sea flotante y solo para desktop.
@@ -2084,19 +2081,23 @@ la barra de estudiante).
 
 Qué se cambió (aplica a `registrar` y `reportes`):
 
-1. **Los filtros de catálogo ya NO van en `FiltersModalAndroid`**; van en un
-   riel inline de `<select>` (`.filtro-rail`). Esto es una **EXCEPCIÓN
-   justificada a la "Regla de modales unificados — Filtros en Android"** de más
-   abajo, que sigue vigente para las demás páginas:
-   - La premisa de esa regla era "inline cuesta espacio vertical". El riel
-     compacto **desarma la premisa**: ocupa lo mismo que ocupaba el botón que
-     abría el modal, y ahorra el rodeo Filtros → elegir → Aplicar.
+1. **Los filtros de catálogo ya NO van en un modal**; van en el riel inline
+   compartido `FiltroRail` (rejilla de `<select>`). Lo que empezó como excepción
+   para `NotasPage` es hoy la REGLA: `AsistenciaPage` y `EstudiantesPage` usan el
+   mismo componente (ver "Regla de modales unificados" más abajo).
+   - La premisa del modal era "inline cuesta espacio vertical". El riel compacto
+     **desarma la premisa**: ocupa lo mismo que ocupaba el botón que abría el
+     modal, y ahorra el rodeo Filtros → elegir → Aplicar.
    - Sacarlos del modal **no** reintroduce el GOTCHA del "cierre fantasma": ese
      bug era del overlay (el `click` sintético del popup nativo caía en el
      fondo), no del `<select>`. Inline el popup nativo queda sobre la página y
      no hay overlay que se cierre.
    - `NotasPage` es la página con **más** chrome de la app (6 filtros + corte +
-     asignatura + 4 acciones); es la candidata natural, no una regla general.
+     asignatura + 4 acciones), por eso fue la primera.
+   - ⚠️ El orden de los `<select>` es el de ESCRITORIO (**Año → Corte → Colegio →
+     Grado → Sección → Sexo → Asignatura**): el Corte va ANTES del Colegio, que
+     es la corrección pedida por el usuario (2026-10). No reordenar "por lógica de
+     dependencia" (colegio antes de grado): la vista manda.
    - ⚠️ El riel es una **rejilla que ENVUELVE** (`display:grid` +
      `repeat(auto-fit,minmax(84px,1fr))`), **no** un `flex` de una sola fila con
      `overflow-x`. Con `overflow-x` en un teléfono de 360px solo quedaban ~3 de
@@ -2180,13 +2181,29 @@ Qué se cambió (aplica a `registrar` y `reportes`):
    - `fetchEstudiantes` preserva con `if (keepIdx < data.length) currentStudentIdx
      = keepIdx` partiendo del índice actual.
 
-⚠️ `FiltersModalAndroid` **sigue existiendo y usándose** en `AsistenciaPage` y
-`EstudiantesPage`. `NotasPage` ya no lo importa.
+⚠️ `FiltersModalAndroid` **quedó sin consumidores** (2026-10): `NotasPage` ya no
+lo importaba y `AsistenciaPage` / `EstudiantesPage` migraron al riel inline. El
+archivo se conserva por referencia (documenta el GOTCHA del `<select>` que lo
+cerraba solo), pero no se usa en ninguna página.
 
-Clases CSS nuevas (en el `<style>` de `NotasPage`, no en otros componentes):
-`.filtro-rail`, `.acciones-rail`, `.btn-rail`, `.notas-barra-estudiante`,
-`.nav-est-fila`, `.nf-est`, `.ind-tabs`, `.ind-tab`, `.ind-tab-dot`,
-`.ind-tab-val`.
+Clases CSS de los rieles: viven en los COMPONENTES compartidos (2026-10), no en
+el `<style>` de una página: `FiltroRail.svelte` (`.filtro-rail` + estilos de
+`<select>`), `BtnRail.svelte` (`.btn-rail` + reglas `:global(.btn-mod…)`) y
+`AccionesRail.svelte` (`.acciones-rail`). Lo específico de `NotasPage` sigue en su
+`<style>`: `.notas-barra-estudiante`, `.nav-est-fila`, `.nf-est`, `.ind-tabs`,
+`.ind-tab`, `.ind-tab-dot`, `.ind-tab-val`.
+
+### ⚠️ El popover de indicador/criterio va PORTALADO a `<body>` (2026-10)
+
+`NotasPage` abre un popover al pulsar la cabecera de un indicador o criterio. Es
+`position: fixed`, pero se renderiza DENTRO de contenedores glass
+(`.category-card` con `backdrop-filter`), así que su bloque contenedor era ese
+card y las coordenadas de VIEWPORT (que `abrirPopover` calcula del disparador) lo
+mandaban **fuera de pantalla** en Android. Fix: `use:portalToBody` en el panel (el
+mismo GOTCHA de AGENTS para menús/desplegables) **+** un `$effect` que, ya
+renderizado, **reencuadra** el panel al viewport: si no entra por abajo lo sube
+POR ENCIMA del disparador, y el guard `nx/ny !== x/y` evita el bucle (al
+recolocar, el `getBoundingClientRect` ya cae dentro y no se vuelve a escribir).
 
 ⚠️ **Etiquetas de las tarjetas de estadísticas de la tabla** (`.summary-label`):
 en el `@media (max-width:1024px)` estaban en `.56rem` **con elipsis**, así que
@@ -2970,9 +2987,10 @@ grado/asignatura/corte/año); solo el **activo** se personaliza por colegio/secc
 - Si queda persistido `"diario"` en `localStorage['asistencia_periodo']` y se abre
   en escritorio, se migra a `"mensual"` al arrancar (si no, el `<select>` queda sin
   opción coincidente). La preferencia guardada del usuario siempre se respeta.
-- Orden de los filtros en escritorio: **Año Lectivo → Período → control del
-  período** (Fecha / Semana de / Mes) → Colegio, Grado, Sección, Sexo. En Android
-  el año ya lo renderiza `FiltersModalAndroid` antes del slot `extras`.
+- Orden de los filtros: **Año Lectivo → Período → control del período**
+  (Fecha / Semana de / Mes) → Colegio, Grado, Sección, Sexo. Es el mismo en
+  escritorio y en el riel Android (`FiltroRail`); en Android el Año es el primer
+  `<select>` del riel (ya no lo pone un modal).
 - En mensual NO hay selector de año calendario: se deriva del año lectivo.
 
 ## Export PDF (2026-09)
