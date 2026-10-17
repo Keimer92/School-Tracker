@@ -2019,12 +2019,15 @@ lee. Lo que los separa:
     `fv.sinClases` se pintan con un chip 🚫 **no marcable** (nunca un `P/A/J`).
     Las columnas van con **`flex:1 1 0;min-width:0`** (reparten el ancho del panel
     y quedan centradas), no con scroll lateral.
-  - **La tarjeta mensual Android también agrupa por semana** (2026-10). Antes
-    listaba `fechasPeriodo` en una sola fila con scroll (`mensual-chip-row`). Ahora
-    itera **`semanasMes`** (mismo corte por el primer día hábil del colegio que la
-    tabla de escritorio): cada semana es un renglón con su píldora `S{n}` y los
-    chips de sus días, que **envuelven** en vez de scrollear. El `mensual-chip-row`
-    quedó sin uso y se eliminó del CSS.
+  - **La tarjeta mensual Android agrupa por semana pero en UNA fila horizontal**
+    (2026-10). Antes listaba `fechasPeriodo` en una sola fila con scroll
+    (`mensual-chip-row`). Se itera **`semanasMes`** (mismo corte por el primer día
+    hábil del colegio que la tabla de escritorio), pero **los días siguen en una
+    única línea horizontal con scroll**, no en una fila por semana: la semana se
+    marca con la píldora `S{n}` y un separador vertical a su izquierda
+    (`.mensual-semana-grupo`). ⚠️ Poner cada semana en su propia fila (flex-column)
+    deja los días **apilados en vertical**, que es justo lo que NO se quiere: la
+    referencia es la tabla de escritorio, que es una sola línea horizontal.
   - **Los chips 🚫 son REACTIVABLES en ambas tarjetas** (2026-10). Tocar el chip de
     un día sin clases llama `desactivarSinClases([fecha])` (con su confirmación),
     el mismo gesto que el clic en el encabezado de la columna en escritorio. En

@@ -2433,6 +2433,11 @@ $effect(() => {
     .ciclo-cell.estado-p{background:rgba(16,185,129,0.15);border-color:#10b981;color:#10b981}
     .ciclo-cell.estado-a{background:rgba(239,68,68,0.15);border-color:#ef4444;color:#ef4444}
     .ciclo-cell.estado-j{background:rgba(245,158,11,0.15);border-color:#f59e0b;color:#f59e0b}
+    .mensual-chip-row{display:flex;align-items:center;gap:0.4rem;overflow-x:auto;padding-bottom:0.2rem}
+    /* Un bloque por semana dentro de la fila horizontal: la píldora S{n} y,
+       a su izquierda, el separador vertical (como la tabla de escritorio). */
+    .mensual-semana-grupo{display:flex;align-items:center;gap:3px;flex-shrink:0;padding-left:0.4rem;border-left:1px solid rgba(129,140,248,0.3)}
+    .mensual-semana-grupo:first-child{padding-left:0;border-left:none}
     .mensual-chip{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:700;cursor:pointer;flex-shrink:0;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:#64748b;transition:all 0.15s ease}
     .mensual-chip:hover{border-color:rgba(255,255,255,0.2);background:rgba(255,255,255,0.06)}
     .mensual-chip:active{transform:scale(0.9)}
@@ -3244,32 +3249,36 @@ $effect(() => {
                      colegio). Se recorre `semanasMes` —y no `fechasPeriodo`— para
                      que los días marcados sin clases también aparezcan: van con
                      un chip ámbar 🚫 que, al tocarlo, reactiva ese día puntual. -->
-                <div style="display:flex;flex-direction:column;gap:0.3rem">
+                <!-- Los días del mes van en UNA sola línea HORIZONTAL con scroll
+                     (igual que la tabla de escritorio, que es la referencia), pero
+                     agrupados por semana: cada bloque empieza con la píldora S{n} y
+                     un separador vertical a su izquierda. Se recorre `semanasMes` para
+                     incluir los días sin clases, que van con un chip ámbar 🚫 que al
+                     tocarlo reactiva ese día puntual. -->
+                <div class="mensual-chip-row">
                   {#each semanasMes as s (s.numero)}
-                    <div style="display:flex;align-items:flex-start;gap:0.3rem">
-                      <span class="semana-badge" style="flex-shrink:0;font-size:0.58rem;padding:1px 5px;line-height:1.5">S{s.numero}</span>
-                      <div style="display:flex;flex-wrap:wrap;gap:3px;flex:1;min-width:0">
-                        {#each s.fechas as fecha (fecha)}
-                          {#if esDiaSinClases(fecha)}
-                            <div class="mensual-chip conf-sin-clases"
-                              title="🚫 {fmtFecha(fecha, { weekday: 'short', day: 'numeric', month: 'short' })} · {motivoSinClasesEn(fecha)}{enInforme ? '' : ' — tocar para reactivar clases'}"
-                              onclick={enInforme ? undefined : () => desactivarSinClases([fecha])}>
-                              {new Date(fecha + "T12:00:00").getDate()}
-                            </div>
-                          {:else}
-                            {@const d = est.dias[fecha]}
-                            {@const draftD = draftMulti[est.id]?.[fecha]}
-                            {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
-                            <div class="mensual-chip" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
-                              onmousedown={(e) => handleMouseEstadoClick(e, est.id, fecha, e.button)}
-                              oncontextmenu={(e) => e.preventDefault()}
-                              style={enInforme ? 'cursor:default' : ''}
-                              title="D-izq: P | D-der: A | D-centro: J (tocar de nuevo para limpiar)">
-                              {new Date(fecha + "T12:00:00").getDate()}
-                            </div>
-                          {/if}
-                        {/each}
-                      </div>
+                    <div class="mensual-semana-grupo">
+                      <span class="semana-badge" style="font-size:0.58rem;padding:1px 5px;line-height:1.5">S{s.numero}</span>
+                      {#each s.fechas as fecha (fecha)}
+                        {#if esDiaSinClases(fecha)}
+                          <div class="mensual-chip conf-sin-clases"
+                            title="🚫 {fmtFecha(fecha, { weekday: 'short', day: 'numeric', month: 'short' })} · {motivoSinClasesEn(fecha)}{enInforme ? '' : ' — tocar para reactivar clases'}"
+                            onclick={enInforme ? undefined : () => desactivarSinClases([fecha])}>
+                            {new Date(fecha + "T12:00:00").getDate()}
+                          </div>
+                        {:else}
+                          {@const d = est.dias[fecha]}
+                          {@const draftD = draftMulti[est.id]?.[fecha]}
+                          {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
+                          <div class="mensual-chip" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
+                            onmousedown={(e) => handleMouseEstadoClick(e, est.id, fecha, e.button)}
+                            oncontextmenu={(e) => e.preventDefault()}
+                            style={enInforme ? 'cursor:default' : ''}
+                            title="D-izq: P | D-der: A | D-centro: J (tocar de nuevo para limpiar)">
+                            {new Date(fecha + "T12:00:00").getDate()}
+                          </div>
+                        {/if}
+                      {/each}
                     </div>
                   {/each}
                 </div>
