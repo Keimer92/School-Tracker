@@ -199,7 +199,6 @@ import { fmtFechaCorta, fmtFechaLarga, fmtFechaNica, nombreMes } from "../lib/fe
     cerrarPopSinClases();
     cerrarPopSemana();
     cerrarPopSel();
-    dpAbierto = false;
     if (selectedAno && selectedColegio && selectedGrado && selectedSeccion) {
       refreshingSilent = true;
       untrack(() => {
@@ -385,10 +384,6 @@ function fmtDM(iso: string): string {
 
   let popSemanaAbierta = $state(false);
   let popRootEl: HTMLElement | null = $state(null);
-
-  // Calendario abierto: la fila de acciones pasa de overflow-x:auto a visible
-  // para que el panel del DatePicker no quede recortado por el contenedor.
-  let dpAbierto = $state(false);
 
   let semanaActiva = $derived(
     semanasOpts.find(s => selectedFecha >= s.lunes && selectedFecha <= sumaDiasISO(s.lunes, 6))?.n ?? 1
@@ -846,12 +841,6 @@ $effect(() => {
   $effect(() => {
     if (!visible || !popSel) return;
     return registerBackHandler(() => { cerrarPopSel(); return true; });
-  });
-
-  // Si el DatePicker deja de estar montado (cambio de período), el bindable
-  // quedaría en true y la fila perdería su overflow scroll.
-  $effect(() => {
-    if (!(isAndroidMobile && periodoEfectivo === "diario")) dpAbierto = false;
   });
 
   let nombreMesSel = $derived(
@@ -2777,19 +2766,15 @@ $effect(() => {
               </button>
             </div>
           {:else}
-          <!-- Android: la fila ENVUELVE (no scroll lateral), igual que los rieles de
-               filtros/acciones de NotasPage. Antes era `nowrap` + `overflow-x:auto`:
-               las acciones de la derecha existían pero no se descubrían. El
-               DatePicker sigue entrando porque `overflow-x` queda `visible` siempre. -->
-          <div class="android-actions" style="display:flex;gap:{isAndroidMobile ? '3px' : '0.3rem'};align-items:stretch;flex-wrap:wrap;{isAndroidMobile ? 'flex-shrink:0;min-width:0;width:100%;max-width:100%;' : 'flex-shrink:1;min-width:0;padding-right:0.3rem'}overflow-x:visible">
+          <!-- Android: rejilla de 3 columnas (mismo patrón que el `BtnRail` de
+               NotasPage), no una fila con scroll lateral. El control de fecha/
+               semana/mes vive en el `FiltroRail` de arriba —es un filtro, igual
+               que en escritorio—, así que acá NO se repite. -->
+          <div class="android-actions" class:acc-grid={isAndroidMobile}
+            style="{isAndroidMobile
+              ? 'display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px;width:100%;flex-shrink:0;align-items:stretch;'
+              : 'display:flex;gap:0.3rem;align-items:stretch;flex-shrink:1;min-width:0;flex-wrap:wrap;padding-right:0.3rem;overflow-x:visible'}">
           {#if isAndroidMobile}
-            {#if periodoEfectivo === "diario"}
-              <!-- Más ancho que antes: con 130px la fecha "dd/mm/aaaa" no entraba y el
-                   año quedaba con puntos suspensivos. -->
-              <div style="flex:1 1 52%;min-width:172px;max-width:260px;align-self:stretch;">
-                <DatePickerGlass bind:value={selectedFecha} bind:abierto={dpAbierto} diaHabilitado={esDiaHabilCalendario} />
-              </div>
-            {/if}
             <!-- Guardar va SIEMPRE en Android (diario, semanal y mensual): antes solo
                  se renderizaba en diario, así que en semanal/mensual el borrador de
                  `draftMulti` no tenía forma de persistirse desde el teléfono. -->
@@ -3609,17 +3594,21 @@ $effect(() => {
 </div>
 
 <style>
-  /* Android: DatePicker + Sin Clases + Limpiar + P/A/J + Guardar en UNA sola
-     fila. La fila ocupa todo el ancho y, si el equipo es muy angosto, hace
-     scroll horizontal suave (sin scrollbar visible) en vez de romperse. */
-  .android-actions{scrollbar-width:none;-ms-overflow-style:none;flex-shrink:0;}
+  /* Android: Sin Clases + Limpiar + Rellenar + Guardar en una REJILLA de 3
+     columnas (mismo patrón que el `BtnRail` de NotasPage), no una fila con
+     scroll lateral. En escritorio la fila sigue siendo un flex que envuelve y
+     cede ancho. */
+  .android-actions{scrollbar-width:none;-ms-overflow-style:none;}
   .android-actions::-webkit-scrollbar{display:none;width:0;height:0;}
-  /* pop-wrap/dg-root traen width:100% (pensados para filtros verticales);
-     dentro de la fila nowrap deben medir lo justo para no empujar al resto. */
-  .android-actions .pop-wrap{width:auto;}
-  /* El DatePicker ocupa el mismo alto/ancho que el del sub-tab Informe
-     (antes en InformePage): trigger a tamaño natural, estirado a la
-     altura de la fila. */
-  .android-actions :global(.dg-root) { height: 100%; }
-  .android-actions :global(.dg-trigger) { height: 100%; }
+  /* Rejilla Android. Se replica acá —en vez de reusar <BtnRail>— porque esta
+     fila comparte markup con escritorio y lleva el `pop-wrap` de Sin Clases con
+     su popover portalado. `:global` porque `.btn-mod` es el nodo raíz de
+     `BotonMod` y no lleva el hash de scope de esta página. */
+  .android-actions.acc-grid :global(.btn-mod){ width:100%; min-width:0; }
+  .android-actions.acc-grid :global(.btn-mod .txt){ min-width:0; overflow:hidden; }
+  .android-actions.acc-grid :global(.btn-mod .txt > span:first-child){ max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+  .android-actions.acc-grid :global(.btn-mod .sub){ max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+  /* `pop-wrap` trae width:100% (pensado para filtros verticales); como ítem de
+     rejilla se estira a la columna, así que solo se evita que desborde. */
+  .android-actions .pop-wrap{min-width:0;}
 </style>
