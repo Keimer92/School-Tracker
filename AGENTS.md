@@ -1995,13 +1995,21 @@ lee. Lo que los separa:
   su propia fila) y el swipe del wrapper se eliminó (ver `AsistenciaMainPage`).
   - El control de período en el riel Android es nativo (`<select>` de mes y de
     semana) en vez del popover de escritorio: en el WebView el `<select>` abre el
-    popup del sistema y así no hay que duplicar el `pop-wrap`.
-  - La fila de acciones `.android-actions` **envuelve** (`flex-wrap:wrap`,
-    `overflow-x:visible`), ya no scrollea de lado. Además, **Guardar se renderiza
-    en TODOS los períodos** en Android: antes solo salía en diario, así que en
-    semanal/mensual el borrador de `draftMulti` no tenía forma de persistirse
-    desde el teléfono (era un bug real, no un rediseño). El `bind:abierto`
-    (`dpAbierto`) quedó sin lectura por el mismo cambio.
+    popup del sistema y así no hay que duplicar el `pop-wrap`. El **DatePicker de
+    diario vive SOLO en el riel** (`grid-column:1/-1`), que es donde está en
+    escritorio (es un filtro). Antes quedaba además en la fila de acciones →
+    **se veía duplicado**.
+  - La fila de acciones `.android-actions` es una **rejilla**, no un flex que
+    envuelve ni un scroll lateral: en Android es **2 columnas (2×2)** —con
+    `class:acc-grid` y las reglas `:global(.btn-mod…)` en el `<style>` de la
+    página, en vez de reusar `<BtnRail>` porque la fila comparte markup con
+    escritorio y lleva el `pop-wrap` + su popover portalado—, y en escritorio
+    sigue siendo el flex de siempre. Además, **Guardar se renderiza en TODOS los
+    períodos** en Android: antes solo salía en diario, así que en semanal/mensual
+    el borrador de `draftMulti` no tenía forma de persistirse desde el teléfono
+    (era un bug real, no un rediseño). El estado `dpAbierto` (que existía para
+    desactivar el `overflow-x` mientras el DatePicker estaba abierto) se eliminó
+    junto con el DatePicker duplicado.
 
 ⚠️ `AsistenciaMainPage` **no** debe volver al montaje perezoso por sub-tab: con un
 solo hijo no hay nada que montar por separado, y `display:none` por sub-tab

@@ -2766,13 +2766,13 @@ $effect(() => {
               </button>
             </div>
           {:else}
-          <!-- Android: rejilla de 3 columnas (mismo patrón que el `BtnRail` de
-               NotasPage), no una fila con scroll lateral. El control de fecha/
-               semana/mes vive en el `FiltroRail` de arriba —es un filtro, igual
-               que en escritorio—, así que acá NO se repite. -->
+          <!-- Android: rejilla de 2 columnas (2×2, alineadas), no una fila con
+               scroll lateral. El control de fecha/semana/mes vive en el
+               `FiltroRail` de arriba —es un filtro, igual que en escritorio—,
+               así que acá NO se repite. -->
           <div class="android-actions" class:acc-grid={isAndroidMobile}
             style="{isAndroidMobile
-              ? 'display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px;width:100%;flex-shrink:0;align-items:stretch;'
+              ? 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px;width:100%;flex-shrink:0;align-items:stretch;'
               : 'display:flex;gap:0.3rem;align-items:stretch;flex-shrink:1;min-width:0;flex-wrap:wrap;padding-right:0.3rem;overflow-x:visible'}">
           {#if isAndroidMobile}
             <!-- Guardar va SIEMPRE en Android (diario, semanal y mensual): antes solo
@@ -2780,12 +2780,13 @@ $effect(() => {
                  `draftMulti` no tenía forma de persistirse desde el teléfono. -->
             <BotonMod opts={optsGuardar} />
           {/if}
-          <!-- `flex:0 0 auto` a propósito: el chip NO debe encogerse, debe BAJAR
-               entero a la siguiente línea cuando la fila se queda sin ancho. El
-               que cede espacio es `.android-actions` (flex-shrink:1), que es lo
-               que permite que su flex-wrap:wrap interno entre en acción. Si este
-               div encogera, el `.btn-mod` de adentro (white-space:nowrap) se
-               desbordaría hacia afuera en vez de bajar. -->
+          <!-- `flex:0 0 auto` solo importa en ESCRITORIO (en Android es un ítem de
+               rejilla): el chip NO debe encogerse, debe BAJAR entero a la línea
+               siguiente cuando la fila se queda sin ancho. El que cede espacio es
+               `.android-actions` (flex-shrink:1), que es lo que permite que su
+               flex-wrap:wrap interno entre en acción. Si este div encogera, el
+               `.btn-mod` de adentro (white-space:nowrap) se desbordaría en vez de
+               bajar. -->
           <div class="pop-wrap" bind:this={popSinClasesEl} style="flex:0 0 auto;">
             <BotonMod opts={{
               onclick: handleSinClasesClick,
@@ -3594,10 +3595,9 @@ $effect(() => {
 </div>
 
 <style>
-  /* Android: Sin Clases + Limpiar + Rellenar + Guardar en una REJILLA de 3
-     columnas (mismo patrón que el `BtnRail` de NotasPage), no una fila con
-     scroll lateral. En escritorio la fila sigue siendo un flex que envuelve y
-     cede ancho. */
+  /* Android: Sin Clases + Limpiar + Rellenar + Guardar en una REJILLA de 2
+     columnas (2×2), no una fila con scroll lateral. En escritorio la fila sigue
+     siendo un flex que envuelve y cede ancho. */
   .android-actions{scrollbar-width:none;-ms-overflow-style:none;}
   .android-actions::-webkit-scrollbar{display:none;width:0;height:0;}
   /* Rejilla Android. Se replica acá —en vez de reusar <BtnRail>— porque esta
