@@ -2016,9 +2016,22 @@ lee. Lo que los separa:
     `min-width:68px` por día: el día marcado sin clases aparecía **marcable** (no
     seguía la convención de escritorio) y las columnas no entraban en el panel.
     Ahora recorre `fechasVisibles` —igual que la tabla de escritorio— y los días
-    `fv.sinClases` se pintan con un chip 🚫 **no interactivo** (con el motivo en
-    el `title`), nunca un `P/A/J`. Las columnas van con **`flex:1 1 0;min-width:0`**
-    (reparten el ancho del panel y quedan centradas), no con scroll lateral.
+    `fv.sinClases` se pintan con un chip 🚫 **no marcable** (nunca un `P/A/J`).
+    Las columnas van con **`flex:1 1 0;min-width:0`** (reparten el ancho del panel
+    y quedan centradas), no con scroll lateral.
+  - **La tarjeta mensual Android también agrupa por semana** (2026-10). Antes
+    listaba `fechasPeriodo` en una sola fila con scroll (`mensual-chip-row`). Ahora
+    itera **`semanasMes`** (mismo corte por el primer día hábil del colegio que la
+    tabla de escritorio): cada semana es un renglón con su píldora `S{n}` y los
+    chips de sus días, que **envuelven** en vez de scrollear. El `mensual-chip-row`
+    quedó sin uso y se eliminó del CSS.
+  - **Los chips 🚫 son REACTIVABLES en ambas tarjetas** (2026-10). Tocar el chip de
+    un día sin clases llama `desactivarSinClases([fecha])` (con su confirmación),
+    el mismo gesto que el clic en el encabezado de la columna en escritorio. En
+    `enInforme` (solo lectura) van `cursor:default` y sin `onclick`. El chip
+    mensual lleva el 🚫 como `::after` en la esquina (`.mensual-chip.conf-sin-clases`).
+    **Regla**: un día sin clases NUNCA se pinta como celda marcable; se pinta 🚫 y
+    se usa para reactivar, no para marcar P/A/J.
   - **`fechasPeriodo` es `$derived`, no `$state`** (2026-10). Se llenaba dentro de
     `fetchEstudiantesMulti`, que corre en `untrack()`: al entrar a semanal/mensual
     la carga de estudiantes leía los `diasSinClases` **viejos**, el día sin clases
@@ -2027,6 +2040,13 @@ lee. Lo que los separa:
     `colegioConfig`. Regla: **si un valor depende de `diasSinClases`, tiene que ser
     `$derived` o recalcularse al cambiar las marcas, nunca asignarse dentro de un
     fetch que va en `untrack()`**.
+  - **El banner `panelSinClases` tiene una variante COMPACTA en Android** (2026-10).
+    El de escritorio (con `min-width:220px` en el texto, `padding:.7rem .9rem` y el
+    botón "♻️ Reactivar clases" ancho) se comía un pedazo grande de la pantalla. En
+    Android va **ícono + título (a lo sumo 2 líneas) + alcance/motivo en un renglón
+    truncado**, y "Reactivar" como **botón ícono** (♻️). Se elige con
+    `{#if isAndroidMobile}` dentro del MISMO snippet para que la información sea
+    idéntica en las dos plataformas.
 
 ⚠️ `AsistenciaMainPage` **no** debe volver al montaje perezoso por sub-tab: con un
 solo hijo no hay nada que montar por separado, y `display:none` por sub-tab

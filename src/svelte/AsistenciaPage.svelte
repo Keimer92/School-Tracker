@@ -2433,13 +2433,16 @@ $effect(() => {
     .ciclo-cell.estado-p{background:rgba(16,185,129,0.15);border-color:#10b981;color:#10b981}
     .ciclo-cell.estado-a{background:rgba(239,68,68,0.15);border-color:#ef4444;color:#ef4444}
     .ciclo-cell.estado-j{background:rgba(245,158,11,0.15);border-color:#f59e0b;color:#f59e0b}
-    .mensual-chip-row{display:flex;gap:2px;overflow-x:auto;padding-bottom:0.2rem}
     .mensual-chip{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:700;cursor:pointer;flex-shrink:0;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:#64748b;transition:all 0.15s ease}
     .mensual-chip:hover{border-color:rgba(255,255,255,0.2);background:rgba(255,255,255,0.06)}
     .mensual-chip:active{transform:scale(0.9)}
     .mensual-chip.estado-p{background:rgba(16,185,129,0.15);border-color:#10b981;color:#10b981}
     .mensual-chip.estado-a{background:rgba(239,68,68,0.15);border-color:#ef4444;color:#ef4444}
     .mensual-chip.estado-j{background:rgba(245,158,11,0.15);border-color:#f59e0b;color:#f59e0b}
+    /* Chip de un día marcado sin clases: distinto (ámbar + 🚫) y NO marcable.
+       Al tocarlo se reactiva ese día puntual (ver el bloque mensual Android). */
+    .mensual-chip.conf-sin-clases{position:relative;background:rgba(245,158,11,0.12);border-color:rgba(245,158,11,0.5);color:#f59e0b}
+    .mensual-chip.conf-sin-clases::after{content:'🚫';position:absolute;top:-5px;right:-5px;font-size:0.55rem;line-height:1}
     .asistencia-btn{padding:0.3rem 0.75rem;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:#94a3b8;white-space:nowrap;transition:all 0.15s cubic-bezier(0.4,0,0.2,1)}
     .asistencia-btn:active{transform:scale(0.95)}
     .asistencia-btn.p{background:rgba(16,185,129,0.15);border-color:#10b981;color:#10b981}
@@ -2495,40 +2498,63 @@ $effect(() => {
   </style>
 
   {#snippet panelSinClases(soloAviso: boolean)}
-    <div
-      style={soloAviso
-        ? "display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin:0 0 .9rem;padding:.7rem .9rem;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.28);border-radius:12px"
-        : "padding:40px;text-align:center;background:rgba(251,191,36,0.08);border-radius:12px;border:1px dashed #fbbf24;color:#fcd34d"}
-    >
-      <span style="font-size:{soloAviso ? '1.1rem' : '1.6rem'};line-height:1">🚫</span>
-      <div style="flex:1;min-width:{soloAviso ? '220px' : '0'}">
-        <div style="color:#fde68a;font-weight:700;font-size:{soloAviso ? '.85rem' : '1rem'}">
-          {#if soloAviso}
-            {t('asis.sinClases.avisoTitulo', { n: diasMarcadosPeriodo.length })}
-          {:else}
-            {t('asis.sinClases.vacioTitulo')}
-          {/if}
-          <span style="font-weight:400;color:#94a3b8;font-size:.8rem;margin-left:.4rem">
-            ({sinClasesNivelColegio ? t('asis.sinClases.alcanceTodo') : t('asis.sinClases.alcanceSoloSeccion')})
-          </span>
-        </div>
-        {#if motivosPeriodoSinClases.length > 0}
-          <div style="color:#fcd34d;font-size:{soloAviso ? '.78rem' : '.9rem'};margin-top:.2rem">
-            {#each motivosPeriodoSinClases as motivo, i (motivo)}
-              {i > 0 ? ' · ' : ''}{t('asis.sinClases.vacioMotivo', { motivo })}
-            {/each}
+    {#if isAndroidMobile}
+      <!-- Banner COMPACTO para Android (2026-10): el de escritorio (con
+           `min-width:220px`, `padding:.7rem .9rem` y el botón ancho) se comía un
+           pedazo grande de la pantalla. Acá va el ícono + título (a lo sumo 2
+           líneas) + alcance/motivo en un renglón truncado, y "Reactivar" como
+           botón ícono. -->
+      <div style="display:flex;align-items:center;gap:.5rem;margin:0 0 .6rem;padding:.45rem .6rem;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.28);border-radius:10px">
+        <span style="font-size:1.05rem;line-height:1;flex-shrink:0">🚫</span>
+        <div style="flex:1;min-width:0">
+          <div style="color:#fde68a;font-weight:700;font-size:.74rem;line-height:1.25">
+            {soloAviso ? t('asis.sinClases.avisoTitulo', { n: diasMarcadosPeriodo.length }) : t('asis.sinClases.vacioTitulo')}
           </div>
-        {:else if !soloAviso}
-          <div style="color:#64748b;font-size:.8rem;margin-top:.2rem">{t('asis.sinClases.vacioSinMotivo')}</div>
+          <div style="color:#94a3b8;font-size:.66rem;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+            {sinClasesNivelColegio ? t('asis.sinClases.alcanceTodo') : t('asis.sinClases.alcanceSoloSeccion')}{#if motivosPeriodoSinClases.length > 0} · {motivosPeriodoSinClases.join(' · ')}{/if}
+          </div>
+        </div>
+        {#if !enInforme}
+          <button class="secondary" onclick={() => desactivarSinClases()} title={t('asis.sinClases.reactivar')}
+            style="padding:.3rem .5rem;font-size:.72rem;flex-shrink:0">♻️</button>
         {/if}
       </div>
-      {#if !enInforme}
-        <button class="secondary" onclick={() => desactivarSinClases()}
-          style={soloAviso ? 'padding:.35rem .8rem;font-size:.78rem' : 'margin-top:1.25rem;padding:0.5rem 1rem'}>
-          ♻️ {t('asis.sinClases.reactivar')}
-        </button>
-      {/if}
-    </div>
+    {:else}
+      <div
+        style={soloAviso
+          ? "display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin:0 0 .9rem;padding:.7rem .9rem;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.28);border-radius:12px"
+          : "padding:40px;text-align:center;background:rgba(251,191,36,0.08);border-radius:12px;border:1px dashed #fbbf24;color:#fcd34d"}
+      >
+        <span style="font-size:{soloAviso ? '1.1rem' : '1.6rem'};line-height:1">🚫</span>
+        <div style="flex:1;min-width:{soloAviso ? '220px' : '0'}">
+          <div style="color:#fde68a;font-weight:700;font-size:{soloAviso ? '.85rem' : '1rem'}">
+            {#if soloAviso}
+              {t('asis.sinClases.avisoTitulo', { n: diasMarcadosPeriodo.length })}
+            {:else}
+              {t('asis.sinClases.vacioTitulo')}
+            {/if}
+            <span style="font-weight:400;color:#94a3b8;font-size:.8rem;margin-left:.4rem">
+              ({sinClasesNivelColegio ? t('asis.sinClases.alcanceTodo') : t('asis.sinClases.alcanceSoloSeccion')})
+            </span>
+          </div>
+          {#if motivosPeriodoSinClases.length > 0}
+            <div style="color:#fcd34d;font-size:{soloAviso ? '.78rem' : '.9rem'};margin-top:.2rem">
+              {#each motivosPeriodoSinClases as motivo, i (motivo)}
+                {i > 0 ? ' · ' : ''}{t('asis.sinClases.vacioMotivo', { motivo })}
+              {/each}
+            </div>
+          {:else if !soloAviso}
+            <div style="color:#64748b;font-size:.8rem;margin-top:.2rem">{t('asis.sinClases.vacioSinMotivo')}</div>
+          {/if}
+        </div>
+        {#if !enInforme}
+          <button class="secondary" onclick={() => desactivarSinClases()}
+            style={soloAviso ? 'padding:.35rem .8rem;font-size:.78rem' : 'margin-top:1.25rem;padding:0.5rem 1rem'}>
+            ♻️ {t('asis.sinClases.reactivar')}
+          </button>
+        {/if}
+      </div>
+    {/if}
   {/snippet}
 
   <PageLayout>
@@ -3173,8 +3199,11 @@ $effect(() => {
                     {#if fv.sinClases}
                       <div style="flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:2px">
                         <span style="font-size:0.55rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.2px;white-space:nowrap">{dayName}</span>
-                        <div title={motivoSinClasesEn(fecha)}
-                          style="width:100%;box-sizing:border-box;text-align:center;font-size:0.7rem;padding:0.15rem 0.3rem;border-radius:6px;border:1px solid rgba(245,158,11,0.4);background:rgba(245,158,11,0.12);color:#f59e0b;cursor:default">🚫</div>
+                        <!-- Día sin clases: no es marcable, y tocarlo REACTIVA ese
+                             día puntual (mismo gesto que el encabezado en escritorio). -->
+                        <div title="{motivoSinClasesEn(fecha)}{enInforme ? '' : ' — tocar para reactivar clases'}"
+                          onclick={enInforme ? undefined : () => desactivarSinClases([fecha])}
+                          style="width:100%;box-sizing:border-box;text-align:center;font-size:0.7rem;padding:0.15rem 0.3rem;border-radius:6px;border:1px solid rgba(245,158,11,0.4);background:rgba(245,158,11,0.12);color:#f59e0b;cursor:{enInforme ? 'default' : 'pointer'}">🚫</div>
                       </div>
                     {:else}
                       {@const d = est.dias[fecha]}
@@ -3210,17 +3239,37 @@ $effect(() => {
                   <span style="font-size:0.7rem;color:#64748b;font-weight:bold;min-width:20px">{index + 1}</span>
                   <span style="flex:1;font-weight:bold;font-size:0.85rem;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:{colorSexo(est.sexo)}">{est.nombre}</span>
                 </div>
-                <div class="mensual-chip-row">
-                  {#each fechasPeriodo as fecha}
-                    {@const d = est.dias[fecha]}
-                    {@const draftD = draftMulti[est.id]?.[fecha]}
-                    {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
-                    <div class="mensual-chip" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
-                      onmousedown={(e) => handleMouseEstadoClick(e, est.id, fecha, e.button)}
-                      oncontextmenu={(e) => e.preventDefault()}
-                      style={enInforme ? 'cursor:default' : ''}
-                      title="D-izq: P | D-der: A | D-centro: J (tocar de nuevo para limpiar)">
-                      {new Date(fecha + "T12:00:00").getDate()}
+                <!-- Los días del mes se agrupan por SEMANA, igual que la tabla de
+                     escritorio (`semanasMes` corta por el primer día hábil del
+                     colegio). Se recorre `semanasMes` —y no `fechasPeriodo`— para
+                     que los días marcados sin clases también aparezcan: van con
+                     un chip ámbar 🚫 que, al tocarlo, reactiva ese día puntual. -->
+                <div style="display:flex;flex-direction:column;gap:0.3rem">
+                  {#each semanasMes as s (s.numero)}
+                    <div style="display:flex;align-items:flex-start;gap:0.3rem">
+                      <span class="semana-badge" style="flex-shrink:0;font-size:0.58rem;padding:1px 5px;line-height:1.5">S{s.numero}</span>
+                      <div style="display:flex;flex-wrap:wrap;gap:3px;flex:1;min-width:0">
+                        {#each s.fechas as fecha (fecha)}
+                          {#if esDiaSinClases(fecha)}
+                            <div class="mensual-chip conf-sin-clases"
+                              title="🚫 {fmtFecha(fecha, { weekday: 'short', day: 'numeric', month: 'short' })} · {motivoSinClasesEn(fecha)}{enInforme ? '' : ' — tocar para reactivar clases'}"
+                              onclick={enInforme ? undefined : () => desactivarSinClases([fecha])}>
+                              {new Date(fecha + "T12:00:00").getDate()}
+                            </div>
+                          {:else}
+                            {@const d = est.dias[fecha]}
+                            {@const draftD = draftMulti[est.id]?.[fecha]}
+                            {@const effectiveEstado = draftD?.estado !== undefined ? draftD.estado : (d?.estado || null)}
+                            <div class="mensual-chip" class:estado-p={effectiveEstado === 'P'} class:estado-a={effectiveEstado === 'A'} class:estado-j={effectiveEstado === 'J'}
+                              onmousedown={(e) => handleMouseEstadoClick(e, est.id, fecha, e.button)}
+                              oncontextmenu={(e) => e.preventDefault()}
+                              style={enInforme ? 'cursor:default' : ''}
+                              title="D-izq: P | D-der: A | D-centro: J (tocar de nuevo para limpiar)">
+                              {new Date(fecha + "T12:00:00").getDate()}
+                            </div>
+                          {/if}
+                        {/each}
+                      </div>
                     </div>
                   {/each}
                 </div>
