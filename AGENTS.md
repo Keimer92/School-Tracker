@@ -2058,14 +2058,15 @@ nunca reconstruir toda la lista sin clave (salta scroll al inicio).
 El chrome de `registrar` en Android eran **5 tarjetas apiladas** (buscador,
 botón de filtros, acciones, navegación de estudiante, Nota Final) ≈ **300px**
 sobre los ~712px útiles: ~42 % de la pantalla antes de ver una nota. Ahora son
-~3 filas compactas ≈ **135px**.
+unas **4 filas compactas** (riel de filtros que envuelve + 2 filas de botones +
+la barra de estudiante).
 
 Qué se cambió (aplica a `registrar` y `reportes`):
 
 1. **Los filtros de catálogo ya NO van en `FiltersModalAndroid`**; van en un
-   riel inline de `<select>` (`.filtro-rail`, 32px de alto, `overflow-x`). Esto
-   es una **EXCEPCIÓN justificada a la "Regla de modales unificados — Filtros en
-   Android"** de más abajo, que sigue vigente para las demás páginas:
+   riel inline de `<select>` (`.filtro-rail`). Esto es una **EXCEPCIÓN
+   justificada a la "Regla de modales unificados — Filtros en Android"** de más
+   abajo, que sigue vigente para las demás páginas:
    - La premisa de esa regla era "inline cuesta espacio vertical". El riel
      compacto **desarma la premisa**: ocupa lo mismo que ocupaba el botón que
      abría el modal, y ahorra el rodeo Filtros → elegir → Aplicar.
@@ -2075,9 +2076,33 @@ Qué se cambió (aplica a `registrar` y `reportes`):
      no hay overlay que se cierre.
    - `NotasPage` es la página con **más** chrome de la app (6 filtros + corte +
      asignatura + 4 acciones); es la candidata natural, no una regla general.
+   - ⚠️ El riel es una **rejilla que ENVUELVE** (`display:grid` +
+     `repeat(auto-fit,minmax(84px,1fr))`), **no** un `flex` de una sola fila con
+     `overflow-x`. Con `overflow-x` en un teléfono de 360px solo quedaban ~3 de
+     los 7 selects a la vista: los de la derecha existían pero no se descubrían
+     (nada indicaba que hubiera más). La rejilla pone ~4 por fila → **2 filas** y
+     se ven todos; cuesta ~40px más y los `<select>` llevan
+     `width:100%;min-width:0;text-overflow:ellipsis` (el ancho lo manda la
+     columna, no el `option` más largo como en el `<select>` suelto).
 2. **Las filas de utilería dejaron de ser tarjetas**: buscador y acciones ya no
    llevan `class="category-card"` (`.acciones-rail`), así no pagan `padding` +
    `margin` + marco cada una.
+2b. **Las acciones son DOS filas de 3 botones** (`.btn-rail`, otra rejilla de 3
+   columnas), sin el botón `⋯`. En Android el `⋯` abría un popover con tres
+   opciones (Instrumentos / Distribuir / Eliminar notas) y esas tres bajaron a
+   una segunda fila junto a Guardar / Deshacer / Rehacer, con su mismo ícono,
+   tono (`azul`/`violeta`/`rojo`) y `sub`. Así las 6 acciones se ven de entrada,
+   sin abrir nada.
+   - ⚠️ El `⋯` + popover **sigue existiendo para escritorio** (mismo `popAcciones`
+     / `togglePopAcciones`): solo se quitó del branch Android. No borrar el
+     estado ni el panel `{#if popAcciones}` sin revisar el branch de escritorio.
+   - ⚠️ Las reglas de `.btn-rail` necesitan `:global(.btn-mod…)`: `.btn-mod` es el
+     nodo raíz de `BotonMod` y **no lleva el hash de scope** de `NotasPage`, así
+     que un selector `.btn-rail .btn-mod` pelado no matchea. El `min-width:0` en el
+     botón es lo que deja que la etiqueta se recorte con elipsis en vez de forzar
+     la columna a crecer (grid usa el `min-content` del ítem como mínimo).
+   - Los botones van **sin `compacto`**: ese prop inyecta `padding` en el `style`
+     en línea y ganaría al padding reducido del CSS.
 3. **Estudiante + Nota Final se fusionaron en UNA fila** (`.notas-barra-estudiante`,
    ~52px): eran dos tarjetas apiladas (~125px) para la misma unidad de
    información ("en qué estudiante estoy y cómo va").
@@ -2104,8 +2129,19 @@ Qué se cambió (aplica a `registrar` y `reportes`):
 `EstudiantesPage`. `NotasPage` ya no lo importa.
 
 Clases CSS nuevas (en el `<style>` de `NotasPage`, no en otros componentes):
-`.filtro-rail`, `.acciones-rail`, `.notas-barra-estudiante`, `.nav-est-fila`,
-`.nf-est`, `.ind-tabs`, `.ind-tab`, `.ind-tab-dot`, `.ind-tab-val`.
+`.filtro-rail`, `.acciones-rail`, `.btn-rail`, `.notas-barra-estudiante`,
+`.nav-est-fila`, `.nf-est`, `.ind-tabs`, `.ind-tab`, `.ind-tab-dot`,
+`.ind-tab-val`.
+
+⚠️ **Etiquetas de las tarjetas de estadísticas de la tabla** (`.summary-label`):
+en el `@media (max-width:1024px)` estaban en `.56rem` **con elipsis**, así que
+"Promedio grupal" / "Estudiantes" se truncaban justo cuando la tabla deja de
+dibujarse (horizontal del teléfono / tablet). Ahora van a `.62rem` con
+`white-space:normal` (`overflow-wrap:anywhere`) para que **envuelvan a 2 líneas**
+en vez de recortarse. La tarjeta crece con el contenido (`min-height` es solo
+piso). La **tira de KPIs** de la boleta (`.kpi-strip .summary-label`) se fija a
+`nowrap` a propósito: es una sola línea horizontal con scroll, y ahí envolver
+rompería la altura de la tira.
 
 ## Días sin clases (2026-08) — feriados por sección o colegio
 

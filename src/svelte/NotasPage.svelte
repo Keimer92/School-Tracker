@@ -3723,14 +3723,14 @@ import { primerColegio } from "../lib/catalogo";
             <option value="F">{t('notas.filtro.femenino')}</option>
           </select>
         </div>
-        <div class="acciones-rail" style="margin-top:0.3rem;">
-          <BotonMod bind:ref={popAccionesBtn} opts={{
-            onclick: togglePopAcciones,
-            icono: popAcciones ? '✕' : '⋯', etiqueta: t('notas.acciones'), tono: 'violeta',
-            sub: `${activeIndicadores.length}/${indicadores.length} · ${filteredNotas.length}`,
-            title: t('notas.btn.acciones'), compacto: true
-          }} />
-
+        <!--
+          DOS filas de botones (3 + 3) en vez de "fila + popover ⋯": las 6
+          acciones quedan visibles de entrada, sin abrir nada. Misma idea que el
+          riel de filtros: envolver en rejilla en vez de scrollear de lado.
+          Los tres que antes vivían en el popover (instrumentos, distribuir,
+          eliminar notas) bajan a la segunda fila con su mismo tono e ícono.
+        -->
+        <div class="btn-rail">
           <!-- Guardar va antes que Deshacer/Rehacer: es la acción que se usa en
                cada cambio de nota, así que queda a la vista sin scrollear, igual
                que en Asistencia. El orden de escritorio no cambia. -->
@@ -3739,19 +3739,45 @@ import { primerColegio } from "../lib/catalogo";
             disabled: !hasUnsavedChanges || saving || estudiantes.length === 0,
             icono: saving ? '⏳' : '💾', etiqueta: saving ? t('notas.btn.guardando') : t('notas.btn.guardarCorto'), tono: 'verde',
             sub: saving ? t('notas.guardado.escribiendo') : (hasUnsavedChanges ? t('notas.cambiosPendientes', { n: cambiosPendientes }) : t('notas.guardado.limpio')),
-            title: t('notas.btn.guardar'), compacto: true
+            title: t('notas.btn.guardar')
           }} />
           <BotonMod opts={{
             onclick: undo, disabled: history.length === 0,
             icono: '↩️', etiqueta: t('notas.btn.deshacer'), tono: 'ambar',
             sub: history.length === 0 ? t('notas.guardado.limpio') : t('notas.historial', { n: history.length }),
-            title: t('notas.deshacer'), compacto: true
+            title: t('notas.deshacer')
           }} />
           <BotonMod opts={{
             onclick: redo, disabled: redoStack.length === 0,
             icono: '↪️', etiqueta: t('notas.btn.rehacer'), tono: 'ambar',
             sub: redoStack.length === 0 ? t('notas.rehacerNada') : t('notas.porRehacer', { n: redoStack.length }),
-            title: t('notas.rehacer'), compacto: true
+            title: t('notas.rehacer')
+          }} />
+        </div>
+        <div class="btn-rail">
+          <BotonMod opts={{
+            onclick: () => { showInstrumentosModal = true; },
+            disabled: indicadores.length === 0,
+            icono: '📋', etiqueta: t('notas.btn.instrumentos'), tono: 'azul',
+            sub: t('notas.btn.instrumentosSub', { a: activeIndicadores.length, b: indicadores.length }),
+            title: t('notas.btn.instrumentosTitulo')
+          }} />
+          <BotonMod opts={{
+            onclick: () => { distribuirTargets = {}; distribuirOverwrite = true; showDistribuirModal = true; },
+            disabled: activeIndicadores.length === 0 || filteredNotas.length === 0,
+            icono: '✨', etiqueta: t('notas.btn.distribuir'), tono: 'violeta',
+            sub: t('notas.btn.distribuirSub', { n: activeIndicadores.length }),
+            title: t('notas.popover.distribuirAuto')
+          }} />
+          <BotonMod opts={{
+            onclick: () => {
+              if (!selectedCorte || !selectedAsignatura) { emit("show-toast", { message: t('notas.del.previa'), type: "warning" }); return; }
+              deleteMode = 'all'; deleteStudentId = 0; deleteIndicatorId = 0; showDeleteModal = true;
+            },
+            disabled: estudiantes.length === 0,
+            icono: '🗑️', etiqueta: t('notas.btn.eliminarNotas'), tono: 'rojo',
+            sub: t('notas.btn.eliminarNotasSub', { n: filteredNotas.length }),
+            title: t('notas.btn.eliminarNotas')
           }} />
         </div>
 
@@ -4805,8 +4831,13 @@ import { primerColegio } from "../lib/catalogo";
       .rep-tabla tbody td{font-size:.77rem!important}
       .rep-tabla tbody td div{min-width:110px!important}
       .asistencia-summary{overflow-y:auto;-webkit-overflow-scrolling:touch;grid-template-columns:repeat(auto-fit,minmax(100px,1fr))!important;gap:.4rem!important;padding:.4rem!important;max-height:calc(100dvh - 170px);flex-shrink:1!important;min-height:0!important}
-      .summary-card{min-height:50px!important;padding:.3rem .2rem!important}
-      .summary-label{font-size:.56rem!important}
+      .summary-card{min-height:50px!important;padding:.3rem .25rem!important}
+      /* Las etiquetas quedaban en .56rem y con elipsis: "Promedio grupal" o
+         "Estudiantes" se truncaban y se leían mal justo cuando la tabla deja de
+         dibujarse (≤1024px = horizontal del teléfono / tablet). Un punto más
+         grandes y con WRAP a 2 líneas en vez de recortar. La tarjeta crece con
+         el contenido (`min-height` es solo piso), así que no se clipa nada. */
+      .summary-label{font-size:.62rem!important;white-space:normal!important;text-overflow:clip!important;overflow-wrap:anywhere;line-height:1.15}
       .summary-value{font-size:.88rem!important}
       .gender-labels{font-size:.52rem!important}
     }
@@ -4871,7 +4902,7 @@ import { primerColegio } from "../lib/catalogo";
       flex-direction:row!important;align-items:center!important;justify-content:flex-start!important;
       text-align:left!important;gap:.45rem!important;padding:.45rem .6rem!important;
     }
-    .kpi-strip .summary-label{font-size:.68rem!important}
+    .kpi-strip .summary-label{font-size:.68rem!important;white-space:nowrap!important}
     .kpi-strip .summary-value{font-size:1.05rem!important;white-space:nowrap}
     .kpi-strip .gender-labels{margin:0 0 0 auto!important;font-size:.66rem!important;white-space:nowrap}
 
@@ -4880,17 +4911,21 @@ import { primerColegio } from "../lib/catalogo";
        barra de estudiante + Nota Final fusionada. Reemplaza 5 tarjetas
        apiladas (~300px) por ~3 filas compactas (~135px).
        ───────────────────────────────────────────────────────────────────── */
+    /* Rejilla que ENVUELVE en vez de scroll lateral: en un teléfono de 360px
+       entran ~4 por fila, así las 7 se ven en 2 filas sin arrastrar de lado.
+       Antes era `flex` de una sola fila con `overflow-x`, y quedaban ~3
+       visibles: los filtros de la derecha existían pero no se descubrían. */
     .filtro-rail{
-      display:flex;align-items:center;gap:.35rem;
-      overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:.1rem;
+      display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:.3rem;
     }
     .filtro-rail select{
-      flex:0 0 auto;height:32px;padding:0 1.7rem 0 .55rem;
-      font-size:.75rem;font-weight:600;border-radius:8px;
+      width:100%;min-width:0;height:32px;padding:0 1.35rem 0 .45rem;
+      font-size:.72rem;font-weight:600;border-radius:8px;
       background-color:#0f172a;border:1px solid rgba(148,163,184,.35);color:#f1f5f9;
       appearance:none;-webkit-appearance:none;
+      text-overflow:ellipsis;white-space:nowrap;overflow:hidden;
       background-image:url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e");
-      background-repeat:no-repeat;background-position:right .45rem center;background-size:13px;
+      background-repeat:no-repeat;background-position:right .35rem center;background-size:12px;
     }
     .filtro-rail select:focus{border-color:var(--primary-color);outline:none}
     .filtro-rail select option,.filtro-rail select optgroup{background:#0f172a;color:#f1f5f9}
@@ -4898,6 +4933,17 @@ import { primerColegio } from "../lib/catalogo";
       display:flex;gap:.3rem;align-items:center;
       overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;padding-bottom:.15rem;
     }
+
+    /* Dos filas de 3 botones (registrar en Android), con el mismo criterio que
+       `.filtro-rail`. `:global` porque `.btn-mod` es el nodo raíz de BotonMod y
+       NO lleva el hash de scope de esta página: sin él las reglas no matchean.
+       `min-width:0` en el botón es lo que permite que la etiqueta se recorte con
+       elipsis en vez de forzar la columna a crecer. */
+    .btn-rail{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.3rem;margin-top:.3rem}
+    .btn-rail :global(.btn-mod){width:100%;padding:0 .45rem;font-size:.74rem}
+    .btn-rail :global(.btn-mod .txt){min-width:0;overflow:hidden}
+    .btn-rail :global(.btn-mod .txt > span:first-child){max-width:100%;overflow:hidden;text-overflow:ellipsis}
+    .btn-rail :global(.btn-mod .sub){max-width:100%;overflow:hidden;text-overflow:ellipsis}
 
     /* Estudiante + Nota Final en una sola fila (~52px en vez de ~125px). */
     .notas-barra-estudiante{
