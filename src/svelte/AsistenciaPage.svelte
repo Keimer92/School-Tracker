@@ -2444,10 +2444,14 @@ $effect(() => {
     .mensual-chip.estado-p{background:rgba(16,185,129,0.15);border-color:#10b981;color:#10b981}
     .mensual-chip.estado-a{background:rgba(239,68,68,0.15);border-color:#ef4444;color:#ef4444}
     .mensual-chip.estado-j{background:rgba(245,158,11,0.15);border-color:#f59e0b;color:#f59e0b}
-    /* Chip de un día marcado sin clases: distinto (ámbar + 🚫) y NO marcable.
-       Al tocarlo se reactiva ese día puntual (ver el bloque mensual Android). */
-    .mensual-chip.conf-sin-clases{position:relative;background:rgba(245,158,11,0.12);border-color:rgba(245,158,11,0.5);color:#f59e0b}
-    .mensual-chip.conf-sin-clases::after{content:'🚫';position:absolute;top:-5px;right:-5px;font-size:0.55rem;line-height:1}
+    /* Chip de un día marcado sin clases: ámbar, con el 🚫 DENTRO del chip (al lado
+       del número) y NO marcable. Al tocarlo se reactiva ese día puntual.
+       ⚠️ El 🚫 va inline y NO como `::after` con offsets negativos: el chip vive
+       dentro de `.mensual-chip-row`, que tiene `overflow-x:auto` (y por ende
+       `overflow-y` computa a `auto`), así que cualquier cosa que sobresalga del
+       chip se ve ENTrecortada. Por eso el chip es `width:auto` cuando es sin
+       clases (no rompe nada: la fila es de scroll, no una grilla). */
+    .mensual-chip.conf-sin-clases{width:auto;min-width:28px;padding:0 6px;gap:3px;background:rgba(245,158,11,0.12);border-color:rgba(245,158,11,0.5);color:#f59e0b}
     .asistencia-btn{padding:0.3rem 0.75rem;border-radius:8px;font-size:0.78rem;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:#94a3b8;white-space:nowrap;transition:all 0.15s cubic-bezier(0.4,0,0.2,1)}
     .asistencia-btn:active{transform:scale(0.95)}
     .asistencia-btn.p{background:rgba(16,185,129,0.15);border-color:#10b981;color:#10b981}
@@ -3264,7 +3268,7 @@ $effect(() => {
                           <div class="mensual-chip conf-sin-clases"
                             title="🚫 {fmtFecha(fecha, { weekday: 'short', day: 'numeric', month: 'short' })} · {motivoSinClasesEn(fecha)}{enInforme ? '' : ' — tocar para reactivar clases'}"
                             onclick={enInforme ? undefined : () => desactivarSinClases([fecha])}>
-                            {new Date(fecha + "T12:00:00").getDate()}
+                            <span style="font-size:0.55rem">🚫</span>{new Date(fecha + "T12:00:00").getDate()}
                           </div>
                         {:else}
                           {@const d = est.dias[fecha]}

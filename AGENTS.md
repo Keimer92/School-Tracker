@@ -2031,8 +2031,11 @@ lee. Lo que los separa:
   - **Los chips 🚫 son REACTIVABLES en ambas tarjetas** (2026-10). Tocar el chip de
     un día sin clases llama `desactivarSinClases([fecha])` (con su confirmación),
     el mismo gesto que el clic en el encabezado de la columna en escritorio. En
-    `enInforme` (solo lectura) van `cursor:default` y sin `onclick`. El chip
-    mensual lleva el 🚫 como `::after` en la esquina (`.mensual-chip.conf-sin-clases`).
+    `enInforme` (solo lectura) van `cursor:default` y sin `onclick`. El chip mensual
+    lleva el 🚫 **inline, al lado del número** (`.mensual-chip.conf-sin-clases` con
+    `width:auto`), no como `::after`: la fila tiene `overflow-x:auto` y eso hace que
+    `overflow-y` compute a `auto`, así que un pseudo-elemento que sobresalga del chip
+    se ve **entrecortado**.
     **Regla**: un día sin clases NUNCA se pinta como celda marcable; se pinta 🚫 y
     se usa para reactivar, no para marcar P/A/J.
   - **`fechasPeriodo` es `$derived`, no `$state`** (2026-10). Se llenaba dentro de
