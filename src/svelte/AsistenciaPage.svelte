@@ -2777,16 +2777,22 @@ $effect(() => {
               </button>
             </div>
           {:else}
-          <div class="android-actions" style="display:flex;gap:{isAndroidMobile ? '2px' : '0.3rem'};align-items:stretch;{isAndroidMobile ? 'flex-shrink:0;flex-wrap:nowrap;min-width:0;width:100%;max-width:100%;-webkit-overflow-scrolling:touch;' : 'flex-shrink:1;min-width:0;flex-wrap:wrap;padding-right:0.3rem'}overflow-x:{isAndroidMobile && dpAbierto ? 'visible' : isAndroidMobile ? 'auto' : 'visible'}">
-          {#if isAndroidMobile && periodoEfectivo === "diario"}
-            <!-- Más ancho que antes: con 130px la fecha "dd/mm/aaaa" no entraba y el
-                 año quedaba con puntos suspensivos. La fila es nowrap con scroll
-                 horizontal, así que ensanchar no empuja a los demás de la vista. -->
-            <div style="flex:1 1 52%;min-width:172px;max-width:260px;align-self:stretch;">
-              <DatePickerGlass bind:value={selectedFecha} bind:abierto={dpAbierto} diaHabilitado={esDiaHabilCalendario} />
-            </div>
-            <!-- Guardar va acá en Android: se sigue la fila de izquierda a derecha
-                 (fecha -> guardar) y queda a la vista sin tener que scrollear. -->
+          <!-- Android: la fila ENVUELVE (no scroll lateral), igual que los rieles de
+               filtros/acciones de NotasPage. Antes era `nowrap` + `overflow-x:auto`:
+               las acciones de la derecha existían pero no se descubrían. El
+               DatePicker sigue entrando porque `overflow-x` queda `visible` siempre. -->
+          <div class="android-actions" style="display:flex;gap:{isAndroidMobile ? '3px' : '0.3rem'};align-items:stretch;flex-wrap:wrap;{isAndroidMobile ? 'flex-shrink:0;min-width:0;width:100%;max-width:100%;' : 'flex-shrink:1;min-width:0;padding-right:0.3rem'}overflow-x:visible">
+          {#if isAndroidMobile}
+            {#if periodoEfectivo === "diario"}
+              <!-- Más ancho que antes: con 130px la fecha "dd/mm/aaaa" no entraba y el
+                   año quedaba con puntos suspensivos. -->
+              <div style="flex:1 1 52%;min-width:172px;max-width:260px;align-self:stretch;">
+                <DatePickerGlass bind:value={selectedFecha} bind:abierto={dpAbierto} diaHabilitado={esDiaHabilCalendario} />
+              </div>
+            {/if}
+            <!-- Guardar va SIEMPRE en Android (diario, semanal y mensual): antes solo
+                 se renderizaba en diario, así que en semanal/mensual el borrador de
+                 `draftMulti` no tenía forma de persistirse desde el teléfono. -->
             <BotonMod opts={optsGuardar} />
           {/if}
           <!-- `flex:0 0 auto` a propósito: el chip NO debe encogerse, debe BAJAR

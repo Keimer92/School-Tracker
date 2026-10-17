@@ -1988,6 +1988,20 @@ lee. Lo que los separa:
   hoy es distinto). Los effects con deps explícitas llevan `void modo;`.
 - **`visible`** ahora significa "la página está a la vista" para LOS DOS modos, no
   "estoy en el sub-tab tomar".
+- **Layout Android (2026-10)**: los filtros de catálogo viven en el riel inline
+  `FiltroRail` (se eliminó `FiltersModalAndroid` de esta página) con el orden de
+  escritorio: **Año → Período → [fecha/semana/mes] → Colegio → Grado → Sección →
+  Sexo**. El modo usa el mismo `ModoToggle` que escritorio (variante `grande`, en
+  su propia fila) y el swipe del wrapper se eliminó (ver `AsistenciaMainPage`).
+  - El control de período en el riel Android es nativo (`<select>` de mes y de
+    semana) en vez del popover de escritorio: en el WebView el `<select>` abre el
+    popup del sistema y así no hay que duplicar el `pop-wrap`.
+  - La fila de acciones `.android-actions` **envuelve** (`flex-wrap:wrap`,
+    `overflow-x:visible`), ya no scrollea de lado. Además, **Guardar se renderiza
+    en TODOS los períodos** en Android: antes solo salía en diario, así que en
+    semanal/mensual el borrador de `draftMulti` no tenía forma de persistirse
+    desde el teléfono (era un bug real, no un rediseño). El `bind:abierto`
+    (`dpAbierto`) quedó sin lectura por el mismo cambio.
 
 ⚠️ `AsistenciaMainPage` **no** debe volver al montaje perezoso por sub-tab: con un
 solo hijo no hay nada que montar por separado, y `display:none` por sub-tab
