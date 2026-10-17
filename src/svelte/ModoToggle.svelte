@@ -8,9 +8,11 @@
   barras seguidas y la página se veía pesada. Como es un filtro más se alinea
   con el resto de la fila (mismo alto que `.filter-select`) y no gana altura.
 
-  Solo escritorio: en Android el modo lo lleva la píldora flotante del wrapper,
-  que no consume altura vertical (que en un teléfono es lo más escaso) y deja el
-  gesto de swipe.
+  Se usa en escritorio Y en Android (variante `grande`): en el teléfono el modo ya
+  no es un gesto oculto (swipe) sino este control visible, igual que en Windows.
+  En escritorio va como un `FilterGroup` más dentro de la fila de filtros; en
+  Android va en su propia fila al inicio del header, porque ahí la barra de filtros
+  es el riel `.filtro-rail` (rejilla) y el control necesita el ancho completo.
 
   Sin iconos a propósito: la fila de filtros es texto puro, y empatar con eso
   es lo que hace que el control pase desapercibido en lugar de gritar.

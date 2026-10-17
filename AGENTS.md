@@ -2103,16 +2103,24 @@ Qué se cambió (aplica a `registrar` y `reportes`):
      la columna a crecer (grid usa el `min-content` del ítem como mínimo).
    - Los botones van **sin `compacto`**: ese prop inyecta `padding` en el `style`
      en línea y ganaría al padding reducido del CSS.
-3. **Estudiante + Nota Final se fusionaron en UNA fila** (`.notas-barra-estudiante`,
-   ~52px): eran dos tarjetas apiladas (~125px) para la misma unidad de
-   información ("en qué estudiante estoy y cómo va").
+3. **Estudiante + Nota Final son UNA caja de DOS filas**
+   (`.notas-barra-estudiante`, hoy `flex-direction:column`): primero la fila de
+   navegación (◀ / nombre / ▶) y debajo la Nota Final (`.nf-est`), las dos a ancho
+   completo. Antes eran dos tarjetas apiladas (~125px) y después se fusionaron en
+   UNA fila (~52px), pero **el nombre se recortaba con elipsis** (`white-space:nowrap`
+   + `text-overflow:ellipsis`) y la NF le robaba ancho.
+   - ⚠️ El nombre del carrusel lleva `white-space:normal` + `overflow-wrap:anywhere`
+     **a propósito**: un nombre largo envuelve a 2 líneas en vez de recortarse, y por
+     eso la NF vive en su propia fila (si volviera a la misma fila competirían por el
+     ancho y uno de los dos se recorta). No volver a fusionarlas en una sola fila.
 4. **Los indicadores son PESTAÑAS, no un scroll vertical** (`.ind-tabs` +
    `.ind-tab`). Con 1-3 criterios por indicador, uno solo entra holgado en el
    área: en vez de apilar los 5 (bajar hasta el 5to era el viaje) se salta con
    un tap. El punto de cada pestaña lleva el color de la nota del indicador.
-   - ⚠️ **NO convertir esto en carrusel con swipe**: el swipe horizontal ya lo
-     usa el wrapper para cambiar de modo (`registrar` ↔ `reportes`) y se
-     pelearían.
+   - ⚠️ **NO convertir esto en carrusel con swipe**: el modo tiene su control
+     visible (`ModoToggle`) y las pestañas se eligen con tap. Un swipe aquí no
+     compite con nada, pero se descartó por la razón de más abajo (en Android ya
+     no hay gestos de swipe).
    - El estado es `indicadorSelId` (**el `id`, no el índice**): al cambiar de
      asignatura/corte `indicadoresSeccion` se reconstruye entero y un índice
      quedaría apuntando a otro indicador (o fuera de rango). Con el `id` la
@@ -2124,6 +2132,32 @@ Qué se cambió (aplica a `registrar` y `reportes`):
    (total/máximo/escala/sigla/color) que antes estaba **duplicado en dos IIFE**
    distintas del markup (una para el color, otra para el texto). Ahora lo usan
    las pestañas y el encabezado del indicador abierto.
+6. **El modo (`ModoToggle`) es visible en Android, igual que en escritorio, y el
+   SWIPE se eliminó** (2026-10). Antes en Android el único control del modo era el
+   swipe horizontal del wrapper. Ahora `NotasPage` dibuja el MISMO `ModoToggle`
+   que el branch de escritorio (variante `grande`, fila propia, primera pieza del
+   header sticky de cada uno de los dos branches: `registrar` y `reportes`) y
+   `NotasMainPage` **ya no tiene handlers de touch**.
+   - ⚠️ Se quitaron **los dos** swipes: el del wrapper (cambio de modo) **y** el
+     del contenedor de notas del hijo (navegación entre estudiantes, antes en
+     `ontouchstart`/`ontouchend` sobre `notasScrollRef`). La navegación entre
+     estudiantes es SOLO por ◀/▶ y por la lista (tocar el nombre). Motivo: "como
+     en Windows" no hay ningún gesto, y un toque dentro del área de notas no debe
+     poder leerse como navegación.
+   - El estado del modo sigue viviendo en `NotasMainPage` (`activeSub`); el
+     `ModoToggle` solo avisa por `onModoChange` y el wrapper pasa `modo`.
+7. **BUG: el carrusel volvía al primer estudiante tras tocar una nota**
+   (2026-10). Causa: el `$effect` que reencuadra el índice reseteaba a 0 cuando
+   `filteredNotas` quedaba **vacío** (`else if (n.length === 0) currentStudentIdx = 0`).
+   Durante un refresco silencioso la lista pasa un instante sin filas, el effect
+   la ve vacía, pone el índice en 0 y cuando las filas vuelven el `keepIdx` de
+   `fetchEstudiantes` ya parte de 0: la posición se perdió.
+   - ⚠️ Ahora el effect **solo reencuadra hacia arriba** (`currentStudentIdx >
+     n.length - 1` → `n.length - 1`) y clampa negativos; **nunca** vuelve a 0 por
+     lista vacía. El reinicio por cambio de FILTRO es otro effect (el de
+     `filtersRef`), que es donde corresponde.
+   - `fetchEstudiantes` preserva con `if (keepIdx < data.length) currentStudentIdx
+     = keepIdx` partiendo del índice actual.
 
 ⚠️ `FiltersModalAndroid` **sigue existiendo y usándose** en `AsistenciaPage` y
 `EstudiantesPage`. `NotasPage` ya no lo importa.

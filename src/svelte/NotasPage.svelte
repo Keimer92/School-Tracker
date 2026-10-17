@@ -497,6 +497,35 @@ import { primerColegio } from "../lib/catalogo";
     return registerBackHandler(() => { cerrarPopover(); return true; });
   });
 
+  /**
+   * Reencuadre del popover al viewport.
+   *
+   * `abrirPopover` lo ancla con las coordenadas del disparador, pero cerca del
+   * borde derecho/inferior el panel se saldría de la pantalla (peor aún en un
+   * teléfono). El panel está portalado a `<body>`, así que se mide ya renderizado
+   * y se mete dentro del viewport: si no entra por abajo, se sube por ENCIMA del
+   * disparador. El guard `nx/ny !== x/y` evita el bucle (al recolocar, el rect ya
+   * cae dentro y no se vuelve a escribir).
+   */
+  $effect(() => {
+    if (!popover || !popoverPanelEl) return;
+    const rect = popoverPanelEl.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const margen = 8;
+    let nx = popover.x;
+    let ny = popover.y;
+    if (rect.right > vw - margen) nx = Math.max(margen, Math.round(vw - rect.width - margen));
+    if (rect.bottom > vh - margen) {
+      const tr = popoverTriggerEl?.getBoundingClientRect();
+      const arriba = tr ? Math.round(tr.top - rect.height - 4) : 0;
+      ny = arriba >= margen ? arriba : Math.max(margen, Math.round(vh - rect.height - margen));
+    }
+    if (nx !== popover.x || ny !== popover.y) {
+      popover = { ...popover, x: nx, y: ny };
+    }
+  });
+
   /** Indicador/criterio sobre el que está abierto el popover. */
   function popoverIndicador() {
     if (!popover) return null;
@@ -782,7 +811,6 @@ import { primerColegio } from "../lib/catalogo";
    * par dispare dos cargas y se vea "Cargando" dos veces.
    */
   let ultimaCargaClave = '';
-  let touchStartX = 0;
   let isUndoRedoAction = false;
 
   // Filters ref for async callbacks
@@ -1367,16 +1395,10 @@ import { primerColegio } from "../lib/catalogo";
   function goPrevStudent() { currentStudentIdx = Math.max(0, currentStudentIdx - 1); }
   function goNextStudent() { currentStudentIdx = Math.min(filteredNotas.length - 1, currentStudentIdx + 1); }
 
-  function handleTouchStart(e: TouchEvent) { touchStartX = e.touches[0].clientX; }
-  function handleTouchEnd(e: TouchEvent) {
-    const diff = e.changedTouches[0].clientX - touchStartX;
-    if (Math.abs(diff) > 50) {
-      // Este gesto pertenece a la navegación entre estudiantes: impedir que
-      // el contenedor lo interprete como cambio de sub-tab.
-      e.stopPropagation();
-      if (diff > 0) goPrevStudent(); else goNextStudent();
-    }
-  }
+  // La navegación entre estudiantes es SOLO por ◀/▶ y por la lista (tocar el
+  // nombre). El swipe horizontal del contenedor se quitó: el modo tiene su
+  // control visible (ModoToggle) y un toque dentro del área de notas ya no
+  // puede interpretarse como navegación.
 
   // CRUD operations
   async function fetchGradeConfigs() {
@@ -1540,7 +1562,9 @@ import { primerColegio } from "../lib/catalogo";
       });
       if (isActuallySilent) { history = []; redoStack = []; savedBaseline = { ...notasMap }; hasUnsavedRef = false; }
       // Preservar el estudiante que el usuario está viendo durante refrescos
-      const keepIdx = Math.min(currentStudentIdx, Math.max(0, data.length - 1));
+      // Se parte del índice ACTUAL: si la lista está igual, el usuario sigue en
+      // el mismo estudiante aunque el efecto de "lista vacía" haya pasado por 0.
+      const keepIdx = Math.min(Math.max(0, currentStudentIdx), Math.max(0, data.length - 1));
       notas = data.map(est => ({
         estudianteId: est.id,
         estudianteNombre: est.nombre,
@@ -1548,7 +1572,7 @@ import { primerColegio } from "../lib/catalogo";
         notas: cuantitativasMap[est.id] || {}
       }));
       notasCualitativas = { ...notasMap };
-      if (keepIdx > 0 && keepIdx < estudiantes.length) currentStudentIdx = keepIdx;
+      if (keepIdx < data.length) currentStudentIdx = keepIdx;
       if (isActuallySilent) {
         setTimeout(() => {
           allCriterios.forEach((criterio, critIdx) => {
@@ -1861,13 +1885,24 @@ import { primerColegio } from "../lib/catalogo";
     currentStudentIdx = 0;
   });
 
+  /**
+   * Reencuadre del índice cuando la lista cambia de tamaño.
+   *
+   * ⚠️ NO se vuelve a 0 cuando la lista queda VACÍA. Antes sí, y ese era el bug
+   * "después de tocar una nota el carrusel vuelve al primer estudiante": durante
+   * el refresco silencioso la lista pasa por un instante sin filas, el effect la
+   * ve vacía y pone el índice en 0; cuando las filas vuelven, el `keepIdx` de
+   * `fetchEstudiantes` ya parte de 0 y no hay forma de recuperar la posición.
+   *
+   * El reinicio por cambio de FILTRO es otro effect (más arriba), que es donde
+   * corresponde: si el filtro no cambió, la posición del estudiante se respeta.
+   */
   $effect(() => {
     const n = filteredNotas;
-    if (n.length > 0 && currentStudentIdx >= n.length) {
+    if (n.length > 0 && currentStudentIdx > n.length - 1) {
       currentStudentIdx = n.length - 1;
-    } else if (n.length === 0) {
-      currentStudentIdx = 0;
     }
+    if (currentStudentIdx < 0) currentStudentIdx = 0;
   });
 
   $effect(() => {
@@ -3203,6 +3238,19 @@ import { primerColegio } from "../lib/catalogo";
         {/if}
 
         {#if repIsAndroidMobile}
+          <!-- Mismo control que en `registrar`: un único ModoToggle visible en
+               Android, sin swipe. Ver el comentario gemelo en esa rama. -->
+          <div style="width:100%;padding:0 0 0.4rem;">
+            <ModoToggle
+              grande
+              valor={modo}
+              etiquetaGrupo={t('comun.modo')}
+              onchange={(id) => onModoChange(id as "registrar" | "reportes")}
+              opciones={[
+                { id: "registrar", etiqueta: t('subtab.registrarCorto'), titulo: t('subtab.registrar') },
+                { id: "reportes", etiqueta: t('subtab.reportes') },
+              ]} />
+          </div>
           <div style="width:100%;padding:0 0 0.3rem;">
             <SearchFab bind:value={searchTerm} placeholder={t('inf.buscar')} conMargen={false} />
           </div>
@@ -3682,6 +3730,24 @@ import { primerColegio } from "../lib/catalogo";
       {/if}
 
       {#if isAndroidMobile}
+        <!--
+          MODO en Android, igual que en escritorio: el mismo `ModoToggle` que el
+          branch de escritorio, en su variante `grande` (fila propia). Reemplaza
+          al swipe horizontal del wrapper: un control visible se descubre solo,
+          el gesto no. El estado sigue viviendo en el wrapper (`NotasMainPage`) y
+          este control solo avisa por `onModoChange`.
+        -->
+        <div style="width:100%;padding-top:0.4rem;">
+          <ModoToggle
+            grande
+            valor={modo}
+            etiquetaGrupo={t('comun.modo')}
+            onchange={(id) => onModoChange(id as "registrar" | "reportes")}
+            opciones={[
+              { id: "registrar", etiqueta: t('subtab.registrarCorto'), titulo: t('subtab.registrar') },
+              { id: "reportes", etiqueta: t('subtab.reportes') },
+            ]} />
+        </div>
         <div style="width:100%;padding-top:0.4rem;">
           <SearchFab bind:value={searchTerm} placeholder={t('notas.buscar.placeholder')} conMargen={false} />
         </div>
@@ -3786,17 +3852,22 @@ import { primerColegio } from "../lib/catalogo";
       <!-- Mobile: Card View -->
       {#if isMobile && !loading && estudiantes.length > 0}
         <!--
-          Estudiante + Nota Final en UNA sola fila (~52px). Antes eran dos
-          tarjetas apiladas (~125px) para la misma unidad de información ("en qué
-          estudiante estoy y cómo va"), y cada tarjeta pagaba su propio padding,
-          margen y marco.
+          Estudiante (◀ / nombre completo / ▶) arriba y Nota Final abajo, en la
+          misma caja glass de dos filas (`.notas-barra-estudiante`). Antes eran
+          dos tarjetas apiladas (~125px) y luego una sola fila (~52px), pero el
+          nombre se recortaba con elipsis: por eso el nombre puede envolver y la
+          NF bajó a su propia fila.
         -->
         <div class="notas-barra-estudiante">
           <div class="nav-est-fila">
             <button onclick={goPrevStudent} disabled={currentStudentIdx === 0}
               style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: {currentStudentIdx === 0 ? '#475569' : '#e2e8f0'}; border-radius: 10px; padding: 0.5rem 0.7rem; font-size: 1.1rem; cursor: {currentStudentIdx === 0 ? 'not-allowed' : 'pointer'}; opacity: {currentStudentIdx === 0 ? 0.4 : 1}; display: flex; align-items: center; justify-content: center; min-width: 40px;">◀</button>
             <div style="flex: 1; text-align: center; min-width: 0; padding: 0 0.5rem; cursor: pointer;" onclick={() => showStudentList = true}>
-              <div style="font-weight: bold; font-size: 0.95rem; color: #f1f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              <!-- Nombre COMPLETO: sin `nowrap`/elipsis el nombre largo envuelve a
+                  2 líneas en vez de recortarse. La fila crece solo cuando hace
+                  falta; la Nota Final ya no compite por el mismo ancho porque vive
+                  en su propia fila (ver `.notas-barra-estudiante`). -->
+              <div style="font-weight: bold; font-size: 0.95rem; color: #f1f5f9; white-space: normal; overflow-wrap: anywhere; line-height: 1.15;">
                 {filteredNotas[currentStudentIdx]?.estudianteNombre || ''}
               </div>
               <div style="font-size: 0.7rem; color: #64748b; margin-top: 2px;">
@@ -3869,8 +3940,9 @@ import { primerColegio } from "../lib/catalogo";
             (bajar hasta el 5to era el viaje) se salta con un tap. El punto de
             cada pestaña lleva el color de la nota del indicador, así de un
             vistazo se ve cuáles ya tienen nota.
-            ⚠️ NO convertir esto en carrusel con swipe: el swipe horizontal ya lo
-            usa el wrapper para cambiar de modo (registrar ↔ reportes).
+            El modo ya NO se cambia con swipe (hay ModoToggle visible), así que
+            este control podría ganar gesto propio si hiciera falta; hoy se
+            elige con tap, que es lo que el teléfono pide.
           -->
           <div class="ind-tabs">
             {#each indicadoresSeccion as ind}
@@ -3885,8 +3957,10 @@ import { primerColegio } from "../lib/catalogo";
             {/each}
           </div>
         {/if}
-        <div bind:this={notasScrollRef} style="flex: 1; overflow: auto; padding: 0 0.15rem; -webkit-overflow-scrolling: touch; height: {notasScrollHeight};"
-          ontouchstart={handleTouchStart} ontouchend={handleTouchEnd}>
+        <!-- Sin swipe entre estudiantes: la navegación va por ◀/▶ y por la lista
+             (tocar el nombre). El gesto se quitó junto con el swipe de modo; ver
+             `NotasMainPage`. -->
+        <div bind:this={notasScrollRef} style="flex: 1; overflow: auto; padding: 0 0.15rem; -webkit-overflow-scrolling: touch; height: {notasScrollHeight};">
           {#if filteredNotas[currentStudentIdx]}
             {@const est = filteredNotas[currentStudentIdx]}
             <div>
@@ -4263,6 +4337,7 @@ import { primerColegio } from "../lib/catalogo";
       {@const critPop = popoverCriterio()}
       <div
         bind:this={popoverPanelEl}
+        use:portalToBody
         role="dialog" aria-label={t('notas.popover.opciones')}
         style="position: fixed; z-index: 99995; left: {Math.max(8, Math.min(popover.x, (typeof window !== 'undefined' ? window.innerWidth : 1920) - Math.max(228, popover.ancho + 12)))}px; top: {popover.y}px; min-width: 220px; max-width: 280px; background: rgba(20,24,31,0.97); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; box-shadow: 0 18px 40px -10px rgba(0,0,0,0.65); padding: 0.45rem; box-sizing: border-box;">
         {#if popover.tipo === 'indicador' && indPop && popover.modo === 'elegir'}
@@ -4945,17 +5020,20 @@ import { primerColegio } from "../lib/catalogo";
     .btn-rail :global(.btn-mod .txt > span:first-child){max-width:100%;overflow:hidden;text-overflow:ellipsis}
     .btn-rail :global(.btn-mod .sub){max-width:100%;overflow:hidden;text-overflow:ellipsis}
 
-    /* Estudiante + Nota Final en una sola fila (~52px en vez de ~125px). */
+    /* Estudiante + Nota Final en DOS filas: el nombre completo necesita todo el
+       ancho (envuelve a 2 líneas si es largo), así que la Nota Final baja a su
+       propia fila en vez de robarle ancho al nombre. Antes eran una sola fila
+       (~52px) pero el nombre se recortaba con elipsis. */
     .notas-barra-estudiante{
-      display:flex;align-items:center;gap:.35rem;padding:.3rem;margin-top:.4rem;flex-shrink:0;
+      display:flex;flex-direction:column;align-items:stretch;gap:.3rem;padding:.3rem;margin-top:.4rem;flex-shrink:0;
       background:rgba(15,23,42,.6);border:1px solid rgba(255,255,255,.06);border-radius:12px;
     }
     .nav-est-fila{
-      flex:1;min-width:0;display:flex;align-items:center;justify-content:space-between;
+      width:100%;min-width:0;display:flex;align-items:center;justify-content:space-between;
       padding:.15rem;user-select:none;
     }
     .nf-est{
-      flex:0 0 auto;display:flex;align-items:center;gap:.4rem;padding:.35rem .5rem;
+      width:100%;display:flex;align-items:center;justify-content:center;gap:.4rem;padding:.3rem .5rem;
       border-radius:10px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.3);
     }
 

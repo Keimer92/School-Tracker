@@ -30,76 +30,20 @@
     activeSub = tab;
   }
 
-  // ── Swipe horizontal para alternar sub-tabs (solo Android, solo en vertical) ──
-  // Es el ÚNICO control del modo en Android: no hay barra arriba ni píldora
-  // flotante. En escritorio el modo lo lleva el ModoToggle de la barra de
-  // filtros de cada hijo (onModoChange).
-  //
-  // Deslizar a la izquierda → Reportes · Deslizar a la derecha → Registrar.
-  // En modo horizontal (landscape) el swipe está DESHABILITADO: la tabla de notas
-  // usa scroll horizontal propio y el gesto conflictúa con la navegación de sub-tabs.
-  // Se ignora el gesto si inicia dentro de un elemento con scroll horizontal propio
-  // o dentro de un modal/overlay fijo. Nota: en la vista de captura de Notas (vertical),
-  // el deslizamiento horizontal ya navega entre estudiantes (el hijo consume ese gesto).
-  let isAndroidUA = /Android/i.test(navigator.userAgent);
-  let swipeStartX = 0;
-  let swipeStartY = 0;
-  let swipeEligible = false;
-
-  function isSwipeBlockedTarget(e: Event): boolean {
-    const path = e.composedPath ? (e.composedPath() as EventTarget[]) : [];
-    for (const node of path) {
-      if (!(node instanceof HTMLElement)) continue;
-      const st = getComputedStyle(node);
-      // Modales/overlays fijos de las páginas hijas
-      if (st.position === "fixed") {
-        const z = parseInt(st.zIndex, 10);
-        if (!Number.isNaN(z) && z >= 100) return true;
-      }
-      // Áreas con scroll horizontal propio
-      if ((st.overflowX === "auto" || st.overflowX === "scroll") && node.scrollWidth > node.clientWidth + 4) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  function onContentTouchStart(e: TouchEvent) {
-    if (!isAndroidUA || e.touches.length !== 1) { swipeEligible = false; return; }
-    // Sin swipe lateral en modo horizontal (landscape): la tabla de notas usa
-    // scroll horizontal propio y el gesto conflictúa con la navegación de sub-tabs.
-    if (window.innerHeight <= window.innerWidth) { swipeEligible = false; return; }
-    // Se llama `toque`, no `t`: `t` es la funcion de i18n (GOTCHA de AGENTS.md).
-    const toque = e.touches[0];
-    swipeStartX = toque.clientX;
-    swipeStartY = toque.clientY;
-    swipeEligible = !isSwipeBlockedTarget(e);
-  }
-
-  function onContentTouchEnd(e: TouchEvent) {
-    if (!isAndroidUA) return;
-    if (!swipeEligible) { swipeEligible = false; return; }
-    swipeEligible = false;
-    // Solo en vertical (portrait) se alternan sub-tabs con swipe.
-    if (window.innerHeight <= window.innerWidth) return;
-    const toque = e.changedTouches[0];
-    const dx = toque.clientX - swipeStartX;
-    const dy = toque.clientY - swipeStartY;
-    if (Math.abs(dx) >= 70 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-      if (dx < 0 && activeSub === "registrar") switchTo("reportes");
-      else if (dx > 0 && activeSub === "reportes") switchTo("registrar");
-    }
-  }
+  // Sin swipe: el modo se cambia con el `ModoToggle` visible que el hijo dibuja
+  // en Android (misma pieza que en escritorio) y que avisa por `onModoChange`.
+  // Antes el swipe era el único control en Android y un toque dentro del área de
+  // notas podía leerse como navegación; con el control a la vista, el gesto sobra.
 </script>
 
 <div class="notas-main" style="height:100%;min-height:0">
-  <div style="flex:1;min-height:0;position:relative" ontouchstart={onContentTouchStart} ontouchend={onContentTouchEnd}>
+  <div style="flex:1;min-height:0;position:relative">
     <!--
-      No hay barra de sub-tabs ni píldora flotante: en escritorio el control es
-      el ModoToggle dentro de la barra de filtros de NotasPage (que avisa por
-      `onModoChange`) y en Android basta el swipe. Cualquier cosa que se ponga
-      acá arriba vuelve a apilarse con los filtros, que es exactamente lo que se
-      quitó.
+      No hay barra de sub-tabs ni píldora flotante: el control es el ModoToggle
+      que NotasPage dibuja dentro de su barra de filtros (escritorio y Android,
+      este último en variante grande) y que avisa por `onModoChange`. Cualquier
+      cosa que se ponga acá arriba vuelve a apilarse con los filtros, que es
+      exactamente lo que se quitó.
 
       Un SOLO hijo: `modo` decide qué mitad se renderiza dentro de NotasPage
       (mismo patrón que AsistenciaMainPage con AsistenciaPage). No hay montaje
