@@ -2659,7 +2659,10 @@ $effect(() => {
                 <option value="mensual">{t('asis.periodo.mensual')}</option>
               </select>
               {#if periodoEfectivo === "diario"}
-                <div style="grid-column:1/-1;min-width:0">
+                <!-- Celda normal de la rejilla (no `grid-column:1/-1`): hereda el
+                     ancho de columna y queda justo después del selector de
+                     Período, como una pieza más del riel. -->
+                <div class="rail-fecha" style="min-width:0">
                   <DatePickerGlass bind:value={selectedFecha} diaHabilitado={esDiaHabilCalendario} />
                 </div>
               {:else if periodoEfectivo === "semanal"}
@@ -3611,4 +3614,9 @@ $effect(() => {
   /* `pop-wrap` trae width:100% (pensado para filtros verticales); como ítem de
      rejilla se estira a la columna, así que solo se evita que desborde. */
   .android-actions .pop-wrap{min-width:0;}
+  /* El DatePicker del riel va como una celda más: iguala altura y tipografía de
+     los `<select>` (32px / 0.72rem) para no estirar la fila ni recortar
+     "dd/mm/aaaa". La clase la pone AsistenciaPage; `:global` porque el `<button>`
+     `.dg-trigger` lo acuña DatePickerGlass. */
+  .rail-fecha :global(.dg-trigger){ height:32px; padding:0 0.45rem; font-size:0.72rem; gap:0.3rem; }
 </style>
