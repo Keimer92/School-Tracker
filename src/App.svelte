@@ -46,6 +46,10 @@
   let initialized = $state<boolean | null>(null);
   let isMobile = $state(false);
   let isAndroid = $state(false);
+  // Ventana de escritorio estrecha (769–1024px): el sidebar pasa a `position:fixed`
+  // por el media query del CSS, así que la columna del grid debe colapsar igual
+  // que en móvil para que el contenido principal ocupe todo el ancho.
+  let isNarrow = $state(false);
   let activeTab = $state<Tab>("dashboard");
   let visitedTabs = $state<Set<Tab>>(new Set(DEFAULT_TABS));
   let sidebarWidth = $state(Math.min(Math.max(220, Math.floor(window.innerWidth * 0.16)), 260));
@@ -123,6 +127,10 @@
   function checkMobile() {
     isMobile = window.innerWidth <= 768 || /Android/i.test(navigator.userAgent);
     isAndroid = /Android/i.test(navigator.userAgent);
+    // 769–1024px: el CSS pone el sidebar en `position:fixed` (fuera del grid),
+    // así que hay que colapsar su columna para que `main-content` no quede
+    // desplazado hacia la derecha por el espacio reservado al sidebar.
+    isNarrow = !isAndroid && window.innerWidth > 768 && window.innerWidth <= 1024;
   }
 
   // El aviso de apertura vive en `lib/attendanceAlarm.ts` (formato VIEJO: leía
@@ -157,14 +165,14 @@
     if (tab === "reportes") {
       notasSubTabRequest = "reportes";
       setActiveTab("notas");
-      if (isMobile) drawerOpen = false;
+      if (isMobile || isNarrow) drawerOpen = false;
       return;
     }
     // Migración: el quick-action "Informe" del Dashboard abre la página unificada en su sub-tab Informe
     if (tab === "informe") {
       asistenciaSubTabRequest = "informe";
       setActiveTab("asistencia");
-      if (isMobile) drawerOpen = false;
+      if (isMobile || isNarrow) drawerOpen = false;
       return;
     }
     // Evaluaciones ya no es tab: es una sección del rail de Ajustes. Cualquier
@@ -175,7 +183,7 @@
     if (seccionAjustes) {
       ajustesSeccion = seccionAjustes;
       setActiveTab("ajustes");
-      if (isMobile) drawerOpen = false;
+      if (isMobile || isNarrow) drawerOpen = false;
       return;
     }
     if (!esTabValida(tab)) {
@@ -189,7 +197,7 @@
     asistenciaSubTabRequest = null;
     notasSubTabRequest = null;
     setActiveTab(tab);
-    if (isMobile) drawerOpen = false;
+    if (isMobile || isNarrow) drawerOpen = false;
   }
 
   async function goBack() {
@@ -510,7 +518,7 @@
 {:else if initialized}
 <div
   class="app-layout"
-  style="grid-template-columns: {isMobile ? '0px 0px 1fr' : sidebarWidth + 'px 4px 1fr'}; padding-bottom: {isMobile ? 'env(safe-area-inset-bottom, 0px)' : '0'};"
+  style="grid-template-columns: {isMobile || isNarrow ? '0px 0px 1fr' : sidebarWidth + 'px 4px 1fr'}; padding-bottom: {isMobile ? 'env(safe-area-inset-bottom, 0px)' : '0'};"
 >
   {#if isMobile}
     <!--
@@ -531,7 +539,7 @@
     <Sidebar
       {activeTab}
       {drawerOpen}
-      {isMobile}
+      isMobile={isMobile || isNarrow}
       onTabChange={handleTabChange}
       toggleDrawer={toggleDrawer}
       onDrawerClose={closeDrawer}
@@ -540,10 +548,23 @@
 
     <div
       class="resizer {isResizing ? 'resizing' : ''}"
+      style="display: {isNarrow ? 'none' : ''}"
       onmousedown={startResize}
     ></div>
 
   <main class="main-content">
+    {#if isNarrow}
+      <!-- Botón hamburguesa para abrir el sidebar en ventanas 769-1024px -->
+      <button
+        class="narrow-menu-btn"
+        onclick={toggleDrawer}
+        aria-label="Abrir menú"
+        type="button"
+      >☰</button>
+      {#if drawerOpen}
+        <div class="drawer-backdrop" onclick={closeDrawer}></div>
+      {/if}
+    {/if}
     {#if visitedTabs.has('dashboard')}
       <div style="display: {activeTab === 'dashboard' ? 'block' : 'none'}; width: 100%; height: 100%;"><DashboardPage onNavigate={handleTabChange} /></div>
     {/if}

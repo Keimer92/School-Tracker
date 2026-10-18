@@ -2167,8 +2167,8 @@ ni plantilla del constructor en la BD.`,
     try {
       const [currentIndicadores, estudiantesData, notasData] = await Promise.all([
         fetchConfiguracionEvaluacion(true, false),
-        invoke<Estudiante[]>("get_estudiantes_by_filters", { gradoId: grado, seccionId: seccion }),
-        invoke<{ estudianteId: number; criterioId: number; valor: number }[]>("get_notas_by_filters", { gradoId: grado, seccionId: seccion, corteId: corte, asignaturaId: asignatura })
+        invoke<Estudiante[]>("get_estudiantes_by_filters", { gradoId: grado, seccionId: seccion, anoLectivoId: ano }),
+        invoke<{ estudianteId: number; criterioId: number; valor: number }[]>("get_notas_by_filters", { gradoId: grado, seccionId: seccion, corteId: corte, asignaturaId: asignatura, anoLectivoId: ano })
       ]);
       if (currentLoadId !== loadId) return;
       // Las columnas (`indicadores`) se escriben acá y no dentro de

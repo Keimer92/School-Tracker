@@ -219,7 +219,7 @@ function procesarBloqueEstudiantes(sheetXml: string, input: ExcelInstrumentoInpu
  */
 export async function plantillasDir(): Promise<string> {
   const docsPath = await documentDir();
-  return unirRuta(docsPath, 'SchoolTrackerPro', 'Plantillas');
+  return unirRuta(docsPath, 'School Tracker', 'Instrumentos');
 }
 
 /** Lista las plantillas .xlsx disponibles con su tipo detectado por nombre. */
@@ -361,6 +361,8 @@ function renderGridXlsx(wb: any, grid: PlantillaGrid, def: PlantillaDefinicion, 
   const celdasPorFila = new Map<number, { c0: number; cs: number; rs: number; v: string }[]>();
   for (const [k, cel] of Object.entries(grid.celdas)) {
     const [r, c0] = k.split(':').map(Number);
+    // Saltar celdas cubiertas por un merge de otra celda.
+    if (cov.has(`${r}:${c0}`)) continue;
     const cs = Math.min(cel.cs ?? 1, grid.cols - c0);
     // Columnas de salida que abarca: filtra las {AI} eliminadas.
     const span: number[] = [];

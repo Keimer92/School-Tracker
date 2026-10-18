@@ -3154,3 +3154,34 @@ input:checked + .slider:before {
 @media print {
   .no-print { display: none !important; }
 }
+
+/* ============================================================
+   Botón hamburguesa — modo narrow (ventanas escritorio 769-1024px)
+   El sidebar pasa a position:fixed en ese rango, así que el grid
+   lo excluye del flujo. Este botón lo abre como drawer.
+   ============================================================ */
+.narrow-menu-btn {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 998;
+  background: var(--bg-elevated, rgba(30,34,44,0.92));
+  color: var(--text-primary, #e2e8f0);
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  border-radius: 10px;
+  width: 40px;
+  height: 40px;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.narrow-menu-btn:hover {
+  background: var(--bg-hover, rgba(255,255,255,0.08));
+  border-color: var(--primary-color, #818cf8);
+}
