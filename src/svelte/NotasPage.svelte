@@ -1780,40 +1780,47 @@ import { primerColegio } from "../lib/catalogo";
     }
   }
 
+  /** Letras del indicador para UN estudiante (solo notas REGISTRADAS, mayúsculas). */
+  function letrasIndicadorDeEst(ind: Indicador, estId: number): string[] {
+    return ind.criterios.map(c => (notasCualitativas[`${estId}-${c.id}`] || '').toUpperCase());
+  }
+
+  /** Puntos por sigla en un indicador (misma fórmula de la tabla de Reportes:
+   *  pts redondeados por criterio según notaMapping; 0 si no hay nota). */
+  function ptsIndicadorDeEst(ind: Indicador, estId: number): number {
+    return ind.criterios.reduce((s, c) => {
+      const qv = (notasCualitativas[`${estId}-${c.id}`] || '').toUpperCase();
+      if (qv && ['AA', 'AS', 'AF', 'AI'].includes(qv)) return s + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
+      return s;
+    }, 0);
+  }
+
+  /** Total del indicador "pts + sigla" (ej. "17 AS"); vacío si no hay notas. */
+  function totalIndText(ind: Indicador, estId: number): string {
+    const letras = letrasIndicadorDeEst(ind, estId);
+    const validas = letras.filter(l => ['AA', 'AS', 'AF', 'AI'].includes(l));
+    if (validas.length === 0) return '';
+    const pts = ptsIndicadorDeEst(ind, estId);
+    const sigla = calcularNotaCualitativaFinal(validas);
+    return sigla ? `${pts} ${sigla}` : String(pts);
+  }
+
+  /** Nota Final del corte "pts + sigla": todos los indicadores ACTIVOS de la
+   *  sección, igual que la NF de la registrar. Vacía si no hay notas. */
+  function nfText(estId: number): string {
+    const activos = activeIndicadores;
+    if (activos.length === 0) return '';
+    const letras = activos.flatMap(i => i.criterios.map(c => (notasCualitativas[`${estId}-${c.id}`] || '').toUpperCase()));
+    const validas = letras.filter(l => ['AA', 'AS', 'AF', 'AI'].includes(l));
+    if (validas.length === 0) return '';
+    const pts = activos.reduce((s, i) => s + ptsIndicadorDeEst(i, estId), 0);
+    const sigla = calcularNotaCualitativaFinal(validas);
+    return sigla ? `${pts} ${sigla}` : String(pts);
+  }
+
   function buildInstrumentoInput(ind: Indicador): InstrumentoInput {
-    const letrasDeEst = (estId: number): string[] =>
-      ind.criterios.map(c => (notasCualitativas[`${estId}-${c.id}`] || '').toUpperCase());
-    const totalConSigla = (letrasListado: string[]): string => {
-      // Convención de la tabla de Reportes: pts + sigla (ej. "17 AS"); vacío
-      // si el estudiante no tiene NINGUNA nota registrada.
-      const validas = letrasListado.filter(l => ['AA', 'AS', 'AF', 'AI'].includes(l));
-      if (validas.length === 0) return '';
-      const pts = ind.criterios.reduce((s, c, i) => {
-        const qv = letrasListado[i];
-        if (qv && ['AA', 'AS', 'AF', 'AI'].includes(qv)) return s + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
-        return s;
-      }, 0);
-      const sigla = calcularNotaCualitativaFinal(validas);
-      return sigla ? `${pts} ${sigla}` : String(pts);
-    };
-    // NF = Nota Final del corte: MISMA convención que NF de la tabla registrar
-    // (todos los indicadores ACTIVOS de la sección, no solo este indicador).
-    const nfDeEst = (estId: number): string => {
-      const activos = activeIndicadores;
-      if (activos.length === 0) return '';
-      const letrasTodas = activos.flatMap(i => i.criterios.map(c => (notasCualitativas[`${estId}-${c.id}`] || '').toUpperCase()));
-      const validas = letrasTodas.filter(l => ['AA', 'AS', 'AF', 'AI'].includes(l));
-      if (validas.length === 0) return '';
-      const pts = activos.reduce((s, i) => s + i.criterios.reduce((ss, c) => {
-        const qv = (notasCualitativas[`${estId}-${c.id}`] || '').toUpperCase();
-        if (qv && ['AA', 'AS', 'AF', 'AI'].includes(qv)) return ss + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
-        return ss;
-      }, 0), 0);
-      const sigla = calcularNotaCualitativaFinal(validas);
-      return sigla ? `${pts} ${sigla}` : String(pts);
-    };
     const estudiantes_input = estudiantes.map(est => {
-      const letras = letrasDeEst(est.id);
+      const letras = letrasIndicadorDeEst(ind, est.id);
       const validas = letras.filter(l => ['AA', 'AS', 'AF', 'AI'].includes(l));
       return {
         id: est.id,
@@ -1821,8 +1828,8 @@ import { primerColegio } from "../lib/catalogo";
         sexo: (est as any).sexo || '',
         letras,
         valoracion: calcularNotaCualitativaFinal(validas),
-        total: totalConSigla(letras),
-        nf: nfDeEst(est.id),
+        total: totalIndText(ind, est.id),
+        nf: nfText(est.id),
       };
     });
     return {
