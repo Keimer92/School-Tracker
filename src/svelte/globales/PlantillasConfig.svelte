@@ -381,27 +381,25 @@
             setCeldaVal(selR, selC, ((grid().celdas[kOf(selR, selC)]?.v ?? '') || '') + tk);
             el.selectedIndex = 0;
           }}>
-          <option value="">🪄 {t('pl.grid.tokens')}</option>
-          <option value="{COLEGIO}">{t('pl.tok.colegio')}</option>
-          <option value="{GRADO}">{t('pl.tok.grado')}</option>
-          <option value="{SECCION}">{t('pl.tok.seccion')}</option>
-          <option value="{ASIGNATURA}">{t('pl.tok.asignatura')}</option>
-          <option value="{CORTE}">{t('pl.tok.corte')}</option>
-          <option value="{ANO}">{t('pl.tok.ano')}</option>
-          <option value="{FECHA}">{t('pl.tok.fecha')}</option>
-          <option value="{IND_N}">{t('pl.tok.indN')}</option>
-          <option value="{IND_DESC}">{t('pl.tok.indDesc')}</option>
-          <option value="{CRIT_1}">{t('pl.tok.crit')} 1</option>
-          <option value="{CRIT_2}">{t('pl.tok.crit')} 2</option>
-          <option value="{CRIT_3}">{t('pl.tok.crit')} 3</option>
-          <option value="{CRIT_4}">{t('pl.tok.crit')} 4</option>
-          <option value="{CRIT_5}">{t('pl.tok.crit')} 5</option>
-          <option value="{N}">{t('pl.tok.num')}</option>
-          <option value="{ESTUDIANTE}">{t('pl.tok.estudiante')}</option>
-          <option value="{LETRA_1}">{t('pl.tok.letra')} 1</option>
-          <option value="{LETRA_2}">{t('pl.tok.letra')} 2</option>
-          <option value="{LETRA_3}">{t('pl.tok.letra')} 3</option>
-          <option value="{VALORACION}">{t('pl.tok.valoracion')}</option>
+          <option value="">{t('pl.grid.tokens')}</option>
+          <option value="{'{COLEGIO}'}">{t('pl.tok.colegio')}</option>
+          <option value="{'{GRADO}'}">{t('pl.tok.grado')}</option>
+          <option value="{'{SECCION}'}">{t('pl.tok.seccion')}</option>
+          <option value="{'{ASIGNATURA}'}">{t('pl.tok.asignatura')}</option>
+          <option value="{'{CORTE}'}">{t('pl.tok.corte')}</option>
+          <option value="{'{ANO}'}">{t('pl.tok.ano')}</option>
+          <option value="{'{FECHA}'}">{t('pl.tok.fecha')}</option>
+          <option value="{'{IND_N}'}">{t('pl.tok.indN')}</option>
+          <option value="{'{IND_DESC}'}">{t('pl.tok.indDesc')}</option>
+          {#each [1, 2, 3, 4, 5] as n (n)}
+            <option value="{'{CRIT_' + n + '}'}">{t('pl.tok.crit')} {n}</option>
+          {/each}
+          {#each [1, 2, 3] as n (n)}
+            <option value="{'{LETRA_' + n + '}'}">{t('pl.tok.letra')} {n}</option>
+          {/each}
+          <option value="{'{N}'}">{t('pl.tok.num')}</option>
+          <option value="{'{ESTUDIANTE}'}">{t('pl.tok.estudiante')}</option>
+          <option value="{'{VALORACION}'}">{t('pl.tok.valoracion')}</option>
         </select>
       </div>
 
@@ -425,7 +423,7 @@
                   {grid().filaEstudiantes === ri ? '🧑' : ri + 1}
                 </th>
                 {#each Array(grid().cols) as _, ci (ci)}
-                  {@if !cov.has(`${ri}:${ci}`)}
+                  {#if !cov.has(`${ri}:${ci}`)}
                     {@const cel = grid().celdas[kOf(ri, ci)]}
                     <td colspan={cel?.cs ?? 1} rowspan={cel?.rs ?? 1}
                       class:sel={selR === ri && selC === ci}

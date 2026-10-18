@@ -484,9 +484,6 @@ export async function generarInstrumentoXlsxDesdeDefinicion(
     c.font = { italic: true, size: 9, color: { argb: 'FF64748B' } };
   }
 
-  const docsPath = await documentDir();
-  const dir = unirRuta(docsPath, 'SchoolTrackerPro', 'Instrumentos');
-  await mkdir(dir, { recursive: true }).catch(() => {});
   // escribirLibroEnCarpeta agrega el .xlsx él mismo.
   return await escribirLibroEnCarpeta(wb, dir, fileNameBase);
 }

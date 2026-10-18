@@ -4,7 +4,8 @@ import { writeFile, mkdir } from '@tauri-apps/plugin-fs';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { aFileURL, esAndroid, unirRuta } from './platform';
 // Importe SOLO de tipos: no hay ciclo en runtime (el otro lado también importa tipos).
-import type { PlantillaDefinicion } from './instrumentoPlantilla';
+import type { PlantillaDefinicion, PlantillaGrid, TokenDatos } from './instrumentoPlantilla';
+import { resolverTokens } from './instrumentoPlantilla';
 
 /**
  * Instrumentos de evaluación por indicador (PDF).
@@ -239,7 +240,159 @@ function matrizRubrica(
   });
 }
 
+/** Contexto de tokens de cabecera desde el input del PDF. */
+function tokenDatosBase(input: InstrumentoInput): TokenDatos {
+  const m = input.meta as unknown as Record<string, string>;
+  return {
+    metaSel: {
+      COLEGIO: m.colegio, GRADO: m.grado, SECCION: m.seccion,
+      ASIGNATURA: m.asignatura, CORTE: m.corte, ANO: m.ano,
+    },
+    indN: input.orden,
+    indDesc: input.descripcion,
+    criterios: input.criterios.map(c => c.descripcion),
+  };
+}
+
+/**
+ * Renderiza la CUADRÍCULA tipo Excel en PDF con dibujo manual (jsPDF puro,
+ * NO autoTable: los merges col/row de la plantilla se dibujan como celdas
+ * rectangulares arbitrarias). La fila de estudiantes se expande por alumno y
+ * los encabezados se repiten en cada página.
+ */
+function construirGrid(doc: any, input: InstrumentoInput): void {
+  const g: PlantillaGrid = input.plantilla!.grid!;
+  const base = tokenDatosBase(input);
+
+  // Cubiertos: "r:c" → celda dueña [r, c] (1 = horizontal, 2 = vertical cover).
+  const cov = new Map<string, [number, number]>();
+  for (const [k, cel] of Object.entries(g.celdas)) {
+    const [r, c] = k.split(":").map(Number);
+    for (let rr = r; rr < Math.min(r + (cel.rs ?? 1), g.filas); rr++)
+      for (let cc = c; cc < Math.min(c + (cel.cs ?? 1), g.cols); cc++)
+        if (rr !== r || cc !== c) cov.set(`${rr}:${cc}`, [r, c]);
+  }
+
+  // ── Anchos de columna: texto resuelto repartido entre las columnas que abarca ──
+  const pw = (doc as any).internal.pageSize.getWidth();
+  const ph = (doc as any).internal.pageSize.getHeight();
+  const mx = 10;
+  const usable = pw - 2 * mx;
+
+  const natural: number[] = new Array(g.cols).fill(4);
+  for (const [k, cel] of Object.entries(g.celdas)) {
+    const [, c0] = k.split(":").map(Number);
+    const cs = Math.min(cel.cs ?? 1, g.cols - c0);
+    const resolved = resolverTokens(cel.v ?? "", base);
+    const llenar = Math.max(3, Math.min(resolved.length * 1.15, 30) / cs + 2);
+    for (let cc = c0; cc < c0 + cs; cc++) natural[cc] = Math.max(natural[cc], llenar);
+  }
+  const suma = natural.reduce((a, b) => a + b, 0);
+  const colW = natural.map(n => (n / suma) * usable);
+  const cumW: number[] = [0];
+  for (const w of colW) cumW.push(cumW[cumW.length - 1] + w);
+  const xDe = (c: number) => mx + cumW[c];
+  const wDe = (c0: number, cs: number) => cumW[Math.min(c0 + cs, g.cols)] - cumW[c0];
+
+  // ── Filas de salida (con expansión de la fila de estudiantes) ──
+  type CelOut = { texto: string; c0: number; cs: number; rs: number };
+  type FilaOut = { celdas: CelOut[]; estudiante: boolean };
+  const filas: FilaOut[] = [];
+  const filaLogical = (r: number, est?: { n: number; nombre: string; letras: string[]; valoracion: string }): FilaOut | null => {
+    const d: TokenDatos = est ? { ...base, est } : base;
+    const celdas: CelOut[] = [];
+    for (const [k, cel] of Object.entries(g.celdas)) {
+      const [rr, c0] = k.split(":").map(Number);
+      if (rr !== r) continue;
+      celdas.push({
+        texto: resolverTokens(cel.v ?? "", d),
+        c0,
+        cs: Math.min(cel.cs ?? 1, g.cols - c0),
+        rs: cel.rs ?? 1,
+      });
+    }
+    return celdas.length > 0 ? { celdas, estudiante: !!est } : null;
+  };
+
+  for (let r = 0; r < g.filas; r++) {
+    const esEst = r === g.filaEstudiantes;
+    if (esEst) {
+      input.estudiantes.forEach((e, i) => {
+        const f = filaLogical(r, {
+          n: i + 1,
+          nombre: e.nombre,
+          letras: input.criterios.map((_, ci) => e.letras[ci] ?? ""),
+          valoracion: e.valoracion || "",
+        });
+        if (f) filas.push(f);
+      });
+      if (input.estudiantes.length === 0) {
+        const f = filaLogical(r);
+        if (f) filas.push(f);
+      }
+    } else {
+      const f = filaLogical(r);
+      if (f) filas.push(f);
+    }
+  }
+  const filaHeaderCount = filas.findIndex(f => f.estudiante);
+  const numHeader = filaHeaderCount < 0 ? filas.length : filaHeaderCount;
+
+  // ── Dibujo ──
+  const FONTE = 8; // pt
+  const ALTO = FONTE * 0.3528 + 2.2; // línea de texto + padding (mm)
+  let y = 12;
+
+  const dibujarFila = (f: FilaOut): boolean => {
+    // Calcular altura de fila: máximo de líneas envueltas dentro del ancho fusionado.
+    let alto = ALTO;
+    if (!f.estudiante) {
+      for (const cel of f.celdas) {
+        const w = wDe(cel.c0, cel.cs) - 3;
+        const lines = (doc as any).splitTextToSize(cel.texto || " ", w).length;
+        alto = Math.max(alto, lines * (FONTE * 0.3528) + 2.4);
+      }
+    }
+    if (y + alto > ph - 12) return false;
+    doc.setFont("helvetica", f.estudiante ? "normal" : "bold");
+    doc.setFontSize(f.estudiante ? FONTE - 1 : FONTE - 0.5);
+    doc.setLineWidth(0.35);
+    for (const cel of f.celdas) {
+      const x = xDe(cel.c0);
+      const w = wDe(cel.c0, cel.cs);
+      doc.rect(x, y, w, alto);
+      if (cel.texto) {
+        const lines: string[] = (doc as any).splitTextToSize(cel.texto, w - 2.6);
+        const hLinea = FONTE * 0.3528;
+        const ty = y + (alto - lines.length * hLinea) / 2 + hLinea - 0.8;
+        doc.text(lines, x + 1.3, ty);
+      }
+    }
+    y += alto;
+    return true;
+  };
+
+  for (let i = 0; i < filas.length; i++) {
+    if (dibujarFila(filas[i])) continue;
+    // Sin espacio: página nueva, repetir encabezados (previos a la fila de
+    // estudiantes) y reintentar la fila.
+    doc.addPage();
+    y = 12;
+    for (let hh = 0; hh < numHeader && hh < i; hh++) dibujarFila(filas[hh]);
+    if (!dibujarFila(filas[i])) {
+      // La fila sola demasiado larga: se dibuja recortada en vez de colgarse.
+      dibujarFila(filas[i]);
+    }
+  }
+}
+
+/** Cuerpo del PDF: cuadrícula del constructor o diseño rápido del tipo. */
 function construir(doc: any, input: InstrumentoInput, autoTable: AutoTableFn): void {
+  // Modo cuadrícula: dibujo propio y listo (los headers/nombre ya no aplican).
+  if (input.plantilla?.grid) {
+    construirGrid(doc, input);
+    return;
+  }
   const def = input.plantilla;
   const titulo = (def?.titulo || '').trim() || `Instrumento: ${tipoLabel(input.tipo)} — Indicador ${input.orden}`;
   let startY = drawHeader(doc, input, titulo);
