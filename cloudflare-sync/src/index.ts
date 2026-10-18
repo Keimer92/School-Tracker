@@ -775,7 +775,7 @@ async function route(req: Request, env: Env): Promise<Response> {
         }
 
         const dayUtc = new Date().toISOString().slice(0, 10);
-        const usageCacheKey = `d1-usage:${env.CF_ACCOUNT_ID}:${dayUtc}`;
+        const usageCacheKey = `d1-usage-v2:${env.CF_ACCOUNT_ID}:${dayUtc}`;
         const cachedUsage = await env.USERS.get(usageCacheKey);
         if (cachedUsage) {
           return new Response(cachedUsage, {
@@ -791,7 +791,7 @@ async function route(req: Request, env: Env): Promise<Response> {
                   limit: 10000
                   filter: { date_geq: $start, date_leq: $end }
                 ) {
-                  sum { rowsRead }
+                  sum { rowsRead rowsWritten }
                 }
               }
             }
@@ -855,14 +855,22 @@ async function route(req: Request, env: Env): Promise<Response> {
           (total: number, group: any) => total + (Number(group.sum?.rowsRead) || 0),
           0,
         );
-        const dailyLimit = 5_000_000;
+        const rowsWritten = groups.reduce(
+          (total: number, group: any) => total + (Number(group.sum?.rowsWritten) || 0),
+          0,
+        );
+        const dailyReadLimit = 5_000_000;
+        const dailyWriteLimit = 100_000;
         const usage = {
           ok: true,
           scope: 'account',
           dayUtc,
           rowsRead,
-          dailyLimit,
-          percentage: (rowsRead / dailyLimit) * 100,
+          rowsWritten,
+          dailyReadLimit,
+          dailyWriteLimit,
+          readPercentage: (rowsRead / dailyReadLimit) * 100,
+          writePercentage: (rowsWritten / dailyWriteLimit) * 100,
           updatedAt: new Date().toISOString(),
         };
         await env.USERS.put(usageCacheKey, JSON.stringify(usage), { expirationTtl: 60 });

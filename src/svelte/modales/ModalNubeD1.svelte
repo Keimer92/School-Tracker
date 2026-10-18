@@ -38,8 +38,11 @@
   let isImporting = $state(false);
   let dailyUsage = $state<{
     rowsRead: number;
-    dailyLimit: number;
-    percentage: number;
+    rowsWritten: number;
+    dailyReadLimit: number;
+    dailyWriteLimit: number;
+    readPercentage: number;
+    writePercentage: number;
     dayUtc: string;
     updatedAt: string;
   } | null>(null);
@@ -282,22 +285,45 @@
           >{isLoadingUsage ? '…' : '↻'}</button>
         </div>
         {#if dailyUsage}
-          {@const porcentaje = dailyUsage.percentage}
-          <div class="uso-valores">
-            <strong>{Math.round(porcentaje)}%</strong>
-            <span>{dailyUsage.rowsRead.toLocaleString()} / {dailyUsage.dailyLimit.toLocaleString()} {t('d1m.usage.filas')}</span>
-          </div>
-          <div
-            class="uso-barra"
-            class:uso-warn={porcentaje >= 70 && porcentaje < 90}
-            class:uso-critico={porcentaje >= 90}
-            role="progressbar"
-            aria-valuemin="0"
-            aria-valuemax="100"
-            aria-valuenow={Math.min(100, Math.round(porcentaje))}
-            aria-label={`${Math.round(porcentaje)}%`}
-          >
-            <div class="uso-progreso" style={`width:${Math.min(100, Math.max(0, porcentaje))}%`}></div>
+          {@const porcentajeLecturas = dailyUsage.readPercentage}
+          {@const porcentajeEscrituras = dailyUsage.writePercentage}
+          <div class="uso-metricas">
+            <div class="uso-metrica">
+              <div class="uso-valores">
+                <strong>{Math.round(porcentajeLecturas)}%</strong>
+                <span>{t('d1m.usage.lecturas')}: {dailyUsage.rowsRead.toLocaleString()} / {dailyUsage.dailyReadLimit.toLocaleString()}</span>
+              </div>
+              <div
+                class="uso-barra"
+                class:uso-warn={porcentajeLecturas >= 70 && porcentajeLecturas < 90}
+                class:uso-critico={porcentajeLecturas >= 90}
+                role="progressbar"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                aria-valuenow={Math.min(100, Math.round(porcentajeLecturas))}
+                aria-label={`${t('d1m.usage.lecturas')}: ${Math.round(porcentajeLecturas)}%`}
+              >
+                <div class="uso-progreso" style={`width:${Math.min(100, Math.max(0, porcentajeLecturas))}%`}></div>
+              </div>
+            </div>
+            <div class="uso-metrica">
+              <div class="uso-valores">
+                <strong>{Math.round(porcentajeEscrituras)}%</strong>
+                <span>{t('d1m.usage.escrituras')}: {dailyUsage.rowsWritten.toLocaleString()} / {dailyUsage.dailyWriteLimit.toLocaleString()}</span>
+              </div>
+              <div
+                class="uso-barra"
+                class:uso-warn={porcentajeEscrituras >= 70 && porcentajeEscrituras < 90}
+                class:uso-critico={porcentajeEscrituras >= 90}
+                role="progressbar"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                aria-valuenow={Math.min(100, Math.round(porcentajeEscrituras))}
+                aria-label={`${t('d1m.usage.escrituras')}: ${Math.round(porcentajeEscrituras)}%`}
+              >
+                <div class="uso-progreso" style={`width:${Math.min(100, Math.max(0, porcentajeEscrituras))}%`}></div>
+              </div>
+            </div>
           </div>
           <div class="uso-pie">
             <span>{t('d1m.usage.utc', { day: dailyUsage.dayUtc })}</span>
@@ -509,6 +535,8 @@
   }
   .uso-valores strong { color: #34d399; font-size: 1.1rem; }
   .uso-valores span { color: #cbd5e1; font-size: 0.7rem; text-align: right; }
+  .uso-metricas { display: grid; gap: 0.25rem; margin-top: 0.65rem; }
+  .uso-metrica .uso-valores { margin-top: 0; }
   .uso-barra {
     height: 7px;
     overflow: hidden;
