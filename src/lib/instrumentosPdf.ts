@@ -144,6 +144,7 @@ function encabezadoInstrumento(doc: any, input: InstrumentoInput): number {
     y += descLines.length * 4.6;
   } else {
     // Sin descripción: solo se pinta Indicador N sin colon vacio
+  }
   return y + 2;
 }
 
@@ -372,7 +373,7 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
   type CelOut = { texto: string; c0: number; cs: number; rs: number };
   type FilaOut = { celdas: CelOut[]; estudiante: boolean };
   const filas: FilaOut[] = [];
-  const filaLogical = (r: number, est?: { n: number; nombre: string; letras: string[]; valoracion: string }): FilaOut | null => {
+  const filaLogical = (r: number, est?: { n: number; nombre: string; letras: string[]; valoracion: string; total?: string; nf?: string }): FilaOut | null => {
     const d: TokenDatos = est ? { ...base, est } : base;
     const celdas: CelOut[] = [];
     for (const [k, cel] of Object.entries(g.celdas)) {
