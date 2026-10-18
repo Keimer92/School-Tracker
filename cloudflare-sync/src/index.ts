@@ -836,6 +836,16 @@ async function route(req: Request, env: Env): Promise<Response> {
             .map((error: any) => error?.message)
             .filter((message: unknown): message is string => typeof message === 'string')
             .join('; ');
+          if (/not authorized.*account|unauthorized.*account|account.*not authorized/i.test(messages)) {
+            return json(
+              {
+                ok: false,
+                error:
+                  'The Worker CF_API_TOKEN cannot access the configured Cloudflare account. Grant Account Analytics:Read to the token and verify that its account scope matches CF_ACCOUNT_ID.',
+              },
+              502,
+            );
+          }
           throw new Error(messages || 'Cloudflare Analytics query failed; verify the token has Account Analytics:Read permission');
         }
 
