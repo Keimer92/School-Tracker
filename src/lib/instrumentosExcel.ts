@@ -3,6 +3,8 @@ import { documentDir } from '@tauri-apps/api/path';
 import { writeFile, mkdir, readDir } from '@tauri-apps/plugin-fs';
 import type { InstrumentoTipo } from './instrumentosPdf';
 import { aFileURL, separadorRuta, unirRuta } from './platform';
+import { cargarExcelJs, crearLibro, agregarHoja, escribirPortada, escribirCabecera, escribirFila, escribirLibroEnCarpeta } from './excel';
+import type { PlantillaDefinicion } from './instrumentoPlantilla';
 
 /** Detecta el tipo de instrumento por palabras clave EN EL NOMBRE DEL ARCHIVO.
  *  El nombre debe contener: "Rúbrica"/"Rubrica", "Cotejo" o "Escala".
@@ -295,5 +297,89 @@ export async function generarInstrumentoExcel(
 export async function abrirCarpetaInstrumentos(): Promise<void> {
   const { openUrl } = await import('@tauri-apps/plugin-opener');
   const docsPath = await (await import('@tauri-apps/api/path')).documentDir();
-  try { await openUrl(aFileURL(unirRuta(docsPath, 'SchoolTrackerPro', 'Instrumentos'))); } catch {}
+  try { await openUrl(aFileURL(unirRuta(docsPath, 'SchoolTrackerPro', 'Instrumentos'))) } catch {}
+}
+
+// ============================================================================
+// Generador XLSX desde plantilla de la BD (constructor visual)
+// ============================================================================
+
+/**
+ * Genera el XLSX SIN plantilla de archivo: la presentación la manda la
+ * definición de la plantilla de la BD (`PlantillaDefinicion`) y los datos el
+ * `ExcelInstrumentoInput`. Es el camino que reemplaza la carpeta Plantillas:
+ * en Android no hay una carpeta editable y el respaldo/restauro de Drive no
+ * trae archivos sueltos, pero la plantilla sí viaja sincronizada en la BD.
+ *
+ * Devuelve la ruta completa del archivo guardado.
+ */
+export async function generarInstrumentoXlsxDesdeDefinicion(
+  def: PlantillaDefinicion,
+  input: ExcelInstrumentoInput,
+  fileNameBase: string,
+): Promise<string> {
+  const ExcelJS = await cargarExcelJs();
+  const wb = await crearLibro('School Tracker');
+
+  const conFinal = def.colFinal !== 'ninguno';
+  const headers = conFinal
+    ? ['#', 'Estudiante', ...input.criterios.map(c => `C${c.orden}`), def.colFinal === 'total' ? 'Total' : 'Valoración']
+    : ['#', 'Estudiante', ...input.criterios.map(c => `C${c.orden}`)];
+  const anchos = headers.map((h, i) => (i <= 1 || !conFinal && i === 1 ? (i === 0 ? 5 : 38) : 13));
+
+  const nombreHoja = `Indicador ${input.indicadorOrden}`.replace(/[\\/:*?"<>|]/g, '-').slice(0, 31);
+  const ws = agregarHoja(wb, nombreHoja, anchos);
+
+  const tituloDef = (def.titulo || '').trim();
+  const titulo = tituloDef
+    ? `${tituloDef} — Ind ${input.indicadorOrden}`
+    : `Instrumento Indicador ${input.indicadorOrden}`;
+  const lineasEncabezado = [
+    `Colegio: ${input.meta.colegio}    Año: ${input.meta.ano}    Corte: ${input.meta.corte}`,
+    `Grado-Sección: ${input.meta.grado}-${input.meta.seccion}    Asignatura: ${input.meta.asignatura}`,
+    `Indicador ${input.indicadorOrden}: ${input.indicadorDescripcion || ''}`.trimEnd(),
+  ];
+  const intro = (def.textoIntro || '').trim();
+  if (intro) lineasEncabezado.push(intro);
+  let fila = escribirPortada(ws, titulo, lineasEncabezado as (string | null | undefined)[], headers.length);
+
+  // Lista de criterios con puntaje (si la plantilla la quiere visible)
+  if (def.mostrarPuntajeCriterios && input.criterios.length > 0) {
+    fila += 1;
+    for (const c of input.criterios) {
+      ws.mergeCells(fila, 1, fila, headers.length - 1);
+      const c1 = ws.getCell(fila, 1);
+      c1.value = `${c.orden}. ${c.descripcion || ''}`;
+      c1.font = { size: 10, bold: false, color: { argb: 'FF1E293B' } };
+      c1.alignment = { horizontal: 'left' };
+      const last = ws.getCell(fila, headers.length);
+      last.value = `(${c.puntajeMaximo} pts)`;
+      last.font = { size: 9, italic: true, color: { argb: 'FF64748B' } };
+      last.alignment = { horizontal: 'right' };
+      fila += 1;
+    }
+    fila += 1;
+  }
+
+  fila = escribirCabecera(ws, headers, fila + 1);
+  input.estudiantes.forEach((est, i) => {
+    const base = [i + 1, est.nombre, ...input.criterios.map((_c, ci) => est.letras[ci] ?? '')];
+    const valores = conFinal ? [...base, est.valoracion || ''] : base;
+    fila = escribirFila(ws, fila, valores, { banda: i % 2 === 1, centrarTodas: true });
+  });
+
+  const leyenda = (def.leyenda || '').trim();
+  if (leyenda) {
+    fila += 1;
+    ws.mergeCells(fila, 1, fila, headers.length);
+    const c = ws.getCell(fila, 1);
+    c.value = leyenda;
+    c.font = { italic: true, size: 9, color: { argb: 'FF64748B' } };
+  }
+
+  const docsPath = await documentDir();
+  const dir = unirRuta(docsPath, 'SchoolTrackerPro', 'Instrumentos');
+  await mkdir(dir, { recursive: true }).catch(() => {});
+  // escribirLibroEnCarpeta agrega el .xlsx él mismo.
+  return await escribirLibroEnCarpeta(wb, dir, fileNameBase);
 }

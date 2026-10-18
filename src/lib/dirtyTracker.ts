@@ -11,6 +11,7 @@ const ALL_TABLES = [
   'criterio', 'estudiante', 'estudiante_retirado', 'configuracion_calificacion',
   'multiplicador_calificacion',
   'colegio_dias_asistencia', 'asistencia', 'nota', 'app_settings',
+  'instrumento_plantilla',
 ];
 
 function loadDirty(): Set<string> {

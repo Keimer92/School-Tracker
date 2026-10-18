@@ -51,6 +51,7 @@ async fn get_all_local_data_json(state: tauri::State<'_, DbState>) -> Result<Str
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
         "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio", "indicador_colegio_seccion_activo",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia", "dia_sin_clases",
+        "instrumento_plantilla",
         "asistencia", "nota", "app_settings", "estudiante_retirado",
     ];
 
@@ -101,6 +102,7 @@ async fn get_all_local_data_since(state: tauri::State<'_, DbState>, since: Strin
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
         "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio", "indicador_colegio_seccion_activo",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia", "dia_sin_clases",
+        "instrumento_plantilla",
         "asistencia", "nota", "app_settings", "estudiante_retirado",
     ];
 
@@ -154,6 +156,7 @@ fn has_local_changes(state: tauri::State<'_, DbState>, since: String) -> Result<
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
         "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio", "indicador_colegio_seccion_activo",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion", "colegio_dias_asistencia", "dia_sin_clases",
+        "instrumento_plantilla",
         "asistencia", "nota", "app_settings", "estudiante_retirado",
     ];
 
@@ -2682,6 +2685,9 @@ update_colegio,
             save_colegio_dias_asistencia,
             get_dias_sin_clases,
             set_dias_sin_clases,
+            get_instrumento_plantillas,
+            save_instrumento_plantilla,
+            delete_instrumento_plantilla,
             reparar_integridad_notas,
             set_orientation,
             check_category_dependencies,

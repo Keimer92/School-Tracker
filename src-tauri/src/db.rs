@@ -377,6 +377,17 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
 
         CREATE UNIQUE INDEX IF NOT EXISTS idx_dia_sin_clases_unica
             ON dia_sin_clases(colegio_id, IFNULL(grado_id, 0), IFNULL(seccion_id, 0), fecha);
+
+        -- Plantillas de instrumentos de evaluación (constructor visual).
+        -- `definicion` es un JSON con la presentación (titulo, textoIntro, leyenda,
+        -- orientacion, colFinal, etc.) que consumen los generadores de PDF/Excel.
+        CREATE TABLE IF NOT EXISTS instrumento_plantilla (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            tipo TEXT NOT NULL DEFAULT 'escala',
+            definicion TEXT NOT NULL DEFAULT '{}',
+            updated_at TEXT DEFAULT (datetime('now'))
+        );
         "#,
     )
     .map_err(|e| format!("Error creando tablas de asistencia: {}", e))?;
@@ -4666,6 +4677,118 @@ pub async fn set_dias_sin_clases(
     Ok(())
 }
 
+// ============================================================================
+// Plantillas de instrumentos de evaluación (constructor visual)
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+#[allow(non_snake_case)]
+pub struct InstrumentoPlantillaRow {
+    pub id: i64,
+    pub nombre: String,
+    pub tipo: String,
+    pub definicion: String,
+    pub updated_at: Option<String>,
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+pub async fn get_instrumento_plantillas(
+    state: tauri::State<'_, DbState>,
+) -> Result<Vec<InstrumentoPlantillaRow>, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, nombre, tipo, definicion, updated_at
+             FROM instrumento_plantilla
+             ORDER BY tipo, nombre",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(InstrumentoPlantillaRow {
+                id: row.get(0)?,
+                nombre: row.get(1)?,
+                tipo: row.get::<_, Option<String>>(2)?.unwrap_or_else(|| "escala".into()),
+                definicion: row.get::<_, Option<String>>(3)?.unwrap_or_else(|| "{}".into()),
+                updated_at: row.get(4)?,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    let mut out = Vec::new();
+    for r in rows {
+        out.push(r.map_err(|e| e.to_string())?);
+    }
+    Ok(out)
+}
+
+/// Crea o actualiza una plantilla. `id = None` (o 0) inserta; con id hace UPDATE.
+/// Devuelve la fila persistida con su id real.
+#[tauri::command]
+#[allow(non_snake_case)]
+pub async fn save_instrumento_plantilla(
+    state: tauri::State<'_, DbState>,
+    plantilla: InstrumentoPlantillaRow,
+) -> Result<InstrumentoPlantillaRow, String> {
+    if plantilla.nombre.trim().is_empty() {
+        return Err("El nombre de la plantilla no puede estar vacío".to_string());
+    }
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let id = if plantilla.id > 0 {
+        conn.execute(
+            "UPDATE instrumento_plantilla
+             SET nombre = ?2, tipo = ?3, definicion = ?4, updated_at = datetime('now')
+             WHERE id = ?1",
+            rusqlite::params![plantilla.id, plantilla.nombre.trim(), plantilla.tipo, plantilla.definicion],
+        )
+        .map_err(|e| e.to_string())?;
+        plantilla.id
+    } else {
+        conn.execute(
+            "INSERT INTO instrumento_plantilla (nombre, tipo, definicion, updated_at)
+             VALUES (?1, ?2, ?3, datetime('now'))",
+            rusqlite::params![plantilla.nombre.trim(), plantilla.tipo, plantilla.definicion],
+        )
+        .map_err(|e| e.to_string())?;
+        conn.last_insert_rowid()
+    };
+    let updated_at: Option<String> = conn
+        .query_row(
+            "SELECT updated_at FROM instrumento_plantilla WHERE id = ?1",
+            rusqlite::params![id],
+            |r| r.get(0),
+        )
+        .ok();
+    Ok(InstrumentoPlantillaRow {
+        id,
+        nombre: plantilla.nombre.trim().to_string(),
+        tipo: plantilla.tipo,
+        definicion: plantilla.definicion,
+        updated_at,
+    })
+}
+
+/// Borra una plantilla y registra el borrado pendiente de sincronización.
+#[tauri::command]
+#[allow(non_snake_case)]
+pub async fn delete_instrumento_plantilla(
+    state: tauri::State<'_, DbState>,
+    id: i64,
+) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    tx.execute(
+        "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES ('instrumento_plantilla', ?)",
+        rusqlite::params![id],
+    )
+    .map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM instrumento_plantilla WHERE id = ?", rusqlite::params![id])
+        .map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 #[allow(non_snake_case)]
@@ -6512,6 +6635,7 @@ pub async fn factory_reset(state: tauri::State<'_, DbState>) -> Result<(), Strin
         "asistencia", "nota", "criterio", "indicador",
         "grado_asignatura", "colegio_asignatura", "colegio_grado", "estudiante",
         "seccion", "grado", "asignatura", "colegio_dias_asistencia", "dia_sin_clases",
+        "instrumento_plantilla",
         "colegio", "corte_evaluativo", "ano_lectivo",
         "configuracion_calificacion",
         "multiplicador_calificacion",

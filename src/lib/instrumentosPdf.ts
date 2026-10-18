@@ -3,6 +3,8 @@ import { documentDir } from '@tauri-apps/api/path';
 import { writeFile, mkdir } from '@tauri-apps/plugin-fs';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { aFileURL, esAndroid, unirRuta } from './platform';
+// Importe SOLO de tipos: no hay ciclo en runtime (el otro lado también importa tipos).
+import type { PlantillaDefinicion } from './instrumentoPlantilla';
 
 /**
  * Instrumentos de evaluación por indicador (PDF).
@@ -51,6 +53,13 @@ export interface InstrumentoInput {
   criterios: InstrumentoCriterio[];
   estudiantes: InstrumentoEstudiante[];
   meta: InstrumentoMeta;
+  /**
+   * Plantilla del constructor visual (tabla `instrumento_plantilla`, BD).
+   * Opcional: sin plantilla se usa el diseño por defecto del tipo. Solo aporta
+   * la PRESENTACIÓN (título, texto intro, leyenda, columna final, orientación);
+   * los datos (estudiantes, notas, criterios) siempre vienen de la BD.
+   */
+  plantilla?: PlantillaDefinicion;
 }
 
 const NIVELES_RUBRICA = ['Superior (4)', 'Alto (3)', 'Básico (2)', 'Bajo (1)'];
@@ -123,6 +132,16 @@ function drawHeader(doc: any, input: InstrumentoInput, title: string): number {
     y += 6;
   }
 
+  // ── Texto intro de la plantilla (objetivo/instrucciones del docente) ──
+  const textoIntro = (input.plantilla?.textoIntro || '').trim();
+  if (textoIntro) {
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(8);
+    const introLines = doc.splitTextToSize(textoIntro, rightMargin - 10);
+    doc.text(introLines, 10, y + 3);
+    y += 3 + introLines.length * 4;
+  }
+
   // ── Criterios ──
   if (input.criterios.length > 0) {
     y += 1;
@@ -130,13 +149,14 @@ function drawHeader(doc: any, input: InstrumentoInput, title: string): number {
     doc.setFontSize(9.5);
     doc.text('Criterios:', 10, y);
     y += 5.2;
+    const mostrarPts = input.plantilla?.mostrarPuntajeCriterios ?? true;
     for (const c of input.criterios) {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
       const numLabel = `${c.orden}.`;
       doc.text(numLabel, 14, y);
       const numW = doc.getTextWidth(numLabel) + 2;
-      const ptsSuffix = ` (${c.puntajeMaximo} pts)`;
+      const ptsSuffix = mostrarPts ? ` (${c.puntajeMaximo} pts)` : '';
 
       if ((c.descripcion || '').trim()) {
         doc.setFont('helvetica', 'normal');
@@ -159,7 +179,8 @@ function drawHeader(doc: any, input: InstrumentoInput, title: string): number {
   return y + 2;
 }
 
-/** Tabla común: estudiantes × criterios (letras actuales) + columna final. */
+/** Tabla común: estudiantes × criterios (letras actuales) + columna final.
+ *  `colFinal` viene de la plantilla: 'valoracion' | 'total' | 'ninguno'. */
 function tablaEstudiantes(
   doc: any,
   input: InstrumentoInput,
@@ -167,13 +188,16 @@ function tablaEstudiantes(
   autoTable: AutoTableFn,
   lastColLabel: string
 ): void {
-  const headers = ['#', 'Estudiante', ...input.criterios.map(c => `C${c.orden}`), lastColLabel];
-  const rows = input.estudiantes.map((e, i) => [
-    String(i + 1),
-    e.nombre,
-    ...input.criterios.map((_c, ci) => e.letras[ci] || '-'),
-    e.valoracion || '-',
-  ]);
+  const colFinal = input.plantilla?.colFinal ?? 'valoracion';
+  const conFinal = colFinal !== 'ninguno';
+  const etiquetaFinal = colFinal === 'total' ? 'Total' : lastColLabel;
+  const headers = conFinal
+    ? ['#', 'Estudiante', ...input.criterios.map(c => `C${c.orden}`), etiquetaFinal]
+    : ['#', 'Estudiante', ...input.criterios.map(c => `C${c.orden}`)];
+  const rows = input.estudiantes.map((e, i) => {
+    const base = [String(i + 1), e.nombre, ...input.criterios.map((_c, ci) => e.letras[ci] || '-')];
+    return conFinal ? [...base, e.valoracion || '-'] : base;
+  });
   autoTable(doc, {
     startY,
     head: [headers],
@@ -183,7 +207,7 @@ function tablaEstudiantes(
     columnStyles: {
       0: { cellWidth: 8 },
       1: { halign: 'left', cellWidth: 'auto' },
-      [headers.length - 1]: { fontStyle: 'bold' },
+      [headers.length - 1]: conFinal ? { fontStyle: 'bold' } : {},
     },
     headStyles: { fillColor: [0, 0, 0], textColor: 255 },
   });
@@ -216,7 +240,8 @@ function matrizRubrica(
 }
 
 function construir(doc: any, input: InstrumentoInput, autoTable: AutoTableFn): void {
-  const titulo = `Instrumento: ${tipoLabel(input.tipo)} — Indicador ${input.orden}`;
+  const def = input.plantilla;
+  const titulo = (def?.titulo || '').trim() || `Instrumento: ${tipoLabel(input.tipo)} — Indicador ${input.orden}`;
   let startY = drawHeader(doc, input, titulo);
 
   switch (input.tipo) {
@@ -238,7 +263,7 @@ function construir(doc: any, input: InstrumentoInput, autoTable: AutoTableFn): v
         const after = (doc as any).lastAutoTable?.finalY ?? startY + 20;
         doc.setFont('helvetica', 'italic');
         doc.setFontSize(8);
-        doc.text(LEYENDA_ESCALA, 10, after + 6);
+        doc.text((def?.leyenda || '').trim() || LEYENDA_ESCALA, 10, after + 6);
       }
       break;
     default:
@@ -266,12 +291,23 @@ async function guardarYEntregar(doc: any, fileName: string, subfolder: string): 
   return fullPath;
 }
 
+/** Orientación para UN indicador: la plantilla puede forzarla; 'auto' keeps
+ *  rúbrica vertical y el resto horizontal. */
+function orientacionDe(def: PlantillaDefinicion | undefined, tipo: InstrumentoTipo): 'portrait' | 'landscape' {
+  if (def?.orientacion === 'horizontal') return 'landscape';
+  if (def?.orientacion === 'vertical') return 'portrait';
+  return tipo !== 'rubrica' ? 'landscape' : 'portrait';
+}
+
 /** Genera el PDF de UN indicador. Devuelve la ruta completa del archivo. */
 export async function generarInstrumentoPDF(input: InstrumentoInput): Promise<string> {
   const { default: jsPDF } = await import('jspdf');
   const autoTable = await loadAutoTable();
-  const landscape = input.tipo !== 'rubrica';
-  const doc = new jsPDF({ orientation: landscape ? 'landscape' : 'portrait', unit: 'mm', format: 'letter' });
+  const doc = new jsPDF({
+    orientation: orientacionDe(input.plantilla, input.tipo),
+    unit: 'mm',
+    format: 'letter',
+  });
   construir(doc, input, autoTable);
   const fileName = sanitize(`Instrumento_${tipoLabel(input.tipo)}_Ind${input.orden}_${sanitize(input.meta.asignatura)}_${sanitize(input.meta.grado)}${sanitize(input.meta.seccion)}.pdf`);
   const sub = sanitize(`${input.meta.corte} - ${input.meta.asignatura}`);

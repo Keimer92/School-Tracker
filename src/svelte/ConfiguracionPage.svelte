@@ -11,6 +11,7 @@
   import CategoryTabContent from "./CategoryTabContent.svelte";
   import CalificacionesConfig from "./globales/CalificacionesConfig.svelte";
   import MultiplicadoresConfig from "./globales/MultiplicadoresConfig.svelte";
+  import PlantillasConfig from "./globales/PlantillasConfig.svelte";
   import ColegioConfigModal from "./globales/ColegioConfigModal.svelte";
   import GradoConfigModal from "./globales/GradoConfigModal.svelte";
   import AjustesPage from "./AjustesPage.svelte";
@@ -79,6 +80,7 @@
     'grados': t('cfg.desc.grados'),
     'secciones': t('cfg.desc.secciones'),
     'notas': t('cfg.desc.notas'),
+    'plantillas': t('cfg.desc.plantillas'),
     // Antes faltaba 'multiplicadores' y el encabezado imprimía `undefined`.
     'multiplicadores': t('cfg.desc.multiplicadores'),
     'evaluaciones': t('cfg.desc.evaluaciones'),
@@ -99,6 +101,7 @@
   const SECCIONES = $derived<Seccion[]>([
     { id: 'evaluaciones', label: t('cfg.sec.evaluaciones'), icono: '✏️', color: '#c084fc', grupo: 'Académico' },
     { id: 'notas', label: t('cfg.sec.notas'), icono: '⭐', color: '#fbbf24', grupo: 'Académico', contador: 'get_grade_configs' },
+    { id: 'plantillas', label: t('cfg.sec.plantillas'), icono: '🧩', color: '#38bdf8', grupo: 'Académico' },
     { id: 'multiplicadores', label: t('cfg.sec.multiplicadores'), icono: '✖️', color: '#a78bfa', grupo: 'Académico', contador: 'get_multiplicadores' },
     { id: 'ano-lectivo', label: t('cfg.sec.ano-lectivo'), icono: '📅', color: '#818cf8', grupo: 'Académico', cat: CATEGORIES[0], contador: 'get_anos' },
     { id: 'corte', label: t('cfg.sec.corte'), icono: '✂️', color: '#f472b6', grupo: 'Académico', cat: CATEGORIES[1], contador: 'get_cortes' },
@@ -353,6 +356,8 @@
     <CalificacionesConfig />
   {:else if activa.id === 'multiplicadores'}
     <MultiplicadoresConfig />
+  {:else if activa.id === 'plantillas'}
+    <PlantillasConfig />
   {:else if activa.id === 'evaluaciones'}
     <div style="width:100%;height:100%;"><EvaluacionesPage /></div>
   {:else}

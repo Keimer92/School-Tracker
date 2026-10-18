@@ -145,6 +145,10 @@ const TABLES: Record<string, { pk: string[]; cols: string[] }> = {
     pk: ['id'],
     cols: ['id', 'colegio_id', 'grado_id', 'seccion_id', 'fecha', 'descripcion', 'updated_at'],
   },
+  instrumento_plantilla: {
+    pk: ['id'],
+    cols: ['id', 'nombre', 'tipo', 'definicion', 'updated_at'],
+  },
   asistencia: {
     // Clave de negocio: (estudiante_id, fecha). El id local es solo un autoinc cómodo.
     pk: ['estudiante_id', 'fecha'],
@@ -233,6 +237,14 @@ async function ensureSchema(env: Env): Promise<void> {
     )`,
     "ALTER TABLE dia_sin_clases ADD COLUMN device_id TEXT",
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_dia_sin_clases_unica ON dia_sin_clases(colegio_id, IFNULL(grado_id, 0), IFNULL(seccion_id, 0), fecha)",
+    `CREATE TABLE IF NOT EXISTS instrumento_plantilla (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nombre TEXT,
+      tipo TEXT DEFAULT 'escala',
+      definicion TEXT NOT NULL DEFAULT '{}',
+      updated_at TEXT,
+      device_id TEXT
+    )`,
     `CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '{}', updated_at TEXT, device_id TEXT)`,
   ];
   const stmts = [...schemaStmts];

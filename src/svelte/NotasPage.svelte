@@ -16,7 +16,8 @@ import { primerColegio } from "../lib/catalogo";
   import BtnRail from "./BtnRail.svelte";
   import AccionesRail from "./AccionesRail.svelte";
   import { generarInstrumentoPDF, generarInstrumentosTodosPDF, INSTRUMENTO_OPS, type InstrumentoInput, type InstrumentoTipo } from "../lib/instrumentosPdf";
-  import { generarInstrumentoExcel, listarPlantillas, asegurarCarpetaPlantillas, abrirCarpetaPlantillas, plantillasDir, type ExcelInstrumentoInput } from "../lib/instrumentosExcel";
+  import { generarInstrumentoExcel, generarInstrumentoXlsxDesdeDefinicion, listarPlantillas, asegurarCarpetaPlantillas, abrirCarpetaPlantillas, plantillasDir, type ExcelInstrumentoInput } from "../lib/instrumentosExcel";
+  import { listarInstrumentoPlantillas, type InstrumentoPlantilla } from "../lib/instrumentoPlantilla";
   import { readFile } from "@tauri-apps/plugin-fs";
   import { ask } from "@tauri-apps/plugin-dialog";
   import { registerBackHandler } from "../lib/androidBack";
@@ -235,9 +236,26 @@ import { primerColegio } from "../lib/catalogo";
   let plantillaSel = $state(''); // '' = AUTO según el tipo del indicador
   let cargandoPlantillas = $state(false);
 
+  // Plantillas del CONSTRUCTOR VISUAL (Configuración → 🧩 Plantillas).
+  // Viven en la BD sincronizada; son el camino preferido: generan el XLSX sin
+  // depender de archivos sueltos (en Android no hay carpeta Plantillas editable).
+  let plantillasBD = $state<InstrumentoPlantilla[]>([]);
+  let plantillaBDSel = $state(''); // '' = AUTO según el tipo del indicador
+  const idPlantillaElegida = $derived(plantillaBDSel ? parseInt(plantillaBDSel, 10) : 0);
+
+  /** La plantilla BD elegida, o la primera del tipo del indicador si va AUTO. */
+  function elejirPlantillaBD(tipo: InstrumentoTipo): InstrumentoPlantilla | null {
+    if (idPlantillaElegida) {
+      return plantillasBD.find(p => p.id === idPlantillaElegida) ?? null;
+    }
+    return plantillasBD.find(p => p.tipo === tipo) ?? null;
+  }
+
   async function recargarPlantillas() {
     cargandoPlantillas = true;
     try {
+      try { plantillasBD = await listarInstrumentoPlantillas(); } catch (e) { console.error('[Instrumentos] plantillas BD:', e); }
+      if (plantillaBDSel && !plantillasBD.some(p => String(p.id) === plantillaBDSel)) plantillaBDSel = '';
       await asegurarCarpetaPlantillas();
       plantillas = await listarPlantillas();
       if (!plantillas.some(p => p.nombre === plantillaSel)) {
@@ -1769,7 +1787,12 @@ import { primerColegio } from "../lib/catalogo";
   async function generarPDFInstrumento(ind: Indicador) {
     generatingPdf = true;
     try {
-      const ruta = await generarInstrumentoPDF(buildInstrumentoInput(ind));
+      // El PDF de rúbrica forcing vertical; el resto horizontal — salvo que la
+      // plantilla del constructor fuerce otra cosa (orientacion).
+      const pl = elejirPlantillaBD(normTipo((ind as any).instrumento || 'escala'));
+      const input = buildInstrumentoInput(ind);
+      if (pl) input.plantilla = parseDefinicion(pl.definicion);
+      const ruta = await generarInstrumentoPDF(input);
       await emit("show-toast", { message: "✅ PDF generado en Documents/SchoolTrackerPro/Instrumentos", type: "success" });
       console.debug('[Instrumentos] PDF:', ruta);
     } catch (e) {
@@ -1782,12 +1805,33 @@ import { primerColegio } from "../lib/catalogo";
     const tipoNecesario = normTipo((ind as any).instrumento || 'escala');
     let nombrePlantilla = plantillaSel;
 
+    /***** CAMINO NUEVO (preferido): plantilla del constructor visual (BD) *****/
+    const plBD = elejirPlantillaBD(tipoNecesario);
+    if (plBD) {
+      try {
+        const base = `Instrumento_Ind${ind.orden}_${(buildInstrumentoInput(ind).meta.asignatura || 'Asignatura').replace(/[<>:"/\\|?*]/g, '_')}`;
+        const ruta = await generarInstrumentoXlsxDesdeDefinicion(
+          parseDefinicion(plBD.definicion),
+          buildInstrumentoInputExcel(ind),
+          base,
+        );
+        await emit("show-toast", { message: `✅ XLSX generado con plantilla "${plBD.nombre}" → Documents/SchoolTrackerPro/Instrumentos`, type: "success" });
+        console.debug('[Instrumentos-Excel] ruta:', ruta);
+      } catch (e) {
+        console.error('[Instrumentos-Excel] Error (plantilla BD):', e);
+        await emit("show-toast", { message: "❌ Error generando XLSX: " + e, type: "error" });
+      }
+      return;
+    }
+
+    // CAMINO LEGADO: plantilla .xlsx de la carpeta Plantillas con marcadores.
     // AUTO: si no hay selección manual, usar la plantilla del tipo del indicador
     if (!nombrePlantilla) {
       const match = plantillas.find(p => p.tipo === tipoNecesario);
       if (!match) {
         await emit("show-toast", {
-          message: `⚠️ No hay plantilla de "${tipoNecesario}" en la carpeta Plantillas. El nombre del archivo debe contener esa palabra.`,
+          message: `⚠️ No hay plantilla de "${tipoNecesario}" en la carpeta Plantillas
+ni plantilla del constructor en la BD.`,
           type: "warning",
         });
         return;
@@ -1853,7 +1897,12 @@ import { primerColegio } from "../lib/catalogo";
     if (indicadores.length === 0) return;
     generatingPdf = true;
     try {
-      const inputs = indicadores.map(buildInstrumentoInput);
+      const inputs = indicadores.map(ind => {
+        const input = buildInstrumentoInput(ind);
+        const pl = elejirPlantillaBD(input.tipo);
+        if (pl) input.plantilla = parseDefinicion(pl.definicion);
+        return input;
+      });
       await generarInstrumentosTodosPDF(inputs);
       await emit("show-toast", { message: `✅ ${inputs.length} instrumentos generados`, type: "success" });
     } catch (e) {

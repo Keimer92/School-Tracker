@@ -318,6 +318,7 @@ pub fn contar_filas_sincronizables(state: tauri::State<'_, DbState>) -> Result<i
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion",
         "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio",
         "asistencia", "colegio_dias_asistencia", "nota", "dia_sin_clases",
+        "instrumento_plantilla",
         "indicador_colegio_seccion_activo", "estudiante_retirado", "app_settings",
     ];
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
@@ -353,6 +354,9 @@ fn pk_cols(table: &str) -> &'static [&'static str] {
         "colegio_grado" => &["colegio_id", "grado_id"],
         "colegio_dias_asistencia" => &["colegio_id"],
         "dia_sin_clases" => &["id"],
+        // La plantilla es catálogo de usuario: las PKs de dos dispositivos pueden
+        // divergir, por eso el pull la reconcilia por `nombre` (BUSINESS_KEY_TABLES).
+        "instrumento_plantilla" => &["id"],
         "nota" => &["estudiante_id", "criterio_id", "corte_evaluativo_id", "asignatura_id"],
         // El retiro viaja por `estudiante_id`: es UNO por estudiante (el UNIQUE
         // de la tabla), así que esa es su identidad en la nube. Si se usara
@@ -392,7 +396,7 @@ fn collect_local_data_since(
         "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio", "indicador_colegio_seccion_activo",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion",
         "colegio_dias_asistencia", "asistencia", "nota",
-        "dia_sin_clases", "estudiante_retirado", "app_settings",
+        "dia_sin_clases", "instrumento_plantilla", "estudiante_retirado", "app_settings",
     ];
 
     let mut result = Map::new();
@@ -556,6 +560,10 @@ const BUSINESS_KEY_TABLES: &[(&str, &str)] = &[
     ("grado", "nombre"),
     ("seccion", "nombre"),
     ("estudiante", "codigo"),
+    // La plantilla es catálogo de usuario sincronizable: los ids autoincrement
+    // divergen entre devices (cada uno crea sus plantillas offline), así que el
+    // pull la reconcilia por `nombre` como el resto de los catálogos.
+    ("instrumento_plantilla", "nombre"),
 ];
 
 // Upsert de catálogo/entidades por su clave de negocio (nombre/codigo).
@@ -1197,7 +1205,7 @@ pub async fn d1_wipe_remote(state: tauri::State<'_, DbState>) -> Result<Value, S
         "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio", "indicador_colegio_seccion_activo",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion",
         "colegio_dias_asistencia", "asistencia", "nota",
-        "dia_sin_clases", "estudiante_retirado", "app_settings",
+        "dia_sin_clases", "instrumento_plantilla", "estudiante_retirado", "app_settings",
     ];
     let mut deletions: Vec<Value> = Vec::new();
     if let Some(rows) = resp.get("rows").and_then(|v| v.as_object()) {
@@ -1345,7 +1353,7 @@ pub async fn d1_restore_from_cloud(
         "ano_lectivo", "corte_evaluativo", "colegio", "asignatura", "grado", "seccion",
         "grado_asignatura", "colegio_asignatura", "colegio_grado", "indicador", "criterio", "indicador_colegio_seccion_activo",
         "estudiante", "configuracion_calificacion", "multiplicador_calificacion",
-        "colegio_dias_asistencia", "asistencia", "nota", "dia_sin_clases", "app_settings",
+        "colegio_dias_asistencia", "asistencia", "nota", "dia_sin_clases", "instrumento_plantilla", "app_settings",
     ] {
         tx.execute(&format!("DELETE FROM {}", table), [])
             .map_err(|e| format!("Error limpiando {}: {}", table, e))?;
