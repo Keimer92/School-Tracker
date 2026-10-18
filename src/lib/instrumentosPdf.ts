@@ -554,6 +554,34 @@ export async function generarInstrumentoPDF(input: InstrumentoInput): Promise<st
 
 /** Genera TODOS los inputs en un solo PDF (sección por indicador). */
 export async function generarInstrumentosTodosPDF(inputs: InstrumentoInput[]): Promise<string> {
+  if (inputs.length === 0) throw new Error('No hay instrumentos para generar');
+
+  // Agrupar inputs por grado y sección para evitar sobreescritura al exportar
+  // instrumentos de diferentes grados/secciones en el mismo PDF.
+  const grupos = new Map<string, InstrumentoInput[]>();
+  for (const input of inputs) {
+    const key = `${input.meta.grado}|${input.meta.seccion}`;
+    if (!grupos.has(key)) grupos.set(key, []);
+    grupos.get(key)!.push(input);
+  }
+
+  if (grupos.size === 1) {
+    // Un solo grupo: PDF multi-página (comportamiento anterior).
+    return await generarUnSoloPDF(grupos.values().next().value!);
+  }
+
+  // Múltiples grados/secciones: generar un PDF por grupo y devolver la ruta del
+  // primero (el caller en NotasPage muestra el toast con el conteo total).
+  const rutas: string[] = [];
+  for (const [, grupoInputs] of grupos) {
+    const ruta = await generarUnSoloPDF(grupoInputs);
+    rutas.push(ruta);
+  }
+  return rutas[0];
+}
+
+/** Genera un solo PDF multi-página a partir de inputs que comparten grado y sección. */
+async function generarUnSoloPDF(inputs: InstrumentoInput[]): Promise<string> {
   const { default: jsPDF } = await import('jspdf');
   const autoTable = await loadAutoTable();
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
@@ -561,8 +589,8 @@ export async function generarInstrumentosTodosPDF(inputs: InstrumentoInput[]): P
     if (i > 0) doc.addPage();
     construir(doc, input, autoTable);
   });
-  const first = inputs[0]?.meta;
-  const fileName = sanitize(`Instrumentos_${first?.asignatura ?? 'Asignatura'}_${first?.corte ?? ''}.pdf`);
-  const sub = sanitize(`${first?.corte ?? ''} - ${first?.asignatura ?? ''}`);
+  const first = inputs[0].meta;
+  const fileName = sanitize(`Instrumentos_${first.asignatura ?? 'Asignatura'}_${first.corte ?? ''}_${first.grado}-${first.seccion}.pdf`);
+  const sub = sanitize(`${first.corte ?? ''} - ${first.asignatura ?? ''}`);
   return await guardarYEntregar(doc, fileName, sub);
 }

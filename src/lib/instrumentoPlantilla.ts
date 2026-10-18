@@ -206,21 +206,24 @@ export function gridPresetChecklist(): PlantillaGrid {
     "0:14": { v: "Valoración" },
     "0:15": { v: "Total" },
     "0:16": { v: "NF" },
-    "1:0": { v: "{N}" },
-    "1:1": { v: "{ESTUDIANTE}" },
-    "1:14": { v: "{VALORACION}" },
-    "1:15": { v: "{TOTAL}" },
-    "1:16": { v: "{NF}" },
+    // Row 1: fila dedicada de escala (AA/AS/AF/AI) por cada criterio.
+    "2:0": { v: "{N}" },
+    "2:1": { v: "{ESTUDIANTE}" },
+    "2:14": { v: "{VALORACION}" },
+    "2:15": { v: "{TOTAL}" },
+    "2:16": { v: "{NF}" },
   };
   // Grupos por criterio: 4 columnas de escala (AA/AS/AF/AI) cada uno.
   const ESCALA = ["{AA}", "{AS}", "{AF}", "{AI}"];
   for (let k = 0; k < 3; k++) {
     const base = 2 + k * 4;
     celdas[`0:${base}`] = { v: `{CRIT_${k + 1}}`, cs: 4 };
+    // Fila 1: encabezado de escala individual por columna.
     ESCALA.forEach((e, i) => { celdas[`1:${base + i}`] = { v: e }; });
-    celdas[`1:${base}`] = { v: `{LETRA_${k + 1}}`, cs: 4 };
+    // Fila 2: letra del estudiante (merge de 4 cols) - expandida por cada alumno.
+    celdas[`2:${base}`] = { v: `{LETRA_${k + 1}}`, cs: 4 };
   }
-  return { filas: 3, cols: 17, filaEstudiantes: 1, celdas };
+  return { filas: 3, cols: 17, filaEstudiantes: 2, celdas };
 }
 
 export interface InstrumentoPlantilla {
