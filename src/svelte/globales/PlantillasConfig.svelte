@@ -30,7 +30,7 @@
     type PlantillaGrid,
     type GridCelda,
   } from "../../lib/instrumentoPlantilla";
-  import { INSTRUMENTO_OPS, type InstrumentoTipo } from "../../lib/instrumentosPdf";
+  import type { InstrumentoTipo } from "../../lib/instrumentosPdf";
 
   const ACENTO = "#38bdf8";
 
@@ -45,6 +45,8 @@
   let editandoId = $state(0);
   let editando = $state(false);
   let editNombre = $state("");
+  // Sin selección de tipo visible (tags retirados); guardamos siempre el tipo
+  // tal cual vino para la columna legada de la BD.
   let editTipo = $state<InstrumentoTipo>("escala");
   let editDef = $state<PlantillaDefinicion>(defaultDefinicion());
   let guardando = $state(false);
@@ -55,9 +57,6 @@
   let selC = $state(0);
 
   const isAndroid = /Android/i.test(navigator.userAgent);
-
-  const labelTipo = (tipo: string): string =>
-    INSTRUMENTO_OPS.find(o => o.id === tipo)?.label ?? tipo;
 
   async function recargar() {
     cargando = true;
@@ -75,6 +74,8 @@
   function abrirCrear() {
     editandoId = 0;
     editNombre = "";
+    // Sin tags de tipo: el usuario arma SU instrumento desde cero. El tipo
+    // queda fijo en la BD (columna legada) pero ya no se elige ni se muestra.
     editTipo = "escala";
     editDef = defaultDefinicion();
     selR = 0; selC = 0;
@@ -92,10 +93,6 @@
 
   function cerrarEditor() {
     editando = false;
-  }
-
-  function cambiarTipo(nuevo: InstrumentoTipo) {
-    editTipo = nuevo;
   }
 
   // ════════════════ Cuadrícula tipo Excel ════════════════
@@ -307,7 +304,6 @@
             <div class="pl-card-barra"></div>
             <div style="padding:0.9rem 0.9rem 0.7rem 1.2rem;display:flex;flex-direction:column;gap:0.5rem;flex:1;min-width:0;">
               <span style="color:#f1f5f9;font-size:0.9rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{p.nombre}</span>
-              <span class="pl-tipo">{t('pl.tipo')}: {labelTipo(p.tipo)}</span>
               <div style="display:flex;gap:0.5rem;flex-wrap:wrap;font-size:0.66rem;color:#94a3b8;">
                 <span>{t('pl.hint.colFinal')}: {p.def.colFinal === 'total' ? t('pl.opt.total') : p.def.colFinal === 'ninguno' ? t('pl.opt.ninguno') : t('pl.opt.valoracion')}</span>
                 {#if p.def.orientacion !== 'auto'}<span>· {p.def.orientacion === 'horizontal' ? t('pl.opt.horizontal') : t('pl.opt.vertical')}</span>{/if}
@@ -342,14 +338,6 @@
         <div style="flex:1;min-width:200px;">
           <label class="pl-label">{t('pl.editor.nombre')}</label>
           <input class="pl-input" bind:value={editNombre} placeholder={t('pl.editor.nombreEj')} />
-        </div>
-        <div>
-          <label class="pl-label">{t('pl.editor.tipo')}</label>
-          <div class="pl-seg">
-            {#each INSTRUMENTO_OPS as op (op.id)}
-              <button class="pl-seg-btn" class:activo={editTipo === op.id} onclick={() => cambiarTipo(op.id)}>{op.label}</button>
-            {/each}
-          </div>
         </div>
         <div>
           <label class="pl-label">{t('pl.editor.orientacion')}</label>

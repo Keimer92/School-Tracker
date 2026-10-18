@@ -64,7 +64,7 @@ import { primerColegio } from "../lib/catalogo";
 
   interface CategoryItem { id: number; nombre: string; activo?: boolean; cualitativo?: boolean; }
   interface Criterio { id: number; orden: number; descripcion: string; puntajeMaximo: number; }
-  interface Indicador { id: number; orden: number; descripcion: string; activo: boolean; instrumento?: string; criterios: Criterio[]; }
+  interface Indicador { id: number; orden: number; descripcion: string; activo: boolean; instrumento?: string; plantillaId?: number; criterios: Criterio[]; }
   interface Estudiante { id: number; nombre: string; gradoId: number; seccionId: number; grado: string; seccion: string; sexo: string; }
   /** `sexo` se copia del estudiante para poder teñir el nombre en la grilla. */
   interface NotaEstudiante { estudianteId: number; estudianteNombre: string; sexo: string; notas: Record<number, number>; }
@@ -240,22 +240,47 @@ import { primerColegio } from "../lib/catalogo";
   // Viven en la BD sincronizada; son el camino preferido: generan el XLSX sin
   // depender de archivos sueltos (en Android no hay carpeta Plantillas editable).
   let plantillasBD = $state<InstrumentoPlantilla[]>([]);
-  let plantillaBDSel = $state(''); // '' = AUTO según el tipo del indicador
-  const idPlantillaElegida = $derived(plantillaBDSel ? parseInt(plantillaBDSel, 10) : 0);
 
-  /** La plantilla BD elegida, o la primera del tipo del indicador si va AUTO. */
-  function elejirPlantillaBD(tipo: InstrumentoTipo): InstrumentoPlantilla | null {
-    if (idPlantillaElegida) {
-      return plantillasBD.find(p => p.id === idPlantillaElegida) ?? null;
+  /**
+   * Resolución de plantilla para UN indicador (regla del botón de Instrumentos):
+   *   1) La planteada por el usuario PARA ese indicador (plantillaId, se
+   *      guarda en la BD vía set_indicador_plantilla y viaja con el sync).
+   *   2) AUTO: si solo hay UNA plantilla, esa sirve para todos los
+   *      indicadores de todos los cortes de forma global.
+   *   3) La primera del tipo del indicador (compatibilidad).
+   *   4) null → los generadores usan su diseño por defecto.
+   */
+  function plantillaDeIndicador(ind: Indicador): InstrumentoPlantilla | null {
+    if (ind.plantillaId) {
+      const p = plantillasBD.find(x => x.id === ind.plantillaId);
+      if (p) return p;
     }
+    if (plantillasBD.length === 1) return plantillasBD[0];
+    const tipo = normTipo((ind as any).instrumento || 'escala');
     return plantillasBD.find(p => p.tipo === tipo) ?? null;
+  }
+
+  /** El usuario cambia la plantilla de UN indicador: persiste YA en la BD. */
+  async function elegirPlantillaInd(ind: Indicador, valor: string) {
+    const id = valor ? parseInt(valor, 10) : null;
+    try {
+      await invoke('set_indicador_plantilla', { id: ind.id, plantillaId: id });
+      ind.plantillaId = id ?? undefined;
+      onDataChange('indicador', {} as any);
+      await emit('show-toast', {
+        message: id ? '🧩 Instrumento asignado al indicador' : '🧩 Indicador en AUTO',
+        type: 'success',
+      });
+    } catch (e) {
+      console.error('[Instrumentos] set_indicador_plantilla:', e);
+      await emit('show-toast', { message: '❌ No se pudo guardar: ' + e, type: 'error' });
+    }
   }
 
   async function recargarPlantillas() {
     cargandoPlantillas = true;
     try {
       try { plantillasBD = await listarInstrumentoPlantillas(); } catch (e) { console.error('[Instrumentos] plantillas BD:', e); }
-      if (plantillaBDSel && !plantillasBD.some(p => String(p.id) === plantillaBDSel)) plantillaBDSel = '';
       await asegurarCarpetaPlantillas();
       plantillas = await listarPlantillas();
       if (!plantillas.some(p => p.nombre === plantillaSel)) {

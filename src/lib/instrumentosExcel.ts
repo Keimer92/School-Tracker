@@ -289,7 +289,7 @@ export async function generarInstrumentoExcel(
   // 3) Empaquetar y guardar
   const outData = await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
   const docsPath = await (await import('@tauri-apps/api/path')).documentDir();
-  const dir = unirRuta(docsPath, 'SchoolTrackerPro', 'Instrumentos');
+  const dir = unirRuta(docsPath, 'School Tracker', 'Instrumentos');
   await mkdir(dir, { recursive: true }).catch(() => {});
   const fullPath = unirRuta(dir, `${fileNameBase}.xlsx`);
   await writeFile(fullPath, outData);
@@ -300,7 +300,7 @@ export async function generarInstrumentoExcel(
 export async function abrirCarpetaInstrumentos(): Promise<void> {
   const { openUrl } = await import('@tauri-apps/plugin-opener');
   const docsPath = await (await import('@tauri-apps/api/path')).documentDir();
-  try { await openUrl(aFileURL(unirRuta(docsPath, 'SchoolTrackerPro', 'Instrumentos'))) } catch {}
+  try { await openUrl(aFileURL(unirRuta(docsPath, 'School Tracker', 'Instrumentos'))) } catch {}
 }
 
 // ============================================================================
@@ -326,6 +326,15 @@ function tokenDatosCabecera(input: ExcelInstrumentoInput): TokenDatos {
  * nativos de ExcelJS, fila de estudiantes expandida por cada alumno y tokens
  * reemplazados con los datos reales del indicador.
  */
+/** Línea del encabezado estándar del XLSX (una fila a lo ancho de la cuadrícula). */
+function lineaEncabezadoXlsx(ws: any, fila: number, nCols: number, rgb: string, texto: string, size: number): void {
+  if (nCols > 1) try { ws.mergeCells(fila, 1, fila, Math.max(2, nCols)); } catch { /* ya fusionada */ }
+  const c = ws.getCell(fila, 1);
+  c.value = texto;
+  c.font = { bold: true, size, color: { argb: rgb } };
+  c.alignment = { horizontal: 'left', vertical: 'middle' };
+}
+
 function renderGridXlsx(wb: any, grid: PlantillaGrid, def: PlantillaDefinicion, input: ExcelInstrumentoInput): any {
   const sinAI = !!input.cualitativo;
   const datos: TokenDatos = { ...tokenDatosCabecera(input), sinAI };
@@ -384,9 +393,25 @@ function renderGridXlsx(wb: any, grid: PlantillaGrid, def: PlantillaDefinicion, 
   const nombreHoja = `Ind ${input.indicadorOrden}`.replace(/[\\/:*?"<>|]/g, '-').slice(0, 31);
   const ws = agregarHoja(wb, nombreHoja, anchos);
 
+  // ── Encabezado ESTÁNDAR (convención informe/reporte): 4 filas antes de la
+  // cuadrícula. La cuadrícula del preset ya no trae tokens de cabecera.
+  const mEnc = input.meta as unknown as Record<string, string>;
+  const lineasEncabezado: { texto: string; estilo: 'titulo' | 'meta' | 'corte' | 'indicador' }[] = [
+    { texto: 'Instrumento de Evaluación', estilo: 'titulo' },
+    { texto: `Colegio: ${mEnc.colegio || ''} · Grado-Sección: ${mEnc.grado || ''}-${mEnc.seccion || ''} · Asignatura: ${mEnc.asignatura || ''} · Año: ${mEnc.ano || ''}`, estilo: 'meta' },
+    { texto: `Corte evaluativo: ${mEnc.corte || ''}`, estilo: 'corte' },
+    { texto: `Indicador ${input.indicadorOrden}: ${input.indicadorDescripcion || ''}`, estilo: 'indicador' },
+  ];
+  const mapEstiloARgb: Record<string, string> = {
+    titulo: 'FF065F46', meta: 'FF374151', corte: 'FF5B21B6', indicador: 'FF1E3A8A',
+  };
+  for (const linea of lineasEncabezado) {
+    lineaEncabezadoXlsx(ws, (lineasEncabezado.indexOf(linea)) + 1, kept.length, mapEstiloARgb[linea.estilo], linea.texto, linea.estilo === 'titulo' ? 12 : 9);
+  }
+  let outRow = lineasEncabezado.length; // 0-based: la cuadrícula empieza debajo
+
   const conFilaEst = grid.filaEstudiantes >= 0;
   const estudiantes = conFilaEst ? input.estudiantes : [];
-  let outRow = 0; // 0-based
 
   for (let r = 0; r < grid.filas; r++) {
     const esEstudiante = r === grid.filaEstudiantes;
@@ -432,7 +457,7 @@ export async function generarInstrumentoXlsxDesdeDefinicion(
   const wb = await crearLibro('School Tracker');
 
   const docsPath = await documentDir();
-  const dir = unirRuta(docsPath, 'SchoolTrackerPro', 'Instrumentos');
+  const dir = unirRuta(docsPath, 'School Tracker', 'Instrumentos');
   await mkdir(dir, { recursive: true }).catch(() => {});
 
   // ── Modo CUADRÍCULA (constructor tipo Excel): render tal cual ──
