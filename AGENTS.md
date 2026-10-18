@@ -1335,6 +1335,52 @@ presentación), Color de resaltado, Color por sexo, Notificaciones e Idioma.
   bloque de escritorio (con `!isAndroid` nunca coexisten, pero distintos ids
   evitan confusiones al editar).
 
+### Debug, Info, Calificaciones y Multiplicadores: mismo lenguaje compacto (2026-10)
+
+Las cuatro secciones del shell usan el patrón `class:compacto={isAndroid}` sobre
+su `.category-card` (CSS SCOPED por componente, sin tocar markup entero):
+
+- **Debug/Info (`.dbg-page.compacto`, `.info-page.compacto`)**: la cabecera del
+  `.category-card` **SE CONSERVA** — en Android es el ÚNICO título de la
+  sección (la rama Android de `AjustesPage` monta `<DebugPage />` pelado, sin
+  heading). Lo que se compacta: `.dbg-body`/`.info-body` sin padding extra
+  (`0 0.35rem`, gap `0.75rem`) y cada `.dbg-box`/`.info-box`/`.info-hero` como
+  tarjeta glass con `padding: 0.9rem; border-radius: 16px`.
+- **Calificaciones/Multiplicadores**: el padding interno `1.5rem 2rem` era
+  INLINE (`style="padding:1.5rem 2rem"`); se movió a la clase `.cfg-body` para
+  poder compactarlo desde el stylesheet SIN `!important` (CSS no pisa estilos
+  inline). Compacto: `padding: 0.35rem`.
+- ⚠️ La cabecera del `.category-card` no se puede ocultar en estas secciones:
+  a diferencia de la lista de Configuración, aquí el shell no pone h1.
+- ⚠️ App.css ya overridea `.category-card` en su media query móvil con
+  `!important`; si un día se de-quiere el marco en Android, el `padding: 0`
+  del compacto debe llevar `!important` también o lo pierde.
+
+### Alertas de asistencia: la config vive en la BD (2026-10)
+
+- Fuente de verdad: `app_settings` (clave `main`, tabla sincronizada por D1:
+  `d1.rs`, worker `TABLES`). `notifEnabled` + `notifCfg` (mapa por colegio id →
+  `{activo, inicio, fin, intervaloMin}`) ya están ahí.
+- `src/lib/attendanceAlarm.ts` es el ÚNICO punto que deriva el payload nativo
+  (`configDesdeSettings`) y arma/cancela la alarma (`aplicarAlarmaAsistencia`
+  → `schedule_attendance_alarm`/`cancel_attendance_alarm`):
+  - `NotificacionesPage.save()` llama al módulo (ya no repite la derivación ni
+    escribe `localStorage` a mano: lo mantienen `appSettings.ts`).
+  - `App.svelte` en el arranque (`loadAppSettings().then`, solo `isAndroid`)
+    re-arma o cancela la alarma leyendo la BD. Antes la alarma SOLO se armaba
+    al pulsar Guardar: el estado nativo quedaba desfasado y, si el localStorage
+    del WebView se perdía, la UI mostraba las alertas desactivadas aunque la
+    BD las conservara (el síntoma "se desactivan solas al reabrir la app").
+  - `NotificacionesPage.loadSettings()` lee `loadAppSettings()` (BD) y solo cae
+    al localStorage si la BD no trae config.
+- La EJECUCIÓN de la alarma sigue siendo por-dispositivo
+  (`AttendancePrefs.kt`): AlarmManager es local al equipo, NO va por D1; lo
+  sincronizable es la CONFIG.
+- El aviso "pendientes al abrir la app" (`avisarPendientesAlAbrir`) también lee
+  la BD. Antes leía el localStorage con el FORMATO VIEJO (`colegios` = array de
+  objetos contra un `Vec<i64>`, y `hora` que ya no existe) → el aviso estaba
+  muerto en silencio.
+
 ## Flujo de sincronización con Google Drive
 
 ### Visión general
@@ -2667,6 +2713,12 @@ onclick={() => openCloudPanel('d1')}     // o 'drive'
 en otro lugar, se abre el store. Duplicar la sesión de Drive en dos componentes
 es un error difícil de ver: el dispositivo queda con dos tokens distintos y el
 respaldo manual falla sin explicación.
+
+**Métricas de sync en Android (2026-10)**: `ModalNubeD1` muestra la tirita de
+▲ subidas / ▼ bajadas / ✕ borrados de la última sync que en escritorio vive en
+la card Nube D1 del sidebar (`CloudCards`). Es SOLO Android (`esAndroid` por
+user-agent): en escritorio la card del sidebar ya lo hace y el panel no la
+duplica. Fuente: `d1SyncState.lastResult` (el mismo `d1SyncManager`).
 
 ⚠️ **GOTCHA (lectura del .key)**: el `.key` se lee con el comando Rust
 `gd_read_file_base64` + `TextDecoder`, **no** con `readTextFile` del plugin-fs:

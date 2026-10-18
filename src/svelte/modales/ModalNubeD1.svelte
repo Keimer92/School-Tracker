@@ -32,6 +32,7 @@
     status: 'idle' as string,
     lastSync: null as string | null,
     message: null as string | null,
+    lastResult: null as { pushed: Record<string, number>; pulled: Record<string, number>; deletedApplied: number } | null,
   });
   let isD1Syncing = $state(false);
   let isImporting = $state(false);
@@ -160,6 +161,20 @@
 
   const abierto = $derived(isCloudPanelOpen('d1'));
   const conectado = $derived(d1Conectado());
+
+  /**
+   * ANDROID: la tira de métricas (▲ subidas / ▼ bajadas / ✕ borrados) que en
+   * escritorio vive en la card de Cloudflare del sidebar (`CloudCards`), que en
+   * Android no existe (allí el acceso a la nube es el chip del header que abre
+   * este panel). Mismo estado, misma cuenta, sin duplicar lectura.
+   */
+  const esAndroid = /Android/i.test(navigator.userAgent);
+  function sumCounts(v: unknown): number {
+    if (!v || typeof v !== 'object') return 0;
+    return Object.values(v as Record<string, number>).reduce((a, b) => a + (Number(b) || 0), 0);
+  }
+  const pushedTotal = $derived(sumCounts(d1SyncState.lastResult?.pushed));
+  const pulledTotal = $derived(sumCounts(d1SyncState.lastResult?.pulled));
 </script>
 
 <ModalBase
@@ -208,6 +223,27 @@
         <span class="info-sync-auto">{conectado ? t('cloud.sync.auto', { n: SYNC_PERIODICO_MIN }) : t('d1m.conectar.sinAuto')}</span>
       </div>
     </div>
+
+    <!-- ANDROID: métricas de la última sync (equivalente de la card del
+         sidebar de escritorio). La ejecución del sync sigue opaca por diseño;
+         esto solo informa qué movió la última pasada. -->
+    {#if esAndroid && conectado}
+      {#if d1SyncState.lastResult}
+        <div class="metricas-sync">
+          <div class="metricas-titulo">{t('d1m.metrics.titulo')}</div>
+          <div class="metricas-fila">
+            <span class="metrica up"><strong>▲ {pushedTotal}</strong><span>{t('d1m.metrics.subidas')}</span></span>
+            <span class="metrica down"><strong>▼ {pulledTotal}</strong><span>{t('d1m.metrics.bajadas')}</span></span>
+            <span class="metrica del"><strong>✕ {d1SyncState.lastResult.deletedApplied}</strong><span>{t('d1m.metrics.borrados')}</span></span>
+          </div>
+        </div>
+      {:else}
+        <div class="metricas-sync vacia">
+          <div class="metricas-titulo">{t('d1m.metrics.titulo')}</div>
+          <div class="metricas-nada">{t('ccards.sinSincronizar')}</div>
+        </div>
+      {/if}
+    {/if}
 
     {#if conectado && d1SyncState.status === 'error' && d1SyncState.message}
       <div class="caja-error">
@@ -324,6 +360,55 @@
   .info-sync-line { color: #94a3b8; font-size: 0.72rem; }
   .info-sync-line strong { color: #e2e8f0; }
   .info-sync-auto { color: #64748b; font-size: 0.68rem; }
+
+  /* ANDROID: tira de métricas de la última sync. Mismo lenguaje que la card
+     de Cloudflare del sidebar de escritorio (▲ verde / ▼ azul / ✕ rosa). */
+  .metricas-sync {
+    margin-top: 0.85rem;
+    padding: 0.7rem 0.9rem;
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .metricas-sync.vacia { opacity: 0.8; }
+  .metricas-titulo {
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #64748b;
+    font-weight: 700;
+    margin-bottom: 0.45rem;
+  }
+  .metricas-fila {
+    display: grid;
+    /* UNA sola fila: 3 columnas iguales; envolver dejaba la tercera métrica
+       afuera en un teléfono y la fila "se partía" en dos. */
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.35rem;
+  }
+  /* Cada métrica apila número arriba y etiqueta abajo: así las tres caben en
+     una línea sin recortar la etiqueta ni depender del texto traducido. */
+  .metrica {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+    min-width: 0;
+    text-align: center;
+  }
+  .metrica strong { font-size: 0.85rem; font-weight: 700; }
+  .metrica span {
+    font-size: 0.56rem;
+    color: #64748b;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .metrica.up strong { color: #22c55e; }
+  .metrica.down strong { color: #3b82f6; }
+  .metrica.del strong { color: #f472b6; }
+  .metricas-nada { font-size: 0.7rem; color: var(--text-muted); }
 
   .caja-error {
     margin-top: 0.85rem;

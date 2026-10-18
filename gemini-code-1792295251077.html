@@ -1,0 +1,277 @@
+<script>
+  // Modo de la vista: 'editar' o 'evaluar'
+  let modo = 'editar';
+
+  // Estado del instrumento (editable con campos reactivos)
+  let instrumento = {
+    asignatura: "Lengua y Literatura",
+    grado: "2do Grado",
+    fecha: "2026-10-17",
+    indicador: "Identifica los sonidos iniciales y finales en palabras dadas.",
+    escalas: ["AA", "AS", "AF", "AI"],
+    criterios: [
+      "Criterio Nº1: Reconoce sonido inicial",
+      "Criterio Nº2: Reconoce sonido final",
+      "Criterio Nº3: Muestra fluidez"
+    ],
+    estudiantes: [
+      { id: 1, nombre: "Andrea Monserath Tapia Espinoza" },
+      { id: 2, nombre: "Briana Francinis López Mendoza" }
+    ]
+  };
+
+  // Guardar calificaciones (para el modo de evaluación)
+  let evaluaciones = {};
+
+  // --- FUNCIONES DEL EDITOR VISUAL ---
+  function agregarCriterio() {
+    const num = instrumento.criterios.length + 1;
+    instrumento.criterios = [...instrumento.criterios, `Criterio Nº${num}: Nuevo criterio`];
+  }
+
+  function eliminarCriterio(index) {
+    if (instrumento.criterios.length <= 1) return;
+    instrumento.criterios = instrumento.criterios.filter((_, i) => i !== index);
+  }
+
+  function agregarEstudiante() {
+    const id = Date.now();
+    instrumento.estudiantes = [...instrumento.estudiantes, { id, nombre: "Nombre del estudiante" }];
+  }
+
+  function eliminarEstudiante(id) {
+    instrumento.estudiantes = instrumento.estudiantes.filter(e => e.id !== id);
+  }
+
+  // --- FUNCIONES DE EVALUACIÓN EN TIEMPO REAL ---
+  function seleccionarEscala(estudianteId, critIdx, escala) {
+    if (modo !== 'evaluar') return;
+    if (!evaluaciones[estudianteId]) evaluaciones[estudianteId] = {};
+    evaluaciones[estudianteId][critIdx] = escala;
+    evaluaciones = { ...evaluaciones };
+  }
+
+  function calcularNota(estudianteId) {
+    const notas = evaluaciones[estudianteId];
+    if (!notas) return '-';
+    const vals = Object.values(notas);
+    if (vals.includes('AI')) return 'AI';
+    if (vals.includes('AF')) return 'AF';
+    if (vals.includes('AS')) return 'AS';
+    if (vals.length === instrumento.criterios.length && vals.every(v => v === 'AA')) return 'AA';
+    return 'AS';
+  }
+
+  // Exportar el instrumento diseñado en formato JSON para reutilizarlo o guardarlo
+  function guardarInstrumento() {
+    const jsonStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(instrumento, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", jsonStr);
+    downloadAnchor.setAttribute("download", `Instrumento_${instrumento.grado}_${instrumento.asignatura}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  }
+</script>
+
+<!-- BARRA DE HERRAMIENTAS Y CONTROL DE MODO -->
+<div class="toolbar">
+  <div class="mode-selector">
+    <button class:active={modo === 'editar'} on:click={() => modo = 'editar'}>
+      ✏️ Modo Edición Visual
+    </button>
+    <button class:active={modo === 'evaluar'} on:click={() => modo = 'evaluar'}>
+      📋 Modo Evaluación Real
+    </button>
+  </div>
+
+  {#if modo === 'editar'}
+    <div class="actions">
+      <button on:click={agregarCriterio}>➕ Añadir Criterio</button>
+      <button on:click={agregarEstudiante}>👤 Añadir Estudiante</button>
+      <button class="btn-save" on:click={guardarInstrumento}>💾 Exportar Plantilla</button>
+    </div>
+  {/if}
+</div>
+
+<!-- CONTENEDOR PRINCIPAL DEL INSTRUMENTO -->
+<div class="sheet-container">
+
+  <!-- ENCABEZADO EDITABLE -->
+  <div class="header-grid">
+    <div class="field">
+      <label>Asignatura:</label>
+      {#if modo === 'editar'}
+        <input type="text" bind:value={instrumento.asignatura} />
+      {:else}
+        <span>{instrumento.asignatura}</span>
+      {/if}
+    </div>
+
+    <div class="field">
+      <label>Grado:</label>
+      {#if modo === 'editar'}
+        <input type="text" bind:value={instrumento.grado} />
+      {:else}
+        <span>{instrumento.grado}</span>
+      {/if}
+    </div>
+
+    <div class="field">
+      <label>Fecha:</label>
+      {#if modo === 'editar'}
+        <input type="date" bind:value={instrumento.fecha} />
+      {:else}
+        <span>{instrumento.fecha}</span>
+      {/if}
+    </div>
+  </div>
+
+  <div class="indicador-box">
+    <label><strong>Indicador de Logro:</strong></label>
+    {#if modo === 'editar'}
+      <textarea bind:value={instrumento.indicador} rows="2"></textarea>
+    {:else}
+      <p>{instrumento.indicador}</p>
+    {/if}
+  </div>
+
+  <!-- TABLA EDITABLE / EVALUABLE -->
+  <table class="grid-table">
+    <thead>
+      <tr>
+        <th rowspan="2">Nº</th>
+        <th rowspan="2">Lista de Estudiantes</th>
+        {#each instrumento.criterios as criterio, cIdx}
+          <th colspan={instrumento.escalas.length}>
+            {#if modo === 'editar'}
+              <div class="criterio-editor">
+                <input type="text" bind:value={instrumento.criterios[cIdx]} />
+                <button class="btn-del" on:click={() => eliminarCriterio(cIdx)}>✕</button>
+              </div>
+            {:else}
+              {criterio}
+            {/if}
+          </th>
+        {/each}
+        <th rowspan="2">Nota Cualitativa</th>
+        {#if modo === 'editar'}<th rowspan="2">Acción</th>{/if}
+      </tr>
+      <tr>
+        {#each instrumento.criterios as _}
+          {#each instrumento.escalas as escala}
+            <th class="sub-head">{escala}</th>
+          {/each}
+        {/each}
+      </tr>
+    </thead>
+    <tbody>
+      {#each instrumento.estudiantes as estudiante, idx (estudiante.id)}
+        <tr>
+          <td>{idx + 1}</td>
+          <td class="left-align">
+            {#if modo === 'editar'}
+              <input type="text" bind:value={estudiante.nombre} />
+            {:else}
+              {estudiante.nombre}
+            {/if}
+          </td>
+
+          <!-- CASILLAS DE EVALUACIÓN -->
+          {#each instrumento.criterios as _, critIdx}
+            {#each instrumento.escalas as escala}
+              <td 
+                class="check-cell"
+                class:clickable={modo === 'evaluar'}
+                class:selected={evaluaciones[estudiante.id]?.[critIdx] === escala}
+                on:click={() => seleccionarEscala(estudiante.id, critIdx, escala)}
+              >
+                {evaluaciones[estudiante.id]?.[critIdx] === escala ? '✓' : ''}
+              </td>
+            {/each}
+          {/each}
+
+          <!-- NOTA CUALITATIVA EN TIEMPO REAL -->
+          <td class="nota-cell">{calcularNota(estudiante.id)}</td>
+
+          {#if modo === 'editar'}
+            <td>
+              <button class="btn-del" on:click={() => eliminarEstudiante(estudiante.id)}>🗑️</button>
+            </td>
+          {/if}
+        </tr>
+      {/each}
+    </tbody>
+  </table>
+</div>
+
+<style>
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #2c3e50;
+    padding: 10px 15px;
+    border-radius: 6px 6px 0 0;
+    color: white;
+  }
+  .mode-selector button {
+    padding: 8px 14px;
+    border: none;
+    background: #34495e;
+    color: white;
+    cursor: pointer;
+    border-radius: 4px;
+    margin-right: 5px;
+  }
+  .mode-selector button.active {
+    background: #27ae60;
+    font-weight: bold;
+  }
+  .actions button {
+    padding: 6px 12px;
+    margin-left: 5px;
+    cursor: pointer;
+    border: none;
+    border-radius: 4px;
+    background: #ecf0f1;
+  }
+  .btn-save { background: #3498db !important; color: white; font-weight: bold; }
+  
+  .sheet-container {
+    border: 1px solid #ccc;
+    padding: 20px;
+    background: #fff;
+    font-family: Arial, sans-serif;
+  }
+  .header-grid {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 15px;
+  }
+  .field { display: flex; align-items: center; gap: 5px; }
+  .field input { padding: 4px 8px; font-size: 14px; }
+  .indicador-box textarea { width: 100%; font-size: 14px; padding: 6px; }
+
+  .grid-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+    text-align: center;
+  }
+  .grid-table th, .grid-table td {
+    border: 1px solid #bbb;
+    padding: 6px;
+  }
+  .sub-head { background: #f2f2f2; font-size: 12px; }
+  .left-align { text-align: left; }
+  .criterio-editor { display: flex; gap: 4px; align-items: center; }
+  .criterio-editor input { width: 100%; font-size: 12px; }
+  .btn-del { background: #e74c3c; color: white; border: none; padding: 2px 6px; cursor: pointer; border-radius: 3px; }
+  
+  .check-cell { width: 28px; }
+  .check-cell.clickable { cursor: pointer; }
+  .check-cell.clickable:hover { background: #e8f5e9; }
+  .check-cell.selected { background: #2ecc71; color: white; font-weight: bold; }
+  .nota-cell { font-weight: bold; background: #f9f9f9; }
+</style>

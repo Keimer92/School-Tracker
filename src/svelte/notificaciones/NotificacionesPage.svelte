@@ -7,21 +7,28 @@
    * monta cuando `activeTab === "notificaciones"`.
    *
    * Como funciona: por cada colegio se define una ventana horaria `[inicio, fin]` y
-   * cada cuanto repetir (AlarmManager nativo). La config se guarda en localStorage
-   * (`stp_attendance_notif_settings`, espejo en la tabla `app_settings`) y se manda
-   * al calendario de Android con `schedule_attendance_alarm`.
+   * cada cuanto repetir (AlarmManager nativo). La config vive en la tabla
+   * `app_settings` de la BD (sincronizada con D1) y se manda al calendario de
+   * Android con `schedule_attendance_alarm`.
+   *
+   * ⚠️ Se lee de la BD (`loadAppSettings`), NO del localStorage: el localStorage
+   * del WebView puede perderse y era la causa de que las alertas "se
+   * desactivaran solas" al reabrir la app. La BD es la fuente de verdad;
+   * `appSettings.ts` mantiene el espejo localStorage solo como caché.
    */
   import { invoke } from "@tauri-apps/api/core";
   import { emit } from "@tauri-apps/api/event";
   import { getLocalDateISOString } from "../../lib/dateUtils";
-  import { getAppSettings, saveAppSettings } from "../../lib/appSettings";
+  import { loadAppSettings, saveAppSettings, getAppSettings } from "../../lib/appSettings";
+  import { aplicarAlarmaAsistencia, configDesdeSettings } from "../../lib/attendanceAlarm";
   import { onMount } from "svelte";
   import { t } from "../../lib/i18n.svelte";
 
   interface ColegioItem { id: number; nombre: string; }
 
-  const STORAGE_KEY = "stp_attendance_notif_settings";
   const INTERVALOS = [15, 30, 45, 60, 90, 120];
+  // Caché localStorage que mantiene `appSettings.ts` (fallback si la BD falla).
+  const STORAGE_KEY_FALLBACK = "stp_attendance_notif_settings";
   // Orden = indice de `Date.getDay()` (0 = domingo). Debe coincidir con las
   // columnas de `colegio_dias_asistencia`.
   const DIAS = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
@@ -130,9 +137,34 @@
     setCfg(id, { activo: !cfgDe(id).activo });
   }
 
-  function loadSettings() {
+  async function loadSettings() {
+    // Fuente de verdad: la tabla `app_settings` (BD sincronizada). Se releer de
+    // la BD al montar para no depender de que el `loadAppSettings` del arranque
+    // ya terminara. El fallback localStorage se mantiene para bases donde la
+    // config nunca llegó a la BD.
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const s = await loadAppSettings();
+      const dbTieneCfg = Object.keys(s.notifCfg || {}).length > 0;
+      if (s.notifEnabled || dbTieneCfg) {
+        enabled = !!s.notifEnabled;
+        const map: Record<number, NotifColegioCfg> = {};
+        for (const [id, c] of Object.entries(s.notifCfg || {})) {
+          map[Number(id)] = {
+            activo: !!c.activo,
+            inicio: c.inicio || CFG_POR_DEFECTO.inicio,
+            fin: c.fin || CFG_POR_DEFECTO.fin,
+            intervaloMin: Number(c.intervaloMin) || CFG_POR_DEFECTO.intervaloMin,
+          };
+        }
+        if (Object.keys(map).length > 0) cfg = map;
+        return;
+      }
+    } catch (e) {
+      console.warn("[Notif] No se pudo leer la config de la BD:", e);
+    }
+    // Respaldo: caché localStorage (formato { enabled, colegios[] }).
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_FALLBACK);
       if (!stored) return;
       const s = JSON.parse(stored);
       enabled = !!s.enabled;
@@ -215,32 +247,23 @@
   async function save() {
     saving = true;
     try {
-      const activos = Object.entries(cfg)
-        .filter(([, c]) => c.activo)
-        .map(([id, c]) => ({
-          id: Number(id),
-          inicio: c.inicio,
-          fin: c.fin,
-          intervaloMin: Number(c.intervaloMin) || CFG_POR_DEFECTO.intervaloMin,
-        }));
-      const config = { enabled: enabled && activos.length > 0, colegios: activos };
-
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
       await saveAppSettings({ ...getAppSettings(), notifEnabled: enabled, notifCfg: cfg });
+      // `saveAppSettings` ya refrescó el espejo localStorage con el criterio
+      // "enabled solo si hay colegios activos"; NO reescribirlo a mano aquí.
+      const config = configDesdeSettings(getAppSettings());
 
       if (!config.enabled) {
-        await invoke("cancel_attendance_alarm");
+        await aplicarAlarmaAsistencia(getAppSettings());
         await emit("show-toast", { message: t("notif.toast.desactivadas"), type: "info" });
         return;
       }
 
-      const detalle = activos.map(c => {
+      const detalle = config.colegios.map(c => {
         const nombre = colegios.find(x => x.id === c.id)?.nombre || `#${c.id}`;
         return `${nombre} ${c.inicio}-${c.fin}/${c.intervaloMin}m`;
       });
       try {
-        const dbPath = await invoke<string>("get_db_path");
-        await invoke("schedule_attendance_alarm", { config: JSON.stringify(config), dbPath });
+        await aplicarAlarmaAsistencia(getAppSettings());
         await emit("show-toast", { message: t("notif.toast.guardado", { detalle: detalle.join(", ") }), type: "success" });
       } catch (alarmErr) {
         console.error("[Notif] Error programando alarma:", alarmErr);

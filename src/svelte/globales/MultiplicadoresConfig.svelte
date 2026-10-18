@@ -27,6 +27,8 @@ import { t } from "../../lib/i18n.svelte";
 
   let hasUnsaved = $derived(original !== JSON.stringify(multiplicadores));
 
+  const isAndroid = /Android/i.test(navigator.userAgent);
+
   async function recargar() {
     try {
       const [mult, grades] = await Promise.all([
@@ -72,9 +74,9 @@ import { t } from "../../lib/i18n.svelte";
   }
 </script>
 
-<div class="category-card" style="border-left:3px solid #a78bfa;">
+<div class="category-card" class:compacto={isAndroid} style="border-left:3px solid #a78bfa;">
   <div class="category-header"><h3>{t('ccm.multiplicadores.titulo')}</h3></div>
-  <div style="padding:1.5rem 2rem;">
+  <div class="cfg-body">
     <p style="margin:0 0 1.5rem 0;color:#94a3b8;font-size:0.85rem;">{t('ccm.multiplicadores.desc')}</p>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:1rem;">
       {#if multiplicadores.length === 0}
@@ -115,3 +117,18 @@ import { t } from "../../lib/i18n.svelte";
     </button>
   </div>
 {/if}
+
+<style>
+  /* El padding del cuerpo era inline (`1.5rem 2rem`): moverlo a clase permite
+     compactarlo en Android SIN `!important` (los estilos inline no se pueden
+     pisar desde el stylesheet). */
+  .cfg-body { padding: 1.5rem 2rem; }
+
+  /* ── Android: compacto (`.and-card`) ───────────────────────────────────
+     El marco `.category-card` en móvil ya queda con `padding: 0.75rem`
+     (App.css), así que basta achicar el aire interno; la cabecera se
+     conserva porque en Android es el único título de la sección. */
+  .category-card.compacto .cfg-body { padding: 0.35rem; }
+  .category-card.compacto .category-header { margin-bottom: 0.9rem; }
+  .category-card.compacto .category-header h3 { font-size: 1.05rem; }
+</style>

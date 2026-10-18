@@ -536,7 +536,7 @@ void checkForUpdate();
   }
 </script>
 
-<div class="dbg-page">
+<div class="dbg-page" class:compacto={isAndroid}>
   <div class="category-card" style="border-left: 3px solid {ACCENT};">
     <div class="category-header" style="border-left: none;">
       <div style="width:36px;height:36px;border-radius:10px;background:{ACCENT}18;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0;">🐛</div>
@@ -896,4 +896,31 @@ void checkForUpdate();
     .dbg-body { padding: 1.1rem; gap: 1rem; }
     .dbg-box { padding: 1.1rem; }
   }
+
+  /* ── Android: lenguaje de tarjetas compactas (`.and-card`) ──────────────
+     La cabecera SE CONSERVA (en Android es el único título de la sección, el
+     shell de AjustesPage no pinta ninguno). Lo que se compacta es el aire:
+     `.dbg-body` sin padding extra y cada `.dbg-box` como tarjeta a sangre con
+     `padding: 0.9rem`. */
+  .dbg-page.compacto .category-header { margin-bottom: 0.75rem; }
+  .dbg-page.compacto .dbg-body { padding: 0 0.35rem; gap: 0.75rem; }
+  .dbg-page.compacto .dbg-box {
+    padding: 0.9rem;
+    border-radius: 16px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+  }
+  /* `.dbg-box-peligro` va DESPUÉS de `.dbg-box`: sin repetirlo aquí, el
+     selector de tres clases de arriba lo pisaría y el tinte rojo se perdía. */
+  .dbg-page.compacto .dbg-box-peligro {
+    background: rgba(239,68,68,0.05);
+    border-color: rgba(239,68,68,0.2);
+  }
+  .dbg-page.compacto .dbg-box-head { gap: 0.7rem; margin-bottom: 0.5rem; }
+  .dbg-page.compacto .dbg-box-head > span:first-child {
+    width: 34px; height: 34px; border-radius: 11px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.06);
+  }
+  .dbg-page.compacto .dbg-box-head h5 { font-size: 0.95rem; }
 </style>

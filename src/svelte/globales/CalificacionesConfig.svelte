@@ -23,6 +23,8 @@ import { t } from "../../lib/i18n.svelte";
 
   let hasUnsaved = $derived(original !== JSON.stringify(gradeConfigs));
 
+  const isAndroid = /Android/i.test(navigator.userAgent);
+
   async function recargar() {
     try {
       const gc = await invoke<GradeConfig[]>("get_grade_configs");
@@ -65,9 +67,9 @@ import { t } from "../../lib/i18n.svelte";
   }
 </script>
 
-<div class="category-card" style="border-left:3px solid #fbbf24;">
+<div class="category-card" class:compacto={isAndroid} style="border-left:3px solid #fbbf24;">
   <div class="category-header"><h3>{t('cc_calificaciones.titulo')}</h3></div>
-  <div style="padding:1.5rem 2rem;">
+  <div class="cfg-body">
     <p style="margin:0 0 1.5rem 0;color:#94a3b8;font-size:0.85rem;">{t('cc_calificaciones.desc')}</p>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:1rem;">
       {#each gradeConfigs as grade (grade.id)}
@@ -141,3 +143,16 @@ import { t } from "../../lib/i18n.svelte";
     </button>
   </div>
 {/if}
+
+<style>
+  /* El padding del cuerpo era inline (`1.5rem 2rem`): moverlo a clase permite
+     compactarlo en Android SIN pisar el estilo inline desde el stylesheet. */
+  .cfg-body { padding: 1.5rem 2rem; }
+
+  /* ── Android: compacto (`.and-card`) ───────────────────────────────────
+     La cabecera se conserva (en Android es el único título de la sección);
+     lo que se reduce es el aire interno del cuerpo. */
+  .category-card.compacto .cfg-body { padding: 0.35rem; }
+  .category-card.compacto .category-header { margin-bottom: 0.9rem; }
+  .category-card.compacto .category-header h3 { font-size: 1.05rem; }
+</style>

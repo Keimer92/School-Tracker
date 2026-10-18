@@ -29,9 +29,11 @@
   ]);
 
   let selectedFeature = $state<(typeof FEATURES)[number] | null>(null);
+
+  const isAndroid = /Android/i.test(navigator.userAgent);
 </script>
 
-<div class="info-page">
+<div class="info-page" class:compacto={isAndroid}>
   <div class="category-card" style="border-left: 3px solid {ACCENT};">
     <div class="category-header" style="border-left: none;">
       <div style="width:36px;height:36px;border-radius:10px;background:{ACCENT}18;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><img src={appIcon} alt="" style="width:24px;height:24px;border-radius:6px;object-fit:contain;" /></div>
@@ -199,5 +201,24 @@
     .info-hero { flex-direction: column; text-align: center; padding: 1.25rem; }
     .info-hero-title { font-size: 1.3rem; }
     .info-box { padding: 1.1rem; }
+  }
+
+  /* ── Android: lenguaje de tarjetas compactas (`.and-card`) ──────────────
+     La cabecera SE CONSERVA (en Android es el único título de la sección). Lo
+     que se compacta es el aire: `.info-body` sin padding extra y cada bloque
+     (hero / box) como tarjeta con `padding: 0.9rem`. */
+  .info-page.compacto .category-header { margin-bottom: 0.75rem; }
+  .info-page.compacto .info-body { padding: 0 0.35rem; gap: 0.75rem; }
+  .info-page.compacto .info-hero {
+    padding: 0.9rem;
+    border-radius: 16px;
+    border: 1px solid var(--card-border);
+    background: var(--card-bg);
+  }
+  .info-page.compacto .info-box {
+    padding: 0.9rem;
+    border-radius: 16px;
+    border: 1px solid var(--card-border);
+    background: var(--card-bg);
   }
 </style>

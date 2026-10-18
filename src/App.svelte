@@ -13,6 +13,8 @@
   import { aplicarColoresSexo } from "./lib/coloresSexo.svelte";
   import { applyAccentColor, DEFAULT_ACCENT } from "./lib/theme";
   import { getLocalDateISOString } from "./lib/dateUtils";
+  import { aplicarAlarmaAsistencia, avisarPendientesAlAbrir } from "./lib/attendanceAlarm";
+  import type { AppSettings } from "./lib/appSettings";
   import { t } from "./lib/i18n.svelte";
   import appIcon from "./assets/app-icon.png";
   import AsistenciaMainPage from "./svelte/asistencia/AsistenciaMainPage.svelte";
@@ -123,48 +125,13 @@
     isAndroid = /Android/i.test(navigator.userAgent);
   }
 
-  async function checkAttendanceReminder() {
-    try {
-      const NOTIF_STORAGE_KEY = 'stp_attendance_notif_settings';
-      let stored: any = null;
-      try { stored = JSON.parse(localStorage.getItem(NOTIF_STORAGE_KEY) || "null"); } catch {}
-
-      // Config no guardada o desactivada → no avisar.
-      if (!stored || !stored.enabled) return;
-
-      // Si la hora configurada aún no pasó, no avisar al abrir (la alarma lo hará).
-      if (stored.hora) {
-        const now = new Date();
-        const [h, m] = String(stored.hora).split(":").map(Number);
-        const nowMin = now.getHours() * 60 + now.getMinutes();
-        const cfgMin = (h || 0) * 60 + (m || 0);
-        if (nowMin < cfgMin) return;
-      }
-
-      // No avisar al abrir si el día está silenciado.
-      const silenced = await invoke<boolean>("get_attendance_silenced_today").catch(() => false);
-      if (silenced) return;
-
-      const colegios = Array.isArray(stored.colegios) && stored.colegios.length ? stored.colegios : [];
-      const grados = Array.isArray(stored.grados) ? stored.grados : [];
-      const secciones = Array.isArray(stored.secciones) ? stored.secciones : [];
-
-      const fecha = getLocalDateISOString();
-      const pendientes = await invoke<{ grado: string; seccion: string }[]>(
-        "get_pendientes_asistencia_filtrados",
-        { colegios, grados, secciones, fecha }
-      );
-      if (!pendientes || pendientes.length === 0) return;
-
-      const lista = pendientes.slice(0, 5).map(p => `${p.grado} ${p.seccion}`).join(", ");
-      const resto = pendientes.length > 5 ? ` y ${pendientes.length - 5} más` : "";
-      await invoke("notify_attendance_reminder", {
-        title: "Asistencia pendiente",
-        body: `Sin asistencia hoy: ${lista}${resto}`,
-      });
-    } catch (e) {
-      console.error("Error al verificar asistencias pendientes:", e);
-    }
+  // El aviso de apertura vive en `lib/attendanceAlarm.ts` (formato VIEJO: leía
+  // un localStorage donde `colegios` era un array de objetos y el `invoke`
+  // esperaba `Vec<i64>`, así que el aviso de apertura estaba muerto).
+  function checkAttendanceReminder(s: AppSettings) {
+    void avisarPendientesAlAbrir(s).catch(e =>
+      console.error("Error al verificar asistencias pendientes:", e)
+    );
   }
 
   function saveSidebarWidth(val: number) {
@@ -403,6 +370,16 @@
         applyTheme(themeMode);
         applyAccentColor(s.accentColor || DEFAULT_ACCENT);
         aplicarColoresSexo(s);
+        // ANDROID: re-armar la alarma de asistencia leyendo la BD. Antes la
+        // alarma SOLO se armaba al pulsar "Guardar", así que al reabrir la app
+        // la alarma nativa podía quedar desfasada (o muerta). Es idempotente
+        // (AlarmManager FLAG_UPDATE_CURRENT) y NO debe bloquear el arranque.
+        if (isAndroid) {
+          void aplicarAlarmaAsistencia(s).catch(e =>
+            console.warn("[Notif] No se pudo rearmar la alarma al arrancar:", e)
+          );
+          void checkAttendanceReminder(s);
+        }
       });
       const unsubSettings = onAppSettingsChange(s => {
         if (s.theme && s.theme !== themeMode) {
@@ -490,11 +467,6 @@
       void d1TrySync('startup');
 
       invoke("seed_defaults_now");
-
-      // Notificación Android: grados/secciones sin asistencia hoy (solo si colegio laborable).
-      if (isAndroid) {
-        checkAttendanceReminder();
-      }
     }
 
     // Listen for welcome complete event (from WelcomePage)
