@@ -3,7 +3,7 @@ import { documentDir } from '@tauri-apps/api/path';
 import { writeFile, mkdir, readDir } from '@tauri-apps/plugin-fs';
 import type { InstrumentoTipo } from './instrumentosPdf';
 import { aFileURL, separadorRuta, unirRuta } from './platform';
-import { cargarExcelJs, crearLibro, agregarHoja, escribirPortada, escribirCabecera, escribirFila, escribirLibroEnCarpeta } from './excel';
+import { cargarExcelJs, crearLibro, agregarHoja, escribirPortada, escribirCabecera, escribirFila, escribirLibroEnCarpeta, BORDE_FINO } from './excel';
 import type { PlantillaDefinicion, PlantillaGrid, TokenDatos } from './instrumentoPlantilla';
 import { resolverTokens } from './instrumentoPlantilla';
 
@@ -305,15 +305,109 @@ export async function abrirCarpetaInstrumentos(): Promise<void> {
 // Generador XLSX desde plantilla de la BD (constructor visual)
 // ============================================================================
 
+/** Contexto de tokens de cabecera (sin estudiante) desde el input de datos. */
+function tokenDatosCabecera(input: ExcelInstrumentoInput): TokenDatos {
+  const m = input.meta as unknown as Record<string, string>;
+  return {
+    metaSel: {
+      COLEGIO: m.colegio, GRADO: m.grado, SECCION: m.seccion,
+      ASIGNATURA: m.asignatura, CORTE: m.corte, ANO: m.ano,
+    },
+    indN: input.indicadorOrden,
+    indDesc: input.indicadorDescripcion ?? '',
+    criterios: input.criterios.map(c => c.descripcion),
+  };
+}
+
 /**
- * Genera el XLSX SIN plantilla de archivo: la presentación la manda la
- * definición de la plantilla de la BD (`PlantillaDefinicion`) y los datos el
- * `ExcelInstrumentoInput`. Es el camino que reemplaza la carpeta Plantillas:
- * en Android no hay una carpeta editable y el respaldo/restauro de Drive no
- * trae archivos sueltos, pero la plantilla sí viaja sincronizada en la BD.
- *
- * Devuelve la ruta completa del archivo guardado.
+ * Renderiza la CUADRÍCULA tipo Excel (definición con `grid`) tal cual: merges
+ * nativos de ExcelJS, fila de estudiantes expandida por cada alumno y tokens
+ * reemplazados con los datos reales del indicador.
  */
+function renderGridXlsx(wb: any, grid: PlantillaGrid, def: PlantillaDefinicion, input: ExcelInstrumentoInput): any {
+  const datos = tokenDatosCabecera(input);
+  const covCache = new Map<number, Map<string, [number, number]>>();
+  const cubiertos = (g: PlantillaGrid) => {
+    if (!covCache.has(g.filas * 1000 + g.cols)) {
+      const m = new Map<string, [number, number]>();
+      for (const [k, cel] of Object.entries(g.celdas)) {
+        const [r, c] = k.split(':').map(Number);
+        for (let rr = r; rr < Math.min(r + (cel.rs ?? 1), g.filas); rr++)
+          for (let cc = c; cc < Math.min(c + (cel.cs ?? 1), g.cols); cc++)
+            if (rr !== r || cc !== c) m.set(`${rr}:${cc}`, [r, c]);
+      }
+      covCache.set(g.filas * 1000 + g.cols, m);
+    }
+    return covCache.get(g.filas * 1000 + g.cols)!;
+  };
+
+  // Ancho de columna: longitud del texto resuelto (sin estudiante), acotado.
+  const cov = cubiertos(grid);
+  const anchos: number[] = [];
+  for (let c = 0; c < grid.cols; c++) {
+    let mx = 4;
+    for (const [k, cel] of Object.entries(grid.celdas)) {
+      const [r, cc] = k.split(':').map(Number);
+      if (cc !== c) continue;
+      const resolved = resolverTokens(cel.v ?? '', datos);
+      mx = Math.max(mx, Math.min(resolved.length + 3, 34));
+    }
+    anchos.push(mx);
+  }
+  const nombreHoja = `Ind ${input.indicadorOrden}`.replace(/[\\/:*?"<>|]/g, '-').slice(0, 31);
+  const ws = agregarHoja(wb, nombreHoja, anchos);
+
+  const conFilaEst = grid.filaEstudiantes >= 0;
+  const estudiantes = conFilaEst ? input.estudiantes : [];
+  let outRow = 0; // 0-based
+
+  for (let r = 0; r < grid.filas; r++) {
+    const esEstudiante = r === grid.filaEstudiantes;
+    outRow += 1; // moveTo 1-based al escribir
+    const veces = esEstudiante ? estudiantes.length : 1;
+    if (veces === 0) { outRow -= 1; continue; } // fila de estudiante sin alumnos
+
+    for (let vi = 0; vi < veces; vi++) {
+      const est = esEstudiante
+        ? (estudiantes as ExcelInstrumentoInput['estudiantes'])[vi]
+        : undefined;
+      const dEst: TokenDatos = est
+        ? { ...datos, est: { n: vi + 1, nombre: est.nombre, letras: est.letras.map(l => l ?? ''), valoracion: est.valoracion || '' } }
+        : datos;
+      for (let c = 0; c < grid.cols; c++) {
+        const key = `${r}:${c}`;
+        const dueño = cov.get(`${r}:${c}`);
+        if (dueño && dueño[1] !== c) continue; // cubierta horizontal: skip
+        const cel = grid.celdas[key];
+        const ancho = (cel?.cs ?? 1);
+        if (dueño) continue; // cubierta vertical por otra celda de esta misma columna
+        // Escribir celda.
+        const rr1 = outRow, cc1 = c + 1;
+        const celda = ws.getCell(rr1, cc1);
+        celda.value = resolverTokens(cel?.v ?? '', dEst);
+        if (esEstudiante) {
+          celda.font = { size: 9, color: { argb: 'FF1E293B' } };
+        } else {
+          celda.font = { bold: true, size: 9, color: { argb: 'FF0F172A' } };
+        }
+        celda.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+        celda.border = BORDE_FINO;
+        if (ancho > 1 || (!esEstudiante && (cel?.rs ?? 1) > 1)) {
+          ws.mergeCells(rr1, cc1, rr1 + (cel?.rs ?? 1) - 1, cc1 + ancho - 1);
+        }
+        // Bordes del rango fusionado (mergeCells resetea estilos internos en ExcelJS).
+        const cTop = ws.getCell(rr1, cc1);
+        cTop.border = BORDE_FINO;
+        const cFin = ws.getCell(rr1 + (cel?.rs ?? 1) - 1, cc1 + ancho - 1);
+        cFin.border = BORDE_FINO;
+      }
+      outRow += 1; // siguiente fila de salida (per estudiante/per fila lógica)
+    }
+    outRow -= 1; // el for del r vuelve a sumar 1
+  }
+
+  return ws;
+}
 export async function generarInstrumentoXlsxDesdeDefinicion(
   def: PlantillaDefinicion,
   input: ExcelInstrumentoInput,
@@ -322,6 +416,18 @@ export async function generarInstrumentoXlsxDesdeDefinicion(
   const ExcelJS = await cargarExcelJs();
   const wb = await crearLibro('School Tracker');
 
+  const docsPath = await documentDir();
+  const dir = unirRuta(docsPath, 'SchoolTrackerPro', 'Instrumentos');
+  await mkdir(dir, { recursive: true }).catch(() => {});
+
+  // ── Modo CUADRÍCULA (constructor tipo Excel): render tal cual ──
+  if (def.grid) {
+    renderGridXlsx(wb, def.grid, def, input);
+    // escribirLibroEnCarpeta agrega el .xlsx él mismo.
+    return await escribirLibroEnCarpeta(wb, dir, fileNameBase);
+  }
+
+  // ── Modo "rápido" (campos clásicos, sin cuadrícula) ──
   const conFinal = def.colFinal !== 'ninguno';
   const headers = conFinal
     ? ['#', 'Estudiante', ...input.criterios.map(c => `C${c.orden}`), def.colFinal === 'total' ? 'Total' : 'Valoración']
