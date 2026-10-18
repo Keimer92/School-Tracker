@@ -309,12 +309,16 @@ pub fn d1_remote_stats(state: tauri::State<'_, DbState>) -> Result<Value, String
 /// Consulta el consumo diario de filas leídas de la cuenta en Cloudflare
 /// Analytics. El Worker consulta la API de GraphQL sin leer la base D1.
 #[tauri::command]
-pub fn d1_daily_usage(state: tauri::State<'_, DbState>) -> Result<Value, String> {
+pub async fn d1_daily_usage(state: tauri::State<'_, DbState>) -> Result<Value, String> {
     let cfg = {
         let conn = state.conn.lock().map_err(|e| e.to_string())?;
         read_config(&conn)?.ok_or_else(|| "D1 no está configurado".to_string())?
     };
-    http_post_json(&cfg.worker_url, &cfg.school_key, "/usage", json!({}))
+    tauri::async_runtime::spawn_blocking(move || {
+        http_post_json(&cfg.worker_url, &cfg.school_key, "/usage", json!({}))
+    })
+    .await
+    .map_err(|e| format!("Error en el hilo de consulta de cuota: {}", e))?
 }
 
 /// Cuántas filas sincronizables hay ahora mismo en la base local.
