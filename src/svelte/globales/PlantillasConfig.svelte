@@ -1,4 +1,4 @@
-<script lang="ts">
+﻿<script lang="ts">
   /**
    * PlantillasConfig — CRUD de plantillas de instrumentos de evaluación.
    *
@@ -176,7 +176,7 @@
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:0.75rem;">
         {#each plantillas as p (p.id)}
           <div class="pl-card">
-            <div class="pl-card-barra" style="background:{ACENTO};"></div>
+            <div class="pl-card-barra"></div>
             <div style="padding:0.9rem 0.9rem 0.7rem 1.2rem;display:flex;flex-direction:column;gap:0.5rem;flex:1;min-width:0;">
               <span style="color:#f1f5f9;font-size:0.9rem;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{p.nombre}</span>
               <span class="pl-tipo">{t('pl.tipo')}: {labelTipo(p.tipo)}</span>
@@ -186,7 +186,7 @@
               </div>
             </div>
             <div style="display:flex;gap:0.4rem;padding:0 0.9rem 0.8rem 0.9rem;">
-              <button class="pl-btn" onclick={() => abrirEditar(p)} title={t('comun.editar')}>✎</button>
+              <button class="pl-btn" onclick={() => abrirEditar(p)} title={t('pl.editar')}>✎</button>
               <button class="pl-btn pl-btn-rojo" onclick={() => eliminar(p)} disabled={borrandoId === p.id} title={t('comun.eliminar')}>
                 {borrandoId === p.id ? '⏳' : '🗑'}
               </button>
@@ -198,9 +198,7 @@
   </div>
 </div>
 
-<!-- ── Constructor visual (modal). Debe fijarse al viewport del documento, no
-        del card glass: nada del markup interior tiene transform/backdrop-filter
-        como ancestro directo, pero se monta a nivel de página por si acaso. ── -->
+<!-- ── Constructor visual (modal). Fijado al viewport del documento ── -->
 {#if editando}
   <div class="modal-overlay" onpointerdown={(e) => { if (e.target === e.currentTarget) cerrarEditor(); }}>
     <div class="modal-capa">
@@ -280,9 +278,7 @@
           <label class="pl-label">{t('pl.editor.preview')}</label>
           <div class="pl-preview">
             <div class="pl-preview-titulo">{(editDef.titulo || '').trim() || `Instrumento: ${labelTipo(editTipo)} — Indicador 1`}</div>
-            <div class="pl-preview-meta">
-              {t('pl.preview.meta', { a: 'Colegio', b: 'Corte', c: 'Grado — Sección', d: 'Asignatura' })}
-            </div>
+            <div class="pl-preview-meta">Colegio · Año · Corte · Grado-Sección · Asignatura</div>
             {#if (editDef.textoIntro || '').trim()}
               <div class="pl-preview-intro">{editDef.textoIntro}</div>
             {/if}
@@ -348,7 +344,7 @@
     cursor: pointer;
   }
   .pl-card:hover { border-color: rgba(56,189,248,0.3); background: rgba(56,189,248,0.05); }
-  .pl-card-barra { position: absolute; top: 0; left: 0; width: 4px; height: 100%; opacity: 0.8; }
+  .pl-card-barra { position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: #38bdf8; opacity: 0.8; }
   .pl-tipo { color: #7dd3fc; font-size: 0.72rem; font-weight: 600; }
   .pl-btn {
     flex: 1; padding: 0.4rem; border-radius: 8px;
@@ -424,7 +420,7 @@
   .pl-btn-cancelar:hover { color: #e2e8f0; border-color: rgba(255,255,255,0.25); }
   .pl-btn-guardar {
     padding: 0.55rem 1.4rem; border-radius: 10px; border: none;
-    background: linear-gradient(135deg,{ACENTO},#0284c7); color: #fff; font-size: 0.8rem;
+    background: linear-gradient(135deg,#38bdf8,#0284c7); color: #fff; font-size: 0.8rem;
     font-weight: 700; cursor: pointer; box-shadow: 0 6px 22px rgba(56,189,248,0.3);
     transition: all 0.2s ease;
   }

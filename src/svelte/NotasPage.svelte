@@ -17,7 +17,7 @@ import { primerColegio } from "../lib/catalogo";
   import AccionesRail from "./AccionesRail.svelte";
   import { generarInstrumentoPDF, generarInstrumentosTodosPDF, INSTRUMENTO_OPS, type InstrumentoInput, type InstrumentoTipo } from "../lib/instrumentosPdf";
   import { generarInstrumentoExcel, generarInstrumentoXlsxDesdeDefinicion, listarPlantillas, asegurarCarpetaPlantillas, abrirCarpetaPlantillas, plantillasDir, type ExcelInstrumentoInput } from "../lib/instrumentosExcel";
-  import { listarInstrumentoPlantillas, type InstrumentoPlantilla } from "../lib/instrumentoPlantilla";
+  import { listarInstrumentoPlantillas, parseDefinicion, type InstrumentoPlantilla } from "../lib/instrumentoPlantilla";
   import { readFile } from "@tauri-apps/plugin-fs";
   import { ask } from "@tauri-apps/plugin-dialog";
   import { registerBackHandler } from "../lib/androidBack";
@@ -1781,6 +1781,25 @@ import { primerColegio } from "../lib/catalogo";
         grado: grados.find(g => g.id === selectedGrado)?.nombre || '',
         seccion: secciones.find(s => s.id === selectedSeccion)?.nombre || '',
       },
+    };
+  }
+
+  /** Versión para el Excel (mismos datos del indicador, shape de ExcelInstrumentoInput). */
+  function buildInstrumentoInputExcel(ind: Indicador): ExcelInstrumentoInput {
+    return {
+      meta: buildInstrumentoInput(ind).meta,
+      indicadorOrden: ind.orden,
+      indicadorDescripcion: ind.descripcion,
+      criterios: ind.criterios.map(c => ({ orden: c.orden, descripcion: c.descripcion, puntajeMaximo: c.puntajeMaximo })),
+      estudiantes: estudiantes.map(est => ({
+        nombre: est.nombre,
+        sexo: (est as any).sexo || '',
+        letras: ind.criterios.map(c => (notasCualitativas[`${est.id}-${c.id}`] || '').toUpperCase()),
+        valoracion: calcularNotaCualitativaFinal(
+          ind.criterios.map(c => (notasCualitativas[`${est.id}-${c.id}`] || '').toUpperCase())
+            .filter(l => ['AA','AS','AF','AI'].includes(l))
+        ),
+      })),
     };
   }
 
@@ -4713,7 +4732,24 @@ ni plantilla del constructor en la BD.`,
             </button>
           </div>
 
-          <!-- Plantilla Excel de la carpeta fija -->
+          <!-- Plantilla del CONSTRUCTOR (BD). El AUTO elige la primera del tipo
+               del indicador; si hay una elegida manda sobre el tipo. -->
+          <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; padding: 0.65rem 0.8rem; background: rgba(56,189,248,0.07); border: 1px solid rgba(56,189,248,0.3); border-radius: 12px; margin-bottom: 1rem;">
+            <span style="color: #7dd3fc; font-weight: 700; font-size: 0.72rem;">🧩 {t('pl.notas.titulo')}</span>
+            {#if plantillasBD.length === 0}
+              <span style="color:#fbbf24;font-size:0.72rem;flex:1;min-width:140px;">{t('pl.notas.vacia')}</span>
+            {:else}
+              <select bind:value={plantillaBDSel}
+                style="flex: 1; min-width: 180px; padding: 0.3rem 0.4rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(15,23,42,0.8); color: #e2e8f0; font-size: 0.72rem; outline: none;">
+                <option value="">{t('pl.notas.auto')}</option>
+                {#each plantillasBD as p (p.id)}
+                  <option value={String(p.id)}>{p.nombre} — {p.tipo === 'rubrica' ? t('notas.inst.tipoRubrica') : p.tipo === 'cotejo' ? t('notas.inst.tipoCotejo') : t('notas.inst.tipoEscala')}</option>
+                {/each}
+              </select>
+            {/if}
+          </div>
+
+          <!-- Plantilla Excel de la carpeta fija (camino legado) -->
           <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; padding: 0.65rem 0.8rem; background: rgba(34,197,94,0.07); border: 1px solid rgba(34,197,94,0.3); border-radius: 12px; margin-bottom: 1rem;">
             <span style="color: #86efac; font-weight: 700; font-size: 0.72rem;">{t('notas.inst.plantillaTitulo')}</span>
             {#if cargandoPlantillas}
