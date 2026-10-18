@@ -127,14 +127,14 @@ function encabezadoInstrumento(doc: any, input: InstrumentoInput): number {
   doc.setTextColor(17, 24, 39);
   doc.text('Corte evaluativo:', 10, y);
   doc.setFont('helvetica', 'normal');
-  doc.text(m.corte || '', 10 + doc.getTextWidth('Corte evaluativo:') + 2, y);
+  doc.text(m.corte || '', 10 + doc.getTextWidth('Corte evaluativo: ') + 2, y);
   y += 6;
 
   // ── Indicador: fila propia (con descripción si la lleva) ──
-  const label = `Indicador ${input.orden}:`;
+  const desc = (input.descripcion || "").trim();
+  const label = desc ? `Indicador ${input.orden}:` : `Indicador ${input.orden}`;
   doc.setFont('helvetica', 'bold');
   doc.text(label, 10, y);
-  const desc = (input.descripcion || '').trim();
   const totalPts = input.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0);
   if (desc) {
     doc.setFont('helvetica', 'normal');
@@ -143,15 +143,7 @@ function encabezadoInstrumento(doc: any, input: InstrumentoInput): number {
     doc.text(descLines, xDesc, y);
     y += descLines.length * 4.6;
   } else {
-    // Sin descripción: línea para escribir a mano + puntaje total a la derecha.
-    const ptsText = totalPts > 0 ? ` (${totalPts} pts)` : '';
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    if (ptsText) doc.text(ptsText, rightMargin, y, { align: 'right' });
-    doc.setLineWidth(0.9);
-    doc.line(10 + doc.getTextWidth(label) + 2, y, rightMargin - doc.getTextWidth(ptsText) - 2, y);
-    y += 6;
-  }
+    // Sin descripción: solo se pinta Indicador N sin colon vacio
   return y + 2;
 }
 

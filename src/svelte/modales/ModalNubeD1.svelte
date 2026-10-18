@@ -291,6 +291,9 @@
             <span>{t('d1m.usage.utc', { day: dailyUsage.dayUtc })}</span>
             <span>{t('d1m.usage.actualizado', { time: new Date(dailyUsage.updatedAt).toLocaleTimeString() })}</span>
           </div>
+          {#if usageError}
+            <div class="uso-estado error">{t('d1m.usage.error', { error: usageError })}</div>
+          {/if}
         {:else if isLoadingUsage}
           <div class="uso-estado">{t('d1m.usage.cargando')}</div>
         {:else}
