@@ -1381,6 +1381,38 @@ su `.category-card` (CSS SCOPED por componente, sin tocar markup entero):
   objetos contra un `Vec<i64>`, y `hora` que ya no existe) → el aviso estaba
   muerto en silencio.
 
+### Plantillas de instrumentos (constructor visual, 2026-10)
+
+**El CRUD vive en Configuración (`globales/PlantillasConfig.svelte`); NotasPage
+SOLO consume.** La definición se guarda en la tabla sincronizable
+`instrumento_plantilla` (`id`, `nombre`, `tipo` cotejo/escala/rubrica,
+`definicion` = JSON, `updated_at`), NO en archivos .xlsx sueltos: así viaja
+entre dispositivos y sobrevive al restore de Drive (en Android no hay carpeta
+Plantillas editable).
+
+- **Definición** (solo PRESENTACIÓN; los datos los aporta el indicador al
+  generar): `titulo`, `textoIntro`, `leyenda`, `mostrarPuntajeCriterios`,
+  `colFinal` (valoracion/total/ninguno), `orientacion`
+  (auto=horizontal salvo rúbrica). Tipos en `src/lib/instrumentoPlantilla.ts`
+  (`parseDefinicion` rellena defaults, tolera JSON viejos).
+- **Cadena de sync** ya cableada en TODOS los lados: `db.rs` (CREATE + comandos
+  `get/save/delete_instrumento_plantilla` con pending deletion simple),
+  `lib.rs` (3 listas + `generate_handler!`), `d1.rs` (contar/collect/wipe/
+  restore + pk id + **reconcilia por `nombre` en `BUSINESS_KEY_TABLES`** porque
+  las PKs autoincrement divergen entre devices), `dirtyTracker.ts`, worker
+  `TABLES`/`ensureSchema` y `local-commands.toml`.
+- **Consumo en NotasPage**: `elejirPlantillaBD(tipo)` — si hay plantilla
+  elegida en el selector manda esa; en AUTO cae a la primera del tipo del
+  indicador. El PDF pasa `input.plantilla` (título/leyenda/intro/colFinal/
+  orientación en `instrumentosPdf.ts`); el Excel ya NO necesita archivo
+  marcadores: `generarInstrumentoXlsxDesdeDefinicion` arma el libro con los
+  helpers de `excel.ts` (`escribirLibroEnCarpeta` agrega el `.xlsx` él mismo,
+  no pasa basename con extensión). El camino de carpeta Plantillas queda como
+  fallback legado si no hay plantillas en BD.
+- El `</br>` no: el preview del editor es HTML puro; el CSS de Svelte NO
+  interpola `{CONST}` → los colores van hardcodeados en el `<style>`.
+
+
 ## Flujo de sincronización con Google Drive
 
 ### Visión general
