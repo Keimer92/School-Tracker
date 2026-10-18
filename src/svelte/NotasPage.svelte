@@ -1866,6 +1866,8 @@ import { primerColegio } from "../lib/catalogo";
           ind.criterios.map(c => (notasCualitativas[`${est.id}-${c.id}`] || '').toUpperCase())
             .filter(l => ['AA','AS','AF','AI'].includes(l))
         ),
+        total: totalIndText(ind, est.id),
+        nf: nfText(est.id),
       })),
       cualitativo: isQualitative,
     };
