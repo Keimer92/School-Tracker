@@ -58,6 +58,7 @@
     { grupo: t('cfg.grupo.academico'), items: [
       { id: 'evaluaciones', label: t('cfg.sec.evaluaciones'), icono: '✏️', color: '#c084fc' },
       { id: 'notas', label: t('cfg.sec.notas'), icono: '⭐', color: '#fbbf24' },
+      { id: 'plantillas', label: t('cfg.sec.plantillas'), icono: '🧩', color: '#38bdf8' },
       { id: 'multiplicadores', label: t('cfg.sec.multiplicadores'), icono: '✖️', color: '#a78bfa' },
       { id: 'ano-lectivo', label: t('cfg.sec.ano-lectivo'), icono: '📅', color: '#818cf8' },
       { id: 'corte', label: t('cfg.sec.corte'), icono: '✂️', color: '#f472b6' },
