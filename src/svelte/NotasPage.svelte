@@ -1836,11 +1836,11 @@ import { primerColegio } from "../lib/catalogo";
     try {
       // El PDF de rúbrica forcing vertical; el resto horizontal — salvo que la
       // plantilla del constructor fuerce otra cosa (orientacion).
-      const pl = elejirPlantillaBD(normTipo((ind as any).instrumento || 'escala'));
       const input = buildInstrumentoInput(ind);
+      const pl = plantillaDeIndicador(ind);
       if (pl) input.plantilla = parseDefinicion(pl.definicion);
       const ruta = await generarInstrumentoPDF(input);
-      await emit("show-toast", { message: "✅ PDF generado en Documents/SchoolTrackerPro/Instrumentos", type: "success" });
+      await emit("show-toast", { message: "✅ PDF generado en Documents/School Tracker/Instrumentos", type: "success" });
       console.debug('[Instrumentos] PDF:', ruta);
     } catch (e) {
       console.error('[Instrumentos] Error:', e);
@@ -1853,7 +1853,7 @@ import { primerColegio } from "../lib/catalogo";
     let nombrePlantilla = plantillaSel;
 
     /***** CAMINO NUEVO (preferido): plantilla del constructor visual (BD) *****/
-    const plBD = elejirPlantillaBD(tipoNecesario);
+    const plBD = plantillaDeIndicador(ind);
     if (plBD) {
       try {
         const base = `Instrumento_Ind${ind.orden}_${(buildInstrumentoInput(ind).meta.asignatura || 'Asignatura').replace(/[<>:"/\\|?*]/g, '_')}`;
@@ -1862,7 +1862,7 @@ import { primerColegio } from "../lib/catalogo";
           buildInstrumentoInputExcel(ind),
           base,
         );
-        await emit("show-toast", { message: `✅ XLSX generado con plantilla "${plBD.nombre}" → Documents/SchoolTrackerPro/Instrumentos`, type: "success" });
+        await emit("show-toast", { message: `✅ XLSX generado con plantilla "${plBD.nombre}" → Documents/School Tracker/Instrumentos`, type: "success" });
         console.debug('[Instrumentos-Excel] ruta:', ruta);
       } catch (e) {
         console.error('[Instrumentos-Excel] Error (plantilla BD):', e);
@@ -1909,7 +1909,7 @@ ni plantilla del constructor en la BD.`,
       };
       const base = `Instrumento_Ind${ind.orden}_${(buildInstrumentoInput(ind).meta.asignatura || 'Asignatura').replace(/[<>:"/\\|?*]/g, '_')}`;
       const ruta = await generarInstrumentoExcel(bytes, base, input);
-      await emit("show-toast", { message: `✅ XLSX generado con "${nombrePlantilla}" → Documents/SchoolTrackerPro/Instrumentos`, type: "success" });
+      await emit("show-toast", { message: `✅ XLSX generado con "${nombrePlantilla}" → Documents/School Tracker/Instrumentos`, type: "success" });
     } catch (e) {
       console.error('[Instrumentos-Excel] Error:', e);
       await emit("show-toast", { message: "❌ Error generando XLSX: " + e, type: "error" });
@@ -1947,7 +1947,7 @@ ni plantilla del constructor en la BD.`,
     try {
       const inputs = indicadores.map(ind => {
         const input = buildInstrumentoInput(ind);
-        const pl = elejirPlantillaBD(input.tipo);
+        const pl = plantillaDeIndicador(ind);
         if (pl) input.plantilla = parseDefinicion(pl.definicion);
         return input;
       });
@@ -4761,22 +4761,14 @@ ni plantilla del constructor en la BD.`,
             </button>
           </div>
 
-          <!-- Plantilla del CONSTRUCTOR (BD). El AUTO elige la primera del tipo
-               del indicador; si hay una elegida manda sobre el tipo. -->
-          <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; padding: 0.65rem 0.8rem; background: rgba(56,189,248,0.07); border: 1px solid rgba(56,189,248,0.3); border-radius: 12px; margin-bottom: 1rem;">
-            <span style="color: #7dd3fc; font-weight: 700; font-size: 0.72rem;">🧩 {t('pl.notas.titulo')}</span>
-            {#if plantillasBD.length === 0}
-              <span style="color:#fbbf24;font-size:0.72rem;flex:1;min-width:140px;">{t('pl.notas.vacia')}</span>
-            {:else}
-              <select bind:value={plantillaBDSel}
-                style="flex: 1; min-width: 180px; padding: 0.3rem 0.4rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(15,23,42,0.8); color: #e2e8f0; font-size: 0.72rem; outline: none;">
-                <option value="">{t('pl.notas.auto')}</option>
-                {#each plantillasBD as p (p.id)}
-                  <option value={String(p.id)}>{p.nombre} — {p.tipo === 'rubrica' ? t('notas.inst.tipoRubrica') : p.tipo === 'cotejo' ? t('notas.inst.tipoCotejo') : t('notas.inst.tipoEscala')}</option>
-                {/each}
-              </select>
-            {/if}
-          </div>
+          <!-- Plantillas del CONSTRUCTOR (BD): la elección es POR INDICADOR y
+               se guarda en la BD (set_indicador_plantilla) para que viaje con
+               el sync. Cada fila de abajo tiene su propio selector. -->
+          {#if plantillasBD.length === 0}
+            <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.65rem 0.8rem; background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.35); border-radius: 12px; margin-bottom: 1rem;">
+              <span style="color: #fbbf24; font-size: 0.72rem; flex: 1;">🧩 {t('pl.notas.vacia')}</span>
+            </div>
+          {/if}
 
           <!-- Plantilla Excel de la carpeta fija (camino legado) -->
           <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; padding: 0.65rem 0.8rem; background: rgba(34,197,94,0.07); border: 1px solid rgba(34,197,94,0.3); border-radius: 12px; margin-bottom: 1rem;">
