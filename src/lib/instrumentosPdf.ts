@@ -423,10 +423,9 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
 
   // ── Dibujo ──
   // Encabezado estándar (chips + corte + indicador), igual que informe/reporte.
-  let y = encabezadoInstrumento(doc, input) + 2;
   const FONTE = 8; // pt
   const ALTO = FONTE * 0.3528 + 2.2; // línea de texto + padding (mm)
-  let y = 12;
+  let y = encabezadoInstrumento(doc, input) + 2;
 
   const dibujarFila = (f: FilaOut): boolean => {
     // Calcular altura de fila: máximo de líneas envueltas dentro del ancho fusionado.

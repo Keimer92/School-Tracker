@@ -4806,21 +4806,18 @@ ni plantilla del constructor en la BD.`,
           {/if}
 
           {#each indicadoresSeccion as ind (ind.id)}
-            {@const tipoActual = normTipo((ind as any).instrumento)}
-            {@const disponibles = INSTRUMENTO_TIPOS.filter(tipo => plantillas.some(p => p.tipo === tipo.id))}
             <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.7rem; background: {ind.activo ? 'rgba(255,255,255,0.03)' : 'rgba(100,116,139,0.06)'}; border: 1px solid {ind.activo ? 'rgba(255,255,255,0.06)' : 'rgba(100,116,139,0.22)'}; border-radius: 12px; margin-bottom: 0.45rem; flex-wrap: wrap;">
               <span style="width: 26px; height: 26px; border-radius: 8px; background: {ind.activo ? 'rgba(14,165,233,0.15)' : 'rgba(100,116,139,0.15)'}; color: {ind.activo ? '#7dd3fc' : '#94a3b8'}; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.72rem; flex-shrink: 0;">{ind.orden}</span>
               <div style="flex: 1; min-width: 140px;">
                 <div style="color: {ind.activo ? '#e2e8f0' : '#94a3b8'}; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{ind.descripcion || t('notas.sinDescripcionPar')}{#if !ind.activo}<span style="font-size: 0.62rem; color: #64748b;">{' '}{t('notas.noSumaTotal')}</span>{/if}</div>
                 <div style="color: #64748b; font-size: 0.65rem;">{t('notas.criteriosCount', { n: ind.criterios.length })}</div>
               </div>
-              <select value={disponibles.some(tipo => tipo.id === tipoActual) ? tipoActual : (disponibles[0]?.id ?? tipoActual)}
-                onchange={(e) => setInstrumento(ind, (e.target as HTMLSelectElement).value as InstrumentoTipo)}
-                disabled={disponibles.length === 0}
-                title={disponibles.length === 0 ? t('notas.inst.sinPlantillasTitulo') : ''}
-                style="padding: 0.3rem 0.4rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(15,23,42,0.8); color: {disponibles.length === 0 ? '#64748b' : '#e2e8f0'}; font-size: 0.72rem; outline: none; max-width: 150px;">
-                {#each disponibles as op}
-                  <option value={op.id}>{op.label}</option>
+              <select value={String(ind.plantillaId ?? '')}
+                onchange={(e) => elegirPlantillaInd(ind, (e.target as HTMLSelectElement).value)}
+                style="padding: 0.3rem 0.4rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(15,23,42,0.8); color: #e2e8f0; font-size: 0.72rem; outline: none; max-width: 170px;">
+                <option value="">{t('pl.notas.auto')}</option>
+                {#each plantillasBD as p (p.id)}
+                  <option value={String(p.id)}>{p.nombre}</option>
                 {/each}
               </select>
               <button onclick={() => generarPDFInstrumento(ind)} disabled={generatingPdf}
