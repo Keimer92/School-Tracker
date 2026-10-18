@@ -55,6 +55,10 @@ export interface TokenDatos {
     /** letras por criterio (0-based), '' sin nota */
     letras: string[];
     valoracion: string;
+    /** Total del indicador "pts + sigla" (ej. "17 AS"); '' sin notas. */
+    total?: string;
+    /** Nota Final del corte "pts + sigla"; '' sin notas. */
+    nf?: string;
   };
 }
 
@@ -82,7 +86,7 @@ export function resolverTokens(texto: string, d: TokenDatos): string {
   for (let k = 1; k <= 5; k++) {
     const desc = d.criterios[k - 1];
     // Criterio inexistente → el texto se colapsa a vacío (no imprime marcador).
-    o = o.replace(new RegExp(`\\{CRIT_${k}\\}`, "g"), desc || "");
+    o = o.replace(new RegExp(`\\{CRIT_${k}\\}`, "g"), desc || `Criterio ${k}`);
   }
   // Tokens de escala: la sigla queda tal cual; AI solo existe en contextos
   // CUANTITATIVOS (grado/asignatura cualitativa → sinAI colapsa a vacío).
@@ -95,7 +99,9 @@ export function resolverTokens(texto: string, d: TokenDatos): string {
     o = o
       .replace(/\{N\}/g, String(d.est.n))
       .replace(/\{ESTUDIANTE\}/g, d.est.nombre)
-      .replace(/\{VALORACION\}/g, d.est.valoracion);
+      .replace(/\{VALORACION\}/g, d.est.valoracion)
+      .replace(/\{TOTAL\}/g, d.est.total || "")
+      .replace(/\{NF\}/g, d.est.nf || "");
     for (let k = 1; k <= 5; k++) {
       o = o.replace(new RegExp(`\\{LETRA_${k}\\}`, "g"), d.est.letras[k - 1] ?? "");
     }
@@ -104,7 +110,9 @@ export function resolverTokens(texto: string, d: TokenDatos): string {
     o = o
       .replace(/\{N\}/g, "")
       .replace(/\{ESTUDIANTE\}/g, "")
-      .replace(/\{VALORACION\}/g, "");
+      .replace(/\{VALORACION\}/g, "")
+      .replace(/\{TOTAL\}/g, "")
+      .replace(/\{NF\}/g, "");
     for (let k = 1; k <= 5; k++) {
       o = o.replace(new RegExp(`\\{LETRA_${k}\\}`, "g"), "");
     }
@@ -196,9 +204,13 @@ export function gridPresetChecklist(): PlantillaGrid {
     "0:0": { v: "Nº" },
     "0:1": { v: "Estudiante" },
     "0:14": { v: "Valoración" },
+    "0:15": { v: "Total" },
+    "0:16": { v: "NF" },
     "1:0": { v: "{N}" },
     "1:1": { v: "{ESTUDIANTE}" },
     "1:14": { v: "{VALORACION}" },
+    "1:15": { v: "{TOTAL}" },
+    "1:16": { v: "{NF}" },
   };
   // Grupos por criterio: 4 columnas de escala (AA/AS/AF/AI) cada uno.
   const ESCALA = ["{AA}", "{AS}", "{AF}", "{AI}"];
@@ -208,7 +220,7 @@ export function gridPresetChecklist(): PlantillaGrid {
     ESCALA.forEach((e, i) => { celdas[`1:${base + i}`] = { v: e }; });
     celdas[`1:${base}`] = { v: `{LETRA_${k + 1}}`, cs: 4 };
   }
-  return { filas: 3, cols: 15, filaEstudiantes: 1, celdas };
+  return { filas: 3, cols: 17, filaEstudiantes: 1, celdas };
 }
 
 export interface InstrumentoPlantilla {

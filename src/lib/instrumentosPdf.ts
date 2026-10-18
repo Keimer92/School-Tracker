@@ -37,6 +37,10 @@ export interface InstrumentoEstudiante {
   letras: string[];
   /** Valoración cualitativa del indicador completo */
   valoracion: string;
+  /** Total del indicador "pts + sigla" (ej. "17 AS"); '' si no hay notas. */
+  total?: string;
+  /** Nota Final del corte "pts + sigla"; '' si no hay notas. */
+  nf?: string;
 }
 
 export interface InstrumentoMeta {
@@ -406,6 +410,8 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
           nombre: e.nombre,
           letras: input.criterios.map((_, ci) => e.letras[ci] ?? ""),
           valoracion: e.valoracion || "",
+          total: e.total || "",
+          nf: e.nf || "",
         });
         if (f) filas.push(f);
       });

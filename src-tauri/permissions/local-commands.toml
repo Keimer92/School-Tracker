@@ -196,6 +196,7 @@ commands.allow = [
     "d1_clear_config",
     "d1_reset_device_id",
     "d1_remote_stats",
+    "d1_daily_usage",
     "d1_push_en_espera",
     "contar_filas_sincronizables",
     "d1_status",
@@ -208,4 +209,3 @@ commands.allow = [
     "set_app_settings",
     "migrate_settings_from_localstorage"
 ]
-

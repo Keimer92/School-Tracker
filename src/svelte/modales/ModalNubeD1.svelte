@@ -36,6 +36,15 @@
   });
   let isD1Syncing = $state(false);
   let isImporting = $state(false);
+  let dailyUsage = $state<{
+    rowsRead: number;
+    dailyLimit: number;
+    percentage: number;
+    dayUtc: string;
+    updatedAt: string;
+  } | null>(null);
+  let isLoadingUsage = $state(false);
+  let usageError = $state('');
 
   /** Filled by `d1SyncService` in `window.__d1LastError`. */
   let d1ErrorDetalle = $state('');
@@ -57,6 +66,19 @@
 
   async function loadD1Config() {
     try { d1Cfg = await d1SyncService.getConfig(); } catch { d1Cfg = null; }
+  }
+
+  async function loadDailyUsage() {
+    if (isLoadingUsage) return;
+    isLoadingUsage = true;
+    usageError = '';
+    try {
+      dailyUsage = await invoke<typeof dailyUsage>('d1_daily_usage');
+    } catch (e) {
+      usageError = String(e);
+    } finally {
+      isLoadingUsage = false;
+    }
   }
 
   /**
@@ -162,6 +184,13 @@
   const abierto = $derived(isCloudPanelOpen('d1'));
   const conectado = $derived(d1Conectado());
 
+  $effect(() => {
+    if (!abierto || !conectado || !d1Cfg) return;
+    void loadDailyUsage();
+    const timer = setInterval(() => void loadDailyUsage(), 60_000);
+    return () => clearInterval(timer);
+  });
+
   /**
    * ANDROID: la tira de métricas (▲ subidas / ▼ bajadas / ✕ borrados) que en
    * escritorio vive en la card de Cloudflare del sidebar (`CloudCards`), que en
@@ -223,6 +252,52 @@
         <span class="info-sync-auto">{conectado ? t('cloud.sync.auto', { n: SYNC_PERIODICO_MIN }) : t('d1m.conectar.sinAuto')}</span>
       </div>
     </div>
+
+    {#if conectado}
+      <section class="uso-diario" aria-label={t('d1m.usage.titulo')}>
+        <div class="uso-cabecera">
+          <div>
+            <div class="metricas-titulo">{t('d1m.usage.titulo')}</div>
+            <div class="uso-descripcion">{t('d1m.usage.desc')}</div>
+          </div>
+          <button
+            class="uso-refresh"
+            onclick={loadDailyUsage}
+            disabled={isLoadingUsage}
+            type="button"
+            aria-label={t('d1m.usage.reintentar')}
+            title={t('d1m.usage.reintentar')}
+          >{isLoadingUsage ? '…' : '↻'}</button>
+        </div>
+        {#if dailyUsage}
+          {@const porcentaje = dailyUsage.percentage}
+          <div class="uso-valores">
+            <strong>{Math.round(porcentaje)}%</strong>
+            <span>{dailyUsage.rowsRead.toLocaleString()} / {dailyUsage.dailyLimit.toLocaleString()} {t('d1m.usage.filas')}</span>
+          </div>
+          <div
+            class="uso-barra"
+            class:uso-warn={porcentaje >= 70 && porcentaje < 90}
+            class:uso-critico={porcentaje >= 90}
+            role="progressbar"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow={Math.min(100, Math.round(porcentaje))}
+            aria-label={`${Math.round(porcentaje)}%`}
+          >
+            <div class="uso-progreso" style={`width:${Math.min(100, Math.max(0, porcentaje))}%`}></div>
+          </div>
+          <div class="uso-pie">
+            <span>{t('d1m.usage.utc', { day: dailyUsage.dayUtc })}</span>
+            <span>{t('d1m.usage.actualizado', { time: new Date(dailyUsage.updatedAt).toLocaleTimeString() })}</span>
+          </div>
+        {:else if isLoadingUsage}
+          <div class="uso-estado">{t('d1m.usage.cargando')}</div>
+        {:else}
+          <div class="uso-estado error">{t('d1m.usage.error', { error: usageError })}</div>
+        {/if}
+      </section>
+    {/if}
 
     <!-- ANDROID: métricas de la última sync (equivalente de la card del
          sidebar de escritorio). La ejecución del sync sigue opaca por diseño;
@@ -379,6 +454,68 @@
     font-weight: 700;
     margin-bottom: 0.45rem;
   }
+  .uso-diario {
+    margin-top: 0.85rem;
+    padding: 0.7rem 0.9rem;
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .uso-cabecera {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .uso-cabecera .metricas-titulo { margin-bottom: 0.2rem; }
+  .uso-descripcion, .uso-pie {
+    color: #64748b;
+    font-size: 0.62rem;
+    line-height: 1.4;
+  }
+  .uso-refresh {
+    width: 30px;
+    height: 30px;
+    flex: 0 0 auto;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    color: #cbd5e1;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  .uso-refresh:disabled { opacity: 0.5; cursor: default; }
+  .uso-valores {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin: 0.65rem 0 0.4rem;
+  }
+  .uso-valores strong { color: #34d399; font-size: 1.1rem; }
+  .uso-valores span { color: #cbd5e1; font-size: 0.7rem; text-align: right; }
+  .uso-barra {
+    height: 7px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.09);
+  }
+  .uso-progreso {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #34d399, #22c55e);
+    transition: width 0.25s ease;
+  }
+  .uso-barra.uso-warn .uso-progreso { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
+  .uso-barra.uso-critico .uso-progreso { background: linear-gradient(90deg, #fb7185, #ef4444); }
+  .uso-pie {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-top: 0.4rem;
+  }
+  .uso-estado { color: #94a3b8; font-size: 0.7rem; margin-top: 0.65rem; }
+  .uso-estado.error { color: #fca5a5; overflow-wrap: anywhere; }
   .metricas-fila {
     display: grid;
     /* UNA sola fila: 3 columnas iguales; envolver dejaba la tercera métrica

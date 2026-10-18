@@ -763,6 +763,72 @@ async function route(req: Request, env: Env): Promise<Response> {
         return json({ ok: false, error: 'Ruta admin desconocida' }, 404);
       }
 
+      // Account-wide D1 row reads, taken from the same GraphQL analytics data
+      // used by Cloudflare's dashboard. This path intentionally bypasses
+      // ensureSchema so the usage panel still works when D1's read quota is
+      // exhausted.
+      if (path === '/usage' && req.method === 'POST') {
+        const schoolKey = req.headers.get('X-School-Key') || '';
+        await routeToDb(env, req);
+        if (!env.CF_API_TOKEN || !env.CF_ACCOUNT_ID) {
+          throw new Error('Cloudflare Analytics API is not configured');
+        }
+
+        const dayUtc = new Date().toISOString().slice(0, 10);
+        const query = `
+          query D1DailyUsage($accountTag: string!, $start: Date, $end: Date) {
+            viewer {
+              accounts(filter: { accountTag: $accountTag }) {
+                d1AnalyticsAdaptiveGroups(
+                  limit: 10000
+                  filter: { date_geq: $start, date_leq: $end }
+                ) {
+                  sum { rowsRead }
+                }
+              }
+            }
+          }
+        `;
+        const analyticsResponse = await fetch('https://api.cloudflare.com/client/v4/graphql', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${env.CF_API_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query,
+            variables: { accountTag: env.CF_ACCOUNT_ID, start: dayUtc, end: dayUtc },
+          }),
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!analyticsResponse.ok) {
+          throw new Error(`Cloudflare Analytics API returned HTTP ${analyticsResponse.status}`);
+        }
+
+        const analytics: any = await analyticsResponse.json();
+        if (analytics.errors?.length) {
+          console.error('[usage] Analytics GraphQL query failed:', JSON.stringify(analytics.errors));
+          throw new Error('Cloudflare Analytics query failed; verify the token has Account Analytics:Read permission');
+        }
+
+        const groups = analytics.data?.viewer?.accounts?.[0]?.d1AnalyticsAdaptiveGroups;
+        if (!Array.isArray(groups)) throw new Error('Cloudflare Analytics returned no account data');
+        const rowsRead = groups.reduce(
+          (total: number, group: any) => total + (Number(group.sum?.rowsRead) || 0),
+          0,
+        );
+        const dailyLimit = 5_000_000;
+        return json({
+          ok: true,
+          scope: 'account',
+          dayUtc,
+          rowsRead,
+          dailyLimit,
+          percentage: (rowsRead / dailyLimit) * 100,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
       await ensureSchema(env);
 
       // ── WebSocket: reenviar el upgrade al hub de esta school key ──

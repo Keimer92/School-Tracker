@@ -306,6 +306,17 @@ pub fn d1_remote_stats(state: tauri::State<'_, DbState>) -> Result<Value, String
     Ok(resp)
 }
 
+/// Consulta el consumo diario de filas leídas de la cuenta en Cloudflare
+/// Analytics. El Worker consulta la API de GraphQL sin leer la base D1.
+#[tauri::command]
+pub fn d1_daily_usage(state: tauri::State<'_, DbState>) -> Result<Value, String> {
+    let cfg = {
+        let conn = state.conn.lock().map_err(|e| e.to_string())?;
+        read_config(&conn)?.ok_or_else(|| "D1 no está configurado".to_string())?
+    };
+    http_post_json(&cfg.worker_url, &cfg.school_key, "/usage", json!({}))
+}
+
 /// Cuántas filas sincronizables hay ahora mismo en la base local.
 ///
 /// Se compara contra `d1_remote_stats` para decidir si la nube está vacía o
