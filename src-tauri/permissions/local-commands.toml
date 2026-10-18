@@ -73,6 +73,7 @@ commands.allow = [
     "get_dias_sin_clases",
     "set_dias_sin_clases",
     "get_instrumento_plantillas",
+    "set_indicador_plantilla",
     "save_instrumento_plantilla",
     "delete_instrumento_plantilla",
         "reparar_integridad_notas",

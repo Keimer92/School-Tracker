@@ -298,6 +298,16 @@ async function ensureSchema(env: Env): Promise<void> {
     }
   } catch { /* best effort */ }
 
+  // Migración: agregar columna 'plantilla_id' a indicador si no existe
+  // (elección de plantilla del constructor POR indicador; sync bilateral).
+  try {
+    const indicadorCols2 = await queryRows(env.DB, "SELECT name FROM pragma_table_info('indicador')");
+    if (indicadorCols2.length > 0 && !indicadorCols2.some((c: any) => c.name === 'plantilla_id')) {
+      await env.DB.prepare("ALTER TABLE indicador ADD COLUMN plantilla_id INTEGER").run();
+      console.log('[migración] indicador: columna plantilla_id agregada');
+    }
+  } catch { /* best effort */ }
+
   for (const sql of stmts) {
     try { await env.DB.prepare(sql).run(); } catch { /* ya existe */ }
   }

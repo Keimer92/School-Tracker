@@ -75,6 +75,8 @@ pub struct Indicador {
     pub descripcion: String,
     pub activo: bool,
     pub instrumento: String,
+    /// Plantilla del constructor elegida para este indicador (NULL = AUTO).
+    pub plantilla_id: Option<i64>,
     pub criterios: Vec<Criterio>,
 }
 
@@ -297,6 +299,7 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             descripcion TEXT DEFAULT '',
             activo INTEGER DEFAULT 1,
             instrumento TEXT NOT NULL DEFAULT 'general',
+            plantilla_id INTEGER,
             updated_at TEXT DEFAULT (datetime('now')),
             FOREIGN KEY(grado_id) REFERENCES grado(id),
             FOREIGN KEY(asignatura_id) REFERENCES asignatura(id),
@@ -597,6 +600,23 @@ fn migrate_add_columns(conn: &Connection) -> Result<(), String> {
         [],
     )
     .map_err(|e| e.to_string())?;
+
+    // plantilla_id: la plantilla del constructor elegida por el usuario PARA
+    // ESE indicador (Instrumentos). NULL = AUTO (una única plantilla = global).
+    let has_plantilla_id: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('indicador') WHERE name = 'plantilla_id'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(0) > 0;
+    if !has_plantilla_id {
+        conn.execute(
+            "ALTER TABLE indicador ADD COLUMN plantilla_id INTEGER",
+            [],
+        )
+        .map_err(|e| format!("Error agregando columna plantilla_id: {}", e))?;
+    }
 
     // Agregar columna 'ano_lectivo_id' a indicador si no existe
     let has_ano_lectivo: bool = conn
@@ -3945,7 +3965,7 @@ pub async fn get_evaluation_config(
 
     let mut stmt = conn
         .prepare(
-            "SELECT id, orden, descripcion, activo, COALESCE(instrumento,'general') FROM indicador
+            "SELECT id, orden, descripcion, activo, COALESCE(instrumento,'general'), COALESCE(plantilla_id, -1) FROM indicador
              WHERE grado_id = ? AND asignatura_id = ? AND corte_evaluativo_id = ? AND ano_lectivo_id = ?
              ORDER BY orden",
         )
@@ -3958,6 +3978,7 @@ pub async fn get_evaluation_config(
             let descripcion: String = row.get(2)?;
             let activo: bool = row.get::<_, i64>(3)? == 1;
             let instrumento: String = row.get(4)?;
+            let plantilla_raw: i64 = row.get(5)?;
 
             Ok(Indicador {
                 id: Some(id),
@@ -3969,6 +3990,7 @@ pub async fn get_evaluation_config(
                 descripcion,
                 activo,
                 instrumento,
+                plantilla_id: if plantilla_raw < 0 { None } else { Some(plantilla_raw) },
                 criterios: Vec::new(), // Will fill momentarily
             })
         })
@@ -4062,6 +4084,27 @@ pub async fn update_indicador(
         )
         .map_err(|e| e.to_string())?
     };
+    if n == 0 {
+        return Err(format!("Indicador {} no encontrado", id));
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_indicador_plantilla(
+    state: tauri::State<'_, DbState>,
+    id: i64,
+    plantilla_id: Option<i64>,
+) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    // La elección de plantilla es por indicador; `None` vuelve a AUTO
+    // (una única plantilla en BD se aplica a todos los indicadores).
+    let n = conn
+        .execute(
+            "UPDATE indicador SET plantilla_id = ?, updated_at = datetime('now') WHERE id = ?",
+            rusqlite::params![plantilla_id, id],
+        )
+        .map_err(|e| e.to_string())?;
     if n == 0 {
         return Err(format!("Indicador {} no encontrado", id));
     }
@@ -5585,7 +5628,7 @@ pub async fn delete_asistencia_rango(
 pub async fn get_indicadores_all(state: tauri::State<'_, DbState>) -> Result<Vec<Indicador>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let mut stmt = conn
-        .prepare("SELECT id, grado_id, asignatura_id, corte_evaluativo_id, COALESCE(ano_lectivo_id, 0), orden, descripcion, activo, COALESCE(instrumento,'general') FROM indicador")
+        .prepare("SELECT id, grado_id, asignatura_id, corte_evaluativo_id, COALESCE(ano_lectivo_id, 0), orden, descripcion, activo, COALESCE(instrumento,'general'), COALESCE(plantilla_id, -1) FROM indicador")
         .map_err(|e| e.to_string())?;
 
     let indicadores = stmt
@@ -5600,6 +5643,10 @@ pub async fn get_indicadores_all(state: tauri::State<'_, DbState>) -> Result<Vec
                 descripcion: row.get(6)?,
                 activo: row.get::<_, i64>(7)? == 1,
                 instrumento: row.get(8)?,
+                plantilla_id: {
+                    let v: i64 = row.get(9)?;
+                    if v < 0 { None } else { Some(v) }
+                },
                 criterios: vec![],
             })
         })

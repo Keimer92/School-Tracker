@@ -5,7 +5,8 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { aFileURL, esAndroid, unirRuta } from './platform';
 // Importe SOLO de tipos: no hay ciclo en runtime (el otro lado también importa tipos).
 import type { PlantillaDefinicion, PlantillaGrid, TokenDatos } from './instrumentoPlantilla';
-import { resolverTokens, columnasAIQuitar } from './instrumentoPlantilla';
+import { resolverTokens, columnasAIQuitar, fechaHoyDDMM } from './instrumentoPlantilla';
+import { dibujarTitulo, dibujarChips, CHIP_INFO, CHIP_ROSA, CHIP_NEUTRO } from './pdfChrome';
 
 /**
  * Instrumentos de evaluación por indicador (PDF).
@@ -89,6 +90,69 @@ function sanitize(s: string): string {
 /** Encabezado en UNA sola línea + bloque de indicador/criterios.
  *  Si falta una descripción, dibuja una línea horizontal para completar a mano,
  *  con el puntaje al final. Devuelve la Y donde continúa el contenido. */
+/**
+ * Encabezado ESTÁNDAR del instrumento, con el lenguaje visual de informe y
+ * reporte (pdfChrome: barra de acento + chips redondeados). Filas:
+ *   1) título + colegio (dibujarTitulo)
+ *   2) chips: asignatura · año · fecha
+ *   3) Corte evaluativo — fila propia
+ *   4) Indicador N — fila propia, con su descripción si la lleva
+ * La usan el modo cuadrícula y el modo rápido; devuelve la Y donde empieza
+ * el contenido.
+ */
+function encabezadoInstrumento(doc: any, input: InstrumentoInput): number {
+  const m = input.meta;
+  const pageW = (doc as any).internal.pageSize.getWidth();
+  const usable = pageW - 20;
+  const rightMargin = pageW - 10;
+
+  const titulo = 'Instrumento de Evaluación';
+  const subtitulo = `${m.colegio} — ${m.grado}-${m.seccion}`;
+  let y = dibujarTitulo(doc as any, titulo, subtitulo, 10, usable) + 1.5;
+
+  const chips = [
+    { texto: `Asignatura: ${m.asignatura}`, estilo: CHIP_INFO },
+    { texto: `Año: ${m.ano}`, estilo: CHIP_ROSA },
+    { texto: `Fecha: ${fechaHoyDDMM()}`, estilo: CHIP_NEUTRO },
+  ];
+  y = dibujarChips(doc as any, chips, 10, y, usable);
+
+  // ── Corte evaluativo: fila propia ──
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.setTextColor(17, 24, 39);
+  doc.text('Corte evaluativo:', 10, y);
+  doc.setFont('helvetica', 'normal');
+  doc.text(m.corte || '', 10 + doc.getTextWidth('Corte evaluativo:') + 2, y);
+  y += 6;
+
+  // ── Indicador: fila propia (con descripción si la lleva) ──
+  const label = `Indicador ${input.orden}:`;
+  doc.setFont('helvetica', 'bold');
+  doc.text(label, 10, y);
+  const desc = (input.descripcion || '').trim();
+  const totalPts = input.criterios.reduce((s, c) => s + (c.puntajeMaximo || 0), 0);
+  if (desc) {
+    doc.setFont('helvetica', 'normal');
+    const xDesc = 10 + doc.getTextWidth(label) + 2;
+    const descLines = doc.splitTextToSize(desc, rightMargin - xDesc);
+    doc.text(descLines, xDesc, y);
+    y += descLines.length * 4.6;
+  } else {
+    // Sin descripción: línea para escribir a mano + puntaje total a la derecha.
+    const ptsText = totalPts > 0 ? ` (${totalPts} pts)` : '';
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    if (ptsText) doc.text(ptsText, rightMargin, y, { align: 'right' });
+    doc.setLineWidth(0.9);
+    doc.line(10 + doc.getTextWidth(label) + 2, y, rightMargin - doc.getTextWidth(ptsText) - 2, y);
+    y += 6;
+  }
+  return y + 2;
+}
+
+/**
+ * Encabezado clásico (deprecated): el nuevo estándar es encabezadoInstrumento. */
 function drawHeader(doc: any, input: InstrumentoInput, title: string): number {
   const m = input.meta;
   const pageW = doc.internal.pageSize.getWidth();
@@ -358,6 +422,8 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
   const numHeader = filaHeaderCount < 0 ? filas.length : filaHeaderCount;
 
   // ── Dibujo ──
+  // Encabezado estándar (chips + corte + indicador), igual que informe/reporte.
+  let y = encabezadoInstrumento(doc, input) + 2;
   const FONTE = 8; // pt
   const ALTO = FONTE * 0.3528 + 2.2; // línea de texto + padding (mm)
   let y = 12;
@@ -396,7 +462,8 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
     // Sin espacio: página nueva, repetir encabezados (previos a la fila de
     // estudiantes) y reintentar la fila.
     doc.addPage();
-    y = 12;
+    // Repetir el encabezado estándar en cada página nueva.
+    y = encabezadoInstrumento(doc, input) + 2;
     for (let hh = 0; hh < numHeader && hh < i; hh++) dibujarFila(filas[hh]);
     if (!dibujarFila(filas[i])) {
       // La fila sola demasiado larga: se dibuja recortada en vez de colgarse.
@@ -413,8 +480,7 @@ function construir(doc: any, input: InstrumentoInput, autoTable: AutoTableFn): v
     return;
   }
   const def = input.plantilla;
-  const titulo = (def?.titulo || '').trim() || `Instrumento: ${tipoLabel(input.tipo)} — Indicador ${input.orden}`;
-  let startY = drawHeader(doc, input, titulo);
+  let startY = encabezadoInstrumento(doc, input);
 
   switch (input.tipo) {
     case 'rubrica':
@@ -450,7 +516,7 @@ function tipoLabel(tipo: InstrumentoTipo): string {
 async function guardarYEntregar(doc: any, fileName: string, subfolder: string): Promise<string> {
   const pdfData = doc.output('arraybuffer');
   const docsPath = await documentDir();
-  const dir = unirRuta(docsPath, 'SchoolTrackerPro', 'Instrumentos', subfolder);
+  const dir = unirRuta(docsPath, 'School Tracker', 'Instrumentos', subfolder);
   await mkdir(dir, { recursive: true }).catch(() => {});
   const fullPath = unirRuta(dir, fileName);
   await writeFile(fullPath, new Uint8Array(pdfData));

@@ -130,6 +130,12 @@ export function columnasAIQuitar(g: PlantillaGrid, sinAI: boolean): Set<number> 
   return sinAI ? columnasAI(g) : new Set<number>();
 }
 
+/** Fecha de hoy como dd/mm/yyyy (los encabezados de los instrumentos). */
+export function fechaHoyDDMM(): string {
+  const d = new Date();
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+}
+
 /**
  * Presentación configurable del modo "rápido" (sin cuadrícula). Todas las
  * claves son opcionales para tolerar JSON viejos/incompletos.
@@ -180,24 +186,29 @@ export function parseDefinicion(raw: string | null | undefined): PlantillaDefini
  *  los indicadores del sistema funcionan SIEMPRE con 3 criterios), cada uno
  *  con su grupo de escala completa AA/AS/AF/AI como tokens. Con la plantilla
  *  en modo cualitativo (grado/sección `cualitativo`, ya contemplado por la
- *  lógica de negocio) el renderizador COLAPSA la columna {AI}: no aplica. */
+ *  lógica de negocio) el renderizador COLAPSA la columna {AI}: no aplica.
+ *
+ *  El ENCABEZADO (colegio/grado/corte/indicador) NO va en la cuadrícula: lo
+ *  dibuja el generador con la convención estándar de informe/reporte. La
+ *  cuadrícula pura es la tabla: Nº · Estudiante · criterios · Valoración. */
 export function gridPresetChecklist(): PlantillaGrid {
   const celdas: Record<string, GridCelda> = {
-    "0:0": { v: "{COLEGIO} — {GRADO} {SECCION} — {FECHA}", cs: 14 },
-    "1:0": { v: "Nº" },
-    "1:13": { v: "Valoración" },
-    "3:0": { v: "{N}" },
-    "3:13": { v: "{VALORACION}" },
+    "0:0": { v: "Nº" },
+    "0:1": { v: "Estudiante" },
+    "0:14": { v: "Valoración" },
+    "1:0": { v: "{N}" },
+    "1:1": { v: "{ESTUDIANTE}" },
+    "1:14": { v: "{VALORACION}" },
   };
   // Grupos por criterio: 4 columnas de escala (AA/AS/AF/AI) cada uno.
   const ESCALA = ["{AA}", "{AS}", "{AF}", "{AI}"];
   for (let k = 0; k < 3; k++) {
-    const base = 1 + k * 4;
-    celdas[`1:${base}`] = { v: `{CRIT_${k + 1}}`, cs: 4 };
-    ESCALA.forEach((e, i) => { celdas[`2:${base + i}`] = { v: e }; });
-    celdas[`3:${base}`] = { v: `{LETRA_${k + 1}}`, cs: 4 };
+    const base = 2 + k * 4;
+    celdas[`0:${base}`] = { v: `{CRIT_${k + 1}}`, cs: 4 };
+    ESCALA.forEach((e, i) => { celdas[`1:${base + i}`] = { v: e }; });
+    celdas[`1:${base}`] = { v: `{LETRA_${k + 1}}`, cs: 4 };
   }
-  return { filas: 4, cols: 14, filaEstudiantes: 3, celdas };
+  return { filas: 3, cols: 15, filaEstudiantes: 1, celdas };
 }
 
 export interface InstrumentoPlantilla {
