@@ -1568,8 +1568,8 @@ import { primerColegio } from "../lib/catalogo";
       const [dataRaw, notasGuardadas] = preFetchedData
         ? [preFetchedData.estudiantes, preFetchedData.notas]
         : await Promise.all([
-            invoke<Estudiante[]>("get_estudiantes_by_filters", { gradoId: grado, seccionId: seccion }),
-            invoke<{ estudianteId: number; criterioId: number; valor: number }[]>("get_notas_by_filters", { gradoId: grado, seccionId: seccion, corteId: corte, asignaturaId: asignatura })
+            invoke<Estudiante[]>("get_estudiantes_by_filters", { gradoId: grado, seccionId: seccion, anoLectivoId: selectedAno }),
+            invoke<{ estudianteId: number; criterioId: number; valor: number }[]>("get_notas_by_filters", { gradoId: grado, seccionId: seccion, corteId: corte, asignaturaId: asignatura, anoLectivoId: selectedAno })
           ]);
       const data = sexo ? dataRaw.filter(est => est.sexo === sexo) : dataRaw;
       estudiantes = data;
@@ -1781,8 +1781,39 @@ import { primerColegio } from "../lib/catalogo";
   }
 
   function buildInstrumentoInput(ind: Indicador): InstrumentoInput {
+    const letrasDeEst = (estId: number): string[] =>
+      ind.criterios.map(c => (notasCualitativas[`${estId}-${c.id}`] || '').toUpperCase());
+    const totalConSigla = (letrasListado: string[]): string => {
+      // Convención de la tabla de Reportes: pts + sigla (ej. "17 AS"); vacío
+      // si el estudiante no tiene NINGUNA nota registrada.
+      const validas = letrasListado.filter(l => ['AA', 'AS', 'AF', 'AI'].includes(l));
+      if (validas.length === 0) return '';
+      const pts = ind.criterios.reduce((s, c, i) => {
+        const qv = letrasListado[i];
+        if (qv && ['AA', 'AS', 'AF', 'AI'].includes(qv)) return s + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
+        return s;
+      }, 0);
+      const sigla = calcularNotaCualitativaFinal(validas);
+      return sigla ? `${pts} ${sigla}` : String(pts);
+    };
+    // NF = Nota Final del corte: MISMA convención que NF de la tabla registrar
+    // (todos los indicadores ACTIVOS de la sección, no solo este indicador).
+    const nfDeEst = (estId: number): string => {
+      const activos = activeIndicadores;
+      if (activos.length === 0) return '';
+      const letrasTodas = activos.flatMap(i => i.criterios.map(c => (notasCualitativas[`${estId}-${c.id}`] || '').toUpperCase()));
+      const validas = letrasTodas.filter(l => ['AA', 'AS', 'AF', 'AI'].includes(l));
+      if (validas.length === 0) return '';
+      const pts = activos.reduce((s, i) => s + i.criterios.reduce((ss, c) => {
+        const qv = (notasCualitativas[`${estId}-${c.id}`] || '').toUpperCase();
+        if (qv && ['AA', 'AS', 'AF', 'AI'].includes(qv)) return ss + Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
+        return ss;
+      }, 0), 0);
+      const sigla = calcularNotaCualitativaFinal(validas);
+      return sigla ? `${pts} ${sigla}` : String(pts);
+    };
     const estudiantes_input = estudiantes.map(est => {
-      const letras = ind.criterios.map(c => (notasCualitativas[`${est.id}-${c.id}`] || '').toUpperCase());
+      const letras = letrasDeEst(est.id);
       const validas = letras.filter(l => ['AA', 'AS', 'AF', 'AI'].includes(l));
       return {
         id: est.id,
@@ -1790,6 +1821,8 @@ import { primerColegio } from "../lib/catalogo";
         sexo: (est as any).sexo || '',
         letras,
         valoracion: calcularNotaCualitativaFinal(validas),
+        total: totalConSigla(letras),
+        nf: nfDeEst(est.id),
       };
     });
     return {
