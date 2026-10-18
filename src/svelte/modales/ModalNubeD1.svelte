@@ -45,6 +45,7 @@
   } | null>(null);
   let isLoadingUsage = $state(false);
   let usageError = $state('');
+  let usageRequestId = 0;
 
   /** Filled by `d1SyncService` in `window.__d1LastError`. */
   let d1ErrorDetalle = $state('');
@@ -70,14 +71,23 @@
 
   async function loadDailyUsage() {
     if (isLoadingUsage) return;
+    const requestId = ++usageRequestId;
     isLoadingUsage = true;
     usageError = '';
+    let timeout: ReturnType<typeof setTimeout> | undefined;
     try {
-      dailyUsage = await invoke<typeof dailyUsage>('d1_daily_usage');
+      const result = await Promise.race([
+        invoke<NonNullable<typeof dailyUsage>>('d1_daily_usage'),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => reject(new Error(t('d1m.usage.timeout'))), 15_000);
+        }),
+      ]);
+      if (requestId === usageRequestId) dailyUsage = result;
     } catch (e) {
-      usageError = String(e);
+      if (requestId === usageRequestId) usageError = String(e);
     } finally {
-      isLoadingUsage = false;
+      if (timeout) clearTimeout(timeout);
+      if (requestId === usageRequestId) isLoadingUsage = false;
     }
   }
 
@@ -188,7 +198,11 @@
     if (!abierto || !conectado || !d1Cfg) return;
     void loadDailyUsage();
     const timer = setInterval(() => void loadDailyUsage(), 60_000);
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      usageRequestId++;
+      isLoadingUsage = false;
+    };
   });
 
   /**

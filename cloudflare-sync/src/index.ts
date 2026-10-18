@@ -776,7 +776,7 @@ async function route(req: Request, env: Env): Promise<Response> {
 
         const dayUtc = new Date().toISOString().slice(0, 10);
         const query = `
-          query D1DailyUsage($accountTag: string!, $start: Date, $end: Date) {
+          query D1DailyUsage($accountTag: String!, $start: Date, $end: Date) {
             viewer {
               accounts(filter: { accountTag: $accountTag }) {
                 d1AnalyticsAdaptiveGroups(
@@ -808,7 +808,11 @@ async function route(req: Request, env: Env): Promise<Response> {
         const analytics: any = await analyticsResponse.json();
         if (analytics.errors?.length) {
           console.error('[usage] Analytics GraphQL query failed:', JSON.stringify(analytics.errors));
-          throw new Error('Cloudflare Analytics query failed; verify the token has Account Analytics:Read permission');
+          const messages = analytics.errors
+            .map((error: any) => error?.message)
+            .filter((message: unknown): message is string => typeof message === 'string')
+            .join('; ');
+          throw new Error(messages || 'Cloudflare Analytics query failed; verify the token has Account Analytics:Read permission');
         }
 
         const groups = analytics.data?.viewer?.accounts?.[0]?.d1AnalyticsAdaptiveGroups;
