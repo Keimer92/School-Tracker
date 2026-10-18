@@ -4427,35 +4427,47 @@ pub async fn get_estudiantes_by_filters(
     state: tauri::State<'_, DbState>,
     gradoId: i64,
     seccionId: i64,
+    anoLectivoId: Option<i64>,
 ) -> Result<Vec<EstudianteNota>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    let mut stmt = conn
-        .prepare(
-            "SELECT e.id, e.nombre, e.sexo, e.grado_id, e.seccion_id, g.nombre as grado, s.nombre as seccion, g.cualitativo
+    // Sin año lectivo traía GHOSTS: estudiantes repetidos/no promovidos de años
+    // anteriores comparten grado+sección (catálogos globales) y entraban con sus
+    // notas viejas → el instrumento "inventaba" notas (p. ej. AS) a alumnos sin
+    // registros. Con anoLectivoId la lista queda solo del año activo.
+    let sql_base = "SELECT e.id, e.nombre, e.sexo, e.grado_id, e.seccion_id, g.nombre as grado, s.nombre as seccion, g.cualitativo
              FROM estudiante_activo e
              INNER JOIN grado g ON e.grado_id = g.id
              INNER JOIN seccion s ON e.seccion_id = s.id
-             WHERE e.grado_id = ? AND e.seccion_id = ?
-             ORDER BY e.nombre",
-        )
-        .map_err(|e| e.to_string())?;
-
-    let estudiantes = stmt
-        .query_map([gradoId, seccionId], |row| {
-            Ok(EstudianteNota {
-                id: row.get(0)?,
-                nombre: row.get(1)?,
-                sexo: row.get(2)?,
-                grado_id: row.get(3)?,
-                seccion_id: row.get(4)?,
-                grado: row.get(5)?,
-                seccion: row.get(6)?,
-                cualitativo: row.get::<_, i64>(7)? == 1,
-            })
+             WHERE e.grado_id = ? AND e.seccion_id = ?";
+    let sql = match anoLectivoId {
+        Some(_) => format!("{} AND e.ano_lectivo_id = ? ORDER BY e.nombre", sql_base),
+        None => format!("{} ORDER BY e.nombre", sql_base),
+    };
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
+    let map_row = |row: &rusqlite::Row| -> rusqlite::Result<EstudianteNota> {
+        Ok(EstudianteNota {
+            id: row.get(0)?,
+            nombre: row.get(1)?,
+            sexo: row.get(2)?,
+            grado_id: row.get(3)?,
+            seccion_id: row.get(4)?,
+            grado: row.get(5)?,
+            seccion: row.get(6)?,
+            cualitativo: row.get::<_, i64>(7)? == 1,
         })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+    };
+    let estudiantes = match anoLectivoId {
+        Some(ano) => stmt
+            .query_map(rusqlite::params![gradoId, seccionId, ano], |r| map_row(r))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?,
+        None => stmt
+            .query_map(rusqlite::params![gradoId, seccionId], |r| map_row(r))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?,
+    };
 
     Ok(estudiantes)
 }
@@ -5033,31 +5045,44 @@ pub async fn get_notas_by_filters(
     seccionId: i64,
     corteId: i64,
     asignaturaId: i64,
+    anoLectivoId: Option<i64>,
 ) -> Result<Vec<NotaResponse>, String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
-    let mut stmt = conn
-        .prepare(
-            "SELECT n.estudiante_id, n.criterio_id, n.valor 
+    // Mismo guardia que get_estudiantes_by_filters: sin año lectivo entran las
+    // notas de años anteriores (estudiantes repetidos), que se veían como
+    // "notas inventadas" (AS) en alumnos sin registros del año activo.
+    let sql_base = "SELECT n.estudiante_id, n.criterio_id, n.valor 
              FROM nota n
              INNER JOIN estudiante e ON n.estudiante_id = e.id
              WHERE e.grado_id = ? AND e.seccion_id = ? 
-             AND n.corte_evaluativo_id = ? AND n.asignatura_id = ?",
-        )
-        .map_err(|e| e.to_string())?;
+             AND n.corte_evaluativo_id = ? AND n.asignatura_id = ?";
+    let sql = match anoLectivoId {
+        Some(_) => format!("{} AND e.ano_lectivo_id = ?", sql_base),
+        None => sql_base.to_string(),
+    };
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
 
-    let notas = stmt
-        .query_map([gradoId, seccionId, corteId, asignaturaId], |row| {
-            Ok(NotaResponse {
-                estudiante_id: row.get(0)?,
-                criterio_id: row.get(1)?,
-                valor: row.get(2)?,
-                corte_evaluativo_id: Some(corteId),
-                asignatura_id: Some(asignaturaId),
-            })
+    let map_row = |row: &rusqlite::Row| -> rusqlite::Result<NotaResponse> {
+        Ok(NotaResponse {
+            estudiante_id: row.get(0)?,
+            criterio_id: row.get(1)?,
+            valor: row.get(2)?,
+            corte_evaluativo_id: Some(corteId),
+            asignatura_id: Some(asignaturaId),
         })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
+    };
+    let notas = match anoLectivoId {
+        Some(ano) => stmt
+            .query_map(rusqlite::params![gradoId, seccionId, corteId, asignaturaId, ano], |r| map_row(r))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?,
+        None => stmt
+            .query_map(rusqlite::params![gradoId, seccionId, corteId, asignaturaId], |r| map_row(r))
+            .map_err(|e| e.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| e.to_string())?,
+    };
 
     Ok(notas)
 }
