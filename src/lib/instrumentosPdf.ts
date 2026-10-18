@@ -379,8 +379,6 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
     for (const [k, cel] of Object.entries(g.celdas)) {
       const [rr, oldC0] = k.split(":").map(Number);
       if (rr !== r) continue;
-      // Saltar celdas cubiertas por un merge de otra celda (no son origen).
-      if (cov.has(`${r}:${oldC0}`)) continue;
       // Re-ubicar la celda en el layout de SALIDA (columnas AI colapsadas).
       const oldCs = Math.min(cel.cs ?? 1, g.cols - oldC0);
       const span: number[] = [];
