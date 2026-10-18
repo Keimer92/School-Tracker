@@ -775,6 +775,14 @@ async function route(req: Request, env: Env): Promise<Response> {
         }
 
         const dayUtc = new Date().toISOString().slice(0, 10);
+        const usageCacheKey = `d1-usage:${env.CF_ACCOUNT_ID}:${dayUtc}`;
+        const cachedUsage = await env.USERS.get(usageCacheKey);
+        if (cachedUsage) {
+          return new Response(cachedUsage, {
+            headers: { 'Content-Type': 'application/json', 'X-Usage-Cache': 'HIT' },
+          });
+        }
+
         const query = `
           query D1DailyUsage($accountTag: String!, $start: Date, $end: Date) {
             viewer {
@@ -802,6 +810,22 @@ async function route(req: Request, env: Env): Promise<Response> {
           signal: AbortSignal.timeout(10000),
         });
         if (!analyticsResponse.ok) {
+          if (analyticsResponse.status === 429) {
+            const retryAfter = analyticsResponse.headers.get('Retry-After') || '60';
+            return new Response(
+              JSON.stringify({
+                ok: false,
+                error: 'Cloudflare Analytics is rate-limiting usage checks; please retry later.',
+              }),
+              {
+                status: 429,
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Retry-After': retryAfter,
+                },
+              },
+            );
+          }
           throw new Error(`Cloudflare Analytics API returned HTTP ${analyticsResponse.status}`);
         }
 
@@ -822,7 +846,7 @@ async function route(req: Request, env: Env): Promise<Response> {
           0,
         );
         const dailyLimit = 5_000_000;
-        return json({
+        const usage = {
           ok: true,
           scope: 'account',
           dayUtc,
@@ -830,7 +854,9 @@ async function route(req: Request, env: Env): Promise<Response> {
           dailyLimit,
           percentage: (rowsRead / dailyLimit) * 100,
           updatedAt: new Date().toISOString(),
-        });
+        };
+        await env.USERS.put(usageCacheKey, JSON.stringify(usage), { expirationTtl: 60 });
+        return json(usage);
       }
 
       await ensureSchema(env);

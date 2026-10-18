@@ -17,7 +17,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { emit } from '@tauri-apps/api/event';
   import { open, ask } from '@tauri-apps/plugin-dialog';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { d1SyncService, d1SyncManager, SYNC_PERIODICO_MIN, type D1Config } from '../../lib/d1SyncService';
   import { invalidateD1Cache, setD1Connected } from '../../lib/syncService';
   import { importarKeyDesdeArchivo } from '../../lib/d1KeyImport';
@@ -196,10 +196,8 @@
 
   $effect(() => {
     if (!abierto || !conectado || !d1Cfg) return;
-    void loadDailyUsage();
-    const timer = setInterval(() => void loadDailyUsage(), 60_000);
+    untrack(() => { void loadDailyUsage(); });
     return () => {
-      clearInterval(timer);
       usageRequestId++;
       isLoadingUsage = false;
     };
