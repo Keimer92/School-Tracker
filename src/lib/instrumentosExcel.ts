@@ -4,7 +4,8 @@ import { writeFile, mkdir, readDir } from '@tauri-apps/plugin-fs';
 import type { InstrumentoTipo } from './instrumentosPdf';
 import { aFileURL, separadorRuta, unirRuta } from './platform';
 import { cargarExcelJs, crearLibro, agregarHoja, escribirPortada, escribirCabecera, escribirFila, escribirLibroEnCarpeta } from './excel';
-import type { PlantillaDefinicion } from './instrumentoPlantilla';
+import type { PlantillaDefinicion, PlantillaGrid, TokenDatos } from './instrumentoPlantilla';
+import { resolverTokens } from './instrumentoPlantilla';
 
 /** Detecta el tipo de instrumento por palabras clave EN EL NOMBRE DEL ARCHIVO.
  *  El nombre debe contener: "Rúbrica"/"Rubrica", "Cotejo" o "Escala".
