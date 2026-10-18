@@ -5,7 +5,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { aFileURL, esAndroid, unirRuta } from './platform';
 // Importe SOLO de tipos: no hay ciclo en runtime (el otro lado también importa tipos).
 import type { PlantillaDefinicion, PlantillaGrid, TokenDatos } from './instrumentoPlantilla';
-import { resolverTokens } from './instrumentoPlantilla';
+import { resolverTokens, columnasAIQuitar } from './instrumentoPlantilla';
 
 /**
  * Instrumentos de evaluación por indicador (PDF).
@@ -54,6 +54,9 @@ export interface InstrumentoInput {
   criterios: InstrumentoCriterio[];
   estudiantes: InstrumentoEstudiante[];
   meta: InstrumentoMeta;
+  /** Contexto CUALITATIVO (grado/asignatura): la escala es AA/AS/AF — el AI
+   *  no aplica y la plantilla colapsa sus columnas {AI}. */
+  cualitativo?: boolean;
   /**
    * Plantilla del constructor visual (tabla `instrumento_plantilla`, BD).
    * Opcional: sin plantilla se usa el diseño por defecto del tipo. Solo aporta
@@ -262,7 +265,15 @@ function tokenDatosBase(input: InstrumentoInput): TokenDatos {
  */
 function construirGrid(doc: any, input: InstrumentoInput): void {
   const g: PlantillaGrid = input.plantilla!.grid!;
-  const base = tokenDatosBase(input);
+  const sinAI = !!input.cualitativo;
+  const base: TokenDatos = { ...tokenDatosBase(input), sinAI };
+
+  // Contexto cualitativo → columnas {AI} colapsadas (el AI no aplica ahí).
+  const quitar = columnasAIQuitar(g, sinAI);
+  const newIdx = new Map<number, number>();
+  const keptCols: number[] = [];
+  for (let c = 0; c < g.cols; c++) if (!quitar.has(c)) { newIdx.set(c, keptCols.length); keptCols.push(c); }
+  const numCols = keptCols.length;
 
   // Cubiertos: "r:c" → celda dueña [r, c] (1 = horizontal, 2 = vertical cover).
   const cov = new Map<string, [number, number]>();
@@ -279,20 +290,23 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
   const mx = 10;
   const usable = pw - 2 * mx;
 
-  const natural: number[] = new Array(g.cols).fill(4);
+  const natural: number[] = new Array(numCols).fill(4);
   for (const [k, cel] of Object.entries(g.celdas)) {
     const [, c0] = k.split(":").map(Number);
     const cs = Math.min(cel.cs ?? 1, g.cols - c0);
+    const span: number[] = [];
+    for (let cc = c0; cc < c0 + cs; cc++) if (!quitar.has(cc)) span.push(cc);
+    if (span.length === 0) continue; // celda = {AI} colapsada
     const resolved = resolverTokens(cel.v ?? "", base);
-    const llenar = Math.max(3, Math.min(resolved.length * 1.15, 30) / cs + 2);
-    for (let cc = c0; cc < c0 + cs; cc++) natural[cc] = Math.max(natural[cc], llenar);
+    const llenar = Math.max(3, Math.min(resolved.length * 1.15, 30) / span.length + 2);
+    for (const cc of span) natural[newIdx.get(cc)!] = Math.max(natural[newIdx.get(cc)!], llenar);
   }
   const suma = natural.reduce((a, b) => a + b, 0);
   const colW = natural.map(n => (n / suma) * usable);
   const cumW: number[] = [0];
   for (const w of colW) cumW.push(cumW[cumW.length - 1] + w);
   const xDe = (c: number) => mx + cumW[c];
-  const wDe = (c0: number, cs: number) => cumW[Math.min(c0 + cs, g.cols)] - cumW[c0];
+  const wDe = (c0: number, cs: number) => cumW[Math.min(c0 + cs, numCols)] - cumW[c0];
 
   // ── Filas de salida (con expansión de la fila de estudiantes) ──
   type CelOut = { texto: string; c0: number; cs: number; rs: number };
@@ -302,12 +316,17 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
     const d: TokenDatos = est ? { ...base, est } : base;
     const celdas: CelOut[] = [];
     for (const [k, cel] of Object.entries(g.celdas)) {
-      const [rr, c0] = k.split(":").map(Number);
+      const [rr, oldC0] = k.split(":").map(Number);
       if (rr !== r) continue;
+      // Re-ubicar la celda en el layout de SALIDA (columnas AI colapsadas).
+      const oldCs = Math.min(cel.cs ?? 1, g.cols - oldC0);
+      const span: number[] = [];
+      for (let cc = oldC0; cc < oldC0 + oldCs; cc++) if (!quitar.has(cc)) span.push(cc);
+      if (span.length === 0) continue;
       celdas.push({
         texto: resolverTokens(cel.v ?? "", d),
-        c0,
-        cs: Math.min(cel.cs ?? 1, g.cols - c0),
+        c0: newIdx.get(span[0])!,
+        cs: span.length,
         rs: cel.rs ?? 1,
       });
     }

@@ -1773,6 +1773,8 @@ import { primerColegio } from "../lib/catalogo";
       descripcion: ind.descripcion,
       criterios: ind.criterios.map(c => ({ orden: c.orden, descripcion: c.descripcion, puntajeMaximo: c.puntajeMaximo })),
       estudiantes: estudiantes_input,
+      // Lógica de negocio: grado/asignatura cualitativos → escala sin AI.
+      cualitativo: isQualitative,
       meta: {
         colegio: colegios.find(c => c.id === selectedColegio)?.nombre || '',
         ano: anos.find(a => a.id === selectedAno)?.nombre || '',
@@ -1800,6 +1802,7 @@ import { primerColegio } from "../lib/catalogo";
             .filter(l => ['AA','AS','AF','AI'].includes(l))
         ),
       })),
+      cualitativo: isQualitative,
     };
   }
 
@@ -1877,6 +1880,7 @@ ni plantilla del constructor en la BD.`,
               .filter(l => ['AA','AS','AF','AI'].includes(l))
           ),
         })),
+        cualitativo: isQualitative,
       };
       const base = `Instrumento_Ind${ind.orden}_${(buildInstrumentoInput(ind).meta.asignatura || 'Asignatura').replace(/[<>:"/\\|?*]/g, '_')}`;
       const ruta = await generarInstrumentoExcel(bytes, base, input);

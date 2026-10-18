@@ -2019,4 +2019,8 @@ to print. It is saved in Documents/SchoolTrackerPro/Instruments.`,
   'pl.tok.estudiante': '{ESTUDIANTE} · Name (🧑 row)',
   'pl.tok.letra': '{LETRA_n} · Criterion grade (🧑 row)',
   'pl.tok.valoracion': '{VALORACION} · Final rating (🧑 row)',
+  'pl.tok.aa': '{AA} · AA scale column',
+  'pl.tok.as': '{AS} · AS scale column',
+  'pl.tok.af': '{AF} · AF scale column',
+  'pl.tok.ai': '{AI} · AI scale column (collapses when qualitative)',
 } as const;

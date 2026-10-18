@@ -46,6 +46,9 @@ export interface TokenDatos {
   indDesc: string;
   /** descripciones de criterios (0-based): criterios[0] = criterio 1 */
   criterios: string[];
+  /** Contexto CUALITATIVO (grado/asignatura cualitativa): la escala NO incluye
+   *  AI (lógica de negocio: AA/AS/AF solamente). {AI} colapsa a vacío. */
+  sinAI?: boolean;
   est?: {
     n: number;
     nombre: string;
@@ -81,6 +84,13 @@ export function resolverTokens(texto: string, d: TokenDatos): string {
     // Criterio inexistente → el texto se colapsa a vacío (no imprime marcador).
     o = o.replace(new RegExp(`\\{CRIT_${k}\\}`, "g"), desc || "");
   }
+  // Tokens de escala: la sigla queda tal cual; AI solo existe en contextos
+  // CUANTITATIVOS (grado/asignatura cualitativa → sinAI colapsa a vacío).
+  o = o
+    .replace(/\{AA\}/g, "AA")
+    .replace(/\{AS\}/g, "AS")
+    .replace(/\{AF\}/g, "AF")
+    .replace(/\{AI\}/g, d.sinAI ? "" : "AI");
   if (d.est) {
     o = o
       .replace(/\{N\}/g, String(d.est.n))
@@ -100,6 +110,24 @@ export function resolverTokens(texto: string, d: TokenDatos): string {
     }
   }
   return o;
+}
+
+/** Columnas de la cuadrícula que representan la nota AI de la escala: celdas
+ *  cuyo texto pelado es exactamente `{AI}` (o `AI` estático, por plantillas
+ *  hechas a mano). Al generar en un contexto cualitativo esas columnas SE
+ *  COLAPSAN (el AI no aplica en ese régimen). */
+export function columnasAI(g: PlantillaGrid): Set<number> {
+  const out = new Set<number>();
+  for (const [k, cel] of Object.entries(g.celdas)) {
+    const t = (cel.v ?? "").trim();
+    if ((t === "{AI}" || t === "AI") && (cel.cs ?? 1) === 1) out.add(Number(k.split(":")[1]));
+  }
+  return out;
+}
+
+/** Columnas a omitir: las {AI} solo si el contexto es cualitativo. */
+export function columnasAIQuitar(g: PlantillaGrid, sinAI: boolean): Set<number> {
+  return sinAI ? columnasAI(g) : new Set<number>();
 }
 
 /**
@@ -148,32 +176,28 @@ export function parseDefinicion(raw: string | null | undefined): PlantillaDefini
   }
 }
 
-/** Cuadrícula inicial estilo "lista de cotejo": encabezado fusionado, grupos
- *  por criterio (AA/AS/AF) y fila de estudiante con sus tokens. */
+/** Cuadrícula inicial estilo "lista de cotejo" — 3 CRITERIOS (regla global:
+ *  los indicadores del sistema funcionan SIEMPRE con 3 criterios), cada uno
+ *  con su grupo de escala completa AA/AS/AF/AI como tokens. Con la plantilla
+ *  en modo cualitativo (grado/sección `cualitativo`, ya contemplado por la
+ *  lógica de negocio) el renderizador COLAPSA la columna {AI}: no aplica. */
 export function gridPresetChecklist(): PlantillaGrid {
-  return {
-    filas: 4,
-    cols: 8,
-    filaEstudiantes: 3,
-    celdas: {
-      "0:0": { v: "{COLEGIO} — {GRADO} {SECCION} — {FECHA}", cs: 8 },
-      "1:0": { v: "Nº" },
-      "1:1": { v: "{CRIT_1}", cs: 3 },
-      "1:4": { v: "{CRIT_2}", cs: 3 },
-      "1:7": { v: "Valoración" },
-      "2:1": { v: "AA" },
-      "2:2": { v: "AS" },
-      "2:3": { v: "AF" },
-      "2:4": { v: "AA" },
-      "2:5": { v: "AS" },
-      "2:6": { v: "AF" },
-      "2:7": { v: "Valoración" },
-      "3:0": { v: "{N}" },
-      "3:1": { v: "{LETRA_1}", cs: 3 },
-      "3:4": { v: "{LETRA_2}", cs: 3 },
-      "3:7": { v: "{VALORACION}" },
-    },
+  const celdas: Record<string, GridCelda> = {
+    "0:0": { v: "{COLEGIO} — {GRADO} {SECCION} — {FECHA}", cs: 14 },
+    "1:0": { v: "Nº" },
+    "1:13": { v: "Valoración" },
+    "3:0": { v: "{N}" },
+    "3:13": { v: "{VALORACION}" },
   };
+  // Grupos por criterio: 4 columnas de escala (AA/AS/AF/AI) cada uno.
+  const ESCALA = ["{AA}", "{AS}", "{AF}", "{AI}"];
+  for (let k = 0; k < 3; k++) {
+    const base = 1 + k * 4;
+    celdas[`1:${base}`] = { v: `{CRIT_${k + 1}}`, cs: 4 };
+    ESCALA.forEach((e, i) => { celdas[`2:${base + i}`] = { v: e }; });
+    celdas[`3:${base}`] = { v: `{LETRA_${k + 1}}`, cs: 4 };
+  }
+  return { filas: 4, cols: 14, filaEstudiantes: 3, celdas };
 }
 
 export interface InstrumentoPlantilla {

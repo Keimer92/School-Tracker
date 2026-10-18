@@ -2044,5 +2044,9 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'pl.tok.estudiante': '{ESTUDIANTE} · Nombre (fila 🧑)',
   'pl.tok.letra': '{LETRA_n} · Nota del criterio (fila 🧑)',
   'pl.tok.valoracion': '{VALORACION} · Valoración final (fila 🧑)',
+  'pl.tok.aa': '{AA} · Columna de escala AA',
+  'pl.tok.as': '{AS} · Columna de escala AS',
+  'pl.tok.af': '{AF} · Columna de escala AF',
+  'pl.tok.ai': '{AI} · Columna de escala AI (se colapsa en cualitativo)',
 } as const;
 export type Clave = keyof typeof es;

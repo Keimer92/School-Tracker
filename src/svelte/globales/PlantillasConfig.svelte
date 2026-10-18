@@ -400,6 +400,10 @@
           <option value="{'{N}'}">{t('pl.tok.num')}</option>
           <option value="{'{ESTUDIANTE}'}">{t('pl.tok.estudiante')}</option>
           <option value="{'{VALORACION}'}">{t('pl.tok.valoracion')}</option>
+          <option value="{'{AA}'}">{t('pl.tok.aa')}</option>
+          <option value="{'{AS}'}">{t('pl.tok.as')}</option>
+          <option value="{'{AF}'}">{t('pl.tok.af')}</option>
+          <option value="{'{AI}'}">{t('pl.tok.ai')}</option>
         </select>
       </div>
 

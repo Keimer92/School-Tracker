@@ -5,7 +5,7 @@ import type { InstrumentoTipo } from './instrumentosPdf';
 import { aFileURL, separadorRuta, unirRuta } from './platform';
 import { cargarExcelJs, crearLibro, agregarHoja, escribirPortada, escribirCabecera, escribirFila, escribirLibroEnCarpeta, BORDE_FINO } from './excel';
 import type { PlantillaDefinicion, PlantillaGrid, TokenDatos } from './instrumentoPlantilla';
-import { resolverTokens } from './instrumentoPlantilla';
+import { resolverTokens, columnasAIQuitar } from './instrumentoPlantilla';
 
 /** Detecta el tipo de instrumento por palabras clave EN EL NOMBRE DEL ARCHIVO.
  *  El nombre debe contener: "Rúbrica"/"Rubrica", "Cotejo" o "Escala".
@@ -72,6 +72,8 @@ export interface ExcelInstrumentoInput {
   indicadorDescripcion: string;
   criterios: ExcelInstrumentoCriterio[];
   estudiantes: ExcelInstrumentoEstudiante[];
+  /** Contexto CUALITATIVO (grado/asignatura): sin AI en la escala. */
+  cualitativo?: boolean;
 }
 
 function escapeXml(s: string): string {
@@ -325,34 +327,59 @@ function tokenDatosCabecera(input: ExcelInstrumentoInput): TokenDatos {
  * reemplazados con los datos reales del indicador.
  */
 function renderGridXlsx(wb: any, grid: PlantillaGrid, def: PlantillaDefinicion, input: ExcelInstrumentoInput): any {
-  const datos = tokenDatosCabecera(input);
-  const covCache = new Map<number, Map<string, [number, number]>>();
-  const cubiertos = (g: PlantillaGrid) => {
-    if (!covCache.has(g.filas * 1000 + g.cols)) {
-      const m = new Map<string, [number, number]>();
-      for (const [k, cel] of Object.entries(g.celdas)) {
-        const [r, c] = k.split(':').map(Number);
-        for (let rr = r; rr < Math.min(r + (cel.rs ?? 1), g.filas); rr++)
-          for (let cc = c; cc < Math.min(c + (cel.cs ?? 1), g.cols); cc++)
-            if (rr !== r || cc !== c) m.set(`${rr}:${cc}`, [r, c]);
-      }
-      covCache.set(g.filas * 1000 + g.cols, m);
-    }
-    return covCache.get(g.filas * 1000 + g.cols)!;
-  };
+  const sinAI = !!input.cualitativo;
+  const datos: TokenDatos = { ...tokenDatosCabecera(input), sinAI };
+
+  // Contexto cualitativo → las columnas {AI} de la cuadrícula SE COLAPSAN
+  // (el AI no aplica en ese régimen; lo decide la lógica de negocio).
+  const quitar = columnasAIQuitar(grid, sinAI);
+  const kept: number[] = [];
+  for (let c = 0; c < grid.cols; c++) if (!quitar.has(c)) kept.push(c);
+  const newIdx = new Map<number, number>(); // col vieja → índice de salida
+  kept.forEach((oc, i) => newIdx.set(oc, i));
+
+  // Cobertura de merges en coordenadas VIEJAS.
+  const cov = new Map<string, [number, number]>();
+  for (const [k, cel] of Object.entries(grid.celdas)) {
+    const [r, c] = k.split(':').map(Number);
+    for (let rr = r; rr < Math.min(r + (cel.rs ?? 1), grid.filas); rr++)
+      for (let cc = c; cc < Math.min(c + (cel.cs ?? 1), grid.cols); cc++)
+        if (rr !== r || cc !== c) cov.set(`${rr}:${cc}`, [r, c]);
+  }
+
+  // Escribirá por CELDA (origen), no por columna: con columnas colapsadas la
+  // posición de salida y el colspan de cada merge se recalculan al vuelo.
+  const celdasPorFila = new Map<number, { c0: number; cs: number; rs: number; v: string }[]>();
+  for (const [k, cel] of Object.entries(grid.celdas)) {
+    const [r, c0] = k.split(':').map(Number);
+    const cs = Math.min(cel.cs ?? 1, grid.cols - c0);
+    // Columnas de salida que abarca: filtra las {AI} eliminadas.
+    const span: number[] = [];
+    for (let cc = c0; cc < c0 + cs; cc++) if (!quitar.has(cc)) span.push(cc);
+    if (span.length === 0) continue; // la celda entera era un {AI}
+    const lista = celdasPorFila.get(r) ?? [];
+    lista.push({
+      c0: newIdx.get(span[0])!,
+      cs: span.length,
+      rs: cel.rs ?? 1,
+      v: cel.v ?? '',
+    });
+    celdasPorFila.set(r, lista);
+  }
 
   // Ancho de columna: longitud del texto resuelto (sin estudiante), acotado.
-  const cov = cubiertos(grid);
   const anchos: number[] = [];
-  for (let c = 0; c < grid.cols; c++) {
+  for (let ci = 0; ci < kept.length; ci++) {
     let mx = 4;
-    for (const [k, cel] of Object.entries(grid.celdas)) {
-      const [r, cc] = k.split(':').map(Number);
-      if (cc !== c) continue;
-      const resolved = resolverTokens(cel.v ?? '', datos);
-      mx = Math.max(mx, Math.min(resolved.length + 3, 34));
+    for (const celditas of celdasPorFila.values()) {
+      for (const cel of celditas) {
+        // La celda enfrenta esta columna si su rango la incluye.
+        if (ci < cel.c0 || ci >= cel.c0 + cel.cs) continue;
+        if (cel.rs > 1) continue; // se distribuye en varias filas: poco indicativo
+        mx = Math.max(mx, Math.min(resolverTokens(cel.v, datos).length / cel.cs + 3, 34));
+      }
     }
-    anchos.push(mx);
+    anchos.push(Math.round(mx));
   }
   const nombreHoja = `Ind ${input.indicadorOrden}`.replace(/[\\/:*?"<>|]/g, '-').slice(0, 31);
   const ws = agregarHoja(wb, nombreHoja, anchos);
@@ -363,10 +390,8 @@ function renderGridXlsx(wb: any, grid: PlantillaGrid, def: PlantillaDefinicion, 
 
   for (let r = 0; r < grid.filas; r++) {
     const esEstudiante = r === grid.filaEstudiantes;
-    outRow += 1; // moveTo 1-based al escribir
     const veces = esEstudiante ? estudiantes.length : 1;
-    if (veces === 0) { outRow -= 1; continue; } // fila de estudiante sin alumnos
-
+    if (veces === 0) continue; // fila de estudiante sin alumnos
     for (let vi = 0; vi < veces; vi++) {
       const est = esEstudiante
         ? (estudiantes as ExcelInstrumentoInput['estudiantes'])[vi]
@@ -374,17 +399,11 @@ function renderGridXlsx(wb: any, grid: PlantillaGrid, def: PlantillaDefinicion, 
       const dEst: TokenDatos = est
         ? { ...datos, est: { n: vi + 1, nombre: est.nombre, letras: est.letras.map(l => l ?? ''), valoracion: est.valoracion || '' } }
         : datos;
-      for (let c = 0; c < grid.cols; c++) {
-        const key = `${r}:${c}`;
-        const dueño = cov.get(`${r}:${c}`);
-        if (dueño && dueño[1] !== c) continue; // cubierta horizontal: skip
-        const cel = grid.celdas[key];
-        const ancho = (cel?.cs ?? 1);
-        if (dueño) continue; // cubierta vertical por otra celda de esta misma columna
-        // Escribir celda.
-        const rr1 = outRow, cc1 = c + 1;
+      outRow += 1; // fila de salida (1-based)
+      for (const cel of celdasPorFila.get(r) ?? []) {
+        const rr1 = outRow, cc1 = cel.c0 + 1;
         const celda = ws.getCell(rr1, cc1);
-        celda.value = resolverTokens(cel?.v ?? '', dEst);
+        celda.value = resolverTokens(cel.v, dEst);
         if (esEstudiante) {
           celda.font = { size: 9, color: { argb: 'FF1E293B' } };
         } else {
@@ -392,18 +411,14 @@ function renderGridXlsx(wb: any, grid: PlantillaGrid, def: PlantillaDefinicion, 
         }
         celda.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
         celda.border = BORDE_FINO;
-        if (ancho > 1 || (!esEstudiante && (cel?.rs ?? 1) > 1)) {
-          ws.mergeCells(rr1, cc1, rr1 + (cel?.rs ?? 1) - 1, cc1 + ancho - 1);
-        }
+        const rs = esEstudiante ? 1 : cel.rs;
+        if (cel.cs > 1 || rs > 1) ws.mergeCells(rr1, cc1, rr1 + rs - 1, cc1 + cel.cs - 1);
         // Bordes del rango fusionado (mergeCells resetea estilos internos en ExcelJS).
-        const cTop = ws.getCell(rr1, cc1);
-        cTop.border = BORDE_FINO;
-        const cFin = ws.getCell(rr1 + (cel?.rs ?? 1) - 1, cc1 + ancho - 1);
-        cFin.border = BORDE_FINO;
+        ws.getCell(rr1 + rs - 1, cc1).border = BORDE_FINO;
+        ws.getCell(rr1, cc1 + cel.cs - 1).border = BORDE_FINO;
+        ws.getCell(rr1 + rs - 1, cc1 + cel.cs - 1).border = BORDE_FINO;
       }
-      outRow += 1; // siguiente fila de salida (per estudiante/per fila lógica)
     }
-    outRow -= 1; // el for del r vuelve a sumar 1
   }
 
   return ws;
