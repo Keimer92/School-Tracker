@@ -25,18 +25,16 @@
     listarInstrumentoPlantillas,
     guardarInstrumentoPlantilla,
     eliminarInstrumentoPlantilla,
+    resolverTokens,
+    centrarCelda,
+    fechaHoyDDMM,
     type InstrumentoPlantilla,
     type PlantillaDefinicion,
     type PlantillaGrid,
     type GridCelda,
+    type TokenDatos,
   } from "../../lib/instrumentoPlantilla";
   import type { InstrumentoTipo } from "../../lib/instrumentosPdf";
-  import {
-    generarInstrumentoPDFPreview,
-    type InstrumentoInput,
-    type InstrumentoCriterio,
-    type InstrumentoEstudiante,
-  } from "../../lib/instrumentosPdf";
 
   const ACENTO = "#38bdf8";
 
@@ -57,7 +55,10 @@
   let editDef = $state<PlantillaDefinicion>(defaultDefinicion());
   let guardando = $state(false);
   let borrandoId = $state(0);
-  let previando = $state(false);
+  // Vista previa (modal dentro de la app)
+  let previewAbierto = $state(false);
+  let previewDef = $state<PlantillaDefinicion | null>(null);
+  let previewTipo = $state<InstrumentoTipo>("escala");
 
   // Celda seleccionada de la cuadrícula (para fusionar/borrar/arriba).
   let selR = $state(0);
@@ -281,61 +282,92 @@
     }
   }
 
-  /**
-   * Datos FICTICIOS para la vista previa: no tocan la BD. Alcanzan para ver
-   * cómo queda la PRESENTACIÓN (cuadrícula, tokens, colores de estructura).
-   */
-  function previewInput(def: PlantillaDefinicion, tipo: InstrumentoTipo): InstrumentoInput {
-    const nombres = ['Ana García', 'Luis Martínez', 'María López', 'Pedro Ramírez', 'Sofía Torres', 'Diego Fernández', 'Carla Ruiz', 'Miguel Castro'];
-    const letras = ['AA', 'AS', 'AF', 'AS', 'AA', 'AF', 'AS', 'AA'];
-    const criterios: InstrumentoCriterio[] = [1, 2, 3].map(n => ({
-      orden: n,
-      descripcion: `${t('pl.preview.crit')} ${n}`,
-      puntajeMaximo: 20,
-    }));
-    const estudiantes: InstrumentoEstudiante[] = nombres.map((nombre, i) => ({
-      id: i + 1,
-      nombre,
-      sexo: i % 2 === 0 ? 'F' : 'M',
-      letras: [letras[i], letras[(i + 1) % 8], letras[(i + 2) % 8]],
+  // ════════════════ Vista previa (modal dentro de la app) ════════════════
+  // Misma resolución de tokens que el PDF/Excel, pero pintada como tabla HTML
+  // con datos FICTICIOS: no toca la BD ni genera archivos.
+  interface PvCelda { v: string; cs: number; rs: number; centrar: boolean; }
+  interface PvFila { celdas: PvCelda[]; est: boolean; }
+  interface PvDoc {
+    titulo: string; subtitulo: string; chips: string[];
+    corte: string; indicador: string; intro: string; leyenda: string; filas: PvFila[];
+  }
+
+  function construirPreview(def: PlantillaDefinicion, tipo: InstrumentoTipo): PvDoc {
+    const g = def.grid ?? gridPresetChecklist();
+    const metaSel: Record<string, string> = {
+      COLEGIO: t('pl.preview.colegio'),
+      GRADO: t('pl.preview.grado'),
+      SECCION: 'A',
+      ASIGNATURA: t('pl.preview.asignatura'),
+      CORTE: t('pl.preview.corte'),
+      ANO: '2026',
+    };
+    const base: TokenDatos = {
+      metaSel,
+      indN: 1,
+      indDesc: t('pl.preview.ind'),
+      criterios: [1, 2, 3].map(n => `${t('pl.preview.crit')} ${n}`),
+    };
+    const nombres = ['Ana García', 'Luis Martínez', 'María López', 'Pedro Ramírez', 'Sofía Torres', 'Diego Fernández'];
+    const letras = ['AA', 'AS', 'AF', 'AS', 'AA', 'AF'];
+    const estDe = (i: number) => ({
+      n: i + 1,
+      nombre: nombres[i],
+      letras: [letras[i], letras[(i + 1) % 6], letras[(i + 2) % 6]],
       valoracion: 'AS',
       total: '17 AS',
       nf: '17 AS',
       tcs: ['7 (AS)', '6 (AF)', '8 (AA)'],
-    }));
+    });
+    // Celdas de una fila, ordenadas por columna. El nombre va a la izquierda.
+    const celdaDe = (r: number, est?: ReturnType<typeof estDe>): PvCelda[] => {
+      const d: TokenDatos = est ? { ...base, est } : base;
+      const out: { c0: number; c: PvCelda }[] = [];
+      for (const [k, cel] of Object.entries(g.celdas)) {
+        const [rr, cc] = k.split(':').map(Number);
+        if (rr !== r) continue;
+        const raw = cel.v ?? '';
+        out.push({
+          c0: cc,
+          c: {
+            v: resolverTokens(raw, d),
+            cs: Math.min(cel.cs ?? 1, g.cols - cc),
+            rs: cel.rs ?? 1,
+            centrar: est ? centrarCelda(raw) : true,
+          },
+        });
+      }
+      return out.sort((a, b) => a.c0 - b.c0).map(x => x.c);
+    };
+    const filas: PvFila[] = [];
+    for (let r = 0; r < g.filas; r++) {
+      if (r === g.filaEstudiantes) {
+        for (let i = 0; i < nombres.length; i++) filas.push({ celdas: celdaDe(r, estDe(i)), est: true });
+      } else {
+        filas.push({ celdas: celdaDe(r), est: false });
+      }
+    }
+    const intro = (def.textoIntro || '').trim();
+    const leyenda = (def.leyenda || '').trim() || (tipo === 'escala' ? t('pl.preview.leyendaDefault') : '');
+    // Encabezados con el MISMO texto que el PDF/Excel (que no se traducen).
     return {
-      tipo,
-      orden: 1,
-      descripcion: t('pl.preview.ind'),
-      criterios,
-      estudiantes,
-      meta: {
-        colegio: t('pl.preview.colegio'),
-        ano: '2026',
-        corte: t('pl.preview.corte'),
-        asignatura: t('pl.preview.asignatura'),
-        grado: t('pl.preview.grado'),
-        seccion: 'A',
-      },
-      cualitativo: false,
-      plantilla: def,
+      titulo: (def.titulo || '').trim() || 'Instrumento de Evaluación',
+      subtitulo: `${metaSel.COLEGIO} — ${metaSel.GRADO}-${metaSel.SECCION}`,
+      chips: [`Asignatura: ${metaSel.ASIGNATURA}`, `Año: ${metaSel.ANO}`, `Fecha: ${fechaHoyDDMM()}`],
+      corte: `Corte evaluativo: ${metaSel.CORTE}`,
+      indicador: `Indicador 1: ${t('pl.preview.ind')}`,
+      intro,
+      leyenda,
+      filas,
     };
   }
 
-  /** Genera el PDF de vista previa (datos de ejemplo) y lo abre. */
-  async function vistaPrevia(def: PlantillaDefinicion, tipo: InstrumentoTipo) {
-    if (previando) return;
-    previando = true;
-    try {
-      await generarInstrumentoPDFPreview(previewInput(def, tipo));
-      await emit("show-toast", { message: t('pl.ok.preview'), type: "success" });
-    } catch (e) {
-      console.error("[Plantillas] Error en vista previa:", e);
-      await emit("show-toast", { message: t('pl.err.preview', { msg: String(e) }), type: "error" });
-    } finally {
-      previando = false;
-    }
+  function vistaPrevia(def: PlantillaDefinicion, tipo: InstrumentoTipo) {
+    previewDef = def;
+    previewTipo = tipo;
+    previewAbierto = true;
   }
+  function cerrarPrevia() { previewAbierto = false; }
 
   function cambiar<K extends keyof PlantillaDefinicion>(k: K, v: PlantillaDefinicion[K]) {
     editDef = { ...editDef, [k]: v };
@@ -373,7 +405,7 @@
               </div>
             </div>
             <div class="pl-acciones">
-              <button class="pl-btn" onclick={() => vistaPrevia(p.def, p.tipo)} disabled={previando} title={t('pl.btn.preview')}>
+              <button class="pl-btn" onclick={() => vistaPrevia(p.def, p.tipo)} title={t('pl.btn.preview')}>
                 <span class="pl-ico">👁</span>{t('pl.btn.preview')}
               </button>
               <button class="pl-btn" onclick={() => abrirEditar(p)} title={t('pl.editar')}>
@@ -399,8 +431,8 @@
           {editandoId ? t('pl.editor.tituloEditar') : t('pl.editor.tituloCrear')}
         </h3>
         <div style="display:flex;align-items:center;gap:0.5rem;">
-          <button class="pl-btn-preview" onclick={() => vistaPrevia(editDef, editTipo)} disabled={previando}>
-            <span class="pl-ico">{previando ? '⏳' : '👁'}</span>{t('pl.editor.preview')}
+          <button class="pl-btn-preview" onclick={() => vistaPrevia(editDef, editTipo)}>
+            <span class="pl-ico">👁</span>{t('pl.editor.preview')}
           </button>
           <button onclick={cerrarEditor} style="background:transparent;border:none;color:#64748b;font-size:1.2rem;cursor:pointer;">✕</button>
         </div>
@@ -528,6 +560,45 @@
   </div>
 {/if}
 
+<!-- ── Vista previa: modal dentro de la app, con datos de ejemplo ── -->
+{#if previewAbierto && previewDef}
+  {@const pv = construirPreview(previewDef, previewTipo)}
+  <div class="modal-overlay" onpointerdown={(e) => { if (e.target === e.currentTarget) cerrarPrevia(); }}>
+    <div class="modal-capa pv-capa">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.8rem;">
+        <h3 style="margin:0;color:#f1f5f9;font-size:1.05rem;font-weight:700;">{t('pl.preview.titulo')}</h3>
+        <button onclick={cerrarPrevia} style="background:transparent;border:none;color:#64748b;font-size:1.2rem;cursor:pointer;">✕</button>
+      </div>
+      <div class="pv-scroll">
+        <div class="pv-hoja">
+          <div class="pv-titulo">{pv.titulo}</div>
+          <div class="pv-sub">{pv.subtitulo}</div>
+          <div class="pv-chips">
+            {#each pv.chips as chip, i (i)}
+              <span class="pv-chip" class:chip-azul={i === 0} class:chip-rosa={i === 1} class:chip-gris={i === 2}>{chip}</span>
+            {/each}
+          </div>
+          <div class="pv-corte">{pv.corte}</div>
+          <div class="pv-ind">{pv.indicador}</div>
+          {#if pv.intro}<div class="pv-intro">{pv.intro}</div>{/if}
+          <table class="pv-tabla">
+            <tbody>
+              {#each pv.filas as f, fi (fi)}
+                <tr class:est={f.est}>
+                  {#each f.celdas as c, ci (ci)}
+                    <td colspan={c.cs} rowspan={c.rs} class:izq={!c.centrar}>{c.v}</td>
+                  {/each}
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+          {#if pv.leyenda}<div class="pv-leyenda">{pv.leyenda}</div>{/if}
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <style>
   .cfg-body { padding: 1.5rem 2rem; }
 
@@ -606,6 +677,35 @@
     border: 1px solid rgba(56,189,248,0.2); border-radius: 20px;
     padding: 1.1rem 1.3rem 1.3rem 1.3rem; width: min(1050px, 97vw); max-height: 92vh; overflow-y: auto;
     box-shadow: 0 25px 60px -12px rgba(0,0,0,0.6);
+  }
+
+  /* ══ Vista previa: "hoja" clara dentro del modal ══ */
+  .pv-capa { width: min(1100px, 97vw); }
+  .pv-scroll { overflow: auto; border-radius: 12px; }
+  .pv-hoja {
+    background: #f8fafc; color: #0f172a;
+    padding: 1.3rem 1.5rem; border-radius: 12px;
+  }
+  .pv-titulo { text-align: center; font-size: 1.05rem; font-weight: 800; color: #065f46; }
+  .pv-sub { text-align: center; font-size: 0.78rem; color: #374151; margin-top: 0.15rem; }
+  .pv-chips { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.55rem; }
+  .pv-chip { font-size: 0.66rem; font-weight: 700; padding: 0.2rem 0.55rem; border-radius: 999px; border: 1px solid transparent; }
+  .pv-chip.chip-azul { background: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
+  .pv-chip.chip-rosa { background: #fce7f3; color: #9d174d; border-color: #fbcfe8; }
+  .pv-chip.chip-gris { background: #e2e8f0; color: #334155; border-color: #cbd5e1; }
+  .pv-corte { margin-top: 0.5rem; font-size: 0.78rem; font-weight: 700; color: #5b21b6; }
+  .pv-ind { font-size: 0.78rem; font-weight: 700; color: #1e3a8a; }
+  .pv-intro { font-size: 0.74rem; color: #475569; margin-top: 0.3rem; }
+  .pv-tabla { border-collapse: collapse; width: 100%; min-width: 620px; margin-top: 0.6rem; }
+  .pv-tabla td {
+    border: 1px solid #000; padding: 0.22rem 0.3rem; font-size: 0.66rem;
+    text-align: center; vertical-align: middle; overflow-wrap: anywhere;
+  }
+  .pv-tabla td.izq { text-align: left; }
+  .pv-tabla tr.est td { background: rgba(56,189,248,0.07); }
+  .pv-leyenda { margin-top: 0.6rem; font-style: italic; font-size: 0.68rem; color: #64748b; }
+  @media (max-width: 560px) {
+    .pv-hoja { padding: 0.8rem; }
   }
 
   /* ══ Cuadrícula tipo Excel ══ */

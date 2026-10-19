@@ -1441,6 +1441,19 @@ Plantillas editable).
   **Carta** (`paperSize: 1`), márgenes estrechos (0.25"), `fitToPage` **1×1**
   (todo en UNA hoja) y centrado horizontal; la cuadrícula va horizontal y el
   modo rápido vertical.
+- **Nombres a la IZQUIERDA (2026-10)**: la celda `{ESTUDIANTE}` se alinea a la
+  izquierda en el PDF (`centrarCelda` devuelve `false` si el raw CONTIENE
+  `{ESTUDIANTE}`, por si la celda combina el token con otro texto) y en el Excel
+  (`horizontal:'left'` en `renderGridXlsx`, y la columna Estudiante del modo
+  rápido). El resto de la cuadrícula sigue centrada.
+- **Vista previa en la app + botones con nombre (2026-10)**: el constructor tiene
+  un botón **👁 Vista previa** en el modal de edición (junto al nombre) y en cada
+  tarjeta de la lista. Abre un **modal dentro de la app** (`construirPreview` en
+  `PlantillasConfig.svelte`) que dibuja el instrumento con datos FICTICIOS
+  reusando `resolverTokens`/`centrarCelda` + `gridPresetChecklist`: NO toca la BD
+  ni genera archivos. El encabezado usa el MISMO texto que el PDF/Excel (que no
+  se traduce). Los botones de Editar/Eliminar llevan su **nombre** además del
+  ícono (`<span class="pl-ico">`, más grande).
 - **Nota Final (NF) ELIMINADA del preset (2026-10)**: el preset de cuadrícula ya
   **no** tiene la columna NF (pasó de 19 a **18 columnas**). `parseDefinicion`
   normaliza las plantillas viejas con `sinColumnaNF`: si la ÚLTIMA columna tiene
