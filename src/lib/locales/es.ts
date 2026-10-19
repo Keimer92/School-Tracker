@@ -2023,7 +2023,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'pl.preview.estudiante': 'Estudiante',
   'pl.preview.leyendaDefault': 'AA = Superior (90-100)    AS = Alto (70-89)    AF = Básico (50-69)    AI = Insuficiente (<50)',
   'pl.notas.titulo': 'Plantilla del constructor',
-  'pl.notas.vacia': 'No hay plantillas en Configuración 🧩; el Excel usará la carpeta Plantillas',
+  'pl.notas.vacia': 'No hay plantillas en Configuración 🧩. Creá una con el constructor para generar el instrumento.',
   'pl.notas.auto': 'AUTO (por tipo del indicador)',
   // 🪄 Cuadrícula tipo Excel
   'pl.grid.addFila': 'Agregar una fila al final',

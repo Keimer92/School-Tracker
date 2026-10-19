@@ -461,15 +461,20 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
 
   const dibujarFila = (i: number): boolean => {
     const f = filas[i];
-    // Altura total de la fila: si una celda abarca varias, manda la suma.
-    let alto = altos[i];
+    // `y` avanza SOLO la altura de esta fila: un rowspan pinta su rectángulo
+    // alto encima de las filas siguientes, pero NO las empuja hacia abajo (las
+    // filas de abajo se dibujan en su propio carril y en otras columnas).
+    const altoAvance = altos[i];
+    // Para el corte de página, en cambio, hay que reservar la celda más alta
+    // (si una abarca varias filas, la suma).
+    let altoPagina = altoAvance;
     for (const cel of f.celdas) {
       if (cel.rs <= 1) continue;
       let suma = 0;
       for (let k2 = i; k2 < i + cel.rs && k2 < altos.length; k2++) suma += altos[k2];
-      alto = Math.max(alto, suma);
+      altoPagina = Math.max(altoPagina, suma);
     }
-    if (y + alto > ph - 12) return false;
+    if (y + altoPagina > ph - 12) return false;
     doc.setFont("helvetica", f.estudiante ? "normal" : "bold");
     doc.setFontSize(f.estudiante ? FONTE - 1 : FONTE - 0.5);
     // Bordes NEGROS (no grises) en toda la cuadrícula.
@@ -479,7 +484,7 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
       const x = xDe(cel.c0);
       const w = wDe(cel.c0, cel.cs);
       // Alto de la celda: el suyo, o la suma de las filas que abarca (rowspan).
-      let altoCel = altos[i];
+      let altoCel = altoAvance;
       if (cel.rs > 1) {
         altoCel = 0;
         for (let k2 = i; k2 < i + cel.rs && k2 < altos.length; k2++) altoCel += altos[k2];
@@ -496,7 +501,7 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
         else doc.text(lines, x + 1.3, ty);
       }
     }
-    y += alto;
+    y += altoAvance;
     return true;
   };
 

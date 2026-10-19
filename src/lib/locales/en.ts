@@ -1998,7 +1998,7 @@ to print. It is saved in Documents/SchoolTrackerPro/Instruments.`,
   'pl.preview.estudiante': 'Student',
   'pl.preview.leyendaDefault': 'AA = Superior (90-100)    AS = High (70-89)    AF = Basic (50-69)    AI = Insufficient (<50)',
   'pl.notas.titulo': 'Builder template',
-  'pl.notas.vacia': 'No templates in Configuration 🧩; Excel will use the Templates folder',
+  'pl.notas.vacia': 'No templates in Configuration 🧩. Create one with the builder to generate the instrument.',
   'pl.notas.auto': 'AUTO (by indicator type)',
   // 🪄 Spreadsheet-style grid
   'pl.grid.addFila': 'Add a row at the end',
