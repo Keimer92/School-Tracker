@@ -186,6 +186,9 @@ const BUSINESS_KEY: Record<string, string> = {
   grado: 'nombre',
   seccion: 'nombre',
   estudiante: 'codigo',
+  // La plantilla se identifica por `nombre` (los ids autoincrement divergen entre
+  // dispositivos). Requiere el índice único `idx_instrumento_plantilla_nombre`.
+  instrumento_plantilla: 'nombre',
   // Clave de negocio de criterio: el id autoincrement diverge entre devices
   // tras import/restore; upsert por (indicador_id, orden) evita duplicados.
   criterio: 'indicador_id, orden',
@@ -382,6 +385,15 @@ async function ensureSchema(env: Env): Promise<void> {
     try { await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_${table}_sk ON ${table}(sk, updated_at)`).run(); } catch { /* índice ya existe */ }
   }
 
+  // `BUSINESS_KEY.instrumento_plantilla = 'nombre'` exige un índice único para el
+  // `ON CONFLICT(nombre)`. Tolerante: si hubiera nombres repetidos, no se rompe el
+  // arranque (el upsert de plantillas caería al conflicto por id).
+  try {
+    await env.DB.prepare(
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_instrumento_plantilla_nombre ON instrumento_plantilla(nombre)",
+    ).run();
+  } catch { /* nombres duplicados */ }
+
   schemaReady = true;
 }
 
@@ -454,13 +466,20 @@ function buildUpsert(table: string, rows: any[], deviceId: string, serverNow: st
   const bk = BUSINESS_KEY[table];
   const conflictTarget = bk || pkTarget;
   const setCols = bk ? upsertCols.filter((c) => c !== 'id') : upsertCols;
-  const colList = upsertCols.join(', ');
+  // La plantilla se identifica por su clave de negocio: el INSERT NO incluye el
+  // `id` (lo asigna el servidor). Sus ids locales divergen entre dispositivos y un
+  // id repetido chocaría con la PK de OTRA plantilla (ON CONFLICT(nombre) no
+  // cubriría ese conflicto de PK y el push fallaría o duplicaría). Para el resto de
+  // las tablas se mantiene el comportamiento previo (el id viaja en el INSERT) para
+  // no alterar su reconciliación.
+  const insertCols = (table === 'instrumento_plantilla') ? upsertCols.filter((c) => c !== 'id') : upsertCols;
+  const colList = insertCols.join(', ');
 
   const valueTuples: string[] = [];
   const params: any[] = [];
   let n = 0;
   for (const row of rows) {
-    const vals = upsertCols.map((c) => {
+    const vals = insertCols.map((c) => {
       if (c === 'device_id') return deviceId;
       if (c === 'updated_at') return serverNow;
       if (c === 'sk') return sk;
