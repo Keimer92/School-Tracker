@@ -377,6 +377,18 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
     const llenar = Math.max(3, Math.min(resolved.length * 1.15, 30) / span.length + 2);
     for (const cc of span) natural[newIdx.get(cc)!] = Math.max(natural[newIdx.get(cc)!], llenar);
   }
+  // La columna del nombre se dimensiona por el NOMBRE REAL más largo (no por el
+  // encabezado "Estudiante", que es corto): así los nombres largos se envuelven
+  // menos y no quedan apretados contra el borde.
+  const maxNombre = input.estudiantes.reduce((m, e) => Math.max(m, (e.nombre || "").length), 0);
+  if (maxNombre > 0) {
+    for (const [k, cel] of Object.entries(g.celdas)) {
+      if (cel.v !== "{ESTUDIANTE}") continue;
+      const c0 = Number(k.split(":")[1]);
+      const idx = newIdx.get(c0);
+      if (idx !== undefined) natural[idx] = Math.max(natural[idx], Math.min(maxNombre * 1.15 + 2, 46));
+    }
+  }
   const suma = natural.reduce((a, b) => a + b, 0);
   const colW = natural.map(n => (n / suma) * usable);
   const cumW: number[] = [0];
@@ -410,7 +422,9 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
         c0: newIdx.get(span[0])!,
         cs: span.length,
         rs: cel.rs ?? 1,
-        centrar: centrarCelda(raw),
+        // Encabezados SIEMPRE centrados; en la fila de estudiantes solo los
+        // tokens cortos (el nombre va a la izquierda).
+        centrar: est ? centrarCelda(raw) : true,
         // Solo la fila de estudiantes lleva color: encabezados en negro.
         color: est ? colorDeCelda(raw, texto, input.colores, est.sexo) : undefined,
       });
@@ -456,12 +470,12 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
   // los rowspans con la altura real.
   const altoDe = (f: FilaOut): number => {
     let alto = ALTO;
-    if (!f.estudiante) {
-      for (const cel of f.celdas) {
-        const w = wDe(cel.c0, cel.cs) - 3;
-        const lines = (doc as any).splitTextToSize(cel.texto || " ", w).length;
-        alto = Math.max(alto, lines * (FONTE * 0.3528) + 2.4);
-      }
+    // Incluye la fila de estudiantes: un nombre largo se envuelve a 2+ líneas
+    // y, sin contarlo, el texto se salía por debajo de la cuadrícula.
+    for (const cel of f.celdas) {
+      const w = wDe(cel.c0, cel.cs) - 3;
+      const lines = (doc as any).splitTextToSize(cel.texto || " ", w).length;
+      alto = Math.max(alto, lines * (FONTE * 0.3528) + 2.4);
     }
     return alto;
   };

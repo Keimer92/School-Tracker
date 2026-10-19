@@ -16,8 +16,8 @@ import { primerColegio } from "../lib/catalogo";
   import BtnRail from "./BtnRail.svelte";
   import AccionesRail from "./AccionesRail.svelte";
   import { generarInstrumentoPDF, generarInstrumentosTodosPDF, INSTRUMENTO_OPS, type InstrumentoInput, type InstrumentoTipo } from "../lib/instrumentosPdf";
-  import { generarInstrumentoXlsxDesdeDefinicion, type ExcelInstrumentoInput } from "../lib/instrumentosExcel";
-  import { listarInstrumentoPlantillas, parseDefinicion, type InstrumentoPlantilla } from "../lib/instrumentoPlantilla";
+  import { generarInstrumentoXlsxDesdeDefinicion, generarInstrumentosTodosXlsx, type ExcelInstrumentoInput } from "../lib/instrumentosExcel";
+  import { listarInstrumentoPlantillas, parseDefinicion, type InstrumentoPlantilla, type PlantillaDefinicion } from "../lib/instrumentoPlantilla";
   import { ask } from "@tauri-apps/plugin-dialog";
   import { registerBackHandler } from "../lib/androidBack";
   // OJO al importar `t`: en este archivo ya hubo dos `const t = ev.target`
@@ -1921,6 +1921,31 @@ import { primerColegio } from "../lib/catalogo";
       console.debug('[Instrumentos-Excel] ruta:', ruta);
     } catch (e) {
       console.error('[Instrumentos-Excel] Error (plantilla BD):', e);
+      await emit("show-toast", { message: "❌ Error generando XLSX: " + e, type: "error" });
+    } finally { excelGenerating = false; }
+  }
+
+  /** "Excel todos": UN libro con una HOJA por indicador de la sección. */
+  async function generarExcelTodos() {
+    if (indicadoresSeccion.length === 0) return;
+    const items: { def: PlantillaDefinicion; input: ExcelInstrumentoInput }[] = [];
+    for (const ind of indicadoresSeccion) {
+      const plBD = plantillaDeIndicador(ind);
+      if (!plBD) continue;
+      items.push({ def: parseDefinicion(plBD.definicion), input: buildInstrumentoInputExcel(ind) });
+    }
+    if (items.length === 0) {
+      await emit("show-toast", { message: `⚠️ ${t('pl.notas.vacia')}`, type: "warning" });
+      return;
+    }
+    excelGenerating = true;
+    try {
+      const meta = buildInstrumentoInput(indicadoresSeccion[0]).meta;
+      const base = `Instrumentos_${(meta.asignatura || 'Asignatura').replace(/[<>:"/\\|?*]/g, '_')}`;
+      const { hojas } = await generarInstrumentosTodosXlsx(items, base);
+      await emit("show-toast", { message: `✅ ${t('notas.inst.excelTodosHecho', { n: hojas })} → Documents/School Tracker/Instrumentos`, type: "success" });
+    } catch (e) {
+      console.error('[Instrumentos-Excel] Error (todos):', e);
       await emit("show-toast", { message: "❌ Error generando XLSX: " + e, type: "error" });
     } finally { excelGenerating = false; }
   }
@@ -4738,6 +4763,10 @@ import { primerColegio } from "../lib/catalogo";
             <button onclick={generarTodosInstrumentos} disabled={generatingPdf}
               style="flex: 1; padding: 0.55rem; border-radius: 10px; border: none; background: linear-gradient(135deg, #0ea5e9, #0284c7); color: #fff; font-weight: 700; font-size: 0.8rem; cursor: pointer; opacity: {generatingPdf ? 0.6 : 1};">
               {generatingPdf ? t('notas.inst.generando') : t('notas.inst.generarTodos')}
+            </button>
+            <button onclick={generarExcelTodos} disabled={excelGenerating}
+              style="flex: 1; padding: 0.55rem; border-radius: 10px; border: none; background: linear-gradient(135deg, #22c55e, #16a34a); color: #fff; font-weight: 700; font-size: 0.8rem; cursor: pointer; opacity: {excelGenerating ? 0.6 : 1};">
+              {excelGenerating ? t('notas.inst.generando') : t('notas.inst.generarTodosXls')}
             </button>
           </div>
 

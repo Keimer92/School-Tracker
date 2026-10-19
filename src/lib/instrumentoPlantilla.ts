@@ -235,10 +235,30 @@ export function parseDefinicion(raw: string | null | undefined): PlantillaDefini
   if (!raw) return base;
   try {
     const obj = JSON.parse(raw) as Partial<PlantillaDefinicion>;
-    return { ...base, ...obj };
+    const def = { ...base, ...obj };
+    if (def.grid) def.grid = sinColumnaNF(def.grid);
+    return def;
   } catch {
     return base;
   }
+}
+
+/**
+ * Quita la columna NF de plantillas creadas con el preset VIEJO (19 columnas).
+ * La Nota Final se retiró de los instrumentos (2026-10) y el preset viejo la
+ * tenía como ÚLTIMA columna, así que basta borrar sus celdas y bajar `cols`.
+ * Las plantillas hechas a mano que no terminan en NF quedan intactas (para no
+ * romper un diseño propio que use {NF} legítimamente).
+ */
+function sinColumnaNF(grid: PlantillaGrid): PlantillaGrid {
+  const ult = grid.cols - 1;
+  if (grid.celdas[`0:${ult}`]?.v === "NF" && grid.celdas[`2:${ult}`]?.v === "{NF}") {
+    const celdas = { ...grid.celdas };
+    delete celdas[`0:${ult}`];
+    delete celdas[`2:${ult}`];
+    return { ...grid, cols: ult, celdas };
+  }
+  return grid;
 }
 
 /** Cuadrícula inicial estilo "lista de cotejo" — 3 CRITERIOS (regla global:
@@ -253,16 +273,15 @@ export function parseDefinicion(raw: string | null | undefined): PlantillaDefini
 export function gridPresetChecklist(): PlantillaGrid {
   const celdas: Record<string, GridCelda> = {
     // Encabezados verticales (span las 2 filas de cabecera), como en la tabla
-    // de NotasPage: Nº · Estudiante · [criterios] · TC por criterio · Total · NF.
+    // de NotasPage: Nº · Estudiante · [criterios] · TC por criterio · Total.
+    // La Nota Final (NF) se retiró de los instrumentos (2026-10).
     "0:0": { v: "Nº", rs: 2 },
     "0:1": { v: "Estudiante", rs: 2 },
     "0:17": { v: "Total", rs: 2 },
-    "0:18": { v: "NF", rs: 2 },
     // Fila 1: escala dedicada (AA/AS/AF/AI) bajo cada criterio.
     "2:0": { v: "{N}" },
     "2:1": { v: "{ESTUDIANTE}" },
     "2:17": { v: "{TOTAL}" },
-    "2:18": { v: "{NF}" },
   };
   // Por criterio: 4 columnas de escala (AA/AS/AF/AI) + 1 columna TC (Total
   // Criterio, abreviado) — misma convención que la tabla de notas (regla de
@@ -278,7 +297,7 @@ export function gridPresetChecklist(): PlantillaGrid {
     celdas[`2:${base}`] = { v: `{LETRA_${k + 1}}`, cs: 4 };
     celdas[`2:${base + 4}`] = { v: `{TC_${k + 1}}` };
   }
-  return { filas: 3, cols: 19, filaEstudiantes: 2, celdas };
+  return { filas: 3, cols: 18, filaEstudiantes: 2, celdas };
 }
 
 export interface InstrumentoPlantilla {

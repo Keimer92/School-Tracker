@@ -1,7 +1,7 @@
 import { documentDir } from '@tauri-apps/api/path';
 import { writeFile, mkdir } from '@tauri-apps/plugin-fs';
 import { aFileURL, unirRuta } from './platform';
-import { cargarExcelJs, crearLibro, agregarHoja, escribirPortada, escribirCabecera, escribirFila, escribirLibroEnCarpeta, BORDE_NEGRO, argb } from './excel';
+import { crearLibro, agregarHoja, escribirPortada, escribirCabecera, escribirFila, escribirLibroEnCarpeta, nombreHojaSeguro, BORDE_NEGRO, argb } from './excel';
 import type { InstrumentoColores, PlantillaDefinicion, PlantillaGrid, TokenDatos } from './instrumentoPlantilla';
 import { resolverTokens, columnasAIQuitar, colorDeCelda } from './instrumentoPlantilla';
 
@@ -89,7 +89,7 @@ function lineaEncabezadoXlsx(ws: any, fila: number, nCols: number, rgb: string, 
   c.alignment = { horizontal: 'left', vertical: 'middle' };
 }
 
-function renderGridXlsx(wb: any, grid: PlantillaGrid, def: PlantillaDefinicion, input: ExcelInstrumentoInput): any {
+function renderGridXlsx(wb: any, grid: PlantillaGrid, def: PlantillaDefinicion, input: ExcelInstrumentoInput, nombreHoja?: string, usados?: Set<string>): any {
   const sinAI = !!input.cualitativo;
   const datos: TokenDatos = { ...tokenDatosCabecera(input), sinAI };
 
@@ -146,8 +146,8 @@ function renderGridXlsx(wb: any, grid: PlantillaGrid, def: PlantillaDefinicion, 
     }
     anchos.push(Math.round(mx));
   }
-  const nombreHoja = `Ind ${input.indicadorOrden}`.replace(/[\\/:*?"<>|]/g, '-').slice(0, 31);
-  const ws = agregarHoja(wb, nombreHoja, anchos);
+  const nombre = nombreHojaSeguro(nombreHoja ?? `Ind ${input.indicadorOrden}`, usados);
+  const ws = agregarHoja(wb, nombre, anchos);
 
   // ── Encabezado ESTÁNDAR (convención informe/reporte): 4 filas antes de la
   // cuadrícula. La cuadrícula del preset ya no trae tokens de cabecera.
@@ -208,34 +208,35 @@ function renderGridXlsx(wb: any, grid: PlantillaGrid, def: PlantillaDefinicion, 
 
   return ws;
 }
-export async function generarInstrumentoXlsxDesdeDefinicion(
+/** Agrega UNA hoja (cuadrícula o modo rápido) al libro. `usados` deduplica. */
+function agregarInstrumentoAHoja(
+  wb: any,
   def: PlantillaDefinicion,
   input: ExcelInstrumentoInput,
-  fileNameBase: string,
-): Promise<string> {
-  const ExcelJS = await cargarExcelJs();
-  const wb = await crearLibro('School Tracker');
-
-  const docsPath = await documentDir();
-  const dir = unirRuta(docsPath, 'School Tracker', 'Instrumentos');
-  await mkdir(dir, { recursive: true }).catch(() => {});
-
-  // ── Modo CUADRÍCULA (constructor tipo Excel): render tal cual ──
+  usados?: Set<string>,
+): void {
   if (def.grid) {
-    renderGridXlsx(wb, def.grid, def, input);
-    // escribirLibroEnCarpeta agrega el .xlsx él mismo.
-    return await escribirLibroEnCarpeta(wb, dir, fileNameBase);
+    renderGridXlsx(wb, def.grid, def, input, `Ind ${input.indicadorOrden}`, usados);
+    return;
   }
+  renderQuickXlsx(wb, def, input, `Indicador ${input.indicadorOrden}`, usados);
+}
 
-  // ── Modo "rápido" (campos clásicos, sin cuadrícula) ──
+/** Modo "rápido" (campos clásicos, sin cuadrícula): agrega su hoja al libro. */
+function renderQuickXlsx(
+  wb: any,
+  def: PlantillaDefinicion,
+  input: ExcelInstrumentoInput,
+  nombreHoja?: string,
+  usados?: Set<string>,
+): any {
   const conFinal = def.colFinal !== 'ninguno';
   const headers = conFinal
     ? ['#', 'Estudiante', ...input.criterios.map(c => `C${c.orden}`), def.colFinal === 'total' ? 'Total' : 'Valoración']
     : ['#', 'Estudiante', ...input.criterios.map(c => `C${c.orden}`)];
   const anchos = headers.map((h, i) => (i <= 1 || !conFinal && i === 1 ? (i === 0 ? 5 : 38) : 13));
 
-  const nombreHoja = `Indicador ${input.indicadorOrden}`.replace(/[\\/:*?"<>|]/g, '-').slice(0, 31);
-  const ws = agregarHoja(wb, nombreHoja, anchos);
+  const ws = agregarHoja(wb, nombreHojaSeguro(nombreHoja ?? `Indicador ${input.indicadorOrden}`, usados), anchos);
 
   const tituloDef = (def.titulo || '').trim();
   const titulo = tituloDef
@@ -284,6 +285,42 @@ export async function generarInstrumentoXlsxDesdeDefinicion(
     c.font = { italic: true, size: 9, color: { argb: 'FF64748B' } };
   }
 
+  return ws;
+}
+
+/** Subcarpeta compartida de instrumentos (Documents/School Tracker/Instrumentos). */
+async function dirInstrumentos(): Promise<string> {
+  const docsPath = await documentDir();
+  return unirRuta(docsPath, 'School Tracker', 'Instrumentos');
+}
+
+export async function generarInstrumentoXlsxDesdeDefinicion(
+  def: PlantillaDefinicion,
+  input: ExcelInstrumentoInput,
+  fileNameBase: string,
+): Promise<string> {
+  const wb = await crearLibro('School Tracker');
+  const usados = new Set<string>();
+  agregarInstrumentoAHoja(wb, def, input, usados);
+  const dir = await dirInstrumentos();
+  await mkdir(dir, { recursive: true }).catch(() => {});
   // escribirLibroEnCarpeta agrega el .xlsx él mismo.
   return await escribirLibroEnCarpeta(wb, dir, fileNameBase);
+}
+
+/**
+ * UN libro con una HOJA por indicador (botón "Excel todos"): así el docente
+ * tiene todos los instrumentos del mismo grupo en un solo archivo.
+ */
+export async function generarInstrumentosTodosXlsx(
+  items: { def: PlantillaDefinicion; input: ExcelInstrumentoInput }[],
+  fileNameBase: string,
+): Promise<{ ruta: string; hojas: number }> {
+  const wb = await crearLibro('School Tracker');
+  const usados = new Set<string>();
+  for (const it of items) agregarInstrumentoAHoja(wb, it.def, it.input, usados);
+  const dir = await dirInstrumentos();
+  await mkdir(dir, { recursive: true }).catch(() => {});
+  const ruta = await escribirLibroEnCarpeta(wb, dir, fileNameBase);
+  return { ruta, hojas: items.length };
 }

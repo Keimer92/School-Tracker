@@ -507,6 +507,8 @@ export const es = {
   'notas.inst.titulo': '📋 Instrumentos de evaluación',
   'notas.inst.generando': '⏳ Generando…',
   'notas.inst.generarTodos': '📄 Generar todos',
+  'notas.inst.generarTodosXls': '📊 Excel todos',
+  'notas.inst.excelTodosHecho': 'Excel generado con {n} hoja(s)',
   'notas.inst.ayudaExcel': '❓ Ayuda Excel',
   'notas.inst.plantillaTitulo': '📗 Plantilla:',
   'notas.inst.cargandoPlantillas': 'cargando…',

@@ -492,6 +492,8 @@ export const en: Record<Clave, string> = {
   'notas.inst.titulo': '📋 Assessment instruments',
   'notas.inst.generando': '⏳ Generating…',
   'notas.inst.generarTodos': '📄 Generate all',
+  'notas.inst.generarTodosXls': '📊 Excel all',
+  'notas.inst.excelTodosHecho': 'Excel generated with {n} sheet(s)',
   'notas.inst.ayudaExcel': '❓ Excel help',
   'notas.inst.plantillaTitulo': '📗 Template:',
   'notas.inst.cargandoPlantillas': 'loading…',
