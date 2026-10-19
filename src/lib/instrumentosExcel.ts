@@ -72,6 +72,35 @@ function tokenDatosCabecera(input: ExcelInstrumentoInput): TokenDatos {
  * nativos de ExcelJS, fila de estudiantes expandida por cada alumno y tokens
  * reemplazados con los datos reales del indicador.
  */
+/** TokenDatos con los datos de UN estudiante (misma forma que el render). */
+function datosConEstudiante(base: TokenDatos, est: ExcelInstrumentoEstudiante, idx: number): TokenDatos {
+  return {
+    ...base,
+    est: {
+      n: idx + 1,
+      nombre: est.nombre,
+      letras: est.letras.map(l => l ?? ''),
+      valoracion: est.valoracion || '',
+      total: est.total || '',
+      nf: est.nf || '',
+      tcs: est.tcs || [],
+    },
+  };
+}
+
+/** Página: tamaño Carta, márgenes estrechos y todo ajustado a UNA hoja (1×1). */
+function configurarPagina(ws: any, orientacion: 'portrait' | 'landscape'): void {
+  ws.pageSetup = {
+    paperSize: 1, // 1 = Carta (8.5" × 11")
+    orientation: orientacion,
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 1,
+    horizontalCentered: true,
+    margins: { left: 0.25, right: 0.25, top: 0.3, bottom: 0.3, header: 0.1, footer: 0.1 },
+  };
+}
+
 /** Línea del encabezado estándar del XLSX (una fila a lo ancho de la cuadrícula). */
 function lineaEncabezadoXlsx(ws: any, fila: number, nCols: number, rgb: string, texto: string, size: number): void {
   if (nCols > 1) try { ws.mergeCells(fila, 1, fila, Math.max(2, nCols)); } catch { /* ya fusionada */ }
@@ -124,16 +153,27 @@ function renderGridXlsx(wb: any, grid: PlantillaGrid, def: PlantillaDefinicion, 
     celdasPorFila.set(r, lista);
   }
 
-  // Ancho de columna: longitud del texto resuelto (sin estudiante), acotado.
+  // Ancho de columna: texto resuelto. Las celdas de la fila de ESTUDIANTES se
+  // miden con los datos REALES de cada alumno; si no, {ESTUDIANTE} y {TOTAL}
+  // resolvían a "" → columnas del nombre y Total fijas y angostas, los nombres
+  // se envolvían y las filas se estiraban de alto sin control.
+  const conFilaEst = grid.filaEstudiantes >= 0;
+  const estudiantes = conFilaEst ? input.estudiantes : [];
+  const datosEst = estudiantes.map((e, i) => datosConEstudiante(datos, e, i));
   const anchos: number[] = [];
   for (let ci = 0; ci < kept.length; ci++) {
     let mx = 4;
-    for (const celditas of celdasPorFila.values()) {
+    for (const [r, celditas] of celdasPorFila) {
+      const esEst = r === grid.filaEstudiantes;
       for (const cel of celditas) {
         // La celda enfrenta esta columna si su rango la incluye.
         if (ci < cel.c0 || ci >= cel.c0 + cel.cs) continue;
         if (cel.rs > 1) continue; // se distribuye en varias filas: poco indicativo
-        mx = Math.max(mx, Math.min(resolverTokens(cel.v, datos).length / cel.cs + 3, 34));
+        let largo = resolverTokens(cel.v, datos).length;
+        if (esEst) for (const d of datosEst) largo = Math.max(largo, resolverTokens(cel.v, d).length);
+        // El nombre del estudiante puede ser largo: se le da más margen.
+        const cap = (cel.v || '').trim() === '{ESTUDIANTE}' ? 46 : 34;
+        mx = Math.max(mx, Math.min(largo / cel.cs + 3, cap));
       }
     }
     anchos.push(Math.round(mx));
@@ -158,9 +198,6 @@ function renderGridXlsx(wb: any, grid: PlantillaGrid, def: PlantillaDefinicion, 
   }
   let outRow = lineasEncabezado.length; // 0-based: la cuadrícula empieza debajo
 
-  const conFilaEst = grid.filaEstudiantes >= 0;
-  const estudiantes = conFilaEst ? input.estudiantes : [];
-
   for (let r = 0; r < grid.filas; r++) {
     const esEstudiante = r === grid.filaEstudiantes;
     const veces = esEstudiante ? estudiantes.length : 1;
@@ -169,9 +206,7 @@ function renderGridXlsx(wb: any, grid: PlantillaGrid, def: PlantillaDefinicion, 
       const est = esEstudiante
         ? (estudiantes as ExcelInstrumentoInput['estudiantes'])[vi]
         : undefined;
-      const dEst: TokenDatos = est
-        ? { ...datos, est: { n: vi + 1, nombre: est.nombre, letras: est.letras.map(l => l ?? ''), valoracion: est.valoracion || '', total: (est as any).total || '', nf: (est as any).nf || '', tcs: (est as any).tcs || [] } }
-        : datos;
+      const dEst: TokenDatos = est ? datosConEstudiante(datos, est, vi) : datos;
       outRow += 1; // fila de salida (1-based)
       for (const cel of celdasPorFila.get(r) ?? []) {
         const rr1 = outRow, cc1 = cel.c0 + 1;
@@ -195,9 +230,13 @@ function renderGridXlsx(wb: any, grid: PlantillaGrid, def: PlantillaDefinicion, 
         ws.getCell(rr1, cc1 + cel.cs - 1).border = BORDE_NEGRO;
         ws.getCell(rr1 + rs - 1, cc1 + cel.cs - 1).border = BORDE_NEGRO;
       }
+      // Alto FIJO y pequeño en las filas de estudiantes: sin esto Excel
+      // auto-ajusta al texto envuelto y las filas quedaban altísimas.
+      if (esEstudiante) ws.getRow(outRow).height = 16;
     }
   }
 
+  configurarPagina(ws, 'landscape');
   return ws;
 }
 /** Agrega UNA hoja (cuadrícula o modo rápido) al libro. `usados` deduplica. */
@@ -226,7 +265,10 @@ function renderQuickXlsx(
   const headers = conFinal
     ? ['#', 'Estudiante', ...input.criterios.map(c => `C${c.orden}`), def.colFinal === 'total' ? 'Total' : 'Valoración']
     : ['#', 'Estudiante', ...input.criterios.map(c => `C${c.orden}`)];
-  const anchos = headers.map((h, i) => (i <= 1 || !conFinal && i === 1 ? (i === 0 ? 5 : 38) : 13));
+  // La columna del nombre se adapta al nombre más largo (no queda fija).
+  const maxNombre = input.estudiantes.reduce((m, e) => Math.max(m, (e.nombre || '').length), 0);
+  const anchoNombre = Math.min(Math.max(18, maxNombre + 3), 46);
+  const anchos = headers.map((_h, i) => (i === 0 ? 5 : (i === 1 ? anchoNombre : 13)));
 
   const ws = agregarHoja(wb, nombreHojaSeguro(nombreHoja ?? `Indicador ${input.indicadorOrden}`, usados), anchos);
 
@@ -265,7 +307,9 @@ function renderQuickXlsx(
   input.estudiantes.forEach((est, i) => {
     const base = [i + 1, est.nombre, ...input.criterios.map((_c, ci) => est.letras[ci] ?? '')];
     const valores = conFinal ? [...base, est.valoracion || ''] : base;
+    const rowIdx = fila;
     fila = escribirFila(ws, fila, valores, { banda: i % 2 === 1, centrarTodas: true });
+    ws.getRow(rowIdx).height = 16; // alto fijo y pequeño (no auto-ajustar)
   });
 
   const leyenda = (def.leyenda || '').trim();
@@ -277,6 +321,7 @@ function renderQuickXlsx(
     c.font = { italic: true, size: 9, color: { argb: 'FF64748B' } };
   }
 
+  configurarPagina(ws, 'portrait');
   return ws;
 }
 

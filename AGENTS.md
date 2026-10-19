@@ -1429,6 +1429,18 @@ Plantillas editable).
   (no con el literal "Estudiante") y la ALTURA de la fila de estudiantes se
   calcula por líneas envueltas (`altoDe` ya no excluye `f.estudiante`): sin eso
   un nombre de 2 líneas se salía por debajo de la cuadrícula.
+- **Excel: anchos y alto adaptados + una hoja por página (2026-10)**: en
+  `renderGridXlsx` el ancho de columna se calcula resolviendo las celdas de la
+  fila de estudiantes con los **datos reales de cada alumno**
+  (`datosConEstudiante`), no con `datos` sin `est`: si no, `{ESTUDIANTE}` y
+  `{TOTAL}` resolvían a `""` y las columnas del nombre y Total quedaban fijas y
+  angostas (los nombres se envolvían y las filas se estiraban de alto sin
+  control). El nombre tiene cap 46. Las filas de estudiantes llevan **alto fijo
+  16** (`ws.getRow(...).height`, también en el modo rápido) para que Excel no
+  auto-ajuste al texto envuelto. Cada hoja se configura con `configurarPagina`:
+  **Carta** (`paperSize: 1`), márgenes estrechos (0.25"), `fitToPage` **1×1**
+  (todo en UNA hoja) y centrado horizontal; la cuadrícula va horizontal y el
+  modo rápido vertical.
 - **Nota Final (NF) ELIMINADA del preset (2026-10)**: el preset de cuadrícula ya
   **no** tiene la columna NF (pasó de 19 a **18 columnas**). `parseDefinicion`
   normaliza las plantillas viejas con `sinColumnaNF`: si la ÚLTIMA columna tiene
