@@ -522,7 +522,7 @@
           {editandoId ? t('pl.editor.tituloEditar') : t('pl.editor.tituloCrear')}
         </h3>
         <div style="display:flex;align-items:center;gap:0.5rem;">
-          <button class="pl-btn-preview" onclick={() => vistaPrevia(editDef, editTipo)}>
+          <button class="pl-btn-preview" onclick={() => vistaPrevia(editDef)}>
             <span class="pl-ico">👁</span>{t('pl.editor.preview')}
           </button>
           <button onclick={cerrarEditor} style="background:transparent;border:none;color:#64748b;font-size:1.2rem;cursor:pointer;">✕</button>
@@ -653,12 +653,16 @@
 
 <!-- ── Vista previa: modal dentro de la app, con datos de ejemplo ── -->
 {#if previewAbierto && previewDef}
-  {@const pv = construirPreview(previewDef, previewTipo)}
+  {@const pv = construirPreview(previewDef, previewCualitativo)}
   <div class="modal-overlay" onpointerdown={(e) => { if (e.target === e.currentTarget) cerrarPrevia(); }}>
     <div class="modal-capa pv-capa">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.8rem;">
-        <h3 style="margin:0;color:#f1f5f9;font-size:1.05rem;font-weight:700;">{t('pl.preview.titulo')}</h3>
-        <button onclick={cerrarPrevia} style="background:transparent;border:none;color:#64748b;font-size:1.2rem;cursor:pointer;">✕</button>
+      <div class="pv-head">
+        <h3 class="pv-head-titulo">{t('pl.preview.titulo')}</h3>
+        <div class="pv-toggle">
+          <button class:activo={!previewCualitativo} onclick={() => { previewCualitativo = false; }}>{t('pl.preview.cuantitativo')}</button>
+          <button class:activo={previewCualitativo} onclick={() => { previewCualitativo = true; }}>{t('pl.preview.cualitativo')}</button>
+        </div>
+        <button class="pv-cerrar" onclick={cerrarPrevia} aria-label="Cerrar">✕</button>
       </div>
       <div class="pv-scroll">
         <div class="pv-hoja">
@@ -677,7 +681,10 @@
               {#each pv.filas as f, fi (fi)}
                 <tr class:est={f.est}>
                   {#each f.celdas as c, ci (ci)}
-                    <td colspan={c.cs} rowspan={c.rs} class:izq={!c.centrar}>{c.v}</td>
+                    <td colspan={c.cs} rowspan={c.rs}
+                      class:izq={!c.centrar}
+                      class:sep={c.sep}
+                      style={c.color ? 'color:' + c.color : ''}>{c.v}</td>
                   {/each}
                 </tr>
               {/each}
