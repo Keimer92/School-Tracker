@@ -1438,7 +1438,15 @@ Plantillas editable).
   criterio. `tcCriterioDeEst` la formatea igual que la tabla: cualitativo → solo
   la sigla; normal → `pts (sigla)` (ej. `8 (AA)`).
 - **Constructor modo CUADRÍCULA**: tokens `{COLEGIO} {GRADO} {SECCION} {ASIGNATURA} {CORTE} {ANO} {FECHA} {IND_N} {IND_DESC} {CRIT_1..3}` (celdas fijas) y fila 🧑 marcada con `filaEstudiantes` donde `{N} {ESTUDIANTE} {LETRA_k} {TC_k} {VALORACION}` se expanden por alumno. El preset (18 columnas, 3 criterios, ya sin NF) usa `rs:2` en Nº/Estudiante/TC/Total para fusionar las dos filas de cabecera: el PDF **dibuja rowspans de verdad** (`dibujarFila` recorre `altos[]`; `y` avanza solo la altura base de la fila) y el XLSX usa `mergeCells`. **El preset NO lleva tokens de cabecera**: el ENCABEZADO lo dibuja el generador con la convención estándar de informe/reporte (`encabezadoInstrumento` en `instrumentosPdf.ts`: `dibujarTitulo` + `dibujarChips` de `pdfChrome.ts`, con chips de asignatura/año/fecha y el **Corte evaluativo** y el **Indicador N** en filas propias, con descripción). El XLSX agrega las mismas 4 líneas antes de la cuadrícula (`lineaEncabezadoXlsx`). **Los tags de tipo (Rúbrica/Escala/Cotejo) NO se eligen ni se muestran** en el constructor ni en el selector del modal; la columna `tipo` sigue en la BD como legada.
-- **Carpeta de export**: PDF/XLSX de instrumentos van a `Documents/School Tracker/Instrumentos/<Corte - Asignatura>/` (igual que informe/reporte).
+- **Carpeta de export y apertura automática (2026-10)**: PDF y XLSX comparten
+  el módulo `src/lib/instrumentosEntrega.ts`; ambos van a
+  `Documents/School Tracker/Instrumentos/<Corte - Asignatura>/` (`subcarpetaInstrumento`
+  + `carpetaInstrumento`, el MISMO subpath para los dos). Al exportar se **abre el
+  archivo recién generado** (`abrirInstrumentoExportado`): en desktop con la app
+  predeterminada (`openUrl` + `file://`), en Android con FileProvider + chooser
+  (`share_file(path, mime)` → `MainActivity.shareFile`, comando nuevo registrado en
+  `generate_handler!` + `local-commands.toml`). Antes el Excel caía suelto en
+  `Instrumentos/` (sin el subpath) y solo se abría la CARPETA.
 - **Plantilla POR INDICADOR**: nueva columna `indicador.plantilla_id INTEGER` (sync bilateral; ALTER local en `db.rs:migrate_add_columns` + ALTER tolerante en el worker `ensureSchema` — requiere `npx wrangler deploy`). Comando `set_indicador_plantilla(id, plantillaId)` (NULL = AUTO). El modal de Instrumentos de `NotasPage` tiene un `<select>` por indicador que guarda al instante; la resolución (`plantillaDeIndicador`) es: elección explícita → si solo hay UNA plantilla, esa para todos (global) → primera del tipo → null.
 
 
