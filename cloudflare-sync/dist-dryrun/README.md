@@ -1,1 +1,0 @@
-This folder contains the built output assets for the worker "schooltracker-d1-sync" generated at 2026-10-19T04:58:26.253Z.
