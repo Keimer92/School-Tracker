@@ -204,11 +204,6 @@ export function columnasTC(g: PlantillaGrid): Set<number> {
   return columnasPorToken(g, t => /^\{TC_\d\}$/.test(t));
 }
 
-/** Columna de datos `{TOTAL}` (total del indicador). */
-export function columnasTotal(g: PlantillaGrid): Set<number> {
-  return columnasPorToken(g, t => t === "{TOTAL}");
-}
-
 /**
  * Reparto de columnas para un contexto CUALITATIVO:
  * - `quitar`: columnas que DESAPARECEN de la salida (solo las {AI}: el AI no

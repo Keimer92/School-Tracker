@@ -20,6 +20,8 @@
   import { t } from "../../lib/i18n.svelte";
   import { onDataChange } from "../../lib/autoSync";
   import { coloresSexo } from "../../lib/coloresSexo.svelte";
+  import { portalToBody } from "../../lib/portalToBody";
+  import { registerBackHandler } from "../../lib/androidBack";
   import {
     defaultDefinicion,
     gridPresetChecklist,
@@ -461,6 +463,18 @@
   function cambiar<K extends keyof PlantillaDefinicion>(k: K, v: PlantillaDefinicion[K]) {
     editDef = { ...editDef, [k]: v };
   }
+
+  // Back de Android: cierra el modal abierto. Como la vista previa puede abrirse
+  // ENCIMA del editor, se registra un solo handler y la vista previa tiene
+  // prioridad (así un back cierra la previa y el siguiente cierra el editor).
+  $effect(() => {
+    if (!isAndroid) return;
+    if (!editando && !previewAbierto) return;
+    if (previewAbierto) {
+      return registerBackHandler(() => { cerrarPrevia(); return true; });
+    }
+    return registerBackHandler(() => { cerrarEditor(); return true; });
+  });
 </script>
 
 <div class="category-card" class:compacto={isAndroid} style="border-left:3px solid {ACENTO};">
@@ -513,17 +527,17 @@
 
 <!-- ── Constructor: cuadrícula tipo Excel (modal) ── -->
 {#if editando}
-  <div class="modal-overlay" onpointerdown={(e) => { if (e.target === e.currentTarget) cerrarEditor(); }}>
-    <div class="modal-capa">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.8rem;">
-        <h3 style="margin:0;color:#f1f5f9;font-size:1.05rem;font-weight:700;">
+  <div class="modal-overlay" class:android={isAndroid} use:portalToBody onpointerdown={(e) => { if (e.target === e.currentTarget) cerrarEditor(); }}>
+    <div class="modal-capa" class:android={isAndroid}>
+      <div class="ed-head">
+        <h3 class="ed-titulo">
           {editandoId ? t('pl.editor.tituloEditar') : t('pl.editor.tituloCrear')}
         </h3>
-        <div style="display:flex;align-items:center;gap:0.5rem;">
+        <div class="ed-head-acciones">
           <button class="pl-btn-preview" onclick={() => vistaPrevia(editDef)}>
             <span class="pl-ico">👁</span>{t('pl.editor.preview')}
           </button>
-          <button onclick={cerrarEditor} style="background:transparent;border:none;color:#64748b;font-size:1.2rem;cursor:pointer;">✕</button>
+          <button class="ed-cerrar" onclick={cerrarEditor} aria-label="Cerrar">✕</button>
         </div>
       </div>
 
@@ -639,7 +653,7 @@
         <span style="align-self:center;color:#64748b;font-size:0.66rem;">{t('pl.grid.selpos')} {selR + 1}×{selC + 1}</span>
       </div>
 
-      <div style="display:flex;justify-content:flex-end;gap:0.6rem;margin-top:0.9rem;">
+      <div class="ed-pie">
         <button onclick={cerrarEditor} class="pl-btn-cancelar">{t('comun.cancelar')}</button>
         <button onclick={guardar} disabled={guardando} class="pl-btn-guardar">
           {guardando ? t('comun.guardando') : t('comun.guardar')}
@@ -652,8 +666,8 @@
 <!-- ── Vista previa: modal dentro de la app, con datos de ejemplo ── -->
 {#if previewAbierto && previewDef}
   {@const pv = construirPreview(previewDef, previewCualitativo)}
-  <div class="modal-overlay" onpointerdown={(e) => { if (e.target === e.currentTarget) cerrarPrevia(); }}>
-    <div class="modal-capa pv-capa">
+  <div class="modal-overlay" class:android={isAndroid} use:portalToBody onpointerdown={(e) => { if (e.target === e.currentTarget) cerrarPrevia(); }}>
+    <div class="modal-capa pv-capa" class:android={isAndroid}>
       <div class="pv-head">
         <h3 class="pv-head-titulo">{t('pl.preview.titulo')}</h3>
         <div class="pv-toggle">
@@ -774,6 +788,49 @@
     padding: 1.1rem 1.3rem 1.3rem 1.3rem; width: min(1050px, 97vw); max-height: 92vh; overflow-y: auto;
     box-shadow: 0 25px 60px -12px rgba(0,0,0,0.6);
   }
+
+  /* Header del constructor (antes con estilos inline que no envolvían: en un
+     teléfono el título + Vista previa + ✕ se desbordaban a lo ancho). */
+  .ed-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.8rem; }
+  .ed-titulo { margin: 0; color: #f1f5f9; font-size: 1.05rem; font-weight: 700; }
+  .ed-head-acciones { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; }
+  .ed-cerrar { background: transparent; border: none; color: #64748b; font-size: 1.2rem; cursor: pointer; line-height: 1; }
+  .ed-pie { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 0.9rem; }
+
+  /* ── Android (pantalla pequeña): modales a pantalla completa con un marco ──
+     Con `padding:1rem` en el overlay + `width:min(1050px,97vw)` sobraban
+     márgenes y el header se desbordaba. A ancho completo se aprovecha cada
+     píxel y el contenido interno (toolbar/cuadrícula/hoja) scrollea. */
+  .modal-overlay.android { padding: 0.4rem; }
+  .modal-capa.android {
+    width: 100%; max-width: 100%; max-height: 100%;
+    border-radius: 16px; padding: 0.8rem;
+  }
+  .modal-capa.android .ed-head { margin-bottom: 0.6rem; }
+  /* Toolbar más densa: los botones se quedan en menos líneas. */
+  .modal-capa.android .gr-toolbar { padding: 0.4rem; gap: 0.3rem; }
+  .modal-capa.android .gr-tool { padding: 0.3rem 0.5rem; font-size: 0.68rem; }
+  .modal-capa.android .pl-btn-cancelar,
+  .modal-capa.android .pl-btn-guardar { padding: 0.6rem 1rem; }
+  /* Guardar/Cancelar pegados al fondo del modal (que ahora es toda la pantalla
+     y scrollea): sin esto quedaban al final del scroll, tras la cuadrícula. */
+  .modal-capa.android .ed-pie {
+    position: sticky; bottom: 0; margin-top: 0.7rem;
+    padding: 0.5rem 0 0.2rem; background: rgb(20,24,31);
+  }
+  /* La cuadrícula deja de repartir columnas a lo ancho del teléfono (quedaban
+     ilegibles) y las dimensiona a su CONTENIDO: los tokens se leen y el riel
+     horizontal de .gr-wrap sigue disponible. */
+  .modal-capa.android .gr-tabla { table-layout: auto; width: max-content; min-width: 100%; }
+  .modal-capa.android .gr-tabla td { min-width: 3.6rem; }
+  .modal-capa.android .gr-head { width: auto; min-width: 1.8rem; }
+  .modal-capa.android .gr-celda { font-size: 0.78rem; }
+  /* Hoja de la vista previa: menos padding para ganar ancho útil. */
+  .modal-capa.android .pv-hoja { padding: 0.8rem 0.7rem; }
+  .modal-capa.android .pv-head { gap: 0.4rem; }
+  /* Encabezado de la hoja más chico. */
+  .modal-capa.android .pv-chips { gap: 0.3rem; }
+  .modal-capa.android .pv-chip { font-size: 0.62rem; }
 
   /* ══ Vista previa: "hoja" clara dentro del modal ══ */
   .pv-capa { width: min(1100px, 97vw); }
