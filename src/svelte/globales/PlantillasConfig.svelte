@@ -16,8 +16,10 @@
    */
   import { emit } from "@tauri-apps/api/event";
   import { ask } from "@tauri-apps/plugin-dialog";
+  import { invoke } from "@tauri-apps/api/core";
   import { t } from "../../lib/i18n.svelte";
   import { onDataChange } from "../../lib/autoSync";
+  import { coloresSexo } from "../../lib/coloresSexo.svelte";
   import {
     defaultDefinicion,
     gridPresetChecklist,
@@ -28,11 +30,16 @@
     resolverTokens,
     centrarCelda,
     fechaHoyDDMM,
+    colorDeCelda,
+    columnasQuitar,
+    columnasSeparador,
+    leyendaEscalaConfig,
     type InstrumentoPlantilla,
     type PlantillaDefinicion,
     type PlantillaGrid,
     type GridCelda,
     type TokenDatos,
+    type InstrumentoColores,
   } from "../../lib/instrumentoPlantilla";
   import type { InstrumentoTipo } from "../../lib/instrumentosPdf";
 
@@ -58,7 +65,17 @@
   // Vista previa (modal dentro de la app)
   let previewAbierto = $state(false);
   let previewDef = $state<PlantillaDefinicion | null>(null);
-  let previewTipo = $state<InstrumentoTipo>("escala");
+  // Contexto de la vista previa: cualitativo (sin AI, sin TC, sin Total) o
+  // cuantitativo (diseño completo). El usuario lo alterna en el modal.
+  let previewCualitativo = $state(false);
+
+  // Escala cualitativa configurada (Globales → Calificaciones): alimenta los
+  // colores y la leyenda de la vista previa, de modo que un cambio de nombre,
+  // sigla, color o mínimo se refleje aquí. Sin datos → escala por defecto.
+  let calificaciones = $state<{ id: string; nombre: string; color: string; minimo: number }[]>([]);
+  invoke<{ id: string; nombre: string; color: string; minimo: number }[]>("get_grade_configs")
+    .then(d => { if (Array.isArray(d) && d.length) calificaciones = d; })
+    .catch(e => console.error("[Plantillas] Error cargando calificaciones:", e));
 
   // Celda seleccionada de la cuadrícula (para fusionar/borrar/arriba).
   let selR = $state(0);
@@ -283,17 +300,69 @@
   }
 
   // ════════════════ Vista previa (modal dentro de la app) ════════════════
-  // Misma resolución de tokens que el PDF/Excel, pero pintada como tabla HTML
-  // con datos FICTICIOS: no toca la BD ni genera archivos.
-  interface PvCelda { v: string; cs: number; rs: number; centrar: boolean; }
+  // Refleja el MISMO render que el PDF/Excel (tokens, colores del sistema,
+  // columnas eliminadas y franja separadora en cualitativo), pero como tabla
+  // HTML y con datos FICTICIOS: no toca la BD ni genera archivos.
+  interface EscalaItem { id: string; nombre: string; color: string; minimo: number; }
+
+  const ESCALA_FALLBACK: EscalaItem[] = [
+    { id: "AA", nombre: "Aprendizaje Avanzado", color: "#22c55e", minimo: 90 },
+    { id: "AS", nombre: "Aprendizaje Satisfactorio", color: "#3b82f6", minimo: 70 },
+    { id: "AF", nombre: "Aprendizaje Fundamental", color: "#eab308", minimo: 50 },
+    { id: "AI", nombre: "Aprendizaje Inicial", color: "#ef4444", minimo: 0 },
+  ];
+
+  const escalaEfectiva = $derived(calificaciones.length ? calificaciones : ESCALA_FALLBACK);
+
+  interface PvCelda { v: string; cs: number; rs: number; centrar: boolean; color?: string; sep: boolean; }
   interface PvFila { celdas: PvCelda[]; est: boolean; }
   interface PvDoc {
     titulo: string; subtitulo: string; chips: string[];
     corte: string; indicador: string; intro: string; leyenda: string; filas: PvFila[];
   }
 
-  function construirPreview(def: PlantillaDefinicion, tipo: InstrumentoTipo): PvDoc {
+  // Factor de puntos por sigla (misma convención que el sistema: notaMapping).
+  const PESO_LETRA: Record<string, number> = { AA: 1, AS: 0.85, AF: 0.65, AI: 0.4 };
+
+  /** Total Criterio de ejemplo: "pts (sigla)". La regla es que los 3 criterios
+   *  de un indicador SUMAN 20 — no 20 cada uno. */
+  function tcDe(puntajeMax: number, letra: string): string {
+    if (!letra) return "";
+    return `${Math.round(puntajeMax * (PESO_LETRA[letra] ?? 0))} (${letra})`;
+  }
+
+  /** Sigla resultante para un % según los mínimos configurados. */
+  function siglaPorPct(pct: number, escala: EscalaItem[]): string {
+    for (const id of ["AA", "AS", "AF", "AI"]) {
+      const c = escala.find(e => e.id.toUpperCase() === id);
+      if (c && pct >= c.minimo) return id;
+    }
+    return "AI";
+  }
+
+  function construirPreview(def: PlantillaDefinicion, cualitativo: boolean): PvDoc {
     const g = def.grid ?? gridPresetChecklist();
+    const sinAI = cualitativo;
+    const escala = escalaEfectiva;
+    const sx = coloresSexo();
+    const colores: InstrumentoColores = {
+      porLetra: Object.fromEntries(escala.map(e => [e.id, e.color])),
+      sexoM: sx.m,
+      sexoF: sx.f,
+      escala: escala.map(e => ({ id: e.id, nombre: e.nombre, minimo: e.minimo })),
+    };
+
+    // Mismo colapso de columnas que los generadores reales (AI + Total fuera;
+    // las TC quedan como franja separadora entre criterios).
+    const quitar = columnasQuitar(g, sinAI);
+    const kept: number[] = [];
+    for (let c = 0; c < g.cols; c++) if (!quitar.has(c)) kept.push(c);
+    const newIdx = new Map<number, number>();
+    kept.forEach((oc, i) => newIdx.set(oc, i));
+    const sepOld = sinAI ? columnasSeparador(g) : new Set<number>();
+    const sepOut = new Set<number>();
+    for (const c of sepOld) { const i = newIdx.get(c); if (i !== undefined) sepOut.add(i); }
+
     const metaSel: Record<string, string> = {
       COLEGIO: t('pl.preview.colegio'),
       GRADO: t('pl.preview.grado'),
@@ -304,52 +373,74 @@
     };
     const base: TokenDatos = {
       metaSel,
+      sinAI,
       indN: 1,
       indDesc: t('pl.preview.ind'),
       criterios: [1, 2, 3].map(n => `${t('pl.preview.crit')} ${n}`),
     };
+
     const nombres = ['Ana García', 'Luis Martínez', 'María López', 'Pedro Ramírez', 'Sofía Torres', 'Diego Fernández'];
-    const letras = ['AA', 'AS', 'AF', 'AS', 'AA', 'AF'];
-    const estDe = (i: number) => ({
-      n: i + 1,
-      nombre: nombres[i],
-      letras: [letras[i], letras[(i + 1) % 6], letras[(i + 2) % 6]],
-      valoracion: 'AS',
-      total: '17 AS',
-      nf: '17 AS',
-      tcs: ['7 (AS)', '6 (AF)', '8 (AA)'],
-    });
-    // Celdas de una fila, ordenadas por columna. El nombre va a la izquierda.
-    const celdaDe = (r: number, est?: ReturnType<typeof estDe>): PvCelda[] => {
+    const sexos = ['F', 'M', 'F', 'M', 'F', 'M'];
+    // Puntaje máximo por criterio: suman 20 (regla del sistema).
+    const MAX_CRIT = [7, 7, 6];
+    // Notas de ejemplo por estudiante (sin AI: sirven también en cualitativo).
+    const LETRAS = [
+      ['AA', 'AA', 'AA'],
+      ['AA', 'AS', 'AS'],
+      ['AS', 'AS', 'AF'],
+      ['AS', 'AF', 'AF'],
+      ['AF', 'AF', 'AF'],
+      ['AA', 'AA', 'AS'],
+    ];
+    const estDe = (i: number) => {
+      const letritas = LETRAS[i];
+      const tcs = letritas.map((l, k) => tcDe(MAX_CRIT[k], l));
+      const pts = letritas.reduce((s, l, k) => s + Math.round(MAX_CRIT[k] * (PESO_LETRA[l] ?? 0)), 0);
+      const sigla = siglaPorPct((pts / 20) * 100, escala);
+      return { n: i + 1, nombre: nombres[i], letras: letritas, valoracion: sigla, total: `${pts} ${sigla}`, tcs };
+    };
+
+    const celdaDe = (r: number, est?: ReturnType<typeof estDe>, sexo?: string): PvCelda[] => {
       const d: TokenDatos = est ? { ...base, est } : base;
       const out: { c0: number; c: PvCelda }[] = [];
       for (const [k, cel] of Object.entries(g.celdas)) {
-        const [rr, cc] = k.split(':').map(Number);
+        const [rr, oldC0] = k.split(':').map(Number);
         if (rr !== r) continue;
+        const oldCs = Math.min(cel.cs ?? 1, g.cols - oldC0);
+        const span: number[] = [];
+        for (let cc = oldC0; cc < oldC0 + oldCs; cc++) if (!quitar.has(cc)) span.push(cc);
+        if (span.length === 0) continue;
         const raw = cel.v ?? '';
+        const esSep = (cel.cs ?? 1) === 1 && sepOld.has(oldC0);
+        const texto = esSep ? '' : resolverTokens(raw, d);
         out.push({
-          c0: cc,
+          c0: newIdx.get(span[0])!,
           c: {
-            v: resolverTokens(raw, d),
-            cs: Math.min(cel.cs ?? 1, g.cols - cc),
+            v: texto,
+            cs: span.length,
             rs: cel.rs ?? 1,
             centrar: est ? centrarCelda(raw) : true,
+            color: est ? colorDeCelda(raw, texto, colores, sexo) : undefined,
+            sep: esSep,
           },
         });
       }
       return out.sort((a, b) => a.c0 - b.c0).map(x => x.c);
     };
+
     const filas: PvFila[] = [];
     for (let r = 0; r < g.filas; r++) {
       if (r === g.filaEstudiantes) {
-        for (let i = 0; i < nombres.length; i++) filas.push({ celdas: celdaDe(r, estDe(i)), est: true });
+        for (let i = 0; i < nombres.length; i++) filas.push({ celdas: celdaDe(r, estDe(i), sexos[i]), est: true });
       } else {
         filas.push({ celdas: celdaDe(r), est: false });
       }
     }
+
     const intro = (def.textoIntro || '').trim();
-    const leyenda = (def.leyenda || '').trim() || (tipo === 'escala' ? t('pl.preview.leyendaDefault') : '');
-    // Encabezados con el MISMO texto que el PDF/Excel (que no se traducen).
+    // Leyenda: la personalizada o la de la CONFIGURACIÓN real (sigla + nombre +
+    // mínimo). No se traduce: son datos (igual que los encabezados de PDF).
+    const leyenda = (def.leyenda || '').trim() || leyendaEscalaConfig(colores.escala, sinAI);
     return {
       titulo: (def.titulo || '').trim() || 'Instrumento de Evaluación',
       subtitulo: `${metaSel.COLEGIO} — ${metaSel.GRADO}-${metaSel.SECCION}`,
@@ -362,9 +453,9 @@
     };
   }
 
-  function vistaPrevia(def: PlantillaDefinicion, tipo: InstrumentoTipo) {
+  function vistaPrevia(def: PlantillaDefinicion) {
     previewDef = def;
-    previewTipo = tipo;
+    previewCualitativo = false;
     previewAbierto = true;
   }
   function cerrarPrevia() { previewAbierto = false; }
@@ -405,7 +496,7 @@
               </div>
             </div>
             <div class="pl-acciones">
-              <button class="pl-btn" onclick={() => vistaPrevia(p.def, p.tipo)} title={t('pl.btn.preview')}>
+              <button class="pl-btn" onclick={() => vistaPrevia(p.def)} title={t('pl.btn.preview')}>
                 <span class="pl-ico">👁</span>{t('pl.btn.preview')}
               </button>
               <button class="pl-btn" onclick={() => abrirEditar(p)} title={t('pl.editar')}>

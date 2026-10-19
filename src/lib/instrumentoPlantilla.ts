@@ -136,6 +136,9 @@ export interface InstrumentoColores {
   porLetra?: Record<string, string>;
   sexoM?: string;
   sexoF?: string;
+  /** Escala cualitativa configurada (Globales → Calificaciones): sigla, nombre
+   *  y mínimo. La usa la leyenda para reflejar la configuración real. */
+  escala?: { id: string; nombre: string; minimo: number }[];
 }
 
 const RE_LETRA_NOTA = /(AA|AS|AF|AI)/;
@@ -175,28 +178,96 @@ export function centrarCelda(raw: string): boolean {
   return RE_CENTRAR.test(r);
 }
 
-/** Columnas de la cuadrícula que representan la nota AI de la escala: celdas
- *  cuyo texto pelado es exactamente `{AI}` (o `AI` estático, por plantillas
- *  hechas a mano). Al generar en un contexto cualitativo esas columnas SE
- *  COLAPSAN (el AI no aplica en ese régimen). */
-export function columnasAI(g: PlantillaGrid): Set<number> {
+/** Set de columnas (una sola col) cuyo texto pelado cumple `test`. */
+function columnasPorToken(g: PlantillaGrid, test: (t: string) => boolean): Set<number> {
   const out = new Set<number>();
   for (const [k, cel] of Object.entries(g.celdas)) {
-    const t = (cel.v ?? "").trim();
-    if ((t === "{AI}" || t === "AI") && (cel.cs ?? 1) === 1) out.add(Number(k.split(":")[1]));
+    if ((cel.cs ?? 1) !== 1) continue;
+    if (test((cel.v ?? "").trim())) out.add(Number(k.split(":")[1]));
   }
   return out;
 }
 
-/** Columnas a omitir: las {AI} solo si el contexto es cualitativo. */
-export function columnasAIQuitar(g: PlantillaGrid, sinAI: boolean): Set<number> {
-  return sinAI ? columnasAI(g) : new Set<number>();
+/** Columnas de la cuadrícula que representan la nota AI de la escala: celdas
+ *  cuyo texto pelado es exactamente `{AI}` (o `AI` estático, por plantillas
+ *  hechas a mano). Al generar en un contexto cualitativo esas columnas SE
+ *  ELIMINAN (el AI no aplica en ese régimen). */
+export function columnasAI(g: PlantillaGrid): Set<number> {
+  return columnasPorToken(g, t => t === "{AI}" || t === "AI");
+}
+
+/** Columnas de DATOS `{TC_k}` (Total Criterio). */
+export function columnasTC(g: PlantillaGrid): Set<number> {
+  return columnasPorToken(g, t => /^\{TC_\d\}$/.test(t));
+}
+
+/** Columna de datos `{TOTAL}` (total del indicador). */
+export function columnasTotal(g: PlantillaGrid): Set<number> {
+  return columnasPorToken(g, t => t === "{TOTAL}");
+}
+
+/** Columnas que se ELIMINAN de la salida. En cualitativo: las {AI} (el AI no
+ *  aplica) y la {TOTAL} (el Total solo va en cuantitativo). Las columnas TC NO
+ *  se eliminan: pasan a ser la FRANJA separadora entre criterios
+ *  (`columnasSeparador`). */
+export function columnasQuitar(g: PlantillaGrid, cualitativo: boolean): Set<number> {
+  const out = new Set<number>();
+  if (!cualitativo) return out;
+  for (const c of columnasAI(g)) out.add(c);
+  for (const c of columnasTotal(g)) out.add(c);
+  return out;
+}
+
+/** Columnas que en un contexto CUALITATIVO quedan como franja separadora vacía
+ *  entre criterios: donde estaba el TC (Total Criterio). */
+export function columnasSeparador(g: PlantillaGrid): Set<number> {
+  return columnasTC(g);
 }
 
 /** Fecha de hoy como dd/mm/yyyy (los encabezados de los instrumentos). */
 export function fechaHoyDDMM(): string {
   const d = new Date();
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+}
+
+/** Escala cualitativa por defecto (espejo de la semilla de la BD). Se usa para
+ *  COMPLETAR la configuración real si le falta alguna sigla. */
+const ESCALA_POR_DEFECTO = [
+  { id: "AA", nombre: "Aprendizaje Avanzado", minimo: 90 },
+  { id: "AS", nombre: "Aprendizaje Satisfactorio", minimo: 70 },
+  { id: "AF", nombre: "Aprendizaje Fundamental", minimo: 50 },
+  { id: "AI", nombre: "Aprendizaje Inicial", minimo: 0 },
+];
+
+/**
+ * Leyenda de la escala construida con la CONFIGURACIÓN real (Globales →
+ * Calificaciones): `SIGLA = nombre (rango)` — p. ej. `AA = Aprendizaje Avanzado
+ * (90-100)`. Así un cambio de nombre/sigla/mínimo se refleja en la vista previa
+ * y en el PDF/Excel. `sinAI` omite el AI (contexto cualitativo). Los nombres
+ * NO se traducen: son datos del usuario (igual que los encabezados de PDF).
+ */
+export function leyendaEscalaConfig(
+  configs: { id: string; nombre: string; minimo: number }[] | undefined,
+  sinAI: boolean,
+): string {
+  const byId = new Map<string, { id: string; nombre: string; minimo: number }>();
+  for (const c of configs ?? []) {
+    const id = String(c.id ?? "").toUpperCase();
+    if (id) byId.set(id, { id, nombre: c.nombre ?? "", minimo: c.minimo ?? 0 });
+  }
+  for (const d of ESCALA_POR_DEFECTO) if (!byId.has(d.id)) byId.set(d.id, d);
+  const orden = sinAI ? ["AA", "AS", "AF"] : ["AA", "AS", "AF", "AI"];
+  const partes: string[] = [];
+  for (let i = 0; i < orden.length; i++) {
+    const c = byId.get(orden[i]);
+    if (!c) continue;
+    let rango: string;
+    if (c.id === "AA") rango = `${c.minimo}-100`;
+    else if (c.id === "AI") rango = `<${byId.get("AF")?.minimo ?? 50}`;
+    else rango = `${c.minimo}-${(byId.get(orden[i - 1])?.minimo ?? 100) - 1}`;
+    partes.push(`${c.id} = ${c.nombre} (${rango})`);
+  }
+  return partes.join("    ");
 }
 
 /**

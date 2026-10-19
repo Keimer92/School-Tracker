@@ -1,7 +1,7 @@
 import { carpetaInstrumento, subcarpetaInstrumento, abrirInstrumentoExportado, XLSX_MIME } from './instrumentosEntrega';
 import { crearLibro, agregarHoja, escribirPortada, escribirCabecera, escribirFila, escribirLibroEnCarpeta, nombreHojaSeguro, BORDE_NEGRO, argb } from './excel';
 import type { InstrumentoColores, PlantillaDefinicion, PlantillaGrid, TokenDatos } from './instrumentoPlantilla';
-import { resolverTokens, columnasAIQuitar, colorDeCelda } from './instrumentoPlantilla';
+import { resolverTokens, columnasQuitar, columnasSeparador, leyendaEscalaConfig, colorDeCelda } from './instrumentoPlantilla';
 
 /**
  * Exportación de instrumentos a .xlsx.
@@ -114,13 +114,17 @@ function renderGridXlsx(wb: any, grid: PlantillaGrid, def: PlantillaDefinicion, 
   const sinAI = !!input.cualitativo;
   const datos: TokenDatos = { ...tokenDatosCabecera(input), sinAI };
 
-  // Contexto cualitativo → las columnas {AI} de la cuadrícula SE COLAPSAN
-  // (el AI no aplica en ese régimen; lo decide la lógica de negocio).
-  const quitar = columnasAIQuitar(grid, sinAI);
+  // Contexto cualitativo → columnas {AI} y {TOTAL} SE ELIMINAN (no aplican en
+  // ese régimen). Las TC pasan a ser la franja separadora entre criterios.
+  const quitar = columnasQuitar(grid, sinAI);
   const kept: number[] = [];
   for (let c = 0; c < grid.cols; c++) if (!quitar.has(c)) kept.push(c);
   const newIdx = new Map<number, number>(); // col vieja → índice de salida
   kept.forEach((oc, i) => newIdx.set(oc, i));
+  // Columnas de salida que son FRANJA separadora (las TC en cualitativo).
+  const sepOld = sinAI ? columnasSeparador(grid) : new Set<number>();
+  const sepOut = new Set<number>();
+  for (const c of sepOld) { const i = newIdx.get(c); if (i !== undefined) sepOut.add(i); }
 
   // Cobertura de merges en coordenadas VIEJAS.
   const cov = new Map<string, [number, number]>();
@@ -162,6 +166,8 @@ function renderGridXlsx(wb: any, grid: PlantillaGrid, def: PlantillaDefinicion, 
   const datosEst = estudiantes.map((e, i) => datosConEstudiante(datos, e, i));
   const anchos: number[] = [];
   for (let ci = 0; ci < kept.length; ci++) {
+    // Franja separadora (TC en cualitativo): ancho fino, sin contenido.
+    if (sepOut.has(ci)) { anchos.push(4); continue; }
     let mx = 4;
     for (const [r, celditas] of celdasPorFila) {
       const esEst = r === grid.filaEstudiantes;
@@ -211,9 +217,14 @@ function renderGridXlsx(wb: any, grid: PlantillaGrid, def: PlantillaDefinicion, 
       for (const cel of celdasPorFila.get(r) ?? []) {
         const rr1 = outRow, cc1 = cel.c0 + 1;
         const celda = ws.getCell(rr1, cc1);
-        const valor = resolverTokens(cel.v, dEst);
+        const esSep = sepOut.has(cel.c0);
+        const valor = esSep ? '' : resolverTokens(cel.v, dEst);
         celda.value = valor;
-        if (esEstudiante) {
+        if (esSep) {
+          // Franja separadora entre criterios (donde estaba el TC).
+          celda.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+          celda.font = { size: 9, color: { argb: 'FF0F172A' } };
+        } else if (esEstudiante) {
           // Convención de colores del sistema: nombre por sexo, sigla de nota
           // por su color configurado. Sin color → tinta oscura.
           const col = colorDeCelda(cel.v, valor, input.colores, est?.sexo);
@@ -235,6 +246,18 @@ function renderGridXlsx(wb: any, grid: PlantillaGrid, def: PlantillaDefinicion, 
       // auto-ajusta al texto envuelto y las filas quedaban altísimas.
       if (esEstudiante) ws.getRow(outRow).height = 16;
     }
+  }
+
+  // Leyenda de la escala: la personalizada o la de la CONFIGURACIÓN real
+  // (Globales → Calificaciones). La cuadrícula siempre tiene columnas de escala.
+  const leyenda = (def.leyenda || '').trim() || leyendaEscalaConfig(input.colores?.escala, sinAI);
+  if (leyenda) {
+    outRow += 1;
+    ws.mergeCells(outRow, 1, outRow, kept.length);
+    const c = ws.getCell(outRow, 1);
+    c.value = leyenda;
+    c.font = { italic: true, size: 9, color: { argb: 'FF64748B' } };
+    c.alignment = { horizontal: 'left', vertical: 'middle' };
   }
 
   configurarPagina(ws, 'landscape');
@@ -315,7 +338,8 @@ function renderQuickXlsx(
     ws.getCell(rowIdx, 2).alignment = { horizontal: 'left', vertical: 'middle' };
   });
 
-  const leyenda = (def.leyenda || '').trim();
+  // Leyenda de la escala: la personalizada o la de la CONFIGURACIÓN real.
+  const leyenda = (def.leyenda || '').trim() || leyendaEscalaConfig(input.colores?.escala, !!input.cualitativo);
   if (leyenda) {
     fila += 1;
     ws.mergeCells(fila, 1, fila, headers.length);

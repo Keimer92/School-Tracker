@@ -3,7 +3,7 @@ import { unirRuta } from './platform';
 import { abrirInstrumentoExportado, carpetaInstrumento, subcarpetaInstrumento } from './instrumentosEntrega';
 // Importe SOLO de tipos: no hay ciclo en runtime (el otro lado también importa tipos).
 import type { InstrumentoColores, PlantillaDefinicion, PlantillaGrid, TokenDatos } from './instrumentoPlantilla';
-import { resolverTokens, columnasAIQuitar, fechaHoyDDMM, colorDeCelda, centrarCelda } from './instrumentoPlantilla';
+import { resolverTokens, columnasQuitar, columnasSeparador, leyendaEscalaConfig, fechaHoyDDMM, colorDeCelda, centrarCelda } from './instrumentoPlantilla';
 import { dibujarTitulo, dibujarChips, CHIP_INFO, CHIP_ROSA, CHIP_NEUTRO } from './pdfChrome';
 
 /**
@@ -77,8 +77,6 @@ export interface InstrumentoInput {
 }
 
 const NIVELES_RUBRICA = ['Superior (4)', 'Alto (3)', 'Básico (2)', 'Bajo (1)'];
-const LEYENDA_ESCALA =
-  'AA = Superior (90-100)    AS = Alto (70-89)    AF = Básico (50-69)    AI = Insuficiente (<50)';
 const GUIONES = '________________________________________';
 
 // jspdf-autotable v5: API funcional (no parchea el prototipo de jsPDF)
@@ -342,12 +340,17 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
   const sinAI = !!input.cualitativo;
   const base: TokenDatos = { ...tokenDatosBase(input), sinAI };
 
-  // Contexto cualitativo → columnas {AI} colapsadas (el AI no aplica ahí).
-  const quitar = columnasAIQuitar(g, sinAI);
+  // Contexto cualitativo → columnas {AI} y {TOTAL} ELIMINADAS; las TC pasan a
+  // ser la franja separadora entre criterios (no llevan valores).
+  const quitar = columnasQuitar(g, sinAI);
   const newIdx = new Map<number, number>();
   const keptCols: number[] = [];
   for (let c = 0; c < g.cols; c++) if (!quitar.has(c)) { newIdx.set(c, keptCols.length); keptCols.push(c); }
   const numCols = keptCols.length;
+  // Columnas de salida que son FRANJA separadora (las TC en cualitativo).
+  const sepOld = sinAI ? columnasSeparador(g) : new Set<number>();
+  const sepOut = new Set<number>();
+  for (const c of sepOld) { const i = newIdx.get(c); if (i !== undefined) sepOut.add(i); }
 
   // Cubiertos: "r:c" → celda dueña [r, c] (1 = horizontal, 2 = vertical cover).
   const cov = new Map<string, [number, number]>();
@@ -399,7 +402,7 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
   // sumada de esa fila y las siguientes, y las filas de abajo NO vuelven a
   // pintarla (así no quedan "huecos" ni se duplican bordes). Sin esto, un merge
   // vertical dejaba la fila de abajo en blanco.
-  type CelOut = { texto: string; c0: number; cs: number; rs: number; centrar: boolean; color?: string };
+  type CelOut = { texto: string; c0: number; cs: number; rs: number; centrar: boolean; color?: string; sep: boolean };
   type FilaOut = { celdas: CelOut[]; estudiante: boolean; r: number };
   const filas: FilaOut[] = [];
   const filaLogical = (r: number, est?: { n: number; nombre: string; sexo?: string; letras: string[]; valoracion: string; total?: string; nf?: string; tcs?: string[] }): FilaOut | null => {
@@ -408,13 +411,15 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
     for (const [k, cel] of Object.entries(g.celdas)) {
       const [rr, oldC0] = k.split(":").map(Number);
       if (rr !== r) continue;
-      // Re-ubicar la celda en el layout de SALIDA (columnas AI colapsadas).
+      // Re-ubicar la celda en el layout de SALIDA (columnas AI/TOTAL colapsadas).
       const oldCs = Math.min(cel.cs ?? 1, g.cols - oldC0);
       const span: number[] = [];
       for (let cc = oldC0; cc < oldC0 + oldCs; cc++) if (!quitar.has(cc)) span.push(cc);
       if (span.length === 0) continue;
       const raw = cel.v ?? "";
-      const texto = resolverTokens(raw, d);
+      // Franja separadora (TC en cualitativo): sin texto, solo el relleno.
+      const esSep = (cel.cs ?? 1) === 1 && sepOld.has(oldC0);
+      const texto = esSep ? "" : resolverTokens(raw, d);
       celdas.push({
         texto,
         c0: newIdx.get(span[0])!,
@@ -425,6 +430,7 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
         centrar: est ? centrarCelda(raw) : true,
         // Solo la fila de estudiantes lleva color: encabezados en negro.
         color: est ? colorDeCelda(raw, texto, input.colores, est.sexo) : undefined,
+        sep: esSep,
       });
     }
     return celdas.length > 0 ? { celdas, estudiante: !!est, r } : null;
@@ -510,6 +516,13 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
         for (let k2 = i; k2 < i + cel.rs && k2 < altos.length; k2++) altoCel += altos[k2];
       }
       doc.rect(x, y, w, altoCel);
+      // Franja separadora (TC en cualitativo): relleno suave, sin texto.
+      if (cel.sep) {
+        doc.setFillColor(226, 232, 240);
+        doc.rect(x, y, w, altoCel, "F");
+        doc.setDrawColor(0, 0, 0);
+        doc.rect(x, y, w, altoCel);
+      }
       if (cel.texto) {
         const lines: string[] = (doc as any).splitTextToSize(cel.texto, w - 2.6);
         const hLinea = FONTE * 0.3528;
@@ -542,6 +555,19 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
       dibujarFila(i);
     }
   }
+
+  // Leyenda de la escala: la personalizada o la de la CONFIGURACIÓN real
+  // (Globales → Calificaciones). La cuadrícula siempre tiene columnas de escala.
+  const leyenda = (input.plantilla?.leyenda || '').trim()
+    || leyendaEscalaConfig(input.colores?.escala, sinAI);
+  if (leyenda) {
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    const lineas = (doc as any).splitTextToSize(leyenda, usable);
+    let ly = y + 6;
+    for (const ln of lineas) { doc.text(ln, mx, ly); ly += 3.2; }
+  }
 }
 
 /** Cuerpo del PDF: cuadrícula del constructor o diseño rápido del tipo. */
@@ -571,9 +597,17 @@ function construir(doc: any, input: InstrumentoInput, autoTable: AutoTableFn): v
       tablaEstudiantes(doc, input, startY, autoTable, 'Valoración');
       {
         const after = (doc as any).lastAutoTable?.finalY ?? startY + 20;
-        doc.setFont('helvetica', 'italic');
-        doc.setFontSize(8);
-        doc.text((def?.leyenda || '').trim() || LEYENDA_ESCALA, 10, after + 6);
+        // Leyenda personalizada o la de la CONFIGURACIÓN real (nombres/siglas/
+        // mínimos de Globales → Calificaciones). No se traduce: son datos.
+        const leyenda = (def?.leyenda || '').trim() || leyendaEscalaConfig(input.colores?.escala, !!input.cualitativo);
+        if (leyenda) {
+          doc.setFont('helvetica', 'italic');
+          doc.setFontSize(8);
+          doc.setTextColor(100, 116, 139);
+          const lineas = (doc as any).splitTextToSize(leyenda, (doc as any).internal.pageSize.getWidth() - 20);
+          let ly = after + 6;
+          for (const ln of lineas) { doc.text(ln, 10, ly); ly += 3.4; }
+        }
       }
       break;
     default:

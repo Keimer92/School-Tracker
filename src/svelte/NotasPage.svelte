@@ -1822,7 +1822,13 @@ import { primerColegio } from "../lib/catalogo";
     const porLetra: Record<string, string> = {};
     for (const g of gradeConfigs) porLetra[g.id] = g.color;
     const sx = coloresSexo();
-    return { porLetra, sexoM: sx.m, sexoF: sx.f };
+    return {
+      porLetra,
+      sexoM: sx.m,
+      sexoF: sx.f,
+      // Escala configurada (sigla/nombre/mínimo) para la leyenda del instrumento.
+      escala: gradeConfigs.map(g => ({ id: g.id, nombre: g.nombre, minimo: g.minimo })),
+    };
   }
 
   function buildInstrumentoInput(ind: Indicador): InstrumentoInput {
