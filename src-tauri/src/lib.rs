@@ -505,6 +505,35 @@ async fn share_pdf(_app_handle: tauri::AppHandle, _path: String) -> Result<(), S
     }
 }
 
+/// Comparte un archivo cualquiera por FileProvider con el MIME indicado.
+/// Es la versión genérica de `share_pdf`, para el .xlsx de instrumentos.
+#[tauri::command]
+async fn share_file(_app_handle: tauri::AppHandle, _path: String, _mime: String) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        use jni::objects::JValue;
+        let clean_path = _path.replace("file://", "");
+        // OJO: ndk_context NO está garantizado. Usar el puente propio.
+        let (vm, activity) = obtain_native_bridge()?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        let j_path = env.new_string(clean_path).map_err(|e| e.to_string())?;
+        let j_mime = env.new_string(_mime).map_err(|e| e.to_string())?;
+        env.call_method(
+            activity.as_obj(),
+            "shareFile",
+            "(Ljava/lang/String;Ljava/lang/String;)V",
+            &[JValue::Object(&j_path), JValue::Object(&j_mime)],
+        )
+        .map_err(|e| format!("Error JNI shareFile: {}", e))?;
+        Ok(())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (_path, _mime);
+        Ok(())
+    }
+}
+
 #[tauri::command]
 async fn save_file_android(
     _app_handle: tauri::AppHandle,
@@ -2731,6 +2760,7 @@ update_colegio,
             delete_record_local,
             print_pdf,
         share_pdf,
+        share_file,
         save_file_android,
         guardar_en_descargas,
     run_local_backup,

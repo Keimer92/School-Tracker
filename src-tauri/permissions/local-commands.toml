@@ -101,6 +101,7 @@ commands.allow = [
     "delete_record_local",
     "print_pdf",
         "share_pdf",
+        "share_file",
         "save_file_android",
         "guardar_en_descargas",
 

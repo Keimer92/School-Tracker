@@ -343,6 +343,34 @@ class MainActivity : TauriActivity() {
     }
   }
 
+  // Versión genérica de sharePdf: comparte/abre un archivo cualquiera con el
+  // MIME indicado (p. ej. el .xlsx de instrumentos). Mismo FileProvider.
+  fun shareFile(path: String, mime: String) {
+    try {
+      val file = File(path)
+      if (!file.exists()) {
+        android.util.Log.e("MainActivity", "File not found: $path")
+        return
+      }
+
+      val uri = androidx.core.content.FileProvider.getUriForFile(
+        this,
+        "${packageName}.fileprovider",
+        file
+      )
+
+      val shareIntent = Intent(Intent.ACTION_SEND).apply {
+        type = mime
+        putExtra(Intent.EXTRA_STREAM, uri)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+      }
+
+      startActivity(Intent.createChooser(shareIntent, "Compartir archivo"))
+    } catch (e: Exception) {
+      android.util.Log.e("MainActivity", "Error sharing file: ${e.message}")
+    }
+  }
+
   fun printPdf(path: String) {
     try {
       val file = File(path)
