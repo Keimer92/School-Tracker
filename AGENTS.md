@@ -1450,10 +1450,29 @@ Plantillas editable).
   un botón **👁 Vista previa** en el modal de edición (junto al nombre) y en cada
   tarjeta de la lista. Abre un **modal dentro de la app** (`construirPreview` en
   `PlantillasConfig.svelte`) que dibuja el instrumento con datos FICTICIOS
-  reusando `resolverTokens`/`centrarCelda` + `gridPresetChecklist`: NO toca la BD
-  ni genera archivos. El encabezado usa el MISMO texto que el PDF/Excel (que no
-  se traduce). Los botones de Editar/Eliminar llevan su **nombre** además del
-  ícono (`<span class="pl-ico">`, más grande).
+  reusando `resolverTokens`/`centrarCelda`/`colorDeCelda` + `gridPresetChecklist` y
+  el MISMO colapso de columnas que los generadores: NO toca la BD ni genera
+  archivos. El encabezado usa el MISMO texto que el PDF/Excel (que no se traduce).
+  Los botones de Editar/Eliminar llevan su **nombre** además del ícono
+  (`<span class="pl-ico">`, más grande).
+- **Vista previa CABLEADA a la configuración (2026-10)**: la vista previa lee
+  `get_grade_configs` (Globales → Calificaciones) + `coloresSexo()` y pinta los
+  datos con la convención real: **nombre del estudiante con el color de su sexo**
+  y **cada sigla con su color**. La **leyenda** sale de `leyendaEscalaConfig`
+  (`instrumentoPlantilla.ts`): `SIGLA = nombre (rango)` construida con la config
+  real (AA = "Aprendizaje Avanzado (90-100)"), así un cambio de nombre/sigla/
+  color/mínimo se refleja sola. **Los generadores usan la MISMA función** cuando
+  la plantilla no define leyenda propia (antes había un `LEYENDA_ESCALA`
+  hardcodeado con nombres viejos: "Superior/Alto/Básico/Insuficiente"). Los
+  nombres de la escala NO se traducen: son datos del usuario.
+- **Toggle Cuantitativo / Cualitativo en la vista previa (2026-10)**: control
+  segmentado en el modal. En **cualitativo** se aplica la regla compartida: se
+  ELIMINAN las columnas `{AI}` y `{TOTAL}` y **la columna TC deja de ser dato y
+  pasa a ser la franja separadora entre criterios** (celda vacía con relleno
+  suave); el TC del ÚLTIMO criterio se ELIMINA (ya no le sigue el Total). Ver
+  `columnasCualitativo` en `instrumentoPlantilla.ts`; lo usan la vista previa,
+  `instrumentosPdf.ts` (`construirGrid`, relleno del `sep`) e
+  `instrumentosExcel.ts` (`renderGridXlsx`, `fill` + ancho fijo).
 - **Nota Final (NF) ELIMINADA del preset (2026-10)**: el preset de cuadrícula ya
   **no** tiene la columna NF (pasó de 19 a **18 columnas**). `parseDefinicion`
   normaliza las plantillas viejas con `sinColumnaNF`: si la ÚLTIMA columna tiene
@@ -1461,7 +1480,9 @@ Plantillas editable).
   celdas y baja `cols`. El token `{NF}` sigue existiendo para plantillas propias.
 - **TC por criterio**: el preset tiene una columna **TC** después de cada
   criterio. `tcCriterioDeEst` la formatea igual que la tabla: cualitativo → solo
-  la sigla; normal → `pts (sigla)` (ej. `8 (AA)`).
+  la sigla; normal → `pts (sigla)` (ej. `8 (AA)`). Los **datos de ejemplo** de la
+  vista previa reparten los puntos para que los 3 criterios SUMEN 20 por indicador
+  (máx 7/7/6), no 20 cada uno.
 - **Constructor modo CUADRÍCULA**: tokens `{COLEGIO} {GRADO} {SECCION} {ASIGNATURA} {CORTE} {ANO} {FECHA} {IND_N} {IND_DESC} {CRIT_1..3}` (celdas fijas) y fila 🧑 marcada con `filaEstudiantes` donde `{N} {ESTUDIANTE} {LETRA_k} {TC_k} {VALORACION}` se expanden por alumno. El preset (18 columnas, 3 criterios, ya sin NF) usa `rs:2` en Nº/Estudiante/TC/Total para fusionar las dos filas de cabecera: el PDF **dibuja rowspans de verdad** (`dibujarFila` recorre `altos[]`; `y` avanza solo la altura base de la fila) y el XLSX usa `mergeCells`. **El preset NO lleva tokens de cabecera**: el ENCABEZADO lo dibuja el generador con la convención estándar de informe/reporte (`encabezadoInstrumento` en `instrumentosPdf.ts`: `dibujarTitulo` + `dibujarChips` de `pdfChrome.ts`, con chips de asignatura/año/fecha y el **Corte evaluativo** y el **Indicador N** en filas propias, con descripción). El XLSX agrega las mismas 4 líneas antes de la cuadrícula (`lineaEncabezadoXlsx`). **Los tags de tipo (Rúbrica/Escala/Cotejo) NO se eligen ni se muestran** en el constructor ni en el selector del modal; la columna `tipo` sigue en la BD como legada.
 - **Carpeta de export y apertura automática (2026-10)**: PDF y XLSX comparten
   el módulo `src/lib/instrumentosEntrega.ts`; ambos van a

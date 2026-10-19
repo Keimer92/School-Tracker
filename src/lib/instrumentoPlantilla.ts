@@ -206,22 +206,39 @@ export function columnasTotal(g: PlantillaGrid): Set<number> {
   return columnasPorToken(g, t => t === "{TOTAL}");
 }
 
-/** Columnas que se ELIMINAN de la salida. En cualitativo: las {AI} (el AI no
- *  aplica) y la {TOTAL} (el Total solo va en cuantitativo). Las columnas TC NO
- *  se eliminan: pasan a ser la FRANJA separadora entre criterios
- *  (`columnasSeparador`). */
-export function columnasQuitar(g: PlantillaGrid, cualitativo: boolean): Set<number> {
-  const out = new Set<number>();
-  if (!cualitativo) return out;
-  for (const c of columnasAI(g)) out.add(c);
-  for (const c of columnasTotal(g)) out.add(c);
-  return out;
-}
-
-/** Columnas que en un contexto CUALITATIVO quedan como franja separadora vacía
- *  entre criterios: donde estaba el TC (Total Criterio). */
-export function columnasSeparador(g: PlantillaGrid): Set<number> {
-  return columnasTC(g);
+/**
+ * Reparto de columnas para un contexto CUALITATIVO:
+ * - `quitar`: columnas que DESAPARECEN de la salida (AI y Total, más el TC del
+ *   ÚLTIMO criterio — ver abajo).
+ * - `separador`: columnas TC que quedan como FRANJA separadora vacía entre
+ *   criterios (su contenido no se dibuja).
+ *
+ * El TC de un criterio es separador solo si le queda alguna columna de DATOS a
+ * su derecha (el criterio siguiente). El del último criterio no la tiene: el
+ * Total —la columna que le seguía— se elimina, así que quedaría una banda gris
+ * pegada al borde; por eso ese TC se ELIMINA.
+ */
+export function columnasCualitativo(
+  g: PlantillaGrid,
+  cualitativo: boolean,
+): { quitar: Set<number>; separador: Set<number> } {
+  const quitar = new Set<number>();
+  const separador = new Set<number>();
+  if (!cualitativo) return { quitar, separador };
+  for (const c of columnasAI(g)) quitar.add(c);
+  for (const c of columnasTotal(g)) quitar.add(c);
+  const tc = columnasTC(g);
+  for (const c of tc) {
+    let tieneDatosDespues = false;
+    for (let cc = c + 1; cc < g.cols; cc++) {
+      if (quitar.has(cc) || tc.has(cc)) continue; // eliminadas o más TC no cuentan
+      tieneDatosDespues = true;
+      break;
+    }
+    if (tieneDatosDespues) separador.add(c);
+    else quitar.add(c);
+  }
+  return { quitar, separador };
 }
 
 /** Fecha de hoy como dd/mm/yyyy (los encabezados de los instrumentos). */

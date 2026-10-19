@@ -3,7 +3,7 @@ import { unirRuta } from './platform';
 import { abrirInstrumentoExportado, carpetaInstrumento, subcarpetaInstrumento } from './instrumentosEntrega';
 // Importe SOLO de tipos: no hay ciclo en runtime (el otro lado también importa tipos).
 import type { InstrumentoColores, PlantillaDefinicion, PlantillaGrid, TokenDatos } from './instrumentoPlantilla';
-import { resolverTokens, columnasQuitar, columnasSeparador, leyendaEscalaConfig, fechaHoyDDMM, colorDeCelda, centrarCelda } from './instrumentoPlantilla';
+import { resolverTokens, columnasCualitativo, leyendaEscalaConfig, fechaHoyDDMM, colorDeCelda, centrarCelda } from './instrumentoPlantilla';
 import { dibujarTitulo, dibujarChips, CHIP_INFO, CHIP_ROSA, CHIP_NEUTRO } from './pdfChrome';
 
 /**
@@ -342,15 +342,11 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
 
   // Contexto cualitativo → columnas {AI} y {TOTAL} ELIMINADAS; las TC pasan a
   // ser la franja separadora entre criterios (no llevan valores).
-  const quitar = columnasQuitar(g, sinAI);
+  const { quitar, separador: sepOld } = columnasCualitativo(g, sinAI);
   const newIdx = new Map<number, number>();
   const keptCols: number[] = [];
   for (let c = 0; c < g.cols; c++) if (!quitar.has(c)) { newIdx.set(c, keptCols.length); keptCols.push(c); }
   const numCols = keptCols.length;
-  // Columnas de salida que son FRANJA separadora (las TC en cualitativo).
-  const sepOld = sinAI ? columnasSeparador(g) : new Set<number>();
-  const sepOut = new Set<number>();
-  for (const c of sepOld) { const i = newIdx.get(c); if (i !== undefined) sepOut.add(i); }
 
   // Cubiertos: "r:c" → celda dueña [r, c] (1 = horizontal, 2 = vertical cover).
   const cov = new Map<string, [number, number]>();

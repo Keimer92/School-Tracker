@@ -31,8 +31,7 @@
     centrarCelda,
     fechaHoyDDMM,
     colorDeCelda,
-    columnasQuitar,
-    columnasSeparador,
+    columnasCualitativo,
     leyendaEscalaConfig,
     type InstrumentoPlantilla,
     type PlantillaDefinicion,
@@ -354,12 +353,11 @@
 
     // Mismo colapso de columnas que los generadores reales (AI + Total fuera;
     // las TC quedan como franja separadora entre criterios).
-    const quitar = columnasQuitar(g, sinAI);
+    const { quitar, separador: sepOld } = columnasCualitativo(g, sinAI);
     const kept: number[] = [];
     for (let c = 0; c < g.cols; c++) if (!quitar.has(c)) kept.push(c);
     const newIdx = new Map<number, number>();
     kept.forEach((oc, i) => newIdx.set(oc, i));
-    const sepOld = sinAI ? columnasSeparador(g) : new Set<number>();
     const sepOut = new Set<number>();
     for (const c of sepOld) { const i = newIdx.get(c); if (i !== undefined) sepOut.add(i); }
 
@@ -779,6 +777,21 @@
 
   /* ══ Vista previa: "hoja" clara dentro del modal ══ */
   .pv-capa { width: min(1100px, 97vw); }
+  .pv-head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.8rem; flex-wrap: wrap; }
+  .pv-head-titulo { margin: 0; color: #f1f5f9; font-size: 1.05rem; font-weight: 700; }
+  .pv-toggle {
+    display: inline-flex; margin-left: auto; border-radius: 9px; overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04);
+  }
+  .pv-toggle button {
+    padding: 0.32rem 0.7rem; font-size: 0.72rem; font-weight: 600; cursor: pointer;
+    border: none; background: transparent; color: #94a3b8; transition: all 0.15s ease;
+  }
+  .pv-toggle button.activo { background: rgba(56,189,248,0.22); color: #bae6fd; }
+  .pv-cerrar {
+    background: transparent; border: none; color: #64748b; font-size: 1.2rem;
+    cursor: pointer; line-height: 1;
+  }
   .pv-scroll { overflow: auto; border-radius: 12px; }
   .pv-hoja {
     background: #f8fafc; color: #0f172a;
@@ -801,6 +814,8 @@
   }
   .pv-tabla td.izq { text-align: left; }
   .pv-tabla tr.est td { background: rgba(56,189,248,0.07); }
+  /* Franja separadora entre criterios (donde estaba el TC, en cualitativo). */
+  .pv-tabla td.sep { background: #e2e8f0; padding: 0.22rem 0.12rem; }
   .pv-leyenda { margin-top: 0.6rem; font-style: italic; font-size: 0.68rem; color: #64748b; }
   @media (max-width: 560px) {
     .pv-hoja { padding: 0.8rem; }

@@ -1,7 +1,7 @@
 import { carpetaInstrumento, subcarpetaInstrumento, abrirInstrumentoExportado, XLSX_MIME } from './instrumentosEntrega';
 import { crearLibro, agregarHoja, escribirPortada, escribirCabecera, escribirFila, escribirLibroEnCarpeta, nombreHojaSeguro, BORDE_NEGRO, argb } from './excel';
 import type { InstrumentoColores, PlantillaDefinicion, PlantillaGrid, TokenDatos } from './instrumentoPlantilla';
-import { resolverTokens, columnasQuitar, columnasSeparador, leyendaEscalaConfig, colorDeCelda } from './instrumentoPlantilla';
+import { resolverTokens, columnasCualitativo, leyendaEscalaConfig, colorDeCelda } from './instrumentoPlantilla';
 
 /**
  * Exportación de instrumentos a .xlsx.
@@ -116,13 +116,12 @@ function renderGridXlsx(wb: any, grid: PlantillaGrid, def: PlantillaDefinicion, 
 
   // Contexto cualitativo → columnas {AI} y {TOTAL} SE ELIMINAN (no aplican en
   // ese régimen). Las TC pasan a ser la franja separadora entre criterios.
-  const quitar = columnasQuitar(grid, sinAI);
+  const { quitar, separador: sepOld } = columnasCualitativo(grid, sinAI);
   const kept: number[] = [];
   for (let c = 0; c < grid.cols; c++) if (!quitar.has(c)) kept.push(c);
   const newIdx = new Map<number, number>(); // col vieja → índice de salida
   kept.forEach((oc, i) => newIdx.set(oc, i));
   // Columnas de salida que son FRANJA separadora (las TC en cualitativo).
-  const sepOld = sinAI ? columnasSeparador(grid) : new Set<number>();
   const sepOut = new Set<number>();
   for (const c of sepOld) { const i = newIdx.get(c); if (i !== undefined) sepOut.add(i); }
 
