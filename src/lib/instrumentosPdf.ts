@@ -98,6 +98,14 @@ function sanitize(s: string): string {
   return s.replace(/[<>:"/\\|?*]/g, '_');
 }
 
+/** Convierte un hex (#rgb o #rrggbb) al triplete RGB que espera jsPDF. */
+function rgbDe(hex: string): [number, number, number] {
+  const h = (hex || '').replace('#', '').trim();
+  if (h.length === 3) return [parseInt(h[0] + h[0], 16), parseInt(h[1] + h[1], 16), parseInt(h[2] + h[2], 16)];
+  if (h.length === 6) return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  return [0, 0, 0];
+}
+
 /** Encabezado en UNA sola línea + bloque de indicador/criterios.
  *  Si falta una descripción, dibuja una línea horizontal para completar a mano,
  *  con el puntaje al final. Devuelve la Y donde continúa el contenido. */
@@ -495,8 +503,12 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
         const hLinea = FONTE * 0.3528;
         const ty = y + (altoCel - lines.length * hLinea) / 2 + hLinea - 0.8;
         // Convención de colores del sistema (nota/sexo); negro por defecto.
-        if (cel.color) doc.setTextColor(cel.color);
-        else doc.setTextColor(0, 0, 0);
+        if (cel.color) {
+          const rgb = rgbDe(cel.color);
+          doc.setTextColor(rgb[0], rgb[1], rgb[2]);
+        } else {
+          doc.setTextColor(0, 0, 0);
+        }
         if (cel.centrar) doc.text(lines, x + w / 2, ty, { align: "center" });
         else doc.text(lines, x + 1.3, ty);
       }

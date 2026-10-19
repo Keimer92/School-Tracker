@@ -1401,16 +1401,29 @@ Plantillas editable).
   restore + pk id + **reconcilia por `nombre` en `BUSINESS_KEY_TABLES`** porque
   las PKs autoincrement divergen entre devices), `dirtyTracker.ts`, worker
   `TABLES`/`ensureSchema` y `local-commands.toml`.
-- **Consumo en NotasPage**: `elejirPlantillaBD(tipo)` — si hay plantilla
-  elegida en el selector manda esa; en AUTO cae a la primera del tipo del
-  indicador. El PDF pasa `input.plantilla` (título/leyenda/intro/colFinal/
-  orientación en `instrumentosPdf.ts`); el Excel ya NO necesita archivo
-  marcadores: `generarInstrumentoXlsxDesdeDefinicion` arma el libro con los
-  helpers de `excel.ts` (`escribirLibroEnCarpeta` agrega el `.xlsx` él mismo,
-  no pasa basename con extensión). El camino de carpeta Plantillas queda como
-  fallback legado si no hay plantillas en BD.
-- **Constructor modo CUADRÍCULA**: tokens `{COLEGIO} {GRADO} {SECCION} {ASIGNATURA} {CORTE} {ANO} {FECHA} {IND_N} {IND_DESC} {CRIT_1..5}` (celdas fijas) y fila 🧑 marcada con `filaEstudiantes` donde `{N} {ESTUDIANTE} {LETRA_k} {VALORACION}` se expanden por alumno. **El preset NO lleva tokens de cabecera**: el ENCABEZADO lo dibuja el generador con la convención estándar de informe/reporte (`encabezadoInstrumento` en `instrumentosPdf.ts`: `dibujarTitulo` + `dibujarChips` de `pdfChrome.ts`, con chips de asignatura/año/fecha y el **Corte evaluativo** y el **Indicador N** en filas propias, con descripción). El XLSX agrega las mismas 4 líneas antes de la cuadrícula (`lineaEncabezadoXlsx`). **Los tags de tipo (Rúbrica/Escala/Cotejo) NO se eligen ni se muestran** en el constructor ni en el selector del modal; la columna `tipo` sigue en la BD como legada.
-- **Carpeta de export**: PDF/XLSX de instrumentos van a `Documents/School Tracker/Instrumentos/<Corte - Asignatura>/` (igual que informe/reporte). La carpeta `SchoolTrackerPro/Plantillas` (archivos .xlsx de la GUI clásica) se quedó como legado.
+- **Consumo en NotasPage**: `plantillaDeIndicador(ind)` — elección explícita del
+  indicador → si solo hay UNA plantilla, esa para todos (global) → primera del
+  tipo del indicador → null. El PDF pasa `input.plantilla` (título/leyenda/intro/
+  colFinal/orientación en `instrumentosPdf.ts`); el Excel usa
+  `generarInstrumentoXlsxDesdeDefinicion`, que arma el libro con los helpers de
+  `excel.ts` (`escribirLibroEnCarpeta` agrega el `.xlsx` él mismo). **Las
+  plantillas se crean EXCLUSIVAMENTE con el constructor visual (BD
+  `instrumento_plantilla`)**: el motor legado de plantillas `.xlsx` con
+  marcadores (`{{FILAS}}`, `{LETRA_1}`…) y la carpeta `Plantillas` se ELIMINARON
+  (2026-10). Excel queda solo como EXPORTACIÓN.
+- **Colores y bordes (2026-10)**: PDF y XLSX pintan los DATOS con la convención
+  del sistema — nombre del estudiante con el color de su sexo y cada sigla
+  (letra, TC, Total, NF) con el color de esa sigla en Globales → Calificaciones.
+  `NotasPage.buildInstrumentoInput` pasa `colores: { porLetra, sexoM, sexoF }`
+  (helper `coloresInstrumento()`, usa `gradeConfigs` + `coloresSexo()`); sin eso
+  todo sale negro. Los bordes de tabla son **negros** (`doc.setDrawColor(0,0,0)`
+  en PDF, `BORDE_NEGRO` en `excel.ts`), no grises. En PDF la nota por criterio va
+  **centrada** (`centrarCelda`); el nombre del estudiante queda a la izquierda.
+- **TC por criterio**: el preset tiene una columna **TC** después de cada
+  criterio. `tcCriterioDeEst` la formatea igual que la tabla: cualitativo → solo
+  la sigla; normal → `pts (sigla)` (ej. `8 (AA)`).
+- **Constructor modo CUADRÍCULA**: tokens `{COLEGIO} {GRADO} {SECCION} {ASIGNATURA} {CORTE} {ANO} {FECHA} {IND_N} {IND_DESC} {CRIT_1..3}` (celdas fijas) y fila 🧑 marcada con `filaEstudiantes` donde `{N} {ESTUDIANTE} {LETRA_k} {TC_k} {VALORACION}` se expanden por alumno. El preset (19 columnas, 3 criterios) usa `rs:2` en Nº/Estudiante/TC/Total/NF para fusionar las dos filas de cabecera: el PDF **dibuja rowspans de verdad** (`dibujarFila` recorre `altos[]`; `y` avanza solo la altura base de la fila) y el XLSX usa `mergeCells`. **El preset NO lleva tokens de cabecera**: el ENCABEZADO lo dibuja el generador con la convención estándar de informe/reporte (`encabezadoInstrumento` en `instrumentosPdf.ts`: `dibujarTitulo` + `dibujarChips` de `pdfChrome.ts`, con chips de asignatura/año/fecha y el **Corte evaluativo** y el **Indicador N** en filas propias, con descripción). El XLSX agrega las mismas 4 líneas antes de la cuadrícula (`lineaEncabezadoXlsx`). **Los tags de tipo (Rúbrica/Escala/Cotejo) NO se eligen ni se muestran** en el constructor ni en el selector del modal; la columna `tipo` sigue en la BD como legada.
+- **Carpeta de export**: PDF/XLSX de instrumentos van a `Documents/School Tracker/Instrumentos/<Corte - Asignatura>/` (igual que informe/reporte).
 - **Plantilla POR INDICADOR**: nueva columna `indicador.plantilla_id INTEGER` (sync bilateral; ALTER local en `db.rs:migrate_add_columns` + ALTER tolerante en el worker `ensureSchema` — requiere `npx wrangler deploy`). Comando `set_indicador_plantilla(id, plantillaId)` (NULL = AUTO). El modal de Instrumentos de `NotasPage` tiene un `<select>` por indicador que guarda al instante; la resolución (`plantillaDeIndicador`) es: elección explícita → si solo hay UNA plantilla, esa para todos (global) → primera del tipo → null.
 
 
