@@ -370,8 +370,9 @@ fn pk_cols(table: &str) -> &'static [&'static str] {
         "colegio_dias_asistencia" => &["colegio_id"],
         "dia_sin_clases" => &["id"],
         // La plantilla es catálogo de usuario: las PKs de dos dispositivos pueden
-        // divergir, por eso el pull la reconcilia por `nombre` (BUSINESS_KEY_TABLES).
-        "instrumento_plantilla" => &["id"],
+        // divergir, por eso su identidad (para el pull, el anti re-relevo y el
+        // BORRADO) es `nombre`, no el id local. Su tombstone viaja por nombre.
+        "instrumento_plantilla" => &["nombre"],
         "nota" => &["estudiante_id", "criterio_id", "corte_evaluativo_id", "asignatura_id"],
         // El retiro viaja por `estudiante_id`: es UNO por estudiante (el UNIQUE
         // de la tabla), así que esa es su identidad en la nube. Si se usara
@@ -477,6 +478,11 @@ fn collect_pending_deletions(conn: &rusqlite::Connection) -> Result<Vec<Value>, 
         .filter_map(|r| r.ok())
         .collect();
     for (tabla, id) in simple {
+        // `instrumento_plantilla` migró a su propia tabla (borrado por nombre);
+        // una fila legada acá enviaría un tombstone por id (incorrecto).
+        if tabla == "instrumento_plantilla" {
+            continue;
+        }
         deletions.push(json!({ "tabla": tabla, "pk": [id] }));
     }
 
@@ -538,6 +544,19 @@ fn collect_pending_deletions(conn: &rusqlite::Connection) -> Result<Vec<Value>, 
         .collect();
     for (c, g) in cg {
         deletions.push(json!({ "tabla": "colegio_grado", "pk": [c, g] }));
+    }
+
+    // Plantillas: el borrado viaja por `nombre` (ver delete_instrumento_plantilla).
+    let mut stmt = conn
+        .prepare("SELECT nombre FROM sync_pending_deletions_instrumento_plantilla")
+        .map_err(|e| e.to_string())?;
+    let plantillas: Vec<String> = stmt
+        .query_map([], |row| row.get(0))
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+    for nombre in plantillas {
+        deletions.push(json!({ "tabla": "instrumento_plantilla", "pk": [nombre] }));
     }
 
     Ok(deletions)
@@ -747,6 +766,9 @@ fn delete_by_pk(conn: &rusqlite::Connection, table: &str, pk: &Value) -> Result<
             "DELETE FROM colegio_grado WHERE colegio_id = ? AND grado_id = ?".to_string()
         }
         "colegio_dias_asistencia" => "DELETE FROM colegio_dias_asistencia WHERE colegio_id = ?".to_string(),
+        // La plantilla se identifica por `nombre`: borrar por el id del emisor
+        // eliminaría otra plantilla en este dispositivo (los ids divergen).
+        "instrumento_plantilla" => "DELETE FROM instrumento_plantilla WHERE nombre = ?".to_string(),
         _ => format!("DELETE FROM {} WHERE id = ?", table),
     };
     let vals: Vec<rusqlite::types::Value> = arr.iter().map(|v| sqlite_value_to_json(v)).collect();
@@ -764,6 +786,7 @@ fn clear_all_pending_deletions(conn: &rusqlite::Connection) -> Result<(), String
         "sync_pending_deletions_grado_asignatura",
         "sync_pending_deletions_colegio_asignatura",
         "sync_pending_deletions_colegio_grado",
+        "sync_pending_deletions_instrumento_plantilla",
     ] {
         let _ = conn.execute(&format!("DELETE FROM {}", t), []);
     }

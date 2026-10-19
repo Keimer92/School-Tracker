@@ -166,6 +166,14 @@ const TABLES: Record<string, { pk: string[]; cols: string[] }> = {
 
 const VALID_TABLES = new Set(Object.keys(TABLES));
 
+// Columnas con las que se identifica un BORRADO cuando no son el pk del upsert.
+// La plantilla se reconcilia por `nombre` (los ids autoincrement divergen entre
+// dispositivos), así que su tombstone también viaja por `nombre`; borrar por el
+// id del emisor eliminaría otra plantilla en el equipo destino.
+const DELETE_KEY: Record<string, string[]> = {
+  instrumento_plantilla: ['nombre'],
+};
+
 // Tablas catálogo/entidades cuya clave de negocio NO es el id autoincrement,
 // sino una columna única (nombre/codigo). Se reconcilian por esa clave en el
 // sync para no chocar con UNIQUE(nombre/codigo) cuando los ids locales
@@ -991,13 +999,14 @@ async function route(req: Request, env: Env): Promise<Response> {
         for (const del of deletions) {
           if (!VALID_TABLES.has(del.tabla)) continue;
           const def = TABLES[del.tabla];
-          const w = def.pk.map((c, i) => `${c} = ?${i + 1}`).join(' AND ');
+          const delCols = DELETE_KEY[del.tabla] || def.pk;
+          const w = delCols.map((c, i) => `${c} = ?${i + 1}`).join(' AND ');
           const tsSql = `INSERT INTO sync_tombstone (tabla, pk, updated_at, device_id, sk)
 VALUES (?1, ?2, ?3, ?4, ?5)
 ON CONFLICT(tabla, pk, sk) DO UPDATE SET updated_at = excluded.updated_at, device_id = excluded.device_id`;
           statements.push({ sql: tsSql, params: [del.tabla, JSON.stringify(del.pk), serverNow, deviceId, sk] });
           // Delete acotado al namespace del usuario
-          statements.push({ sql: `DELETE FROM ${del.tabla} WHERE ${w} AND sk = ?${def.pk.length + 1}`, params: [...del.pk, sk] });
+          statements.push({ sql: `DELETE FROM ${del.tabla} WHERE ${w} AND sk = ?${delCols.length + 1}`, params: [...del.pk, sk] });
           delCount++;
         }
 

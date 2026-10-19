@@ -481,6 +481,15 @@ pub fn init_database(conn: &Connection) -> Result<(), String> {
             grado_id INTEGER NOT NULL,
             fecha_intento TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+
+        -- La plantilla se reconcilia por `nombre` (los ids autoincrement divergen
+        -- entre dispositivos), así que su borrado también viaja por `nombre`:
+        -- un tombstone por `id` local borraría OTRA plantilla en el otro equipo.
+        CREATE TABLE IF NOT EXISTS sync_pending_deletions_instrumento_plantilla (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            fecha_intento TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
         "#,
     )
     .map_err(|e| format!("Error creando tablas de sincronización: {}", e))?;
@@ -4825,6 +4834,11 @@ pub async fn save_instrumento_plantilla(
 }
 
 /// Borra una plantilla y registra el borrado pendiente de sincronización.
+///
+/// El borrado viaja por `nombre` (no por `id`): las plantillas se reconcilian
+/// por nombre en el pull porque sus ids autoincrement divergen entre equipos.
+/// Un tombstone por `id` local borraría la plantilla EQUIVOCADA en el otro
+/// dispositivo (el que casualmente tuviera ese id).
 #[tauri::command]
 #[allow(non_snake_case)]
 pub async fn delete_instrumento_plantilla(
@@ -4833,11 +4847,20 @@ pub async fn delete_instrumento_plantilla(
 ) -> Result<(), String> {
     let conn = state.conn.lock().map_err(|e| e.to_string())?;
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
-    tx.execute(
-        "INSERT INTO sync_pending_deletions (tabla, registro_id) VALUES ('instrumento_plantilla', ?)",
-        rusqlite::params![id],
-    )
-    .map_err(|e| e.to_string())?;
+    let nombre: Option<String> = tx
+        .query_row(
+            "SELECT nombre FROM instrumento_plantilla WHERE id = ?1",
+            rusqlite::params![id],
+            |r| r.get(0),
+        )
+        .ok();
+    if let Some(nombre) = nombre {
+        tx.execute(
+            "INSERT INTO sync_pending_deletions_instrumento_plantilla (nombre) VALUES (?1)",
+            rusqlite::params![nombre],
+        )
+        .map_err(|e| e.to_string())?;
+    }
     tx.execute("DELETE FROM instrumento_plantilla WHERE id = ?", rusqlite::params![id])
         .map_err(|e| e.to_string())?;
     tx.commit().map_err(|e| e.to_string())?;
@@ -6715,6 +6738,7 @@ pub async fn factory_reset(state: tauri::State<'_, DbState>) -> Result<(), Strin
         "sync_pending_deletions_nota", "sync_pending_deletions_grado_asignatura",
         "sync_pending_deletions_colegio_asignatura",
         "sync_pending_deletions_colegio_grado",
+        "sync_pending_deletions_instrumento_plantilla",
     ];
 
     conn.execute("PRAGMA foreign_keys = OFF", []).map_err(|e| e.to_string())?;
