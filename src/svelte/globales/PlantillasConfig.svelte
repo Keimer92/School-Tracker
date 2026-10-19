@@ -851,6 +851,12 @@
   }
   .pv-scroll { overflow: auto; border-radius: 12px; }
   .pv-hoja {
+    /* `width:max-content` + `min-width:100%`: la HOJA (el fondo blanco) mide el
+       ancho de su CONTENIDO, no el del viewport del scroll. Sin esto, al
+       desplazarse a la derecha (la tabla de 18 columnas es más ancha) aparecía el
+       fondo oscuro a la derecha de la hoja. `border-box` evita que su padding
+       sume un scroll de más. */
+    box-sizing: border-box; width: max-content; min-width: 100%;
     background: #f8fafc; color: #0f172a;
     padding: 1.3rem 1.5rem; border-radius: 12px;
   }
