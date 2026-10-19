@@ -1,6 +1,4 @@
-import { documentDir } from '@tauri-apps/api/path';
-import { writeFile, mkdir } from '@tauri-apps/plugin-fs';
-import { aFileURL, unirRuta } from './platform';
+import { carpetaInstrumento, subcarpetaInstrumento, abrirInstrumentoExportado, XLSX_MIME } from './instrumentosEntrega';
 import { crearLibro, agregarHoja, escribirPortada, escribirCabecera, escribirFila, escribirLibroEnCarpeta, nombreHojaSeguro, BORDE_NEGRO, argb } from './excel';
 import type { InstrumentoColores, PlantillaDefinicion, PlantillaGrid, TokenDatos } from './instrumentoPlantilla';
 import { resolverTokens, columnasAIQuitar, colorDeCelda } from './instrumentoPlantilla';
@@ -50,12 +48,6 @@ export interface ExcelInstrumentoInput {
   colores?: InstrumentoColores;
 }
 
-
-export async function abrirCarpetaInstrumentos(): Promise<void> {
-  const { openUrl } = await import('@tauri-apps/plugin-opener');
-  const docsPath = await (await import('@tauri-apps/api/path')).documentDir();
-  try { await openUrl(aFileURL(unirRuta(docsPath, 'School Tracker', 'Instrumentos'))) } catch {}
-}
 
 // ============================================================================
 // Generador XLSX desde plantilla de la BD (constructor visual)
@@ -288,12 +280,6 @@ function renderQuickXlsx(
   return ws;
 }
 
-/** Subcarpeta compartida de instrumentos (Documents/School Tracker/Instrumentos). */
-async function dirInstrumentos(): Promise<string> {
-  const docsPath = await documentDir();
-  return unirRuta(docsPath, 'School Tracker', 'Instrumentos');
-}
-
 export async function generarInstrumentoXlsxDesdeDefinicion(
   def: PlantillaDefinicion,
   input: ExcelInstrumentoInput,
@@ -302,10 +288,13 @@ export async function generarInstrumentoXlsxDesdeDefinicion(
   const wb = await crearLibro('School Tracker');
   const usados = new Set<string>();
   agregarInstrumentoAHoja(wb, def, input, usados);
-  const dir = await dirInstrumentos();
-  await mkdir(dir, { recursive: true }).catch(() => {});
+  // MISMA carpeta que el PDF: Instrumentos/<Corte> - <Asignatura>/.
+  const dir = await carpetaInstrumento(subcarpetaInstrumento(input.meta.corte, input.meta.asignatura));
   // escribirLibroEnCarpeta agrega el .xlsx él mismo.
-  return await escribirLibroEnCarpeta(wb, dir, fileNameBase);
+  const ruta = await escribirLibroEnCarpeta(wb, dir, fileNameBase);
+  // Abre el archivo recién generado (desktop: app predeterminada; Android: chooser).
+  await abrirInstrumentoExportado(ruta, XLSX_MIME);
+  return ruta;
 }
 
 /**
@@ -319,8 +308,9 @@ export async function generarInstrumentosTodosXlsx(
   const wb = await crearLibro('School Tracker');
   const usados = new Set<string>();
   for (const it of items) agregarInstrumentoAHoja(wb, it.def, it.input, usados);
-  const dir = await dirInstrumentos();
-  await mkdir(dir, { recursive: true }).catch(() => {});
+  const meta = items[0]?.input.meta;
+  const dir = await carpetaInstrumento(meta ? subcarpetaInstrumento(meta.corte, meta.asignatura) : undefined);
   const ruta = await escribirLibroEnCarpeta(wb, dir, fileNameBase);
+  await abrirInstrumentoExportado(ruta, XLSX_MIME);
   return { ruta, hojas: items.length };
 }

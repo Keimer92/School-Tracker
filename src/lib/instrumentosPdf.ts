@@ -1,8 +1,6 @@
-import { invoke } from '@tauri-apps/api/core';
-import { documentDir } from '@tauri-apps/api/path';
-import { writeFile, mkdir } from '@tauri-apps/plugin-fs';
-import { openUrl } from '@tauri-apps/plugin-opener';
-import { aFileURL, esAndroid, unirRuta } from './platform';
+import { writeFile } from '@tauri-apps/plugin-fs';
+import { unirRuta } from './platform';
+import { abrirInstrumentoExportado, carpetaInstrumento, subcarpetaInstrumento } from './instrumentosEntrega';
 // Importe SOLO de tipos: no hay ciclo en runtime (el otro lado también importa tipos).
 import type { InstrumentoColores, PlantillaDefinicion, PlantillaGrid, TokenDatos } from './instrumentoPlantilla';
 import { resolverTokens, columnasAIQuitar, fechaHoyDDMM, colorDeCelda, centrarCelda } from './instrumentoPlantilla';
@@ -589,17 +587,11 @@ function tipoLabel(tipo: InstrumentoTipo): string {
 
 async function guardarYEntregar(doc: any, fileName: string, subfolder: string): Promise<string> {
   const pdfData = doc.output('arraybuffer');
-  const docsPath = await documentDir();
-  const dir = unirRuta(docsPath, 'School Tracker', 'Instrumentos', subfolder);
-  await mkdir(dir, { recursive: true }).catch(() => {});
+  const dir = await carpetaInstrumento(subfolder);
   const fullPath = unirRuta(dir, fileName);
   await writeFile(fullPath, new Uint8Array(pdfData));
-  if (esAndroid()) {
-    // Android espera separadores '/' en la ruta que le pasa el ContentResolver.
-    try { await invoke('share_pdf', { path: fullPath.replace(/\\/g, '/') }); } catch {}
-  } else {
-    try { await openUrl(aFileURL(dir)); } catch {}
-  }
+  // Abre el PDF recién generado (desktop: app predeterminada; Android: chooser).
+  await abrirInstrumentoExportado(fullPath, 'application/pdf');
   return fullPath;
 }
 
@@ -622,7 +614,7 @@ export async function generarInstrumentoPDF(input: InstrumentoInput): Promise<st
   });
   construir(doc, input, autoTable);
   const fileName = sanitize(`Instrumento_${tipoLabel(input.tipo)}_Ind${input.orden}_${sanitize(input.meta.asignatura)}_${sanitize(input.meta.grado)}${sanitize(input.meta.seccion)}.pdf`);
-  const sub = sanitize(`${input.meta.corte} - ${input.meta.asignatura}`);
+  const sub = subcarpetaInstrumento(input.meta.corte, input.meta.asignatura);
   return await guardarYEntregar(doc, fileName, sub);
 }
 
@@ -665,6 +657,6 @@ async function generarUnSoloPDF(inputs: InstrumentoInput[]): Promise<string> {
   });
   const first = inputs[0].meta;
   const fileName = sanitize(`Instrumentos_${first.asignatura ?? 'Asignatura'}_${first.corte ?? ''}_${first.grado}-${first.seccion}.pdf`);
-  const sub = sanitize(`${first.corte ?? ''} - ${first.asignatura ?? ''}`);
+  const sub = subcarpetaInstrumento(first.corte ?? '', first.asignatura ?? '');
   return await guardarYEntregar(doc, fileName, sub);
 }
