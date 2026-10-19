@@ -126,6 +126,51 @@ export function resolverTokens(texto: string, d: TokenDatos): string {
   return o;
 }
 
+/**
+ * Colores del sistema para pintar el instrumento (PDF y Excel). Sin esto las
+ * celdas salen en negro. `porLetra` mapea la sigla (AA/AS/AF/AI) a su color
+ * configurado en Globales → Calificaciones; `sexoM`/`sexoF` son los colores de
+ * fuente por sexo del ajuste de Apariencia.
+ */
+export interface InstrumentoColores {
+  porLetra?: Record<string, string>;
+  sexoM?: string;
+  sexoF?: string;
+}
+
+const RE_LETRA_NOTA = /(AA|AS|AF|AI)/;
+
+/**
+ * Color de una celda de DATOS (fila de estudiantes) siguiendo la convención de
+ * la tabla de NotasPage: el nombre va con el color del sexo y una celda con una
+ * sigla de nota (letra, TC, total o NF) con el color de esa sigla. `undefined`
+ * = sin color (se pinta en negro, como los encabezados).
+ */
+export function colorDeCelda(
+  raw: string,
+  texto: string,
+  colores: InstrumentoColores | undefined,
+  sexo?: string,
+): string | undefined {
+  if (!colores) return undefined;
+  if ((raw || "").trim() === "{ESTUDIANTE}") {
+    return sexo === "F" ? colores.sexoF : colores.sexoM;
+  }
+  const m = (texto || "").toUpperCase().match(RE_LETRA_NOTA);
+  if (m && colores.porLetra?.[m[1]]) return colores.porLetra[m[1]];
+  return undefined;
+}
+
+/**
+ * ¿La celda va CENTRADA? Sí para las celdas de datos cortas (Nº, escala,
+ * letras, TC, total, NF); el nombre del estudiante y los encabezados van a la
+ * izquierda.
+ */
+const RE_CENTRAR = /^\{(N|LETRA_\d|TC_\d|TOTAL|NF|VALORACION|AA|AS|AF|AI)\}$/;
+export function centrarCelda(raw: string): boolean {
+  return RE_CENTRAR.test((raw || "").trim());
+}
+
 /** Columnas de la cuadrícula que representan la nota AI de la escala: celdas
  *  cuyo texto pelado es exactamente `{AI}` (o `AI` estático, por plantillas
  *  hechas a mano). Al generar en un contexto cualitativo esas columnas SE

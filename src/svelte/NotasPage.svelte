@@ -16,9 +16,8 @@ import { primerColegio } from "../lib/catalogo";
   import BtnRail from "./BtnRail.svelte";
   import AccionesRail from "./AccionesRail.svelte";
   import { generarInstrumentoPDF, generarInstrumentosTodosPDF, INSTRUMENTO_OPS, type InstrumentoInput, type InstrumentoTipo } from "../lib/instrumentosPdf";
-  import { generarInstrumentoExcel, generarInstrumentoXlsxDesdeDefinicion, listarPlantillas, asegurarCarpetaPlantillas, abrirCarpetaPlantillas, plantillasDir, type ExcelInstrumentoInput } from "../lib/instrumentosExcel";
+  import { generarInstrumentoXlsxDesdeDefinicion, type ExcelInstrumentoInput } from "../lib/instrumentosExcel";
   import { listarInstrumentoPlantillas, parseDefinicion, type InstrumentoPlantilla } from "../lib/instrumentoPlantilla";
-  import { readFile } from "@tauri-apps/plugin-fs";
   import { ask } from "@tauri-apps/plugin-dialog";
   import { registerBackHandler } from "../lib/androidBack";
   // OJO al importar `t`: en este archivo ya hubo dos `const t = ev.target`
@@ -37,7 +36,7 @@ import { primerColegio } from "../lib/catalogo";
   import { writeFile, mkdir } from "@tauri-apps/plugin-fs";
   import { openUrl } from "@tauri-apps/plugin-opener";
   import { unirRuta, aFileURL } from "../lib/platform";
-  import { colorSexo, colorSexoExport } from "../lib/coloresSexo.svelte";
+  import { colorSexo, colorSexoExport, coloresSexo } from "../lib/coloresSexo.svelte";
   import { generarPdfNotas } from "../lib/notasPdf";
   
   import { portalToBody } from "../lib/portalToBody";
@@ -228,12 +227,7 @@ import { primerColegio } from "../lib/catalogo";
   let showInstrumentosModal = $state(false);
   let generatingPdf = $state(false);
   let excelGenerating = $state(false);
-  let mostrarAyudaExcel = $state(false);
 
-  // Plantillas .xlsx en la carpeta fija Documents/SchoolTrackerPro/Plantillas
-  // El nombre del archivo clasifica el tipo: debe contener Rubrica/Cotejo/Escala
-  let plantillas = $state<{ nombre: string; ruta: string; tipo: InstrumentoTipo }[]>([]);
-  let plantillaSel = $state(''); // '' = AUTO según el tipo del indicador
   let cargandoPlantillas = $state(false);
 
   // Plantillas del CONSTRUCTOR VISUAL (Configuración → 🧩 Plantillas).
@@ -281,17 +275,7 @@ import { primerColegio } from "../lib/catalogo";
     cargandoPlantillas = true;
     try {
       try { plantillasBD = await listarInstrumentoPlantillas(); } catch (e) { console.error('[Instrumentos] plantillas BD:', e); }
-      await asegurarCarpetaPlantillas();
-      plantillas = await listarPlantillas();
-      if (!plantillas.some(p => p.nombre === plantillaSel)) {
-        plantillaSel = '';
-      }
     } finally { cargandoPlantillas = false; }
-  }
-
-  async function abrirCarpetaDePlantillas() {
-    await abrirCarpetaPlantillas();
-    setTimeout(() => void recargarPlantillas(), 800);
   }
 
   // Al abrir el modal: cargar lista de plantillas de la carpeta fija
@@ -1818,12 +1802,27 @@ import { primerColegio } from "../lib/catalogo";
     return sigla ? `${pts} ${sigla}` : String(pts);
   }
 
-  /** Puntos de UN criterio para un estudiante (misma fórmula de la tabla:
-   *  pts redondeados por notaMapping; '' si no hay nota). Para el token {TC_k}. */
+  /**
+   * Puntos de UN criterio para un estudiante con la convención de la tabla:
+   *  - CUALITATIVO (grado/sección/asignatura cualitativa) → solo la sigla.
+   *  - Normal → puntos + sigla, p. ej. "8 (AA)".
+   * '' si no hay nota. Es el token {TC_k}.
+   */
   function tcCriterioDeEst(c: Criterio, estId: number): string {
     const qv = (notasCualitativas[`${estId}-${c.id}`] || '').toUpperCase();
     if (!qv || !['AA', 'AS', 'AF', 'AI'].includes(qv)) return '';
-    return String(Math.round(c.puntajeMaximo * (notaMapping[qv] || 0)));
+    if (isQualitative) return qv;
+    const pts = Math.round(c.puntajeMaximo * (notaMapping[qv] || 0));
+    return `${pts} (${qv})`;
+  }
+
+  /** Colores del sistema para el instrumento: sigla de nota → color y fuente
+   *  por sexo. Sin esto el PDF/XLSX salen en negro. */
+  function coloresInstrumento() {
+    const porLetra: Record<string, string> = {};
+    for (const g of gradeConfigs) porLetra[g.id] = g.color;
+    const sx = coloresSexo();
+    return { porLetra, sexoM: sx.m, sexoF: sx.f };
   }
 
   function buildInstrumentoInput(ind: Indicador): InstrumentoInput {
@@ -1849,6 +1848,7 @@ import { primerColegio } from "../lib/catalogo";
       estudiantes: estudiantes_input,
       // Lógica de negocio: grado/asignatura cualitativos → escala sin AI.
       cualitativo: isQualitative,
+      colores: coloresInstrumento(),
       meta: {
         colegio: colegios.find(c => c.id === selectedColegio)?.nombre || '',
         ano: anos.find(a => a.id === selectedAno)?.nombre || '',
@@ -1880,6 +1880,7 @@ import { primerColegio } from "../lib/catalogo";
         };
       }),
       cualitativo: isQualitative,
+      colores: coloresInstrumento(),
     };
   }
 
@@ -1901,96 +1902,27 @@ import { primerColegio } from "../lib/catalogo";
   }
 
   async function generarExcelInstrumento(ind: Indicador) {
-    const tipoNecesario = normTipo((ind as any).instrumento || 'escala');
-    let nombrePlantilla = plantillaSel;
-
-    /***** CAMINO NUEVO (preferido): plantilla del constructor visual (BD) *****/
+    // Las plantillas SOLO se crean con el constructor visual (BD). El camino
+    // legado de .xlsx con marcadores en la carpeta Plantillas se eliminó.
     const plBD = plantillaDeIndicador(ind);
-    if (plBD) {
-      try {
-        const base = `Instrumento_Ind${ind.orden}_${(buildInstrumentoInput(ind).meta.asignatura || 'Asignatura').replace(/[<>:"/\\|?*]/g, '_')}`;
-        const ruta = await generarInstrumentoXlsxDesdeDefinicion(
-          parseDefinicion(plBD.definicion),
-          buildInstrumentoInputExcel(ind),
-          base,
-        );
-        await emit("show-toast", { message: `✅ XLSX generado con plantilla "${plBD.nombre}" → Documents/School Tracker/Instrumentos`, type: "success" });
-        console.debug('[Instrumentos-Excel] ruta:', ruta);
-      } catch (e) {
-        console.error('[Instrumentos-Excel] Error (plantilla BD):', e);
-        await emit("show-toast", { message: "❌ Error generando XLSX: " + e, type: "error" });
-      }
+    if (!plBD) {
+      await emit("show-toast", { message: `⚠️ ${t('pl.notas.vacia')}`, type: "warning" });
       return;
     }
-
-    // CAMINO LEGADO: plantilla .xlsx de la carpeta Plantillas con marcadores.
-    // AUTO: si no hay selección manual, usar la plantilla del tipo del indicador
-    if (!nombrePlantilla) {
-      const match = plantillas.find(p => p.tipo === tipoNecesario);
-      if (!match) {
-        await emit("show-toast", {
-          message: `⚠️ No hay plantilla de "${tipoNecesario}" en la carpeta Plantillas
-ni plantilla del constructor en la BD.`,
-          type: "warning",
-        });
-        return;
-      }
-      nombrePlantilla = match.nombre;
-    }
-
+    excelGenerating = true;
     try {
-      const rutaPlantilla = plantillas.find(p => p.nombre === nombrePlantilla)?.ruta
-        || `${await plantillasDir()}\\${nombrePlantilla}`;
-      const bytes = new Uint8Array(await readFile(rutaPlantilla));
-
-      const input: ExcelInstrumentoInput = {
-        meta: buildInstrumentoInput(ind).meta,
-        indicadorOrden: ind.orden,
-        indicadorDescripcion: ind.descripcion,
-        criterios: ind.criterios.map(c => ({ orden: c.orden, descripcion: c.descripcion, puntajeMaximo: c.puntajeMaximo })),
-        estudiantes: estudiantes.map(est => ({
-          nombre: est.nombre,
-          sexo: (est as any).sexo || '',
-          letras: ind.criterios.map(c => (notasCualitativas[`${est.id}-${c.id}`] || '').toUpperCase()),
-          valoracion: calcularNotaCualitativaFinal(
-            ind.criterios.map(c => (notasCualitativas[`${est.id}-${c.id}`] || '').toUpperCase())
-              .filter(l => ['AA','AS','AF','AI'].includes(l))
-          ),
-        })),
-        cualitativo: isQualitative,
-      };
       const base = `Instrumento_Ind${ind.orden}_${(buildInstrumentoInput(ind).meta.asignatura || 'Asignatura').replace(/[<>:"/\\|?*]/g, '_')}`;
-      const ruta = await generarInstrumentoExcel(bytes, base, input);
-      await emit("show-toast", { message: `✅ XLSX generado con "${nombrePlantilla}" → Documents/School Tracker/Instrumentos`, type: "success" });
+      const ruta = await generarInstrumentoXlsxDesdeDefinicion(
+        parseDefinicion(plBD.definicion),
+        buildInstrumentoInputExcel(ind),
+        base,
+      );
+      await emit("show-toast", { message: `✅ XLSX generado con plantilla "${plBD.nombre}" → Documents/School Tracker/Instrumentos`, type: "success" });
+      console.debug('[Instrumentos-Excel] ruta:', ruta);
     } catch (e) {
-      console.error('[Instrumentos-Excel] Error:', e);
+      console.error('[Instrumentos-Excel] Error (plantilla BD):', e);
       await emit("show-toast", { message: "❌ Error generando XLSX: " + e, type: "error" });
-    }
-  }
-
-  // Función, no `const`: el texto depende del idioma activo, así que hay que
-  // pedirlo en cada uso (un `const` se evaluaría una sola vez al montar y el
-  // panel de ayuda no cambiaría de idioma hasta recargar).
-  const ayudaPlantillaTexto = () => t('notas.ayudaPlantilla');
-
-  async function copiarAyudaPlantilla() {
-    try {
-      await navigator.clipboard.writeText(ayudaPlantillaTexto());
-      await emit("show-toast", { message: t('notas.ayudaCopiada'), type: "success" });
-    } catch {
-      try {
-        const ta = document.createElement('textarea');
-        ta.value = ayudaPlantillaTexto();
-        ta.style.position = 'fixed'; ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-        await emit("show-toast", { message: "📋 Instrucciones copiadas al portapapeles", type: "success" });
-      } catch (e) {
-        await emit("show-toast", { message: "❌ No se pudo copiar automáticamente", type: "error" });
-      }
-    }
+    } finally { excelGenerating = false; }
   }
 
   async function generarTodosInstrumentos() {
@@ -4807,53 +4739,16 @@ ni plantilla del constructor en la BD.`,
               style="flex: 1; padding: 0.55rem; border-radius: 10px; border: none; background: linear-gradient(135deg, #0ea5e9, #0284c7); color: #fff; font-weight: 700; font-size: 0.8rem; cursor: pointer; opacity: {generatingPdf ? 0.6 : 1};">
               {generatingPdf ? t('notas.inst.generando') : t('notas.inst.generarTodos')}
             </button>
-            <button onclick={() => mostrarAyudaExcel = !mostrarAyudaExcel}
-              style="padding: 0.55rem 0.8rem; border-radius: 10px; border: 1px dashed rgba(34,197,94,0.5); background: rgba(34,197,94,0.08); color: #86efac; font-weight: 700; font-size: 0.8rem; cursor: pointer;">
-              {t('notas.inst.ayudaExcel')}
-            </button>
           </div>
 
           <!-- Plantillas del CONSTRUCTOR (BD): la elección es POR INDICADOR y
                se guarda en la BD (set_indicador_plantilla) para que viaje con
-               el sync. Cada fila de abajo tiene su propio selector. -->
+               el sync. Cada fila de abajo tiene su propio selector. Las
+               plantillas .xlsx de la carpeta Plantillas ya no existen: solo se
+               crean con el constructor visual. -->
           {#if plantillasBD.length === 0}
             <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.65rem 0.8rem; background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.35); border-radius: 12px; margin-bottom: 1rem;">
               <span style="color: #fbbf24; font-size: 0.72rem; flex: 1;">🧩 {t('pl.notas.vacia')}</span>
-            </div>
-          {/if}
-
-          <!-- Plantilla Excel de la carpeta fija (camino legado) -->
-          <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; padding: 0.65rem 0.8rem; background: rgba(34,197,94,0.07); border: 1px solid rgba(34,197,94,0.3); border-radius: 12px; margin-bottom: 1rem;">
-            <span style="color: #86efac; font-weight: 700; font-size: 0.72rem;">{t('notas.inst.plantillaTitulo')}</span>
-            {#if cargandoPlantillas}
-              <span style="color:#64748b;font-size:0.72rem;">{t('notas.inst.cargandoPlantillas')}</span>
-            {:else if plantillas.length === 0}
-              <span style="color:#fbbf24;font-size:0.72rem;">{t('notas.inst.sinPlantillas')}</span>
-            {:else}
-              <select bind:value={plantillaSel}
-                style="flex: 1; min-width: 180px; padding: 0.3rem 0.4rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(15,23,42,0.8); color: #e2e8f0; font-size: 0.72rem; outline: none;">
-                <option value="">{t('notas.inst.auto')}</option>
-                {#each plantillas as p (p.ruta)}
-                  <option value={p.nombre}>{p.tipo === 'rubrica' ? t('notas.inst.tipoRubrica') : p.tipo === 'cotejo' ? t('notas.inst.tipoCotejo') : t('notas.inst.tipoEscala')} — {p.nombre}</option>
-                {/each}
-              </select>
-            {/if}
-            <button onclick={abrirCarpetaDePlantillas} title={t('notas.inst.abrirCarpeta')}
-              style="padding: 0.3rem 0.6rem; border-radius: 8px; border: 1px solid rgba(34,197,94,0.4); background: rgba(34,197,94,0.12); color: #86efac; cursor: pointer; font-size: 0.68rem; font-weight: 700; flex-shrink: 0;">{t('notas.inst.carpeta')}</button>
-            <button onclick={() => void recargarPlantillas()} disabled={cargandoPlantillas} title={t('notas.inst.recargar')}
-              style="padding: 0.3rem 0.5rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); background: transparent; color: #94a3b8; cursor: pointer; font-size: 0.68rem; flex-shrink: 0;">↻</button>
-          </div>
-
-          {#if mostrarAyudaExcel}
-            <div style="margin-bottom: 1rem; border: 1px solid rgba(34,197,94,0.35); border-radius: 12px; overflow: hidden;">
-              <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.6rem 0.8rem; background: rgba(34,197,94,0.1);">
-                <span style="color: #86efac; font-weight: 700; font-size: 0.75rem;">{t('notas.inst.ayudaTitulo')}</span>
-                <button onclick={copiarAyudaPlantilla}
-                  style="padding: 0.3rem 0.6rem; border-radius: 6px; border: 1px solid rgba(34,197,94,0.4); background: rgba(34,197,94,0.15); color: #86efac; cursor: pointer; font-size: 0.65rem; font-weight: 700; flex-shrink: 0;">
-                  {t('notas.inst.copiarInstrucciones')}
-                </button>
-              </div>
-              <pre style="white-space: pre-wrap; margin: 0; padding: 0.8rem; background: rgba(0,0,0,0.3); color: #cbd5e1; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.62rem; line-height: 1.55;">{ayudaPlantillaTexto()}</pre>
             </div>
           {/if}
 
@@ -4886,21 +4781,6 @@ ni plantilla del constructor en la BD.`,
           <p style="margin: 0.75rem 0 0; color: #64748b; font-size: 0.68rem; text-align: center;">
             {t('notas.inst.pie')}
           </p>
-
-          <!-- Guía plantilla Excel -->
-          <div style="margin-top: 0.75rem; padding: 0.7rem 0.8rem; background: rgba(34,197,94,0.06); border: 1px dashed rgba(34,197,94,0.35); border-radius: 12px;">
-            <div style="color: #86efac; font-weight: 700; font-size: 0.72rem; margin-bottom: 0.4rem;">{t('notas.inst.guiaTitulo')}</div>
-            <p style="margin: 0 0 0.4rem; color: #94a3b8; font-size: 0.68rem; line-height: 1.5;">
-              {t('notas.inst.guia1a')}<span style="color:#86efac;font-weight:700;">XLS</span>{t('notas.inst.guia1b')}<span style="color:#e2e8f0;">{t('notas.inst.guia1diseno')}</span>{t('notas.inst.guia1c')}
-            </p>
-            <div style="font-family: monospace; font-size: 0.62rem; color: #86efac; line-height: 1.6;">
-              {'{COLEGIO}'} {'{ANO}'} {'{CORTE}'} {'{ASIGNATURA}'} {'{GRADO}'} {'{SECCION}'}<br>
-              {'{IND_ORDEN}'} {'{IND_TEXTO}'} {'{CRITERIOS_LISTA}'}
-            </div>
-            <p style="margin: 0.4rem 0 0; color: #94a3b8; font-size: 0.66rem; line-height: 1.5;">
-              <span style="color:#e2e8f0;">{t('notas.inst.guia2a')}</span>{t('notas.inst.guia2b')}<span style="font-family: monospace; color:#86efac;">{'{{FILAS}}'}</span>{t('notas.inst.guia2c')}<span style="font-family: monospace; color:#86efac;">{'{NUM} {NOMBRE} {SEXO} {LETRA_1} {LETRA_2} … {VAL_IND}'}</span>{t('notas.inst.guia2d')}
-            </p>
-          </div>
         </div>
       </div>
     {/if}

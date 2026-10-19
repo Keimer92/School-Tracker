@@ -103,6 +103,15 @@ export const BORDE_FINO: ExcelBorder = {
   right: { style: 'thin', color: { argb: argb(PALETA.borde) } },
 };
 
+/** Borde fino NEGRO: cuadrículas de instrumentos (el gris se ve desvaído al
+ *  imprimir y el usuario pidió bordes totalmente negros, como en el PDF). */
+export const BORDE_NEGRO: ExcelBorder = {
+  top: { style: 'thin', color: { argb: 'FF000000' } },
+  bottom: { style: 'thin', color: { argb: 'FF000000' } },
+  left: { style: 'thin', color: { argb: 'FF000000' } },
+  right: { style: 'thin', color: { argb: 'FF000000' } },
+};
+
 export function relleno(colorHex: string): ExcelFill {
   return { type: 'pattern', pattern: 'solid', fgColor: { argb: argb(colorHex) } };
 }

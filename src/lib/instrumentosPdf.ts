@@ -4,8 +4,8 @@ import { writeFile, mkdir } from '@tauri-apps/plugin-fs';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { aFileURL, esAndroid, unirRuta } from './platform';
 // Importe SOLO de tipos: no hay ciclo en runtime (el otro lado también importa tipos).
-import type { PlantillaDefinicion, PlantillaGrid, TokenDatos } from './instrumentoPlantilla';
-import { resolverTokens, columnasAIQuitar, fechaHoyDDMM } from './instrumentoPlantilla';
+import type { InstrumentoColores, PlantillaDefinicion, PlantillaGrid, TokenDatos } from './instrumentoPlantilla';
+import { resolverTokens, columnasAIQuitar, fechaHoyDDMM, colorDeCelda, centrarCelda } from './instrumentoPlantilla';
 import { dibujarTitulo, dibujarChips, CHIP_INFO, CHIP_ROSA, CHIP_NEUTRO } from './pdfChrome';
 
 /**
@@ -64,6 +64,11 @@ export interface InstrumentoInput {
   /** Contexto CUALITATIVO (grado/asignatura): la escala es AA/AS/AF — el AI
    *  no aplica y la plantilla colapsa sus columnas {AI}. */
   cualitativo?: boolean;
+  /**
+   * Colores del sistema (notas por sigla + fuente por sexo). Sin esto el PDF
+   * sale en negro; lo aporta NotasPage con `gradeConfigs` y Ajustes.
+   */
+  colores?: InstrumentoColores;
   /**
    * Plantilla del constructor visual (tabla `instrumento_plantilla`, BD).
    * Opcional: sin plantilla se usa el diseño por defecto del tipo. Solo aporta
@@ -372,10 +377,14 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
   const wDe = (c0: number, cs: number) => cumW[Math.min(c0 + cs, numCols)] - cumW[c0];
 
   // ── Filas de salida (con expansión de la fila de estudiantes) ──
-  type CelOut = { texto: string; c0: number; cs: number; rs: number };
-  type FilaOut = { celdas: CelOut[]; estudiante: boolean };
+  // `rs` (rowspan) se dibuja de verdad: la celda de la fila r ocupa la altura
+  // sumada de esa fila y las siguientes, y las filas de abajo NO vuelven a
+  // pintarla (así no quedan "huecos" ni se duplican bordes). Sin esto, un merge
+  // vertical dejaba la fila de abajo en blanco.
+  type CelOut = { texto: string; c0: number; cs: number; rs: number; centrar: boolean; color?: string };
+  type FilaOut = { celdas: CelOut[]; estudiante: boolean; r: number };
   const filas: FilaOut[] = [];
-  const filaLogical = (r: number, est?: { n: number; nombre: string; letras: string[]; valoracion: string; total?: string; nf?: string; tcs?: string[] }): FilaOut | null => {
+  const filaLogical = (r: number, est?: { n: number; nombre: string; sexo?: string; letras: string[]; valoracion: string; total?: string; nf?: string; tcs?: string[] }): FilaOut | null => {
     const d: TokenDatos = est ? { ...base, est } : base;
     const celdas: CelOut[] = [];
     for (const [k, cel] of Object.entries(g.celdas)) {
@@ -386,14 +395,19 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
       const span: number[] = [];
       for (let cc = oldC0; cc < oldC0 + oldCs; cc++) if (!quitar.has(cc)) span.push(cc);
       if (span.length === 0) continue;
+      const raw = cel.v ?? "";
+      const texto = resolverTokens(raw, d);
       celdas.push({
-        texto: resolverTokens(cel.v ?? "", d),
+        texto,
         c0: newIdx.get(span[0])!,
         cs: span.length,
         rs: cel.rs ?? 1,
+        centrar: centrarCelda(raw),
+        // Solo la fila de estudiantes lleva color: encabezados en negro.
+        color: est ? colorDeCelda(raw, texto, input.colores, est.sexo) : undefined,
       });
     }
-    return celdas.length > 0 ? { celdas, estudiante: !!est } : null;
+    return celdas.length > 0 ? { celdas, estudiante: !!est, r } : null;
   };
 
   for (let r = 0; r < g.filas; r++) {
@@ -403,6 +417,7 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
         const f = filaLogical(r, {
           n: i + 1,
           nombre: e.nombre,
+          sexo: e.sexo,
           letras: input.criterios.map((_, ci) => e.letras[ci] ?? ""),
           valoracion: e.valoracion || "",
           total: e.total || "",
@@ -429,8 +444,9 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
   const ALTO = FONTE * 0.3528 + 2.2; // línea de texto + padding (mm)
   let y = encabezadoInstrumento(doc, input) + 2;
 
-  const dibujarFila = (f: FilaOut): boolean => {
-    // Calcular altura de fila: máximo de líneas envueltas dentro del ancho fusionado.
+  // Altura natural de cada fila (1 pasada, antes de dibujar) para poder pintar
+  // los rowspans con la altura real.
+  const altoDe = (f: FilaOut): number => {
     let alto = ALTO;
     if (!f.estudiante) {
       for (const cel of f.celdas) {
@@ -439,19 +455,45 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
         alto = Math.max(alto, lines * (FONTE * 0.3528) + 2.4);
       }
     }
+    return alto;
+  };
+  const altos = filas.map(altoDe);
+
+  const dibujarFila = (i: number): boolean => {
+    const f = filas[i];
+    // Altura total de la fila: si una celda abarca varias, manda la suma.
+    let alto = altos[i];
+    for (const cel of f.celdas) {
+      if (cel.rs <= 1) continue;
+      let suma = 0;
+      for (let k2 = i; k2 < i + cel.rs && k2 < altos.length; k2++) suma += altos[k2];
+      alto = Math.max(alto, suma);
+    }
     if (y + alto > ph - 12) return false;
     doc.setFont("helvetica", f.estudiante ? "normal" : "bold");
     doc.setFontSize(f.estudiante ? FONTE - 1 : FONTE - 0.5);
+    // Bordes NEGROS (no grises) en toda la cuadrícula.
+    doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.35);
     for (const cel of f.celdas) {
       const x = xDe(cel.c0);
       const w = wDe(cel.c0, cel.cs);
-      doc.rect(x, y, w, alto);
+      // Alto de la celda: el suyo, o la suma de las filas que abarca (rowspan).
+      let altoCel = altos[i];
+      if (cel.rs > 1) {
+        altoCel = 0;
+        for (let k2 = i; k2 < i + cel.rs && k2 < altos.length; k2++) altoCel += altos[k2];
+      }
+      doc.rect(x, y, w, altoCel);
       if (cel.texto) {
         const lines: string[] = (doc as any).splitTextToSize(cel.texto, w - 2.6);
         const hLinea = FONTE * 0.3528;
-        const ty = y + (alto - lines.length * hLinea) / 2 + hLinea - 0.8;
-        doc.text(lines, x + 1.3, ty);
+        const ty = y + (altoCel - lines.length * hLinea) / 2 + hLinea - 0.8;
+        // Convención de colores del sistema (nota/sexo); negro por defecto.
+        if (cel.color) doc.setTextColor(cel.color);
+        else doc.setTextColor(0, 0, 0);
+        if (cel.centrar) doc.text(lines, x + w / 2, ty, { align: "center" });
+        else doc.text(lines, x + 1.3, ty);
       }
     }
     y += alto;
@@ -459,16 +501,16 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
   };
 
   for (let i = 0; i < filas.length; i++) {
-    if (dibujarFila(filas[i])) continue;
+    if (dibujarFila(i)) continue;
     // Sin espacio: página nueva, repetir encabezados (previos a la fila de
     // estudiantes) y reintentar la fila.
     doc.addPage();
     // Repetir el encabezado estándar en cada página nueva.
     y = encabezadoInstrumento(doc, input) + 2;
-    for (let hh = 0; hh < numHeader && hh < i; hh++) dibujarFila(filas[hh]);
-    if (!dibujarFila(filas[i])) {
+    for (let hh = 0; hh < numHeader && hh < i; hh++) dibujarFila(hh);
+    if (!dibujarFila(i)) {
       // La fila sola demasiado larga: se dibuja recortada en vez de colgarse.
-      dibujarFila(filas[i]);
+      dibujarFila(i);
     }
   }
 }
