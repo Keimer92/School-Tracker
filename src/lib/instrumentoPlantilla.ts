@@ -59,6 +59,8 @@ export interface TokenDatos {
     total?: string;
     /** Nota Final del corte "pts + sigla"; '' sin notas. */
     nf?: string;
+    /** Total Criterio {TC_k}: pts de cada criterio (0-based), '' sin nota. */
+    tcs?: string[];
   };
 }
 
@@ -83,7 +85,7 @@ export function resolverTokens(texto: string, d: TokenDatos): string {
     .replace(/\{FECHA\}/g, fechaHoy())
     .replace(/\{IND_N\}/g, String(d.indN))
     .replace(/\{IND_DESC\}/g, d.indDesc);
-  for (let k = 1; k <= 5; k++) {
+  for (let k = 1; k <= 3; k++) {
     const desc = d.criterios[k - 1];
     // Criterio inexistente → el texto se colapsa a vacío (no imprime marcador).
     o = o.replace(new RegExp(`\\{CRIT_${k}\\}`, "g"), desc || `Criterio ${k}`);
@@ -102,8 +104,11 @@ export function resolverTokens(texto: string, d: TokenDatos): string {
       .replace(/\{VALORACION\}/g, d.est.valoracion)
       .replace(/\{TOTAL\}/g, d.est.total || "")
       .replace(/\{NF\}/g, d.est.nf || "");
-    for (let k = 1; k <= 5; k++) {
+    for (let k = 1; k <= 3; k++) {
       o = o.replace(new RegExp(`\\{LETRA_${k}\\}`, "g"), d.est.letras[k - 1] ?? "");
+      // {TC_k}: Total Criterio (pts de ese criterio, misma fórmula que TC en la
+      // tabla de notas).
+      o = o.replace(new RegExp(`\\{TC_${k}\\}`, "g"), d.est.tcs?.[k - 1] ?? "");
     }
   } else {
     // Fila de cabecera: la fila de estudiantes no se repite, tokens vacíos.
@@ -113,8 +118,9 @@ export function resolverTokens(texto: string, d: TokenDatos): string {
       .replace(/\{VALORACION\}/g, "")
       .replace(/\{TOTAL\}/g, "")
       .replace(/\{NF\}/g, "");
-    for (let k = 1; k <= 5; k++) {
+    for (let k = 1; k <= 3; k++) {
       o = o.replace(new RegExp(`\\{LETRA_${k}\\}`, "g"), "");
+      o = o.replace(new RegExp(`\\{TC_${k}\\}`, "g"), "");
     }
   }
   return o;
@@ -201,29 +207,33 @@ export function parseDefinicion(raw: string | null | undefined): PlantillaDefini
  *  cuadrícula pura es la tabla: Nº · Estudiante · criterios · Valoración. */
 export function gridPresetChecklist(): PlantillaGrid {
   const celdas: Record<string, GridCelda> = {
-    "0:0": { v: "Nº" },
-    "0:1": { v: "Estudiante" },
-    "0:14": { v: "Valoración" },
-    "0:15": { v: "Total" },
-    "0:16": { v: "NF" },
-    // Row 1: fila dedicada de escala (AA/AS/AF/AI) por cada criterio.
+    // Encabezados verticales (span las 2 filas de cabecera), como en la tabla
+    // de NotasPage: Nº · Estudiante · [criterios] · TC por criterio · Total · NF.
+    "0:0": { v: "Nº", rs: 2 },
+    "0:1": { v: "Estudiante", rs: 2 },
+    "0:17": { v: "Total", rs: 2 },
+    "0:18": { v: "NF", rs: 2 },
+    // Fila 1: escala dedicada (AA/AS/AF/AI) bajo cada criterio.
     "2:0": { v: "{N}" },
     "2:1": { v: "{ESTUDIANTE}" },
-    "2:14": { v: "{VALORACION}" },
-    "2:15": { v: "{TOTAL}" },
-    "2:16": { v: "{NF}" },
+    "2:17": { v: "{TOTAL}" },
+    "2:18": { v: "{NF}" },
   };
-  // Grupos por criterio: 4 columnas de escala (AA/AS/AF/AI) cada uno.
+  // Por criterio: 4 columnas de escala (AA/AS/AF/AI) + 1 columna TC (Total
+  // Criterio, abreviado) — misma convención que la tabla de notas (regla de
+  // negocio: máx 3 criterios por indicador, NUNCA van CRIT_4/CRIT_5).
   const ESCALA = ["{AA}", "{AS}", "{AF}", "{AI}"];
   for (let k = 0; k < 3; k++) {
-    const base = 2 + k * 4;
+    const base = 2 + k * 5;
     celdas[`0:${base}`] = { v: `{CRIT_${k + 1}}`, cs: 4 };
-    // Fila 1: encabezado de escala individual por columna.
+    // TC abarca las 2 filas de cabecera (su texto ya es la abreviatura).
+    celdas[`0:${base + 4}`] = { v: "TC", rs: 2 };
     ESCALA.forEach((e, i) => { celdas[`1:${base + i}`] = { v: e }; });
-    // Fila 2: letra del estudiante (merge de 4 cols) - expandida por cada alumno.
+    // Fila 2: letra del estudiante (merge de las 4 cols de escala) + puntos TC.
     celdas[`2:${base}`] = { v: `{LETRA_${k + 1}}`, cs: 4 };
+    celdas[`2:${base + 4}`] = { v: `{TC_${k + 1}}` };
   }
-  return { filas: 3, cols: 17, filaEstudiantes: 2, celdas };
+  return { filas: 3, cols: 19, filaEstudiantes: 2, celdas };
 }
 
 export interface InstrumentoPlantilla {

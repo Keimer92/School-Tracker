@@ -379,15 +379,15 @@
           <option value="{'{FECHA}'}">{t('pl.tok.fecha')}</option>
           <option value="{'{IND_N}'}">{t('pl.tok.indN')}</option>
           <option value="{'{IND_DESC}'}">{t('pl.tok.indDesc')}</option>
-          {#each [1, 2, 3, 4, 5] as n (n)}
+          {#each [1, 2, 3] as n (n)}
             <option value="{'{CRIT_' + n + '}'}">{t('pl.tok.crit')} {n}</option>
           {/each}
           {#each [1, 2, 3] as n (n)}
             <option value="{'{LETRA_' + n + '}'}">{t('pl.tok.letra')} {n}</option>
+            <option value="{'{TC_' + n + '}'}">{t('pl.tok.tc')} {n}</option>
           {/each}
           <option value="{'{N}'}">{t('pl.tok.num')}</option>
           <option value="{'{ESTUDIANTE}'}">{t('pl.tok.estudiante')}</option>
-          <option value="{'{VALORACION}'}">{t('pl.tok.valoracion')}</option>
           <option value="{'{TOTAL}'}">{t('pl.tok.total')}</option>
           <option value="{'{NF}'}">{t('pl.tok.nf')}</option>
           <option value="{'{AA}'}">{t('pl.tok.aa')}</option>
@@ -539,7 +539,18 @@
   .gr-tool-rojo:hover { border-color: rgba(239,68,68,0.5); color: #fca5a5; }
   .gr-tool-rojo:disabled { opacity: 0.4; cursor: not-allowed; }
   .gr-sep { width: 1px; height: 1.2rem; background: rgba(255,255,255,0.12); }
-  .gr-token { color-scheme: dark; }
+  /* El desplegable del popup nativo salía con fondo claro (WebView dibuja la
+   * lista de <option> sin heredar el fondo de la página): fondo/texto
+   * explícitos para que las opciones del dropdown se lean en modo oscuro. */
+  .gr-token {
+    color-scheme: dark;
+    background: rgba(20, 24, 31, 0.95);
+    color: #cbd5e1;
+  }
+  .gr-token :global(option) {
+    background: rgba(20, 24, 31, 1);
+    color: #cbd5e1;
+  }
 
   .gr-wrap {
     overflow-x: auto; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;

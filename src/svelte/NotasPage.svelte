@@ -1818,6 +1818,14 @@ import { primerColegio } from "../lib/catalogo";
     return sigla ? `${pts} ${sigla}` : String(pts);
   }
 
+  /** Puntos de UN criterio para un estudiante (misma fórmula de la tabla:
+   *  pts redondeados por notaMapping; '' si no hay nota). Para el token {TC_k}. */
+  function tcCriterioDeEst(c: Criterio, estId: number): string {
+    const qv = (notasCualitativas[`${estId}-${c.id}`] || '').toUpperCase();
+    if (!qv || !['AA', 'AS', 'AF', 'AI'].includes(qv)) return '';
+    return String(Math.round(c.puntajeMaximo * (notaMapping[qv] || 0)));
+  }
+
   function buildInstrumentoInput(ind: Indicador): InstrumentoInput {
     const estudiantes_input = estudiantes.map(est => {
       const letras = letrasIndicadorDeEst(ind, est.id);
@@ -1830,6 +1838,7 @@ import { primerColegio } from "../lib/catalogo";
         valoracion: calcularNotaCualitativaFinal(validas),
         total: totalIndText(ind, est.id),
         nf: nfText(est.id),
+        tcs: ind.criterios.map(c => tcCriterioDeEst(c, est.id)),
       };
     });
     return {
@@ -1858,17 +1867,18 @@ import { primerColegio } from "../lib/catalogo";
       indicadorOrden: ind.orden,
       indicadorDescripcion: ind.descripcion,
       criterios: ind.criterios.map(c => ({ orden: c.orden, descripcion: c.descripcion, puntajeMaximo: c.puntajeMaximo })),
-      estudiantes: estudiantes.map(est => ({
-        nombre: est.nombre,
-        sexo: (est as any).sexo || '',
-        letras: ind.criterios.map(c => (notasCualitativas[`${est.id}-${c.id}`] || '').toUpperCase()),
-        valoracion: calcularNotaCualitativaFinal(
-          ind.criterios.map(c => (notasCualitativas[`${est.id}-${c.id}`] || '').toUpperCase())
-            .filter(l => ['AA','AS','AF','AI'].includes(l))
-        ),
-        total: totalIndText(ind, est.id),
-        nf: nfText(est.id),
-      })),
+      estudiantes: estudiantes.map(est => {
+        const letrasEst = ind.criterios.map(c => (notasCualitativas[`${est.id}-${c.id}`] || '').toUpperCase());
+        return {
+          nombre: est.nombre,
+          sexo: (est as any).sexo || '',
+          letras: letrasEst,
+          valoracion: calcularNotaCualitativaFinal(letrasEst.filter(l => ['AA','AS','AF','AI'].includes(l))),
+          total: totalIndText(ind, est.id),
+          nf: nfText(est.id),
+          tcs: ind.criterios.map(c => tcCriterioDeEst(c, est.id)),
+        };
+      }),
       cualitativo: isQualitative,
     };
   }

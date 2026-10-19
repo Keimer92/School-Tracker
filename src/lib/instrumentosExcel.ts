@@ -57,6 +57,10 @@ export interface ExcelInstrumentoEstudiante {
   sexo?: string;
   letras: (string | '')[]; // una letra por criterio
   valoracion: string;
+  total?: string;
+  nf?: string;
+  /** Total Criterio {TC_k}: pts por criterio, mismo orden ('' sin nota). */
+  tcs?: string[];
 }
 
 export interface ExcelInstrumentoInput {
@@ -424,7 +428,7 @@ function renderGridXlsx(wb: any, grid: PlantillaGrid, def: PlantillaDefinicion, 
         ? (estudiantes as ExcelInstrumentoInput['estudiantes'])[vi]
         : undefined;
       const dEst: TokenDatos = est
-        ? { ...datos, est: { n: vi + 1, nombre: est.nombre, letras: est.letras.map(l => l ?? ''), valoracion: est.valoracion || '' } }
+        ? { ...datos, est: { n: vi + 1, nombre: est.nombre, letras: est.letras.map(l => l ?? ''), valoracion: est.valoracion || '', total: (est as any).total || '', nf: (est as any).nf || '', tcs: (est as any).tcs || [] } }
         : datos;
       outRow += 1; // fila de salida (1-based)
       for (const cel of celdasPorFila.get(r) ?? []) {

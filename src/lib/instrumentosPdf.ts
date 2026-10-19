@@ -41,6 +41,8 @@ export interface InstrumentoEstudiante {
   total?: string;
   /** Nota Final del corte "pts + sigla"; '' si no hay notas. */
   nf?: string;
+  /** Total Criterio {TC_k}: pts de cada criterio, mismo orden ('' sin nota). */
+  tcs?: string[];
 }
 
 export interface InstrumentoMeta {
@@ -373,7 +375,7 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
   type CelOut = { texto: string; c0: number; cs: number; rs: number };
   type FilaOut = { celdas: CelOut[]; estudiante: boolean };
   const filas: FilaOut[] = [];
-  const filaLogical = (r: number, est?: { n: number; nombre: string; letras: string[]; valoracion: string; total?: string; nf?: string }): FilaOut | null => {
+  const filaLogical = (r: number, est?: { n: number; nombre: string; letras: string[]; valoracion: string; total?: string; nf?: string; tcs?: string[] }): FilaOut | null => {
     const d: TokenDatos = est ? { ...base, est } : base;
     const celdas: CelOut[] = [];
     for (const [k, cel] of Object.entries(g.celdas)) {
@@ -405,6 +407,7 @@ function construirGrid(doc: any, input: InstrumentoInput): void {
           valoracion: e.valoracion || "",
           total: e.total || "",
           nf: e.nf || "",
+          tcs: input.criterios.map((_, ci) => e.tcs?.[ci] ?? ""),
         });
         if (f) filas.push(f);
       });
