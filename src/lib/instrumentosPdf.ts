@@ -618,6 +618,24 @@ export async function generarInstrumentoPDF(input: InstrumentoInput): Promise<st
   return await guardarYEntregar(doc, fileName, sub);
 }
 
+/**
+ * Vista previa del constructor de plantillas: dibuja el instrumento con datos
+ * FICTICIOS y lo guarda en una carpeta propia (`.../Instrumentos/Vista previa/`)
+ * para no ensuciar ni pisar los instrumentos reales. Devuelve la ruta.
+ */
+export async function generarInstrumentoPDFPreview(input: InstrumentoInput): Promise<string> {
+  const { default: jsPDF } = await import('jspdf');
+  const autoTable = await loadAutoTable();
+  const doc = new jsPDF({
+    orientation: orientacionDe(input.plantilla, input.tipo),
+    unit: 'mm',
+    format: 'letter',
+  });
+  construir(doc, input, autoTable);
+  const nombre = sanitize(`Vista_previa_${input.plantilla?.titulo || tipoLabel(input.tipo)}.pdf`);
+  return await guardarYEntregar(doc, nombre, 'Vista previa');
+}
+
 /** Genera TODOS los inputs en un solo PDF (sección por indicador). */
 export async function generarInstrumentosTodosPDF(inputs: InstrumentoInput[]): Promise<string> {
   if (inputs.length === 0) throw new Error('No hay instrumentos para generar');

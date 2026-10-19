@@ -221,7 +221,8 @@ function renderGridXlsx(wb: any, grid: PlantillaGrid, def: PlantillaDefinicion, 
         } else {
           celda.font = { bold: true, size: 9, color: { argb: 'FF0F172A' } };
         }
-        celda.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+        const esNombre = (cel.v || '').trim() === '{ESTUDIANTE}';
+        celda.alignment = { horizontal: esNombre ? 'left' : 'center', vertical: 'middle', wrapText: true };
         celda.border = BORDE_NEGRO;
         const rs = esEstudiante ? 1 : cel.rs;
         if (cel.cs > 1 || rs > 1) ws.mergeCells(rr1, cc1, rr1 + rs - 1, cc1 + cel.cs - 1);
@@ -310,6 +311,8 @@ function renderQuickXlsx(
     const rowIdx = fila;
     fila = escribirFila(ws, fila, valores, { banda: i % 2 === 1, centrarTodas: true });
     ws.getRow(rowIdx).height = 16; // alto fijo y pequeño (no auto-ajustar)
+    // El nombre del estudiante va a la izquierda (el resto ya va centrado).
+    ws.getCell(rowIdx, 2).alignment = { horizontal: 'left', vertical: 'middle' };
   });
 
   const leyenda = (def.leyenda || '').trim();

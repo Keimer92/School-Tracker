@@ -31,6 +31,12 @@
     type GridCelda,
   } from "../../lib/instrumentoPlantilla";
   import type { InstrumentoTipo } from "../../lib/instrumentosPdf";
+  import {
+    generarInstrumentoPDFPreview,
+    type InstrumentoInput,
+    type InstrumentoCriterio,
+    type InstrumentoEstudiante,
+  } from "../../lib/instrumentosPdf";
 
   const ACENTO = "#38bdf8";
 
@@ -51,6 +57,7 @@
   let editDef = $state<PlantillaDefinicion>(defaultDefinicion());
   let guardando = $state(false);
   let borrandoId = $state(0);
+  let previando = $state(false);
 
   // Celda seleccionada de la cuadrícula (para fusionar/borrar/arriba).
   let selR = $state(0);
@@ -274,6 +281,62 @@
     }
   }
 
+  /**
+   * Datos FICTICIOS para la vista previa: no tocan la BD. Alcanzan para ver
+   * cómo queda la PRESENTACIÓN (cuadrícula, tokens, colores de estructura).
+   */
+  function previewInput(def: PlantillaDefinicion, tipo: InstrumentoTipo): InstrumentoInput {
+    const nombres = ['Ana García', 'Luis Martínez', 'María López', 'Pedro Ramírez', 'Sofía Torres', 'Diego Fernández', 'Carla Ruiz', 'Miguel Castro'];
+    const letras = ['AA', 'AS', 'AF', 'AS', 'AA', 'AF', 'AS', 'AA'];
+    const criterios: InstrumentoCriterio[] = [1, 2, 3].map(n => ({
+      orden: n,
+      descripcion: `${t('pl.preview.crit')} ${n}`,
+      puntajeMaximo: 20,
+    }));
+    const estudiantes: InstrumentoEstudiante[] = nombres.map((nombre, i) => ({
+      id: i + 1,
+      nombre,
+      sexo: i % 2 === 0 ? 'F' : 'M',
+      letras: [letras[i], letras[(i + 1) % 8], letras[(i + 2) % 8]],
+      valoracion: 'AS',
+      total: '17 AS',
+      nf: '17 AS',
+      tcs: ['7 (AS)', '6 (AF)', '8 (AA)'],
+    }));
+    return {
+      tipo,
+      orden: 1,
+      descripcion: t('pl.preview.ind'),
+      criterios,
+      estudiantes,
+      meta: {
+        colegio: t('pl.preview.colegio'),
+        ano: '2026',
+        corte: t('pl.preview.corte'),
+        asignatura: t('pl.preview.asignatura'),
+        grado: t('pl.preview.grado'),
+        seccion: 'A',
+      },
+      cualitativo: false,
+      plantilla: def,
+    };
+  }
+
+  /** Genera el PDF de vista previa (datos de ejemplo) y lo abre. */
+  async function vistaPrevia(def: PlantillaDefinicion, tipo: InstrumentoTipo) {
+    if (previando) return;
+    previando = true;
+    try {
+      await generarInstrumentoPDFPreview(previewInput(def, tipo));
+      await emit("show-toast", { message: t('pl.ok.preview'), type: "success" });
+    } catch (e) {
+      console.error("[Plantillas] Error en vista previa:", e);
+      await emit("show-toast", { message: t('pl.err.preview', { msg: String(e) }), type: "error" });
+    } finally {
+      previando = false;
+    }
+  }
+
   function cambiar<K extends keyof PlantillaDefinicion>(k: K, v: PlantillaDefinicion[K]) {
     editDef = { ...editDef, [k]: v };
   }
@@ -309,10 +372,15 @@
                 {#if p.def.orientacion !== 'auto'}<span>· {p.def.orientacion === 'horizontal' ? t('pl.opt.horizontal') : t('pl.opt.vertical')}</span>{/if}
               </div>
             </div>
-            <div style="display:flex;gap:0.4rem;padding:0 0.9rem 0.8rem 0.9rem;">
-              <button class="pl-btn" onclick={() => abrirEditar(p)} title={t('pl.editar')}>✎</button>
+            <div class="pl-acciones">
+              <button class="pl-btn" onclick={() => vistaPrevia(p.def, p.tipo)} disabled={previando} title={t('pl.btn.preview')}>
+                <span class="pl-ico">👁</span>{t('pl.btn.preview')}
+              </button>
+              <button class="pl-btn" onclick={() => abrirEditar(p)} title={t('pl.editar')}>
+                <span class="pl-ico">✎</span>{t('pl.btn.editar')}
+              </button>
               <button class="pl-btn pl-btn-rojo" onclick={() => eliminar(p)} disabled={borrandoId === p.id} title={t('comun.eliminar')}>
-                {borrandoId === p.id ? '⏳' : '🗑'}
+                <span class="pl-ico">{borrandoId === p.id ? '⏳' : '🗑'}</span>{t('pl.btn.eliminar')}
               </button>
             </div>
           </div>
@@ -330,7 +398,12 @@
         <h3 style="margin:0;color:#f1f5f9;font-size:1.05rem;font-weight:700;">
           {editandoId ? t('pl.editor.tituloEditar') : t('pl.editor.tituloCrear')}
         </h3>
-        <button onclick={cerrarEditor} style="background:transparent;border:none;color:#64748b;font-size:1.2rem;cursor:pointer;">✕</button>
+        <div style="display:flex;align-items:center;gap:0.5rem;">
+          <button class="pl-btn-preview" onclick={() => vistaPrevia(editDef, editTipo)} disabled={previando}>
+            <span class="pl-ico">{previando ? '⏳' : '👁'}</span>{t('pl.editor.preview')}
+          </button>
+          <button onclick={cerrarEditor} style="background:transparent;border:none;color:#64748b;font-size:1.2rem;cursor:pointer;">✕</button>
+        </div>
       </div>
 
       <!-- Nombre + tipo + orientación -->
@@ -477,15 +550,28 @@
   .pl-card:hover { border-color: rgba(56,189,248,0.3); background: rgba(56,189,248,0.05); }
   .pl-card-barra { position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: #38bdf8; opacity: 0.8; }
   .pl-tipo { color: #7dd3fc; font-size: 0.72rem; font-weight: 600; }
+  .pl-acciones { display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0 0.9rem 0.8rem 0.9rem; }
   .pl-btn {
-    flex: 1; padding: 0.4rem; border-radius: 8px;
+    flex: 1 1 auto; min-width: 0; display: inline-flex; align-items: center; justify-content: center;
+    gap: 0.35rem; padding: 0.45rem 0.7rem; border-radius: 9px;
     border: 1px solid rgba(56,189,248,0.25); background: rgba(56,189,248,0.1);
-    color: #7dd3fc; cursor: pointer; font-size: 0.8rem; transition: all 0.2s ease;
+    color: #7dd3fc; cursor: pointer; font-size: 0.8rem; font-weight: 600;
+    white-space: nowrap; transition: all 0.2s ease;
   }
   .pl-btn:hover { background: rgba(56,189,248,0.2); }
+  .pl-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  /* Íconos un poco más grandes que el texto: se leen de un vistazo. */
+  .pl-ico { font-size: 1.05rem; line-height: 1; }
   .pl-btn-rojo { border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.08); color: #fca5a5; }
   .pl-btn-rojo:hover { background: rgba(239,68,68,0.18); }
   .pl-btn-rojo:disabled { opacity: 0.5; cursor: not-allowed; }
+  .pl-btn-preview {
+    display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.45rem 0.9rem;
+    border-radius: 10px; border: 1px solid rgba(56,189,248,0.35); background: rgba(56,189,248,0.12);
+    color: #7dd3fc; font-size: 0.78rem; font-weight: 700; cursor: pointer; transition: all 0.2s ease;
+  }
+  .pl-btn-preview:hover { background: rgba(56,189,248,0.22); }
+  .pl-btn-preview:disabled { opacity: 0.6; cursor: not-allowed; }
 
   .pl-label {
     display: block; margin: 0 0 0.3rem 0;

@@ -168,7 +168,11 @@ export function colorDeCelda(
  */
 const RE_CENTRAR = /^\{(N|LETRA_\d|TC_\d|TOTAL|NF|VALORACION|AA|AS|AF|AI)\}$/;
 export function centrarCelda(raw: string): boolean {
-  return RE_CENTRAR.test((raw || "").trim());
+  const r = (raw || "").trim();
+  // El NOMBRE del estudiante va SIEMPRE a la izquierda: aunque la celda combine
+  // {ESTUDIANTE} con otro texto, se lee mucho mejor alineado a la izquierda.
+  if (r.includes("{ESTUDIANTE}")) return false;
+  return RE_CENTRAR.test(r);
 }
 
 /** Columnas de la cuadrícula que representan la nota AI de la escala: celdas
