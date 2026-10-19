@@ -2196,11 +2196,18 @@ lee. Lo que los separa:
     tipografía de los `<select>`), que es donde está en escritorio (es un filtro).
     Antes quedaba además en la fila de acciones → **se veía duplicado**.
   - La fila de acciones `.android-actions` es una **rejilla**, no un flex que
-    envuelve ni un scroll lateral: en Android es **2 columnas (2×2)** —con
-    `class:acc-grid` y las reglas `:global(.btn-mod…)` en el `<style>` de la
-    página, en vez de reusar `<BtnRail>` porque la fila comparte markup con
-    escritorio y lleva el `pop-wrap` + su popover portalado—, y en escritorio
-    sigue siendo el flex de siempre. Además, **Guardar se renderiza en TODOS los
+    envuelve ni un scroll lateral: en Android es **UNA sola fila de 4 columnas**
+    (Guardar / Sin Clases / Limpiar / Rellenar) —con `class:acc-grid` y las reglas
+    `:global(.btn-mod…)` en el `<style>` de la página, en vez de reusar `<BtnRail>`
+    porque la fila comparte markup con escritorio y lleva el `pop-wrap` + su
+    popover portalado—, y en escritorio sigue siendo el flex de siempre. Para que
+    los 4 entren en una línea, `.acc-grid .btn-mod` va **apilado** (icono arriba,
+    etiqueta abajo), **oculta la línea de detalle** (`sub: display:none`) y reduce
+    tipografía/padding (`min-height:36px; font-size:0.62rem`): la fila baja de
+    ~87px (2×42+gap) a ~36px y ese alto queda para el panel de asistencia.
+    ⚠️ Los `BotonMod` de esa fila van **sin `compacto`**: ese prop inyecta
+    `padding` en el `style` en línea y ganaría al CSS de la rejilla (GOTCHA del
+    repo). Además, **Guardar se renderiza en TODOS los
     períodos** en Android: antes solo salía en diario, así que en semanal/mensual
     el borrador de `draftMulti` no tenía forma de persistirse desde el teléfono
     (era un bug real, no un rediseño). El estado `dpAbierto` (que existía para
