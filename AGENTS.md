@@ -1467,12 +1467,13 @@ Plantillas editable).
   nombres de la escala NO se traducen: son datos del usuario.
 - **Toggle Cuantitativo / Cualitativo en la vista previa (2026-10)**: control
   segmentado en el modal. En **cualitativo** se aplica la regla compartida: se
-  ELIMINAN las columnas `{AI}` y `{TOTAL}` y **la columna TC deja de ser dato y
-  pasa a ser la franja separadora entre criterios** (celda vacía con relleno
-  suave); el TC del ÚLTIMO criterio se ELIMINA (ya no le sigue el Total). Ver
-  `columnasCualitativo` en `instrumentoPlantilla.ts`; lo usan la vista previa,
-  `instrumentosPdf.ts` (`construirGrid`, relleno del `sep`) e
-  `instrumentosExcel.ts` (`renderGridXlsx`, `fill` + ancho fijo).
+  ELIMINAN las columnas `{AI}` y **la columna TC deja de ser dato y pasa a ser la
+  franja separadora entre criterios** (celda vacía con relleno suave); la columna
+  **Total SE CONSERVA**, pero `{TOTAL}` resuelve a la **nota cualitativa (la
+  sigla)** en vez de "pts sigla" (ver `resolverTokens`). Ver `columnasCualitativo`
+  en `instrumentoPlantilla.ts`; lo usan la vista previa, `instrumentosPdf.ts`
+  (`construirGrid`, relleno del `sep`) e `instrumentosExcel.ts`
+  (`renderGridXlsx`, `fill` + ancho fijo).
 - **Nota Final (NF) ELIMINADA del preset (2026-10)**: el preset de cuadrícula ya
   **no** tiene la columna NF (pasó de 19 a **18 columnas**). `parseDefinicion`
   normaliza las plantillas viejas con `sinColumnaNF`: si la ÚLTIMA columna tiene

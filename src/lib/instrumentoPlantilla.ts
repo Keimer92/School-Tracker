@@ -102,7 +102,10 @@ export function resolverTokens(texto: string, d: TokenDatos): string {
       .replace(/\{N\}/g, String(d.est.n))
       .replace(/\{ESTUDIANTE\}/g, d.est.nombre)
       .replace(/\{VALORACION\}/g, d.est.valoracion)
-      .replace(/\{TOTAL\}/g, d.est.total || "")
+      // {TOTAL}: en CUANTITATIVO muestra "pts sigla" (ej. "17 AS"); en
+      // CUALITATIVO (grado/asignatura cualitativa) solo la nota cualitativa
+      // (la sigla), porque ahí no se manejan puntos.
+      .replace(/\{TOTAL\}/g, d.sinAI ? (d.est.valoracion || "") : (d.est.total || ""))
       .replace(/\{NF\}/g, d.est.nf || "");
     for (let k = 1; k <= 3; k++) {
       o = o.replace(new RegExp(`\\{LETRA_${k}\\}`, "g"), d.est.letras[k - 1] ?? "");
@@ -208,15 +211,16 @@ export function columnasTotal(g: PlantillaGrid): Set<number> {
 
 /**
  * Reparto de columnas para un contexto CUALITATIVO:
- * - `quitar`: columnas que DESAPARECEN de la salida (AI y Total, más el TC del
- *   ÚLTIMO criterio — ver abajo).
+ * - `quitar`: columnas que DESAPARECEN de la salida (solo las {AI}: el AI no
+ *   aplica en ese régimen).
  * - `separador`: columnas TC que quedan como FRANJA separadora vacía entre
  *   criterios (su contenido no se dibuja).
  *
- * El TC de un criterio es separador solo si le queda alguna columna de DATOS a
- * su derecha (el criterio siguiente). El del último criterio no la tiene: el
- * Total —la columna que le seguía— se elimina, así que quedaría una banda gris
- * pegada al borde; por eso ese TC se ELIMINA.
+ * La columna **TOTAL se conserva**: en cualitativo `{TOTAL}` resuelve a la nota
+ * cualitativa (la sigla), no a los puntos (ver `resolverTokens`). Por eso cada
+ * TC tiene siempre una columna de datos a su derecha (otro criterio o el Total)
+ * y todas las TC quedan como franja separadora; si alguna no tuviera datos a la
+ * derecha, se eliminaría.
  */
 export function columnasCualitativo(
   g: PlantillaGrid,
@@ -226,7 +230,6 @@ export function columnasCualitativo(
   const separador = new Set<number>();
   if (!cualitativo) return { quitar, separador };
   for (const c of columnasAI(g)) quitar.add(c);
-  for (const c of columnasTotal(g)) quitar.add(c);
   const tc = columnasTC(g);
   for (const c of tc) {
     let tieneDatosDespues = false;
