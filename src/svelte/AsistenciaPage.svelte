@@ -245,7 +245,6 @@ import { fmtFechaCorta, fmtFechaLarga, fmtFechaNica, nombreMes } from "../lib/fe
         ? t('asis.guardado.sinGuardar')
         : t('asis.guardado.limpio'),
     title: t('asis.btn.guardar'),
-    compacto: isAndroidMobile,
   });
   let pageVisible = $state(true);
 
@@ -2809,13 +2808,14 @@ $effect(() => {
               </button>
             </div>
           {:else}
-          <!-- Android: rejilla de 2 columnas (2×2, alineadas), no una fila con
-               scroll lateral. El control de fecha/semana/mes vive en el
-               `FiltroRail` de arriba —es un filtro, igual que en escritorio—,
-               así que acá NO se repite. -->
+          <!-- Android: UNA sola fila de 4 (Guardar / Sin Clases / Limpiar /
+               Rellenar) alineadas, no una rejilla 2×2 ni una fila con scroll
+               lateral. El control de fecha/semana/mes vive en el `FiltroRail` de
+               arriba —es un filtro, igual que en escritorio—, así que acá NO se
+               repite. -->
           <div class="android-actions" class:acc-grid={isAndroidMobile}
             style="{isAndroidMobile
-              ? 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px;width:100%;flex-shrink:0;align-items:stretch;'
+              ? 'display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;width:100%;flex-shrink:0;align-items:stretch;'
               : 'display:flex;gap:0.3rem;align-items:stretch;flex-shrink:1;min-width:0;flex-wrap:wrap;padding-right:0.3rem;overflow-x:visible'}">
           {#if isAndroidMobile}
             <!-- Guardar va SIEMPRE en Android (diario, semanal y mensual): antes solo
@@ -2839,7 +2839,6 @@ $effect(() => {
               tono: sinClasesActivo ? 'ambar' : 'pizarra',
               sub: sinClasesActivo ? t('asis.sinClases.todoPeriodo') : (periodoEfectivo === 'mensual' ? t('asis.sinClases.elegirSemana') : periodoEfectivo === 'semanal' ? t('asis.sinClases.semanaN', { n: semanaActiva }) : fmtDM(selectedFecha)),
               title: periodoEfectivo === 'mensual' ? t('asis.sinClases.descSemana') : t('asis.sinClases.descPeriodo'),
-              compacto: isAndroidMobile,
             }} />
           </div>
           {#if popSinClasesAbierta}
@@ -2927,7 +2926,6 @@ $effect(() => {
               icono: '🧹', etiqueta: t('asis.btn.limpiar'), tono: 'pizarra',
               sub: getActiveStudentCount() === 0 ? t('asis.limpiar.mensual') : t('asis.limpiar.conEstado', { n: getActiveStudentCount() }),
               title: t('asis.limpiar.diario'),
-              compacto: isAndroidMobile,
             }} />
           {/if}
           <BotonMod bind:ref={popSelBtnEl} opts={{
@@ -2940,7 +2938,6 @@ $effect(() => {
               ? (!hayPendientes ? t('asis.masivo.completo') : t('asis.rellenar.sinMarcar', { n: totalPendientes }))
               : t('asis.rellenar.estudiantes', { n: getActiveStudentCount() }),
             title: esEscritorio ? t('asis.masivo.todosDesc') : t('asis.masivo.todos'),
-            compacto: isAndroidMobile,
           }} />
           {#if !isAndroidMobile}
             <BotonMod opts={optsGuardar} />
@@ -3680,22 +3677,33 @@ $effect(() => {
 </div>
 
 <style>
-  /* Android: Sin Clases + Limpiar + Rellenar + Guardar en una REJILLA de 2
-     columnas (2×2), no una fila con scroll lateral. En escritorio la fila sigue
-     siendo un flex que envuelve y cede ancho. */
+  /* Android: Guardar + Sin Clases + Limpiar + Rellenar en UNA sola fila de 4
+     columnas (antes 2×2). Para que quepan, cada botón se apila (icono arriba,
+     etiqueta abajo), pierde la línea de detalle (`sub`) y reduce tipografía/
+     padding: la fila pasa de 2×42px a ~36px y el alto liberado queda para el
+     panel de asistencia. En escritorio la fila sigue siendo un flex que envuelve. */
   .android-actions{scrollbar-width:none;-ms-overflow-style:none;}
   .android-actions::-webkit-scrollbar{display:none;width:0;height:0;}
   /* Rejilla Android. Se replica acá —en vez de reusar <BtnRail>— porque esta
      fila comparte markup con escritorio y lleva el `pop-wrap` de Sin Clases con
      su popover portalado. `:global` porque `.btn-mod` es el nodo raíz de
      `BotonMod` y no lleva el hash de scope de esta página. */
-  .android-actions.acc-grid :global(.btn-mod){ width:100%; min-width:0; }
-  .android-actions.acc-grid :global(.btn-mod .txt){ min-width:0; overflow:hidden; }
+  .android-actions.acc-grid :global(.btn-mod){
+    width:100%; min-width:0;
+    flex-direction:column; justify-content:center;
+    gap:0.1rem; min-height:36px; height:auto; padding:0.28rem 0.2rem;
+    border-radius:9px; font-size:0.62rem;
+  }
+  .android-actions.acc-grid :global(.btn-mod .chip){ width:18px; height:18px; border-radius:5px; font-size:0.7rem; }
+  .android-actions.acc-grid :global(.btn-mod .txt){ align-items:center; min-width:0; overflow:hidden; }
   .android-actions.acc-grid :global(.btn-mod .txt > span:first-child){ max-width:100%; overflow:hidden; text-overflow:ellipsis; }
-  .android-actions.acc-grid :global(.btn-mod .sub){ max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+  /* La línea de detalle no entra en 1/4 de pantalla: se oculta. */
+  .android-actions.acc-grid :global(.btn-mod .sub){ display:none; }
   /* `pop-wrap` trae width:100% (pensado para filtros verticales); como ítem de
-     rejilla se estira a la columna, así que solo se evita que desborde. */
-  .android-actions .pop-wrap{min-width:0;}
+     rejilla se estira a la columna. Se vuelve flex para que su botón llene el
+     alto (los ítems de rejilla se estiran, pero no sus nietos). */
+  .android-actions.acc-grid :global(.pop-wrap){ min-width:0; display:flex; }
+  .android-actions.acc-grid :global(.pop-wrap .btn-mod){ flex:1; }
   /* El DatePicker del riel va como una celda más: iguala altura y tipografía de
      los `<select>` (32px / 0.72rem) para no estirar la fila ni recortar
      "dd/mm/aaaa". La clase la pone AsistenciaPage; `:global` porque el `<button>`
