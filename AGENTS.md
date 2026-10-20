@@ -3362,9 +3362,11 @@ grado/asignatura/corte/año); solo el **activo** se personaliza por colegio/secc
 La app se actualiza bajando el asset del último release publicado en GitHub.
 Vive en `src/lib/updateService.ts` (detección + descarga + instalación) y la UI
 en `src/svelte/ajustes/DebugPage.svelte` (card 🔄, claves `dbg.update.*`). El
-release lo arma `.github/workflows/release.yaml` (Windows + Android) y **solo se
-crea si la versión de `tauri.conf.json` difiere del último tag**, así que un
-`workflow_dispatch` sin cambios de versión no publica nada.
+release lo arma `.github/workflows/release.yaml` (Windows + Android). La
+**compilación corre en cada push a `main`** (Windows + Android, siempre), pero la
+**publicación de la release solo ocurre si la versión de `tauri.conf.json` difiere
+del último tag**: si no cambió, los binarios se suben como artefactos del workflow
+(`windows-<sha>` / `android-<sha>`) y no se crea tag ni release.
 
 Flujo: `releases/latest` → `elegirAsset()` → descarga por `fetch` con progreso →
 escribe en `$APPCACHE` → `invoke('gd_instalar_actualizacion')` → en Windows

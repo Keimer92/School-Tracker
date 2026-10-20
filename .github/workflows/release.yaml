@@ -8,16 +8,18 @@ name: Build and Release
 # todavía decía `1.1.5`, sin que nada avisara.
 #
 # Ahora el push a `main` dispara el pipeline y el primer job decide:
-#   · la versión de `tauri.conf.json` es IGUAL al último tag -> no hace nada
-#   · es DISTINTA -> crea el tag, publica la release y compila
-# Es decir, la release sigue al archivo, que es de donde sale el número que ve
-# el usuario al instalar.
+#   · la versión de `tauri.conf.json` es IGUAL al último tag -> se COMPILA
+#     igual, pero el resultado se sube como artefacto del workflow (no hay
+#     release ni tag nuevo)
+#   · es DISTINTA -> crea el tag, publica la release y sube los assets ahí
+#
+# Es decir: la COMPILACIÓN ocurre en cada commit a `main` (para saber si el
+# código está sano), y la RELEASE sigue al archivo de versión, que es de donde
+# sale el número que ve el usuario al instalar.
 on:
   push:
     branches: [main]
-  # Se conserva el disparo manual por tag para publicar un build exacto sin
-  # esperar un push. El job `prepare` es idempotente: si el tag ya existe, lo
-  # reutiliza en vez de fallar al volver a crearlo.
+  # Disparo manual: publica un build exacto sin esperar un push.
   workflow_dispatch:
 
 # `softprops/action-gh-release` crea la release y sube los assets. Sin este
@@ -50,6 +52,7 @@ jobs:
       release: ${{ steps.check.outputs.release }}
       version: ${{ steps.check.outputs.version }}
       tag: ${{ steps.check.outputs.tag }}
+      sha: ${{ github.sha }}
     steps:
       # `fetch-depth: 0` es OBLIGATORIO: sin el historial completo no hay tags y
       # la comparación contra el último tag da siempre "no hay ninguno", lo que
@@ -116,10 +119,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ── Windows ──
+  # La COMPILACIÓN corre SIEMPRE (en cada push a `main`), haya o no cambio de
+  # versión: sirve para saber si el código sigue compilando. Lo que depende del
+  # cambio de versión es la PUBLICACIÓN (tag + release + assets).
   build-windows:
     name: Compilar Windows
-    needs: [prepare, create-release]
-    if: needs.prepare.outputs.release == 'true'
+    needs: [prepare]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
@@ -146,7 +151,11 @@ jobs:
           VITE_GOOGLE_CLIENT_SECRET: ${{ secrets.VITE_GOOGLE_CLIENT_SECRET }}
           VITE_D1_WORKER_URL: ${{ secrets.VITE_D1_WORKER_URL }}
 
+      # Sin cambio de versión no hay release donde colgar los assets: se suben
+      # como artefactos del workflow (descargables desde la run, sin publicar
+      # nada en la pestaña Releases).
       - name: Upload Windows Artifacts to Release
+        if: needs.prepare.outputs.release == 'true'
         uses: softprops/action-gh-release@v3
         with:
           files: |
@@ -156,11 +165,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Upload Windows Artifacts as Workflow Artifacts
+        if: needs.prepare.outputs.release != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ needs.prepare.outputs.sha }}
+          path: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+
   # ── Android ──
   build-android:
     name: Compilar Android
-    needs: [prepare, create-release]
-    if: needs.prepare.outputs.release == 'true'
+    needs: [prepare]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -274,6 +292,7 @@ jobs:
           VITE_D1_WORKER_URL: ${{ secrets.VITE_D1_WORKER_URL }}
 
       - name: Upload Android Artifacts to Release
+        if: needs.prepare.outputs.release == 'true'
         uses: softprops/action-gh-release@v3
         with:
           files: |
@@ -282,3 +301,13 @@ jobs:
           tag_name: ${{ needs.prepare.outputs.tag }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Android Artifacts as Workflow Artifacts
+        if: needs.prepare.outputs.release != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ needs.prepare.outputs.sha }}
+          path: |
+            src-tauri/gen/android/app/build/outputs/apk/release/*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
