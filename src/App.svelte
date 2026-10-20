@@ -279,6 +279,13 @@
    * garantiza que la app entre igual y registre la causa.
    */
   onMount(() => {
+    // Pantalla siempre encendida mientras la app está abierta (Android:
+    // FLAG_KEEP_SCREEN_ON; escritorio: SetThreadExecutionState / systemd-inhibit /
+    // caffeinate). Va acá, en la parte síncrona, para que cubra también el
+    // WelcomePage y el asistente, no solo la app ya inicializada.
+    void invoke("set_keep_screen_awake", { enabled: true }).catch(error => {
+      console.warn("[KeepAwake] No se pudo mantener la pantalla encendida:", error);
+    });
     // El listener se registra acá, en la parte SINCRÓNICA del onMount, y el
     // cleanup se devuelve como retorno. Antes se deregistraba desde dentro de
     // `iniciar()` con `onDestroy(...)`, lo cual solo funcionaba por casualidad:
@@ -513,6 +520,9 @@
       window.removeEventListener("resize", applySafeAreas);
     }
     driveAutoBackup.stop();
+    // Libera el inhibidor de pantalla (útil en escritorio; en Android la ventana
+    // lo libera sola al cerrarse). No se espera: la app puede estar saliendo.
+    void invoke("set_keep_screen_awake", { enabled: false }).catch(() => {});
   });
 </script>
 

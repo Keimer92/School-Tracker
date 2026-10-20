@@ -86,6 +86,7 @@ commands.allow = [
         "reactivar_estudiantes_batch",
         "get_estudiantes_retirados",
     "set_orientation",
+    "set_keep_screen_awake",
     "check_category_dependencies",
     "delete_category_force",
     "get_indicadores_all",

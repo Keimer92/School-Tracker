@@ -3211,6 +3211,27 @@ símbolos `Java_com_keimer_schooltracker_*`).
 debe compilarse con **`npm run tauri android build`** (que configura el PATH y ejecuta
 el bundling completo dela cadena).
 
+## Pantalla siempre encendida (`set_keep_screen_awake`)
+
+`App.svelte` lo pide apenas monta (`enabled:true`, cubre WelcomePage y asistente) y
+lo libera en `onDestroy`. El comando es idempotente y tiene una rama por plataforma:
+
+| Plataforma | Mecanismo |
+|---|---|
+| Android | JNI → `MainActivity.setKeepScreenOn` → `FLAG_KEEP_SCREEN_ON` en la ventana |
+| Windows | `SetThreadExecutionState(ES_CONTINUOUS \| ES_DISPLAY_REQUIRED \| ES_SYSTEM_REQUIRED)` |
+| Linux | `systemd-inhibit --what=idle ... sleep infinity`; si falta, `xdg-screensaver reset` cada 50 s |
+| macOS | `caffeinate -d -i -w <pid>` (se cierra solo con la app) |
+
+⚠️ **`SetThreadExecutionState` es POR HILO.** Por eso `keep_awake.rs` corre un
+hilo dedicado (`keep-screen-awake`) mientras el flag está activo, en vez de
+llamarlo desde un worker de tokio (si ese worker se recicla, el estado se
+pierde). El `ES_CONTINUOUS` final es en el mismo hilo.
+
+⚠️ En Android el flag lo libera el sistema cuando la ventana deja de ser
+visible, así que no hay que rearmarlo al volver del background. El comando no
+falla si la plataforma no tiene implementación (iOS/otros: no-op).
+
 ## GOTCHA: Cambio de applicationId y el icon del launcher (2026-09)
 
 Tras pasar el `applicationId` de `com.keimer.schooltrackerpro` a

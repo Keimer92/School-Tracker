@@ -1,5 +1,7 @@
 mod db;
 mod d1;
+#[cfg(not(target_os = "android"))]
+mod keep_awake;
 
 use db::*;
 use d1::*;
@@ -440,6 +442,36 @@ async fn set_orientation(_app_handle: tauri::AppHandle, _orientation: String) ->
         )
         .map_err(|e| e.to_string())?;
     }
+    Ok(())
+}
+
+/// Mantiene la pantalla encendida y sin atenuarse mientras la app está abierta.
+///
+/// - Android: `FLAG_KEEP_SCREEN_ON` en la ventana (JNI → MainActivity).
+/// - Escritorio: ver `keep_awake.rs` (Windows/Linux/macOS).
+///
+/// Es idempotente: llamarlo con `true` dos veces no duplica el inhibidor.
+#[tauri::command]
+async fn set_keep_screen_awake(enabled: bool) -> Result<(), String> {
+    #[cfg(target_os = "android")]
+    {
+        use jni::objects::JValue;
+        let (vm, activity) = obtain_native_bridge()?;
+        let mut env = vm.attach_current_thread().map_err(|e| e.to_string())?;
+        env.call_method(
+            activity.as_obj(),
+            "setKeepScreenOn",
+            "(Z)V",
+            &[JValue::Bool(if enabled { 1 } else { 0 })],
+        )
+        .map_err(|e| format!("Error JNI setKeepScreenOn: {}", e))?;
+    }
+
+    #[cfg(not(target_os = "android"))]
+    {
+        keep_awake::set_enabled(enabled);
+    }
+
     Ok(())
 }
 
@@ -2720,6 +2752,7 @@ update_colegio,
             delete_instrumento_plantilla,
             reparar_integridad_notas,
             set_orientation,
+            set_keep_screen_awake,
             check_category_dependencies,
             delete_category_force,
             delete_category_force_batch,

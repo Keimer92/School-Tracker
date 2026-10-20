@@ -92,6 +92,21 @@ class MainActivity : TauriActivity() {
     }
   }
 
+  /**
+   * Mantiene la pantalla encendida y sin atenuarse mientras la app está abierta.
+   * `FLAG_KEEP_SCREEN_ON` se libera solo cuando la ventana deja de ser visible
+   * (la app pasa a segundo plano), así que no hay que rearmarlo al volver.
+   */
+  fun setKeepScreenOn(enabled: Boolean) {
+    runOnUiThread {
+      if (enabled) {
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+      } else {
+        window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+      }
+    }
+  }
+
   fun takeLastGoogleAuthResult(): String? {
     val value = lastNativeAuthResult
     lastNativeAuthResult = null
