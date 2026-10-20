@@ -3909,16 +3909,17 @@ import { primerColegio } from "../lib/catalogo";
           </select>
         </FiltroRail>
         <!--
-          DOS filas de botones (3 + 3) en vez de "fila + popover ⋯": las 6
-          acciones quedan visibles de entrada, sin abrir nada. Misma idea que el
-          riel de filtros: envolver en rejilla en vez de scrollear de lado.
-          Los tres que antes vivían en el popover (instrumentos, distribuir,
-          eliminar notas) bajan a la segunda fila con su mismo tono e ícono.
+          UNA sola fila de 4 (Guardar / Deshacer / Rehacer / ⋯). Las tres acciones
+          que ocupaban una segunda fila (Instrumentos, Distribuir y Eliminar
+          notas) vuelven al popover `⋯`, igual que en escritorio: así la barra
+          queda en ~36px en vez de dos filas de ~42px y el alto liberado es para
+          el panel de notas. El popover es el MISMO de escritorio
+          (`popAcciones`), no una copia.
         -->
-        <BtnRail>
+        <BtnRail columnas={4} compacto>
           <!-- Guardar va antes que Deshacer/Rehacer: es la acción que se usa en
-               cada cambio de nota, así que queda a la vista sin scrollear, igual
-               que en Asistencia. El orden de escritorio no cambia. -->
+               cada cambio de nota, así que queda a la vista sin abrir nada. El
+               orden de escritorio no cambia. -->
           <BotonMod opts={{
             onclick: handleGuardarNotas,
             disabled: !hasUnsavedChanges || saving || estudiantes.length === 0,
@@ -3938,31 +3939,11 @@ import { primerColegio } from "../lib/catalogo";
             sub: redoStack.length === 0 ? t('notas.rehacerNada') : t('notas.porRehacer', { n: redoStack.length }),
             title: t('notas.rehacer')
           }} />
-        </BtnRail>
-        <BtnRail>
-          <BotonMod opts={{
-            onclick: () => { showInstrumentosModal = true; },
-            disabled: indicadores.length === 0,
-            icono: '📋', etiqueta: t('notas.btn.instrumentos'), tono: 'azul',
-            sub: t('notas.btn.instrumentosSub', { a: activeIndicadores.length, b: indicadores.length }),
-            title: t('notas.btn.instrumentosTitulo')
-          }} />
-          <BotonMod opts={{
-            onclick: () => { distribuirTargets = {}; distribuirOverwrite = true; showDistribuirModal = true; },
-            disabled: activeIndicadores.length === 0 || filteredNotas.length === 0,
-            icono: '✨', etiqueta: t('notas.btn.distribuir'), tono: 'violeta',
-            sub: t('notas.btn.distribuirSub', { n: activeIndicadores.length }),
-            title: t('notas.popover.distribuirAuto')
-          }} />
-          <BotonMod opts={{
-            onclick: () => {
-              if (!selectedCorte || !selectedAsignatura) { emit("show-toast", { message: t('notas.del.previa'), type: "warning" }); return; }
-              deleteMode = 'all'; deleteStudentId = 0; deleteIndicatorId = 0; showDeleteModal = true;
-            },
-            disabled: estudiantes.length === 0,
-            icono: '🗑️', etiqueta: t('notas.btn.eliminarNotas'), tono: 'rojo',
-            sub: t('notas.btn.eliminarNotasSub', { n: filteredNotas.length }),
-            title: t('notas.btn.eliminarNotas')
+          <BotonMod bind:ref={popAccionesBtn} opts={{
+            onclick: togglePopAcciones,
+            icono: popAcciones ? '✕' : '⋯', etiqueta: t('notas.acciones'), tono: 'violeta',
+            sub: t('notas.activos', { n: activeIndicadores.length, m: filteredNotas.length }),
+            title: t('notas.btn.acciones'),
           }} />
         </BtnRail>
 
@@ -4400,6 +4381,7 @@ import { primerColegio } from "../lib/catalogo";
     {#if popAcciones}
       <div
         bind:this={popAccionesPanelEl}
+        use:portalToBody
         role="menu"
         style="position: fixed; z-index: 99995; left: {popAcciones.x}px; top: {popAcciones.y}px; width: 242px; background: rgba(20,24,31,0.97); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; box-shadow: 0 18px 40px -10px rgba(0,0,0,0.65); padding: 0.4rem; box-sizing: border-box; display: flex; flex-direction: column; gap: 3px;">
 

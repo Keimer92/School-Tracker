@@ -342,10 +342,17 @@ src-tauri/gen/               generado (ignorar; no editar a mano — EXCEPCIÓN:
 - **tsconfig** excluye únicamente `src/svelte/GoogleDriveBackup.svelte` (componente legacy de Drive).
 - **Android**: comandos de orientación/PDF/share usan JNI y están tras
   `#[cfg(target_os = "android")]`; en desktop devuelven `Err`/`Ok(())` según caso.
-  La orientación se controla desde `App.svelte`: todas las vistas quedan en
-  retrato salvo Notas, que usa el sensor completo (`SCREEN_ORIENTATION_FULL_SENSOR`)
-  para permitir la tabla en horizontal. `set_orientation` usa el puente JNI
-  inicializado desde `MainActivity`, no `ndk_context`.
+  La orientación se controla desde `App.svelte`: **todas las vistas, incluida
+  Notas, quedan en retrato** (`"portrait"`). Antes Notas pedía `"any"`
+  (`SCREEN_ORIENTATION_FULL_SENSOR`) para ver la tabla de reportes en horizontal,
+  pero eso giraba la página con la rotación automática del dispositivo; se quitó
+  a pedido del usuario (el modo retrato usa la boleta). En Android, `"portrait"` =
+  `SCREEN_ORIENTATION_PORTRAIT`, que ignora el auto-rotate del sistema. Además
+  `gen/android/app/src/main/AndroidManifest.xml` declara
+  `android:screenOrientation="portrait"` (antes `fullSensor`): así la ventana ya
+  nace en retrato y no gira ni durante el arranque, aunque el JS todavía no haya
+  llamado al comando. `set_orientation` usa el puente JNI inicializado desde
+  `MainActivity`, no `ndk_context`.
 - **Build**: `npm run build` = `tsc && vite build` (estricto: `strict: true`, pero
   `noUnusedLocals/Parameters` están en `false`). Vite build tiene `minify: false`.
 - **Google Drive OAuth**: tokens guardados en `localStorage['schooltracker-google-drive-settings']`.
@@ -2161,6 +2168,9 @@ lee. Lo que los separa:
   acciones (imprimir/exportar vs Sin Clases/Limpiar/Rellenar/Guardar),
   `handleFilterChange` (en informe no hay borradores que preguntar) y los
   encabezados de fecha (sin `clickHeaderFecha` ni el tooltip "Click para marcar").
+  En Android la fila del informe solo muestra **PDF** (Imprimir es de escritorio)
+  y va compacta (`36px`, fuente `0.68rem`) para no robarle alto al panel; el
+  tomar-asistencia usa la fila de 4 descrita más abajo.
 - **`periodoEfectivo`** = `$derived(enInforme && periodo === 'diario' ? 'semanal' : periodo)`.
   El informe no ofrece "Diario". **Todas** las comparaciones del archivo usan
   `periodoEfectivo`; `periodo` crudo solo se lee en el init, en el `void` del
@@ -2376,22 +2386,28 @@ Qué se cambió (aplica a `registrar` y `reportes`):
 2. **Las filas de utilería dejaron de ser tarjetas**: buscador y acciones ya no
    llevan `class="category-card"` (`.acciones-rail`), así no pagan `padding` +
    `margin` + marco cada una.
-2b. **Las acciones son DOS filas de 3 botones** (`.btn-rail`, otra rejilla de 3
-   columnas), sin el botón `⋯`. En Android el `⋯` abría un popover con tres
-   opciones (Instrumentos / Distribuir / Eliminar notas) y esas tres bajaron a
-   una segunda fila junto a Guardar / Deshacer / Rehacer, con su mismo ícono,
-   tono (`azul`/`violeta`/`rojo`) y `sub`. Así las 6 acciones se ven de entrada,
-   sin abrir nada.
-   - ⚠️ El `⋯` + popover **sigue existiendo para escritorio** (mismo `popAcciones`
-     / `togglePopAcciones`): solo se quitó del branch Android. No borrar el
-     estado ni el panel `{#if popAcciones}` sin revisar el branch de escritorio.
+2b. **Las acciones son UNA fila de 4** (`.btn-rail` con `columnas={4}`), en su
+   variante `compacto`: Guardar / Deshacer / Rehacer / `⋯`. Las otras tres
+   (Instrumentos / Distribuir / Eliminar notas) viven en el popover `⋯`, **el
+   mismo de escritorio** (`popAcciones` / `togglePopAcciones`), no una copia.
+   Antes eran DOS filas de 3 (con las 6 acciones visibles): se volvió al popover
+   porque ~90px de botones dejaban el panel de notas sin alto útil.
+   - La variante `BtnRail.compacto` apila icono+etiqueta, **oculta la línea de
+     detalle** (`sub: display:none`) y reduce `min-height` a 36px / fuente 0.62rem:
+     es lo que permite 4 botones en una sola fila en un teléfono. Se replica el
+     lenguaje de `.android-actions.acc-grid` de `AsistenciaPage`.
+   - ⚠️ `BtnRail` recibe `columnas` (default 3) vía `--btn-cols`; si se pasan 4 y
+     se deja el default, la fila se parte en 3+1.
    - ⚠️ Las reglas de `.btn-rail` necesitan `:global(.btn-mod…)`: `.btn-mod` es el
      nodo raíz de `BotonMod` y **no lleva el hash de scope** de `NotasPage`, así
      que un selector `.btn-rail .btn-mod` pelado no matchea. El `min-width:0` en el
      botón es lo que deja que la etiqueta se recorte con elipsis en vez de forzar
      la columna a crecer (grid usa el `min-content` del ítem como mínimo).
-   - Los botones van **sin `compacto`**: ese prop inyecta `padding` en el `style`
-     en línea y ganaría al padding reducido del CSS.
+   - Los botones van **sin `compacto`** (el prop de `BotonMod`): ese prop inyecta
+     `padding` en el `style` en línea y ganaría al padding reducido del CSS.
+   - ⚠️ El panel `{#if popAcciones}` se monta con `use:portalToBody`: en Android
+     el popover es `position:fixed` y un ancestro con `backdrop-filter` lo
+     atraparía (GOTCHA de `position:fixed` en contenedores glass).
 3. **Estudiante + Nota Final son UNA caja de DOS filas**
    (`.notas-barra-estudiante`, hoy `flex-direction:column`): primero la fila de
    navegación (◀ / nombre / ▶) y debajo la Nota Final (`.nf-est`), las dos a ancho

@@ -118,8 +118,16 @@
 
   $effect(() => {
     if (!isAndroid) return;
-    const orientation = initialized === true && activeTab === "notas" ? "any" : "portrait";
-    void invoke("set_orientation", { orientation }).catch(error => {
+    // RETRATO SIEMPRE, también en Notas. Antes Notas pedía "any"
+    // (SCREEN_ORIENTATION_FULL_SENSOR) para poder ver la tabla de reportes en
+    // horizontal, pero eso también giraba la página con la rotación automática
+    // del sistema. El modo retrato es el preferido (la boleta de reportes ya
+    // está diseñada para vertical), así que se pide "portrait" en todas las
+    // vistas. `void` = dependencias explícitas: se re-afirma al inicializar y al
+    // cambiar de pestaña, por si algo la dejó en otro modo.
+    void activeTab;
+    void initialized;
+    void invoke("set_orientation", { orientation: "portrait" }).catch(error => {
       console.error("[Orientation] No se pudo actualizar la orientación:", error);
     });
   });
