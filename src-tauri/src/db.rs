@@ -6294,6 +6294,24 @@ pub fn grados_secciones_sin_asistencia(
 
     where_parts.push("e.ano_lectivo_id = (SELECT id FROM ano_lectivo WHERE activo = 1)".to_string());
 
+    // Días sin clases: una marca a nivel colegio cubre todas sus secciones; una
+    // marca con grado+sección cubre SOLO esa sección (las secciones son un
+    // catálogo compartido, por eso se exige también el grado). Sin esto, el
+    // recordatorio seguía avisando "no se tomó asistencia" en una sección que el
+    // usuario ya había marcado como sin clases.
+    where_parts.push(
+        "NOT EXISTS (
+            SELECT 1 FROM dia_sin_clases dsc
+            WHERE dsc.colegio_id = e.colegio_id
+              AND dsc.fecha = ?
+              AND (
+                (dsc.grado_id IS NULL AND dsc.seccion_id IS NULL)
+                OR (dsc.grado_id = e.grado_id AND dsc.seccion_id = e.seccion_id)
+              )
+         )"
+        .to_string(),
+    );
+
     let sql = format!(
         "SELECT g.nombre, s.nombre
          FROM estudiante_activo e
@@ -6312,6 +6330,8 @@ pub fn grados_secciones_sin_asistencia(
     for p in &params {
         params_ref.push(p);
     }
+    // Dos `?` con la misma fecha: el del NOT EXISTS (WHERE) y el del HAVING.
+    params_ref.push(&fecha);
     params_ref.push(&fecha);
 
     let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
