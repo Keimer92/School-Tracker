@@ -1941,6 +1941,7 @@ to print. It is saved in Documents/SchoolTrackerPro/Instruments.`,
   'dib.actualizado': '☁️ Backup updated on Google Drive{tam} · {hora}',
   'dib.actualizados': '☁️ {n} backups updated on Google Drive{tam}',
   'dib.errorRespaldar': '⚠️ Could not back up to Drive: {motivo}',
+  'dib.sinConexion': '📡 No connection. Changes are saved and will be backed up automatically when the network returns.',
   'dib.motivo.revincular': 'link your Google account again',
   'dib.motivo.baseVacia': 'your local database is empty: not backed up, to avoid overwriting the good backup',
   // The manual backup is blocked by an empty database too, and the message has

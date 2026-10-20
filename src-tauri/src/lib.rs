@@ -2835,6 +2835,8 @@ update_colegio,
             get_secundaria_colegios,
             get_app_settings,
             set_app_settings,
+            get_app_setting,
+            set_app_setting,
             migrate_settings_from_localstorage,
         ])
         .run(tauri::generate_context!())

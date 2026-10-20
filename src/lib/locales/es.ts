@@ -1965,6 +1965,7 @@ imprimir. Se guarda en Documentos/SchoolTrackerPro/Instrumentos.`,
   'dib.actualizado': '☁️ Respaldo actualizado en Google Drive{tam} · {hora}',
   'dib.actualizados': '☁️ {n} respaldos actualizados en Google Drive{tam}',
   'dib.errorRespaldar': '⚠️ No se pudo respaldar en Drive: {motivo}',
+  'dib.sinConexion': '📡 Sin conexión. Los cambios quedan guardados y se respaldarán solos cuando vuelva la red.',
   'dib.motivo.revincular': 'vuelve a vincular tu cuenta de Google',
   'dib.motivo.baseVacia': 'tu base local está vacía: no se respaldó para no pisar el respaldo bueno',
   // El respaldo manual también se frena con una base vacía, y el mensaje tiene

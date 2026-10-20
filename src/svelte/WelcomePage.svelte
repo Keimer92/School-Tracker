@@ -1241,7 +1241,10 @@
        `position: fixed` lo mantiene anclado aunque la vista haga scroll; el
        popover se cierra al tocar afuera o con Escape. -->
   <LanguagePicker flotante />
-  {#if view === 'landing'}
+  <!-- La vista de nube se decide con `viewNube`, pero la portada manda por
+       `view`. Sin `!viewNube` acá, la tarjeta ☁️ ponía `viewNube = true` y
+       seguía renderizando la portada (el click parecía no hacer nada). -->
+  {#if view === 'landing' && !viewNube}
     <div class="welcome-container" class:android={isAndroidMobile}>
       <div class="welcome-brand">
         {#if isAndroidMobile}

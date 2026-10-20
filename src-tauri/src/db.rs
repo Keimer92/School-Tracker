@@ -6699,6 +6699,41 @@ pub async fn set_app_settings(state: tauri::State<'_, DbState>, settings_json: S
     Ok(())
 }
 
+/// Lee una configuración concreta (key-value JSON) de `app_settings`.
+///
+/// Se usa para separar la config de alertas de asistencia (`key = 'attendance'`)
+/// del blob general (`key = 'main'`). Así un cambio de tema/color en otro equipo
+/// —que reescribe `main` completo— no puede borrar la config de alertas.
+#[tauri::command]
+pub async fn get_app_setting(state: tauri::State<'_, DbState>, key: String) -> Result<String, String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    let result: Result<String, _> = conn.query_row(
+        "SELECT value FROM app_settings WHERE key = ?1",
+        rusqlite::params![key],
+        |row| row.get(0),
+    );
+    match result {
+        Ok(v) => Ok(v),
+        Err(_) => Ok("{}".to_string()),
+    }
+}
+
+/// Guarda una configuración concreta (key-value JSON) en `app_settings`.
+#[tauri::command]
+pub async fn set_app_setting(
+    state: tauri::State<'_, DbState>,
+    key: String,
+    value: String,
+) -> Result<(), String> {
+    let conn = state.conn.lock().map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO app_settings (key, value, updated_at) VALUES (?1, ?2, datetime('now'))
+         ON CONFLICT(key) DO UPDATE SET value = ?2, updated_at = datetime('now')",
+        rusqlite::params![key, value],
+    ).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 /// Migra configuraciones de localStorage a la tabla app_settings (una sola vez).
 /// Devuelve el JSON migrado para que el frontend actualice su estado.
 #[tauri::command]

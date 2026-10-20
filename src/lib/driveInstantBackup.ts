@@ -86,6 +86,36 @@ function notificarError(motivo: string) {
   void emit('show-toast', { message: t('dib.errorRespaldar', { motivo }), type: 'error' });
 }
 
+// ── Falta de conexión: UN aviso por episodio, después silencio total ──
+//
+// Antes, cada guardado con el teléfono sin wifi/datos lanzaba el toast
+// "No se pudo respaldar en Drive: Failed to fetch". El usuario pidió lo
+// contrario: enterarse UNA vez de que no hay conexión y que los guardados
+// sigan fallando en silencio hasta que vuelva la red.
+let sinConexionAvisada = false;
+
+/** ¿El fallo es de red (sin wifi/datos) y no de la app/Drive? */
+function esErrorDeRed(motivo: string): boolean {
+  // `navigator.onLine` no es 100 % fiable (en Android puede decir true sin
+  // ruta real), así que además se inspecciona el mensaje del fallo.
+  if (!navigator.onLine) return true;
+  const m = (motivo || '').toLowerCase();
+  return /failed to fetch|network ?request failed|networkerror|load failed|net::|err_|econn|connection|socket|dns|timed? ?out|timeout|os error 10054|offline|sin conexi|error de red/.test(m);
+}
+
+/** Avisa que no hay internet, una sola vez por corte. */
+function avisarSinConexionUnaVez() {
+  if (sinConexionAvisada) return;
+  sinConexionAvisada = true;
+  console.debug('[DriveInstant] sin conexión: aviso único; los guardados siguen en silencio');
+  void emit('show-toast', { message: t('dib.sinConexion'), type: 'info' });
+}
+
+/** Al volver la red se rearma el aviso para el próximo corte. */
+function marcarConexionRestaurada() {
+  sinConexionAvisada = false;
+}
+
 function isEnabled(): boolean {
   try {
     return localStorage.getItem(ENABLED_KEY) !== 'false';
@@ -125,7 +155,9 @@ function driveLinked(): boolean {
 async function run(): Promise<void> {
   if (!isEnabled()) return;
   if (!navigator.onLine) {
-    console.debug('[DriveInstant] sin conexión: se omite (el cambio se respaldará al volver)');
+    // Se avisa UNA vez por corte y se sigue intentando en cada guardado: si la
+    // red vuelve mientras tanto, la subida ocurre sola y sin mensajes extra.
+    avisarSinConexionUnaVez();
     return;
   }
   if (!driveLinked()) return;
@@ -140,6 +172,7 @@ async function run(): Promise<void> {
     const res = await driveSyncService.pushLatestBackup();
     lastResult = { at: new Date().toISOString(), ok: res.ok, reason: res.reason };
     if (res.ok) {
+      marcarConexionRestaurada();
       console.debug(
         `[DriveInstant] respaldo ${res.created ? 'creado' : 'actualizado'} en ${Date.now() - t0} ms`
       );
@@ -147,7 +180,9 @@ async function run(): Promise<void> {
     } else {
       // 'offline' / 'no_drive' no son fallos: no se avisa para no molestar.
       console.debug(`[DriveInstant] omitido: ${res.reason}`);
-      if (res.reason === 'no_drive') {
+      if (res.reason === 'offline') {
+        avisarSinConexionUnaVez();
+      } else if (res.reason === 'no_drive') {
         // Se quedó sin token: el usuario debe vincular Drive otra vez.
         notificarError(t('dib.motivo.revincular'));
       } else if (res.reason === 'base_vacia') {
@@ -161,7 +196,13 @@ async function run(): Promise<void> {
     const motivo = String((e as Error)?.message || e);
     lastResult = { at: new Date().toISOString(), ok: false, reason: motivo };
     console.warn('[DriveInstant] falló el respaldo instantáneo:', e);
-    notificarError(motivo);
+    // Sin conexión NO es un error para mostrar: ya se avisó una vez (o se avisa
+    // ahora) y a partir de ahí los guardados fallan en silencio, como se pidió.
+    if (esErrorDeRed(motivo)) {
+      avisarSinConexionUnaVez();
+    } else {
+      notificarError(motivo);
+    }
   } finally {
     isRunning = false;
     if (queued) {
@@ -209,6 +250,12 @@ function ensureListener() {
   if (listening) return;
   listening = true;
   document.addEventListener('visibilitychange', onVisibilityChange);
+  // Al recuperar la red se rearma el aviso único. El respaldo pendiente lo
+  // dispara el propio flujo de guardado (o el siguiente cambio), no este listener:
+  // subir sin cambios no aporta nada.
+  window.addEventListener('online', () => {
+    marcarConexionRestaurada();
+  });
   window.addEventListener('pagehide', () => {
     if (debounceTimer) {
       clearTimeout(debounceTimer);

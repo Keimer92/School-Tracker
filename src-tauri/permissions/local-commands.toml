@@ -208,5 +208,7 @@ commands.allow = [
     "d1_reserve_ids",
     "get_app_settings",
     "set_app_settings",
+    "get_app_setting",
+    "set_app_setting",
     "migrate_settings_from_localstorage"
 ]

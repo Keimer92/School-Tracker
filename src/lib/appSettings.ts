@@ -87,12 +87,72 @@ function notify() {
 }
 
 /**
+ * Clave de la fila dedicada de alertas de asistencia dentro de `app_settings`.
+ * No confundir con `main`, que guarda tema/colores/opciones de la UI.
+ */
+const ATTENDANCE_KEY = "attendance";
+
+function leerJSON(raw: string): any {
+  try {
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Escribe SOLO la fila de alertas (no toca el blob `main`). */
+async function escribirFilaAsistencia(settings: AppSettings): Promise<void> {
+  const payload = JSON.stringify({
+    notifEnabled: !!settings.notifEnabled,
+    notifCfg: settings.notifCfg || {},
+  });
+  await invoke("set_app_setting", { key: ATTENDANCE_KEY, value: payload });
+}
+
+/**
+ * Guarda la config de alertas de asistencia en su fila dedicada y dispara el
+ * sync (D1 + respaldo instantáneo a Drive).
+ *
+ * Se separa de `saveAppSettings` a propósito: la config de alertas no puede
+ * viajar dentro del blob `main`, porque cualquier cambio de tema/color en otro
+ * equipo reescribe ese blob completo con su copia en memoria y la pisaría.
+ */
+export async function saveAttendanceSettings(
+  notifEnabled: boolean,
+  notifCfg: AppSettings["notifCfg"]
+): Promise<void> {
+  _settings = { ..._settings, notifEnabled: !!notifEnabled, notifCfg: notifCfg || {} };
+  writeLocalStorageFallback(_settings);
+  try {
+    await escribirFilaAsistencia(_settings);
+    // Copia en `main` solo por compatibilidad con respaldos/versiones viejas.
+    // Las lecturas nuevas prefieren siempre la fila `attendance`.
+    await invoke("set_app_settings", { settingsJson: JSON.stringify(_settings) });
+    const { onDataChange } = await import("./autoSync");
+    onDataChange("app_settings", { immediate: true });
+  } catch (e) {
+    console.error("[appSettings] Error saving attendance settings:", e);
+  }
+  notify();
+}
+
+/**
  * Carga settings desde Rust. La primera vez migra desde localStorage si la tabla está vacía.
+ *
+ * La config de alertas de asistencia vive en su PROPIA fila (`key = 'attendance'`),
+ * separada del blob general (`key = 'main'`). Motivo: `main` se reescribe entero
+ * cada vez que en cualquier equipo se cambia el tema, un color, etc. Si la config
+ * de alertas estuviera dentro de ese blob, un guardado con un estado viejo la
+ * borraba (síntoma: "al reinstalar, la página siempre está desactivada").
  */
 export async function loadAppSettings(): Promise<AppSettings> {
   try {
-    const raw = await invoke<string>("get_app_settings");
-    const parsed = JSON.parse(raw);
+    const [rawMain, rawAtt] = await Promise.all([
+      invoke<string>("get_app_settings"),
+      invoke<string>("get_app_setting", { key: ATTENDANCE_KEY }).catch(() => "{}"),
+    ]);
+    const parsed = leerJSON(rawMain);
+    const att = leerJSON(rawAtt);
     _settings = { ...DEFAULTS, ...parsed };
     // Primera vez: si la tabla vino vacía, migrar desde localStorage
     if (Object.keys(parsed).length === 0) {
@@ -100,6 +160,22 @@ export async function loadAppSettings(): Promise<AppSettings> {
       if (Object.keys(fallback).length > 0) {
         _settings = { ...DEFAULTS, ...fallback };
         await saveAppSettings(_settings);
+      }
+    }
+    // La fila dedicada SIEMPRE gana sobre lo que haya en `main`.
+    const attTieneDatos =
+      !!att && (typeof att.notifEnabled === "boolean" || (att.notifCfg && Object.keys(att.notifCfg).length > 0));
+    if (attTieneDatos) {
+      _settings.notifEnabled = !!att.notifEnabled;
+      _settings.notifCfg = att.notifCfg || {};
+    } else if (_settings.notifEnabled || Object.keys(_settings.notifCfg || {}).length > 0) {
+      // Migración del esquema viejo (todo dentro de `main`/localStorage):
+      // se copia a la fila dedicada para que deje de depender del blob.
+      try {
+        await escribirFilaAsistencia(_settings);
+        console.log("[appSettings] config de alertas migrada a su fila dedicada");
+      } catch (e) {
+        console.warn("[appSettings] no se pudo migrar la config de alertas:", e);
       }
     }
   } catch (e) {
