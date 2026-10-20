@@ -1365,9 +1365,22 @@ su `.category-card` (CSS SCOPED por componente, sin tocar markup entero):
 
 ### Alertas de asistencia: la config vive en la BD (2026-10)
 
-- Fuente de verdad: `app_settings` (clave `main`, tabla sincronizada por D1:
-  `d1.rs`, worker `TABLES`). `notifEnabled` + `notifCfg` (mapa por colegio id →
-  `{activo, inicio, fin, intervaloMin}`) ya están ahí.
+- Fuente de verdad: `app_settings`, pero **en su PROPIA fila** (`key='attendance'`),
+  separada del blob general (`key='main'`; tabla sincronizada por D1: `d1.rs`,
+  worker `TABLES`). `notifEnabled` + `notifCfg` (mapa por colegio id →
+  `{activo, inicio, fin, intervaloMin}`) viven en esa fila.
+  - ⚠️ Motivo: `main` se reescribe ENTERO cada vez que en cualquier equipo se
+    cambia el tema, un color, etc. (`saveAppSettings({...getAppSettings(), ...})`).
+    Si la config de alertas viajara dentro de ese blob, un equipo con el estado
+    viejo en memoria la borraba al guardar cualquier otra preferencia; el síntoma
+    era "al reinstalar, la página siempre está desactivada" aunque el respaldo
+    tuviera la config. `saveAttendanceSettings()` escribe SOLO la fila
+    `attendance` (y una copia en `main` por compatibilidad); `loadAppSettings()`
+    siempre prefiere la fila dedicada y migra la config vieja de `main` una vez.
+  - Comandos genéricos: `get_app_setting(key)` / `set_app_setting(key, value)`
+    (registrados en `generate_handler!` + `local-commands.toml`). El sync D1 ya
+    recorría todas las filas de `app_settings`, así que la fila nueva viaja sin
+    cambios en el worker.
 - `src/lib/attendanceAlarm.ts` es el ÚNICO punto que deriva el payload nativo
   (`configDesdeSettings`) y arma/cancela la alarma (`aplicarAlarmaAsistencia`
   → `schedule_attendance_alarm`/`cancel_attendance_alarm`):

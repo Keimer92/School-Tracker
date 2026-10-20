@@ -174,6 +174,11 @@ export async function loadAppSettings(): Promise<AppSettings> {
       try {
         await escribirFilaAsistencia(_settings);
         console.log("[appSettings] config de alertas migrada a su fila dedicada");
+        // La fila nueva tiene que llegar a la nube/Drive: es una migración de
+        // esquema, no un cambio de preferencias del usuario, así que se empuja
+        // una sola vez (cuando la fila no existía).
+        const { onDataChange } = await import("./autoSync");
+        onDataChange("app_settings", { immediate: true });
       } catch (e) {
         console.warn("[appSettings] no se pudo migrar la config de alertas:", e);
       }

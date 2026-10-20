@@ -8,8 +8,9 @@
    *
    * Como funciona: por cada colegio se define una ventana horaria `[inicio, fin]` y
    * cada cuanto repetir (AlarmManager nativo). La config vive en la tabla
-   * `app_settings` de la BD (sincronizada con D1) y se manda al calendario de
-   * Android con `schedule_attendance_alarm`.
+   * `app_settings` de la BD (sincronizada con D1), en su PROPIA fila
+   * (`key = 'attendance'`) y se manda al calendario de Android con
+   * `schedule_attendance_alarm`.
    *
    * ⚠️ Se lee de la BD (`loadAppSettings`), NO del localStorage: el localStorage
    * del WebView puede perderse y era la causa de que las alertas "se
@@ -19,7 +20,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { emit } from "@tauri-apps/api/event";
   import { getLocalDateISOString } from "../../lib/dateUtils";
-  import { loadAppSettings, saveAppSettings, getAppSettings } from "../../lib/appSettings";
+  import { loadAppSettings, saveAttendanceSettings, getAppSettings } from "../../lib/appSettings";
   import { aplicarAlarmaAsistencia, configDesdeSettings } from "../../lib/attendanceAlarm";
   import { onMount } from "svelte";
   import { t } from "../../lib/i18n.svelte";
@@ -247,9 +248,11 @@
   async function save() {
     saving = true;
     try {
-      await saveAppSettings({ ...getAppSettings(), notifEnabled: enabled, notifCfg: cfg });
-      // `saveAppSettings` ya refrescó el espejo localStorage con el criterio
-      // "enabled solo si hay colegios activos"; NO reescribirlo a mano aquí.
+      // Fila DEDICADA (`app_settings.key = 'attendance'`): un cambio de tema o
+      // color en otro equipo reescribe `main` y ya no puede pisar esta config.
+      await saveAttendanceSettings(enabled, cfg);
+      // `saveAttendanceSettings` ya refrescó el espejo localStorage con el
+      // criterio "enabled solo si hay colegios activos"; NO reescribirlo aquí.
       const config = configDesdeSettings(getAppSettings());
 
       if (!config.enabled) {
