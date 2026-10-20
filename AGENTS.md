@@ -1400,6 +1400,16 @@ su `.category-card` (CSS SCOPED por componente, sin tocar markup entero):
   la BD. Antes leía el localStorage con el FORMATO VIEJO (`colegios` = array de
   objetos contra un `Vec<i64>`, y `hora` que ya no existe) → el aviso estaba
   muerto en silencio.
+- ⚠️ **`grados_secciones_sin_asistencia` (db.rs) DEBE excluir los días sin
+  clases.** Es la única consulta que usan la alarma nativa (JNI
+  `nativeQueryAttendancePending`) y el aviso al abrir la app
+  (`get_pendientes_asistencia_filtrados`), así que un `NOT EXISTS` contra
+  `dia_sin_clases` corrige los dos caminos. El alcance es el mismo que en la UI
+  (`coberturaSinClases`): `(grado_id IS NULL AND seccion_id IS NULL)` cubre todo
+  el colegio; `(grado_id = e.grado_id AND seccion_id = e.seccion_id)` cubre solo
+  esa sección (las secciones son un catálogo compartido, por eso se exige el
+  grado). Sin eso, marcar la sección como sin clases seguía avisando "no se tomó
+  asistencia".
 
 ### Plantillas de instrumentos (constructor visual, 2026-10)
 
